@@ -1,0 +1,67 @@
+# WP-C09 — Durable launch orchestration
+
+Status: `planned`
+
+Risk: Very high
+
+## Outcome
+
+An authorized Start request creates one immutable, expiring launch assignment that only the selected runner can claim and reauthorize immediately before local execution, while link wake-up and containment recovery cannot create a second launch or release an occupied checkout.
+
+## Dependencies
+
+- **Requires:** C01, C04, C06, C07, C08.
+- **Unlocks:** E01, L05, W02, X02, X05.
+- **Can run with:** L02/L03/L08 against contract fixtures.
+
+## Scope
+
+- Add launch commands, immutable run-execution assignments/generations, checkout leases/fencing, single-use link intents, and recovery fields.
+- Evaluate workspace/project/provider/profile/runner/project/launch/checkout policy and atomically populate C08's immutable run-snapshot record from C07 configuration versions.
+- Implement two-minute pending command TTL, idempotent create/claim, one successful claim, cancellation, rejection, expiry, and retry rules.
+- Atomically reauthorize claim and acquire the cloud physical-worktree lease.
+- Return typed launch data with no command, executable, cwd, argv, task text, repository URL, branch, token, or local path.
+- Implement final pre-exec authorization against current epochs, cancellation, policy, checkout/config hash, and immutable assignment.
+- Add durable authenticated run-control commands for focus-existing, resume, interrupt, and terminate/cancel. Bind each command to the requesting principal, workspace, runner, immutable execution assignment/generation, action, idempotency key, and short expiry; reauthorize when claimed, deliver by nudge-or-pull, and record an explicit disposition.
+- Implement the server side of managed Universal Link and self-host custom-scheme wake intents: high-entropy, short-lived, single-use, no longer-lived than the durable command, and bound to requesting human/workspace/runner/device key plus that existing command. D1 stores only its verifier/hash; the raw opaque wake identifier is excluded from application logs. Intent redemption only nudges/wakes; command claim remains authoritative.
+- Apply C01's durable abuse controls, bounded bodies, and uniform failures to wake-intent creation/redemption and run-control endpoints without storing raw intent/control values in rate keys or logs.
+- Renew a fenced lease only from a typed runner observation bound to the runner, assignment generation, fencing generation, supervisor PID/start identity, owned provider process group, and local lock.
+- Release a lease only after verified evidence that the entire owned process group and local lock are gone, or after explicit local recovery carrying equivalent proof. Provider exit, session end, result acceptance, socket loss, heartbeat loss, or cloud TTL alone is never release proof.
+- Persist `containment_unknown` when a descendant escapes, PID/process identity is ambiguous, lease renewal loses verified process/lock evidence, or recovery proof is incomplete; keep subsequent BFB launches blocked independently of lease TTL until explicit local recovery succeeds.
+- Keep rejected/expired/blocked execution state separate from run result and treat nudges/links as opportunistic delivery only.
+
+## Non-goals
+
+- Terminal control, acquiring the local lock, inspecting local processes, provider flags, Git mutation, arbitrary remote commands, automatic worktree creation, or inferring result submission.
+- Treating a Universal Link/custom-scheme open, WebSocket nudge, lease TTL, or runner connection as launch authority.
+
+## Work plan
+
+1. Add command/assignment/lease/link-intent/containment migrations and state transitions.
+2. Implement Start authorization and immutable snapshot/specification creation.
+3. Implement claim, final authorization, single-use wake intent, durable run controls, renew/release, expiry, cancellation, and missed-nudge recovery.
+4. Stress concurrent claims, link/WebSocket/control races, replay, revocation, stale config, child-process escape, ambiguous process identity, TTL expiry, and explicit containment recovery.
+
+## Acceptance
+
+- Concurrent claims for one command/physical checkout have exactly one winner.
+- Claim and final authorization both reject revoked humans/grants, changed policy, expired/cancelled command, invalid checkout, and stale snapshot.
+- A changed local config can only tighten policy and forces a replacement immutable snapshot plus another final check.
+- The wire specification and link intent cannot carry cloud-selected shell data, task text, local path, repository URL, branch, credential, executable, or provider arguments beyond the link's random opaque wake identifier.
+- A link intent is short-lived and single-use; wrong human/workspace/runner/device, replay, expiry, or a simultaneous socket nudge cannot create or claim another launch, and only its hash/verifier remains in D1.
+- Wake/control abuse budgets remain durable across Worker isolates; oversized or exhausted requests fail uniformly before creating an extra command, claim, or loggable capability value.
+- Expired reconnect never opens a surprise terminal, and a lost nudge never loses an unexpired durable command.
+- Duplicate run-control requests have one effective disposition; wrong-principal, wrong-runner, wrong-assignment/generation, stale, expired, or revoked controls cannot focus, resume, signal, or terminate a process. Socket loss cannot erase a still-valid control, and cancellation cannot release the checkout until verified local containment ends.
+- Provider/session exit, result acceptance, socket/heartbeat loss, and cloud lease TTL do not release a checkout while the owned group/local lock is live or unknown.
+- Escaped descendants, PID reuse ambiguity, and incomplete recovery enter durable `containment_unknown`; only explicit proof that no owned process/lock remains clears it.
+- Blocking/expiry leaves run result open and records a typed execution reason.
+
+## Evidence and handoff
+
+- Commit contention traces, state-transition matrix, malicious-field/link fixtures, nudge/link/control race tests, run-control authorization/idempotency fixtures, lease-release proof matrix, and containment-recovery traces.
+- L08 consumes durable command/nudge/claim/link contracts. L05 receives one immutable assignment/specification and owns local validation, supervisor/process-group evidence, lock acquisition, and recovery inspection.
+
+## Risks and decisions
+
+- Authorization at Start is advisory. Claim and final pre-exec checks are mandatory security boundaries.
+- A cloud lease is only one fence; TTL or server state can never override a still-live local lock or unresolved containment marker.
