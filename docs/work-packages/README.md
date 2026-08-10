@@ -4,7 +4,7 @@ This plan turns the [v0.1 architecture](../../ARCHITECTURE.md) into independentl
 
 The default is sequence over concurrency. Parallel work is allowed only where this document names a stable contract and non-overlapping ownership boundary.
 
-The program contains 41 work packages and nine integration checkpoints. Package IDs are stable identifiers, not a claim that packages execute in numeric order.
+The program contains 42 work packages and nine integration checkpoints. Package IDs are stable identifiers, not a claim that packages execute in numeric order.
 
 ## Delivery rules
 
@@ -25,7 +25,7 @@ The program contains 41 work packages and nine integration checkpoints. Package 
 - `done`: acceptance passes from a clean checkout and the handoff is committed.
 - A package is marked `blocked` only when the same durable blocker has survived the required investigation and cannot be worked around safely.
 
-The status in this index is canonical. Individual package files describe scope and acceptance.
+Package metadata is canonical in each package file. The marked graph and index below are generated from that metadata.
 
 ## Program shape
 
@@ -33,7 +33,11 @@ The status in this index is canonical. Individual package files describe scope a
 flowchart LR
     F["Foundation"] --> C["Control plane"]
     F --> L["Local execution"]
-    C --> Launch["Trusted launch checkpoint"]
+    C --> W["Web board"]
+    C --> RMCP["Remote MCP core"]
+    W --> Team["Team + MCP checkpoint"]
+    RMCP --> Team
+    Team --> Launch["Trusted launch checkpoint"]
     L --> Launch
     Launch --> E["Events and realtime"]
     E --> A["Agent / human loop"]
@@ -45,67 +49,77 @@ flowchart LR
     X --> G
 ```
 
-The first useful alpha is not “the board renders.” It is the complete chain from a task card to an exact local Claude session, truthful live state, a human attention round trip, and explicit result submission.
+The first useful checkpoint is the authenticated team board plus a narrow delegated remote MCP task loop. The first execution alpha remains the complete chain from a task card to an exact local Claude session, truthful live state, a human attention round trip, and explicit result submission.
 
 ## Dependency graph
 
+<!-- bfb:work-package-graph:start -->
+
 ```mermaid
 flowchart TD
-    subgraph Foundation
-        F01["F01 Repository"]
-        F02["F02 Wire contracts"]
-        F03["F03 Cloud substrate"]
-        F04["F04 Tenant persistence"]
+    subgraph Foundation["Foundation"]
+        F01["F01 Repository foundation"]
+        F02["F02 Wire contracts and test doubles"]
+        F03["F03 Cloudflare application substrate"]
+        F04["F04 D1 tenant persistence and migrations"]
     end
-    subgraph Control
-        C01["C01 Hub kernel"]
-        C02["C02 Human identity"]
-        C03["C03 Passkey step-up"]
-        C04["C04 Workspace authz"]
-        C05["C05 Device credentials"]
-        C06["C06 Runner authority"]
-        C07["C07 Projects + policy"]
-        C08["C08 Work records"]
-        C09["C09 Launch orchestration"]
+    subgraph Controlplane["Control plane"]
+        C01["C01 WorkspaceHub command and event kernel"]
+        C02["C02 Human identity and sessions"]
+        C03["C03 Passkey enrollment and step-up"]
+        C04["C04 Workspace authorization"]
+        C05["C05 Human device and CLI credentials"]
+        C06["C06 Runner identity, grants, and tokens"]
+        C07["C07 Projects, repository identity, and policy"]
+        C08["C08 Tasks, runs, context, and work APIs"]
+        C09["C09 Durable launch orchestration"]
     end
-    subgraph Local
-        L01["L01 Daemon"]
-        L02["L02 Checkouts"]
-        L03["L03 Provider kit"]
-        L04["L04 macOS app"]
-        L05["L05 Supervisor"]
-        L06["L06 Hook journal"]
-        L07["L07 Claude"]
-        L08["L08 Runner client"]
+    subgraph Localexecution["Local execution"]
+        L01["L01 Go daemon and CLI kernel"]
+        L02["L02 Exact checkout registry"]
+        L03["L03 Provider adapter kit"]
+        L04["L04 SwiftUI macOS application"]
+        L05["L05 Terminal execution supervisor"]
+        L06["L06 Hook journal and offline inbox"]
+        L07["L07 Claude Code reference adapter"]
+        L08["L08 Runner enrollment and channel client"]
     end
-    subgraph Product
-        W01["W01 App shell"]
-        W02["W02 Launch UI"]
-        E01["E01 Event ingest"]
-        E02["E02 Realtime"]
-        A01["A01 Local MCP"]
-        A02["A02 Attention"]
-        A03["A03 Results"]
-        A04["A04 Measurements"]
-        V01["V01 Artifact storage"]
-        V02["V02 Artifact viewer"]
-        V03["V03 Artifact review"]
+    subgraph Webandrealtime["Web and realtime"]
+        W01["W01 Authenticated app and Work surface"]
+        W02["W02 Runner and launch operations UI"]
+        E01["E01 Event ingestion, projection, and replay"]
+        E02["E02 Browser realtime, timeline, and presence"]
     end
-    subgraph Surfaces
-        P01["P01 Codex"]
-        P02["P02 Grok"]
-        X01["X01 Notifications"]
-        X02["X02 Human CLI"]
-        X03["X03 Remote MCP"]
-        X04["X04 GitHub"]
-        X05["X05 Operations"]
-        G01["G01 Hardening"]
-        G02["G02 Release"]
+    subgraph Agentandhumanloop["Agent and human loop"]
+        A01["A01 Run-scoped local MCP and context"]
+        A02["A02 Human attention workflow"]
+        A03["A03 Result submission and acceptance"]
+        A04["A04 Measurements and provenance"]
+    end
+    subgraph Visualreview["Visual review"]
+        V01["V01 Artifact storage state machine"]
+        V02["V02 Isolated artifact viewer"]
+        V03["V03 Immutable artifact review"]
+    end
+    subgraph Providerparity["Provider parity"]
+        P01["P01 Codex adapter"]
+        P02["P02 Grok adapter"]
+    end
+    subgraph Externalsurfacesandoperations["External surfaces and operations"]
+        X01["X01 Actionable notifications"]
+        X02["X02 Human CLI parity"]
+        X03["X03 Remote MCP parity extensions"]
+        X03A["X03A Remote OAuth MCP core"]
+        X04["X04 GitHub evidence integration"]
+        X05["X05 Operations, audit, and retention"]
+    end
+    subgraph Golive["Go-live"]
+        G01["G01 Integrated adversarial hardening"]
+        G02["G02 Release, self-hosting, and recovery"]
     end
 
     F01 --> F02
     F01 --> F03
-    F01 --> L01
     F02 --> F04
     F03 --> F04
     F02 --> C01
@@ -137,17 +151,12 @@ flowchart TD
     C06 --> C09
     C07 --> C09
     C08 --> C09
-
+    F01 --> L01
     F02 --> L01
     F02 --> L02
     L01 --> L02
     F02 --> L03
     L01 --> L03
-    C06 --> L08
-    F02 --> L08
-    L01 --> L08
-    L02 --> L08
-    L03 --> L08
     C06 --> L04
     L01 --> L04
     L08 --> L04
@@ -162,12 +171,29 @@ flowchart TD
     L03 --> L06
     L05 --> L06
     L08 --> L06
-
+    A01 --> L07
+    E01 --> L07
+    L03 --> L07
+    L05 --> L07
+    L06 --> L07
+    C06 --> L08
+    F02 --> L08
+    L01 --> L08
+    L02 --> L08
+    L03 --> L08
     C02 --> W01
     C03 --> W01
     C04 --> W01
     C08 --> W01
     F03 --> W01
+    C03 --> W02
+    C06 --> W02
+    C09 --> W02
+    L03 --> W02
+    L04 --> W02
+    L05 --> W02
+    L08 --> W02
+    W01 --> W02
     C01 --> E01
     C04 --> E01
     C06 --> E01
@@ -183,19 +209,6 @@ flowchart TD
     L05 --> A01
     L06 --> A01
     L08 --> A01
-    A01 --> L07
-    E01 --> L07
-    L03 --> L07
-    L05 --> L07
-    L06 --> L07
-    C03 --> W02
-    C06 --> W02
-    C09 --> W02
-    L03 --> W02
-    L04 --> W02
-    L05 --> W02
-    L08 --> W02
-    W01 --> W02
     A01 --> A02
     E02 --> A02
     W01 --> A02
@@ -207,13 +220,12 @@ flowchart TD
     A03 --> A04
     E01 --> A04
     W01 --> A04
-
     A01 --> V01
     C01 --> V01
     C04 --> V01
     F03 --> V01
-    V01 --> V02
     C01 --> V02
+    V01 --> V02
     W01 --> V02
     A03 --> V03
     A04 --> V03
@@ -233,7 +245,6 @@ flowchart TD
     L05 --> P02
     L06 --> P02
     L07 --> P02
-
     A02 --> X01
     A03 --> X01
     E02 --> X01
@@ -259,11 +270,15 @@ flowchart TD
     A01 --> X03
     A02 --> X03
     A03 --> X03
-    C01 --> X03
-    C02 --> X03
-    C03 --> X03
-    C04 --> X03
     V01 --> X03
+    X03A --> X03
+    C01 --> X03A
+    C02 --> X03A
+    C03 --> X03A
+    C04 --> X03A
+    C07 --> X03A
+    C08 --> X03A
+    F03 --> X03A
     A03 --> X04
     C01 --> X04
     C03 --> X04
@@ -287,7 +302,6 @@ flowchart TD
     W01 --> X05
     X01 --> X05
     X04 --> X05
-
     A04 --> G01
     E02 --> G01
     L07 --> G01
@@ -309,15 +323,19 @@ flowchart TD
     X05 --> G02
 ```
 
+<!-- bfb:work-package-graph:end -->
+
 Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes this graph and the package index generated output and fails CI on drift. Until F01 exists, the same relationship is checked mechanically before roadmap changes are committed.
 
 ## Package index
+
+<!-- bfb:work-package-index:start -->
 
 ### Foundation
 
 | ID | Package | Status | Risk |
 | --- | --- | --- | --- |
-| F01 | [Repository foundation](WP-F01-repository-foundation.md) | `planned` | Medium |
+| F01 | [Repository foundation](WP-F01-repository-foundation.md) | `done` | Medium |
 | F02 | [Wire contracts and test doubles](WP-F02-wire-contracts.md) | `planned` | High |
 | F03 | [Cloudflare application substrate](WP-F03-cloud-substrate.md) | `planned` | High |
 | F04 | [D1 tenant persistence and migrations](WP-F04-tenant-persistence.md) | `planned` | Very high |
@@ -388,7 +406,8 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 | --- | --- | --- | --- |
 | X01 | [Actionable notifications](WP-X01-notifications.md) | `planned` | Medium |
 | X02 | [Human CLI parity](WP-X02-human-cli.md) | `planned` | High |
-| X03 | [Remote OAuth MCP](WP-X03-remote-mcp.md) | `planned` | Very high |
+| X03 | [Remote MCP parity extensions](WP-X03-remote-mcp.md) | `planned` | Very high |
+| X03A | [Remote OAuth MCP core](WP-X03A-remote-mcp-core.md) | `planned` | Very high |
 | X04 | [GitHub evidence integration](WP-X04-github.md) | `planned` | High |
 | X05 | [Operations, audit, and retention](WP-X05-operations.md) | `planned` | High |
 
@@ -399,12 +418,14 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 | G01 | [Integrated adversarial hardening](WP-G01-system-hardening.md) | `planned` | Very high |
 | G02 | [Release, self-hosting, and recovery](WP-G02-release-self-host.md) | `planned` | Very high |
 
+<!-- bfb:work-package-index:end -->
+
 ## Integration checkpoints
 
 | Checkpoint | Packages | Required demonstration |
 | --- | --- | --- |
 | IC-0 — Platform | F01–04, C01 | Clean checkout builds; local Cloudflare stack deploys; schema/codegen, D1 migration, tenant-repository, and hub-serialization checks pass |
-| IC-1 — Team workspace | C02–04, C07–08, W01 | Three humans have different workspace/project rights and can operate isolated task/run/context records |
+| IC-1 — Team workspace + remote MCP | C02–04, C07–08, W01, X03A | Three humans have different workspace/project rights, can operate isolated task/run/context records, and can delegate the bounded task loop to a remote MCP client |
 | IC-2 — Trusted Mac | C06, L01–04, L08 | A Mac enrolls, reconnects, and reports a verified checkout/provider capability without gaining authority outside its grants |
 | IC-3 — Provider-neutral tracked launch | C09, L05, W02 | A card launches the fake provider in the exact checkout; mismatch, occupancy, expiry, lock, revocation, run controls, and containment fail safely |
 | IC-4 — Truthful live run | L06, E01–02 | Disconnects, duplicate hooks, concurrent runs, daemon failure, heartbeat gaps, and replay neither lose nor misattribute accepted events |
@@ -420,28 +441,32 @@ IC-3 deliberately proves launch authority, PTY behavior, locking, controls, and 
 The recommended plan uses concurrency only where it buys real time without contract churn:
 
 1. After F01, F02 and F03 can run together. F04 waits for both.
-2. After F02, L01 may proceed while F04 → C01 starts the control plane; after L01, L02 and L03 can run together.
-3. C05, C06, and C08 are logically separate after C07 but share D1/hub surfaces, so sequence their migrations. Once C06 and C08 are stable, C09 and L08 can run together against F02 fixtures. L04 follows L08; L05 follows C09, L04, and L08; L06 follows L05.
-4. After IC-5, P01 and P02 own provider-local descriptors/directories and can run together. The V01 → V02 → V03 chain can overlap provider work because it owns separate artifact surfaces.
-5. X01, X03, and X04 can run together after their dependencies freeze. X02 waits for provider parity; X05 waits for X01 and X04.
+2. The selected web-first tranche continues F04 → C01 → C02 → C03 → C04 → C07 → C08 → W01 → X03A. W01 and X03A may run together only after C08's shared commands freeze.
+3. After F02, L01 may proceed while the web-first tranche continues; after L01, L02 and L03 can run together.
+4. C05, C06, and C08 are logically separate after C07 but share D1/hub surfaces, so sequence their migrations. Once C06 and C08 are stable, C09 and L08 can run together against F02 fixtures. L04 follows L08; L05 follows C09, L04, and L08; L06 follows L05.
+5. After IC-5, P01 and P02 own provider-local descriptors/directories and can run together. The V01 → V02 → V03 chain can overlap provider work because it owns separate artifact surfaces.
+6. X01, X03, and X04 can run together after their dependencies freeze. X02 waits for provider parity; X05 waits for X01 and X04.
 
 Everything else is sequential by default. In particular, do not parallelize packages that both change D1 migrations, `WorkspaceHub`, auth middleware, the root daemon dispatcher, local SQLite migrations, or shared generated contracts.
 
 ## Selected alpha dependency spine
 
-The full graph above is authoritative. This smaller diagram highlights the major joins on the route to the first useful alpha:
+The full graph above is authoritative. This smaller diagram highlights the web/MCP checkpoint and the major joins that follow it:
 
 ```mermaid
 flowchart LR
     F01 --> F02 --> F04 --> C01 --> C02 --> C03 --> C04 --> C07
     F01 --> F03 --> F04
+    C07 --> C08 --> W01
+    C08 --> X03A
+    F03 --> X03A
     C07 --> C06 --> C09
-    C07 --> C08 --> C09
+    C08 --> C09
     F02 --> L01 --> L02 --> L08
     L01 --> L03 --> L08
     C06 --> L08 --> L04 --> L05
     C09 --> L05 --> L06 --> E01
-    C08 --> W01 --> E02
+    W01 --> E02
     E01 --> E02
     C08 --> A01
     E01 --> A01
@@ -466,7 +491,7 @@ Before starting a package:
 2. Fill the [package template](TEMPLATE.md) contract section, exact clean-checkout test target, and stable evidence-manifest path; freeze every consumed contract.
 3. Resolve every package decision; add an ADR if the answer changes the architecture.
 4. Record consumed schema versions, migration head, and the previous checkpoint command.
-5. Create a feature branch from current `main` for implementation-sized work.
+5. Confirm the assigned feature branch was created from current `main`; sequential packages in one approved goal may use sequential commits on that branch.
 6. Run the previous checkpoint before editing.
 
 At handoff:
@@ -481,4 +506,4 @@ The [acceptance matrix](ACCEPTANCE.md) maps the architecture’s release gates t
 
 ## Optional early-release cuts
 
-All packages remain in the v0.1 architecture. If we later want an earlier private alpha, the cleanest candidates to move after that alpha are X03 remote MCP, X04 GitHub evidence, broad X02 CLI parity, browser push inside X01, and some secondary artifact renderers. Exact-checkout containment, passkey step-up, tenant isolation, offline replay, attention, provenance, and artifact sandboxing are not sensible cuts; they are the product’s trust boundary and differentiation.
+All packages remain in the v0.1 architecture. X03A is part of the web/MCP checkpoint; X03 parity extensions are not. Other clean early cuts are X04 GitHub evidence, broad X02 CLI parity, browser push inside X01, and secondary artifact renderers. Exact-checkout containment, passkey step-up, tenant isolation, offline replay, attention, provenance, and artifact sandboxing are not sensible cuts from the execution alpha; they are its trust boundary and differentiation.

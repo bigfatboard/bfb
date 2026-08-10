@@ -1,0 +1,9 @@
+**/*.md
+**/*.sql
+**/*.pbxproj
+**/*.xcscheme
+pnpm-lock.yaml
+dist/
+coverage/
+node_modules/
+

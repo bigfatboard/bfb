@@ -147,7 +147,7 @@ Repository configuration never contains credentials, absolute paths, or duplicat
 | Record | Meaning | Important invariants |
 | --- | --- | --- |
 | Project | A repository or monorepo workspace and its BFB policy boundary | Cloud identity uses immutable host repository ID where available plus normalized workspace-relative subpath, not a local path |
-| Task | Durable desired outcome | Agent-created root tasks begin as `proposed` |
+| Task | Durable desired outcome | Agent-created root tasks begin as `proposed`; priority, due time, intended next owner, and next-action reason are explicit |
 | Run | One attempt to execute a task | Captures configuration, checkout, requester, provider profile, executions, sessions, and immutable result submissions |
 | Provider session | One harness conversation within a run | Requested ID, where supported, is distinct from the ID actually observed and bound by a trusted hook/event |
 | Attention request | A specific clarification, review, credential/capability need, destructive-action approval, or blocker | Kind, required permission, open/answered state, and referenced immutable object are explicit; none is inferred from a stopped turn |
@@ -178,6 +178,8 @@ stateDiagram-v2
 
 An agent may create child tasks under a human-rooted task according to project policy. It may not silently create a backlog of ready root tasks.
 
+Task routing stays small: priority is `P0`–`P3`, due time is optional, and the intended next owner is one human, one agent profile, or unassigned with a bounded next-action reason. Assigning an agent profile is a planning action, not actor attribution, process presence, or proof that work began. The cross-project current-human deck is a deterministic projection of P0/P1 human-owned tasks that are blocked or due; A02 runtime attention requests remain a separate later record.
+
 Run result, local execution attachment, and live activity are separate fields:
 
 - `run.result_state`: `open`, `submitted`, `changes_requested`, `accepted`, `failed`, or `cancelled`.
@@ -202,7 +204,7 @@ Task context is stored as typed context items with audience `human`, `agent`, or
 - Humans with project access can inspect agent-facing context. Agents receive only the scoped agent view through MCP; they cannot scrape the human UI or enumerate the workspace.
 - A secret reference may name a local credential slot, but the secret value never becomes task context.
 
-Every `bfb_get_context` response has an immutable `context_version`, canonical hash, generation time, and run binding. The delivered version/hash is recorded on the run; later edits produce another version and an event rather than changing what history says the agent saw. Current authorization is checked on every retrieval, so an approved launch does not preserve context access after revocation.
+Every agent-facing context snapshot has an immutable `context_version`, canonical hash, and generation time. Each retrieval records a delivery bound to the authenticated authority: local run-scoped access records the version/hash on the run, while remote delegated access records the OAuth delegation, client, and request time without inventing a run. Later edits produce another version and event rather than changing what history says a consumer saw. Current authorization is checked on every retrieval, so an approved launch or delegation does not preserve context access after revocation.
 
 The “latest work” view is a projection of committed semantic events, comments, explicit progress reports, artifacts, GitHub evidence, and reviews. BFB never constructs a success summary by scraping terminal prose.
 
@@ -585,7 +587,9 @@ MCP represents deliberate agent actions, not every harness event. v0.1 exposes t
 
 | Tool | Effect |
 | --- | --- |
-| `bfb_get_context` | Return the current run’s scoped task, accepted plan, constraints, decisions, and safe links |
+| `bfb_list_projects` | Return bounded summaries of projects accessible to the authenticated authority |
+| `bfb_list_tasks` | Return a bounded page of accessible tasks under the authenticated boundary |
+| `bfb_get_context` | Return the scoped task, accepted plan, constraints, decisions, and safe links for the authenticated run or delegation |
 | `bfb_get_task` | Return one accessible task and its current state |
 | `bfb_update_task` | Update permitted task fields with a version check |
 | `bfb_add_comment` | Add a typed progress or discussion comment |
@@ -603,11 +607,17 @@ A run-scoped agent cannot promote a proposed root task, edit human-only context,
 
 `bfb_wait_for_attention` waits for at most 30 seconds per call and can be called again; it never holds a Cloudflare request indefinitely. An interactive agent continues automatically after a human answer only while it is actively waiting through this operation. Otherwise the answer is available on its next MCP call and a human may need to return to the terminal. Vendor-native permission dialogs are separate from BFB attention requests and cannot be answered remotely in a uniform, provider-neutral way in v0.1.
 
-Remote clients use Streamable HTTP MCP at `/mcp`. The server publishes OAuth authorization-server and protected-resource metadata and supports preregistered clients plus HTTPS Client ID Metadata Documents under an SSRF-safe fetch/allow policy; open Dynamic Client Registration and authenticated end-user client CRUD are disabled in v0.1. Redirect URIs match exactly, Authorization Code uses PKCE S256 and `state`, and refresh tokens rotate on use.
+Remote clients use stateless Streamable HTTP MCP `2026-07-28` at `/mcp`. The Control Worker creates an isolated SDK v2 server for each request with `createMcpHandler(..., { legacy: "reject" })`; it does not use `McpAgent`, the legacy GET-based HTTP+SSE handler, `initialize`/`initialized`, `Mcp-Session-Id`, sticky transport state, or an MCP-specific Durable Object. Request-scoped Streamable HTTP responses may use SSE when the current protocol and SDK require it. Routing requires `MCP-Protocol-Version` and `Mcp-Method`; `Mcp-Name` is also required for `tools/call`, `resources/read`, and `prompts/get`, while methods such as `server/discover` and `tools/list` legitimately omit it. Missing, unsupported, or body-mismatched metadata fails closed.
 
-Consent displays and binds one selected workspace, optional project/task/run boundary, the canonical BFB MCP resource, and explicit scopes such as `bfb:read`, `bfb:task:write`, `bfb:attention:write`, and `bfb:artifact:write`. The authorization endpoint creates the BFB-owned `oauth_delegation` before a Better Auth grant/token can become active. Better Auth is configured with `disableJwtPlugin: true`, hashed token storage, and client privileges that deny user client creation/update/deletion. v0.1 permits only authorization-code and rotating refresh-token grants for server-approved public clients; `client_credentials` and tokens without both a human principal and active delegation fail closed.
+The handler receives explicit `allowedHostnames` from F03's validated canonical host configuration and explicit non-credentialed `corsOptions`. Native requests without `Origin` are permitted; a present `Origin` must exactly match the configured app origin. Arbitrary Host, opaque/null Origin, and every other origin fail closed.
 
-BFB validates the MCP resource, delegation boundary, and scopes on every call and rechecks current membership/authorization epoch for revocation. Tool handlers derive boundaries from the delegation and reject caller-supplied IDs outside them. Unauthorized responses include the protected-resource metadata URL in `WWW-Authenticate`. This follows the current [MCP authorization specification](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization) and the configured [Better Auth OAuth Provider](https://better-auth.com/docs/plugins/oauth-provider).
+The server publishes OAuth authorization-server and protected-resource metadata and supports only server-preregistered public clients in the first checkpoint; open Dynamic Client Registration, Client ID Metadata Documents, and authenticated end-user client CRUD are disabled. Redirect URIs match exactly, Authorization Code uses PKCE S256 and `state`, and refresh tokens rotate on use. Client ID Metadata Documents require a later dependency/architecture decision because the pinned Better Auth `1.6.26` stack has no supported discovery extension; BFB does not build a private compatibility layer against auth internals.
+
+Consent displays and binds one selected workspace, optional project/task boundary, the canonical BFB MCP resource, and explicit scopes such as `bfb:read`, `bfb:task:write`, `bfb:attention:write`, and `bfb:artifact:write`. Creating or widening a delegation requires a fresh C03 proof bound to the client, resource, workspace/project/task boundary, scopes, expiry, and current authorization epoch. The authorization endpoint creates the BFB-owned `oauth_delegation` before a Better Auth grant/token can become active. Better Auth is configured with `disableJwtPlugin: true`, hashed token storage, and client privileges that deny user client creation/update/deletion. v0.1 permits only authorization-code and rotating refresh-token grants for server-approved public clients; `client_credentials` and tokens without both a human principal and active delegation fail closed.
+
+BFB validates the MCP resource, delegation boundary, and scopes on every call and rechecks current membership/authorization epoch for revocation. Tool handlers derive boundaries from the delegation and reject caller-supplied IDs outside them. Unauthorized responses include the protected-resource metadata URL in `WWW-Authenticate`. This follows the [MCP 2026-07-28 protocol](https://blog.modelcontextprotocol.io/posts/2026-07-28/), Cloudflare's current [handler API](https://developers.cloudflare.com/agents/model-context-protocol/apis/handler-api/), and the configured [Better Auth OAuth Provider](https://better-auth.com/docs/plugins/oauth-provider).
+
+The early remote tool map is deliberately smaller than the full table above: `bfb_list_projects`, `bfb_list_tasks`, `bfb_get_task`, `bfb_get_context`, `bfb_add_comment`, `bfb_report_progress`, and `bfb_propose_task`. Every mutation returns its committed idempotent outcome directly. Attention, results, and artifacts join only after their owning packages. Remote OAuth acts with the authorizing human's delegated authority. BFB records the human sponsor, authenticated client, and optional client-reported provider label separately; MCP traffic alone cannot create `agent_run` identity or prove live agent work, elapsed time, token usage, completion, review, or acceptance.
 
 ### CLI
 
@@ -647,11 +657,11 @@ The initial implementation pins Better Auth rather than following an unbounded s
 
 The Better Auth Organization plugin is deliberately not enabled in v0.1: exposing its member/invitation mutation routes would create a second authority beside BFB’s workspace authorization service.
 
-Better Auth owns credential issuance and protocol records; BFB owns every workspace/project/task/run authorization boundary behind those credentials. A Better Auth OAuth grant/token or API key is usable only while it references an active BFB-owned `oauth_delegation` or `api_key_binding` carrying that boundary, scopes, human/integration principal, expiry, and authorization epoch. The BFB record is created before the credential becomes active. Revocation disables the BFB record atomically with the workspace command before any asynchronous cleanup of Better Auth rows, so a cleanup failure cannot preserve authority.
+Better Auth owns credential issuance and protocol records; BFB owns every workspace/project/task authorization boundary behind those credentials. A Better Auth OAuth grant/token or API key is usable only while it references an active BFB-owned `oauth_delegation` or `api_key_binding` carrying that boundary, scopes, human/integration principal, expiry, and authorization epoch. The BFB record is created before the credential becomes active. Revocation disables the BFB record atomically with the workspace command before any asynchronous cleanup of Better Auth rows, so a cleanup failure cannot preserve authority.
 
 Web sessions use secure, HTTP-only, same-origin cookies with exact trusted origins and `SameSite=Lax`. Session data stays in D1; cookie session caching is not enabled initially. Better Auth is configured with `account.encryptOAuthTokens: true`, secure cookies, exact trusted origins, and self-host telemetry disabled. CI verifies that GitHub tokens are not plaintext. Encryption and OAuth signing keys use `kid`-identified current/previous overlap during rotation; GitHub installation access tokens stay short-lived and out of D1/logs.
 
-Sensitive actions—runner enrollment/sharing, integration changes, ownership changes, destructive/production-like policy changes, and high-impact attention approvals—require an action-bound nonce plus a fresh user-verifying passkey/WebAuthn assertion. Passkeys are configured with `userVerification: "required"`; a newly created cookie alone is not step-up authentication.
+Sensitive actions—runner enrollment/sharing, integration changes, ownership changes, OAuth delegation creation/widening, destructive/production-like policy changes, and high-impact attention approvals—require an action-bound nonce plus a fresh user-verifying passkey/WebAuthn assertion. Passkeys are configured with `userVerification: "required"`; a newly created cookie alone is not step-up authentication.
 
 Ordinary Better Auth passkey-mutation routes are not exposed directly. Initial enrollment requires a fresh GitHub reauthentication and an action-bound enrollment nonce; subsequent additions or deletions require an assertion from an existing passkey. A user who owns a workspace cannot remove the final registered user-verifying authenticator. Recovery is an explicit operator flow, not automatic trust in a stolen session cookie. The underlying options are documented by the [Better Auth Passkey plugin](https://better-auth.com/docs/plugins/passkey).
 
@@ -695,6 +705,8 @@ BFB recognizes these principal types:
 - `system`: a named internal queue/maintenance action.
 
 An agent profile is not a principal and cannot own a credential. A runner cannot impersonate the human who requested a launch. Audit records preserve both `requested_by_human_id` and `executed_by_runner_id`.
+
+A delegated remote MCP client is recorded as a client acting through its human sponsor, not as a verified agent process. A provider name supplied by that client remains reported metadata. Only a run-scoped local capability or a future explicitly designed remote run delegation may act as `agent_run`.
 
 ### CLI and runner enrollment
 
@@ -751,7 +763,7 @@ Cloudflare-side OAuth, signing, encryption, VAPID, and GitHub webhook secrets us
 
 A self-host deployment generates a high-entropy first-owner bootstrap value as a Worker Secret and a corresponding unconsumed D1 bootstrap record. Creating the first workspace/owner requires fresh GitHub authentication plus that value and atomically consumes it with the owner/workspace/audit rows. After consumption the route permanently rejects; the first person who merely signs in is never promoted.
 
-Internet-facing auth capabilities use shared D1-backed rate buckets keyed by hashed IP plus subject/code/client, with Cloudflare edge limits as an outer layer. Device user codes, invitations, OAuth client metadata fetches/token endpoints, runner challenges, upload/view grants, and bootstrap attempts have short expiry, attempt/poll caps, bounded bodies, and uniform failure responses. Repeated abuse can require Turnstile; isolate-local Worker memory is never the only limiter.
+Internet-facing auth capabilities use shared D1-backed rate buckets keyed by hashed IP plus subject/code/client, with Cloudflare edge limits as an outer layer. Device user codes, invitations, OAuth authorization/token endpoints, runner challenges, upload/view grants, and bootstrap attempts have short expiry, attempt/poll caps, bounded bodies, and uniform failure responses. Repeated abuse can require Turnstile; isolate-local Worker memory is never the only limiter.
 
 ## Data layout
 
@@ -981,13 +993,14 @@ v0.1 is ready only when these behaviors are automated and reproducible:
 
 Each slice ends in an end-to-end behavior rather than an isolated subsystem.
 
-1. **Foundation:** monorepo, JSON Schema fixtures, Worker/Static Assets, D1 migrations, Better Auth, workspace/project authorization, and local/staging deployment. Verify tenant isolation before feature work.
-2. **First launch:** Go daemon/CLI, Swift app, runner enrollment, checkout registry, durable launch commands, Terminal.app bootstrap, and Claude Code adapter. Verify exact-checkout launch and safe blocking cases.
-3. **Live work:** hook ingestion, SQLite outbox, WorkspaceHub, D1 event/projection batches, replaying web UI, run presence, and attention inbox. Verify offline and duplicate delivery.
-4. **Agent interaction:** local MCP context/progress/attention/result submission, task context audiences, comments, notifications, and run metrics. Verify run-scoped capabilities.
-5. **Review:** R2/artifact Worker, all bounded formats, immutable versions, sandboxed HTML, evidence, timers, and approval binding. Verify the hostile-artifact suite.
-6. **Provider parity:** Codex and Grok adapters, capability probes, captured hook fixtures, resume/interrupt behavior, and token-quality handling.
-7. **External surfaces:** remote OAuth MCP, complete human CLI surface, GitHub App/webhooks, audit, retention, self-host bootstrap, release signing, and recovery documentation.
+1. **Repository foundation:** pinned monorepo targets, root verification, CI, and generated work-package policy.
+2. **Web control plane:** wire fixtures, Worker/Static Assets, D1 migrations, WorkspaceHub, Better Auth, authorization, work records, and the authenticated board. Verify tenant isolation and truthful unavailable states.
+3. **Remote MCP core:** stateless MCP `2026-07-28`, human delegation, the bounded C08 task loop, revocation, and credential separation. Verify the public auth and routing negatives without claiming a tracked agent run.
+4. **First launch:** Go daemon/CLI, Swift app, runner enrollment, checkout registry, durable launch commands, Terminal.app bootstrap, and Claude Code adapter. Verify exact-checkout launch and safe blocking cases.
+5. **Live work:** hook ingestion, SQLite outbox, D1 event/projection batches, replaying web UI, run presence, and attention inbox. Verify offline and duplicate delivery.
+6. **Agent interaction:** local MCP context/progress/attention/result submission, task context audiences, comments, notifications, and run metrics. Verify run-scoped capabilities.
+7. **Review:** R2/artifact Worker, all bounded formats, immutable versions, sandboxed HTML, evidence, timers, and approval binding. Verify the hostile-artifact suite.
+8. **Provider and external parity:** Codex/Grok adapters, remote MCP extensions, CLI, GitHub, audit, retention, self-host bootstrap, release signing, and recovery.
 
 ## Decisions deliberately deferred
 

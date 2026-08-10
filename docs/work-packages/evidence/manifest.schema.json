@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/blob/main/docs/work-packages/evidence/manifest.schema.json",
+  "title": "BFB work-package evidence manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "package",
+    "tested_commit",
+    "protocol_version",
+    "schema_version",
+    "migration_head",
+    "toolchains",
+    "environment",
+    "commands",
+    "outcome",
+    "artifacts",
+    "redaction"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "package": {
+      "type": "string",
+      "pattern": "^[A-Z][0-9]{2}[A-Z]?$"
+    },
+    "tested_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "protocol_version": {
+      "type": ["string", "null"]
+    },
+    "schema_version": {
+      "type": ["string", "null"]
+    },
+    "migration_head": {
+      "type": ["string", "null"]
+    },
+    "toolchains": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "os", "architecture"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["local", "ci", "clean_checkout", "staging", "production"]
+        },
+        "os": {
+          "type": "string"
+        },
+        "architecture": {
+          "type": "string"
+        }
+      }
+    },
+    "commands": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["command", "outcome"],
+        "properties": {
+          "command": {
+            "type": "string",
+            "minLength": 1
+          },
+          "outcome": {
+            "type": "string",
+            "enum": ["passed", "failed", "not_run"]
+          },
+          "artifact": {
+            "type": "string",
+            "pattern": "^(?!/)(?!.*\\.\\.)[^\\s]+$"
+          }
+        }
+      }
+    },
+    "outcome": {
+      "type": "string",
+      "enum": ["passed", "failed", "not_run"]
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^(?!/)(?!.*\\.\\.)[^\\s]+$"
+      },
+      "uniqueItems": true
+    },
+    "redaction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "prohibited_content"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["passed", "failed", "not_run"]
+        },
+        "prohibited_content": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "ci": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["passed", "failed", "pending", "not_run"]
+        },
+        "run_url": {
+          "type": "string",
+          "format": "uri"
+        }
+      }
+    }
+  }
+}

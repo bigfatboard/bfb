@@ -11,7 +11,7 @@ Every BFB workspace mutation can execute through one deterministic command lane 
 ## Dependencies
 
 - **Requires:** F02, F03, F04.
-- **Unlocks:** C02, C03, C04, C05, C06, C07, C08, C09, E01, V01, V02, X03, X04, X05.
+- **Unlocks:** C02, C03, C04, C05, C06, C07, C08, C09, E01, V01, V02, X03A, X04, X05.
 - **Can run with:** L01 after F02.
 
 ## Scope

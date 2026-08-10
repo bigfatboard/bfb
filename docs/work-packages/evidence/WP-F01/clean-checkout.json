@@ -1,0 +1,27 @@
+{
+  "tested_commit": "c19cb3a6c5a1b5b3a282b04af9dd9426e59ad0ce",
+  "captured_at": "2026-08-10T21:03:31Z",
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56)",
+    "architecture": "arm64"
+  },
+  "procedure": [
+    "clone the implementation commit into a fresh temporary repository",
+    "corepack enable && corepack install",
+    "pnpm install --frozen-lockfile",
+    "pnpm verify"
+  ],
+  "results": {
+    "frozen_install": "passed",
+    "repository_tests": "28 passed",
+    "work_packages": "42 validated",
+    "go_process_smoke": "passed",
+    "xcode_build": "passed",
+    "xcode_tests": "1 passed",
+    "repository_verification": "passed"
+  },
+  "raw_log_committed": false,
+  "redaction": "passed",
+  "outcome": "passed"
+}

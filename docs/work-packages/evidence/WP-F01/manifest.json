@@ -1,0 +1,48 @@
+{
+  "$schema": "../manifest.schema.json",
+  "package": "F01",
+  "tested_commit": "c19cb3a6c5a1b5b3a282b04af9dd9426e59ad0ce",
+  "protocol_version": null,
+  "schema_version": null,
+  "migration_head": null,
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "xcode": "26.0.1",
+    "swift": "6.2"
+  },
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56)",
+    "architecture": "arm64"
+  },
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-F01/clean-checkout.json"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-F01/command-matrix.json"
+    }
+  ],
+  "outcome": "passed",
+  "artifacts": [
+    "docs/work-packages/evidence/WP-F01/toolchains.json",
+    "docs/work-packages/evidence/WP-F01/command-matrix.json",
+    "docs/work-packages/evidence/WP-F01/roadmap-validator.json",
+    "docs/work-packages/evidence/WP-F01/empty-targets.json",
+    "docs/work-packages/evidence/WP-F01/clean-checkout.json"
+  ],
+  "redaction": {
+    "status": "passed",
+    "prohibited_content": []
+  },
+  "ci": {
+    "status": "passed",
+    "run_url": "https://github.com/qdis/bfb/actions/runs/31432177257"
+  }
+}

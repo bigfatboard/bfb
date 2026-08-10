@@ -1,0 +1,37 @@
+{
+  "name": "bfb",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A provider-neutral control plane for humans and coding agents.",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "packageManager": "pnpm@11.21.0+sha512.521705bce689924eac72f5a3587122f362689ef6571e55ba80076fd637c11132ecffada26fad4ea79c485bfddbfd3d5a2a5b05805a77e893de71ec8a6cca3bb1",
+  "engines": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0"
+  },
+  "scripts": {
+    "build": "tsc -b --pretty false",
+    "clean": "tsc -b --clean",
+    "docs:check": "tsx tools/repository/src/docs-cli.ts",
+    "format": "prettier --write . --ignore-unknown",
+    "format:check": "prettier --check . --ignore-unknown",
+    "go:check": "tsx tools/repository/src/go-cli.ts",
+    "headers:check": "tsx tools/repository/src/aboutme-cli.ts",
+    "lint": "oxlint --deny-warnings apps packages tools prettier.config.mjs vitest.config.ts",
+    "roadmap:check": "tsx tools/repository/src/roadmap-cli.ts check",
+    "roadmap:write": "tsx tools/repository/src/roadmap-cli.ts write",
+    "swift:check": "tsx tools/repository/src/swift-cli.ts",
+    "test": "vitest run",
+    "typecheck": "tsc -b --pretty false",
+    "verify": "tsx tools/repository/src/verify.ts"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.3",
+    "oxlint": "1.78.0",
+    "prettier": "3.9.6",
+    "tsx": "4.23.12",
+    "typescript": "5.9.3",
+    "vitest": "4.1.10"
+  }
+}

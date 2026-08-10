@@ -11,7 +11,7 @@ Sensitive BFB actions require a fresh, user-verifying, action-bound WebAuthn ass
 ## Dependencies
 
 - **Requires:** C01, C02.
-- **Unlocks:** C04, C06, W01, W02, X03, X04, X05.
+- **Unlocks:** C04, C06, W01, W02, X03A, X04, X05.
 - **Can run with:** none against the same auth routes.
 
 ## Scope
@@ -49,7 +49,7 @@ Sensitive BFB actions require a fresh, user-verifying, action-bound WebAuthn ass
 ## Evidence and handoff
 
 - Commit a browser integration test recording, negative-test matrix, and the typed step-up middleware contract.
-- C04 consumes the authenticator-management guard to enforce the workspace-owner final-authenticator invariant; C04/C06/X03 name sensitive operations and do not implement alternate step-up paths.
+- C04 consumes the authenticator-management guard to enforce the workspace-owner final-authenticator invariant; C04/C06/X03A name sensitive operations and do not implement alternate step-up paths.
 
 ## Risks and decisions
 

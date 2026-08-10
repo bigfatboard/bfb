@@ -11,7 +11,7 @@ A human can sign in with GitHub and receive a secure BFB web session, without ga
 ## Dependencies
 
 - **Requires:** C01, F03.
-- **Unlocks:** C03, C04, C05, W01, X03.
+- **Unlocks:** C03, C04, C05, W01, X03A.
 - **Can run with:** L02/L03 after L01.
 
 ## Scope

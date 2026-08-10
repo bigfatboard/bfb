@@ -1,0 +1,12 @@
+// ABOUTME: Configures the repository unit-test suite and its deterministic test discovery.
+// ABOUTME: Keeps verification tests isolated from generated build output and dependencies.
+
+import { defineConfig } from "vitest/config";
+
+export default defineConfig({
+  test: {
+    coverage: { enabled: false },
+    include: ["tools/repository/test/**/*.test.ts"],
+    restoreMocks: true,
+  },
+});

@@ -11,7 +11,7 @@ Authorized humans can register project/repository identities and manage project 
 ## Dependencies
 
 - **Requires:** C01, C04.
-- **Unlocks:** C05, C06, C08, C09, X02, X04, X05.
+- **Unlocks:** C05, C06, C08, C09, X02, X03A, X04, X05.
 - **Can run with:** nothing that changes the shared D1 migration head.
 
 ## Scope
@@ -48,7 +48,7 @@ Authorized humans can register project/repository identities and manage project 
 ## Evidence and handoff
 
 - Commit repository-identity fixtures, project permission matrix, policy-tightening tests, API/pagination fixtures, and immutable configuration snapshots.
-- C06 consumes project IDs/grants; C08 consumes project authorization/configuration versions; C09 consumes policy/profile/config inputs for an immutable launch snapshot; X04 may strengthen identity with GitHub's immutable repository ID.
+- C06 consumes project IDs/grants; C08 consumes project authorization/configuration versions; C09 consumes policy/profile/config inputs for an immutable launch snapshot; X03A consumes the bounded authorized project read; X04 may strengthen identity with GitHub's immutable repository ID.
 
 ## Risks and decisions
 
