@@ -1,7 +1,7 @@
 {
   "$schema": "../manifest.schema.json",
   "package": "C08",
-  "tested_commit": "af1c3a3b8e42c9cb1a31156aa23b5424cf28748d",
+  "tested_commit": "7bbeede94da98059613d12a695d9fdbd5e054c29",
   "protocol_version": "bfb-wire/1",
   "schema_version": "1",
   "migration_head": "0003_auth_and_work",
@@ -23,7 +23,9 @@
     }
   ],
   "outcome": "passed",
-  "artifacts": ["docs/work-packages/evidence/WP-C08/command-result.json"],
+  "artifacts": [
+    "docs/work-packages/evidence/WP-C08/command-result.json"
+  ],
   "redaction": {
     "status": "passed",
     "prohibited_content": []
