@@ -19,10 +19,13 @@
     "go:check": "tsx tools/repository/src/go-cli.ts",
     "headers:check": "tsx tools/repository/src/aboutme-cli.ts",
     "lint": "oxlint --deny-warnings apps packages tools prettier.config.mjs vitest.config.ts",
+    "protocol:generate": "tsx tools/protocol/src/generate.ts",
+    "protocol:check": "tsx tools/protocol/src/check-drift.ts",
     "roadmap:check": "tsx tools/repository/src/roadmap-cli.ts check",
     "roadmap:write": "tsx tools/repository/src/roadmap-cli.ts write",
     "swift:check": "tsx tools/repository/src/swift-cli.ts",
     "test": "vitest run",
+    "test:protocol": "pnpm protocol:check && vitest run packages/protocol-ts/test && go test ./internal/protocol/...",
     "typecheck": "tsc -b --pretty false",
     "verify": "tsx tools/repository/src/verify.ts"
   },

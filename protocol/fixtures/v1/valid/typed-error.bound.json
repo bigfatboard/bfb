@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "category": "bound_exceeded",
+  "code": "string_too_long",
+  "message": "field exceeds maxLength",
+  "path": "/device_label"
+}

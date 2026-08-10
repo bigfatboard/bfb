@@ -1,0 +1,12 @@
+{
+  "package": "F02",
+  "command": "pnpm test:protocol",
+  "outcome": "passed",
+  "checks": [
+    "pnpm protocol:check",
+    "vitest run packages/protocol-ts/test",
+    "go test ./internal/protocol/..."
+  ],
+  "typescript_tests": 26,
+  "go_packages": ["github.com/qdis/bfb/internal/protocol"]
+}

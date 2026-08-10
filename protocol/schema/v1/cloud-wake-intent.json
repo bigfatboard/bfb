@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/cloud-wake-intent.json",
+  "title": "CloudWakeIntent",
+  "description": "Opaque cloud wake intent for Universal Link or custom URL. Never carries shell or task data.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "intent_kind",
+    "intent_id",
+    "workspace_id",
+    "runner_id",
+    "requesting_human_id",
+    "expires_at"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "intent_kind": {
+      "type": "string",
+      "const": "cloud_wake"
+    },
+    "intent_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "workspace_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "runner_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "requesting_human_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "launch_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "expires_at": {
+      "$ref": "primitives.json#/$defs/UtcTimestamp"
+    }
+  }
+}

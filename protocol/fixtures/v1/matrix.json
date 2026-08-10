@@ -1,0 +1,137 @@
+{
+  "protocol": "bfb-wire/1",
+  "schema_version": 1,
+  "fixtures": [
+    {
+      "path": "valid/event-envelope.heartbeat.json",
+      "schema": "event-envelope",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/event-disposition.accepted.json",
+      "schema": "event-disposition",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/runner-enrollment.online.json",
+      "schema": "runner-enrollment",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/checkout-summary.validated.json",
+      "schema": "checkout-summary",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/execution-assignment.active.json",
+      "schema": "execution-assignment",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/launch-specification.interactive.json",
+      "schema": "launch-specification",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/launch-claim.request.json",
+      "schema": "launch-claim",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/final-authorization.authorized.json",
+      "schema": "final-authorization",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/cloud-wake-intent.basic.json",
+      "schema": "cloud-wake-intent",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/terminal-intent.basic.json",
+      "schema": "terminal-intent",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.request.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/runner-event-submission.heartbeat.json",
+      "schema": "runner-event-submission",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/typed-error.bound.json",
+      "schema": "typed-error",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/event-envelope.unknown-version.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "unknown_version"
+    },
+    {
+      "path": "invalid/event-envelope.unknown-kind.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "unknown_kind"
+    },
+    {
+      "path": "invalid/event-envelope.oversized-payload-key.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/launch-specification.with-command.json",
+      "schema": "launch-specification",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/launch-specification.with-argv.json",
+      "schema": "launch-specification",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/cloud-wake-intent.with-task-text.json",
+      "schema": "cloud-wake-intent",
+      "expect": "reject",
+      "category": "intent_confusion"
+    },
+    {
+      "path": "invalid/cloud-wake-intent.as-terminal.json",
+      "schema": "cloud-wake-intent",
+      "expect": "reject",
+      "category": "intent_confusion"
+    },
+    {
+      "path": "invalid/terminal-intent.with-executable.json",
+      "schema": "terminal-intent",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/terminal-intent.as-wake.json",
+      "schema": "terminal-intent",
+      "expect": "reject",
+      "category": "intent_confusion"
+    },
+    {
+      "path": "invalid/runner-enrollment.missing-runner-id.json",
+      "schema": "runner-enrollment",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/local-rpc.oversized-method.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    }
+  ]
+}

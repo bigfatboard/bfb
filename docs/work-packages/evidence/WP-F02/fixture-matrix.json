@@ -1,0 +1,12 @@
+{
+  "package": "F02",
+  "protocol": "bfb-wire/1",
+  "schema_version": 1,
+  "fixture_matrix": "protocol/fixtures/v1/matrix.json",
+  "fixture_count": 24,
+  "valid_count": 13,
+  "invalid_count": 11,
+  "languages": ["typescript", "go"],
+  "swift_consumable": true,
+  "notes": "synthetic fixtures labelled via path under protocol/fixtures/v1; no private task bodies"
+}

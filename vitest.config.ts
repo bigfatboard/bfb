@@ -6,7 +6,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     coverage: { enabled: false },
-    include: ["tools/repository/test/**/*.test.ts"],
+    include: ["tools/repository/test/**/*.test.ts", "packages/protocol-ts/test/**/*.test.ts"],
     restoreMocks: true,
   },
 });

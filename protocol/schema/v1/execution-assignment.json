@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/execution-assignment.json",
+  "title": "ExecutionAssignment",
+  "description": "Immutable execution assignment used for authenticated event attribution.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_execution_id",
+    "assignment_generation",
+    "runner_id",
+    "run_id",
+    "task_id",
+    "project_id",
+    "workspace_id",
+    "checkout_id",
+    "created_at"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "run_execution_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "assignment_generation": {
+      "$ref": "primitives.json#/$defs/AssignmentGeneration"
+    },
+    "runner_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "run_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "task_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "project_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "workspace_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "checkout_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "created_at": {
+      "$ref": "primitives.json#/$defs/UtcTimestamp"
+    },
+    "ended_at": {
+      "$ref": "primitives.json#/$defs/UtcTimestamp"
+    }
+  }
+}

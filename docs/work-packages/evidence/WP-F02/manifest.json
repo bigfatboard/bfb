@@ -1,0 +1,43 @@
+{
+  "$schema": "../manifest.schema.json",
+  "package": "F02",
+  "tested_commit": "0000000000000000000000000000000000000000",
+  "protocol_version": "bfb-wire/1",
+  "schema_version": "1",
+  "migration_head": null,
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "swift": "6.2.3",
+    "ajv": "8.20.0"
+  },
+  "environment": {
+    "kind": "local",
+    "os": "macOS 26.2 (25C56)",
+    "architecture": "arm64"
+  },
+  "commands": [
+    {
+      "command": "pnpm test:protocol",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-F02/command-result.json"
+    },
+    {
+      "command": "pnpm protocol:check",
+      "outcome": "passed"
+    }
+  ],
+  "outcome": "passed",
+  "artifacts": [
+    "docs/work-packages/evidence/WP-F02/command-result.json",
+    "docs/work-packages/evidence/WP-F02/fixture-matrix.json",
+    "protocol/fixtures/v1/matrix.json",
+    "protocol/docs/compatibility.md",
+    "packages/protocol-ts/src/generated/catalog.json"
+  ],
+  "redaction": {
+    "status": "passed",
+    "prohibited_content": []
+  }
+}

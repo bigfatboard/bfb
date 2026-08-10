@@ -8,6 +8,7 @@
     { "path": "packages/db" },
     { "path": "packages/protocol-ts" },
     { "path": "packages/ui" },
-    { "path": "tools/repository" }
+    { "path": "tools/repository" },
+    { "path": "tools/protocol" }
   ]
 }

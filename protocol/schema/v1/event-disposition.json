@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/event-disposition.json",
+  "title": "EventDisposition",
+  "description": "Per-event ingest disposition returned to a runner source stream.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "event_id", "source_stream_id", "source_sequence", "disposition"],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "event_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "source_stream_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "source_sequence": {
+      "$ref": "primitives.json#/$defs/SourceSequence"
+    },
+    "disposition": {
+      "type": "string",
+      "enum": ["accepted", "already_committed", "retryable", "permanently_rejected"]
+    },
+    "diagnostic": {
+      "$ref": "primitives.json#/$defs/TypedError"
+    }
+  }
+}

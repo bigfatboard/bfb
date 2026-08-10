@@ -20,7 +20,11 @@ const lineRules = new Map<string, { prefix: string; suffix?: string }>([
   [".tsx", { prefix: "// ABOUTME: " }],
 ]);
 
-const exemptPathPrefixes = ["packages/protocol-ts/src/generated/", "protocol/fixtures/"];
+const exemptPathPrefixes = [
+  "packages/protocol-ts/src/generated/",
+  "internal/protocol/generated/",
+  "protocol/fixtures/",
+];
 
 export async function validateAboutmeHeaders(root: string): Promise<string[]> {
   const sourceFiles = await walkFiles(root, (relativePath) => {
