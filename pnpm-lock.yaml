@@ -42,6 +42,12 @@ importers:
 
   apps/control-worker:
     dependencies:
+      '@bfb/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@bfb/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       hono:
         specifier: 4.13.1
         version: 4.13.1
@@ -58,6 +64,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@bfb/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       react:
         specifier: 19.2.8
         version: 19.2.8
@@ -91,7 +100,18 @@ importers:
         specifier: 7.6.13
         version: 7.6.13
 
-  packages/domain: {}
+  packages/domain:
+    dependencies:
+      '@bfb/db':
+        specifier: workspace:*
+        version: link:../db
+    devDependencies:
+      '@types/better-sqlite3':
+        specifier: 7.6.13
+        version: 7.6.13
+      better-sqlite3:
+        specifier: 12.6.2
+        version: 12.6.2
 
   packages/protocol-ts:
     dependencies:

@@ -20,4 +20,4 @@ export {
 } from "./workspace-repository.js";
 export type { SqlDatabase, WorkspaceRow } from "./workspace-repository.js";
 
-export const MIGRATION_HEAD = "0001_workspace_registry";
+export const MIGRATION_HEAD = "0003_auth_and_work";

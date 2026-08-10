@@ -1,0 +1,5 @@
+{
+  "package": "C02",
+  "command": "pnpm test:c02",
+  "outcome": "passed"
+}

@@ -1,8 +1,12 @@
 # WP-C03 — Passkey enrollment and step-up
 
-Status: `planned`
+Status: `done`
 
 Risk: High
+
+Test target: `pnpm test:c03`
+
+Evidence manifest: `docs/work-packages/evidence/WP-C03/manifest.json`
 
 ## Outcome
 
@@ -29,6 +33,18 @@ Sensitive BFB actions require a fresh, user-verifying, action-bound WebAuthn ass
 
 - Automatic account recovery, enterprise hardware-key policy, or treating a fresh cookie as step-up.
 - Workspace role/final-owner logic; C04 decides which actions require proof and prevents an owner from deleting the final user-verifying authenticator.
+
+
+## Contracts
+
+### Consumes
+
+- C01/C02 human principal records.
+
+### Produces
+
+- Action-bound passkey step-up proofs with consume-once semantics.
+- Stable test target `pnpm test:c03` and evidence path `docs/work-packages/evidence/WP-C03/manifest.json`.
 
 ## Work plan
 

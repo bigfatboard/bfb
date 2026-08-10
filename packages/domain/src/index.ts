@@ -1,4 +1,12 @@
-// ABOUTME: Defines the compile-safe boundary for the BFB transport-neutral domain target.
-// ABOUTME: Product behavior is introduced only by the work package that owns this path.
+// ABOUTME: Public domain package entry for hub commands, authz, work records, and MCP helpers.
+// ABOUTME: Transports import these commands instead of owning parallel business logic.
 
-export {};
+export * from "./abuse.js";
+export * from "./authorization.js";
+export * from "./hub.js";
+export * from "./ids.js";
+export * from "./mcp-routing.js";
+export * from "./oauth.js";
+export * from "./projections.js";
+export * from "./step-up.js";
+export * from "./work-commands.js";

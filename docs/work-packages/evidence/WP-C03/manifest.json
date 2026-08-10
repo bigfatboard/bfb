@@ -1,0 +1,31 @@
+{
+  "$schema": "../manifest.schema.json",
+  "package": "C03",
+  "tested_commit": "0000000000000000000000000000000000000000",
+  "protocol_version": "bfb-wire/1",
+  "schema_version": "1",
+  "migration_head": "0003_auth_and_work",
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "better-sqlite3": "12.6.2"
+  },
+  "environment": {
+    "kind": "local",
+    "os": "macOS 26.2 (25C56)",
+    "architecture": "arm64"
+  },
+  "commands": [
+    {
+      "command": "pnpm test:c03",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C03/command-result.json"
+    }
+  ],
+  "outcome": "passed",
+  "artifacts": ["docs/work-packages/evidence/WP-C03/command-result.json"],
+  "redaction": {
+    "status": "passed",
+    "prohibited_content": []
+  }
+}

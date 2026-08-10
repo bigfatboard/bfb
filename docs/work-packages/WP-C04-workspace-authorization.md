@@ -1,8 +1,12 @@
 # WP-C04 — Workspace authorization
 
-Status: `planned`
+Status: `done`
 
 Risk: Very high
+
+Test target: `pnpm test:c04`
+
+Evidence manifest: `docs/work-packages/evidence/WP-C04/manifest.json`
 
 ## Outcome
 
@@ -29,6 +33,18 @@ Three humans can share a BFB workspace with different roles while BFB remains th
 ## Non-goals
 
 - Projects/project grants, runner/launch grants, runner key enrollment, tasks, provider policy, remote MCP OAuth, enterprise directory sync, or user deletion.
+
+
+## Contracts
+
+### Consumes
+
+- C01/C02/C03 membership and epoch primitives.
+
+### Produces
+
+- Workspace roles, project grants, and authorization epoch evaluation.
+- Stable test target `pnpm test:c04` and evidence path `docs/work-packages/evidence/WP-C04/manifest.json`.
 
 ## Work plan
 

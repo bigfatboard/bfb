@@ -51,12 +51,13 @@ export function createControlApp(
     });
   });
 
+  // /mcp is dispatched by the Worker entry through handleMcpRequest when DB is available.
   app.all("/mcp", (c) =>
     c.json(
       {
         ok: false,
-        error: "mcp_not_implemented",
-        message: "Remote MCP is owned by X03A",
+        error: "mcp_entry_required",
+        message: "MCP must be served through the Worker fetch entry with validated env",
       },
       501,
     ),

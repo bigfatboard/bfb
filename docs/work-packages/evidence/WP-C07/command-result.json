@@ -1,0 +1,5 @@
+{
+  "package": "C07",
+  "command": "pnpm test:c07",
+  "outcome": "passed"
+}

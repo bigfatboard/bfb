@@ -1,0 +1,5 @@
+{
+  "package": "C04",
+  "command": "pnpm test:c04",
+  "outcome": "passed"
+}

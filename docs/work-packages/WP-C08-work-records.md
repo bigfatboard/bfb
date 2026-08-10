@@ -1,8 +1,12 @@
 # WP-C08 — Tasks, runs, context, and work APIs
 
-Status: `planned`
+Status: `done`
 
 Risk: High
+
+Test target: `pnpm test:c08`
+
+Evidence manifest: `docs/work-packages/evidence/WP-C08/manifest.json`
 
 ## Outcome
 
@@ -31,6 +35,18 @@ Authorized humans and policy-scoped agents can manage the architecture's compact
 
 - Launch command delivery/claim, provider hooks, A02 runtime attention requests/resolution, result submission/acceptance, artifact bytes, GitHub synchronization, automatic merge/deploy, or broader ticket workflows.
 - Treating process/session end as a result or storing raw prompts/transcripts/tool output by default.
+
+
+## Contracts
+
+### Consumes
+
+- C01/C04/C07 commands and project boundaries.
+
+### Produces
+
+- Tasks, context audiences, comments, proposals, and board projections.
+- Stable test target `pnpm test:c08` and evidence path `docs/work-packages/evidence/WP-C08/manifest.json`.
 
 ## Work plan
 

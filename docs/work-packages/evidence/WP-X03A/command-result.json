@@ -1,0 +1,5 @@
+{
+  "package": "X03A",
+  "command": "pnpm test:x03a",
+  "outcome": "passed"
+}

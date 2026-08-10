@@ -5,6 +5,8 @@
   "type": "module",
   "exports": "./dist/index.js",
   "dependencies": {
+    "@bfb/db": "workspace:*",
+    "@bfb/domain": "workspace:*",
     "hono": "4.13.1"
   },
   "devDependencies": {

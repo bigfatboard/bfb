@@ -1,0 +1,152 @@
+// ABOUTME: Exercises C08 task/context/comment/proposal commands through WorkspaceHub.
+// ABOUTME: Asserts proposed roots, stale versions, and context audience isolation.
+
+import { describe, expect, it } from "vitest";
+
+import { WorkspaceHub } from "../src/hub.js";
+import {
+  addCommentCommand,
+  addContextCommand,
+  createTaskCommand,
+  getAgentContext,
+  updateTaskCommand,
+} from "../src/work-commands.js";
+import { FIX } from "../src/fixtures.js";
+import { openDomainDb } from "./helpers.js";
+
+describe("work records", () => {
+  it("creates tasks, comments, context, and enforces stale versions", async () => {
+    const db = openDomainDb();
+    const hub = new WorkspaceHub(db);
+    const created = await hub.execute(createTaskCommand, {
+      workspaceId: FIX.workspace,
+      idempotencyKey: "task-1",
+      authorizationEpoch: 1,
+      actorHumanId: FIX.owner,
+      input: {
+        projectId: FIX.projectA,
+        title: "Ship board",
+        priority: "P0",
+        nextOwnerType: "human",
+        nextOwnerId: FIX.owner,
+        nextActionReason: "Review board copy",
+        dueAt: "2026-08-07T11:00:00Z",
+      },
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) {
+      return;
+    }
+
+    const comment = await hub.execute(addCommentCommand, {
+      workspaceId: FIX.workspace,
+      idempotencyKey: "cmt-1",
+      authorizationEpoch: 1,
+      actorHumanId: FIX.owner,
+      input: { taskId: created.result.id, body: "synthetic progress", kind: "progress" },
+    });
+    expect(comment.ok).toBe(true);
+
+    await hub.execute(addContextCommand, {
+      workspaceId: FIX.workspace,
+      idempotencyKey: "ctx-1",
+      authorizationEpoch: 1,
+      actorHumanId: FIX.owner,
+      input: { taskId: created.result.id, audience: "human", body: "human only secret" },
+    });
+    await hub.execute(addContextCommand, {
+      workspaceId: FIX.workspace,
+      idempotencyKey: "ctx-2",
+      authorizationEpoch: 1,
+      actorHumanId: FIX.owner,
+      input: { taskId: created.result.id, audience: "agent", body: "agent visible" },
+    });
+    const agentView = getAgentContext(db, FIX.workspace, created.result.id);
+    expect(agentView.map((item) => item.body)).toEqual(["agent visible"]);
+
+    const stale = await hub.execute(updateTaskCommand, {
+      workspaceId: FIX.workspace,
+      idempotencyKey: "upd-stale",
+      authorizationEpoch: 1,
+      actorHumanId: FIX.owner,
+      input: {
+        taskId: created.result.id,
+        expectedVersion: 1,
+        title: "stale",
+      },
+    });
+    // version still 1 first update path
+    expect(stale.ok).toBe(true);
+
+    const conflict = await hub.execute(updateTaskCommand, {
+      workspaceId: FIX.workspace,
+      idempotencyKey: "upd-conflict",
+      authorizationEpoch: 1,
+      actorHumanId: FIX.owner,
+      input: {
+        taskId: created.result.id,
+        expectedVersion: 1,
+        title: "conflict",
+      },
+    });
+    expect(conflict.ok).toBe(false);
+    if (!conflict.ok) {
+      expect(conflict.error.code).toBe("stale_version");
+    }
+  });
+
+  it("keeps agent-created roots proposed and blocks remote promotion", async () => {
+    const db = openDomainDb();
+    const hub = new WorkspaceHub(db);
+    const proposed = await hub.execute(createTaskCommand, {
+      workspaceId: FIX.workspace,
+      idempotencyKey: "agent-root",
+      authorizationEpoch: 1,
+      actorHumanId: FIX.owner,
+      actorDelegationId: "01JBFB0DELEGAT100000000000",
+      input: {
+        projectId: FIX.projectA,
+        title: "Agent proposal",
+        priority: "P2",
+        actorIsAgent: true,
+      },
+    });
+    expect(proposed.ok && proposed.result.state).toBe("proposed");
+    if (!proposed.ok) {
+      return;
+    }
+    const promote = await hub.execute(updateTaskCommand, {
+      workspaceId: FIX.workspace,
+      idempotencyKey: "promote-remote",
+      authorizationEpoch: 1,
+      actorHumanId: FIX.owner,
+      actorDelegationId: "01JBFB0DELEGAT100000000000",
+      input: {
+        taskId: proposed.result.id,
+        expectedVersion: 1,
+        promote: true,
+      },
+    });
+    expect(promote.ok).toBe(false);
+    if (!promote.ok) {
+      expect(promote.error.message).toMatch(/cannot promote/);
+    }
+  });
+
+  it("denies restricted member cross-project writes", async () => {
+    const db = openDomainDb();
+    const hub = new WorkspaceHub(db);
+    const denied = await hub.execute(createTaskCommand, {
+      workspaceId: FIX.workspace,
+      idempotencyKey: "deny-project",
+      authorizationEpoch: 1,
+      actorHumanId: FIX.restricted,
+      input: {
+        projectId: FIX.projectB,
+        title: "Nope",
+        priority: "P3",
+      },
+    });
+    expect(denied.ok).toBe(false);
+  });
+});

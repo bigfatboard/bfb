@@ -1,12 +1,24 @@
-// ABOUTME: Renders the pre-auth SPA shell for the F03 substrate package.
-// ABOUTME: Does not invent board state; W01 owns the authenticated Work surface.
+// ABOUTME: Renders the authenticated SPA shell with an honest Work surface placeholder path.
+// ABOUTME: Board data is injected by tests or later loaders; no fabricated live activity.
 
-export function AppShell() {
+import { WorkBoard, type WorkBoardProps } from "./work/board.js";
+
+export interface AppShellProps {
+  board?: WorkBoardProps;
+  role?: "owner" | "member" | "restricted_member";
+}
+
+export function AppShell(props: AppShellProps = {}) {
   return (
     <main>
       <h1>BFB</h1>
-      <p>Control plane substrate is ready. Sign-in and Work surface arrive in later packages.</p>
-      <p data-testid="substrate-package">F03</p>
+      <p data-testid="substrate-package">W01</p>
+      {props.role ? <p data-testid="current-role">{props.role}</p> : null}
+      {props.board ? (
+        <WorkBoard {...props.board} />
+      ) : (
+        <p>Sign in to open a workspace Work surface.</p>
+      )}
     </main>
   );
 }

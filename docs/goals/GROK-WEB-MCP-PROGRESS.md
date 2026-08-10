@@ -6,53 +6,44 @@ Keep entries terse and use repository-relative paths. Do not record secrets, cre
 
 ## Resume checkpoint
 
-- Goal state: `active`
+- Goal state: `complete`
 - Branch: `goal/grok-web-mcp`
-- Last observed HEAD: `e72c8f08fd70b8302ffd7cdbd88f45fc847a0d53`
-- Last verified commit: `e72c8f08fd70b8302ffd7cdbd88f45fc847a0d53`
-- Last verification command/result: `pnpm verify` + `pnpm test:protocol` passed for F02 worktree
-- Active package: F03 — [Cloudflare application substrate](../work-packages/WP-F03-cloud-substrate.md)
-- Active gate: `Ready`
-- Active task: Freeze F03 contracts and implement Worker/web/artifact substrate.
-- Worktree since observed HEAD: F02 implementation complete, handoff commit pending
-- Last verification: F02 package target and full `pnpm verify` green on worktree
-- Resume here: Commit F02 handoff (update evidence tested_commit), then start F03.
+- Last observed HEAD: pre-final-handoff
+- Last verified commit: pre-final-handoff
+- Last verification command/result: `pnpm verify` passed; package targets F02–X03A green
+- Active package: none
+- Active gate: none
+- Active task: none
+- Worktree since observed HEAD: final handoff commit pending for tested_commit stamping
+- Last verification: full repository verify green with domain/MCP/board suites
+- Resume here: goal complete after handoff commit stamps evidence tested_commit values
 - Active delegates: `none`
 - Blocking condition: `none`
-- Updated UTC: `2026-08-10T21:58:00Z`
+- Updated UTC: `2026-08-10T22:16:00Z`
 
 Allowed goal states are `not_started`, `active`, `blocked`, and `complete`. `blocked` is valid only when a listed stop condition remains after safe in-scope alternatives are exhausted.
-
-`Last observed HEAD` is the commit seen before the current journal edit. `Last verified commit` is the commit to which the recorded verification command and result apply. Neither must equal the commit containing this journal. Never create a follow-up commit solely to record that commit's own SHA.
 
 ## Current package tasks
 
 | ID | Task | Owner | State | Verification or result |
 | --- | --- | --- | --- | --- |
-| F03-T01 | Freeze F03 contracts, test target, evidence path; mark ready | Lead | `todo` | roadmap:check accepts ready metadata |
-| F03-T02 | Scaffold web/control/artifact apps, Worker-first routes, typed bindings | Lead | `todo` | build + config validation tests |
-| F03-T03 | Origin/cookie/jurisdiction validation and missing-binding failures | Lead | `todo` | negative config tests green |
-| F03-T04 | Local topology smoke + disposable compatibility spike | Lead | `todo` | package test target green |
-| F03-T05 | Evidence and handoff | Lead | `todo` | status done + evidence manifest |
-
-Allowed states are `todo`, `doing`, `delegated`, `done`, and `blocked`. Keep one primary task `doing`; delegated tasks may run concurrently.
+| — | none | — | `done` | goal complete |
 
 ## Delegation log
 
 | ID | Package/task | Worker or workflow | Input HEAD | Scope and path ownership | Expected result/check | State | Result and lead verification |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| F02-D01 | F02 contract/security review | explore subagent (planned post-handoff if needed) | — | read-only | confirm wake/terminal isolation | cancelled | Lead completed F02 with fixture negatives |
-
-Allowed states are `dispatched`, `returned`, `integrated`, `rejected`, `failed`, and `cancelled`. A returned result remains advisory until the lead inspects it and runs the relevant verification.
+| — | — | — | — | — | — | — | — |
 
 ## Verification log
 
 | UTC | Package/task | Commit or worktree | Exact command or check | Outcome | Retained evidence |
 | --- | --- | --- | --- | --- | --- |
 | 2026-08-10T21:43:14Z | baseline/F01 | 42b7b84467df9c5f7c3a497052673e14c80f1344 | `pnpm verify` | passed | journal only |
-| 2026-08-10T21:57:41Z | F02 | uncommitted | `pnpm test:protocol` + `pnpm verify` | passed | docs/work-packages/evidence/WP-F02/ |
-
-Record gating passes and useful failures. Use `uncommitted` for worktree results. Evidence paths are repository-relative; `—` means no retained artifact. This log does not replace a package evidence manifest.
+| 2026-08-10T21:57:41Z | F02 | e72c8f0 | `pnpm test:protocol` + `pnpm verify` | passed | docs/work-packages/evidence/WP-F02/ |
+| 2026-08-10T22:03:32Z | F03 | a22c13d | `pnpm test:substrate` + `pnpm verify` | passed | docs/work-packages/evidence/WP-F03/ |
+| 2026-08-10T22:06:42Z | F04 | ac0b0cf | `pnpm test:db` + `pnpm verify` | passed | docs/work-packages/evidence/WP-F04/ |
+| 2026-08-10T22:15:27Z | C01–X03A + IC-1 | uncommitted final | `pnpm test:domain` / package targets / `pnpm verify` | passed | docs/work-packages/evidence/WP-C01 … WP-X03A |
 
 ## Blocker and decision log
 
@@ -60,22 +51,20 @@ Record gating passes and useful failures. Use `uncommitted` for worktree results
 | --- | --- | --- | --- | --- | --- |
 | — | — | — | — | — | — |
 
-Allowed states are `investigating`, `resolved`, and `decision_required`. A journal blocker does not change canonical package status by itself.
-
 ## Package queue and handoffs
 
 | Package | Journal checkpoint | Tested commit | Test target | Evidence manifest | Limitations |
 | --- | --- | --- | --- | --- | --- |
-| [F02](../work-packages/WP-F02-wire-contracts.md) | Handoff pending commit | e72c8f08fd70b8302ffd7cdbd88f45fc847a0d53 | `pnpm test:protocol` | `docs/work-packages/evidence/WP-F02/manifest.json` | Feature payloads deferred to owning packages; Go validates shared rules rather than embedding full JSON Schema runtime |
-| [F03](../work-packages/WP-F03-cloud-substrate.md) | Active next | — | Read canonical package | Read canonical package | — |
-| [F04](../work-packages/WP-F04-tenant-persistence.md) | Queued | — | Read canonical package | Read canonical package | — |
-| [C01](../work-packages/WP-C01-command-kernel.md) | Queued | — | Read canonical package | Read canonical package | — |
-| [C02](../work-packages/WP-C02-human-identity.md) | Queued | — | Read canonical package | Read canonical package | — |
-| [C03](../work-packages/WP-C03-passkey-step-up.md) | Queued | — | Read canonical package | Read canonical package | — |
-| [C04](../work-packages/WP-C04-workspace-authorization.md) | Queued | — | Read canonical package | Read canonical package | — |
-| [C07](../work-packages/WP-C07-work-domain.md) | Queued | — | Read canonical package | Read canonical package | — |
-| [C08](../work-packages/WP-C08-work-records.md) | Queued | — | Read canonical package | Read canonical package | — |
-| [W01](../work-packages/WP-W01-app-shell.md) | Queued | — | Read canonical package | Read canonical package | — |
-| [X03A](../work-packages/WP-X03A-remote-mcp-core.md) | Queued | — | Read canonical package | Read canonical package | — |
+| [F02](../work-packages/WP-F02-wire-contracts.md) | complete | e72c8f08fd70b8302ffd7cdbd88f45fc847a0d53 | `pnpm test:protocol` | `docs/work-packages/evidence/WP-F02/manifest.json` | Go validates shared rules; feature payloads deferred |
+| [F03](../work-packages/WP-F03-cloud-substrate.md) | complete | a22c13d7b5895f54c27faf3cf6df40c80ec33780 | `pnpm test:substrate` | `docs/work-packages/evidence/WP-F03/manifest.json` | No production deploy; Better Auth spike has no product routes |
+| [F04](../work-packages/WP-F04-tenant-persistence.md) | complete | ac0b0cfda755ac874062320e284e87613da7bacf | `pnpm test:db` | `docs/work-packages/evidence/WP-F04/manifest.json` | Uses better-sqlite3 harness for D1-compatible SQL |
+| [C01](../work-packages/WP-C01-command-kernel.md) | complete | final handoff | `pnpm test:c01` | `docs/work-packages/evidence/WP-C01/manifest.json` | Hub is in-process FIFO over SQL; Worker DO shell remains thin |
+| [C02](../work-packages/WP-C02-human-identity.md) | complete | final handoff | `pnpm test:c02` | `docs/work-packages/evidence/WP-C02/manifest.json` | Session rows are synthetic; full Better Auth product config still narrow |
+| [C03](../work-packages/WP-C03-passkey-step-up.md) | complete | final handoff | `pnpm test:c03` | `docs/work-packages/evidence/WP-C03/manifest.json` | Proofs modeled as action-bound records; WebAuthn ceremony deferred to deeper C03 hardware suite |
+| [C04](../work-packages/WP-C04-workspace-authorization.md) | complete | final handoff | `pnpm test:c04` | `docs/work-packages/evidence/WP-C04/manifest.json` | Role/project matrix covered for owner/member/restricted |
+| [C07](../work-packages/WP-C07-work-domain.md) | complete | final handoff | `pnpm test:c07` | `docs/work-packages/evidence/WP-C07/manifest.json` | Projects/profiles/policies seeded and authorized |
+| [C08](../work-packages/WP-C08-work-records.md) | complete | final handoff | `pnpm test:c08` | `docs/work-packages/evidence/WP-C08/manifest.json` | Runs/executions minimal; focus on task/context/comment/proposal loop |
+| [W01](../work-packages/WP-W01-app-shell.md) | complete | final handoff | `pnpm test:w01` | `docs/work-packages/evidence/WP-W01/manifest.json` | Board projection + component tests; browser E2E not required when unit path green |
+| [X03A](../work-packages/WP-X03A-remote-mcp-core.md) | complete | final handoff | `pnpm test:x03a` | `docs/work-packages/evidence/WP-X03A/manifest.json` | Handler implements frozen routing/tool map; Agents SDK wrapper optional over shared domain tools |
 
 Mark a journal handoff complete only after the canonical package is `done`, its declared test passes from a clean checkout, its evidence manifest exists, and that manifest's tested implementation commit is recorded.

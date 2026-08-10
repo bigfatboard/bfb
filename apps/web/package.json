@@ -5,6 +5,7 @@
   "type": "module",
   "exports": "./dist/index.js",
   "dependencies": {
+    "@bfb/domain": "workspace:*",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
