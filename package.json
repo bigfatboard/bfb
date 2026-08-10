@@ -27,11 +27,11 @@
     "verify": "tsx tools/repository/src/verify.ts"
   },
   "devDependencies": {
-    "@types/node": "24.13.3",
+    "@types/node": "26.2.0",
     "oxlint": "1.78.0",
     "prettier": "3.9.6",
     "tsx": "4.23.12",
-    "typescript": "5.9.3",
+    "typescript": "7.0.2",
     "vitest": "4.1.10"
   }
 }
