@@ -25,7 +25,7 @@ The program contains 41 work packages and nine integration checkpoints. Package 
 - `done`: acceptance passes from a clean checkout and the handoff is committed.
 - A package is marked `blocked` only when the same durable blocker has survived the required investigation and cannot be worked around safely.
 
-The status in this index is canonical. Individual package files describe scope and acceptance.
+Package metadata is canonical in each package file. The marked graph and index below are generated from that metadata.
 
 ## Program shape
 
@@ -49,63 +49,72 @@ The first useful alpha is not “the board renders.” It is the complete chain 
 
 ## Dependency graph
 
+<!-- bfb:work-package-graph:start -->
+
 ```mermaid
 flowchart TD
-    subgraph Foundation
-        F01["F01 Repository"]
-        F02["F02 Wire contracts"]
-        F03["F03 Cloud substrate"]
-        F04["F04 Tenant persistence"]
+    subgraph Foundation["Foundation"]
+        F01["F01 Repository foundation"]
+        F02["F02 Wire contracts and test doubles"]
+        F03["F03 Cloudflare application substrate"]
+        F04["F04 D1 tenant persistence and migrations"]
     end
-    subgraph Control
-        C01["C01 Hub kernel"]
-        C02["C02 Human identity"]
-        C03["C03 Passkey step-up"]
-        C04["C04 Workspace authz"]
-        C05["C05 Device credentials"]
-        C06["C06 Runner authority"]
-        C07["C07 Projects + policy"]
-        C08["C08 Work records"]
-        C09["C09 Launch orchestration"]
+    subgraph Controlplane["Control plane"]
+        C01["C01 WorkspaceHub command and event kernel"]
+        C02["C02 Human identity and sessions"]
+        C03["C03 Passkey enrollment and step-up"]
+        C04["C04 Workspace authorization"]
+        C05["C05 Human device and CLI credentials"]
+        C06["C06 Runner identity, grants, and tokens"]
+        C07["C07 Projects, repository identity, and policy"]
+        C08["C08 Tasks, runs, context, and work APIs"]
+        C09["C09 Durable launch orchestration"]
     end
-    subgraph Local
-        L01["L01 Daemon"]
-        L02["L02 Checkouts"]
-        L03["L03 Provider kit"]
-        L04["L04 macOS app"]
-        L05["L05 Supervisor"]
-        L06["L06 Hook journal"]
-        L07["L07 Claude"]
-        L08["L08 Runner client"]
+    subgraph Localexecution["Local execution"]
+        L01["L01 Go daemon and CLI kernel"]
+        L02["L02 Exact checkout registry"]
+        L03["L03 Provider adapter kit"]
+        L04["L04 SwiftUI macOS application"]
+        L05["L05 Terminal execution supervisor"]
+        L06["L06 Hook journal and offline inbox"]
+        L07["L07 Claude Code reference adapter"]
+        L08["L08 Runner enrollment and channel client"]
     end
-    subgraph Product
-        W01["W01 App shell"]
-        W02["W02 Launch UI"]
-        E01["E01 Event ingest"]
-        E02["E02 Realtime"]
-        A01["A01 Local MCP"]
-        A02["A02 Attention"]
-        A03["A03 Results"]
-        A04["A04 Measurements"]
-        V01["V01 Artifact storage"]
-        V02["V02 Artifact viewer"]
-        V03["V03 Artifact review"]
+    subgraph Webandrealtime["Web and realtime"]
+        W01["W01 Authenticated app and Work surface"]
+        W02["W02 Runner and launch operations UI"]
+        E01["E01 Event ingestion, projection, and replay"]
+        E02["E02 Browser realtime, timeline, and presence"]
     end
-    subgraph Surfaces
-        P01["P01 Codex"]
-        P02["P02 Grok"]
-        X01["X01 Notifications"]
-        X02["X02 Human CLI"]
-        X03["X03 Remote MCP"]
-        X04["X04 GitHub"]
-        X05["X05 Operations"]
-        G01["G01 Hardening"]
-        G02["G02 Release"]
+    subgraph Agentandhumanloop["Agent and human loop"]
+        A01["A01 Run-scoped local MCP and context"]
+        A02["A02 Human attention workflow"]
+        A03["A03 Result submission and acceptance"]
+        A04["A04 Measurements and provenance"]
+    end
+    subgraph Visualreview["Visual review"]
+        V01["V01 Artifact storage state machine"]
+        V02["V02 Isolated artifact viewer"]
+        V03["V03 Immutable artifact review"]
+    end
+    subgraph Providerparity["Provider parity"]
+        P01["P01 Codex adapter"]
+        P02["P02 Grok adapter"]
+    end
+    subgraph Externalsurfacesandoperations["External surfaces and operations"]
+        X01["X01 Actionable notifications"]
+        X02["X02 Human CLI parity"]
+        X03["X03 Remote OAuth MCP"]
+        X04["X04 GitHub evidence integration"]
+        X05["X05 Operations, audit, and retention"]
+    end
+    subgraph Golive["Go-live"]
+        G01["G01 Integrated adversarial hardening"]
+        G02["G02 Release, self-hosting, and recovery"]
     end
 
     F01 --> F02
     F01 --> F03
-    F01 --> L01
     F02 --> F04
     F03 --> F04
     F02 --> C01
@@ -137,17 +146,12 @@ flowchart TD
     C06 --> C09
     C07 --> C09
     C08 --> C09
-
+    F01 --> L01
     F02 --> L01
     F02 --> L02
     L01 --> L02
     F02 --> L03
     L01 --> L03
-    C06 --> L08
-    F02 --> L08
-    L01 --> L08
-    L02 --> L08
-    L03 --> L08
     C06 --> L04
     L01 --> L04
     L08 --> L04
@@ -162,12 +166,29 @@ flowchart TD
     L03 --> L06
     L05 --> L06
     L08 --> L06
-
+    A01 --> L07
+    E01 --> L07
+    L03 --> L07
+    L05 --> L07
+    L06 --> L07
+    C06 --> L08
+    F02 --> L08
+    L01 --> L08
+    L02 --> L08
+    L03 --> L08
     C02 --> W01
     C03 --> W01
     C04 --> W01
     C08 --> W01
     F03 --> W01
+    C03 --> W02
+    C06 --> W02
+    C09 --> W02
+    L03 --> W02
+    L04 --> W02
+    L05 --> W02
+    L08 --> W02
+    W01 --> W02
     C01 --> E01
     C04 --> E01
     C06 --> E01
@@ -183,19 +204,6 @@ flowchart TD
     L05 --> A01
     L06 --> A01
     L08 --> A01
-    A01 --> L07
-    E01 --> L07
-    L03 --> L07
-    L05 --> L07
-    L06 --> L07
-    C03 --> W02
-    C06 --> W02
-    C09 --> W02
-    L03 --> W02
-    L04 --> W02
-    L05 --> W02
-    L08 --> W02
-    W01 --> W02
     A01 --> A02
     E02 --> A02
     W01 --> A02
@@ -207,13 +215,12 @@ flowchart TD
     A03 --> A04
     E01 --> A04
     W01 --> A04
-
     A01 --> V01
     C01 --> V01
     C04 --> V01
     F03 --> V01
-    V01 --> V02
     C01 --> V02
+    V01 --> V02
     W01 --> V02
     A03 --> V03
     A04 --> V03
@@ -233,7 +240,6 @@ flowchart TD
     L05 --> P02
     L06 --> P02
     L07 --> P02
-
     A02 --> X01
     A03 --> X01
     E02 --> X01
@@ -287,7 +293,6 @@ flowchart TD
     W01 --> X05
     X01 --> X05
     X04 --> X05
-
     A04 --> G01
     E02 --> G01
     L07 --> G01
@@ -309,15 +314,19 @@ flowchart TD
     X05 --> G02
 ```
 
+<!-- bfb:work-package-graph:end -->
+
 Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes this graph and the package index generated output and fails CI on drift. Until F01 exists, the same relationship is checked mechanically before roadmap changes are committed.
 
 ## Package index
+
+<!-- bfb:work-package-index:start -->
 
 ### Foundation
 
 | ID | Package | Status | Risk |
 | --- | --- | --- | --- |
-| F01 | [Repository foundation](WP-F01-repository-foundation.md) | `planned` | Medium |
+| F01 | [Repository foundation](WP-F01-repository-foundation.md) | `in_progress` | Medium |
 | F02 | [Wire contracts and test doubles](WP-F02-wire-contracts.md) | `planned` | High |
 | F03 | [Cloudflare application substrate](WP-F03-cloud-substrate.md) | `planned` | High |
 | F04 | [D1 tenant persistence and migrations](WP-F04-tenant-persistence.md) | `planned` | Very high |
@@ -398,6 +407,8 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 | --- | --- | --- | --- |
 | G01 | [Integrated adversarial hardening](WP-G01-system-hardening.md) | `planned` | Very high |
 | G02 | [Release, self-hosting, and recovery](WP-G02-release-self-host.md) | `planned` | Very high |
+
+<!-- bfb:work-package-index:end -->
 
 ## Integration checkpoints
 

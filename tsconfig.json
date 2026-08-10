@@ -1,0 +1,13 @@
+{
+  "files": [],
+  "references": [
+    { "path": "apps/web" },
+    { "path": "apps/control-worker" },
+    { "path": "apps/artifact-worker" },
+    { "path": "packages/domain" },
+    { "path": "packages/db" },
+    { "path": "packages/protocol-ts" },
+    { "path": "packages/ui" },
+    { "path": "tools/repository" }
+  ]
+}

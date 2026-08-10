@@ -1,6 +1,6 @@
 # WP-F01 — Repository foundation
 
-Status: `planned`
+Status: `in_progress`
 
 Risk: Medium
 

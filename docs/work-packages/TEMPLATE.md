@@ -50,7 +50,7 @@ One verifiable outcome. State what a user, agent, or downstream package can do w
 ## Evidence
 
 - Test report, fixture, screenshot, deployed smoke result, or security result indexed by the declared evidence manifest.
-- Evidence path is stable, repository-relative, and contains or references commit, schema/protocol heads, environment, command, outcome, and redaction status.
+- Evidence path is stable, repository-relative, conforms to the [evidence manifest schema](evidence/manifest.schema.json), and contains or references commit, schema/protocol heads, environment, command, outcome, and redaction status.
 
 ## Risks and decisions
 
