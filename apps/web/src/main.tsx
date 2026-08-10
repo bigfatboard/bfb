@@ -1,5 +1,5 @@
-// ABOUTME: Browser entrypoint that mounts the F03 SPA shell into #root.
-// ABOUTME: Authenticated Work surface behavior is owned by W01.
+// ABOUTME: Browser entrypoint that mounts the authenticated W01 SPA shell into #root.
+// ABOUTME: Work surface routing is owned by AppShell against control-plane APIs.
 
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";

@@ -1,0 +1,207 @@
+// ABOUTME: Builds a fresh MCP server per request with the seven delegated BFB tools.
+// ABOUTME: Tools call shared domain commands; authority comes from the authenticated delegation.
+
+import { McpServer } from "@modelcontextprotocol/server";
+import { z } from "zod";
+
+import type { SqlDatabase } from "@bfb/db";
+import {
+  type ActiveDelegation,
+  WorkspaceHub,
+  assertScope,
+  getAgentContext,
+  getTask,
+  listTasks,
+  loadPrincipal,
+  narrowBoundary,
+  addCommentCommand,
+  createTaskCommand,
+} from "@bfb/domain";
+
+export interface McpServerDeps {
+  db: SqlDatabase;
+  delegation: ActiveDelegation;
+  now: string;
+}
+
+export function createBfbMcpServer(deps: McpServerDeps): McpServer {
+  const server = new McpServer({
+    name: "bfb",
+    version: "0.0.0",
+  });
+  const hub = new WorkspaceHub(deps.db);
+  const principal = loadPrincipal(deps.db, deps.delegation.workspaceId, deps.delegation.humanId);
+
+  server.registerTool(
+    "bfb_list_projects",
+    {
+      description: "List projects accessible to the authenticated delegation",
+      inputSchema: {},
+    },
+    async () => {
+      assertScope(deps.delegation, "bfb:read");
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify({ projects: principal.projectIds }),
+          },
+        ],
+      };
+    },
+  );
+
+  server.registerTool(
+    "bfb_list_tasks",
+    {
+      description: "List tasks under the delegated boundary",
+      inputSchema: {},
+    },
+    async () => {
+      assertScope(deps.delegation, "bfb:read");
+      const tasks = listTasks(deps.db, deps.delegation.workspaceId, principal.projectIds);
+      return { content: [{ type: "text" as const, text: JSON.stringify({ tasks }) }] };
+    },
+  );
+
+  server.registerTool(
+    "bfb_get_task",
+    {
+      description: "Get one task by id within the delegated boundary",
+      inputSchema: { task_id: z.string() },
+    },
+    async ({ task_id }) => {
+      assertScope(deps.delegation, "bfb:read");
+      const task = getTask(deps.db, deps.delegation.workspaceId, task_id);
+      if (!task) {
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ error: "not_found" }) }],
+          isError: true,
+        };
+      }
+      narrowBoundary(deps.delegation, task.project_id, task.id);
+      return { content: [{ type: "text" as const, text: JSON.stringify({ task }) }] };
+    },
+  );
+
+  server.registerTool(
+    "bfb_get_context",
+    {
+      description: "Read agent-visible context for a task",
+      inputSchema: { task_id: z.string() },
+    },
+    async ({ task_id }) => {
+      assertScope(deps.delegation, "bfb:read");
+      const task = getTask(deps.db, deps.delegation.workspaceId, task_id);
+      if (!task) {
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ error: "not_found" }) }],
+          isError: true,
+        };
+      }
+      narrowBoundary(deps.delegation, task.project_id, task.id);
+      const context = getAgentContext(deps.db, deps.delegation.workspaceId, task_id);
+      return { content: [{ type: "text" as const, text: JSON.stringify({ context }) }] };
+    },
+  );
+
+  server.registerTool(
+    "bfb_add_comment",
+    {
+      description: "Add a discussion comment to a task",
+      inputSchema: {
+        task_id: z.string(),
+        body: z.string(),
+        request_id: z.string().optional(),
+      },
+    },
+    async ({ task_id, body, request_id }) => {
+      assertScope(deps.delegation, "bfb:task:write");
+      const task = getTask(deps.db, deps.delegation.workspaceId, task_id);
+      if (!task) {
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ error: "not_found" }) }],
+          isError: true,
+        };
+      }
+      narrowBoundary(deps.delegation, task.project_id, task.id);
+      const outcome = await hub.execute(addCommentCommand, {
+        workspaceId: deps.delegation.workspaceId,
+        idempotencyKey: request_id ?? `comment-${task_id}-${deps.now}`,
+        authorizationEpoch: deps.delegation.authorizationEpoch,
+        actorHumanId: deps.delegation.humanId,
+        actorDelegationId: deps.delegation.delegationId,
+        now: deps.now,
+        input: { taskId: task_id, body, kind: "discussion" },
+      });
+      return { content: [{ type: "text" as const, text: JSON.stringify(outcome) }] };
+    },
+  );
+
+  server.registerTool(
+    "bfb_report_progress",
+    {
+      description: "Report bounded progress on a task",
+      inputSchema: {
+        task_id: z.string(),
+        summary: z.string(),
+        request_id: z.string().optional(),
+      },
+    },
+    async ({ task_id, summary, request_id }) => {
+      assertScope(deps.delegation, "bfb:task:write");
+      const task = getTask(deps.db, deps.delegation.workspaceId, task_id);
+      if (!task) {
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ error: "not_found" }) }],
+          isError: true,
+        };
+      }
+      narrowBoundary(deps.delegation, task.project_id, task.id);
+      const outcome = await hub.execute(addCommentCommand, {
+        workspaceId: deps.delegation.workspaceId,
+        idempotencyKey: request_id ?? `progress-${task_id}-${deps.now}`,
+        authorizationEpoch: deps.delegation.authorizationEpoch,
+        actorHumanId: deps.delegation.humanId,
+        actorDelegationId: deps.delegation.delegationId,
+        now: deps.now,
+        input: { taskId: task_id, body: summary, kind: "progress" },
+      });
+      return { content: [{ type: "text" as const, text: JSON.stringify(outcome) }] };
+    },
+  );
+
+  server.registerTool(
+    "bfb_propose_task",
+    {
+      description: "Propose a root task that remains proposed until a human promotes it",
+      inputSchema: {
+        project_id: z.string(),
+        title: z.string(),
+        priority: z.enum(["P0", "P1", "P2", "P3"]).optional(),
+        request_id: z.string().optional(),
+      },
+    },
+    async ({ project_id, title, priority, request_id }) => {
+      assertScope(deps.delegation, "bfb:task:write");
+      narrowBoundary(deps.delegation, project_id);
+      const outcome = await hub.execute(createTaskCommand, {
+        workspaceId: deps.delegation.workspaceId,
+        idempotencyKey: request_id ?? `propose-${project_id}-${deps.now}`,
+        authorizationEpoch: deps.delegation.authorizationEpoch,
+        actorHumanId: deps.delegation.humanId,
+        actorDelegationId: deps.delegation.delegationId,
+        now: deps.now,
+        input: {
+          projectId: project_id,
+          title,
+          priority: priority ?? "P2",
+          actorIsAgent: true,
+        },
+      });
+      return { content: [{ type: "text" as const, text: JSON.stringify(outcome) }] };
+    },
+  );
+
+  return server;
+}

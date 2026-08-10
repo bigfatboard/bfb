@@ -23,9 +23,7 @@
     }
   ],
   "outcome": "passed",
-  "artifacts": [
-    "docs/work-packages/evidence/WP-C01/command-result.json"
-  ],
+  "artifacts": ["docs/work-packages/evidence/WP-C01/command-result.json"],
   "redaction": {
     "status": "passed",
     "prohibited_content": []

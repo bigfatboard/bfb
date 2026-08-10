@@ -1,48 +1,74 @@
-// ABOUTME: Defines Control Worker route ownership for API, auth, MCP, and discovery paths.
-// ABOUTME: F03 reserves Worker-first paths without implementing product handlers.
+// ABOUTME: Defines Control Worker routes for health, auth, OAuth, work APIs, and MCP dispatch.
+// ABOUTME: Browser sessions and MCP tokens are separated; domain commands own mutations.
 
 import { Hono } from "hono";
 
+import type { SqlDatabase } from "@bfb/db";
+
+import { handleWorkApi } from "./api/work.js";
+import { createHumanAuth } from "./auth/better-auth.js";
+import { handleAuthRoute } from "./auth/routes.js";
+import { resolveBrowserPrincipal } from "./auth/session.js";
 import { isWorkerFirstPath, type ValidatedControlEnv } from "./env.js";
+import { handleMcpRequest } from "./mcp/handler.js";
+import {
+  handleOauthAuthorize,
+  handleOauthMetadata,
+  handleOauthToken,
+  handleProtectedResourceMetadata,
+} from "./oauth/routes.js";
 
 export type ControlAppVariables = {
   validated: ValidatedControlEnv;
+  db?: SqlDatabase;
+  now?: string;
 };
 
 export function createControlApp(
   validated?: ValidatedControlEnv,
+  options: {
+    db?: SqlDatabase | undefined;
+    now?: string | undefined;
+    authSecret?: string | undefined;
+  } = {},
 ): Hono<{ Bindings: Record<string, unknown>; Variables: ControlAppVariables }> {
   const app = new Hono<{ Bindings: Record<string, unknown>; Variables: ControlAppVariables }>();
+  const now = options.now ?? new Date().toISOString();
 
-  if (validated) {
-    app.use("*", async (c, next) => {
+  app.use("*", async (c, next) => {
+    if (validated) {
       c.set("validated", validated);
-      await next();
-    });
-  }
+    }
+    if (options.db) {
+      c.set("db", options.db);
+    }
+    c.set("now", now);
+    await next();
+  });
 
   app.get("/healthz", (c) => {
     const current = c.get("validated");
     return c.json({
       ok: true,
       package: "F03",
-      environment: current.environment,
-      jurisdiction: current.jurisdiction,
+      environment: current?.environment ?? "local",
+      jurisdiction: current?.jurisdiction ?? "eu",
       worker_first: true,
     });
   });
 
   app.get("/api/v1/_substrate", (c) => {
-    const validated = c.get("validated");
+    const current = c.get("validated");
     return c.json({
       ok: true,
-      app_origin: validated.origins.appOrigin,
-      artifact_origin: validated.origins.artifactOrigin,
-      launch_origin: validated.origins.launchOrigin,
+      app_origin: current?.origins.appOrigin,
+      artifact_origin: current?.origins.artifactOrigin,
+      launch_origin: current?.origins.launchOrigin,
       worker_first_prefixes: [
         "/api",
         "/auth",
         "/mcp",
+        "/oauth",
         "/realtime",
         "/runner",
         "/webhooks",
@@ -51,37 +77,119 @@ export function createControlApp(
     });
   });
 
-  // /mcp is dispatched by the Worker entry through handleMcpRequest when DB is available.
-  app.all("/mcp", (c) =>
-    c.json(
+  app.all("/mcp", async (c) => {
+    const current = c.get("validated");
+    const db = c.get("db") ?? options.db;
+    if (!current || !db) {
+      return c.json({ ok: false, error: "mcp_misconfigured", message: "db/env required" }, 500);
+    }
+    // Hono test requests have no ExecutionContext; createMcpHandler accepts a minimal one.
+    const execCtx = {
+      waitUntil() {},
+      passThroughOnException() {},
+      props: {},
+    } as unknown as ExecutionContext;
+    return handleMcpRequest(
+      c.req.raw,
       {
-        ok: false,
-        error: "mcp_entry_required",
-        message: "MCP must be served through the Worker fetch entry with validated env",
+        db,
+        allowedHostnames: [current.origins.appHostname],
+        appOrigin: current.origins.appOrigin,
+        now: c.get("now") ?? now,
       },
-      501,
-    ),
-  );
+      execCtx,
+    );
+  });
 
-  app.all("/auth/*", (c) =>
-    c.json(
-      {
-        ok: false,
-        error: "auth_not_implemented",
-        message: "Human identity is owned by C02",
-      },
-      501,
-    ),
-  );
+  app.all("/auth/*", async (c) => {
+    const db = c.get("db") ?? options.db;
+    const current = c.get("validated");
+    if (!db || !current) {
+      return c.json({ error: "auth_misconfigured" }, 500);
+    }
+    const auth = createHumanAuth({
+      APP_ORIGIN: current.origins.appOrigin,
+      BETTER_AUTH_SECRET: options.authSecret ?? "synthetic-local-auth-secret-not-for-prod",
+    });
+    return handleAuthRoute(c, { db, auth, now: c.get("now") ?? now });
+  });
+
+  app.get("/.well-known/oauth-authorization-server", (c) => {
+    const current = c.get("validated");
+    return handleOauthMetadata(current?.origins.appOrigin ?? "https://bfb.example.test");
+  });
+
+  app.get("/.well-known/oauth-protected-resource", (c) => {
+    const current = c.get("validated");
+    return handleProtectedResourceMetadata(
+      current?.origins.appOrigin ?? "https://bfb.example.test",
+    );
+  });
+
+  app.get("/oauth/authorize", async (c) => {
+    const db = c.get("db") ?? options.db;
+    const current = c.get("validated");
+    if (!db || !current) {
+      return c.json({ error: "oauth_misconfigured" }, 500);
+    }
+    return handleOauthAuthorize(c.req.raw, {
+      db,
+      appOrigin: current.origins.appOrigin,
+      now: c.get("now") ?? now,
+    });
+  });
+
+  app.post("/oauth/token", async (c) => {
+    const db = c.get("db") ?? options.db;
+    const current = c.get("validated");
+    if (!db || !current) {
+      return c.json({ error: "oauth_misconfigured" }, 500);
+    }
+    return handleOauthToken(c.req.raw, {
+      db,
+      appOrigin: current.origins.appOrigin,
+      now: c.get("now") ?? now,
+    });
+  });
+
+  app.all("/api/v1/workspaces/*", async (c) => {
+    const db = c.get("db") ?? options.db;
+    if (!db) {
+      return c.json({ error: "api_misconfigured" }, 500);
+    }
+    // MCP tokens cannot authenticate browser API routes.
+    const authHeader = c.req.header("authorization") ?? "";
+    if (authHeader.startsWith("Bearer mcp_")) {
+      return c.json(
+        { error: "credential_confusion", message: "mcp token cannot auth browser routes" },
+        401,
+      );
+    }
+    const principal = resolveBrowserPrincipal(db, c.req.raw, c.get("now") ?? now);
+    if (!principal) {
+      return c.json({ error: "unauthenticated" }, 401);
+    }
+    const match = c.req.path.match(/^\/api\/v1\/workspaces\/([^/]+)/);
+    const workspaceId = match?.[1];
+    if (!workspaceId) {
+      return c.json({ error: "not_found" }, 404);
+    }
+    return handleWorkApi(c.req.raw, {
+      db,
+      principal,
+      workspaceId,
+      now: c.get("now") ?? now,
+    });
+  });
 
   app.all("/api/*", (c) =>
     c.json(
       {
         ok: false,
-        error: "api_not_implemented",
-        message: "Domain APIs are owned by later control-plane packages",
+        error: "api_not_found",
+        message: "Unknown API path",
       },
-      501,
+      404,
     ),
   );
 
@@ -113,17 +221,6 @@ export function createControlApp(
         ok: false,
         error: "webhooks_not_implemented",
         message: "Webhooks are owned by X04",
-      },
-      501,
-    ),
-  );
-
-  app.all("/.well-known/*", (c) =>
-    c.json(
-      {
-        ok: false,
-        error: "discovery_not_implemented",
-        message: "OAuth discovery is owned by X03A",
       },
       501,
     ),

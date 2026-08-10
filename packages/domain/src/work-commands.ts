@@ -101,15 +101,15 @@ export const createTaskCommand: HubCommand<CreateTaskInput, TaskRecord> = {
 export interface UpdateTaskInput {
   taskId: string;
   expectedVersion: number;
-  title?: string;
-  state?: string;
-  priority?: "P0" | "P1" | "P2" | "P3";
-  dueAt?: string | null;
-  nextOwnerType?: "human" | "agent_profile" | "unassigned";
-  nextOwnerId?: string | null;
-  nextActionReason?: string | null;
-  punchline?: string;
-  promote?: boolean;
+  title?: string | undefined;
+  state?: string | undefined;
+  priority?: "P0" | "P1" | "P2" | "P3" | undefined;
+  dueAt?: string | null | undefined;
+  nextOwnerType?: "human" | "agent_profile" | "unassigned" | undefined;
+  nextOwnerId?: string | null | undefined;
+  nextActionReason?: string | null | undefined;
+  punchline?: string | undefined;
+  promote?: boolean | undefined;
 }
 
 export const updateTaskCommand: HubCommand<UpdateTaskInput, TaskRecord> = {

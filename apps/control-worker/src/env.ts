@@ -36,6 +36,7 @@ const workerFirstPrefixes = [
   "/api/",
   "/auth/",
   "/mcp",
+  "/oauth/",
   "/realtime/",
   "/runner/",
   "/webhooks/",

@@ -16,6 +16,11 @@ export function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
+/** PKCE S256 code challenge: BASE64URL(SHA256(verifier)). */
+export function pkceS256Challenge(verifier: string): string {
+  return createHash("sha256").update(verifier).digest("base64url");
+}
+
 export function createDelegation(
   db: SqlDatabase,
   input: {
@@ -23,8 +28,8 @@ export function createDelegation(
     humanId: string;
     clientId: string;
     resource: string;
-    projectId?: string;
-    taskId?: string;
+    projectId?: string | undefined;
+    taskId?: string | undefined;
     scopes: string[];
     authorizationEpoch: number;
     expiresAt: string;

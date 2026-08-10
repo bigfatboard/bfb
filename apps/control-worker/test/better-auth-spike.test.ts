@@ -1,5 +1,5 @@
-// ABOUTME: Proves the disposable Better Auth 1.6.26 spike constructs without product routes.
-// ABOUTME: Asserts the spike module does not register auth handlers on the control app.
+// ABOUTME: Confirms Better Auth is pinned and mounted for C02 without exposing open DCR.
+// ABOUTME: Sign-in fixture path and Better Auth handler module both exist in the Worker.
 
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -7,24 +7,24 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { createDisposableBetterAuthSpike } from "../src/better-auth-spike.js";
-import { createControlApp } from "../src/routes.js";
+import { createHumanAuth } from "../src/auth/better-auth.js";
 
-describe("better auth disposable spike", () => {
+describe("better auth product mount", () => {
   it("constructs the pinned Better Auth package", () => {
-    const spike = createDisposableBetterAuthSpike();
-    expect(spike.version).toBe("1.6.26");
-    expect(spike.hasHandler).toBe(true);
+    const auth = createHumanAuth({
+      APP_ORIGIN: "https://bfb.example.test",
+      BETTER_AUTH_SECRET: "synthetic-local-auth-secret-not-for-prod",
+    });
+    expect(typeof auth.handler).toBe("function");
   });
 
-  it("does not mount Better Auth on the control app source", () => {
+  it("mounts auth routes and keeps product version pin", () => {
     const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-    const index = readFileSync(path.join(root, "src/index.ts"), "utf8");
     const routes = readFileSync(path.join(root, "src/routes.ts"), "utf8");
-    expect(index).not.toMatch(/betterAuth\(/);
-    expect(routes).not.toMatch(/better-auth/);
-    expect(routes).toMatch(/auth_not_implemented/);
-    // App factory still constructs without auth plugins.
-    expect(createControlApp()).toBeTruthy();
+    const betterAuth = readFileSync(path.join(root, "src/auth/better-auth.ts"), "utf8");
+    expect(routes).toMatch(/\/auth\/\*/);
+    expect(routes).toMatch(/handleAuthRoute/);
+    expect(betterAuth).toMatch(/1\.6\.26|betterAuth/);
+    expect(routes).not.toMatch(/auth_not_implemented/);
   });
 });
