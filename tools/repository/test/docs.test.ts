@@ -1,7 +1,7 @@
 // ABOUTME: Exercises valid, missing, encoded, and fenced Markdown link cases.
 // ABOUTME: Keeps documentation link failures reproducible without network access.
 
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -40,6 +40,43 @@ describe("validateMarkdownLinks", () => {
 
     await expect(validateMarkdownLinks(root)).resolves.toEqual([
       { document: "README.md", line: 1, target: "docs/missing.md" },
+    ]);
+  });
+
+  test("rejects an absolute target even when it exists", async () => {
+    const root = await temporaryRoot();
+    const target = path.join(root, "target.md");
+    await writeFile(target, "# Target\n");
+    await writeFile(path.join(root, "README.md"), "[Absolute](/target.md)\n");
+
+    await expect(validateMarkdownLinks(root)).resolves.toEqual([
+      { document: "README.md", line: 1, target: "/target.md" },
+    ]);
+  });
+
+  test("rejects a parent traversal even when its target exists", async () => {
+    const root = await temporaryRoot();
+    const target = root + "-outside.md";
+    temporaryRoots.push(target);
+    await writeFile(target, "# Outside\n");
+    const relativeTarget = "../" + path.basename(target);
+    await writeFile(path.join(root, "README.md"), "[Outside](" + relativeTarget + ")\n");
+
+    await expect(validateMarkdownLinks(root)).resolves.toEqual([
+      { document: "README.md", line: 1, target: relativeTarget },
+    ]);
+  });
+
+  test("rejects an in-repository symlink to an external target", async () => {
+    const root = await temporaryRoot();
+    const target = root + "-outside.md";
+    temporaryRoots.push(target);
+    await writeFile(target, "# Outside\n");
+    await symlink(target, path.join(root, "linked.md"));
+    await writeFile(path.join(root, "README.md"), "[Linked](linked.md)\n");
+
+    await expect(validateMarkdownLinks(root)).resolves.toEqual([
+      { document: "README.md", line: 1, target: "linked.md" },
     ]);
   });
 

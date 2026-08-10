@@ -1,10 +1,11 @@
 // ABOUTME: Parses and validates BFB work-package metadata and dependency relationships.
 // ABOUTME: Generates the marked roadmap graph and index deterministically from package files.
 
-import { access, readFile, readdir, writeFile } from "node:fs/promises";
+import { readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { validateMarkdownLinks } from "./docs.js";
+import { resolveExistingRepositoryPath, resolveRepositoryPath } from "./files.js";
 
 const packageIdPattern = "[A-Z]\\d{2}[A-Z]?";
 const packageFilePattern = /^WP-.*\.md$/u;
@@ -29,6 +30,10 @@ const categories = [
   { title: "External surfaces and operations", prefixes: ["X"] },
   { title: "Go-live", prefixes: ["G"] },
 ] as const;
+const allowedPrefixes = new Set<string>(categories.flatMap((category) => [...category.prefixes]));
+const evidenceOutcomes = new Set(["passed", "failed", "not_run"]);
+const environmentKinds = new Set(["local", "ci", "clean_checkout", "staging", "production"]);
+const ciStatuses = new Set(["passed", "failed", "pending", "not_run"]);
 
 export type RoadmapIssueCode =
   "cycle" | "dependency" | "drift" | "evidence" | "links" | "markers" | "metadata";
@@ -69,12 +74,17 @@ function dependencyIds(source: string, label: string): string[] | undefined {
   if (value === undefined) {
     return undefined;
   }
-  if (/^none\b/iu.test(value)) {
+  if (value === "none.") {
     return [];
   }
-  return Array.from(value.matchAll(new RegExp("\\b" + packageIdPattern + "\\b", "gu")), (match) =>
-    String(match[0]),
+  const packageList = new RegExp(
+    "^(?:" + packageIdPattern + ")(?:, " + packageIdPattern + ")*\\.$",
+    "u",
   );
+  if (!packageList.test(value)) {
+    return undefined;
+  }
+  return value.slice(0, -1).split(", ");
 }
 
 function subsection(source: string, heading: string): string {
@@ -121,6 +131,7 @@ function comparePackages(left: WorkPackage, right: WorkPackage): number {
 }
 
 function parsePackage(
+  root: string,
   filename: string,
   source: string,
 ): {
@@ -143,6 +154,12 @@ function parsePackage(
     issues.push({
       code: "metadata",
       message: filename + " does not match heading package ID " + id,
+    });
+  }
+  if (id !== undefined && !allowedPrefixes.has(id[0] ?? "")) {
+    issues.push({
+      code: "metadata",
+      message: filename + " has unsupported package prefix " + id[0],
     });
   }
   if (status === undefined || !allowedStatuses.has(status)) {
@@ -186,7 +203,8 @@ function parsePackage(
     if (
       isPlaceholder(evidenceManifest) ||
       evidenceManifest === undefined ||
-      path.isAbsolute(evidenceManifest) ||
+      resolveRepositoryPath(root, evidenceManifest) === undefined ||
+      evidenceManifest.includes("..") ||
       !evidenceManifest.endsWith(".json")
     ) {
       issues.push({
@@ -256,6 +274,23 @@ function validateDependencies(packages: WorkPackage[]): RoadmapIssue[] {
             requirement +
             " does not unlock " +
             workPackage.id,
+        });
+      }
+      if (
+        dependency !== undefined &&
+        readyStatuses.has(workPackage.status) &&
+        dependency.status !== "done"
+      ) {
+        issues.push({
+          code: "dependency",
+          message:
+            workPackage.id +
+            " is " +
+            workPackage.status +
+            " but requires " +
+            requirement +
+            " with status " +
+            dependency.status,
         });
       }
     }
@@ -412,12 +447,36 @@ async function validateEvidence(root: string, packages: WorkPackage[]): Promise<
     if (!evidenceStatuses.has(workPackage.status) || workPackage.evidenceManifest === undefined) {
       continue;
     }
-    const manifestPath = path.resolve(root, workPackage.evidenceManifest);
     try {
-      await access(manifestPath);
-      const manifest: unknown = JSON.parse(await readFile(manifestPath, "utf8"));
-      if (!isValidEvidenceManifest(manifest, workPackage.id)) {
+      const manifestPath = await resolveExistingRepositoryPath(root, workPackage.evidenceManifest);
+      if (manifestPath === undefined) {
+        throw new Error("evidence manifest is missing or outside the repository");
+      }
+      const value: unknown = JSON.parse(await readFile(manifestPath, "utf8"));
+      const manifest = evidenceManifest(root, value, workPackage.id);
+      if (manifest === undefined) {
         throw new Error("manifest does not satisfy the repository evidence contract");
+      }
+      if (
+        workPackage.status === "done" &&
+        (manifest.outcome !== "passed" ||
+          manifest.redaction.status !== "passed" ||
+          manifest.commands.some((command) => command.outcome !== "passed") ||
+          !manifest.commands.some((command) => command.command === workPackage.testTarget) ||
+          (manifest.ci !== undefined && manifest.ci.status !== "passed"))
+      ) {
+        throw new Error("done packages require passing evidence");
+      }
+      const referencedArtifacts = new Set([
+        ...manifest.artifacts,
+        ...manifest.commands.flatMap((command) =>
+          command.artifact === undefined ? [] : [command.artifact],
+        ),
+      ]);
+      for (const artifact of referencedArtifacts) {
+        if ((await resolveExistingRepositoryPath(root, artifact)) === undefined) {
+          throw new Error("evidence artifact is missing or outside the repository");
+        }
       }
     } catch {
       issues.push({
@@ -433,53 +492,170 @@ async function validateEvidence(root: string, packages: WorkPackage[]): Promise<
   return issues;
 }
 
-function isValidEvidenceManifest(value: unknown, packageId: string): boolean {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+interface EvidenceCommand {
+  command: string;
+  outcome: string;
+  artifact?: string;
+}
+
+interface EvidenceManifest {
+  commands: EvidenceCommand[];
+  outcome: string;
+  artifacts: string[];
+  redaction: { status: string; prohibited_content: string[] };
+  ci?: { status: string; run_url?: string };
+}
+
+function record(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function hasOnlyKeys(value: Record<string, unknown>, allowed: readonly string[]): boolean {
+  const allowedKeys = new Set(allowed);
+  return Object.keys(value).every((key) => allowedKeys.has(key));
+}
+
+function stringOrNull(value: unknown): boolean {
+  return typeof value === "string" || value === null;
+}
+
+function enumValue(value: unknown, allowed: Set<string>): value is string {
+  return typeof value === "string" && allowed.has(value);
+}
+
+function evidencePath(root: string, value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    !/\s/u.test(value) &&
+    !value.includes("..") &&
+    resolveRepositoryPath(root, value) !== undefined
+  );
+}
+
+function validUri(value: unknown): value is string {
+  if (typeof value !== "string") {
     return false;
   }
-  const manifest = value as Record<string, unknown>;
-  const commands = manifest.commands;
-  const artifacts = manifest.artifacts;
-  const redaction = manifest.redaction;
-  const validCommands =
-    Array.isArray(commands) &&
-    commands.length > 0 &&
-    commands.every(
-      (command) =>
-        typeof command === "object" &&
-        command !== null &&
-        !Array.isArray(command) &&
-        typeof (command as Record<string, unknown>).command === "string" &&
-        ["passed", "failed", "not_run"].includes(
-          String((command as Record<string, unknown>).outcome),
-        ),
-    );
-  const validArtifacts =
-    Array.isArray(artifacts) &&
-    artifacts.every(
-      (artifact) =>
-        typeof artifact === "string" &&
-        !path.isAbsolute(artifact) &&
-        !artifact.split("/").includes(".."),
-    );
-  const validRedaction =
-    typeof redaction === "object" &&
-    redaction !== null &&
-    !Array.isArray(redaction) &&
-    ["passed", "failed", "not_run"].includes(
-      String((redaction as Record<string, unknown>).status),
-    ) &&
-    Array.isArray((redaction as Record<string, unknown>).prohibited_content);
+  try {
+    new URL(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
-  return (
-    manifest.package === packageId &&
-    typeof manifest.tested_commit === "string" &&
-    /^[0-9a-f]{40}$/u.test(manifest.tested_commit) &&
-    ["passed", "failed", "not_run"].includes(String(manifest.outcome)) &&
-    validCommands &&
-    validArtifacts &&
-    validRedaction
-  );
+function evidenceManifest(
+  root: string,
+  value: unknown,
+  packageId: string,
+): EvidenceManifest | undefined {
+  const manifest = record(value);
+  if (
+    manifest === undefined ||
+    !hasOnlyKeys(manifest, [
+      "$schema",
+      "package",
+      "tested_commit",
+      "protocol_version",
+      "schema_version",
+      "migration_head",
+      "toolchains",
+      "environment",
+      "commands",
+      "outcome",
+      "artifacts",
+      "redaction",
+      "ci",
+    ]) ||
+    (manifest.$schema !== undefined && typeof manifest.$schema !== "string") ||
+    manifest.package !== packageId ||
+    typeof manifest.tested_commit !== "string" ||
+    !/^[0-9a-f]{40}$/u.test(manifest.tested_commit) ||
+    !stringOrNull(manifest.protocol_version) ||
+    !stringOrNull(manifest.schema_version) ||
+    !stringOrNull(manifest.migration_head) ||
+    !enumValue(manifest.outcome, evidenceOutcomes)
+  ) {
+    return undefined;
+  }
+
+  const toolchains = record(manifest.toolchains);
+  const environment = record(manifest.environment);
+  const redaction = record(manifest.redaction);
+  const ci = manifest.ci === undefined ? undefined : record(manifest.ci);
+  if (
+    toolchains === undefined ||
+    !Object.values(toolchains).every((item) => typeof item === "string") ||
+    environment === undefined ||
+    !hasOnlyKeys(environment, ["kind", "os", "architecture"]) ||
+    !enumValue(environment.kind, environmentKinds) ||
+    typeof environment.os !== "string" ||
+    typeof environment.architecture !== "string" ||
+    redaction === undefined ||
+    !hasOnlyKeys(redaction, ["status", "prohibited_content"]) ||
+    !enumValue(redaction.status, evidenceOutcomes) ||
+    !Array.isArray(redaction.prohibited_content) ||
+    !redaction.prohibited_content.every((item) => typeof item === "string") ||
+    (manifest.ci !== undefined && ci === undefined) ||
+    (ci !== undefined &&
+      (!hasOnlyKeys(ci, ["status", "run_url"]) ||
+        !enumValue(ci.status, ciStatuses) ||
+        (ci.run_url !== undefined && !validUri(ci.run_url))))
+  ) {
+    return undefined;
+  }
+
+  if (!Array.isArray(manifest.commands) || manifest.commands.length === 0) {
+    return undefined;
+  }
+  const commands: EvidenceCommand[] = [];
+  for (const value of manifest.commands) {
+    const command = record(value);
+    if (
+      command === undefined ||
+      !hasOnlyKeys(command, ["command", "outcome", "artifact"]) ||
+      typeof command.command !== "string" ||
+      command.command.length === 0 ||
+      !enumValue(command.outcome, evidenceOutcomes) ||
+      (command.artifact !== undefined && !evidencePath(root, command.artifact))
+    ) {
+      return undefined;
+    }
+    commands.push({
+      command: command.command,
+      outcome: command.outcome,
+      ...(typeof command.artifact === "string" ? { artifact: command.artifact } : {}),
+    });
+  }
+
+  if (
+    !Array.isArray(manifest.artifacts) ||
+    !manifest.artifacts.every((artifact) => evidencePath(root, artifact)) ||
+    new Set(manifest.artifacts).size !== manifest.artifacts.length
+  ) {
+    return undefined;
+  }
+
+  return {
+    commands,
+    outcome: manifest.outcome,
+    artifacts: manifest.artifacts,
+    redaction: {
+      status: redaction.status,
+      prohibited_content: redaction.prohibited_content,
+    },
+    ...(ci === undefined
+      ? {}
+      : {
+          ci: {
+            status: String(ci.status),
+            ...(typeof ci.run_url === "string" ? { run_url: ci.run_url } : {}),
+          },
+        }),
+  };
 }
 
 export async function inspectRoadmap(root: string): Promise<RoadmapInspection> {
@@ -492,7 +668,7 @@ export async function inspectRoadmap(root: string): Promise<RoadmapInspection> {
 
   for (const filename of filenames) {
     const source = await readFile(path.join(packageDirectory, filename), "utf8");
-    const parsed = parsePackage(filename, source);
+    const parsed = parsePackage(root, filename, source);
     issues.push(...parsed.issues);
     if (parsed.workPackage !== undefined) {
       packages.push(parsed.workPackage);

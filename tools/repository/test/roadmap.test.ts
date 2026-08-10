@@ -1,7 +1,7 @@
 // ABOUTME: Exercises roadmap metadata, dependency, readiness, link, and drift failures.
 // ABOUTME: Proves generation remains deterministic across repeated clean fixture runs.
 
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -18,9 +18,11 @@ interface FixturePackage {
   filenameId?: string;
   status?: string;
   requires?: string[];
+  requiresMetadata?: string;
   unlocks?: string[];
   extra?: string;
   readyMetadata?: boolean;
+  evidenceManifest?: string;
 }
 
 function packageSource(fixture: FixturePackage): string {
@@ -35,9 +37,8 @@ function packageSource(fixture: FixturePackage): string {
           "",
           "Evidence manifest: " +
             markdownTick +
-            "docs/work-packages/evidence/WP-" +
-            fixture.id +
-            "/manifest.json" +
+            (fixture.evidenceManifest ??
+              "docs/work-packages/evidence/WP-" + fixture.id + "/manifest.json") +
             markdownTick,
         ].join("\n")
       : "";
@@ -51,7 +52,7 @@ function packageSource(fixture: FixturePackage): string {
     "",
     "## Dependencies",
     "",
-    "- **Requires:** " + requires + ".",
+    "- **Requires:** " + (fixture.requiresMetadata ?? requires + "."),
     "- **Unlocks:** " + unlocks + ".",
     "- **Can run with:** nothing.",
     "",
@@ -103,6 +104,57 @@ async function fixtureRoot(fixtures: FixturePackage[]): Promise<string> {
   return root;
 }
 
+interface EvidenceOptions {
+  command?: string;
+  outcome?: "passed" | "failed" | "not_run";
+  commandOutcome?: "passed" | "failed" | "not_run";
+  redactionStatus?: "passed" | "failed" | "not_run";
+  artifact?: string;
+  writeArtifact?: boolean;
+  ciStatus?: "passed" | "failed" | "pending" | "not_run";
+}
+
+async function writeEvidence(
+  root: string,
+  packageId: string,
+  options: EvidenceOptions = {},
+): Promise<void> {
+  const directory = path.join(root, "docs/work-packages/evidence/WP-" + packageId);
+  const artifact =
+    options.artifact ?? "docs/work-packages/evidence/WP-" + packageId + "/result.json";
+  await mkdir(directory, { recursive: true });
+  if (options.writeArtifact !== false) {
+    await writeFile(path.join(root, artifact), "{}\n");
+  }
+  await writeFile(
+    path.join(directory, "manifest.json"),
+    JSON.stringify(
+      {
+        package: packageId,
+        tested_commit: "a".repeat(40),
+        protocol_version: null,
+        schema_version: null,
+        migration_head: null,
+        toolchains: { node: "24.19.0" },
+        environment: { kind: "clean_checkout", os: "test", architecture: "arm64" },
+        commands: [
+          {
+            command: options.command ?? "pnpm test",
+            outcome: options.commandOutcome ?? "passed",
+            artifact,
+          },
+        ],
+        outcome: options.outcome ?? "passed",
+        artifacts: [artifact],
+        redaction: { status: options.redactionStatus ?? "passed", prohibited_content: [] },
+        ci: { status: options.ciStatus ?? "passed", run_url: "https://example.com/runs/1" },
+      },
+      null,
+      2,
+    ) + "\n",
+  );
+}
+
 function issueCodes(inspection: Awaited<ReturnType<typeof inspectRoadmap>>): string[] {
   return inspection.issues.map((issue) => issue.code);
 }
@@ -135,6 +187,15 @@ describe("work-package roadmap", () => {
     expect(inspection.issues.some((issue) => issue.message.includes("does not match"))).toBe(true);
   });
 
+  test("rejects package prefixes outside the repository taxonomy", async () => {
+    const root = await fixtureRoot([{ id: "Z01" }]);
+
+    const inspection = await inspectRoadmap(root);
+    expect(
+      inspection.issues.some((issue) => issue.message.includes("unsupported package prefix")),
+    ).toBe(true);
+  });
+
   test("rejects missing and asymmetric dependency declarations", async () => {
     const missingRoot = await fixtureRoot([{ id: "F01", requires: ["F99"] }]);
     expect(issueCodes(await inspectRoadmap(missingRoot))).toContain("dependency");
@@ -146,6 +207,13 @@ describe("work-package roadmap", () => {
     expect(issueCodes(await inspectRoadmap(unlocksRoot))).toContain("dependency");
   });
 
+  test("rejects malformed and placeholder dependency metadata", async () => {
+    for (const requiresMetadata of ["TBD.", "none, F01."]) {
+      const root = await fixtureRoot([{ id: "F02", requiresMetadata }]);
+      expect(issueCodes(await inspectRoadmap(root))).toContain("metadata");
+    }
+  });
+
   test("rejects dependency cycles", async () => {
     const root = await fixtureRoot([
       { id: "F01", requires: ["F02"], unlocks: ["F02"] },
@@ -153,6 +221,20 @@ describe("work-package roadmap", () => {
     ]);
 
     expect(issueCodes(await inspectRoadmap(root))).toContain("cycle");
+  });
+
+  test("rejects a ready package whose dependencies are not done", async () => {
+    const root = await fixtureRoot([
+      { id: "F01", unlocks: ["F02"] },
+      { id: "F02", status: "ready", readyMetadata: true, requires: ["F01"] },
+    ]);
+
+    const inspection = await inspectRoadmap(root);
+    expect(
+      inspection.issues.some((issue) =>
+        issue.message.includes("F02 is ready but requires F01 with status planned"),
+      ),
+    ).toBe(true);
   });
 
   test("rejects incomplete ready metadata and broken package links", async () => {
@@ -177,6 +259,99 @@ describe("work-package roadmap", () => {
         readyMetadata: true,
       },
     ]);
+
+    expect(issueCodes(await inspectRoadmap(root))).toContain("evidence");
+  });
+
+  test("rejects evidence-manifest paths outside the repository", async () => {
+    for (const evidenceManifest of ["../manifest.json", "docs/evidence/../manifest.json"]) {
+      const root = await fixtureRoot([
+        {
+          id: "F01",
+          status: "ready",
+          readyMetadata: true,
+          evidenceManifest,
+        },
+      ]);
+      expect(issueCodes(await inspectRoadmap(root))).toContain("metadata");
+    }
+  });
+
+  test("rejects every non-passing evidence state for a done package", async () => {
+    const cases: EvidenceOptions[] = [
+      { outcome: "failed" },
+      { commandOutcome: "not_run" },
+      { redactionStatus: "failed" },
+      { ciStatus: "pending" },
+    ];
+    for (const options of cases) {
+      const root = await fixtureRoot([{ id: "F01", status: "done", readyMetadata: true }]);
+      await writeEvidence(root, "F01", options);
+      expect(issueCodes(await inspectRoadmap(root))).toContain("evidence");
+    }
+  });
+
+  test("accepts complete passing evidence for a done package", async () => {
+    const root = await fixtureRoot([{ id: "F01", status: "done", readyMetadata: true }]);
+    await writeEvidence(root, "F01");
+    await writeGeneratedRoadmap(root);
+
+    await expect(inspectRoadmap(root)).resolves.toMatchObject({ issues: [] });
+  });
+
+  test("requires a done package evidence manifest to run its exact test target", async () => {
+    const root = await fixtureRoot([{ id: "F01", status: "done", readyMetadata: true }]);
+    await writeEvidence(root, "F01", { command: "true" });
+
+    expect(issueCodes(await inspectRoadmap(root))).toContain("evidence");
+  });
+
+  test("rejects schema-invalid CI evidence", async () => {
+    const root = await fixtureRoot([{ id: "F01", status: "review", readyMetadata: true }]);
+    await writeEvidence(root, "F01");
+    const manifestPath = path.join(root, "docs/work-packages/evidence/WP-F01/manifest.json");
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as Record<string, unknown>;
+    manifest.ci = null;
+    await writeFile(manifestPath, JSON.stringify(manifest) + "\n");
+
+    expect(issueCodes(await inspectRoadmap(root))).toContain("evidence");
+  });
+
+  test("rejects array coercion in evidence enums", async () => {
+    const root = await fixtureRoot([{ id: "F01", status: "done", readyMetadata: true }]);
+    await writeEvidence(root, "F01");
+    const manifestPath = path.join(root, "docs/work-packages/evidence/WP-F01/manifest.json");
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as Record<string, unknown>;
+    manifest.outcome = ["passed"];
+    await writeFile(manifestPath, JSON.stringify(manifest) + "\n");
+
+    expect(issueCodes(await inspectRoadmap(root))).toContain("evidence");
+  });
+
+  test("rejects evidence paths forbidden by the manifest schema", async () => {
+    const root = await fixtureRoot([{ id: "F01", status: "review", readyMetadata: true }]);
+    await writeEvidence(root, "F01", {
+      artifact: "docs/work-packages/evidence/WP-F01/result..json",
+    });
+
+    expect(issueCodes(await inspectRoadmap(root))).toContain("evidence");
+  });
+
+  test("rejects evidence that references a missing artifact", async () => {
+    const root = await fixtureRoot([{ id: "F01", status: "review", readyMetadata: true }]);
+    await writeEvidence(root, "F01", { writeArtifact: false });
+
+    expect(issueCodes(await inspectRoadmap(root))).toContain("evidence");
+  });
+
+  test("rejects evidence that resolves through a symlink outside the repository", async () => {
+    const root = await fixtureRoot([{ id: "F01", status: "review", readyMetadata: true }]);
+    const artifact = "docs/work-packages/evidence/WP-F01/result.json";
+    await writeEvidence(root, "F01", { artifact, writeArtifact: false });
+    const target = root + "-outside.json";
+    temporaryRoots.push(target);
+    await writeFile(target, "{}\n");
+    await symlink(target, path.join(root, artifact));
 
     expect(issueCodes(await inspectRoadmap(root))).toContain("evidence");
   });

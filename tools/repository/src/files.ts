@@ -1,7 +1,7 @@
 // ABOUTME: Provides deterministic repository file discovery for policy checks.
 // ABOUTME: Excludes build products and dependency directories shared by all validators.
 
-import { readdir } from "node:fs/promises";
+import { readdir, realpath } from "node:fs/promises";
 import path from "node:path";
 
 const excludedDirectoryNames = new Set([
@@ -44,4 +44,47 @@ export async function walkFiles(
 
   await visit(root);
   return matches;
+}
+
+export function resolveRepositoryPath(root: string, repositoryPath: string): string | undefined {
+  if (repositoryPath.length === 0 || path.isAbsolute(repositoryPath)) {
+    return undefined;
+  }
+  const resolvedRoot = path.resolve(root);
+  const resolvedPath = path.resolve(resolvedRoot, repositoryPath);
+  const relativePath = path.relative(resolvedRoot, resolvedPath);
+  if (
+    relativePath.length === 0 ||
+    relativePath === ".." ||
+    relativePath.startsWith(".." + path.sep) ||
+    path.isAbsolute(relativePath)
+  ) {
+    return undefined;
+  }
+  return resolvedPath;
+}
+
+export async function resolveExistingRepositoryPath(
+  root: string,
+  repositoryPath: string,
+): Promise<string | undefined> {
+  const resolvedPath = resolveRepositoryPath(root, repositoryPath);
+  if (resolvedPath === undefined) {
+    return undefined;
+  }
+  try {
+    const [realRoot, realPath] = await Promise.all([realpath(root), realpath(resolvedPath)]);
+    const relativePath = path.relative(realRoot, realPath);
+    if (
+      relativePath.length === 0 ||
+      relativePath === ".." ||
+      relativePath.startsWith(".." + path.sep) ||
+      path.isAbsolute(relativePath)
+    ) {
+      return undefined;
+    }
+    return resolvedPath;
+  } catch {
+    return undefined;
+  }
 }

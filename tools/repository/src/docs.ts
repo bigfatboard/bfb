@@ -1,10 +1,10 @@
 // ABOUTME: Validates repository-relative links in committed Markdown documents.
 // ABOUTME: Ignores external destinations and examples inside fenced code blocks.
 
-import { access, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-import { walkFiles } from "./files.js";
+import { resolveExistingRepositoryPath, walkFiles } from "./files.js";
 
 export interface LinkFailure {
   document: string;
@@ -76,12 +76,12 @@ export async function validateMarkdownLinks(root: string): Promise<LinkFailure[]
           continue;
         }
 
-        const absoluteTarget = path.isAbsolute(decodedTarget)
-          ? decodedTarget
-          : path.resolve(root, path.dirname(document), decodedTarget);
-        try {
-          await access(absoluteTarget);
-        } catch {
+        if (path.isAbsolute(decodedTarget)) {
+          failures.push({ document, line: lineIndex + 1, target });
+          continue;
+        }
+        const documentRelativeTarget = path.join(path.dirname(document), decodedTarget);
+        if ((await resolveExistingRepositoryPath(root, documentRelativeTarget)) === undefined) {
           failures.push({ document, line: lineIndex + 1, target });
         }
       }
