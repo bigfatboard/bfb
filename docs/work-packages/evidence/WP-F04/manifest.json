@@ -4,7 +4,7 @@
   "tested_commit": "ac0b0cfda755ac874062320e284e87613da7bacf",
   "protocol_version": "bfb-wire/1",
   "schema_version": "1",
-  "migration_head": "0003_auth_and_work",
+  "migration_head": "0004_human_credentials",
   "toolchains": {
     "node": "24.19.0",
     "pnpm": "11.21.0",
