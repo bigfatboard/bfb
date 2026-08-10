@@ -1,0 +1,26 @@
+{
+  "tested_commit": "0ccf55b768e6b9ddb34a7f4a7f32d153fb023b1f",
+  "targets": [
+    {
+      "kind": "typescript",
+      "command": "pnpm typecheck",
+      "count": 8,
+      "outcome": "passed"
+    },
+    {
+      "kind": "go",
+      "command": "pnpm go:check",
+      "process_smoke": "build and execute cmd/bfb",
+      "outcome": "passed"
+    },
+    {
+      "kind": "swift",
+      "command": "pnpm swift:check",
+      "build": "unsigned BFB.app",
+      "tests": 1,
+      "outcome": "passed"
+    }
+  ],
+  "product_behavior_added": false,
+  "outcome": "passed"
+}

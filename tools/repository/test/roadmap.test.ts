@@ -169,6 +169,18 @@ describe("work-package roadmap", () => {
     expect(codes).toContain("links");
   });
 
+  test("rejects a review package without a valid evidence manifest", async () => {
+    const root = await fixtureRoot([
+      {
+        id: "F01",
+        status: "review",
+        readyMetadata: true,
+      },
+    ]);
+
+    expect(issueCodes(await inspectRoadmap(root))).toContain("evidence");
+  });
+
   test("detects changes in either generated block", async () => {
     const root = await fixtureRoot([{ id: "F01" }]);
     await writeGeneratedRoadmap(root);

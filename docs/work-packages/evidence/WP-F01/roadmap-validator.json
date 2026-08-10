@@ -1,0 +1,23 @@
+{
+  "tested_commit": "0ccf55b768e6b9ddb34a7f4a7f32d153fb023b1f",
+  "package_count": 41,
+  "generated_sections": ["dependency_graph", "package_index"],
+  "failure_fixtures": [
+    "duplicate_package_id",
+    "filename_header_mismatch",
+    "missing_dependency",
+    "requires_without_unlock",
+    "unlock_without_requires",
+    "dependency_cycle",
+    "broken_relative_link",
+    "ready_without_stable_metadata",
+    "graph_drift",
+    "index_drift"
+  ],
+  "determinism": {
+    "method": "generate the same fixture twice and compare bytes",
+    "outcome": "passed"
+  },
+  "command": "pnpm roadmap:check",
+  "outcome": "passed"
+}

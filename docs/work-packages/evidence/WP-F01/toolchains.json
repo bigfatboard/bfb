@@ -1,0 +1,21 @@
+{
+  "tested_commit": "0ccf55b768e6b9ddb34a7f4a7f32d153fb023b1f",
+  "captured_at": "2026-08-10T20:23:24Z",
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "typescript": "5.9.3",
+    "go": "1.26.5",
+    "xcode": "26.0.1 (17A400)",
+    "swift": "6.2",
+    "macos_deployment_target": "15.0"
+  },
+  "dependency_policy": {
+    "direct_versions": "exact",
+    "pnpm_lockfile": "committed",
+    "github_actions": "commit SHA",
+    "build_scripts": ["esbuild"],
+    "updates": "weekly Dependabot review"
+  },
+  "outcome": "passed"
+}

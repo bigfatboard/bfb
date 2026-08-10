@@ -1,0 +1,64 @@
+{
+  "tested_commit": "0ccf55b768e6b9ddb34a7f4a7f32d153fb023b1f",
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "checks": "Exact dependency graph and approved build-script policy",
+      "outcome": "passed"
+    },
+    {
+      "command": "pnpm format:check",
+      "checks": "TypeScript, JavaScript, JSON, and YAML formatting",
+      "outcome": "passed"
+    },
+    {
+      "command": "pnpm lint",
+      "checks": "Static JavaScript and TypeScript lint rules",
+      "outcome": "passed"
+    },
+    {
+      "command": "pnpm typecheck",
+      "checks": "Eight strict TypeScript project-reference targets",
+      "outcome": "passed"
+    },
+    {
+      "command": "pnpm test",
+      "checks": "Repository policy failure fixtures",
+      "outcome": "passed",
+      "summary": "12 tests in 3 files"
+    },
+    {
+      "command": "pnpm headers:check",
+      "checks": "Two descriptive ABOUTME lines on hand-written source",
+      "outcome": "passed"
+    },
+    {
+      "command": "pnpm docs:check",
+      "checks": "Repository-relative Markdown links outside fenced examples",
+      "outcome": "passed"
+    },
+    {
+      "command": "pnpm roadmap:check",
+      "checks": "Metadata, direct dependencies, cycles, readiness, links, and generated drift",
+      "outcome": "passed",
+      "summary": "41 packages"
+    },
+    {
+      "command": "pnpm go:check",
+      "checks": "Go format, module drift, vet, tests, process smoke, and build",
+      "outcome": "passed"
+    },
+    {
+      "command": "pnpm swift:check",
+      "checks": "Swift format and unsigned Xcode build/test",
+      "outcome": "passed",
+      "summary": "1 XCTest"
+    },
+    {
+      "command": "pnpm verify",
+      "checks": "Complete platform-appropriate repository gate",
+      "outcome": "passed"
+    }
+  ],
+  "outcome": "passed"
+}

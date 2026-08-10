@@ -415,7 +415,10 @@ async function validateEvidence(root: string, packages: WorkPackage[]): Promise<
     const manifestPath = path.resolve(root, workPackage.evidenceManifest);
     try {
       await access(manifestPath);
-      JSON.parse(await readFile(manifestPath, "utf8"));
+      const manifest: unknown = JSON.parse(await readFile(manifestPath, "utf8"));
+      if (!isValidEvidenceManifest(manifest, workPackage.id)) {
+        throw new Error("manifest does not satisfy the repository evidence contract");
+      }
     } catch {
       issues.push({
         code: "evidence",
@@ -428,6 +431,55 @@ async function validateEvidence(root: string, packages: WorkPackage[]): Promise<
     }
   }
   return issues;
+}
+
+function isValidEvidenceManifest(value: unknown, packageId: string): boolean {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const manifest = value as Record<string, unknown>;
+  const commands = manifest.commands;
+  const artifacts = manifest.artifacts;
+  const redaction = manifest.redaction;
+  const validCommands =
+    Array.isArray(commands) &&
+    commands.length > 0 &&
+    commands.every(
+      (command) =>
+        typeof command === "object" &&
+        command !== null &&
+        !Array.isArray(command) &&
+        typeof (command as Record<string, unknown>).command === "string" &&
+        ["passed", "failed", "not_run"].includes(
+          String((command as Record<string, unknown>).outcome),
+        ),
+    );
+  const validArtifacts =
+    Array.isArray(artifacts) &&
+    artifacts.every(
+      (artifact) =>
+        typeof artifact === "string" &&
+        !path.isAbsolute(artifact) &&
+        !artifact.split("/").includes(".."),
+    );
+  const validRedaction =
+    typeof redaction === "object" &&
+    redaction !== null &&
+    !Array.isArray(redaction) &&
+    ["passed", "failed", "not_run"].includes(
+      String((redaction as Record<string, unknown>).status),
+    ) &&
+    Array.isArray((redaction as Record<string, unknown>).prohibited_content);
+
+  return (
+    manifest.package === packageId &&
+    typeof manifest.tested_commit === "string" &&
+    /^[0-9a-f]{40}$/u.test(manifest.tested_commit) &&
+    ["passed", "failed", "not_run"].includes(String(manifest.outcome)) &&
+    validCommands &&
+    validArtifacts &&
+    validRedaction
+  );
 }
 
 export async function inspectRoadmap(root: string): Promise<RoadmapInspection> {
