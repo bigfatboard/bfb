@@ -18,7 +18,10 @@ An authorized human can navigate an attention-first BFB shell, select an explici
 
 - Build authenticated routing and explicit `/w/<slug>` workspace resolution.
 - Add workspace/project switcher that treats last selection as preference, never authorization.
-- Build the Work surface with compact task state, owner, dependencies, latest committed event, and current run summary.
+- Build the Work surface as horizontally scrolling project lanes, never status columns. Cards use stable project tint/swatch/full-width 3px top edge, an independent fixed priority marker, compact task state/owner/dependencies, latest committed event, and current run summary.
+- Add a cross-project `Needs <current human> Now` deck of at most three canonical C08 projection results, ordered deterministically. Each projected card links to the same task in its project lane.
+- Give each card one neutral `NOW` label and a strong one-line punchline derived from committed semantic state. Show the persisted next-action reason as `Why <human>` or `Why delegable`.
+- Let an authorized human hand a task to a policy-allowed agent profile or another human without claiming a run started. Keep project color, priority color, state, and ownership as separate visual channels.
 - Add task detail/edit, comments, typed context audiences, proposed-task promotion, project/profile/policy administration, and version-conflict UI.
 - Render all task, comment, context, provider, and event-controlled strings as escaped text or through one reviewed allowlisted Markdown renderer with raw HTML disabled. Executable HTML belongs only to V02's isolated artifact origin.
 - Invoke action-bound C03 step-up for sensitive policy/privilege changes rather than treating an ordinary authenticated session as fresh proof.
@@ -45,6 +48,9 @@ An authorized human can navigate an attention-first BFB shell, select an explici
 - Human-only context never renders in an agent-view preview.
 - Proposed agent root tasks are visibly distinct and require promotion.
 - UI never labels a task live/working without committed state.
+- Project-lane and attention-deck ordering is deterministic; the attention deck contains only the current human's eligible C08 projection and never duplicates canonical task state.
+- Project identity uses a full-width top edge/tint/swatch and no side stripe; priority remains visually independent.
+- Handoff changes intended ownership only. The UI does not claim agent activity, time, tokens, or completion until later records provide it.
 - Malicious task/comment/context/provider strings cannot create DOM elements, execute script, navigate a privileged frame, or access authenticated APIs through rendering.
 - Sensitive policy/privilege actions cannot complete without the action-bound fresh assertion required by the API.
 

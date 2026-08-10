@@ -45,8 +45,10 @@ The repository intentionally has no required `.env` file, machine-local path, or
 - `tools/repository`: repository policy and verification tooling
 
 - [Architecture](ARCHITECTURE.md)
+- [Web/MCP-first architecture decision](docs/adr/0001-web-and-remote-mcp-first.md)
 - [Work-package roadmap](docs/work-packages/README.md)
 - [Acceptance matrix](docs/work-packages/ACCEPTANCE.md)
+- [Grok web/MCP goal](docs/goals/GROK-WEB-MCP.md)
 - [Contributing](CONTRIBUTING.md)
 - [Dependency policy](DEPENDENCIES.md)
 - [Security policy](SECURITY.md)

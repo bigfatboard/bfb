@@ -1,4 +1,4 @@
-# WP-X03 — Remote OAuth MCP
+# WP-X03 — Remote MCP parity extensions
 
 Status: `planned`
 
@@ -6,52 +6,52 @@ Risk: Very high
 
 ## Outcome
 
-An approved remote MCP client can invoke an explicitly scoped subset of BFB tools through Streamable HTTP without receiving broader workspace authority.
+The remote MCP surface can use later attention, result, and artifact commands through the same X03A delegation boundary without changing principal or transport semantics.
 
 ## Dependencies
 
-- **Requires:** A01, A02, A03, C01, C02, C03, C04, V01.
+- **Requires:** A01, A02, A03, V01, X03A.
 - **Unlocks:** G01.
 - **Can run with:** X02/X04 after auth migrations are sequenced.
 
 ## Scope
 
-- Expose Streamable HTTP MCP at `/mcp` with authorization-server/protected-resource metadata.
-- Configure Better Auth OAuth Provider for authorization code + PKCE S256, exact redirect URIs, rotating refresh tokens, and opaque hashed token storage.
-- Create BFB-owned `oauth_delegation` before a grant/token becomes active; bind human, resource, workspace, optional project/task/run, scopes, expiry, and epoch.
-- Validate delegation/membership/resource/scope/boundaries every call; derive IDs from the grant.
-- Support preregistered public clients plus SSRF-safe HTTPS Client ID Metadata Documents under explicit allow policy.
-- Disable open DCR, authenticated end-user client CRUD, `client_credentials`, JWT access tokens, and tokens without human+active delegation.
-- Return protected-resource metadata in unauthorized challenges.
-- Expose only the documented agent tools and reuse their authorization/idempotency tests.
-- Apply shared D1-backed abuse controls, bounded bodies, attempt/poll caps, and uniform failure responses to authorization, token, client-metadata, and MCP request surfaces; isolate-local memory is not the authority.
+- Extend X03A's fixed tool map with attention request/read, immutable result submission, and artifact publication only after their owning packages are done.
+- Reuse A02/A03/V01 transport-neutral commands and the X03A authorization, delegation, idempotency, pagination, revocation, and abuse-control contracts.
+- Preserve human-delegated remote attribution. A remote provider label remains client-reported and never becomes a run-scoped `agent_run` identity.
+- Prove later tools cannot resolve attention, accept results, approve artifacts, promote root tasks, or administer policy.
 
 ## Non-goals
 
-- Service-account automation, broad workspace admin tools, bearer JWTs, open client registration, or using OAuth records as workspace authorization.
+- Changing the X03A transport/OAuth model, service-account automation, workspace administration, result acceptance, artifact approval, or inferring live agent presence.
+
+## Contracts
+
+### Consumes
+
+- X03A stateless MCP/OAuth delegation and A01/A02/A03/V01 command boundaries.
+
+### Produces
+
+- A versioned extension to the X03A tool map for attention, result submission, and artifact publication.
 
 ## Work plan
 
-1. Add delegation migrations and strict OAuth provider configuration.
-2. Implement metadata, consent, PKCE/token rotation, and client policy.
-3. Bind MCP tools to delegation-derived context and revocation.
-4. Attack redirect/resource/scope/SSRF/token replay/client CRUD/credential-type boundaries plus distributed rate-limit bypass, oversized bodies, and attempt exhaustion.
+1. Freeze the additional tool schemas and permissions without altering X03A tools.
+2. Bind later domain commands to the existing per-request MCP server.
+3. Attack resolution/acceptance/approval/promotion and cross-boundary negatives.
 
 ## Acceptance
 
-- Exact redirect, PKCE, state, resource, scope, and active delegation are mandatory.
-- `client_credentials`, open DCR, user client CRUD, JWT tokens, and unsafe metadata targets fail closed.
-- Revoking delegation/membership/epoch blocks the next call before token cleanup.
-- Caller IDs cannot escape delegated workspace/project/task/run.
-- Refresh tokens rotate; replay fails.
-- Cookie/CLI/runner credentials cannot authenticate `/mcp`.
-- Abuse limits survive requests routed through different Worker isolates, reject oversized/exhausted flows uniformly, and never log authorization codes, tokens, metadata secrets, or request bodies.
+- Every extension tool has parity tests against its domain command and preserves X03A's authorization/revocation negatives.
+- A client may request attention, submit a result, or publish an artifact when delegated; it cannot resolve, accept, approve, promote, or administer.
+- Adding extension tools does not introduce persistent MCP session state or widen an existing token's scope/boundary.
 
 ## Evidence and handoff
 
-- Commit OAuth/MCP inspector trace, client-policy matrix, SSRF/abuse-control suite, token-rotation/revocation results, and tool boundary tests including A03 result submission.
+- Commit extension tool-map fixtures, parity tests, and permission-negative results.
 - G01 treats this public auth surface as a separate adversarial target.
 
 ## Risks and decisions
 
-- This is the cleanest optional private-alpha cut because it adds a large public authorization surface; local stdio MCP remains the core path.
+- This remains a later parity package. The narrow X03A task loop is the web/MCP checkpoint; richer tools wait for their domain owners.

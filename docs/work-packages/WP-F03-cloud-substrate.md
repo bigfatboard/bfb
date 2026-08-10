@@ -11,7 +11,7 @@ BFB’s web, control, and artifact applications build and run against an explici
 ## Dependencies
 
 - **Requires:** F01.
-- **Unlocks:** C01, C02, F04, G02, V01, W01, X04.
+- **Unlocks:** C01, C02, F04, G02, V01, W01, X03A, X04.
 - **Can run with:** F02.
 
 ## Scope
