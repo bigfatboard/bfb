@@ -12,7 +12,7 @@ import { WorkBoard } from "../src/work/board.js";
 
 describe("work board", () => {
   it("projects committed fixtures into board props without side stripes", async () => {
-    const db = openDomainDb();
+    const db = await openDomainDb();
     const hub = new WorkspaceHub(db);
     await hub.execute(createTaskCommand, {
       workspaceId: FIX.workspace,
@@ -29,10 +29,12 @@ describe("work board", () => {
         dueAt: "2026-08-07T10:00:00Z",
       },
     });
-    db.prepare(`UPDATE tasks SET state = 'blocked' WHERE workspace_id = ?`).run(FIX.workspace);
+    await db
+      .prepare(`UPDATE tasks SET state = 'blocked' WHERE workspace_id = ?`)
+      .run(FIX.workspace);
 
-    const lanes = buildProjectLanes(db, FIX.workspace, [FIX.projectA, FIX.projectB]);
-    const needsNow = buildNeedsNowDeck(
+    const lanes = await buildProjectLanes(db, FIX.workspace, [FIX.projectA, FIX.projectB]);
+    const needsNow = await buildNeedsNowDeck(
       db,
       FIX.workspace,
       FIX.owner,

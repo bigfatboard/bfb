@@ -165,7 +165,7 @@ export function createControlApp(
         401,
       );
     }
-    const principal = resolveBrowserPrincipal(db, c.req.raw, c.get("now") ?? now);
+    const principal = await resolveBrowserPrincipal(db, c.req.raw, c.get("now") ?? now);
     if (!principal) {
       return c.json({ error: "unauthenticated" }, 401);
     }

@@ -9,7 +9,12 @@ import { describe, expect, it } from "vitest";
 
 import { createAuthorizationContext, createBootstrapContext } from "../src/auth-context.js";
 import { applyMigrations } from "../src/migrations.js";
-import { BootstrapWorkspaceWriter, WorkspaceRepository } from "../src/workspace-repository.js";
+import { adaptBetterSqlite3 } from "../src/sqlite-adapter.js";
+import {
+  BootstrapWorkspaceWriter,
+  WorkspaceRepository,
+  type SqlDatabase,
+} from "../src/workspace-repository.js";
 
 const migrationsDir = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -22,61 +27,66 @@ const ITEM = "01JBFB01TEM000100000000000";
 const CHILD = "01JBFB0CH11D00100000000000";
 const HUMAN = "01JBFB0HVMAN1DX00000000000";
 
-function openMigrated(): Database.Database {
-  const db = new Database(":memory:");
-  db.pragma("foreign_keys = ON");
-  applyMigrations(db, migrationsDir);
-  return db;
+function openMigrated(): { raw: Database.Database; db: SqlDatabase } {
+  const raw = new Database(":memory:");
+  raw.pragma("foreign_keys = ON");
+  applyMigrations(raw, migrationsDir);
+  return { raw, db: adaptBetterSqlite3(raw) };
 }
 
 describe("workspace repository boundaries", () => {
-  it("bootstrap creates first workspace only with matching jurisdiction", () => {
-    const db = openMigrated();
+  it("bootstrap creates first workspace only with matching jurisdiction", async () => {
+    const { db } = openMigrated();
     const bootstrap = BootstrapWorkspaceWriter.forBootstrap(db, createBootstrapContext("eu"));
-    const row = bootstrap.createFirstWorkspace({
+    const row = await bootstrap.createFirstWorkspace({
       id: WS_A,
       slug: "acme",
       jurisdiction: "eu",
       createdAt: "2026-08-07T12:00:00Z",
     });
     expect(row.id).toBe(WS_A);
-    expect(() =>
+    await expect(
       bootstrap.createFirstWorkspace({
         id: WS_B,
         slug: "other",
         jurisdiction: "eu",
         createdAt: "2026-08-07T12:00:01Z",
       }),
-    ).toThrow(/cannot mutate or create additional/);
+    ).rejects.toThrow(/cannot mutate or create additional/);
     expect(() => bootstrap.getWorkspace(WS_A)).toThrow(/cannot read/);
   });
 
-  it("rejects jurisdiction mismatch with deployment", () => {
-    const db = openMigrated();
+  it("rejects jurisdiction mismatch with deployment", async () => {
+    const { db } = openMigrated();
     const bootstrap = BootstrapWorkspaceWriter.forBootstrap(db, createBootstrapContext("eu"));
-    expect(() =>
+    await expect(
       bootstrap.createFirstWorkspace({
         id: WS_A,
         slug: "acme",
         jurisdiction: "us",
         createdAt: "2026-08-07T12:00:00Z",
       }),
-    ).toThrow(/must match deployment jurisdiction/);
+    ).rejects.toThrow(/must match deployment jurisdiction/);
   });
 
-  it("requires authorization context and scopes reads to workspace", () => {
-    const db = openMigrated();
-    BootstrapWorkspaceWriter.forBootstrap(db, createBootstrapContext("eu")).createFirstWorkspace({
+  it("requires authorization context and scopes reads to workspace", async () => {
+    const { raw, db } = openMigrated();
+    await BootstrapWorkspaceWriter.forBootstrap(
+      db,
+      createBootstrapContext("eu"),
+    ).createFirstWorkspace({
       id: WS_A,
       slug: "acme",
       jurisdiction: "eu",
       createdAt: "2026-08-07T12:00:00Z",
     });
     // Second workspace inserted only via raw SQL to simulate peer tenant.
-    db.prepare(
-      `INSERT INTO workspaces (id, slug, jurisdiction, created_at, resource_version)
+    raw
+      .prepare(
+        `INSERT INTO workspaces (id, slug, jurisdiction, created_at, resource_version)
        VALUES (?, 'peer', 'eu', '2026-08-07T12:00:02Z', 1)`,
-    ).run(WS_B);
+      )
+      .run(WS_B);
 
     const repoA = WorkspaceRepository.forAuthorization(
       db,
@@ -87,9 +97,9 @@ describe("workspace repository boundaries", () => {
         jurisdiction: "eu",
       }),
     );
-    expect(repoA.getWorkspace()?.id).toBe(WS_A);
-    repoA.insertFixtureItem(ITEM, "synthetic-item");
-    expect(repoA.listFixtureItems()).toHaveLength(1);
+    expect((await repoA.getWorkspace())?.id).toBe(WS_A);
+    await repoA.insertFixtureItem(ITEM, "synthetic-item");
+    expect(await repoA.listFixtureItems()).toHaveLength(1);
 
     const repoB = WorkspaceRepository.forAuthorization(
       db,
@@ -100,29 +110,36 @@ describe("workspace repository boundaries", () => {
         jurisdiction: "eu",
       }),
     );
-    expect(repoB.listFixtureItems()).toHaveLength(0);
-    expect(repoB.getWorkspace()?.id).toBe(WS_B);
+    expect(await repoB.listFixtureItems()).toHaveLength(0);
+    expect((await repoB.getWorkspace())?.id).toBe(WS_B);
   });
 
-  it("rejects cross-workspace parent references at the database layer", () => {
-    const db = openMigrated();
-    BootstrapWorkspaceWriter.forBootstrap(db, createBootstrapContext("eu")).createFirstWorkspace({
+  it("rejects cross-workspace parent references at the database layer", async () => {
+    const { raw, db } = openMigrated();
+    await BootstrapWorkspaceWriter.forBootstrap(
+      db,
+      createBootstrapContext("eu"),
+    ).createFirstWorkspace({
       id: WS_A,
       slug: "acme",
       jurisdiction: "eu",
       createdAt: "2026-08-07T12:00:00Z",
     });
-    db.prepare(
-      `INSERT INTO workspaces (id, slug, jurisdiction, created_at, resource_version)
+    raw
+      .prepare(
+        `INSERT INTO workspaces (id, slug, jurisdiction, created_at, resource_version)
        VALUES (?, 'peer', 'eu', '2026-08-07T12:00:02Z', 1)`,
-    ).run(WS_B);
-    db.prepare(
-      `INSERT INTO tenant_fixture_items (workspace_id, id, label, resource_version)
+      )
+      .run(WS_B);
+    raw
+      .prepare(
+        `INSERT INTO tenant_fixture_items (workspace_id, id, label, resource_version)
        VALUES (?, ?, 'parent', 1)`,
-    ).run(WS_A, ITEM);
+      )
+      .run(WS_A, ITEM);
 
     expect(() =>
-      db
+      raw
         .prepare(
           `INSERT INTO tenant_fixture_children (workspace_id, id, parent_id, label)
            VALUES (?, ?, ?, 'child')`,

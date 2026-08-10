@@ -1,12 +1,13 @@
 // ABOUTME: Implements the WorkspaceHub command lane with FIFO serialization and idempotency.
-// ABOUTME: Canonical state remains in D1-shaped SQL accessed through the injected database.
+// ABOUTME: Canonical state remains in D1-shaped SQL accessed through the async SqlDatabase.
 
 import type { SqlDatabase } from "@bfb/db";
+
 import { randomUlid } from "./ids.js";
 
 export interface HubCommand<TInput, TResult> {
   name: string;
-  run: (input: TInput, ctx: HubContext) => TResult;
+  run: (input: TInput, ctx: HubContext) => Promise<TResult>;
 }
 
 export interface HubContext {
@@ -43,12 +44,12 @@ export class WorkspaceHub {
     request: CommandRequest<TInput>,
   ): Promise<CommandOutcome<TResult>> {
     const run = async (): Promise<CommandOutcome<TResult>> => {
-      const existing = this.db
+      const existing = (await this.db
         .prepare(
           `SELECT result_json FROM idempotency_records
            WHERE workspace_id = ? AND idempotency_key = ?`,
         )
-        .get(request.workspaceId, request.idempotencyKey) as { result_json: string } | undefined;
+        .get(request.workspaceId, request.idempotencyKey)) as { result_json: string } | undefined;
       if (existing) {
         const parsed = JSON.parse(existing.result_json) as {
           result: TResult;
@@ -67,9 +68,9 @@ export class WorkspaceHub {
           actorDelegationId: request.actorDelegationId,
           authorizationEpoch: request.authorizationEpoch,
         };
-        const result = command.run(request.input, ctx);
-        const cursor = this.nextCursor(request.workspaceId);
-        this.db
+        const result = await command.run(request.input, ctx);
+        const cursor = await this.nextCursor(request.workspaceId);
+        await this.db
           .prepare(
             `INSERT INTO semantic_events
              (workspace_id, event_id, workspace_cursor, kind, payload_json, created_at)
@@ -83,7 +84,7 @@ export class WorkspaceHub {
             JSON.stringify({ input: request.input, result }),
             now,
           );
-        this.db
+        await this.db
           .prepare(
             `INSERT INTO idempotency_records
              (workspace_id, idempotency_key, command_name, result_json, created_at)
@@ -119,12 +120,12 @@ export class WorkspaceHub {
     return scheduled;
   }
 
-  private nextCursor(workspaceId: string): number {
-    const row = this.db
+  private async nextCursor(workspaceId: string): Promise<number> {
+    const row = (await this.db
       .prepare(`SELECT cursor FROM workspace_cursors WHERE workspace_id = ?`)
-      .get(workspaceId) as { cursor: number } | undefined;
+      .get(workspaceId)) as { cursor: number } | undefined;
     const next = (row?.cursor ?? 0) + 1;
-    this.db
+    await this.db
       .prepare(
         `INSERT INTO workspace_cursors (workspace_id, cursor) VALUES (?, ?)
          ON CONFLICT(workspace_id) DO UPDATE SET cursor = excluded.cursor`,

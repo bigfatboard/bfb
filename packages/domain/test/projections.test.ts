@@ -15,7 +15,7 @@ import { openDomainDb } from "./helpers.js";
 
 describe("work surface projections", () => {
   it("builds project lanes without side stripes and a bounded attention deck", async () => {
-    const db = openDomainDb();
+    const db = await openDomainDb();
     const hub = new WorkspaceHub(db);
     await hub.execute(createTaskCommand, {
       workspaceId: FIX.workspace,
@@ -33,7 +33,9 @@ describe("work surface projections", () => {
       },
     });
     // mark blocked
-    db.prepare(`UPDATE tasks SET state = 'blocked' WHERE workspace_id = ?`).run(FIX.workspace);
+    await db
+      .prepare(`UPDATE tasks SET state = 'blocked' WHERE workspace_id = ?`)
+      .run(FIX.workspace);
     await hub.execute(createTaskCommand, {
       workspaceId: FIX.workspace,
       idempotencyKey: "p2",
@@ -49,13 +51,13 @@ describe("work surface projections", () => {
       },
     });
 
-    const lanes = buildProjectLanes(db, FIX.workspace, [FIX.projectA, FIX.projectB]);
+    const lanes = await buildProjectLanes(db, FIX.workspace, [FIX.projectA, FIX.projectB]);
     expect(lanes).toHaveLength(2);
     expect(lanes[0]?.tasks[0]?.sideStripe).toBe(false);
     expect(lanes[0]?.tasks[0]?.topEdgePx).toBe(3);
     expect(lanes[0]?.tasks[0]?.nowLabel).toBe("NOW");
 
-    const deck = buildNeedsNowDeck(
+    const deck = await buildNeedsNowDeck(
       db,
       FIX.workspace,
       FIX.owner,

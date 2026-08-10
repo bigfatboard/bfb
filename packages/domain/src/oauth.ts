@@ -21,7 +21,7 @@ export function pkceS256Challenge(verifier: string): string {
   return createHash("sha256").update(verifier).digest("base64url");
 }
 
-export function createDelegation(
+export async function createDelegation(
   db: SqlDatabase,
   input: {
     workspaceId: string;
@@ -36,10 +36,10 @@ export function createDelegation(
     now: string;
     stepUpProofId: string;
   },
-): { delegationId: string; accessToken: string } {
-  const client = db
+): Promise<{ delegationId: string; accessToken: string }> {
+  const client = (await db
     .prepare(`SELECT client_id, redirect_uri FROM preregistered_oauth_clients WHERE client_id = ?`)
-    .get(input.clientId) as { client_id: string; redirect_uri: string } | undefined;
+    .get(input.clientId)) as { client_id: string; redirect_uri: string } | undefined;
   if (!client) {
     throw new DomainError("invalid_client", "client not preregistered");
   }
@@ -58,33 +58,37 @@ export function createDelegation(
     authorizationEpoch: input.authorizationEpoch,
     expiresAt: input.expiresAt,
   };
-  consumeStepUpProof(db, input.stepUpProofId, action, input.now);
+  await consumeStepUpProof(db, input.stepUpProofId, action, input.now);
 
   const delegationId = randomUlid();
-  db.prepare(
-    `INSERT INTO oauth_delegations (
+  await db
+    .prepare(
+      `INSERT INTO oauth_delegations (
       workspace_id, id, human_id, client_id, resource, project_id, task_id,
       scopes_json, authorization_epoch, expires_at, created_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).run(
-    input.workspaceId,
-    delegationId,
-    input.humanId,
-    input.clientId,
-    input.resource,
-    input.projectId ?? null,
-    input.taskId ?? null,
-    JSON.stringify(input.scopes),
-    input.authorizationEpoch,
-    input.expiresAt,
-    input.now,
-  );
+    )
+    .run(
+      input.workspaceId,
+      delegationId,
+      input.humanId,
+      input.clientId,
+      input.resource,
+      input.projectId ?? null,
+      input.taskId ?? null,
+      JSON.stringify(input.scopes),
+      input.authorizationEpoch,
+      input.expiresAt,
+      input.now,
+    );
 
   const accessToken = "mcp_" + randomUlid() + randomUlid();
-  db.prepare(
-    `INSERT INTO oauth_access_tokens (token_hash, workspace_id, delegation_id, expires_at)
+  await db
+    .prepare(
+      `INSERT INTO oauth_access_tokens (token_hash, workspace_id, delegation_id, expires_at)
      VALUES (?, ?, ?, ?)`,
-  ).run(hashToken(accessToken), input.workspaceId, delegationId, input.expiresAt);
+    )
+    .run(hashToken(accessToken), input.workspaceId, delegationId, input.expiresAt);
 
   return { delegationId, accessToken };
 }
@@ -100,11 +104,11 @@ export interface ActiveDelegation {
   authorizationEpoch: number;
 }
 
-export function resolveAccessToken(
+export async function resolveAccessToken(
   db: SqlDatabase,
   token: string,
   nowIso: string,
-): ActiveDelegation {
+): Promise<ActiveDelegation> {
   if (token.startsWith("bfb_session_") || token.includes("cookie")) {
     throw new DomainError("credential_confusion", "browser cookie cannot authenticate mcp");
   }
@@ -117,7 +121,7 @@ export function resolveAccessToken(
     throw new DomainError("credential_confusion", "reserved credential class rejected at mcp");
   }
 
-  const row = db
+  const row = (await db
     .prepare(
       `SELECT t.workspace_id, t.delegation_id, t.expires_at, t.revoked_at,
               d.human_id, d.client_id, d.project_id, d.task_id, d.scopes_json,
@@ -130,7 +134,7 @@ export function resolveAccessToken(
          ON m.workspace_id = d.workspace_id AND m.human_id = d.human_id
        WHERE t.token_hash = ?`,
     )
-    .get(hashToken(token)) as
+    .get(hashToken(token))) as
     | {
         workspace_id: string;
         delegation_id: string;
@@ -175,20 +179,20 @@ export function resolveAccessToken(
   };
 }
 
-export function revokeDelegation(
+export async function revokeDelegation(
   db: SqlDatabase,
   workspaceId: string,
   delegationId: string,
   nowIso: string,
-): void {
-  db.prepare(`UPDATE oauth_delegations SET revoked_at = ? WHERE workspace_id = ? AND id = ?`).run(
-    nowIso,
-    workspaceId,
-    delegationId,
-  );
-  db.prepare(
-    `UPDATE oauth_access_tokens SET revoked_at = ? WHERE workspace_id = ? AND delegation_id = ?`,
-  ).run(nowIso, workspaceId, delegationId);
+): Promise<void> {
+  await db
+    .prepare(`UPDATE oauth_delegations SET revoked_at = ? WHERE workspace_id = ? AND id = ?`)
+    .run(nowIso, workspaceId, delegationId);
+  await db
+    .prepare(
+      `UPDATE oauth_access_tokens SET revoked_at = ? WHERE workspace_id = ? AND delegation_id = ?`,
+    )
+    .run(nowIso, workspaceId, delegationId);
 }
 
 export function assertScope(delegation: ActiveDelegation, scope: string): void {

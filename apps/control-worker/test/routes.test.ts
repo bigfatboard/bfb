@@ -32,7 +32,7 @@ function env(): ControlBindings {
 describe("control routes", () => {
   it("serves healthz with substrate metadata", async () => {
     const validated = validateControlEnv(env());
-    const db = openDomainDb();
+    const db = await openDomainDb();
     const app = createControlApp(validated, { db, now: "2026-08-07T12:00:00Z" });
     const response = await app.request("/healthz", {}, env());
     expect(response.status).toBe(200);
@@ -43,7 +43,7 @@ describe("control routes", () => {
 
   it("serves tools/list on mounted /mcp without 501", async () => {
     const validated = validateControlEnv(env());
-    const db = openDomainDb();
+    const db = await openDomainDb();
     const app = createControlApp(validated, { db, now: "2026-08-07T12:00:00Z" });
     const response = await app.request(
       new Request("https://bfb.example.test/mcp", {
@@ -66,7 +66,7 @@ describe("control routes", () => {
 
   it("signs in a human and returns session", async () => {
     const validated = validateControlEnv(env());
-    const db = openDomainDb();
+    const db = await openDomainDb();
     const app = createControlApp(validated, { db, now: "2026-08-07T12:00:00Z" });
     const signIn = await app.request(
       new Request("https://bfb.example.test/auth/sign-in/email", {
@@ -93,7 +93,7 @@ describe("control routes", () => {
 
   it("publishes OAuth metadata and rejects cookie auth on /mcp", async () => {
     const validated = validateControlEnv(env());
-    const db = openDomainDb();
+    const db = await openDomainDb();
     const app = createControlApp(validated, { db, now: "2026-08-07T12:00:00Z" });
     const meta = await app.request("/.well-known/oauth-authorization-server", {}, env());
     expect(meta.status).toBe(200);
@@ -119,7 +119,7 @@ describe("control routes", () => {
 
   it("completes OAuth code+PKCE and calls propose via MCP token", async () => {
     const validated = validateControlEnv(env());
-    const db = openDomainDb();
+    const db = await openDomainDb();
     const now = "2026-08-07T12:00:00Z";
     const app = createControlApp(validated, { db, now });
 
@@ -134,7 +134,7 @@ describe("control routes", () => {
     );
     const cookie = signIn.headers.get("set-cookie")?.split(";")[0] ?? "";
 
-    const proofId = issueStepUpProof(
+    const proofId = await issueStepUpProof(
       db,
       FIX.owner,
       {

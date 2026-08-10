@@ -35,10 +35,9 @@ interface AuthCodeRow {
 
 // In-memory code store is not used; codes live in rate_limit_buckets-shaped side table via SQL.
 // Use a simple table created lazily if missing for OAuth codes.
-export function ensureOauthCodeTable(db: SqlDatabase): void {
-  // better-sqlite3 Statement.run is zero-arg when SQL has no parameters.
-  (
-    db.prepare(
+export async function ensureOauthCodeTable(db: SqlDatabase): Promise<void> {
+  await db
+    .prepare(
       `CREATE TABLE IF NOT EXISTS oauth_authorization_codes (
       code TEXT PRIMARY KEY NOT NULL,
       client_id TEXT NOT NULL,
@@ -53,8 +52,8 @@ export function ensureOauthCodeTable(db: SqlDatabase): void {
       expires_at TEXT NOT NULL,
       consumed_at TEXT
     )`,
-    ) as { run: () => unknown }
-  ).run();
+    )
+    .run();
 }
 
 export function handleOauthMetadata(appOrigin: string): Response {
@@ -80,7 +79,7 @@ export function handleProtectedResourceMetadata(appOrigin: string): Response {
 }
 
 export async function handleOauthAuthorize(request: Request, deps: OAuthDeps): Promise<Response> {
-  ensureOauthCodeTable(deps.db);
+  await ensureOauthCodeTable(deps.db);
   const url = new URL(request.url);
   const clientId = url.searchParams.get("client_id") ?? "";
   const redirectUri = url.searchParams.get("redirect_uri") ?? "";
@@ -100,11 +99,11 @@ export async function handleOauthAuthorize(request: Request, deps: OAuthDeps): P
     return json({ error: "invalid_target", message: "resource mismatch" }, 400);
   }
 
-  const client = deps.db
+  const client = (await deps.db
     .prepare(
       `SELECT client_id, redirect_uri, public_client FROM preregistered_oauth_clients WHERE client_id = ?`,
     )
-    .get(clientId) as
+    .get(clientId)) as
     { client_id: string; redirect_uri: string; public_client: number } | undefined;
   if (!client || client.public_client !== 1) {
     return json({ error: "invalid_client", message: "client not preregistered public" }, 400);
@@ -113,7 +112,7 @@ export async function handleOauthAuthorize(request: Request, deps: OAuthDeps): P
     return json({ error: "invalid_request", message: "redirect_uri must match exactly" }, 400);
   }
 
-  const principal = resolveBrowserPrincipal(deps.db, request, deps.now);
+  const principal = await resolveBrowserPrincipal(deps.db, request, deps.now);
   if (!principal) {
     return json({ error: "login_required", message: "browser session required" }, 401);
   }
@@ -124,11 +123,11 @@ export async function handleOauthAuthorize(request: Request, deps: OAuthDeps): P
     );
   }
 
-  const member = deps.db
+  const member = (await deps.db
     .prepare(
       `SELECT authorization_epoch FROM workspace_members WHERE workspace_id = ? AND human_id = ?`,
     )
-    .get(workspaceId, principal.humanId) as { authorization_epoch: number } | undefined;
+    .get(workspaceId, principal.humanId)) as { authorization_epoch: number } | undefined;
   if (!member) {
     return json({ error: "access_denied", message: "not a workspace member" }, 403);
   }
@@ -136,7 +135,7 @@ export async function handleOauthAuthorize(request: Request, deps: OAuthDeps): P
   // Pre-validate step-up by issuing is already done by caller; store proof id for token exchange.
   const code = randomUlid() + randomUlid();
   const expiresAt = new Date(Date.parse(deps.now) + 120_000).toISOString();
-  deps.db
+  await deps.db
     .prepare(
       `INSERT INTO oauth_authorization_codes (
         code, client_id, redirect_uri, code_challenge, human_id, workspace_id, project_id,
@@ -166,7 +165,7 @@ export async function handleOauthAuthorize(request: Request, deps: OAuthDeps): P
 }
 
 export async function handleOauthToken(request: Request, deps: OAuthDeps): Promise<Response> {
-  ensureOauthCodeTable(deps.db);
+  await ensureOauthCodeTable(deps.db);
   const contentType = request.headers.get("content-type") ?? "";
   let params: Record<string, string> = {};
   if (contentType.includes("application/json")) {
@@ -189,9 +188,9 @@ export async function handleOauthToken(request: Request, deps: OAuthDeps): Promi
     return json({ error: "invalid_request" }, 400);
   }
 
-  const row = deps.db
+  const row = (await deps.db
     .prepare(`SELECT * FROM oauth_authorization_codes WHERE code = ?`)
-    .get(code) as AuthCodeRow | undefined;
+    .get(code)) as AuthCodeRow | undefined;
   if (!row || row.consumed_at) {
     return json({ error: "invalid_grant", message: "code invalid or consumed" }, 400);
   }
@@ -205,7 +204,7 @@ export async function handleOauthToken(request: Request, deps: OAuthDeps): Promi
     return json({ error: "invalid_grant", message: "pkce verification failed" }, 400);
   }
 
-  deps.db
+  await deps.db
     .prepare(`UPDATE oauth_authorization_codes SET consumed_at = ? WHERE code = ?`)
     .run(deps.now, code);
 
@@ -213,7 +212,7 @@ export async function handleOauthToken(request: Request, deps: OAuthDeps): Promi
   const expiresAt = new Date(Date.parse(deps.now) + 3600_000).toISOString();
 
   try {
-    const { accessToken, delegationId } = createDelegation(deps.db, {
+    const { accessToken, delegationId } = await createDelegation(deps.db, {
       workspaceId: row.workspace_id,
       humanId: row.human_id,
       clientId: row.client_id,
@@ -239,7 +238,7 @@ export async function handleOauthToken(request: Request, deps: OAuthDeps): Promi
 }
 
 /** Test helper: issue a step-up proof for the current human to create a delegation. */
-export function issueDelegationStepUp(
+export async function issueDelegationStepUp(
   db: SqlDatabase,
   humanId: string,
   workspaceId: string,
@@ -248,7 +247,7 @@ export function issueDelegationStepUp(
   authorizationEpoch: number,
   now: string,
   projectId?: string,
-): string {
+): Promise<string> {
   return issueStepUpProof(
     db,
     humanId,

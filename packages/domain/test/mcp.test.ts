@@ -18,7 +18,7 @@ const policy = {
 };
 
 describe("mcp routing and tools", () => {
-  it("accepts 2026-07-28 tools/list without Mcp-Name and requires name for tools/call", () => {
+  it("accepts 2026-07-28 tools/list without Mcp-Name and requires name for tools/call", async () => {
     expect(
       validateMcpRouting(
         {
@@ -91,7 +91,7 @@ describe("mcp routing and tools", () => {
       "bfb_propose_task",
     ]);
 
-    const db = openDomainDb();
+    const db = await openDomainDb();
     const action = {
       action: "oauth.delegation.create",
       clientId: FIX.client,
@@ -102,15 +102,15 @@ describe("mcp routing and tools", () => {
       authorizationEpoch: 1,
       expiresAt: "2026-08-07T13:00:00Z",
     };
-    const proofId = issueStepUpProof(db, FIX.owner, action, "2026-08-07T12:00:00Z");
-    const { accessToken } = createDelegation(db, {
+    const proofId = await issueStepUpProof(db, FIX.owner, action, "2026-08-07T12:00:00Z");
+    const { accessToken } = await createDelegation(db, {
       ...action,
       humanId: FIX.owner,
       now: "2026-08-07T12:00:01Z",
       stepUpProofId: proofId,
       scopes: action.scopes,
     });
-    const delegation = resolveAccessToken(db, accessToken, "2026-08-07T12:01:00Z");
+    const delegation = await resolveAccessToken(db, accessToken, "2026-08-07T12:01:00Z");
     const hub = new WorkspaceHub(db);
     const proposed = await hub.execute(createTaskCommand, {
       workspaceId: delegation.workspaceId,
@@ -126,12 +126,12 @@ describe("mcp routing and tools", () => {
       },
     });
     expect(proposed.ok && proposed.result.state).toBe("proposed");
-    const principal = loadPrincipal(db, FIX.workspace, FIX.owner);
-    const tasks = listTasks(db, FIX.workspace, principal.projectIds);
+    const principal = await loadPrincipal(db, FIX.workspace, FIX.owner);
+    const tasks = await listTasks(db, FIX.workspace, principal.projectIds);
     expect(tasks.some((task) => task.title === "MCP proposed task")).toBe(true);
   });
 
-  it("rejects foreign origins and hosts", () => {
+  it("rejects foreign origins and hosts", async () => {
     expect(() =>
       validateMcpRouting(
         {

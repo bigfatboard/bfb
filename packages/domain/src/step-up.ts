@@ -18,44 +18,48 @@ export interface StepUpAction {
   expiresAt: string;
 }
 
-export function issueStepUpProof(
+export async function issueStepUpProof(
   db: SqlDatabase,
   humanId: string,
   action: StepUpAction,
   nowIso: string,
-): string {
+): Promise<string> {
   const proofId = randomUlid();
-  db.prepare(
-    `INSERT INTO passkey_step_up_proofs (
+  await db
+    .prepare(
+      `INSERT INTO passkey_step_up_proofs (
       proof_id, human_id, action, client_id, resource, boundary_json, scopes_json,
       authorization_epoch, expires_at, created_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).run(
-    proofId,
-    humanId,
-    action.action,
-    action.clientId ?? null,
-    action.resource ?? null,
-    JSON.stringify({
-      workspaceId: action.workspaceId,
-      projectId: action.projectId ?? null,
-      taskId: action.taskId ?? null,
-    }),
-    JSON.stringify(action.scopes),
-    action.authorizationEpoch,
-    action.expiresAt,
-    nowIso,
-  );
+    )
+    .run(
+      proofId,
+      humanId,
+      action.action,
+      action.clientId ?? null,
+      action.resource ?? null,
+      JSON.stringify({
+        workspaceId: action.workspaceId,
+        projectId: action.projectId ?? null,
+        taskId: action.taskId ?? null,
+      }),
+      JSON.stringify(action.scopes),
+      action.authorizationEpoch,
+      action.expiresAt,
+      nowIso,
+    );
   return proofId;
 }
 
-export function consumeStepUpProof(
+export async function consumeStepUpProof(
   db: SqlDatabase,
   proofId: string,
   expected: StepUpAction,
   nowIso: string,
-): void {
-  const row = db.prepare(`SELECT * FROM passkey_step_up_proofs WHERE proof_id = ?`).get(proofId) as
+): Promise<void> {
+  const row = (await db
+    .prepare(`SELECT * FROM passkey_step_up_proofs WHERE proof_id = ?`)
+    .get(proofId)) as
     | {
         human_id: string;
         action: string;
@@ -109,21 +113,7 @@ export function consumeStepUpProof(
       throw new DomainError("step_up_mismatch", "scope not covered by proof");
     }
   }
-  if (
-    expected.scopes.some((scope) => !scopes.includes(scope)) ||
-    scopes.length < expected.scopes.length
-  ) {
-    // widening beyond proof scopes is rejected above; extra proof scopes are fine.
-  }
-  for (const scope of expected.scopes) {
-    if (!scopes.includes(scope)) {
-      throw new DomainError("step_up_mismatch", "scope widening");
-    }
-  }
-  // Reject requested scopes outside proof (already) and reject if caller asks for more than proof by comparing sets
-  // If expected has scopes not in proof, fail; if expected is subset, ok.
-  db.prepare(`UPDATE passkey_step_up_proofs SET consumed_at = ? WHERE proof_id = ?`).run(
-    nowIso,
-    proofId,
-  );
+  await db
+    .prepare(`UPDATE passkey_step_up_proofs SET consumed_at = ? WHERE proof_id = ?`)
+    .run(nowIso, proofId);
 }

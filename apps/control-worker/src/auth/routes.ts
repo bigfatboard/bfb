@@ -20,7 +20,7 @@ export async function handleAuthRoute(c: Context, deps: AuthRouteDeps): Promise<
   const path = url.pathname;
 
   if (path === "/auth/session" && c.req.method === "GET") {
-    const principal = resolveBrowserPrincipal(deps.db, c.req.raw, deps.now);
+    const principal = await resolveBrowserPrincipal(deps.db, c.req.raw, deps.now);
     if (!principal) {
       return c.json({ authenticated: false }, 401);
     }
@@ -39,21 +39,21 @@ export async function handleAuthRoute(c: Context, deps: AuthRouteDeps): Promise<
     if (!body.email || typeof body.password !== "string" || body.password.length === 0) {
       return c.json({ error: "invalid_request", message: "email and password required" }, 400);
     }
-    const human = deps.db
+    const human = (await deps.db
       .prepare(`SELECT id, email, display_name FROM humans WHERE email = ?`)
-      .get(body.email) as { id: string; email: string; display_name: string } | undefined;
+      .get(body.email)) as { id: string; email: string; display_name: string } | undefined;
     if (!human) {
       return c.json({ error: "invalid_credentials", message: "invalid email or password" }, 401);
     }
-    const credential = deps.db
+    const credential = (await deps.db
       .prepare(`SELECT password_hash FROM human_credentials WHERE human_id = ?`)
-      .get(human.id) as { password_hash: string } | undefined;
+      .get(human.id)) as { password_hash: string } | undefined;
     if (!credential || !verifyPassword(body.password, credential.password_hash)) {
       return c.json({ error: "invalid_credentials", message: "invalid email or password" }, 401);
     }
     const sessionId = randomUlid();
     const expires = new Date(Date.parse(deps.now) + 86400_000).toISOString();
-    deps.db
+    await deps.db
       .prepare(
         `INSERT INTO human_sessions (session_id, human_id, workspace_id, created_at, expires_at)
          VALUES (?, ?, NULL, ?, ?)`,
@@ -75,9 +75,9 @@ export async function handleAuthRoute(c: Context, deps: AuthRouteDeps): Promise<
   }
 
   if (path === "/auth/sign-out" && c.req.method === "POST") {
-    const principal = resolveBrowserPrincipal(deps.db, c.req.raw, deps.now);
+    const principal = await resolveBrowserPrincipal(deps.db, c.req.raw, deps.now);
     if (principal) {
-      deps.db
+      await deps.db
         .prepare(`UPDATE human_sessions SET revoked_at = ? WHERE session_id = ?`)
         .run(deps.now, principal.sessionId);
     }

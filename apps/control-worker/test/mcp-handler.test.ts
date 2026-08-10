@@ -11,7 +11,7 @@ import { handleMcpRequest } from "../src/mcp/handler.js";
 
 describe("mcp handler", () => {
   it("lists tools without session state and rejects cookies", async () => {
-    const db = openDomainDb();
+    const db = await openDomainDb();
     const list = await handleMcpRequest(
       new Request("https://bfb.example.test/mcp", {
         method: "POST",
@@ -63,7 +63,7 @@ describe("mcp handler", () => {
   });
 
   it("proposes tasks through delegated MCP token via createMcpHandler path", async () => {
-    const db = openDomainDb();
+    const db = await openDomainDb();
     const action = {
       action: "oauth.delegation.create",
       clientId: FIX.client,
@@ -74,8 +74,8 @@ describe("mcp handler", () => {
       authorizationEpoch: 1,
       expiresAt: "2026-08-07T13:00:00Z",
     };
-    const proofId = issueStepUpProof(db, FIX.owner, action, "2026-08-07T12:00:00Z");
-    const { accessToken } = createDelegation(db, {
+    const proofId = await issueStepUpProof(db, FIX.owner, action, "2026-08-07T12:00:00Z");
+    const { accessToken } = await createDelegation(db, {
       ...action,
       humanId: FIX.owner,
       now: "2026-08-07T12:00:01Z",

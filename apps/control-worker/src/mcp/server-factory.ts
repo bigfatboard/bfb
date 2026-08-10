@@ -24,13 +24,17 @@ export interface McpServerDeps {
   now: string;
 }
 
-export function createBfbMcpServer(deps: McpServerDeps): McpServer {
+export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer> {
   const server = new McpServer({
     name: "bfb",
     version: "0.0.0",
   });
   const hub = new WorkspaceHub(deps.db);
-  const principal = loadPrincipal(deps.db, deps.delegation.workspaceId, deps.delegation.humanId);
+  const principal = await loadPrincipal(
+    deps.db,
+    deps.delegation.workspaceId,
+    deps.delegation.humanId,
+  );
 
   server.registerTool(
     "bfb_list_projects",
@@ -59,7 +63,7 @@ export function createBfbMcpServer(deps: McpServerDeps): McpServer {
     },
     async () => {
       assertScope(deps.delegation, "bfb:read");
-      const tasks = listTasks(deps.db, deps.delegation.workspaceId, principal.projectIds);
+      const tasks = await listTasks(deps.db, deps.delegation.workspaceId, principal.projectIds);
       return { content: [{ type: "text" as const, text: JSON.stringify({ tasks }) }] };
     },
   );
@@ -72,7 +76,7 @@ export function createBfbMcpServer(deps: McpServerDeps): McpServer {
     },
     async ({ task_id }) => {
       assertScope(deps.delegation, "bfb:read");
-      const task = getTask(deps.db, deps.delegation.workspaceId, task_id);
+      const task = await getTask(deps.db, deps.delegation.workspaceId, task_id);
       if (!task) {
         return {
           content: [{ type: "text" as const, text: JSON.stringify({ error: "not_found" }) }],
@@ -92,7 +96,7 @@ export function createBfbMcpServer(deps: McpServerDeps): McpServer {
     },
     async ({ task_id }) => {
       assertScope(deps.delegation, "bfb:read");
-      const task = getTask(deps.db, deps.delegation.workspaceId, task_id);
+      const task = await getTask(deps.db, deps.delegation.workspaceId, task_id);
       if (!task) {
         return {
           content: [{ type: "text" as const, text: JSON.stringify({ error: "not_found" }) }],
@@ -100,7 +104,7 @@ export function createBfbMcpServer(deps: McpServerDeps): McpServer {
         };
       }
       narrowBoundary(deps.delegation, task.project_id, task.id);
-      const context = getAgentContext(deps.db, deps.delegation.workspaceId, task_id);
+      const context = await getAgentContext(deps.db, deps.delegation.workspaceId, task_id);
       return { content: [{ type: "text" as const, text: JSON.stringify({ context }) }] };
     },
   );
@@ -117,7 +121,7 @@ export function createBfbMcpServer(deps: McpServerDeps): McpServer {
     },
     async ({ task_id, body, request_id }) => {
       assertScope(deps.delegation, "bfb:task:write");
-      const task = getTask(deps.db, deps.delegation.workspaceId, task_id);
+      const task = await getTask(deps.db, deps.delegation.workspaceId, task_id);
       if (!task) {
         return {
           content: [{ type: "text" as const, text: JSON.stringify({ error: "not_found" }) }],
@@ -150,7 +154,7 @@ export function createBfbMcpServer(deps: McpServerDeps): McpServer {
     },
     async ({ task_id, summary, request_id }) => {
       assertScope(deps.delegation, "bfb:task:write");
-      const task = getTask(deps.db, deps.delegation.workspaceId, task_id);
+      const task = await getTask(deps.db, deps.delegation.workspaceId, task_id);
       if (!task) {
         return {
           content: [{ type: "text" as const, text: JSON.stringify({ error: "not_found" }) }],

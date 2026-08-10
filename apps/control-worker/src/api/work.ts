@@ -28,12 +28,12 @@ export interface WorkApiDeps {
 export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promise<Response> {
   const url = new URL(request.url);
   const path = url.pathname;
-  const authz = loadPrincipal(deps.db, deps.workspaceId, deps.principal.humanId);
+  const authz = await loadPrincipal(deps.db, deps.workspaceId, deps.principal.humanId);
   const hub = new WorkspaceHub(deps.db);
 
   if (path === `/api/v1/workspaces/${deps.workspaceId}/board` && request.method === "GET") {
-    const lanes = buildProjectLanes(deps.db, deps.workspaceId, authz.projectIds);
-    const needsNow = buildNeedsNowDeck(
+    const lanes = await buildProjectLanes(deps.db, deps.workspaceId, authz.projectIds);
+    const needsNow = await buildNeedsNowDeck(
       deps.db,
       deps.workspaceId,
       deps.principal.humanId,
@@ -53,7 +53,7 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
   }
 
   if (path === `/api/v1/workspaces/${deps.workspaceId}/tasks` && request.method === "GET") {
-    return json({ tasks: listTasks(deps.db, deps.workspaceId, authz.projectIds) });
+    return json({ tasks: await listTasks(deps.db, deps.workspaceId, authz.projectIds) });
   }
 
   if (path === `/api/v1/workspaces/${deps.workspaceId}/tasks` && request.method === "POST") {
@@ -111,7 +111,7 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
     const taskId = taskMatch[1] ?? "";
     const rest = taskMatch[2] ?? "";
     if (rest === "" && request.method === "GET") {
-      const task = getTask(deps.db, deps.workspaceId, taskId);
+      const task = await getTask(deps.db, deps.workspaceId, taskId);
       if (!task || !authz.projectIds.includes(task.project_id)) {
         return json({ error: "not_found" }, 404);
       }
@@ -162,9 +162,9 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
     if (rest === "/context" && request.method === "GET") {
       const audience = url.searchParams.get("audience") ?? "agent";
       if (audience === "agent") {
-        return json({ context: getAgentContext(deps.db, deps.workspaceId, taskId) });
+        return json({ context: await getAgentContext(deps.db, deps.workspaceId, taskId) });
       }
-      const all = deps.db
+      const all = await deps.db
         .prepare(
           `SELECT id, body, version, audience FROM task_context_items
            WHERE workspace_id = ? AND task_id = ? ORDER BY version ASC`,
@@ -195,7 +195,7 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
   }
 
   if (path === `/api/v1/workspaces/${deps.workspaceId}` && request.method === "GET") {
-    const workspace = deps.db
+    const workspace = await deps.db
       .prepare(`SELECT id, slug, jurisdiction FROM workspaces WHERE id = ?`)
       .get(deps.workspaceId);
     return json({ workspace, role: authz.role, projects: authz.projectIds });

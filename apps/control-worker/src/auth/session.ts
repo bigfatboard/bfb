@@ -21,11 +21,11 @@ export function readSessionCookie(request: Request): string | null {
   return match?.[1] ? decodeURIComponent(match[1]) : null;
 }
 
-export function resolveBrowserPrincipal(
+export async function resolveBrowserPrincipal(
   db: SqlDatabase,
   request: Request,
   nowIso: string,
-): BrowserPrincipal | null {
+): Promise<BrowserPrincipal | null> {
   const sessionId = readSessionCookie(request);
   if (!sessionId) {
     return null;
@@ -34,14 +34,14 @@ export function resolveBrowserPrincipal(
   if (sessionId.startsWith("mcp_")) {
     return null;
   }
-  const row = db
+  const row = (await db
     .prepare(
       `SELECT s.session_id, s.human_id, s.expires_at, s.revoked_at, h.email, h.display_name
        FROM human_sessions s
        JOIN humans h ON h.id = s.human_id
        WHERE s.session_id = ?`,
     )
-    .get(sessionId) as
+    .get(sessionId)) as
     | {
         session_id: string;
         human_id: string;

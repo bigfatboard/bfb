@@ -27,31 +27,35 @@ export function hashIp(ip: string): string {
     .digest("hex");
 }
 
-export function consumeRateLimit(
+export async function consumeRateLimit(
   db: SqlDatabase,
   bucketKey: string,
   nowIso: string,
   limit: number,
   windowSeconds: number,
-): AbuseDecision {
+): Promise<AbuseDecision> {
   const now = Date.parse(nowIso);
-  const row = db
+  const row = (await db
     .prepare(`SELECT window_started_at, count FROM rate_limit_buckets WHERE bucket_key = ?`)
-    .get(bucketKey) as { window_started_at: string; count: number } | undefined;
+    .get(bucketKey)) as { window_started_at: string; count: number } | undefined;
 
   if (!row) {
-    db.prepare(
-      `INSERT INTO rate_limit_buckets (bucket_key, window_started_at, count, updated_at)
+    await db
+      .prepare(
+        `INSERT INTO rate_limit_buckets (bucket_key, window_started_at, count, updated_at)
        VALUES (?, ?, 1, ?)`,
-    ).run(bucketKey, nowIso, nowIso);
+      )
+      .run(bucketKey, nowIso, nowIso);
     return { allowed: true, remaining: limit - 1, escalateTurnstile: false };
   }
 
   const started = Date.parse(row.window_started_at);
   if (now - started >= windowSeconds * 1000) {
-    db.prepare(
-      `UPDATE rate_limit_buckets SET window_started_at = ?, count = 1, updated_at = ? WHERE bucket_key = ?`,
-    ).run(nowIso, nowIso, bucketKey);
+    await db
+      .prepare(
+        `UPDATE rate_limit_buckets SET window_started_at = ?, count = 1, updated_at = ? WHERE bucket_key = ?`,
+      )
+      .run(nowIso, nowIso, bucketKey);
     return { allowed: true, remaining: limit - 1, escalateTurnstile: false };
   }
 
@@ -63,8 +67,8 @@ export function consumeRateLimit(
     };
   }
 
-  db.prepare(
-    `UPDATE rate_limit_buckets SET count = count + 1, updated_at = ? WHERE bucket_key = ?`,
-  ).run(nowIso, bucketKey);
+  await db
+    .prepare(`UPDATE rate_limit_buckets SET count = count + 1, updated_at = ? WHERE bucket_key = ?`)
+    .run(nowIso, bucketKey);
   return { allowed: true, remaining: limit - row.count - 1, escalateTurnstile: false };
 }

@@ -64,9 +64,15 @@ importers:
       '@cloudflare/workers-types':
         specifier: 5.20260810.1
         version: 5.20260810.1
+      '@types/better-sqlite3':
+        specifier: 7.6.13
+        version: 7.6.13
       better-auth:
         specifier: 1.6.26
         version: 1.6.26(@cloudflare/workers-types@5.20260810.1)(better-sqlite3@12.6.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@4.1.10(@types/node@24.13.3)(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(tsx@4.23.12)(yaml@2.9.0)))
+      better-sqlite3:
+        specifier: 12.6.2
+        version: 12.6.2
       wrangler:
         specifier: 4.120.1
         version: 4.120.1(@cloudflare/workers-types@5.20260810.1)

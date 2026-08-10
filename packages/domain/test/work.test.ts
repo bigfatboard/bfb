@@ -16,7 +16,7 @@ import { openDomainDb } from "./helpers.js";
 
 describe("work records", () => {
   it("creates tasks, comments, context, and enforces stale versions", async () => {
-    const db = openDomainDb();
+    const db = await openDomainDb();
     const hub = new WorkspaceHub(db);
     const created = await hub.execute(createTaskCommand, {
       workspaceId: FIX.workspace,
@@ -61,7 +61,7 @@ describe("work records", () => {
       actorHumanId: FIX.owner,
       input: { taskId: created.result.id, audience: "agent", body: "agent visible" },
     });
-    const agentView = getAgentContext(db, FIX.workspace, created.result.id);
+    const agentView = await getAgentContext(db, FIX.workspace, created.result.id);
     expect(agentView.map((item) => item.body)).toEqual(["agent visible"]);
 
     const stale = await hub.execute(updateTaskCommand, {
@@ -96,7 +96,7 @@ describe("work records", () => {
   });
 
   it("keeps agent-created roots proposed and blocks remote promotion", async () => {
-    const db = openDomainDb();
+    const db = await openDomainDb();
     const hub = new WorkspaceHub(db);
     const proposed = await hub.execute(createTaskCommand, {
       workspaceId: FIX.workspace,
@@ -134,7 +134,7 @@ describe("work records", () => {
   });
 
   it("denies restricted member cross-project writes", async () => {
-    const db = openDomainDb();
+    const db = await openDomainDb();
     const hub = new WorkspaceHub(db);
     const denied = await hub.execute(createTaskCommand, {
       workspaceId: FIX.workspace,

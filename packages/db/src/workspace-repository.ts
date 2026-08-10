@@ -11,18 +11,13 @@ export interface WorkspaceRow {
   resource_version: number;
 }
 
+/** Promise-only SQL surface shared by D1 (async) and better-sqlite3 (promisified). */
 export interface SqlDatabase {
   prepare(sql: string): {
-    /** May return a Promise when backed by D1; better-sqlite3 returns sync. */
-    run: (...params: unknown[]) => { changes: number } | Promise<{ changes: number }>;
-    get: (...params: unknown[]) => unknown | Promise<unknown>;
-    all: (...params: unknown[]) => unknown[] | Promise<unknown[]>;
+    run: (...params: unknown[]) => Promise<{ changes: number }>;
+    get: (...params: unknown[]) => Promise<unknown>;
+    all: (...params: unknown[]) => Promise<unknown[]>;
   };
-}
-
-/** Await either a sync value or a Promise (D1 vs better-sqlite3). */
-export async function dbValue<T>(value: T | Promise<T>): Promise<T> {
-  return await value;
 }
 
 export class WorkspaceRepository {
@@ -40,26 +35,26 @@ export class WorkspaceRepository {
 
   // Intentionally no getById(id) without workspace scope.
 
-  getWorkspace(): WorkspaceRow | undefined {
-    const row = this.db
+  async getWorkspace(): Promise<WorkspaceRow | undefined> {
+    const row = (await this.db
       .prepare(
         `SELECT id, slug, jurisdiction, created_at, resource_version
          FROM workspaces WHERE id = ?`,
       )
-      .get(this.auth.workspaceId) as WorkspaceRow | undefined;
+      .get(this.auth.workspaceId)) as WorkspaceRow | undefined;
     return row;
   }
 
-  listFixtureItems(): Array<{ workspace_id: string; id: string; label: string }> {
-    return this.db
+  async listFixtureItems(): Promise<Array<{ workspace_id: string; id: string; label: string }>> {
+    return (await this.db
       .prepare(
         `SELECT workspace_id, id, label FROM tenant_fixture_items WHERE workspace_id = ? ORDER BY id`,
       )
-      .all(this.auth.workspaceId) as Array<{ workspace_id: string; id: string; label: string }>;
+      .all(this.auth.workspaceId)) as Array<{ workspace_id: string; id: string; label: string }>;
   }
 
-  insertFixtureItem(id: string, label: string): void {
-    this.db
+  async insertFixtureItem(id: string, label: string): Promise<void> {
+    await this.db
       .prepare(
         `INSERT INTO tenant_fixture_items (workspace_id, id, label, resource_version)
          VALUES (?, ?, ?, 1)`,
@@ -67,8 +62,8 @@ export class WorkspaceRepository {
       .run(this.auth.workspaceId, id, label);
   }
 
-  insertFixtureChild(id: string, parentId: string, label: string): void {
-    this.db
+  async insertFixtureChild(id: string, parentId: string, label: string): Promise<void> {
+    await this.db
       .prepare(
         `INSERT INTO tenant_fixture_children (workspace_id, id, parent_id, label)
          VALUES (?, ?, ?, ?)`,
@@ -90,21 +85,21 @@ export class BootstrapWorkspaceWriter {
     return new BootstrapWorkspaceWriter(db, bootstrap);
   }
 
-  createFirstWorkspace(input: {
+  async createFirstWorkspace(input: {
     id: string;
     slug: string;
     jurisdiction: Jurisdiction;
     createdAt: string;
-  }): WorkspaceRow {
+  }): Promise<WorkspaceRow> {
     if (input.jurisdiction !== this.bootstrap.jurisdiction) {
       throw new Error("workspace jurisdiction must match deployment jurisdiction");
     }
-    const existing = this.db.prepare("SELECT id FROM workspaces LIMIT 1").get() as
+    const existing = (await this.db.prepare("SELECT id FROM workspaces LIMIT 1").get()) as
       { id: string } | undefined;
     if (existing) {
       throw new Error("bootstrap cannot mutate or create additional workspaces after first");
     }
-    this.db
+    await this.db
       .prepare(
         `INSERT INTO workspaces (id, slug, jurisdiction, created_at, resource_version)
          VALUES (?, ?, ?, ?, 1)`,

@@ -16,10 +16,12 @@ export type { ApplyOptions, MigrationDatabase, MigrationManifest } from "./migra
 export {
   BootstrapWorkspaceWriter,
   WorkspaceRepository,
-  dbValue,
   optimisticVersionPredicate,
 } from "./workspace-repository.js";
 export type { SqlDatabase, WorkspaceRow } from "./workspace-repository.js";
 export { adaptD1 } from "./d1-adapter.js";
+export type { D1Like, D1StatementLike } from "./d1-adapter.js";
+export { adaptBetterSqlite3 } from "./sqlite-adapter.js";
+export type { BetterSqliteDatabase, BetterSqliteStatement } from "./sqlite-adapter.js";
 
 export const MIGRATION_HEAD = "0004_human_credentials";

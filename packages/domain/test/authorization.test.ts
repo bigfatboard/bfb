@@ -9,20 +9,20 @@ import { FIX } from "../src/fixtures.js";
 import { openDomainDb } from "./helpers.js";
 
 describe("workspace authorization", () => {
-  it("gives owners all projects and restricts restricted members", () => {
-    const db = openDomainDb();
-    const owner = loadPrincipal(db, FIX.workspace, FIX.owner);
+  it("gives owners all projects and restricts restricted members", async () => {
+    const db = await openDomainDb();
+    const owner = await loadPrincipal(db, FIX.workspace, FIX.owner);
     expect(owner.projectIds.sort()).toEqual([FIX.projectA, FIX.projectB].sort());
-    const restricted = loadPrincipal(db, FIX.workspace, FIX.restricted);
+    const restricted = await loadPrincipal(db, FIX.workspace, FIX.restricted);
     expect(restricted.projectIds).toEqual([FIX.projectA]);
     expect(() => assertProjectAccess(restricted, FIX.projectB)).toThrow(DomainError);
   });
 
-  it("bumps authorization epoch for revocation", () => {
-    const db = openDomainDb();
-    const next = bumpMemberEpoch(db, FIX.workspace, FIX.member);
+  it("bumps authorization epoch for revocation", async () => {
+    const db = await openDomainDb();
+    const next = await bumpMemberEpoch(db, FIX.workspace, FIX.member);
     expect(next).toBe(2);
-    const member = loadPrincipal(db, FIX.workspace, FIX.member);
+    const member = await loadPrincipal(db, FIX.workspace, FIX.member);
     expect(member.authorizationEpoch).toBe(2);
   });
 });

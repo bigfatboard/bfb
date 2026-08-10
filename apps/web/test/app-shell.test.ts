@@ -30,13 +30,13 @@ function env(): ControlBindings {
 }
 
 describe("authenticated app shell routing", () => {
-  it("parses /w/<slug> workspace paths", () => {
+  it("parses /w/<slug> workspace paths", async () => {
     expect(parseWorkspaceSlugForTest("/w/synthetic")).toBe("synthetic");
     expect(parseWorkspaceSlugForTest("/")).toBeNull();
   });
 
   it("signs in with password, loads board, and mutates work", async () => {
-    const db = openDomainDb();
+    const db = await openDomainDb();
     const validated = validateControlEnv(env());
     const app = createControlApp(validated, { db, now: "2026-08-07T12:00:00Z" });
     const cookies = new Map<string, string>();

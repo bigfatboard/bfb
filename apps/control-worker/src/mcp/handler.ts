@@ -88,24 +88,21 @@ export async function handleMcpRequest(
 
   if (needsAuth || token) {
     try {
-      const delegation = resolveAccessToken(env.db, token, now);
-      const handler = createMcpHandler(
-        () =>
-          createBfbMcpServer({
-            db: env.db,
-            delegation,
-            now,
-          }),
-        {
-          route: "/mcp",
-          legacy: "reject",
-          allowedHostnames: env.allowedHostnames,
-          corsOptions: {
-            origin: env.appOrigin,
-          },
-          responseMode: "json",
+      const delegation = await resolveAccessToken(env.db, token, now);
+      const server = await createBfbMcpServer({
+        db: env.db,
+        delegation,
+        now,
+      });
+      const handler = createMcpHandler(() => server, {
+        route: "/mcp",
+        legacy: "reject",
+        allowedHostnames: env.allowedHostnames,
+        corsOptions: {
+          origin: env.appOrigin,
         },
-      );
+        responseMode: "json",
+      });
       // Normalize body to JSON-RPC 2026-07-28 with required per-request _meta envelope.
       const baseParams: Record<string, unknown> = {
         ...(body.params ?? (method === "tools/call" ? { name: routingName, arguments: {} } : {})),

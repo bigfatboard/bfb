@@ -16,7 +16,7 @@ const echo: HubCommand<{ n: number }, { n: number }> = {
 
 describe("workspace hub", () => {
   it("returns stored idempotent results and advances cursor once", async () => {
-    const db = openDomainDb();
+    const db = await openDomainDb();
     const hub = new WorkspaceHub(db);
     const first = await hub.execute(echo, {
       workspaceId: FIX.workspace,
@@ -38,12 +38,14 @@ describe("workspace hub", () => {
       expect(second.result).toEqual(first.result);
       expect(second.cursor).toBe(first.cursor);
     }
-    const events = db.prepare(`SELECT COUNT(*) AS c FROM semantic_events`).get() as { c: number };
+    const events = (await db.prepare(`SELECT COUNT(*) AS c FROM semantic_events`).get()) as {
+      c: number;
+    };
     expect(events.c).toBe(1);
   });
 
   it("serializes concurrent commands into monotonic cursors", async () => {
-    const db = openDomainDb();
+    const db = await openDomainDb();
     const hub = new WorkspaceHub(db);
     const results = await Promise.all(
       [1, 2, 3, 4, 5].map((n) =>

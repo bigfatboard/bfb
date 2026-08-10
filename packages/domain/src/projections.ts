@@ -67,13 +67,13 @@ function toCard(
   return card;
 }
 
-export function buildProjectLanes(
+export async function buildProjectLanes(
   db: SqlDatabase,
   workspaceId: string,
   projectIds: string[],
-): ProjectLane[] {
+): Promise<ProjectLane[]> {
   const projects = (
-    db
+    (await db
       .prepare(
         `SELECT p.id, p.name, p.slug, p.tint, COALESCE(pp.allow_pass_to_agent, 0) AS allow_pass_to_agent
          FROM projects p
@@ -82,7 +82,7 @@ export function buildProjectLanes(
          WHERE p.workspace_id = ?
          ORDER BY p.slug ASC`,
       )
-      .all(workspaceId) as Array<{
+      .all(workspaceId)) as Array<{
       id: string;
       name: string;
       slug: string;
@@ -91,7 +91,7 @@ export function buildProjectLanes(
     }>
   ).filter((project) => projectIds.includes(project.id));
 
-  const tasks = listTasks(db, workspaceId, projectIds);
+  const tasks = await listTasks(db, workspaceId, projectIds);
   return projects.map((project) => ({
     projectId: project.id,
     name: project.name,
@@ -103,14 +103,14 @@ export function buildProjectLanes(
   }));
 }
 
-export function buildNeedsNowDeck(
+export async function buildNeedsNowDeck(
   db: SqlDatabase,
   workspaceId: string,
   humanId: string,
   projectIds: string[],
   nowIso: string,
-): AttentionDeckItem[] {
-  const tasks = listTasks(db, workspaceId, projectIds);
+): Promise<AttentionDeckItem[]> {
+  const tasks = await listTasks(db, workspaceId, projectIds);
   const now = Date.parse(nowIso);
   const eligible = tasks.filter((task) => {
     if (task.next_owner_type !== "human" || task.next_owner_id !== humanId) {
