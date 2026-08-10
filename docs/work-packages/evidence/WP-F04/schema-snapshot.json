@@ -1,0 +1,11 @@
+{
+  "package": "F04",
+  "migration_head": "0001_workspace_registry",
+  "tables": [
+    "schema_migrations",
+    "schema_migration_state",
+    "workspaces",
+    "tenant_fixture_items",
+    "tenant_fixture_children"
+  ]
+}

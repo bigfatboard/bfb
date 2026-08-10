@@ -1,4 +1,23 @@
-// ABOUTME: Defines the compile-safe boundary for the BFB D1 persistence target.
-// ABOUTME: Product behavior is introduced only by the work package that owns this path.
+// ABOUTME: Public D1 persistence package entry for migrations and tenant repository primitives.
+// ABOUTME: Better Auth tables stay out of F04 and join this chain only in C02+.
 
-export {};
+export { createAuthorizationContext, createBootstrapContext } from "./auth-context.js";
+export type { AuthorizationContext, BootstrapContext, Jurisdiction } from "./auth-context.js";
+export {
+  applyMigrations,
+  discoveredSqlFiles,
+  listMigrationFiles,
+  loadMigrationManifest,
+  migrationHead,
+  readMigrationState,
+  schemaSnapshot,
+} from "./migrations.js";
+export type { ApplyOptions, MigrationDatabase, MigrationManifest } from "./migrations.js";
+export {
+  BootstrapWorkspaceWriter,
+  WorkspaceRepository,
+  optimisticVersionPredicate,
+} from "./workspace-repository.js";
+export type { SqlDatabase, WorkspaceRow } from "./workspace-repository.js";
+
+export const MIGRATION_HEAD = "0001_workspace_registry";

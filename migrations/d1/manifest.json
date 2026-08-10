@@ -1,0 +1,10 @@
+{
+  "package": "F04",
+  "migration_head": "0001_workspace_registry",
+  "migrations": [
+    {
+      "id": "0001_workspace_registry",
+      "file": "0001_workspace_registry.sql"
+    }
+  ]
+}

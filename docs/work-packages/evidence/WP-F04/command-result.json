@@ -1,0 +1,6 @@
+{
+  "package": "F04",
+  "command": "pnpm test:db",
+  "outcome": "passed",
+  "migration_head": "0001_workspace_registry"
+}

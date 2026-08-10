@@ -1,0 +1,36 @@
+{
+  "$schema": "../manifest.schema.json",
+  "package": "F04",
+  "tested_commit": "0000000000000000000000000000000000000000",
+  "protocol_version": "bfb-wire/1",
+  "schema_version": "1",
+  "migration_head": "0001_workspace_registry",
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "better-sqlite3": "12.6.2"
+  },
+  "environment": {
+    "kind": "local",
+    "os": "macOS 26.2 (25C56)",
+    "architecture": "arm64"
+  },
+  "commands": [
+    {
+      "command": "pnpm test:db",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-F04/command-result.json"
+    }
+  ],
+  "outcome": "passed",
+  "artifacts": [
+    "docs/work-packages/evidence/WP-F04/command-result.json",
+    "docs/work-packages/evidence/WP-F04/schema-snapshot.json",
+    "migrations/d1/0001_workspace_registry.sql",
+    "migrations/d1/manifest.json"
+  ],
+  "redaction": {
+    "status": "passed",
+    "prohibited_content": []
+  }
+}

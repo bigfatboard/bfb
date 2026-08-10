@@ -1,8 +1,12 @@
 # WP-F04 — D1 tenant persistence and migrations
 
-Status: `planned`
+Status: `done`
 
 Risk: Very high
+
+Test target: `pnpm test:db`
+
+Evidence manifest: `docs/work-packages/evidence/WP-F04/manifest.json`
 
 ## Outcome
 
@@ -29,6 +33,19 @@ Every later cloud package builds on one reviewed D1 migration chain and tenant-s
 
 - Better Auth tables, memberships, projects, tasks, runner records, events, idempotency, audit/outbox records, hub commands, WebSockets, or artifact metadata.
 - Tenant-per-database sharding, D1 read replicas, application-startup migrations, or generating persistence schemas from wire schemas.
+
+## Contracts
+
+### Consumes
+
+- F02 wire primitives for opaque IDs and UTC timestamps.
+- F03 Control Worker D1 binding and environment jurisdiction configuration.
+
+### Produces
+
+- Ordered D1 migrations under `migrations/d1/` with head `0001_workspace_registry`.
+- `@bfb/db` migration runner, authorization/bootstrap contexts, and workspace repository primitives.
+- Stable test target `pnpm test:db` and evidence path `docs/work-packages/evidence/WP-F04/manifest.json`.
 
 ## Work plan
 

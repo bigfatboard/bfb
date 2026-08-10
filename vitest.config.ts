@@ -12,6 +12,8 @@ export default defineConfig({
       "apps/control-worker/test/**/*.test.ts",
       "apps/artifact-worker/test/**/*.test.ts",
       "apps/web/test/**/*.test.ts",
+      "packages/db/test/**/*.test.ts",
+      "packages/domain/test/**/*.test.ts",
     ],
     restoreMocks: true,
   },
