@@ -1,6 +1,6 @@
 # WP-F01 — Repository foundation
 
-Status: `review`
+Status: `done`
 
 Risk: Medium
 

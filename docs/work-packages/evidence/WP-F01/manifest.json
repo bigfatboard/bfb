@@ -42,6 +42,7 @@
     "prohibited_content": []
   },
   "ci": {
-    "status": "pending"
+    "status": "passed",
+    "run_url": "https://github.com/qdis/bfb/actions/runs/31432177257"
   }
 }
