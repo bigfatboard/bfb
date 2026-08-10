@@ -1,0 +1,143 @@
+// ABOUTME: Validates Control Worker bindings and canonical host configuration before serving.
+// ABOUTME: Missing D1, R2, Queue, DO, origin, or jurisdiction configuration fails closed.
+
+export type Jurisdiction = "eu" | "us" | "global";
+
+export interface ControlOrigins {
+  appOrigin: string;
+  artifactOrigin: string;
+  launchOrigin: string;
+  appHostname: string;
+  artifactHostname: string;
+  launchHostname: string;
+}
+
+export interface ControlBindings {
+  DB: D1Database;
+  ARTIFACTS: R2Bucket;
+  JOBS: Queue;
+  JOBS_DLQ: Queue;
+  WORKSPACE_HUB: DurableObjectNamespace;
+  APP_ORIGIN: string;
+  ARTIFACT_ORIGIN: string;
+  LAUNCH_ORIGIN: string;
+  JURISDICTION: string;
+  ENVIRONMENT: string;
+}
+
+export interface ValidatedControlEnv {
+  bindings: ControlBindings;
+  origins: ControlOrigins;
+  jurisdiction: Jurisdiction;
+  environment: "local" | "staging" | "production";
+}
+
+const workerFirstPrefixes = [
+  "/api/",
+  "/auth/",
+  "/mcp",
+  "/realtime/",
+  "/runner/",
+  "/webhooks/",
+  "/.well-known/",
+] as const;
+
+export const WORKER_FIRST_ROUTE_PREFIXES = workerFirstPrefixes;
+
+export function isWorkerFirstPath(pathname: string): boolean {
+  if (pathname === "/mcp") {
+    return true;
+  }
+  return workerFirstPrefixes.some((prefix) => {
+    if (prefix.endsWith("/")) {
+      return pathname === prefix.slice(0, -1) || pathname.startsWith(prefix);
+    }
+    return pathname === prefix || pathname.startsWith(prefix + "/");
+  });
+}
+
+function requireBinding<T>(value: T | undefined, name: string): T {
+  if (value === undefined || value === null) {
+    throw new Error("missing binding: " + name);
+  }
+  return value;
+}
+
+function parseOrigin(raw: string, name: string): URL {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error("invalid origin: " + name);
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") {
+    throw new Error("invalid origin protocol: " + name);
+  }
+  if (url.pathname !== "/" || url.search || url.hash || url.username || url.password) {
+    throw new Error("origin must be scheme+host only: " + name);
+  }
+  return url;
+}
+
+function parseJurisdiction(value: string): Jurisdiction {
+  if (value === "eu" || value === "us" || value === "global") {
+    return value;
+  }
+  throw new Error("invalid jurisdiction: " + value);
+}
+
+function parseEnvironment(value: string): "local" | "staging" | "production" {
+  if (value === "local" || value === "staging" || value === "production") {
+    return value;
+  }
+  throw new Error("invalid environment: " + value);
+}
+
+export function validateControlEnv(env: Partial<ControlBindings>): ValidatedControlEnv {
+  const DB = requireBinding(env.DB, "DB");
+  const ARTIFACTS = requireBinding(env.ARTIFACTS, "ARTIFACTS");
+  const JOBS = requireBinding(env.JOBS, "JOBS");
+  const JOBS_DLQ = requireBinding(env.JOBS_DLQ, "JOBS_DLQ");
+  const WORKSPACE_HUB = requireBinding(env.WORKSPACE_HUB, "WORKSPACE_HUB");
+  const APP_ORIGIN = requireBinding(env.APP_ORIGIN, "APP_ORIGIN");
+  const ARTIFACT_ORIGIN = requireBinding(env.ARTIFACT_ORIGIN, "ARTIFACT_ORIGIN");
+  const LAUNCH_ORIGIN = requireBinding(env.LAUNCH_ORIGIN, "LAUNCH_ORIGIN");
+  const JURISDICTION = requireBinding(env.JURISDICTION, "JURISDICTION");
+  const ENVIRONMENT = requireBinding(env.ENVIRONMENT, "ENVIRONMENT");
+
+  const app = parseOrigin(APP_ORIGIN, "APP_ORIGIN");
+  const artifact = parseOrigin(ARTIFACT_ORIGIN, "ARTIFACT_ORIGIN");
+  const launch = parseOrigin(LAUNCH_ORIGIN, "LAUNCH_ORIGIN");
+
+  if (app.origin === artifact.origin) {
+    throw new Error("artifact origin must differ from app origin");
+  }
+  if (app.origin === launch.origin) {
+    throw new Error("launch origin must differ from app origin");
+  }
+
+  return {
+    bindings: {
+      DB,
+      ARTIFACTS,
+      JOBS,
+      JOBS_DLQ,
+      WORKSPACE_HUB,
+      APP_ORIGIN: app.origin,
+      ARTIFACT_ORIGIN: artifact.origin,
+      LAUNCH_ORIGIN: launch.origin,
+      JURISDICTION,
+      ENVIRONMENT,
+    },
+    origins: {
+      appOrigin: app.origin,
+      artifactOrigin: artifact.origin,
+      launchOrigin: launch.origin,
+      appHostname: app.hostname,
+      artifactHostname: artifact.hostname,
+      launchHostname: launch.hostname,
+    },
+    jurisdiction: parseJurisdiction(JURISDICTION),
+    environment: parseEnvironment(ENVIRONMENT),
+  };
+}

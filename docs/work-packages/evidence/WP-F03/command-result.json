@@ -1,0 +1,11 @@
+{
+  "package": "F03",
+  "command": "pnpm test:substrate",
+  "outcome": "passed",
+  "checks": [
+    "vitest apps/control-worker/test",
+    "vitest apps/artifact-worker/test",
+    "vitest apps/web/test",
+    "pnpm --filter @bfb/web build"
+  ]
+}

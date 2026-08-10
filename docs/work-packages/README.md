@@ -337,7 +337,7 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 | --- | --- | --- | --- |
 | F01 | [Repository foundation](WP-F01-repository-foundation.md) | `done` | Medium |
 | F02 | [Wire contracts and test doubles](WP-F02-wire-contracts.md) | `done` | High |
-| F03 | [Cloudflare application substrate](WP-F03-cloud-substrate.md) | `planned` | High |
+| F03 | [Cloudflare application substrate](WP-F03-cloud-substrate.md) | `done` | High |
 | F04 | [D1 tenant persistence and migrations](WP-F04-tenant-persistence.md) | `planned` | Very high |
 
 ### Control plane

@@ -1,0 +1,15 @@
+{
+  "package": "F03",
+  "worker_first": [
+    "/api/*",
+    "/auth/*",
+    "/mcp",
+    "/realtime/*",
+    "/runner/*",
+    "/webhooks/*",
+    "/.well-known/*",
+    "/healthz"
+  ],
+  "asset_first_examples": ["/", "/w/:slug", "/settings"],
+  "spa_cannot_shadow_worker_first": true
+}

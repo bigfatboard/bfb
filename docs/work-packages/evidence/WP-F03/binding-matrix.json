@@ -1,0 +1,22 @@
+{
+  "package": "F03",
+  "control_worker": [
+    "DB",
+    "ARTIFACTS",
+    "JOBS",
+    "JOBS_DLQ",
+    "WORKSPACE_HUB",
+    "ASSETS",
+    "APP_ORIGIN",
+    "ARTIFACT_ORIGIN",
+    "LAUNCH_ORIGIN",
+    "JURISDICTION",
+    "ENVIRONMENT"
+  ],
+  "artifact_worker": ["ARTIFACTS", "ARTIFACT_ORIGIN", "APP_ORIGIN", "ENVIRONMENT"],
+  "durable_object": {
+    "class": "WorkspaceHub",
+    "sqlite": true,
+    "legacy_migration_tag": false
+  }
+}

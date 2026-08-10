@@ -1,0 +1,52 @@
+# ABOUTME: Local Control Worker wrangler configuration for F03 substrate topology.
+# ABOUTME: Staging and production use sibling named configs without shared secrets.
+
+name = "bfb-control-local"
+main = "src/index.ts"
+compatibility_date = "2026-08-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+ENVIRONMENT = "local"
+JURISDICTION = "eu"
+APP_ORIGIN = "http://127.0.0.1:8787"
+ARTIFACT_ORIGIN = "http://127.0.0.1:8788"
+LAUNCH_ORIGIN = "http://127.0.0.1:8789"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "bfb-local"
+database_id = "00000000-0000-4000-8000-000000000001"
+migrations_dir = "../../migrations/d1"
+
+[[r2_buckets]]
+binding = "ARTIFACTS"
+bucket_name = "bfb-artifacts-local"
+
+[[queues.producers]]
+binding = "JOBS"
+queue = "bfb-jobs-local"
+
+[[queues.producers]]
+binding = "JOBS_DLQ"
+queue = "bfb-jobs-dlq-local"
+
+[[queues.consumers]]
+queue = "bfb-jobs-local"
+max_batch_size = 10
+max_retries = 3
+dead_letter_queue = "bfb-jobs-dlq-local"
+
+[assets]
+directory = "../web/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*", "/auth/*", "/mcp", "/mcp/*", "/realtime/*", "/runner/*", "/webhooks/*", "/.well-known/*", "/healthz", "/api/v1/_substrate"]
+
+[[durable_objects.bindings]]
+name = "WORKSPACE_HUB"
+class_name = "WorkspaceHub"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["WorkspaceHub"]

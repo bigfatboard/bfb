@@ -1,0 +1,46 @@
+# ABOUTME: Production Control Worker configuration name reserved by F03.
+# ABOUTME: F03 never deploys production; this file only freezes binding names.
+
+name = "bfb-control"
+main = "src/index.ts"
+compatibility_date = "2026-08-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+ENVIRONMENT = "production"
+JURISDICTION = "eu"
+APP_ORIGIN = "https://bfb.example.test"
+ARTIFACT_ORIGIN = "https://artifacts.bfb.example.test"
+LAUNCH_ORIGIN = "https://launch.bfb.example.test"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "bfb"
+database_id = "00000000-0000-4000-8000-000000000003"
+migrations_dir = "../../migrations/d1"
+
+[[r2_buckets]]
+binding = "ARTIFACTS"
+bucket_name = "bfb-artifacts"
+
+[[queues.producers]]
+binding = "JOBS"
+queue = "bfb-jobs"
+
+[[queues.producers]]
+binding = "JOBS_DLQ"
+queue = "bfb-jobs-dlq"
+
+[assets]
+directory = "../web/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*", "/auth/*", "/mcp", "/mcp/*", "/realtime/*", "/runner/*", "/webhooks/*", "/.well-known/*", "/healthz"]
+
+[[durable_objects.bindings]]
+name = "WORKSPACE_HUB"
+class_name = "WorkspaceHub"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["WorkspaceHub"]

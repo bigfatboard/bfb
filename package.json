@@ -27,7 +27,9 @@
     "test": "vitest run",
     "test:protocol": "pnpm protocol:check && vitest run packages/protocol-ts/test && go test ./internal/protocol/...",
     "typecheck": "tsc -b --pretty false",
-    "verify": "tsx tools/repository/src/verify.ts"
+    "verify": "tsx tools/repository/src/verify.ts",
+    "test:substrate": "vitest run apps/control-worker/test apps/artifact-worker/test apps/web/test && pnpm --filter @bfb/web build",
+    "build:web": "pnpm --filter @bfb/web build"
   },
   "devDependencies": {
     "@types/node": "24.13.3",

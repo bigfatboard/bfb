@@ -1,0 +1,15 @@
+# ABOUTME: Local Artifact Worker wrangler configuration for the cookie-less origin.
+# ABOUTME: Holds private R2 only; no session cookie or trusted-origin features.
+
+name = "bfb-artifact-local"
+main = "src/index.ts"
+compatibility_date = "2026-08-01"
+
+[vars]
+ENVIRONMENT = "local"
+ARTIFACT_ORIGIN = "http://127.0.0.1:8788"
+APP_ORIGIN = "http://127.0.0.1:8787"
+
+[[r2_buckets]]
+binding = "ARTIFACTS"
+bucket_name = "bfb-artifacts-local"

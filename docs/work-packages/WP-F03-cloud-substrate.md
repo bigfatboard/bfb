@@ -1,8 +1,12 @@
 # WP-F03 — Cloudflare application substrate
 
-Status: `planned`
+Status: `done`
 
 Risk: High
+
+Test target: `pnpm test:substrate`
+
+Evidence manifest: `docs/work-packages/evidence/WP-F03/manifest.json`
 
 ## Outcome
 
@@ -29,6 +33,22 @@ BFB’s web, control, and artifact applications build and run against an explici
 
 - Domain tables, Better Auth behavior/schema/configuration, hub commands, Queue consumers, R2 uploads, or production resource creation.
 - Pages, KV, Workflows, Analytics Engine, Workers AI, or another service excluded by the architecture.
+
+## Contracts
+
+### Consumes
+
+- Repository root commands, TypeScript package layout, and pinned Node/pnpm toolchains from F01.
+- Architecture decisions for Worker Static Assets routing, separate artifact origin, and Durable Object SQLite classes.
+
+### Produces
+
+- Control Worker (`apps/control-worker`) with Hono route shells, env validation, and `WorkspaceHub` DO shell.
+- Web SPA (`apps/web`) Vite/React assets for Static Assets binding.
+- Artifact Worker (`apps/artifact-worker`) cookie-less origin shell with private R2 binding.
+- Named local/staging/production wrangler configs and `run_worker_first` route matrix.
+- Disposable Better Auth `1.6.26` compile spike without routes/tables/product config.
+- Stable test target `pnpm test:substrate` and evidence path `docs/work-packages/evidence/WP-F03/manifest.json`.
 
 ## Work plan
 
