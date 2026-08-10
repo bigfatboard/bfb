@@ -1,11 +1,13 @@
 // ABOUTME: Authenticated SPA shell with explicit /w/<slug> workspace Work surface routing.
-// ABOUTME: Loads board data from the control API using the browser session cookie.
+// ABOUTME: Loads board data and mutation forms from control APIs using the browser session cookie.
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import type { AttentionDeckItem, ProjectLane } from "@bfb/domain";
+import { SYNTHETIC_PASSWORD } from "@bfb/domain";
 
 import { WorkBoard } from "./work/board.js";
+import { WorkMutations } from "./work/mutations.js";
 
 export interface AppShellProps {
   /** Test injection; production loads from /auth/session + board API. */
@@ -41,7 +43,22 @@ export function AppShell(props: AppShellProps = {}) {
   const [board, setBoard] = useState<BoardResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [email, setEmail] = useState("owner@synthetic.test");
+  const [password, setPassword] = useState(SYNTHETIC_PASSWORD);
   const [workspaceId, setWorkspaceId] = useState("");
+
+  const reloadBoard = useCallback(async () => {
+    const slug = parseWorkspaceSlug(path);
+    if (!human || !slug || !workspaceId) {
+      return;
+    }
+    const response = await fetchFn(`/api/v1/workspaces/${workspaceId}/board`);
+    if (!response.ok) {
+      setError("Failed to load board");
+      return;
+    }
+    setBoard((await response.json()) as BoardResponse);
+    setError(null);
+  }, [fetchFn, human, path, workspaceId]);
 
   useEffect(() => {
     void (async () => {
@@ -54,27 +71,15 @@ export function AppShell(props: AppShellProps = {}) {
   }, [fetchFn]);
 
   useEffect(() => {
-    const slug = parseWorkspaceSlug(path);
-    if (!human || !slug || !workspaceId) {
-      return;
-    }
-    void (async () => {
-      const response = await fetchFn(`/api/v1/workspaces/${workspaceId}/board`);
-      if (!response.ok) {
-        setError("Failed to load board");
-        return;
-      }
-      setBoard((await response.json()) as BoardResponse);
-      setError(null);
-    })();
-  }, [human, path, workspaceId, fetchFn]);
+    void reloadBoard();
+  }, [reloadBoard]);
 
   async function signIn(event: React.FormEvent) {
     event.preventDefault();
     const response = await fetchFn("/auth/sign-in/email", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email, password: "synthetic" }),
+      body: JSON.stringify({ email, password }),
     });
     if (!response.ok) {
       setError("Sign-in failed");
@@ -100,6 +105,7 @@ export function AppShell(props: AppShellProps = {}) {
   }
 
   const slug = parseWorkspaceSlug(path);
+  const projectIds = board?.lanes.map((lane) => lane.projectId) ?? [];
 
   return (
     <main>
@@ -113,6 +119,15 @@ export function AppShell(props: AppShellProps = {}) {
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               data-testid="sign-in-email"
+            />
+          </label>
+          <label>
+            Password
+            <input
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              data-testid="sign-in-password"
             />
           </label>
           <button type="submit">Sign in</button>
@@ -142,6 +157,14 @@ export function AppShell(props: AppShellProps = {}) {
                 lanes={board.lanes}
                 needsNow={board.needs_now}
                 agentWorkAvailable={board.agent_work_available}
+              />
+              <WorkMutations
+                workspaceId={workspaceId}
+                projectIds={projectIds}
+                fetchImpl={fetchFn}
+                onChanged={() => {
+                  void reloadBoard();
+                }}
               />
             </>
           ) : (

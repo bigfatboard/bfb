@@ -1,6 +1,6 @@
 {
-  "package": "C08",
-  "migration_head": "0003_auth_and_work",
+  "package": "C02",
+  "migration_head": "0004_human_credentials",
   "migrations": [
     {
       "id": "0001_workspace_registry",
@@ -13,6 +13,10 @@
     {
       "id": "0003_auth_and_work",
       "file": "0003_auth_and_work.sql"
+    },
+    {
+      "id": "0004_human_credentials",
+      "file": "0004_human_credentials.sql"
     }
   ]
 }

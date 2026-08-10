@@ -10,6 +10,7 @@ import {
   loadPrincipal,
   listTasks,
   addCommentCommand,
+  addContextCommand,
   getTask,
   updateTaskCommand,
   getAgentContext,
@@ -72,6 +73,32 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
         projectId: body.project_id,
         title: body.title,
         priority: body.priority ?? "P2",
+      },
+    });
+    return json(outcome, outcome.ok ? 200 : 409);
+  }
+
+  if (
+    path === `/api/v1/workspaces/${deps.workspaceId}/tasks/propose` &&
+    request.method === "POST"
+  ) {
+    const body = (await request.json()) as {
+      project_id: string;
+      title: string;
+      priority?: "P0" | "P1" | "P2" | "P3";
+      request_id?: string;
+    };
+    const outcome = await hub.execute(createTaskCommand, {
+      workspaceId: deps.workspaceId,
+      idempotencyKey: body.request_id ?? `web-propose-${deps.now}`,
+      authorizationEpoch: authz.authorizationEpoch,
+      actorHumanId: deps.principal.humanId,
+      now: deps.now,
+      input: {
+        projectId: body.project_id,
+        title: body.title,
+        priority: body.priority ?? "P2",
+        actorIsAgent: true,
       },
     });
     return json(outcome, outcome.ok ? 200 : 409);
@@ -144,6 +171,26 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
         )
         .all(deps.workspaceId, taskId);
       return json({ context: all });
+    }
+    if (rest === "/context" && request.method === "POST") {
+      const body = (await request.json()) as {
+        audience: "human" | "agent" | "both";
+        body: string;
+        request_id?: string;
+      };
+      const outcome = await hub.execute(addContextCommand, {
+        workspaceId: deps.workspaceId,
+        idempotencyKey: body.request_id ?? `web-context-${taskId}-${deps.now}`,
+        authorizationEpoch: authz.authorizationEpoch,
+        actorHumanId: deps.principal.humanId,
+        now: deps.now,
+        input: {
+          taskId,
+          audience: body.audience,
+          body: body.body,
+        },
+      });
+      return json(outcome, outcome.ok ? 200 : 409);
     }
   }
 

@@ -1,7 +1,7 @@
 // ABOUTME: Hosts the BFB Control Worker entrypoint with validated bindings and full web/MCP routes.
-// ABOUTME: Auth, work APIs, OAuth, and MCP share domain commands through one fetch surface.
+// ABOUTME: Production fetch always adapts env.DB; tests may inject a SqlDatabase override.
 
-import type { SqlDatabase } from "@bfb/db";
+import { adaptD1, type SqlDatabase } from "@bfb/db";
 
 import { createControlApp } from "./routes.js";
 import { validateControlEnv, type ControlBindings } from "./env.js";
@@ -22,8 +22,8 @@ export function createFetchHandler(options: ControlFetchOptions = {}) {
   ): Promise<Response> {
     try {
       const validated = validateControlEnv(env);
-      // Prefer injected SQL db for tests; production uses D1 through a thin adapter later.
-      const db = options.db;
+      // Production always binds D1. Tests inject options.db (better-sqlite3).
+      const db = options.db ?? adaptD1(env.DB);
       const app = createControlApp(validated, {
         db,
         now: options.now,

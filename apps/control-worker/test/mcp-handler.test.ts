@@ -118,5 +118,16 @@ describe("mcp handler", () => {
     );
     expect(response.status).not.toBe(501);
     expect([200, 202]).toContain(response.status);
+    const body = (await response.json()) as {
+      result?: { content?: Array<{ text?: string }> };
+    };
+    const text = body.result?.content?.[0]?.text ?? JSON.stringify(body);
+    const parsed = JSON.parse(text) as {
+      ok: boolean;
+      result: { state: string; title: string };
+    };
+    expect(parsed.ok).toBe(true);
+    expect(parsed.result.state).toBe("proposed");
+    expect(parsed.result.title).toBe("From MCP");
   });
 });

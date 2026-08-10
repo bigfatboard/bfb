@@ -3,10 +3,12 @@
 
 export * from "./abuse.js";
 export * from "./authorization.js";
+export * from "./fixtures.js";
 export * from "./hub.js";
 export * from "./ids.js";
 export * from "./mcp-routing.js";
 export * from "./oauth.js";
+export * from "./passwords.js";
 export * from "./projections.js";
 export * from "./step-up.js";
 export * from "./work-commands.js";

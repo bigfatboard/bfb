@@ -31,7 +31,7 @@ describe("d1 migrations", () => {
     const result = applyMigrations(db, migrationsDir);
     expect(result.status).toBe("complete");
     expect(result.head).toBe(migrationHead(migrationsDir));
-    expect(result.head).toBe("0003_auth_and_work");
+    expect(result.head).toBe("0004_human_credentials");
     const tables = schemaSnapshot(db).filter((entry) => entry.startsWith("table:workspaces:"));
     expect(tables.length).toBe(1);
   });
@@ -66,7 +66,7 @@ describe("d1 migrations", () => {
 
     const resumed = applyMigrations(db, migrationsDir);
     expect(resumed.status).toBe("complete");
-    expect(resumed.head).toBe("0003_auth_and_work");
+    expect(resumed.head).toBe("0004_human_credentials");
   });
 
   it("records failed state when interrupted during a migration", () => {

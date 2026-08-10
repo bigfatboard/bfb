@@ -1,10 +1,11 @@
-// ABOUTME: Tests the authenticated AppShell sign-in and Work surface open path.
+// ABOUTME: Tests the authenticated AppShell sign-in, board load, and work mutations.
 // ABOUTME: Uses a fetch stub that drives the real control-worker app with fixture DB.
 
 import { describe, expect, it } from "vitest";
 
 import { openDomainDb } from "../../../packages/domain/test/helpers.js";
 import { FIX } from "../../../packages/domain/src/fixtures.js";
+import { SYNTHETIC_PASSWORD } from "../../../packages/domain/src/passwords.js";
 import { validateControlEnv, type ControlBindings } from "../../control-worker/src/env.js";
 import { createControlApp } from "../../control-worker/src/routes.js";
 import { parseWorkspaceSlugForTest } from "../src/routing.js";
@@ -34,7 +35,7 @@ describe("authenticated app shell routing", () => {
     expect(parseWorkspaceSlugForTest("/")).toBeNull();
   });
 
-  it("signs in and loads board for permitted role", async () => {
+  it("signs in with password, loads board, and mutates work", async () => {
     const db = openDomainDb();
     const validated = validateControlEnv(env());
     const app = createControlApp(validated, { db, now: "2026-08-07T12:00:00Z" });
@@ -62,10 +63,26 @@ describe("authenticated app shell routing", () => {
       return response;
     };
 
+    // Empty password rejected.
+    const emptyPassword = await fetchImpl("/auth/sign-in/email", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "owner@synthetic.test", password: "" }),
+    });
+    expect(emptyPassword.status).toBe(400);
+
+    // Wrong password rejected.
+    const wrongPassword = await fetchImpl("/auth/sign-in/email", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "owner@synthetic.test", password: "wrong" }),
+    });
+    expect(wrongPassword.status).toBe(401);
+
     const signIn = await fetchImpl("/auth/sign-in/email", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "owner@synthetic.test" }),
+      body: JSON.stringify({ email: "owner@synthetic.test", password: SYNTHETIC_PASSWORD }),
     });
     expect(signIn.status).toBe(200);
 
@@ -80,6 +97,67 @@ describe("authenticated app shell routing", () => {
     expect(body.role).toBe("owner");
     expect(body.lanes.length).toBeGreaterThan(0);
     expect(body.agent_work_available).toBe(false);
+
+    // Create task + comment + context + propose through real work APIs.
+    const created = await fetchImpl(`/api/v1/workspaces/${FIX.workspace}/tasks`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        project_id: FIX.projectA,
+        title: "UI created task",
+        priority: "P1",
+        request_id: "ui-create-1",
+      }),
+    });
+    expect(created.status).toBe(200);
+    const createdBody = (await created.json()) as {
+      ok: boolean;
+      result: { id: string; state: string };
+    };
+    expect(createdBody.ok).toBe(true);
+    expect(createdBody.result.state).toBe("ready");
+
+    const proposed = await fetchImpl(`/api/v1/workspaces/${FIX.workspace}/tasks/propose`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        project_id: FIX.projectA,
+        title: "UI proposed",
+        priority: "P2",
+        request_id: "ui-propose-1",
+      }),
+    });
+    expect(proposed.status).toBe(200);
+    const proposedBody = (await proposed.json()) as {
+      ok: boolean;
+      result: { id: string; state: string };
+    };
+    expect(proposedBody.ok).toBe(true);
+    expect(proposedBody.result.state).toBe("proposed");
+
+    const comment = await fetchImpl(
+      `/api/v1/workspaces/${FIX.workspace}/tasks/${createdBody.result.id}/comments`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ body: "UI comment", kind: "discussion", request_id: "ui-cmt-1" }),
+      },
+    );
+    expect(comment.status).toBe(200);
+
+    const context = await fetchImpl(
+      `/api/v1/workspaces/${FIX.workspace}/tasks/${createdBody.result.id}/context`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          audience: "agent",
+          body: "UI agent context",
+          request_id: "ui-ctx-1",
+        }),
+      },
+    );
+    expect(context.status).toBe(200);
 
     // Restricted member only sees granted project via a fresh cookie jar.
     const restrictedCookies = new Map<string, string>();
@@ -107,7 +185,10 @@ describe("authenticated app shell routing", () => {
     const restrictedSignIn = await restrictedFetch("/auth/sign-in/email", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "restricted@synthetic.test" }),
+      body: JSON.stringify({
+        email: "restricted@synthetic.test",
+        password: SYNTHETIC_PASSWORD,
+      }),
     });
     expect(restrictedSignIn.status).toBe(200);
     const restrictedBoard = await restrictedFetch(`/api/v1/workspaces/${FIX.workspace}/board`);

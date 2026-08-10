@@ -16,8 +16,10 @@ export type { ApplyOptions, MigrationDatabase, MigrationManifest } from "./migra
 export {
   BootstrapWorkspaceWriter,
   WorkspaceRepository,
+  dbValue,
   optimisticVersionPredicate,
 } from "./workspace-repository.js";
 export type { SqlDatabase, WorkspaceRow } from "./workspace-repository.js";
+export { adaptD1 } from "./d1-adapter.js";
 
-export const MIGRATION_HEAD = "0003_auth_and_work";
+export const MIGRATION_HEAD = "0004_human_credentials";

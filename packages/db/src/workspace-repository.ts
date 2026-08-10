@@ -13,10 +13,16 @@ export interface WorkspaceRow {
 
 export interface SqlDatabase {
   prepare(sql: string): {
-    run: (...params: unknown[]) => { changes: number };
-    get: (...params: unknown[]) => unknown;
-    all: (...params: unknown[]) => unknown[];
+    /** May return a Promise when backed by D1; better-sqlite3 returns sync. */
+    run: (...params: unknown[]) => { changes: number } | Promise<{ changes: number }>;
+    get: (...params: unknown[]) => unknown | Promise<unknown>;
+    all: (...params: unknown[]) => unknown[] | Promise<unknown[]>;
   };
+}
+
+/** Await either a sync value or a Promise (D1 vs better-sqlite3). */
+export async function dbValue<T>(value: T | Promise<T>): Promise<T> {
+  return await value;
 }
 
 export class WorkspaceRepository {

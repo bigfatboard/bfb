@@ -39,7 +39,7 @@
     "test:c07": "vitest run packages/domain/test/projects.test.ts",
     "test:c08": "vitest run packages/domain/test/work.test.ts packages/domain/test/projections.test.ts",
     "test:w01": "vitest run packages/domain/test/projections.test.ts apps/web/test",
-    "test:x03a": "vitest run packages/domain/test/mcp.test.ts packages/domain/test/oauth.test.ts",
+    "test:x03a": "vitest run packages/domain/test/mcp.test.ts packages/domain/test/oauth.test.ts apps/control-worker/test/mcp-handler.test.ts apps/control-worker/test/routes.test.ts apps/control-worker/test/d1-adapter.test.ts",
     "test:ic1": "pnpm test:domain && pnpm test:w01 && pnpm test:x03a"
   },
   "devDependencies": {

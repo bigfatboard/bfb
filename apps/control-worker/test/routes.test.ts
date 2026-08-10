@@ -72,7 +72,7 @@ describe("control routes", () => {
       new Request("https://bfb.example.test/auth/sign-in/email", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email: "owner@synthetic.test", password: "x" }),
+        body: JSON.stringify({ email: "owner@synthetic.test", password: "synthetic-password" }),
       }),
       env(),
     );
@@ -128,7 +128,7 @@ describe("control routes", () => {
       new Request("https://bfb.example.test/auth/sign-in/email", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email: "owner@synthetic.test" }),
+        body: JSON.stringify({ email: "owner@synthetic.test", password: "synthetic-password" }),
       }),
       env(),
     );
@@ -225,7 +225,17 @@ describe("control routes", () => {
       env(),
     );
     expect(propose.status).not.toBe(501);
-    // createMcpHandler or our auth path should succeed
     expect([200, 202]).toContain(propose.status);
+    const proposeBody = (await propose.json()) as {
+      result?: { content?: Array<{ text?: string }> };
+    };
+    const text = proposeBody.result?.content?.[0]?.text ?? JSON.stringify(proposeBody);
+    const parsed = JSON.parse(text) as {
+      ok: boolean;
+      result: { state: string; title: string };
+    };
+    expect(parsed.ok).toBe(true);
+    expect(parsed.result.state).toBe("proposed");
+    expect(parsed.result.title).toBe("OAuth proposed");
   });
 });

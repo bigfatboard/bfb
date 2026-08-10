@@ -4,6 +4,7 @@
 import type { SqlDatabase } from "@bfb/db";
 
 import { syntheticUlid } from "./ids.js";
+import { hashPassword, SYNTHETIC_PASSWORD } from "./passwords.js";
 
 export const FIX = {
   workspace: syntheticUlid("WORKSPACE"),
@@ -15,6 +16,8 @@ export const FIX = {
   profileCodex: syntheticUlid("PROFCX"),
   profileGrok: syntheticUlid("PROFGR"),
   client: "bfb-mcp-synthetic-client",
+  /** Known fixture password for all synthetic humans. */
+  password: SYNTHETIC_PASSWORD,
 };
 
 export function seedSyntheticWorkspace(db: SqlDatabase, now = "2026-08-07T12:00:00Z"): void {
@@ -22,6 +25,9 @@ export function seedSyntheticWorkspace(db: SqlDatabase, now = "2026-08-07T12:00:
     `INSERT INTO workspaces (id, slug, jurisdiction, created_at, resource_version)
      VALUES (?, 'synthetic', 'eu', ?, 1)`,
   ).run(FIX.workspace, now);
+
+  // Fixed salt so fixture hashes are stable across seeds in one process.
+  const passwordHash = hashPassword(SYNTHETIC_PASSWORD, "synthetic-fixture-salt");
 
   for (const [id, email, name] of [
     [FIX.owner, "owner@synthetic.test", "Synthetic Owner"],
@@ -34,6 +40,10 @@ export function seedSyntheticWorkspace(db: SqlDatabase, now = "2026-08-07T12:00:
       name,
       now,
     );
+    db.prepare(
+      `INSERT INTO human_credentials (human_id, password_hash, algorithm, updated_at)
+       VALUES (?, ?, 'scrypt', ?)`,
+    ).run(id, passwordHash, now);
   }
 
   db.prepare(

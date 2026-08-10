@@ -1,10 +1,10 @@
 // ABOUTME: Mounts human auth routes for sign-in, sign-out, and session inspection.
-// ABOUTME: Uses Better Auth when configured and D1-backed synthetic sessions for local fixtures.
+// ABOUTME: Email sign-in verifies scrypt password hashes; empty/wrong passwords fail closed.
 
 import type { Context } from "hono";
 
 import type { SqlDatabase } from "@bfb/db";
-import { randomUlid } from "@bfb/domain";
+import { randomUlid, verifyPassword } from "@bfb/domain";
 
 import { clearSessionCookie, resolveBrowserPrincipal, setSessionCookie } from "./session.js";
 import type { HumanAuth } from "./better-auth.js";
@@ -36,15 +36,20 @@ export async function handleAuthRoute(c: Context, deps: AuthRouteDeps): Promise<
 
   if (path === "/auth/sign-in/email" && c.req.method === "POST") {
     const body = (await c.req.json()) as { email?: string; password?: string };
-    if (!body.email) {
-      return c.json({ error: "invalid_request", message: "email required" }, 400);
+    if (!body.email || typeof body.password !== "string" || body.password.length === 0) {
+      return c.json({ error: "invalid_request", message: "email and password required" }, 400);
     }
-    // Look up human by email; create session. Password verification via Better Auth when wired.
     const human = deps.db
       .prepare(`SELECT id, email, display_name FROM humans WHERE email = ?`)
       .get(body.email) as { id: string; email: string; display_name: string } | undefined;
     if (!human) {
-      return c.json({ error: "invalid_credentials", message: "unknown user" }, 401);
+      return c.json({ error: "invalid_credentials", message: "invalid email or password" }, 401);
+    }
+    const credential = deps.db
+      .prepare(`SELECT password_hash FROM human_credentials WHERE human_id = ?`)
+      .get(human.id) as { password_hash: string } | undefined;
+    if (!credential || !verifyPassword(body.password, credential.password_hash)) {
+      return c.json({ error: "invalid_credentials", message: "invalid email or password" }, 401);
     }
     const sessionId = randomUlid();
     const expires = new Date(Date.parse(deps.now) + 86400_000).toISOString();
@@ -86,7 +91,6 @@ export async function handleAuthRoute(c: Context, deps: AuthRouteDeps): Promise<
   }
 
   if ((path.startsWith("/auth/") && c.req.method === "GET") || path.startsWith("/auth/")) {
-    // Delegate remaining Better Auth protocol paths (callback, etc.) to the Better Auth handler.
     try {
       const response = await deps.auth.handler(c.req.raw);
       return response;
@@ -95,7 +99,7 @@ export async function handleAuthRoute(c: Context, deps: AuthRouteDeps): Promise<
         {
           ok: false,
           error: "auth_handler_error",
-          message: "Better Auth handler failed; use /auth/sign-in/email for fixture sign-in",
+          message: "Better Auth handler failed",
         },
         502,
       );
