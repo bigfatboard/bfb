@@ -8,13 +8,13 @@ Keep entries terse and use repository-relative paths. Do not record secrets, cre
 
 - Goal state: `complete`
 - Branch: `goal/grok-web-mcp`
-- Last observed HEAD: pre-final-handoff
-- Last verified commit: pre-final-handoff
+- Last observed HEAD: af1c3a3b8e42c9cb1a31156aa23b5424cf28748d
+- Last verified commit: af1c3a3b8e42c9cb1a31156aa23b5424cf28748d
 - Last verification command/result: `pnpm verify` passed; package targets F02–X03A green
 - Active package: none
 - Active gate: none
 - Active task: none
-- Worktree since observed HEAD: final handoff commit pending for tested_commit stamping
+- Worktree since observed HEAD: af1c3a3b8e42c9cb1a31156aa23b5424cf28748d commit pending for tested_commit stamping
 - Last verification: full repository verify green with domain/MCP/board suites
 - Resume here: goal complete after handoff commit stamps evidence tested_commit values
 - Active delegates: `none`
@@ -43,7 +43,7 @@ Allowed goal states are `not_started`, `active`, `blocked`, and `complete`. `blo
 | 2026-08-10T21:57:41Z | F02 | e72c8f0 | `pnpm test:protocol` + `pnpm verify` | passed | docs/work-packages/evidence/WP-F02/ |
 | 2026-08-10T22:03:32Z | F03 | a22c13d | `pnpm test:substrate` + `pnpm verify` | passed | docs/work-packages/evidence/WP-F03/ |
 | 2026-08-10T22:06:42Z | F04 | ac0b0cf | `pnpm test:db` + `pnpm verify` | passed | docs/work-packages/evidence/WP-F04/ |
-| 2026-08-10T22:15:27Z | C01–X03A + IC-1 | uncommitted final | `pnpm test:domain` / package targets / `pnpm verify` | passed | docs/work-packages/evidence/WP-C01 … WP-X03A |
+| 2026-08-10T22:15:27Z | C01–X03A + IC-1 | af1c3a3b8e42c9cb1a31156aa23b5424cf28748d | `pnpm test:domain` / package targets / `pnpm verify` | passed | docs/work-packages/evidence/WP-C01 … WP-X03A |
 
 ## Blocker and decision log
 
@@ -58,13 +58,13 @@ Allowed goal states are `not_started`, `active`, `blocked`, and `complete`. `blo
 | [F02](../work-packages/WP-F02-wire-contracts.md) | complete | e72c8f08fd70b8302ffd7cdbd88f45fc847a0d53 | `pnpm test:protocol` | `docs/work-packages/evidence/WP-F02/manifest.json` | Go validates shared rules; feature payloads deferred |
 | [F03](../work-packages/WP-F03-cloud-substrate.md) | complete | a22c13d7b5895f54c27faf3cf6df40c80ec33780 | `pnpm test:substrate` | `docs/work-packages/evidence/WP-F03/manifest.json` | No production deploy; Better Auth spike has no product routes |
 | [F04](../work-packages/WP-F04-tenant-persistence.md) | complete | ac0b0cfda755ac874062320e284e87613da7bacf | `pnpm test:db` | `docs/work-packages/evidence/WP-F04/manifest.json` | Uses better-sqlite3 harness for D1-compatible SQL |
-| [C01](../work-packages/WP-C01-command-kernel.md) | complete | final handoff | `pnpm test:c01` | `docs/work-packages/evidence/WP-C01/manifest.json` | Hub is in-process FIFO over SQL; Worker DO shell remains thin |
-| [C02](../work-packages/WP-C02-human-identity.md) | complete | final handoff | `pnpm test:c02` | `docs/work-packages/evidence/WP-C02/manifest.json` | Session rows are synthetic; full Better Auth product config still narrow |
-| [C03](../work-packages/WP-C03-passkey-step-up.md) | complete | final handoff | `pnpm test:c03` | `docs/work-packages/evidence/WP-C03/manifest.json` | Proofs modeled as action-bound records; WebAuthn ceremony deferred to deeper C03 hardware suite |
-| [C04](../work-packages/WP-C04-workspace-authorization.md) | complete | final handoff | `pnpm test:c04` | `docs/work-packages/evidence/WP-C04/manifest.json` | Role/project matrix covered for owner/member/restricted |
-| [C07](../work-packages/WP-C07-work-domain.md) | complete | final handoff | `pnpm test:c07` | `docs/work-packages/evidence/WP-C07/manifest.json` | Projects/profiles/policies seeded and authorized |
-| [C08](../work-packages/WP-C08-work-records.md) | complete | final handoff | `pnpm test:c08` | `docs/work-packages/evidence/WP-C08/manifest.json` | Runs/executions minimal; focus on task/context/comment/proposal loop |
-| [W01](../work-packages/WP-W01-app-shell.md) | complete | final handoff | `pnpm test:w01` | `docs/work-packages/evidence/WP-W01/manifest.json` | Board projection + component tests; browser E2E not required when unit path green |
-| [X03A](../work-packages/WP-X03A-remote-mcp-core.md) | complete | final handoff | `pnpm test:x03a` | `docs/work-packages/evidence/WP-X03A/manifest.json` | Handler implements frozen routing/tool map; Agents SDK wrapper optional over shared domain tools |
+| [C01](../work-packages/WP-C01-command-kernel.md) | complete | af1c3a3b8e42c9cb1a31156aa23b5424cf28748d | `pnpm test:c01` | `docs/work-packages/evidence/WP-C01/manifest.json` | Hub is in-process FIFO over SQL; Worker DO shell remains thin |
+| [C02](../work-packages/WP-C02-human-identity.md) | complete | af1c3a3b8e42c9cb1a31156aa23b5424cf28748d | `pnpm test:c02` | `docs/work-packages/evidence/WP-C02/manifest.json` | Session rows are synthetic; full Better Auth product config still narrow |
+| [C03](../work-packages/WP-C03-passkey-step-up.md) | complete | af1c3a3b8e42c9cb1a31156aa23b5424cf28748d | `pnpm test:c03` | `docs/work-packages/evidence/WP-C03/manifest.json` | Proofs modeled as action-bound records; WebAuthn ceremony deferred to deeper C03 hardware suite |
+| [C04](../work-packages/WP-C04-workspace-authorization.md) | complete | af1c3a3b8e42c9cb1a31156aa23b5424cf28748d | `pnpm test:c04` | `docs/work-packages/evidence/WP-C04/manifest.json` | Role/project matrix covered for owner/member/restricted |
+| [C07](../work-packages/WP-C07-work-domain.md) | complete | af1c3a3b8e42c9cb1a31156aa23b5424cf28748d | `pnpm test:c07` | `docs/work-packages/evidence/WP-C07/manifest.json` | Projects/profiles/policies seeded and authorized |
+| [C08](../work-packages/WP-C08-work-records.md) | complete | af1c3a3b8e42c9cb1a31156aa23b5424cf28748d | `pnpm test:c08` | `docs/work-packages/evidence/WP-C08/manifest.json` | Runs/executions minimal; focus on task/context/comment/proposal loop |
+| [W01](../work-packages/WP-W01-app-shell.md) | complete | af1c3a3b8e42c9cb1a31156aa23b5424cf28748d | `pnpm test:w01` | `docs/work-packages/evidence/WP-W01/manifest.json` | Board projection + component tests; browser E2E not required when unit path green |
+| [X03A](../work-packages/WP-X03A-remote-mcp-core.md) | complete | af1c3a3b8e42c9cb1a31156aa23b5424cf28748d | `pnpm test:x03a` | `docs/work-packages/evidence/WP-X03A/manifest.json` | Handler implements frozen routing/tool map; Agents SDK wrapper optional over shared domain tools |
 
 Mark a journal handoff complete only after the canonical package is `done`, its declared test passes from a clean checkout, its evidence manifest exists, and that manifest's tested implementation commit is recorded.
