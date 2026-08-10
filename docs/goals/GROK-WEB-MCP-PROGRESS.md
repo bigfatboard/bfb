@@ -8,8 +8,8 @@ Keep entries terse and use repository-relative paths. Do not record secrets, cre
 
 - Goal state: `active`
 - Branch: `goal/grok-web-mcp`
-- Last observed HEAD: `42b7b84467df9c5f7c3a497052673e14c80f1344`
-- Last verified commit: `uncommitted`
+- Last observed HEAD: `e72c8f08fd70b8302ffd7cdbd88f45fc847a0d53`
+- Last verified commit: `e72c8f08fd70b8302ffd7cdbd88f45fc847a0d53`
 - Last verification command/result: `pnpm verify` + `pnpm test:protocol` passed for F02 worktree
 - Active package: F03 — [Cloudflare application substrate](../work-packages/WP-F03-cloud-substrate.md)
 - Active gate: `Ready`
@@ -66,7 +66,7 @@ Allowed states are `investigating`, `resolved`, and `decision_required`. A journ
 
 | Package | Journal checkpoint | Tested commit | Test target | Evidence manifest | Limitations |
 | --- | --- | --- | --- | --- | --- |
-| [F02](../work-packages/WP-F02-wire-contracts.md) | Handoff pending commit | uncommitted (update after commit) | `pnpm test:protocol` | `docs/work-packages/evidence/WP-F02/manifest.json` | Feature payloads deferred to owning packages; Go validates shared rules rather than embedding full JSON Schema runtime |
+| [F02](../work-packages/WP-F02-wire-contracts.md) | Handoff pending commit | e72c8f08fd70b8302ffd7cdbd88f45fc847a0d53 | `pnpm test:protocol` | `docs/work-packages/evidence/WP-F02/manifest.json` | Feature payloads deferred to owning packages; Go validates shared rules rather than embedding full JSON Schema runtime |
 | [F03](../work-packages/WP-F03-cloud-substrate.md) | Active next | — | Read canonical package | Read canonical package | — |
 | [F04](../work-packages/WP-F04-tenant-persistence.md) | Queued | — | Read canonical package | Read canonical package | — |
 | [C01](../work-packages/WP-C01-command-kernel.md) | Queued | — | Read canonical package | Read canonical package | — |
