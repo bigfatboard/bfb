@@ -1,6 +1,6 @@
 # WP-C03 — Passkey enrollment and step-up
 
-Status: `planned`
+Status: `in_progress`
 
 Risk: High
 

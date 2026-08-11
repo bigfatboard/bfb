@@ -1,0 +1,15 @@
+{
+  "package": "C02",
+  "tested_commit": "d001ca2ffa4e46a3e8311528307d2679134e919d",
+  "migration": "0008_better_auth_identity",
+  "added_tables": [
+    "better_auth_users",
+    "better_auth_sessions",
+    "better_auth_accounts",
+    "better_auth_verifications"
+  ],
+  "human_identity_link": "humans.better_auth_user_id references better_auth_users.id with delete restricted",
+  "removed_tables": ["human_sessions", "human_credentials"],
+  "schema_drift": "none",
+  "migration_authority": "checked-in ordered D1 migrations"
+}

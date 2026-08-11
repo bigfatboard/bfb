@@ -1,21 +1,30 @@
 {
   "$schema": "../manifest.schema.json",
   "package": "C02",
-  "tested_commit": "696e3ccf33ba590a4a50a3f53dc448ca9cd4f639",
+  "tested_commit": "d001ca2ffa4e46a3e8311528307d2679134e919d",
   "protocol_version": "bfb-wire/1",
   "schema_version": "1",
-  "migration_head": "0006_reviewer_role",
+  "migration_head": "0008_better_auth_identity",
   "toolchains": {
     "node": "24.19.0",
     "pnpm": "11.21.0",
-    "better-auth": "1.6.26"
+    "go": "1.26.5",
+    "xcode": "26.0.1",
+    "better-auth": "1.6.26",
+    "better-sqlite3": "12.6.2",
+    "wrangler": "4.120.1"
   },
   "environment": {
     "kind": "clean_checkout",
-    "os": "macOS",
+    "os": "macOS 26.2 (25C56)",
     "architecture": "arm64"
   },
   "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C02/command-result.json"
+    },
     {
       "command": "pnpm test:c02",
       "outcome": "passed",
@@ -23,14 +32,23 @@
     },
     {
       "command": "pnpm verify",
-      "outcome": "passed"
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C02/command-result.json"
     }
   ],
   "outcome": "passed",
   "artifacts": [
     "docs/work-packages/evidence/WP-C02/command-result.json",
+    "docs/work-packages/evidence/WP-C02/auth-configuration.json",
+    "docs/work-packages/evidence/WP-C02/migration-schema.json",
+    "docs/work-packages/evidence/WP-C02/credential-route-matrix.json",
+    "docs/work-packages/evidence/WP-C02/negative-tests.md",
+    "docs/work-packages/evidence/WP-C02/final-audit.md",
+    "apps/control-worker/src/auth/better-auth.ts",
     "apps/control-worker/src/auth/session.ts",
-    "apps/control-worker/test/session-security.test.ts"
+    "apps/control-worker/src/auth/routes.ts",
+    "migrations/d1/0008_better_auth_identity.sql",
+    "tools/identity/run.ts"
   ],
   "redaction": {
     "status": "passed",

@@ -1,0 +1,26 @@
+{
+  "package": "C02",
+  "tested_commit": "d001ca2ffa4e46a3e8311528307d2679134e919d",
+  "better_auth_version": "1.6.26",
+  "provider": "github",
+  "trusted_origins": "one exact validated app origin",
+  "session": {
+    "storage": "D1",
+    "cookie_name": "__Host-bfb_session",
+    "cookie_attributes": ["host-only", "Secure", "HttpOnly", "SameSite=Lax", "Path=/"],
+    "cookie_cache_enabled": false,
+    "normalized_principal_contains_workspace_authority": false
+  },
+  "account": {
+    "oauth_tokens_encrypted": true,
+    "oauth_state_storage": "database",
+    "implicit_account_linking": false,
+    "email_password_enabled": false,
+    "user_deletion_enabled": false
+  },
+  "service": {
+    "telemetry_enabled": false,
+    "credential_logging_enabled": false,
+    "secret_rotation": "current and one previous versioned key"
+  }
+}
