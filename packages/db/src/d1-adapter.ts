@@ -38,6 +38,12 @@ function immediateStatement(d1: D1Like, sql: string) {
   };
 }
 
+function assertReadOnlyTransactionQuery(sql: string): void {
+  if (!/^SELECT\b/i.test(sql.trimStart())) {
+    throw new Error("D1 batch transaction reads require a SELECT statement");
+  }
+}
+
 /**
  * Wraps a D1 binding so domain code always awaits prepare/run/get/all.
  * Always returns real rows, never casts a Promise to a row.
@@ -67,13 +73,22 @@ export function adaptD1(d1: D1Like): SqlDatabase {
               const base = d1.prepare(sql);
               const stmt = params.length > 0 ? base.bind(...params) : base;
               writes.push(stmt);
-              // Optimistic change count: actual meta is applied at batch flush.
-              return { changes: 1 };
+              // D1 returns authoritative change counts only after the callback has
+              // produced the complete batch. Callers must not branch on a queued write.
+              return { changes: null };
             },
             async get(...params: unknown[]) {
+              assertReadOnlyTransactionQuery(sql);
+              if (writes.length > 0) {
+                throw new Error("D1 batch transactions cannot read after a queued write");
+              }
               return immediateStatement(d1, sql).get(...params);
             },
             async all(...params: unknown[]) {
+              assertReadOnlyTransactionQuery(sql);
+              if (writes.length > 0) {
+                throw new Error("D1 batch transactions cannot read after a queued write");
+              }
               return immediateStatement(d1, sql).all(...params);
             },
           };

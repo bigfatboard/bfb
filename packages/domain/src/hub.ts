@@ -85,6 +85,7 @@ export class WorkspaceHub {
           }
 
           const now = request.now ?? new Date().toISOString();
+          const cursor = await this.readNextCursor(tx, request.workspaceId);
           const ctx: HubContext = {
             workspaceId: request.workspaceId,
             db: tx,
@@ -94,7 +95,7 @@ export class WorkspaceHub {
             authorizationEpoch: request.authorizationEpoch,
           };
           const result = await command.run(request.input, ctx);
-          const cursor = await this.nextCursor(tx, request.workspaceId);
+          await this.writeCursor(tx, request.workspaceId, cursor);
           const eventId = randomUlid();
           const auditId = randomUlid();
           const outboxId = randomUlid();
@@ -176,18 +177,20 @@ export class WorkspaceHub {
     return scheduled;
   }
 
-  private async nextCursor(db: SqlDatabase, workspaceId: string): Promise<number> {
+  private async readNextCursor(db: SqlDatabase, workspaceId: string): Promise<number> {
     const row = (await db
       .prepare(`SELECT cursor FROM workspace_cursors WHERE workspace_id = ?`)
       .get(workspaceId)) as { cursor: number } | undefined;
-    const next = (row?.cursor ?? 0) + 1;
+    return (row?.cursor ?? 0) + 1;
+  }
+
+  private async writeCursor(db: SqlDatabase, workspaceId: string, cursor: number): Promise<void> {
     await db
       .prepare(
         `INSERT INTO workspace_cursors (workspace_id, cursor) VALUES (?, ?)
          ON CONFLICT(workspace_id) DO UPDATE SET cursor = excluded.cursor`,
       )
-      .run(workspaceId, next);
-    return next;
+      .run(workspaceId, cursor);
   }
 }
 

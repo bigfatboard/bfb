@@ -1,6 +1,8 @@
 // ABOUTME: Defines immutable authorization and bootstrap contexts for tenant repositories.
 // ABOUTME: Unscoped tenant access is structurally unavailable without an auth context.
 
+import { assertAuthorizationEpoch, assertUlid } from "./primitives.js";
+
 export type Jurisdiction = "eu" | "us" | "global";
 
 export interface AuthorizationContext {
@@ -22,21 +24,26 @@ export function createAuthorizationContext(input: {
   authorizationEpoch: number;
   jurisdiction: Jurisdiction;
 }): AuthorizationContext {
-  if (!input.workspaceId || !input.principalId) {
-    throw new Error("authorization context requires workspace and principal");
-  }
-  if (input.authorizationEpoch < 1) {
-    throw new Error("authorization epoch must be >= 1");
-  }
-  return {
+  assertUlid(input.workspaceId, "workspaceId");
+  assertUlid(input.principalId, "principalId");
+  assertAuthorizationEpoch(input.authorizationEpoch);
+  assertJurisdiction(input.jurisdiction);
+  return Object.freeze({
     kind: "authorized",
     workspaceId: input.workspaceId,
     principalId: input.principalId,
     authorizationEpoch: input.authorizationEpoch,
     jurisdiction: input.jurisdiction,
-  };
+  });
 }
 
 export function createBootstrapContext(jurisdiction: Jurisdiction): BootstrapContext {
-  return { kind: "bootstrap", jurisdiction };
+  assertJurisdiction(jurisdiction);
+  return Object.freeze({ kind: "bootstrap", jurisdiction });
+}
+
+function assertJurisdiction(value: string): asserts value is Jurisdiction {
+  if (value !== "eu" && value !== "us" && value !== "global") {
+    throw new Error("invalid jurisdiction");
+  }
 }

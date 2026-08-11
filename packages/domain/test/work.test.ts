@@ -99,12 +99,22 @@ describe("work records", () => {
   it("keeps agent-created roots proposed and blocks remote promotion", async () => {
     const db = await openDomainDb();
     const hub = new WorkspaceHub(db);
+    const delegationId = "01JBFB0DELEGAT100000000000";
+    await db
+      .prepare(
+        `INSERT INTO oauth_delegations
+         (workspace_id, id, human_id, client_id, resource, project_id, task_id,
+          scopes_json, authorization_epoch, expires_at, created_at)
+         VALUES (?, ?, ?, ?, 'https://bfb.example.test/mcp', ?, NULL,
+                 '["bfb:write"]', 1, '2026-08-07T13:00:00Z', '2026-08-07T12:00:00Z')`,
+      )
+      .run(FIX.workspace, delegationId, FIX.owner, FIX.client, FIX.projectA);
     const proposed = await hub.execute(createTaskCommand, {
       workspaceId: FIX.workspace,
       idempotencyKey: "agent-root",
       authorizationEpoch: 1,
       actorHumanId: FIX.owner,
-      actorDelegationId: "01JBFB0DELEGAT100000000000",
+      actorDelegationId: delegationId,
       input: {
         projectId: FIX.projectA,
         title: "Agent proposal",
@@ -121,7 +131,7 @@ describe("work records", () => {
       idempotencyKey: "promote-remote",
       authorizationEpoch: 1,
       actorHumanId: FIX.owner,
-      actorDelegationId: "01JBFB0DELEGAT100000000000",
+      actorDelegationId: delegationId,
       input: {
         taskId: proposed.result.id,
         expectedVersion: 1,

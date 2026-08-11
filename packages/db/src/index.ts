@@ -4,12 +4,12 @@
 export { createAuthorizationContext, createBootstrapContext } from "./auth-context.js";
 export type { AuthorizationContext, BootstrapContext, Jurisdiction } from "./auth-context.js";
 export {
-  applyMigrations,
+  applyMigrationsForVerification,
   discoveredSqlFiles,
   listMigrationFiles,
   loadMigrationManifest,
   migrationHead,
-  readMigrationState,
+  readVerificationMigrationState,
   schemaSnapshot,
 } from "./migrations.js";
 export type { ApplyOptions, MigrationDatabase, MigrationManifest } from "./migrations.js";
@@ -24,5 +24,7 @@ export type { D1Like, D1StatementLike } from "./d1-adapter.js";
 export { adaptBetterSqlite3 } from "./sqlite-adapter.js";
 export type { BetterSqliteDatabase, BetterSqliteStatement } from "./sqlite-adapter.js";
 export { assertUtcTimestamp } from "./timestamps.js";
+export { assertAuthorizationEpoch, assertUlid } from "./primitives.js";
+export { tenantFixtureChildren, tenantFixtureItems, workspaces } from "./schema.js";
 
-export const MIGRATION_HEAD = "0006_reviewer_role";
+export const MIGRATION_HEAD = "0007_tenant_relationships";

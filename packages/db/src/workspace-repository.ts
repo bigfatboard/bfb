@@ -1,7 +1,14 @@
 // ABOUTME: Implements the F04 workspace registry repository with mandatory auth contexts.
 // ABOUTME: Bootstrap may insert the first workspace only; no unscoped getById exists.
 
-import type { AuthorizationContext, BootstrapContext, Jurisdiction } from "./auth-context.js";
+import {
+  createAuthorizationContext,
+  createBootstrapContext,
+  type AuthorizationContext,
+  type BootstrapContext,
+  type Jurisdiction,
+} from "./auth-context.js";
+import { assertUlid } from "./primitives.js";
 import { assertUtcTimestamp } from "./timestamps.js";
 
 export interface WorkspaceRow {
@@ -14,7 +21,8 @@ export interface WorkspaceRow {
 
 /** Promise-only prepared statement surface. */
 export interface SqlStatement {
-  run: (...params: unknown[]) => Promise<{ changes: number }>;
+  /** `null` means a D1 batch queued the write and no result exists yet. */
+  run: (...params: unknown[]) => Promise<{ changes: number | null }>;
   get: (...params: unknown[]) => Promise<unknown>;
   all: (...params: unknown[]) => Promise<unknown[]>;
 }
@@ -43,7 +51,15 @@ export class WorkspaceRepository {
     if (auth.kind !== "authorized") {
       throw new Error("workspace repository requires authorization context");
     }
-    return new WorkspaceRepository(db, auth);
+    return new WorkspaceRepository(
+      db,
+      createAuthorizationContext({
+        workspaceId: auth.workspaceId,
+        principalId: auth.principalId,
+        authorizationEpoch: auth.authorizationEpoch,
+        jurisdiction: auth.jurisdiction,
+      }),
+    );
   }
 
   // Intentionally no getById(id) without workspace scope.
@@ -67,6 +83,7 @@ export class WorkspaceRepository {
   }
 
   async insertFixtureItem(id: string, label: string): Promise<void> {
+    assertUlid(id, "fixture item id");
     await this.db
       .prepare(
         `INSERT INTO tenant_fixture_items (workspace_id, id, label, resource_version)
@@ -76,6 +93,8 @@ export class WorkspaceRepository {
   }
 
   async insertFixtureChild(id: string, parentId: string, label: string): Promise<void> {
+    assertUlid(id, "fixture child id");
+    assertUlid(parentId, "fixture parent id");
     await this.db
       .prepare(
         `INSERT INTO tenant_fixture_children (workspace_id, id, parent_id, label)
@@ -113,9 +132,10 @@ export class WorkspaceRepository {
          WHERE workspace_id = ? AND id = ? AND resource_version = ?`,
       )
       .run(label, next, this.auth.workspaceId, id, expectedVersion);
+    const changes = requireImmediateChanges(result.changes, "optimistic fixture update");
     return {
-      updated: result.changes === 1,
-      resourceVersion: result.changes === 1 ? next : current.resource_version,
+      updated: changes === 1,
+      resourceVersion: changes === 1 ? next : current.resource_version,
     };
   }
 }
@@ -130,7 +150,7 @@ export class BootstrapWorkspaceWriter {
     if (bootstrap.kind !== "bootstrap") {
       throw new Error("bootstrap writer requires bootstrap context");
     }
-    return new BootstrapWorkspaceWriter(db, bootstrap);
+    return new BootstrapWorkspaceWriter(db, createBootstrapContext(bootstrap.jurisdiction));
   }
 
   async createFirstWorkspace(input: {
@@ -139,21 +159,22 @@ export class BootstrapWorkspaceWriter {
     jurisdiction: Jurisdiction;
     createdAt: string;
   }): Promise<WorkspaceRow> {
+    assertUlid(input.id, "workspace id");
     assertUtcTimestamp(input.createdAt, "createdAt");
     if (input.jurisdiction !== this.bootstrap.jurisdiction) {
       throw new Error("workspace jurisdiction must match deployment jurisdiction");
     }
-    const existing = (await this.db.prepare("SELECT id FROM workspaces LIMIT 1").get()) as
-      { id: string } | undefined;
-    if (existing) {
-      throw new Error("bootstrap cannot mutate or create additional workspaces after first");
-    }
-    await this.db
+    const inserted = await this.db
       .prepare(
         `INSERT INTO workspaces (id, slug, jurisdiction, created_at, resource_version)
-         VALUES (?, ?, ?, ?, 1)`,
+         SELECT ?, ?, ?, ?, 1
+         WHERE NOT EXISTS (SELECT 1 FROM workspaces)`,
       )
       .run(input.id, input.slug, input.jurisdiction, input.createdAt);
+    const changes = requireImmediateChanges(inserted.changes, "workspace bootstrap");
+    if (changes !== 1) {
+      throw new Error("bootstrap cannot mutate or create additional workspaces after first");
+    }
     return {
       id: input.id,
       slug: input.slug,
@@ -178,4 +199,11 @@ export function optimisticVersionPredicate(
   expectedVersion: number,
 ): boolean {
   return currentVersion === expectedVersion;
+}
+
+function requireImmediateChanges(changes: number | null, operation: string): number {
+  if (changes === null) {
+    throw new Error(`${operation} requires an authoritative write result outside a D1 batch`);
+  }
+  return changes;
 }

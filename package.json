@@ -32,7 +32,7 @@
     "worktree:check": "tsx tools/repository/src/worktree-cli.ts",
     "test:substrate": "vitest run apps/control-worker/test/env.test.ts apps/control-worker/test/wrangler-config.test.ts apps/control-worker/test/substrate-auth-spike.test.ts apps/artifact-worker/test/env.test.ts apps/web/test/routes.test.ts && pnpm --filter @bfb/control-worker build && pnpm --filter @bfb/artifact-worker build && pnpm build:web && pnpm exec tsc -b tools/substrate --pretty false && tsx tools/substrate/run.ts",
     "build:web": "pnpm --filter @bfb/web build",
-    "test:db": "vitest run packages/db/test",
+    "test:db": "vitest run packages/db/test && pnpm exec tsc -b tools/db --pretty false && tsx tools/db/run.ts",
     "test:domain": "vitest run packages/domain/test",
     "test:c01": "vitest run packages/domain/test/hub.test.ts packages/domain/test/abuse.test.ts apps/control-worker/test/hub-client.test.ts",
     "test:c02": "vitest run packages/domain/test/identity.test.ts apps/control-worker/test/session-security.test.ts",

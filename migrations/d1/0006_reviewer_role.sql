@@ -1,7 +1,7 @@
 -- ABOUTME: Renames restricted_member workspace role to reviewer per C04 roles model.
 -- ABOUTME: Project grants remain orthogonal to roles via project_access.
 
-PRAGMA foreign_keys = OFF;
+PRAGMA defer_foreign_keys = ON;
 
 CREATE TABLE workspace_members_new (
   workspace_id TEXT NOT NULL,
@@ -23,7 +23,21 @@ SELECT
   created_at
 FROM workspace_members;
 
+CREATE TABLE project_access_new (
+  workspace_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  human_id TEXT NOT NULL,
+  PRIMARY KEY (workspace_id, project_id, human_id),
+  FOREIGN KEY (workspace_id, project_id) REFERENCES projects (workspace_id, id),
+  FOREIGN KEY (workspace_id, human_id)
+    REFERENCES workspace_members_new (workspace_id, human_id)
+);
+
+INSERT INTO project_access_new (workspace_id, project_id, human_id)
+SELECT workspace_id, project_id, human_id
+FROM project_access;
+
+DROP TABLE project_access;
 DROP TABLE workspace_members;
 ALTER TABLE workspace_members_new RENAME TO workspace_members;
-
-PRAGMA foreign_keys = ON;
+ALTER TABLE project_access_new RENAME TO project_access;

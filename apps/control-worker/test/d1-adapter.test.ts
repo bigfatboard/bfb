@@ -7,9 +7,11 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { adaptBetterSqlite3, adaptD1, applyMigrations, type D1Like } from "@bfb/db";
-import { seedSyntheticWorkspace } from "../../../packages/domain/src/fixtures.js";
+import { adaptBetterSqlite3, adaptD1, applyMigrationsForVerification, type D1Like } from "@bfb/db";
+import { FIX, seedSyntheticWorkspace } from "../../../packages/domain/src/fixtures.js";
+import { WorkspaceHub } from "../../../packages/domain/src/hub.js";
 import { SYNTHETIC_PASSWORD } from "../../../packages/domain/src/passwords.js";
+import { createTaskCommand } from "../../../packages/domain/src/work-commands.js";
 
 import { createTestWorkspaceHubNamespace } from "../src/hub-client.js";
 import { createFetchHandler, type ControlFetchOptions } from "../src/index.js";
@@ -53,11 +55,18 @@ function asD1(raw: Database.Database): D1Database {
       return statement;
     },
     async batch(statements) {
-      const results = [];
-      for (const statement of statements) {
-        results.push(await statement.run());
+      raw.exec("BEGIN IMMEDIATE");
+      try {
+        const results = [];
+        for (const statement of statements) {
+          results.push(await statement.run());
+        }
+        raw.exec("COMMIT");
+        return results;
+      } catch (error) {
+        raw.exec("ROLLBACK");
+        throw error;
       }
-      return results;
     },
   };
   return d1 as unknown as D1Database;
@@ -66,7 +75,7 @@ function asD1(raw: Database.Database): D1Database {
 async function seededEnv(now = "2026-08-07T12:00:00Z"): Promise<ControlBindings> {
   const raw = new Database(":memory:");
   raw.pragma("foreign_keys = ON");
-  applyMigrations(raw, migrationsDir);
+  applyMigrationsForVerification(raw, migrationsDir);
   const sql = adaptBetterSqlite3(raw);
   await seedSyntheticWorkspace(sql, now);
   return {
@@ -138,6 +147,37 @@ describe("production D1 adapter wiring", () => {
     };
     expect(sessionBody.authenticated).toBe(true);
     expect(sessionBody.human.email).toBe("owner@synthetic.test");
+  });
+
+  it("commits a WorkspaceHub command through the production D1 batch contract", async () => {
+    const raw = new Database(":memory:");
+    raw.pragma("foreign_keys = ON");
+    applyMigrationsForVerification(raw, migrationsDir);
+    await seedSyntheticWorkspace(adaptBetterSqlite3(raw));
+    const db = adaptD1(asD1(raw) as unknown as Parameters<typeof adaptD1>[0]);
+    const outcome = await new WorkspaceHub(db).execute(createTaskCommand, {
+      workspaceId: FIX.workspace,
+      idempotencyKey: "d1-create-task",
+      input: {
+        projectId: FIX.projectA,
+        title: "D1 transaction contract",
+        priority: "P1",
+      },
+      authorizationEpoch: 1,
+      actorHumanId: FIX.owner,
+      now: "2026-08-07T12:00:00Z",
+    });
+
+    expect(outcome.ok).toBe(true);
+    expect(raw.prepare("SELECT COUNT(*) AS count FROM tasks").get()).toEqual({ count: 1 });
+    expect(raw.prepare("SELECT COUNT(*) AS count FROM semantic_events").get()).toEqual({
+      count: 1,
+    });
+    expect(raw.prepare("SELECT COUNT(*) AS count FROM audit_events").get()).toEqual({ count: 1 });
+    expect(raw.prepare("SELECT COUNT(*) AS count FROM outbox_records").get()).toEqual({ count: 1 });
+    expect(raw.prepare("SELECT COUNT(*) AS count FROM idempotency_records").get()).toEqual({
+      count: 1,
+    });
   });
 
   it("createFetchHandler without options.db serves tools/list via adaptD1", async () => {

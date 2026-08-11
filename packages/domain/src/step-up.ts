@@ -75,8 +75,8 @@ export async function consumeStepUpProof(
   nowIso: string,
   humanId?: string,
 ): Promise<void> {
-  // Unique per-attempt stamp written into consumed_at so concurrent D1 batch
-  // consumers can detect who won the conditional UPDATE (changes is optimistic).
+  // Unique per-attempt stamp lets concurrent D1 batch consumers identify the
+  // conditional UPDATE winner without relying on a pre-commit change count.
   const consumeStamp = `${nowIso}#${randomUlid()}`;
   await db.withTransaction(async (tx) => {
     const row = (await tx

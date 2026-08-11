@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { createAuthorizationContext, createBootstrapContext } from "../src/auth-context.js";
-import { applyMigrations } from "../src/migrations.js";
+import { applyMigrationsForVerification } from "../src/migrations.js";
 import { adaptBetterSqlite3 } from "../src/sqlite-adapter.js";
 import {
   BootstrapWorkspaceWriter,
@@ -30,7 +30,7 @@ const HUMAN = "01JBFB0HVMAN1DX00000000000";
 function openMigrated(): { raw: Database.Database; db: SqlDatabase } {
   const raw = new Database(":memory:");
   raw.pragma("foreign_keys = ON");
-  applyMigrations(raw, migrationsDir);
+  applyMigrationsForVerification(raw, migrationsDir);
   return { raw, db: adaptBetterSqlite3(raw) };
 }
 
@@ -54,6 +54,29 @@ describe("workspace repository boundaries", () => {
       }),
     ).rejects.toThrow(/cannot mutate or create additional/);
     expect(() => bootstrap.getWorkspace(WS_A)).toThrow(/cannot read/);
+  });
+
+  it("atomically permits only one concurrent first-workspace bootstrap", async () => {
+    const { raw, db } = openMigrated();
+    const first = BootstrapWorkspaceWriter.forBootstrap(db, createBootstrapContext("eu"));
+    const second = BootstrapWorkspaceWriter.forBootstrap(db, createBootstrapContext("eu"));
+    const results = await Promise.allSettled([
+      first.createFirstWorkspace({
+        id: WS_A,
+        slug: "acme",
+        jurisdiction: "eu",
+        createdAt: "2026-08-07T12:00:00Z",
+      }),
+      second.createFirstWorkspace({
+        id: WS_B,
+        slug: "other",
+        jurisdiction: "eu",
+        createdAt: "2026-08-07T12:00:01Z",
+      }),
+    ]);
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    expect(results.filter((result) => result.status === "rejected")).toHaveLength(1);
+    expect(raw.prepare("SELECT COUNT(*) AS n FROM workspaces").get()).toEqual({ n: 1 });
   });
 
   it("rejects jurisdiction mismatch with deployment", async () => {
@@ -112,6 +135,54 @@ describe("workspace repository boundaries", () => {
     );
     expect(await repoB.listFixtureItems()).toHaveLength(0);
     expect((await repoB.getWorkspace())?.id).toBe(WS_B);
+  });
+
+  it("snapshots immutable authority so callers cannot pivot a repository", async () => {
+    const { raw, db } = openMigrated();
+    raw
+      .prepare(
+        `INSERT INTO workspaces (id, slug, jurisdiction, created_at, resource_version)
+         VALUES (?, 'a', 'eu', '2026-08-07T12:00:00Z', 1),
+                (?, 'b', 'eu', '2026-08-07T12:00:01Z', 1)`,
+      )
+      .run(WS_A, WS_B);
+    const mutable = {
+      kind: "authorized" as const,
+      workspaceId: WS_A,
+      principalId: HUMAN,
+      authorizationEpoch: 1,
+      jurisdiction: "eu" as const,
+    };
+    const repo = WorkspaceRepository.forAuthorization(db, mutable);
+    mutable.workspaceId = WS_B;
+    expect((await repo.getWorkspace())?.id).toBe(WS_A);
+  });
+
+  it("freezes validated contexts and rejects malformed F02 primitives", () => {
+    const authorization = createAuthorizationContext({
+      workspaceId: WS_A,
+      principalId: HUMAN,
+      authorizationEpoch: 1,
+      jurisdiction: "eu",
+    });
+    expect(Object.isFrozen(authorization)).toBe(true);
+    expect(Object.isFrozen(createBootstrapContext("eu"))).toBe(true);
+    expect(() =>
+      createAuthorizationContext({
+        workspaceId: "not-a-ulid",
+        principalId: HUMAN,
+        authorizationEpoch: 1,
+        jurisdiction: "eu",
+      }),
+    ).toThrow(/workspaceId must be a ULID/);
+    expect(() =>
+      createAuthorizationContext({
+        workspaceId: WS_A,
+        principalId: HUMAN,
+        authorizationEpoch: Number.NaN,
+        jurisdiction: "eu",
+      }),
+    ).toThrow(/authorization epoch/);
   });
 
   it("rejects cross-workspace parent references at the database layer", async () => {
@@ -223,6 +294,21 @@ describe("workspace repository boundaries", () => {
     expect(() =>
       raw.prepare(`UPDATE workspaces SET jurisdiction = 'us' WHERE id = ?`).run(WS_A),
     ).toThrow(/immutable/);
+    expect(() =>
+      raw
+        .prepare(
+          `INSERT OR REPLACE INTO workspaces
+           (id, slug, jurisdiction, created_at, resource_version)
+           VALUES (?, 'acme', 'us', '2026-08-07T12:00:00Z', 1)`,
+        )
+        .run(WS_A),
+    ).toThrow(/cannot be replaced/);
+    expect(() => raw.prepare(`UPDATE workspaces SET id = ? WHERE id = ?`).run(WS_B, WS_A)).toThrow(
+      /id is immutable/,
+    );
+    expect(() => raw.prepare(`DELETE FROM workspaces WHERE id = ?`).run(WS_A)).toThrow(
+      /cannot be deleted/,
+    );
   });
 
   it("rejects non-UTC createdAt on bootstrap", async () => {
@@ -234,6 +320,19 @@ describe("workspace repository boundaries", () => {
         slug: "acme",
         jurisdiction: "eu",
         createdAt: "2026-08-07 12:00:00",
+      }),
+    ).rejects.toThrow(/invalid UTC timestamp/);
+  });
+
+  it("rejects calendar-invalid UTC timestamps", async () => {
+    const { db } = openMigrated();
+    const bootstrap = BootstrapWorkspaceWriter.forBootstrap(db, createBootstrapContext("eu"));
+    await expect(
+      bootstrap.createFirstWorkspace({
+        id: WS_A,
+        slug: "acme",
+        jurisdiction: "eu",
+        createdAt: "2026-02-31T12:00:00Z",
       }),
     ).rejects.toThrow(/invalid UTC timestamp/);
   });

@@ -5,7 +5,7 @@ import Database from "better-sqlite3";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { adaptBetterSqlite3, applyMigrations, type SqlDatabase } from "@bfb/db";
+import { adaptBetterSqlite3, applyMigrationsForVerification, type SqlDatabase } from "@bfb/db";
 
 import { seedSyntheticWorkspace } from "../src/fixtures.js";
 
@@ -17,7 +17,7 @@ const migrationsDir = path.resolve(
 export async function openDomainDb(): Promise<SqlDatabase> {
   const raw = new Database(":memory:");
   raw.pragma("foreign_keys = ON");
-  applyMigrations(raw, migrationsDir);
+  applyMigrationsForVerification(raw, migrationsDir);
   const db = adaptBetterSqlite3(raw);
   await seedSyntheticWorkspace(db);
   return db;

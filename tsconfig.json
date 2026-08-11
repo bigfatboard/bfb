@@ -10,6 +10,7 @@
     { "path": "packages/ui" },
     { "path": "tools/repository" },
     { "path": "tools/protocol" },
+    { "path": "tools/db" },
     { "path": "tools/substrate" }
   ]
 }

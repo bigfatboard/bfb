@@ -6,15 +6,15 @@ This file is the resumable execution journal for [the Grok web/MCP goal](GROK-WE
 
 - Goal state: `active — correction and re-certification`
 - Branch: `goal/grok-web-mcp`
-- Last observed HEAD: 9b8a4d4382ac7b93baa6bea4b36a72e7f165fd9a
+- Last observed HEAD: aab860a138f77ef85252b3644f37b6ce7fa0904b
 - Last verified commit: 9b8a4d4382ac7b93baa6bea4b36a72e7f165fd9a
-- Last verification command/result: clean-clone `pnpm test:substrate` passed with 30 focused tests, seven Wrangler dry-runs, three real Workerd listeners, routing, SQLite Durable Object, Cron, artifact-origin, Chromium cookie-isolation, Better Auth/D1, and teardown checks; independent audit found no P0/P1
+- Last verification command/result: uncommitted `pnpm test:db` passed 37 focused tests plus real Wrangler/D1 blank, fully populated, hostile-legacy recovery, malformed-ID recovery, tenant-boundary, replacement/identity, and interruption/retry paths with `F04_D1_OK`; uncommitted `pnpm verify` also passed after the final fixes; clean-clone proof remains pending
 - Active package: F04 — D1 tenant persistence and migrations
-- Active gate: audit the migration chain, tenant repository authority, interruption recovery, and existing evidence before running `pnpm test:db` from a clean checkout
-- Active task: reconcile F04 implementation and tests against its canonical acceptance contract
+- Active gate: commit the independently reviewed implementation checkpoint, then run the exact target and full verification from a clean checkout
+- Active task: create the F04 implementation checkpoint without staging generated W01 evidence
 - Resume here: finish F04 correction and evidence, then advance sequentially through C01 → C02 → C03 → C04 → C07 → C08 → W01 → X03A
 - Blocking condition: `none`
-- Updated UTC: `2026-08-11T17:17:00Z`
+- Updated UTC: `2026-08-11T18:34:10Z`
 
 ## Final review findings
 

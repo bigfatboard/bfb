@@ -181,7 +181,7 @@ async function detectClient(name) {
 
 async function openDomainDb(require) {
   const Database = require("better-sqlite3");
-  const { adaptBetterSqlite3, applyMigrations } = await import(
+  const { adaptBetterSqlite3, applyMigrationsForVerification } = await import(
     path.join(REPO_ROOT, "packages/db/dist/index.js")
   );
   const { seedSyntheticWorkspace } = await import(
@@ -189,7 +189,7 @@ async function openDomainDb(require) {
   );
   const raw = new Database(":memory:");
   raw.pragma("foreign_keys = ON");
-  applyMigrations(raw, path.join(REPO_ROOT, "migrations/d1"));
+  applyMigrationsForVerification(raw, path.join(REPO_ROOT, "migrations/d1"));
   const db = adaptBetterSqlite3(raw);
   await seedSyntheticWorkspace(db);
   return db;

@@ -1,5 +1,5 @@
 // ABOUTME: Implements MCP OAuth authorization-code + PKCE S256 for preregistered public clients.
-// ABOUTME: Creates a BFB delegation only after a fresh C03 step-up proof; tokens are opaque hashes.
+// ABOUTME: Uses migrated D1 records and creates a delegation only after fresh C03 step-up proof.
 
 import type { SqlDatabase } from "@bfb/db";
 import {
@@ -33,29 +33,6 @@ interface AuthCodeRow {
   consumed_at: string | null;
 }
 
-// In-memory code store is not used; codes live in rate_limit_buckets-shaped side table via SQL.
-// Use a simple table created lazily if missing for OAuth codes.
-export async function ensureOauthCodeTable(db: SqlDatabase): Promise<void> {
-  await db
-    .prepare(
-      `CREATE TABLE IF NOT EXISTS oauth_authorization_codes (
-      code TEXT PRIMARY KEY NOT NULL,
-      client_id TEXT NOT NULL,
-      redirect_uri TEXT NOT NULL,
-      code_challenge TEXT NOT NULL,
-      human_id TEXT NOT NULL,
-      workspace_id TEXT NOT NULL,
-      project_id TEXT,
-      scopes_json TEXT NOT NULL,
-      authorization_epoch INTEGER NOT NULL,
-      step_up_proof_id TEXT NOT NULL,
-      expires_at TEXT NOT NULL,
-      consumed_at TEXT
-    )`,
-    )
-    .run();
-}
-
 export function handleOauthMetadata(appOrigin: string): Response {
   return json({
     issuer: appOrigin,
@@ -79,7 +56,6 @@ export function handleProtectedResourceMetadata(appOrigin: string): Response {
 }
 
 export async function handleOauthAuthorize(request: Request, deps: OAuthDeps): Promise<Response> {
-  await ensureOauthCodeTable(deps.db);
   const url = new URL(request.url);
   const clientId = url.searchParams.get("client_id") ?? "";
   const redirectUri = url.searchParams.get("redirect_uri") ?? "";
@@ -165,7 +141,6 @@ export async function handleOauthAuthorize(request: Request, deps: OAuthDeps): P
 }
 
 export async function handleOauthToken(request: Request, deps: OAuthDeps): Promise<Response> {
-  await ensureOauthCodeTable(deps.db);
   const contentType = request.headers.get("content-type") ?? "";
   let params: Record<string, string> = {};
   if (contentType.includes("application/json")) {
