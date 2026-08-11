@@ -29,6 +29,7 @@
     "test:protocol": "pnpm protocol:check && vitest run packages/protocol-ts/test && go test ./internal/protocol/...",
     "typecheck": "tsc -b --pretty false",
     "verify": "tsx tools/repository/src/verify.ts",
+    "worktree:check": "tsx tools/repository/src/worktree-cli.ts",
     "test:substrate": "vitest run apps/control-worker/test apps/artifact-worker/test apps/web/test && pnpm --filter @bfb/web build",
     "build:web": "pnpm --filter @bfb/web build",
     "test:db": "vitest run packages/db/test",

@@ -9,7 +9,10 @@ export interface PackageGate {
   packages: string[];
 }
 
-export function packageGates(packages: WorkPackage[]): PackageGate[] {
+export function packageGates(
+  packages: WorkPackage[],
+  availableScripts: ReadonlySet<string>,
+): PackageGate[] {
   const byTarget = new Map<string, string[]>();
   for (const workPackage of packages) {
     if (workPackage.status !== "done") {
@@ -25,6 +28,9 @@ export function packageGates(packages: WorkPackage[]): PackageGate[] {
     }
     if (match[1] === "packages:verify") {
       throw new Error(workPackage.id + " cannot use the package gate runner as its test target");
+    }
+    if (!availableScripts.has(match[1])) {
+      throw new Error(workPackage.id + " test target is not a root package script: " + target);
     }
     const packageIds = byTarget.get(target) ?? [];
     packageIds.push(workPackage.id);

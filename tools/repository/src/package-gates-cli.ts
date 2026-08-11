@@ -1,28 +1,15 @@
 // ABOUTME: Runs repository verification plus every done package's declared acceptance target.
 // ABOUTME: Requires a clean Git worktree before and after the complete package gate chain.
 
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
+import { readFile } from "node:fs/promises";
 
 import { runCommand } from "./commands.js";
 import { packageGates } from "./package-gates.js";
 import { inspectRoadmap } from "./roadmap.js";
-
-const execFileAsync = promisify(execFile);
-
-async function assertCleanWorktree(stage: string): Promise<void> {
-  const { stdout } = await execFileAsync("git", [
-    "status",
-    "--porcelain=v1",
-    "--untracked-files=all",
-  ]);
-  if (stdout.trim().length > 0) {
-    throw new Error(stage + " requires a clean worktree:\n" + stdout.trimEnd());
-  }
-}
+import { assertCleanWorktree } from "./worktree.js";
 
 const root = process.cwd();
-await assertCleanWorktree("Package verification");
+await assertCleanWorktree(root, "Package verification");
 await runCommand("pnpm", ["verify"]);
 
 const inspection = await inspectRoadmap(root);
@@ -33,7 +20,11 @@ if (inspection.issues.length > 0) {
   );
 }
 
-for (const gate of packageGates(inspection.packages)) {
+const packageJson = JSON.parse(await readFile("package.json", "utf8")) as {
+  scripts?: Record<string, unknown>;
+};
+const availableScripts = new Set(Object.keys(packageJson.scripts ?? {}));
+for (const gate of packageGates(inspection.packages, availableScripts)) {
   if (gate.args[0] === "verify") {
     console.log("Package gate " + gate.packages.join(", ") + ": satisfied by pnpm verify");
     continue;
@@ -42,5 +33,5 @@ for (const gate of packageGates(inspection.packages)) {
   await runCommand(gate.command, gate.args);
 }
 
-await assertCleanWorktree("Completed package verification");
+await assertCleanWorktree(root, "Completed package verification");
 console.log("Done-package verification: passed");
