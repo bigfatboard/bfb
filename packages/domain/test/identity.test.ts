@@ -1,5 +1,5 @@
 // ABOUTME: Covers C02 human identity/session fixture records used by browser auth tests.
-// ABOUTME: Sessions are synthetic D1 rows; Better Auth product config remains C02-owned and separate.
+// ABOUTME: Sessions are synthetic D1 rows; cookie and CSRF rules are enforced in control-worker.
 
 import { describe, expect, it } from "vitest";
 

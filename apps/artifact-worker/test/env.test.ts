@@ -41,7 +41,7 @@ describe("artifact env", () => {
 
   it("rejects app session cookies", () => {
     const request = new Request("https://artifacts.bfb.example.test/healthz", {
-      headers: { cookie: "bfb_session=synthetic" },
+      headers: { cookie: "__Host-bfb_session=synthetic" },
     });
     expect(() => assertNoAppCookie(request)).toThrow(/session cookie/);
   });

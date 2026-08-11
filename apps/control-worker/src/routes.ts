@@ -8,7 +8,7 @@ import type { SqlDatabase } from "@bfb/db";
 import { handleWorkApi } from "./api/work.js";
 import { createHumanAuth } from "./auth/better-auth.js";
 import { handleAuthRoute } from "./auth/routes.js";
-import { resolveBrowserPrincipal } from "./auth/session.js";
+import { assertBrowserMutation, resolveBrowserPrincipal } from "./auth/session.js";
 import { isWorkerFirstPath, type ValidatedControlEnv } from "./env.js";
 import { handleMcpRequest } from "./mcp/handler.js";
 import {
@@ -111,7 +111,12 @@ export function createControlApp(
       APP_ORIGIN: current.origins.appOrigin,
       BETTER_AUTH_SECRET: options.authSecret ?? "synthetic-local-auth-secret-not-for-prod",
     });
-    return handleAuthRoute(c, { db, auth, now: c.get("now") ?? now });
+    return handleAuthRoute(c, {
+      db,
+      auth,
+      now: c.get("now") ?? now,
+      appOrigin: current.origins.appOrigin,
+    });
   });
 
   app.get("/.well-known/oauth-authorization-server", (c) => {
@@ -154,7 +159,8 @@ export function createControlApp(
 
   app.all("/api/v1/workspaces/*", async (c) => {
     const db = c.get("db") ?? options.db;
-    if (!db) {
+    const current = c.get("validated");
+    if (!db || !current) {
       return c.json({ error: "api_misconfigured" }, 500);
     }
     // MCP tokens cannot authenticate browser API routes.
@@ -163,6 +169,18 @@ export function createControlApp(
       return c.json(
         { error: "credential_confusion", message: "mcp token cannot auth browser routes" },
         401,
+      );
+    }
+    try {
+      assertBrowserMutation(c.req.raw, current.origins.appOrigin);
+    } catch (error) {
+      const code =
+        error instanceof Error && "code" in error
+          ? String((error as { code: string }).code)
+          : "csrf_rejected";
+      return c.json(
+        { error: code, message: error instanceof Error ? error.message : "csrf rejected" },
+        403,
       );
     }
     const principal = await resolveBrowserPrincipal(db, c.req.raw, c.get("now") ?? now);

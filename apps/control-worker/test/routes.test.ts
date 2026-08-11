@@ -71,14 +71,18 @@ describe("control routes", () => {
     const signIn = await app.request(
       new Request("https://bfb.example.test/auth/sign-in/email", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          origin: "https://bfb.example.test",
+          "sec-fetch-site": "same-origin",
+        },
         body: JSON.stringify({ email: "owner@synthetic.test", password: "synthetic-password" }),
       }),
       env(),
     );
     expect(signIn.status).toBe(200);
     const cookie = signIn.headers.get("set-cookie");
-    expect(cookie).toMatch(/bfb_session=/);
+    expect(cookie).toMatch(/__Host-bfb_session=/);
 
     const session = await app.request(
       new Request("https://bfb.example.test/auth/session", {
@@ -108,7 +112,7 @@ describe("control routes", () => {
           "MCP-Protocol-Version": "2026-07-28",
           "Mcp-Method": "tools/list",
           Host: "bfb.example.test",
-          cookie: "bfb_session=synthetic",
+          cookie: "__Host-bfb_session=synthetic",
         },
         body: JSON.stringify({ method: "tools/list" }),
       }),
@@ -127,7 +131,11 @@ describe("control routes", () => {
     const signIn = await app.request(
       new Request("https://bfb.example.test/auth/sign-in/email", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          origin: "https://bfb.example.test",
+          "sec-fetch-site": "same-origin",
+        },
         body: JSON.stringify({ email: "owner@synthetic.test", password: "synthetic-password" }),
       }),
       env(),

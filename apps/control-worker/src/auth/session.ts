@@ -3,7 +3,8 @@
 
 import type { SqlDatabase } from "@bfb/db";
 
-const SESSION_COOKIE = "bfb_session";
+/** __Host- requires Secure, Path=/, and no Domain attribute. */
+export const SESSION_COOKIE = "__Host-bfb_session";
 
 export interface BrowserPrincipal {
   humanId: string;
@@ -17,8 +18,38 @@ export function readSessionCookie(request: Request): string | null {
   if (!cookie) {
     return null;
   }
-  const match = cookie.match(/(?:^|;\s*)bfb_session=([^;]+)/);
-  return match?.[1] ? decodeURIComponent(match[1]) : null;
+  const hostPrefixed = cookie.match(/(?:^|;\s*)__Host-bfb_session=([^;]+)/);
+  if (hostPrefixed?.[1]) {
+    return decodeURIComponent(hostPrefixed[1]);
+  }
+  // Reject legacy unscoped session cookie names; never accept them as auth.
+  if (/(?:^|;\s*)bfb_session=/.test(cookie)) {
+    return null;
+  }
+  return null;
+}
+
+/**
+ * Enforces Origin + Fetch Metadata CSRF defenses on cookie-authenticated mutations.
+ * Safe methods (GET/HEAD/OPTIONS) are not gated.
+ */
+export function assertBrowserMutation(request: Request, appOrigin: string): void {
+  const method = request.method.toUpperCase();
+  if (method === "GET" || method === "HEAD" || method === "OPTIONS") {
+    return;
+  }
+  const origin = request.headers.get("origin");
+  if (!origin || origin !== appOrigin) {
+    const error = new Error("origin check failed for browser mutation");
+    (error as { code?: string }).code = "csrf_origin";
+    throw error;
+  }
+  const site = request.headers.get("sec-fetch-site");
+  if (site === "cross-site") {
+    const error = new Error("cross-site fetch metadata rejected");
+    (error as { code?: string }).code = "csrf_fetch_metadata";
+    throw error;
+  }
 }
 
 export async function resolveBrowserPrincipal(
@@ -66,11 +97,18 @@ export async function resolveBrowserPrincipal(
 }
 
 export function setSessionCookie(sessionId: string, maxAgeSeconds = 86400): string {
-  return `${SESSION_COOKIE}=${encodeURIComponent(sessionId)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSeconds}`;
+  return [
+    `${SESSION_COOKIE}=${encodeURIComponent(sessionId)}`,
+    "Path=/",
+    "HttpOnly",
+    "Secure",
+    "SameSite=Lax",
+    `Max-Age=${maxAgeSeconds}`,
+  ].join("; ");
 }
 
 export function clearSessionCookie(): string {
-  return `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+  return [`${SESSION_COOKIE}=`, "Path=/", "HttpOnly", "Secure", "SameSite=Lax", "Max-Age=0"].join(
+    "; ",
+  );
 }
-
-export { SESSION_COOKIE };

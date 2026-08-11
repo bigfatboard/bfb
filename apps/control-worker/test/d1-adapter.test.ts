@@ -103,7 +103,11 @@ describe("production D1 adapter wiring", () => {
     const signIn = await fetch(
       new Request("https://bfb.example.test/auth/sign-in/email", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          origin: "https://bfb.example.test",
+          "sec-fetch-site": "same-origin",
+        },
         body: JSON.stringify({
           email: "owner@synthetic.test",
           password: SYNTHETIC_PASSWORD,
@@ -113,7 +117,7 @@ describe("production D1 adapter wiring", () => {
     );
     expect(signIn.status).toBe(200);
     const cookie = signIn.headers.get("set-cookie");
-    expect(cookie).toMatch(/bfb_session=/);
+    expect(cookie).toMatch(/__Host-bfb_session=/);
     const body = (await signIn.json()) as { ok: boolean; human: { email: string } };
     expect(body.ok).toBe(true);
     expect(body.human.email).toBe("owner@synthetic.test");

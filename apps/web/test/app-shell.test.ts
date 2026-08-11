@@ -49,15 +49,21 @@ describe("authenticated app shell routing", () => {
             ? input
             : new URL(input.url);
       const headers = new Headers(init?.headers);
-      if (cookies.has("bfb_session")) {
-        headers.set("cookie", "bfb_session=" + cookies.get("bfb_session"));
+      if (!headers.has("origin")) {
+        headers.set("origin", "https://bfb.example.test");
+      }
+      if (!headers.has("sec-fetch-site")) {
+        headers.set("sec-fetch-site", "same-origin");
+      }
+      if (cookies.has("__Host-bfb_session")) {
+        headers.set("cookie", "__Host-bfb_session=" + cookies.get("__Host-bfb_session"));
       }
       const response = await app.request(new Request(url.toString(), { ...init, headers }), env());
       const setCookie = response.headers.get("set-cookie");
-      if (setCookie?.includes("bfb_session=")) {
+      if (setCookie?.includes("__Host-bfb_session=")) {
         const value = setCookie.split(";")[0]?.split("=")[1];
         if (value) {
-          cookies.set("bfb_session", decodeURIComponent(value));
+          cookies.set("__Host-bfb_session", decodeURIComponent(value));
         }
       }
       return response;
@@ -169,15 +175,21 @@ describe("authenticated app shell routing", () => {
             ? input
             : new URL(input.url);
       const headers = new Headers(init?.headers);
-      if (restrictedCookies.has("bfb_session")) {
-        headers.set("cookie", "bfb_session=" + restrictedCookies.get("bfb_session"));
+      if (!headers.has("origin")) {
+        headers.set("origin", "https://bfb.example.test");
+      }
+      if (!headers.has("sec-fetch-site")) {
+        headers.set("sec-fetch-site", "same-origin");
+      }
+      if (restrictedCookies.has("__Host-bfb_session")) {
+        headers.set("cookie", "__Host-bfb_session=" + restrictedCookies.get("__Host-bfb_session"));
       }
       const response = await app.request(new Request(url.toString(), { ...init, headers }), env());
       const setCookie = response.headers.get("set-cookie");
-      if (setCookie?.includes("bfb_session=")) {
+      if (setCookie?.includes("__Host-bfb_session=")) {
         const value = setCookie.split(";")[0]?.split("=")[1];
         if (value) {
-          restrictedCookies.set("bfb_session", decodeURIComponent(value));
+          restrictedCookies.set("__Host-bfb_session", decodeURIComponent(value));
         }
       }
       return response;

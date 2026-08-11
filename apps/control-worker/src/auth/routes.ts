@@ -6,18 +6,39 @@ import type { Context } from "hono";
 import type { SqlDatabase } from "@bfb/db";
 import { randomUlid, verifyPassword } from "@bfb/domain";
 
-import { clearSessionCookie, resolveBrowserPrincipal, setSessionCookie } from "./session.js";
+import {
+  assertBrowserMutation,
+  clearSessionCookie,
+  resolveBrowserPrincipal,
+  setSessionCookie,
+} from "./session.js";
 import type { HumanAuth } from "./better-auth.js";
 
 export interface AuthRouteDeps {
   db: SqlDatabase;
   auth: HumanAuth;
   now: string;
+  appOrigin: string;
 }
 
 export async function handleAuthRoute(c: Context, deps: AuthRouteDeps): Promise<Response> {
   const url = new URL(c.req.url);
   const path = url.pathname;
+
+  if (c.req.method !== "GET" && c.req.method !== "HEAD" && c.req.method !== "OPTIONS") {
+    try {
+      assertBrowserMutation(c.req.raw, deps.appOrigin);
+    } catch (error) {
+      const code =
+        error instanceof Error && "code" in error
+          ? String((error as { code: string }).code)
+          : "csrf_rejected";
+      return c.json(
+        { error: code, message: error instanceof Error ? error.message : "csrf rejected" },
+        403,
+      );
+    }
+  }
 
   if (path === "/auth/session" && c.req.method === "GET") {
     const principal = await resolveBrowserPrincipal(deps.db, c.req.raw, deps.now);

@@ -53,7 +53,10 @@ export function validateArtifactEnv(env: Partial<ArtifactBindings>): ValidatedAr
 
 export function assertNoAppCookie(request: Request): void {
   const cookie = request.headers.get("cookie");
-  if (cookie && /(?:^|;\s*)bfb[_-]?session=/i.test(cookie)) {
+  if (
+    cookie &&
+    (/(?:^|;\s*)__Host-bfb_session=/i.test(cookie) || /(?:^|;\s*)bfb[_-]?session=/i.test(cookie))
+  ) {
     throw new Error("app session cookie is not accepted on artifact origin");
   }
 }

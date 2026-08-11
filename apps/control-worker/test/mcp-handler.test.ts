@@ -43,7 +43,7 @@ describe("mcp handler", () => {
           "Mcp-Method": "tools/call",
           "Mcp-Name": "bfb_list_tasks",
           Host: "bfb.example.test",
-          cookie: "bfb_session=synthetic",
+          cookie: "__Host-bfb_session=synthetic",
           authorization: "Bearer not-a-token",
         },
         body: JSON.stringify({

@@ -10,11 +10,18 @@ export interface AuthEnv {
   GITHUB_CLIENT_SECRET?: string;
 }
 
+const MIN_SECRET_LENGTH = 32;
+
 /**
  * Creates the Better Auth instance for browser sessions.
  * GitHub is enabled when credentials are present; otherwise email/password fixtures serve tests.
+ * Secrets fail closed when missing or short. Cookie session caching stays disabled.
  */
 export function createHumanAuth(env: AuthEnv) {
+  if (!env.BETTER_AUTH_SECRET || env.BETTER_AUTH_SECRET.length < MIN_SECRET_LENGTH) {
+    throw new Error("BETTER_AUTH_SECRET missing or too short (fail-closed)");
+  }
+
   const socialProviders =
     env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET
       ? {
@@ -34,12 +41,13 @@ export function createHumanAuth(env: AuthEnv) {
     socialProviders,
     session: {
       cookieCache: {
-        enabled: true,
+        enabled: false,
       },
     },
-    // Better Auth owns protocol tables; C02 mounts routes only. Schema migrations stay in F04 chain later.
+    // Better Auth owns protocol tables; C02 mounts routes only. Schema migrations stay in F04 chain.
     advanced: {
       disableOriginCheck: false,
+      useSecureCookies: true,
     },
   });
 }
