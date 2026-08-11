@@ -8,17 +8,17 @@ Keep entries terse and use repository-relative paths. Do not record secrets, cre
 
 - Goal state: `active`
 - Branch: `goal/grok-web-mcp`
-- Last observed HEAD: 3bd2c9eebdfdbde8912e775e551d955a29070126
-- Last verified commit: none (IC-1 re-certification reopen; prior stamps are not acceptance proof)
-- Last verification command/result: startup reopen hygiene in progress
-- Active package: F02
-- Active gate: IC-1 re-certify F02 → X03A sequence
-- Active task: F02 schema parity + adversarial differential corpus
-- Worktree since observed HEAD: package reopen + provider-log scrub + journal active
-- Resume here: complete F02 acceptance (TS/Go parity, fractional integers, enums, bounds, uniqueness, required nested, differential adversarial corpus), then F03
+- Last observed HEAD: 46dba48d67782e572986f9b3b0282556a1f5e7b9
+- Last verified commit: ea416d6829b9b3ba65919b7deb9cf510e1620864
+- Last verification command/result: F02 `pnpm test:protocol` + `pnpm verify` passed; independent review no open P0
+- Active package: F03
+- Active gate: IC-1 re-certify F03 → X03A sequence
+- Active task: F03 Workers/D1 substrate, DO config, Worker-first oauth
+- Worktree since observed HEAD: F02 evidence/journal fix
+- Resume here: complete F03 genuine Workers/D1 paths and declarative DO + oauth routing; then F04
 - Active delegates: none
 - Blocking condition: `none`
-- Updated UTC: `2026-08-11T14:00:00Z`
+- Updated UTC: `2026-08-11T13:36:53Z`
 
 Allowed goal states are `not_started`, `active`, `blocked`, and `complete`. `blocked` is valid only when a listed stop condition remains after safe in-scope alternatives are exhausted.
 
@@ -26,38 +26,38 @@ Allowed goal states are `not_started`, `active`, `blocked`, and `complete`. `blo
 
 | ID | Task | Owner | State | Verification or result |
 | --- | --- | --- | --- | --- |
-| F02-T1 | Enumerate F02 acceptance gaps vs current TS/Go schema validators and fixtures | lead | `in_progress` | Derive failing tests from Acceptance section |
-| F02-T2 | Add differential adversarial corpus (fractional int, enums, bounds, uniqueness, required nested) | lead | `planned` | TS + Go reject/accept identically |
-| F02-T3 | Package tests + `pnpm verify` + independent review + new evidence | lead | `planned` | New manifest at tested commit |
+| F03-T1 | Enumerate F03 acceptance gaps (DO config, Worker-first /oauth/*, D1 test paths) | lead | `in_progress` | Derive failing tests from package Acceptance |
+| F03-T2 | Implement smallest corrections + package tests + verify | lead | `planned` | `pnpm test:substrate` + `pnpm verify` |
+| F03-T3 | Independent review + new redacted evidence | lead | `planned` | New manifest at tested commit |
 
 ## Delegation log
 
 | ID | Package/task | Worker or workflow | Input HEAD | Scope and path ownership | Expected result/check | State | Result and lead verification |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| — | none | — | — | — | — | — | IC-1 re-certification; prior delegates closed |
+| D-F02-review | F02 acceptance/security | subagent general-purpose | worktree | protocol codecs + fixtures | independent P0/P1 findings | `done` | P0s closed; residual hand-validator P1 accepted |
 
 ## Verification log
 
 | UTC | Package/task | Commit or worktree | Exact command or check | Outcome | Retained evidence |
 | --- | --- | --- | --- | --- | --- |
-| 2026-08-11T14:00:00Z | startup reopen | 3bd2c9e + worktree | journal active; F01 done; F02 in_progress; F03–X03A planned; provider logs redacted | pending commit | historical evidence retained as incomplete only |
-
-Prior verification rows from the previous “complete” stamp are superseded: they do not count as IC-1 re-certification acceptance.
+| 2026-08-11T13:24:17Z | startup reopen | 5bacaee | journal active; packages reopened; provider logs redacted | passed | scratch startup-reconcile.txt |
+| 2026-08-11T13:33:00Z | F02 | ea416d6829b9b3ba65919b7deb9cf510e1620864 | `pnpm test:protocol` + `pnpm verify` | passed | docs/work-packages/evidence/WP-F02/ |
 
 ## Blocker and decision log
 
 | ID | First seen UTC | Package/task | Condition and investigation | State | Next action or decision required |
 | --- | --- | --- | --- | --- | --- |
-| B-ic1-reopen | 2026-08-11T14:00:00Z | IC-1 | Prior complete invalid as acceptance; reopen F02–X03A | open | Re-certify sequence with new tests and evidence |
-| B-sensitive-history | 2026-08-11T14:00:00Z | X03A evidence | Raw provider logs may remain in older remote commits | open-accepted | Tip scrubbed; no force-push/history rewrite without Timo confirmation |
+| B-ic1-reopen | 2026-08-11T14:00:00Z | IC-1 | Prior complete invalid as acceptance; reopen F02–X03A | open | Continue F03–X03A re-cert |
+| B-sensitive-history | 2026-08-11T14:00:00Z | X03A evidence | Raw provider logs may remain in older remote commits | open-accepted | Tip scrubbed; no force-push without confirmation |
+| B-f02-hand-validator | 2026-08-11T13:30:00Z | F02 | Go hand-validates vs Ajv JSON Schema | residual P1 | Expand corpus when schemas change |
 
 ## Package status and handoffs
 
 | Package | Journal checkpoint | Tested commit | Test target | Evidence manifest | Limitations |
 | --- | --- | --- | --- | --- | --- |
-| [F01](../work-packages/WP-F01-repository-foundation.md) | done | prior | F01 targets | historical | left done per reopen plan |
-| [F02](../work-packages/WP-F02-wire-contracts.md) | in_progress | none (reopened) | `pnpm test:protocol` | historical incomplete | re-certify required |
-| [F03](../work-packages/WP-F03-cloud-substrate.md) | planned | none (reopened) | `pnpm test:substrate` | historical incomplete | re-certify required |
+| [F01](../work-packages/WP-F01-repository-foundation.md) | done | prior | F01 targets | historical | left done |
+| [F02](../work-packages/WP-F02-wire-contracts.md) | done | ea416d6829b9b3ba65919b7deb9cf510e1620864 | `pnpm test:protocol` | docs/work-packages/evidence/WP-F02/manifest.json | Go hand-validator residual P1 |
+| [F03](../work-packages/WP-F03-cloud-substrate.md) | in_progress | none (reopened) | `pnpm test:substrate` | historical incomplete | re-certify required |
 | [F04](../work-packages/WP-F04-tenant-persistence.md) | planned | none (reopened) | `pnpm test:db` | historical incomplete | re-certify required |
 | [C01](../work-packages/WP-C01-command-kernel.md) | planned | none (reopened) | `pnpm test:c01` | historical incomplete | re-certify required |
 | [C02](../work-packages/WP-C02-human-identity.md) | planned | none (reopened) | `pnpm test:c02` | historical incomplete | re-certify required |
