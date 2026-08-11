@@ -1,6 +1,6 @@
 # WP-F03 — Cloudflare application substrate
 
-Status: `planned`
+Status: `in_progress`
 
 Risk: High
 

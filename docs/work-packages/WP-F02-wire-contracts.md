@@ -1,6 +1,6 @@
 # WP-F02 — Wire contracts and test doubles
 
-Status: `in_progress`
+Status: `done`
 
 Risk: High
 

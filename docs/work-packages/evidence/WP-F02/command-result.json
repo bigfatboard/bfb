@@ -1,9 +1,24 @@
 {
   "package": "F02",
-  "command": "pnpm test:protocol",
-  "started_at": "2026-08-11T13:33:02.101Z",
-  "ended_at": "2026-08-11T13:33:03.149Z",
-  "outcome": "passed",
-  "summary": "protocol drift + TS fixtures/adversarial + Go protocol tests passed",
-  "notes": "IC-1 re-cert; adversarial corpus included; no private content"
+  "tested_commit": "be989733403efc171cf29c70c7d1fa2b52dbd167",
+  "captured_at": "2026-08-11T16:32:38Z",
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56)",
+    "architecture": "arm64"
+  },
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed"
+    },
+    {
+      "command": "pnpm test:protocol",
+      "outcome": "passed",
+      "summary": "protocol drift passed; 132 TypeScript tests passed in 4 files; Go protocol tests passed"
+    }
+  ],
+  "raw_log_committed": false,
+  "redaction": "passed",
+  "outcome": "passed"
 }

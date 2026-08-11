@@ -1,13 +1,23 @@
 {
   "package": "F02",
+  "tested_commit": "be989733403efc171cf29c70c7d1fa2b52dbd167",
   "protocol": "bfb-wire/1",
   "schema_version": 1,
   "fixture_matrix": "protocol/fixtures/v1/matrix.json",
-  "fixture_count": 39,
-  "valid_count": 13,
-  "invalid_count": 26,
+  "fixture_count": 86,
+  "valid_count": 20,
+  "invalid_count": 66,
   "languages": ["typescript", "go"],
   "swift_consumable": true,
-  "adversarial_concerns": ["fractional_integer", "enum", "bound", "uniqueness", "required_nested"],
-  "notes": "IC-1 re-cert differential adversarial corpus; synthetic fixtures only; no private task bodies"
+  "adversarial_concerns": [
+    "authority_and_replay",
+    "bounded_diagnostics",
+    "duplicate_keys",
+    "exact_numbers",
+    "intent_separation",
+    "resource_bounds",
+    "unicode_scalars",
+    "wire_schema_drift"
+  ],
+  "outcome": "passed"
 }
