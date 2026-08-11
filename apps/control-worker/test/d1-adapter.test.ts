@@ -51,6 +51,13 @@ function asD1(raw: Database.Database): D1Database {
       };
       return statement;
     },
+    async batch(statements) {
+      const results = [];
+      for (const statement of statements) {
+        results.push(await statement.run());
+      }
+      return results;
+    },
   };
   return d1 as unknown as D1Database;
 }

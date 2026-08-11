@@ -12,11 +12,12 @@ export interface BetterSqliteStatement {
 
 export interface BetterSqliteDatabase {
   prepare(sql: string): BetterSqliteStatement;
+  exec?(sql: string): void;
 }
 
-/** Wraps a better-sqlite3 Database as Promise-only SqlDatabase. */
+/** Wraps a better-sqlite3 Database as Promise-only SqlDatabase with transactions. */
 export function adaptBetterSqlite3(db: BetterSqliteDatabase): SqlDatabase {
-  return {
+  const self: SqlDatabase = {
     prepare(sql: string) {
       const stmt = db.prepare(sql);
       return {
@@ -32,5 +33,24 @@ export function adaptBetterSqlite3(db: BetterSqliteDatabase): SqlDatabase {
         },
       };
     },
+    async withTransaction<T>(fn: (tx: SqlDatabase) => Promise<T>): Promise<T> {
+      const begin = db.prepare("BEGIN IMMEDIATE");
+      const commit = db.prepare("COMMIT");
+      const rollback = db.prepare("ROLLBACK");
+      begin.run();
+      try {
+        const result = await fn(self);
+        commit.run();
+        return result;
+      } catch (error) {
+        try {
+          rollback.run();
+        } catch {
+          // ignore rollback failures when no transaction is open
+        }
+        throw error;
+      }
+    },
   };
+  return self;
 }

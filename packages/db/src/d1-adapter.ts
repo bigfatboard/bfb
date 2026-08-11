@@ -14,32 +14,77 @@ export interface D1StatementLike {
 /** Minimal structural D1 surface so @bfb/db does not depend on Workers types at compile time. */
 export interface D1Like {
   prepare(query: string): D1StatementLike;
+  /** Required for atomic multi-statement writes (Cloudflare D1 batch API). */
+  batch(statements: D1StatementLike[]): Promise<Array<{ meta?: { changes?: number } }>>;
+}
+
+function immediateStatement(d1: D1Like, sql: string) {
+  const base = d1.prepare(sql);
+  return {
+    async run(...params: unknown[]) {
+      const stmt = params.length > 0 ? base.bind(...params) : base;
+      const result = await stmt.run();
+      return { changes: result.meta?.changes ?? 0 };
+    },
+    async get(...params: unknown[]) {
+      const stmt = params.length > 0 ? base.bind(...params) : base;
+      return await stmt.first();
+    },
+    async all(...params: unknown[]) {
+      const stmt = params.length > 0 ? base.bind(...params) : base;
+      const result = await stmt.all();
+      return result.results ?? [];
+    },
+  };
 }
 
 /**
  * Wraps a D1 binding so domain code always awaits prepare/run/get/all.
  * Always returns real rows, never casts a Promise to a row.
+ *
+ * withTransaction queues write statements and commits them with d1.batch().
+ * It does not use SQL BEGIN/COMMIT (unsupported as interactive TX on D1).
  */
 export function adaptD1(d1: D1Like): SqlDatabase {
-  return {
+  if (typeof d1.batch !== "function") {
+    throw new Error("D1 binding must expose batch() for atomic multi-statement writes");
+  }
+
+  const self: SqlDatabase = {
     prepare(sql: string) {
-      const base = d1.prepare(sql);
-      return {
-        async run(...params: unknown[]) {
-          const stmt = params.length > 0 ? base.bind(...params) : base;
-          const result = await stmt.run();
-          return { changes: result.meta?.changes ?? 0 };
+      return immediateStatement(d1, sql);
+    },
+    async withTransaction<T>(fn: (tx: SqlDatabase) => Promise<T>): Promise<T> {
+      const writes: D1StatementLike[] = [];
+      const tx: SqlDatabase = {
+        prepare(sql: string) {
+          return {
+            async run(...params: unknown[]) {
+              const base = d1.prepare(sql);
+              const stmt = params.length > 0 ? base.bind(...params) : base;
+              writes.push(stmt);
+              // changes unknown until batch flush; consumers should not rely on mid-tx counts
+              return { changes: 0 };
+            },
+            async get(...params: unknown[]) {
+              return immediateStatement(d1, sql).get(...params);
+            },
+            async all(...params: unknown[]) {
+              return immediateStatement(d1, sql).all(...params);
+            },
+          };
         },
-        async get(...params: unknown[]) {
-          const stmt = params.length > 0 ? base.bind(...params) : base;
-          return await stmt.first();
-        },
-        async all(...params: unknown[]) {
-          const stmt = params.length > 0 ? base.bind(...params) : base;
-          const result = await stmt.all();
-          return result.results ?? [];
+        async withTransaction() {
+          throw new Error("nested withTransaction is not supported");
         },
       };
+
+      const result = await fn(tx);
+      if (writes.length > 0) {
+        await d1.batch(writes);
+      }
+      return result;
     },
   };
+  return self;
 }

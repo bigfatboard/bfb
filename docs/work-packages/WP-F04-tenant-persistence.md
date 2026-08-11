@@ -43,7 +43,7 @@ Every later cloud package builds on one reviewed D1 migration chain and tenant-s
 
 ### Produces
 
-- Ordered D1 migrations under `migrations/d1/` with head `0001_workspace_registry`.
+- Ordered D1 migrations under `migrations/d1/` with head `0005_workspace_invariants`.
 - `@bfb/db` migration runner, authorization/bootstrap contexts, and workspace repository primitives.
 - Stable test target `pnpm test:db` and evidence path `docs/work-packages/evidence/WP-F04/manifest.json`.
 

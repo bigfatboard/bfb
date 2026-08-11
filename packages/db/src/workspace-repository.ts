@@ -2,6 +2,7 @@
 // ABOUTME: Bootstrap may insert the first workspace only; no unscoped getById exists.
 
 import type { AuthorizationContext, BootstrapContext, Jurisdiction } from "./auth-context.js";
+import { assertUtcTimestamp } from "./timestamps.js";
 
 export interface WorkspaceRow {
   id: string;
@@ -11,13 +12,25 @@ export interface WorkspaceRow {
   resource_version: number;
 }
 
-/** Promise-only SQL surface shared by D1 (async) and better-sqlite3 (promisified). */
+/** Promise-only prepared statement surface. */
+export interface SqlStatement {
+  run: (...params: unknown[]) => Promise<{ changes: number }>;
+  get: (...params: unknown[]) => Promise<unknown>;
+  all: (...params: unknown[]) => Promise<unknown[]>;
+}
+
+/**
+ * Promise-only SQL surface shared by D1 (async) and better-sqlite3 (promisified).
+ * Multi-statement atomic work must use withTransaction(tx => ...).
+ */
 export interface SqlDatabase {
-  prepare(sql: string): {
-    run: (...params: unknown[]) => Promise<{ changes: number }>;
-    get: (...params: unknown[]) => Promise<unknown>;
-    all: (...params: unknown[]) => Promise<unknown[]>;
-  };
+  prepare(sql: string): SqlStatement;
+  /**
+   * Runs fn with a transaction-scoped database handle.
+   * better-sqlite3: interactive BEGIN/COMMIT with read-your-writes.
+   * D1: queues write statements and flushes them with batch() on success.
+   */
+  withTransaction<T>(fn: (tx: SqlDatabase) => Promise<T>): Promise<T>;
 }
 
 export class WorkspaceRepository {
@@ -70,6 +83,41 @@ export class WorkspaceRepository {
       )
       .run(this.auth.workspaceId, id, parentId, label);
   }
+
+  /**
+   * Optimistic update of a fixture item label. Returns false when the expected
+   * resource_version does not match (no row updated).
+   */
+  async updateFixtureItemLabel(
+    id: string,
+    label: string,
+    expectedVersion: number,
+  ): Promise<{ updated: boolean; resourceVersion: number }> {
+    const current = (await this.db
+      .prepare(
+        `SELECT resource_version FROM tenant_fixture_items
+         WHERE workspace_id = ? AND id = ?`,
+      )
+      .get(this.auth.workspaceId, id)) as { resource_version: number } | undefined;
+    if (!current) {
+      return { updated: false, resourceVersion: expectedVersion };
+    }
+    if (!optimisticVersionPredicate(current.resource_version, expectedVersion)) {
+      return { updated: false, resourceVersion: current.resource_version };
+    }
+    const next = expectedVersion + 1;
+    const result = await this.db
+      .prepare(
+        `UPDATE tenant_fixture_items
+         SET label = ?, resource_version = ?
+         WHERE workspace_id = ? AND id = ? AND resource_version = ?`,
+      )
+      .run(label, next, this.auth.workspaceId, id, expectedVersion);
+    return {
+      updated: result.changes === 1,
+      resourceVersion: result.changes === 1 ? next : current.resource_version,
+    };
+  }
 }
 
 export class BootstrapWorkspaceWriter {
@@ -91,6 +139,7 @@ export class BootstrapWorkspaceWriter {
     jurisdiction: Jurisdiction;
     createdAt: string;
   }): Promise<WorkspaceRow> {
+    assertUtcTimestamp(input.createdAt, "createdAt");
     if (input.jurisdiction !== this.bootstrap.jurisdiction) {
       throw new Error("workspace jurisdiction must match deployment jurisdiction");
     }

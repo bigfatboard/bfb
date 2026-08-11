@@ -1,6 +1,6 @@
 {
-  "package": "C02",
-  "migration_head": "0004_human_credentials",
+  "package": "F04",
+  "migration_head": "0005_workspace_invariants",
   "migrations": [
     {
       "id": "0001_workspace_registry",
@@ -17,6 +17,10 @@
     {
       "id": "0004_human_credentials",
       "file": "0004_human_credentials.sql"
+    },
+    {
+      "id": "0005_workspace_invariants",
+      "file": "0005_workspace_invariants.sql"
     }
   ]
 }
