@@ -117,7 +117,7 @@ const adversarialCorpus: Case[] = [
 describe("adversarial differential corpus (TypeScript)", () => {
   for (const entry of adversarialCorpus) {
     it(`${entry.concern}: ${entry.path} → ${entry.category}`, () => {
-      const raw = readFileSync(path.join(fixturesRoot, entry.path), "utf8");
+      const raw = readFileSync(path.join(fixturesRoot, entry.path));
       const result = decodeWireDocument(entry.schema, raw);
       expect(result.ok).toBe(false);
       if (!result.ok) {

@@ -13,6 +13,42 @@
     "decision",
     "authorized_at"
   ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "decision": {
+            "const": "rejected"
+          }
+        },
+        "required": ["decision"]
+      },
+      "then": {
+        "properties": {
+          "rejection": {}
+        },
+        "required": ["rejection"]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "decision": {
+            "const": "authorized"
+          }
+        },
+        "required": ["decision"]
+      },
+      "then": {
+        "not": {
+          "properties": {
+            "rejection": {}
+          },
+          "required": ["rejection"]
+        }
+      }
+    }
+  ],
   "properties": {
     "schema_version": { "type": "integer", "const": 1 },
     "launch_id": {

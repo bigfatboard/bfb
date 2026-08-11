@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "launch_id": "01JBFB01AVNCH1D00000000000",
+  "runner_id": "01JBFB0RVNNER1D00000000000",
+  "idempotency_key": "claim-synthetic-001",
+  "claimed_at": "2026-08-07T12:00:00Z",
+  "device_proof_nonce": "short"
+}

@@ -1,27 +1,26 @@
-// ABOUTME: Validates and re-encodes BFB wire fixtures for Go using shared diagnostic categories.
-// ABOUTME: Mirrors TypeScript codec outcomes for the golden fixture matrix without a second schema language.
+// ABOUTME: Validates and re-encodes BFB wire documents against embedded canonical JSON Schemas.
+// ABOUTME: Maps Draft 2020-12 failures into deterministic diagnostics shared with TypeScript.
 
 package protocol
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"math"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/qdis/bfb/internal/protocol/generated"
-)
-
-var (
-	ulidPattern        = regexp.MustCompile(`^[0-9A-HJKMNP-TV-Z]{26}$`)
-	utcPattern         = regexp.MustCompile(`^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,6})?Z$`)
-	sha256Pattern      = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
-	idempotencyPattern = regexp.MustCompile(`^[A-Za-z0-9._:~-]{8,128}$`)
-	methodPattern      = regexp.MustCompile(`^[a-z][a-z0-9_.]{0,63}$`)
+	jsonschema "github.com/santhosh-tekuri/jsonschema/v6"
+	"github.com/santhosh-tekuri/jsonschema/v6/kind"
 )
 
 var shellFields = map[string]struct{}{
@@ -36,12 +35,29 @@ var shellFields = map[string]struct{}{
 	"prompt":            {},
 }
 
+var compiledSchemas = compileSchemas()
+var jsonNumberPattern = regexp.MustCompile(`^(-?)(0|[1-9][0-9]*)(?:\.([0-9]+))?(?:[eE]([+-]?)([0-9]+))?$`)
+
+const maximumWireInteger = "9007199254740991"
+const maximumWireBytes = 1_048_576
+const maximumStructuralItems = 4_096
+
+var errWireComplexity = errors.New("wire JSON exceeds structural bounds")
+
 // DecodeResult is the Go mirror of the TypeScript wire decode result.
 type DecodeResult struct {
 	OK    bool
 	Value map[string]any
 	JSON  string
 	Error *generated.TypedError
+}
+
+type diagnosticCandidate struct {
+	rank     int
+	category string
+	code     string
+	message  string
+	path     string
 }
 
 func typedError(category, code, message, path string) *generated.TypedError {
@@ -51,10 +67,205 @@ func typedError(category, code, message, path string) *generated.TypedError {
 		Code:          code,
 		Message:       message,
 	}
-	if path != "" {
+	if path != "" && utf8.RuneCountInString(path) <= 256 {
 		err.Path = &path
 	}
 	return err
+}
+
+func compileSchemas() map[string]*jsonschema.Schema {
+	compiler := jsonschema.NewCompiler()
+	compiler.DefaultDraft(jsonschema.Draft2020)
+	compiler.AssertFormat()
+	for _, resourceID := range generated.SchemaResourceIDs {
+		source, ok := generated.SchemaResources[resourceID]
+		if !ok {
+			panic("protocol schema resource missing: " + resourceID)
+		}
+		value, err := decodeJSON([]byte(source))
+		if err != nil {
+			panic("protocol schema resource is invalid JSON: " + resourceID + ": " + err.Error())
+		}
+		if err := compiler.AddResource(resourceID, value); err != nil {
+			panic("protocol schema resource cannot be registered: " + resourceID + ": " + err.Error())
+		}
+	}
+
+	compiled := make(map[string]*jsonschema.Schema, len(generated.SchemaIDByDocument))
+	for document, resourceID := range generated.SchemaIDByDocument {
+		schema, err := compiler.Compile(resourceID)
+		if err != nil {
+			panic("protocol schema cannot be compiled: " + document + ": " + err.Error())
+		}
+		compiled[document] = schema
+	}
+	return compiled
+}
+
+func decodeJSON(input []byte) (any, error) {
+	decoder := json.NewDecoder(bytes.NewReader(input))
+	decoder.UseNumber()
+	var value any
+	if err := decoder.Decode(&value); err != nil {
+		return nil, err
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		if err == nil {
+			return nil, fmt.Errorf("multiple JSON values")
+		}
+		return nil, err
+	}
+	return value, nil
+}
+
+func hasDuplicateObjectKey(input []byte) (bool, error) {
+	decoder := json.NewDecoder(bytes.NewReader(input))
+	decoder.UseNumber()
+	first, err := decoder.Token()
+	if err != nil {
+		return false, err
+	}
+	structuralItems := 0
+	duplicate, err := scanJSONValue(decoder, first, 0, &structuralItems)
+	if err != nil || duplicate {
+		return duplicate, err
+	}
+	if _, err := decoder.Token(); err != io.EOF {
+		if err == nil {
+			return false, fmt.Errorf("multiple JSON values")
+		}
+		return false, err
+	}
+	return false, nil
+}
+
+func scanJSONValue(decoder *json.Decoder, token json.Token, depth int, structuralItems *int) (bool, error) {
+	if depth > 256 {
+		return false, errWireComplexity
+	}
+	delimiter, ok := token.(json.Delim)
+	if !ok {
+		return false, nil
+	}
+	switch delimiter {
+	case '{':
+		keys := map[string]bool{}
+		for decoder.More() {
+			keyToken, err := decoder.Token()
+			if err != nil {
+				return false, err
+			}
+			key, ok := keyToken.(string)
+			if !ok {
+				return false, fmt.Errorf("object key is not a string")
+			}
+			if keys[key] {
+				return true, nil
+			}
+			keys[key] = true
+			(*structuralItems)++
+			if *structuralItems > maximumStructuralItems {
+				return false, errWireComplexity
+			}
+			valueToken, err := decoder.Token()
+			if err != nil {
+				return false, err
+			}
+			duplicate, err := scanJSONValue(decoder, valueToken, depth+1, structuralItems)
+			if err != nil || duplicate {
+				return duplicate, err
+			}
+		}
+		end, err := decoder.Token()
+		if err != nil || end != json.Delim('}') {
+			return false, fmt.Errorf("invalid object terminator")
+		}
+	case '[':
+		for decoder.More() {
+			(*structuralItems)++
+			if *structuralItems > maximumStructuralItems {
+				return false, errWireComplexity
+			}
+			valueToken, err := decoder.Token()
+			if err != nil {
+				return false, err
+			}
+			duplicate, err := scanJSONValue(decoder, valueToken, depth+1, structuralItems)
+			if err != nil || duplicate {
+				return duplicate, err
+			}
+		}
+		end, err := decoder.Token()
+		if err != nil || end != json.Delim(']') {
+			return false, fmt.Errorf("invalid array terminator")
+		}
+	default:
+		return false, fmt.Errorf("unexpected JSON delimiter")
+	}
+	return false, nil
+}
+
+func invalidUnicodeScalar(input []byte) bool {
+	if !utf8.Valid(input) {
+		return true
+	}
+	inString := false
+	for index := 0; index < len(input); index++ {
+		switch input[index] {
+		case '"':
+			inString = !inString
+		case '\\':
+			if !inString || index+1 >= len(input) {
+				continue
+			}
+			if input[index+1] != 'u' {
+				index++
+				continue
+			}
+			codepoint, ok := escapedCodepoint(input, index)
+			if !ok {
+				continue
+			}
+			if codepoint >= 0xD800 && codepoint <= 0xDBFF {
+				if index+11 >= len(input) || input[index+6] != '\\' || input[index+7] != 'u' {
+					return true
+				}
+				low, valid := escapedCodepoint(input, index+6)
+				if !valid || low < 0xDC00 || low > 0xDFFF {
+					return true
+				}
+				index += 11
+				continue
+			}
+			if codepoint >= 0xDC00 && codepoint <= 0xDFFF {
+				return true
+			}
+			index += 5
+		}
+	}
+	return false
+}
+
+func escapedCodepoint(input []byte, slash int) (rune, bool) {
+	if slash+5 >= len(input) || input[slash] != '\\' || input[slash+1] != 'u' {
+		return 0, false
+	}
+	var value rune
+	for _, digit := range input[slash+2 : slash+6] {
+		value <<= 4
+		switch {
+		case digit >= '0' && digit <= '9':
+			value += rune(digit - '0')
+		case digit >= 'a' && digit <= 'f':
+			value += rune(digit-'a') + 10
+		case digit >= 'A' && digit <= 'F':
+			value += rune(digit-'A') + 10
+		default:
+			return 0, false
+		}
+	}
+	return value, true
 }
 
 func stableJSON(value any) (string, error) {
@@ -62,24 +273,21 @@ func stableJSON(value any) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	bytes, err := json.Marshal(normalized)
-	if err != nil {
+	var encoded bytes.Buffer
+	encoder := json.NewEncoder(&encoded)
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode(normalized); err != nil {
 		return "", err
 	}
-	return string(bytes), nil
+	return strings.TrimSuffix(encoded.String(), "\n"), nil
 }
 
 func normalize(value any) (any, error) {
 	switch typed := value.(type) {
 	case map[string]any:
-		keys := make([]string, 0, len(typed))
-		for key := range typed {
-			keys = append(keys, key)
-		}
-		sort.Strings(keys)
 		out := make(map[string]any, len(typed))
-		for _, key := range keys {
-			nested, err := normalize(typed[key])
+		for key, item := range typed {
+			nested, err := normalize(item)
 			if err != nil {
 				return nil, err
 			}
@@ -88,914 +296,375 @@ func normalize(value any) (any, error) {
 		return out, nil
 	case []any:
 		out := make([]any, len(typed))
-		for i, item := range typed {
+		for index, item := range typed {
 			nested, err := normalize(item)
 			if err != nil {
 				return nil, err
 			}
-			out[i] = nested
+			out[index] = nested
 		}
 		return out, nil
+	case json.Number:
+		inspection := inspectNumber(typed.String())
+		if inspection.failure == "" && inspection.integer != nil {
+			return json.Number(*inspection.integer), nil
+		}
+		return typed, nil
 	default:
 		return value, nil
 	}
 }
 
-func asObject(value any) (map[string]any, bool) {
-	obj, ok := value.(map[string]any)
-	return obj, ok
+type numericInspection struct {
+	failure string
+	integer *string
 }
 
-func requireString(obj map[string]any, key string) (string, *generated.TypedError) {
-	raw, ok := obj[key]
-	if !ok {
-		return "", typedError("missing_field", "required_property", "missing required field", "/"+key)
+func inspectNumber(source string) numericInspection {
+	match := jsonNumberPattern.FindStringSubmatch(source)
+	if match == nil {
+		return numericInspection{failure: "source_unavailable"}
 	}
-	text, ok := raw.(string)
-	if !ok {
-		return "", typedError("type_mismatch", "type", "expected string", "/"+key)
+	negative := match[1] == "-"
+	fraction := match[3]
+	coefficient := strings.TrimLeft(match[2]+fraction, "0")
+	if coefficient == "" {
+		zero := "0"
+		return numericInspection{integer: &zero}
 	}
-	return text, nil
+	exponentDigits := strings.TrimLeft(match[5], "0")
+	if exponentDigits == "" {
+		exponentDigits = "0"
+	}
+	if len(exponentDigits) > 9 {
+		if match[4] == "-" {
+			return numericInspection{failure: "fractional"}
+		}
+		outOfRange := "out_of_range"
+		return numericInspection{failure: "unsafe", integer: &outOfRange}
+	}
+	exponentMagnitude, err := strconv.Atoi(exponentDigits)
+	if err != nil {
+		return numericInspection{failure: "source_unavailable"}
+	}
+	exponent := exponentMagnitude
+	if match[4] == "-" {
+		exponent = -exponent
+	}
+	decimalShift := exponent - len(fraction)
+	integerDigits := ""
+	if decimalShift >= 0 {
+		if len(coefficient)+decimalShift > len(maximumWireInteger) {
+			outOfRange := "out_of_range"
+			return numericInspection{failure: "unsafe", integer: &outOfRange}
+		}
+		integerDigits = coefficient + strings.Repeat("0", decimalShift)
+	} else {
+		removedDigits := -decimalShift
+		if removedDigits > len(coefficient) {
+			return numericInspection{failure: "fractional"}
+		}
+		removed := coefficient[len(coefficient)-removedDigits:]
+		if strings.Trim(removed, "0") != "" {
+			return numericInspection{failure: "fractional"}
+		}
+		integerDigits = strings.TrimLeft(coefficient[:len(coefficient)-removedDigits], "0")
+		if integerDigits == "" {
+			integerDigits = "0"
+		}
+	}
+	if len(integerDigits) > len(maximumWireInteger) ||
+		(len(integerDigits) == len(maximumWireInteger) && integerDigits > maximumWireInteger) {
+		outOfRange := "out_of_range"
+		return numericInspection{failure: "unsafe", integer: &outOfRange}
+	}
+	if negative {
+		integerDigits = "-" + integerDigits
+	}
+	return numericInspection{integer: &integerDigits}
 }
 
-func asInteger(raw any, path string) (int64, *generated.TypedError) {
-	switch typed := raw.(type) {
-	case float64:
-		if math.IsNaN(typed) || math.IsInf(typed, 0) || typed != math.Trunc(typed) {
-			return 0, typedError("type_mismatch", "type", "expected integer", path)
-		}
-		// Reject values outside safe integer range used by wire primitives.
-		if typed < 1 && typed != 0 {
-			// still allow reading; bounds checked by caller
-		}
-		if typed > float64(9007199254740991) || typed < float64(-9007199254740991) {
-			return 0, typedError("bound_exceeded", "maximum", "value exceeds schema bound", path)
-		}
-		return int64(typed), nil
+func numericCandidates(value any, path string) []diagnosticCandidate {
+	var candidates []diagnosticCandidate
+	switch typed := value.(type) {
 	case json.Number:
-		n, err := typed.Int64()
-		if err != nil {
-			return 0, typedError("type_mismatch", "type", "expected integer", path)
+		inspection := inspectNumber(typed.String())
+		switch inspection.failure {
+		case "unsafe":
+			candidates = append(candidates, diagnosticCandidate{30, "bound_exceeded", "maximum", "value exceeds schema bound", path})
+		case "fractional", "source_unavailable":
+			candidates = append(candidates, diagnosticCandidate{40, "type_mismatch", "type", "expected integer", path})
 		}
-		return n, nil
-	case int:
-		return int64(typed), nil
-	case int64:
-		return typed, nil
-	default:
-		return 0, typedError("type_mismatch", "type", "expected integer", path)
+	case map[string]any:
+		for key, nested := range typed {
+			candidates = append(candidates, numericCandidates(nested, path+"/"+escapePointer(key))...)
+		}
+	case []any:
+		for index, nested := range typed {
+			candidates = append(candidates, numericCandidates(nested, path+"/"+strconv.Itoa(index))...)
+		}
 	}
+	return candidates
 }
 
-func requireInt(obj map[string]any, key string) (int64, *generated.TypedError) {
-	raw, ok := obj[key]
-	if !ok {
-		return 0, typedError("missing_field", "required_property", "missing required field", "/"+key)
-	}
-	return asInteger(raw, "/"+key)
+func asObject(value any) (map[string]any, bool) {
+	object, ok := value.(map[string]any)
+	return object, ok
 }
 
-func requireBoundedInt(obj map[string]any, key string, min, max int64) (int64, *generated.TypedError) {
-	n, err := requireInt(obj, key)
-	if err != nil {
-		return 0, err
+func preflightDiagnostic(document string, object map[string]any) *generated.TypedError {
+	keys := make([]string, 0, len(object))
+	for key := range object {
+		keys = append(keys, key)
 	}
-	if n < min || n > max {
-		code := "minimum"
-		if n > max {
-			code = "maximum"
-		}
-		return 0, typedError("bound_exceeded", code, "value exceeds schema bound", "/"+key)
-	}
-	return n, nil
-}
-
-func requireEnum(obj map[string]any, key string, allowedValues map[string]bool) (string, *generated.TypedError) {
-	text, err := requireString(obj, key)
-	if err != nil {
-		return "", err
-	}
-	if !allowedValues[text] {
-		return "", typedError("type_mismatch", "enum", "value is not an allowed enum member", "/"+key)
-	}
-	return text, nil
-}
-
-func requireUniqueStringSlice(raw any, path string, maxItems int, itemPattern *regexp.Regexp) *generated.TypedError {
-	items, ok := raw.([]any)
-	if !ok {
-		return typedError("type_mismatch", "type", "expected array", path)
-	}
-	if maxItems > 0 && len(items) > maxItems {
-		return typedError("bound_exceeded", "maxItems", "value exceeds schema bound", path)
-	}
-	seen := make(map[string]struct{}, len(items))
-	for i, item := range items {
-		text, ok := item.(string)
-		if !ok {
-			return typedError("type_mismatch", "type", "expected string", fmt.Sprintf("%s/%d", path, i))
-		}
-		if itemPattern != nil && !itemPattern.MatchString(text) {
-			return typedError("type_mismatch", "pattern", "invalid array item", fmt.Sprintf("%s/%d", path, i))
-		}
-		if _, exists := seen[text]; exists {
-			return typedError("schema_invalid", "uniqueItems", "array items must be unique", path)
-		}
-		seen[text] = struct{}{}
-	}
-	return nil
-}
-
-func requireUniqueULIDSlice(raw any, path string, maxItems int) *generated.TypedError {
-	return requireUniqueStringSlice(raw, path, maxItems, ulidPattern)
-}
-
-var (
-	principalTypes = map[string]bool{
-		"human": true, "runner": true, "agent_run": true, "integration": true, "system": true,
-	}
-	sourceTypes = map[string]bool{
-		"runner": true, "web": true, "mcp": true, "cli": true, "system": true, "integration": true,
-	}
-	providerNames = map[string]bool{
-		"claude": true, "codex": true, "grok": true,
-	}
-	capabilityPattern = regexp.MustCompile(`^[a-z][a-z0-9_.]{0,63}$`)
-)
-
-func validatePrincipalRef(raw any, path string) *generated.TypedError {
-	obj, ok := asObject(raw)
-	if !ok {
-		return typedError("missing_field", "required_property", "missing required field", path)
-	}
-	if err := checkAdditional(obj, allowed("type", "id"), "principal-ref"); err != nil {
-		// rewrite path prefix for nested diagnostics
-		if err.Path != nil {
-			nested := path + *err.Path
-			err.Path = &nested
-		}
-		return err
-	}
-	if _, err := requireEnum(obj, "type", principalTypes); err != nil {
-		if err.Path != nil {
-			nested := path + *err.Path
-			err.Path = &nested
-		}
-		return err
-	}
-	if err := requireULID(obj, "id"); err != nil {
-		if err.Path != nil {
-			nested := path + *err.Path
-			err.Path = &nested
-		}
-		return err
-	}
-	return nil
-}
-
-func validateSourceRef(raw any, path string) *generated.TypedError {
-	obj, ok := asObject(raw)
-	if !ok {
-		return typedError("missing_field", "required_property", "missing required field", path)
-	}
-	if err := checkAdditional(obj, allowed("type", "id", "provider"), "source-ref"); err != nil {
-		if err.Path != nil {
-			nested := path + *err.Path
-			err.Path = &nested
-		}
-		return err
-	}
-	if _, err := requireEnum(obj, "type", sourceTypes); err != nil {
-		if err.Path != nil {
-			nested := path + *err.Path
-			err.Path = &nested
-		}
-		return err
-	}
-	if err := requireULID(obj, "id"); err != nil {
-		if err.Path != nil {
-			nested := path + *err.Path
-			err.Path = &nested
-		}
-		return err
-	}
-	if _, has := obj["provider"]; has {
-		if _, err := requireEnum(obj, "provider", providerNames); err != nil {
-			if err.Path != nil {
-				nested := path + *err.Path
-				err.Path = &nested
-			}
-			return err
-		}
-	}
-	return nil
-}
-
-func requireULID(obj map[string]any, key string) *generated.TypedError {
-	text, err := requireString(obj, key)
-	if err != nil {
-		return err
-	}
-	if !ulidPattern.MatchString(text) {
-		return typedError("type_mismatch", "pattern", "invalid ULID", "/"+key)
-	}
-	return nil
-}
-
-func requireUTC(obj map[string]any, key string) *generated.TypedError {
-	text, err := requireString(obj, key)
-	if err != nil {
-		return err
-	}
-	if !utcPattern.MatchString(text) {
-		return typedError("type_mismatch", "pattern", "invalid UTC timestamp", "/"+key)
-	}
-	return nil
-}
-
-func checkShellFields(obj map[string]any, document string) *generated.TypedError {
-	for key := range obj {
-		if _, found := shellFields[key]; found {
-			category := "shell_data"
-			if document == "cloud-wake-intent" && key == "task_text" {
-				category = "intent_confusion"
-			}
-			return typedError(category, "forbidden_shell_field", "wire document contains forbidden shell or task field", "/"+key)
-		}
-	}
-	return nil
-}
-
-func checkAdditional(obj map[string]any, allowed map[string]struct{}, document string) *generated.TypedError {
-	for key := range obj {
-		if _, ok := allowed[key]; ok {
+	sort.Strings(keys)
+	for _, key := range keys {
+		if _, found := shellFields[key]; !found {
 			continue
 		}
-		if _, found := shellFields[key]; found {
-			category := "shell_data"
-			if document == "cloud-wake-intent" && key == "task_text" {
-				category = "intent_confusion"
+		category := "shell_data"
+		if document == "cloud-wake-intent" && key == "task_text" {
+			category = "intent_confusion"
+		}
+		return typedError(category, "forbidden_shell_field", "wire document contains forbidden shell or task field", "/"+escapePointer(key))
+	}
+
+	if rawVersion, exists := object["schema_version"]; exists {
+		if number, ok := rawVersion.(json.Number); ok {
+			inspection := inspectNumber(number.String())
+			if inspection.integer != nil && *inspection.integer != "1" {
+				return typedError("unknown_version", "unsupported_schema_version", "unsupported schema_version", "/schema_version")
 			}
-			return typedError(category, "forbidden_shell_field", "wire document contains forbidden shell or task field", "/"+key)
 		}
-		if document == "cloud-wake-intent" || document == "terminal-intent" {
-			return typedError("intent_confusion", "intent_additional_field", "intent contains disallowed field", "/"+key)
+	}
+	if rawKind, exists := object["kind"]; exists {
+		if _, ok := rawKind.(string); !ok {
+			return typedError("type_mismatch", "type", "event kind must be a string", "/kind")
 		}
-		return typedError("additional_field", "additional_property", "unexpected additional field", "/"+key)
+	}
+
+	if document == "cloud-wake-intent" {
+		if rawIntent, exists := object["intent_kind"]; exists {
+			intent, ok := rawIntent.(string)
+			if !ok {
+				return typedError("type_mismatch", "type", "intent_kind must be a string", "/intent_kind")
+			}
+			if intent != "cloud_wake" {
+				return typedError("intent_confusion", "wake_intent_kind_mismatch", "cloud wake intent requires intent_kind cloud_wake", "/intent_kind")
+			}
+		}
+	}
+	if document == "terminal-intent" {
+		if rawIntent, exists := object["intent_kind"]; exists {
+			intent, ok := rawIntent.(string)
+			if !ok {
+				return typedError("type_mismatch", "type", "intent_kind must be a string", "/intent_kind")
+			}
+			if intent != "terminal_local" {
+				return typedError("intent_confusion", "terminal_intent_kind_mismatch", "terminal intent requires intent_kind terminal_local", "/intent_kind")
+			}
+		}
 	}
 	return nil
 }
 
-func requireSchemaVersion(obj map[string]any) *generated.TypedError {
-	version, err := requireInt(obj, "schema_version")
-	if err != nil {
-		return err
+func categorizeValidation(document string, validationErr *jsonschema.ValidationError, numeric []diagnosticCandidate) *generated.TypedError {
+	leaves := validationLeaves(validationErr)
+	numericPaths := map[string]bool{}
+	for _, candidate := range numeric {
+		numericPaths[candidate.path] = true
 	}
-	if version != 1 {
-		return typedError("unknown_version", "unsupported_schema_version", "unsupported schema_version", "/schema_version")
+	candidates := make([]diagnosticCandidate, 0, len(leaves)+len(numeric))
+	for _, leaf := range leaves {
+		if numericPaths[pointer(leaf.InstanceLocation)] && isNumericValidationError(leaf) {
+			continue
+		}
+		candidates = append(candidates, candidateFor(document, leaf))
 	}
-	return nil
+	candidates = append(candidates, numeric...)
+	return diagnosticFromCandidates(candidates)
 }
 
-func allowed(keys ...string) map[string]struct{} {
-	out := make(map[string]struct{}, len(keys))
-	for _, key := range keys {
-		out[key] = struct{}{}
+func isNumericValidationError(validationErr *jsonschema.ValidationError) bool {
+	switch validationErr.ErrorKind.(type) {
+	case *kind.Type, *kind.Minimum, *kind.Maximum, *kind.ExclusiveMinimum,
+		*kind.ExclusiveMaximum, *kind.MultipleOf, *kind.Const, *kind.Enum:
+		return true
+	default:
+		return false
 	}
-	return out
 }
 
-// DecodeWireDocument validates a wire document name against the shared fixture rules.
+func diagnosticFromCandidates(candidates []diagnosticCandidate) *generated.TypedError {
+	if len(candidates) == 0 {
+		return typedError("schema_invalid", "schema_validation_failed", "document failed schema validation", "")
+	}
+	sort.SliceStable(candidates, func(left, right int) bool {
+		if candidates[left].rank != candidates[right].rank {
+			return candidates[left].rank < candidates[right].rank
+		}
+		if candidates[left].path != candidates[right].path {
+			return candidates[left].path < candidates[right].path
+		}
+		return candidates[left].code < candidates[right].code
+	})
+	selected := candidates[0]
+	return typedError(selected.category, selected.code, selected.message, selected.path)
+}
+
+func validationLeaves(validationErr *jsonschema.ValidationError) []*jsonschema.ValidationError {
+	if len(validationErr.Causes) == 0 {
+		return []*jsonschema.ValidationError{validationErr}
+	}
+	var leaves []*jsonschema.ValidationError
+	for _, cause := range validationErr.Causes {
+		leaves = append(leaves, validationLeaves(cause)...)
+	}
+	return leaves
+}
+
+func candidateFor(document string, validationErr *jsonschema.ValidationError) diagnosticCandidate {
+	path := pointer(validationErr.InstanceLocation)
+	keywordPath := validationErr.ErrorKind.KeywordPath()
+	keyword := "schema_validation_failed"
+	if len(keywordPath) > 0 {
+		keyword = keywordPath[len(keywordPath)-1]
+	}
+
+	switch typed := validationErr.ErrorKind.(type) {
+	case *kind.Required:
+		missing := append([]string{}, typed.Missing...)
+		sort.Strings(missing)
+		if len(missing) > 0 {
+			path += "/" + escapePointer(missing[0])
+		}
+		return diagnosticCandidate{10, "missing_field", "required_property", "missing required field", path}
+	case *kind.AdditionalProperties:
+		properties := append([]string{}, typed.Properties...)
+		sort.Strings(properties)
+		additional := ""
+		if len(properties) > 0 {
+			additional = properties[0]
+			path += "/" + escapePointer(additional)
+		}
+		if _, shell := shellFields[additional]; shell {
+			return diagnosticCandidate{20, "shell_data", "forbidden_shell_field", "wire document contains forbidden shell or task field", path}
+		}
+		if (document == "cloud-wake-intent" || document == "terminal-intent") && additional == "checkout_path" {
+			return diagnosticCandidate{20, "intent_confusion", "intent_additional_field", "intent contains disallowed field", path}
+		}
+		return diagnosticCandidate{20, "additional_field", "additional_property", "unexpected additional field", path}
+	case *kind.MaxLength, *kind.MinLength, *kind.MaxItems, *kind.MinItems,
+		*kind.MaxProperties, *kind.MinProperties, *kind.Minimum, *kind.Maximum,
+		*kind.ExclusiveMinimum, *kind.ExclusiveMaximum:
+		return diagnosticCandidate{30, "bound_exceeded", schemaKeywordCode(keyword), "value exceeds schema bound", path}
+	case *kind.Enum:
+		if strings.HasSuffix(path, "/kind") {
+			return diagnosticCandidate{5, "unknown_kind", "unknown_event_kind", "unknown event kind", path}
+		}
+		return diagnosticCandidate{40, "type_mismatch", "enum", "value is not an allowed enum member", path}
+	case *kind.Type, *kind.Pattern, *kind.Format:
+		return diagnosticCandidate{40, "type_mismatch", keyword, "value does not match schema type", path}
+	case *kind.Const:
+		if strings.HasSuffix(path, "/intent_kind") {
+			return diagnosticCandidate{5, "intent_confusion", "intent_kind_const_mismatch", "intent_kind does not match document type", path}
+		}
+		return diagnosticCandidate{40, "type_mismatch", "const", "value does not match required constant", path}
+	case *kind.UniqueItems:
+		return diagnosticCandidate{50, "schema_invalid", "unique_items", "array items must be unique", path}
+	default:
+		return diagnosticCandidate{60, "schema_invalid", keyword, "document failed schema validation", path}
+	}
+}
+
+func schemaKeywordCode(keyword string) string {
+	var code strings.Builder
+	for _, character := range keyword {
+		if unicode.IsUpper(character) {
+			code.WriteByte('_')
+			code.WriteRune(unicode.ToLower(character))
+			continue
+		}
+		code.WriteRune(character)
+	}
+	return code.String()
+}
+
+func pointer(parts []string) string {
+	if len(parts) == 0 {
+		return ""
+	}
+	escaped := make([]string, len(parts))
+	for index, part := range parts {
+		escaped[index] = escapePointer(part)
+	}
+	return "/" + strings.Join(escaped, "/")
+}
+
+func escapePointer(value string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(value, "~", "~0"), "/", "~1")
+}
+
+// DecodeWireDocument validates a document against the generated schema registry.
 func DecodeWireDocument(document string, input []byte) DecodeResult {
-	var value any
-	if err := json.Unmarshal(input, &value); err != nil {
+	schema, exists := compiledSchemas[document]
+	if !exists {
+		return DecodeResult{OK: false, Error: typedError("schema_invalid", "unknown_document", "unknown wire document name", "")}
+	}
+	if len(input) > maximumWireBytes {
+		return DecodeResult{OK: false, Error: typedError("bound_exceeded", "max_bytes", "wire document exceeds the byte bound", "")}
+	}
+	if invalidUnicodeScalar(input) {
+		return DecodeResult{OK: false, Error: typedError("schema_invalid", "invalid_unicode", "wire document contains an invalid Unicode scalar", "")}
+	}
+	trimmed := bytes.TrimLeft(input, " \t\r\n")
+	if len(trimmed) > 0 && trimmed[0] == '[' {
+		return DecodeResult{OK: false, Error: typedError("type_mismatch", "type", "wire document must be an object", "")}
+	}
+	duplicate, err := hasDuplicateObjectKey(input)
+	if errors.Is(err, errWireComplexity) {
+		return DecodeResult{OK: false, Error: typedError("bound_exceeded", "max_items", "wire document exceeds structural bounds", "")}
+	}
+	if err != nil {
 		return DecodeResult{OK: false, Error: typedError("schema_invalid", "json_parse_failed", "input is not valid JSON", "")}
 	}
-	obj, ok := asObject(value)
-	if !ok {
+	if duplicate {
+		return DecodeResult{OK: false, Error: typedError("schema_invalid", "duplicate_key", "wire document contains a duplicate object key", "")}
+	}
+	value, err := decodeJSON(input)
+	if err != nil {
+		return DecodeResult{OK: false, Error: typedError("schema_invalid", "json_parse_failed", "input is not valid JSON", "")}
+	}
+	rawObject, rawIsObject := asObject(value)
+	if rawIsObject {
+		if diagnostic := preflightDiagnostic(document, rawObject); diagnostic != nil {
+			return DecodeResult{OK: false, Error: diagnostic}
+		}
+	}
+	numbers := numericCandidates(value, "")
+	normalized, err := normalize(value)
+	if err != nil {
+		return DecodeResult{OK: false, Error: typedError("schema_invalid", "encode_failed", err.Error(), "")}
+	}
+	if err := schema.Validate(normalized); err != nil {
+		validationErr, ok := err.(*jsonschema.ValidationError)
+		if !ok {
+			return DecodeResult{OK: false, Error: typedError("schema_invalid", "schema_validation_failed", "document failed schema validation", "")}
+		}
+		return DecodeResult{OK: false, Error: categorizeValidation(document, validationErr, numbers)}
+	}
+	if len(numbers) > 0 {
+		return DecodeResult{OK: false, Error: diagnosticFromCandidates(numbers)}
+	}
+	object, isObject := asObject(normalized)
+	if !isObject {
 		return DecodeResult{OK: false, Error: typedError("schema_invalid", "schema_validation_failed", "document failed schema validation", "")}
 	}
-	if err := checkShellFields(obj, document); err != nil {
-		return DecodeResult{OK: false, Error: err}
-	}
-	if err := validateDocument(document, obj); err != nil {
-		return DecodeResult{OK: false, Error: err}
-	}
-	encoded, encodeErr := stableJSON(obj)
-	if encodeErr != nil {
-		return DecodeResult{OK: false, Error: typedError("schema_invalid", "encode_failed", encodeErr.Error(), "")}
-	}
-	return DecodeResult{OK: true, Value: obj, JSON: encoded}
-}
-
-func validateDocument(document string, obj map[string]any) *generated.TypedError {
-	switch document {
-	case "event-envelope":
-		return validateEventEnvelope(obj)
-	case "event-disposition":
-		return validateEventDisposition(obj)
-	case "runner-enrollment":
-		return validateRunnerEnrollment(obj)
-	case "checkout-summary":
-		return validateCheckoutSummary(obj)
-	case "execution-assignment":
-		return validateExecutionAssignment(obj)
-	case "launch-specification":
-		return validateLaunchSpecification(obj)
-	case "launch-claim":
-		return validateLaunchClaim(obj)
-	case "final-authorization":
-		return validateFinalAuthorization(obj)
-	case "cloud-wake-intent":
-		return validateCloudWakeIntent(obj)
-	case "terminal-intent":
-		return validateTerminalIntent(obj)
-	case "local-rpc":
-		return validateLocalRPC(obj)
-	case "runner-event-submission":
-		return validateRunnerEventSubmission(obj)
-	case "typed-error":
-		return validateTypedError(obj)
-	default:
-		return typedError("schema_invalid", "unknown_document", "unknown wire document name", "")
-	}
-}
-
-func validateEventEnvelope(obj map[string]any) *generated.TypedError {
-	if err := checkAdditional(obj, allowed(
-		"schema_version", "event_id", "workspace_cursor", "source_stream_id", "source_event_id",
-		"source_sequence", "workspace_id", "project_id", "task_id", "run_id", "run_execution_id",
-		"assignment_generation", "provider_session_id", "actor", "source", "kind", "occurred_at",
-		"received_at", "payload",
-	), "event-envelope"); err != nil {
-		return err
-	}
-	if err := requireSchemaVersion(obj); err != nil {
-		return err
-	}
-	for _, key := range []string{"event_id", "source_stream_id", "workspace_id"} {
-		if err := requireULID(obj, key); err != nil {
-			return err
-		}
-	}
-	if _, err := requireBoundedInt(obj, "workspace_cursor", 1, 9007199254740991); err != nil {
-		return err
-	}
-	if _, err := requireBoundedInt(obj, "source_sequence", 1, 9007199254740991); err != nil {
-		return err
-	}
-	if _, has := obj["assignment_generation"]; has {
-		if _, err := requireBoundedInt(obj, "assignment_generation", 1, 9007199254740991); err != nil {
-			return err
-		}
-	}
-	kind, err := requireString(obj, "kind")
+	encoded, err := stableJSON(object)
 	if err != nil {
-		return err
+		return DecodeResult{OK: false, Error: typedError("schema_invalid", "encode_failed", err.Error(), "")}
 	}
-	if !eventKinds[kind] {
-		return typedError("unknown_kind", "unknown_event_kind", "unknown event kind", "/kind")
-	}
-	if err := requireUTC(obj, "occurred_at"); err != nil {
-		return err
-	}
-	if err := requireUTC(obj, "received_at"); err != nil {
-		return err
-	}
-	if err := validatePrincipalRef(obj["actor"], "/actor"); err != nil {
-		return err
-	}
-	if err := validateSourceRef(obj["source"], "/source"); err != nil {
-		return err
-	}
-	for _, key := range []string{"project_id", "task_id", "run_id", "run_execution_id"} {
-		if _, has := obj[key]; has {
-			if err := requireULID(obj, key); err != nil {
-				return err
-			}
-		}
-	}
-	if raw, has := obj["source_event_id"]; has {
-		text, ok := raw.(string)
-		if !ok {
-			return typedError("type_mismatch", "type", "expected string", "/source_event_id")
-		}
-		if len(text) < 1 || len(text) > 256 {
-			return typedError("bound_exceeded", "maxLength", "value exceeds schema bound", "/source_event_id")
-		}
-	}
-	if raw, has := obj["provider_session_id"]; has {
-		text, ok := raw.(string)
-		if !ok {
-			return typedError("type_mismatch", "type", "expected string", "/provider_session_id")
-		}
-		if len(text) < 1 || len(text) > 256 {
-			return typedError("bound_exceeded", "maxLength", "value exceeds schema bound", "/provider_session_id")
-		}
-	}
-	payload, ok := asObject(obj["payload"])
-	if !ok {
-		return typedError("missing_field", "required_property", "missing required field", "/payload")
-	}
-	if len(payload) > 0 {
-		return typedError("additional_field", "additional_property", "unexpected additional field", "/payload")
-	}
-	return nil
-}
-
-var eventKinds = map[string]bool{
-	"launch_requested": true, "launch_claimed": true, "launch_blocked": true, "launch_expired": true,
-	"execution_attached": true, "execution_detached": true, "execution_ended": true,
-	"session_started": true, "session_resumed": true, "session_ended": true,
-	"turn_started": true, "turn_stopped": true, "turn_failed": true,
-	"tool_started": true, "tool_finished": true, "tool_failed": true,
-	"progress_reported": true, "attention_requested": true, "attention_resolved": true,
-	"subagent_started": true, "subagent_ended": true, "context_compacted": true,
-	"artifact_published": true, "result_submitted": true, "result_outdated": true, "result_accepted": true,
-	"run_failed": true, "run_cancelled": true, "heartbeat": true,
-}
-
-func validateEventDisposition(obj map[string]any) *generated.TypedError {
-	if err := checkAdditional(obj, allowed("schema_version", "event_id", "source_stream_id", "source_sequence", "disposition", "diagnostic"), "event-disposition"); err != nil {
-		return err
-	}
-	if err := requireSchemaVersion(obj); err != nil {
-		return err
-	}
-	if err := requireULID(obj, "event_id"); err != nil {
-		return err
-	}
-	if err := requireULID(obj, "source_stream_id"); err != nil {
-		return err
-	}
-	if _, err := requireBoundedInt(obj, "source_sequence", 1, 9007199254740991); err != nil {
-		return err
-	}
-	if _, err := requireEnum(obj, "disposition", map[string]bool{
-		"accepted": true, "already_committed": true, "retryable": true, "permanently_rejected": true,
-	}); err != nil {
-		return err
-	}
-	return nil
-}
-
-func validateRunnerEnrollment(obj map[string]any) *generated.TypedError {
-	if err := checkAdditional(obj, allowed(
-		"schema_version", "runner_id", "workspace_id", "owner_human_id", "device_label",
-		"public_key_thumbprint", "authorization_epoch", "status", "enrolled_at", "last_seen_at", "granted_project_ids",
-	), "runner-enrollment"); err != nil {
-		return err
-	}
-	if err := requireSchemaVersion(obj); err != nil {
-		return err
-	}
-	for _, key := range []string{"runner_id", "workspace_id", "owner_human_id"} {
-		if err := requireULID(obj, key); err != nil {
-			return err
-		}
-	}
-	label, err := requireString(obj, "device_label")
-	if err != nil {
-		return err
-	}
-	if len(label) < 1 || len(label) > 128 {
-		return typedError("bound_exceeded", "maxLength", "value exceeds schema bound", "/device_label")
-	}
-	thumb, err := requireString(obj, "public_key_thumbprint")
-	if err != nil {
-		return err
-	}
-	if !sha256Pattern.MatchString(thumb) {
-		return typedError("type_mismatch", "pattern", "invalid digest", "/public_key_thumbprint")
-	}
-	if _, err := requireBoundedInt(obj, "authorization_epoch", 1, 9007199254740991); err != nil {
-		return err
-	}
-	if _, err := requireEnum(obj, "status", map[string]bool{
-		"enrolled": true, "online": true, "offline": true, "revoked": true,
-	}); err != nil {
-		return err
-	}
-	if err := requireUTC(obj, "enrolled_at"); err != nil {
-		return err
-	}
-	if raw, has := obj["granted_project_ids"]; has {
-		if err := requireUniqueULIDSlice(raw, "/granted_project_ids", 64); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func validateCheckoutSummary(obj map[string]any) *generated.TypedError {
-	if err := checkAdditional(obj, allowed(
-		"schema_version", "checkout_id", "runner_id", "project_id", "repository_identity",
-		"workspace_subpath", "status", "validated_at",
-	), "checkout-summary"); err != nil {
-		return err
-	}
-	if err := requireSchemaVersion(obj); err != nil {
-		return err
-	}
-	for _, key := range []string{"checkout_id", "runner_id", "project_id"} {
-		if err := requireULID(obj, key); err != nil {
-			return err
-		}
-	}
-	identity, err := requireString(obj, "repository_identity")
-	if err != nil {
-		return err
-	}
-	if len(identity) < 1 || len(identity) > 512 {
-		return typedError("bound_exceeded", "maxLength", "value exceeds schema bound", "/repository_identity")
-	}
-	if raw, has := obj["workspace_subpath"]; has {
-		text, ok := raw.(string)
-		if !ok {
-			return typedError("type_mismatch", "type", "expected string", "/workspace_subpath")
-		}
-		if len(text) < 1 || len(text) > 512 {
-			return typedError("bound_exceeded", "maxLength", "value exceeds schema bound", "/workspace_subpath")
-		}
-	}
-	if _, err := requireEnum(obj, "status", map[string]bool{
-		"registered": true, "validated": true, "stale": true, "blocked": true,
-	}); err != nil {
-		return err
-	}
-	return requireUTC(obj, "validated_at")
-}
-
-func validateExecutionAssignment(obj map[string]any) *generated.TypedError {
-	if err := checkAdditional(obj, allowed(
-		"schema_version", "run_execution_id", "assignment_generation", "runner_id", "run_id",
-		"task_id", "project_id", "workspace_id", "checkout_id", "created_at", "ended_at",
-	), "execution-assignment"); err != nil {
-		return err
-	}
-	if err := requireSchemaVersion(obj); err != nil {
-		return err
-	}
-	for _, key := range []string{"run_execution_id", "runner_id", "run_id", "task_id", "project_id", "workspace_id", "checkout_id"} {
-		if err := requireULID(obj, key); err != nil {
-			return err
-		}
-	}
-	if _, err := requireBoundedInt(obj, "assignment_generation", 1, 9007199254740991); err != nil {
-		return err
-	}
-	return requireUTC(obj, "created_at")
-}
-
-func validateLaunchSpecification(obj map[string]any) *generated.TypedError {
-	if err := checkAdditional(obj, allowed(
-		"schema_version", "launch_id", "run_id", "run_execution_id", "assignment_generation",
-		"task_id", "runner_id", "checkout_id", "agent_profile_id", "config_snapshot_id",
-		"config_snapshot_hash", "execution_config", "expires_at",
-	), "launch-specification"); err != nil {
-		return err
-	}
-	if err := requireSchemaVersion(obj); err != nil {
-		return err
-	}
-	for _, key := range []string{"launch_id", "run_id", "run_execution_id", "task_id", "runner_id", "checkout_id", "agent_profile_id", "config_snapshot_id"} {
-		if err := requireULID(obj, key); err != nil {
-			return err
-		}
-	}
-	if _, err := requireBoundedInt(obj, "assignment_generation", 1, 9007199254740991); err != nil {
-		return err
-	}
-	hash, err := requireString(obj, "config_snapshot_hash")
-	if err != nil {
-		return err
-	}
-	if !sha256Pattern.MatchString(hash) {
-		return typedError("type_mismatch", "pattern", "invalid digest", "/config_snapshot_hash")
-	}
-	cfg, ok := asObject(obj["execution_config"])
-	if !ok {
-		return typedError("missing_field", "required_property", "missing required field", "/execution_config")
-	}
-	if err := checkAdditional(cfg, allowed(
-		"provider", "mode", "model", "effort", "approval_policy", "filesystem_policy",
-		"context_injection", "initial_turn_transport", "required_capabilities",
-	), "launch-specification"); err != nil {
-		return err
-	}
-	for _, key := range []string{
-		"provider", "mode", "model", "effort", "approval_policy", "filesystem_policy",
-		"context_injection", "initial_turn_transport", "required_capabilities",
-	} {
-		if _, has := cfg[key]; !has {
-			return typedError("missing_field", "required_property", "missing required field", "/execution_config/"+key)
-		}
-	}
-	if _, err := requireEnum(cfg, "provider", providerNames); err != nil {
-		if err.Path != nil {
-			nested := "/execution_config" + *err.Path
-			err.Path = &nested
-		}
-		return err
-	}
-	if _, err := requireEnum(cfg, "mode", map[string]bool{"interactive": true, "headless": true}); err != nil {
-		if err.Path != nil {
-			nested := "/execution_config" + *err.Path
-			err.Path = &nested
-		}
-		return err
-	}
-	model, err := requireString(cfg, "model")
-	if err != nil {
-		if err.Path != nil {
-			nested := "/execution_config" + *err.Path
-			err.Path = &nested
-		}
-		return err
-	}
-	if len(model) < 1 || len(model) > 128 {
-		return typedError("bound_exceeded", "maxLength", "value exceeds schema bound", "/execution_config/model")
-	}
-	if _, err := requireEnum(cfg, "effort", map[string]bool{"low": true, "medium": true, "high": true}); err != nil {
-		if err.Path != nil {
-			nested := "/execution_config" + *err.Path
-			err.Path = &nested
-		}
-		return err
-	}
-	if _, err := requireEnum(cfg, "approval_policy", map[string]bool{"never": true, "on_request": true, "always": true}); err != nil {
-		if err.Path != nil {
-			nested := "/execution_config" + *err.Path
-			err.Path = &nested
-		}
-		return err
-	}
-	if _, err := requireEnum(cfg, "filesystem_policy", map[string]bool{"read_only": true, "workspace_write": true}); err != nil {
-		if err.Path != nil {
-			nested := "/execution_config" + *err.Path
-			err.Path = &nested
-		}
-		return err
-	}
-	if _, err := requireEnum(cfg, "context_injection", map[string]bool{"session_start_additional_context": true, "none": true}); err != nil {
-		if err.Path != nil {
-			nested := "/execution_config" + *err.Path
-			err.Path = &nested
-		}
-		return err
-	}
-	if _, err := requireEnum(cfg, "initial_turn_transport", map[string]bool{
-		"provider_prompt": true, "waiting_user_submit": true, "none": true,
-	}); err != nil {
-		if err.Path != nil {
-			nested := "/execution_config" + *err.Path
-			err.Path = &nested
-		}
-		return err
-	}
-	caps, ok := cfg["required_capabilities"].([]any)
-	if !ok {
-		return typedError("type_mismatch", "type", "expected array", "/execution_config/required_capabilities")
-	}
-	if len(caps) < 1 {
-		return typedError("bound_exceeded", "minItems", "value exceeds schema bound", "/execution_config/required_capabilities")
-	}
-	if err := requireUniqueStringSlice(caps, "/execution_config/required_capabilities", 32, capabilityPattern); err != nil {
-		return err
-	}
-	return requireUTC(obj, "expires_at")
-}
-
-func validateLaunchClaim(obj map[string]any) *generated.TypedError {
-	if err := checkAdditional(obj, allowed("schema_version", "launch_id", "runner_id", "idempotency_key", "claimed_at", "device_proof_nonce"), "launch-claim"); err != nil {
-		return err
-	}
-	if err := requireSchemaVersion(obj); err != nil {
-		return err
-	}
-	if err := requireULID(obj, "launch_id"); err != nil {
-		return err
-	}
-	if err := requireULID(obj, "runner_id"); err != nil {
-		return err
-	}
-	key, err := requireString(obj, "idempotency_key")
-	if err != nil {
-		return err
-	}
-	if !idempotencyPattern.MatchString(key) {
-		return typedError("type_mismatch", "pattern", "invalid idempotency key", "/idempotency_key")
-	}
-	return requireUTC(obj, "claimed_at")
-}
-
-func validateFinalAuthorization(obj map[string]any) *generated.TypedError {
-	if err := checkAdditional(obj, allowed(
-		"schema_version", "launch_id", "run_execution_id", "assignment_generation", "decision", "authorized_at", "rejection",
-	), "final-authorization"); err != nil {
-		return err
-	}
-	if err := requireSchemaVersion(obj); err != nil {
-		return err
-	}
-	if err := requireULID(obj, "launch_id"); err != nil {
-		return err
-	}
-	if err := requireULID(obj, "run_execution_id"); err != nil {
-		return err
-	}
-	if _, err := requireBoundedInt(obj, "assignment_generation", 1, 9007199254740991); err != nil {
-		return err
-	}
-	if _, err := requireEnum(obj, "decision", map[string]bool{"authorized": true, "rejected": true}); err != nil {
-		return err
-	}
-	return requireUTC(obj, "authorized_at")
-}
-
-func validateCloudWakeIntent(obj map[string]any) *generated.TypedError {
-	if err := checkAdditional(obj, allowed(
-		"schema_version", "intent_kind", "intent_id", "workspace_id", "runner_id", "requesting_human_id", "launch_id", "expires_at",
-	), "cloud-wake-intent"); err != nil {
-		return err
-	}
-	if err := requireSchemaVersion(obj); err != nil {
-		return err
-	}
-	kind, err := requireString(obj, "intent_kind")
-	if err != nil {
-		return err
-	}
-	if kind != "cloud_wake" {
-		return typedError("intent_confusion", "wake_intent_kind_mismatch", "cloud wake intent requires intent_kind cloud_wake", "/intent_kind")
-	}
-	for _, key := range []string{"intent_id", "workspace_id", "runner_id", "requesting_human_id"} {
-		if err := requireULID(obj, key); err != nil {
-			return err
-		}
-	}
-	return requireUTC(obj, "expires_at")
-}
-
-func validateTerminalIntent(obj map[string]any) *generated.TypedError {
-	if err := checkAdditional(obj, allowed(
-		"schema_version", "intent_kind", "local_intent_id", "launch_id", "created_at", "expires_at",
-	), "terminal-intent"); err != nil {
-		return err
-	}
-	if err := requireSchemaVersion(obj); err != nil {
-		return err
-	}
-	kind, err := requireString(obj, "intent_kind")
-	if err != nil {
-		return err
-	}
-	if kind != "terminal_local" {
-		return typedError("intent_confusion", "terminal_intent_kind_mismatch", "terminal intent requires intent_kind terminal_local", "/intent_kind")
-	}
-	if err := requireULID(obj, "local_intent_id"); err != nil {
-		return err
-	}
-	if err := requireULID(obj, "launch_id"); err != nil {
-		return err
-	}
-	if err := requireUTC(obj, "created_at"); err != nil {
-		return err
-	}
-	return requireUTC(obj, "expires_at")
-}
-
-func validateLocalRPC(obj map[string]any) *generated.TypedError {
-	if err := checkAdditional(obj, allowed(
-		"schema_version", "request_id", "method", "direction", "idempotency_key", "error", "payload",
-	), "local-rpc"); err != nil {
-		return err
-	}
-	if err := requireSchemaVersion(obj); err != nil {
-		return err
-	}
-	if err := requireULID(obj, "request_id"); err != nil {
-		return err
-	}
-	method, err := requireString(obj, "method")
-	if err != nil {
-		return err
-	}
-	if len(method) > 64 {
-		return typedError("bound_exceeded", "maxLength", "value exceeds schema bound", "/method")
-	}
-	if !methodPattern.MatchString(method) {
-		return typedError("type_mismatch", "pattern", "invalid method", "/method")
-	}
-	if _, err := requireEnum(obj, "direction", map[string]bool{
-		"request": true, "response": true, "event": true,
-	}); err != nil {
-		return err
-	}
-	return nil
-}
-
-var runnerEventKinds = map[string]bool{
-	"launch_claimed": true, "execution_attached": true, "execution_detached": true, "execution_ended": true,
-	"session_started": true, "session_resumed": true, "session_ended": true,
-	"turn_started": true, "turn_stopped": true, "turn_failed": true,
-	"tool_started": true, "tool_finished": true, "tool_failed": true,
-	"progress_reported": true, "attention_requested": true,
-	"subagent_started": true, "subagent_ended": true, "context_compacted": true,
-	"artifact_published": true, "result_submitted": true,
-	"run_failed": true, "run_cancelled": true, "heartbeat": true,
-}
-
-func validateRunnerEventSubmission(obj map[string]any) *generated.TypedError {
-	if err := checkAdditional(obj, allowed(
-		"schema_version", "event_id", "source_stream_id", "source_sequence", "source_event_id",
-		"run_execution_id", "assignment_generation", "claimed_workspace_id", "claimed_project_id",
-		"claimed_task_id", "claimed_run_id", "provider_session_id", "kind", "occurred_at",
-		"capture_origin", "payload",
-	), "runner-event-submission"); err != nil {
-		return err
-	}
-	if err := requireSchemaVersion(obj); err != nil {
-		return err
-	}
-	for _, key := range []string{"event_id", "source_stream_id", "run_execution_id"} {
-		if err := requireULID(obj, key); err != nil {
-			return err
-		}
-	}
-	if _, err := requireBoundedInt(obj, "source_sequence", 1, 9007199254740991); err != nil {
-		return err
-	}
-	if _, err := requireBoundedInt(obj, "assignment_generation", 1, 9007199254740991); err != nil {
-		return err
-	}
-	for _, key := range []string{"claimed_workspace_id", "claimed_project_id", "claimed_task_id", "claimed_run_id"} {
-		if _, has := obj[key]; has {
-			if err := requireULID(obj, key); err != nil {
-				return err
-			}
-		}
-	}
-	if raw, has := obj["source_event_id"]; has {
-		text, ok := raw.(string)
-		if !ok {
-			return typedError("type_mismatch", "type", "expected string", "/source_event_id")
-		}
-		if len(text) < 1 || len(text) > 256 {
-			return typedError("bound_exceeded", "maxLength", "value exceeds schema bound", "/source_event_id")
-		}
-	}
-	if raw, has := obj["provider_session_id"]; has {
-		text, ok := raw.(string)
-		if !ok {
-			return typedError("type_mismatch", "type", "expected string", "/provider_session_id")
-		}
-		if len(text) < 1 || len(text) > 256 {
-			return typedError("bound_exceeded", "maxLength", "value exceeds schema bound", "/provider_session_id")
-		}
-	}
-	kind, err := requireString(obj, "kind")
-	if err != nil {
-		return err
-	}
-	if !runnerEventKinds[kind] {
-		return typedError("unknown_kind", "unknown_event_kind", "unknown event kind", "/kind")
-	}
-	if err := requireUTC(obj, "occurred_at"); err != nil {
-		return err
-	}
-	if _, err := requireEnum(obj, "capture_origin", map[string]bool{
-		"runner_observed": true, "agent_reported": true, "hook_inbox": true,
-	}); err != nil {
-		return err
-	}
-	payload, ok := asObject(obj["payload"])
-	if !ok {
-		return typedError("missing_field", "required_property", "missing required field", "/payload")
-	}
-	if len(payload) > 0 {
-		return typedError("additional_field", "additional_property", "unexpected additional field", "/payload")
-	}
-	return nil
-}
-
-func validateTypedError(obj map[string]any) *generated.TypedError {
-	if err := checkAdditional(obj, allowed("schema_version", "category", "code", "message", "path"), "typed-error"); err != nil {
-		return err
-	}
-	if err := requireSchemaVersion(obj); err != nil {
-		return err
-	}
-	if _, err := requireString(obj, "category"); err != nil {
-		return err
-	}
-	if _, err := requireString(obj, "code"); err != nil {
-		return err
-	}
-	if _, err := requireString(obj, "message"); err != nil {
-		return err
-	}
-	return nil
+	return DecodeResult{OK: true, Value: object, JSON: encoded}
 }
 
 // LoadFixtureMatrix reads the shared Swift-consumable fixture matrix.
@@ -1005,20 +674,20 @@ func LoadFixtureMatrix(repoRoot string) ([]byte, error) {
 
 // RepositoryRoot walks upward from cwd looking for go.mod.
 func RepositoryRoot() (string, error) {
-	wd, err := os.Getwd()
+	workingDirectory, err := os.Getwd()
 	if err != nil {
 		return "", err
 	}
-	dir := wd
+	directory := workingDirectory
 	for {
-		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-			return dir, nil
+		if _, err := os.Stat(filepath.Join(directory, "go.mod")); err == nil {
+			return directory, nil
 		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return "", fmt.Errorf("go.mod not found from %s", wd)
+		parent := filepath.Dir(directory)
+		if parent == directory {
+			return "", fmt.Errorf("go.mod not found from %s", workingDirectory)
 		}
-		dir = parent
+		directory = parent
 	}
 }
 
@@ -1037,18 +706,18 @@ func ProtocolHead() string {
 	return generated.ProtocolHead
 }
 
-// NormalizeJSON re-encodes JSON with sorted object keys.
+// NormalizeJSON re-encodes JSON with sorted object keys and canonical integers.
 func NormalizeJSON(input []byte) (string, error) {
-	var value any
-	if err := json.Unmarshal(input, &value); err != nil {
+	value, err := decodeJSON(input)
+	if err != nil {
 		return "", err
 	}
 	return stableJSON(value)
 }
 
 // HasShellField reports whether a decoded object carries a forbidden shell field.
-func HasShellField(obj map[string]any) bool {
-	for key := range obj {
+func HasShellField(object map[string]any) bool {
+	for key := range object {
 		if _, found := shellFields[key]; found {
 			return true
 		}

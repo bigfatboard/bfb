@@ -64,6 +64,7 @@
       "type": "string",
       "enum": [
         "launch_claimed",
+        "launch_blocked",
         "execution_attached",
         "execution_detached",
         "execution_ended",

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "event_id": "01JBFB0EVENT00100000000000",
+  "source_stream_id": "01JBFB0STREAM0100000000000",
+  "source_sequence": 42,
+  "disposition": "retryable",
+  "diagnostic": {
+    "schema_version": 1,
+    "category": "schema_invalid",
+    "code": "retry_later",
+    "message": "temporary ingest failure"
+  }
+}

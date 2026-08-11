@@ -131,11 +131,7 @@ importers:
         specifier: 12.6.2
         version: 12.6.2
 
-  packages/protocol-ts:
-    dependencies:
-      ajv:
-        specifier: 8.20.0
-        version: 8.20.0
+  packages/protocol-ts: {}
 
   packages/ui: {}
 
@@ -167,7 +163,17 @@ importers:
         specifier: 1.55.1
         version: 1.55.1
 
-  tools/protocol: {}
+  tools/protocol:
+    dependencies:
+      ajv:
+        specifier: 8.20.0
+        version: 8.20.0
+      ajv-formats:
+        specifier: 3.0.1
+        version: 3.0.1(ajv@8.20.0)
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
 
   tools/repository: {}
 

@@ -6,6 +6,42 @@
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "event_id", "source_stream_id", "source_sequence", "disposition"],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "disposition": {
+            "enum": ["retryable", "permanently_rejected"]
+          }
+        },
+        "required": ["disposition"]
+      },
+      "then": {
+        "properties": {
+          "diagnostic": {}
+        },
+        "required": ["diagnostic"]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "disposition": {
+            "enum": ["accepted", "already_committed"]
+          }
+        },
+        "required": ["disposition"]
+      },
+      "then": {
+        "not": {
+          "properties": {
+            "diagnostic": {}
+          },
+          "required": ["diagnostic"]
+        }
+      }
+    }
+  ],
   "properties": {
     "schema_version": { "type": "integer", "const": 1 },
     "event_id": {

@@ -26,8 +26,10 @@ export async function checkProtocolDrift(root: string): Promise<string[]> {
 
     const paths = [
       "packages/protocol-ts/src/generated/types.ts",
+      "packages/protocol-ts/src/generated/validators.ts",
       "packages/protocol-ts/src/generated/catalog.json",
       "internal/protocol/generated/types.go",
+      "internal/protocol/generated/schemas.go",
     ];
     const issues: string[] = [];
     for (const relativePath of paths) {

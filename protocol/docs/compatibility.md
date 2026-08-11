@@ -10,18 +10,22 @@ ABOUTME: Applies to JSON Schema under protocol/schema and generated codecs.
 - Unknown `schema_version` values fail closed with diagnostic category `unknown_version`.
 - Unknown event `kind` values fail closed with category `unknown_kind` unless a later package explicitly documents additive reading.
 
-## Additive changes
+## Lockstep v1 changes
 
-- New optional fields may be added in a later minor schema revision only after fixtures and generated types are updated in the same change.
-- Required fields cannot be removed or retyped without a new major `schema_version`.
-- Enum additions require fixtures for the new value and rejection fixtures remain for invalid values.
-- Deprecation marks a field or kind as readable but non-authoritative; producers must not emit deprecated values once a replacement is required.
+- Version 1 is a closed contract: every object rejects unknown fields and peers deploy schema, generated validators, types, and fixtures together.
+- Adding any field or enum member requires a new negotiated wire version; an optional field is not additive while v1 readers use `additionalProperties: false`.
+- Required fields cannot be removed or retyped without a new wire version.
+- Deprecation requires an explicit version transition; v1 producers and readers do not silently accept deprecated values.
 
 ## Bounds
 
 - Every string, array, object map, and payload has explicit max length or max items in schema.
-- Timestamps are UTC RFC 3339 with a trailing `Z` and second precision minimum.
-- Resource IDs are Crockford ULID strings (`[0-9A-HJKMNP-TV-Z]{26}`).
+- A complete wire document is at most 1,048,576 bytes before UTF-8 decoding.
+- Wire decoders consume UTF-8 bytes, reject malformed UTF-8, byte-order marks, lone surrogate escapes, and duplicate object keys, including escaped-equivalent keys.
+- JSON Schema string lengths count Unicode scalar values. Swift decoders must use `unicodeScalars.count`, not grapheme-cluster count, for these bounds.
+- Timestamps are UTC RFC 3339 with a trailing `Z`, second precision minimum, at most six fractional digits, and seconds from `00` through `59`.
+- Resource IDs are Crockford ULID strings (`[0-7][0-9A-HJKMNP-TV-Z]{25}`).
+- Wire integers use exact JSON number semantics and the inclusive range `-9007199254740991` through `9007199254740991`; mathematically integral decimal/exponent spellings are accepted and re-encoded as canonical integers.
 - Oversized values fail with category `bound_exceeded`.
 
 ## Intent isolation
@@ -42,7 +46,7 @@ Shared diagnostic categories used by TypeScript and Go codecs:
 
 | Category | Meaning |
 | --- | --- |
-| `schema_invalid` | JSON is not an object or fails structural parse |
+| `schema_invalid` | JSON is malformed, has ambiguous keys/Unicode, violates uniqueness or conditional structure, or otherwise fails non-type schema structure |
 | `unknown_version` | Unsupported `schema_version` |
 | `unknown_kind` | Unsupported discriminator or event kind |
 | `bound_exceeded` | String, array, or payload exceeds schema bounds |

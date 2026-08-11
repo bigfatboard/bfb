@@ -222,6 +222,281 @@
       "schema": "local-rpc",
       "expect": "reject",
       "category": "type_mismatch"
+    },
+    {
+      "path": "valid/event-disposition.retryable.json",
+      "schema": "event-disposition",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/final-authorization.rejected.json",
+      "schema": "final-authorization",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/runner-enrollment.unicode-label.json",
+      "schema": "runner-enrollment",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/runner-enrollment.invalid-last-seen.json",
+      "schema": "runner-enrollment",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/execution-assignment.invalid-ended-at.json",
+      "schema": "execution-assignment",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/launch-claim.short-device-proof.json",
+      "schema": "launch-claim",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/final-authorization.rejected-without-error.json",
+      "schema": "final-authorization",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/final-authorization.authorized-with-error.json",
+      "schema": "final-authorization",
+      "expect": "reject",
+      "category": "schema_invalid"
+    },
+    {
+      "path": "invalid/cloud-wake-intent.invalid-launch-id.json",
+      "schema": "cloud-wake-intent",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.short-idempotency-key.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/local-rpc.invalid-error-category.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.nonempty-payload.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/typed-error.invalid-category.json",
+      "schema": "typed-error",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/event-disposition.retryable-without-diagnostic.json",
+      "schema": "event-disposition",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/event-disposition.accepted-with-diagnostic.json",
+      "schema": "event-disposition",
+      "expect": "reject",
+      "category": "schema_invalid"
+    },
+    {
+      "path": "invalid/event-envelope.actor-not-object.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/event-envelope.rounded-fractional-cursor.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "valid/event-envelope.exponent-integer.json",
+      "schema": "event-envelope",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/runner-enrollment.offset-last-seen.json",
+      "schema": "runner-enrollment",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/runner-enrollment.excessive-timestamp-precision.json",
+      "schema": "runner-enrollment",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/event-envelope.root-array.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/event-envelope.root-array-high-surrogate.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "schema_invalid"
+    },
+    {
+      "path": "invalid/event-envelope.root-array-low-surrogate.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "schema_invalid"
+    },
+    {
+      "path": "valid/runner-enrollment.canonical-characters.json",
+      "schema": "runner-enrollment",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/event-envelope.long-integer-lexeme.json",
+      "schema": "event-envelope",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/runner-event-submission.launch-blocked.json",
+      "schema": "runner-event-submission",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/runner-enrollment.lone-surrogate.json",
+      "schema": "runner-enrollment",
+      "expect": "reject",
+      "category": "schema_invalid"
+    },
+    {
+      "path": "invalid/runner-enrollment.invalid-ulid-envelope.json",
+      "schema": "runner-enrollment",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/runner-enrollment.leap-second.json",
+      "schema": "runner-enrollment",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/event-envelope.unsafe-schema-version.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "unknown_version"
+    },
+    {
+      "path": "invalid/event-envelope.rounded-fractional-version.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/event-envelope.huge-integer-cursor.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/event-envelope.tiny-fractional-cursor.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/event-envelope.round-up-fractional-cursor.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/event-envelope.multiple-numeric-errors.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/event-envelope.long-numeric-path.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/event-envelope.huge-exponent-cursor.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/event-envelope.huge-exponent-version.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "unknown_version"
+    },
+    {
+      "path": "invalid/cloud-wake-intent.generic-extra.json",
+      "schema": "cloud-wake-intent",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/cloud-wake-intent.compound-version-intent.json",
+      "schema": "cloud-wake-intent",
+      "expect": "reject",
+      "category": "unknown_version"
+    },
+    {
+      "path": "invalid/launch-specification.nested-shell-order.json",
+      "schema": "launch-specification",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/event-envelope.duplicate-schema-version.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "schema_invalid"
+    },
+    {
+      "path": "invalid/runner-enrollment.scalar-length.json",
+      "schema": "runner-enrollment",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/cloud-wake-intent.wrong-intent-type.json",
+      "schema": "cloud-wake-intent",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/terminal-intent.wrong-intent-type.json",
+      "schema": "terminal-intent",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/cloud-wake-intent.fractional-version-wrong-intent.json",
+      "schema": "cloud-wake-intent",
+      "expect": "reject",
+      "category": "intent_confusion"
+    },
+    {
+      "path": "invalid/event-envelope.wrong-kind-type.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "type_mismatch"
     }
   ]
 }
