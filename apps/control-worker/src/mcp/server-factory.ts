@@ -7,7 +7,7 @@ import { z } from "zod";
 import type { SqlDatabase } from "@bfb/db";
 import {
   type ActiveDelegation,
-  WorkspaceHub,
+  workspaceHub,
   assertScope,
   getAgentContext,
   getTask,
@@ -29,7 +29,7 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
     name: "bfb",
     version: "0.0.0",
   });
-  const hub = new WorkspaceHub(deps.db);
+  const hub = workspaceHub(deps.db, deps.delegation.workspaceId);
   const principal = await loadPrincipal(
     deps.db,
     deps.delegation.workspaceId,

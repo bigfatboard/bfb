@@ -4,6 +4,7 @@
 import { describe, expect, it } from "vitest";
 
 import { DomainError, WorkspaceHub, type HubCommand } from "../src/hub.js";
+import { clearWorkspaceHubs, workspaceHub } from "../src/hub-registry.js";
 import { FIX } from "../src/fixtures.js";
 import { openDomainDb } from "./helpers.js";
 
@@ -170,5 +171,41 @@ describe("workspace hub", () => {
       .filter(Boolean) as Array<{ n: number; cursor: number }>;
     ordered.sort((a, b) => a.cursor - b.cursor);
     expect(ordered.map((row) => row.n)).toEqual([1, 2, 3]);
+  });
+
+  it("shares one FIFO lane across request-style hub resolutions for a workspace", async () => {
+    const db = await openDomainDb();
+    clearWorkspaceHubs(db);
+    const delayed: HubCommand<{ n: number; delayMs: number }, { n: number }> = {
+      name: "test.registry-delayed",
+      async run(input) {
+        await new Promise((resolve) => setTimeout(resolve, input.delayMs));
+        return { n: input.n };
+      },
+    };
+    // Simulate three independent request handlers resolving the hub separately.
+    const results = await Promise.all(
+      [
+        { n: 1, delayMs: 25 },
+        { n: 2, delayMs: 5 },
+        { n: 3, delayMs: 10 },
+      ].map((input) => {
+        const hub = workspaceHub(db, FIX.workspace);
+        return hub.execute(delayed, {
+          workspaceId: FIX.workspace,
+          idempotencyKey: "reg-" + input.n,
+          input,
+          authorizationEpoch: 1,
+          actorHumanId: FIX.owner,
+        });
+      }),
+    );
+    expect(results.every((result) => result.ok)).toBe(true);
+    const ordered = results
+      .map((result) => (result.ok ? { n: result.result.n, cursor: result.cursor } : null))
+      .filter(Boolean) as Array<{ n: number; cursor: number }>;
+    ordered.sort((a, b) => a.cursor - b.cursor);
+    expect(ordered.map((row) => row.n)).toEqual([1, 2, 3]);
+    expect(workspaceHub(db, FIX.workspace)).toBe(workspaceHub(db, FIX.workspace));
   });
 });

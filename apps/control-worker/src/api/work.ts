@@ -3,7 +3,7 @@
 
 import type { SqlDatabase } from "@bfb/db";
 import {
-  WorkspaceHub,
+  workspaceHub,
   buildNeedsNowDeck,
   buildProjectLanes,
   createTaskCommand,
@@ -29,7 +29,7 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
   const url = new URL(request.url);
   const path = url.pathname;
   const authz = await loadPrincipal(deps.db, deps.workspaceId, deps.principal.humanId);
-  const hub = new WorkspaceHub(deps.db);
+  const hub = workspaceHub(deps.db, deps.workspaceId);
 
   if (path === `/api/v1/workspaces/${deps.workspaceId}/board` && request.method === "GET") {
     const lanes = await buildProjectLanes(deps.db, deps.workspaceId, authz.projectIds);

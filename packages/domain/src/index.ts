@@ -5,6 +5,7 @@ export * from "./abuse.js";
 export * from "./authorization.js";
 export * from "./fixtures.js";
 export * from "./hub.js";
+export * from "./hub-registry.js";
 export * from "./ids.js";
 export * from "./mcp-routing.js";
 export * from "./oauth.js";
