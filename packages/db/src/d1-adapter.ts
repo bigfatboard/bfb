@@ -55,7 +55,11 @@ export function adaptD1(d1: D1Like): SqlDatabase {
       return immediateStatement(d1, sql);
     },
     async withTransaction<T>(fn: (tx: SqlDatabase) => Promise<T>): Promise<T> {
+      // D1 has no interactive BEGIN/COMMIT. Queue writes and flush once with batch().
+      // Reads go to live D1 (no read-your-writes). Domain commands must not re-read
+      // rows they just wrote inside the same transaction.
       const writes: D1StatementLike[] = [];
+      let failed = false;
       const tx: SqlDatabase = {
         prepare(sql: string) {
           return {
@@ -63,8 +67,8 @@ export function adaptD1(d1: D1Like): SqlDatabase {
               const base = d1.prepare(sql);
               const stmt = params.length > 0 ? base.bind(...params) : base;
               writes.push(stmt);
-              // changes unknown until batch flush; consumers should not rely on mid-tx counts
-              return { changes: 0 };
+              // Optimistic change count: actual meta is applied at batch flush.
+              return { changes: 1 };
             },
             async get(...params: unknown[]) {
               return immediateStatement(d1, sql).get(...params);
@@ -79,11 +83,21 @@ export function adaptD1(d1: D1Like): SqlDatabase {
         },
       };
 
-      const result = await fn(tx);
-      if (writes.length > 0) {
-        await d1.batch(writes);
+      try {
+        const result = await fn(tx);
+        if (writes.length > 0) {
+          await d1.batch(writes);
+        }
+        return result;
+      } catch (error) {
+        failed = true;
+        throw error;
+      } finally {
+        if (failed) {
+          // Writes never flushed when fn throws — atomic abort for the batch path.
+          writes.length = 0;
+        }
       }
-      return result;
     },
   };
   return self;

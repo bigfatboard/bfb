@@ -95,7 +95,20 @@ export const createTaskCommand: HubCommand<CreateTaskInput, TaskRecord> = {
         ctx.actorDelegationId ?? null,
         ctx.now,
       );
-    return (await getTask(ctx.db, ctx.workspaceId, id))!;
+    // Return the written row without a mid-transaction re-read (D1 batch TX has no read-your-writes).
+    return {
+      id,
+      project_id: input.projectId,
+      title: input.title,
+      state,
+      priority: input.priority,
+      due_at: input.dueAt ?? null,
+      next_owner_type: input.nextOwnerType ?? "unassigned",
+      next_owner_id: input.nextOwnerId ?? null,
+      next_action_reason: input.nextActionReason ?? null,
+      punchline,
+      resource_version: 1,
+    };
   },
 };
 
@@ -136,6 +149,14 @@ export const updateTaskCommand: HubCommand<UpdateTaskInput, TaskRecord> = {
     }
     const nextState = input.promote ? "ready" : (input.state ?? task.state);
     const nextVersion = task.resource_version + 1;
+    const nextTitle = input.title ?? task.title;
+    const nextPriority = input.priority ?? task.priority;
+    const nextDue = input.dueAt === undefined ? task.due_at : input.dueAt;
+    const nextOwnerType = input.nextOwnerType ?? task.next_owner_type;
+    const nextOwnerId = input.nextOwnerId === undefined ? task.next_owner_id : input.nextOwnerId;
+    const nextActionReason =
+      input.nextActionReason === undefined ? task.next_action_reason : input.nextActionReason;
+    const nextPunchline = input.punchline ?? task.punchline;
     await ctx.db
       .prepare(
         `UPDATE tasks SET
@@ -145,20 +166,32 @@ export const updateTaskCommand: HubCommand<UpdateTaskInput, TaskRecord> = {
          WHERE workspace_id = ? AND id = ? AND resource_version = ?`,
       )
       .run(
-        input.title ?? task.title,
+        nextTitle,
         nextState,
-        input.priority ?? task.priority,
-        input.dueAt === undefined ? task.due_at : input.dueAt,
-        input.nextOwnerType ?? task.next_owner_type,
-        input.nextOwnerId === undefined ? task.next_owner_id : input.nextOwnerId,
-        input.nextActionReason === undefined ? task.next_action_reason : input.nextActionReason,
-        input.punchline ?? task.punchline,
+        nextPriority,
+        nextDue,
+        nextOwnerType,
+        nextOwnerId,
+        nextActionReason,
+        nextPunchline,
         nextVersion,
         ctx.workspaceId,
         input.taskId,
         input.expectedVersion,
       );
-    return (await getTask(ctx.db, ctx.workspaceId, input.taskId))!;
+    return {
+      id: task.id,
+      project_id: task.project_id,
+      title: nextTitle,
+      state: nextState,
+      priority: nextPriority,
+      due_at: nextDue,
+      next_owner_type: nextOwnerType,
+      next_owner_id: nextOwnerId,
+      next_action_reason: nextActionReason,
+      punchline: nextPunchline,
+      resource_version: nextVersion,
+    };
   },
 };
 

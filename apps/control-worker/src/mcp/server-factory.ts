@@ -46,11 +46,16 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
     },
     async () => {
       assertScope(deps.delegation, "bfb:read");
+      // membership ∩ delegation: only projects allowed by both role grants and delegation scope
+      let projectIds = principal.projectIds;
+      if (deps.delegation.projectId) {
+        projectIds = projectIds.filter((id) => id === deps.delegation.projectId);
+      }
       return {
         content: [
           {
             type: "text" as const,
-            text: JSON.stringify({ projects: principal.projectIds }),
+            text: JSON.stringify({ projects: projectIds }),
           },
         ],
       };
@@ -65,8 +70,15 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
     },
     async () => {
       assertScope(deps.delegation, "bfb:read");
-      const tasks = await listTasks(deps.db, deps.delegation.workspaceId, principal.projectIds);
-      return { content: [{ type: "text" as const, text: JSON.stringify({ tasks }) }] };
+      let projectIds = principal.projectIds;
+      if (deps.delegation.projectId) {
+        projectIds = projectIds.filter((id) => id === deps.delegation.projectId);
+      }
+      const tasks = await listTasks(deps.db, deps.delegation.workspaceId, projectIds);
+      const scoped = deps.delegation.taskId
+        ? tasks.filter((task) => task.id === deps.delegation.taskId)
+        : tasks;
+      return { content: [{ type: "text" as const, text: JSON.stringify({ tasks: scoped }) }] };
     },
   );
 

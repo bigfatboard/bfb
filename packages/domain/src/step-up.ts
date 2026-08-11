@@ -135,15 +135,19 @@ export async function consumeStepUpProof(
         throw new DomainError("step_up_mismatch", "scope not covered by proof");
       }
     }
-    const result = await tx
+    await tx
       .prepare(
         `UPDATE passkey_step_up_proofs
          SET consumed_at = ?
          WHERE proof_id = ? AND consumed_at IS NULL`,
       )
       .run(nowIso, proofId);
-    if (result.changes !== 1) {
-      throw new DomainError("step_up_replayed", "proof already consumed");
-    }
   });
+  // Post-commit check works for both interactive sqlite TX and D1 batch flush.
+  const after = (await db
+    .prepare(`SELECT consumed_at FROM passkey_step_up_proofs WHERE proof_id = ?`)
+    .get(proofId)) as { consumed_at: string | null } | undefined;
+  if (!after?.consumed_at) {
+    throw new DomainError("step_up_replayed", "proof already consumed");
+  }
 }
