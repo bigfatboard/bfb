@@ -1,7 +1,7 @@
 {
   "$schema": "../manifest.schema.json",
   "package": "X03A",
-  "tested_commit": "a9ff5dbdc7707ed9ec0e952f9434977c464f5e45",
+  "tested_commit": "696e3ccf33ba590a4a50a3f53dc448ca9cd4f639",
   "protocol_version": "bfb-wire/1",
   "schema_version": "1",
   "migration_head": "0006_reviewer_role",
@@ -10,7 +10,7 @@
     "pnpm": "11.21.0"
   },
   "environment": {
-    "kind": "local",
+    "kind": "clean_checkout",
     "os": "macOS",
     "architecture": "arm64"
   },
@@ -28,8 +28,10 @@
   "outcome": "passed",
   "artifacts": [
     "docs/work-packages/evidence/WP-X03A/command-result.json",
+    "docs/work-packages/evidence/WP-X03A/independent-audit.md",
     "packages/domain/src/oauth.ts",
-    "packages/domain/test/mcp.test.ts"
+    "packages/domain/test/mcp.test.ts",
+    "apps/control-worker/src/oauth/routes.ts"
   ],
   "redaction": {
     "status": "passed",

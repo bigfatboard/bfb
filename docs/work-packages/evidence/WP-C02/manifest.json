@@ -1,17 +1,17 @@
 {
   "$schema": "../manifest.schema.json",
   "package": "C02",
-  "tested_commit": "bde79ccdfb95004772ba457d9c48e111211f454d",
+  "tested_commit": "696e3ccf33ba590a4a50a3f53dc448ca9cd4f639",
   "protocol_version": "bfb-wire/1",
   "schema_version": "1",
-  "migration_head": "0005_workspace_invariants",
+  "migration_head": "0006_reviewer_role",
   "toolchains": {
     "node": "24.19.0",
     "pnpm": "11.21.0",
     "better-auth": "1.6.26"
   },
   "environment": {
-    "kind": "local",
+    "kind": "clean_checkout",
     "os": "macOS",
     "architecture": "arm64"
   },

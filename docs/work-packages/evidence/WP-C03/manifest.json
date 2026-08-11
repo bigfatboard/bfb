@@ -1,16 +1,16 @@
 {
   "$schema": "../manifest.schema.json",
   "package": "C03",
-  "tested_commit": "fdef312873e2849729ec49c7dc0913861b0e3f84",
+  "tested_commit": "696e3ccf33ba590a4a50a3f53dc448ca9cd4f639",
   "protocol_version": "bfb-wire/1",
   "schema_version": "1",
-  "migration_head": "0005_workspace_invariants",
+  "migration_head": "0006_reviewer_role",
   "toolchains": {
     "node": "24.19.0",
     "pnpm": "11.21.0"
   },
   "environment": {
-    "kind": "local",
+    "kind": "clean_checkout",
     "os": "macOS",
     "architecture": "arm64"
   },

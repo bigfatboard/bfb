@@ -7,6 +7,7 @@
     "stale/client/action/human/scope mismatch",
     "max TTL bound",
     "task boundary mismatch",
-    "atomic CAS consume"
+    "conditional UPDATE plus unique stamp ownership",
+    "concurrent consume single winner"
   ]
 }

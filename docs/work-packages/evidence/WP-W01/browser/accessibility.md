@@ -26,7 +26,7 @@
     - list:
       - listitem:
         - text: P1NOW
-        - strong: stale-source-1786458522298
+        - strong: stale-source-1786458974683
         - paragraph: Ready for next action
         - paragraph: Pass to configured agent profile
         - paragraph: Agent work unavailable

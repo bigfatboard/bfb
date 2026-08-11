@@ -9,6 +9,8 @@
     "injected failure full rollback",
     "delayed concurrent FIFO order",
     "abuse rate-limit buckets",
-    "shared per-workspace hub registry across request resolutions"
+    "shared per-workspace hub registry across request resolutions",
+    "DO-shaped hub client concurrent FIFO cursors",
+    "workspace jurisdiction mismatch rejected"
   ]
 }

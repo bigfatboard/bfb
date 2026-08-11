@@ -4,8 +4,10 @@
   "outcome": "passed",
   "checks": [
     "MCP 2026-07-28 routing",
-    "membership\u2229delegation scope",
+    "membership∩delegation scope",
     "OAuth PKCE path",
-    "cookie cannot auth mcp"
+    "cookie cannot auth mcp",
+    "OAuth code single-winner consume stamp",
+    "mutations via WorkspaceHub DO client"
   ]
 }
