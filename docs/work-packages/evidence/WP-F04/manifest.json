@@ -1,21 +1,31 @@
 {
   "$schema": "../manifest.schema.json",
   "package": "F04",
-  "tested_commit": "6ec23df07e2d81270159069625e40c85051135fd",
+  "tested_commit": "9ff92a91166b10ad7199c5ad6c4040a9c9d97078",
   "protocol_version": "bfb-wire/1",
   "schema_version": "1",
-  "migration_head": "0005_workspace_invariants",
+  "migration_head": "0007_tenant_relationships",
   "toolchains": {
     "node": "24.19.0",
     "pnpm": "11.21.0",
-    "better-sqlite3": "12.6.2"
+    "go": "1.26.5",
+    "xcode": "26.0.1",
+    "better-sqlite3": "12.6.2",
+    "drizzle-orm": "0.45.2",
+    "wrangler": "4.120.1",
+    "playwright": "1.55.1"
   },
   "environment": {
-    "kind": "local",
-    "os": "macOS",
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56) and Ubuntu 24.04 isolated container",
     "architecture": "arm64"
   },
   "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-F04/command-result.json"
+    },
     {
       "command": "pnpm test:db",
       "outcome": "passed",
@@ -23,15 +33,30 @@
     },
     {
       "command": "pnpm verify",
-      "outcome": "passed"
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-F04/command-result.json"
+    },
+    {
+      "command": "pnpm packages:verify",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-F04/command-result.json"
     }
   ],
   "outcome": "passed",
   "artifacts": [
     "docs/work-packages/evidence/WP-F04/command-result.json",
+    "docs/work-packages/evidence/WP-F04/migration-matrix.json",
+    "docs/work-packages/evidence/WP-F04/tenant-boundaries.json",
     "docs/work-packages/evidence/WP-F04/schema-snapshot.json",
+    "docs/work-packages/evidence/WP-F04/migration-flow.mmd",
+    "docs/work-packages/evidence/WP-F04/independent-audit.md",
     "migrations/d1/manifest.json",
-    "migrations/d1/0005_workspace_invariants.sql"
+    "migrations/d1/0005_workspace_invariants.sql",
+    "migrations/d1/0006_reviewer_role.sql",
+    "migrations/d1/0007_tenant_relationships.sql",
+    "packages/db/src/schema.ts",
+    "packages/db/src/d1-adapter.ts",
+    "tools/db/run.ts"
   ],
   "redaction": {
     "status": "passed",

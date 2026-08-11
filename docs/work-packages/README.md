@@ -338,13 +338,13 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 | F01 | [Repository foundation](WP-F01-repository-foundation.md) | `done` | Medium |
 | F02 | [Wire contracts and test doubles](WP-F02-wire-contracts.md) | `done` | High |
 | F03 | [Cloudflare application substrate](WP-F03-cloud-substrate.md) | `done` | High |
-| F04 | [D1 tenant persistence and migrations](WP-F04-tenant-persistence.md) | `in_progress` | Very high |
+| F04 | [D1 tenant persistence and migrations](WP-F04-tenant-persistence.md) | `done` | Very high |
 
 ### Control plane
 
 | ID | Package | Status | Risk |
 | --- | --- | --- | --- |
-| C01 | [WorkspaceHub command and event kernel](WP-C01-command-kernel.md) | `planned` | Very high |
+| C01 | [WorkspaceHub command and event kernel](WP-C01-command-kernel.md) | `in_progress` | Very high |
 | C02 | [Human identity and sessions](WP-C02-human-identity.md) | `planned` | High |
 | C03 | [Passkey enrollment and step-up](WP-C03-passkey-step-up.md) | `planned` | High |
 | C04 | [Workspace authorization](WP-C04-workspace-authorization.md) | `planned` | Very high |

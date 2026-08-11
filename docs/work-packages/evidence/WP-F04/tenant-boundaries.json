@@ -1,0 +1,36 @@
+{
+  "package": "F04",
+  "tested_commit": "9ff92a91166b10ad7199c5ad6c4040a9c9d97078",
+  "checks": [
+    {
+      "boundary": "authorization context",
+      "outcome": "passed",
+      "proof": "context values are validated and snapshotted; repository queries always include workspace scope"
+    },
+    {
+      "boundary": "bootstrap",
+      "outcome": "passed",
+      "proof": "only the first workspace can be created; existing tenant rows cannot be read or mutated"
+    },
+    {
+      "boundary": "composite tenant relationships",
+      "outcome": "passed",
+      "proof": "cross-workspace and project/task/delegation mismatches are rejected by repository and D1 constraints"
+    },
+    {
+      "boundary": "workspace registry",
+      "outcome": "passed",
+      "proof": "identity, jurisdiction, delete, insert-replace, update-replace, and slug-collision paths cannot replace another workspace"
+    },
+    {
+      "boundary": "deferred D1 batch",
+      "outcome": "passed",
+      "proof": "queued writes do not invent change counts; reads after writes and mutating RETURNING reads fail closed; failed batches leave no immediate mutation"
+    },
+    {
+      "boundary": "wire primitives",
+      "outcome": "passed",
+      "proof": "ULID and UTC validation matches the F02 boundary, including year zero"
+    }
+  ]
+}

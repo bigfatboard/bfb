@@ -1,0 +1,9 @@
+flowchart LR
+  A["0004 previous checkpoint"] --> B["0005 workspace invariants"]
+  B --> C["0006 member and access rebuild"]
+  C --> D["0007 tenant relationship rebuild"]
+  D --> E["Reviewed head: clean foreign keys"]
+
+  X["Malformed ID, hostile relationship, or injected failure"] --> R["Atomic rollback"]
+  R --> S["Repair source state"]
+  S --> B
