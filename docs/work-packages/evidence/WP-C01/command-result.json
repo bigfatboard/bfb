@@ -1,5 +1,13 @@
 {
   "package": "C01",
   "command": "pnpm test:c01",
-  "outcome": "passed"
+  "outcome": "passed",
+  "checks": [
+    "idempotent single effect",
+    "concurrent monotonic cursors",
+    "authority-bound idempotency",
+    "injected failure full rollback",
+    "delayed concurrent FIFO order",
+    "abuse rate-limit buckets"
+  ]
 }
