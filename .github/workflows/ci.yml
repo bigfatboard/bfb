@@ -41,11 +41,14 @@ jobs:
       - name: Install Playwright Chromium
         run: pnpm exec playwright install --with-deps chromium
 
+      - name: Verify repository and completed package gates
+        run: pnpm packages:verify
+
       - name: Preserve IC-1 regression coverage during re-certification
         run: pnpm test:ic1
 
-      - name: Verify repository and completed package gates
-        run: pnpm packages:verify
+      - name: Assert IC-1 tests left the checkout clean
+        run: pnpm worktree:check
 
   macos:
     name: macOS, Swift, and Go process smoke
