@@ -9,8 +9,11 @@ import { expect, type Page } from "@playwright/test";
 import { FIX, SYNTHETIC_PASSWORD } from "@bfb/domain";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+const capturedEvidenceDir = path.join(rootDir, "docs/work-packages/evidence/WP-W01/browser");
+const transientEvidenceDir = path.join(rootDir, "apps/web/test/e2e/test-results/evidence");
 
-export const EVIDENCE_DIR = path.join(rootDir, "docs/work-packages/evidence/WP-W01/browser");
+export const EVIDENCE_DIR =
+  process.env.BFB_CAPTURE_EVIDENCE === "1" ? capturedEvidenceDir : transientEvidenceDir;
 
 export const ROLES = {
   owner: {

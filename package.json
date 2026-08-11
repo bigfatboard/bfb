@@ -19,6 +19,7 @@
     "go:check": "tsx tools/repository/src/go-cli.ts",
     "headers:check": "tsx tools/repository/src/aboutme-cli.ts",
     "lint": "oxlint --deny-warnings apps packages tools prettier.config.mjs vitest.config.ts",
+    "packages:verify": "tsx tools/repository/src/package-gates-cli.ts",
     "protocol:generate": "tsx tools/protocol/src/generate.ts",
     "protocol:check": "tsx tools/protocol/src/check-drift.ts",
     "roadmap:check": "tsx tools/repository/src/roadmap-cli.ts check",
@@ -41,6 +42,7 @@
     "test:w01:unit": "vitest run packages/domain/test/projections.test.ts apps/web/test",
     "test:w01:browser": "playwright test --config tools/e2e/playwright.config.ts",
     "test:w01": "pnpm test:w01:unit && pnpm test:w01:browser",
+    "test:w01:evidence": "BFB_CAPTURE_EVIDENCE=1 pnpm test:w01",
     "test:x03a": "vitest run packages/domain/test/mcp.test.ts packages/domain/test/oauth.test.ts apps/control-worker/test/mcp-handler.test.ts apps/control-worker/test/routes.test.ts apps/control-worker/test/d1-adapter.test.ts",
     "test:ic1": "pnpm test:domain && pnpm test:w01 && pnpm test:x03a"
   },

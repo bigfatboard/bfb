@@ -459,7 +459,8 @@ async function validateEvidence(root: string, packages: WorkPackage[]): Promise<
       }
       if (
         workPackage.status === "done" &&
-        (manifest.outcome !== "passed" ||
+        (manifest.environmentKind !== "clean_checkout" ||
+          manifest.outcome !== "passed" ||
           manifest.redaction.status !== "passed" ||
           manifest.commands.some((command) => command.outcome !== "passed") ||
           !manifest.commands.some((command) => command.command === workPackage.testTarget) ||
@@ -501,6 +502,7 @@ interface EvidenceCommand {
 interface EvidenceManifest {
   commands: EvidenceCommand[];
   outcome: string;
+  environmentKind: string;
   artifacts: string[];
   redaction: { status: string; prohibited_content: string[] };
   ci?: { status: string; run_url?: string };
@@ -642,6 +644,7 @@ function evidenceManifest(
   return {
     commands,
     outcome: manifest.outcome,
+    environmentKind: environment.kind,
     artifacts: manifest.artifacts,
     redaction: {
       status: redaction.status,

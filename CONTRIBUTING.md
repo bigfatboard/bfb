@@ -9,7 +9,8 @@ BFB is built as a sequence of work packages. Start with the package roadmap, con
 3. Run `pnpm verify` before changing code to establish the baseline.
 4. Add an executable failure case before implementing observable behavior.
 5. Run the package test target and `pnpm verify`.
-6. Record bounded, redacted evidence at the package's declared manifest path.
+6. Commit the implementation, then run `pnpm packages:verify` from a clean checkout.
+7. Record bounded, redacted evidence at the package's declared manifest path.
 
 Do not disable checks or commit generated output without its source and owning command. Do not commit `.env` files, credentials, provider transcripts, task bodies, private terminal logs, or machine-local paths.
 

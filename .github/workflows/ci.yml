@@ -38,14 +38,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Verify repository
-        run: pnpm verify
-
       - name: Install Playwright Chromium
         run: pnpm exec playwright install --with-deps chromium
 
-      - name: IC-1 domain, MCP integration, and browser E2E
-        run: pnpm test:ic1
+      - name: Verify repository and completed package gates
+        run: pnpm packages:verify
 
   macos:
     name: macOS, Swift, and Go process smoke

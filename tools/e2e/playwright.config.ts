@@ -1,5 +1,5 @@
 // ABOUTME: Playwright config for W01 real-browser E2E against the local fixture control+SPA server.
-// ABOUTME: Starts tools/e2e server on fixed port 4173 and writes evidence under WP-W01/browser.
+// ABOUTME: Starts tools/e2e server on port 4173 with transient browser artifacts by default.
 
 import path from "node:path";
 import { fileURLToPath } from "node:url";

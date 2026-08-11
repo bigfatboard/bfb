@@ -106,6 +106,7 @@ async function fixtureRoot(fixtures: FixturePackage[]): Promise<string> {
 
 interface EvidenceOptions {
   command?: string;
+  environmentKind?: "local" | "ci" | "clean_checkout" | "staging" | "production";
   outcome?: "passed" | "failed" | "not_run";
   commandOutcome?: "passed" | "failed" | "not_run";
   redactionStatus?: "passed" | "failed" | "not_run";
@@ -136,7 +137,11 @@ async function writeEvidence(
         schema_version: null,
         migration_head: null,
         toolchains: { node: "24.19.0" },
-        environment: { kind: "clean_checkout", os: "test", architecture: "arm64" },
+        environment: {
+          kind: options.environmentKind ?? "clean_checkout",
+          os: "test",
+          architecture: "arm64",
+        },
         commands: [
           {
             command: options.command ?? "pnpm test",
@@ -304,6 +309,23 @@ describe("work-package roadmap", () => {
     await writeEvidence(root, "F01", { command: "true" });
 
     expect(issueCodes(await inspectRoadmap(root))).toContain("evidence");
+  });
+
+  test("requires clean-checkout evidence for a done package", async () => {
+    for (const environmentKind of ["local", "ci", "staging", "production"] as const) {
+      const root = await fixtureRoot([{ id: "F01", status: "done", readyMetadata: true }]);
+      await writeEvidence(root, "F01", { environmentKind });
+
+      expect(issueCodes(await inspectRoadmap(root))).toContain("evidence");
+    }
+  });
+
+  test("allows local evidence while a package remains in review", async () => {
+    const root = await fixtureRoot([{ id: "F01", status: "review", readyMetadata: true }]);
+    await writeEvidence(root, "F01", { environmentKind: "local" });
+    await writeGeneratedRoadmap(root);
+
+    await expect(inspectRoadmap(root)).resolves.toMatchObject({ issues: [] });
   });
 
   test("rejects schema-invalid CI evidence", async () => {
