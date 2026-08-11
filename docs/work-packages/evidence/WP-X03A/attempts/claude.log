@@ -1,68 +1,24 @@
-# Claude real attempt log (redacted)
+# Claude real attempt log (redacted summary)
+
 exact_version: 2.1.224 (Claude Code)
 result: failed to connect — client probe omitted/mismatched MCP-Protocol-Version 2026-07-28 (HTTP 400)
 
-## Commands
-$ claude mcp remove -s local bfb-x03a-provider-compat
-exit: 1
-stdout: (empty)
-stderr:
-No MCP server named "bfb-x03a-provider-compat" in local scope
+## Commands (summary)
 
-$ claude mcp add --transport http --scope local --client-id bfb-mcp-synthetic-client --callback-port 9999 bfb-x03a-provider-compat http://127.0.0.1:18765/mcp
-exit: 0
-stdout:
-Added HTTP MCP server bfb-x03a-provider-compat with URL: http://127.0.0.1:18765/mcp to local config
-File modified: /Users/[REDACTED]/.claude.json [project: /Users/[REDACTED]/work/tenira/bfb]
-stderr: (empty)
-
-$ claude mcp get bfb-x03a-provider-compat
-exit: 0
-stdout:
-bfb-x03a-provider-compat:
-  Scope: Local config (private to you in this project)
-  Status: ✘ Failed to connect
-  Issue: HTTP 400: Streamable HTTP error: Error POSTing to endpoint: {"error":"protocol_version","message":"MCP-Protocol-Version must be 2026-07-28"}
-  Type: http
-  URL: http://127.0.0.1:18765/mcp
-  OAuth: client_id configured, callback_port 9999
-
-To remove this server, run: claude mcp remove bfb-x03a-provider-compat -s local
-stderr: (empty)
-
-$ claude mcp login --no-browser bfb-x03a-provider-compat
-exit: 1
-stdout:
-Starting authentication for "bfb-x03a-provider-compat"…
-stderr:
-Couldn't complete authentication for "bfb-x03a-provider-compat": stdin isn't a terminal, so authentication can't be completed here. Re-run in an interactive terminal — e.g. `ssh -t` — and paste the redirect URL when prompted.
-
-$ claude mcp list
-exit: 0
-stdout:
-Checking MCP server health…
-
-claude.ai Tripadvisor: https://production.ai-mcp-extensibility-prd.tamg.cloud/ogMvjY4De1G7CiHanMOAgddl/mcp - ✔ Connected
-claude.ai Booking.com: https://demandapi-mcp.booking.com/v1/mcp/8132308 - ✔ Connected
-claude.ai Figma: https://mcp.figma.com/mcp - ✔ Connected
-claude.ai Gmail: https://gmailmcp.googleapis.com/mcp/v1 - ✔ Connected
-claude.ai Google Calendar: https://calendarmcp.googleapis.com/mcp/v1 - ✔ Connected
-claude.ai Google Drive: https://drivemcp.googleapis.com/mcp/v1 - ✔ Connected
-plugin:chrome-devtools-mcp:chrome-devtools: npx chrome-devtools-mcp@1.6.0 - ✔ Connected
-plugin:playwright:playwright: npx -y @playwright/mcp@latest --isolated - ✔ Connected
-bfb-x03a-provider-compat: http://127.0.0.1:18765/mcp (HTTP) - ✘ Failed to connect — HTTP 400: Streamable HTTP error: Error POSTing to endpoint: {"error":"protocol_version","message":"MCP-Protocol-Version must be 2026-07-28"}
-stderr: (empty)
-
-$ claude mcp remove -s local bfb-x03a-provider-compat
-exit: 0
-stdout:
-Removed MCP server bfb-x03a-provider-compat from local config
-File modified: /Users/[REDACTED]/.claude.json [project: /Users/[REDACTED]/work/tenira/bfb]
-stderr: (empty)
+- `claude mcp add --transport http --scope local --client-id bfb-mcp-synthetic-client --callback-port 9999 bfb-x03a-provider-compat http://127.0.0.1:18765/mcp` → exit 0 (config updated; paths redacted)
+- `claude mcp get bfb-x03a-provider-compat` → exit 0; Status failed to connect; Issue HTTP 400 protocol_version (MCP-Protocol-Version must be 2026-07-28)
+- `claude mcp login --no-browser bfb-x03a-provider-compat` → exit 1; non-interactive stdin cannot complete OAuth
+- `claude mcp list` → exit 0; bfb-x03a-provider-compat unhealthy with same HTTP 400 (other configured MCP servers omitted from this log)
+- `claude mcp remove -s local bfb-x03a-provider-compat` → exit 0
 
 ## Limitations
+
 - BFB requires server-preregistered public client, PKCE S256, exact redirect http://127.0.0.1:9999/callback
 - BFB authorize requires browser session cookie plus workspace_id and step_up_proof_id (C03)
 - Claude Code Streamable HTTP health probe did not send MCP-Protocol-Version 2026-07-28
 - BFB rejects legacy initialize/Mcp-Session-Id; protocol is MCP 2026-07-28 stateless Streamable HTTP
 - Cookie sessions cannot authenticate /mcp
+
+## Redaction note
+
+Raw stdout/stderr, machine-local absolute paths, and unrelated MCP server inventory were removed. This summary is historical only and is not IC-1 acceptance proof.

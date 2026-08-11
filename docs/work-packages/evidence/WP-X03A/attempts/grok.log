@@ -1,111 +1,22 @@
-# Grok real attempt log (redacted)
+# Grok real attempt log (redacted summary)
+
 exact_version: grok 1.0.0 (3cd0d0cbcebe)
 result: doctor unhealthy — handshake sent initialize without MCP-Protocol-Version 2026-07-28 (HTTP 400)
 
-## Commands
-$ grok mcp remove --scope user bfb-x03a-provider-compat
-exit: 1
-stdout: (empty)
-stderr:
-No MCP server named 'bfb-x03a-provider-compat' in user config
+## Commands (summary)
 
-$ grok mcp add --transport http --scope user bfb-x03a-provider-compat http://127.0.0.1:18765/mcp
-exit: 0
-stdout:
-Added HTTP MCP server 'bfb-x03a-provider-compat' with URL: http://127.0.0.1:18765/mcp to user config
-File modified: ~/.grok/config.toml
-stderr: (empty)
-
-$ grok mcp list --json
-exit: 0
-stdout:
-[
-  {
-    "url": "http://127.0.0.1:18765/mcp",
-    "enabled": true,
-    "name": "bfb-x03a-provider-compat",
-    "scope": "user"
-  }
-]
-stderr: (empty)
-
-$ grok mcp doctor --json bfb-x03a-provider-compat
-exit: 1
-stdout:
-{
-  "sources": [
-    {
-      "path": "~/.grok/config.toml",
-      "status": {
-        "status": "found",
-        "server_count": 1
-      }
-    },
-    {
-      "path": "plugin: chrome-devtools-mcp",
-      "status": {
-        "status": "found",
-        "server_count": 1
-      }
-    },
-    {
-      "path": "~/.claude.json",
-      "status": {
-        "status": "found",
-        "server_count": 0
-      }
-    },
-    {
-      "path": ".mcp.json",
-      "status": {
-        "status": "not_found"
-      }
-    },
-    {
-      "path": "grok.com",
-      "status": {
-        "status": "found",
-        "server_count": 0
-      }
-    }
-  ],
-  "servers": [
-    {
-      "name": "bfb-x03a-provider-compat",
-      "transport": "http",
-      "target": "http://127.0.0.1:18765/mcp",
-      "source": "config",
-      "checks": [
-        {
-          "label": "server started",
-          "passed": true,
-          "detail": "0.0s"
-        },
-        {
-          "label": "handshake failed",
-          "passed": false,
-          "detail": "Send message error Transport [rmcp::transport::worker::WorkerTransport<rmcp::transport::streamable_http_client::StreamableHttpClientWorker<xai_grok_mcp::mcp_http_client::McpHttpClient<reqwest::async_impl::client::Client>>>] error: unexpected server response: HTTP 400 Bad Request: {\"error\":\"protocol_version\",\"message\":\"MCP-Protocol-Version must be 2026-07-28\"}, when send initialize request",
-          "hint": "check server logs"
-        }
-      ],
-      "healthy": false
-    }
-  ],
-  "healthy_count": 0,
-  "failing_count": 1
-}
-stderr:
-[2m2026-08-11T11:39:44.280850Z[0m [31mERROR[0m worker quit with fatal: Transport channel closed, when UnexpectedServerResponse("HTTP 400 Bad Request: {\"error\":\"protocol_version\",\"message\":\"MCP-Protocol-Version must be 2026-07-28\"}")
-
-$ grok mcp remove --scope user bfb-x03a-provider-compat
-exit: 0
-stdout:
-Removed MCP server 'bfb-x03a-provider-compat' from user config
-File modified: ~/.grok/config.toml
-stderr: (empty)
+- `grok mcp add --transport http --scope user bfb-x03a-provider-compat http://127.0.0.1:18765/mcp` → exit 0 (config updated; home paths redacted)
+- `grok mcp list --json` → exit 0; lists only the added server entry for this attempt
+- `grok mcp doctor --json bfb-x03a-provider-compat` → exit 1; handshake failed with HTTP 400 protocol_version (MCP-Protocol-Version must be 2026-07-28); other MCP source inventory omitted
+- `grok mcp remove --scope user bfb-x03a-provider-compat` → exit 0
 
 ## Limitations
+
 - Grok MCP HTTP doctor performs an initialize handshake; BFB rejects initialize and requires MCP-Protocol-Version 2026-07-28
 - OAuth against BFB preregistered client + C03 step-up is not a full delegated board-client loop from grok mcp alone
 - BFB protected-resource metadata advertises resource https://bfb.example.test/mcp (fixture constant) even when served on loopback
 - BFB does not open DCR/CIMD; unregistered clients fail closed
+
+## Redaction note
+
+Raw doctor multi-source inventory, ANSI log noise, and machine-local paths were removed. This summary is historical only and is not IC-1 acceptance proof.

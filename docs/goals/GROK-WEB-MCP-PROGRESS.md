@@ -6,19 +6,19 @@ Keep entries terse and use repository-relative paths. Do not record secrets, cre
 
 ## Resume checkpoint
 
-- Goal state: `complete`
+- Goal state: `active`
 - Branch: `goal/grok-web-mcp`
-- Last observed HEAD: 951c4ebe61fd0a2e059ed2f1df52ce5bb11a3ab9
-- Last verified commit: 951c4ebe61fd0a2e059ed2f1df52ce5bb11a3ab9
-- Last verification command/result: clean-checkout F02–X03A + `pnpm verify`; PR #3 CI green on 951c4eb; PATH-only provider-compat harness
-- Active package: none
-- Active gate: none
-- Active task: none
-- Worktree since observed HEAD: none (this stamp commit only updates journal SHAs to on-branch tip)
-- Resume here: none
+- Last observed HEAD: 3bd2c9eebdfdbde8912e775e551d955a29070126
+- Last verified commit: none (IC-1 re-certification reopen; prior stamps are not acceptance proof)
+- Last verification command/result: startup reopen hygiene in progress
+- Active package: F02
+- Active gate: IC-1 re-certify F02 → X03A sequence
+- Active task: F02 schema parity + adversarial differential corpus
+- Worktree since observed HEAD: package reopen + provider-log scrub + journal active
+- Resume here: complete F02 acceptance (TS/Go parity, fractional integers, enums, bounds, uniqueness, required nested, differential adversarial corpus), then F03
 - Active delegates: none
 - Blocking condition: `none`
-- Updated UTC: `2026-08-11T12:15:00Z`
+- Updated UTC: `2026-08-11T14:00:00Z`
 
 Allowed goal states are `not_started`, `active`, `blocked`, and `complete`. `blocked` is valid only when a listed stop condition remains after safe in-scope alternatives are exhausted.
 
@@ -26,42 +26,46 @@ Allowed goal states are `not_started`, `active`, `blocked`, and `complete`. `blo
 
 | ID | Task | Owner | State | Verification or result |
 | --- | --- | --- | --- | --- |
-| — | none | — | `done` | W01/X03A gates closed |
+| F02-T1 | Enumerate F02 acceptance gaps vs current TS/Go schema validators and fixtures | lead | `in_progress` | Derive failing tests from Acceptance section |
+| F02-T2 | Add differential adversarial corpus (fractional int, enums, bounds, uniqueness, required nested) | lead | `planned` | TS + Go reject/accept identically |
+| F02-T3 | Package tests + `pnpm verify` + independent review + new evidence | lead | `planned` | New manifest at tested commit |
 
 ## Delegation log
 
 | ID | Package/task | Worker or workflow | Input HEAD | Scope and path ownership | Expected result/check | State | Result and lead verification |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| D-W01-e2e | W01 browser E2E | subagent general-purpose | c5c1fb4 | `apps/web/test/e2e/**`, `tools/e2e/**`, `docs/work-packages/evidence/WP-W01/browser/**` | multi-role browser + evidence | `done` | Lead verified `pnpm test:w01:browser` 7/7; evidence retained |
-| D-X03A-clients | X03A real clients | subagent general-purpose | c5c1fb4 | `tools/provider-compat/**`, `docs/work-packages/evidence/WP-X03A/**` | real Claude/Codex/Grok attempts | `done` | Real attempts recorded; unsupported outcomes honest |
+| — | none | — | — | — | — | — | IC-1 re-certification; prior delegates closed |
 
 ## Verification log
 
 | UTC | Package/task | Commit or worktree | Exact command or check | Outcome | Retained evidence |
 | --- | --- | --- | --- | --- | --- |
-| 2026-08-10T22:52:00Z | async SqlDatabase | 3368f544bd11e166acfc4842e999c10282e7dd79 | domain/db/x03a/verify | passed | F04/C01–X03A prior |
-| 2026-08-11T11:21:00Z | W01 browser E2E | 96bf09dfc85841f65ca164747bcd67195d39dc5c | `pnpm test:w01:browser` | passed | docs/work-packages/evidence/WP-W01/browser/ |
-| 2026-08-11T11:21:26Z | X03A real clients | 96bf09dfc85841f65ca164747bcd67195d39dc5c | `node tools/provider-compat/run-attempts.mjs` | passed | provider-compat.md + attempts/ |
-| 2026-08-11T11:24:00Z | clean checkout | 96bf09dfc85841f65ca164747bcd67195d39dc5c | package targets F02–X03A + `pnpm verify` | passed | clean-verify.log (scratch) |
-| 2026-08-11T11:29:40Z | PR #3 CI | af945be7fbd9392567ffa437bec321178a40b6be | GitHub Actions Repository verification (both jobs) | passed | https://github.com/qdis/bfb/pull/3 |
-| 2026-08-11T11:50:00Z | skeptic path/journal | ebfaa15b04adb30e8256c92717e4232c4eb6c559 | PATH-only client resolution (env/PATH, no home absolutes) | passed | tools/provider-compat/run-attempts.mjs |
-| 2026-08-11T12:00:00Z | PR #3 CI | bba9d450037957e4391c901e364dae69795c0346 | GitHub Actions Repository verification (both jobs) | passed | https://github.com/qdis/bfb/pull/3 |
-| 2026-08-11T12:10:00Z | PR #3 CI | 951c4ebe61fd0a2e059ed2f1df52ce5bb11a3ab9 | GitHub Actions Repository verification (both jobs) | passed | https://github.com/qdis/bfb/pull/3 |
+| 2026-08-11T14:00:00Z | startup reopen | 3bd2c9e + worktree | journal active; F01 done; F02 in_progress; F03–X03A planned; provider logs redacted | pending commit | historical evidence retained as incomplete only |
+
+Prior verification rows from the previous “complete” stamp are superseded: they do not count as IC-1 re-certification acceptance.
 
 ## Blocker and decision log
 
 | ID | First seen UTC | Package/task | Condition and investigation | State | Next action or decision required |
 | --- | --- | --- | --- | --- | --- |
-| B-async-d1 | 2026-08-10T22:30:00Z | X03A D1 | sync domain vs async D1 | resolved | Promise-only SqlDatabase |
-| B-stale-complete | 2026-08-11T00:05:00Z | journal | complete without browser/real-client | resolved | reopened; gates completed |
-| B-host-port | 2026-08-11T11:20:00Z | MCP Host | Host:port vs hostname allowlist | resolved | strip port in validateMcpRouting |
-| B-orphan-sha | 2026-08-11T12:15:00Z | journal HEAD | Last observed pointed at an amended-away commit not on branch tip history | resolved | Retargeted to on-branch tip 951c4eb; no amend-chase |
+| B-ic1-reopen | 2026-08-11T14:00:00Z | IC-1 | Prior complete invalid as acceptance; reopen F02–X03A | open | Re-certify sequence with new tests and evidence |
+| B-sensitive-history | 2026-08-11T14:00:00Z | X03A evidence | Raw provider logs may remain in older remote commits | open-accepted | Tip scrubbed; no force-push/history rewrite without Timo confirmation |
 
 ## Package status and handoffs
 
 | Package | Journal checkpoint | Tested commit | Test target | Evidence manifest | Limitations |
 | --- | --- | --- | --- | --- | --- |
-| [W01](../work-packages/WP-W01-app-shell.md) | complete | 96bf09dfc85841f65ca164747bcd67195d39dc5c | `pnpm test:w01` | `docs/work-packages/evidence/WP-W01/manifest.json` | Playwright Chromium E2E; a11y snapshot not full axe suite |
-| [X03A](../work-packages/WP-X03A-remote-mcp-core.md) | complete | 96bf09dfc85841f65ca164747bcd67195d39dc5c | `pnpm test:x03a` | `docs/work-packages/evidence/WP-X03A/manifest.json` | Claude/Codex/Grok real attempts unsupported without policy change |
+| [F01](../work-packages/WP-F01-repository-foundation.md) | done | prior | F01 targets | historical | left done per reopen plan |
+| [F02](../work-packages/WP-F02-wire-contracts.md) | in_progress | none (reopened) | `pnpm test:protocol` | historical incomplete | re-certify required |
+| [F03](../work-packages/WP-F03-cloud-substrate.md) | planned | none (reopened) | `pnpm test:substrate` | historical incomplete | re-certify required |
+| [F04](../work-packages/WP-F04-tenant-persistence.md) | planned | none (reopened) | `pnpm test:db` | historical incomplete | re-certify required |
+| [C01](../work-packages/WP-C01-command-kernel.md) | planned | none (reopened) | `pnpm test:c01` | historical incomplete | re-certify required |
+| [C02](../work-packages/WP-C02-human-identity.md) | planned | none (reopened) | `pnpm test:c02` | historical incomplete | re-certify required |
+| [C03](../work-packages/WP-C03-passkey-step-up.md) | planned | none (reopened) | `pnpm test:c03` | historical incomplete | re-certify required |
+| [C04](../work-packages/WP-C04-workspace-authorization.md) | planned | none (reopened) | `pnpm test:c04` | historical incomplete | re-certify required |
+| [C07](../work-packages/WP-C07-work-domain.md) | planned | none (reopened) | `pnpm test:c07` | historical incomplete | re-certify required |
+| [C08](../work-packages/WP-C08-work-records.md) | planned | none (reopened) | `pnpm test:c08` | historical incomplete | re-certify required |
+| [W01](../work-packages/WP-W01-app-shell.md) | planned | none (reopened) | `pnpm test:w01` | historical incomplete | re-certify required |
+| [X03A](../work-packages/WP-X03A-remote-mcp-core.md) | planned | none (reopened) | `pnpm test:x03a` | historical incomplete | re-certify required |
 
 Mark a journal handoff complete only after the canonical package is `done`, its declared test passes from a clean checkout, its evidence manifest exists, and that manifest's tested implementation commit is recorded.

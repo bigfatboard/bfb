@@ -1,6 +1,6 @@
 # WP-C04 — Workspace authorization
 
-Status: `done`
+Status: `planned`
 
 Risk: Very high
 
