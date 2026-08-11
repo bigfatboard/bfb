@@ -23,6 +23,9 @@ export function packageGates(packages: WorkPackage[]): PackageGate[] {
     if (match?.[1] === undefined) {
       throw new Error(workPackage.id + " has unsupported test target: " + target);
     }
+    if (match[1] === "packages:verify") {
+      throw new Error(workPackage.id + " cannot use the package gate runner as its test target");
+    }
     const packageIds = byTarget.get(target) ?? [];
     packageIds.push(workPackage.id);
     byTarget.set(target, packageIds);

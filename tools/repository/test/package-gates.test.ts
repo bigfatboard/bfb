@@ -44,5 +44,8 @@ describe("done package gates", () => {
     expect(() => packageGates([workPackage("F01", "done", undefined)])).toThrow(
       "without a test target",
     );
+    expect(() => packageGates([workPackage("F01", "done", "pnpm packages:verify")])).toThrow(
+      "cannot use the package gate runner",
+    );
   });
 });
