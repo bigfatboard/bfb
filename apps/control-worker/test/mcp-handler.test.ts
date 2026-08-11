@@ -103,7 +103,7 @@ describe("mcp handler", () => {
           params: {
             name: "bfb_propose_task",
             arguments: {
-              request_id: "mcp-1",
+              request_id: "mcp-request-1",
               project_id: FIX.projectA,
               title: "From MCP",
               priority: "P2",

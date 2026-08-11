@@ -1,7 +1,7 @@
 // ABOUTME: Routes workspace mutations through the jurisdiction-scoped WorkspaceHub DO when bound.
 // ABOUTME: Falls back to a process-local FIFO lane only when the DO namespace is unavailable (unit tests).
 
-import type { SqlDatabase } from "@bfb/db";
+import { type AuthorizationContext, type SqlDatabase, WorkspaceRepository } from "@bfb/db";
 import {
   type CommandOutcome,
   type CommandRequest,
@@ -10,12 +10,11 @@ import {
   workspaceHub,
 } from "@bfb/domain";
 
-import { workspaceNamespaceForJurisdiction, type Jurisdiction } from "./env.js";
+import { workspaceNamespaceForJurisdiction } from "./env.js";
 
 export interface HubClientDeps {
   db: SqlDatabase;
-  workspaceId: string;
-  jurisdiction: Jurisdiction;
+  authorization: AuthorizationContext;
   /** Cloudflare WORKSPACE_HUB binding, or a test double with idFromName/get. */
   workspaceHubNs?: DurableObjectNamespace | undefined;
 }
@@ -39,7 +38,8 @@ export async function executeWorkspaceCommand<TInput, TResult>(
   command: HubCommand<TInput, TResult>,
   request: CommandRequest<TInput>,
 ): Promise<CommandOutcome<TResult>> {
-  if (request.workspaceId !== deps.workspaceId) {
+  const scope = deps.authorization;
+  if (request.workspaceId !== scope.workspaceId) {
     return {
       ok: false,
       error: {
@@ -48,11 +48,61 @@ export async function executeWorkspaceCommand<TInput, TResult>(
       },
     };
   }
+  if (request.authorizationEpoch !== scope.authorizationEpoch) {
+    return {
+      ok: false,
+      error: {
+        code: "stale_authorization",
+        message: "command authorization epoch does not match the resolved principal",
+      },
+    };
+  }
+  const requestPrincipalId =
+    request.actorDelegationId ?? request.actorHumanId ?? request.actorSystemId;
+  if (requestPrincipalId !== scope.principalId) {
+    return {
+      ok: false,
+      error: {
+        code: "command_authority_mismatch",
+        message: "command actor does not match the resolved principal",
+      },
+    };
+  }
+
+  const workspace = await WorkspaceRepository.forAuthorization(deps.db, scope).getWorkspace();
+  if (!workspace) {
+    return {
+      ok: false,
+      error: { code: "workspace_not_found", message: "workspace not found" },
+    };
+  }
+  if (workspace.jurisdiction !== scope.jurisdiction) {
+    return {
+      ok: false,
+      error: {
+        code: "workspace_jurisdiction_mismatch",
+        message: "workspace jurisdiction does not match the resolved authorization context",
+      },
+    };
+  }
+
+  if (deps.workspaceHubNs !== undefined && !isDurableObjectNamespace(deps.workspaceHubNs)) {
+    return {
+      ok: false,
+      error: {
+        code: "hub_binding_invalid",
+        message: "workspace hub binding is unavailable",
+      },
+    };
+  }
 
   if (isDurableObjectNamespace(deps.workspaceHubNs)) {
     try {
-      const namespace = workspaceNamespaceForJurisdiction(deps.workspaceHubNs, deps.jurisdiction);
-      const id = namespace.idFromName(deps.workspaceId);
+      const namespace = workspaceNamespaceForJurisdiction(
+        deps.workspaceHubNs,
+        workspace.jurisdiction,
+      );
+      const id = namespace.idFromName(scope.workspaceId);
       const stub = namespace.get(id);
       const response = await stub.fetch("https://bfb-hub.internal/execute", {
         method: "POST",
@@ -91,7 +141,7 @@ export async function executeWorkspaceCommand<TInput, TResult>(
   }
 
   // Unit-test fallback when env.WORKSPACE_HUB is a non-DO synthetic binding.
-  return workspaceHub(deps.db, deps.workspaceId).execute(command, request);
+  return workspaceHub(deps.db, scope.workspaceId).execute(command, request);
 }
 
 /** Builds an in-memory DO namespace that serializes via one Domain WorkspaceHub per workspace. */

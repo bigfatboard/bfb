@@ -11,6 +11,7 @@
     { "path": "tools/repository" },
     { "path": "tools/protocol" },
     { "path": "tools/db" },
-    { "path": "tools/substrate" }
+    { "path": "tools/substrate" },
+    { "path": "tools/kernel" }
   ]
 }

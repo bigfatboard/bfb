@@ -19,7 +19,7 @@ describe("work surface projections", () => {
     const hub = new WorkspaceHub(db);
     await hub.execute(createTaskCommand, {
       workspaceId: FIX.workspace,
-      idempotencyKey: "p0",
+      idempotencyKey: "projection-p0",
       authorizationEpoch: 1,
       actorHumanId: FIX.owner,
       input: {
@@ -38,7 +38,7 @@ describe("work surface projections", () => {
       .run(FIX.workspace);
     await hub.execute(createTaskCommand, {
       workspaceId: FIX.workspace,
-      idempotencyKey: "p2",
+      idempotencyKey: "projection-p2",
       authorizationEpoch: 1,
       actorHumanId: FIX.owner,
       input: {

@@ -4,6 +4,7 @@
 import { describe, expect, it } from "vitest";
 
 import { WorkspaceHub } from "../src/hub.js";
+import { randomUlid } from "../src/ids.js";
 import {
   addCommentCommand,
   addContextCommand,
@@ -21,7 +22,7 @@ describe("work records", () => {
     const hub = new WorkspaceHub(db);
     const created = await hub.execute(createTaskCommand, {
       workspaceId: FIX.workspace,
-      idempotencyKey: "task-1",
+      idempotencyKey: "task-key-1",
       authorizationEpoch: 1,
       actorHumanId: FIX.owner,
       input: {
@@ -41,7 +42,7 @@ describe("work records", () => {
 
     const comment = await hub.execute(addCommentCommand, {
       workspaceId: FIX.workspace,
-      idempotencyKey: "cmt-1",
+      idempotencyKey: "comment-key-1",
       authorizationEpoch: 1,
       actorHumanId: FIX.owner,
       input: { taskId: created.result.id, body: "synthetic progress", kind: "progress" },
@@ -50,14 +51,14 @@ describe("work records", () => {
 
     await hub.execute(addContextCommand, {
       workspaceId: FIX.workspace,
-      idempotencyKey: "ctx-1",
+      idempotencyKey: "context-key-1",
       authorizationEpoch: 1,
       actorHumanId: FIX.owner,
       input: { taskId: created.result.id, audience: "human", body: "human only secret" },
     });
     await hub.execute(addContextCommand, {
       workspaceId: FIX.workspace,
-      idempotencyKey: "ctx-2",
+      idempotencyKey: "context-key-2",
       authorizationEpoch: 1,
       actorHumanId: FIX.owner,
       input: { taskId: created.result.id, audience: "agent", body: "agent visible" },
@@ -99,7 +100,7 @@ describe("work records", () => {
   it("keeps agent-created roots proposed and blocks remote promotion", async () => {
     const db = await openDomainDb();
     const hub = new WorkspaceHub(db);
-    const delegationId = "01JBFB0DELEGAT100000000000";
+    const delegationId = randomUlid();
     await db
       .prepare(
         `INSERT INTO oauth_delegations
@@ -167,7 +168,7 @@ describe("work records", () => {
     for (let i = 0; i < 3; i++) {
       const created = await hub.execute(createTaskCommand, {
         workspaceId: FIX.workspace,
-        idempotencyKey: "page-" + i,
+        idempotencyKey: "page-key-" + i,
         authorizationEpoch: 1,
         actorHumanId: FIX.owner,
         now: "2026-08-07T12:00:00Z",

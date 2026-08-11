@@ -11,6 +11,8 @@ import {
 
 import type { ControlBindings } from "./env.js";
 
+const MAX_COMMAND_BYTES = 65_536;
+
 /**
  * Cloudflare Durable Object entry for the workspace command kernel.
  * DO single-threading plus the domain FIFO lane serialize concurrent mutations.
@@ -37,9 +39,24 @@ export class WorkspaceHub extends DurableObject<ControlBindings> {
       );
     }
 
+    const contentLength = Number(request.headers.get("content-length") ?? "0");
+    if (Number.isFinite(contentLength) && contentLength > MAX_COMMAND_BYTES) {
+      return Response.json(
+        { error: "body_too_large", message: "hub command body exceeds the limit" },
+        { status: 413 },
+      );
+    }
+
     let body: { commandName?: string; request?: CommandRequest<unknown> };
     try {
-      body = (await request.json()) as typeof body;
+      const text = await request.text();
+      if (new TextEncoder().encode(text).byteLength > MAX_COMMAND_BYTES) {
+        return Response.json(
+          { error: "body_too_large", message: "hub command body exceeds the limit" },
+          { status: 413 },
+        );
+      }
+      body = JSON.parse(text) as typeof body;
     } catch {
       return Response.json(
         { error: "schema_invalid", message: "invalid hub command body" },

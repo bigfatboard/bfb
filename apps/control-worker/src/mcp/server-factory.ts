@@ -4,7 +4,7 @@
 import { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 
-import type { SqlDatabase } from "@bfb/db";
+import { createAuthorizationContext, type SqlDatabase } from "@bfb/db";
 import {
   type ActiveDelegation,
   assertScope,
@@ -35,17 +35,21 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
     name: "bfb",
     version: "0.0.0",
   });
-  const hubDeps = {
-    db: deps.db,
-    workspaceId: deps.delegation.workspaceId,
-    jurisdiction: deps.jurisdiction,
-    workspaceHubNs: deps.workspaceHubNs,
-  };
   const principal = await loadPrincipal(
     deps.db,
     deps.delegation.workspaceId,
     deps.delegation.humanId,
   );
+  const hubDeps = {
+    db: deps.db,
+    authorization: createAuthorizationContext({
+      workspaceId: deps.delegation.workspaceId,
+      principalId: deps.delegation.delegationId,
+      authorizationEpoch: deps.delegation.authorizationEpoch,
+      jurisdiction: deps.jurisdiction,
+    }),
+    workspaceHubNs: deps.workspaceHubNs,
+  };
 
   server.registerTool(
     "bfb_list_projects",

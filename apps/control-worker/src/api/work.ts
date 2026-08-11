@@ -1,7 +1,7 @@
 // ABOUTME: Serves authenticated work-record and board projection APIs for the W01 shell.
 // ABOUTME: Uses browser session cookies and shared domain commands/projections only.
 
-import type { SqlDatabase } from "@bfb/db";
+import { createAuthorizationContext, type SqlDatabase } from "@bfb/db";
 import {
   buildNeedsNowDeck,
   buildProjectLanes,
@@ -35,8 +35,12 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
   const authz = await loadPrincipal(deps.db, deps.workspaceId, deps.principal.humanId);
   const hubDeps = {
     db: deps.db,
-    workspaceId: deps.workspaceId,
-    jurisdiction: deps.jurisdiction,
+    authorization: createAuthorizationContext({
+      workspaceId: deps.workspaceId,
+      principalId: deps.principal.humanId,
+      authorizationEpoch: authz.authorizationEpoch,
+      jurisdiction: deps.jurisdiction,
+    }),
     workspaceHubNs: deps.workspaceHubNs,
   };
 

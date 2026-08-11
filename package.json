@@ -34,7 +34,7 @@
     "build:web": "pnpm --filter @bfb/web build",
     "test:db": "vitest run packages/db/test && pnpm exec tsc -b tools/db --pretty false && tsx tools/db/run.ts",
     "test:domain": "vitest run packages/domain/test",
-    "test:c01": "vitest run packages/domain/test/hub.test.ts packages/domain/test/abuse.test.ts apps/control-worker/test/hub-client.test.ts",
+    "test:c01": "vitest run packages/domain/test/hub.test.ts packages/domain/test/abuse.test.ts apps/control-worker/test/hub-client.test.ts && pnpm exec tsc -b tools/kernel --pretty false && tsx tools/kernel/run.ts",
     "test:c02": "vitest run packages/domain/test/identity.test.ts apps/control-worker/test/session-security.test.ts",
     "test:c03": "vitest run packages/domain/test/step-up.test.ts",
     "test:c04": "vitest run packages/domain/test/authorization.test.ts",

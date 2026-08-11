@@ -16,7 +16,7 @@ describe("work board", () => {
     const hub = new WorkspaceHub(db);
     await hub.execute(createTaskCommand, {
       workspaceId: FIX.workspace,
-      idempotencyKey: "board-1",
+      idempotencyKey: "board-key-1",
       authorizationEpoch: 1,
       actorHumanId: FIX.owner,
       input: {
