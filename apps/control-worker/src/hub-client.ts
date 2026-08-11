@@ -10,9 +10,12 @@ import {
   workspaceHub,
 } from "@bfb/domain";
 
+import { workspaceNamespaceForJurisdiction, type Jurisdiction } from "./env.js";
+
 export interface HubClientDeps {
   db: SqlDatabase;
   workspaceId: string;
+  jurisdiction: Jurisdiction;
   /** Cloudflare WORKSPACE_HUB binding, or a test double with idFromName/get. */
   workspaceHubNs?: DurableObjectNamespace | undefined;
 }
@@ -48,8 +51,9 @@ export async function executeWorkspaceCommand<TInput, TResult>(
 
   if (isDurableObjectNamespace(deps.workspaceHubNs)) {
     try {
-      const id = deps.workspaceHubNs.idFromName(deps.workspaceId);
-      const stub = deps.workspaceHubNs.get(id);
+      const namespace = workspaceNamespaceForJurisdiction(deps.workspaceHubNs, deps.jurisdiction);
+      const id = namespace.idFromName(deps.workspaceId);
+      const stub = namespace.get(id);
       const response = await stub.fetch("https://bfb-hub.internal/execute", {
         method: "POST",
         headers: { "content-type": "application/json" },

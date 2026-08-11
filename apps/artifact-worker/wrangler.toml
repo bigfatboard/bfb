@@ -7,8 +7,13 @@ compatibility_date = "2026-08-01"
 
 [vars]
 ENVIRONMENT = "local"
-ARTIFACT_ORIGIN = "http://127.0.0.1:8788"
-APP_ORIGIN = "http://127.0.0.1:8787"
+ARTIFACT_ORIGIN = "http://artifacts.bfb.localhost:8788"
+APP_ORIGIN = "http://bfb.localhost:8787"
+
+[dev]
+ip = "127.0.0.1"
+port = 8788
+inspector_port = 9230
 
 [[r2_buckets]]
 binding = "ARTIFACTS"

@@ -10,10 +10,28 @@ import {
 
 export default {
   async fetch(request: Request, env: ArtifactBindings): Promise<Response> {
+    let validated;
     try {
-      const validated = validateArtifactEnv(env);
-      assertNoAppCookie(request);
+      validated = validateArtifactEnv(env);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "invalid_environment";
+      return new Response(JSON.stringify({ ok: false, error: "config_invalid", message }), {
+        status: 500,
+        headers: { "content-type": "application/json; charset=utf-8" },
+      });
+    }
 
+    try {
+      assertNoAppCookie(request);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "session_cookie_rejected";
+      return new Response(JSON.stringify({ ok: false, error: "credential_confusion", message }), {
+        status: 400,
+        headers: { "content-type": "application/json; charset=utf-8" },
+      });
+    }
+
+    try {
       if (request.method === "OPTIONS") {
         return new Response(null, {
           status: 204,
@@ -50,11 +68,14 @@ export default {
         { status: 501, headers },
       );
     } catch (error) {
-      const message = error instanceof Error ? error.message : "invalid_environment";
-      return new Response(JSON.stringify({ ok: false, error: "config_invalid", message }), {
-        status: 500,
-        headers: { "content-type": "application/json; charset=utf-8" },
-      });
+      const message = error instanceof Error ? error.message : "artifact_request_failed";
+      return new Response(
+        JSON.stringify({ ok: false, error: "artifact_request_failed", message }),
+        {
+          status: 500,
+          headers: { "content-type": "application/json; charset=utf-8" },
+        },
+      );
     }
   },
 };

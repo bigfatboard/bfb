@@ -96,6 +96,7 @@ export function createControlApp(
         db,
         allowedHostnames: [current.origins.appHostname],
         appOrigin: current.origins.appOrigin,
+        jurisdiction: current.jurisdiction,
         now: c.get("now") ?? now,
         workspaceHubNs: envBindings.WORKSPACE_HUB,
       },
@@ -205,6 +206,7 @@ export function createControlApp(
       principal,
       workspaceId,
       now: c.get("now") ?? now,
+      jurisdiction: current.jurisdiction,
       workspaceHubNs: envBindings.WORKSPACE_HUB,
     });
   });

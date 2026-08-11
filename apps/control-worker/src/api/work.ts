@@ -17,6 +17,7 @@ import {
 } from "@bfb/domain";
 
 import type { BrowserPrincipal } from "../auth/session.js";
+import type { Jurisdiction } from "../env.js";
 import { executeWorkspaceCommand } from "../hub-client.js";
 
 export interface WorkApiDeps {
@@ -24,6 +25,7 @@ export interface WorkApiDeps {
   principal: BrowserPrincipal;
   workspaceId: string;
   now: string;
+  jurisdiction: Jurisdiction;
   workspaceHubNs?: DurableObjectNamespace | undefined;
 }
 
@@ -34,6 +36,7 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
   const hubDeps = {
     db: deps.db,
     workspaceId: deps.workspaceId,
+    jurisdiction: deps.jurisdiction,
     workspaceHubNs: deps.workspaceHubNs,
   };
 

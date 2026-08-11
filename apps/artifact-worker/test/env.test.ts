@@ -33,10 +33,31 @@ describe("artifact env", () => {
     expect(() => validateArtifactEnv(value)).toThrow(/missing binding: ARTIFACTS/);
   });
 
-  it("rejects shared origins", () => {
-    expect(() => validateArtifactEnv(env({ ARTIFACT_ORIGIN: "https://bfb.example.test" }))).toThrow(
-      /artifact origin must differ/,
-    );
+  it("rejects shared hostnames even on different ports", () => {
+    expect(() =>
+      validateArtifactEnv(env({ ARTIFACT_ORIGIN: "https://bfb.example.test:9443" })),
+    ).toThrow(/artifact hostname must differ/);
+  });
+
+  it("rejects non-HTTP origins and user information", () => {
+    expect(() =>
+      validateArtifactEnv(env({ ARTIFACT_ORIGIN: "ftp://artifacts.example.test" })),
+    ).toThrow(/invalid origin protocol/);
+    expect(() =>
+      validateArtifactEnv(env({ ARTIFACT_ORIGIN: "https://user@artifacts.example.test" })),
+    ).toThrow(/scheme\+host only/);
+  });
+
+  it("requires HTTPS outside local development", () => {
+    expect(() =>
+      validateArtifactEnv(
+        env({
+          ENVIRONMENT: "staging",
+          ARTIFACT_ORIGIN: "http://artifacts.bfb.staging.example.test",
+          APP_ORIGIN: "https://bfb.staging.example.test",
+        }),
+      ),
+    ).toThrow(/must use https/);
   });
 
   it("rejects app session cookies", () => {
@@ -51,7 +72,7 @@ describe("artifact env", () => {
       headers: { origin: "https://artifacts.bfb.example.test" },
     });
     const headers = corsHeaders(request, "https://artifacts.bfb.example.test");
-    expect(headers.get("access-control-allow-credentials")).toBe("false");
+    expect(headers.get("access-control-allow-credentials")).toBeNull();
     expect(headers.get("access-control-allow-origin")).toBe("https://artifacts.bfb.example.test");
   });
 

@@ -27,6 +27,7 @@ describe("mcp handler", () => {
         db,
         allowedHostnames: ["bfb.example.test"],
         appOrigin: "https://bfb.example.test",
+        jurisdiction: "eu",
         now: "2026-08-07T12:00:00Z",
       },
     );
@@ -56,6 +57,7 @@ describe("mcp handler", () => {
         db,
         allowedHostnames: ["bfb.example.test"],
         appOrigin: "https://bfb.example.test",
+        jurisdiction: "eu",
         now: "2026-08-07T12:00:00Z",
       },
     );
@@ -113,6 +115,7 @@ describe("mcp handler", () => {
         db,
         allowedHostnames: ["bfb.example.test"],
         appOrigin: "https://bfb.example.test",
+        jurisdiction: "eu",
         now: "2026-08-07T12:01:00Z",
       },
     );

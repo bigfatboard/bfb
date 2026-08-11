@@ -43,6 +43,7 @@ export function createFetchHandler(options: ControlFetchOptions = {}) {
 
 export default {
   fetch: createFetchHandler(),
+  scheduled(_controller: ScheduledController, env: ControlBindings, _ctx: ExecutionContext): void {
+    validateControlEnv(env);
+  },
 };
-
-export const BETTER_AUTH_VERSION = "1.6.26";

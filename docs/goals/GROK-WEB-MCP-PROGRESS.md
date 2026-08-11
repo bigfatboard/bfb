@@ -6,19 +6,19 @@ This file is the resumable execution journal for [the Grok web/MCP goal](GROK-WE
 
 - Goal state: `active — correction and re-certification`
 - Branch: `goal/grok-web-mcp`
-- Last observed HEAD: be989733403efc171cf29c70c7d1fa2b52dbd167
+- Last observed HEAD: 19f21de
 - Last verified commit: be989733403efc171cf29c70c7d1fa2b52dbd167
-- Last verification command/result: clean-clone `pnpm test:protocol` passed with protocol drift checks, 132 TypeScript tests in 4 files, and the Go protocol suite; independent audit found no remaining P0/P1
+- Last verification command/result: F03 worktree `pnpm test:substrate` passed with 30 focused tests, seven Wrangler dry-runs, three real Workerd listeners, routing, SQLite Durable Object, Cron, artifact-origin, browser-cookie, Better Auth/D1, and teardown checks; `pnpm verify` passed; independent audit found no P0/P1
 - Active package: F03 — Cloudflare application substrate
-- Active gate: start the real local Worker topology, exercise Worker-first and artifact-origin boundaries, and run `pnpm test:substrate` from a clean checkout
-- Active task: reproduce and correct the invalid named Worker export, then add a real `workerd` startup smoke test
+- Active gate: commit the F03 implementation, then run `pnpm test:substrate` from a clean checkout and retain bounded evidence
+- Active task: create the F03 implementation checkpoint without changing canonical package status
 - Resume here: finish F03 correction and evidence, then advance sequentially through F04 → C01 → C02 → C03 → C04 → C07 → C08 → W01 → X03A
 - Blocking condition: `none`
-- Updated UTC: `2026-08-11T16:32:38Z`
+- Updated UTC: `2026-08-11T17:14:37Z`
 
 ## Final review findings
 
-- P0: the control Worker does not start in real `workerd`; a named constant export is interpreted as an invalid Worker export.
+- P0: the earlier F03 gate never started the topology in Workerd, so route ownership, declarative Durable Object instantiation, and process teardown were unproved. The reported named-export failure was not reproducible and is not retained as a finding.
 - P1: package evidence/status validation accepted local evidence as clean-checkout completion.
 - P1: identity, passkey step-up, workspace authorization, work records, W01, and OAuth/MCP omit required acceptance paths.
 - P1: OAuth/MCP has protocol, boundary, idempotency, and token-lifecycle failures reproduced by live probes.

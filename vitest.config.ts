@@ -1,9 +1,20 @@
 // ABOUTME: Configures the repository unit-test suite and its deterministic test discovery.
 // ABOUTME: Keeps verification tests isolated from generated build output and dependencies.
 
+import { fileURLToPath } from "node:url";
+
 import { defineConfig } from "vitest/config";
 
+const cloudflareRuntime = fileURLToPath(
+  new URL("./apps/control-worker/test/runtime-base.ts", import.meta.url),
+);
+
 export default defineConfig({
+  resolve: {
+    alias: {
+      "cloudflare:workers": cloudflareRuntime,
+    },
+  },
   test: {
     coverage: { enabled: false },
     include: [

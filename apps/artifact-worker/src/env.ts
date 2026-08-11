@@ -23,8 +23,16 @@ function requireBinding<T>(value: T | undefined, name: string): T {
 }
 
 function parseOrigin(raw: string, name: string): URL {
-  const url = new URL(raw);
-  if (url.pathname !== "/" || url.search || url.hash) {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error("invalid origin: " + name);
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") {
+    throw new Error("invalid origin protocol: " + name);
+  }
+  if (url.pathname !== "/" || url.search || url.hash || url.username || url.password) {
     throw new Error("origin must be scheme+host only: " + name);
   }
   return url;
@@ -40,8 +48,11 @@ export function validateArtifactEnv(env: Partial<ArtifactBindings>): ValidatedAr
   }
   const artifact = parseOrigin(ARTIFACT_ORIGIN, "ARTIFACT_ORIGIN");
   const app = parseOrigin(APP_ORIGIN, "APP_ORIGIN");
-  if (artifact.origin === app.origin) {
-    throw new Error("artifact origin must differ from app origin");
+  if (artifact.hostname === app.hostname) {
+    throw new Error("artifact hostname must differ from app hostname");
+  }
+  if (ENVIRONMENT !== "local" && (artifact.protocol !== "https:" || app.protocol !== "https:")) {
+    throw new Error("staging and production origins must use https");
   }
   return {
     artifacts: ARTIFACTS,
@@ -71,6 +82,5 @@ export function corsHeaders(request: Request, artifactOrigin: string): Headers {
     headers.set("access-control-max-age", "600");
     headers.set("vary", "origin");
   }
-  headers.set("access-control-allow-credentials", "false");
   return headers;
 }

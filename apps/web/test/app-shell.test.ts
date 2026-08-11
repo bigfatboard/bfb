@@ -19,6 +19,7 @@ function env(db?: import("@bfb/db").SqlDatabase): ControlBindings {
   return {
     DB: fakeBinding<D1Database>("db"),
     ARTIFACTS: fakeBinding<R2Bucket>("r2"),
+    ASSETS: fakeBinding<Fetcher>("assets"),
     JOBS: fakeBinding<Queue>("jobs"),
     JOBS_DLQ: fakeBinding<Queue>("dlq"),
     WORKSPACE_HUB: db

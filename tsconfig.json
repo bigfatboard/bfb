@@ -9,6 +9,7 @@
     { "path": "packages/protocol-ts" },
     { "path": "packages/ui" },
     { "path": "tools/repository" },
-    { "path": "tools/protocol" }
+    { "path": "tools/protocol" },
+    { "path": "tools/substrate" }
   ]
 }

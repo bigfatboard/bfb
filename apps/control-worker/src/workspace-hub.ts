@@ -2,6 +2,7 @@
 // ABOUTME: One DO instance per workspace id; domain hub executes against the Worker D1 binding.
 
 import { adaptD1 } from "@bfb/db";
+import { DurableObject } from "cloudflare:workers";
 import {
   type CommandRequest,
   resolveCommand,
@@ -14,14 +15,11 @@ import type { ControlBindings } from "./env.js";
  * Cloudflare Durable Object entry for the workspace command kernel.
  * DO single-threading plus the domain FIFO lane serialize concurrent mutations.
  */
-export class WorkspaceHub {
+export class WorkspaceHub extends DurableObject<ControlBindings> {
   private domainLane: DomainWorkspaceHub | null = null;
 
-  constructor(
-    private readonly state: DurableObjectState,
-    private readonly env: ControlBindings,
-  ) {
-    void this.state;
+  constructor(ctx: DurableObjectState, env: ControlBindings) {
+    super(ctx, env);
   }
 
   private lane(): DomainWorkspaceHub {
@@ -31,7 +29,7 @@ export class WorkspaceHub {
     return this.domainLane;
   }
 
-  async fetch(request: Request): Promise<Response> {
+  override async fetch(request: Request): Promise<Response> {
     if (request.method !== "POST") {
       return Response.json(
         { error: "method_not_allowed", message: "WorkspaceHub accepts POST /execute only" },

@@ -19,12 +19,14 @@ import {
   createTaskCommand,
 } from "@bfb/domain";
 
+import type { Jurisdiction } from "../env.js";
 import { executeWorkspaceCommand } from "../hub-client.js";
 
 export interface McpServerDeps {
   db: SqlDatabase;
   delegation: ActiveDelegation;
   now: string;
+  jurisdiction: Jurisdiction;
   workspaceHubNs?: DurableObjectNamespace | undefined;
 }
 
@@ -36,6 +38,7 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
   const hubDeps = {
     db: deps.db,
     workspaceId: deps.delegation.workspaceId,
+    jurisdiction: deps.jurisdiction,
     workspaceHubNs: deps.workspaceHubNs,
   };
   const principal = await loadPrincipal(

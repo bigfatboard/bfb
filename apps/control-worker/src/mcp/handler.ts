@@ -6,12 +6,14 @@ import { createMcpHandler } from "agents/mcp/server";
 import type { SqlDatabase } from "@bfb/db";
 import { MCP_PROTOCOL_VERSION, resolveAccessToken, validateMcpRouting } from "@bfb/domain";
 
+import type { Jurisdiction } from "../env.js";
 import { createBfbMcpServer } from "./server-factory.js";
 
 export interface McpHandlerEnv {
   db: SqlDatabase;
   allowedHostnames: string[];
   appOrigin: string;
+  jurisdiction: Jurisdiction;
   now?: string;
   workspaceHubNs?: DurableObjectNamespace | undefined;
 }
@@ -94,6 +96,7 @@ export async function handleMcpRequest(
         db: env.db,
         delegation,
         now,
+        jurisdiction: env.jurisdiction,
         workspaceHubNs: env.workspaceHubNs,
       });
       const handler = createMcpHandler(() => server, {

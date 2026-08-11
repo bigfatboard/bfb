@@ -30,7 +30,7 @@
     "typecheck": "tsc -b --pretty false",
     "verify": "tsx tools/repository/src/verify.ts",
     "worktree:check": "tsx tools/repository/src/worktree-cli.ts",
-    "test:substrate": "vitest run apps/control-worker/test apps/artifact-worker/test apps/web/test && pnpm --filter @bfb/web build",
+    "test:substrate": "vitest run apps/control-worker/test/env.test.ts apps/control-worker/test/wrangler-config.test.ts apps/control-worker/test/substrate-auth-spike.test.ts apps/artifact-worker/test/env.test.ts apps/web/test/routes.test.ts && pnpm --filter @bfb/control-worker build && pnpm --filter @bfb/artifact-worker build && pnpm build:web && pnpm exec tsc -b tools/substrate --pretty false && tsx tools/substrate/run.ts",
     "build:web": "pnpm --filter @bfb/web build",
     "test:db": "vitest run packages/db/test",
     "test:domain": "vitest run packages/domain/test",

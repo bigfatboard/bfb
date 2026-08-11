@@ -15,6 +15,7 @@ export interface ControlOrigins {
 export interface ControlBindings {
   DB: D1Database;
   ARTIFACTS: R2Bucket;
+  ASSETS: Fetcher;
   JOBS: Queue;
   JOBS_DLQ: Queue;
   WORKSPACE_HUB: DurableObjectNamespace;
@@ -50,18 +51,31 @@ export const WORKER_FIRST_ROUTE_PREFIXES = workerFirstPrefixes;
  * prefix so SPA fallback cannot shadow OAuth, API, MCP, or auth routes.
  */
 export const RUN_WORKER_FIRST_GLOBS = [
+  "/api",
   "/api/*",
+  "/auth",
   "/auth/*",
   "/mcp",
   "/mcp/*",
   "/oauth",
   "/oauth/*",
+  "/realtime",
   "/realtime/*",
+  "/runner",
   "/runner/*",
+  "/webhooks",
   "/webhooks/*",
+  "/.well-known",
   "/.well-known/*",
   "/healthz",
 ] as const;
+
+export function workspaceNamespaceForJurisdiction(
+  namespace: DurableObjectNamespace,
+  jurisdiction: Jurisdiction,
+): DurableObjectNamespace {
+  return jurisdiction === "global" ? namespace : namespace.jurisdiction(jurisdiction);
+}
 
 export function isWorkerFirstPath(pathname: string): boolean {
   if (pathname === "/mcp") {
@@ -115,6 +129,7 @@ function parseEnvironment(value: string): "local" | "staging" | "production" {
 export function validateControlEnv(env: Partial<ControlBindings>): ValidatedControlEnv {
   const DB = requireBinding(env.DB, "DB");
   const ARTIFACTS = requireBinding(env.ARTIFACTS, "ARTIFACTS");
+  const ASSETS = requireBinding(env.ASSETS, "ASSETS");
   const JOBS = requireBinding(env.JOBS, "JOBS");
   const JOBS_DLQ = requireBinding(env.JOBS_DLQ, "JOBS_DLQ");
   const WORKSPACE_HUB = requireBinding(env.WORKSPACE_HUB, "WORKSPACE_HUB");
@@ -127,18 +142,29 @@ export function validateControlEnv(env: Partial<ControlBindings>): ValidatedCont
   const app = parseOrigin(APP_ORIGIN, "APP_ORIGIN");
   const artifact = parseOrigin(ARTIFACT_ORIGIN, "ARTIFACT_ORIGIN");
   const launch = parseOrigin(LAUNCH_ORIGIN, "LAUNCH_ORIGIN");
+  const environment = parseEnvironment(ENVIRONMENT);
 
-  if (app.origin === artifact.origin) {
-    throw new Error("artifact origin must differ from app origin");
+  if (app.hostname === artifact.hostname) {
+    throw new Error("artifact hostname must differ from app hostname");
   }
-  if (app.origin === launch.origin) {
-    throw new Error("launch origin must differ from app origin");
+  if (app.hostname === launch.hostname) {
+    throw new Error("launch hostname must differ from app hostname");
+  }
+  if (artifact.hostname === launch.hostname) {
+    throw new Error("launch hostname must differ from artifact hostname");
+  }
+  if (
+    environment !== "local" &&
+    (app.protocol !== "https:" || artifact.protocol !== "https:" || launch.protocol !== "https:")
+  ) {
+    throw new Error("staging and production origins must use https");
   }
 
   return {
     bindings: {
       DB,
       ARTIFACTS,
+      ASSETS,
       JOBS,
       JOBS_DLQ,
       WORKSPACE_HUB,
@@ -157,6 +183,6 @@ export function validateControlEnv(env: Partial<ControlBindings>): ValidatedCont
       launchHostname: launch.hostname,
     },
     jurisdiction: parseJurisdiction(JURISDICTION),
-    environment: parseEnvironment(ENVIRONMENT),
+    environment,
   };
 }

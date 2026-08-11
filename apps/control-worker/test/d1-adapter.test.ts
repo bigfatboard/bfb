@@ -72,6 +72,7 @@ async function seededEnv(now = "2026-08-07T12:00:00Z"): Promise<ControlBindings>
   return {
     DB: asD1(raw),
     ARTIFACTS: fakeBinding<R2Bucket>("r2"),
+    ASSETS: fakeBinding<Fetcher>("assets"),
     JOBS: fakeBinding<Queue>("jobs"),
     JOBS_DLQ: fakeBinding<Queue>("dlq"),
     WORKSPACE_HUB: createTestWorkspaceHubNamespace(sql),
