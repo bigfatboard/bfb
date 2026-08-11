@@ -47,6 +47,7 @@ export function AppShell(props: AppShellProps = {}) {
   const [email, setEmail] = useState("owner@synthetic.test");
   const [password, setPassword] = useState(DEFAULT_PASSWORD);
   const [workspaceId, setWorkspaceId] = useState("");
+  const [csrfToken, setCsrfToken] = useState("");
 
   const reloadBoard = useCallback(async () => {
     const slug = parseWorkspaceSlug(path);
@@ -66,8 +67,11 @@ export function AppShell(props: AppShellProps = {}) {
     void (async () => {
       const session = await fetchFn("/auth/session");
       if (session.ok) {
-        const body = (await session.json()) as { human: SessionHuman };
+        const body = (await session.json()) as { human: SessionHuman; csrf_token?: string };
         setHuman(body.human);
+        if (body.csrf_token) {
+          setCsrfToken(body.csrf_token);
+        }
       }
     })();
   }, [fetchFn]);
@@ -87,8 +91,11 @@ export function AppShell(props: AppShellProps = {}) {
       setError("Sign-in failed");
       return;
     }
-    const body = (await response.json()) as { human: SessionHuman };
+    const body = (await response.json()) as { human: SessionHuman; csrf_token?: string };
     setHuman(body.human);
+    if (body.csrf_token) {
+      setCsrfToken(body.csrf_token);
+    }
     setError(null);
   }
 
@@ -164,6 +171,7 @@ export function AppShell(props: AppShellProps = {}) {
                 workspaceId={workspaceId}
                 projectIds={projectIds}
                 fetchImpl={fetchFn}
+                csrfToken={csrfToken}
                 onChanged={() => {
                   void reloadBoard();
                 }}

@@ -7,6 +7,8 @@ export interface WorkMutationsProps {
   workspaceId: string;
   projectIds: string[];
   fetchImpl?: typeof fetch;
+  /** Session-bound CSRF token from /auth/sign-in or /auth/session. */
+  csrfToken?: string;
   onChanged: () => void;
 }
 
@@ -45,10 +47,18 @@ export function WorkMutations(props: WorkMutationsProps) {
     return `request failed (${status})`;
   }
 
+  function mutationHeaders(): HeadersInit {
+    const headers: Record<string, string> = { "content-type": "application/json" };
+    if (props.csrfToken) {
+      headers["x-bfb-csrf"] = props.csrfToken;
+    }
+    return headers;
+  }
+
   async function post(path: string, body: unknown): Promise<unknown> {
     const response = await fetchFn(path, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: mutationHeaders(),
       body: JSON.stringify(body),
     });
     const json = (await response.json()) as { ok?: boolean; error?: unknown; message?: string };
@@ -61,7 +71,7 @@ export function WorkMutations(props: WorkMutationsProps) {
   async function patch(path: string, body: unknown): Promise<unknown> {
     const response = await fetchFn(path, {
       method: "PATCH",
-      headers: { "content-type": "application/json" },
+      headers: mutationHeaders(),
       body: JSON.stringify(body),
     });
     const json = (await response.json()) as { ok?: boolean; error?: unknown; message?: string };

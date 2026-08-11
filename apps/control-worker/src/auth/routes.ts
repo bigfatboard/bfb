@@ -9,6 +9,7 @@ import { randomUlid, verifyPassword } from "@bfb/domain";
 import {
   assertBrowserMutation,
   clearSessionCookie,
+  csrfTokenForSession,
   resolveBrowserPrincipal,
   setSessionCookie,
 } from "./session.js";
@@ -19,6 +20,7 @@ export interface AuthRouteDeps {
   auth: HumanAuth;
   now: string;
   appOrigin: string;
+  authSecret: string;
 }
 
 export async function handleAuthRoute(c: Context, deps: AuthRouteDeps): Promise<Response> {
@@ -27,7 +29,14 @@ export async function handleAuthRoute(c: Context, deps: AuthRouteDeps): Promise<
 
   if (c.req.method !== "GET" && c.req.method !== "HEAD" && c.req.method !== "OPTIONS") {
     try {
-      assertBrowserMutation(c.req.raw, deps.appOrigin);
+      // Sign-in has no session yet; only Origin/Fetch Metadata. Authenticated mutations need CSRF.
+      const principal = await resolveBrowserPrincipal(deps.db, c.req.raw, deps.now);
+      const csrfOptions: { sessionId?: string; authSecret?: string } = {};
+      if (principal) {
+        csrfOptions.sessionId = principal.sessionId;
+        csrfOptions.authSecret = deps.authSecret;
+      }
+      assertBrowserMutation(c.req.raw, deps.appOrigin, csrfOptions);
     } catch (error) {
       const code =
         error instanceof Error && "code" in error
@@ -52,6 +61,7 @@ export async function handleAuthRoute(c: Context, deps: AuthRouteDeps): Promise<
         email: principal.email,
         display_name: principal.displayName,
       },
+      csrf_token: csrfTokenForSession(principal.sessionId, deps.authSecret),
     });
   }
 
@@ -84,6 +94,7 @@ export async function handleAuthRoute(c: Context, deps: AuthRouteDeps): Promise<
       JSON.stringify({
         ok: true,
         human: { id: human.id, email: human.email, display_name: human.display_name },
+        csrf_token: csrfTokenForSession(sessionId, deps.authSecret),
       }),
       {
         status: 200,

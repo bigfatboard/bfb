@@ -11,6 +11,7 @@ import { adaptBetterSqlite3, adaptD1, applyMigrations, type D1Like } from "@bfb/
 import { seedSyntheticWorkspace } from "../../../packages/domain/src/fixtures.js";
 import { SYNTHETIC_PASSWORD } from "../../../packages/domain/src/passwords.js";
 
+import { createTestWorkspaceHubNamespace } from "../src/hub-client.js";
 import { createFetchHandler, type ControlFetchOptions } from "../src/index.js";
 import type { ControlBindings } from "../src/env.js";
 
@@ -66,13 +67,14 @@ async function seededEnv(now = "2026-08-07T12:00:00Z"): Promise<ControlBindings>
   const raw = new Database(":memory:");
   raw.pragma("foreign_keys = ON");
   applyMigrations(raw, migrationsDir);
-  await seedSyntheticWorkspace(adaptBetterSqlite3(raw), now);
+  const sql = adaptBetterSqlite3(raw);
+  await seedSyntheticWorkspace(sql, now);
   return {
     DB: asD1(raw),
     ARTIFACTS: fakeBinding<R2Bucket>("r2"),
     JOBS: fakeBinding<Queue>("jobs"),
     JOBS_DLQ: fakeBinding<Queue>("dlq"),
-    WORKSPACE_HUB: fakeBinding<DurableObjectNamespace>("hub"),
+    WORKSPACE_HUB: createTestWorkspaceHubNamespace(sql),
     APP_ORIGIN: "https://bfb.example.test",
     ARTIFACT_ORIGIN: "https://artifacts.bfb.example.test",
     LAUNCH_ORIGIN: "https://launch.bfb.example.test",

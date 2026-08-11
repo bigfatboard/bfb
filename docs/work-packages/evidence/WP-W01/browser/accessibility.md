@@ -26,13 +26,13 @@
     - list:
       - listitem:
         - text: P1NOW
-        - strong: "&lt;script&gt;alert(1)&lt;/script&gt;"
+        - strong: stale-source-1786458522298
         - paragraph: Ready for next action
         - paragraph: Pass to configured agent profile
         - paragraph: Agent work unavailable
       - listitem:
         - text: P1NOW
-        - strong: stale-source-1786457322907
+        - strong: "&lt;script&gt;alert(1)&lt;/script&gt;"
         - paragraph: Ready for next action
         - paragraph: Pass to configured agent profile
         - paragraph: Agent work unavailable

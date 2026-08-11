@@ -89,6 +89,7 @@ export function createControlApp(
       passThroughOnException() {},
       props: {},
     } as unknown as ExecutionContext;
+    const envBindings = (c.env ?? {}) as { WORKSPACE_HUB?: DurableObjectNamespace };
     return handleMcpRequest(
       c.req.raw,
       {
@@ -96,6 +97,7 @@ export function createControlApp(
         allowedHostnames: [current.origins.appHostname],
         appOrigin: current.origins.appOrigin,
         now: c.get("now") ?? now,
+        workspaceHubNs: envBindings.WORKSPACE_HUB,
       },
       execCtx,
     );
@@ -107,15 +109,17 @@ export function createControlApp(
     if (!db || !current) {
       return c.json({ error: "auth_misconfigured" }, 500);
     }
+    const authSecret = options.authSecret ?? "synthetic-local-auth-secret-not-for-prod";
     const auth = createHumanAuth({
       APP_ORIGIN: current.origins.appOrigin,
-      BETTER_AUTH_SECRET: options.authSecret ?? "synthetic-local-auth-secret-not-for-prod",
+      BETTER_AUTH_SECRET: authSecret,
     });
     return handleAuthRoute(c, {
       db,
       auth,
       now: c.get("now") ?? now,
       appOrigin: current.origins.appOrigin,
+      authSecret,
     });
   });
 
@@ -171,8 +175,15 @@ export function createControlApp(
         401,
       );
     }
+    const principal = await resolveBrowserPrincipal(db, c.req.raw, c.get("now") ?? now);
+    if (!principal) {
+      return c.json({ error: "unauthenticated" }, 401);
+    }
     try {
-      assertBrowserMutation(c.req.raw, current.origins.appOrigin);
+      assertBrowserMutation(c.req.raw, current.origins.appOrigin, {
+        sessionId: principal.sessionId,
+        authSecret: options.authSecret ?? "synthetic-local-auth-secret-not-for-prod",
+      });
     } catch (error) {
       const code =
         error instanceof Error && "code" in error
@@ -183,20 +194,18 @@ export function createControlApp(
         403,
       );
     }
-    const principal = await resolveBrowserPrincipal(db, c.req.raw, c.get("now") ?? now);
-    if (!principal) {
-      return c.json({ error: "unauthenticated" }, 401);
-    }
     const match = c.req.path.match(/^\/api\/v1\/workspaces\/([^/]+)/);
     const workspaceId = match?.[1];
     if (!workspaceId) {
       return c.json({ error: "not_found" }, 404);
     }
+    const envBindings = (c.env ?? {}) as { WORKSPACE_HUB?: DurableObjectNamespace };
     return handleWorkApi(c.req.raw, {
       db,
       principal,
       workspaceId,
       now: c.get("now") ?? now,
+      workspaceHubNs: envBindings.WORKSPACE_HUB,
     });
   });
 

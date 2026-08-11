@@ -8,19 +8,22 @@ import { FIX } from "../../../packages/domain/src/fixtures.js";
 import { SYNTHETIC_PASSWORD } from "../../../packages/domain/src/passwords.js";
 import { validateControlEnv, type ControlBindings } from "../../control-worker/src/env.js";
 import { createControlApp } from "../../control-worker/src/routes.js";
+import { createTestWorkspaceHubNamespace } from "../../control-worker/src/hub-client.js";
 import { parseWorkspaceSlugForTest } from "../src/routing.js";
 
 function fakeBinding<T extends object>(label: string): T {
   return { __synthetic: label } as unknown as T;
 }
 
-function env(): ControlBindings {
+function env(db?: import("@bfb/db").SqlDatabase): ControlBindings {
   return {
     DB: fakeBinding<D1Database>("db"),
     ARTIFACTS: fakeBinding<R2Bucket>("r2"),
     JOBS: fakeBinding<Queue>("jobs"),
     JOBS_DLQ: fakeBinding<Queue>("dlq"),
-    WORKSPACE_HUB: fakeBinding<DurableObjectNamespace>("hub"),
+    WORKSPACE_HUB: db
+      ? createTestWorkspaceHubNamespace(db)
+      : fakeBinding<DurableObjectNamespace>("hub"),
     APP_ORIGIN: "https://bfb.example.test",
     ARTIFACT_ORIGIN: "https://artifacts.bfb.example.test",
     LAUNCH_ORIGIN: "https://launch.bfb.example.test",
@@ -40,6 +43,7 @@ describe("authenticated app shell routing", () => {
     const validated = validateControlEnv(env());
     const app = createControlApp(validated, { db, now: "2026-08-07T12:00:00Z" });
     const cookies = new Map<string, string>();
+    let csrfToken = "";
 
     const fetchImpl: typeof fetch = async (input, init) => {
       const url =
@@ -58,7 +62,19 @@ describe("authenticated app shell routing", () => {
       if (cookies.has("__Host-bfb_session")) {
         headers.set("cookie", "__Host-bfb_session=" + cookies.get("__Host-bfb_session"));
       }
-      const response = await app.request(new Request(url.toString(), { ...init, headers }), env());
+      if (
+        csrfToken &&
+        !headers.has("x-bfb-csrf") &&
+        (init?.method ?? "GET").toUpperCase() !== "GET"
+      ) {
+        headers.set("x-bfb-csrf", csrfToken);
+      }
+      // Hono: third arg is Worker bindings (Env); second is RequestInit only.
+      const response = await app.request(
+        new Request(url.toString(), { ...init, headers }),
+        undefined,
+        env(db),
+      );
       const setCookie = response.headers.get("set-cookie");
       if (setCookie?.includes("__Host-bfb_session=")) {
         const value = setCookie.split(";")[0]?.split("=")[1];
@@ -91,6 +107,9 @@ describe("authenticated app shell routing", () => {
       body: JSON.stringify({ email: "owner@synthetic.test", password: SYNTHETIC_PASSWORD }),
     });
     expect(signIn.status).toBe(200);
+    const signInBody = (await signIn.clone().json()) as { csrf_token?: string };
+    csrfToken = signInBody.csrf_token ?? "";
+    expect(csrfToken.length).toBeGreaterThan(10);
 
     const board = await fetchImpl(`/api/v1/workspaces/${FIX.workspace}/board`);
     expect(board.status).toBe(200);
@@ -167,6 +186,7 @@ describe("authenticated app shell routing", () => {
 
     // Restricted member only sees granted project via a fresh cookie jar.
     const restrictedCookies = new Map<string, string>();
+    let restrictedCsrf = "";
     const restrictedFetch: typeof fetch = async (input, init) => {
       const url =
         typeof input === "string"
@@ -184,7 +204,18 @@ describe("authenticated app shell routing", () => {
       if (restrictedCookies.has("__Host-bfb_session")) {
         headers.set("cookie", "__Host-bfb_session=" + restrictedCookies.get("__Host-bfb_session"));
       }
-      const response = await app.request(new Request(url.toString(), { ...init, headers }), env());
+      if (
+        restrictedCsrf &&
+        !headers.has("x-bfb-csrf") &&
+        (init?.method ?? "GET").toUpperCase() !== "GET"
+      ) {
+        headers.set("x-bfb-csrf", restrictedCsrf);
+      }
+      const response = await app.request(
+        new Request(url.toString(), { ...init, headers }),
+        undefined,
+        env(db),
+      );
       const setCookie = response.headers.get("set-cookie");
       if (setCookie?.includes("__Host-bfb_session=")) {
         const value = setCookie.split(";")[0]?.split("=")[1];
@@ -203,6 +234,8 @@ describe("authenticated app shell routing", () => {
       }),
     });
     expect(restrictedSignIn.status).toBe(200);
+    restrictedCsrf =
+      ((await restrictedSignIn.clone().json()) as { csrf_token?: string }).csrf_token ?? "";
     const restrictedBoard = await restrictedFetch(`/api/v1/workspaces/${FIX.workspace}/board`);
     expect(restrictedBoard.status).toBe(200);
     const restrictedBody = (await restrictedBoard.json()) as {

@@ -9,18 +9,21 @@ import { issueStepUpProof } from "../../../packages/domain/src/step-up.js";
 import { openDomainDb } from "../../../packages/domain/test/helpers.js";
 import { validateControlEnv, type ControlBindings } from "../src/env.js";
 import { createControlApp } from "../src/routes.js";
+import { createTestWorkspaceHubNamespace } from "../src/hub-client.js";
 
 function fakeBinding<T extends object>(label: string): T {
   return { __synthetic: label } as unknown as T;
 }
 
-function env(): ControlBindings {
+function env(db?: import("@bfb/db").SqlDatabase): ControlBindings {
   return {
     DB: fakeBinding<D1Database>("db"),
     ARTIFACTS: fakeBinding<R2Bucket>("r2"),
     JOBS: fakeBinding<Queue>("jobs"),
     JOBS_DLQ: fakeBinding<Queue>("dlq"),
-    WORKSPACE_HUB: fakeBinding<DurableObjectNamespace>("hub"),
+    WORKSPACE_HUB: db
+      ? createTestWorkspaceHubNamespace(db)
+      : fakeBinding<DurableObjectNamespace>("hub"),
     APP_ORIGIN: "https://bfb.example.test",
     ARTIFACT_ORIGIN: "https://artifacts.bfb.example.test",
     LAUNCH_ORIGIN: "https://launch.bfb.example.test",
@@ -34,7 +37,7 @@ describe("control routes", () => {
     const validated = validateControlEnv(env());
     const db = await openDomainDb();
     const app = createControlApp(validated, { db, now: "2026-08-07T12:00:00Z" });
-    const response = await app.request("/healthz", {}, env());
+    const response = await app.request("/healthz", {}, env(db));
     expect(response.status).toBe(200);
     const body = (await response.json()) as { package: string; environment: string };
     expect(body.package).toBe("F03");
@@ -45,6 +48,7 @@ describe("control routes", () => {
     const validated = validateControlEnv(env());
     const db = await openDomainDb();
     const app = createControlApp(validated, { db, now: "2026-08-07T12:00:00Z" });
+    const bindings = env(db);
     const response = await app.request(
       new Request("https://bfb.example.test/mcp", {
         method: "POST",
@@ -56,7 +60,8 @@ describe("control routes", () => {
         },
         body: JSON.stringify({ method: "tools/list" }),
       }),
-      env(),
+      undefined,
+      bindings,
     );
     expect(response.status).not.toBe(501);
     expect(response.status).toBe(200);
@@ -68,6 +73,7 @@ describe("control routes", () => {
     const validated = validateControlEnv(env());
     const db = await openDomainDb();
     const app = createControlApp(validated, { db, now: "2026-08-07T12:00:00Z" });
+    const bindings = env(db);
     const signIn = await app.request(
       new Request("https://bfb.example.test/auth/sign-in/email", {
         method: "POST",
@@ -78,28 +84,34 @@ describe("control routes", () => {
         },
         body: JSON.stringify({ email: "owner@synthetic.test", password: "synthetic-password" }),
       }),
-      env(),
+      undefined,
+      bindings,
     );
     expect(signIn.status).toBe(200);
     const cookie = signIn.headers.get("set-cookie");
     expect(cookie).toMatch(/__Host-bfb_session=/);
+    const signInBody = (await signIn.json()) as { csrf_token?: string };
+    expect(signInBody.csrf_token?.length ?? 0).toBeGreaterThan(10);
 
     const session = await app.request(
       new Request("https://bfb.example.test/auth/session", {
         headers: { cookie: cookie?.split(";")[0] ?? "" },
       }),
-      env(),
+      undefined,
+      bindings,
     );
     expect(session.status).toBe(200);
-    const body = (await session.json()) as { authenticated: boolean };
+    const body = (await session.json()) as { authenticated: boolean; csrf_token?: string };
     expect(body.authenticated).toBe(true);
+    expect(body.csrf_token?.length ?? 0).toBeGreaterThan(10);
   });
 
   it("publishes OAuth metadata and rejects cookie auth on /mcp", async () => {
     const validated = validateControlEnv(env());
     const db = await openDomainDb();
     const app = createControlApp(validated, { db, now: "2026-08-07T12:00:00Z" });
-    const meta = await app.request("/.well-known/oauth-authorization-server", {}, env());
+    const bindings = env(db);
+    const meta = await app.request("/.well-known/oauth-authorization-server", {}, bindings);
     expect(meta.status).toBe(200);
     const body = (await meta.json()) as { code_challenge_methods_supported: string[] };
     expect(body.code_challenge_methods_supported).toContain("S256");
@@ -116,7 +128,8 @@ describe("control routes", () => {
         },
         body: JSON.stringify({ method: "tools/list" }),
       }),
-      env(),
+      undefined,
+      bindings,
     );
     expect(cookieMcp.status).toBe(401);
   });
@@ -126,6 +139,7 @@ describe("control routes", () => {
     const db = await openDomainDb();
     const now = "2026-08-07T12:00:00Z";
     const app = createControlApp(validated, { db, now });
+    const bindings = env(db);
 
     // Sign in
     const signIn = await app.request(
@@ -138,7 +152,8 @@ describe("control routes", () => {
         },
         body: JSON.stringify({ email: "owner@synthetic.test", password: "synthetic-password" }),
       }),
-      env(),
+      undefined,
+      bindings,
     );
     const cookie = signIn.headers.get("set-cookie")?.split(";")[0] ?? "";
 
@@ -178,7 +193,8 @@ describe("control routes", () => {
 
     const authorize = await app.request(
       new Request(authorizeUrl.toString(), { headers: { cookie } }),
-      env(),
+      undefined,
+      bindings,
     );
     expect(authorize.status).toBe(302);
     const location = authorize.headers.get("location");
@@ -198,7 +214,8 @@ describe("control routes", () => {
           code_verifier: verifier,
         }),
       }),
-      env(),
+      undefined,
+      bindings,
     );
     expect(token.status).toBe(200);
     const tokenBody = (await token.json()) as { access_token: string };
@@ -230,7 +247,8 @@ describe("control routes", () => {
           },
         }),
       }),
-      env(),
+      undefined,
+      bindings,
     );
     expect(propose.status).not.toBe(501);
     expect([200, 202]).toContain(propose.status);

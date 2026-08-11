@@ -4,6 +4,7 @@
 export * from "./abuse.js";
 export * from "./authorization.js";
 export * from "./fixtures.js";
+export * from "./command-catalog.js";
 export * from "./hub.js";
 export * from "./hub-registry.js";
 export * from "./ids.js";

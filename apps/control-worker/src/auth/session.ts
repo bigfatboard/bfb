@@ -1,6 +1,8 @@
 // ABOUTME: Resolves the current browser human from a Better Auth session cookie for API routes.
 // ABOUTME: MCP credentials are never accepted here; cookie confusion is fail-closed for /mcp.
 
+import { createHmac, timingSafeEqual } from "node:crypto";
+
 import type { SqlDatabase } from "@bfb/db";
 
 /** __Host- requires Secure, Path=/, and no Domain attribute. */
@@ -29,11 +31,29 @@ export function readSessionCookie(request: Request): string | null {
   return null;
 }
 
+/** Session-bound CSRF token derived from the session id and auth secret. */
+export function csrfTokenForSession(sessionId: string, secret: string): string {
+  return createHmac("sha256", secret).update(`bfb-csrf:${sessionId}`).digest("hex");
+}
+
+function csrfTokensEqual(provided: string, expected: string): boolean {
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) {
+    return false;
+  }
+  return timingSafeEqual(a, b);
+}
+
 /**
- * Enforces Origin + Fetch Metadata CSRF defenses on cookie-authenticated mutations.
+ * Enforces Origin + Fetch Metadata + session-bound CSRF on cookie-authenticated mutations.
  * Safe methods (GET/HEAD/OPTIONS) are not gated.
  */
-export function assertBrowserMutation(request: Request, appOrigin: string): void {
+export function assertBrowserMutation(
+  request: Request,
+  appOrigin: string,
+  options: { sessionId?: string; authSecret?: string } = {},
+): void {
   const method = request.method.toUpperCase();
   if (method === "GET" || method === "HEAD" || method === "OPTIONS") {
     return;
@@ -49,6 +69,15 @@ export function assertBrowserMutation(request: Request, appOrigin: string): void
     const error = new Error("cross-site fetch metadata rejected");
     (error as { code?: string }).code = "csrf_fetch_metadata";
     throw error;
+  }
+  if (options.sessionId && options.authSecret) {
+    const expected = csrfTokenForSession(options.sessionId, options.authSecret);
+    const provided = request.headers.get("x-bfb-csrf") ?? "";
+    if (!provided || !csrfTokensEqual(provided, expected)) {
+      const error = new Error("session-bound CSRF token missing or invalid");
+      (error as { code?: string }).code = "csrf_token";
+      throw error;
+    }
   }
 }
 

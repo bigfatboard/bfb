@@ -8,6 +8,7 @@ import {
   SESSION_COOKIE,
   assertBrowserMutation,
   clearSessionCookie,
+  csrfTokenForSession,
   readSessionCookie,
   setSessionCookie,
 } from "../src/auth/session.js";
@@ -69,6 +70,51 @@ describe("session cookie security", () => {
           headers: { origin: appOrigin, "sec-fetch-site": "same-origin" },
         }),
         appOrigin,
+      ),
+    ).not.toThrow();
+  });
+
+  it("requires a session-bound CSRF token for authenticated mutations", () => {
+    const appOrigin = "https://bfb.example.test";
+    const secret = "synthetic-local-auth-secret-not-for-prod";
+    const sessionId = "01JBFB0SESS10N000000000000";
+    const token = csrfTokenForSession(sessionId, secret);
+    expect(() =>
+      assertBrowserMutation(
+        new Request("https://bfb.example.test/api/v1/workspaces/x/tasks", {
+          method: "POST",
+          headers: { origin: appOrigin, "sec-fetch-site": "same-origin" },
+        }),
+        appOrigin,
+        { sessionId, authSecret: secret },
+      ),
+    ).toThrow(/CSRF token/);
+    expect(() =>
+      assertBrowserMutation(
+        new Request("https://bfb.example.test/api/v1/workspaces/x/tasks", {
+          method: "POST",
+          headers: {
+            origin: appOrigin,
+            "sec-fetch-site": "same-origin",
+            "x-bfb-csrf": "deadbeef",
+          },
+        }),
+        appOrigin,
+        { sessionId, authSecret: secret },
+      ),
+    ).toThrow(/CSRF token/);
+    expect(() =>
+      assertBrowserMutation(
+        new Request("https://bfb.example.test/api/v1/workspaces/x/tasks", {
+          method: "POST",
+          headers: {
+            origin: appOrigin,
+            "sec-fetch-site": "same-origin",
+            "x-bfb-csrf": token,
+          },
+        }),
+        appOrigin,
+        { sessionId, authSecret: secret },
       ),
     ).not.toThrow();
   });

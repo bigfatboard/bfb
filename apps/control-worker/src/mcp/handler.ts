@@ -13,6 +13,7 @@ export interface McpHandlerEnv {
   allowedHostnames: string[];
   appOrigin: string;
   now?: string;
+  workspaceHubNs?: DurableObjectNamespace | undefined;
 }
 
 export async function handleMcpRequest(
@@ -93,6 +94,7 @@ export async function handleMcpRequest(
         db: env.db,
         delegation,
         now,
+        workspaceHubNs: env.workspaceHubNs,
       });
       const handler = createMcpHandler(() => server, {
         route: "/mcp",

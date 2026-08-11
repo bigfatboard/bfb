@@ -7,7 +7,6 @@ import { z } from "zod";
 import type { SqlDatabase } from "@bfb/db";
 import {
   type ActiveDelegation,
-  workspaceHub,
   assertScope,
   assertTaskChildAccess,
   getAgentContext,
@@ -20,10 +19,13 @@ import {
   createTaskCommand,
 } from "@bfb/domain";
 
+import { executeWorkspaceCommand } from "../hub-client.js";
+
 export interface McpServerDeps {
   db: SqlDatabase;
   delegation: ActiveDelegation;
   now: string;
+  workspaceHubNs?: DurableObjectNamespace | undefined;
 }
 
 export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer> {
@@ -31,7 +33,11 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
     name: "bfb",
     version: "0.0.0",
   });
-  const hub = workspaceHub(deps.db, deps.delegation.workspaceId);
+  const hubDeps = {
+    db: deps.db,
+    workspaceId: deps.delegation.workspaceId,
+    workspaceHubNs: deps.workspaceHubNs,
+  };
   const principal = await loadPrincipal(
     deps.db,
     deps.delegation.workspaceId,
@@ -145,7 +151,7 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
         };
       }
       narrowBoundary(deps.delegation, task.project_id, task.id);
-      const outcome = await hub.execute(addCommentCommand, {
+      const outcome = await executeWorkspaceCommand(hubDeps, addCommentCommand, {
         workspaceId: deps.delegation.workspaceId,
         idempotencyKey: request_id ?? `comment-${task_id}-${deps.now}`,
         authorizationEpoch: deps.delegation.authorizationEpoch,
@@ -178,7 +184,7 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
         };
       }
       narrowBoundary(deps.delegation, task.project_id, task.id);
-      const outcome = await hub.execute(addCommentCommand, {
+      const outcome = await executeWorkspaceCommand(hubDeps, addCommentCommand, {
         workspaceId: deps.delegation.workspaceId,
         idempotencyKey: request_id ?? `progress-${task_id}-${deps.now}`,
         authorizationEpoch: deps.delegation.authorizationEpoch,
@@ -205,7 +211,7 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
     async ({ project_id, title, priority, request_id }) => {
       assertScope(deps.delegation, "bfb:task:write");
       await enforceDelegationAccess(deps.db, deps.delegation, project_id);
-      const outcome = await hub.execute(createTaskCommand, {
+      const outcome = await executeWorkspaceCommand(hubDeps, createTaskCommand, {
         workspaceId: deps.delegation.workspaceId,
         idempotencyKey: request_id ?? `propose-${project_id}-${deps.now}`,
         authorizationEpoch: deps.delegation.authorizationEpoch,

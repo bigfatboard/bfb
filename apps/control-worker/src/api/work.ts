@@ -3,7 +3,6 @@
 
 import type { SqlDatabase } from "@bfb/db";
 import {
-  workspaceHub,
   buildNeedsNowDeck,
   buildProjectLanes,
   createTaskCommand,
@@ -18,19 +17,25 @@ import {
 } from "@bfb/domain";
 
 import type { BrowserPrincipal } from "../auth/session.js";
+import { executeWorkspaceCommand } from "../hub-client.js";
 
 export interface WorkApiDeps {
   db: SqlDatabase;
   principal: BrowserPrincipal;
   workspaceId: string;
   now: string;
+  workspaceHubNs?: DurableObjectNamespace | undefined;
 }
 
 export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promise<Response> {
   const url = new URL(request.url);
   const path = url.pathname;
   const authz = await loadPrincipal(deps.db, deps.workspaceId, deps.principal.humanId);
-  const hub = workspaceHub(deps.db, deps.workspaceId);
+  const hubDeps = {
+    db: deps.db,
+    workspaceId: deps.workspaceId,
+    workspaceHubNs: deps.workspaceHubNs,
+  };
 
   if (path === `/api/v1/workspaces/${deps.workspaceId}/board` && request.method === "GET") {
     const lanes = await buildProjectLanes(deps.db, deps.workspaceId, authz.projectIds);
@@ -64,7 +69,7 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
       priority?: "P0" | "P1" | "P2" | "P3";
       request_id?: string;
     };
-    const outcome = await hub.execute(createTaskCommand, {
+    const outcome = await executeWorkspaceCommand(hubDeps, createTaskCommand, {
       workspaceId: deps.workspaceId,
       idempotencyKey: body.request_id ?? `web-create-${deps.now}`,
       authorizationEpoch: authz.authorizationEpoch,
@@ -89,7 +94,7 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
       priority?: "P0" | "P1" | "P2" | "P3";
       request_id?: string;
     };
-    const outcome = await hub.execute(createTaskCommand, {
+    const outcome = await executeWorkspaceCommand(hubDeps, createTaskCommand, {
       workspaceId: deps.workspaceId,
       idempotencyKey: body.request_id ?? `web-propose-${deps.now}`,
       authorizationEpoch: authz.authorizationEpoch,
@@ -130,7 +135,7 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
         promote?: boolean;
         request_id?: string;
       };
-      const outcome = await hub.execute(updateTaskCommand, {
+      const outcome = await executeWorkspaceCommand(hubDeps, updateTaskCommand, {
         workspaceId: deps.workspaceId,
         idempotencyKey: body.request_id ?? `web-update-${taskId}-${deps.now}`,
         authorizationEpoch: authz.authorizationEpoch,
@@ -151,7 +156,7 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
         kind?: "discussion" | "progress";
         request_id?: string;
       };
-      const outcome = await hub.execute(addCommentCommand, {
+      const outcome = await executeWorkspaceCommand(hubDeps, addCommentCommand, {
         workspaceId: deps.workspaceId,
         idempotencyKey: body.request_id ?? `web-comment-${taskId}-${deps.now}`,
         authorizationEpoch: authz.authorizationEpoch,
@@ -189,7 +194,7 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
         body: string;
         request_id?: string;
       };
-      const outcome = await hub.execute(addContextCommand, {
+      const outcome = await executeWorkspaceCommand(hubDeps, addContextCommand, {
         workspaceId: deps.workspaceId,
         idempotencyKey: body.request_id ?? `web-context-${taskId}-${deps.now}`,
         authorizationEpoch: authz.authorizationEpoch,
@@ -203,13 +208,6 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
       });
       return json(outcome, outcome.ok ? 200 : 409);
     }
-  }
-
-  if (path === `/api/v1/workspaces/${deps.workspaceId}` && request.method === "GET") {
-    const workspace = await deps.db
-      .prepare(`SELECT id, slug, jurisdiction FROM workspaces WHERE id = ?`)
-      .get(deps.workspaceId);
-    return json({ workspace, role: authz.role, projects: authz.projectIds });
   }
 
   return json({ error: "not_found" }, 404);

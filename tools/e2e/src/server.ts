@@ -14,7 +14,9 @@ import {
   validateControlEnv,
   type ControlBindings,
 } from "../../../apps/control-worker/src/env.js";
+import { createTestWorkspaceHubNamespace } from "../../../apps/control-worker/src/hub-client.js";
 import { createControlApp } from "../../../apps/control-worker/src/routes.js";
+import type { SqlDatabase } from "@bfb/db";
 
 const PORT = Number(process.env.BFB_E2E_PORT ?? "4173");
 const HOST = process.env.BFB_E2E_HOST ?? "127.0.0.1";
@@ -28,13 +30,13 @@ function fakeBinding<T extends object>(label: string): T {
   return { __synthetic: label } as unknown as T;
 }
 
-function controlBindings(): ControlBindings {
+function controlBindings(db: SqlDatabase): ControlBindings {
   return {
     DB: fakeBinding<D1Database>("db"),
     ARTIFACTS: fakeBinding<R2Bucket>("r2"),
     JOBS: fakeBinding<Queue>("jobs"),
     JOBS_DLQ: fakeBinding<Queue>("dlq"),
-    WORKSPACE_HUB: fakeBinding<DurableObjectNamespace>("hub"),
+    WORKSPACE_HUB: createTestWorkspaceHubNamespace(db),
     APP_ORIGIN: ORIGIN,
     ARTIFACT_ORIGIN: "https://artifacts.bfb.example.test",
     LAUNCH_ORIGIN: "https://launch.bfb.example.test",
@@ -138,7 +140,7 @@ async function serveSpa(
 
 async function main(): Promise<void> {
   const db = await openDomainDb();
-  const bindings = controlBindings();
+  const bindings = controlBindings(db);
   const validated = validateControlEnv(bindings);
   const app = createControlApp(validated, { db, now: NOW });
 
