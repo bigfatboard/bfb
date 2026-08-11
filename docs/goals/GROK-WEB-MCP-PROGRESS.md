@@ -6,16 +6,16 @@ This file is the resumable execution journal for [the Grok web/MCP goal](GROK-WE
 
 - Goal state: `active — correction and re-certification`
 - Branch: `goal/grok-web-mcp`
-- Last observed HEAD: 3f8ecd859ffe2e1603bfd4e281da8cf0d87a46d6
-- Last verified commit: d001ca2ffa4e46a3e8311528307d2679134e919d
-- Last verification command/result: fresh checkout passed `pnpm install --frozen-lockfile`, `pnpm test:c02` with 22 focused tests and a two-isolate Workerd/D1 smoke, full `pnpm verify` with 307 TypeScript tests plus protocol/Go/Xcode checks, and ended clean
-- Worktree checkpoint: C03 passes `pnpm test:c03` with real Chromium WebAuthn and two shared-D1 Workerd isolates; `pnpm test:db`, `pnpm test:c02`, `pnpm test:substrate`, `pnpm test:x03a`, and full `pnpm verify` also pass, including 312 TypeScript tests plus protocol, Go, and Xcode checks
-- Active package: C03 — Passkey enrollment and step-up
-- Active gate: commit the verified C03 implementation, then repeat the exact package target and full verifier from a clean checkout of that commit
-- Active task: create the C03 implementation checkpoint without staging generated W01 browser evidence
-- Resume here: clean-checkout certify C03, retain bounded evidence, then advance sequentially through C04 → C07 → C08 → W01 → X03A
+- Last observed HEAD: ec75d9894b76312a894dd72cee7e56af5cc14f3b
+- Last verified commit: ec75d9894b76312a894dd72cee7e56af5cc14f3b
+- Last verification command/result: fresh checkout passed `pnpm install --frozen-lockfile`, `pnpm test:c03` with 12 focused tests, two shared-D1 Workerd isolates, and real Chromium WebAuthn, full `pnpm verify` with 312 TypeScript tests plus protocol/Go/Xcode checks, and `pnpm worktree:check`
+- Worktree checkpoint: bounded C03 evidence is retained against the verified implementation commit; generated W01 browser evidence remains excluded
+- Active package: C04 — Workspace authorization
+- Active gate: inspect the C04 implementation and acceptance contract, reproduce remaining authorization failures, then close them with focused tests
+- Active task: re-certify bootstrap, invitations, membership roles, revocation epochs, final-owner/final-authenticator invariants, tenant scoping, and durable abuse controls
+- Resume here: complete C04, then advance sequentially through C07 → C08 → W01 → X03A
 - Blocking condition: `none`
-- Updated UTC: `2026-08-11T21:04:20Z`
+- Updated UTC: `2026-08-11T21:10:05Z`
 
 ## Final review findings
 
@@ -26,6 +26,6 @@ This file is the resumable execution journal for [the Grok web/MCP goal](GROK-WE
 
 ## Package status
 
-F01 is re-certified at tested commit `71f9f588dd94f6191ef963a22bcfd715c54447a1`. F02 is re-certified at tested commit `be989733403efc171cf29c70c7d1fa2b52dbd167`. F03 is re-certified at tested commit `9b8a4d4382ac7b93baa6bea4b36a72e7f165fd9a`. F04 is re-certified at tested commit `9ff92a91166b10ad7199c5ad6c4040a9c9d97078`. C01 is re-certified at tested commit `8b3c3a47446f9ea3cdb392406176737b5da50a11`. C02 is re-certified at tested commit `d001ca2ffa4e46a3e8311528307d2679134e919d`. C03 is active; C04–X03A remain planned and must be re-certified in dependency order. PR #3 remains open and must not merge until this journal returns to `complete` with clean-checkout proof.
+F01 is re-certified at tested commit `71f9f588dd94f6191ef963a22bcfd715c54447a1`. F02 is re-certified at tested commit `be989733403efc171cf29c70c7d1fa2b52dbd167`. F03 is re-certified at tested commit `9b8a4d4382ac7b93baa6bea4b36a72e7f165fd9a`. F04 is re-certified at tested commit `9ff92a91166b10ad7199c5ad6c4040a9c9d97078`. C01 is re-certified at tested commit `8b3c3a47446f9ea3cdb392406176737b5da50a11`. C02 is re-certified at tested commit `d001ca2ffa4e46a3e8311528307d2679134e919d`. C03 is re-certified at tested commit `ec75d9894b76312a894dd72cee7e56af5cc14f3b`. C04 is active; C07–X03A remain planned and must be re-certified in dependency order. PR #3 remains open and must not merge until this journal returns to `complete` with clean-checkout proof.
 
 Mark a journal handoff complete only after the canonical package is `done`, its declared test passes from a clean checkout, its evidence manifest exists, and that manifest's tested implementation commit is recorded.

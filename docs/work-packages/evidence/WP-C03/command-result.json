@@ -1,13 +1,31 @@
 {
   "package": "C03",
-  "command": "pnpm test:c03",
-  "outcome": "passed",
-  "checks": [
-    "consume-once",
-    "stale/client/action/human/scope mismatch",
-    "max TTL bound",
-    "task boundary mismatch",
-    "conditional UPDATE plus unique stamp ownership",
-    "concurrent consume single winner"
-  ]
+  "tested_commit": "ec75d9894b76312a894dd72cee7e56af5cc14f3b",
+  "captured_at": "2026-08-11T21:10:05Z",
+  "environment": "clean checkout on macOS 26.2 (25C56), arm64",
+  "runs": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "details": "Installed the exact lockfile into a fresh clone before any build output existed."
+    },
+    {
+      "command": "pnpm test:c03",
+      "outcome": "passed",
+      "details": "Built all workspace targets, passed 12 focused tests in three files, completed a two-isolate Workerd/D1 abuse-control smoke, and passed one real Chromium WebAuthn flow with two virtual authenticators."
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "details": "Repository verification passed with 312 TypeScript tests, protocol drift checks, Go checks, and unsigned Xcode build and tests."
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "details": "The clean checkout remained unchanged after verification."
+    }
+  ],
+  "production_or_shared_state_used": false,
+  "raw_logs_committed": false,
+  "redaction": "passed"
 }

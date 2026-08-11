@@ -1,0 +1,28 @@
+{
+  "package": "C03",
+  "tested_commit": "ec75d9894b76312a894dd72cee7e56af5cc14f3b",
+  "passkey": {
+    "better_auth_plugin_enabled": true,
+    "ordinary_plugin_mutation_routes_exposed": false,
+    "user_verification": "required",
+    "rp_id": "exact validated app-origin hostname",
+    "expected_origin": "exact validated app origin",
+    "challenge_storage": "D1",
+    "challenge_session_binding": true,
+    "challenge_human_binding": true,
+    "challenge_auth_user_binding": true,
+    "challenge_action_binding": true,
+    "challenge_consume_once": true
+  },
+  "enrollment": {
+    "initial_authority": "fresh Better Auth GitHub reauthentication",
+    "later_authority": "existing user-verifying passkey proof",
+    "completion_capability_storage": "HMAC only"
+  },
+  "removal": {
+    "authority": "existing user-verifying passkey proof",
+    "target_bound": true,
+    "final_owner_authenticator_guard_owner": "C04"
+  },
+  "migration_head": "0009_passkey_step_up"
+}

@@ -1,0 +1,24 @@
+{
+  "package": "C03",
+  "tested_commit": "ec75d9894b76312a894dd72cee7e56af5cc14f3b",
+  "workers": ["bfb-passkeys-a", "bfb-passkeys-b"],
+  "shared_storage": "one migrated D1 database",
+  "surfaces": [
+    "/auth/step-up/options",
+    "/auth/passkeys/enroll/start",
+    "/auth/passkeys/enroll/options",
+    "/auth/step-up/verify",
+    "/auth/passkeys/remove",
+    "unauthenticated:/auth/step-up/options"
+  ],
+  "attempts_per_surface": 11,
+  "first_ten_processed": true,
+  "eleventh_status": 429,
+  "abuse_buckets": 6,
+  "authentication_challenges": 10,
+  "failed_security_events": 50,
+  "raw_ip_in_bucket_keys": false,
+  "raw_capability_in_bucket_keys": false,
+  "raw_path_in_bucket_keys": false,
+  "outcome": "passed"
+}

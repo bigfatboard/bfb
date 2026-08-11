@@ -1,20 +1,33 @@
 {
   "$schema": "../manifest.schema.json",
   "package": "C03",
-  "tested_commit": "696e3ccf33ba590a4a50a3f53dc448ca9cd4f639",
+  "tested_commit": "ec75d9894b76312a894dd72cee7e56af5cc14f3b",
   "protocol_version": "bfb-wire/1",
   "schema_version": "1",
-  "migration_head": "0006_reviewer_role",
+  "migration_head": "0009_passkey_step_up",
   "toolchains": {
     "node": "24.19.0",
-    "pnpm": "11.21.0"
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "xcode": "26.0.1",
+    "better-auth": "1.6.26",
+    "better-auth-passkey": "1.6.26",
+    "simplewebauthn-server": "13.3.2",
+    "better-sqlite3": "12.6.2",
+    "wrangler": "4.120.1",
+    "playwright": "1.55.1"
   },
   "environment": {
     "kind": "clean_checkout",
-    "os": "macOS",
+    "os": "macOS 26.2 (25C56)",
     "architecture": "arm64"
   },
   "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C03/command-result.json"
+    },
     {
       "command": "pnpm test:c03",
       "outcome": "passed",
@@ -22,14 +35,33 @@
     },
     {
       "command": "pnpm verify",
-      "outcome": "passed"
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C03/command-result.json"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C03/command-result.json"
     }
   ],
   "outcome": "passed",
   "artifacts": [
     "docs/work-packages/evidence/WP-C03/command-result.json",
+    "docs/work-packages/evidence/WP-C03/passkey-configuration.json",
+    "docs/work-packages/evidence/WP-C03/workerd-abuse.json",
+    "docs/work-packages/evidence/WP-C03/negative-tests.md",
+    "docs/work-packages/evidence/WP-C03/step-up-contract.md",
+    "docs/work-packages/evidence/WP-C03/final-audit.md",
+    "docs/work-packages/evidence/WP-C03/browser/passkey-flow.md",
+    "docs/work-packages/evidence/WP-C03/browser/passkey-flow.png",
+    "apps/control-worker/src/auth/better-auth.ts",
+    "apps/control-worker/src/auth/passkeys.ts",
+    "apps/control-worker/src/auth/routes.ts",
     "packages/domain/src/step-up.ts",
-    "packages/domain/test/step-up.test.ts"
+    "migrations/d1/0009_passkey_step_up.sql",
+    "apps/control-worker/test/passkey-routes.test.ts",
+    "apps/web/test/e2e/c03-passkey.spec.ts",
+    "tools/passkeys/run.ts"
   ],
   "redaction": {
     "status": "passed",
