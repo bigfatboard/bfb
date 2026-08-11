@@ -1,5 +1,5 @@
 {
-  "migration_head": "0010_workspace_authorization",
+  "migration_head": "0011_project_policy_versions",
   "migrations": [
     {
       "id": "0001_workspace_registry",
@@ -40,6 +40,10 @@
     {
       "id": "0010_workspace_authorization",
       "file": "0010_workspace_authorization.sql"
+    },
+    {
+      "id": "0011_project_policy_versions",
+      "file": "0011_project_policy_versions.sql"
     }
   ]
 }

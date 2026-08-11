@@ -84,8 +84,27 @@ export async function seedSyntheticWorkspace(
     .run(FIX.workspace, FIX.projectA, now, FIX.workspace, FIX.projectB, now);
 
   await db
-    .prepare(`INSERT INTO project_access (workspace_id, project_id, human_id) VALUES (?, ?, ?)`)
-    .run(FIX.workspace, FIX.projectA, FIX.restricted);
+    .prepare(
+      `INSERT INTO project_access (workspace_id, project_id, human_id)
+       VALUES (?, ?, ?), (?, ?, ?), (?, ?, ?), (?, ?, ?), (?, ?, ?)`,
+    )
+    .run(
+      FIX.workspace,
+      FIX.projectA,
+      FIX.owner,
+      FIX.workspace,
+      FIX.projectA,
+      FIX.member,
+      FIX.workspace,
+      FIX.projectA,
+      FIX.restricted,
+      FIX.workspace,
+      FIX.projectB,
+      FIX.owner,
+      FIX.workspace,
+      FIX.projectB,
+      FIX.member,
+    );
 
   await db
     .prepare(
@@ -96,10 +115,13 @@ export async function seedSyntheticWorkspace(
 
   await db
     .prepare(
-      `INSERT INTO project_policies (workspace_id, project_id, allow_agent_root_propose, allow_pass_to_agent, resource_version)
-     VALUES (?, ?, 1, 1, 1), (?, ?, 1, 1, 1)`,
+      `INSERT INTO agent_profile_versions
+       (workspace_id, profile_id, version, name, provider, model,
+        execution_mode, harness_mode, created_by_human_id, created_at)
+       VALUES (?, ?, 1, 'Codex Refactor', 'codex', NULL, 'interactive', 'standard', NULL, ?),
+              (?, ?, 1, 'Grok Explore', 'grok', NULL, 'interactive', 'standard', NULL, ?)`,
     )
-    .run(FIX.workspace, FIX.projectA, FIX.workspace, FIX.projectB);
+    .run(FIX.workspace, FIX.profileCodex, now, FIX.workspace, FIX.profileGrok, now);
 
   await db
     .prepare(

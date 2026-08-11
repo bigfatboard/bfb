@@ -39,7 +39,7 @@
     "test:c03:browser": "playwright test apps/web/test/e2e/c03-passkey.spec.ts --config tools/e2e/playwright.config.ts",
     "test:c03": "pnpm build && vitest run packages/domain/test/step-up.test.ts apps/control-worker/test/auth-configuration.test.ts apps/control-worker/test/passkey-routes.test.ts && tsx tools/passkeys/run.ts && pnpm test:c03:browser",
     "test:c04": "pnpm build && vitest run packages/domain/test/authorization.test.ts apps/control-worker/test/workspace-authorization-routes.test.ts && pnpm exec tsc -b tools/workspace-authorization --pretty false && tsx tools/workspace-authorization/run.ts",
-    "test:c07": "vitest run packages/domain/test/projects.test.ts",
+    "test:c07": "pnpm build && vitest run packages/domain/test/projects.test.ts apps/control-worker/test/project-routes.test.ts && tsx tools/projects/run.ts",
     "test:c08": "vitest run packages/domain/test/work.test.ts packages/domain/test/projections.test.ts",
     "test:w01:unit": "vitest run packages/domain/test/projections.test.ts apps/web/test",
     "test:w01:browser": "playwright test --config tools/e2e/playwright.config.ts",

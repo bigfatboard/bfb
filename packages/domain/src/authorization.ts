@@ -36,22 +36,21 @@ export async function loadPrincipal(
   if (!member) {
     throw new DomainError("forbidden", "not a workspace member");
   }
-  let projectIds: string[] = [];
-  // Project grants are orthogonal: reviewers (and future restricted grants) use
-  // explicit project_access rows; owners and members see all workspace projects.
-  if (member.role === "reviewer") {
-    projectIds = (
-      (await db
-        .prepare(`SELECT project_id FROM project_access WHERE workspace_id = ? AND human_id = ?`)
-        .all(workspaceId, humanId)) as Array<{ project_id: string }>
-    ).map((row) => row.project_id);
-  } else {
-    projectIds = (
-      (await db
-        .prepare(`SELECT id FROM projects WHERE workspace_id = ?`)
-        .all(workspaceId)) as Array<{ id: string }>
-    ).map((row) => row.id);
-  }
+  const projectIds = (
+    (await db
+      .prepare(
+        `SELECT projects.id
+         FROM projects
+         LEFT JOIN project_access AS access
+           ON access.workspace_id = projects.workspace_id
+          AND access.project_id = projects.id
+          AND access.human_id = ?
+         WHERE projects.workspace_id = ?
+           AND (projects.access_mode = 'workspace' OR access.human_id IS NOT NULL)
+         ORDER BY projects.id`,
+      )
+      .all(humanId, workspaceId)) as Array<{ id: string }>
+  ).map((row) => row.id);
   return {
     humanId,
     workspaceId,

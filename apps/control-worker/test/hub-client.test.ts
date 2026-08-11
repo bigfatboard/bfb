@@ -83,6 +83,12 @@ describe("workspace hub durable object client", () => {
          VALUES (?, ?, 'Global project', 'global-project', '#abcdef', 1, '2026-08-07T12:00:00Z')`,
       )
       .run(workspaceId, projectId);
+    await db
+      .prepare(
+        `INSERT INTO project_access (workspace_id, project_id, human_id)
+         VALUES (?, ?, ?)`,
+      )
+      .run(workspaceId, projectId, FIX.owner);
     const ns = createTestWorkspaceHubNamespace(db);
     const jurisdiction = vi.fn(() => ns);
     Object.assign(ns, { jurisdiction });

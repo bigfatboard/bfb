@@ -15,6 +15,7 @@
     { "path": "tools/kernel" },
     { "path": "tools/identity" },
     { "path": "tools/passkeys" },
-    { "path": "tools/workspace-authorization" }
+    { "path": "tools/workspace-authorization" },
+    { "path": "tools/projects" }
   ]
 }

@@ -9,6 +9,16 @@ import {
   updateTaskCommand,
 } from "./work-commands.js";
 import {
+  changeProjectAccessCommand,
+  createAgentProfileCommand,
+  createProjectCommand,
+  reportRepositoryConfigCommand,
+  updateAgentProfileCommand,
+  updateProjectCommand,
+  updateProjectPolicyCommand,
+  updateWorkspacePolicyCommand,
+} from "./projects.js";
+import {
   changeMemberRoleCommand,
   createInvitationCommand,
   removeMemberCommand,
@@ -22,6 +32,17 @@ const commands = new Map<string, HubCommand<unknown, unknown>>([
   [createInvitationCommand.name, createInvitationCommand as HubCommand<unknown, unknown>],
   [changeMemberRoleCommand.name, changeMemberRoleCommand as HubCommand<unknown, unknown>],
   [removeMemberCommand.name, removeMemberCommand as HubCommand<unknown, unknown>],
+  [createProjectCommand.name, createProjectCommand as HubCommand<unknown, unknown>],
+  [updateProjectCommand.name, updateProjectCommand as HubCommand<unknown, unknown>],
+  [changeProjectAccessCommand.name, changeProjectAccessCommand as HubCommand<unknown, unknown>],
+  [updateWorkspacePolicyCommand.name, updateWorkspacePolicyCommand as HubCommand<unknown, unknown>],
+  [updateProjectPolicyCommand.name, updateProjectPolicyCommand as HubCommand<unknown, unknown>],
+  [
+    reportRepositoryConfigCommand.name,
+    reportRepositoryConfigCommand as HubCommand<unknown, unknown>,
+  ],
+  [createAgentProfileCommand.name, createAgentProfileCommand as HubCommand<unknown, unknown>],
+  [updateAgentProfileCommand.name, updateAgentProfileCommand as HubCommand<unknown, unknown>],
 ]);
 
 /** Returns a registered hub command by stable name, or undefined when unknown. */

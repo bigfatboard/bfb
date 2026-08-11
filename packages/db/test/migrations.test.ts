@@ -68,7 +68,7 @@ describe("d1 migrations", () => {
     const result = applyMigrationsForVerification(db, migrationsDir);
     expect(result.status).toBe("complete");
     expect(result.head).toBe(migrationHead(migrationsDir));
-    expect(result.head).toBe("0010_workspace_authorization");
+    expect(result.head).toBe("0011_project_policy_versions");
     const tables = schemaSnapshot(db).filter((entry) => entry.startsWith("table:workspaces:"));
     expect(tables.length).toBe(1);
   });

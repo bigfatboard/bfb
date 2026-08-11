@@ -6,16 +6,16 @@ This file is the resumable execution journal for [the Grok web/MCP goal](GROK-WE
 
 - Goal state: `active — correction and re-certification`
 - Branch: `goal/grok-web-mcp`
-- Last observed HEAD: f0b94285597928dd8fed4251f24c269470c5a748
-- Last verified commit: f0b94285597928dd8fed4251f24c269470c5a748
-- Last verification command/result: a fresh checkout passed `pnpm install --frozen-lockfile --offline`, `pnpm test:c04` with 11 focused tests and a seven-surface shared-D1 Workerd abuse probe, full `pnpm verify` with 320 TypeScript tests plus protocol/Go/Xcode checks, and `pnpm worktree:check`
-- Worktree checkpoint: bounded C04 evidence is ready against the verified implementation commit; generated W01 browser evidence remains excluded
+- Last observed HEAD: cb53e8f0532a6a555fb9455e3c2c0704567cb96c
+- Last verified commit: cb53e8f0532a6a555fb9455e3c2c0704567cb96c
+- Last verification command/result: the uncommitted C07 checkpoint passed `pnpm test:c07` with eight focused tests plus a real three-worker D1/WorkspaceHub race, `pnpm test:db` through migration head `0011`, and full `pnpm verify` with 327 TypeScript tests plus protocol/Go/Xcode checks
+- Worktree checkpoint: C07 implementation and its Workerd gate are ready for the implementation commit; generated W01 browser evidence remains excluded
 - Active package: C07 — Projects, repository identity, and policy
-- Active gate: commit and verify the C04 evidence handoff, then inspect the C07 implementation and acceptance contract
-- Active task: retain the C04 clean-checkout proof and advance the canonical roadmap to C07
+- Active gate: commit the bounded C07 implementation, then run its declared target and full verification from a clean checkout
+- Active task: create the C07 implementation checkpoint without staging generated W01 evidence
 - Resume here: re-certify C07, then advance sequentially through C08 → W01 → X03A
 - Blocking condition: `none`
-- Updated UTC: `2026-08-11T21:57:40Z`
+- Updated UTC: `2026-08-11T22:36:30Z`
 
 ## Final review findings
 

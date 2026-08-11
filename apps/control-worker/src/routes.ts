@@ -7,6 +7,7 @@ import type { SqlDatabase } from "@bfb/db";
 import { DomainError } from "@bfb/domain";
 
 import { handleWorkApi } from "./api/work.js";
+import { handleProjectApi } from "./api/projects.js";
 import { handleWorkspaceAuthorization } from "./api/workspace-authorization.js";
 import type { AuthKey, HumanAuth } from "./auth/better-auth.js";
 import { handleAuthRoute } from "./auth/routes.js";
@@ -233,11 +234,11 @@ export function createControlApp(
     if (!db || !current) {
       return c.json({ error: "api_misconfigured" }, 500);
     }
-    // MCP tokens cannot authenticate browser API routes.
+    // Bearer credentials cannot authenticate browser API routes.
     const authHeader = c.req.header("authorization") ?? "";
-    if (authHeader.startsWith("Bearer mcp_")) {
+    if (authHeader) {
       return c.json(
-        { error: "credential_confusion", message: "mcp token cannot auth browser routes" },
+        { error: "credential_confusion", message: "bearer credentials cannot auth browser routes" },
         401,
       );
     }
@@ -282,17 +283,35 @@ export function createControlApp(
     }
     const envBindings = (c.env ?? {}) as { WORKSPACE_HUB?: DurableObjectNamespace };
     try {
-      return await handleWorkApi(c.req.raw, {
+      const apiDeps = {
         db,
         principal,
         workspaceId,
         now: c.get("now") ?? now,
         jurisdiction: current.jurisdiction,
         workspaceHubNs: envBindings.WORKSPACE_HUB,
-      });
+      };
+      const projectPrefix = `/api/v1/workspaces/${workspaceId}`;
+      if (
+        c.req.path.startsWith(`${projectPrefix}/projects`) ||
+        c.req.path.startsWith(`${projectPrefix}/agent-profiles`) ||
+        c.req.path.startsWith(`${projectPrefix}/workspace-policy`)
+      ) {
+        return await handleProjectApi(c.req.raw, apiDeps);
+      }
+      return await handleWorkApi(c.req.raw, apiDeps);
     } catch (error) {
       if (error instanceof DomainError) {
-        const status = error.code === "not_found" ? 404 : error.code === "forbidden" ? 403 : 409;
+        const status =
+          error.code === "not_found"
+            ? 404
+            : error.code === "forbidden" || error.code === "unauthenticated"
+              ? 403
+              : error.code === "body_too_large"
+                ? 413
+                : error.code === "invalid_argument" || error.code === "invalid_json"
+                  ? 400
+                  : 409;
         return c.json({ error: error.code, message: error.message }, status);
       }
       return c.json({ error: "request_failed", message: "request failed" }, 500);

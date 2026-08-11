@@ -525,7 +525,7 @@ async function main(): Promise<void> {
     [
       {
         role: "reviewer",
-        grants: 1,
+        grants: 2,
         children: 1,
         codes: 1,
         delegations: 1,
