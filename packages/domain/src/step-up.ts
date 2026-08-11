@@ -75,6 +75,9 @@ export async function consumeStepUpProof(
   nowIso: string,
   humanId?: string,
 ): Promise<void> {
+  // Unique per-attempt stamp written into consumed_at so concurrent D1 batch
+  // consumers can detect who won the conditional UPDATE (changes is optimistic).
+  const consumeStamp = `${nowIso}#${randomUlid()}`;
   await db.withTransaction(async (tx) => {
     const row = (await tx
       .prepare(`SELECT * FROM passkey_step_up_proofs WHERE proof_id = ?`)
@@ -135,19 +138,21 @@ export async function consumeStepUpProof(
         throw new DomainError("step_up_mismatch", "scope not covered by proof");
       }
     }
+    // Unique stamp so concurrent D1 batch consumers can detect which UPDATE won.
+    // Only the winner's stamp is visible post-commit; losers fail closed.
     await tx
       .prepare(
         `UPDATE passkey_step_up_proofs
          SET consumed_at = ?
          WHERE proof_id = ? AND consumed_at IS NULL`,
       )
-      .run(nowIso, proofId);
+      .run(consumeStamp, proofId);
   });
-  // Post-commit check works for both interactive sqlite TX and D1 batch flush.
+  // Post-commit ownership check works for interactive sqlite TX and D1 batch flush.
   const after = (await db
     .prepare(`SELECT consumed_at FROM passkey_step_up_proofs WHERE proof_id = ?`)
     .get(proofId)) as { consumed_at: string | null } | undefined;
-  if (!after?.consumed_at) {
+  if (after?.consumed_at !== consumeStamp) {
     throw new DomainError("step_up_replayed", "proof already consumed");
   }
 }

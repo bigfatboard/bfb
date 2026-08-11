@@ -204,9 +204,19 @@ export async function handleOauthToken(request: Request, deps: OAuthDeps): Promi
     return json({ error: "invalid_grant", message: "pkce verification failed" }, 400);
   }
 
+  // Conditional single-use consume with unique stamp (D1 batch has no mid-TX changes).
+  const consumeStamp = `${deps.now}#${randomUlid()}`;
   await deps.db
-    .prepare(`UPDATE oauth_authorization_codes SET consumed_at = ? WHERE code = ?`)
-    .run(deps.now, code);
+    .prepare(
+      `UPDATE oauth_authorization_codes SET consumed_at = ? WHERE code = ? AND consumed_at IS NULL`,
+    )
+    .run(consumeStamp, code);
+  const after = (await deps.db
+    .prepare(`SELECT consumed_at FROM oauth_authorization_codes WHERE code = ?`)
+    .get(code)) as { consumed_at: string | null } | undefined;
+  if (after?.consumed_at !== consumeStamp) {
+    return json({ error: "invalid_grant", message: "code invalid or consumed" }, 400);
+  }
 
   const scopes = JSON.parse(row.scopes_json) as string[];
   const expiresAt = new Date(Date.parse(deps.now) + 3600_000).toISOString();

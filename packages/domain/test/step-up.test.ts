@@ -29,6 +29,20 @@ describe("passkey step-up", () => {
     ).rejects.toThrow(/already consumed/);
   });
 
+  it("allows only one winner under concurrent consume races", async () => {
+    const db = await openDomainDb();
+    const proofId = await issueStepUpProof(db, FIX.owner, action, "2026-08-07T12:00:00Z");
+    const results = await Promise.allSettled(
+      [0, 1, 2, 3, 4].map(() =>
+        consumeStepUpProof(db, proofId, action, "2026-08-07T12:01:00Z", FIX.owner),
+      ),
+    );
+    const wins = results.filter((result) => result.status === "fulfilled").length;
+    const losses = results.filter((result) => result.status === "rejected").length;
+    expect(wins).toBe(1);
+    expect(losses).toBe(4);
+  });
+
   it("rejects stale, mismatched, wrong-human, and over-max-ttl proofs", async () => {
     const db = await openDomainDb();
     const proofId = await issueStepUpProof(db, FIX.owner, action, "2026-08-07T12:00:00Z");
