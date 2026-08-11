@@ -6,7 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createServer as createViteServer, type ViteDevServer } from "vite";
 
-import { FIX, seedSyntheticWorkspace } from "@bfb/domain";
+import { FIX, randomUlid, seedSyntheticWorkspace } from "@bfb/domain";
 
 import {
   createHumanAuth,
@@ -79,6 +79,50 @@ function handleFixtureSession(
   res.setHeader("location", "/");
   res.setHeader("set-cookie", `${sessions[role]}; Path=/; HttpOnly; Secure; SameSite=Lax`);
   res.end();
+  return true;
+}
+
+async function handleFixturePasskeyFlow(
+  pathname: string,
+  req: IncomingMessage,
+  res: ServerResponse,
+  db: SqlDatabase,
+  ownerCookie: string,
+): Promise<boolean> {
+  if (pathname !== "/__test/passkey-flow") {
+    return false;
+  }
+  if (req.method !== "POST" || !req.headers.cookie?.includes(ownerCookie)) {
+    res.statusCode = 401;
+    res.end();
+    return true;
+  }
+  const flowId = randomUlid();
+  const expiresAt = "2026-08-07T12:05:00Z";
+  await db
+    .prepare(
+      `INSERT INTO passkey_ceremonies
+       (id, human_id, auth_user_id, session_id, kind, state, action_json,
+        reauthenticated_at, created_at, expires_at)
+       VALUES (?, ?, 'auth-owner-e2e', 'auth-owner-e2e-session', 'registration', 'ready',
+               ?, ?, ?, ?)`,
+    )
+    .run(
+      flowId,
+      FIX.owner,
+      JSON.stringify({
+        action: "passkey.enroll.initial",
+        scopes: [],
+        authorizationEpoch: 0,
+        expiresAt,
+      }),
+      NOW,
+      NOW,
+      expiresAt,
+    );
+  res.statusCode = 200;
+  res.setHeader("content-type", "application/json; charset=utf-8");
+  res.end(JSON.stringify({ flow_id: flowId, fixture: "fresh_github_reauthentication" }));
   return true;
 }
 
@@ -234,6 +278,17 @@ async function main(): Promise<void> {
       try {
         const pathname = new URL(req.url ?? "/", ORIGIN).pathname;
         if (handleFixtureSession(pathname, fixtureSessions, res)) {
+          return;
+        }
+        if (
+          await handleFixturePasskeyFlow(
+            pathname,
+            req,
+            res,
+            db,
+            fixtureSessions.owner.split(";", 1)[0]!,
+          )
+        ) {
           return;
         }
         if (shouldHandleOnControl(pathname)) {

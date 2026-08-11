@@ -6,15 +6,16 @@ This file is the resumable execution journal for [the Grok web/MCP goal](GROK-WE
 
 - Goal state: `active — correction and re-certification`
 - Branch: `goal/grok-web-mcp`
-- Last observed HEAD: d001ca2ffa4e46a3e8311528307d2679134e919d
+- Last observed HEAD: 3f8ecd859ffe2e1603bfd4e281da8cf0d87a46d6
 - Last verified commit: d001ca2ffa4e46a3e8311528307d2679134e919d
 - Last verification command/result: fresh checkout passed `pnpm install --frozen-lockfile`, `pnpm test:c02` with 22 focused tests and a two-isolate Workerd/D1 smoke, full `pnpm verify` with 307 TypeScript tests plus protocol/Go/Xcode checks, and ended clean
+- Worktree checkpoint: C03 passes `pnpm test:c03` with real Chromium WebAuthn and two shared-D1 Workerd isolates; `pnpm test:db`, `pnpm test:c02`, `pnpm test:substrate`, `pnpm test:x03a`, and full `pnpm verify` also pass, including 312 TypeScript tests plus protocol, Go, and Xcode checks
 - Active package: C03 — Passkey enrollment and step-up
-- Active gate: a real browser/WebAuthn integration flow plus action-bound, consume-once proof and durable abuse-limit negatives
-- Active task: audit the existing C03 implementation against Better Auth Passkey and the complete package acceptance contract
-- Resume here: implement and certify C03, then advance sequentially through C04 → C07 → C08 → W01 → X03A
+- Active gate: commit the verified C03 implementation, then repeat the exact package target and full verifier from a clean checkout of that commit
+- Active task: create the C03 implementation checkpoint without staging generated W01 browser evidence
+- Resume here: clean-checkout certify C03, retain bounded evidence, then advance sequentially through C04 → C07 → C08 → W01 → X03A
 - Blocking condition: `none`
-- Updated UTC: `2026-08-11T20:25:02Z`
+- Updated UTC: `2026-08-11T21:04:20Z`
 
 ## Final review findings
 

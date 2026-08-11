@@ -9,6 +9,20 @@ import type { SqlDatabase } from "@bfb/db";
 import { abuseBucketKey, consumeAbuseBudget } from "@bfb/domain";
 
 import type { AuthKey, HumanAuth } from "./better-auth.js";
+import {
+  completeInitialEnrollmentReauthentication,
+  createAdditionalEnrollmentFlow,
+  createAuthenticationOptions,
+  createInitialEnrollmentFlow,
+  createRegistrationOptions,
+  domainStepUpError,
+  listPasskeys,
+  parsePresentedStepUpAction,
+  recordPasskeySecurityEvent,
+  removePasskey,
+  verifyAuthentication,
+  verifyRegistration,
+} from "./passkeys.js";
 import { assertBrowserMutation, csrfTokenForSession, resolveBrowserPrincipal } from "./session.js";
 
 export interface AuthRouteDeps {
@@ -75,6 +89,8 @@ async function consumePublicAuthBudget(
   request: Request,
   path: string,
   bodyBytes: number,
+  surface = "human-auth",
+  client = "github",
 ): Promise<boolean> {
   const now = Date.parse(deps.now);
   if (!Number.isFinite(now)) {
@@ -86,8 +102,8 @@ async function consumePublicAuthBudget(
       bucketKey: abuseBucketKey({
         ipHashSeed: clientHash(request, deps.authAbuseSecret),
         subject: path,
-        surface: "human-auth",
-        client: "github",
+        surface,
+        client,
       }),
       activity: "attempt",
       bodyBytes,
@@ -122,6 +138,80 @@ function internalAuthRequest(
 
 async function resolvePrincipal(deps: AuthRouteDeps, request: Request) {
   return resolveBrowserPrincipal(deps.db, deps.auth, request, deps.now);
+}
+
+function jsonWithCookies(upstream: Response, body: unknown): Response {
+  const headers = new Headers({ "content-type": "application/json; charset=utf-8" });
+  for (const cookie of upstream.headers.getSetCookie()) {
+    headers.append("set-cookie", cookie);
+  }
+  return new Response(JSON.stringify(body), { status: upstream.status, headers });
+}
+
+async function passkeyPost(
+  deps: AuthRouteDeps,
+  request: Request,
+  path: string,
+): Promise<{
+  request: Request;
+  principal: NonNullable<Awaited<ReturnType<typeof resolvePrincipal>>>;
+  body: Record<string, unknown>;
+} | null> {
+  const bounded = await boundedRequest(request);
+  if (!bounded) {
+    return null;
+  }
+  if (
+    !(await consumePublicAuthBudget(
+      deps,
+      bounded.request,
+      path,
+      bounded.bodyBytes,
+      "passkey",
+      "browser",
+    ))
+  ) {
+    return null;
+  }
+  const principal = await resolvePrincipal(deps, bounded.request);
+  if (!principal) {
+    throw new Error("passkey session required");
+  }
+  assertBrowserMutation(bounded.request, deps.appOrigin, {
+    sessionId: principal.sessionId,
+    authKeys: deps.authKeys,
+  });
+  let body: unknown = {};
+  if (bounded.bodyBytes > 0) {
+    body = await bounded.request.json();
+  }
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return null;
+  }
+  return { request: bounded.request, principal, body: body as Record<string, unknown> };
+}
+
+function passkeyKind(path: string): "enrollment" | "removal" | "step_up" {
+  if (path.includes("remove")) {
+    return "removal";
+  }
+  return path.includes("step-up") ? "step_up" : "enrollment";
+}
+
+async function recordPasskeyFailure(
+  deps: AuthRouteDeps,
+  path: string,
+  humanId?: string,
+  ceremonyId?: string,
+): Promise<void> {
+  await recordPasskeySecurityEvent(deps.db, {
+    humanId,
+    ceremonyId,
+    kind: passkeyKind(path),
+    outcome: "failed",
+    code: "request_rejected",
+    now: deps.now,
+  });
 }
 
 export async function handleAuthRoute(c: Context, deps: AuthRouteDeps): Promise<Response> {
@@ -195,6 +285,226 @@ export async function handleAuthRoute(c: Context, deps: AuthRouteDeps): Promise<
       return response;
     } catch {
       return rejected();
+    }
+  }
+
+  if (path === "/auth/passkeys" && c.req.method === "GET") {
+    try {
+      const principal = await resolvePrincipal(deps, c.req.raw);
+      if (!principal) {
+        return rejected(401);
+      }
+      return c.json({ passkeys: await listPasskeys(deps.db, principal) });
+    } catch {
+      return rejected();
+    }
+  }
+
+  if (path === "/auth/passkeys/enroll/reauth" && c.req.method === "GET") {
+    let principal: Awaited<ReturnType<typeof resolvePrincipal>> = null;
+    const url = new URL(c.req.url);
+    const flowId = url.searchParams.get("flow_id") ?? "";
+    try {
+      if (!(await consumePublicAuthBudget(deps, c.req.raw, path, 0, "passkey", "browser"))) {
+        return rejected(403);
+      }
+      principal = await resolvePrincipal(deps, c.req.raw);
+      if (!principal) {
+        return rejected(403);
+      }
+      await completeInitialEnrollmentReauthentication(
+        deps.db,
+        principal,
+        flowId,
+        url.searchParams.get("completion") ?? "",
+        deps.now,
+      );
+      return c.redirect(`/settings/security?passkey_enrollment=${encodeURIComponent(flowId)}`);
+    } catch {
+      await recordPasskeyFailure(deps, path, principal?.humanId, flowId || undefined);
+      return rejected(403);
+    }
+  }
+
+  if (path === "/auth/passkeys/enroll/start" && c.req.method === "POST") {
+    let attempt: Awaited<ReturnType<typeof passkeyPost>> = null;
+    try {
+      attempt = await passkeyPost(deps, c.req.raw, path);
+      if (!attempt) {
+        return rejected(429);
+      }
+      const existing = await listPasskeys(deps.db, attempt.principal);
+      if (existing.length === 0) {
+        const flow = await createInitialEnrollmentFlow(
+          deps.db,
+          attempt.principal,
+          deps.appOrigin,
+          deps.now,
+        );
+        const upstream = await deps.auth.handler(
+          internalAuthRequest(
+            attempt.request,
+            deps.appOrigin,
+            "/auth/sign-in/social",
+            JSON.stringify({ provider: "github", callbackURL: flow.callbackUrl }),
+          ),
+        );
+        const payload = (await upstream.clone().json()) as { redirect?: boolean; url?: string };
+        if (!upstream.ok || !payload.url || payload.url.includes("completion=")) {
+          throw new Error("fresh GitHub reauthentication did not start");
+        }
+        return jsonWithCookies(upstream, {
+          ...payload,
+          flow_id: flow.flowId,
+          requires_reauthentication: true,
+        });
+      }
+      const proofId = typeof attempt.body.proof_id === "string" ? attempt.body.proof_id : "";
+      const proofAction = parsePresentedStepUpAction(attempt.body.proof_action);
+      const flow = await createAdditionalEnrollmentFlow(
+        deps.db,
+        attempt.principal,
+        proofId,
+        proofAction,
+        deps.now,
+      );
+      return c.json({ flow_id: flow.flowId, requires_reauthentication: false });
+    } catch {
+      await recordPasskeyFailure(deps, path, attempt?.principal.humanId);
+      return rejected(403);
+    }
+  }
+
+  if (path === "/auth/passkeys/enroll/options" && c.req.method === "POST") {
+    let attempt: Awaited<ReturnType<typeof passkeyPost>> = null;
+    try {
+      attempt = await passkeyPost(deps, c.req.raw, path);
+      if (!attempt) {
+        return rejected(429);
+      }
+      const flowId = typeof attempt.body.flow_id === "string" ? attempt.body.flow_id : "";
+      const name =
+        typeof attempt.body.name === "string" ? attempt.body.name.slice(0, 128) : undefined;
+      const options = await createRegistrationOptions(
+        deps.db,
+        attempt.principal,
+        flowId,
+        deps.appOrigin,
+        name,
+        deps.now,
+      );
+      return c.json({ flow_id: flowId, options });
+    } catch {
+      await recordPasskeyFailure(
+        deps,
+        path,
+        attempt?.principal.humanId,
+        typeof attempt?.body.flow_id === "string" ? attempt.body.flow_id : undefined,
+      );
+      return rejected(403);
+    }
+  }
+
+  if (path === "/auth/passkeys/enroll/verify" && c.req.method === "POST") {
+    let attempt: Awaited<ReturnType<typeof passkeyPost>> = null;
+    try {
+      attempt = await passkeyPost(deps, c.req.raw, path);
+      if (!attempt) {
+        return rejected(429);
+      }
+      const flowId = typeof attempt.body.flow_id === "string" ? attempt.body.flow_id : "";
+      const passkey = await verifyRegistration(
+        deps.db,
+        attempt.principal,
+        flowId,
+        attempt.body.response as never,
+        deps.appOrigin,
+        deps.now,
+      );
+      return c.json({ passkey });
+    } catch {
+      await recordPasskeyFailure(
+        deps,
+        path,
+        attempt?.principal.humanId,
+        typeof attempt?.body.flow_id === "string" ? attempt.body.flow_id : undefined,
+      );
+      return rejected(403);
+    }
+  }
+
+  if (path === "/auth/step-up/options" && c.req.method === "POST") {
+    let attempt: Awaited<ReturnType<typeof passkeyPost>> = null;
+    try {
+      attempt = await passkeyPost(deps, c.req.raw, path);
+      if (!attempt) {
+        return rejected(429);
+      }
+      const result = await createAuthenticationOptions(
+        deps.db,
+        attempt.principal,
+        attempt.body.action,
+        deps.appOrigin,
+        deps.now,
+      );
+      return c.json({
+        challenge_id: result.challengeId,
+        action: result.action,
+        options: result.options,
+      });
+    } catch {
+      await recordPasskeyFailure(deps, path, attempt?.principal.humanId);
+      return rejected(403);
+    }
+  }
+
+  if (path === "/auth/step-up/verify" && c.req.method === "POST") {
+    let attempt: Awaited<ReturnType<typeof passkeyPost>> = null;
+    try {
+      attempt = await passkeyPost(deps, c.req.raw, path);
+      if (!attempt) {
+        return rejected(429);
+      }
+      const challengeId =
+        typeof attempt.body.challenge_id === "string" ? attempt.body.challenge_id : "";
+      const result = await verifyAuthentication(
+        deps.db,
+        attempt.principal,
+        challengeId,
+        attempt.body.response as never,
+        deps.appOrigin,
+        deps.now,
+      );
+      return c.json({ proof_id: result.proofId, action: result.action });
+    } catch {
+      await recordPasskeyFailure(
+        deps,
+        path,
+        attempt?.principal.humanId,
+        typeof attempt?.body.challenge_id === "string" ? attempt.body.challenge_id : undefined,
+      );
+      return rejected(403);
+    }
+  }
+
+  if (path === "/auth/passkeys/remove" && c.req.method === "POST") {
+    let attempt: Awaited<ReturnType<typeof passkeyPost>> = null;
+    try {
+      attempt = await passkeyPost(deps, c.req.raw, path);
+      if (!attempt) {
+        return rejected(429);
+      }
+      const passkeyId = typeof attempt.body.passkey_id === "string" ? attempt.body.passkey_id : "";
+      const proofId = typeof attempt.body.proof_id === "string" ? attempt.body.proof_id : "";
+      const proofAction = parsePresentedStepUpAction(attempt.body.proof_action);
+      await removePasskey(deps.db, attempt.principal, passkeyId, proofId, proofAction, deps.now);
+      return c.json({ removed: true });
+    } catch (error) {
+      const failure = domainStepUpError(error);
+      if (!attempt || !["step_up_replayed", "passkey_not_found"].includes(failure.code)) {
+        await recordPasskeyFailure(deps, path, attempt?.principal.humanId);
+      }
+      return rejected(403);
     }
   }
 

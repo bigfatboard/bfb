@@ -13,9 +13,10 @@ export interface StepUpAction {
   action: string;
   clientId?: string | undefined;
   resource?: string | undefined;
-  workspaceId: string;
+  workspaceId?: string | undefined;
   projectId?: string | undefined;
   taskId?: string | undefined;
+  targetId?: string | undefined;
   scopes: string[];
   authorizationEpoch: number;
   expiresAt: string;
@@ -56,11 +57,12 @@ export async function issueStepUpProof(
       action.clientId ?? null,
       action.resource ?? null,
       JSON.stringify({
-        workspaceId: action.workspaceId,
+        workspaceId: action.workspaceId ?? null,
         projectId: action.projectId ?? null,
         taskId: action.taskId ?? null,
+        targetId: action.targetId ?? null,
       }),
-      JSON.stringify(action.scopes),
+      JSON.stringify([...action.scopes].sort()),
       action.authorizationEpoch,
       action.expiresAt,
       nowIso,
@@ -118,12 +120,16 @@ export async function consumeStepUpProof(
     if (row.authorization_epoch !== expected.authorizationEpoch) {
       throw new DomainError("step_up_mismatch", "epoch mismatch");
     }
+    if (row.expires_at !== expected.expiresAt) {
+      throw new DomainError("step_up_mismatch", "expiry mismatch");
+    }
     const boundary = JSON.parse(row.boundary_json) as {
-      workspaceId: string;
+      workspaceId: string | null;
       projectId: string | null;
       taskId: string | null;
+      targetId?: string | null;
     };
-    if (boundary.workspaceId !== expected.workspaceId) {
+    if ((boundary.workspaceId ?? undefined) !== expected.workspaceId) {
       throw new DomainError("step_up_mismatch", "workspace mismatch");
     }
     if ((boundary.projectId ?? undefined) !== expected.projectId) {
@@ -132,11 +138,12 @@ export async function consumeStepUpProof(
     if ((boundary.taskId ?? undefined) !== expected.taskId) {
       throw new DomainError("step_up_mismatch", "task mismatch");
     }
+    if ((boundary.targetId ?? undefined) !== expected.targetId) {
+      throw new DomainError("step_up_mismatch", "target mismatch");
+    }
     const scopes = JSON.parse(row.scopes_json) as string[];
-    for (const scope of expected.scopes) {
-      if (!scopes.includes(scope)) {
-        throw new DomainError("step_up_mismatch", "scope not covered by proof");
-      }
+    if (JSON.stringify(scopes) !== JSON.stringify([...expected.scopes].sort())) {
+      throw new DomainError("step_up_mismatch", "scope mismatch");
     }
     // Unique stamp so concurrent D1 batch consumers can detect which UPDATE won.
     // Only the winner's stamp is visible post-commit; losers fail closed.

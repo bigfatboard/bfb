@@ -5,9 +5,11 @@
   "type": "module",
   "exports": "./dist/index.js",
   "dependencies": {
+    "@better-auth/passkey": "1.6.26",
     "@bfb/db": "workspace:*",
     "@bfb/domain": "workspace:*",
     "@modelcontextprotocol/server": "2.0.0",
+    "@simplewebauthn/server": "13.3.2",
     "agents": "0.20.1",
     "better-auth": "1.6.26",
     "hono": "4.13.1",

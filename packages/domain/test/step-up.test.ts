@@ -120,4 +120,52 @@ describe("passkey step-up", () => {
       ),
     ).rejects.toThrow(/task mismatch/);
   });
+
+  it("binds expiry, exact scopes, and identity targets", async () => {
+    const db = await openDomainDb();
+    const expiryProof = await issueStepUpProof(db, FIX.owner, action, "2026-08-07T12:00:00Z");
+    await expect(
+      consumeStepUpProof(
+        db,
+        expiryProof,
+        { ...action, expiresAt: "2026-08-07T12:09:00Z" },
+        "2026-08-07T12:01:00Z",
+        FIX.owner,
+      ),
+    ).rejects.toThrow(/expiry mismatch/);
+
+    const scopeProof = await issueStepUpProof(db, FIX.owner, action, "2026-08-07T12:00:00Z");
+    await expect(
+      consumeStepUpProof(
+        db,
+        scopeProof,
+        { ...action, scopes: ["bfb:read"] },
+        "2026-08-07T12:01:00Z",
+        FIX.owner,
+      ),
+    ).rejects.toThrow(/scope mismatch/);
+
+    const identityAction = {
+      action: "passkey.remove",
+      targetId: "credential-a",
+      scopes: [],
+      authorizationEpoch: 0,
+      expiresAt: "2026-08-07T12:10:00Z",
+    };
+    const targetProof = await issueStepUpProof(
+      db,
+      FIX.owner,
+      identityAction,
+      "2026-08-07T12:00:00Z",
+    );
+    await expect(
+      consumeStepUpProof(
+        db,
+        targetProof,
+        { ...identityAction, targetId: "credential-b" },
+        "2026-08-07T12:01:00Z",
+        FIX.owner,
+      ),
+    ).rejects.toThrow(/target mismatch/);
+  });
 });

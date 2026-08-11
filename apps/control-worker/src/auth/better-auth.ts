@@ -2,6 +2,7 @@
 // ABOUTME: Versioned secrets, D1 protocol tables, and disabled account mutations fail closed.
 
 import { betterAuth, type BetterAuthOptions } from "better-auth";
+import { passkey, type PasskeyOptions } from "@better-auth/passkey";
 
 export interface AuthEnv {
   APP_ORIGIN: string;
@@ -31,6 +32,13 @@ const DISABLED_AUTH_PATHS = [
   "/link-social",
   "/list-accounts",
   "/list-sessions",
+  "/passkey/delete-passkey",
+  "/passkey/generate-authenticate-options",
+  "/passkey/generate-register-options",
+  "/passkey/list-user-passkeys",
+  "/passkey/update-passkey",
+  "/passkey/verify-authentication",
+  "/passkey/verify-registration",
   "/refresh-token",
   "/request-password-reset",
   "/reset-password",
@@ -100,6 +108,39 @@ function validateAuthEnv(env: AuthEnv): { origin: string; keys: AuthKey[] } {
     throw new Error("AUTH_ABUSE_SECRET missing or too short");
   }
   return { origin: origin.origin, keys: parseAuthKeys(env.BETTER_AUTH_SECRETS) };
+}
+
+export function humanPasskeyOptions(appOrigin: string): PasskeyOptions {
+  const origin = new URL(appOrigin);
+  return {
+    rpID: origin.hostname,
+    rpName: "BFB",
+    origin: origin.origin,
+    authenticatorSelection: {
+      residentKey: "preferred",
+      userVerification: "required",
+    },
+    advanced: {
+      webAuthnChallengeCookie: "__Host-bfb_passkey_challenge",
+    },
+    schema: {
+      passkey: {
+        modelName: "better_auth_passkeys",
+        fields: {
+          name: "name",
+          publicKey: "public_key",
+          userId: "user_id",
+          credentialID: "credential_id",
+          counter: "counter",
+          deviceType: "device_type",
+          backedUp: "backed_up",
+          transports: "transports",
+          createdAt: "created_at",
+          aaguid: "aaguid",
+        },
+      },
+    },
+  };
 }
 
 export function humanAuthOptions(database: AuthDatabase, env: AuthEnv): BetterAuthOptions {
@@ -175,6 +216,7 @@ export function humanAuthOptions(database: AuthDatabase, env: AuthEnv): BetterAu
     },
     rateLimit: { enabled: false },
     disabledPaths: [...DISABLED_AUTH_PATHS],
+    plugins: [passkey(humanPasskeyOptions(origin))],
     telemetry: { enabled: false },
     logger: { disabled: true },
     advanced: {

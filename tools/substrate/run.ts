@@ -309,12 +309,15 @@ async function terminate(running: LoggedProcess): Promise<void> {
 async function assertToolPins(): Promise<void> {
   const controlPackage = JSON.parse(
     await readFile(resolve(repoRoot, "apps/control-worker/package.json"), "utf8"),
-  ) as { devDependencies?: Record<string, string> };
+  ) as {
+    dependencies?: Record<string, string>;
+    devDependencies?: Record<string, string>;
+  };
   const rootPackage = JSON.parse(await readFile(resolve(repoRoot, "package.json"), "utf8")) as {
     devDependencies?: Record<string, string>;
   };
   assert.equal(controlPackage.devDependencies?.wrangler, expectedWranglerVersion);
-  assert.equal(controlPackage.devDependencies?.["better-auth"], expectedBetterAuthVersion);
+  assert.equal(controlPackage.dependencies?.["better-auth"], expectedBetterAuthVersion);
   assert.equal(rootPackage.devDependencies?.["@playwright/test"], expectedPlaywrightVersion);
   await access(wranglerPath);
   await access(resolve(repoRoot, "apps/web/dist/index.html"));

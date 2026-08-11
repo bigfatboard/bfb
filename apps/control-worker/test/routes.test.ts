@@ -222,8 +222,16 @@ describe("control routes", () => {
       bindings,
     );
     expect(token.status).toBe(200);
-    const tokenBody = (await token.json()) as { access_token: string };
+    const tokenBody = (await token.json()) as { access_token: string; expires_in: number };
     expect(tokenBody.access_token.startsWith("mcp_")).toBe(true);
+    expect(tokenBody.expires_in).toBe(600);
+    expect(
+      (
+        (await db
+          .prepare(`SELECT expires_at FROM oauth_delegations WHERE workspace_id = ?`)
+          .get(FIX.workspace)) as { expires_at: string }
+      ).expires_at,
+    ).toBe("2026-08-07T12:10:00Z");
 
     const propose = await app.request(
       new Request("https://bfb.example.test/mcp", {

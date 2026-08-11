@@ -202,7 +202,14 @@ export async function handleOauthToken(request: Request, deps: OAuthDeps): Promi
   }
 
   const scopes = JSON.parse(row.scopes_json) as string[];
-  const expiresAt = new Date(Date.parse(deps.now) + 3600_000).toISOString();
+  const proof = (await deps.db
+    .prepare(`SELECT expires_at FROM passkey_step_up_proofs WHERE proof_id = ?`)
+    .get(row.step_up_proof_id)) as { expires_at: string } | undefined;
+  if (!proof || Date.parse(proof.expires_at) <= Date.parse(deps.now)) {
+    return json({ error: "invalid_grant", message: "step-up proof expired" }, 400);
+  }
+  const expiresAt = proof.expires_at;
+  const expiresIn = Math.floor((Date.parse(expiresAt) - Date.parse(deps.now)) / 1000);
 
   try {
     const { accessToken, delegationId } = await createDelegation(deps.db, {
@@ -220,7 +227,7 @@ export async function handleOauthToken(request: Request, deps: OAuthDeps): Promi
     return json({
       access_token: accessToken,
       token_type: "Bearer",
-      expires_in: 3600,
+      expires_in: expiresIn,
       scope: scopes.join(" "),
       delegation_id: delegationId,
     });

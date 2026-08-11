@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { humanAuthOptions } from "../src/auth/better-auth.js";
+import { humanAuthOptions, humanPasskeyOptions } from "../src/auth/better-auth.js";
 import { AUTH_TEST_ENV, openAuthTestContext } from "./auth-helpers.js";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -20,6 +20,8 @@ describe("Better Auth configuration", () => {
       devDependencies?: Record<string, string>;
     };
     expect(manifest.dependencies?.["better-auth"]).toBe("1.6.26");
+    expect(manifest.dependencies?.["@better-auth/passkey"]).toBe("1.6.26");
+    expect(manifest.dependencies?.["@simplewebauthn/server"]).toBe("13.3.2");
     expect(manifest.devDependencies?.["better-auth"]).toBeUndefined();
   });
 
@@ -52,10 +54,25 @@ describe("Better Auth configuration", () => {
       expect.arrayContaining([
         "/delete-user",
         "/link-social",
+        "/passkey/delete-passkey",
+        "/passkey/generate-register-options",
+        "/passkey/verify-authentication",
         "/sign-in/email",
         "/sign-up/email",
         "/update-user",
       ]),
     );
+    expect(options.plugins?.map((plugin) => plugin.id)).toEqual(["passkey"]);
+  });
+
+  it("requires user verification at the exact app RP and origin", () => {
+    const passkey = humanPasskeyOptions(AUTH_TEST_ENV.APP_ORIGIN);
+    expect(passkey.rpID).toBe("bfb.example.test");
+    expect(passkey.origin).toBe(AUTH_TEST_ENV.APP_ORIGIN);
+    expect(passkey.authenticatorSelection).toMatchObject({
+      residentKey: "preferred",
+      userVerification: "required",
+    });
+    expect(passkey.schema?.passkey?.modelName).toBe("better_auth_passkeys");
   });
 });
