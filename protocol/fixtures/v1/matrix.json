@@ -132,6 +132,96 @@
       "schema": "local-rpc",
       "expect": "reject",
       "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/event-envelope.fractional-cursor.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/event-envelope.fractional-schema-version.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/event-envelope.cursor-below-min.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/event-envelope.unknown-actor-type.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/event-envelope.missing-actor-type.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/runner-enrollment.duplicate-project-ids.json",
+      "schema": "runner-enrollment",
+      "expect": "reject",
+      "category": "schema_invalid"
+    },
+    {
+      "path": "invalid/runner-enrollment.unknown-status.json",
+      "schema": "runner-enrollment",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/launch-specification.missing-nested-provider.json",
+      "schema": "launch-specification",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/launch-specification.duplicate-capabilities.json",
+      "schema": "launch-specification",
+      "expect": "reject",
+      "category": "schema_invalid"
+    },
+    {
+      "path": "invalid/launch-specification.unknown-effort.json",
+      "schema": "launch-specification",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/checkout-summary.missing-status.json",
+      "schema": "checkout-summary",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/checkout-summary.unknown-status.json",
+      "schema": "checkout-summary",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/runner-event-submission.missing-capture-origin.json",
+      "schema": "runner-event-submission",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/runner-event-submission.disallowed-kind.json",
+      "schema": "runner-event-submission",
+      "expect": "reject",
+      "category": "unknown_kind"
+    },
+    {
+      "path": "invalid/local-rpc.unknown-direction.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
     }
   ]
 }

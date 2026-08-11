@@ -74,6 +74,61 @@ func TestFixtureMatrix(t *testing.T) {
 	}
 }
 
+func TestAdversarialDifferentialCorpus(t *testing.T) {
+	// Mirrors packages/protocol-ts/test/adversarial-parity.test.ts concerns.
+	type adversarialCase struct {
+		path     string
+		schema   string
+		category string
+		concern  string
+	}
+	cases := []adversarialCase{
+		{"invalid/event-envelope.fractional-cursor.json", "event-envelope", "type_mismatch", "fractional_integer"},
+		{"invalid/event-envelope.fractional-schema-version.json", "event-envelope", "type_mismatch", "fractional_integer"},
+		{"invalid/event-envelope.cursor-below-min.json", "event-envelope", "bound_exceeded", "bound"},
+		{"invalid/event-envelope.unknown-actor-type.json", "event-envelope", "type_mismatch", "enum"},
+		{"invalid/event-envelope.missing-actor-type.json", "event-envelope", "missing_field", "required_nested"},
+		{"invalid/runner-enrollment.duplicate-project-ids.json", "runner-enrollment", "schema_invalid", "uniqueness"},
+		{"invalid/runner-enrollment.unknown-status.json", "runner-enrollment", "type_mismatch", "enum"},
+		{"invalid/launch-specification.missing-nested-provider.json", "launch-specification", "missing_field", "required_nested"},
+		{"invalid/launch-specification.duplicate-capabilities.json", "launch-specification", "schema_invalid", "uniqueness"},
+		{"invalid/launch-specification.unknown-effort.json", "launch-specification", "type_mismatch", "enum"},
+		{"invalid/checkout-summary.missing-status.json", "checkout-summary", "missing_field", "required_nested"},
+		{"invalid/checkout-summary.unknown-status.json", "checkout-summary", "type_mismatch", "enum"},
+		{"invalid/runner-event-submission.missing-capture-origin.json", "runner-event-submission", "missing_field", "required_nested"},
+		{"invalid/runner-event-submission.disallowed-kind.json", "runner-event-submission", "unknown_kind", "enum"},
+		{"invalid/local-rpc.unknown-direction.json", "local-rpc", "type_mismatch", "enum"},
+	}
+
+	root, err := protocol.RepositoryRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]bool{}
+	for _, entry := range cases {
+		seen[entry.concern] = true
+		entry := entry
+		t.Run(entry.concern+"/"+entry.path, func(t *testing.T) {
+			input, err := os.ReadFile(protocol.FixturePath(root, entry.path))
+			if err != nil {
+				t.Fatal(err)
+			}
+			result := protocol.DecodeWireDocument(entry.schema, input)
+			if result.OK {
+				t.Fatalf("expected reject for %s", entry.path)
+			}
+			if result.Error == nil || result.Error.Category != entry.category {
+				t.Fatalf("category want %s got %#v", entry.category, result.Error)
+			}
+		})
+	}
+	for _, concern := range []string{"fractional_integer", "enum", "bound", "uniqueness", "required_nested"} {
+		if !seen[concern] {
+			t.Fatalf("missing adversarial concern %s", concern)
+		}
+	}
+}
+
 func TestGeneratedCatalogNonEmpty(t *testing.T) {
 	if protocol.ProtocolHead() != "bfb-wire/1" {
 		t.Fatalf("unexpected protocol head %s", protocol.ProtocolHead())

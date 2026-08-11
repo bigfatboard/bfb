@@ -141,14 +141,17 @@ function categorize(
     };
   }
 
-  if (data && data.schema_version !== undefined && data.schema_version !== 1) {
-    return {
-      schema_version: 1,
-      category: "unknown_version",
-      code: "unsupported_schema_version",
-      message: "unsupported schema_version",
-      path: "/schema_version",
-    };
+  if (data && data.schema_version !== undefined) {
+    const version = data.schema_version;
+    if (typeof version === "number" && Number.isInteger(version) && version !== 1) {
+      return {
+        schema_version: 1,
+        category: "unknown_version",
+        code: "unsupported_schema_version",
+        message: "unsupported schema_version",
+        path: "/schema_version",
+      };
+    }
   }
 
   for (const error of errors ?? []) {
@@ -161,6 +164,18 @@ function categorize(
         path: error.instancePath || "/kind",
       };
     }
+    if (error.keyword === "enum") {
+      const enumError: TypedError = {
+        schema_version: 1,
+        category: "type_mismatch",
+        code: "enum",
+        message: "value is not an allowed enum member",
+      };
+      if (error.instancePath) {
+        enumError.path = error.instancePath;
+      }
+      return enumError;
+    }
     if (error.keyword === "const" && error.instancePath.endsWith("/intent_kind")) {
       return {
         schema_version: 1,
@@ -170,10 +185,28 @@ function categorize(
         path: error.instancePath,
       };
     }
+    if (error.keyword === "uniqueItems") {
+      const uniqueError: TypedError = {
+        schema_version: 1,
+        category: "schema_invalid",
+        code: "uniqueItems",
+        message: "array items must be unique",
+      };
+      if (error.instancePath) {
+        uniqueError.path = error.instancePath;
+      }
+      return uniqueError;
+    }
     if (
       error.keyword === "maxLength" ||
+      error.keyword === "minLength" ||
       error.keyword === "maxItems" ||
-      error.keyword === "maxProperties"
+      error.keyword === "minItems" ||
+      error.keyword === "maxProperties" ||
+      error.keyword === "minimum" ||
+      error.keyword === "maximum" ||
+      error.keyword === "exclusiveMinimum" ||
+      error.keyword === "exclusiveMaximum"
     ) {
       const boundError: TypedError = {
         schema_version: 1,
