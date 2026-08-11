@@ -1,6 +1,6 @@
 # WP-C08 — Tasks, runs, context, and work APIs
 
-Status: `in_progress`
+Status: `done`
 
 Risk: High
 
