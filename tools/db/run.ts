@@ -16,7 +16,7 @@ const controlConfig = "apps/control-worker/wrangler.toml";
 const migrationDirectory = resolve(repoRoot, "migrations/d1");
 const previousFixturePath = resolve(repoRoot, "packages/db/test/fixtures/previous-schema.json");
 const expectedWranglerVersion = "4.120.1";
-const migrationFiles = [
+const f04MigrationFiles = [
   "0001_workspace_registry.sql",
   "0002_command_kernel.sql",
   "0003_auth_and_work.sql",
@@ -25,6 +25,13 @@ const migrationFiles = [
   "0006_reviewer_role.sql",
   "0007_tenant_relationships.sql",
 ] as const;
+const migrationManifest = JSON.parse(
+  await readFile(resolve(migrationDirectory, "manifest.json"), "utf8"),
+) as {
+  migration_head: string;
+  migrations: Array<{ id: string; file: string }>;
+};
+const migrationFiles = migrationManifest.migrations.map((entry) => entry.file);
 
 const workspaceA = "01JBFB0W0RKSPACE0000000000";
 const workspaceB = "01JBFB0W0RKSPACEB000000000";
@@ -376,7 +383,7 @@ async function main(): Promise<void> {
         scratch,
       )
     ).map((row) => row.name),
-    migrationFiles.slice(0, -1),
+    f04MigrationFiles.slice(0, -1),
   );
   assert.deepEqual(
     await query(
@@ -450,7 +457,7 @@ async function main(): Promise<void> {
         scratch,
       )
     ).map((row) => row.name),
-    migrationFiles.slice(0, 4),
+    f04MigrationFiles.slice(0, 4),
   );
   assert.deepEqual(
     await query(
@@ -757,7 +764,7 @@ async function main(): Promise<void> {
         scratch,
       )
     ).map((row) => row.name),
-    migrationFiles.slice(0, -1),
+    f04MigrationFiles.slice(0, -1),
   );
   assert.equal(
     (
@@ -793,7 +800,7 @@ async function main(): Promise<void> {
   process.stdout.write(
     `${JSON.stringify(
       {
-        migrationHead: "0007_tenant_relationships",
+        migrationHead: migrationManifest.migration_head,
         emptyPreviousSchemaEqual: true,
         retainedPopulatedData: true,
         foreignKeys: "clean",

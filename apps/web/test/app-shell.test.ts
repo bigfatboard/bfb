@@ -3,12 +3,16 @@
 
 import { describe, expect, it } from "vitest";
 
-import { openDomainDb } from "../../../packages/domain/test/helpers.js";
-import { FIX } from "../../../packages/domain/src/fixtures.js";
-import { SYNTHETIC_PASSWORD } from "../../../packages/domain/src/passwords.js";
+import { FIX, seedSyntheticWorkspace } from "../../../packages/domain/src/fixtures.js";
+import { parseAuthKeys } from "../../control-worker/src/auth/better-auth.js";
 import { validateControlEnv, type ControlBindings } from "../../control-worker/src/env.js";
 import { createControlApp } from "../../control-worker/src/routes.js";
 import { createTestWorkspaceHubNamespace } from "../../control-worker/src/hub-client.js";
+import {
+  AUTH_TEST_ENV,
+  openAuthTestContext,
+  seedAuthSession,
+} from "../../control-worker/test/auth-helpers.js";
 import { parseWorkspaceSlugForTest } from "../src/routing.js";
 
 function fakeBinding<T extends object>(label: string): T {
@@ -39,12 +43,31 @@ describe("authenticated app shell routing", () => {
     expect(parseWorkspaceSlugForTest("/")).toBeNull();
   });
 
-  it("signs in with password, loads board, and mutates work", async () => {
-    const db = await openDomainDb();
+  it("uses Better Auth sessions to load board and mutate work", async () => {
+    const authContext = openAuthTestContext();
+    await seedSyntheticWorkspace(authContext.db);
+    const db = authContext.db;
     const validated = validateControlEnv(env());
-    const app = createControlApp(validated, { db, now: "2026-08-07T12:00:00Z" });
+    const app = createControlApp(validated, {
+      db,
+      now: "2026-08-07T12:00:00Z",
+      humanAuth: () => ({
+        auth: authContext.auth,
+        keys: parseAuthKeys(AUTH_TEST_ENV.BETTER_AUTH_SECRETS),
+        abuseSecret: AUTH_TEST_ENV.AUTH_ABUSE_SECRET,
+      }),
+    });
     const cookies = new Map<string, string>();
     let csrfToken = "";
+    const ownerSession = await seedAuthSession(authContext, {
+      userId: "auth-owner-web",
+      sessionId: "auth-owner-web-session",
+      token: "auth-owner-web-token",
+      email: "owner@synthetic.test",
+      name: "Synthetic Owner",
+      humanId: FIX.owner,
+    });
+    cookies.set("__Host-bfb_session", ownerSession.cookie.split("=", 2)[1] ?? "");
 
     const fetchImpl: typeof fetch = async (input, init) => {
       const url =
@@ -86,30 +109,10 @@ describe("authenticated app shell routing", () => {
       return response;
     };
 
-    // Empty password rejected.
-    const emptyPassword = await fetchImpl("/auth/sign-in/email", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "owner@synthetic.test", password: "" }),
-    });
-    expect(emptyPassword.status).toBe(400);
-
-    // Wrong password rejected.
-    const wrongPassword = await fetchImpl("/auth/sign-in/email", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "owner@synthetic.test", password: "wrong" }),
-    });
-    expect(wrongPassword.status).toBe(401);
-
-    const signIn = await fetchImpl("/auth/sign-in/email", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "owner@synthetic.test", password: SYNTHETIC_PASSWORD }),
-    });
-    expect(signIn.status).toBe(200);
-    const signInBody = (await signIn.clone().json()) as { csrf_token?: string };
-    csrfToken = signInBody.csrf_token ?? "";
+    const session = await fetchImpl("/auth/session");
+    expect(session.status).toBe(200);
+    const sessionBody = (await session.json()) as { csrf_token?: string };
+    csrfToken = sessionBody.csrf_token ?? "";
     expect(csrfToken.length).toBeGreaterThan(10);
 
     const board = await fetchImpl(`/api/v1/workspaces/${FIX.workspace}/board`);
@@ -188,6 +191,15 @@ describe("authenticated app shell routing", () => {
     // Restricted member only sees granted project via a fresh cookie jar.
     const restrictedCookies = new Map<string, string>();
     let restrictedCsrf = "";
+    const restrictedSession = await seedAuthSession(authContext, {
+      userId: "auth-restricted-web",
+      sessionId: "auth-restricted-web-session",
+      token: "auth-restricted-web-token",
+      email: "restricted@synthetic.test",
+      name: "Synthetic Restricted",
+      humanId: FIX.restricted,
+    });
+    restrictedCookies.set("__Host-bfb_session", restrictedSession.cookie.split("=", 2)[1] ?? "");
     const restrictedFetch: typeof fetch = async (input, init) => {
       const url =
         typeof input === "string"
@@ -226,17 +238,9 @@ describe("authenticated app shell routing", () => {
       }
       return response;
     };
-    const restrictedSignIn = await restrictedFetch("/auth/sign-in/email", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        email: "restricted@synthetic.test",
-        password: SYNTHETIC_PASSWORD,
-      }),
-    });
-    expect(restrictedSignIn.status).toBe(200);
-    restrictedCsrf =
-      ((await restrictedSignIn.clone().json()) as { csrf_token?: string }).csrf_token ?? "";
+    const restrictedAuth = await restrictedFetch("/auth/session");
+    expect(restrictedAuth.status).toBe(200);
+    restrictedCsrf = ((await restrictedAuth.json()) as { csrf_token?: string }).csrf_token ?? "";
     const restrictedBoard = await restrictedFetch(`/api/v1/workspaces/${FIX.workspace}/board`);
     expect(restrictedBoard.status).toBe(200);
     const restrictedBody = (await restrictedBoard.json()) as {

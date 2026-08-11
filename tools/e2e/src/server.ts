@@ -6,9 +6,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createServer as createViteServer, type ViteDevServer } from "vite";
 
-import { FIX } from "@bfb/domain";
+import { FIX, seedSyntheticWorkspace } from "@bfb/domain";
 
-import { openDomainDb } from "../../../packages/domain/test/helpers.js";
+import {
+  createHumanAuth,
+  parseAuthKeys,
+  type AuthEnv,
+} from "../../../apps/control-worker/src/auth/better-auth.js";
 import {
   isWorkerFirstPath,
   validateControlEnv,
@@ -17,10 +21,16 @@ import {
 import { createTestWorkspaceHubNamespace } from "../../../apps/control-worker/src/hub-client.js";
 import { createControlApp } from "../../../apps/control-worker/src/routes.js";
 import type { SqlDatabase } from "@bfb/db";
+import {
+  AUTH_TEST_ENV,
+  openAuthTestContext,
+  seedAuthSession,
+} from "../../../apps/control-worker/test/auth-helpers.js";
 
 const PORT = Number(process.env.BFB_E2E_PORT ?? "4173");
 const HOST = process.env.BFB_E2E_HOST ?? "127.0.0.1";
-const ORIGIN = `http://${HOST}:${PORT}`;
+const ORIGIN_HOST = process.env.BFB_E2E_ORIGIN_HOST ?? "bfb.localhost";
+const ORIGIN = `http://${ORIGIN_HOST}:${PORT}`;
 const NOW = "2026-08-07T12:00:00Z";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -51,6 +61,25 @@ function shouldHandleOnControl(pathname: string): boolean {
     return true;
   }
   return isWorkerFirstPath(pathname);
+}
+
+type FixtureRole = "owner" | "member" | "restricted";
+
+function handleFixtureSession(
+  pathname: string,
+  sessions: Readonly<Record<FixtureRole, string>>,
+  res: ServerResponse,
+): boolean {
+  const match = pathname.match(/^\/__test\/session\/(owner|member|restricted)$/);
+  const role = match?.[1] as FixtureRole | undefined;
+  if (!role) {
+    return false;
+  }
+  res.statusCode = 302;
+  res.setHeader("location", "/");
+  res.setHeader("set-cookie", `${sessions[role]}; Path=/; HttpOnly; Secure; SameSite=Lax`);
+  res.end();
+  return true;
 }
 
 async function readBody(req: IncomingMessage): Promise<Buffer> {
@@ -140,10 +169,54 @@ async function serveSpa(
 }
 
 async function main(): Promise<void> {
-  const db = await openDomainDb();
+  const authContext = openAuthTestContext();
+  await seedSyntheticWorkspace(authContext.db, NOW);
+  const db = authContext.db;
+  const authEnv: AuthEnv = { ...AUTH_TEST_ENV, APP_ORIGIN: ORIGIN };
+  const auth = createHumanAuth(authContext.raw, authEnv);
+  const fixtureSessions: Record<FixtureRole, string> = {
+    owner: (
+      await seedAuthSession(authContext, {
+        userId: "auth-owner-e2e",
+        sessionId: "auth-owner-e2e-session",
+        token: "auth-owner-e2e-token",
+        email: "owner@synthetic.test",
+        name: "Synthetic Owner",
+        humanId: FIX.owner,
+      })
+    ).cookie,
+    member: (
+      await seedAuthSession(authContext, {
+        userId: "auth-member-e2e",
+        sessionId: "auth-member-e2e-session",
+        token: "auth-member-e2e-token",
+        email: "member@synthetic.test",
+        name: "Synthetic Member",
+        humanId: FIX.member,
+      })
+    ).cookie,
+    restricted: (
+      await seedAuthSession(authContext, {
+        userId: "auth-restricted-e2e",
+        sessionId: "auth-restricted-e2e-session",
+        token: "auth-restricted-e2e-token",
+        email: "restricted@synthetic.test",
+        name: "Synthetic Restricted",
+        humanId: FIX.restricted,
+      })
+    ).cookie,
+  };
   const bindings = controlBindings(db);
   const validated = validateControlEnv(bindings);
-  const app = createControlApp(validated, { db, now: NOW });
+  const app = createControlApp(validated, {
+    db,
+    now: NOW,
+    humanAuth: () => ({
+      auth,
+      keys: parseAuthKeys(authEnv.BETTER_AUTH_SECRETS),
+      abuseSecret: authEnv.AUTH_ABUSE_SECRET,
+    }),
+  });
 
   const vite = await createViteServer({
     configFile: path.join(webRoot, "vite.config.ts"),
@@ -160,6 +233,9 @@ async function main(): Promise<void> {
     void (async () => {
       try {
         const pathname = new URL(req.url ?? "/", ORIGIN).pathname;
+        if (handleFixtureSession(pathname, fixtureSessions, res)) {
+          return;
+        }
         if (shouldHandleOnControl(pathname)) {
           await forwardToControl(req, res, app, bindings);
           return;

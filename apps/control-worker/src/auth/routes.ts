@@ -1,140 +1,226 @@
-// ABOUTME: Mounts human auth routes for sign-in, sign-out, and session inspection.
-// ABOUTME: Email sign-in verifies scrypt password hashes; empty/wrong passwords fail closed.
+// ABOUTME: Mounts the bounded GitHub sign-in, callback, session, and sign-out surface.
+// ABOUTME: Durable abuse budgets and browser credential checks wrap Better Auth routes.
+
+import { createHmac } from "node:crypto";
 
 import type { Context } from "hono";
 
 import type { SqlDatabase } from "@bfb/db";
-import { randomUlid, verifyPassword } from "@bfb/domain";
+import { abuseBucketKey, consumeAbuseBudget } from "@bfb/domain";
 
-import {
-  assertBrowserMutation,
-  clearSessionCookie,
-  csrfTokenForSession,
-  resolveBrowserPrincipal,
-  setSessionCookie,
-} from "./session.js";
-import type { HumanAuth } from "./better-auth.js";
+import type { AuthKey, HumanAuth } from "./better-auth.js";
+import { assertBrowserMutation, csrfTokenForSession, resolveBrowserPrincipal } from "./session.js";
 
 export interface AuthRouteDeps {
   db: SqlDatabase;
   auth: HumanAuth;
+  authKeys: readonly AuthKey[];
+  authAbuseSecret: string;
   now: string;
   appOrigin: string;
-  authSecret: string;
+}
+
+const AUTH_BODY_LIMIT = 16_384;
+const AUTH_WINDOW_SECONDS = 300;
+const AUTH_POLICY = {
+  attemptLimit: 10,
+  pollLimit: 30,
+  windowSeconds: AUTH_WINDOW_SECONDS,
+  maxBodyBytes: AUTH_BODY_LIMIT,
+} as const;
+
+function rejected(status = 400): Response {
+  return Response.json({ error: "request_rejected", message: "request rejected" }, { status });
+}
+
+async function boundedRequest(
+  request: Request,
+): Promise<{ request: Request; bodyBytes: number } | null> {
+  const declared = request.headers.get("content-length");
+  if (declared !== null) {
+    const length = Number(declared);
+    if (!Number.isSafeInteger(length) || length < 0 || length > AUTH_BODY_LIMIT) {
+      return null;
+    }
+  }
+  if (request.method === "GET" || request.method === "HEAD") {
+    return { request, bodyBytes: 0 };
+  }
+  const body = new Uint8Array(await request.arrayBuffer());
+  if (body.byteLength > AUTH_BODY_LIMIT) {
+    return null;
+  }
+  const init: RequestInit = {
+    method: request.method,
+    headers: request.headers,
+  };
+  if (body.byteLength > 0) {
+    init.body = body;
+  }
+  return {
+    request: new Request(request.url, init),
+    bodyBytes: body.byteLength,
+  };
+}
+
+function clientHash(request: Request, secret: string): string {
+  const ip = request.headers.get("cf-connecting-ip") ?? "unavailable";
+  return createHmac("sha256", secret)
+    .update(`bfb-auth-ip:${ip.slice(0, 64)}`)
+    .digest("hex");
+}
+
+async function consumePublicAuthBudget(
+  deps: AuthRouteDeps,
+  request: Request,
+  path: string,
+  bodyBytes: number,
+): Promise<boolean> {
+  const now = Date.parse(deps.now);
+  if (!Number.isFinite(now)) {
+    return false;
+  }
+  const decision = await consumeAbuseBudget(
+    deps.db,
+    {
+      bucketKey: abuseBucketKey({
+        ipHashSeed: clientHash(request, deps.authAbuseSecret),
+        subject: path,
+        surface: "human-auth",
+        client: "github",
+      }),
+      activity: "attempt",
+      bodyBytes,
+      now: deps.now,
+      expiresAt: new Date(now + AUTH_WINDOW_SECONDS * 1000).toISOString(),
+    },
+    AUTH_POLICY,
+  );
+  return decision.allowed;
+}
+
+function internalAuthRequest(
+  request: Request,
+  appOrigin: string,
+  path: string,
+  body?: string,
+): Request {
+  const headers = new Headers(request.headers);
+  if (body !== undefined) {
+    headers.set("content-type", "application/json");
+  }
+  const init: RequestInit = {
+    method: body === undefined ? request.method : "POST",
+    headers,
+    redirect: "manual",
+  };
+  if (body !== undefined) {
+    init.body = body;
+  }
+  return new Request(new URL(path, appOrigin), init);
+}
+
+async function resolvePrincipal(deps: AuthRouteDeps, request: Request) {
+  return resolveBrowserPrincipal(deps.db, deps.auth, request, deps.now);
 }
 
 export async function handleAuthRoute(c: Context, deps: AuthRouteDeps): Promise<Response> {
-  const url = new URL(c.req.url);
-  const path = url.pathname;
-
-  if (c.req.method !== "GET" && c.req.method !== "HEAD" && c.req.method !== "OPTIONS") {
-    try {
-      // Sign-in has no session yet; only Origin/Fetch Metadata. Authenticated mutations need CSRF.
-      const principal = await resolveBrowserPrincipal(deps.db, c.req.raw, deps.now);
-      const csrfOptions: { sessionId?: string; authSecret?: string } = {};
-      if (principal) {
-        csrfOptions.sessionId = principal.sessionId;
-        csrfOptions.authSecret = deps.authSecret;
-      }
-      assertBrowserMutation(c.req.raw, deps.appOrigin, csrfOptions);
-    } catch (error) {
-      const code =
-        error instanceof Error && "code" in error
-          ? String((error as { code: string }).code)
-          : "csrf_rejected";
-      return c.json(
-        { error: code, message: error instanceof Error ? error.message : "csrf rejected" },
-        403,
-      );
-    }
-  }
+  const path = new URL(c.req.url).pathname;
 
   if (path === "/auth/session" && c.req.method === "GET") {
-    const principal = await resolveBrowserPrincipal(deps.db, c.req.raw, deps.now);
-    if (!principal) {
-      return c.json({ authenticated: false }, 401);
+    try {
+      const principal = await resolvePrincipal(deps, c.req.raw);
+      if (!principal) {
+        return c.json({ authenticated: false }, 401);
+      }
+      return c.json({
+        authenticated: true,
+        human: {
+          id: principal.humanId,
+          email: principal.email,
+          display_name: principal.displayName,
+        },
+        csrf_token: csrfTokenForSession(principal.sessionId, deps.authKeys),
+      });
+    } catch {
+      return rejected(409);
     }
-    return c.json({
-      authenticated: true,
-      human: {
-        id: principal.humanId,
-        email: principal.email,
-        display_name: principal.displayName,
-      },
-      csrf_token: csrfTokenForSession(principal.sessionId, deps.authSecret),
-    });
   }
 
-  if (path === "/auth/sign-in/email" && c.req.method === "POST") {
-    const body = (await c.req.json()) as { email?: string; password?: string };
-    if (!body.email || typeof body.password !== "string" || body.password.length === 0) {
-      return c.json({ error: "invalid_request", message: "email and password required" }, 400);
+  if (path === "/auth/sign-in/github" && c.req.method === "POST") {
+    try {
+      assertBrowserMutation(c.req.raw, deps.appOrigin);
+    } catch {
+      return rejected(403);
     }
-    const human = (await deps.db
-      .prepare(`SELECT id, email, display_name FROM humans WHERE email = ?`)
-      .get(body.email)) as { id: string; email: string; display_name: string } | undefined;
-    if (!human) {
-      return c.json({ error: "invalid_credentials", message: "invalid email or password" }, 401);
+    const bounded = await boundedRequest(c.req.raw);
+    if (
+      !bounded ||
+      !(await consumePublicAuthBudget(
+        deps,
+        c.req.raw,
+        "/auth/sign-in/github",
+        bounded?.bodyBytes ?? 0,
+      ))
+    ) {
+      return rejected(429);
     }
-    const credential = (await deps.db
-      .prepare(`SELECT password_hash FROM human_credentials WHERE human_id = ?`)
-      .get(human.id)) as { password_hash: string } | undefined;
-    if (!credential || !verifyPassword(body.password, credential.password_hash)) {
-      return c.json({ error: "invalid_credentials", message: "invalid email or password" }, 401);
+    try {
+      return await deps.auth.handler(
+        internalAuthRequest(
+          bounded.request,
+          deps.appOrigin,
+          "/auth/sign-in/social",
+          JSON.stringify({ provider: "github", callbackURL: "/" }),
+        ),
+      );
+    } catch {
+      return rejected();
     }
-    const sessionId = randomUlid();
-    const expires = new Date(Date.parse(deps.now) + 86400_000).toISOString();
-    await deps.db
-      .prepare(
-        `INSERT INTO human_sessions (session_id, human_id, workspace_id, created_at, expires_at)
-         VALUES (?, ?, NULL, ?, ?)`,
-      )
-      .run(sessionId, human.id, deps.now, expires);
-    return new Response(
-      JSON.stringify({
-        ok: true,
-        human: { id: human.id, email: human.email, display_name: human.display_name },
-        csrf_token: csrfTokenForSession(sessionId, deps.authSecret),
-      }),
-      {
-        status: 200,
-        headers: {
-          "content-type": "application/json; charset=utf-8",
-          "set-cookie": setSessionCookie(sessionId),
-        },
-      },
-    );
+  }
+
+  if (path === "/auth/callback/github" && c.req.method === "GET") {
+    if (!(await consumePublicAuthBudget(deps, c.req.raw, path, 0))) {
+      return rejected(429);
+    }
+    try {
+      const response = await deps.auth.handler(c.req.raw);
+      const location = response.headers.get("location");
+      if (
+        response.status >= 400 ||
+        (location && new URL(location, deps.appOrigin).searchParams.has("error"))
+      ) {
+        return rejected();
+      }
+      return response;
+    } catch {
+      return rejected();
+    }
   }
 
   if (path === "/auth/sign-out" && c.req.method === "POST") {
-    const principal = await resolveBrowserPrincipal(deps.db, c.req.raw, deps.now);
-    if (principal) {
-      await deps.db
-        .prepare(`UPDATE human_sessions SET revoked_at = ? WHERE session_id = ?`)
-        .run(deps.now, principal.sessionId);
+    const bounded = await boundedRequest(c.req.raw);
+    if (!bounded) {
+      return rejected(429);
     }
-    return new Response(JSON.stringify({ ok: true }), {
-      status: 200,
-      headers: {
-        "content-type": "application/json; charset=utf-8",
-        "set-cookie": clearSessionCookie(),
-      },
-    });
-  }
-
-  if ((path.startsWith("/auth/") && c.req.method === "GET") || path.startsWith("/auth/")) {
     try {
-      const response = await deps.auth.handler(c.req.raw);
-      return response;
-    } catch {
-      return c.json(
-        {
-          ok: false,
-          error: "auth_handler_error",
-          message: "Better Auth handler failed",
-        },
-        502,
+      const principal = await resolvePrincipal(deps, bounded.request);
+      if (!principal) {
+        return c.json({ error: "unauthenticated" }, 401);
+      }
+      assertBrowserMutation(bounded.request, deps.appOrigin, {
+        sessionId: principal.sessionId,
+        authKeys: deps.authKeys,
+      });
+      return await deps.auth.handler(
+        internalAuthRequest(bounded.request, deps.appOrigin, "/auth/sign-out", "{}"),
       );
+    } catch (error) {
+      const code =
+        error instanceof Error && "code" in error
+          ? String((error as Error & { code: string }).code)
+          : "request_rejected";
+      return c.json({ error: code, message: "request rejected" }, 403);
     }
   }
 

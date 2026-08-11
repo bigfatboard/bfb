@@ -24,6 +24,10 @@ export interface ControlBindings {
   LAUNCH_ORIGIN: string;
   JURISDICTION: string;
   ENVIRONMENT: string;
+  BETTER_AUTH_SECRETS?: string;
+  GITHUB_CLIENT_ID?: string;
+  GITHUB_CLIENT_SECRET?: string;
+  AUTH_ABUSE_SECRET?: string;
 }
 
 export interface ValidatedControlEnv {

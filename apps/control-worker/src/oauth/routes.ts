@@ -10,12 +10,17 @@ import {
   randomUlid,
 } from "@bfb/domain";
 
+import type { HumanAuth } from "../auth/better-auth.js";
 import { resolveBrowserPrincipal } from "../auth/session.js";
 
 export interface OAuthDeps {
   db: SqlDatabase;
   appOrigin: string;
   now: string;
+}
+
+export interface OAuthAuthorizeDeps extends OAuthDeps {
+  auth: HumanAuth;
 }
 
 interface AuthCodeRow {
@@ -55,7 +60,10 @@ export function handleProtectedResourceMetadata(appOrigin: string): Response {
   });
 }
 
-export async function handleOauthAuthorize(request: Request, deps: OAuthDeps): Promise<Response> {
+export async function handleOauthAuthorize(
+  request: Request,
+  deps: OAuthAuthorizeDeps,
+): Promise<Response> {
   const url = new URL(request.url);
   const clientId = url.searchParams.get("client_id") ?? "";
   const redirectUri = url.searchParams.get("redirect_uri") ?? "";
@@ -88,7 +96,7 @@ export async function handleOauthAuthorize(request: Request, deps: OAuthDeps): P
     return json({ error: "invalid_request", message: "redirect_uri must match exactly" }, 400);
   }
 
-  const principal = await resolveBrowserPrincipal(deps.db, request, deps.now);
+  const principal = await resolveBrowserPrincipal(deps.db, deps.auth, request, deps.now);
   if (!principal) {
     return json({ error: "login_required", message: "browser session required" }, 401);
   }

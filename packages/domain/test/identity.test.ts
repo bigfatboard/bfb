@@ -1,27 +1,39 @@
-// ABOUTME: Covers C02 human identity/session fixture records used by browser auth tests.
-// ABOUTME: Sessions are synthetic D1 rows; cookie and CSRF rules are enforced in control-worker.
+// ABOUTME: Covers normalized human identity records independently from browser credentials.
+// ABOUTME: Workspace authority remains an explicit membership relationship, never auth state.
 
 import { describe, expect, it } from "vitest";
 
 import { FIX } from "../src/fixtures.js";
 import { openDomainDb } from "./helpers.js";
-import { syntheticUlid } from "../src/ids.js";
 
-describe("human identity sessions", () => {
-  it("stores browser sessions distinct from MCP tokens", async () => {
+describe("normalized human identity", () => {
+  it("stores humans independently from provider sessions and workspace authority", async () => {
     const db = await openDomainDb();
-    const sessionId = syntheticUlid("SESSION1");
-    await db
+    const owner = (await db
+      .prepare("SELECT id, email, better_auth_user_id FROM humans WHERE id = ?")
+      .get(FIX.owner)) as {
+      id: string;
+      email: string;
+      better_auth_user_id: string | null;
+    };
+    expect(owner).toEqual({
+      id: FIX.owner,
+      email: "owner@synthetic.test",
+      better_auth_user_id: null,
+    });
+
+    const authTables = (await db
       .prepare(
-        `INSERT INTO human_sessions (session_id, human_id, workspace_id, created_at, expires_at)
-       VALUES (?, ?, ?, '2026-08-07T12:00:00Z', '2026-08-08T12:00:00Z')`,
+        `SELECT name FROM sqlite_master
+         WHERE type = 'table' AND name LIKE 'better_auth_%'
+         ORDER BY name`,
       )
-      .run(sessionId, FIX.owner, FIX.workspace);
-    const row = (await db
-      .prepare(`SELECT human_id, revoked_at FROM human_sessions WHERE session_id = ?`)
-      .get(sessionId)) as { human_id: string; revoked_at: string | null };
-    expect(row.human_id).toBe(FIX.owner);
-    expect(row.revoked_at).toBeNull();
-    expect(sessionId.startsWith("mcp_")).toBe(false);
+      .all()) as Array<{ name: string }>;
+    expect(authTables.map((row) => row.name)).toEqual([
+      "better_auth_accounts",
+      "better_auth_sessions",
+      "better_auth_users",
+      "better_auth_verifications",
+    ]);
   });
 });

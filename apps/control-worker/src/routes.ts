@@ -4,11 +4,16 @@
 import { Hono } from "hono";
 
 import type { SqlDatabase } from "@bfb/db";
+import { DomainError } from "@bfb/domain";
 
 import { handleWorkApi } from "./api/work.js";
-import { createHumanAuth } from "./auth/better-auth.js";
+import type { AuthKey, HumanAuth } from "./auth/better-auth.js";
 import { handleAuthRoute } from "./auth/routes.js";
-import { assertBrowserMutation, resolveBrowserPrincipal } from "./auth/session.js";
+import {
+  assertBrowserMutation,
+  hasBrowserSessionCookie,
+  resolveBrowserPrincipal,
+} from "./auth/session.js";
 import { isWorkerFirstPath, type ValidatedControlEnv } from "./env.js";
 import { handleMcpRequest } from "./mcp/handler.js";
 import {
@@ -24,12 +29,18 @@ export type ControlAppVariables = {
   now?: string;
 };
 
+export interface HumanAuthRuntime {
+  auth: HumanAuth;
+  keys: readonly AuthKey[];
+  abuseSecret: string;
+}
+
 export function createControlApp(
   validated?: ValidatedControlEnv,
   options: {
     db?: SqlDatabase | undefined;
     now?: string | undefined;
-    authSecret?: string | undefined;
+    humanAuth?: (() => HumanAuthRuntime) | undefined;
   } = {},
 ): Hono<{ Bindings: Record<string, unknown>; Variables: ControlAppVariables }> {
   const app = new Hono<{ Bindings: Record<string, unknown>; Variables: ControlAppVariables }>();
@@ -110,18 +121,22 @@ export function createControlApp(
     if (!db || !current) {
       return c.json({ error: "auth_misconfigured" }, 500);
     }
-    const authSecret = options.authSecret ?? "synthetic-local-auth-secret-not-for-prod";
-    const auth = createHumanAuth({
-      APP_ORIGIN: current.origins.appOrigin,
-      BETTER_AUTH_SECRET: authSecret,
-    });
-    return handleAuthRoute(c, {
-      db,
-      auth,
-      now: c.get("now") ?? now,
-      appOrigin: current.origins.appOrigin,
-      authSecret,
-    });
+    try {
+      const runtime = options.humanAuth?.();
+      if (!runtime) {
+        return c.json({ error: "auth_misconfigured" }, 500);
+      }
+      return handleAuthRoute(c, {
+        db,
+        auth: runtime.auth,
+        authKeys: runtime.keys,
+        authAbuseSecret: runtime.abuseSecret,
+        now: c.get("now") ?? now,
+        appOrigin: current.origins.appOrigin,
+      });
+    } catch {
+      return c.json({ error: "auth_misconfigured" }, 500);
+    }
   });
 
   app.get("/.well-known/oauth-authorization-server", (c) => {
@@ -142,11 +157,20 @@ export function createControlApp(
     if (!db || !current) {
       return c.json({ error: "oauth_misconfigured" }, 500);
     }
-    return handleOauthAuthorize(c.req.raw, {
-      db,
-      appOrigin: current.origins.appOrigin,
-      now: c.get("now") ?? now,
-    });
+    try {
+      const runtime = options.humanAuth?.();
+      if (!runtime) {
+        return c.json({ error: "oauth_misconfigured" }, 500);
+      }
+      return handleOauthAuthorize(c.req.raw, {
+        db,
+        auth: runtime.auth,
+        appOrigin: current.origins.appOrigin,
+        now: c.get("now") ?? now,
+      });
+    } catch {
+      return c.json({ error: "oauth_misconfigured" }, 500);
+    }
   });
 
   app.post("/oauth/token", async (c) => {
@@ -154,6 +178,12 @@ export function createControlApp(
     const current = c.get("validated");
     if (!db || !current) {
       return c.json({ error: "oauth_misconfigured" }, 500);
+    }
+    if (hasBrowserSessionCookie(c.req.raw)) {
+      return c.json(
+        { error: "credential_confusion", message: "browser cookie cannot auth token endpoint" },
+        401,
+      );
     }
     return handleOauthToken(c.req.raw, {
       db,
@@ -176,14 +206,29 @@ export function createControlApp(
         401,
       );
     }
-    const principal = await resolveBrowserPrincipal(db, c.req.raw, c.get("now") ?? now);
+    let runtime: HumanAuthRuntime;
+    try {
+      const resolved = options.humanAuth?.();
+      if (!resolved) {
+        return c.json({ error: "api_misconfigured" }, 500);
+      }
+      runtime = resolved;
+    } catch {
+      return c.json({ error: "api_misconfigured" }, 500);
+    }
+    let principal;
+    try {
+      principal = await resolveBrowserPrincipal(db, runtime.auth, c.req.raw, c.get("now") ?? now);
+    } catch {
+      return c.json({ error: "identity_conflict", message: "identity linking required" }, 409);
+    }
     if (!principal) {
       return c.json({ error: "unauthenticated" }, 401);
     }
     try {
       assertBrowserMutation(c.req.raw, current.origins.appOrigin, {
         sessionId: principal.sessionId,
-        authSecret: options.authSecret ?? "synthetic-local-auth-secret-not-for-prod",
+        authKeys: runtime.keys,
       });
     } catch (error) {
       const code =
@@ -201,14 +246,22 @@ export function createControlApp(
       return c.json({ error: "not_found" }, 404);
     }
     const envBindings = (c.env ?? {}) as { WORKSPACE_HUB?: DurableObjectNamespace };
-    return handleWorkApi(c.req.raw, {
-      db,
-      principal,
-      workspaceId,
-      now: c.get("now") ?? now,
-      jurisdiction: current.jurisdiction,
-      workspaceHubNs: envBindings.WORKSPACE_HUB,
-    });
+    try {
+      return await handleWorkApi(c.req.raw, {
+        db,
+        principal,
+        workspaceId,
+        now: c.get("now") ?? now,
+        jurisdiction: current.jurisdiction,
+        workspaceHubNs: envBindings.WORKSPACE_HUB,
+      });
+    } catch (error) {
+      if (error instanceof DomainError) {
+        const status = error.code === "not_found" ? 404 : error.code === "forbidden" ? 403 : 409;
+        return c.json({ error: error.code, message: error.message }, status);
+      }
+      return c.json({ error: "request_failed", message: "request failed" }, 500);
+    }
   });
 
   app.all("/api/*", (c) =>
@@ -233,27 +286,39 @@ export function createControlApp(
     ),
   );
 
-  app.all("/runner/*", (c) =>
-    c.json(
+  app.all("/runner/*", (c) => {
+    if (hasBrowserSessionCookie(c.req.raw)) {
+      return c.json(
+        { error: "credential_confusion", message: "browser cookie cannot auth runner routes" },
+        401,
+      );
+    }
+    return c.json(
       {
         ok: false,
         error: "runner_not_implemented",
         message: "Runner channel is owned by C06/L08",
       },
       501,
-    ),
-  );
+    );
+  });
 
-  app.all("/webhooks/*", (c) =>
-    c.json(
+  app.all("/webhooks/*", (c) => {
+    if (hasBrowserSessionCookie(c.req.raw)) {
+      return c.json(
+        { error: "credential_confusion", message: "browser cookie cannot auth webhook routes" },
+        401,
+      );
+    }
+    return c.json(
       {
         ok: false,
         error: "webhooks_not_implemented",
         message: "Webhooks are owned by X04",
       },
       501,
-    ),
-  );
+    );
+  });
 
   app.all("*", (c) => {
     const pathname = new URL(c.req.url).pathname;

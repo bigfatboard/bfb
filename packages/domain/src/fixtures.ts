@@ -4,7 +4,6 @@
 import type { SqlDatabase } from "@bfb/db";
 
 import { syntheticUlid } from "./ids.js";
-import { hashPassword, SYNTHETIC_PASSWORD } from "./passwords.js";
 
 export const FIX = {
   workspace: syntheticUlid("WORKSPACE"),
@@ -18,8 +17,6 @@ export const FIX = {
   profileCodex: syntheticUlid("PROFCX"),
   profileGrok: syntheticUlid("PROFGR"),
   client: "bfb-mcp-synthetic-client",
-  /** Known fixture password for all synthetic humans. */
-  password: SYNTHETIC_PASSWORD,
 };
 
 export async function seedSyntheticWorkspace(
@@ -33,8 +30,6 @@ export async function seedSyntheticWorkspace(
     )
     .run(FIX.workspace, now);
 
-  const passwordHash = hashPassword(SYNTHETIC_PASSWORD, "synthetic-fixture-salt");
-
   for (const [id, email, name] of [
     [FIX.owner, "owner@synthetic.test", "Synthetic Owner"],
     [FIX.member, "member@synthetic.test", "Synthetic Member"],
@@ -43,12 +38,6 @@ export async function seedSyntheticWorkspace(
     await db
       .prepare(`INSERT INTO humans (id, email, display_name, created_at) VALUES (?, ?, ?, ?)`)
       .run(id, email, name, now);
-    await db
-      .prepare(
-        `INSERT INTO human_credentials (human_id, password_hash, algorithm, updated_at)
-       VALUES (?, ?, 'scrypt', ?)`,
-      )
-      .run(id, passwordHash, now);
   }
 
   await db

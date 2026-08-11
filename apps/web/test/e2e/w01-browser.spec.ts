@@ -172,7 +172,7 @@ test("oauth authorize without step_up_proof_id fails closed", async ({ page }) =
       "",
       "## Browser path",
       "",
-      "1. Sign in as `owner@synthetic.test` with synthetic password.",
+      "1. Establish the owner fixture's D1-backed Better Auth session.",
       "2. Navigate browser to `/oauth/authorize` with PKCE + workspace but **without** `step_up_proof_id`.",
       `3. HTTP status: ${response!.status()}`,
       `4. Response body excerpt: ${bodyText.slice(0, 400)}`,

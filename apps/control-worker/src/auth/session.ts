@@ -1,15 +1,19 @@
-// ABOUTME: Resolves the current browser human from a Better Auth session cookie for API routes.
-// ABOUTME: MCP credentials are never accepted here; cookie confusion is fail-closed for /mcp.
+// ABOUTME: Resolves Better Auth browser sessions into BFB-normalized human principals.
+// ABOUTME: Exact origin, Fetch Metadata, and versioned session CSRF checks protect mutations.
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 import type { SqlDatabase } from "@bfb/db";
+import { randomUlid } from "@bfb/domain";
 
-/** __Host- requires Secure, Path=/, and no Domain attribute. */
+import type { AuthKey, HumanAuth } from "./better-auth.js";
+
 export const SESSION_COOKIE = "__Host-bfb_session";
 
 export interface BrowserPrincipal {
+  type: "human";
   humanId: string;
+  authUserId: string;
   email: string;
   displayName: string;
   sessionId: string;
@@ -20,39 +24,50 @@ export function readSessionCookie(request: Request): string | null {
   if (!cookie) {
     return null;
   }
-  const hostPrefixed = cookie.match(/(?:^|;\s*)__Host-bfb_session=([^;]+)/);
-  if (hostPrefixed?.[1]) {
-    return decodeURIComponent(hostPrefixed[1]);
-  }
-  // Reject legacy unscoped session cookie names; never accept them as auth.
-  if (/(?:^|;\s*)bfb_session=/.test(cookie)) {
+  const session = cookie.match(/(?:^|;\s*)__Host-bfb_session=([^;]+)/);
+  const value = session?.[1];
+  if (!value) {
     return null;
   }
-  return null;
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }
 
-/** Session-bound CSRF token derived from the session id and auth secret. */
-export function csrfTokenForSession(sessionId: string, secret: string): string {
+export function hasBrowserSessionCookie(request: Request): boolean {
+  return readSessionCookie(request) !== null;
+}
+
+export function csrfTokenForSession(sessionId: string, keys: readonly AuthKey[]): string {
+  const current = keys[0];
+  if (!current) {
+    throw new Error("auth signing key unavailable");
+  }
+  return `${current.version}.${csrfSignature(sessionId, current.value)}`;
+}
+
+function csrfSignature(sessionId: string, secret: string): string {
   return createHmac("sha256", secret).update(`bfb-csrf:${sessionId}`).digest("hex");
 }
 
 function csrfTokensEqual(provided: string, expected: string): boolean {
   const a = Buffer.from(provided);
   const b = Buffer.from(expected);
-  if (a.length !== b.length) {
-    return false;
-  }
-  return timingSafeEqual(a, b);
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 
-/**
- * Enforces Origin + Fetch Metadata + session-bound CSRF on cookie-authenticated mutations.
- * Safe methods (GET/HEAD/OPTIONS) are not gated.
- */
+function authError(code: string, message: string): Error {
+  const error = new Error(message);
+  (error as Error & { code: string }).code = code;
+  return error;
+}
+
 export function assertBrowserMutation(
   request: Request,
   appOrigin: string,
-  options: { sessionId?: string; authSecret?: string } = {},
+  options: { sessionId?: string; authKeys?: readonly AuthKey[] } = {},
 ): void {
   const method = request.method.toUpperCase();
   if (method === "GET" || method === "HEAD" || method === "OPTIONS") {
@@ -60,84 +75,85 @@ export function assertBrowserMutation(
   }
   const origin = request.headers.get("origin");
   if (!origin || origin !== appOrigin) {
-    const error = new Error("origin check failed for browser mutation");
-    (error as { code?: string }).code = "csrf_origin";
-    throw error;
+    throw authError("csrf_origin", "origin check failed for browser mutation");
   }
-  const site = request.headers.get("sec-fetch-site");
-  if (site === "cross-site") {
-    const error = new Error("cross-site fetch metadata rejected");
-    (error as { code?: string }).code = "csrf_fetch_metadata";
-    throw error;
+  if (request.headers.get("sec-fetch-site") !== "same-origin") {
+    throw authError("csrf_fetch_metadata", "same-origin Fetch Metadata required");
   }
-  if (options.sessionId && options.authSecret) {
-    const expected = csrfTokenForSession(options.sessionId, options.authSecret);
+  if (options.sessionId && options.authKeys) {
     const provided = request.headers.get("x-bfb-csrf") ?? "";
-    if (!provided || !csrfTokensEqual(provided, expected)) {
-      const error = new Error("session-bound CSRF token missing or invalid");
-      (error as { code?: string }).code = "csrf_token";
-      throw error;
+    const separator = provided.indexOf(".");
+    const version = separator === -1 ? Number.NaN : Number(provided.slice(0, separator));
+    const signature = separator === -1 ? "" : provided.slice(separator + 1);
+    const key = options.authKeys.find((candidate) => candidate.version === version);
+    if (!key || !csrfTokensEqual(signature, csrfSignature(options.sessionId, key.value))) {
+      throw authError("csrf_token", "session-bound CSRF token missing or invalid");
     }
   }
 }
 
+async function mappedHuman(
+  db: SqlDatabase,
+  authUser: { id: string; email: string; name: string },
+  now: string,
+): Promise<{ id: string } | null> {
+  const existing = (await db
+    .prepare(`SELECT id FROM humans WHERE better_auth_user_id = ?`)
+    .get(authUser.id)) as { id: string } | undefined;
+  if (existing) {
+    return existing;
+  }
+
+  try {
+    const humanId = randomUlid();
+    await db
+      .prepare(
+        `INSERT INTO humans (id, better_auth_user_id, email, display_name, created_at)
+         VALUES (?, ?, ?, ?, ?)`,
+      )
+      .run(humanId, authUser.id, authUser.email, authUser.name, now);
+  } catch {
+    const raced = (await db
+      .prepare(`SELECT id FROM humans WHERE better_auth_user_id = ?`)
+      .get(authUser.id)) as { id: string } | undefined;
+    if (!raced) {
+      return null;
+    }
+    return raced;
+  }
+  const created = (await db
+    .prepare(`SELECT id FROM humans WHERE better_auth_user_id = ?`)
+    .get(authUser.id)) as { id: string } | undefined;
+  return created ?? null;
+}
+
 export async function resolveBrowserPrincipal(
   db: SqlDatabase,
+  auth: HumanAuth,
   request: Request,
-  nowIso: string,
+  now: string,
 ): Promise<BrowserPrincipal | null> {
-  const sessionId = readSessionCookie(request);
-  if (!sessionId) {
+  if (!hasBrowserSessionCookie(request)) {
     return null;
   }
-  // Reject MCP-shaped tokens used as cookies.
-  if (sessionId.startsWith("mcp_")) {
+  const resolved = await auth.api.getSession({ headers: request.headers });
+  if (!resolved) {
     return null;
   }
-  const row = (await db
-    .prepare(
-      `SELECT s.session_id, s.human_id, s.expires_at, s.revoked_at, h.email, h.display_name
-       FROM human_sessions s
-       JOIN humans h ON h.id = s.human_id
-       WHERE s.session_id = ?`,
-    )
-    .get(sessionId)) as
-    | {
-        session_id: string;
-        human_id: string;
-        expires_at: string;
-        revoked_at: string | null;
-        email: string;
-        display_name: string;
-      }
-    | undefined;
-  if (!row || row.revoked_at) {
-    return null;
-  }
-  if (Date.parse(row.expires_at) <= Date.parse(nowIso)) {
-    return null;
+  const human = await mappedHuman(
+    db,
+    { id: resolved.user.id, email: resolved.user.email, name: resolved.user.name },
+    now,
+  );
+  if (!human) {
+    throw authError("identity_conflict", "human identity requires explicit account linking");
   }
   return {
-    humanId: row.human_id,
-    email: row.email,
-    displayName: row.display_name,
-    sessionId: row.session_id,
+    type: "human",
+    humanId: human.id,
+    authUserId: resolved.user.id,
+    email: resolved.user.email,
+    displayName: resolved.user.name,
+    sessionId: resolved.session.id,
   };
-}
-
-export function setSessionCookie(sessionId: string, maxAgeSeconds = 86400): string {
-  return [
-    `${SESSION_COOKIE}=${encodeURIComponent(sessionId)}`,
-    "Path=/",
-    "HttpOnly",
-    "Secure",
-    "SameSite=Lax",
-    `Max-Age=${maxAgeSeconds}`,
-  ].join("; ");
-}
-
-export function clearSessionCookie(): string {
-  return [`${SESSION_COOKIE}=`, "Path=/", "HttpOnly", "Secure", "SameSite=Lax", "Max-Age=0"].join(
-    "; ",
-  );
 }

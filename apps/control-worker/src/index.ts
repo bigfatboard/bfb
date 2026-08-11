@@ -3,6 +3,12 @@
 
 import { adaptD1, type SqlDatabase } from "@bfb/db";
 
+import {
+  createHumanAuth,
+  parseAuthKeys,
+  type AuthDatabase,
+  type AuthEnv,
+} from "./auth/better-auth.js";
 import { createControlApp } from "./routes.js";
 import { validateControlEnv, type ControlBindings } from "./env.js";
 export { WorkspaceHub } from "./workspace-hub.js";
@@ -11,7 +17,8 @@ export { WorkspaceHub } from "./workspace-hub.js";
 export interface ControlFetchOptions {
   db?: SqlDatabase;
   now?: string;
-  authSecret?: string;
+  authDatabase?: AuthDatabase;
+  authEnv?: AuthEnv;
 }
 
 export function createFetchHandler(options: ControlFetchOptions = {}) {
@@ -27,8 +34,20 @@ export function createFetchHandler(options: ControlFetchOptions = {}) {
       const app = createControlApp(validated, {
         db,
         now: options.now,
-        authSecret:
-          options.authSecret ?? (env as { BETTER_AUTH_SECRET?: string }).BETTER_AUTH_SECRET,
+        humanAuth: () => {
+          const authEnv: AuthEnv = options.authEnv ?? {
+            APP_ORIGIN: validated.origins.appOrigin,
+            BETTER_AUTH_SECRETS: env.BETTER_AUTH_SECRETS ?? "",
+            GITHUB_CLIENT_ID: env.GITHUB_CLIENT_ID ?? "",
+            GITHUB_CLIENT_SECRET: env.GITHUB_CLIENT_SECRET ?? "",
+            AUTH_ABUSE_SECRET: env.AUTH_ABUSE_SECRET ?? "",
+          };
+          return {
+            auth: createHumanAuth(options.authDatabase ?? env.DB, authEnv),
+            keys: parseAuthKeys(authEnv.BETTER_AUTH_SECRETS),
+            abuseSecret: authEnv.AUTH_ABUSE_SECRET,
+          };
+        },
       });
       return await app.fetch(request, env);
     } catch (error) {

@@ -1,0 +1,12 @@
+{
+  "name": "@bfb/identity-tests",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@bfb/control-worker": "workspace:*"
+  },
+  "devDependencies": {
+    "wrangler": "4.120.1"
+  }
+}

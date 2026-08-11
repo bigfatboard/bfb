@@ -12,6 +12,7 @@
     { "path": "tools/protocol" },
     { "path": "tools/db" },
     { "path": "tools/substrate" },
-    { "path": "tools/kernel" }
+    { "path": "tools/kernel" },
+    { "path": "tools/identity" }
   ]
 }

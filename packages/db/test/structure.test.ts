@@ -88,7 +88,7 @@ describe("tenant persistence structure", () => {
       }),
     );
     const globalCredentialLocators = new Set([
-      "human_sessions",
+      "better_auth_sessions",
       "oauth_access_tokens",
       "oauth_authorization_codes",
     ]);

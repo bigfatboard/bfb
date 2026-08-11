@@ -9,7 +9,9 @@ import { defineConfig, devices } from "@playwright/test";
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const port = Number(process.env.BFB_E2E_PORT ?? "4173");
 const host = process.env.BFB_E2E_HOST ?? "127.0.0.1";
-const origin = `http://${host}:${port}`;
+const originHost = process.env.BFB_E2E_ORIGIN_HOST ?? "bfb.localhost";
+const origin = `http://${originHost}:${port}`;
+const healthOrigin = `http://${host}:${port}`;
 
 export default defineConfig({
   testDir: path.join(rootDir, "apps/web/test/e2e"),
@@ -31,13 +33,14 @@ export default defineConfig({
   webServer: {
     command: `pnpm exec tsx ${path.join(rootDir, "tools/e2e/src/server.ts")}`,
     cwd: rootDir,
-    url: `${origin}/healthz`,
+    url: `${healthOrigin}/healthz`,
     reuseExistingServer: false,
     timeout: 120_000,
     env: {
       ...process.env,
       BFB_E2E_PORT: String(port),
       BFB_E2E_HOST: host,
+      BFB_E2E_ORIGIN_HOST: originHost,
     },
   },
 });

@@ -8,9 +8,6 @@ import type { AttentionDeckItem, ProjectLane } from "@bfb/domain";
 import { WorkBoard } from "./work/board.js";
 import { WorkMutations } from "./work/mutations.js";
 
-/** Browser-safe fixture default; matches domain SYNTHETIC_PASSWORD without importing node:crypto. */
-const DEFAULT_PASSWORD = "synthetic-password";
-
 export interface AppShellProps {
   /** Test injection; production loads from /auth/session + board API. */
   initialPath?: string;
@@ -44,8 +41,6 @@ export function AppShell(props: AppShellProps = {}) {
   const [human, setHuman] = useState<SessionHuman | null>(null);
   const [board, setBoard] = useState<BoardResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [email, setEmail] = useState("owner@synthetic.test");
-  const [password, setPassword] = useState(DEFAULT_PASSWORD);
   const [workspaceId, setWorkspaceId] = useState("");
   const [csrfToken, setCsrfToken] = useState("");
 
@@ -82,21 +77,19 @@ export function AppShell(props: AppShellProps = {}) {
 
   async function signIn(event: React.FormEvent) {
     event.preventDefault();
-    const response = await fetchFn("/auth/sign-in/email", {
+    const response = await fetchFn("/auth/sign-in/github", {
       method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email, password }),
     });
     if (!response.ok) {
       setError("Sign-in failed");
       return;
     }
-    const body = (await response.json()) as { human: SessionHuman; csrf_token?: string };
-    setHuman(body.human);
-    if (body.csrf_token) {
-      setCsrfToken(body.csrf_token);
+    const body = (await response.json()) as { url?: string };
+    if (!body.url || typeof window === "undefined") {
+      setError("Sign-in failed");
+      return;
     }
-    setError(null);
+    window.location.assign(body.url);
   }
 
   async function openWorkspace(event: React.FormEvent) {
@@ -122,24 +115,7 @@ export function AppShell(props: AppShellProps = {}) {
       <p data-testid="substrate-package">W01</p>
       {!human ? (
         <form onSubmit={signIn} data-testid="sign-in-form">
-          <label>
-            Email
-            <input
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              data-testid="sign-in-email"
-            />
-          </label>
-          <label>
-            Password
-            <input
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              data-testid="sign-in-password"
-            />
-          </label>
-          <button type="submit">Sign in</button>
+          <button type="submit">Continue with GitHub</button>
           {error ? <p role="alert">{error}</p> : null}
         </form>
       ) : (

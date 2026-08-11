@@ -1,71 +1,72 @@
-// ABOUTME: Proves C02 secure cookie attributes, CSRF origin gates, and fail-closed secrets.
-// ABOUTME: Drives shipped session helpers and createHumanAuth configuration.
+// ABOUTME: Proves C02 host-only cookies, browser mutation gates, and key overlap.
+// ABOUTME: Drives the shipped Better Auth configuration and normalized session resolver.
 
 import { describe, expect, it } from "vitest";
 
-import { createHumanAuth } from "../src/auth/better-auth.js";
+import { humanAuthOptions, parseAuthKeys } from "../src/auth/better-auth.js";
 import {
   SESSION_COOKIE,
   assertBrowserMutation,
-  clearSessionCookie,
   csrfTokenForSession,
+  hasBrowserSessionCookie,
   readSessionCookie,
-  setSessionCookie,
+  resolveBrowserPrincipal,
 } from "../src/auth/session.js";
+import { AUTH_TEST_ENV, openAuthTestContext, seedAuthSession } from "./auth-helpers.js";
 
-describe("session cookie security", () => {
-  it("issues __Host- cookies with Secure HttpOnly SameSite=Lax Path=/", () => {
-    const value = setSessionCookie("01JBFB0SESS10N000000000000");
+describe("human browser session security", () => {
+  it("configures a host-only secure session cookie with no cache", () => {
+    const context = openAuthTestContext();
+    const options = humanAuthOptions(context.raw, AUTH_TEST_ENV);
+    const cookie = options.advanced?.cookies?.session_token;
+
     expect(SESSION_COOKIE).toBe("__Host-bfb_session");
-    expect(value).toContain("__Host-bfb_session=");
-    expect(value).toMatch(/Path=\//);
-    expect(value).toMatch(/HttpOnly/);
-    expect(value).toMatch(/Secure/);
-    expect(value).toMatch(/SameSite=Lax/);
-    expect(value).not.toMatch(/Domain=/i);
-    expect(clearSessionCookie()).toMatch(/Max-Age=0/);
+    expect(cookie?.name).toBe(SESSION_COOKIE);
+    expect(cookie?.attributes).toMatchObject({
+      path: "/",
+      httpOnly: true,
+      secure: true,
+      sameSite: "lax",
+    });
+    expect(cookie?.attributes).not.toHaveProperty("domain");
+    expect(options.session?.cookieCache?.enabled).toBe(false);
   });
 
-  it("reads only the host-prefixed cookie and ignores legacy names", () => {
+  it("reads only the host-prefixed browser cookie", () => {
     const host = new Request("https://bfb.example.test/", {
-      headers: { cookie: "__Host-bfb_session=abc" },
+      headers: { cookie: `${SESSION_COOKIE}=abc` },
     });
     expect(readSessionCookie(host)).toBe("abc");
-    const legacy = new Request("https://bfb.example.test/", {
-      headers: { cookie: "bfb_session=legacy" },
+    const aliases = ["__Secure-bfb_session=secure", "bfb_session=bare"];
+    for (const cookie of aliases) {
+      expect(
+        readSessionCookie(new Request("https://bfb.example.test/", { headers: { cookie } })),
+      ).toBeNull();
+    }
+    const malformed = new Request("https://bfb.example.test/", {
+      headers: { cookie: `${SESSION_COOKIE}=%` },
     });
-    expect(readSessionCookie(legacy)).toBeNull();
+    expect(readSessionCookie(malformed)).toBe("%");
+    expect(hasBrowserSessionCookie(malformed)).toBe(true);
   });
 
-  it("rejects mutations with wrong or missing Origin", () => {
-    const appOrigin = "https://bfb.example.test";
+  it("requires exact Origin and same-origin Fetch Metadata", () => {
+    const appOrigin = AUTH_TEST_ENV.APP_ORIGIN;
+    for (const headers of [
+      {},
+      { origin: "https://evil.example", "sec-fetch-site": "cross-site" },
+      { origin: appOrigin, "sec-fetch-site": "same-site" },
+    ]) {
+      expect(() =>
+        assertBrowserMutation(
+          new Request(`${appOrigin}/auth/sign-in/github`, { method: "POST", headers }),
+          appOrigin,
+        ),
+      ).toThrow();
+    }
     expect(() =>
       assertBrowserMutation(
-        new Request("https://bfb.example.test/auth/sign-in/email", {
-          method: "POST",
-          headers: { origin: "https://evil.example" },
-        }),
-        appOrigin,
-      ),
-    ).toThrow(/origin/);
-    expect(() =>
-      assertBrowserMutation(
-        new Request("https://bfb.example.test/api/v1/workspaces/x/tasks", { method: "POST" }),
-        appOrigin,
-      ),
-    ).toThrow(/origin/);
-    expect(() =>
-      assertBrowserMutation(
-        new Request("https://bfb.example.test/api/v1/workspaces/x/tasks", {
-          method: "POST",
-          headers: { origin: appOrigin, "sec-fetch-site": "cross-site" },
-        }),
-        appOrigin,
-      ),
-    ).toThrow(/cross-site/);
-    expect(() =>
-      assertBrowserMutation(
-        new Request("https://bfb.example.test/api/v1/workspaces/x/tasks", {
+        new Request(`${appOrigin}/auth/sign-in/github`, {
           method: "POST",
           headers: { origin: appOrigin, "sec-fetch-site": "same-origin" },
         }),
@@ -74,62 +75,91 @@ describe("session cookie security", () => {
     ).not.toThrow();
   });
 
-  it("requires a session-bound CSRF token for authenticated mutations", () => {
-    const appOrigin = "https://bfb.example.test";
-    const secret = "synthetic-local-auth-secret-not-for-prod";
-    const sessionId = "01JBFB0SESS10N000000000000";
-    const token = csrfTokenForSession(sessionId, secret);
-    expect(() =>
-      assertBrowserMutation(
-        new Request("https://bfb.example.test/api/v1/workspaces/x/tasks", {
-          method: "POST",
-          headers: { origin: appOrigin, "sec-fetch-site": "same-origin" },
-        }),
-        appOrigin,
-        { sessionId, authSecret: secret },
-      ),
-    ).toThrow(/CSRF token/);
-    expect(() =>
-      assertBrowserMutation(
-        new Request("https://bfb.example.test/api/v1/workspaces/x/tasks", {
-          method: "POST",
-          headers: {
-            origin: appOrigin,
-            "sec-fetch-site": "same-origin",
-            "x-bfb-csrf": "deadbeef",
-          },
-        }),
-        appOrigin,
-        { sessionId, authSecret: secret },
-      ),
-    ).toThrow(/CSRF token/);
-    expect(() =>
-      assertBrowserMutation(
-        new Request("https://bfb.example.test/api/v1/workspaces/x/tasks", {
-          method: "POST",
-          headers: {
-            origin: appOrigin,
-            "sec-fetch-site": "same-origin",
-            "x-bfb-csrf": token,
-          },
-        }),
-        appOrigin,
-        { sessionId, authSecret: secret },
-      ),
-    ).not.toThrow();
+  it("accepts current and previous kid CSRF signatures but rejects unknown keys", () => {
+    const appOrigin = AUTH_TEST_ENV.APP_ORIGIN;
+    const keys = parseAuthKeys(AUTH_TEST_ENV.BETTER_AUTH_SECRETS);
+    const sessionId = "auth-session-c02";
+    const current = csrfTokenForSession(sessionId, keys);
+    const previous = csrfTokenForSession(sessionId, [keys[1]!]);
+
+    for (const token of [current, previous]) {
+      expect(() =>
+        assertBrowserMutation(
+          new Request(`${appOrigin}/api/v1/workspaces/example/tasks`, {
+            method: "POST",
+            headers: {
+              origin: appOrigin,
+              "sec-fetch-site": "same-origin",
+              "x-bfb-csrf": token,
+            },
+          }),
+          appOrigin,
+          { sessionId, authKeys: keys },
+        ),
+      ).not.toThrow();
+    }
+
+    for (const token of ["", `99.${current.split(".")[1]}`, `${keys[0]!.version}.deadbeef`]) {
+      expect(() =>
+        assertBrowserMutation(
+          new Request(`${appOrigin}/api/v1/workspaces/example/tasks`, {
+            method: "POST",
+            headers: {
+              origin: appOrigin,
+              "sec-fetch-site": "same-origin",
+              "x-bfb-csrf": token,
+            },
+          }),
+          appOrigin,
+          { sessionId, authKeys: keys },
+        ),
+      ).toThrow(/CSRF/);
+    }
   });
 
-  it("fails closed on short Better Auth secrets and disables cookie cache", () => {
-    expect(() =>
-      createHumanAuth({
-        APP_ORIGIN: "https://bfb.example.test",
-        BETTER_AUTH_SECRET: "too-short",
+  it("resolves a Better Auth session to a permission-free normalized human", async () => {
+    const context = openAuthTestContext();
+    const session = await seedAuthSession(context);
+    const principal = await resolveBrowserPrincipal(
+      context.db,
+      context.auth,
+      new Request(`${AUTH_TEST_ENV.APP_ORIGIN}/auth/session`, {
+        headers: { cookie: session.cookie },
       }),
-    ).toThrow(/BETTER_AUTH_SECRET/);
-    const auth = createHumanAuth({
-      APP_ORIGIN: "https://bfb.example.test",
-      BETTER_AUTH_SECRET: "synthetic-local-auth-secret-not-for-prod",
+      "2026-08-11T20:00:00Z",
+    );
+
+    expect(principal).toEqual({
+      type: "human",
+      humanId: expect.stringMatching(/^[0-7][0-9A-HJKMNP-TV-Z]{25}$/),
+      authUserId: session.userId,
+      email: "c02-human@synthetic.test",
+      displayName: "C02 Human",
+      sessionId: session.sessionId,
     });
-    expect(auth).toBeTruthy();
+    expect(principal).not.toHaveProperty("workspaceId");
+    expect(principal).not.toHaveProperty("role");
+    expect(
+      context.raw
+        .prepare("SELECT COUNT(*) AS count FROM workspace_members WHERE human_id = ?")
+        .get(principal?.humanId),
+    ).toEqual({ count: 0 });
+  });
+
+  it("fails closed on invalid auth key rings and origins", () => {
+    const context = openAuthTestContext();
+    const valid = { ...AUTH_TEST_ENV };
+    expect(() =>
+      humanAuthOptions(context.raw, { ...valid, BETTER_AUTH_SECRETS: "1:short" }),
+    ).toThrow(/versioned key/);
+    expect(() =>
+      humanAuthOptions(context.raw, {
+        ...valid,
+        BETTER_AUTH_SECRETS: `${valid.BETTER_AUTH_SECRETS},0:third-key-that-is-long-enough-123456`,
+      }),
+    ).toThrow(/at most one previous/);
+    expect(() =>
+      humanAuthOptions(context.raw, { ...valid, APP_ORIGIN: "http://bfb.example.test" }),
+    ).toThrow(/secure origin/);
   });
 });

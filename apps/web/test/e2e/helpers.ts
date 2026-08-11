@@ -1,12 +1,12 @@
-// ABOUTME: Shared Playwright helpers for W01 multi-role sign-in and Work surface navigation.
-// ABOUTME: Uses AppShell testids and synthetic FIX credentials against the local E2E server.
+// ABOUTME: Shared Playwright helpers for W01 multi-role session and Work surface navigation.
+// ABOUTME: Uses real Better Auth sessions seeded by the isolated local E2E server.
 
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { expect, type Page } from "@playwright/test";
 
-import { FIX, SYNTHETIC_PASSWORD } from "@bfb/domain";
+import { FIX } from "@bfb/domain";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const capturedEvidenceDir = path.join(rootDir, "docs/work-packages/evidence/WP-W01/browser");
@@ -36,12 +36,7 @@ export const ROLES = {
 export type RoleKey = keyof typeof ROLES;
 
 export async function signInAs(page: Page, role: RoleKey): Promise<void> {
-  const account = ROLES[role];
-  await page.goto("/");
-  await expect(page.getByTestId("sign-in-form")).toBeVisible();
-  await page.getByTestId("sign-in-email").fill(account.email);
-  await page.getByTestId("sign-in-password").fill(SYNTHETIC_PASSWORD);
-  await page.getByTestId("sign-in-form").getByRole("button", { name: "Sign in" }).click();
+  await page.goto(`/__test/session/${role}`);
   await expect(page.getByTestId("current-human")).toBeVisible();
 }
 
@@ -61,4 +56,4 @@ export async function signInAndOpenBoard(page: Page, role: RoleKey): Promise<voi
   await openWorkSurface(page);
 }
 
-export { FIX, SYNTHETIC_PASSWORD };
+export { FIX };

@@ -9,13 +9,13 @@
     "@bfb/domain": "workspace:*",
     "@modelcontextprotocol/server": "2.0.0",
     "agents": "0.20.1",
+    "better-auth": "1.6.26",
     "hono": "4.13.1",
     "zod": "4.4.3"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20260810.1",
     "@types/better-sqlite3": "7.6.13",
-    "better-auth": "1.6.26",
     "better-sqlite3": "12.6.2",
     "wrangler": "4.120.1"
   },

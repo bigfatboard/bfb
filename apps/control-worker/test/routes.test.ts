@@ -3,13 +3,19 @@
 
 import { describe, expect, it } from "vitest";
 
-import { FIX } from "../../../packages/domain/src/fixtures.js";
+import { FIX, seedSyntheticWorkspace } from "../../../packages/domain/src/fixtures.js";
 import { MCP_RESOURCE } from "../../../packages/domain/src/oauth.js";
 import { issueStepUpProof } from "../../../packages/domain/src/step-up.js";
-import { openDomainDb } from "../../../packages/domain/test/helpers.js";
+import { parseAuthKeys } from "../src/auth/better-auth.js";
 import { validateControlEnv, type ControlBindings } from "../src/env.js";
 import { createControlApp } from "../src/routes.js";
 import { createTestWorkspaceHubNamespace } from "../src/hub-client.js";
+import {
+  AUTH_TEST_ENV,
+  openAuthTestContext,
+  seedAuthSession,
+  type AuthTestContext,
+} from "./auth-helpers.js";
 
 function fakeBinding<T extends object>(label: string): T {
   return { __synthetic: label } as unknown as T;
@@ -33,12 +39,29 @@ function env(db?: import("@bfb/db").SqlDatabase): ControlBindings {
   };
 }
 
+async function openRouteContext(): Promise<AuthTestContext> {
+  const context = openAuthTestContext();
+  await seedSyntheticWorkspace(context.db);
+  return context;
+}
+
+function appFor(context: AuthTestContext) {
+  return createControlApp(validateControlEnv(env()), {
+    db: context.db,
+    now: "2026-08-07T12:00:00Z",
+    humanAuth: () => ({
+      auth: context.auth,
+      keys: parseAuthKeys(AUTH_TEST_ENV.BETTER_AUTH_SECRETS),
+      abuseSecret: AUTH_TEST_ENV.AUTH_ABUSE_SECRET,
+    }),
+  });
+}
+
 describe("control routes", () => {
   it("serves healthz with substrate metadata", async () => {
-    const validated = validateControlEnv(env());
-    const db = await openDomainDb();
-    const app = createControlApp(validated, { db, now: "2026-08-07T12:00:00Z" });
-    const response = await app.request("/healthz", {}, env(db));
+    const context = await openRouteContext();
+    const app = appFor(context);
+    const response = await app.request("/healthz", {}, env(context.db));
     expect(response.status).toBe(200);
     const body = (await response.json()) as { package: string; environment: string };
     expect(body.package).toBe("F03");
@@ -46,10 +69,9 @@ describe("control routes", () => {
   });
 
   it("serves tools/list on mounted /mcp without 501", async () => {
-    const validated = validateControlEnv(env());
-    const db = await openDomainDb();
-    const app = createControlApp(validated, { db, now: "2026-08-07T12:00:00Z" });
-    const bindings = env(db);
+    const context = await openRouteContext();
+    const app = appFor(context);
+    const bindings = env(context.db);
     const response = await app.request(
       new Request("https://bfb.example.test/mcp", {
         method: "POST",
@@ -70,33 +92,22 @@ describe("control routes", () => {
     expect(body.tools.length).toBe(7);
   });
 
-  it("signs in a human and returns session", async () => {
-    const validated = validateControlEnv(env());
-    const db = await openDomainDb();
-    const app = createControlApp(validated, { db, now: "2026-08-07T12:00:00Z" });
-    const bindings = env(db);
-    const signIn = await app.request(
-      new Request("https://bfb.example.test/auth/sign-in/email", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          origin: "https://bfb.example.test",
-          "sec-fetch-site": "same-origin",
-        },
-        body: JSON.stringify({ email: "owner@synthetic.test", password: "synthetic-password" }),
-      }),
-      undefined,
-      bindings,
-    );
-    expect(signIn.status).toBe(200);
-    const cookie = signIn.headers.get("set-cookie");
-    expect(cookie).toMatch(/__Host-bfb_session=/);
-    const signInBody = (await signIn.json()) as { csrf_token?: string };
-    expect(signInBody.csrf_token?.length ?? 0).toBeGreaterThan(10);
+  it("resolves a Better Auth human session", async () => {
+    const context = await openRouteContext();
+    const seeded = await seedAuthSession(context, {
+      userId: "auth-owner-routes",
+      sessionId: "auth-owner-routes-session",
+      token: "auth-owner-routes-token",
+      email: "owner@synthetic.test",
+      name: "Synthetic Owner",
+      humanId: FIX.owner,
+    });
+    const app = appFor(context);
+    const bindings = env(context.db);
 
     const session = await app.request(
       new Request("https://bfb.example.test/auth/session", {
-        headers: { cookie: cookie?.split(";")[0] ?? "" },
+        headers: { cookie: seeded.cookie },
       }),
       undefined,
       bindings,
@@ -108,10 +119,9 @@ describe("control routes", () => {
   });
 
   it("publishes OAuth metadata and rejects cookie auth on /mcp", async () => {
-    const validated = validateControlEnv(env());
-    const db = await openDomainDb();
-    const app = createControlApp(validated, { db, now: "2026-08-07T12:00:00Z" });
-    const bindings = env(db);
+    const context = await openRouteContext();
+    const app = appFor(context);
+    const bindings = env(context.db);
     const meta = await app.request("/.well-known/oauth-authorization-server", {}, bindings);
     expect(meta.status).toBe(200);
     const body = (await meta.json()) as { code_challenge_methods_supported: string[] };
@@ -136,27 +146,20 @@ describe("control routes", () => {
   });
 
   it("completes OAuth code+PKCE and calls propose via MCP token", async () => {
-    const validated = validateControlEnv(env());
-    const db = await openDomainDb();
+    const context = await openRouteContext();
+    const db = context.db;
     const now = "2026-08-07T12:00:00Z";
-    const app = createControlApp(validated, { db, now });
+    const seeded = await seedAuthSession(context, {
+      userId: "auth-owner-oauth",
+      sessionId: "auth-owner-oauth-session",
+      token: "auth-owner-oauth-token",
+      email: "owner@synthetic.test",
+      name: "Synthetic Owner",
+      humanId: FIX.owner,
+    });
+    const app = appFor(context);
     const bindings = env(db);
-
-    // Sign in
-    const signIn = await app.request(
-      new Request("https://bfb.example.test/auth/sign-in/email", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          origin: "https://bfb.example.test",
-          "sec-fetch-site": "same-origin",
-        },
-        body: JSON.stringify({ email: "owner@synthetic.test", password: "synthetic-password" }),
-      }),
-      undefined,
-      bindings,
-    );
-    const cookie = signIn.headers.get("set-cookie")?.split(";")[0] ?? "";
+    const cookie = seeded.cookie;
 
     const proofId = await issueStepUpProof(
       db,

@@ -10,12 +10,13 @@ import { describe, expect, it } from "vitest";
 import { adaptBetterSqlite3, adaptD1, applyMigrationsForVerification, type D1Like } from "@bfb/db";
 import { FIX, seedSyntheticWorkspace } from "../../../packages/domain/src/fixtures.js";
 import { WorkspaceHub } from "../../../packages/domain/src/hub.js";
-import { SYNTHETIC_PASSWORD } from "../../../packages/domain/src/passwords.js";
 import { createTaskCommand } from "../../../packages/domain/src/work-commands.js";
 
 import { createTestWorkspaceHubNamespace } from "../src/hub-client.js";
 import { createFetchHandler, type ControlFetchOptions } from "../src/index.js";
 import type { ControlBindings } from "../src/env.js";
+import { createHumanAuth } from "../src/auth/better-auth.js";
+import { AUTH_TEST_ENV, seedAuthSession } from "./auth-helpers.js";
 
 const migrationsDir = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -72,13 +73,15 @@ function asD1(raw: Database.Database): D1Database {
   return d1 as unknown as D1Database;
 }
 
-async function seededEnv(now = "2026-08-07T12:00:00Z"): Promise<ControlBindings> {
+async function seededEnv(
+  now = "2026-08-07T12:00:00Z",
+): Promise<{ bindings: ControlBindings; raw: Database.Database }> {
   const raw = new Database(":memory:");
   raw.pragma("foreign_keys = ON");
   applyMigrationsForVerification(raw, migrationsDir);
   const sql = adaptBetterSqlite3(raw);
   await seedSyntheticWorkspace(sql, now);
-  return {
+  const bindings: ControlBindings = {
     DB: asD1(raw),
     ARTIFACTS: fakeBinding<R2Bucket>("r2"),
     ASSETS: fakeBinding<Fetcher>("assets"),
@@ -90,7 +93,9 @@ async function seededEnv(now = "2026-08-07T12:00:00Z"): Promise<ControlBindings>
     LAUNCH_ORIGIN: "https://launch.bfb.example.test",
     JURISDICTION: "eu",
     ENVIRONMENT: "local",
+    ...AUTH_TEST_ENV,
   };
+  return { bindings, raw };
 }
 
 describe("production D1 adapter wiring", () => {
@@ -106,41 +111,34 @@ describe("production D1 adapter wiring", () => {
     expect(result.changes).toBe(1);
   });
 
-  it("createFetchHandler without options.db signs in through adaptD1(env.DB)", async () => {
+  it("createFetchHandler resolves a browser session while domain reads use adaptD1(env.DB)", async () => {
     const now = "2026-08-07T12:00:00Z";
-    const env = await seededEnv(now);
-    // Production default: no options.db — must use adaptD1(env.DB).
-    const fetch = createFetchHandler({ now });
-
-    const signIn = await fetch(
-      new Request("https://bfb.example.test/auth/sign-in/email", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          origin: "https://bfb.example.test",
-          "sec-fetch-site": "same-origin",
-        },
-        body: JSON.stringify({
-          email: "owner@synthetic.test",
-          password: SYNTHETIC_PASSWORD,
-        }),
-      }),
-      env,
+    const { bindings, raw } = await seededEnv(now);
+    const seeded = await seedAuthSession(
+      { raw },
+      {
+        userId: "auth-owner-d1",
+        sessionId: "auth-owner-d1-session",
+        token: "auth-owner-d1-token",
+        email: "owner@synthetic.test",
+        name: "Synthetic Owner",
+        humanId: FIX.owner,
+      },
     );
-    expect(signIn.status).toBe(200);
-    const cookie = signIn.headers.get("set-cookie");
-    expect(cookie).toMatch(/__Host-bfb_session=/);
-    const body = (await signIn.json()) as { ok: boolean; human: { email: string } };
-    expect(body.ok).toBe(true);
-    expect(body.human.email).toBe("owner@synthetic.test");
+    const directSession = await createHumanAuth(raw, AUTH_TEST_ENV).api.getSession({
+      headers: new Headers({ cookie: seeded.cookie }),
+    });
+    expect(directSession?.user.email).toBe("owner@synthetic.test");
+    // Production default: no options.db — must use adaptD1(env.DB).
+    const fetch = createFetchHandler({ now, authDatabase: raw, authEnv: AUTH_TEST_ENV });
 
     const session = await fetch(
       new Request("https://bfb.example.test/auth/session", {
-        headers: { cookie: cookie?.split(";")[0] ?? "" },
+        headers: { cookie: seeded.cookie },
       }),
-      env,
+      bindings,
     );
-    expect(session.status).toBe(200);
+    expect(session.status, await session.clone().text()).toBe(200);
     const sessionBody = (await session.json()) as {
       authenticated: boolean;
       human: { email: string };
@@ -181,7 +179,7 @@ describe("production D1 adapter wiring", () => {
   });
 
   it("createFetchHandler without options.db serves tools/list via adaptD1", async () => {
-    const env = await seededEnv();
+    const { bindings } = await seededEnv();
     const fetch = createFetchHandler({ now: "2026-08-07T12:00:00Z" });
     const response = await fetch(
       new Request("https://bfb.example.test/mcp", {
@@ -194,7 +192,7 @@ describe("production D1 adapter wiring", () => {
         },
         body: JSON.stringify({ method: "tools/list" }),
       }),
-      env,
+      bindings,
     );
     const text = await response.text();
     expect(text).not.toMatch(/mcp_misconfigured/);
@@ -208,9 +206,9 @@ describe("production D1 adapter wiring", () => {
       // force missing override path coverage by only checking type
     };
     expect(options.db).toBeUndefined();
-    const env = await seededEnv();
+    const { bindings } = await seededEnv();
     const fetch = createFetchHandler(options);
-    const response = await fetch(new Request("https://bfb.example.test/healthz"), env);
+    const response = await fetch(new Request("https://bfb.example.test/healthz"), bindings);
     expect(response.status).toBe(200);
   });
 });
