@@ -55,7 +55,7 @@ Allowed goal states are `not_started`, `active`, `blocked`, and `complete`. `blo
 | B-async-d1 | 2026-08-10T22:30:00Z | X03A D1 | sync domain vs async D1 | resolved | Promise-only SqlDatabase |
 | B-stale-complete | 2026-08-11T00:05:00Z | journal | complete without browser/real-client | resolved | reopened; gates completed |
 | B-host-port | 2026-08-11T11:20:00Z | MCP Host | Host:port vs hostname allowlist | resolved | strip port in validateMcpRouting |
-| B-orphan-sha | 2026-08-11T12:15:00Z | journal HEAD | Last observed pointed at amended-away d99a493 | resolved | Retargeted to on-branch tip 951c4eb; no amend-chase |
+| B-orphan-sha | 2026-08-11T12:15:00Z | journal HEAD | Last observed pointed at an amended-away commit not on branch tip history | resolved | Retargeted to on-branch tip 951c4eb; no amend-chase |
 
 ## Package status and handoffs
 
