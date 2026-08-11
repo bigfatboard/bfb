@@ -15,6 +15,7 @@ import {
   listTasks,
   loadPrincipal,
   narrowBoundary,
+  enforceDelegationAccess,
   addCommentCommand,
   createTaskCommand,
 } from "@bfb/domain";
@@ -85,7 +86,7 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
           isError: true,
         };
       }
-      narrowBoundary(deps.delegation, task.project_id, task.id);
+      await enforceDelegationAccess(deps.db, deps.delegation, task.project_id, task.id);
       return { content: [{ type: "text" as const, text: JSON.stringify({ task }) }] };
     },
   );
@@ -106,7 +107,7 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
           isError: true,
         };
       }
-      narrowBoundary(deps.delegation, task.project_id, task.id);
+      await enforceDelegationAccess(deps.db, deps.delegation, task.project_id, task.id);
       const context = await getAgentContext(deps.db, deps.delegation.workspaceId, task_id);
       return { content: [{ type: "text" as const, text: JSON.stringify({ context }) }] };
     },
@@ -191,7 +192,7 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
     },
     async ({ project_id, title, priority, request_id }) => {
       assertScope(deps.delegation, "bfb:task:write");
-      narrowBoundary(deps.delegation, project_id);
+      await enforceDelegationAccess(deps.db, deps.delegation, project_id);
       const outcome = await hub.execute(createTaskCommand, {
         workspaceId: deps.delegation.workspaceId,
         idempotencyKey: request_id ?? `propose-${project_id}-${deps.now}`,

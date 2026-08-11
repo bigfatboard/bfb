@@ -32,7 +32,7 @@
         - paragraph: Agent work unavailable
       - listitem:
         - text: P1NOW
-        - strong: stale-source-1786447370886
+        - strong: stale-source-1786457322907
         - paragraph: Ready for next action
         - paragraph: Pass to configured agent profile
         - paragraph: Agent work unavailable

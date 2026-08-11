@@ -41,6 +41,12 @@ jobs:
       - name: Verify repository
         run: pnpm verify
 
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: IC-1 domain, MCP integration, and browser E2E
+        run: pnpm test:ic1
+
   macos:
     name: macOS, Swift, and Go process smoke
     runs-on: macos-15

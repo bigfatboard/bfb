@@ -1,5 +1,6 @@
 {
   "package": "C08",
   "command": "pnpm test:c08",
-  "outcome": "passed"
+  "outcome": "passed",
+  "checks": ["real sha256 context digests and work commands"]
 }

@@ -1,5 +1,6 @@
 {
   "package": "C07",
   "command": "pnpm test:c07",
-  "outcome": "passed"
+  "outcome": "passed",
+  "checks": ["task pagination and project fixtures"]
 }

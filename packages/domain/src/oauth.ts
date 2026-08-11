@@ -216,3 +216,27 @@ export function narrowBoundary(
     throw new DomainError("forbidden", "cannot widen project boundary");
   }
 }
+
+/**
+ * Enforces membership ∩ delegation scope on every MCP tool access path.
+ * Caller-supplied project/task IDs may only narrow authority.
+ */
+export async function enforceDelegationAccess(
+  db: SqlDatabase,
+  delegation: ActiveDelegation,
+  projectId?: string,
+  taskId?: string,
+): Promise<void> {
+  const { assertProjectAccess, assertTaskChildAccess, loadPrincipal, assertEpoch } =
+    await import("./authorization.js");
+  const principal = await loadPrincipal(db, delegation.workspaceId, delegation.humanId);
+  assertEpoch(principal, delegation.authorizationEpoch);
+  narrowBoundary(delegation, projectId, taskId);
+  if (taskId) {
+    await assertTaskChildAccess(db, principal, taskId);
+    return;
+  }
+  if (projectId) {
+    assertProjectAccess(principal, projectId);
+  }
+}

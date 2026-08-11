@@ -1,6 +1,6 @@
 # WP-W01 — Authenticated app and Work surface
 
-Status: `planned`
+Status: `in_progress`
 
 Risk: Medium
 

@@ -350,8 +350,8 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 | C04 | [Workspace authorization](WP-C04-workspace-authorization.md) | `done` | Very high |
 | C05 | [Human device and CLI credentials](WP-C05-human-device-credentials.md) | `planned` | High |
 | C06 | [Runner identity, grants, and tokens](WP-C06-runner-enrollment-channel.md) | `planned` | Very high |
-| C07 | [Projects, repository identity, and policy](WP-C07-work-domain.md) | `in_progress` | High |
-| C08 | [Tasks, runs, context, and work APIs](WP-C08-work-records.md) | `planned` | High |
+| C07 | [Projects, repository identity, and policy](WP-C07-work-domain.md) | `done` | High |
+| C08 | [Tasks, runs, context, and work APIs](WP-C08-work-records.md) | `done` | High |
 | C09 | [Durable launch orchestration](WP-C09-launch-orchestration.md) | `planned` | Very high |
 
 ### Local execution
@@ -371,7 +371,7 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 
 | ID | Package | Status | Risk |
 | --- | --- | --- | --- |
-| W01 | [Authenticated app and Work surface](WP-W01-app-shell.md) | `planned` | Medium |
+| W01 | [Authenticated app and Work surface](WP-W01-app-shell.md) | `in_progress` | Medium |
 | W02 | [Runner and launch operations UI](WP-W02-launch-operations-ui.md) | `planned` | High |
 | E01 | [Event ingestion, projection, and replay](WP-E01-event-ingest-replay.md) | `planned` | Very high |
 | E02 | [Browser realtime, timeline, and presence](WP-E02-browser-realtime.md) | `planned` | High |

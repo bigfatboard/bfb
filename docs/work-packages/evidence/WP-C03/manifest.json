@@ -5,11 +5,25 @@
   "protocol_version": "bfb-wire/1",
   "schema_version": "1",
   "migration_head": "0005_workspace_invariants",
-  "toolchains": { "node": "24.19.0", "pnpm": "11.21.0" },
-  "environment": { "kind": "local", "os": "macOS", "architecture": "arm64" },
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0"
+  },
+  "environment": {
+    "kind": "local",
+    "os": "macOS",
+    "architecture": "arm64"
+  },
   "commands": [
-    { "command": "pnpm test:c03", "outcome": "passed", "artifact": "docs/work-packages/evidence/WP-C03/command-result.json" },
-    { "command": "pnpm verify", "outcome": "passed" }
+    {
+      "command": "pnpm test:c03",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C03/command-result.json"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed"
+    }
   ],
   "outcome": "passed",
   "artifacts": [
@@ -17,5 +31,8 @@
     "packages/domain/src/step-up.ts",
     "packages/domain/test/step-up.test.ts"
   ],
-  "redaction": { "status": "passed", "prohibited_content": [] }
+  "redaction": {
+    "status": "passed",
+    "prohibited_content": []
+  }
 }
