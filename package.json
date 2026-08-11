@@ -35,7 +35,7 @@
     "test:db": "vitest run packages/db/test && pnpm exec tsc -b tools/db --pretty false && tsx tools/db/run.ts",
     "test:domain": "vitest run packages/domain/test",
     "test:c01": "pnpm exec tsc -b tools/kernel --pretty false && vitest run packages/domain/test/hub.test.ts packages/domain/test/abuse.test.ts apps/control-worker/test/hub-client.test.ts && tsx tools/kernel/run.ts",
-    "test:c02": "vitest run packages/domain/test/identity.test.ts apps/control-worker/test/session-security.test.ts apps/control-worker/test/auth-configuration.test.ts apps/control-worker/test/auth-integration.test.ts apps/artifact-worker/test/env.test.ts && pnpm --filter @bfb/control-worker build && pnpm build:web && pnpm exec tsc -b tools/identity --pretty false && tsx tools/identity/run.ts",
+    "test:c02": "pnpm build && vitest run packages/domain/test/identity.test.ts apps/control-worker/test/session-security.test.ts apps/control-worker/test/auth-configuration.test.ts apps/control-worker/test/auth-integration.test.ts apps/artifact-worker/test/env.test.ts && pnpm --filter @bfb/control-worker build && pnpm build:web && pnpm exec tsc -b tools/identity --pretty false && tsx tools/identity/run.ts",
     "test:c03": "vitest run packages/domain/test/step-up.test.ts",
     "test:c04": "vitest run packages/domain/test/authorization.test.ts",
     "test:c07": "vitest run packages/domain/test/projects.test.ts",

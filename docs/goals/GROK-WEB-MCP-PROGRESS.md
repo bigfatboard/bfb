@@ -6,15 +6,15 @@ This file is the resumable execution journal for [the Grok web/MCP goal](GROK-WE
 
 - Goal state: `active — correction and re-certification`
 - Branch: `goal/grok-web-mcp`
-- Last observed HEAD: c99b8d16f8483af6fde81f4402da0d7aac672649
+- Last observed HEAD: 97fcd42476c33f09c4f3667f65e929d89fc0963b
 - Last verified commit: 8b3c3a47446f9ea3cdb392406176737b5da50a11
-- Last verification command/result: uncommitted C02 worktree `pnpm test:c02` passed 22 focused tests plus the two-isolate Workerd/D1 identity harness; `pnpm verify` passed 307 TypeScript tests plus protocol, Go, and Xcode gates; `pnpm test:w01:browser` passed 7 browser tests
+- Last verification command/result: clean-checkout audit found `pnpm test:c02` tried Vitest before workspace packages were built; the target now starts with `pnpm build` and requires a fresh clean-checkout rerun
 - Active package: C02 — Human identity and sessions
-- Active gate: commit the verified C02 implementation, then run the exact target and repository verification from a clean checkout
-- Active task: create the C02 implementation checkpoint without staging generated W01 evidence
+- Active gate: commit the self-contained C02 target correction, then rerun the exact target and repository verification from a clean checkout
+- Active task: checkpoint the clean-checkout target correction without staging generated W01 evidence
 - Resume here: complete C02 correction and evidence, then advance sequentially through C03 → C04 → C07 → C08 → W01 → X03A
 - Blocking condition: `none`
-- Updated UTC: `2026-08-11T20:18:35Z`
+- Updated UTC: `2026-08-11T20:20:45Z`
 
 ## Final review findings
 
