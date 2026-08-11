@@ -6,15 +6,15 @@ This file is the resumable execution journal for [the Grok web/MCP goal](GROK-WE
 
 - Goal state: `active — correction and re-certification`
 - Branch: `goal/grok-web-mcp`
-- Last observed HEAD: 696e3ccf33ba590a4a50a3f53dc448ca9cd4f639
-- Last verified commit: 696e3ccf33ba590a4a50a3f53dc448ca9cd4f639
-- Last verification command/result: `pnpm verify` and `pnpm test:ic1` passed at the pushed tip, but the independent final review reproduced a real `workerd` startup failure and acceptance gaps those commands did not exercise
-- Active package: F01 — repository foundation
-- Active gate: correct the evidence/status gate, then re-run F01 from a clean checkout
-- Active task: require clean-checkout evidence for `done` packages and make package state truthful
-- Resume here: finish F01 correction, commit its clean-checkout proof, then advance sequentially through F02 → F03 → F04 → C01 → C02 → C03 → C04 → C07 → C08 → W01 → X03A
+- Last observed HEAD: 71f9f588dd94f6191ef963a22bcfd715c54447a1
+- Last verified commit: 71f9f588dd94f6191ef963a22bcfd715c54447a1
+- Last verification command/result: clean clone `pnpm packages:verify`, `pnpm test:ic1`, and `pnpm worktree:check` passed; 34 test files / 178 tests in the repository gate, IC-1 unit/browser/MCP regressions, Go checks, unsigned Xcode build/test, roadmap validation, and clean-worktree assertions passed
+- Active package: F02 — wire contracts and test doubles
+- Active gate: audit generated TypeScript and Go validators against the canonical schema, then run `pnpm test:protocol` from a clean checkout
+- Active task: add missing cross-language constraint and numeric-boundary cases before re-certification
+- Resume here: finish F02 correction and evidence, then advance sequentially through F03 → F04 → C01 → C02 → C03 → C04 → C07 → C08 → W01 → X03A
 - Blocking condition: `none`
-- Updated UTC: `2026-08-11T14:53:06Z`
+- Updated UTC: `2026-08-11T15:05:00Z`
 
 ## Final review findings
 
@@ -25,6 +25,6 @@ This file is the resumable execution journal for [the Grok web/MCP goal](GROK-WE
 
 ## Package status
 
-F01 is reopened for correction. F02–X03A are planned again and must be re-certified in dependency order. PR #3 remains open and must not merge until this journal returns to `complete` with clean-checkout proof.
+F01 is re-certified at tested commit `71f9f588dd94f6191ef963a22bcfd715c54447a1`. F02 is active; F03–X03A remain planned and must be re-certified in dependency order. PR #3 remains open and must not merge until this journal returns to `complete` with clean-checkout proof.
 
 Mark a journal handoff complete only after the canonical package is `done`, its declared test passes from a clean checkout, its evidence manifest exists, and that manifest's tested implementation commit is recorded.

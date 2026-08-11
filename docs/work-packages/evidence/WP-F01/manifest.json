@@ -1,7 +1,7 @@
 {
   "$schema": "../manifest.schema.json",
   "package": "F01",
-  "tested_commit": "c19cb3a6c5a1b5b3a282b04af9dd9426e59ad0ce",
+  "tested_commit": "71f9f588dd94f6191ef963a22bcfd715c54447a1",
   "protocol_version": null,
   "schema_version": null,
   "migration_head": null,
@@ -27,6 +27,21 @@
       "command": "pnpm verify",
       "outcome": "passed",
       "artifact": "docs/work-packages/evidence/WP-F01/command-matrix.json"
+    },
+    {
+      "command": "pnpm packages:verify",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-F01/clean-checkout.json"
+    },
+    {
+      "command": "pnpm test:ic1",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-F01/clean-checkout.json"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-F01/clean-checkout.json"
     }
   ],
   "outcome": "passed",
@@ -40,9 +55,5 @@
   "redaction": {
     "status": "passed",
     "prohibited_content": []
-  },
-  "ci": {
-    "status": "passed",
-    "run_url": "https://github.com/qdis/bfb/actions/runs/31432177257"
   }
 }

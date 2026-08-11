@@ -1,5 +1,5 @@
 {
-  "tested_commit": "c19cb3a6c5a1b5b3a282b04af9dd9426e59ad0ce",
+  "tested_commit": "71f9f588dd94f6191ef963a22bcfd715c54447a1",
   "targets": [
     {
       "kind": "typescript",
