@@ -165,15 +165,6 @@ describe("workspace repository boundaries", () => {
       jurisdiction: "eu",
       createdAt: "2026-08-07T12:00:00Z",
     });
-    const repo = WorkspaceRepository.forAuthorization(
-      db,
-      createAuthorizationContext({
-        workspaceId: WS_A,
-        principalId: HUMAN,
-        authorizationEpoch: 1,
-        jurisdiction: "eu",
-      }),
-    );
     await expect(
       db.withTransaction(async (tx) => {
         await tx
