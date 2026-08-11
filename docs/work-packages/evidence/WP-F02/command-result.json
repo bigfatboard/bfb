@@ -1,12 +1,9 @@
 {
   "package": "F02",
   "command": "pnpm test:protocol",
+  "started_at": "2026-08-11T13:33:02.101Z",
+  "ended_at": "2026-08-11T13:33:03.149Z",
   "outcome": "passed",
-  "checks": [
-    "pnpm protocol:check",
-    "vitest run packages/protocol-ts/test",
-    "go test ./internal/protocol/..."
-  ],
-  "typescript_tests": 26,
-  "go_packages": ["github.com/qdis/bfb/internal/protocol"]
+  "summary": "protocol drift + TS fixtures/adversarial + Go protocol tests passed",
+  "notes": "IC-1 re-cert; adversarial corpus included; no private content"
 }
