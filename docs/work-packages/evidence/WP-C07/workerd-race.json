@@ -1,0 +1,24 @@
+{
+  "package": "C07",
+  "tested_commit": "58ec6a224f24c32c5bdd9af0074b6ce0864d8c12",
+  "workers": ["bfb-projects-a", "bfb-projects-b", "bfb-projects-hub"],
+  "project_race": {
+    "committed": 1,
+    "stale_version": 1
+  },
+  "policy_race": {
+    "committed": 1,
+    "stale_version": 1
+  },
+  "committed": {
+    "project_version": 2,
+    "policy_version": 2,
+    "policy_versions": 2,
+    "events": 3,
+    "audits": 3,
+    "idempotency_records": 3,
+    "workspace_cursor": 3,
+    "migration_head": "0011_project_policy_versions"
+  },
+  "production_or_shared_state_used": false
+}
