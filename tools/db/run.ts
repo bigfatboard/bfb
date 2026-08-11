@@ -274,7 +274,8 @@ INSERT INTO tasks
 INSERT INTO task_context_items
   (workspace_id, id, task_id, audience, body, version, content_hash, created_at)
   VALUES ('${workspaceA}', '${contextA}', '${taskA}', 'both', 'Historical context', 1,
-          'sha256:historical-context', '2026-08-07T12:00:00Z');
+          'sha256:c2d91a2a5524254b4a9d86d5229a327863abdadce67f2e7e15b94334b467f1fe',
+          '2026-08-07T12:00:00Z');
 INSERT INTO comments
   (workspace_id, id, task_id, author_delegation_id, body, kind, created_at)
   VALUES ('${workspaceA}', '${commentA}', '${taskA}', '${delegationA}',

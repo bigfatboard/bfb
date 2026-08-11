@@ -61,8 +61,12 @@ function toCard(
   if (task.next_owner_type === "agent_profile" && task.next_action_reason) {
     card.whyDelegable = task.next_action_reason;
   }
-  if (project.allow_pass_to_agent === 1 && task.next_owner_type === "unassigned") {
-    card.passToAgentProfileId = "policy-allowed";
+  if (
+    project.allow_pass_to_agent === 1 &&
+    task.next_owner_type === "agent_profile" &&
+    task.next_owner_id
+  ) {
+    card.passToAgentProfileId = task.next_owner_id;
   }
   return card;
 }
@@ -75,10 +79,17 @@ export async function buildProjectLanes(
   const projects = (
     (await db
       .prepare(
-        `SELECT p.id, p.name, p.slug, p.tint, COALESCE(pp.allow_pass_to_agent, 0) AS allow_pass_to_agent
+        `SELECT p.id, p.name, p.slug, p.tint,
+                CASE WHEN wp.allow_pass_to_agent = 1
+                       AND pp.allow_pass_to_agent = 1
+                       AND rc.allow_pass_to_agent = 1
+                     THEN 1 ELSE 0 END AS allow_pass_to_agent
          FROM projects p
-         LEFT JOIN project_policies pp
+         JOIN workspace_policies wp ON wp.workspace_id = p.workspace_id
+         JOIN project_policies pp
            ON pp.workspace_id = p.workspace_id AND pp.project_id = p.id
+         JOIN repository_configs rc
+           ON rc.workspace_id = p.workspace_id AND rc.project_id = p.id
          WHERE p.workspace_id = ?
          ORDER BY p.slug ASC`,
       )
@@ -110,33 +121,36 @@ export async function buildNeedsNowDeck(
   projectIds: string[],
   nowIso: string,
 ): Promise<AttentionDeckItem[]> {
-  const tasks = await listTasks(db, workspaceId, projectIds);
+  if (projectIds.length === 0) {
+    return [];
+  }
+  const placeholders = projectIds.map(() => "?").join(", ");
   const now = Date.parse(nowIso);
-  const eligible = tasks.filter((task) => {
-    if (task.next_owner_type !== "human" || task.next_owner_id !== humanId) {
-      return false;
-    }
-    if (task.priority !== "P0" && task.priority !== "P1") {
-      return false;
-    }
-    const blocked = task.state === "blocked";
-    const due = task.due_at !== null && Date.parse(task.due_at) <= now;
-    return blocked || due;
-  });
-  eligible.sort((left, right) => {
-    const priority = left.priority.localeCompare(right.priority);
-    if (priority !== 0) {
-      return priority;
-    }
-    const dueLeft = left.due_at ?? "9999";
-    const dueRight = right.due_at ?? "9999";
-    const dueCmp = dueLeft.localeCompare(dueRight);
-    if (dueCmp !== 0) {
-      return dueCmp;
-    }
-    return left.id.localeCompare(right.id);
-  });
-  return eligible.slice(0, 3).map((task) => ({
+  if (!Number.isFinite(now)) {
+    return [];
+  }
+  const eligible = (await db
+    .prepare(
+      `SELECT id, project_id, title, priority, punchline, next_action_reason
+       FROM tasks
+       WHERE workspace_id = ? AND project_id IN (${placeholders})
+         AND next_owner_type = 'human' AND next_owner_id = ?
+         AND priority IN ('P0', 'P1')
+         AND (state = 'blocked' OR (due_at IS NOT NULL AND due_at <= ?))
+       ORDER BY CASE priority WHEN 'P0' THEN 0 ELSE 1 END,
+                CASE WHEN due_at IS NULL THEN 1 ELSE 0 END,
+                due_at ASC, id ASC
+       LIMIT 3`,
+    )
+    .all(workspaceId, ...projectIds, humanId, nowIso)) as Array<{
+    id: string;
+    project_id: string;
+    title: string;
+    priority: string;
+    punchline: string;
+    next_action_reason: string | null;
+  }>;
+  return eligible.map((task) => ({
     taskId: task.id,
     projectId: task.project_id,
     title: task.title,

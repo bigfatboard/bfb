@@ -231,9 +231,23 @@ export async function enforceDelegationAccess(
     await import("./authorization.js");
   const principal = await loadPrincipal(db, delegation.workspaceId, delegation.humanId);
   assertEpoch(principal, delegation.authorizationEpoch);
-  narrowBoundary(delegation, projectId, taskId);
+  narrowBoundary(delegation, projectId);
   if (taskId) {
     await assertTaskChildAccess(db, principal, taskId);
+    if (delegation.taskId && delegation.taskId !== taskId) {
+      let currentTaskId: string | null = taskId;
+      for (let depth = 0; currentTaskId && depth <= 64; depth++) {
+        if (currentTaskId === delegation.taskId) {
+          return;
+        }
+        const row = (await db
+          .prepare(`SELECT parent_task_id FROM tasks WHERE workspace_id = ? AND id = ?`)
+          .get(delegation.workspaceId, currentTaskId)) as
+          { parent_task_id: string | null } | undefined;
+        currentTaskId = row?.parent_task_id ?? null;
+      }
+      throw new DomainError("forbidden", "task outside delegation");
+    }
     return;
   }
   if (projectId) {

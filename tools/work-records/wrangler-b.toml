@@ -1,0 +1,12 @@
+# ABOUTME: Second C08 Worker isolate bound to the shared external WorkspaceHub.
+# ABOUTME: Independent requests prove optimistic task and run writes have one winner.
+
+name = "bfb-work-records-b"
+main = "worker.ts"
+compatibility_date = "2026-08-08"
+compatibility_flags = ["nodejs_compat"]
+
+[[durable_objects.bindings]]
+name = "WORKSPACE_HUB"
+class_name = "WorkspaceHub"
+script_name = "bfb-work-records-hub"

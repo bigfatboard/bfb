@@ -1,0 +1,12 @@
+# ABOUTME: First C08 Worker isolate bound to the shared external WorkspaceHub.
+# ABOUTME: Requests race through a separate script while the hub owns serialization.
+
+name = "bfb-work-records-a"
+main = "worker.ts"
+compatibility_date = "2026-08-08"
+compatibility_flags = ["nodejs_compat"]
+
+[[durable_objects.bindings]]
+name = "WORKSPACE_HUB"
+class_name = "WorkspaceHub"
+script_name = "bfb-work-records-hub"

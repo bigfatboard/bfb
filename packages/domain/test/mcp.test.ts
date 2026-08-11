@@ -123,11 +123,11 @@ describe("mcp routing and tools", () => {
       authorizationEpoch: delegation.authorizationEpoch,
       actorHumanId: delegation.humanId,
       actorDelegationId: delegation.delegationId,
+      now: "2026-08-07T12:01:00Z",
       input: {
         projectId: FIX.projectA,
         title: "MCP proposed task",
         priority: "P2",
-        actorIsAgent: true,
       },
     });
     expect(proposed.ok && proposed.result.state).toBe("proposed");

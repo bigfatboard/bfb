@@ -147,7 +147,7 @@ export function WorkMutations(props: WorkMutationsProps) {
           void (async () => {
             try {
               setError(null);
-              // Agent proposals use the same create endpoint with actorIsAgent via dedicated API.
+              // The dedicated route creates a proposed task that still requires human promotion.
               await post(`/api/v1/workspaces/${props.workspaceId}/tasks/propose`, {
                 project_id: projectId,
                 title: title || "Agent proposal",

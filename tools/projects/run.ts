@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { adaptD1, type D1Like } from "@bfb/db";
+import { adaptD1, MIGRATION_HEAD, type D1Like } from "@bfb/db";
 import { randomUlid, type CommandOutcome, type ProjectRecord } from "@bfb/domain";
 import { createTestHarness } from "wrangler";
 
@@ -204,7 +204,7 @@ async function main(): Promise<void> {
       audits: 3,
       idempotency: 3,
       cursor: 3,
-      migration_head: "0011_project_policy_versions.sql",
+      migration_head: `${MIGRATION_HEAD}.sql`,
     });
     await assert.rejects(
       db

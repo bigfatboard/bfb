@@ -1,5 +1,5 @@
 {
-  "migration_head": "0011_project_policy_versions",
+  "migration_head": "0012_work_records",
   "migrations": [
     {
       "id": "0001_workspace_registry",
@@ -44,6 +44,10 @@
     {
       "id": "0011_project_policy_versions",
       "file": "0011_project_policy_versions.sql"
+    },
+    {
+      "id": "0012_work_records",
+      "file": "0012_work_records.sql"
     }
   ]
 }

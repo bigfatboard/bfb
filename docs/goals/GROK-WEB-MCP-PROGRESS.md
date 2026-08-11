@@ -6,16 +6,16 @@ This file is the resumable execution journal for [the Grok web/MCP goal](GROK-WE
 
 - Goal state: `active — correction and re-certification`
 - Branch: `goal/grok-web-mcp`
-- Last observed HEAD: 58ec6a224f24c32c5bdd9af0074b6ce0864d8c12
-- Last verified commit: 58ec6a224f24c32c5bdd9af0074b6ce0864d8c12
-- Last verification command/result: the exact C07 correction commit passed `pnpm test:c07` with eight focused tests plus a real three-worker D1/WorkspaceHub race, then full `pnpm verify` with 327 TypeScript tests plus protocol, Go, and Xcode checks from a clean checkout that remained unchanged
-- Worktree checkpoint: C07 evidence is regenerated against the tested implementation commit and C08 is being opened; generated W01 browser evidence remains excluded
+- Last observed HEAD: 8927fd709ef7e8a9ed51128e5489d49475f1428e
+- Last verified commit: 8927fd709ef7e8a9ed51128e5489d49475f1428e
+- Last verification command/result: the C07 handoff commit passed `pnpm packages:verify` from a clean checkout; the current uncommitted C08 implementation passes `pnpm test:c08` with 16 focused tests plus a real three-worker D1/WorkspaceHub race at migration head `0012_work_records.sql`, and full `pnpm verify` with 332 TypeScript tests plus protocol, Go, and Xcode checks
+- Worktree checkpoint: C08 implementation and repository verification are green; the implementation checkpoint commit and clean-checkout certification remain. Generated W01 browser evidence remains excluded.
 - Active package: C08 — Tasks, runs, context, and work APIs
-- Active gate: commit and verify the C07 handoff, then audit C08's existing implementation against every canonical acceptance path before changing its status
-- Active task: close C07 with bounded evidence and reconcile the C08 domain, migrations, API, tests, and stale evidence
+- Active gate: commit the C08 implementation checkpoint, then certify that exact commit from a clean checkout
+- Active task: create the C08 implementation checkpoint and bounded evidence without changing package status before clean-checkout proof
 - Resume here: complete C08, then advance sequentially through W01 → X03A
 - Blocking condition: `none`
-- Updated UTC: `2026-08-11T22:49:39Z`
+- Updated UTC: `2026-08-11T23:50:46Z`
 
 ## Final review findings
 

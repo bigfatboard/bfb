@@ -64,7 +64,7 @@ describe("mcp handler", () => {
     expect(cookie.status).toBe(401);
   });
 
-  it("proposes tasks through delegated MCP token via createMcpHandler path", async () => {
+  it("proposes tasks and keeps discussion and progress commands distinct", async () => {
     const db = await openDomainDb();
     const action = {
       action: "oauth.delegation.create",
@@ -127,10 +127,65 @@ describe("mcp handler", () => {
     const text = body.result?.content?.[0]?.text ?? JSON.stringify(body);
     const parsed = JSON.parse(text) as {
       ok: boolean;
-      result: { state: string; title: string };
+      result: { id: string; state: string; title: string };
     };
     expect(parsed.ok).toBe(true);
     expect(parsed.result.state).toBe("proposed");
     expect(parsed.result.title).toBe("From MCP");
+
+    for (const [name, requestId, field, value] of [
+      ["bfb_add_comment", "mcp-comment-1", "body", "Discuss this"],
+      ["bfb_report_progress", "mcp-progress-1", "summary", "Halfway done"],
+    ] as const) {
+      const mutation = await handleMcpRequest(
+        new Request("https://bfb.example.test/mcp", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "MCP-Protocol-Version": "2026-07-28",
+            "Mcp-Method": "tools/call",
+            "Mcp-Name": name,
+            Host: "bfb.example.test",
+            authorization: "Bearer " + accessToken,
+          },
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id: requestId,
+            method: "tools/call",
+            params: {
+              name,
+              arguments: {
+                task_id: parsed.result.id,
+                request_id: requestId,
+                [field]: value,
+              },
+            },
+          }),
+        }),
+        {
+          db,
+          allowedHostnames: ["bfb.example.test"],
+          appOrigin: "https://bfb.example.test",
+          jurisdiction: "eu",
+          now: "2026-08-07T12:01:00Z",
+        },
+      );
+      expect(mutation.status).toBe(200);
+      const mutationBody = (await mutation.json()) as {
+        result?: { content?: Array<{ text?: string }> };
+      };
+      const mutationText = mutationBody.result?.content?.[0]?.text ?? JSON.stringify(mutationBody);
+      expect(JSON.parse(mutationText)).toMatchObject({ ok: true });
+    }
+
+    const comments = (await db
+      .prepare(`SELECT body, kind FROM comments WHERE workspace_id = ? AND task_id = ? ORDER BY id`)
+      .all(FIX.workspace, parsed.result.id)) as Array<{ body: string; kind: string }>;
+    expect(comments).toEqual(
+      expect.arrayContaining([
+        { body: "Discuss this", kind: "discussion" },
+        { body: "Halfway done", kind: "progress" },
+      ]),
+    );
   });
 });
