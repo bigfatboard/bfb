@@ -45,6 +45,24 @@ const workerFirstPrefixes = [
 
 export const WORKER_FIRST_ROUTE_PREFIXES = workerFirstPrefixes;
 
+/**
+ * Wrangler `assets.run_worker_first` globs that must cover every worker-first
+ * prefix so SPA fallback cannot shadow OAuth, API, MCP, or auth routes.
+ */
+export const RUN_WORKER_FIRST_GLOBS = [
+  "/api/*",
+  "/auth/*",
+  "/mcp",
+  "/mcp/*",
+  "/oauth",
+  "/oauth/*",
+  "/realtime/*",
+  "/runner/*",
+  "/webhooks/*",
+  "/.well-known/*",
+  "/healthz",
+] as const;
+
 export function isWorkerFirstPath(pathname: string): boolean {
   if (pathname === "/mcp") {
     return true;

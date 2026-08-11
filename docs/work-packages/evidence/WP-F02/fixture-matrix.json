@@ -8,12 +8,6 @@
   "invalid_count": 26,
   "languages": ["typescript", "go"],
   "swift_consumable": true,
-  "adversarial_concerns": [
-    "fractional_integer",
-    "enum",
-    "bound",
-    "uniqueness",
-    "required_nested"
-  ],
+  "adversarial_concerns": ["fractional_integer", "enum", "bound", "uniqueness", "required_nested"],
   "notes": "IC-1 re-cert differential adversarial corpus; synthetic fixtures only; no private task bodies"
 }

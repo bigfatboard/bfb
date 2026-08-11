@@ -75,10 +75,13 @@ describe("validateControlEnv", () => {
 });
 
 describe("isWorkerFirstPath", () => {
-  it("protects API auth MCP realtime runner webhook and discovery paths", () => {
+  it("protects API auth MCP OAuth realtime runner webhook and discovery paths", () => {
     expect(isWorkerFirstPath("/api/v1/tasks")).toBe(true);
     expect(isWorkerFirstPath("/auth/sign-in")).toBe(true);
     expect(isWorkerFirstPath("/mcp")).toBe(true);
+    expect(isWorkerFirstPath("/oauth")).toBe(true);
+    expect(isWorkerFirstPath("/oauth/authorize")).toBe(true);
+    expect(isWorkerFirstPath("/oauth/token")).toBe(true);
     expect(isWorkerFirstPath("/realtime/workspaces/x")).toBe(true);
     expect(isWorkerFirstPath("/runner/connect")).toBe(true);
     expect(isWorkerFirstPath("/webhooks/github")).toBe(true);
