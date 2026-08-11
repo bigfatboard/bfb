@@ -1,27 +1,12 @@
 # Grok web + remote MCP execution journal
 
-This file is the resumable execution journal for [the Grok web/MCP goal](GROK-WEB-MCP.md). It is operational state, not acceptance proof.
-
 ## Resume checkpoint
-
 - Goal state: `active`
 - Branch: `goal/grok-web-mcp`
-- Last observed HEAD: bde79ccdfb95004772ba457d9c48e111211f454d
-- Last verified commit: bde79ccdfb95004772ba457d9c48e111211f454d
-- Last verification command/result: C02 test:c02 + verify passed
-- Active package: C03
-- Active gate: IC-1 re-certify C03 → X03A
-- Active task: C03 passkey/WebAuthn step-up + bound proofs
-- Resume here: complete C03; then C04
-- Blocking condition: `none`
-- Updated UTC: `2026-08-11T14:01:03Z`
+- Last verified commit: fdef312873e2849729ec49c7dc0913861b0e3f84
+- Active package: C04
+- Resume here: complete C04 roles/grants/task-child authz; then C07
+- Updated UTC: `2026-08-11T14:02:37Z`
 
 ## Package status
-
-| Package | Status | Tested commit |
-| --- | --- | --- |
-| F02–C02 | done | see manifests |
-| C03 | in_progress | none |
-| C04–X03A | planned | none |
-
-Mark a journal handoff complete only after the canonical package is `done`, its declared test passes from a clean checkout, its evidence manifest exists, and that manifest's tested implementation commit is recorded.
+F02–C03 done; C04 in_progress; C07–X03A planned.

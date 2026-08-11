@@ -1,5 +1,12 @@
 {
   "package": "C03",
   "command": "pnpm test:c03",
-  "outcome": "passed"
+  "outcome": "passed",
+  "checks": [
+    "consume-once",
+    "stale/client/action/human/scope mismatch",
+    "max TTL bound",
+    "task boundary mismatch",
+    "atomic CAS consume"
+  ]
 }

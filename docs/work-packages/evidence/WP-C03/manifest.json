@@ -1,31 +1,21 @@
 {
   "$schema": "../manifest.schema.json",
   "package": "C03",
-  "tested_commit": "3368f544bd11e166acfc4842e999c10282e7dd79",
+  "tested_commit": "fdef312873e2849729ec49c7dc0913861b0e3f84",
   "protocol_version": "bfb-wire/1",
   "schema_version": "1",
-  "migration_head": "0004_human_credentials",
-  "toolchains": {
-    "node": "24.19.0",
-    "pnpm": "11.21.0",
-    "better-sqlite3": "12.6.2"
-  },
-  "environment": {
-    "kind": "local",
-    "os": "macOS 26.2 (25C56)",
-    "architecture": "arm64"
-  },
+  "migration_head": "0005_workspace_invariants",
+  "toolchains": { "node": "24.19.0", "pnpm": "11.21.0" },
+  "environment": { "kind": "local", "os": "macOS", "architecture": "arm64" },
   "commands": [
-    {
-      "command": "pnpm test:c03",
-      "outcome": "passed",
-      "artifact": "docs/work-packages/evidence/WP-C03/command-result.json"
-    }
+    { "command": "pnpm test:c03", "outcome": "passed", "artifact": "docs/work-packages/evidence/WP-C03/command-result.json" },
+    { "command": "pnpm verify", "outcome": "passed" }
   ],
   "outcome": "passed",
-  "artifacts": ["docs/work-packages/evidence/WP-C03/command-result.json"],
-  "redaction": {
-    "status": "passed",
-    "prohibited_content": []
-  }
+  "artifacts": [
+    "docs/work-packages/evidence/WP-C03/command-result.json",
+    "packages/domain/src/step-up.ts",
+    "packages/domain/test/step-up.test.ts"
+  ],
+  "redaction": { "status": "passed", "prohibited_content": [] }
 }
