@@ -100,7 +100,7 @@ describe("mcp routing and tools", () => {
       projectId: FIX.projectA,
       scopes: ["bfb:read", "bfb:task:write"],
       authorizationEpoch: 1,
-      expiresAt: "2026-08-07T13:00:00Z",
+      expiresAt: "2026-08-07T12:10:00Z",
     };
     const proofId = await issueStepUpProof(db, FIX.owner, action, "2026-08-07T12:00:00Z");
     const { accessToken } = await createDelegation(db, {

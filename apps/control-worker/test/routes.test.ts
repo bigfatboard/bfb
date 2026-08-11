@@ -153,7 +153,7 @@ describe("control routes", () => {
         projectId: FIX.projectA,
         scopes: ["bfb:read", "bfb:task:write"],
         authorizationEpoch: 1,
-        expiresAt: "2026-08-07T13:00:00Z",
+        expiresAt: "2026-08-07T12:10:00Z",
       },
       now,
     );

@@ -4,7 +4,7 @@
 import { describe, expect, it } from "vitest";
 
 import { DomainError } from "../src/hub.js";
-import { issueStepUpProof, consumeStepUpProof } from "../src/step-up.js";
+import { issueStepUpProof, consumeStepUpProof, STEP_UP_MAX_TTL_SECONDS } from "../src/step-up.js";
 import { FIX } from "../src/fixtures.js";
 import { openDomainDb } from "./helpers.js";
 
@@ -17,24 +17,25 @@ describe("passkey step-up", () => {
     projectId: FIX.projectA,
     scopes: ["bfb:read", "bfb:task:write"],
     authorizationEpoch: 1,
-    expiresAt: "2026-08-07T13:00:00Z",
+    expiresAt: "2026-08-07T12:10:00Z",
   };
 
   it("consumes a fresh matching proof once", async () => {
     const db = await openDomainDb();
     const proofId = await issueStepUpProof(db, FIX.owner, action, "2026-08-07T12:00:00Z");
-    await consumeStepUpProof(db, proofId, action, "2026-08-07T12:01:00Z");
-    await expect(consumeStepUpProof(db, proofId, action, "2026-08-07T12:02:00Z")).rejects.toThrow(
-      /already consumed/,
-    );
+    await consumeStepUpProof(db, proofId, action, "2026-08-07T12:01:00Z", FIX.owner);
+    await expect(
+      consumeStepUpProof(db, proofId, action, "2026-08-07T12:02:00Z", FIX.owner),
+    ).rejects.toThrow(/already consumed/);
   });
 
-  it("rejects stale and mismatched proofs", async () => {
+  it("rejects stale, mismatched, wrong-human, and over-max-ttl proofs", async () => {
     const db = await openDomainDb();
     const proofId = await issueStepUpProof(db, FIX.owner, action, "2026-08-07T12:00:00Z");
-    await expect(consumeStepUpProof(db, proofId, action, "2026-08-07T14:00:00Z")).rejects.toThrow(
-      DomainError,
-    );
+    await expect(
+      consumeStepUpProof(db, proofId, action, "2026-08-07T14:00:00Z", FIX.owner),
+    ).rejects.toThrow(DomainError);
+
     const other = await issueStepUpProof(db, FIX.owner, action, "2026-08-07T12:00:00Z");
     await expect(
       consumeStepUpProof(
@@ -42,8 +43,26 @@ describe("passkey step-up", () => {
         other,
         { ...action, clientId: "other-client" },
         "2026-08-07T12:01:00Z",
+        FIX.owner,
       ),
     ).rejects.toThrow(/client mismatch/);
+
+    const actionMismatch = await issueStepUpProof(db, FIX.owner, action, "2026-08-07T12:00:00Z");
+    await expect(
+      consumeStepUpProof(
+        db,
+        actionMismatch,
+        { ...action, action: "other.action" },
+        "2026-08-07T12:01:00Z",
+        FIX.owner,
+      ),
+    ).rejects.toThrow(/action mismatch/);
+
+    const humanMismatch = await issueStepUpProof(db, FIX.owner, action, "2026-08-07T12:00:00Z");
+    await expect(
+      consumeStepUpProof(db, humanMismatch, action, "2026-08-07T12:01:00Z", FIX.member),
+    ).rejects.toThrow(/human mismatch/);
+
     const wide = await issueStepUpProof(db, FIX.owner, action, "2026-08-07T12:00:00Z");
     await expect(
       consumeStepUpProof(
@@ -51,7 +70,40 @@ describe("passkey step-up", () => {
         wide,
         { ...action, scopes: ["bfb:read", "bfb:task:write", "bfb:admin"] },
         "2026-08-07T12:01:00Z",
+        FIX.owner,
       ),
     ).rejects.toThrow(/scope/);
+
+    await expect(
+      issueStepUpProof(
+        db,
+        FIX.owner,
+        {
+          ...action,
+          expiresAt: new Date(
+            Date.parse("2026-08-07T12:00:00Z") + (STEP_UP_MAX_TTL_SECONDS + 60) * 1000,
+          ).toISOString(),
+        },
+        "2026-08-07T12:00:00Z",
+      ),
+    ).rejects.toThrow(/maximum bound/);
+  });
+
+  it("rejects proofs that do not cover task boundary", async () => {
+    const db = await openDomainDb();
+    const withTask = {
+      ...action,
+      taskId: "01JBFB0TASKXXXX00000000000",
+    };
+    const proofId = await issueStepUpProof(db, FIX.owner, withTask, "2026-08-07T12:00:00Z");
+    await expect(
+      consumeStepUpProof(
+        db,
+        proofId,
+        { ...withTask, taskId: "01JBFB0TASKYYYY00000000000" },
+        "2026-08-07T12:01:00Z",
+        FIX.owner,
+      ),
+    ).rejects.toThrow(/task mismatch/);
   });
 });

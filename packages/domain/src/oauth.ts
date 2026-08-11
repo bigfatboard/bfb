@@ -58,7 +58,7 @@ export async function createDelegation(
     authorizationEpoch: input.authorizationEpoch,
     expiresAt: input.expiresAt,
   };
-  await consumeStepUpProof(db, input.stepUpProofId, action, input.now);
+  await consumeStepUpProof(db, input.stepUpProofId, action, input.now, input.humanId);
 
   const delegationId = randomUlid();
   await db
