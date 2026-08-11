@@ -2,5 +2,16 @@
   "package": "F04",
   "command": "pnpm test:db",
   "outcome": "passed",
-  "migration_head": "0001_workspace_registry"
+  "migration_head": "0005_workspace_invariants",
+  "checks": [
+    "empty and previous-schema migration converge",
+    "interruption recovery",
+    "auth-context tenant boundaries",
+    "composite FK cross-workspace reject",
+    "withTransaction rollback (sqlite)",
+    "adaptD1 batch transactions",
+    "jurisdiction immutability trigger",
+    "optimistic version predicate",
+    "UTC timestamp validation"
+  ]
 }

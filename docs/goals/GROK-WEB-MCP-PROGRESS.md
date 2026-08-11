@@ -8,17 +8,17 @@ Keep entries terse and use repository-relative paths. Do not record secrets, cre
 
 - Goal state: `active`
 - Branch: `goal/grok-web-mcp`
-- Last observed HEAD: c8061e43acc70aad408c38cb7ba7336078da4c08
-- Last verified commit: c8061e43acc70aad408c38cb7ba7336078da4c08
-- Last verification command/result: F03 `pnpm test:substrate` + `pnpm verify` + wrangler dry-run passed
-- Active package: F04
-- Active gate: IC-1 re-certify F04 → X03A sequence
-- Active task: F04 transactional DB primitives, tenant invariants, truthful deploy evidence
-- Worktree since observed HEAD: F03 evidence stamp + F04 activate
-- Resume here: complete F04; then C01
+- Last observed HEAD: 6ec23df07e2d81270159069625e40c85051135fd
+- Last verified commit: 6ec23df07e2d81270159069625e40c85051135fd
+- Last verification command/result: F04 `pnpm test:db` + `pnpm verify` passed
+- Active package: C01
+- Active gate: IC-1 re-certify C01 → X03A sequence
+- Active task: C01 WorkspaceHub atomic serialization under concurrency/failures
+- Worktree since observed HEAD: F04 evidence + C01 activate
+- Resume here: complete C01 concurrent hub + injected failure atomicity; then C02
 - Active delegates: none
 - Blocking condition: `none`
-- Updated UTC: `2026-08-11T13:42:48Z`
+- Updated UTC: `2026-08-11T13:49:43Z`
 
 Allowed goal states are `not_started`, `active`, `blocked`, and `complete`. `blocked` is valid only when a listed stop condition remains after safe in-scope alternatives are exhausted.
 
@@ -26,48 +26,43 @@ Allowed goal states are `not_started`, `active`, `blocked`, and `complete`. `blo
 
 | ID | Task | Owner | State | Verification or result |
 | --- | --- | --- | --- | --- |
-| F04-T1 | Enumerate F04 acceptance gaps (transactions, tenant invariants, migrations) | lead | `in_progress` | Derive failing tests from package Acceptance |
-| F04-T2 | Implement smallest corrections + package tests + verify | lead | `planned` | `pnpm test:db` + `pnpm verify` |
-| F04-T3 | Independent review + new redacted evidence | lead | `planned` | New manifest at tested commit |
+| C01-T1 | Enumerate C01 acceptance gaps (hub atomicity, concurrency, failure injection) | lead | `in_progress` | Derive failing tests |
+| C01-T2 | Implement + package tests + verify | lead | `planned` | `pnpm test:c01` + `pnpm verify` |
+| C01-T3 | Independent review + evidence | lead | `planned` | New manifest |
 
 ## Delegation log
 
-| ID | Package/task | Worker or workflow | Input HEAD | Scope and path ownership | Expected result/check | State | Result and lead verification |
+| ID | Package/task | Worker or workflow | Input HEAD | Scope | Expected result | State | Result |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| D-F02-review | F02 | subagent | worktree | protocol codecs | independent review | `done` | P0s closed |
-| D-F03-review | F03 | subagent | worktree | wrangler/oauth/SPA | independent review | `done` | oauth wrangler + SPA helper closed; dry-run OK |
+| D-F02-review | F02 | subagent | worktree | protocol | review | `done` | P0s closed |
+| D-F03-review | F03 | subagent | worktree | wrangler/oauth | review | `done` | closed |
+| D-F04-review | F04 | subagent | worktree | db transactions | review | `done` | D1 batch P0 fixed |
 
 ## Verification log
 
-| UTC | Package/task | Commit or worktree | Exact command or check | Outcome | Retained evidence |
+| UTC | Package/task | Commit | Command | Outcome | Evidence |
 | --- | --- | --- | --- | --- | --- |
-| 2026-08-11T13:24:17Z | startup reopen | 5bacaee | reopen + scrub | passed | scratch |
-| 2026-08-11T13:33:00Z | F02 | ea416d6 | test:protocol + verify | passed | evidence/WP-F02 |
-| 2026-08-11T13:42:48Z | F03 | c8061e43acc70aad408c38cb7ba7336078da4c08 | test:substrate + verify + wrangler dry-run | passed | evidence/WP-F03 |
+| 2026-08-11T13:24:17Z | startup | 5bacaee | reopen | passed | scratch |
+| 2026-08-11T13:33:00Z | F02 | ea416d6 | test:protocol | passed | WP-F02 |
+| 2026-08-11T13:42:00Z | F03 | c8061e4 | test:substrate | passed | WP-F03 |
+| 2026-08-11T13:49:43Z | F04 | 6ec23df07e2d81270159069625e40c85051135fd | test:db + verify | passed | WP-F04 |
 
 ## Blocker and decision log
 
-| ID | First seen UTC | Package/task | Condition and investigation | State | Next action or decision required |
+| ID | First seen UTC | Package/task | Condition | State | Next action |
 | --- | --- | --- | --- | --- | --- |
-| B-ic1-reopen | 2026-08-11T14:00:00Z | IC-1 | reopen F02–X03A | open | Continue F04–X03A |
-| B-sensitive-history | 2026-08-11T14:00:00Z | X03A | raw logs in old commits | open-accepted | no force-push |
-| B-f02-hand-validator | 2026-08-11T13:30:00Z | F02 | Go hand-validator residual | residual P1 | expand corpus |
+| B-ic1-reopen | 2026-08-11T14:00:00Z | IC-1 | reopen sequence | open | Continue C01–X03A |
+| B-sensitive-history | 2026-08-11T14:00:00Z | X03A | raw logs in history | open-accepted | no force-push |
 
 ## Package status and handoffs
 
-| Package | Journal checkpoint | Tested commit | Test target | Evidence manifest | Limitations |
+| Package | Journal checkpoint | Tested commit | Test target | Evidence | Limitations |
 | --- | --- | --- | --- | --- | --- |
-| [F01](../work-packages/WP-F01-repository-foundation.md) | done | prior | F01 | historical | left done |
-| [F02](../work-packages/WP-F02-wire-contracts.md) | done | ea416d6829b9b3ba65919b7deb9cf510e1620864 | `pnpm test:protocol` | docs/work-packages/evidence/WP-F02/manifest.json | hand-validator residual |
-| [F03](../work-packages/WP-F03-cloud-substrate.md) | done | c8061e43acc70aad408c38cb7ba7336078da4c08 | `pnpm test:substrate` | docs/work-packages/evidence/WP-F03/manifest.json | dry-run not live Workers deploy |
-| [F04](../work-packages/WP-F04-tenant-persistence.md) | in_progress | none | `pnpm test:db` | historical incomplete | re-certify |
-| [C01](../work-packages/WP-C01-command-kernel.md) | planned | none | `pnpm test:c01` | historical incomplete | re-certify |
-| [C02](../work-packages/WP-C02-human-identity.md) | planned | none | `pnpm test:c02` | historical incomplete | re-certify |
-| [C03](../work-packages/WP-C03-passkey-step-up.md) | planned | none | `pnpm test:c03` | historical incomplete | re-certify |
-| [C04](../work-packages/WP-C04-workspace-authorization.md) | planned | none | `pnpm test:c04` | historical incomplete | re-certify |
-| [C07](../work-packages/WP-C07-work-domain.md) | planned | none | `pnpm test:c07` | historical incomplete | re-certify |
-| [C08](../work-packages/WP-C08-work-records.md) | planned | none | `pnpm test:c08` | historical incomplete | re-certify |
-| [W01](../work-packages/WP-W01-app-shell.md) | planned | none | `pnpm test:w01` | historical incomplete | re-certify |
-| [X03A](../work-packages/WP-X03A-remote-mcp-core.md) | planned | none | `pnpm test:x03a` | historical incomplete | re-certify |
+| F01 | done | prior | F01 | historical | left done |
+| F02 | done | ea416d6829b9b3ba65919b7deb9cf510e1620864 | test:protocol | WP-F02 | hand-validator residual |
+| F03 | done | c8061e43acc70aad408c38cb7ba7336078da4c08 | test:substrate | WP-F03 | dry-run not live deploy |
+| F04 | done | 6ec23df07e2d81270159069625e40c85051135fd | test:db | WP-F04 | D1 batch TX is write-queue model |
+| C01 | in_progress | none | test:c01 | historical incomplete | re-certify |
+| C02–X03A | planned | none | per package | historical incomplete | re-certify |
 
 Mark a journal handoff complete only after the canonical package is `done`, its declared test passes from a clean checkout, its evidence manifest exists, and that manifest's tested implementation commit is recorded.

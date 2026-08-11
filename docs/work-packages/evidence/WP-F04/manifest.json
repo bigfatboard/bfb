@@ -1,10 +1,10 @@
 {
   "$schema": "../manifest.schema.json",
   "package": "F04",
-  "tested_commit": "3368f544bd11e166acfc4842e999c10282e7dd79",
+  "tested_commit": "6ec23df07e2d81270159069625e40c85051135fd",
   "protocol_version": "bfb-wire/1",
   "schema_version": "1",
-  "migration_head": "0004_human_credentials",
+  "migration_head": "0005_workspace_invariants",
   "toolchains": {
     "node": "24.19.0",
     "pnpm": "11.21.0",
@@ -12,7 +12,7 @@
   },
   "environment": {
     "kind": "local",
-    "os": "macOS 26.2 (25C56)",
+    "os": "macOS",
     "architecture": "arm64"
   },
   "commands": [
@@ -20,14 +20,18 @@
       "command": "pnpm test:db",
       "outcome": "passed",
       "artifact": "docs/work-packages/evidence/WP-F04/command-result.json"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed"
     }
   ],
   "outcome": "passed",
   "artifacts": [
     "docs/work-packages/evidence/WP-F04/command-result.json",
     "docs/work-packages/evidence/WP-F04/schema-snapshot.json",
-    "migrations/d1/0001_workspace_registry.sql",
-    "migrations/d1/manifest.json"
+    "migrations/d1/manifest.json",
+    "migrations/d1/0005_workspace_invariants.sql"
   ],
   "redaction": {
     "status": "passed",
