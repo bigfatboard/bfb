@@ -1,7 +1,7 @@
 {
   "$schema": "../manifest.schema.json",
   "package": "F03",
-  "tested_commit": "a22c13d7b5895f54c27faf3cf6df40c80ec33780",
+  "tested_commit": "c8061e43acc70aad408c38cb7ba7336078da4c08",
   "protocol_version": "bfb-wire/1",
   "schema_version": "1",
   "migration_head": null,
@@ -16,7 +16,7 @@
   },
   "environment": {
     "kind": "local",
-    "os": "macOS 26.2 (25C56)",
+    "os": "macOS",
     "architecture": "arm64"
   },
   "commands": [
@@ -24,6 +24,15 @@
       "command": "pnpm test:substrate",
       "outcome": "passed",
       "artifact": "docs/work-packages/evidence/WP-F03/command-result.json"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed"
+    },
+    {
+      "command": "pnpm --filter @bfb/control-worker exec wrangler deploy --dry-run",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-F03/deploy-dry-run.json"
     }
   ],
   "outcome": "passed",
@@ -31,6 +40,7 @@
     "docs/work-packages/evidence/WP-F03/command-result.json",
     "docs/work-packages/evidence/WP-F03/route-matrix.json",
     "docs/work-packages/evidence/WP-F03/binding-matrix.json",
+    "docs/work-packages/evidence/WP-F03/deploy-dry-run.json",
     "apps/control-worker/wrangler.toml",
     "apps/artifact-worker/wrangler.toml"
   ],

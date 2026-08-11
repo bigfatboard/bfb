@@ -6,6 +6,8 @@
     "vitest apps/control-worker/test",
     "vitest apps/artifact-worker/test",
     "vitest apps/web/test",
-    "pnpm --filter @bfb/web build"
-  ]
+    "pnpm --filter @bfb/web build",
+    "wrangler deploy --dry-run (local config)"
+  ],
+  "notes": "IC-1 re-cert; dry-run proves DO/D1/R2/Queue bindings parse without production deploy"
 }

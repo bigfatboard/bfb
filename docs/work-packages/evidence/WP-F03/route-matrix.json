@@ -4,6 +4,9 @@
     "/api/*",
     "/auth/*",
     "/mcp",
+    "/mcp/*",
+    "/oauth",
+    "/oauth/*",
     "/realtime/*",
     "/runner/*",
     "/webhooks/*",
@@ -11,5 +14,6 @@
     "/healthz"
   ],
   "asset_first_examples": ["/", "/w/:slug", "/settings"],
-  "spa_cannot_shadow_worker_first": true
+  "spa_cannot_shadow_worker_first": true,
+  "notes": "IC-1 re-cert: /oauth/* required in wrangler run_worker_first on local/staging/production"
 }

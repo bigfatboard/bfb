@@ -1,6 +1,6 @@
 # WP-F04 — D1 tenant persistence and migrations
 
-Status: `planned`
+Status: `in_progress`
 
 Risk: Very high
 
