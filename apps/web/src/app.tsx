@@ -4,10 +4,12 @@
 import { useCallback, useEffect, useState } from "react";
 
 import type { AttentionDeckItem, ProjectLane } from "@bfb/domain";
-import { SYNTHETIC_PASSWORD } from "@bfb/domain";
 
 import { WorkBoard } from "./work/board.js";
 import { WorkMutations } from "./work/mutations.js";
+
+/** Browser-safe fixture default; matches domain SYNTHETIC_PASSWORD without importing node:crypto. */
+const DEFAULT_PASSWORD = "synthetic-password";
 
 export interface AppShellProps {
   /** Test injection; production loads from /auth/session + board API. */
@@ -43,7 +45,7 @@ export function AppShell(props: AppShellProps = {}) {
   const [board, setBoard] = useState<BoardResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [email, setEmail] = useState("owner@synthetic.test");
-  const [password, setPassword] = useState(SYNTHETIC_PASSWORD);
+  const [password, setPassword] = useState(DEFAULT_PASSWORD);
   const [workspaceId, setWorkspaceId] = useState("");
 
   const reloadBoard = useCallback(async () => {

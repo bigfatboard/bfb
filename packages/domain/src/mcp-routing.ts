@@ -37,8 +37,15 @@ export function validateMcpRouting(
   if (!headers.method) {
     throw new DomainError("routing_metadata", "Mcp-Method required");
   }
-  if (headers.host && !policy.allowedHostnames.includes(headers.host)) {
-    throw new DomainError("host_rejected", "Host not allowed");
+  if (headers.host) {
+    // Browsers and local servers send Host with an explicit port (e.g. 127.0.0.1:4173).
+    const hostname = headers.host.split(":")[0] ?? headers.host;
+    const allowed = policy.allowedHostnames.some(
+      (entry) => entry === headers.host || entry === hostname || entry.split(":")[0] === hostname,
+    );
+    if (!allowed) {
+      throw new DomainError("host_rejected", "Host not allowed");
+    }
   }
   if (headers.origin) {
     if (headers.origin === "null" || headers.origin === "opaque") {

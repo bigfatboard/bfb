@@ -1,0 +1,22 @@
+{
+  "name": "@bfb/e2e",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "server": "tsx src/server.ts",
+    "test:browser": "playwright test --config playwright.config.ts"
+  },
+  "dependencies": {
+    "@bfb/db": "workspace:*",
+    "@bfb/domain": "workspace:*",
+    "@types/better-sqlite3": "7.6.13",
+    "@vitejs/plugin-react": "5.1.4",
+    "better-sqlite3": "12.6.2",
+    "hono": "4.13.1",
+    "vite": "8.2.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.55.1"
+  }
+}

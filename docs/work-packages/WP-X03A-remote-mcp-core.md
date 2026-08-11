@@ -1,6 +1,6 @@
 # WP-X03A — Remote OAuth MCP core
 
-Status: `done`
+Status: `in_progress`
 
 Risk: Very high
 

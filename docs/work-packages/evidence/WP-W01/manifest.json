@@ -8,7 +8,8 @@
   "toolchains": {
     "node": "24.19.0",
     "pnpm": "11.21.0",
-    "better-sqlite3": "12.6.2"
+    "better-sqlite3": "12.6.2",
+    "playwright": "1.55.1"
   },
   "environment": {
     "kind": "local",
@@ -20,10 +21,28 @@
       "command": "pnpm test:w01",
       "outcome": "passed",
       "artifact": "docs/work-packages/evidence/WP-W01/command-result.json"
+    },
+    {
+      "command": "pnpm test:w01:browser",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-W01/browser/"
     }
   ],
   "outcome": "passed",
-  "artifacts": ["docs/work-packages/evidence/WP-W01/command-result.json"],
+  "artifacts": [
+    "docs/work-packages/evidence/WP-W01/command-result.json",
+    "docs/work-packages/evidence/WP-W01/browser/owner.png",
+    "docs/work-packages/evidence/WP-W01/browser/member.png",
+    "docs/work-packages/evidence/WP-W01/browser/restricted.png",
+    "docs/work-packages/evidence/WP-W01/browser/hostile-content.png",
+    "docs/work-packages/evidence/WP-W01/browser/hostile-content.md",
+    "docs/work-packages/evidence/WP-W01/browser/stale-conflict.png",
+    "docs/work-packages/evidence/WP-W01/browser/stale-conflict.md",
+    "docs/work-packages/evidence/WP-W01/browser/step-up.png",
+    "docs/work-packages/evidence/WP-W01/browser/step-up.md",
+    "docs/work-packages/evidence/WP-W01/browser/accessibility.md",
+    "docs/work-packages/evidence/WP-W01/browser/a11y.png"
+  ],
   "redaction": {
     "status": "passed",
     "prohibited_content": []

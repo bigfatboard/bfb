@@ -1,5 +1,16 @@
 {
   "package": "W01",
   "command": "pnpm test:w01",
-  "outcome": "passed"
+  "outcome": "passed",
+  "unit": {
+    "command": "pnpm test:w01:unit",
+    "outcome": "passed",
+    "tests": 6
+  },
+  "browser": {
+    "command": "pnpm test:w01:browser",
+    "outcome": "passed",
+    "tests": 7,
+    "evidence": "docs/work-packages/evidence/WP-W01/browser/"
+  }
 }

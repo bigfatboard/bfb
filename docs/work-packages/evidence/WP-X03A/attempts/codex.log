@@ -1,0 +1,54 @@
+# Codex real attempt log (redacted)
+exact_version: @openai/codex 0.114.0 (native --version ENOENT)
+result: failed — native binary missing (ENOENT on darwin vendor codex); MCP not exercised
+
+## Commands
+$ codex --version
+exit: 1
+stdout: (empty)
+stderr:
+Error: spawn /opt/homebrew/lib/node_modules/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/codex/codex ENOENT
+    at ChildProcess._handle.onexit (node:internal/child_process:287:19)
+    at onErrorNT (node:internal/child_process:525:16)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'spawn /opt/homebrew/lib/node_modules/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/codex/codex',
+  path: '/opt/homebrew/lib/node_modules/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/codex/codex',
+  spawnargs: [ '--version' ]
+}
+
+$ codex --help
+exit: 1
+stdout: (empty)
+stderr:
+Error: spawn /opt/homebrew/lib/node_modules/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/codex/codex ENOENT
+    at ChildProcess._handle.onexit (node:internal/child_process:287:19)
+    at onErrorNT (node:internal/child_process:525:16)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'spawn /opt/homebrew/lib/node_modules/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/codex/codex',
+  path: '/opt/homebrew/lib/node_modules/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/codex/codex',
+  spawnargs: [ '--help' ]
+}
+
+$ codex mcp add bfb-x03a http://127.0.0.1:18765/mcp
+exit: 1
+stdout: (empty)
+stderr:
+Error: spawn /opt/homebrew/lib/node_modules/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/codex/codex ENOENT
+    at ChildProcess._handle.onexit (node:internal/child_process:287:19)
+    at onErrorNT (node:internal/child_process:525:16)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'spawn /opt/homebrew/lib/node_modules/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/codex/codex',
+  path: '/opt/homebrew/lib/node_modules/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/codex/codex',
+  spawnargs: [ 'mcp', 'add', 'bfb-x03a', 'http://127.0.0.1:18765/mcp' ]
+}
+
+## Limitations
+- npm @openai/codex wrapper cannot spawn vendor/aarch64-apple-darwin/codex/codex (ENOENT)
+- BFB accepts only preregistered public client bfb-mcp-synthetic-client
+- No X03A acceptance weakening for broken local Codex installs

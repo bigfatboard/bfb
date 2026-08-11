@@ -2,7 +2,11 @@
 // ABOUTME: Never invents live agent activity; unavailable states stay explicit.
 
 import type { AttentionDeckItem, ProjectLane } from "@bfb/domain";
-import { unavailableAgentWorkCopy } from "@bfb/domain";
+
+/** Browser-safe copy; matches domain unavailableAgentWorkCopy without importing node modules. */
+function unavailableAgentWorkCopy(): string {
+  return "Agent work unavailable";
+}
 
 export interface WorkBoardProps {
   humanDisplayName: string;

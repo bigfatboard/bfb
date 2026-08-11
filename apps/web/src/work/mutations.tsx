@@ -18,8 +18,32 @@ export function WorkMutations(props: WorkMutationsProps) {
   const [comment, setComment] = useState("");
   const [contextBody, setContextBody] = useState("");
   const [contextAudience, setContextAudience] = useState<"human" | "agent" | "both">("agent");
+  const [editTitle, setEditTitle] = useState("");
+  const [expectedVersion, setExpectedVersion] = useState("1");
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+
+  function failureMessage(
+    status: number,
+    json: { ok?: boolean; error?: unknown; message?: string },
+  ): string {
+    if (typeof json.message === "string" && json.message.length > 0) {
+      return json.message;
+    }
+    if (typeof json.error === "string" && json.error.length > 0) {
+      return json.error;
+    }
+    if (json.error && typeof json.error === "object") {
+      const nested = json.error as { code?: string; message?: string };
+      if (typeof nested.message === "string" && nested.message.length > 0) {
+        return nested.code ? `${nested.code}: ${nested.message}` : nested.message;
+      }
+      if (typeof nested.code === "string") {
+        return nested.code;
+      }
+    }
+    return `request failed (${status})`;
+  }
 
   async function post(path: string, body: unknown): Promise<unknown> {
     const response = await fetchFn(path, {
@@ -27,9 +51,9 @@ export function WorkMutations(props: WorkMutationsProps) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
     });
-    const json = (await response.json()) as { ok?: boolean; error?: string; message?: string };
+    const json = (await response.json()) as { ok?: boolean; error?: unknown; message?: string };
     if (!response.ok || json.ok === false) {
-      throw new Error(json.message ?? json.error ?? `request failed (${response.status})`);
+      throw new Error(failureMessage(response.status, json));
     }
     return json;
   }
@@ -40,9 +64,9 @@ export function WorkMutations(props: WorkMutationsProps) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
     });
-    const json = (await response.json()) as { ok?: boolean; error?: string; message?: string };
+    const json = (await response.json()) as { ok?: boolean; error?: unknown; message?: string };
     if (!response.ok || json.ok === false) {
-      throw new Error(json.message ?? json.error ?? `request failed (${response.status})`);
+      throw new Error(failureMessage(response.status, json));
     }
     return json;
   }
@@ -255,6 +279,56 @@ export function WorkMutations(props: WorkMutationsProps) {
       >
         <h3>Promote proposed task</h3>
         <button type="submit">Promote</button>
+      </form>
+
+      <form
+        data-testid="stale-edit-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void (async () => {
+            try {
+              setError(null);
+              await patch(`/api/v1/workspaces/${props.workspaceId}/tasks/${taskId}`, {
+                expected_version: Number(expectedVersion),
+                title: editTitle || "stale edit",
+                request_id: `web-stale-${Date.now()}`,
+              });
+              setStatus("Task updated");
+              props.onChanged();
+            } catch (err) {
+              setError(err instanceof Error ? err.message : "update failed");
+            }
+          })();
+        }}
+      >
+        <h3>Edit task (optimistic version)</h3>
+        <label>
+          Task id
+          <input
+            value={taskId}
+            onChange={(event) => setTaskId(event.target.value)}
+            data-testid="stale-edit-task-id"
+            required
+          />
+        </label>
+        <label>
+          Expected version
+          <input
+            value={expectedVersion}
+            onChange={(event) => setExpectedVersion(event.target.value)}
+            data-testid="stale-edit-version"
+            required
+          />
+        </label>
+        <label>
+          Title
+          <input
+            value={editTitle}
+            onChange={(event) => setEditTitle(event.target.value)}
+            data-testid="stale-edit-title"
+          />
+        </label>
+        <button type="submit">Save edit</button>
       </form>
     </section>
   );

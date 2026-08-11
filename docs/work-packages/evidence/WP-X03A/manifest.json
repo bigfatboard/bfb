@@ -20,12 +20,21 @@
       "command": "pnpm test:x03a",
       "outcome": "passed",
       "artifact": "docs/work-packages/evidence/WP-X03A/command-result.json"
+    },
+    {
+      "command": "node tools/provider-compat/run-attempts.mjs",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-X03A/provider-compat.md"
     }
   ],
   "outcome": "passed",
   "artifacts": [
     "docs/work-packages/evidence/WP-X03A/command-result.json",
-    "docs/work-packages/evidence/WP-X03A/provider-compat.md"
+    "docs/work-packages/evidence/WP-X03A/provider-compat.md",
+    "docs/work-packages/evidence/WP-X03A/attempts/attempt-summary.json",
+    "docs/work-packages/evidence/WP-X03A/attempts/claude.log",
+    "docs/work-packages/evidence/WP-X03A/attempts/codex.log",
+    "docs/work-packages/evidence/WP-X03A/attempts/grok.log"
   ],
   "redaction": {
     "status": "passed",
