@@ -1,0 +1,46 @@
+{
+  "package": "C01",
+  "tested_commit": "8b3c3a47446f9ea3cdb392406176737b5da50a11",
+  "contracts": {
+    "command_envelope": {
+      "workspace": "canonical ULID",
+      "actor": "exactly one human-sponsored delegation, human, or system authority",
+      "authorization_epoch": "positive safe integer matched to the resolved authorization context",
+      "idempotency_key": "8 to 128 characters from the canonical wire alphabet",
+      "command_name": "bounded lowercase domain identifier",
+      "body_limit_bytes": 65536
+    },
+    "idempotency": {
+      "lookup_key": ["workspace_id", "idempotency_key"],
+      "stored_binding": [
+        "command_name",
+        "authorization_epoch",
+        "actor_human_id",
+        "actor_delegation_id",
+        "actor_system_id"
+      ],
+      "replay": "returns the stored result and cursor before constructing another mutation",
+      "mismatch": "fails without a domain effect"
+    },
+    "atomic_commit": [
+      "guarded relational mutation",
+      "workspace cursor",
+      "semantic event",
+      "audit event",
+      "outbox record",
+      "idempotency result"
+    ],
+    "event_replay": {
+      "authority": "F04 AuthorizationContext plus persisted workspace and jurisdiction",
+      "ordering": "workspace cursor ascending",
+      "page_limit": "1 to 100",
+      "high_water": "persisted workspace cursor; never a runner acknowledgement"
+    },
+    "hub_resolution": {
+      "source": "persisted workspace jurisdiction",
+      "global": "raw namespace",
+      "eu_or_us": "matching jurisdiction namespace",
+      "fallback": "process-local only when the binding is absent in tests; malformed bindings and DO failures fail closed"
+    }
+  }
+}

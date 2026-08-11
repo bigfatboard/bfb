@@ -1,0 +1,19 @@
+sequenceDiagram
+    participant T as Authenticated transport
+    participant R as Jurisdiction resolver
+    participant H as WorkspaceHub
+    participant D as D1 batch
+
+    T->>R: AuthorizationContext + typed command
+    R->>R: Verify workspace, actor, epoch, persisted jurisdiction
+    R->>H: Bounded internal RPC
+    H->>H: Enter per-workspace FIFO
+    H->>D: Read stored idempotency and next cursor
+    alt matching replay
+        D-->>H: Stored result + cursor
+        H-->>T: Replayed outcome
+    else first execution
+        H->>D: Guarded mutation + cursor + event + audit + outbox + result
+        D-->>H: Atomic commit
+        H-->>T: Committed outcome
+    end

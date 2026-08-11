@@ -1,0 +1,41 @@
+{
+  "package": "C01",
+  "tested_commit": "8b3c3a47446f9ea3cdb392406176737b5da50a11",
+  "checks": [
+    {
+      "case": "delayed FIFO",
+      "input": "three commands submitted in order with 30 ms, 5 ms, and 15 ms domain delays",
+      "result": "cursor order remained submission order 1, 2, 3"
+    },
+    {
+      "case": "request-style hub resolution",
+      "input": "five concurrent commands resolved the same workspace lane independently",
+      "result": "one shared lane committed monotonic cursors 1 through 5"
+    },
+    {
+      "case": "real Workerd Durable Object",
+      "input": "five concurrent task.create RPCs through the production WorkspaceHub class",
+      "result": "exactly five tasks, events, audits, outbox records, and idempotency records; cursor 5"
+    },
+    {
+      "case": "idempotent replay",
+      "input": "same command, authority, and request key with a changed payload",
+      "result": "stored first result and cursor returned; one database effect"
+    },
+    {
+      "case": "idempotency collision",
+      "input": "same request key under another command or authority",
+      "result": "typed mismatch; no second effect"
+    },
+    {
+      "case": "injected post-write failure",
+      "input": "domain write followed by a typed exception",
+      "result": "relational write, cursor, event, audit, outbox, and idempotency record all absent"
+    },
+    {
+      "case": "stale resource version",
+      "input": "guarded update expected version 1 while stored version was 2",
+      "result": "stale_version; stored version remained 2 and every command-kernel effect count remained zero"
+    }
+  ]
+}

@@ -1,20 +1,29 @@
 {
   "$schema": "../manifest.schema.json",
   "package": "C01",
-  "tested_commit": "696e3ccf33ba590a4a50a3f53dc448ca9cd4f639",
+  "tested_commit": "8b3c3a47446f9ea3cdb392406176737b5da50a11",
   "protocol_version": "bfb-wire/1",
   "schema_version": "1",
-  "migration_head": "0006_reviewer_role",
+  "migration_head": "0007_tenant_relationships",
   "toolchains": {
     "node": "24.19.0",
-    "pnpm": "11.21.0"
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "xcode": "26.0.1",
+    "better-sqlite3": "12.6.2",
+    "wrangler": "4.120.1"
   },
   "environment": {
     "kind": "clean_checkout",
-    "os": "macOS",
+    "os": "macOS 26.2 (25C56)",
     "architecture": "arm64"
   },
   "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C01/command-result.json"
+    },
     {
       "command": "pnpm test:c01",
       "outcome": "passed",
@@ -22,19 +31,23 @@
     },
     {
       "command": "pnpm verify",
-      "outcome": "passed"
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C01/command-result.json"
     }
   ],
   "outcome": "passed",
   "artifacts": [
     "docs/work-packages/evidence/WP-C01/command-result.json",
+    "docs/work-packages/evidence/WP-C01/command-contracts.json",
+    "docs/work-packages/evidence/WP-C01/contention-matrix.json",
+    "docs/work-packages/evidence/WP-C01/abuse-control.json",
+    "docs/work-packages/evidence/WP-C01/kernel-flow.mmd",
+    "docs/work-packages/evidence/WP-C01/final-audit.md",
     "packages/domain/src/hub.ts",
-    "packages/domain/src/hub-registry.ts",
-    "packages/domain/src/command-catalog.ts",
+    "packages/domain/src/abuse.ts",
     "apps/control-worker/src/hub-client.ts",
     "apps/control-worker/src/workspace-hub.ts",
-    "packages/domain/test/hub.test.ts",
-    "apps/control-worker/test/hub-client.test.ts"
+    "tools/kernel/run.ts"
   ],
   "redaction": {
     "status": "passed",
