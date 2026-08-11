@@ -8,8 +8,8 @@ Keep entries terse and use repository-relative paths. Do not record secrets, cre
 
 - Goal state: `complete`
 - Branch: `goal/grok-web-mcp`
-- Last observed HEAD: CONTENT_SHA
-- Last verified commit: CONTENT_SHA
+- Last observed HEAD: ebfaa15b04adb30e8256c92717e4232c4eb6c559
+- Last verified commit: ebfaa15b04adb30e8256c92717e4232c4eb6c559
 - Last verification command/result: clean-checkout F02–X03A + `pnpm verify`; PR #3 CI green; PATH-only provider-compat harness
 - Active package: none
 - Active gate: none
