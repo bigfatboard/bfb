@@ -1,5 +1,13 @@
 {
   "package": "C02",
   "command": "pnpm test:c02",
-  "outcome": "passed"
+  "outcome": "passed",
+  "checks": [
+    "session fixture distinct from mcp",
+    "__Host- Secure HttpOnly SameSite cookie",
+    "legacy bfb_session ignored",
+    "csrf origin and cross-site fetch metadata",
+    "fail-closed short BETTER_AUTH_SECRET",
+    "cookieCache disabled"
+  ]
 }

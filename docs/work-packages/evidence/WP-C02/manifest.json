@@ -1,18 +1,18 @@
 {
   "$schema": "../manifest.schema.json",
   "package": "C02",
-  "tested_commit": "3368f544bd11e166acfc4842e999c10282e7dd79",
+  "tested_commit": "bde79ccdfb95004772ba457d9c48e111211f454d",
   "protocol_version": "bfb-wire/1",
   "schema_version": "1",
-  "migration_head": "0004_human_credentials",
+  "migration_head": "0005_workspace_invariants",
   "toolchains": {
     "node": "24.19.0",
     "pnpm": "11.21.0",
-    "better-sqlite3": "12.6.2"
+    "better-auth": "1.6.26"
   },
   "environment": {
     "kind": "local",
-    "os": "macOS 26.2 (25C56)",
+    "os": "macOS",
     "architecture": "arm64"
   },
   "commands": [
@@ -20,10 +20,18 @@
       "command": "pnpm test:c02",
       "outcome": "passed",
       "artifact": "docs/work-packages/evidence/WP-C02/command-result.json"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed"
     }
   ],
   "outcome": "passed",
-  "artifacts": ["docs/work-packages/evidence/WP-C02/command-result.json"],
+  "artifacts": [
+    "docs/work-packages/evidence/WP-C02/command-result.json",
+    "apps/control-worker/src/auth/session.ts",
+    "apps/control-worker/test/session-security.test.ts"
+  ],
   "redaction": {
     "status": "passed",
     "prohibited_content": []

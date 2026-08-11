@@ -1,6 +1,6 @@
 # WP-C02 — Human identity and sessions
 
-Status: `in_progress`
+Status: `done`
 
 Risk: High
 
