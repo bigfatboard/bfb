@@ -12,8 +12,8 @@ Keep entries terse and use repository-relative paths. Do not record secrets, cre
 - Last verified commit: 96bf09dfc85841f65ca164747bcd67195d39dc5c
 - Last verification command/result: clean-checkout F02–X03A package targets + `pnpm verify` passed
 - Active package: none
-- Active gate: PR CI
-- Active task: open PR to main and wait for CI
+- Active gate: none
+- Active task: none (PR #3 CI green)
 - Worktree since observed HEAD: evidence stamp + package done + journal reconcile
 - Resume here: PR/CI only
 - Active delegates: none
@@ -43,6 +43,7 @@ Allowed goal states are `not_started`, `active`, `blocked`, and `complete`. `blo
 | 2026-08-11T11:21:00Z | W01 browser E2E | 96bf09dfc85841f65ca164747bcd67195d39dc5c | `pnpm test:w01:browser` | passed | docs/work-packages/evidence/WP-W01/browser/ |
 | 2026-08-11T11:21:26Z | X03A real clients | 96bf09dfc85841f65ca164747bcd67195d39dc5c | `node tools/provider-compat/run-attempts.mjs` | passed | provider-compat.md + attempts/ |
 | 2026-08-11T11:24:00Z | clean checkout | 96bf09dfc85841f65ca164747bcd67195d39dc5c | package targets F02–X03A + `pnpm verify` | passed | clean-verify.log (scratch) |
+| 2026-08-11T11:27:33Z | PR #3 CI | 95be8cbdaaf2a47ed40051957819aaaf7d9ebb59 | GitHub Actions Repository verification | passed | https://github.com/qdis/bfb/pull/3 |
 
 ## Blocker and decision log
 
