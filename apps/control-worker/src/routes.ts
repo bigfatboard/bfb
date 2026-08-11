@@ -307,11 +307,13 @@ export function createControlApp(
             ? 404
             : error.code === "forbidden" || error.code === "unauthenticated"
               ? 403
-              : error.code === "body_too_large"
-                ? 413
-                : error.code === "invalid_argument" || error.code === "invalid_json"
-                  ? 400
-                  : 409;
+              : error.code.startsWith("step_up_")
+                ? 403
+                : error.code === "body_too_large"
+                  ? 413
+                  : error.code === "invalid_argument" || error.code === "invalid_json"
+                    ? 400
+                    : 409;
         return c.json({ error: error.code, message: error.message }, status);
       }
       return c.json({ error: "request_failed", message: "request failed" }, 500);

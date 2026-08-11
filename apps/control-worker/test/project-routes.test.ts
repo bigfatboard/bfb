@@ -5,8 +5,9 @@ import { createHash } from "node:crypto";
 
 import { describe, expect, it } from "vitest";
 
-import { FIX, seedSyntheticWorkspace } from "@bfb/domain";
+import { FIX, issueStepUpProof, seedSyntheticWorkspace } from "@bfb/domain";
 
+import { projectStepUpTarget } from "../src/api/projects.js";
 import { parseAuthKeys } from "../src/auth/better-auth.js";
 import { validateControlEnv, type ControlBindings } from "../src/env.js";
 import { createTestWorkspaceHubNamespace } from "../src/hub-client.js";
@@ -19,6 +20,29 @@ import {
 } from "./auth-helpers.js";
 
 const NOW = "2026-08-12T08:00:00.000Z";
+const PROOF_EXPIRY = "2026-08-12T08:05:00.000Z";
+
+async function stepUpProof(
+  context: AuthTestContext,
+  action: string,
+  targetId: string,
+  projectId?: string,
+): Promise<string> {
+  return issueStepUpProof(
+    context.db,
+    FIX.owner,
+    {
+      action,
+      workspaceId: FIX.workspace,
+      ...(projectId === undefined ? {} : { projectId }),
+      targetId,
+      scopes: [],
+      authorizationEpoch: 1,
+      expiresAt: PROOF_EXPIRY,
+    },
+    NOW,
+  );
+}
 
 function fakeBinding<T extends object>(label: string): T {
   return { __synthetic: label } as unknown as T;
@@ -134,6 +158,55 @@ describe("project browser API", () => {
     expect(firstPage.status).toBe(200);
     expect(await firstPage.json()).toMatchObject({ hasMore: true });
 
+    const visibleWithoutProof = await app.request(
+      mutation(`${base}/projects`, "POST", owner.cookie, csrf, {
+        name: "Visible without proof",
+        slug: "visible-without-proof",
+        tint: "#AABBCC",
+        access_mode: "workspace",
+        repository_host: "github.com",
+        hosted_repository_id: "visible-without-proof",
+        repository_subpath: ".",
+        request_id: "project-route-visible-without-proof",
+      }),
+      undefined,
+      currentBindings,
+    );
+    expect(visibleWithoutProof.status).toBe(400);
+
+    const visibleProjectInput = {
+      name: "Visible with proof",
+      slug: "visible-with-proof",
+      tint: "#AABBCC",
+      access_mode: "workspace",
+      repository_host: "github.com",
+      hosted_repository_id: "visible-with-proof",
+      repository_subpath: ".",
+    };
+    const visibleProjectProof = await stepUpProof(
+      context,
+      "project.workspace_visible.create",
+      projectStepUpTarget([
+        "project.workspace_visible.create",
+        visibleProjectInput.name,
+        visibleProjectInput.slug,
+        visibleProjectInput.tint,
+        visibleProjectInput.repository_host,
+        visibleProjectInput.hosted_repository_id,
+        visibleProjectInput.repository_subpath,
+      ]),
+    );
+    const visibleProject = await app.request(
+      mutation(`${base}/projects`, "POST", owner.cookie, csrf, {
+        ...visibleProjectInput,
+        step_up_proof_id: visibleProjectProof,
+        request_id: "project-route-visible-with-proof",
+      }),
+      undefined,
+      currentBindings,
+    );
+    expect(visibleProject.status, await visibleProject.clone().text()).toBe(200);
+
     const created = await app.request(
       mutation(`${base}/projects`, "POST", owner.cookie, csrf, {
         name: "Project API",
@@ -166,6 +239,34 @@ describe("project browser API", () => {
     expect(updated.status, await updated.clone().text()).toBe(200);
     expect(await updated.json()).toMatchObject({
       result: { tint: "#112233", resource_version: 2 },
+    });
+
+    const visibilityProof = await stepUpProof(
+      context,
+      "project.workspace_visible.enable",
+      projectStepUpTarget([
+        "project.workspace_visible.enable",
+        createdBody.result.id,
+        2,
+        null,
+        null,
+        null,
+      ]),
+      createdBody.result.id,
+    );
+    const visible = await app.request(
+      mutation(`${base}/projects/${createdBody.result.id}`, "PATCH", owner.cookie, csrf, {
+        expected_version: 2,
+        access_mode: "workspace",
+        step_up_proof_id: visibilityProof,
+        request_id: "project-route-visible",
+      }),
+      undefined,
+      currentBindings,
+    );
+    expect(visible.status, await visible.clone().text()).toBe(200);
+    expect(await visible.json()).toMatchObject({
+      result: { access_mode: "workspace", resource_version: 3 },
     });
 
     const unsupported = await app.request(
@@ -235,14 +336,26 @@ describe("project browser API", () => {
     );
     expect(reviewerCreate.status).toBe(403);
 
+    const grantPath = `${base}/projects/${FIX.projectB}/access/${FIX.reviewer}`;
+    const missingProof = await app.request(
+      mutation(grantPath, "PUT", owner.cookie, ownerCsrf, {
+        request_id: "project-route-grant-without-proof",
+      }),
+      undefined,
+      currentBindings,
+    );
+    expect(missingProof.status).toBe(400);
+    const grantProof = await stepUpProof(
+      context,
+      "project.access.grant",
+      FIX.reviewer,
+      FIX.projectB,
+    );
     const granted = await app.request(
-      mutation(
-        `${base}/projects/${FIX.projectB}/access/${FIX.reviewer}`,
-        "PUT",
-        owner.cookie,
-        ownerCsrf,
-        { request_id: "project-route-grant" },
-      ),
+      mutation(grantPath, "PUT", owner.cookie, ownerCsrf, {
+        request_id: "project-route-grant",
+        step_up_proof_id: grantProof,
+      }),
       undefined,
       currentBindings,
     );
@@ -285,13 +398,72 @@ describe("project browser API", () => {
     const csrf = await csrfFor(app, owner.cookie, currentBindings);
     const base = `/api/v1/workspaces/${FIX.workspace}`;
 
+    const workspacePolicySettings = {
+      expected_version: 1,
+      allowed_providers: ["claude", "codex", "grok"],
+      allow_agent_root_propose: true,
+      allow_pass_to_agent: true,
+      allow_run_overrides: true,
+    };
+    const workspacePolicyWithoutProof = await app.request(
+      mutation(`${base}/workspace-policy`, "PUT", owner.cookie, csrf, {
+        ...workspacePolicySettings,
+        request_id: "workspace-policy-without-proof",
+      }),
+      undefined,
+      currentBindings,
+    );
+    expect(workspacePolicyWithoutProof.status).toBe(400);
+    const workspacePolicyProof = await stepUpProof(
+      context,
+      "workspace.policy.update",
+      projectStepUpTarget([
+        "workspace.policy.update",
+        null,
+        workspacePolicySettings.expected_version,
+        [...workspacePolicySettings.allowed_providers].sort(),
+        workspacePolicySettings.allow_agent_root_propose,
+        workspacePolicySettings.allow_pass_to_agent,
+        workspacePolicySettings.allow_run_overrides,
+      ]),
+    );
+    const workspacePolicy = await app.request(
+      mutation(`${base}/workspace-policy`, "PUT", owner.cookie, csrf, {
+        ...workspacePolicySettings,
+        step_up_proof_id: workspacePolicyProof,
+        request_id: "workspace-policy-with-proof",
+      }),
+      undefined,
+      currentBindings,
+    );
+    expect(workspacePolicy.status, await workspacePolicy.clone().text()).toBe(200);
+    expect(await workspacePolicy.json()).toMatchObject({ result: { resourceVersion: 2 } });
+
+    const projectPolicySettings = {
+      expected_version: 1,
+      allowed_providers: ["codex"],
+      allow_agent_root_propose: false,
+      allow_pass_to_agent: false,
+      allow_run_overrides: false,
+    };
+    const policyProof = await stepUpProof(
+      context,
+      "project.policy.update",
+      projectStepUpTarget([
+        "project.policy.update",
+        FIX.projectA,
+        projectPolicySettings.expected_version,
+        projectPolicySettings.allowed_providers,
+        projectPolicySettings.allow_agent_root_propose,
+        projectPolicySettings.allow_pass_to_agent,
+        projectPolicySettings.allow_run_overrides,
+      ]),
+      FIX.projectA,
+    );
     const projectPolicy = await app.request(
       mutation(`${base}/projects/${FIX.projectA}/policy`, "PUT", owner.cookie, csrf, {
-        expected_version: 1,
-        allowed_providers: ["codex"],
-        allow_agent_root_propose: false,
-        allow_pass_to_agent: false,
-        allow_run_overrides: false,
+        ...projectPolicySettings,
+        step_up_proof_id: policyProof,
         request_id: "project-route-policy",
       }),
       undefined,

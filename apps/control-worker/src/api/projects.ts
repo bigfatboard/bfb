@@ -1,9 +1,12 @@
 // ABOUTME: Serves grant-scoped project, policy, repository-config, and agent-profile APIs.
 // ABOUTME: Every mutation uses a bounded browser body and the workspace command lane.
 
+import { createHash } from "node:crypto";
+
 import { createAuthorizationContext, type SqlDatabase } from "@bfb/db";
 import {
   changeProjectAccessCommand,
+  consumeStepUpProof,
   createAgentProfileCommand,
   createProjectCommand,
   DomainError,
@@ -30,6 +33,13 @@ import { executeWorkspaceCommand } from "../hub-client.js";
 import { readBoundedJson } from "./request.js";
 
 const BODY_LIMIT = 32_768;
+const STEP_UP_ACTIONS = {
+  createWorkspaceVisibleProject: "project.workspace_visible.create",
+  widenProjectVisibility: "project.workspace_visible.enable",
+  grantProjectAccess: "project.access.grant",
+  updateWorkspacePolicy: "workspace.policy.update",
+  updateProjectPolicy: "project.policy.update",
+} as const;
 
 export interface ProjectApiDeps {
   db: SqlDatabase;
@@ -107,6 +117,58 @@ function policy(body: Record<string, unknown>): PolicySettings {
     allowPassToAgent: body.allow_pass_to_agent as boolean,
     allowRunOverrides: body.allow_run_overrides as boolean,
   };
+}
+
+export function projectStepUpTarget(parts: readonly unknown[]): string {
+  return `sha256:${createHash("sha256").update(JSON.stringify(parts), "utf8").digest("hex")}`;
+}
+
+function policyTarget(
+  action: string,
+  projectId: string | undefined,
+  expectedVersion: number,
+  settings: PolicySettings,
+): string {
+  return projectStepUpTarget([
+    action,
+    projectId ?? null,
+    expectedVersion,
+    [...settings.allowedProviders].sort(),
+    settings.allowAgentRootPropose,
+    settings.allowPassToAgent,
+    settings.allowRunOverrides,
+  ]);
+}
+
+async function consumeProjectStepUp(
+  deps: ProjectApiDeps,
+  principal: AuthzPrincipal,
+  proofId: string,
+  action: string,
+  targetId: string,
+  projectId?: string,
+): Promise<void> {
+  const proof = (await deps.db
+    .prepare(`SELECT expires_at FROM passkey_step_up_proofs WHERE proof_id = ?`)
+    .get(proofId)) as { expires_at: string } | undefined;
+  if (!proof) {
+    throw new DomainError("step_up_invalid", "step-up proof not found");
+  }
+  await consumeStepUpProof(
+    deps.db,
+    proofId,
+    {
+      action,
+      workspaceId: deps.workspaceId,
+      ...(projectId === undefined ? {} : { projectId }),
+      targetId,
+      scopes: [],
+      authorizationEpoch: principal.authorizationEpoch,
+      expiresAt: proof.expires_at,
+    },
+    deps.now,
+    principal.humanId,
+  );
 }
 
 function page(url: URL): { limit?: number; cursor?: string } {
@@ -200,9 +262,10 @@ export async function handleProjectApi(request: Request, deps: ProjectApiDeps): 
       "repository_host",
       "hosted_repository_id",
       "repository_subpath",
+      "step_up_proof_id",
       "request_id",
     ]);
-    const outcome = await execute(createProjectCommand, requestId(body), {
+    const input = {
       name: requiredString(body, "name"),
       slug: requiredString(body, "slug"),
       tint: requiredString(body, "tint"),
@@ -210,7 +273,25 @@ export async function handleProjectApi(request: Request, deps: ProjectApiDeps): 
       repositoryHost: requiredString(body, "repository_host"),
       hostedRepositoryId: requiredString(body, "hosted_repository_id"),
       repositorySubpath: requiredString(body, "repository_subpath"),
-    });
+    };
+    if (input.accessMode === "workspace") {
+      await consumeProjectStepUp(
+        deps,
+        principal,
+        requiredString(body, "step_up_proof_id"),
+        STEP_UP_ACTIONS.createWorkspaceVisibleProject,
+        projectStepUpTarget([
+          STEP_UP_ACTIONS.createWorkspaceVisibleProject,
+          input.name,
+          input.slug,
+          input.tint,
+          input.repositoryHost,
+          input.hostedRepositoryId,
+          input.repositorySubpath,
+        ]),
+      );
+    }
+    const outcome = await execute(createProjectCommand, requestId(body), input);
     return outcomeResponse(outcome);
   }
 
@@ -224,11 +305,21 @@ export async function handleProjectApi(request: Request, deps: ProjectApiDeps): 
       "allow_agent_root_propose",
       "allow_pass_to_agent",
       "allow_run_overrides",
+      "step_up_proof_id",
       "request_id",
     ]);
+    const settings = policy(body);
+    const expectedVersion = requiredVersion(body);
+    await consumeProjectStepUp(
+      deps,
+      principal,
+      requiredString(body, "step_up_proof_id"),
+      STEP_UP_ACTIONS.updateWorkspacePolicy,
+      policyTarget(STEP_UP_ACTIONS.updateWorkspacePolicy, undefined, expectedVersion, settings),
+    );
     const outcome = await execute(updateWorkspacePolicyCommand, requestId(body), {
-      ...policy(body),
-      expectedVersion: requiredVersion(body),
+      ...settings,
+      expectedVersion,
     });
     return outcomeResponse(outcome);
   }
@@ -328,6 +419,7 @@ export async function handleProjectApi(request: Request, deps: ProjectApiDeps): 
       "slug",
       "tint",
       "access_mode",
+      "step_up_proof_id",
       "request_id",
     ]);
     const name = optionalString(body, "name");
@@ -335,9 +427,30 @@ export async function handleProjectApi(request: Request, deps: ProjectApiDeps): 
     const tint = optionalString(body, "tint");
     const accessMode = optionalString(body, "access_mode") as
       "workspace" | "restricted" | undefined;
+    const expectedVersion = requiredVersion(body);
+    if (accessMode === "workspace") {
+      const current = await getProject(deps.db, deps.workspaceId, projectId);
+      if (current?.access_mode === "restricted") {
+        await consumeProjectStepUp(
+          deps,
+          principal,
+          requiredString(body, "step_up_proof_id"),
+          STEP_UP_ACTIONS.widenProjectVisibility,
+          projectStepUpTarget([
+            STEP_UP_ACTIONS.widenProjectVisibility,
+            projectId,
+            expectedVersion,
+            name ?? null,
+            slug ?? null,
+            tint ?? null,
+          ]),
+          projectId,
+        );
+      }
+    }
     const outcome = await execute(updateProjectCommand, requestId(body), {
       projectId,
-      expectedVersion: requiredVersion(body),
+      expectedVersion,
       ...(name === undefined ? {} : { name }),
       ...(slug === undefined ? {} : { slug }),
       ...(tint === undefined ? {} : { tint }),
@@ -346,10 +459,24 @@ export async function handleProjectApi(request: Request, deps: ProjectApiDeps): 
     return outcomeResponse(outcome);
   }
   if (suffix.startsWith("access/") && (request.method === "PUT" || request.method === "DELETE")) {
-    const body = await commandBody(request, ["request_id"]);
+    const body = await commandBody(
+      request,
+      request.method === "PUT" ? ["request_id", "step_up_proof_id"] : ["request_id"],
+    );
+    const humanId = project[3] ?? "";
+    if (request.method === "PUT") {
+      await consumeProjectStepUp(
+        deps,
+        principal,
+        requiredString(body, "step_up_proof_id"),
+        STEP_UP_ACTIONS.grantProjectAccess,
+        humanId,
+        projectId,
+      );
+    }
     const outcome = await execute(changeProjectAccessCommand, requestId(body), {
       projectId,
-      humanId: project[3] ?? "",
+      humanId,
       grant: request.method === "PUT",
     });
     return outcomeResponse(outcome);
@@ -364,12 +491,23 @@ export async function handleProjectApi(request: Request, deps: ProjectApiDeps): 
       "allow_agent_root_propose",
       "allow_pass_to_agent",
       "allow_run_overrides",
+      "step_up_proof_id",
       "request_id",
     ]);
+    const settings = policy(body);
+    const expectedVersion = requiredVersion(body);
+    await consumeProjectStepUp(
+      deps,
+      principal,
+      requiredString(body, "step_up_proof_id"),
+      STEP_UP_ACTIONS.updateProjectPolicy,
+      policyTarget(STEP_UP_ACTIONS.updateProjectPolicy, projectId, expectedVersion, settings),
+      projectId,
+    );
     const outcome = await execute(updateProjectPolicyCommand, requestId(body), {
       projectId,
-      ...policy(body),
-      expectedVersion: requiredVersion(body),
+      ...settings,
+      expectedVersion,
     });
     return outcomeResponse(outcome);
   }

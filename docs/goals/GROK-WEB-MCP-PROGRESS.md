@@ -6,16 +6,16 @@ This file is the resumable execution journal for [the Grok web/MCP goal](GROK-WE
 
 - Goal state: `active — correction and re-certification`
 - Branch: `goal/grok-web-mcp`
-- Last observed HEAD: cb53e8f0532a6a555fb9455e3c2c0704567cb96c
-- Last verified commit: cb53e8f0532a6a555fb9455e3c2c0704567cb96c
-- Last verification command/result: the uncommitted C07 checkpoint passed `pnpm test:c07` with eight focused tests plus a real three-worker D1/WorkspaceHub race, `pnpm test:db` through migration head `0011`, and full `pnpm verify` with 327 TypeScript tests plus protocol/Go/Xcode checks
-- Worktree checkpoint: C07 implementation and its Workerd gate are ready for the implementation commit; generated W01 browser evidence remains excluded
+- Last observed HEAD: 849f63b255af31e124175371f9f8feed1c24b611
+- Last verified commit: 849f63b255af31e124175371f9f8feed1c24b611
+- Last verification command/result: the C07 implementation commit passed `pnpm test:c07`, `pnpm test:db`, and full `pnpm verify` from a clean checkout; the current action-bound step-up correction passed pinned-Node typecheck, lint, and `pnpm test:c07` with eight focused tests plus a real three-worker D1/WorkspaceHub race
+- Worktree checkpoint: public project-authority widening now consumes a one-time passkey proof bound to the exact action, workspace, project when applicable, target, human, authorization epoch, and policy or project payload; generated W01 browser evidence remains excluded
 - Active package: C07 — Projects, repository identity, and policy
-- Active gate: commit the bounded C07 implementation, then run its declared target and full verification from a clean checkout
-- Active task: create the C07 implementation checkpoint without staging generated W01 evidence
+- Active gate: commit the bounded step-up correction, then run the declared C07 target and full verification from a clean checkout
+- Active task: create the C07 authority correction checkpoint without staging generated W01 evidence
 - Resume here: re-certify C07, then advance sequentially through C08 → W01 → X03A
 - Blocking condition: `none`
-- Updated UTC: `2026-08-11T22:36:30Z`
+- Updated UTC: `2026-08-11T22:47:01Z`
 
 ## Final review findings
 
