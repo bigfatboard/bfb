@@ -1,0 +1,33 @@
+{
+  "package": "F03",
+  "tested_commit": "9b8a4d4382ac7b93baa6bea4b36a72e7f165fd9a",
+  "kind": "local_workerd_topology",
+  "dry_run_configs": [
+    "control-local",
+    "control-staging",
+    "control-production",
+    "control-spike",
+    "artifact-local",
+    "artifact-staging",
+    "artifact-production"
+  ],
+  "live_workers": ["control-local", "artifact-local", "compatibility-spike-local"],
+  "durable_object": {
+    "class": "WorkspaceHub",
+    "storage": "sqlite",
+    "jurisdiction": "eu",
+    "named_instance_created": true,
+    "query": "SELECT 1",
+    "query_result": 1
+  },
+  "browser_cookie_isolation": true,
+  "better_auth": {
+    "version": "1.6.26",
+    "d1_query": true,
+    "auth_route_enabled": false
+  },
+  "ports_closed": true,
+  "production_deploy": false,
+  "shared_state_changed": false,
+  "outcome": "passed"
+}

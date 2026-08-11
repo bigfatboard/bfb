@@ -1,19 +1,27 @@
 {
   "package": "F03",
+  "tested_commit": "9b8a4d4382ac7b93baa6bea4b36a72e7f165fd9a",
   "worker_first": [
+    "/api",
     "/api/*",
+    "/auth",
     "/auth/*",
     "/mcp",
     "/mcp/*",
     "/oauth",
     "/oauth/*",
+    "/realtime",
     "/realtime/*",
+    "/runner",
     "/runner/*",
+    "/webhooks",
     "/webhooks/*",
+    "/.well-known",
     "/.well-known/*",
     "/healthz"
   ],
   "asset_first_examples": ["/", "/w/:slug", "/settings"],
   "spa_cannot_shadow_worker_first": true,
-  "notes": "IC-1 re-cert: /oauth/* required in wrangler run_worker_first on local/staging/production"
+  "verified_with_navigation_headers": true,
+  "outcome": "passed"
 }
