@@ -8,8 +8,8 @@ Keep entries terse and use repository-relative paths. Do not record secrets, cre
 
 - Goal state: `complete`
 - Branch: `goal/grok-web-mcp`
-- Last observed HEAD: a6eac8ec0ec1e219eadc3b52d3177b806e743806
-- Last verified commit: a6eac8ec0ec1e219eadc3b52d3177b806e743806
+- Last observed HEAD: d99a493d8167866645e621d5d5c27ffb43f8aedc
+- Last verified commit: d99a493d8167866645e621d5d5c27ffb43f8aedc
 - Last verification command/result: clean-checkout F02–X03A + `pnpm verify`; PR #3 CI green; PATH-only provider-compat harness
 - Active package: none
 - Active gate: none
@@ -45,6 +45,10 @@ Allowed goal states are `not_started`, `active`, `blocked`, and `complete`. `blo
 | 2026-08-11T11:24:00Z | clean checkout | 96bf09dfc85841f65ca164747bcd67195d39dc5c | package targets F02–X03A + `pnpm verify` | passed | clean-verify.log (scratch) |
 | 2026-08-11T11:29:40Z | PR #3 CI | af945be7fbd9392567ffa437bec321178a40b6be | GitHub Actions Repository verification (both jobs) | passed | https://github.com/qdis/bfb/pull/3 |
 | 2026-08-11T11:45:00Z | skeptic path/journal | 39743b981bd4bbeee108530a28570b0e1725ddd1 | PATH-only client resolution + journal HEAD reconcile | passed | tools/provider-compat/run-attempts.mjs |
+
+| 2026-08-11T12:00:00Z | PR #3 CI | bba9d450037957e4391c901e364dae69795c0346 | GitHub Actions Repository verification (both jobs) | passed | https://github.com/qdis/bfb/pull/3 |
+
+| 2026-08-11T12:05:00Z | PR #3 CI | d99a493d8167866645e621d5d5c27ffb43f8aedc | GitHub Actions Repository verification (both jobs) | passed | https://github.com/qdis/bfb/pull/3 |
 
 ## Blocker and decision log
 
