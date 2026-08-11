@@ -14,6 +14,7 @@ import {
   getTask,
   updateTaskCommand,
   getAgentContext,
+  assertTaskChildAccess,
 } from "@bfb/domain";
 
 import type { BrowserPrincipal } from "../auth/session.js";
@@ -111,8 +112,13 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
     const taskId = taskMatch[1] ?? "";
     const rest = taskMatch[2] ?? "";
     if (rest === "" && request.method === "GET") {
+      try {
+        await assertTaskChildAccess(deps.db, authz, taskId);
+      } catch {
+        return json({ error: "not_found" }, 404);
+      }
       const task = await getTask(deps.db, deps.workspaceId, taskId);
-      if (!task || !authz.projectIds.includes(task.project_id)) {
+      if (!task) {
         return json({ error: "not_found" }, 404);
       }
       return json({ task });
@@ -160,6 +166,11 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
       return json(outcome, outcome.ok ? 200 : 409);
     }
     if (rest === "/context" && request.method === "GET") {
+      try {
+        await assertTaskChildAccess(deps.db, authz, taskId);
+      } catch {
+        return json({ error: "not_found" }, 404);
+      }
       const audience = url.searchParams.get("audience") ?? "agent";
       if (audience === "agent") {
         return json({ context: await getAgentContext(deps.db, deps.workspaceId, taskId) });

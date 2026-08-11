@@ -5,7 +5,7 @@ import type { SqlDatabase } from "@bfb/db";
 
 import { DomainError } from "./hub.js";
 
-export type WorkspaceRole = "owner" | "member" | "restricted_member";
+export type WorkspaceRole = "owner" | "member" | "reviewer";
 
 export interface AuthzPrincipal {
   humanId: string;
@@ -30,7 +30,9 @@ export async function loadPrincipal(
     throw new DomainError("forbidden", "not a workspace member");
   }
   let projectIds: string[] = [];
-  if (member.role === "restricted_member") {
+  // Project grants are orthogonal: reviewers (and future restricted grants) use
+  // explicit project_access rows; owners and members see all workspace projects.
+  if (member.role === "reviewer") {
     projectIds = (
       (await db
         .prepare(`SELECT project_id FROM project_access WHERE workspace_id = ? AND human_id = ?`)
@@ -50,6 +52,21 @@ export async function loadPrincipal(
     authorizationEpoch: member.authorization_epoch,
     projectIds,
   };
+}
+
+/** Authorize a task-child read (comment/context/etc.) using parent task project grants. */
+export async function assertTaskChildAccess(
+  db: SqlDatabase,
+  principal: AuthzPrincipal,
+  taskId: string,
+): Promise<void> {
+  const task = (await db
+    .prepare(`SELECT project_id FROM tasks WHERE workspace_id = ? AND id = ?`)
+    .get(principal.workspaceId, taskId)) as { project_id: string } | undefined;
+  if (!task) {
+    throw new DomainError("not_found", "task not found");
+  }
+  assertProjectAccess(principal, task.project_id);
 }
 
 export function assertProjectAccess(principal: AuthzPrincipal, projectId: string): void {

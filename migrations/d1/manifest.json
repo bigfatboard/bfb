@@ -1,6 +1,6 @@
 {
-  "package": "F04",
-  "migration_head": "0005_workspace_invariants",
+  "package": "C04",
+  "migration_head": "0006_reviewer_role",
   "migrations": [
     {
       "id": "0001_workspace_registry",
@@ -21,6 +21,10 @@
     {
       "id": "0005_workspace_invariants",
       "file": "0005_workspace_invariants.sql"
+    },
+    {
+      "id": "0006_reviewer_role",
+      "file": "0006_reviewer_role.sql"
     }
   ]
 }

@@ -25,4 +25,4 @@ export { adaptBetterSqlite3 } from "./sqlite-adapter.js";
 export type { BetterSqliteDatabase, BetterSqliteStatement } from "./sqlite-adapter.js";
 export { assertUtcTimestamp } from "./timestamps.js";
 
-export const MIGRATION_HEAD = "0005_workspace_invariants";
+export const MIGRATION_HEAD = "0006_reviewer_role";

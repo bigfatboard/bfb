@@ -209,7 +209,7 @@ describe("authenticated app shell routing", () => {
       role: string;
       lanes: Array<{ projectId: string }>;
     };
-    expect(restrictedBody.role).toBe("restricted_member");
+    expect(restrictedBody.role).toBe("reviewer");
     expect(restrictedBody.lanes.every((lane) => lane.projectId === FIX.projectA)).toBe(true);
   });
 });

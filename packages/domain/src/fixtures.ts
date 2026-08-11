@@ -10,7 +10,9 @@ export const FIX = {
   workspace: syntheticUlid("WORKSPACE"),
   owner: syntheticUlid("OWNERHUM"),
   member: syntheticUlid("MEMBERHM"),
+  /** Reviewer human fixture (project-grant scoped). */
   restricted: syntheticUlid("RESTRCT"),
+  reviewer: syntheticUlid("RESTRCT"),
   projectA: syntheticUlid("PROJA"),
   projectB: syntheticUlid("PROJB"),
   profileCodex: syntheticUlid("PROFCX"),
@@ -52,7 +54,7 @@ export async function seedSyntheticWorkspace(
   await db
     .prepare(
       `INSERT INTO workspace_members (workspace_id, human_id, role, authorization_epoch, created_at)
-     VALUES (?, ?, 'owner', 1, ?), (?, ?, 'member', 1, ?), (?, ?, 'restricted_member', 1, ?)`,
+     VALUES (?, ?, 'owner', 1, ?), (?, ?, 'member', 1, ?), (?, ?, 'reviewer', 1, ?)`,
     )
     .run(
       FIX.workspace,

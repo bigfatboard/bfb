@@ -9,6 +9,7 @@ import {
   type ActiveDelegation,
   workspaceHub,
   assertScope,
+  assertTaskChildAccess,
   getAgentContext,
   getTask,
   listTasks,
@@ -76,6 +77,7 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
     },
     async ({ task_id }) => {
       assertScope(deps.delegation, "bfb:read");
+      await assertTaskChildAccess(deps.db, principal, task_id);
       const task = await getTask(deps.db, deps.delegation.workspaceId, task_id);
       if (!task) {
         return {
@@ -96,6 +98,7 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
     },
     async ({ task_id }) => {
       assertScope(deps.delegation, "bfb:read");
+      await assertTaskChildAccess(deps.db, principal, task_id);
       const task = await getTask(deps.db, deps.delegation.workspaceId, task_id);
       if (!task) {
         return {

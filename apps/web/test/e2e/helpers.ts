@@ -26,7 +26,7 @@ export const ROLES = {
   restricted: {
     email: "restricted@synthetic.test",
     label: "restricted",
-    roleText: "restricted_member",
+    roleText: "reviewer",
   },
 } as const;
 
