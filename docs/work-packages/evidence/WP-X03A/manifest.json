@@ -1,7 +1,7 @@
 {
   "$schema": "../manifest.schema.json",
   "package": "X03A",
-  "tested_commit": "3368f544bd11e166acfc4842e999c10282e7dd79",
+  "tested_commit": "96bf09dfc85841f65ca164747bcd67195d39dc5c",
   "protocol_version": "bfb-wire/1",
   "schema_version": "1",
   "migration_head": "0004_human_credentials",
