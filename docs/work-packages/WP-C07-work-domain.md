@@ -1,6 +1,6 @@
 # WP-C07 — Projects, repository identity, and policy
 
-Status: `planned`
+Status: `in_progress`
 
 Risk: High
 

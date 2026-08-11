@@ -1,5 +1,11 @@
 {
   "package": "C04",
   "command": "pnpm test:c04",
-  "outcome": "passed"
+  "outcome": "passed",
+  "checks": [
+    "owner/member/reviewer roles",
+    "orthogonal project grants",
+    "task-child access",
+    "epoch bump"
+  ]
 }
