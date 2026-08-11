@@ -11,6 +11,7 @@ import {
   getAgentContext,
   updateTaskCommand,
 } from "../src/work-commands.js";
+// pagination helper imported below if needed;
 import { FIX } from "../src/fixtures.js";
 import { openDomainDb } from "./helpers.js";
 
@@ -148,5 +149,48 @@ describe("work records", () => {
       },
     });
     expect(denied.ok).toBe(false);
+  });
+
+  it("hashes context bodies with real SHA-256 and paginates task lists", async () => {
+    const db = await openDomainDb();
+    const hub = new WorkspaceHub(db);
+    for (let i = 0; i < 3; i++) {
+      const created = await hub.execute(createTaskCommand, {
+        workspaceId: FIX.workspace,
+        idempotencyKey: "page-" + i,
+        authorizationEpoch: 1,
+        actorHumanId: FIX.owner,
+        now: "2026-08-07T12:00:00Z",
+        input: { projectId: FIX.projectA, title: "Task " + i, priority: "P2" },
+      });
+      expect(created.ok).toBe(true);
+    }
+    const { listTasksPage, addContextCommand } = await import("../src/work-commands.js");
+    const page1 = await listTasksPage(db, FIX.workspace, [FIX.projectA], { limit: 2 });
+    expect(page1.tasks).toHaveLength(2);
+    expect(page1.has_more).toBe(true);
+    expect(page1.next_cursor).toBeTruthy();
+    const page2 = await listTasksPage(db, FIX.workspace, [FIX.projectA], {
+      limit: 2,
+      cursor: page1.next_cursor,
+    });
+    expect(page2.tasks.length).toBeGreaterThan(0);
+
+    const taskId = page1.tasks[0]!.id;
+    const ctx = await hub.execute(addContextCommand, {
+      workspaceId: FIX.workspace,
+      idempotencyKey: "ctx-hash",
+      authorizationEpoch: 1,
+      actorHumanId: FIX.owner,
+      now: "2026-08-07T12:00:00Z",
+      input: { taskId, audience: "agent", body: "hello-context" },
+    });
+    expect(ctx.ok).toBe(true);
+    const row = (await db
+      .prepare(`SELECT content_hash FROM task_context_items WHERE task_id = ?`)
+      .get(taskId)) as { content_hash: string };
+    const { createHash } = await import("node:crypto");
+    const expected = "sha256:" + createHash("sha256").update("hello-context", "utf8").digest("hex");
+    expect(row.content_hash).toBe(expected);
   });
 });

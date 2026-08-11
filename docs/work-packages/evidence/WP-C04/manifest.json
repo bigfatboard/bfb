@@ -1,5 +1,5 @@
 {
-  "": "../manifest.schema.json",
+  "$schema": "../manifest.schema.json",
   "package": "C04",
   "tested_commit": "70b33243c94b9f5659e1c0bba80b7b26f542a1ba",
   "protocol_version": "bfb-wire/1",

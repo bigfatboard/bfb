@@ -1,6 +1,8 @@
 // ABOUTME: Implements transport-neutral task, context, comment, and proposal domain commands.
 // ABOUTME: Web, MCP, and future local agents share these handlers through WorkspaceHub.
 
+import { createHash } from "node:crypto";
+
 import type { SqlDatabase } from "@bfb/db";
 
 import {
@@ -223,8 +225,7 @@ export const addContextCommand: HubCommand<AddContextInput, { id: string; versio
       .get(ctx.workspaceId, input.taskId)) as { version: number };
     const version = previous.version + 1;
     const id = randomUlid();
-    const contentHash =
-      "sha256:" + Buffer.from(input.body).toString("hex").slice(0, 64).padEnd(64, "0");
+    const contentHash = "sha256:" + createHash("sha256").update(input.body, "utf8").digest("hex");
     await ctx.db
       .prepare(
         `INSERT INTO task_context_items (
@@ -262,24 +263,58 @@ export async function getTask(
     .get(workspaceId, taskId)) as TaskRecord | undefined;
 }
 
+export interface TaskPage {
+  tasks: TaskRecord[];
+  limit: number;
+  has_more: boolean;
+  next_cursor?: string;
+}
+
 export async function listTasks(
   db: SqlDatabase,
   workspaceId: string,
   projectIds: string[],
+  options: { limit?: number; cursor?: string } = {},
 ): Promise<TaskRecord[]> {
+  const page = await listTasksPage(db, workspaceId, projectIds, options);
+  return page.tasks;
+}
+
+export async function listTasksPage(
+  db: SqlDatabase,
+  workspaceId: string,
+  projectIds: string[],
+  options: { limit?: number; cursor?: string } = {},
+): Promise<TaskPage> {
   if (projectIds.length === 0) {
-    return [];
+    return { tasks: [], limit: options.limit ?? 50, has_more: false };
   }
+  const limit = Math.min(Math.max(options.limit ?? 50, 1), 100);
   const placeholders = projectIds.map(() => "?").join(", ");
-  return (await db
+  const params: unknown[] = [workspaceId, ...projectIds];
+  let cursorClause = "";
+  if (options.cursor) {
+    cursorClause = " AND id > ?";
+    params.push(options.cursor);
+  }
+  params.push(limit + 1);
+  const rows = (await db
     .prepare(
       `SELECT id, project_id, title, state, priority, due_at, next_owner_type, next_owner_id,
               next_action_reason, punchline, resource_version
        FROM tasks
-       WHERE workspace_id = ? AND project_id IN (${placeholders})
-       ORDER BY priority ASC, due_at IS NOT NULL DESC, due_at ASC, id ASC`,
+       WHERE workspace_id = ? AND project_id IN (${placeholders})${cursorClause}
+       ORDER BY id ASC
+       LIMIT ?`,
     )
-    .all(workspaceId, ...projectIds)) as TaskRecord[];
+    .all(...params)) as TaskRecord[];
+  const has_more = rows.length > limit;
+  const tasks = has_more ? rows.slice(0, limit) : rows;
+  const page: TaskPage = { tasks, limit, has_more };
+  if (has_more && tasks.length > 0) {
+    page.next_cursor = tasks[tasks.length - 1]!.id;
+  }
+  return page;
 }
 
 export async function getAgentContext(

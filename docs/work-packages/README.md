@@ -347,10 +347,10 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 | C01 | [WorkspaceHub command and event kernel](WP-C01-command-kernel.md) | `done` | Very high |
 | C02 | [Human identity and sessions](WP-C02-human-identity.md) | `done` | High |
 | C03 | [Passkey enrollment and step-up](WP-C03-passkey-step-up.md) | `done` | High |
-| C04 | [Workspace authorization](WP-C04-workspace-authorization.md) | `in_progress` | Very high |
+| C04 | [Workspace authorization](WP-C04-workspace-authorization.md) | `done` | Very high |
 | C05 | [Human device and CLI credentials](WP-C05-human-device-credentials.md) | `planned` | High |
 | C06 | [Runner identity, grants, and tokens](WP-C06-runner-enrollment-channel.md) | `planned` | Very high |
-| C07 | [Projects, repository identity, and policy](WP-C07-work-domain.md) | `planned` | High |
+| C07 | [Projects, repository identity, and policy](WP-C07-work-domain.md) | `in_progress` | High |
 | C08 | [Tasks, runs, context, and work APIs](WP-C08-work-records.md) | `planned` | High |
 | C09 | [Durable launch orchestration](WP-C09-launch-orchestration.md) | `planned` | Very high |
 
