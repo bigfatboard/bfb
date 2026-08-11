@@ -1,8 +1,8 @@
 {
   "package": "X03A",
   "kind": "provider-compat-real-client-attempts",
-  "started_at": "2026-08-11T11:21:35.704Z",
-  "ended_at": "2026-08-11T11:21:45.421Z",
+  "started_at": "2026-08-11T11:39:34.260Z",
+  "ended_at": "2026-08-11T11:39:44.393Z",
   "endpoint": {
     "app_origin": "http://127.0.0.1:18765",
     "mcp_url": "http://127.0.0.1:18765/mcp",
@@ -117,19 +117,19 @@
           "command": "codex --version",
           "exit": 1,
           "stdout": "",
-          "stderr": "Error: spawn /opt/homebrew/lib/node_modules/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/codex/codex ENOENT\n    at ChildProcess._handle.onexit (node:internal/child_process:287:19)\n    at onErrorNT (node:internal/child_process:525:16)\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {\n  errno: -2,\n  code: 'ENOENT',\n  syscall: 'spawn /opt/homebrew/lib/node_modules/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/codex/codex',\n  path: '/opt/homebrew/lib/node_modules/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/codex/codex',\n  spawnargs: [ '--version' ]\n}"
+          "stderr": "Error: spawn /opt/homebrew/[REDACTED] ENOENT\n    at ChildProcess._handle.onexit (node:internal/child_process:287:19)\n    at onErrorNT (node:internal/child_process:525:16)\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {\n  errno: -2,\n  code: 'ENOENT',\n  syscall: 'spawn /opt/homebrew/[REDACTED]',\n  path: '/opt/homebrew/[REDACTED]',\n  spawnargs: [ '--version' ]\n}"
         },
         {
           "command": "codex --help",
           "exit": 1,
           "stdout": "",
-          "stderr": "Error: spawn /opt/homebrew/lib/node_modules/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/codex/codex ENOENT\n    at ChildProcess._handle.onexit (node:internal/child_process:287:19)\n    at onErrorNT (node:internal/child_process:525:16)\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {\n  errno: -2,\n  code: 'ENOENT',\n  syscall: 'spawn /opt/homebrew/lib/node_modules/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/codex/codex',\n  path: '/opt/homebrew/lib/node_modules/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/codex/codex',\n  spawnargs: [ '--help' ]\n}"
+          "stderr": "Error: spawn /opt/homebrew/[REDACTED] ENOENT\n    at ChildProcess._handle.onexit (node:internal/child_process:287:19)\n    at onErrorNT (node:internal/child_process:525:16)\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {\n  errno: -2,\n  code: 'ENOENT',\n  syscall: 'spawn /opt/homebrew/[REDACTED]',\n  path: '/opt/homebrew/[REDACTED]',\n  spawnargs: [ '--help' ]\n}"
         },
         {
           "command": "codex mcp add bfb-x03a http://127.0.0.1:18765/mcp",
           "exit": 1,
           "stdout": "",
-          "stderr": "Error: spawn /opt/homebrew/lib/node_modules/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/codex/codex ENOENT\n    at ChildProcess._handle.onexit (node:internal/child_process:287:19)\n    at onErrorNT (node:internal/child_process:525:16)\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {\n  errno: -2,\n  code: 'ENOENT',\n  syscall: 'spawn /opt/homebrew/lib/node_modules/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/codex/codex',\n  path: '/opt/homebrew/lib/node_modules/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/codex/codex',\n  spawnargs: [ 'mcp', 'add', 'bfb-x03a', 'http://127.0.0.1:18765/mcp' ]\n}"
+          "stderr": "Error: spawn /opt/homebrew/[REDACTED] ENOENT\n    at ChildProcess._handle.onexit (node:internal/child_process:287:19)\n    at onErrorNT (node:internal/child_process:525:16)\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {\n  errno: -2,\n  code: 'ENOENT',\n  syscall: 'spawn /opt/homebrew/[REDACTED]',\n  path: '/opt/homebrew/[REDACTED]',\n  spawnargs: [ 'mcp', 'add', 'bfb-x03a', 'http://127.0.0.1:18765/mcp' ]\n}"
         }
       ]
     },
@@ -173,7 +173,7 @@
           "command": "grok mcp doctor --json bfb-x03a-provider-compat",
           "exit": 1,
           "stdout": "{\n  \"sources\": [\n    {\n      \"path\": \"~/.grok/config.toml\",\n      \"status\": {\n        \"status\": \"found\",\n        \"server_count\": 1\n      }\n    },\n    {\n      \"path\": \"plugin: chrome-devtools-mcp\",\n      \"status\": {\n        \"status\": \"found\",\n        \"server_count\": 1\n      }\n    },\n    {\n      \"path\": \"~/.claude.json\",\n      \"status\": {\n        \"status\": \"found\",\n        \"server_count\": 0\n      }\n    },\n    {\n      \"path\": \".mcp.json\",\n      \"status\": {\n        \"status\": \"not_found\"\n      }\n    },\n    {\n      \"path\": \"grok.com\",\n      \"status\": {\n        \"status\": \"found\",\n        \"server_count\": 0\n      }\n    }\n  ],\n  \"servers\": [\n    {\n      \"name\": \"bfb-x03a-provider-compat\",\n      \"transport\": \"http\",\n      \"target\": \"http://127.0.0.1:18765/mcp\",\n      \"source\": \"config\",\n      \"checks\": [\n        {\n          \"label\": \"server started\",\n          \"passed\": true,\n          \"detail\": \"0.0s\"\n        },\n        {\n          \"label\": \"handshake failed\",\n          \"passed\": false,\n          \"detail\": \"Send message error Transport [rmcp::transport::worker::WorkerTransport<rmcp::transport::streamable_http_client::StreamableHttpClientWorker<xai_grok_mcp::mcp_http_client::McpHttpClient<reqwest::async_impl::client::Client>>>] error: unexpected server response: HTTP 400 Bad Request: {\\\"error\\\":\\\"protocol_version\\\",\\\"message\\\":\\\"MCP-Protocol-Version must be 2026-07-28\\\"}, when send initialize request\",\n          \"hint\": \"check server logs\"\n        }\n      ],\n      \"healthy\": false\n    }\n  ],\n  \"healthy_count\": 0,\n  \"failing_count\": 1\n}",
-          "stderr": "\u001b[2m2026-08-11T11:21:45.308066Z\u001b[0m \u001b[31mERROR\u001b[0m worker quit with fatal: Transport channel closed, when UnexpectedServerResponse(\"HTTP 400 Bad Request: {\\\"error\\\":\\\"protocol_version\\\",\\\"message\\\":\\\"MCP-Protocol-Version must be 2026-07-28\\\"}\")"
+          "stderr": "\u001b[2m2026-08-11T11:39:44.280850Z\u001b[0m \u001b[31mERROR\u001b[0m worker quit with fatal: Transport channel closed, when UnexpectedServerResponse(\"HTTP 400 Bad Request: {\\\"error\\\":\\\"protocol_version\\\",\\\"message\\\":\\\"MCP-Protocol-Version must be 2026-07-28\\\"}\")"
         },
         {
           "command": "grok mcp remove --scope user bfb-x03a-provider-compat",

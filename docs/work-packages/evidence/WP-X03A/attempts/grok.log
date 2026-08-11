@@ -95,7 +95,7 @@ stdout:
   "failing_count": 1
 }
 stderr:
-[2m2026-08-11T11:21:45.308066Z[0m [31mERROR[0m worker quit with fatal: Transport channel closed, when UnexpectedServerResponse("HTTP 400 Bad Request: {\"error\":\"protocol_version\",\"message\":\"MCP-Protocol-Version must be 2026-07-28\"}")
+[2m2026-08-11T11:39:44.280850Z[0m [31mERROR[0m worker quit with fatal: Transport channel closed, when UnexpectedServerResponse("HTTP 400 Bad Request: {\"error\":\"protocol_version\",\"message\":\"MCP-Protocol-Version must be 2026-07-28\"}")
 
 $ grok mcp remove --scope user bfb-x03a-provider-compat
 exit: 0

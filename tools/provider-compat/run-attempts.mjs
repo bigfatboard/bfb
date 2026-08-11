@@ -19,12 +19,11 @@ const DEFAULT_PORT = 18765;
 const SCRATCH_LOG =
   process.env.BFB_PROVIDER_COMPAT_SCRATCH_LOG ?? process.env.PROVIDER_COMPAT_LOG ?? "";
 
+/** Resolve clients from env override or PATH only — never machine-local home paths. */
 const candidates = {
-  claude: [process.env.CLAUDE_BIN, "/Users/timo/.local/bin/claude", "claude"].filter(Boolean),
-  codex: [process.env.CODEX_BIN, "/opt/homebrew/bin/codex", "/usr/local/bin/codex", "codex"].filter(
-    Boolean,
-  ),
-  grok: [process.env.GROK_BIN, "/Users/timo/.grok/bin/grok", "grok"].filter(Boolean),
+  claude: [process.env.CLAUDE_BIN, "claude"].filter(Boolean),
+  codex: [process.env.CODEX_BIN, "codex"].filter(Boolean),
+  grok: [process.env.GROK_BIN, "grok"].filter(Boolean),
 };
 
 const fullLog = [];
@@ -47,6 +46,9 @@ function redact(text) {
       .replace(/access_token"\s*:\s*"[^"]+"/g, 'access_token":"[REDACTED]"')
       .replace(/refresh_token"\s*:\s*"[^"]+"/g, 'refresh_token":"[REDACTED]"')
       .replace(/\/Users\/[^/\s"'`]+/g, "/Users/[REDACTED]")
+      .replace(/\/home\/[^/\s"'`]+/g, "/home/[REDACTED]")
+      .replace(/\/opt\/homebrew\/[^\s"'`]+/g, "/opt/homebrew/[REDACTED]")
+      .replace(/\/usr\/local\/[^\s"'`]+/g, "/usr/local/[REDACTED]")
       .replace(/\/var\/folders\/[^\s"'`]+/g, "/var/folders/[REDACTED]")
       .replace(/password["']?\s*[:=]\s*["']?[^"'\s]+/gi, "password=[REDACTED]")
   );

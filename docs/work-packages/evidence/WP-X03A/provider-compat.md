@@ -25,5 +25,5 @@ Harness: `node tools/provider-compat/run-attempts.mjs` (Node 24.19.0). Endpoint:
 - `docs/work-packages/evidence/WP-X03A/attempts/codex.log`
 - `docs/work-packages/evidence/WP-X03A/attempts/grok.log`
 
-Started: 2026-08-11T11:21:35.704Z  
-Ended: 2026-08-11T11:21:45.421Z
+Started: 2026-08-11T11:39:34.260Z  
+Ended: 2026-08-11T11:39:44.393Z

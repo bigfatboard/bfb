@@ -7,14 +7,14 @@ $ codex --version
 exit: 1
 stdout: (empty)
 stderr:
-Error: spawn /opt/homebrew/lib/node_modules/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/codex/codex ENOENT
+Error: spawn /opt/homebrew/[REDACTED] ENOENT
     at ChildProcess._handle.onexit (node:internal/child_process:287:19)
     at onErrorNT (node:internal/child_process:525:16)
     at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
   errno: -2,
   code: 'ENOENT',
-  syscall: 'spawn /opt/homebrew/lib/node_modules/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/codex/codex',
-  path: '/opt/homebrew/lib/node_modules/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/codex/codex',
+  syscall: 'spawn /opt/homebrew/[REDACTED]',
+  path: '/opt/homebrew/[REDACTED]',
   spawnargs: [ '--version' ]
 }
 
@@ -22,14 +22,14 @@ $ codex --help
 exit: 1
 stdout: (empty)
 stderr:
-Error: spawn /opt/homebrew/lib/node_modules/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/codex/codex ENOENT
+Error: spawn /opt/homebrew/[REDACTED] ENOENT
     at ChildProcess._handle.onexit (node:internal/child_process:287:19)
     at onErrorNT (node:internal/child_process:525:16)
     at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
   errno: -2,
   code: 'ENOENT',
-  syscall: 'spawn /opt/homebrew/lib/node_modules/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/codex/codex',
-  path: '/opt/homebrew/lib/node_modules/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/codex/codex',
+  syscall: 'spawn /opt/homebrew/[REDACTED]',
+  path: '/opt/homebrew/[REDACTED]',
   spawnargs: [ '--help' ]
 }
 
@@ -37,14 +37,14 @@ $ codex mcp add bfb-x03a http://127.0.0.1:18765/mcp
 exit: 1
 stdout: (empty)
 stderr:
-Error: spawn /opt/homebrew/lib/node_modules/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/codex/codex ENOENT
+Error: spawn /opt/homebrew/[REDACTED] ENOENT
     at ChildProcess._handle.onexit (node:internal/child_process:287:19)
     at onErrorNT (node:internal/child_process:525:16)
     at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
   errno: -2,
   code: 'ENOENT',
-  syscall: 'spawn /opt/homebrew/lib/node_modules/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/codex/codex',
-  path: '/opt/homebrew/lib/node_modules/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/codex/codex',
+  syscall: 'spawn /opt/homebrew/[REDACTED]',
+  path: '/opt/homebrew/[REDACTED]',
   spawnargs: [ 'mcp', 'add', 'bfb-x03a', 'http://127.0.0.1:18765/mcp' ]
 }
 

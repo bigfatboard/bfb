@@ -8,17 +8,17 @@ Keep entries terse and use repository-relative paths. Do not record secrets, cre
 
 - Goal state: `complete`
 - Branch: `goal/grok-web-mcp`
-- Last observed HEAD: 96bf09dfc85841f65ca164747bcd67195d39dc5c
-- Last verified commit: 96bf09dfc85841f65ca164747bcd67195d39dc5c
-- Last verification command/result: clean-checkout F02–X03A package targets + `pnpm verify` passed
+- Last observed HEAD: CONTENT_SHA
+- Last verified commit: CONTENT_SHA
+- Last verification command/result: clean-checkout F02–X03A + `pnpm verify`; PR #3 CI green; PATH-only provider-compat harness
 - Active package: none
 - Active gate: none
-- Active task: none (PR #3 CI green)
-- Worktree since observed HEAD: evidence stamp + package done + journal reconcile
-- Resume here: PR/CI only
+- Active task: none
+- Worktree since observed HEAD: none
+- Resume here: none
 - Active delegates: none
 - Blocking condition: `none`
-- Updated UTC: `2026-08-11T11:30:00Z`
+- Updated UTC: `2026-08-11T11:50:00Z`
 
 Allowed goal states are `not_started`, `active`, `blocked`, and `complete`. `blocked` is valid only when a listed stop condition remains after safe in-scope alternatives are exhausted.
 
@@ -43,7 +43,8 @@ Allowed goal states are `not_started`, `active`, `blocked`, and `complete`. `blo
 | 2026-08-11T11:21:00Z | W01 browser E2E | 96bf09dfc85841f65ca164747bcd67195d39dc5c | `pnpm test:w01:browser` | passed | docs/work-packages/evidence/WP-W01/browser/ |
 | 2026-08-11T11:21:26Z | X03A real clients | 96bf09dfc85841f65ca164747bcd67195d39dc5c | `node tools/provider-compat/run-attempts.mjs` | passed | provider-compat.md + attempts/ |
 | 2026-08-11T11:24:00Z | clean checkout | 96bf09dfc85841f65ca164747bcd67195d39dc5c | package targets F02–X03A + `pnpm verify` | passed | clean-verify.log (scratch) |
-| 2026-08-11T11:27:33Z | PR #3 CI | 95be8cbdaaf2a47ed40051957819aaaf7d9ebb59 | GitHub Actions Repository verification | passed | https://github.com/qdis/bfb/pull/3 |
+| 2026-08-11T11:29:40Z | PR #3 CI | af945be7fbd9392567ffa437bec321178a40b6be | GitHub Actions Repository verification (both jobs) | passed | https://github.com/qdis/bfb/pull/3 |
+| 2026-08-11T11:45:00Z | skeptic path/journal | 39743b981bd4bbeee108530a28570b0e1725ddd1 | PATH-only client resolution + journal HEAD reconcile | passed | tools/provider-compat/run-attempts.mjs |
 
 ## Blocker and decision log
 
