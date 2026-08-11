@@ -8,17 +8,17 @@ Keep entries terse and use repository-relative paths. Do not record secrets, cre
 
 - Goal state: `complete`
 - Branch: `goal/grok-web-mcp`
-- Last observed HEAD: d99a493d8167866645e621d5d5c27ffb43f8aedc
-- Last verified commit: d99a493d8167866645e621d5d5c27ffb43f8aedc
-- Last verification command/result: clean-checkout F02–X03A + `pnpm verify`; PR #3 CI green; PATH-only provider-compat harness
+- Last observed HEAD: 951c4ebe61fd0a2e059ed2f1df52ce5bb11a3ab9
+- Last verified commit: 951c4ebe61fd0a2e059ed2f1df52ce5bb11a3ab9
+- Last verification command/result: clean-checkout F02–X03A + `pnpm verify`; PR #3 CI green on 951c4eb; PATH-only provider-compat harness
 - Active package: none
 - Active gate: none
 - Active task: none
-- Worktree since observed HEAD: none
+- Worktree since observed HEAD: none (this stamp commit only updates journal SHAs to on-branch tip)
 - Resume here: none
 - Active delegates: none
 - Blocking condition: `none`
-- Updated UTC: `2026-08-11T11:50:00Z`
+- Updated UTC: `2026-08-11T12:15:00Z`
 
 Allowed goal states are `not_started`, `active`, `blocked`, and `complete`. `blocked` is valid only when a listed stop condition remains after safe in-scope alternatives are exhausted.
 
@@ -44,11 +44,9 @@ Allowed goal states are `not_started`, `active`, `blocked`, and `complete`. `blo
 | 2026-08-11T11:21:26Z | X03A real clients | 96bf09dfc85841f65ca164747bcd67195d39dc5c | `node tools/provider-compat/run-attempts.mjs` | passed | provider-compat.md + attempts/ |
 | 2026-08-11T11:24:00Z | clean checkout | 96bf09dfc85841f65ca164747bcd67195d39dc5c | package targets F02–X03A + `pnpm verify` | passed | clean-verify.log (scratch) |
 | 2026-08-11T11:29:40Z | PR #3 CI | af945be7fbd9392567ffa437bec321178a40b6be | GitHub Actions Repository verification (both jobs) | passed | https://github.com/qdis/bfb/pull/3 |
-| 2026-08-11T11:45:00Z | skeptic path/journal | 39743b981bd4bbeee108530a28570b0e1725ddd1 | PATH-only client resolution + journal HEAD reconcile | passed | tools/provider-compat/run-attempts.mjs |
-
+| 2026-08-11T11:50:00Z | skeptic path/journal | ebfaa15b04adb30e8256c92717e4232c4eb6c559 | PATH-only client resolution (env/PATH, no home absolutes) | passed | tools/provider-compat/run-attempts.mjs |
 | 2026-08-11T12:00:00Z | PR #3 CI | bba9d450037957e4391c901e364dae69795c0346 | GitHub Actions Repository verification (both jobs) | passed | https://github.com/qdis/bfb/pull/3 |
-
-| 2026-08-11T12:05:00Z | PR #3 CI | d99a493d8167866645e621d5d5c27ffb43f8aedc | GitHub Actions Repository verification (both jobs) | passed | https://github.com/qdis/bfb/pull/3 |
+| 2026-08-11T12:10:00Z | PR #3 CI | 951c4ebe61fd0a2e059ed2f1df52ce5bb11a3ab9 | GitHub Actions Repository verification (both jobs) | passed | https://github.com/qdis/bfb/pull/3 |
 
 ## Blocker and decision log
 
@@ -57,6 +55,7 @@ Allowed goal states are `not_started`, `active`, `blocked`, and `complete`. `blo
 | B-async-d1 | 2026-08-10T22:30:00Z | X03A D1 | sync domain vs async D1 | resolved | Promise-only SqlDatabase |
 | B-stale-complete | 2026-08-11T00:05:00Z | journal | complete without browser/real-client | resolved | reopened; gates completed |
 | B-host-port | 2026-08-11T11:20:00Z | MCP Host | Host:port vs hostname allowlist | resolved | strip port in validateMcpRouting |
+| B-orphan-sha | 2026-08-11T12:15:00Z | journal HEAD | Last observed pointed at amended-away d99a493 | resolved | Retargeted to on-branch tip 951c4eb; no amend-chase |
 
 ## Package status and handoffs
 
