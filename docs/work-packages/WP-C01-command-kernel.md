@@ -1,6 +1,6 @@
 # WP-C01 — WorkspaceHub command and event kernel
 
-Status: `in_progress`
+Status: `done`
 
 Risk: Very high
 

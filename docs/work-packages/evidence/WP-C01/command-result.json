@@ -8,6 +8,7 @@
     "authority-bound idempotency",
     "injected failure full rollback",
     "delayed concurrent FIFO order",
-    "abuse rate-limit buckets"
+    "abuse rate-limit buckets",
+    "shared per-workspace hub registry across request resolutions"
   ]
 }

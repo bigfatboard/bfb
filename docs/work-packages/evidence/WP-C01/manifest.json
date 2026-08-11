@@ -1,7 +1,7 @@
 {
   "$schema": "../manifest.schema.json",
   "package": "C01",
-  "tested_commit": "ed9addb17dc1e6bd8e1d4bc18f59aff5b4e8e0b7",
+  "tested_commit": "fb26cccc9b8a33118b4c478014b1c98bbcbb8c91",
   "protocol_version": "bfb-wire/1",
   "schema_version": "1",
   "migration_head": "0005_workspace_invariants",
@@ -29,6 +29,7 @@
   "artifacts": [
     "docs/work-packages/evidence/WP-C01/command-result.json",
     "packages/domain/src/hub.ts",
+    "packages/domain/src/hub-registry.ts",
     "packages/domain/test/hub.test.ts"
   ],
   "redaction": {
