@@ -71,6 +71,13 @@ describe("workspace hub durable object client", () => {
       .run(workspaceId, FIX.owner);
     await db
       .prepare(
+        `INSERT INTO workspace_authorization_epochs
+         (workspace_id, human_id, authorization_epoch, revoked_at, updated_at)
+         VALUES (?, ?, 1, NULL, '2026-08-07T12:00:00Z')`,
+      )
+      .run(workspaceId, FIX.owner);
+    await db
+      .prepare(
         `INSERT INTO projects
          (workspace_id, id, name, slug, tint, resource_version, created_at)
          VALUES (?, ?, 'Global project', 'global-project', '#abcdef', 1, '2026-08-07T12:00:00Z')`,

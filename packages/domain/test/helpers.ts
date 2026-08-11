@@ -14,11 +14,15 @@ const migrationsDir = path.resolve(
   "../../../migrations/d1",
 );
 
-export async function openDomainDb(): Promise<SqlDatabase> {
+export async function openMigratedDomainDb(): Promise<SqlDatabase> {
   const raw = new Database(":memory:");
   raw.pragma("foreign_keys = ON");
   applyMigrationsForVerification(raw, migrationsDir);
-  const db = adaptBetterSqlite3(raw);
+  return adaptBetterSqlite3(raw);
+}
+
+export async function openDomainDb(): Promise<SqlDatabase> {
+  const db = await openMigratedDomainDb();
   await seedSyntheticWorkspace(db);
   return db;
 }

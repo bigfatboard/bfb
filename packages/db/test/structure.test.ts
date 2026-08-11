@@ -79,31 +79,34 @@ describe("tenant persistence structure", () => {
         .prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
         .all() as Array<{ name: string }>
     ).map((row) => row.name);
+    const globallyScopedLocators = new Set([
+      "better_auth_sessions",
+      "bootstrap_state",
+      "oauth_access_tokens",
+      "oauth_authorization_codes",
+      "workspace_bootstrap_claims",
+    ]);
     const tenantTables = new Set(
       tables.filter((table) => {
         const columns = db.prepare(`PRAGMA table_info('${table}')`).all() as Array<{
           name: string;
         }>;
-        return columns.some((column) => column.name === "workspace_id");
+        return (
+          !globallyScopedLocators.has(table) &&
+          columns.some((column) => column.name === "workspace_id")
+        );
       }),
     );
-    const globalCredentialLocators = new Set([
-      "better_auth_sessions",
-      "oauth_access_tokens",
-      "oauth_authorization_codes",
-    ]);
 
     for (const table of tenantTables) {
-      if (!globalCredentialLocators.has(table)) {
-        const columns = db.prepare(`PRAGMA table_info('${table}')`).all() as Array<{
-          name: string;
-          pk: number;
-        }>;
-        expect(
-          columns.some((column) => column.name === "workspace_id" && column.pk > 0),
-          `${table} primary identity must include workspace_id`,
-        ).toBe(true);
-      }
+      const columns = db.prepare(`PRAGMA table_info('${table}')`).all() as Array<{
+        name: string;
+        pk: number;
+      }>;
+      expect(
+        columns.some((column) => column.name === "workspace_id" && column.pk > 0),
+        `${table} primary identity must include workspace_id`,
+      ).toBe(true);
 
       const foreignKeys = db
         .prepare(`PRAGMA foreign_key_list('${table}')`)

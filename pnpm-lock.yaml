@@ -219,6 +219,16 @@ importers:
 
   tools/repository: {}
 
+  tools/workspace-authorization:
+    dependencies:
+      '@bfb/control-worker':
+        specifier: workspace:*
+        version: link:../../apps/control-worker
+    devDependencies:
+      wrangler:
+        specifier: 4.120.1
+        version: 4.120.1(@cloudflare/workers-types@5.20260810.1)
+
 packages:
 
   '@babel/code-frame@7.29.7':

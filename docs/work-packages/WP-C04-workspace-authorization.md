@@ -20,7 +20,7 @@ Three humans can share a BFB workspace with different roles while BFB remains th
 
 ## Scope
 
-- Extend F04's minimal workspace registry with authorization-owned state; add membership, invitation, role, authorization-epoch, and resource-grant authorization primitives. C07 and C06 own project and runner grant rows after those resources exist.
+- Extend F04's minimal workspace registry with authorization-owned state; add membership, invitation, role, authorization-epoch, and a resource-authorization extension point. C07 and C06 own project and runner grant rows after those resources exist.
 - Create first-owner bootstrap with a hashed one-time secret and fresh GitHub authentication.
 - Add copyable invitations bound to normalized verified email, server-assigned role, expiry, and hashed one-time secret.
 - Enforce Owner, Member, and Reviewer workspace permissions and a typed resource-authorization extension point.
@@ -39,11 +39,11 @@ Three humans can share a BFB workspace with different roles while BFB remains th
 
 ### Consumes
 
-- C01/C02/C03 membership and epoch primitives.
+- C01 abuse controls, C02 human identity/session, and C03 step-up primitives.
 
 ### Produces
 
-- Workspace roles, project grants, and authorization epoch evaluation.
+- Workspace roles, authorization epoch evaluation, and the extension point for later resource grants.
 - Stable test target `pnpm test:c04` and evidence path `docs/work-packages/evidence/WP-C04/manifest.json`.
 
 ## Work plan

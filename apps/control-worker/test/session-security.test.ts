@@ -134,6 +134,7 @@ describe("human browser session security", () => {
       humanId: expect.stringMatching(/^[0-7][0-9A-HJKMNP-TV-Z]{25}$/),
       authUserId: session.userId,
       email: "c02-human@synthetic.test",
+      emailVerified: true,
       displayName: "C02 Human",
       sessionId: session.sessionId,
     });

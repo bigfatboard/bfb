@@ -1,5 +1,5 @@
 {
-  "migration_head": "0009_passkey_step_up",
+  "migration_head": "0010_workspace_authorization",
   "migrations": [
     {
       "id": "0001_workspace_registry",
@@ -36,6 +36,10 @@
     {
       "id": "0009_passkey_step_up",
       "file": "0009_passkey_step_up.sql"
+    },
+    {
+      "id": "0010_workspace_authorization",
+      "file": "0010_workspace_authorization.sql"
     }
   ]
 }

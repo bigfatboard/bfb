@@ -13,3 +13,4 @@ export * from "./oauth.js";
 export * from "./projections.js";
 export * from "./step-up.js";
 export * from "./work-commands.js";
+export * from "./workspace-authorization.js";

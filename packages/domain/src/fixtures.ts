@@ -59,6 +59,24 @@ export async function seedSyntheticWorkspace(
 
   await db
     .prepare(
+      `INSERT INTO workspace_authorization_epochs
+       (workspace_id, human_id, authorization_epoch, revoked_at, updated_at)
+       VALUES (?, ?, 1, NULL, ?), (?, ?, 1, NULL, ?), (?, ?, 1, NULL, ?)`,
+    )
+    .run(
+      FIX.workspace,
+      FIX.owner,
+      now,
+      FIX.workspace,
+      FIX.member,
+      now,
+      FIX.workspace,
+      FIX.restricted,
+      now,
+    );
+
+  await db
+    .prepare(
       `INSERT INTO projects (workspace_id, id, name, slug, tint, resource_version, created_at)
      VALUES (?, ?, 'Alpha', 'alpha', '#3B82F6', 1, ?),
             (?, ?, 'Beta', 'beta', '#10B981', 1, ?)`,

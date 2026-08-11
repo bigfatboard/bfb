@@ -7,6 +7,7 @@ import type { SqlDatabase } from "@bfb/db";
 import { DomainError } from "@bfb/domain";
 
 import { handleWorkApi } from "./api/work.js";
+import { handleWorkspaceAuthorization } from "./api/workspace-authorization.js";
 import type { AuthKey, HumanAuth } from "./auth/better-auth.js";
 import { handleAuthRoute } from "./auth/routes.js";
 import {
@@ -190,6 +191,40 @@ export function createControlApp(
       appOrigin: current.origins.appOrigin,
       now: c.get("now") ?? now,
     });
+  });
+
+  app.all("/api/v1/workspace-access/*", async (c) => {
+    const db = c.get("db") ?? options.db;
+    const current = c.get("validated");
+    if (!db || !current) {
+      return c.json({ error: "api_misconfigured" }, 500);
+    }
+    const authHeader = c.req.header("authorization") ?? "";
+    if (authHeader) {
+      return c.json(
+        { error: "credential_confusion", message: "bearer credentials cannot auth browser routes" },
+        401,
+      );
+    }
+    try {
+      const runtime = options.humanAuth?.();
+      if (!runtime) {
+        return c.json({ error: "api_misconfigured" }, 500);
+      }
+      const envBindings = (c.env ?? {}) as { WORKSPACE_HUB?: DurableObjectNamespace };
+      return await handleWorkspaceAuthorization(c.req.raw, {
+        db,
+        auth: runtime.auth,
+        authKeys: runtime.keys,
+        abuseSecret: runtime.abuseSecret,
+        appOrigin: current.origins.appOrigin,
+        jurisdiction: current.jurisdiction,
+        now: c.get("now") ?? now,
+        workspaceHubNs: envBindings.WORKSPACE_HUB,
+      });
+    } catch {
+      return c.json({ error: "request_rejected", message: "request rejected" }, 500);
+    }
   });
 
   app.all("/api/v1/workspaces/*", async (c) => {

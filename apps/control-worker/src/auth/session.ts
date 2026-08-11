@@ -15,6 +15,7 @@ export interface BrowserPrincipal {
   humanId: string;
   authUserId: string;
   email: string;
+  emailVerified: boolean;
   displayName: string;
   sessionId: string;
 }
@@ -153,6 +154,7 @@ export async function resolveBrowserPrincipal(
     humanId: human.id,
     authUserId: resolved.user.id,
     email: resolved.user.email,
+    emailVerified: resolved.user.emailVerified,
     displayName: resolved.user.name,
     sessionId: resolved.session.id,
   };

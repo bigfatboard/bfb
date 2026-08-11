@@ -6,16 +6,16 @@ This file is the resumable execution journal for [the Grok web/MCP goal](GROK-WE
 
 - Goal state: `active — correction and re-certification`
 - Branch: `goal/grok-web-mcp`
-- Last observed HEAD: ec75d9894b76312a894dd72cee7e56af5cc14f3b
-- Last verified commit: ec75d9894b76312a894dd72cee7e56af5cc14f3b
-- Last verification command/result: fresh checkout passed `pnpm install --frozen-lockfile`, `pnpm test:c03` with 12 focused tests, two shared-D1 Workerd isolates, and real Chromium WebAuthn, full `pnpm verify` with 312 TypeScript tests plus protocol/Go/Xcode checks, and `pnpm worktree:check`
-- Worktree checkpoint: bounded C03 evidence is retained against the verified implementation commit; generated W01 browser evidence remains excluded
+- Last observed HEAD: 7b2868ac15f45b9a9263d63f475fabe05aff8354
+- Last verified commit: 7b2868ac15f45b9a9263d63f475fabe05aff8354
+- Last verification command/result: a fresh checkout passed the completed-package verifier for the C03 handoff; the current C04 worktree passed `pnpm test:c04` with 11 focused tests and a seven-surface shared-D1 Workerd abuse probe, `pnpm test:db`, C02/C03/X03A regression targets, and full `pnpm verify` with 320 TypeScript tests plus protocol/Go/Xcode checks
+- Worktree checkpoint: C04 implementation and regression verification are complete; generated W01 browser evidence remains excluded
 - Active package: C04 — Workspace authorization
-- Active gate: inspect the C04 implementation and acceptance contract, reproduce remaining authorization failures, then close them with focused tests
-- Active task: re-certify bootstrap, invitations, membership roles, revocation epochs, final-owner/final-authenticator invariants, tenant scoping, and durable abuse controls
-- Resume here: complete C04, then advance sequentially through C07 → C08 → W01 → X03A
+- Active gate: commit the C04 implementation checkpoint, then certify that exact commit from a clean checkout and retain bounded evidence
+- Active task: create the C04 implementation checkpoint without staging generated W01 browser evidence
+- Resume here: clean-checkout certify C04, complete its evidence handoff, then advance sequentially through C07 → C08 → W01 → X03A
 - Blocking condition: `none`
-- Updated UTC: `2026-08-11T21:10:05Z`
+- Updated UTC: `2026-08-11T21:54:57Z`
 
 ## Final review findings
 

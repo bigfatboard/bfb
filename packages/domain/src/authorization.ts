@@ -22,8 +22,15 @@ export async function loadPrincipal(
 ): Promise<AuthzPrincipal> {
   const member = (await db
     .prepare(
-      `SELECT role, authorization_epoch FROM workspace_members
-       WHERE workspace_id = ? AND human_id = ?`,
+      `SELECT membership.role, epoch.authorization_epoch
+       FROM workspace_members AS membership
+       JOIN workspace_authorization_epochs AS epoch
+         ON epoch.workspace_id = membership.workspace_id
+        AND epoch.human_id = membership.human_id
+       WHERE membership.workspace_id = ?
+         AND membership.human_id = ?
+         AND membership.authorization_epoch = epoch.authorization_epoch
+         AND epoch.revoked_at IS NULL`,
     )
     .get(workspaceId, humanId)) as { role: WorkspaceRole; authorization_epoch: number } | undefined;
   if (!member) {
@@ -94,17 +101,78 @@ export async function bumpMemberEpoch(
 ): Promise<number> {
   const current = (await db
     .prepare(
-      `SELECT authorization_epoch FROM workspace_members WHERE workspace_id = ? AND human_id = ?`,
+      `SELECT membership.authorization_epoch
+       FROM workspace_members AS membership
+       JOIN workspace_authorization_epochs AS epoch
+         ON epoch.workspace_id = membership.workspace_id
+        AND epoch.human_id = membership.human_id
+       WHERE membership.workspace_id = ?
+         AND membership.human_id = ?
+         AND membership.authorization_epoch = epoch.authorization_epoch
+         AND epoch.revoked_at IS NULL`,
     )
     .get(workspaceId, humanId)) as { authorization_epoch: number } | undefined;
   if (!current) {
     throw new DomainError("not_found", "member not found");
   }
   const next = current.authorization_epoch + 1;
-  await db
+  const updatedAt = new Date().toISOString();
+  await db.withTransaction(async (tx) => {
+    await tx
+      .prepare(
+        `UPDATE workspace_members
+         SET authorization_epoch = ?
+         WHERE workspace_id = ? AND human_id = ? AND authorization_epoch = ?`,
+      )
+      .run(next, workspaceId, humanId, current.authorization_epoch);
+    await tx
+      .prepare(
+        `UPDATE workspace_authorization_epochs
+         SET authorization_epoch = ?, updated_at = ?
+         WHERE workspace_id = ? AND human_id = ?
+           AND authorization_epoch = ? AND revoked_at IS NULL`,
+      )
+      .run(next, updatedAt, workspaceId, humanId, current.authorization_epoch);
+  });
+  const after = (await db
     .prepare(
-      `UPDATE workspace_members SET authorization_epoch = ? WHERE workspace_id = ? AND human_id = ?`,
+      `SELECT epoch.authorization_epoch
+       FROM workspace_authorization_epochs AS epoch
+       JOIN workspace_members AS membership
+         ON membership.workspace_id = epoch.workspace_id
+        AND membership.human_id = epoch.human_id
+        AND membership.authorization_epoch = epoch.authorization_epoch
+       WHERE epoch.workspace_id = ? AND epoch.human_id = ? AND epoch.revoked_at IS NULL`,
     )
-    .run(next, workspaceId, humanId);
+    .get(workspaceId, humanId)) as { authorization_epoch: number } | undefined;
+  if (after?.authorization_epoch !== next) {
+    throw new DomainError("stale_authorization", "authorization epoch changed concurrently");
+  }
   return next;
+}
+
+export async function assertPasskeyRemovalAllowed(
+  db: SqlDatabase,
+  humanId: string,
+  authUserId: string,
+): Promise<void> {
+  const ownership = (await db
+    .prepare(
+      `SELECT COUNT(*) AS count
+       FROM workspace_members
+       WHERE human_id = ? AND role = 'owner'`,
+    )
+    .get(humanId)) as { count: number };
+  if (ownership.count === 0) {
+    return;
+  }
+  const passkeys = (await db
+    .prepare(`SELECT COUNT(*) AS count FROM better_auth_passkeys WHERE user_id = ?`)
+    .get(authUserId)) as { count: number };
+  if (passkeys.count <= 1) {
+    throw new DomainError(
+      "final_authenticator",
+      "workspace owner cannot remove final user-verifying authenticator",
+    );
+  }
 }

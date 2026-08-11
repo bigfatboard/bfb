@@ -18,6 +18,7 @@ import {
 
 import type { SqlDatabase } from "@bfb/db";
 import {
+  assertPasskeyRemovalAllowed,
   consumeStepUpProof,
   DomainError,
   issueStepUpProof,
@@ -742,6 +743,7 @@ export async function removePasskey(
   ) {
     throw new PasskeyFlowError("step_up_mismatch", "step-up action cannot remove this passkey");
   }
+  await assertPasskeyRemovalAllowed(db, principal.humanId, principal.authUserId);
   await consumeStepUpProof(db, proofId, proofAction, nowIso, principal.humanId);
   const removed = await db
     .prepare(`DELETE FROM better_auth_passkeys WHERE id = ? AND user_id = ?`)

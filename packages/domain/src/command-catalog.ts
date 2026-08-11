@@ -8,12 +8,20 @@ import {
   createTaskCommand,
   updateTaskCommand,
 } from "./work-commands.js";
+import {
+  changeMemberRoleCommand,
+  createInvitationCommand,
+  removeMemberCommand,
+} from "./workspace-authorization.js";
 
 const commands = new Map<string, HubCommand<unknown, unknown>>([
   [createTaskCommand.name, createTaskCommand as HubCommand<unknown, unknown>],
   [updateTaskCommand.name, updateTaskCommand as HubCommand<unknown, unknown>],
   [addCommentCommand.name, addCommentCommand as HubCommand<unknown, unknown>],
   [addContextCommand.name, addContextCommand as HubCommand<unknown, unknown>],
+  [createInvitationCommand.name, createInvitationCommand as HubCommand<unknown, unknown>],
+  [changeMemberRoleCommand.name, changeMemberRoleCommand as HubCommand<unknown, unknown>],
+  [removeMemberCommand.name, removeMemberCommand as HubCommand<unknown, unknown>],
 ]);
 
 /** Returns a registered hub command by stable name, or undefined when unknown. */
