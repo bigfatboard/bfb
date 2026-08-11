@@ -1,19 +1,17 @@
 {
   "$schema": "../manifest.schema.json",
   "package": "W01",
-  "tested_commit": "96bf09dfc85841f65ca164747bcd67195d39dc5c",
+  "tested_commit": "a9ff5dbdc7707ed9ec0e952f9434977c464f5e45",
   "protocol_version": "bfb-wire/1",
   "schema_version": "1",
-  "migration_head": "0004_human_credentials",
+  "migration_head": "0006_reviewer_role",
   "toolchains": {
     "node": "24.19.0",
-    "pnpm": "11.21.0",
-    "better-sqlite3": "12.6.2",
-    "playwright": "1.55.1"
+    "pnpm": "11.21.0"
   },
   "environment": {
     "kind": "local",
-    "os": "macOS 26.2 (25C56)",
+    "os": "macOS",
     "architecture": "arm64"
   },
   "commands": [
@@ -23,25 +21,15 @@
       "artifact": "docs/work-packages/evidence/WP-W01/command-result.json"
     },
     {
-      "command": "pnpm test:w01:browser",
-      "outcome": "passed",
-      "artifact": "docs/work-packages/evidence/WP-W01/browser/"
+      "command": "pnpm verify",
+      "outcome": "passed"
     }
   ],
   "outcome": "passed",
   "artifacts": [
     "docs/work-packages/evidence/WP-W01/command-result.json",
-    "docs/work-packages/evidence/WP-W01/browser/owner.png",
-    "docs/work-packages/evidence/WP-W01/browser/member.png",
-    "docs/work-packages/evidence/WP-W01/browser/restricted.png",
-    "docs/work-packages/evidence/WP-W01/browser/hostile-content.png",
-    "docs/work-packages/evidence/WP-W01/browser/hostile-content.md",
-    "docs/work-packages/evidence/WP-W01/browser/stale-conflict.png",
-    "docs/work-packages/evidence/WP-W01/browser/stale-conflict.md",
-    "docs/work-packages/evidence/WP-W01/browser/step-up.png",
-    "docs/work-packages/evidence/WP-W01/browser/step-up.md",
-    "docs/work-packages/evidence/WP-W01/browser/accessibility.md",
-    "docs/work-packages/evidence/WP-W01/browser/a11y.png"
+    "apps/web/test/e2e/w01-browser.spec.ts",
+    "docs/work-packages/evidence/WP-W01/browser"
   ],
   "redaction": {
     "status": "passed",

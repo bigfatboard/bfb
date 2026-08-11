@@ -1,5 +1,11 @@
 {
   "package": "X03A",
   "command": "pnpm test:x03a",
-  "outcome": "passed"
+  "outcome": "passed",
+  "checks": [
+    "MCP 2026-07-28 routing",
+    "membership\u2229delegation scope",
+    "OAuth PKCE path",
+    "cookie cannot auth mcp"
+  ]
 }

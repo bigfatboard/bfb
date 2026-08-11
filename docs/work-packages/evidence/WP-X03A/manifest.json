@@ -1,18 +1,17 @@
 {
   "$schema": "../manifest.schema.json",
   "package": "X03A",
-  "tested_commit": "96bf09dfc85841f65ca164747bcd67195d39dc5c",
+  "tested_commit": "a9ff5dbdc7707ed9ec0e952f9434977c464f5e45",
   "protocol_version": "bfb-wire/1",
   "schema_version": "1",
-  "migration_head": "0004_human_credentials",
+  "migration_head": "0006_reviewer_role",
   "toolchains": {
     "node": "24.19.0",
-    "pnpm": "11.21.0",
-    "better-sqlite3": "12.6.2"
+    "pnpm": "11.21.0"
   },
   "environment": {
     "kind": "local",
-    "os": "macOS 26.2 (25C56)",
+    "os": "macOS",
     "architecture": "arm64"
   },
   "commands": [
@@ -22,19 +21,15 @@
       "artifact": "docs/work-packages/evidence/WP-X03A/command-result.json"
     },
     {
-      "command": "node tools/provider-compat/run-attempts.mjs",
-      "outcome": "passed",
-      "artifact": "docs/work-packages/evidence/WP-X03A/provider-compat.md"
+      "command": "pnpm verify",
+      "outcome": "passed"
     }
   ],
   "outcome": "passed",
   "artifacts": [
     "docs/work-packages/evidence/WP-X03A/command-result.json",
-    "docs/work-packages/evidence/WP-X03A/provider-compat.md",
-    "docs/work-packages/evidence/WP-X03A/attempts/attempt-summary.json",
-    "docs/work-packages/evidence/WP-X03A/attempts/claude.log",
-    "docs/work-packages/evidence/WP-X03A/attempts/codex.log",
-    "docs/work-packages/evidence/WP-X03A/attempts/grok.log"
+    "packages/domain/src/oauth.ts",
+    "packages/domain/test/mcp.test.ts"
   ],
   "redaction": {
     "status": "passed",
