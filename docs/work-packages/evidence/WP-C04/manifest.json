@@ -1,20 +1,30 @@
 {
   "$schema": "../manifest.schema.json",
   "package": "C04",
-  "tested_commit": "70b33243c94b9f5659e1c0bba80b7b26f542a1ba",
+  "tested_commit": "f0b94285597928dd8fed4251f24c269470c5a748",
   "protocol_version": "bfb-wire/1",
   "schema_version": "1",
-  "migration_head": "0006_reviewer_role",
+  "migration_head": "0010_workspace_authorization",
   "toolchains": {
     "node": "24.19.0",
-    "pnpm": "11.21.0"
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "xcode": "26.0.1",
+    "better-auth": "1.6.26",
+    "better-sqlite3": "12.6.2",
+    "wrangler": "4.120.1"
   },
   "environment": {
-    "kind": "local",
-    "os": "macOS",
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56)",
     "architecture": "arm64"
   },
   "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile --offline",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C04/command-result.json"
+    },
     {
       "command": "pnpm test:c04",
       "outcome": "passed",
@@ -22,14 +32,30 @@
     },
     {
       "command": "pnpm verify",
-      "outcome": "passed"
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C04/command-result.json"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C04/command-result.json"
     }
   ],
   "outcome": "passed",
   "artifacts": [
     "docs/work-packages/evidence/WP-C04/command-result.json",
-    "packages/domain/src/authorization.ts",
-    "migrations/d1/0006_reviewer_role.sql"
+    "docs/work-packages/evidence/WP-C04/permission-matrix.md",
+    "docs/work-packages/evidence/WP-C04/migration-constraints.md",
+    "docs/work-packages/evidence/WP-C04/revocation-contract.md",
+    "docs/work-packages/evidence/WP-C04/workerd-abuse.json",
+    "docs/work-packages/evidence/WP-C04/negative-tests.md",
+    "docs/work-packages/evidence/WP-C04/final-audit.md",
+    "apps/control-worker/src/api/workspace-authorization.ts",
+    "packages/domain/src/workspace-authorization.ts",
+    "migrations/d1/0010_workspace_authorization.sql",
+    "apps/control-worker/test/workspace-authorization-routes.test.ts",
+    "packages/domain/test/authorization.test.ts",
+    "tools/workspace-authorization/run.ts"
   ],
   "redaction": {
     "status": "passed",
