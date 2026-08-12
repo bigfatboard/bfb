@@ -19,13 +19,17 @@ async function writeReport(name: string, body: string): Promise<void> {
 
 async function prepareBoardScreenshot(page: Page): Promise<void> {
   await page.evaluate(() => {
+    history.replaceState(null, "", `${location.pathname}${location.search}`);
     document.documentElement.style.scrollBehavior = "auto";
+    document.documentElement.style.overflowAnchor = "none";
     document.body.tabIndex = -1;
     document.body.focus({ preventScroll: true });
     document.body.removeAttribute("tabindex");
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   });
-  await page.waitForFunction(() => window.scrollY === 0);
+  await page.evaluate(
+    () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
 }
 
 test.describe.configure({ mode: "serial" });
