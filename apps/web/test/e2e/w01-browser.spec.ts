@@ -63,6 +63,13 @@ for (const role of Object.keys(ROLES) as RoleKey[]) {
       await page.getByRole("button", { name: "Cancel" }).click();
     }
 
+    await page.evaluate(() => {
+      if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
+      window.scrollTo(0, 0);
+    });
+
     await page.screenshot({
       path: path.join(EVIDENCE_DIR, `${ROLES[role].label}.png`),
       fullPage: true,
@@ -308,6 +315,13 @@ test("owner board accessibility snapshot", async ({ page }) => {
       .filter((rect) => rect.width > 0 && rect.height > 0)
       .map((rect) => Math.min(rect.width, rect.height));
     return Math.min(...targets);
+  });
+
+  await page.evaluate(() => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    window.scrollTo(0, 0);
   });
 
   await page.screenshot({
