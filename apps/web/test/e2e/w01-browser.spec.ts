@@ -4,7 +4,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 import { EVIDENCE_DIR, FIX, ROLES, signInAndOpenBoard, signInAs, type RoleKey } from "./helpers.js";
 import { enrollVirtualPasskey } from "./webauthn-helpers.js";
@@ -15,6 +15,17 @@ test.beforeAll(async () => {
 
 async function writeReport(name: string, body: string): Promise<void> {
   await writeFile(path.join(EVIDENCE_DIR, name), body, "utf8");
+}
+
+async function prepareBoardScreenshot(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    document.documentElement.style.scrollBehavior = "auto";
+    document.body.tabIndex = -1;
+    document.body.focus({ preventScroll: true });
+    document.body.removeAttribute("tabindex");
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  });
+  await page.waitForFunction(() => window.scrollY === 0);
 }
 
 test.describe.configure({ mode: "serial" });
@@ -63,12 +74,7 @@ for (const role of Object.keys(ROLES) as RoleKey[]) {
       await page.getByRole("button", { name: "Cancel" }).click();
     }
 
-    await page.evaluate(() => {
-      if (document.activeElement instanceof HTMLElement) {
-        document.activeElement.blur();
-      }
-      window.scrollTo(0, 0);
-    });
+    await prepareBoardScreenshot(page);
 
     await page.screenshot({
       path: path.join(EVIDENCE_DIR, `${ROLES[role].label}.png`),
@@ -317,12 +323,7 @@ test("owner board accessibility snapshot", async ({ page }) => {
     return Math.min(...targets);
   });
 
-  await page.evaluate(() => {
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
-    }
-    window.scrollTo(0, 0);
-  });
+  await prepareBoardScreenshot(page);
 
   await page.screenshot({
     path: path.join(EVIDENCE_DIR, "a11y.png"),
