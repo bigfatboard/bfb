@@ -6,21 +6,21 @@ This file is the resumable execution journal for [the Grok web/MCP goal](GROK-WE
 
 - Goal state: `active — correction and re-certification`
 - Branch: `goal/grok-web-mcp`
-- Last observed HEAD: 8e19c6e59339e865bda2234246fb94d9ced1e716
-- Last verified commit: 8e19c6e59339e865bda2234246fb94d9ced1e716
-- Last verification command/result: a fresh checkout passed `pnpm test:w01` with 7 focused unit checks and 12 Chromium scenarios, full `pnpm verify` with 332 TypeScript tests plus protocol, Go, and Xcode checks, and `pnpm worktree:check`
-- Worktree checkpoint: W01 browser evidence and bounded reports are captured against the tested implementation commit and are ready for the handoff commit.
+- Last observed HEAD: 95e434cf6d3d9bd5c1ef6e73ef1a2dfd430c1a40
+- Last verified commit: 95e434cf6d3d9bd5c1ef6e73ef1a2dfd430c1a40
+- Last verification command/result: a fresh checkout passed the complete done-package chain, full `pnpm verify`, and `pnpm worktree:check`; the final marker was `W01_HANDOFF_OK`
+- Worktree checkpoint: X03A audit notes are the only uncommitted material state.
 - Active package: X03A — Remote OAuth MCP core
-- Active gate: commit and verify the W01 handoff, then re-audit X03A against its current protocol, OAuth, authority, and evidence contracts
-- Active task: finish W01 evidence/status handoff and begin the X03A correction pass
-- Resume here: verify the W01 handoff from a clean checkout, then correct and re-certify X03A
+- Active gate: correct the OAuth provider, delegated token lifecycle, strict MCP transport, tool boundaries, and real compatibility evidence before the implementation checkpoint
+- Active task: replace the synthetic OAuth/token path with the pinned Better Auth OAuth Provider flow and make the SDK validate the untouched MCP request
+- Resume here: continue from the executable X03A negatives after the baseline `pnpm test:x03a` result of 18/18
 - Blocking condition: `none`
-- Updated UTC: `2026-08-12T00:49:25Z`
+- Updated UTC: `2026-08-12T01:06:00Z`
 
 ## Final review findings
 
 - Open P0: none.
-- Open P1: X03A's OAuth/MCP protocol, delegation authority, token lifecycle, provider compatibility, and evidence must be re-audited against the corrected shared package chain.
+- Open P1: unauthenticated MCP discovery, request rewriting that masks header/body errors, hard-coded resource identity, a custom authorization-code implementation in place of the required Better Auth OAuth Provider, advertised-but-missing refresh rotation, incomplete task-bound proposal enforcement, and synthetic provider evidence.
 - Closed through W01: package evidence gating, substrate runtime proof, identity, passkey step-up, workspace/project authorization, work records, and the authenticated Work surface have clean-checkout acceptance proof.
 
 ## Package status
