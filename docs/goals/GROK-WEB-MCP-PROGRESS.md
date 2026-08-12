@@ -6,14 +6,14 @@ This file is the resumable execution journal for [the Grok web/MCP goal](GROK-WE
 
 - Goal state: `active — correction and re-certification`
 - Branch: `goal/grok-web-mcp`
-- Last observed HEAD: 3b9b27c8151e8e640f5fbafd4f34b1d9056836a0
+- Last observed HEAD: e580167c890cfe1c79748d0832793f2bf669fc2c
 - Last verified commit: 95e434cf6d3d9bd5c1ef6e73ef1a2dfd430c1a40
 - Last verification command/result: the uncommitted X03A implementation passed `pnpm verify` (343 tests plus protocol, lint, type, docs, roadmap, Go, Swift, and Xcode), its exact target, the real Chromium OAuth loop, installed Claude/Codex/Grok attempts, C01-C04, C07-C08, F03 substrate, the real D1 migration matrix, and integrated IC-1; clean-checkout proof still belongs to the next checkpoint commit
-- Worktree checkpoint: the complete X03A implementation, migration 0013, browser flow, provider harness, adversarial negatives, and the C08 manifest-head correction are uncommitted.
+- Worktree checkpoint: implementation commit `e580167c890cfe1c79748d0832793f2bf669fc2c` is complete; the clean-checkout run exposed that `test:x03a` omitted its required workspace build, and that target correction is uncommitted.
 - Active package: X03A — Remote OAuth MCP core
-- Active gate: run the full verifier, commit the implementation checkpoint, then certify that commit from a clean checkout
-- Active task: finish repository-wide verification without changing the proven OAuth/MCP authority boundary
-- Resume here: run `pnpm verify`; if green, inspect and selectively commit the current X03A implementation before clean-checkout certification
+- Active gate: make the exact package target self-contained, commit the correction, then restart clean-checkout certification
+- Active task: verify `test:x03a` succeeds in a build-artifact-free clone
+- Resume here: run the corrected target locally, commit it with this checkpoint, and start a new fresh clone from the resulting SHA
 - Blocking condition: `none`
 - Updated UTC: `2026-08-12T03:27:00Z`
 

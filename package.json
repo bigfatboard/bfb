@@ -45,7 +45,7 @@
     "test:w01:browser": "playwright test --config tools/e2e/playwright.config.ts",
     "test:w01": "pnpm build && pnpm test:w01:unit && pnpm test:w01:browser",
     "test:w01:evidence": "BFB_CAPTURE_W01_EVIDENCE=1 pnpm test:w01",
-    "test:x03a": "vitest run packages/domain/test/mcp.test.ts packages/domain/test/oauth.test.ts apps/control-worker/test/mcp-handler.test.ts apps/control-worker/test/routes.test.ts apps/control-worker/test/d1-adapter.test.ts && pnpm test:x03a:browser",
+    "test:x03a": "pnpm build && vitest run packages/domain/test/mcp.test.ts packages/domain/test/oauth.test.ts apps/control-worker/test/mcp-handler.test.ts apps/control-worker/test/routes.test.ts apps/control-worker/test/d1-adapter.test.ts && pnpm test:x03a:browser",
     "test:x03a:browser": "playwright test apps/web/test/e2e/x03a-oauth.spec.ts --config tools/e2e/playwright.config.ts",
     "test:x03a:providers": "pnpm build && node tools/provider-compat/run-attempts.mjs",
     "test:x03a:providers:evidence": "BFB_PROVIDER_COMPAT_OUTPUT=docs/work-packages/evidence/WP-X03A pnpm test:x03a:providers",
