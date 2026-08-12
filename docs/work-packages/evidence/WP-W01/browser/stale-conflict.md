@@ -1,6 +1,8 @@
 # Stale conflict report (W01 browser E2E)
 
-- Task id: `01DA6M7Z7TK77N00NE5T76BQAR`
-- Expected version submitted: `999` (intentionally stale)
-- mutation-error text: stale_version: task version conflict
+- Task id: `01H2QHGW0NCVDX36SC0RN9ZH89`
+- Expected version submitted: `1` after a second browser mutation committed version `2`
+- mutation-error text: This task changed.
+stale_version: task version conflict
+Reload current version
 - Result: recoverable conflict surfaced in mutation-error; no silent overwrite.

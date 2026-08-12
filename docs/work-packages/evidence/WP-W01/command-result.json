@@ -1,12 +1,36 @@
 {
   "package": "W01",
-  "command": "pnpm test:w01",
-  "outcome": "passed",
-  "checks": [
-    "unit board projections",
-    "playwright multi-role",
-    "stale conflict",
-    "step-up fail closed",
-    "a11y snapshot"
-  ]
+  "tested_commit": "8e19c6e59339e865bda2234246fb94d9ced1e716",
+  "captured_at": "2026-08-12T00:49:25Z",
+  "environment": "clean checkout on macOS 26.2 (25C56), arm64",
+  "runs": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "details": "Installed the exact lockfile into a fresh clone before any workspace build output existed."
+    },
+    {
+      "command": "pnpm test:w01",
+      "outcome": "passed",
+      "details": "Built workspace packages, passed 7 focused unit checks, and passed all 12 Chromium scenarios."
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "details": "Passed formatting, lint, typecheck, protocol drift, 332 TypeScript tests, documentation, roadmap, Go, and Xcode gates."
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "details": "The clean checkout remained unchanged after verification."
+    },
+    {
+      "command": "pnpm test:w01:evidence",
+      "outcome": "passed",
+      "details": "A separate implementation checkout generated only the declared W01 browser screenshots and reports from the tested implementation."
+    }
+  ],
+  "production_or_shared_state_used": false,
+  "raw_logs_committed": false,
+  "redaction": "passed"
 }

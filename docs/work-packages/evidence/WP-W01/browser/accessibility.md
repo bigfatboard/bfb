@@ -1,80 +1,127 @@
 # Accessibility report (W01 browser E2E)
 
 - Surface: owner Work board after sign-in + workspace open
-- Landmark/roles observed: button, form, h1, h2, h3, input, label, nav, select
+- Landmark/roles observed: a, button, h1, h2, h3, label, nav, select
 - Named regions: Workspace nav, Needs Now deck, Project lanes, Work mutations
-- Forms expose labels for sign-in, workspace switcher, create task, and stale edit
+- Controls expose labels for workspace switching, project navigation, and task selection
+- Keyboard path: skip link activated; task button opened and closed the detail sheet
+- Smallest visible control dimension: 38px (WCAG 2.2 minimum: 24px)
+- Mobile document width: 390px in 390px viewport; lanes scroll internally
 - Errors use `role="alert"` / mutation-error for recoverable failures
 
 ## ARIA snapshot
 
 ```
 - main:
-  - heading "BFB" [level=1]
-  - paragraph: W01
-  - paragraph: Synthetic Owner
-  - navigation "Workspace":
-    - text: Workspace id
-    - textbox "Workspace id": 01JBFB0W0RKSPACE0000000000
-    - button "Open Work surface"
-  - paragraph: owner
-  - region "Needs Synthetic Owner Now":
-    - heading "Needs Synthetic Owner Now" [level=2]
-    - paragraph: Nothing needs you right now.
-  - region "Project lanes":
-    - heading "Alpha" [level=3]
+  - link "Skip to attention":
+    - /url: "#needs-now"
+  - link "Skip to project lanes":
+    - /url: "#project-board"
+  - button "BFB"
+  - text: Workspace
+  - combobox "Workspace":
+    - option "Choose workspace"
+    - option "synthetic" [selected]
+  - text: Committed state
+  - strong: Synthetic Owner
+  - text: owner
+  - button "Sign out"
+  - navigation "Product":
+    - button "Work"
+    - button "Attention"
+    - button "Latest"
+    - button "Load"
+    - button "Projects & policy"
+  - paragraph: SYNTHETIC / WORK
+  - heading "Current work" [level=1]
+  - paragraph: What needs you, what can move, and what BFB can actually prove.
+  - button "New task"
+  - region "Needs Synthetic Owner now":
+    - paragraph: ATTENTION ROUTER
+    - heading "Needs Synthetic Owner now" [level=2]
+    - paragraph: Only persisted P0/P1 work that is blocked or due.
     - list:
       - listitem:
-        - text: P1NOW
-        - strong: stale-source-1786458974683
-        - paragraph: Ready for next action
-        - paragraph: Pass to configured agent profile
-        - paragraph: Agent work unavailable
-      - listitem:
-        - text: P1NOW
-        - strong: "&lt;script&gt;alert(1)&lt;/script&gt;"
-        - paragraph: Ready for next action
-        - paragraph: Pass to configured agent profile
-        - paragraph: Agent work unavailable
-    - heading "Beta" [level=3]
-    - list
-  - region "Work mutations":
-    - heading "Manage work" [level=2]
-    - heading "Create task" [level=3]
-    - text: Project
-    - combobox "Project":
-      - option "01JBFB0PR0JA00000000000000" [selected]
-      - option "01JBFB0PR0JB00000000000000"
-    - text: Title
-    - textbox "Title"
-    - button "Create task"
-    - heading "Propose agent task" [level=3]
-    - button "Propose task"
-    - heading "Add comment" [level=3]
-    - text: Task id
-    - textbox "Task id"
-    - text: Comment
-    - textbox "Comment"
-    - button "Add comment"
-    - heading "Add context" [level=3]
-    - text: Audience
-    - combobox "Audience":
-      - option "agent" [selected]
-      - option "human"
-      - option "both"
-    - text: Body
-    - textbox "Body"
-    - button "Add context"
-    - heading "Promote proposed task" [level=3]
-    - button "Promote"
-    - heading "Edit task (optimistic version)" [level=3]
-    - text: Task id
-    - textbox "Task id"
-    - text: Expected version
-    - textbox "Expected version": "1"
-    - text: Title
-    - textbox "Title"
-    - button "Save edit"
+        - 'button "P0 BLOCKING Approve the release boundary One owner decision is holding the release. Why Synthetic Owner: Choose whether the credential boundary is ready to ship."':
+          - text: P0 BLOCKING
+          - strong: Approve the release boundary
+          - text: "One owner decision is holding the release. Why Synthetic Owner: Choose whether the credential boundary is ready to ship."
+  - region "Where the work is":
+    - paragraph: PROJECT LANES
+    - heading "Where the work is" [level=2]
+    - paragraph: Lanes are projects. Status-column theater remains unavailable.
+    - navigation "Jump to project":
+      - link "Alpha":
+        - /url: "#lane-alpha"
+      - link "Beta":
+        - /url: "#lane-beta"
+      - link "Gamma UI":
+        - /url: "#lane-gamma-ui"
+    - region "Alpha":
+      - heading "Alpha" [level=3]
+      - paragraph: 4 tasks
+      - text: alpha
+      - list:
+        - listitem:
+          - article:
+            - text: P2 NORMAL
+            - button "Open <script>alert(1)</script>":
+              - text: ready
+              - strong: <script>alert(1)</script>
+              - text: NOW Ready for next action
+            - paragraph: Latest · task.create · 2026-08-07T12:00:00Z
+            - paragraph: Agent work unavailable
+        - listitem:
+          - article:
+            - text: P2 NORMAL
+            - button "Open stale-source-1786495635085":
+              - text: ready
+              - strong: stale-source-1786495635085
+              - text: NOW Changed in another view
+            - paragraph: Latest · task.update · 2026-08-07T12:00:00Z
+            - paragraph: Agent work unavailable
+        - listitem:
+          - article:
+            - text: P0 BLOCKING
+            - button "Open Approve the release boundary":
+              - text: blocked
+              - strong: Approve the release boundary
+              - text: NOW One owner decision is holding the release. Pinned above
+            - paragraph: Why Synthetic Owner Choose whether the credential boundary is ready to ship.
+            - paragraph: Latest · task.update · 2026-08-07T12:00:00Z
+            - paragraph: Agent work unavailable
+        - listitem:
+          - article:
+            - text: P2 NORMAL
+            - button "Open Agent-proposed cache cleanup":
+              - text: ready
+              - strong: Agent-proposed cache cleanup
+              - text: NOW Proposal is visible but cannot move itself.
+            - paragraph: Why Synthetic Owner Promote or reject the agent proposal.
+            - paragraph: Latest · task.update · 2026-08-07T12:00:00Z
+            - paragraph: Agent work unavailable
+    - region "Beta":
+      - heading "Beta" [level=3]
+      - paragraph: 1 task
+      - text: beta
+      - list:
+        - listitem:
+          - article:
+            - text: P1 HIGH
+            - button "Open Map the remaining webhook edge cases":
+              - text: ready
+              - strong: Map the remaining webhook edge cases
+              - text: NOW Codex can take the next pass; no run has started.
+            - paragraph: Why delegable The scope is bounded and ready for independent review.
+            - text: "Intended owner: Codex Refactor"
+            - button "Pass to Codex Refactor"
+            - paragraph: Run · open · unknown
+            - paragraph: Agent work unavailable
+    - region "Gamma UI":
+      - heading "Gamma UI" [level=3]
+      - paragraph: 0 tasks
+      - text: gamma-ui
+      - paragraph: No open work. Suspicious, but allowed.
 ```
 
 Result: owner board exposes a navigable landmark tree suitable for keyboard users;

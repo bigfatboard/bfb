@@ -1,20 +1,28 @@
 {
   "$schema": "../manifest.schema.json",
   "package": "W01",
-  "tested_commit": "696e3ccf33ba590a4a50a3f53dc448ca9cd4f639",
+  "tested_commit": "8e19c6e59339e865bda2234246fb94d9ced1e716",
   "protocol_version": "bfb-wire/1",
   "schema_version": "1",
-  "migration_head": "0006_reviewer_role",
+  "migration_head": "0012_work_records",
   "toolchains": {
     "node": "24.19.0",
-    "pnpm": "11.21.0"
+    "pnpm": "11.21.0",
+    "playwright": "1.55.1",
+    "go": "1.26.5",
+    "xcode": "26.0.1"
   },
   "environment": {
     "kind": "clean_checkout",
-    "os": "macOS",
+    "os": "macOS 26.2 (25C56)",
     "architecture": "arm64"
   },
   "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-W01/command-result.json"
+    },
     {
       "command": "pnpm test:w01",
       "outcome": "passed",
@@ -22,14 +30,32 @@
     },
     {
       "command": "pnpm verify",
-      "outcome": "passed"
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-W01/command-result.json"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-W01/command-result.json"
     }
   ],
   "outcome": "passed",
   "artifacts": [
     "docs/work-packages/evidence/WP-W01/command-result.json",
+    "docs/work-packages/evidence/WP-W01/api-fixture-coverage.md",
+    "docs/work-packages/evidence/WP-W01/final-audit.md",
     "apps/web/test/e2e/w01-browser.spec.ts",
-    "docs/work-packages/evidence/WP-W01/browser"
+    "docs/work-packages/evidence/WP-W01/browser/accessibility.md",
+    "docs/work-packages/evidence/WP-W01/browser/a11y.png",
+    "docs/work-packages/evidence/WP-W01/browser/hostile-content.md",
+    "docs/work-packages/evidence/WP-W01/browser/hostile-content.png",
+    "docs/work-packages/evidence/WP-W01/browser/member.png",
+    "docs/work-packages/evidence/WP-W01/browser/owner.png",
+    "docs/work-packages/evidence/WP-W01/browser/restricted.png",
+    "docs/work-packages/evidence/WP-W01/browser/stale-conflict.md",
+    "docs/work-packages/evidence/WP-W01/browser/stale-conflict.png",
+    "docs/work-packages/evidence/WP-W01/browser/step-up.md",
+    "docs/work-packages/evidence/WP-W01/browser/step-up.png"
   ],
   "redaction": {
     "status": "passed",
