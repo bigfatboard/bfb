@@ -1,20 +1,50 @@
-# Codex real attempt log (redacted summary)
+# Codex real attempt log (redacted)
+exact_version: @openai/codex 0.146.0
+result: registered — OAuth browser ceremony incomplete
 
-exact_version: @openai/codex 0.114.0 (native --version ENOENT)
-result: failed — native binary missing (ENOENT on darwin vendor codex); MCP not exercised
+## Commands
+$ codex mcp remove bfb-x03a-provider-compat
+exit: 0
+stdout:
+No MCP server named 'bfb-x03a-provider-compat' found.
+stderr: (empty)
 
-## Commands (summary)
+$ codex mcp add bfb-x03a-provider-compat --url http://localhost:18765/mcp --oauth-client-id bfb-claude-code
+exit: 124
+stdout:
+Added global MCP server 'bfb-x03a-provider-compat'.
+Detected OAuth support. Starting OAuth flow…
+Authorize `bfb-x03a-provider-compat` by opening this URL in your browser:
+http://localhost:18765/oauth/authorize?response_type=code&client_id=bfb-claude-code&state=[REDACTED]&code_challenge=[REDACTED]&code_challenge_method=S256&redirect_uri=http%3A%2F%2F127.0.0.1%3A[RANDOM]%2Fcallback%2F[RANDOM]&scope=bfb%3Aread+bfb%3Atask%3Awrite+offline_access&resource=http%3A%2F%2Flocalhost%3A18765%2Fmcp
+stderr:
+[timeout after 30000ms]
 
-- `codex --version` → exit 1; spawn ENOENT (vendor binary path redacted)
-- `codex --help` → exit 1; same ENOENT
-- `codex mcp add bfb-x03a http://127.0.0.1:18765/mcp` → exit 1; same ENOENT
+$ codex mcp get bfb-x03a-provider-compat
+exit: 0
+stdout:
+bfb-x03a-provider-compat
+  enabled: true
+  transport: streamable_http
+  url: http://localhost:18765/mcp
+  bearer_token_env_var: -
+  http_headers: -
+  env_http_headers: -
+  remove: codex mcp remove bfb-x03a-provider-compat
+stderr: (empty)
+
+$ codex mcp list
+exit: 0
+stdout:
+bfb-x03a-provider-compat  http://localhost:18765/mcp          -                     enabled  Not logged in
+stderr: (empty)
+
+$ codex mcp remove bfb-x03a-provider-compat
+exit: 0
+stdout:
+Removed global MCP server 'bfb-x03a-provider-compat'.
+stderr: (empty)
 
 ## Limitations
-
-- npm @openai/codex wrapper cannot spawn vendor platform binary (ENOENT)
-- BFB accepts only preregistered public client bfb-mcp-synthetic-client
-- No X03A acceptance weakening for broken local Codex installs
-
-## Redaction note
-
-Raw stack traces and machine-local absolute paths were removed. This summary is historical only and is not IC-1 acceptance proof.
+- Codex configuration supports an explicit OAuth client ID and resource
+- Codex generates a random callback port/path, which cannot match BFB's exact preregistered redirect
+- BFB rejects DCR/CIMD and accepts only preregistered public clients

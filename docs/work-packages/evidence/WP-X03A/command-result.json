@@ -1,13 +1,39 @@
 {
   "package": "X03A",
-  "command": "pnpm test:x03a",
+  "tested_commit": "e015909e31464681ad0204e0d96587ea427a0b6a",
+  "environment": "clean checkout",
   "outcome": "passed",
-  "checks": [
-    "MCP 2026-07-28 routing",
-    "membership∩delegation scope",
-    "OAuth PKCE path",
-    "cookie cannot auth mcp",
-    "OAuth code single-winner consume stamp",
-    "mutations via WorkspaceHub DO client"
-  ]
+  "commands": [
+    {
+      "command": "pnpm install --offline --frozen-lockfile",
+      "outcome": "passed"
+    },
+    {
+      "command": "pnpm test:x03a",
+      "outcome": "passed",
+      "result": "28 focused tests and 2 Chromium OAuth scenarios"
+    },
+    {
+      "command": "pnpm test:x03a:providers",
+      "outcome": "passed",
+      "result": "Claude 2.1.224, Codex 0.146.0, and Grok 1.0.0 invoked; limitations retained separately"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "result": "343 TypeScript tests plus protocol, lint, type, docs, roadmap, Go, Swift, and Xcode checks"
+    },
+    {
+      "command": "pnpm packages:verify",
+      "outcome": "passed",
+      "result": "all previously done package targets passed"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed"
+    }
+  ],
+  "clean_checkout_marker": "X03A_CLEAN_CHECKOUT_OK",
+  "migration_head": "0013_remote_oauth",
+  "redaction": "passed"
 }

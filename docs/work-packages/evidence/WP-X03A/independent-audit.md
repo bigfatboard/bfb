@@ -1,41 +1,11 @@
-# Independent IC-1 security/acceptance audit
+# WP-X03A independent security and acceptance audit
 
-**Branch:** goal/grok-web-mcp  
-**Certification commit:** 696e3ccf33ba590a4a50a3f53dc448ca9cd4f639  
-**Mode:** read-only review + clean-clone command evidence
+Tested commit: `e015909e31464681ad0204e0d96587ea427a0b6a`
 
-## Findings
+The final review found zero reproducible P0 or P1 findings in X03A scope. It covered MCP request authentication and routing, Host and Origin validation, credential confusion, delegation and membership intersection, project and task boundaries, context audience, action-bound passkey consent, exact redirects, PKCE S256, issuer and resource binding, code single-use, refresh rotation and replay, revocation, idempotency, abuse controls, and WorkspaceHub mutation serialization.
 
-### P0
+The exact package target passed from a fresh checkout before build artifacts existed: 28 focused tests and two real Chromium scenarios completed the human session, WebAuthn step-up, OAuth consent, authorization-code exchange, authenticated MCP tool discovery, and revocation loop. Full repository verification passed 343 TypeScript tests plus protocol, Go, Swift, and Xcode gates. Every previously completed package target passed and the checkout remained clean.
 
-None.
+Real installed clients were invoked separately. Claude Code 2.1.224 generated the expected preregistered-client authorization request but could not complete the browser ceremony non-interactively. Codex 0.146.0 generated a random callback URI that did not match the preregistered redirect. Grok 1.0.0 exposed HTTP and static-header configuration but no compatible OAuth client-id/login flow. These limitations did not weaken BFB's exact-redirect, current-protocol, or preregistered-client policy.
 
-### P1
-
-None open.
-
-Prior residual P1s closed at this cert:
-
-1. **C01 WorkspaceHub DO command path** — work API and MCP mutations call `executeWorkspaceCommand`, which RPCs the jurisdiction-scoped Durable Object when `WORKSPACE_HUB` is bound. Process-local FIFO is test-only when the namespace is unavailable; DO RPC failure does not degrade to local FIFO.
-2. **C02 session-bound CSRF** — cookie mutations require `X-BFB-CSRF` derived from session id + auth secret (HMAC-SHA256). Token is issued on sign-in and `/auth/session`; SPA sends it on work mutations. Origin + Sec-Fetch-Site remain in force.
-3. **D1 one-time capability races** — step-up and OAuth authorization-code consume use conditional `UPDATE … WHERE consumed_at IS NULL` plus unique post-commit stamp ownership so only one concurrent winner succeeds.
-
-### P2
-
-- Synthetic local auth-secret fallback remains for unit tests when `BETTER_AUTH_SECRET` is unset.
-- PR #3 open; not merged by design.
-- Provider-compat logs remain historical only (honest unsupported Claude/Codex/Grok).
-
-## Gates
-
-- Package statuses F02–X03A: done with evidence manifests
-- `pnpm test:c01` includes hub-client DO-shaped FIFO coverage
-- `pnpm test:c02` includes session-bound CSRF token tests
-- `pnpm test:c03` includes concurrent consume single-winner
-- CI: `pnpm test:ic1` mandatory (domain + W01 unit/browser + X03A)
-- Clean-clone at cert SHA: package chain + `pnpm verify` → CLEAN_CLONE_OK
-- PR #3 unmerged
-
-## Verdict
-
-**IC-1 residual re-certification complete for the web + remote MCP checkpoint.** No open P0/P1.
+No production or shared state was used. Evidence contains no credentials, tokens, authorization codes, cookies, private context bodies, raw task bodies, local absolute paths, or fabricated agent activity.
