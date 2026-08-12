@@ -28,7 +28,8 @@ async function prepareBoardScreenshot(page: Page): Promise<void> {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   });
   await page.evaluate(
-    () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+    () =>
+      new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
   );
 }
 
