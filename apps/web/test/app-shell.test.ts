@@ -115,15 +115,30 @@ describe("authenticated app shell routing", () => {
     csrfToken = sessionBody.csrf_token ?? "";
     expect(csrfToken.length).toBeGreaterThan(10);
 
+    const workspaces = await fetchImpl("/api/v1/workspaces");
+    expect(workspaces.status).toBe(200);
+    expect(await workspaces.json()).toEqual({
+      workspaces: [
+        expect.objectContaining({
+          id: FIX.workspace,
+          slug: "synthetic",
+          role: "owner",
+          authorization_epoch: 1,
+        }),
+      ],
+    });
+
     const board = await fetchImpl(`/api/v1/workspaces/${FIX.workspace}/board`);
     expect(board.status).toBe(200);
     const body = (await board.json()) as {
       role: string;
+      authorization_epoch: number;
       lanes: unknown[];
       needs_now: unknown[];
       agent_work_available: boolean;
     };
     expect(body.role).toBe("owner");
+    expect(body.authorization_epoch).toBe(1);
     expect(body.lanes.length).toBeGreaterThan(0);
     expect(body.agent_work_available).toBe(false);
 

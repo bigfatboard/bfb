@@ -216,6 +216,7 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
     return json({
       human: { id: deps.principal.humanId, display_name: deps.principal.displayName },
       role: principal.role,
+      authorization_epoch: principal.authorizationEpoch,
       lanes: await buildProjectLanes(deps.db, deps.workspaceId, principal.projectIds),
       needs_now: await buildNeedsNowDeck(
         deps.db,

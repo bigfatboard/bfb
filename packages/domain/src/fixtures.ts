@@ -16,6 +16,13 @@ export const FIX = {
   projectB: syntheticUlid("PROJB"),
   profileCodex: syntheticUlid("PROFCX"),
   profileGrok: syntheticUlid("PROFGR"),
+  taskAttention: syntheticUlid("TASKATTN"),
+  taskProposed: syntheticUlid("TASKPROP"),
+  taskDelegable: syntheticUlid("TASKDELG"),
+  contextHuman: syntheticUlid("CTXHUMAN"),
+  contextAgent: syntheticUlid("CTXAGENT"),
+  runDelegable: syntheticUlid("RUNDELG"),
+  eventAttention: syntheticUlid("EVTATTN"),
   client: "bfb-mcp-synthetic-client",
 };
 

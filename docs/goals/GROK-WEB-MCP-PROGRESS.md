@@ -6,16 +6,16 @@ This file is the resumable execution journal for [the Grok web/MCP goal](GROK-WE
 
 - Goal state: `active — correction and re-certification`
 - Branch: `goal/grok-web-mcp`
-- Last observed HEAD: 8217c75a78b2494320ebe053cf19fe17c9b89f14
+- Last observed HEAD: fadb8247b1b8139fd30828e91f02f24ad809a935
 - Last verified commit: 8217c75a78b2494320ebe053cf19fe17c9b89f14
-- Last verification command/result: a clean checkout of the C08 implementation commit passed `pnpm test:c08` with 16 focused tests and the three-Worker D1/WorkspaceHub race, `pnpm test:db`, full `pnpm verify` with 332 TypeScript tests plus protocol, Go, and Xcode checks, and a final clean-worktree assertion
-- Worktree checkpoint: C08 clean-checkout evidence is being committed as a separate handoff. Generated W01 browser evidence remains excluded until W01's explicit evidence-capture phase.
+- Last verification command/result: the final W01 implementation worktree passed `pnpm test:w01` with 7 unit checks and 12 Chromium scenarios, `pnpm test:c07`, `pnpm test:c08`, and full `pnpm verify` with 332 TypeScript tests plus protocol, Go, and Xcode checks
+- Worktree checkpoint: W01 implementation and design files are ready for an implementation-only commit. Generated W01 browser evidence remains excluded until the explicit clean-checkout evidence-capture phase.
 - Active package: W01 — Authenticated app and Work surface
-- Active gate: commit and verify the C08 handoff, then audit W01 against its browser and role-specific acceptance contract
-- Active task: verify the C08 evidence/status commit from a clean checkout, then reconcile W01's existing implementation and browser evidence
-- Resume here: finish the C08 handoff verification, then advance sequentially through W01 → X03A
+- Active gate: commit the W01 implementation checkpoint, verify it from a clean checkout, then capture bounded acceptance evidence
+- Active task: create the implementation-only commit without generated browser evidence
+- Resume here: clean-clone the W01 implementation commit, run its exact and repository gates, then capture evidence and advance to X03A
 - Blocking condition: `none`
-- Updated UTC: `2026-08-11T23:53:37Z`
+- Updated UTC: `2026-08-12T00:33:45Z`
 
 ## Final review findings
 

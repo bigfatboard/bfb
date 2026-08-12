@@ -42,11 +42,7 @@ export async function signInAs(page: Page, role: RoleKey): Promise<void> {
 
 export async function openWorkSurface(page: Page): Promise<void> {
   await expect(page.getByTestId("workspace-switcher")).toBeVisible();
-  await page.getByTestId("workspace-id-input").fill(FIX.workspace);
-  await page
-    .getByTestId("workspace-switcher")
-    .getByRole("button", { name: "Open Work surface" })
-    .click();
+  await page.getByTestId("workspace-switcher").selectOption("synthetic");
   await expect(page.getByTestId("work-board")).toBeVisible();
   await expect(page.getByTestId("current-role")).toBeVisible();
 }

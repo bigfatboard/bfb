@@ -148,6 +148,34 @@ describe("project browser API", () => {
     const csrf = await csrfFor(app, owner.cookie, currentBindings);
     const base = `/api/v1/workspaces/${FIX.workspace}`;
 
+    const alphaMembers = await app.request(
+      new Request(`${AUTH_TEST_ENV.APP_ORIGIN}${base}/members?project_id=${FIX.projectA}`, {
+        headers: { cookie: owner.cookie },
+      }),
+      undefined,
+      currentBindings,
+    );
+    expect(alphaMembers.status).toBe(200);
+    expect(
+      ((await alphaMembers.json()) as { members: Array<{ id: string }> }).members.map(
+        (member) => member.id,
+      ),
+    ).toEqual([FIX.member, FIX.owner, FIX.reviewer]);
+
+    const betaMembers = await app.request(
+      new Request(`${AUTH_TEST_ENV.APP_ORIGIN}${base}/members?project_id=${FIX.projectB}`, {
+        headers: { cookie: owner.cookie },
+      }),
+      undefined,
+      currentBindings,
+    );
+    expect(betaMembers.status).toBe(200);
+    expect(
+      ((await betaMembers.json()) as { members: Array<{ id: string }> }).members.map(
+        (member) => member.id,
+      ),
+    ).toEqual([FIX.member, FIX.owner]);
+
     const firstPage = await app.request(
       new Request(`${AUTH_TEST_ENV.APP_ORIGIN}${base}/projects?limit=1`, {
         headers: { cookie: owner.cookie },

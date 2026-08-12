@@ -89,7 +89,7 @@ describe("work surface projections", () => {
         },
       });
     }
-    await hub.execute(createTaskCommand, {
+    const passCandidate = await hub.execute(createTaskCommand, {
       workspaceId: FIX.workspace,
       idempotencyKey: "projection-pass-candidate",
       authorizationEpoch: 1,
@@ -103,11 +103,33 @@ describe("work surface projections", () => {
         nextActionReason: "Configured for Codex",
       },
     });
+    expect(passCandidate.ok).toBe(true);
+    if (!passCandidate.ok) {
+      return;
+    }
+    await db
+      .prepare(
+        `INSERT INTO runs
+         (workspace_id, id, project_id, task_id, requested_by_human_id,
+          agent_profile_id, result_state, activity, resource_version, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'open', 'unknown', 1, ?)`,
+      )
+      .run(
+        FIX.workspace,
+        FIX.runDelegable,
+        FIX.projectA,
+        passCandidate.result.id,
+        FIX.owner,
+        FIX.profileCodex,
+        "2026-08-07T11:00:00Z",
+      );
     const enabledLanes = await buildProjectLanes(db, FIX.workspace, [FIX.projectA]);
-    expect(
-      enabledLanes.flatMap((lane) => lane.tasks).find((task) => task.title === "Pass candidate")
-        ?.passToAgentProfileId,
-    ).toBe(FIX.profileCodex);
+    const enabledPassCandidate = enabledLanes
+      .flatMap((lane) => lane.tasks)
+      .find((task) => task.title === "Pass candidate");
+    expect(enabledPassCandidate?.passToAgentProfileId).toBe(FIX.profileCodex);
+    expect(enabledPassCandidate?.latestEvent?.kind).toBe("task.create");
+    expect(enabledPassCandidate?.runSummary).toEqual({ resultState: "open", activity: "unknown" });
     await db
       .prepare(`UPDATE workspace_policies SET allow_pass_to_agent = 0 WHERE workspace_id = ?`)
       .run(FIX.workspace);

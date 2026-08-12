@@ -1,6 +1,7 @@
 // ABOUTME: Local E2E HTTP server that mounts createControlApp against fixture DB plus the web SPA.
 // ABOUTME: Prints FIX.workspace and listens on a fixed port so Playwright can drive real browser flows.
 
+import { createHash } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -35,6 +36,108 @@ const NOW = "2026-08-07T12:00:00Z";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const webRoot = path.join(rootDir, "apps/web");
+
+function contentHash(body: string): string {
+  return `sha256:${createHash("sha256").update(body, "utf8").digest("hex")}`;
+}
+
+async function seedWorkSurface(db: SqlDatabase): Promise<void> {
+  await db
+    .prepare(
+      `INSERT INTO tasks (
+         workspace_id, id, project_id, parent_task_id, title, state, priority, due_at,
+         next_owner_type, next_owner_id, next_action_reason, punchline,
+         resource_version, created_by_human_id, created_by_delegation_id, created_at
+       ) VALUES
+         (?, ?, ?, NULL, 'Approve the release boundary', 'blocked', 'P0',
+          '2026-08-07T11:00:00Z', 'human', ?,
+          'Choose whether the credential boundary is ready to ship.',
+          'One owner decision is holding the release.', 1, ?, NULL, ?),
+         (?, ?, ?, NULL, 'Agent-proposed cache cleanup', 'proposed', 'P2', NULL,
+          'human', ?, 'Promote or reject the agent proposal.',
+          'Proposal is visible but cannot move itself.', 1, ?, NULL, ?),
+         (?, ?, ?, NULL, 'Map the remaining webhook edge cases', 'ready', 'P1', NULL,
+          'agent_profile', ?, 'The scope is bounded and ready for independent review.',
+          'Codex can take the next pass; no run has started.', 1, ?, NULL, ?)`,
+    )
+    .run(
+      FIX.workspace,
+      FIX.taskAttention,
+      FIX.projectA,
+      FIX.owner,
+      FIX.owner,
+      NOW,
+      FIX.workspace,
+      FIX.taskProposed,
+      FIX.projectA,
+      FIX.owner,
+      FIX.owner,
+      NOW,
+      FIX.workspace,
+      FIX.taskDelegable,
+      FIX.projectB,
+      FIX.profileCodex,
+      FIX.owner,
+      NOW,
+    );
+
+  await db
+    .prepare(
+      `INSERT INTO runs
+       (workspace_id, id, project_id, task_id, requested_by_human_id, agent_profile_id,
+        result_state, activity, resource_version, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'open', 'unknown', 1, ?)`,
+    )
+    .run(
+      FIX.workspace,
+      FIX.runDelegable,
+      FIX.projectB,
+      FIX.taskDelegable,
+      FIX.owner,
+      FIX.profileCodex,
+      NOW,
+    );
+
+  await db
+    .prepare(`INSERT INTO workspace_cursors (workspace_id, cursor) VALUES (?, 1)`)
+    .run(FIX.workspace);
+  await db
+    .prepare(
+      `INSERT INTO semantic_events
+       (workspace_id, event_id, workspace_cursor, kind, payload_json, created_at)
+       VALUES (?, ?, 1, 'task.update', ?, ?)`,
+    )
+    .run(
+      FIX.workspace,
+      FIX.eventAttention,
+      JSON.stringify({ input: { taskId: FIX.taskAttention }, result: { id: FIX.taskAttention } }),
+      NOW,
+    );
+
+  const humanBody = "Private release rationale for the human reviewer.";
+  const agentBody = "Check webhook signature replay and delivery ordering.";
+  await db
+    .prepare(
+      `INSERT INTO task_context_items
+       (workspace_id, id, task_id, kind, audience, body, version, content_hash, created_at)
+       VALUES (?, ?, ?, 'decision', 'human', ?, 1, ?, ?),
+              (?, ?, ?, 'acceptance', 'agent', ?, 2, ?, ?)`,
+    )
+    .run(
+      FIX.workspace,
+      FIX.contextHuman,
+      FIX.taskDelegable,
+      humanBody,
+      contentHash(humanBody),
+      NOW,
+      FIX.workspace,
+      FIX.contextAgent,
+      FIX.taskDelegable,
+      agentBody,
+      contentHash(agentBody),
+      NOW,
+    );
+}
 
 function fakeBinding<T extends object>(label: string): T {
   return { __synthetic: label } as unknown as T;
@@ -215,6 +318,7 @@ async function serveSpa(
 async function main(): Promise<void> {
   const authContext = openAuthTestContext();
   await seedSyntheticWorkspace(authContext.db, NOW);
+  await seedWorkSurface(authContext.db);
   const db = authContext.db;
   const authEnv: AuthEnv = { ...AUTH_TEST_ENV, APP_ORIGIN: ORIGIN };
   const auth = createHumanAuth(authContext.raw, authEnv);

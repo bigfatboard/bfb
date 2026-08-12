@@ -228,6 +228,52 @@ export function createControlApp(
     }
   });
 
+  app.get("/api/v1/workspaces", async (c) => {
+    const db = c.get("db") ?? options.db;
+    const current = c.get("validated");
+    if (!db || !current) {
+      return c.json({ error: "api_misconfigured" }, 500);
+    }
+    if (c.req.header("authorization")) {
+      return c.json(
+        { error: "credential_confusion", message: "bearer credentials cannot auth browser routes" },
+        401,
+      );
+    }
+    try {
+      const runtime = options.humanAuth?.();
+      if (!runtime) {
+        return c.json({ error: "api_misconfigured" }, 500);
+      }
+      const principal = await resolveBrowserPrincipal(
+        db,
+        runtime.auth,
+        c.req.raw,
+        c.get("now") ?? now,
+      );
+      if (!principal) {
+        return c.json({ error: "unauthenticated" }, 401);
+      }
+      const workspaces = await db
+        .prepare(
+          `SELECT workspace.id, workspace.slug, workspace.jurisdiction,
+                  member.role, member.authorization_epoch
+           FROM workspace_members AS member
+           JOIN workspace_authorization_epochs AS epoch
+             ON epoch.workspace_id = member.workspace_id
+            AND epoch.human_id = member.human_id
+            AND epoch.authorization_epoch = member.authorization_epoch
+           JOIN workspaces AS workspace ON workspace.id = member.workspace_id
+           WHERE member.human_id = ? AND epoch.revoked_at IS NULL
+           ORDER BY workspace.slug ASC, workspace.id ASC`,
+        )
+        .all(principal.humanId);
+      return c.json({ workspaces });
+    } catch {
+      return c.json({ error: "identity_conflict", message: "identity linking required" }, 409);
+    }
+  });
+
   app.all("/api/v1/workspaces/*", async (c) => {
     const db = c.get("db") ?? options.db;
     const current = c.get("validated");
@@ -294,6 +340,7 @@ export function createControlApp(
       const projectPrefix = `/api/v1/workspaces/${workspaceId}`;
       if (
         c.req.path.startsWith(`${projectPrefix}/projects`) ||
+        c.req.path.startsWith(`${projectPrefix}/members`) ||
         c.req.path.startsWith(`${projectPrefix}/agent-profiles`) ||
         c.req.path.startsWith(`${projectPrefix}/workspace-policy`)
       ) {

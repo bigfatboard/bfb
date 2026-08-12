@@ -253,6 +253,31 @@ export async function handleProjectApi(request: Request, deps: ProjectApiDeps): 
   if (url.pathname === `${base}/projects` && request.method === "GET") {
     return json(await listProjectsPage(deps.db, principal, page(url)));
   }
+  if (url.pathname === `${base}/members` && request.method === "GET") {
+    const projectId = url.searchParams.get("project_id") ?? "";
+    assertProject(principal, projectId);
+    const members = await deps.db
+      .prepare(
+        `SELECT human.id, human.display_name, member.role
+         FROM workspace_members AS member
+         JOIN workspace_authorization_epochs AS epoch
+           ON epoch.workspace_id = member.workspace_id
+          AND epoch.human_id = member.human_id
+          AND epoch.authorization_epoch = member.authorization_epoch
+         JOIN humans AS human ON human.id = member.human_id
+         JOIN projects AS project
+           ON project.workspace_id = member.workspace_id AND project.id = ?
+         LEFT JOIN project_access AS access
+           ON access.workspace_id = member.workspace_id
+          AND access.project_id = project.id
+          AND access.human_id = member.human_id
+         WHERE member.workspace_id = ? AND epoch.revoked_at IS NULL
+           AND (project.access_mode = 'workspace' OR access.human_id IS NOT NULL)
+         ORDER BY human.display_name ASC, human.id ASC`,
+      )
+      .all(projectId, deps.workspaceId);
+    return json({ members });
+  }
   if (url.pathname === `${base}/projects` && request.method === "POST") {
     const body = await commandBody(request, [
       "name",

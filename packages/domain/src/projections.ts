@@ -23,11 +23,14 @@ export interface BoardCard {
   punchline: string;
   nowLabel: "NOW";
   whyHuman?: string;
+  humanOwnerName?: string;
   whyDelegable?: string;
   passToAgentProfileId?: string;
   projectTint: string;
   topEdgePx: 3;
   sideStripe: false;
+  latestEvent?: { kind: string; createdAt: string };
+  runSummary?: { resultState: string; activity: string };
 }
 
 export interface AttentionDeckItem {
@@ -42,6 +45,7 @@ export interface AttentionDeckItem {
 function toCard(
   task: TaskRecord,
   project: { id: string; tint: string; allow_pass_to_agent: number },
+  humanOwnerName?: string,
 ): BoardCard {
   const card: BoardCard = {
     taskId: task.id,
@@ -57,6 +61,9 @@ function toCard(
   };
   if (task.next_owner_type === "human" && task.next_action_reason) {
     card.whyHuman = task.next_action_reason;
+    if (humanOwnerName) {
+      card.humanOwnerName = humanOwnerName;
+    }
   }
   if (task.next_owner_type === "agent_profile" && task.next_action_reason) {
     card.whyDelegable = task.next_action_reason;
@@ -103,6 +110,72 @@ export async function buildProjectLanes(
   ).filter((project) => projectIds.includes(project.id));
 
   const tasks = await listTasks(db, workspaceId, projectIds);
+  const humanOwners = new Map<string, string>();
+  const humanRows = (await db
+    .prepare(
+      `SELECT human.id, human.display_name
+       FROM workspace_members AS member
+       JOIN humans AS human ON human.id = member.human_id
+       WHERE member.workspace_id = ?`,
+    )
+    .all(workspaceId)) as Array<{ id: string; display_name: string }>;
+  for (const human of humanRows) {
+    humanOwners.set(human.id, human.display_name);
+  }
+  const latestEvents = new Map<string, { kind: string; createdAt: string }>();
+  const taskPlaceholders = tasks.map(() => "?").join(", ");
+  const taskIds = tasks.map((task) => task.id);
+  const eventRows = (
+    tasks.length === 0
+      ? []
+      : await db
+          .prepare(
+            `SELECT kind, payload_json, created_at
+           FROM semantic_events
+           WHERE workspace_id = ? AND (
+             json_extract(payload_json, '$.input.taskId') IN (${taskPlaceholders})
+             OR json_extract(payload_json, '$.result.task_id') IN (${taskPlaceholders})
+             OR (kind = 'task.create' AND json_extract(payload_json, '$.result.id') IN (${taskPlaceholders}))
+           )
+           ORDER BY workspace_cursor DESC`,
+          )
+          .all(workspaceId, ...taskIds, ...taskIds, ...taskIds)
+  ) as Array<{
+    kind: string;
+    payload_json: string;
+    created_at: string;
+  }>;
+  for (const event of eventRows) {
+    const payload = JSON.parse(event.payload_json) as {
+      input?: { taskId?: unknown };
+      result?: { id?: unknown; task_id?: unknown };
+    };
+    const taskId = payload.input?.taskId ?? payload.result?.task_id ?? payload.result?.id;
+    if (typeof taskId === "string" && !latestEvents.has(taskId)) {
+      latestEvents.set(taskId, { kind: event.kind, createdAt: event.created_at });
+    }
+  }
+  const latestRuns = new Map<string, { resultState: string; activity: string }>();
+  const runRows = (await db
+    .prepare(
+      `SELECT task_id, result_state, activity
+       FROM runs
+       WHERE workspace_id = ?
+       ORDER BY created_at DESC, id ASC`,
+    )
+    .all(workspaceId)) as Array<{
+    task_id: string;
+    result_state: string;
+    activity: string;
+  }>;
+  for (const run of runRows) {
+    if (!latestRuns.has(run.task_id)) {
+      latestRuns.set(run.task_id, {
+        resultState: run.result_state,
+        activity: run.activity,
+      });
+    }
+  }
   return projects.map((project) => ({
     projectId: project.id,
     name: project.name,
@@ -110,7 +183,20 @@ export async function buildProjectLanes(
     tint: project.tint,
     tasks: tasks
       .filter((task) => task.project_id === project.id)
-      .map((task) => toCard(task, project)),
+      .map((task) => {
+        const card = toCard(
+          task,
+          project,
+          task.next_owner_id ? humanOwners.get(task.next_owner_id) : undefined,
+        );
+        const latestEvent = latestEvents.get(task.id);
+        const runSummary = latestRuns.get(task.id);
+        return {
+          ...card,
+          ...(latestEvent ? { latestEvent } : {}),
+          ...(runSummary ? { runSummary } : {}),
+        };
+      }),
   }));
 }
 
