@@ -1,0 +1,207 @@
+{
+  "package": "X03A",
+  "kind": "provider-compat-real-client-attempts",
+  "started_at": "2026-08-12T03:33:48.680Z",
+  "ended_at": "2026-08-12T03:34:29.637Z",
+  "endpoint": {
+    "app_origin": "http://localhost:18765",
+    "mcp_url": "http://localhost:18765/mcp",
+    "protocol_version": "2026-07-28",
+    "resource": "http://localhost:18765/mcp",
+    "preregistered_client_id": "bfb-claude-code",
+    "redirect_uri": "http://localhost:9999/callback"
+  },
+  "harness_probes": [
+    {
+      "name": "healthz",
+      "status": 200,
+      "body": "{\"ok\":true,\"package\":\"F03\",\"environment\":\"local\",\"jurisdiction\":\"eu\",\"worker_first\":true}"
+    },
+    {
+      "name": "oauth-authorization-server",
+      "status": 200,
+      "body": "{\"scopes_supported\":[\"bfb:read\",\"bfb:task:write\",\"offline_access\"],\"issuer\":\"http://localhost:18765/auth\",\"authorization_endpoint\":\"http://localhost:18765/oauth/authorize\",\"token_endpoint\":\"http://localhost:18765/oauth/token\",\"revocation_endpoint\":\"http://localhost:18765/oauth/revoke\",\"response_types_supported\":[\"code\"],\"response_modes_supported\":[\"query\"],\"grant_types_supported\":[\"authorization_code\",\"refresh_token\"],\"token_endpoint_auth_methods_supported\":[\"none\"],\"revocation_endpoint_auth_methods_supported\":[\"none\"],\"code_challenge_methods_supported\":[\"S256\"],\"authorization_response_iss_parameter_supported\":true}"
+    },
+    {
+      "name": "oauth-protected-resource",
+      "status": 200,
+      "body": "{\"resource\":\"http://localhost:18765/mcp\",\"authorization_servers\":[\"http://localhost:18765/auth\"],\"scopes_supported\":[\"bfb:read\",\"bfb:task:write\",\"offline_access\"],\"bearer_methods_supported\":[\"header\"]}"
+    },
+    {
+      "name": "tools/list",
+      "status": 401,
+      "body": "{\"error\":\"unauthorized\"}"
+    },
+    {
+      "name": "tools/list-with-cookie",
+      "status": 401,
+      "body": "{\"error\":\"credential_confusion\"}"
+    }
+  ],
+  "clients": [
+    {
+      "provider_client": "Claude",
+      "exact_version": "2.1.224 (Claude Code)",
+      "commands": [
+        "claude mcp remove -s local bfb-x03a-provider-compat",
+        "claude mcp add --transport http --scope local --client-id bfb-claude-code --callback-port 9999 bfb-x03a-provider-compat http://localhost:18765/mcp",
+        "claude mcp get bfb-x03a-provider-compat",
+        "claude mcp login --no-browser bfb-x03a-provider-compat",
+        "claude mcp list",
+        "claude mcp remove -s local bfb-x03a-provider-compat"
+      ],
+      "result": "registered HTTP server; OAuth login incomplete (non-interactive / policy constraints)",
+      "limitations": [
+        "BFB requires server-preregistered public client, PKCE S256, and exact redirect http://localhost:9999/callback",
+        "BFB browser checkpoint supplies the workspace/project boundary and C03 passkey proof before consent",
+        "The non-interactive CLI attempt emitted the expected authorization URL but could not complete a browser ceremony",
+        "BFB rejects legacy initialize/Mcp-Session-Id; protocol is MCP 2026-07-28 stateless Streamable HTTP",
+        "Cookie sessions cannot authenticate /mcp"
+      ],
+      "command_details": [
+        {
+          "command": "claude mcp remove -s local bfb-x03a-provider-compat",
+          "exit": 1,
+          "stdout": "",
+          "stderr": "No MCP server named \"bfb-x03a-provider-compat\" in local scope"
+        },
+        {
+          "command": "claude mcp add --transport http --scope local --client-id bfb-claude-code --callback-port 9999 bfb-x03a-provider-compat http://localhost:18765/mcp",
+          "exit": 0,
+          "stdout": "Added HTTP MCP server bfb-x03a-provider-compat with URL: http://localhost:18765/mcp to local config",
+          "stderr": ""
+        },
+        {
+          "command": "claude mcp get bfb-x03a-provider-compat",
+          "exit": 0,
+          "stdout": "bfb-x03a-provider-compat:\n  Scope: Local config (private to you in this project)\n  Status: ! Needs authentication\n  Type: http\n  URL: http://localhost:18765/mcp\n  OAuth: client_id configured, callback_port 9999\n\nTo remove this server, run: claude mcp remove bfb-x03a-provider-compat -s local",
+          "stderr": ""
+        },
+        {
+          "command": "claude mcp login --no-browser bfb-x03a-provider-compat",
+          "exit": 1,
+          "stdout": "Starting authentication for \"bfb-x03a-provider-compat\"…\nVisit this URL to authorize:\n  http://localhost:18765/oauth/authorize?response_type=code&client_id=bfb-claude-code&code_challenge=[REDACTED]&code_challenge_method=S256&redirect_uri=http%3A%2F%2Flocalhost%3A9999%2Fcallback&state=[REDACTED]&scope=bfb%3Aread+bfb%3Atask%3Awrite+offline_access&prompt=consent&resource=http%3A%2F%2Flocalhost%3A18765%2Fmcp\n\nWaiting for authorization… (^C to cancel)",
+          "stderr": "Couldn't complete authentication for \"bfb-x03a-provider-compat\": stdin isn't a terminal, so authentication can't be completed here. Re-run in an interactive terminal — e.g. `ssh -t` — and paste the redirect URL when prompted."
+        },
+        {
+          "command": "claude mcp list",
+          "exit": 0,
+          "stdout": "bfb-x03a-provider-compat: http://localhost:18765/mcp (HTTP) - ! Needs authentication",
+          "stderr": ""
+        },
+        {
+          "command": "claude mcp remove -s local bfb-x03a-provider-compat",
+          "exit": 0,
+          "stdout": "Removed MCP server bfb-x03a-provider-compat from local config",
+          "stderr": ""
+        }
+      ]
+    },
+    {
+      "provider_client": "Codex",
+      "exact_version": "@openai/codex 0.146.0",
+      "commands": [
+        "codex mcp remove bfb-x03a-provider-compat",
+        "codex mcp add bfb-x03a-provider-compat --url http://localhost:18765/mcp --oauth-client-id bfb-claude-code",
+        "codex mcp get bfb-x03a-provider-compat",
+        "codex mcp list",
+        "codex mcp remove bfb-x03a-provider-compat"
+      ],
+      "result": "registered — OAuth browser ceremony incomplete",
+      "limitations": [
+        "Codex configuration supports an explicit OAuth client ID and resource",
+        "Codex generates a random callback port/path, which cannot match BFB's exact preregistered redirect",
+        "BFB rejects DCR/CIMD and accepts only preregistered public clients"
+      ],
+      "command_details": [
+        {
+          "command": "codex mcp remove bfb-x03a-provider-compat",
+          "exit": 0,
+          "stdout": "No MCP server named 'bfb-x03a-provider-compat' found.",
+          "stderr": ""
+        },
+        {
+          "command": "codex mcp add bfb-x03a-provider-compat --url http://localhost:18765/mcp --oauth-client-id bfb-claude-code",
+          "exit": 124,
+          "stdout": "Added global MCP server 'bfb-x03a-provider-compat'.\nDetected OAuth support. Starting OAuth flow…\nAuthorize `bfb-x03a-provider-compat` by opening this URL in your browser:\nhttp://localhost:18765/oauth/authorize?response_type=code&client_id=bfb-claude-code&state=[REDACTED]&code_challenge=[REDACTED]&code_challenge_method=S256&redirect_uri=http%3A%2F%2F127.0.0.1%3A[RANDOM]%2Fcallback%2F[RANDOM]&scope=bfb%3Aread+bfb%3Atask%3Awrite+offline_access&resource=http%3A%2F%2Flocalhost%3A18765%2Fmcp",
+          "stderr": "[timeout after 30000ms]"
+        },
+        {
+          "command": "codex mcp get bfb-x03a-provider-compat",
+          "exit": 0,
+          "stdout": "bfb-x03a-provider-compat\n  enabled: true\n  transport: streamable_http\n  url: http://localhost:18765/mcp\n  bearer_token_env_var: -\n  http_headers: -\n  env_http_headers: -\n  remove: codex mcp remove bfb-x03a-provider-compat",
+          "stderr": ""
+        },
+        {
+          "command": "codex mcp list",
+          "exit": 0,
+          "stdout": "bfb-x03a-provider-compat  http://localhost:18765/mcp          -                     enabled  Not logged in",
+          "stderr": ""
+        },
+        {
+          "command": "codex mcp remove bfb-x03a-provider-compat",
+          "exit": 0,
+          "stdout": "Removed global MCP server 'bfb-x03a-provider-compat'.",
+          "stderr": ""
+        }
+      ]
+    },
+    {
+      "provider_client": "Grok",
+      "exact_version": "grok 1.0.0 (3cd0d0cbcebe)",
+      "commands": [
+        "grok mcp remove --scope user bfb-x03a-provider-compat",
+        "grok mcp add --transport http --scope user bfb-x03a-provider-compat http://localhost:18765/mcp",
+        "grok mcp list --json",
+        "grok mcp doctor --json bfb-x03a-provider-compat",
+        "grok mcp remove --scope user bfb-x03a-provider-compat"
+      ],
+      "result": "doctor unhealthy — connectivity/handshake failed (see log)",
+      "limitations": [
+        "Grok MCP HTTP doctor performs an initialize handshake; BFB rejects initialize and requires MCP-Protocol-Version 2026-07-28",
+        "Grok 1.0.0 exposes HTTP/static-header configuration but no OAuth client-id or login command for this flow",
+        "BFB protected-resource metadata advertises the exact loopback resource http://localhost:18765/mcp",
+        "BFB does not open DCR/CIMD; unregistered clients fail closed"
+      ],
+      "command_details": [
+        {
+          "command": "grok mcp remove --scope user bfb-x03a-provider-compat",
+          "exit": 1,
+          "stdout": "",
+          "stderr": "No MCP server named 'bfb-x03a-provider-compat' in user config"
+        },
+        {
+          "command": "grok mcp add --transport http --scope user bfb-x03a-provider-compat http://localhost:18765/mcp",
+          "exit": 0,
+          "stdout": "Added HTTP MCP server 'bfb-x03a-provider-compat' with URL: http://localhost:18765/mcp to user config",
+          "stderr": ""
+        },
+        {
+          "command": "grok mcp list --json",
+          "exit": 0,
+          "stdout": "    \"name\": \"bfb-x03a-provider-compat\",",
+          "stderr": ""
+        },
+        {
+          "command": "grok mcp doctor --json bfb-x03a-provider-compat",
+          "exit": 1,
+          "stdout": "{\n  \"servers\": [\n    {\n      \"name\": \"bfb-x03a-provider-compat\",\n      \"transport\": \"http\",\n      \"target\": \"http://localhost:18765/mcp\",\n      \"source\": \"config\",\n      \"checks\": [\n        {\n          \"label\": \"server started\",\n          \"passed\": true,\n          \"detail\": \"0.0s\"\n        },\n        {\n          \"label\": \"handshake failed\",\n          \"passed\": false,\n          \"detail\": \"Send message error Transport [rmcp::transport::worker::WorkerTransport<rmcp::transport::streamable_http_client::StreamableHttpClientWorker<xai_grok_mcp::mcp_http_client::McpHttpClient<reqwest::async_impl::client::Client>>>] error: Auth required, when send initialize request\",\n          \"hint\": \"check server logs\"\n        }\n      ],\n      \"healthy\": false\n    }\n  ],\n  \"healthy_count\": 0,\n  \"failing_count\": 1\n}",
+          "stderr": "2026-08-12T03:34:29.524952Z  WARN rejecting authorization server metadata URL `http://localhost:18765/auth`\n2026-08-12T03:34:29.527260Z ERROR worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer [REDACTED]\"http://localhost:18765/.well-known/oauth-protected-resource\\\"\" })\n2026-08-12T03:34:29.527277Z  WARN MCP server init failed server=bfb-x03a-provider-compat error=MCP server 'bfb-x03a-provider-compat' handshake failed: Send message error Transport [rmcp::transport::worker::WorkerTransport<rmcp::transport::streamable_http_client::StreamableHttpClientWorker<xai_grok_mcp::mcp_http_client::McpHttpClient<reqwest::async_impl::client::Client>>>] error: Auth required, when send initialize request"
+        },
+        {
+          "command": "grok mcp remove --scope user bfb-x03a-provider-compat",
+          "exit": 0,
+          "stdout": "Removed MCP server 'bfb-x03a-provider-compat' from user config",
+          "stderr": ""
+        }
+      ]
+    }
+  ],
+  "redaction": {
+    "status": "applied",
+    "notes": [
+      "tokens, bearer values, session cookies, auth codes, home directories redacted",
+      "command binaries shown as basenames in evidence"
+    ]
+  }
+}

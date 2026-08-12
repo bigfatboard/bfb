@@ -1,0 +1,189 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/primitives.json",
+  "title": "BFBWirePrimitives",
+  "description": "Shared bounded primitive definitions for BFB wire contracts.",
+  "$defs": {
+    "Ulid": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "minLength": 26,
+      "maxLength": 26
+    },
+    "UtcTimestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-5][0-9](\\.[0-9]{1,6})?Z$",
+      "minLength": 20,
+      "maxLength": 30
+    },
+    "ResourceVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "WorkspaceCursor": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "SourceSequence": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "AssignmentGeneration": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "IdempotencyKey": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._:~-]{8,128}$"
+    },
+    "OpaqueToken": {
+      "type": "string",
+      "minLength": 16,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9._~-]{16,256}$"
+    },
+    "BoundedLabel": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "BoundedText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048
+    },
+    "Sha256Digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "minLength": 71,
+      "maxLength": 71
+    },
+    "PaginationCursor": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9._~+=/-]{1,256}$"
+    },
+    "PageLimit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100
+    },
+    "EmptyObject": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "PaginationRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["limit"],
+      "properties": {
+        "limit": { "$ref": "#/$defs/PageLimit" },
+        "cursor": { "$ref": "#/$defs/PaginationCursor" }
+      }
+    },
+    "PaginationResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["limit", "has_more"],
+      "properties": {
+        "limit": { "$ref": "#/$defs/PageLimit" },
+        "next_cursor": { "$ref": "#/$defs/PaginationCursor" },
+        "has_more": { "type": "boolean" }
+      }
+    },
+    "PrincipalType": {
+      "type": "string",
+      "enum": ["human", "runner", "agent_run", "integration", "system"]
+    },
+    "PrincipalRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "id"],
+      "properties": {
+        "type": { "$ref": "#/$defs/PrincipalType" },
+        "id": { "$ref": "#/$defs/Ulid" }
+      }
+    },
+    "SourceType": {
+      "type": "string",
+      "enum": ["runner", "web", "mcp", "cli", "system", "integration"]
+    },
+    "ProviderName": {
+      "type": "string",
+      "enum": ["claude", "codex", "grok"]
+    },
+    "SourceRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "id"],
+      "properties": {
+        "type": { "$ref": "#/$defs/SourceType" },
+        "id": { "$ref": "#/$defs/Ulid" },
+        "provider": { "$ref": "#/$defs/ProviderName" }
+      }
+    },
+    "AuthorizationEpoch": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "AuthorizationRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["workspace_id", "authorization_epoch"],
+      "properties": {
+        "workspace_id": { "$ref": "#/$defs/Ulid" },
+        "authorization_epoch": { "$ref": "#/$defs/AuthorizationEpoch" },
+        "project_id": { "$ref": "#/$defs/Ulid" },
+        "task_id": { "$ref": "#/$defs/Ulid" },
+        "run_id": { "$ref": "#/$defs/Ulid" },
+        "delegation_id": { "$ref": "#/$defs/Ulid" }
+      }
+    },
+    "DiagnosticCategory": {
+      "type": "string",
+      "enum": [
+        "schema_invalid",
+        "unknown_version",
+        "unknown_kind",
+        "bound_exceeded",
+        "type_mismatch",
+        "missing_field",
+        "additional_field",
+        "intent_confusion",
+        "shell_data",
+        "authoritative_runner_claim"
+      ]
+    },
+    "TypedError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "category", "code", "message"],
+      "properties": {
+        "schema_version": { "type": "integer", "const": 1 },
+        "category": { "$ref": "#/$defs/DiagnosticCategory" },
+        "code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_]{0,63}$"
+        },
+        "message": { "$ref": "#/$defs/BoundedText" },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      }
+    }
+  }
+}

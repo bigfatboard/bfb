@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "launch_id": "01JBFB01AVNCH1D00000000000",
+  "run_id": "01JBFB0RVNXXXXX00000000000",
+  "run_execution_id": "01JBFB0EXECXXXX00000000000",
+  "assignment_generation": 7,
+  "task_id": "01JBFB0TASKXXXX00000000000",
+  "runner_id": "01JBFB0RVNNER1D00000000000",
+  "checkout_id": "01JBFB0CHECK0VT00000000000",
+  "agent_profile_id": "01JBFB0PR0F11EX00000000000",
+  "config_snapshot_id": "01JBFB0SNAPSH0T00000000000",
+  "config_snapshot_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "execution_config": {
+    "provider": "codex",
+    "mode": "interactive",
+    "model": "workspace-approved-model",
+    "effort": "extreme",
+    "approval_policy": "on_request",
+    "filesystem_policy": "workspace_write",
+    "context_injection": "session_start_additional_context",
+    "initial_turn_transport": "provider_prompt",
+    "required_capabilities": ["hooks.session_start"]
+  },
+  "expires_at": "2026-08-07T12:00:00Z"
+}

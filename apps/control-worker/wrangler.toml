@@ -1,0 +1,54 @@
+# ABOUTME: Local Control Worker wrangler configuration for F03 substrate topology.
+# ABOUTME: Staging and production use sibling named configs without shared secrets.
+
+name = "bfb-control-local"
+main = "src/index.ts"
+compatibility_date = "2026-08-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+ENVIRONMENT = "local"
+JURISDICTION = "eu"
+APP_ORIGIN = "http://bfb.localhost:8787"
+ARTIFACT_ORIGIN = "http://artifacts.bfb.localhost:8788"
+LAUNCH_ORIGIN = "http://launch.bfb.localhost:8789"
+
+[dev]
+ip = "127.0.0.1"
+port = 8787
+inspector_port = 9229
+
+[[d1_databases]]
+binding = "DB"
+database_name = "bfb-local"
+database_id = "00000000-0000-4000-8000-000000000001"
+migrations_dir = "../../migrations/d1"
+
+[[r2_buckets]]
+binding = "ARTIFACTS"
+bucket_name = "bfb-artifacts-local"
+
+[[queues.producers]]
+binding = "JOBS"
+queue = "bfb-jobs-local"
+
+[[queues.producers]]
+binding = "JOBS_DLQ"
+queue = "bfb-jobs-dlq-local"
+
+[assets]
+directory = "../web/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api", "/api/*", "/auth", "/auth/*", "/mcp", "/mcp/*", "/oauth", "/oauth/*", "/realtime", "/realtime/*", "/runner", "/runner/*", "/webhooks", "/webhooks/*", "/.well-known", "/.well-known/*", "/healthz"]
+
+[triggers]
+crons = ["*/5 * * * *"]
+
+[[durable_objects.bindings]]
+name = "WORKSPACE_HUB"
+class_name = "WorkspaceHub"
+
+[exports.WorkspaceHub]
+type = "durable-object"
+storage = "sqlite"

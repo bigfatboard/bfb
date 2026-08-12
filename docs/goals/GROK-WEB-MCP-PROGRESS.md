@@ -1,79 +1,31 @@
 # Grok web + remote MCP execution journal
 
-This file is the resumable execution journal for [the Grok web/MCP goal](GROK-WEB-MCP.md). It is operational state, not acceptance proof. Work-package files own package metadata and status, ADRs own architecture decisions, evidence manifests own acceptance proof, and Git owns commit history. Reconcile this journal when they disagree.
-
-Keep entries terse and use repository-relative paths. Do not record secrets, credentials, private task bodies, raw terminal output, or machine-local absolute paths. Only the lead agent edits this file.
+This file is the resumable execution journal for [the Grok web/MCP goal](GROK-WEB-MCP.md). It is operational state, not acceptance proof.
 
 ## Resume checkpoint
 
-- Goal state: `not_started`
-- Branch: `not_started`
-- Last observed HEAD: `not_recorded`
-- Last verified commit: `not_recorded`
-- Last verification command/result: `not_recorded`
-- Active package: F02 — [Wire contracts and test doubles](../work-packages/WP-F02-wire-contracts.md)
-- Active gate: `Ready`
-- Active task: Initialize and reconcile this journal before editing implementation files.
-- Worktree since observed HEAD: `unknown`
-- Last verification: Confirm F01 and the baseline clean-checkout result.
-- Resume here: Complete the goal's Starting point checks, then replace the initial F02 task plan below with tasks derived from its acceptance criteria.
-- Active delegates: `none`
+- Goal state: `complete`
+- Branch: `goal/grok-web-mcp`
+- Last observed HEAD: e015909e31464681ad0204e0d96587ea427a0b6a
+- Last verified commit: e015909e31464681ad0204e0d96587ea427a0b6a
+- Last verification command/result: a clean checkout passed `pnpm test:x03a`, real installed Claude/Codex/Grok attempts, `pnpm verify`, every previously done package target through `pnpm packages:verify`, and `pnpm worktree:check`; marker `X03A_CLEAN_CHECKOUT_OK`
+- Worktree checkpoint: X03A implementation and its self-contained test target are verified at the recorded commit; this handoff records bounded evidence and canonical completion without changing the tested implementation.
+- Active package: `none`
+- Active gate: `none`
+- Active task: `none`
+- Resume here: the web/MCP goal is complete; PR #3 may proceed through review and the separately confirmed merge step
 - Blocking condition: `none`
-- Updated UTC: `not_recorded`
+- Updated UTC: `2026-08-12T03:35:00Z`
 
-Allowed goal states are `not_started`, `active`, `blocked`, and `complete`. `blocked` is valid only when a listed stop condition remains after safe in-scope alternatives are exhausted.
+## Final review findings
 
-`Last observed HEAD` is the commit seen before the current journal edit. `Last verified commit` is the commit to which the recorded verification command and result apply. Neither must equal the commit containing this journal. Never create a follow-up commit solely to record that commit's own SHA.
+- Open P0: none.
+- Open P1: none reproduced at the tested implementation commit.
+- Closed in X03A: every MCP request authenticates; the untouched request reaches the strict SDK handler; resource, routing, Host, Origin, body, abuse, scope, project, task, context, idempotency, and credential boundaries fail closed; Better Auth owns authorization-code, PKCE S256, opaque token, refresh rotation, and revocation mechanics; BFB owns action-bound passkey consent and delegation authority; real installed-client outcomes are retained without claiming unsupported compatibility.
+- Closed through W01: package evidence gating, substrate runtime proof, identity, passkey step-up, workspace/project authorization, work records, and the authenticated Work surface have clean-checkout acceptance proof.
 
-## Current package tasks
+## Package status
 
-Replace these rows at each package start with bounded tasks derived from that package's acceptance criteria. These are task-level notes and never promote canonical package status.
-
-| ID | Task | Owner | State | Verification or result |
-| --- | --- | --- | --- | --- |
-| F02-T01 | Reconcile F02 dependencies, contracts, status, and baseline verification | Lead | `todo` | F02 Ready prerequisites and previous checkpoint pass |
-| F02-T02 | Write the dependency-aware F02 task and delegation plan | Lead | `todo` | Every task has bounded scope and an executable check |
-
-Allowed states are `todo`, `doing`, `delegated`, `done`, and `blocked`. Keep one primary task `doing`; delegated tasks may run concurrently.
-
-## Delegation log
-
-| ID | Package/task | Worker or workflow | Input HEAD | Scope and path ownership | Expected result/check | State | Result and lead verification |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| — | — | — | — | — | — | — | — |
-
-Allowed states are `dispatched`, `returned`, `integrated`, `rejected`, `failed`, and `cancelled`. A returned result remains advisory until the lead inspects it and runs the relevant verification.
-
-## Verification log
-
-| UTC | Package/task | Commit or worktree | Exact command or check | Outcome | Retained evidence |
-| --- | --- | --- | --- | --- | --- |
-| — | — | — | — | — | — |
-
-Record gating passes and useful failures. Use `uncommitted` for worktree results. Evidence paths are repository-relative; `—` means no retained artifact. This log does not replace a package evidence manifest.
-
-## Blocker and decision log
-
-| ID | First seen UTC | Package/task | Condition and investigation | State | Next action or decision required |
-| --- | --- | --- | --- | --- | --- |
-| — | — | — | — | — | — |
-
-Allowed states are `investigating`, `resolved`, and `decision_required`. A journal blocker does not change canonical package status by itself.
-
-## Package queue and handoffs
-
-| Package | Journal checkpoint | Tested commit | Test target | Evidence manifest | Limitations |
-| --- | --- | --- | --- | --- | --- |
-| [F02](../work-packages/WP-F02-wire-contracts.md) | Queued | — | Read canonical package | Read canonical package | — |
-| [F03](../work-packages/WP-F03-cloud-substrate.md) | Queued | — | Read canonical package | Read canonical package | — |
-| [F04](../work-packages/WP-F04-tenant-persistence.md) | Queued | — | Read canonical package | Read canonical package | — |
-| [C01](../work-packages/WP-C01-command-kernel.md) | Queued | — | Read canonical package | Read canonical package | — |
-| [C02](../work-packages/WP-C02-human-identity.md) | Queued | — | Read canonical package | Read canonical package | — |
-| [C03](../work-packages/WP-C03-passkey-step-up.md) | Queued | — | Read canonical package | Read canonical package | — |
-| [C04](../work-packages/WP-C04-workspace-authorization.md) | Queued | — | Read canonical package | Read canonical package | — |
-| [C07](../work-packages/WP-C07-work-domain.md) | Queued | — | Read canonical package | Read canonical package | — |
-| [C08](../work-packages/WP-C08-work-records.md) | Queued | — | Read canonical package | Read canonical package | — |
-| [W01](../work-packages/WP-W01-app-shell.md) | Queued | — | Read canonical package | Read canonical package | — |
-| [X03A](../work-packages/WP-X03A-remote-mcp-core.md) | Queued | — | Read canonical package | Read canonical package | — |
+F01 is re-certified at tested commit `71f9f588dd94f6191ef963a22bcfd715c54447a1`. F02 is re-certified at tested commit `be989733403efc171cf29c70c7d1fa2b52dbd167`. F03 is re-certified at tested commit `9b8a4d4382ac7b93baa6bea4b36a72e7f165fd9a`. F04 is re-certified at tested commit `9ff92a91166b10ad7199c5ad6c4040a9c9d97078`. C01 is re-certified at tested commit `8b3c3a47446f9ea3cdb392406176737b5da50a11`. C02 is re-certified at tested commit `d001ca2ffa4e46a3e8311528307d2679134e919d`. C03 is re-certified at tested commit `ec75d9894b76312a894dd72cee7e56af5cc14f3b`. C04 is re-certified at tested commit `f0b94285597928dd8fed4251f24c269470c5a748`. C07 is re-certified at tested commit `58ec6a224f24c32c5bdd9af0074b6ce0864d8c12`. C08 is re-certified at tested commit `8217c75a78b2494320ebe053cf19fe17c9b89f14`. W01 is re-certified at tested commit `8e19c6e59339e865bda2234246fb94d9ced1e716`. X03A is re-certified at tested commit `e015909e31464681ad0204e0d96587ea427a0b6a`. The web/MCP checkpoint is complete; PR #3 remains open pending review and merge confirmation.
 
 Mark a journal handoff complete only after the canonical package is `done`, its declared test passes from a clean checkout, its evidence manifest exists, and that manifest's tested implementation commit is recorded.

@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "launch_id": "01JBFB01AVNCH1D00000000000",
+  "run_execution_id": "01JBFB0EXECXXXX00000000000",
+  "assignment_generation": 7,
+  "decision": "rejected",
+  "authorized_at": "2026-08-07T12:00:00Z",
+  "rejection": {
+    "schema_version": 1,
+    "category": "schema_invalid",
+    "code": "launch_expired",
+    "message": "launch expired before final authorization"
+  }
+}

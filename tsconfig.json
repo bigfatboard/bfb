@@ -8,6 +8,14 @@
     { "path": "packages/db" },
     { "path": "packages/protocol-ts" },
     { "path": "packages/ui" },
-    { "path": "tools/repository" }
+    { "path": "tools/repository" },
+    { "path": "tools/protocol" },
+    { "path": "tools/db" },
+    { "path": "tools/substrate" },
+    { "path": "tools/kernel" },
+    { "path": "tools/identity" },
+    { "path": "tools/passkeys" },
+    { "path": "tools/workspace-authorization" },
+    { "path": "tools/projects" }
   ]
 }

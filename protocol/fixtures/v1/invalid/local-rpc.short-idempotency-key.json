@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "request_id": "01JBFB0REQVEST100000000000",
+  "method": "runner.status",
+  "direction": "request",
+  "idempotency_key": "short",
+  "payload": {}
+}

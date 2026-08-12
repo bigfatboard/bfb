@@ -1,0 +1,62 @@
+{
+  "$schema": "../manifest.schema.json",
+  "package": "C07",
+  "tested_commit": "58ec6a224f24c32c5bdd9af0074b6ce0864d8c12",
+  "protocol_version": "bfb-wire/1",
+  "schema_version": "1",
+  "migration_head": "0011_project_policy_versions",
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "xcode": "26.0.1",
+    "better-sqlite3": "12.6.2",
+    "wrangler": "4.120.1"
+  },
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56)",
+    "architecture": "arm64"
+  },
+  "commands": [
+    {
+      "command": "pnpm install --offline --frozen-lockfile",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C07/command-result.json"
+    },
+    {
+      "command": "pnpm test:c07",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C07/command-result.json"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C07/command-result.json"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C07/command-result.json"
+    }
+  ],
+  "outcome": "passed",
+  "artifacts": [
+    "docs/work-packages/evidence/WP-C07/command-result.json",
+    "docs/work-packages/evidence/WP-C07/permission-matrix.md",
+    "docs/work-packages/evidence/WP-C07/repository-identity.md",
+    "docs/work-packages/evidence/WP-C07/policy-history.md",
+    "docs/work-packages/evidence/WP-C07/workerd-race.json",
+    "docs/work-packages/evidence/WP-C07/final-audit.md",
+    "packages/domain/test/projects.test.ts",
+    "apps/control-worker/test/project-routes.test.ts",
+    "packages/domain/src/projects.ts",
+    "apps/control-worker/src/api/projects.ts",
+    "migrations/d1/0011_project_policy_versions.sql",
+    "tools/projects/run.ts"
+  ],
+  "redaction": {
+    "status": "passed",
+    "prohibited_content": []
+  }
+}

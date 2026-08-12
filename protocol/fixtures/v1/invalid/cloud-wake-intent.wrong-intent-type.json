@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "intent_kind": 7,
+  "intent_id": "01JBFB01NTENTCW00000000000",
+  "workspace_id": "01JBFB0W0RKSPACE0000000000",
+  "runner_id": "01JBFB0RVNNER1D00000000000",
+  "requesting_human_id": "01JBFB0HVMAN1DX00000000000",
+  "launch_id": "01JBFB01AVNCH1D00000000000",
+  "expires_at": "2026-08-07T12:00:00Z"
+}

@@ -3,7 +3,16 @@
 **/*.pbxproj
 **/*.xcscheme
 pnpm-lock.yaml
+protocol/fixtures/v1/valid/event-envelope.exponent-integer.json
+protocol/fixtures/v1/valid/event-envelope.long-integer-lexeme.json
+protocol/fixtures/v1/invalid/event-envelope.huge-exponent-cursor.json
+protocol/fixtures/v1/invalid/event-envelope.huge-exponent-version.json
+protocol/fixtures/v1/invalid/event-envelope.huge-integer-cursor.json
+protocol/fixtures/v1/invalid/event-envelope.multiple-numeric-errors.json
+protocol/fixtures/v1/invalid/event-envelope.round-up-fractional-cursor.json
+protocol/fixtures/v1/invalid/event-envelope.rounded-fractional-version.json
+protocol/fixtures/v1/invalid/event-envelope.tiny-fractional-cursor.json
+protocol/fixtures/v1/invalid/event-envelope.unsafe-schema-version.json
 dist/
 coverage/
 node_modules/
-

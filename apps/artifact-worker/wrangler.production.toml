@@ -1,0 +1,15 @@
+# ABOUTME: Production Artifact Worker configuration for the cookie-less origin.
+# ABOUTME: Uses a production-only private R2 bucket and no browser credential binding.
+
+name = "bfb-artifact"
+main = "src/index.ts"
+compatibility_date = "2026-08-01"
+
+[vars]
+ENVIRONMENT = "production"
+ARTIFACT_ORIGIN = "https://artifacts.bfb.example.test"
+APP_ORIGIN = "https://bfb.example.test"
+
+[[r2_buckets]]
+binding = "ARTIFACTS"
+bucket_name = "bfb-artifacts"

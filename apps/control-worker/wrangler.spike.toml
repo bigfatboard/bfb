@@ -1,0 +1,26 @@
+# ABOUTME: Disposable local Worker config for Better Auth, D1, and SQLite DO compatibility.
+# ABOUTME: Defines no auth route, product schema, shared resource, or deploy target.
+
+name = "bfb-substrate-spike-local"
+main = "src/substrate-spike.ts"
+compatibility_date = "2026-08-01"
+compatibility_flags = ["nodejs_compat"]
+
+[dev]
+ip = "127.0.0.1"
+port = 8790
+inspector_port = 9232
+
+[[d1_databases]]
+binding = "DB"
+database_name = "bfb-substrate-spike-local"
+database_id = "00000000-0000-4000-8000-000000000004"
+migrations_dir = "../../migrations/d1"
+
+[[durable_objects.bindings]]
+name = "WORKSPACE_HUB"
+class_name = "WorkspaceHub"
+
+[exports.WorkspaceHub]
+type = "durable-object"
+storage = "sqlite"

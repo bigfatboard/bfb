@@ -1,5 +1,5 @@
 {
-  "tested_commit": "c19cb3a6c5a1b5b3a282b04af9dd9426e59ad0ce",
+  "tested_commit": "71f9f588dd94f6191ef963a22bcfd715c54447a1",
   "commands": [
     {
       "command": "pnpm install --frozen-lockfile",
@@ -25,7 +25,7 @@
       "command": "pnpm test",
       "checks": "Repository policy failure fixtures",
       "outcome": "passed",
-      "summary": "28 tests in 3 files"
+      "summary": "178 tests in 34 files"
     },
     {
       "command": "pnpm headers:check",
@@ -56,7 +56,22 @@
     },
     {
       "command": "pnpm verify",
-      "checks": "Complete platform-appropriate repository gate",
+      "checks": "Platform-appropriate development gate",
+      "outcome": "passed"
+    },
+    {
+      "command": "pnpm packages:verify",
+      "checks": "Clean checkout, exact done-package targets, and clean worktree after tests",
+      "outcome": "passed"
+    },
+    {
+      "command": "pnpm test:ic1",
+      "checks": "IC-1 domain, W01 unit/browser, and X03A regression suites while packages are re-certified",
+      "outcome": "passed"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "checks": "No tracked or unexpected untracked output after the IC-1 suite",
       "outcome": "passed"
     }
   ],

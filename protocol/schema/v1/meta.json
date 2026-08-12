@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/meta.json",
+  "title": "BFBWireMeta",
+  "description": "Protocol head metadata for the v1 wire language.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol", "schema_version"],
+  "properties": {
+    "protocol": {
+      "type": "string",
+      "const": "bfb-wire/1"
+    },
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    }
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/catalog.json",
+  "title": "BFBWireCatalog",
+  "description": "Ordered list of v1 wire document schemas owned by F02.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol", "schema_version", "documents"],
+  "properties": {
+    "protocol": {
+      "type": "string",
+      "const": "bfb-wire/1"
+    },
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "documents": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "schema"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        }
+      }
+    }
+  }
+}

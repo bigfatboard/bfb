@@ -1,8 +1,12 @@
 # WP-F02 — Wire contracts and test doubles
 
-Status: `planned`
+Status: `done`
 
 Risk: High
+
+Test target: `pnpm test:protocol`
+
+Evidence manifest: `docs/work-packages/evidence/WP-F02/manifest.json`
 
 ## Outcome
 
@@ -30,6 +34,22 @@ Cloud, Go, Swift-facing RPC, and tests share one versioned wire language with ge
 - Database schema generation, REST handlers, auth decisions, provider-specific raw hook schemas or parsing, or arbitrary payload maps.
 - Prompts, transcripts, terminal output, or cloud-authoritative tenant fields supplied by a runner.
 - Freezing internal Go or TypeScript package APIs that never cross a boundary.
+
+## Contracts
+
+### Consumes
+
+- Repository layout, root verification commands, and `ABOUTME` header exemptions from F01.
+- Wire-language decisions in `ARCHITECTURE.md` (event envelope, launch specification, wake vs Terminal intents, principal types, dispositions).
+
+### Produces
+
+- Versioned JSON Schemas under `protocol/schema/v1/` as the only wire contract authority.
+- Generated TypeScript types in `packages/protocol-ts/src/generated/` and Go types in `internal/protocol/generated/`.
+- Cross-language golden fixtures under `protocol/fixtures/v1/` with a deterministic fixture matrix.
+- Compatibility rules in `protocol/docs/compatibility.md`.
+- Fake control plane and synthetic protocol client under `packages/protocol-ts/src/fake/`.
+- Stable test target `pnpm test:protocol` and evidence path `docs/work-packages/evidence/WP-F02/manifest.json`.
 
 ## Work plan
 

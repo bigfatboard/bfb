@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "category": "invented",
+  "code": "invalid_category",
+  "message": "category is not part of the wire contract"
+}

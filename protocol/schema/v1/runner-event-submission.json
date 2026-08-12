@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/runner-event-submission.json",
+  "title": "RunnerEventSubmission",
+  "description": "Runner-submitted event before control-plane attribution. Claimed workspace/project/task/run fields are non-authoritative hints only.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "event_id",
+    "source_stream_id",
+    "source_sequence",
+    "run_execution_id",
+    "assignment_generation",
+    "kind",
+    "occurred_at",
+    "capture_origin",
+    "payload"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "event_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "source_stream_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "source_sequence": {
+      "$ref": "primitives.json#/$defs/SourceSequence"
+    },
+    "source_event_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "run_execution_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "assignment_generation": {
+      "$ref": "primitives.json#/$defs/AssignmentGeneration"
+    },
+    "claimed_workspace_id": {
+      "$ref": "primitives.json#/$defs/Ulid",
+      "description": "Non-authoritative hint only; server derives workspace from assignment."
+    },
+    "claimed_project_id": {
+      "$ref": "primitives.json#/$defs/Ulid",
+      "description": "Non-authoritative hint only."
+    },
+    "claimed_task_id": {
+      "$ref": "primitives.json#/$defs/Ulid",
+      "description": "Non-authoritative hint only."
+    },
+    "claimed_run_id": {
+      "$ref": "primitives.json#/$defs/Ulid",
+      "description": "Non-authoritative hint only."
+    },
+    "provider_session_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "launch_claimed",
+        "launch_blocked",
+        "execution_attached",
+        "execution_detached",
+        "execution_ended",
+        "session_started",
+        "session_resumed",
+        "session_ended",
+        "turn_started",
+        "turn_stopped",
+        "turn_failed",
+        "tool_started",
+        "tool_finished",
+        "tool_failed",
+        "progress_reported",
+        "attention_requested",
+        "subagent_started",
+        "subagent_ended",
+        "context_compacted",
+        "artifact_published",
+        "result_submitted",
+        "run_failed",
+        "run_cancelled",
+        "heartbeat"
+      ]
+    },
+    "occurred_at": {
+      "$ref": "primitives.json#/$defs/UtcTimestamp"
+    },
+    "capture_origin": {
+      "type": "string",
+      "enum": ["runner_observed", "agent_reported", "hook_inbox"]
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 32,
+      "properties": {}
+    }
+  }
+}

@@ -3,5 +3,22 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "exports": "./dist/index.js"
+  "exports": "./dist/index.js",
+  "dependencies": {
+    "@bfb/domain": "workspace:*",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "5.1.4",
+    "vite": "8.2.1",
+    "wrangler": "4.120.1"
+  },
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite",
+    "typecheck": "tsc -b --pretty false"
+  }
 }

@@ -1,0 +1,36 @@
+{
+  "package": "C08",
+  "tested_commit": "8217c75a78b2494320ebe053cf19fe17c9b89f14",
+  "captured_at": "2026-08-11T23:53:37Z",
+  "environment": "clean checkout on macOS 26.2 (25C56), arm64",
+  "runs": [
+    {
+      "command": "pnpm install --offline --frozen-lockfile",
+      "outcome": "passed",
+      "details": "Installed the exact lockfile into a fresh clone before any build output existed."
+    },
+    {
+      "command": "pnpm test:c08",
+      "outcome": "passed",
+      "details": "Passed 16 focused tests and a three-Worker Workerd/D1 race at migration head 0012_work_records.sql."
+    },
+    {
+      "command": "pnpm test:db",
+      "outcome": "passed",
+      "details": "Passed 37 database tests plus fresh, populated, hostile, and interrupted real-D1 migration paths through head 0012."
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "details": "Repository verification passed with 332 TypeScript tests, protocol drift checks, Go checks, and unsigned Xcode build and tests."
+    },
+    {
+      "command": "git status --porcelain=v1",
+      "outcome": "passed",
+      "details": "The clean checkout remained unchanged after verification."
+    }
+  ],
+  "production_or_shared_state_used": false,
+  "raw_logs_committed": false,
+  "redaction": "passed"
+}

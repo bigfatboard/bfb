@@ -1,0 +1,49 @@
+# ABOUTME: Staging Control Worker configuration name reserved by F03.
+# ABOUTME: Contains no shared secrets; production deploy remains out of scope.
+
+name = "bfb-control-staging"
+main = "src/index.ts"
+compatibility_date = "2026-08-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+ENVIRONMENT = "staging"
+JURISDICTION = "eu"
+APP_ORIGIN = "https://bfb.staging.example.test"
+ARTIFACT_ORIGIN = "https://artifacts.bfb.staging.example.test"
+LAUNCH_ORIGIN = "https://launch.bfb.staging.example.test"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "bfb-staging"
+database_id = "00000000-0000-4000-8000-000000000002"
+migrations_dir = "../../migrations/d1"
+
+[[r2_buckets]]
+binding = "ARTIFACTS"
+bucket_name = "bfb-artifacts-staging"
+
+[[queues.producers]]
+binding = "JOBS"
+queue = "bfb-jobs-staging"
+
+[[queues.producers]]
+binding = "JOBS_DLQ"
+queue = "bfb-jobs-dlq-staging"
+
+[assets]
+directory = "../web/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api", "/api/*", "/auth", "/auth/*", "/mcp", "/mcp/*", "/oauth", "/oauth/*", "/realtime", "/realtime/*", "/runner", "/runner/*", "/webhooks", "/webhooks/*", "/.well-known", "/.well-known/*", "/healthz"]
+
+[triggers]
+crons = ["*/5 * * * *"]
+
+[[durable_objects.bindings]]
+name = "WORKSPACE_HUB"
+class_name = "WorkspaceHub"
+
+[exports.WorkspaceHub]
+type = "durable-object"
+storage = "sqlite"

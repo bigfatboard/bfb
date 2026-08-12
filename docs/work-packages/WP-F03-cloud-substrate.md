@@ -1,8 +1,12 @@
 # WP-F03 — Cloudflare application substrate
 
-Status: `planned`
+Status: `done`
 
 Risk: High
+
+Test target: `pnpm test:substrate`
+
+Evidence manifest: `docs/work-packages/evidence/WP-F03/manifest.json`
 
 ## Outcome
 
@@ -23,12 +27,28 @@ BFB’s web, control, and artifact applications build and run against an explici
 - Define isolated local, staging, and production configuration names without shared-secret assumptions.
 - Use current declarative Durable Object SQLite `exports`; do not add a legacy migration tag.
 - Add configuration validation for bindings, trusted origins, app/artifact/launch hostnames, and jurisdiction.
-- Run a disposable compile/deploy compatibility spike proving that the architecture's pinned Better Auth version, D1 binding, and Durable Object declaration can coexist in the Worker runtime. The spike enables no auth route, creates no auth table, and checks in no Better Auth product configuration; C02 remains the sole owner of Better Auth behavior and schema.
+- Run a disposable local runtime compatibility spike proving that the architecture's pinned Better Auth version, D1 binding, and Durable Object declaration can coexist in Workerd. The spike enables no auth route, creates no auth table, and checks in no Better Auth product configuration; C02 remains the sole owner of Better Auth behavior and schema.
 
 ## Non-goals
 
 - Domain tables, Better Auth behavior/schema/configuration, hub commands, Queue consumers, R2 uploads, or production resource creation.
 - Pages, KV, Workflows, Analytics Engine, Workers AI, or another service excluded by the architecture.
+
+## Contracts
+
+### Consumes
+
+- Repository root commands, TypeScript package layout, and pinned Node/pnpm toolchains from F01.
+- Architecture decisions for Worker Static Assets routing, separate artifact origin, and Durable Object SQLite classes.
+
+### Produces
+
+- Control Worker (`apps/control-worker`) with Hono route shells, env validation, and `WorkspaceHub` DO shell.
+- Web SPA (`apps/web`) Vite/React assets for Static Assets binding.
+- Artifact Worker (`apps/artifact-worker`) cookie-less origin shell with private R2 binding.
+- Named local/staging/production wrangler configs and `run_worker_first` route matrix.
+- Disposable Better Auth `1.6.26` Workerd spike without auth routes, tables, or product configuration.
+- Stable test target `pnpm test:substrate` and evidence path `docs/work-packages/evidence/WP-F03/manifest.json`.
 
 ## Work plan
 
@@ -43,13 +63,13 @@ BFB’s web, control, and artifact applications build and run against an explici
 - SPA fallback cannot shadow protected Worker-first paths.
 - Missing D1, R2, Queue, DLQ, Durable Object, origin, or jurisdiction configuration fails before deployment.
 - The artifact origin never receives/sets the app cookie and has no credentialed CORS path.
-- The disposable stack deploys without a manually created Durable Object namespace.
+- The disposable local stack starts with a declarative SQLite Durable Object export and no manually seeded namespace.
 - The compatibility spike leaves no enabled Better Auth route, migration, session behavior, or product configuration behind.
 - No production or shared-state deployment occurs in this package.
 
 ## Evidence and handoff
 
-- Commit local smoke output, route matrix, binding matrix, and disposable deployment result.
+- Commit local smoke output, route matrix, binding matrix, and disposable runtime result. Remote namespace reconciliation belongs to G02 because this package performs no shared-state deployment.
 - F04 receives one typed Worker environment and one supported D1 deployment shape; C02 receives only the disposable compatibility result, not auth implementation.
 
 ## Risks and decisions

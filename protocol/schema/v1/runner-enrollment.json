@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/runner-enrollment.json",
+  "title": "RunnerEnrollment",
+  "description": "Cloud-facing runner enrollment and connection summary. Runner claims never authoritatively assign workspace or task identity.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "runner_id",
+    "workspace_id",
+    "owner_human_id",
+    "device_label",
+    "public_key_thumbprint",
+    "authorization_epoch",
+    "status",
+    "enrolled_at"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "runner_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "workspace_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "owner_human_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "device_label": {
+      "$ref": "primitives.json#/$defs/BoundedLabel"
+    },
+    "public_key_thumbprint": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "minLength": 71,
+      "maxLength": 71
+    },
+    "authorization_epoch": {
+      "$ref": "primitives.json#/$defs/AuthorizationEpoch"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["enrolled", "online", "offline", "revoked"]
+    },
+    "enrolled_at": {
+      "$ref": "primitives.json#/$defs/UtcTimestamp"
+    },
+    "last_seen_at": {
+      "$ref": "primitives.json#/$defs/UtcTimestamp"
+    },
+    "granted_project_ids": {
+      "type": "array",
+      "maxItems": 64,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "primitives.json#/$defs/Ulid"
+      }
+    }
+  }
+}

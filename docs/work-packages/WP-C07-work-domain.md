@@ -1,8 +1,12 @@
 # WP-C07 — Projects, repository identity, and policy
 
-Status: `planned`
+Status: `done`
 
 Risk: High
+
+Test target: `pnpm test:c07`
+
+Evidence manifest: `docs/work-packages/evidence/WP-C07/manifest.json`
 
 ## Outcome
 
@@ -28,6 +32,18 @@ Authorized humans can register project/repository identities and manage project 
 
 - Tasks, runs, executions, sessions, context, comments, launch delivery, hook ingestion, attention, results, artifact bytes, or GitHub synchronization.
 - Reading local files, widening workspace policy from repository configuration, automatic merge/deploy, or provider credentials.
+
+
+## Contracts
+
+### Consumes
+
+- C01/C04 authorization and persistence.
+
+### Produces
+
+- Projects, tints, agent profiles, and project policies.
+- Stable test target `pnpm test:c07` and evidence path `docs/work-packages/evidence/WP-C07/manifest.json`.
 
 ## Work plan
 

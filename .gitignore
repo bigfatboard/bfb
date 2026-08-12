@@ -17,3 +17,7 @@ DerivedData/
 xcuserdata/
 
 /bfb
+
+# Playwright
+**/test-results/
+**/playwright-report/

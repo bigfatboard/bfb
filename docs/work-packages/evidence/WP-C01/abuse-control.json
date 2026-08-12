@@ -1,0 +1,34 @@
+{
+  "package": "C01",
+  "tested_commit": "8b3c3a47446f9ea3cdb392406176737b5da50a11",
+  "runtime": {
+    "workers": ["bfb-kernel-a", "bfb-kernel-b"],
+    "shared_store": "one disposable D1 database",
+    "concurrent_requests": 12,
+    "limit": 3,
+    "allowed": 3,
+    "rejected": 9,
+    "stored_count": 6,
+    "turnstile_escalation_reached": true
+  },
+  "bounds": {
+    "attempt_limit_max": 10000,
+    "poll_limit_max": 10000,
+    "window_seconds_max": 86400,
+    "body_bytes_max": 1048576,
+    "expiry_is_exclusive": true,
+    "attempt_and_poll_budgets_are_separate": true
+  },
+  "storage": {
+    "counter_operation": "single INSERT ON CONFLICT DO UPDATE RETURNING statement",
+    "bucket_key": "SHA-256 digest over an unambiguous tuple",
+    "raw_ip_stored": false,
+    "raw_subject_stored": false,
+    "raw_client_value_stored": false
+  },
+  "public_failure": {
+    "code": "request_rejected",
+    "message": "request rejected",
+    "same_for": ["exhausted", "oversized", "expired"]
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "package": "F04",
+  "tested_commit": "9ff92a91166b10ad7199c5ad6c4040a9c9d97078",
+  "deployment_authority": "Wrangler D1 migrations",
+  "migration_head": "0007_tenant_relationships",
+  "application_tables": [
+    "agent_profiles",
+    "audit_events",
+    "comments",
+    "human_credentials",
+    "human_sessions",
+    "humans",
+    "idempotency_records",
+    "oauth_access_tokens",
+    "oauth_authorization_codes",
+    "oauth_delegations",
+    "outbox_records",
+    "passkey_step_up_proofs",
+    "preregistered_oauth_clients",
+    "project_access",
+    "project_policies",
+    "projects",
+    "rate_limit_buckets",
+    "semantic_events",
+    "task_context_items",
+    "tasks",
+    "tenant_fixture_children",
+    "tenant_fixture_items",
+    "workspace_cursors",
+    "workspace_members",
+    "workspaces"
+  ],
+  "workspace_registry_guards": [
+    "workspaces_identity_immutable",
+    "workspaces_insert_collision",
+    "workspaces_jurisdiction_delete_forbidden",
+    "workspaces_jurisdiction_immutable",
+    "workspaces_slug_collision",
+    "workspaces_ulid_insert",
+    "workspaces_ulid_update"
+  ],
+  "critical_relationships": [
+    "project_access -> workspace_members by workspace and human",
+    "oauth_delegations -> tasks by workspace, project, and task",
+    "tasks/comments -> oauth_delegations by workspace and delegation",
+    "task_context_items -> tasks by workspace and task",
+    "oauth_access_tokens and oauth_authorization_codes -> oauth_delegations by workspace and delegation"
+  ],
+  "verification_tables_present": false,
+  "foreign_key_check": "clean",
+  "fresh_and_populated_schema_equal": true
+}

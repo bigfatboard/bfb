@@ -1,8 +1,12 @@
 # WP-W01 — Authenticated app and Work surface
 
-Status: `planned`
+Status: `done`
 
 Risk: Medium
+
+Test target: `pnpm test:w01`
+
+Evidence manifest: `docs/work-packages/evidence/WP-W01/manifest.json`
 
 ## Outcome
 
@@ -32,6 +36,18 @@ An authorized human can navigate an attention-first BFB shell, select an explici
 ## Non-goals
 
 - Realtime state, runner controls, artifact rendering, notifications, full visual polish, or fabricated sample activity.
+
+
+## Contracts
+
+### Consumes
+
+- C02/C03/C04/C08/F03 authenticated APIs and projections.
+
+### Produces
+
+- Authenticated Work surface with project lanes and Needs Now deck.
+- Stable test target `pnpm test:w01` and evidence path `docs/work-packages/evidence/WP-W01/manifest.json`.
 
 ## Work plan
 

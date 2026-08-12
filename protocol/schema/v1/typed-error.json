@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/typed-error.json",
+  "title": "TypedError",
+  "description": "Bounded diagnostic error returned by wire codecs and control-plane peers.",
+  "$ref": "primitives.json#/$defs/TypedError"
+}

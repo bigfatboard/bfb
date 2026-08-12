@@ -1,0 +1,23 @@
+{
+  "package": "F04",
+  "tested_commit": "9ff92a91166b10ad7199c5ad6c4040a9c9d97078",
+  "captured_at": "2026-08-11T18:45:09Z",
+  "environment": "clean checkout",
+  "runs": [
+    {
+      "platform": "macOS 26.2 (25C56), arm64",
+      "commands": ["pnpm install --frozen-lockfile", "pnpm test:db", "pnpm verify"],
+      "outcome": "passed",
+      "details": "37 database tests passed; real Wrangler/D1 concluded F04_D1_OK; repository verification included 286 TypeScript tests, Go checks, and unsigned Xcode build and tests."
+    },
+    {
+      "platform": "Ubuntu 24.04 isolated container, arm64",
+      "commands": ["pnpm install --frozen-lockfile", "pnpm packages:verify"],
+      "outcome": "passed",
+      "details": "The exact done-package gate passed for F01 through F04, including 132 protocol tests, 30 substrate tests, three real Workerd listeners, browser cookie isolation, and a clean final worktree."
+    }
+  ],
+  "production_or_shared_state_used": false,
+  "raw_logs_committed": false,
+  "redaction": "passed"
+}

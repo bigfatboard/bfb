@@ -1,0 +1,36 @@
+{
+  "package": "F03",
+  "tested_commit": "9b8a4d4382ac7b93baa6bea4b36a72e7f165fd9a",
+  "configs": {
+    "control": ["local", "staging", "production"],
+    "artifact": ["local", "staging", "production"],
+    "compatibility_spike": ["local"]
+  },
+  "control_worker": [
+    "DB",
+    "ARTIFACTS",
+    "JOBS",
+    "JOBS_DLQ",
+    "WORKSPACE_HUB",
+    "ASSETS",
+    "APP_ORIGIN",
+    "ARTIFACT_ORIGIN",
+    "LAUNCH_ORIGIN",
+    "JURISDICTION",
+    "ENVIRONMENT"
+  ],
+  "artifact_worker": ["ARTIFACTS", "ARTIFACT_ORIGIN", "APP_ORIGIN", "ENVIRONMENT"],
+  "durable_object": {
+    "class": "WorkspaceHub",
+    "sqlite": true,
+    "legacy_migration_tag": false
+  },
+  "cron": "*/5 * * * *",
+  "queue_consumers": false,
+  "origin_validation": {
+    "pairwise_distinct_hostnames": true,
+    "https_outside_local": true,
+    "userinfo_paths_queries_fragments_rejected": true
+  },
+  "outcome": "passed"
+}

@@ -1,0 +1,502 @@
+{
+  "protocol": "bfb-wire/1",
+  "schema_version": 1,
+  "fixtures": [
+    {
+      "path": "valid/event-envelope.heartbeat.json",
+      "schema": "event-envelope",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/event-disposition.accepted.json",
+      "schema": "event-disposition",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/runner-enrollment.online.json",
+      "schema": "runner-enrollment",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/checkout-summary.validated.json",
+      "schema": "checkout-summary",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/execution-assignment.active.json",
+      "schema": "execution-assignment",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/launch-specification.interactive.json",
+      "schema": "launch-specification",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/launch-claim.request.json",
+      "schema": "launch-claim",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/final-authorization.authorized.json",
+      "schema": "final-authorization",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/cloud-wake-intent.basic.json",
+      "schema": "cloud-wake-intent",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/terminal-intent.basic.json",
+      "schema": "terminal-intent",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.request.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/runner-event-submission.heartbeat.json",
+      "schema": "runner-event-submission",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/typed-error.bound.json",
+      "schema": "typed-error",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/event-envelope.unknown-version.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "unknown_version"
+    },
+    {
+      "path": "invalid/event-envelope.unknown-kind.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "unknown_kind"
+    },
+    {
+      "path": "invalid/event-envelope.oversized-payload-key.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/launch-specification.with-command.json",
+      "schema": "launch-specification",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/launch-specification.with-argv.json",
+      "schema": "launch-specification",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/cloud-wake-intent.with-task-text.json",
+      "schema": "cloud-wake-intent",
+      "expect": "reject",
+      "category": "intent_confusion"
+    },
+    {
+      "path": "invalid/cloud-wake-intent.as-terminal.json",
+      "schema": "cloud-wake-intent",
+      "expect": "reject",
+      "category": "intent_confusion"
+    },
+    {
+      "path": "invalid/terminal-intent.with-executable.json",
+      "schema": "terminal-intent",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/terminal-intent.as-wake.json",
+      "schema": "terminal-intent",
+      "expect": "reject",
+      "category": "intent_confusion"
+    },
+    {
+      "path": "invalid/runner-enrollment.missing-runner-id.json",
+      "schema": "runner-enrollment",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/local-rpc.oversized-method.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/event-envelope.fractional-cursor.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/event-envelope.fractional-schema-version.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/event-envelope.cursor-below-min.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/event-envelope.unknown-actor-type.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/event-envelope.missing-actor-type.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/runner-enrollment.duplicate-project-ids.json",
+      "schema": "runner-enrollment",
+      "expect": "reject",
+      "category": "schema_invalid"
+    },
+    {
+      "path": "invalid/runner-enrollment.unknown-status.json",
+      "schema": "runner-enrollment",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/launch-specification.missing-nested-provider.json",
+      "schema": "launch-specification",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/launch-specification.duplicate-capabilities.json",
+      "schema": "launch-specification",
+      "expect": "reject",
+      "category": "schema_invalid"
+    },
+    {
+      "path": "invalid/launch-specification.unknown-effort.json",
+      "schema": "launch-specification",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/checkout-summary.missing-status.json",
+      "schema": "checkout-summary",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/checkout-summary.unknown-status.json",
+      "schema": "checkout-summary",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/runner-event-submission.missing-capture-origin.json",
+      "schema": "runner-event-submission",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/runner-event-submission.disallowed-kind.json",
+      "schema": "runner-event-submission",
+      "expect": "reject",
+      "category": "unknown_kind"
+    },
+    {
+      "path": "invalid/local-rpc.unknown-direction.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "valid/event-disposition.retryable.json",
+      "schema": "event-disposition",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/final-authorization.rejected.json",
+      "schema": "final-authorization",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/runner-enrollment.unicode-label.json",
+      "schema": "runner-enrollment",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/runner-enrollment.invalid-last-seen.json",
+      "schema": "runner-enrollment",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/execution-assignment.invalid-ended-at.json",
+      "schema": "execution-assignment",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/launch-claim.short-device-proof.json",
+      "schema": "launch-claim",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/final-authorization.rejected-without-error.json",
+      "schema": "final-authorization",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/final-authorization.authorized-with-error.json",
+      "schema": "final-authorization",
+      "expect": "reject",
+      "category": "schema_invalid"
+    },
+    {
+      "path": "invalid/cloud-wake-intent.invalid-launch-id.json",
+      "schema": "cloud-wake-intent",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.short-idempotency-key.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/local-rpc.invalid-error-category.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.nonempty-payload.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/typed-error.invalid-category.json",
+      "schema": "typed-error",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/event-disposition.retryable-without-diagnostic.json",
+      "schema": "event-disposition",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/event-disposition.accepted-with-diagnostic.json",
+      "schema": "event-disposition",
+      "expect": "reject",
+      "category": "schema_invalid"
+    },
+    {
+      "path": "invalid/event-envelope.actor-not-object.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/event-envelope.rounded-fractional-cursor.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "valid/event-envelope.exponent-integer.json",
+      "schema": "event-envelope",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/runner-enrollment.offset-last-seen.json",
+      "schema": "runner-enrollment",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/runner-enrollment.excessive-timestamp-precision.json",
+      "schema": "runner-enrollment",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/event-envelope.root-array.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/event-envelope.root-array-high-surrogate.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "schema_invalid"
+    },
+    {
+      "path": "invalid/event-envelope.root-array-low-surrogate.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "schema_invalid"
+    },
+    {
+      "path": "valid/runner-enrollment.canonical-characters.json",
+      "schema": "runner-enrollment",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/event-envelope.long-integer-lexeme.json",
+      "schema": "event-envelope",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/runner-event-submission.launch-blocked.json",
+      "schema": "runner-event-submission",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/runner-enrollment.lone-surrogate.json",
+      "schema": "runner-enrollment",
+      "expect": "reject",
+      "category": "schema_invalid"
+    },
+    {
+      "path": "invalid/runner-enrollment.invalid-ulid-envelope.json",
+      "schema": "runner-enrollment",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/runner-enrollment.leap-second.json",
+      "schema": "runner-enrollment",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/event-envelope.unsafe-schema-version.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "unknown_version"
+    },
+    {
+      "path": "invalid/event-envelope.rounded-fractional-version.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/event-envelope.huge-integer-cursor.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/event-envelope.tiny-fractional-cursor.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/event-envelope.round-up-fractional-cursor.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/event-envelope.multiple-numeric-errors.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/event-envelope.long-numeric-path.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/event-envelope.huge-exponent-cursor.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/event-envelope.huge-exponent-version.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "unknown_version"
+    },
+    {
+      "path": "invalid/cloud-wake-intent.generic-extra.json",
+      "schema": "cloud-wake-intent",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/cloud-wake-intent.compound-version-intent.json",
+      "schema": "cloud-wake-intent",
+      "expect": "reject",
+      "category": "unknown_version"
+    },
+    {
+      "path": "invalid/launch-specification.nested-shell-order.json",
+      "schema": "launch-specification",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/event-envelope.duplicate-schema-version.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "schema_invalid"
+    },
+    {
+      "path": "invalid/runner-enrollment.scalar-length.json",
+      "schema": "runner-enrollment",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/cloud-wake-intent.wrong-intent-type.json",
+      "schema": "cloud-wake-intent",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/terminal-intent.wrong-intent-type.json",
+      "schema": "terminal-intent",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/cloud-wake-intent.fractional-version-wrong-intent.json",
+      "schema": "cloud-wake-intent",
+      "expect": "reject",
+      "category": "intent_confusion"
+    },
+    {
+      "path": "invalid/event-envelope.wrong-kind-type.json",
+      "schema": "event-envelope",
+      "expect": "reject",
+      "category": "type_mismatch"
+    }
+  ]
+}

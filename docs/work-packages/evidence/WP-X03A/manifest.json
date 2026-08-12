@@ -1,0 +1,77 @@
+{
+  "$schema": "../manifest.schema.json",
+  "package": "X03A",
+  "tested_commit": "e015909e31464681ad0204e0d96587ea427a0b6a",
+  "protocol_version": "MCP/2026-07-28 + bfb-wire/1",
+  "schema_version": "1",
+  "migration_head": "0013_remote_oauth",
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "agents": "0.20.1",
+    "@modelcontextprotocol/server": "2.0.0",
+    "better-auth": "1.6.26",
+    "@better-auth/oauth-provider": "1.6.26",
+    "playwright": "1.55.1",
+    "wrangler": "4.120.1",
+    "go": "1.26.5",
+    "xcode": "26.0.1"
+  },
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56)",
+    "architecture": "arm64"
+  },
+  "commands": [
+    {
+      "command": "pnpm install --offline --frozen-lockfile",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-X03A/command-result.json"
+    },
+    {
+      "command": "pnpm test:x03a",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-X03A/command-result.json"
+    },
+    {
+      "command": "pnpm test:x03a:providers",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-X03A/provider-compat.md"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-X03A/command-result.json"
+    },
+    {
+      "command": "pnpm packages:verify",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-X03A/command-result.json"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-X03A/command-result.json"
+    }
+  ],
+  "outcome": "passed",
+  "artifacts": [
+    "docs/work-packages/evidence/WP-X03A/command-result.json",
+    "docs/work-packages/evidence/WP-X03A/independent-audit.md",
+    "docs/work-packages/evidence/WP-X03A/provider-compat.md",
+    "docs/work-packages/evidence/WP-X03A/attempts/attempt-summary.json",
+    "docs/work-packages/evidence/WP-X03A/attempts/claude.log",
+    "docs/work-packages/evidence/WP-X03A/attempts/codex.log",
+    "docs/work-packages/evidence/WP-X03A/attempts/grok.log",
+    "apps/control-worker/test/mcp-handler.test.ts",
+    "apps/control-worker/test/routes.test.ts",
+    "apps/web/test/e2e/x03a-oauth.spec.ts",
+    "packages/domain/test/mcp.test.ts",
+    "packages/domain/test/oauth.test.ts",
+    "migrations/d1/0013_remote_oauth.sql"
+  ],
+  "redaction": {
+    "status": "passed",
+    "prohibited_content": []
+  }
+}

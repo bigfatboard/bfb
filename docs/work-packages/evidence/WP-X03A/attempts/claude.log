@@ -1,0 +1,59 @@
+# Claude real attempt log (redacted)
+exact_version: 2.1.224 (Claude Code)
+result: registered HTTP server; OAuth login incomplete (non-interactive / policy constraints)
+
+## Commands
+$ claude mcp remove -s local bfb-x03a-provider-compat
+exit: 1
+stdout: (empty)
+stderr:
+No MCP server named "bfb-x03a-provider-compat" in local scope
+
+$ claude mcp add --transport http --scope local --client-id bfb-claude-code --callback-port 9999 bfb-x03a-provider-compat http://localhost:18765/mcp
+exit: 0
+stdout:
+Added HTTP MCP server bfb-x03a-provider-compat with URL: http://localhost:18765/mcp to local config
+stderr: (empty)
+
+$ claude mcp get bfb-x03a-provider-compat
+exit: 0
+stdout:
+bfb-x03a-provider-compat:
+  Scope: Local config (private to you in this project)
+  Status: ! Needs authentication
+  Type: http
+  URL: http://localhost:18765/mcp
+  OAuth: client_id configured, callback_port 9999
+
+To remove this server, run: claude mcp remove bfb-x03a-provider-compat -s local
+stderr: (empty)
+
+$ claude mcp login --no-browser bfb-x03a-provider-compat
+exit: 1
+stdout:
+Starting authentication for "bfb-x03a-provider-compat"…
+Visit this URL to authorize:
+  http://localhost:18765/oauth/authorize?response_type=code&client_id=bfb-claude-code&code_challenge=[REDACTED]&code_challenge_method=S256&redirect_uri=http%3A%2F%2Flocalhost%3A9999%2Fcallback&state=[REDACTED]&scope=bfb%3Aread+bfb%3Atask%3Awrite+offline_access&prompt=consent&resource=http%3A%2F%2Flocalhost%3A18765%2Fmcp
+
+Waiting for authorization… (^C to cancel)
+stderr:
+Couldn't complete authentication for "bfb-x03a-provider-compat": stdin isn't a terminal, so authentication can't be completed here. Re-run in an interactive terminal — e.g. `ssh -t` — and paste the redirect URL when prompted.
+
+$ claude mcp list
+exit: 0
+stdout:
+bfb-x03a-provider-compat: http://localhost:18765/mcp (HTTP) - ! Needs authentication
+stderr: (empty)
+
+$ claude mcp remove -s local bfb-x03a-provider-compat
+exit: 0
+stdout:
+Removed MCP server bfb-x03a-provider-compat from local config
+stderr: (empty)
+
+## Limitations
+- BFB requires server-preregistered public client, PKCE S256, and exact redirect http://localhost:9999/callback
+- BFB browser checkpoint supplies the workspace/project boundary and C03 passkey proof before consent
+- The non-interactive CLI attempt emitted the expected authorization URL but could not complete a browser ceremony
+- BFB rejects legacy initialize/Mcp-Session-Id; protocol is MCP 2026-07-28 stateless Streamable HTTP
+- Cookie sessions cannot authenticate /mcp

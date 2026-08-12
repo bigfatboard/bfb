@@ -1,0 +1,31 @@
+{
+  "package": "C02",
+  "tested_commit": "d001ca2ffa4e46a3e8311528307d2679134e919d",
+  "captured_at": "2026-08-11T20:25:02Z",
+  "environment": "clean checkout on macOS 26.2 (25C56), arm64",
+  "runs": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "details": "Installed the exact lockfile into a fresh clone before any build output existed."
+    },
+    {
+      "command": "pnpm test:c02",
+      "outcome": "passed",
+      "details": "Built all workspace targets, passed 22 focused tests in five files, built the Control Worker and web app, and completed a two-isolate Workerd/D1 identity smoke."
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "details": "Repository verification passed with 307 TypeScript tests, protocol drift checks, Go checks, and unsigned Xcode build and tests."
+    },
+    {
+      "command": "git status --porcelain",
+      "outcome": "passed",
+      "details": "The clean checkout remained unchanged after verification."
+    }
+  ],
+  "production_or_shared_state_used": false,
+  "raw_logs_committed": false,
+  "redaction": "passed"
+}

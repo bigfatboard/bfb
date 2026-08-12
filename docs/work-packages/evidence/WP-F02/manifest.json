@@ -1,0 +1,48 @@
+{
+  "$schema": "../manifest.schema.json",
+  "package": "F02",
+  "tested_commit": "be989733403efc171cf29c70c7d1fa2b52dbd167",
+  "protocol_version": "bfb-wire/1",
+  "schema_version": "1",
+  "migration_head": null,
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "swift": "6.2.3",
+    "ajv": "8.20.0",
+    "go_jsonschema": "6.0.3"
+  },
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56)",
+    "architecture": "arm64"
+  },
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-F02/command-result.json"
+    },
+    {
+      "command": "pnpm test:protocol",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-F02/command-result.json"
+    }
+  ],
+  "outcome": "passed",
+  "artifacts": [
+    "docs/work-packages/evidence/WP-F02/command-result.json",
+    "docs/work-packages/evidence/WP-F02/fixture-matrix.json",
+    "docs/work-packages/evidence/WP-F02/independent-audit.md",
+    "protocol/fixtures/v1/matrix.json",
+    "protocol/docs/compatibility.md",
+    "packages/protocol-ts/src/generated/catalog.json",
+    "packages/protocol-ts/src/generated/validators.ts",
+    "internal/protocol/generated/schemas.go"
+  ],
+  "redaction": {
+    "status": "passed",
+    "prohibited_content": []
+  }
+}

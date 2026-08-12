@@ -1,0 +1,57 @@
+{
+  "migration_head": "0013_remote_oauth",
+  "migrations": [
+    {
+      "id": "0001_workspace_registry",
+      "file": "0001_workspace_registry.sql"
+    },
+    {
+      "id": "0002_command_kernel",
+      "file": "0002_command_kernel.sql"
+    },
+    {
+      "id": "0003_auth_and_work",
+      "file": "0003_auth_and_work.sql"
+    },
+    {
+      "id": "0004_human_credentials",
+      "file": "0004_human_credentials.sql"
+    },
+    {
+      "id": "0005_workspace_invariants",
+      "file": "0005_workspace_invariants.sql"
+    },
+    {
+      "id": "0006_reviewer_role",
+      "file": "0006_reviewer_role.sql"
+    },
+    {
+      "id": "0007_tenant_relationships",
+      "file": "0007_tenant_relationships.sql"
+    },
+    {
+      "id": "0008_better_auth_identity",
+      "file": "0008_better_auth_identity.sql"
+    },
+    {
+      "id": "0009_passkey_step_up",
+      "file": "0009_passkey_step_up.sql"
+    },
+    {
+      "id": "0010_workspace_authorization",
+      "file": "0010_workspace_authorization.sql"
+    },
+    {
+      "id": "0011_project_policy_versions",
+      "file": "0011_project_policy_versions.sql"
+    },
+    {
+      "id": "0012_work_records",
+      "file": "0012_work_records.sql"
+    },
+    {
+      "id": "0013_remote_oauth",
+      "file": "0013_remote_oauth.sql"
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "package": "C01",
+  "tested_commit": "8b3c3a47446f9ea3cdb392406176737b5da50a11",
+  "captured_at": "2026-08-11T19:23:56Z",
+  "environment": "clean checkout on macOS 26.2 (25C56), arm64",
+  "runs": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "details": "Installed the exact lockfile into a fresh clone before any build output existed."
+    },
+    {
+      "command": "pnpm test:c01",
+      "outcome": "passed",
+      "details": "26 focused tests passed; three real Workerd isolates shared one D1 database; five concurrent hub commands committed exactly five tasks, semantic events, audits, outbox records, and idempotency records with cursor 5; twelve cross-isolate abuse requests allowed 3, rejected 9, and reached escalation."
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "details": "Repository verification passed with 39 TypeScript test files and 302 tests, protocol drift, formatting, lint, types, documentation, roadmap, Go, and unsigned Xcode build and tests."
+    },
+    {
+      "command": "git status --porcelain",
+      "outcome": "passed",
+      "details": "The clean checkout remained unchanged after verification."
+    }
+  ],
+  "production_or_shared_state_used": false,
+  "raw_logs_committed": false,
+  "redaction": "passed"
+}

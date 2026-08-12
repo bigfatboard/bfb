@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/local-rpc.json",
+  "title": "LocalRpcEnvelope",
+  "description": "Local Unix-socket RPC envelope between Swift app, CLI, and daemon.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "request_id", "method", "direction"],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "request_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "method": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[a-z][a-z0-9_.]{0,63}$"
+    },
+    "direction": {
+      "type": "string",
+      "enum": ["request", "response", "event"]
+    },
+    "idempotency_key": {
+      "$ref": "primitives.json#/$defs/IdempotencyKey"
+    },
+    "error": {
+      "$ref": "primitives.json#/$defs/TypedError"
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 32,
+      "properties": {}
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "runner_id": "ZZZZZZZZZZZZZZZZZZZZZZZZZZ",
+  "workspace_id": "01JBFB0W0RKSPACE0000000000",
+  "owner_human_id": "01JBFB0HVMAN1DX00000000000",
+  "device_label": "synthetic-mac-mini",
+  "public_key_thumbprint": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "authorization_epoch": 3,
+  "status": "online",
+  "enrolled_at": "2026-08-07T12:00:00Z",
+  "granted_project_ids": ["01JBFB0PR0JECTX00000000000"]
+}

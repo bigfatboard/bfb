@@ -1,0 +1,31 @@
+{
+  "head": "0004_human_credentials",
+  "migrations": [
+    {
+      "file": "0001_workspace_registry.sql",
+      "sha256": "76d7fd0551b5f43b359533b0632d99fdfee5ce52206477a2d477436f8efb4ce1"
+    },
+    {
+      "file": "0002_command_kernel.sql",
+      "sha256": "c17ec28c7cc121842a7053956be5b5118bdd0b335d32c0650b19ac0e44084070"
+    },
+    {
+      "file": "0003_auth_and_work.sql",
+      "sha256": "da9f161d7bb6fcd4c91602439605f22abb2166bcaf24691a05dcf1d91af73257"
+    },
+    {
+      "file": "0004_human_credentials.sql",
+      "sha256": "016e7c924a817124540af199131454ff80cd3105dbe3f2aa4f47eb1659aded5a"
+    }
+  ],
+  "populated_records": [
+    "two workspaces",
+    "restricted member and owner",
+    "two projects",
+    "project grant",
+    "step-up proof and authorization code",
+    "task-scoped delegation and access token",
+    "delegation-attributed task, context, and comment",
+    "tenant fixture parent and child"
+  ]
+}

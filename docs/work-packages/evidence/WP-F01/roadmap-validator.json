@@ -1,5 +1,5 @@
 {
-  "tested_commit": "c19cb3a6c5a1b5b3a282b04af9dd9426e59ad0ce",
+  "tested_commit": "71f9f588dd94f6191ef963a22bcfd715c54447a1",
   "package_count": 42,
   "generated_sections": ["dependency_graph", "package_index"],
   "failure_fixtures": [
@@ -19,7 +19,10 @@
     "ready_without_stable_metadata",
     "evidence_path_escape",
     "non_passing_done_evidence",
+    "non_clean_checkout_done_evidence",
     "test_target_not_executed",
+    "unsafe_package_test_target",
+    "recursive_package_gate_target",
     "schema_invalid_ci",
     "enum_coercion",
     "forbidden_evidence_path",

@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/final-authorization.json",
+  "title": "FinalAuthorization",
+  "description": "Pre-exec final online authorization decision for a claimed launch.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "launch_id",
+    "run_execution_id",
+    "assignment_generation",
+    "decision",
+    "authorized_at"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "decision": {
+            "const": "rejected"
+          }
+        },
+        "required": ["decision"]
+      },
+      "then": {
+        "properties": {
+          "rejection": {}
+        },
+        "required": ["rejection"]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "decision": {
+            "const": "authorized"
+          }
+        },
+        "required": ["decision"]
+      },
+      "then": {
+        "not": {
+          "properties": {
+            "rejection": {}
+          },
+          "required": ["rejection"]
+        }
+      }
+    }
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "launch_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "run_execution_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "assignment_generation": {
+      "$ref": "primitives.json#/$defs/AssignmentGeneration"
+    },
+    "decision": {
+      "type": "string",
+      "enum": ["authorized", "rejected"]
+    },
+    "authorized_at": {
+      "$ref": "primitives.json#/$defs/UtcTimestamp"
+    },
+    "rejection": {
+      "$ref": "primitives.json#/$defs/TypedError"
+    }
+  }
+}

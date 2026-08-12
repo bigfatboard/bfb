@@ -1,0 +1,48 @@
+# ABOUTME: First C02 Workerd isolate with shared D1 identity and abuse-control state.
+# ABOUTME: Synthetic credentials exercise configuration without contacting GitHub.
+
+name = "bfb-identity-a"
+main = "worker.ts"
+compatibility_date = "2026-08-08"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+ENVIRONMENT = "local"
+JURISDICTION = "eu"
+APP_ORIGIN = "https://bfb.identity.test"
+ARTIFACT_ORIGIN = "https://artifacts.identity.test"
+LAUNCH_ORIGIN = "https://launch.identity.test"
+BETTER_AUTH_SECRETS = "2:c02-runtime-current-signing-key-4f57d1,1:c02-runtime-previous-signing-key-9a23f8"
+GITHUB_CLIENT_ID = "c02-runtime-github-client"
+GITHUB_CLIENT_SECRET = "c02-runtime-github-secret"
+AUTH_ABUSE_SECRET = "c02-runtime-abuse-key-5ca7c956xx"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "bfb-identity-test"
+database_id = "00000000-0000-4000-8000-000000000001"
+migrations_dir = "../../migrations/d1"
+
+[[r2_buckets]]
+binding = "ARTIFACTS"
+bucket_name = "bfb-identity-artifacts"
+
+[[queues.producers]]
+binding = "JOBS"
+queue = "bfb-identity-jobs"
+
+[[queues.producers]]
+binding = "JOBS_DLQ"
+queue = "bfb-identity-jobs-dlq"
+
+[assets]
+directory = "../../apps/web/dist"
+binding = "ASSETS"
+
+[[durable_objects.bindings]]
+name = "WORKSPACE_HUB"
+class_name = "WorkspaceHub"
+
+[exports.WorkspaceHub]
+type = "durable-object"
+storage = "sqlite"

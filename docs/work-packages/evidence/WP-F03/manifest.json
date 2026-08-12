@@ -1,0 +1,54 @@
+{
+  "$schema": "../manifest.schema.json",
+  "package": "F03",
+  "tested_commit": "9b8a4d4382ac7b93baa6bea4b36a72e7f165fd9a",
+  "protocol_version": "bfb-wire/1",
+  "schema_version": "1",
+  "migration_head": null,
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "hono": "4.13.1",
+    "wrangler": "4.120.1",
+    "vite": "8.2.1",
+    "react": "19.2.8",
+    "better-auth": "1.6.26"
+  },
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56)",
+    "architecture": "arm64"
+  },
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-F03/command-result.json"
+    },
+    {
+      "command": "pnpm test:substrate",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-F03/command-result.json"
+    }
+  ],
+  "outcome": "passed",
+  "artifacts": [
+    "docs/work-packages/evidence/WP-F03/command-result.json",
+    "docs/work-packages/evidence/WP-F03/route-matrix.json",
+    "docs/work-packages/evidence/WP-F03/binding-matrix.json",
+    "docs/work-packages/evidence/WP-F03/local-runtime.json",
+    "docs/work-packages/evidence/WP-F03/independent-audit.md",
+    "apps/control-worker/wrangler.toml",
+    "apps/control-worker/wrangler.staging.toml",
+    "apps/control-worker/wrangler.production.toml",
+    "apps/control-worker/wrangler.spike.toml",
+    "apps/artifact-worker/wrangler.toml",
+    "apps/artifact-worker/wrangler.staging.toml",
+    "apps/artifact-worker/wrangler.production.toml",
+    "tools/substrate/run.ts"
+  ],
+  "redaction": {
+    "status": "passed",
+    "prohibited_content": []
+  }
+}

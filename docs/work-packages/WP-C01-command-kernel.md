@@ -1,8 +1,12 @@
 # WP-C01 — WorkspaceHub command and event kernel
 
-Status: `planned`
+Status: `done`
 
 Risk: Very high
+
+Test target: `pnpm test:c01`
+
+Evidence manifest: `docs/work-packages/evidence/WP-C01/manifest.json`
 
 ## Outcome
 
@@ -30,6 +34,18 @@ Every BFB workspace mutation can execute through one deterministic command lane 
 - Migration/repository primitives already owned by F04, Better Auth tables, memberships, tasks, launch leases, public WebSockets, provider events, or artifact bytes.
 - Choosing package-specific abuse thresholds or accepting a one-time capability; each owning package binds the shared decision to its own atomic capability operation.
 - Pure event sourcing, tenant-per-database sharding, or Durable Object storage as canonical data.
+
+
+## Contracts
+
+### Consumes
+
+- F02, F03, F04 kernel dependencies and D1 primitives.
+
+### Produces
+
+- WorkspaceHub FIFO command lane, idempotency, semantic events, cursors, abuse-control service.
+- Stable test target `pnpm test:c01` and evidence path `docs/work-packages/evidence/WP-C01/manifest.json`.
 
 ## Work plan
 

@@ -1,0 +1,36 @@
+{
+  "package": "F04",
+  "tested_commit": "9ff92a91166b10ad7199c5ad6c4040a9c9d97078",
+  "migration_head": "0007_tenant_relationships",
+  "deployment_authority": "Wrangler 4.120.1 local D1",
+  "cases": [
+    {
+      "case": "fresh database",
+      "outcome": "passed",
+      "proof": "all migrations applied; final head, schema snapshot, and foreign-key check matched"
+    },
+    {
+      "case": "fully populated previous checkpoint",
+      "outcome": "passed",
+      "proof": "delegation, token, attributed task, context, comment, membership, and project access values survived dependency-closed table rebuilds"
+    },
+    {
+      "case": "malformed persisted identifier",
+      "outcome": "passed",
+      "proof": "migration aborted and rolled back; source repair followed by retry converged"
+    },
+    {
+      "case": "invalid legacy tenant relationship",
+      "outcome": "passed",
+      "proof": "migration aborted and rolled back; relationship repair followed by retry converged"
+    },
+    {
+      "case": "deterministic mid-migration failure",
+      "outcome": "passed",
+      "proof": "D1 migration marker and schema changes rolled back; corrected retry reached the final head"
+    }
+  ],
+  "fresh_and_populated_schema_equal": true,
+  "foreign_key_check": "clean",
+  "worker_startup_migration_logic_present": false
+}

@@ -1,8 +1,12 @@
 # WP-C02 — Human identity and sessions
 
-Status: `planned`
+Status: `done`
 
 Risk: High
+
+Test target: `pnpm test:c02`
+
+Evidence manifest: `docs/work-packages/evidence/WP-C02/manifest.json`
 
 ## Outcome
 
@@ -30,6 +34,18 @@ A human can sign in with GitHub and receive a secure BFB web session, without ga
 
 - Passkeys, workspace memberships, device credentials, remote MCP grants, GitHub App installation, or enterprise identity.
 - Better Auth Organization plugin or wildcard cookies.
+
+
+## Contracts
+
+### Consumes
+
+- C01 hub and F03 Worker substrate; Better Auth pin from architecture.
+
+### Produces
+
+- Human identity/session fixture records and browser-session separation from MCP credentials.
+- Stable test target `pnpm test:c02` and evidence path `docs/work-packages/evidence/WP-C02/manifest.json`.
 
 ## Work plan
 

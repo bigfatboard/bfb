@@ -1,0 +1,68 @@
+# Grok real attempt log (redacted)
+exact_version: grok 1.0.0 (3cd0d0cbcebe)
+result: doctor unhealthy — connectivity/handshake failed (see log)
+
+## Commands
+$ grok mcp remove --scope user bfb-x03a-provider-compat
+exit: 1
+stdout: (empty)
+stderr:
+No MCP server named 'bfb-x03a-provider-compat' in user config
+
+$ grok mcp add --transport http --scope user bfb-x03a-provider-compat http://localhost:18765/mcp
+exit: 0
+stdout:
+Added HTTP MCP server 'bfb-x03a-provider-compat' with URL: http://localhost:18765/mcp to user config
+stderr: (empty)
+
+$ grok mcp list --json
+exit: 0
+stdout:
+    "name": "bfb-x03a-provider-compat",
+stderr: (empty)
+
+$ grok mcp doctor --json bfb-x03a-provider-compat
+exit: 1
+stdout:
+{
+  "servers": [
+    {
+      "name": "bfb-x03a-provider-compat",
+      "transport": "http",
+      "target": "http://localhost:18765/mcp",
+      "source": "config",
+      "checks": [
+        {
+          "label": "server started",
+          "passed": true,
+          "detail": "0.0s"
+        },
+        {
+          "label": "handshake failed",
+          "passed": false,
+          "detail": "Send message error Transport [rmcp::transport::worker::WorkerTransport<rmcp::transport::streamable_http_client::StreamableHttpClientWorker<xai_grok_mcp::mcp_http_client::McpHttpClient<reqwest::async_impl::client::Client>>>] error: Auth required, when send initialize request",
+          "hint": "check server logs"
+        }
+      ],
+      "healthy": false
+    }
+  ],
+  "healthy_count": 0,
+  "failing_count": 1
+}
+stderr:
+2026-08-12T03:34:29.524952Z  WARN rejecting authorization server metadata URL `http://localhost:18765/auth`
+2026-08-12T03:34:29.527260Z ERROR worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: "Bearer [REDACTED]"http://localhost:18765/.well-known/oauth-protected-resource\"" })
+2026-08-12T03:34:29.527277Z  WARN MCP server init failed server=bfb-x03a-provider-compat error=MCP server 'bfb-x03a-provider-compat' handshake failed: Send message error Transport [rmcp::transport::worker::WorkerTransport<rmcp::transport::streamable_http_client::StreamableHttpClientWorker<xai_grok_mcp::mcp_http_client::McpHttpClient<reqwest::async_impl::client::Client>>>] error: Auth required, when send initialize request
+
+$ grok mcp remove --scope user bfb-x03a-provider-compat
+exit: 0
+stdout:
+Removed MCP server 'bfb-x03a-provider-compat' from user config
+stderr: (empty)
+
+## Limitations
+- Grok MCP HTTP doctor performs an initialize handshake; BFB rejects initialize and requires MCP-Protocol-Version 2026-07-28
+- Grok 1.0.0 exposes HTTP/static-header configuration but no OAuth client-id or login command for this flow
+- BFB protected-resource metadata advertises the exact loopback resource http://localhost:18765/mcp
+- BFB does not open DCR/CIMD; unregistered clients fail closed

@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "event_id": "01JBFB0EVENT00100000000000",
+  "workspace_cursor": 1842,
+  "source_stream_id": "01JBFB0STREAM0100000000000",
+  "source_sequence": 42,
+  "workspace_id": "01JBFB0W0RKSPACE0000000000",
+  "project_id": "01JBFB0PR0JECTX00000000000",
+  "task_id": "01JBFB0TASKXXXX00000000000",
+  "run_id": "01JBFB0RVNXXXXX00000000000",
+  "run_execution_id": "01JBFB0EXECXXXX00000000000",
+  "assignment_generation": 7,
+  "actor": {
+    "type": "runner",
+    "id": "01JBFB0RVNNER1D00000000000"
+  },
+  "source": {
+    "type": "runner",
+    "id": "01JBFB0RVNNER1D00000000000",
+    "provider": "claude"
+  },
+  "kind": "heartbeat",
+  "occurred_at": "2026-08-07T12:00:00Z",
+  "received_at": "2026-08-07T12:00:01Z",
+  "payload": {},
+  "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": 1.5
+}

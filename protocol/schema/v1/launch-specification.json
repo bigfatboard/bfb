@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/launch-specification.json",
+  "title": "LaunchSpecification",
+  "description": "Immutable typed launch specification. Deliberately excludes command, executable, cwd, argv, and shell fields.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "launch_id",
+    "run_id",
+    "run_execution_id",
+    "assignment_generation",
+    "task_id",
+    "runner_id",
+    "checkout_id",
+    "agent_profile_id",
+    "config_snapshot_id",
+    "config_snapshot_hash",
+    "execution_config",
+    "expires_at"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "launch_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "run_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "run_execution_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "assignment_generation": {
+      "$ref": "primitives.json#/$defs/AssignmentGeneration"
+    },
+    "task_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "runner_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "checkout_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "agent_profile_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "config_snapshot_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "config_snapshot_hash": {
+      "$ref": "primitives.json#/$defs/Sha256Digest"
+    },
+    "execution_config": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "mode",
+        "model",
+        "effort",
+        "approval_policy",
+        "filesystem_policy",
+        "context_injection",
+        "initial_turn_transport",
+        "required_capabilities"
+      ],
+      "properties": {
+        "provider": {
+          "$ref": "primitives.json#/$defs/ProviderName"
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["interactive", "headless"]
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "effort": {
+          "type": "string",
+          "enum": ["low", "medium", "high"]
+        },
+        "approval_policy": {
+          "type": "string",
+          "enum": ["never", "on_request", "always"]
+        },
+        "filesystem_policy": {
+          "type": "string",
+          "enum": ["read_only", "workspace_write"]
+        },
+        "context_injection": {
+          "type": "string",
+          "enum": ["session_start_additional_context", "none"]
+        },
+        "initial_turn_transport": {
+          "type": "string",
+          "enum": ["provider_prompt", "waiting_user_submit", "none"]
+        },
+        "required_capabilities": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9_.]{0,63}$"
+          }
+        }
+      }
+    },
+    "expires_at": {
+      "$ref": "primitives.json#/$defs/UtcTimestamp"
+    }
+  }
+}

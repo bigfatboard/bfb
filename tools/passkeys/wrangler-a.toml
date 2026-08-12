@@ -1,0 +1,48 @@
+# ABOUTME: First C03 Workerd isolate with shared D1 passkey and abuse-control state.
+# ABOUTME: Exact HTTPS origin and production bindings exercise the real auth routes.
+
+name = "bfb-passkeys-a"
+main = "worker.ts"
+compatibility_date = "2026-08-08"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+ENVIRONMENT = "local"
+JURISDICTION = "eu"
+APP_ORIGIN = "https://bfb.passkeys.test"
+ARTIFACT_ORIGIN = "https://artifacts.passkeys.test"
+LAUNCH_ORIGIN = "https://launch.passkeys.test"
+BETTER_AUTH_SECRETS = "2:c03-runtime-current-signing-key-84d1e9,1:c03-runtime-previous-signing-key-3f71bc"
+GITHUB_CLIENT_ID = "c03-runtime-github-client"
+GITHUB_CLIENT_SECRET = "c03-runtime-github-secret"
+AUTH_ABUSE_SECRET = "c03-runtime-abuse-key-2b69a4ecxx"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "bfb-passkeys-test"
+database_id = "00000000-0000-4000-8000-000000000003"
+migrations_dir = "../../migrations/d1"
+
+[[r2_buckets]]
+binding = "ARTIFACTS"
+bucket_name = "bfb-passkeys-artifacts"
+
+[[queues.producers]]
+binding = "JOBS"
+queue = "bfb-passkeys-jobs"
+
+[[queues.producers]]
+binding = "JOBS_DLQ"
+queue = "bfb-passkeys-jobs-dlq"
+
+[assets]
+directory = "../../apps/web/dist"
+binding = "ASSETS"
+
+[[durable_objects.bindings]]
+name = "WORKSPACE_HUB"
+class_name = "WorkspaceHub"
+
+[exports.WorkspaceHub]
+type = "durable-object"
+storage = "sqlite"

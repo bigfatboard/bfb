@@ -1,0 +1,20 @@
+{
+  "schema_version": 99,
+  "event_id": "01JBFB0EVENT00100000000000",
+  "workspace_cursor": 1,
+  "source_stream_id": "01JBFB0STREAM0100000000000",
+  "source_sequence": 1,
+  "workspace_id": "01JBFB0W0RKSPACE0000000000",
+  "actor": {
+    "type": "runner",
+    "id": "01JBFB0RVNNER1D00000000000"
+  },
+  "source": {
+    "type": "runner",
+    "id": "01JBFB0RVNNER1D00000000000"
+  },
+  "kind": "heartbeat",
+  "occurred_at": "2026-08-07T12:00:00Z",
+  "received_at": "2026-08-07T12:00:01Z",
+  "payload": {}
+}

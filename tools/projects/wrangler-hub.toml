@@ -1,0 +1,21 @@
+# ABOUTME: Hosts the C07 WorkspaceHub and shared disposable D1 database.
+# ABOUTME: Declarative SQLite storage matches the production Durable Object contract.
+
+name = "bfb-projects-hub"
+main = "../../apps/control-worker/src/index.ts"
+compatibility_date = "2026-08-08"
+compatibility_flags = ["nodejs_compat"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "bfb-projects-test"
+database_id = "00000000-0000-4000-8000-000000000007"
+migrations_dir = "../../migrations/d1"
+
+[[durable_objects.bindings]]
+name = "WORKSPACE_HUB"
+class_name = "WorkspaceHub"
+
+[exports.WorkspaceHub]
+type = "durable-object"
+storage = "sqlite"

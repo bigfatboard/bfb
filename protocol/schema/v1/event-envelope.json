@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/event-envelope.json",
+  "title": "EventEnvelope",
+  "description": "Normalized semantic event envelope after control-plane validation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "event_id",
+    "workspace_cursor",
+    "source_stream_id",
+    "source_sequence",
+    "workspace_id",
+    "actor",
+    "source",
+    "kind",
+    "occurred_at",
+    "received_at",
+    "payload"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "event_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "workspace_cursor": {
+      "$ref": "primitives.json#/$defs/WorkspaceCursor"
+    },
+    "source_stream_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "source_event_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "source_sequence": {
+      "$ref": "primitives.json#/$defs/SourceSequence"
+    },
+    "workspace_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "project_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "task_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "run_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "run_execution_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "assignment_generation": {
+      "$ref": "primitives.json#/$defs/AssignmentGeneration"
+    },
+    "provider_session_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "actor": {
+      "$ref": "primitives.json#/$defs/PrincipalRef"
+    },
+    "source": {
+      "$ref": "primitives.json#/$defs/SourceRef"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "launch_requested",
+        "launch_claimed",
+        "launch_blocked",
+        "launch_expired",
+        "execution_attached",
+        "execution_detached",
+        "execution_ended",
+        "session_started",
+        "session_resumed",
+        "session_ended",
+        "turn_started",
+        "turn_stopped",
+        "turn_failed",
+        "tool_started",
+        "tool_finished",
+        "tool_failed",
+        "progress_reported",
+        "attention_requested",
+        "attention_resolved",
+        "subagent_started",
+        "subagent_ended",
+        "context_compacted",
+        "artifact_published",
+        "result_submitted",
+        "result_outdated",
+        "result_accepted",
+        "run_failed",
+        "run_cancelled",
+        "heartbeat"
+      ]
+    },
+    "occurred_at": {
+      "$ref": "primitives.json#/$defs/UtcTimestamp"
+    },
+    "received_at": {
+      "$ref": "primitives.json#/$defs/UtcTimestamp"
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 32,
+      "properties": {}
+    }
+  }
+}

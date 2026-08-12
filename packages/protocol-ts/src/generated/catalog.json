@@ -1,0 +1,59 @@
+{
+  "protocol": "bfb-wire/1",
+  "schema_version": 1,
+  "schema_hash": "0235e04050cdf1bca908db9cf3f2fdf7411fe5286b1d3c51b4970b7045b370e9",
+  "documents": [
+    {
+      "name": "event-envelope",
+      "schema": "event-envelope.json"
+    },
+    {
+      "name": "event-disposition",
+      "schema": "event-disposition.json"
+    },
+    {
+      "name": "runner-enrollment",
+      "schema": "runner-enrollment.json"
+    },
+    {
+      "name": "checkout-summary",
+      "schema": "checkout-summary.json"
+    },
+    {
+      "name": "execution-assignment",
+      "schema": "execution-assignment.json"
+    },
+    {
+      "name": "launch-specification",
+      "schema": "launch-specification.json"
+    },
+    {
+      "name": "launch-claim",
+      "schema": "launch-claim.json"
+    },
+    {
+      "name": "final-authorization",
+      "schema": "final-authorization.json"
+    },
+    {
+      "name": "cloud-wake-intent",
+      "schema": "cloud-wake-intent.json"
+    },
+    {
+      "name": "terminal-intent",
+      "schema": "terminal-intent.json"
+    },
+    {
+      "name": "local-rpc",
+      "schema": "local-rpc.json"
+    },
+    {
+      "name": "runner-event-submission",
+      "schema": "runner-event-submission.json"
+    },
+    {
+      "name": "typed-error",
+      "schema": "typed-error.json"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "package": "C04",
+  "tested_commit": "f0b94285597928dd8fed4251f24c269470c5a748",
+  "workers": ["bfb-workspace-authorization-a", "bfb-workspace-authorization-b"],
+  "shared_storage": "one migrated D1 database",
+  "surfaces": [
+    "bootstrap-start",
+    "bootstrap-reauth",
+    "bootstrap-complete",
+    "invitation-create",
+    "invitation-accept",
+    "member-role-change",
+    "member-remove"
+  ],
+  "attempts_per_surface": 11,
+  "first_ten_status": 403,
+  "eleventh_status": 429,
+  "abuse_buckets": 7,
+  "raw_ip_in_bucket_keys": false,
+  "raw_capability_in_bucket_keys": false,
+  "raw_path_in_bucket_keys": false,
+  "raw_workspace_in_bucket_keys": false,
+  "raw_invitation_in_bucket_keys": false,
+  "raw_human_in_bucket_keys": false,
+  "outcome": "passed"
+}

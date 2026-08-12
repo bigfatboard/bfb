@@ -12,7 +12,7 @@ Install the versions in `.node-version`, `.go-version`, and `.xcode-version`, th
 corepack enable && corepack install && pnpm install --frozen-lockfile
 ```
 
-`pnpm verify` is the single repository gate. It checks formatting, lint, TypeScript builds and tests, source headers, documentation links, the generated work-package roadmap, Go formatting/vet/tests/build, dependency drift, and the Swift/Xcode targets on macOS.
+`pnpm verify` is the development gate. It checks formatting, lint, TypeScript builds and tests, source headers, documentation links, the generated work-package roadmap, Go formatting/vet/tests/build, dependency drift, and the Swift/Xcode targets on macOS. `pnpm packages:verify` is the clean-checkout CI gate: it runs `pnpm verify`, every `done` package's exact declared test target, and rejects tracked or untracked output left behind by those tests.
 
 The repository intentionally has no required `.env` file, machine-local path, or secret at this stage. On a Mac where `xcode-select` points to Command Line Tools, verification selects `/Applications/Xcode.app` for the command without changing the global developer directory.
 
@@ -30,7 +30,8 @@ The repository intentionally has no required `.env` file, machine-local path, or
 | `pnpm roadmap:write` | Regenerate only the marked roadmap blocks |
 | `pnpm go:check` | Run Go format, vet, tests, build, and module-drift checks |
 | `pnpm swift:check` | Build and test the unsigned macOS target |
-| `pnpm verify` | Run the complete platform-appropriate gate |
+| `pnpm verify` | Run the platform-appropriate development gate |
+| `pnpm packages:verify` | Run all completed-package gates from a clean checkout |
 
 ## Repository map
 

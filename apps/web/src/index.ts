@@ -1,4 +1,4 @@
-// ABOUTME: Defines the compile-safe boundary for the BFB browser application target.
-// ABOUTME: Product behavior is introduced only by the work package that owns this path.
+// ABOUTME: Public module boundary for shared web package exports used by tests.
+// ABOUTME: Browser mounting remains in main.tsx for the Vite SPA entry.
 
-export {};
+export { AppShell } from "./app.js";

@@ -336,22 +336,22 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 | ID | Package | Status | Risk |
 | --- | --- | --- | --- |
 | F01 | [Repository foundation](WP-F01-repository-foundation.md) | `done` | Medium |
-| F02 | [Wire contracts and test doubles](WP-F02-wire-contracts.md) | `planned` | High |
-| F03 | [Cloudflare application substrate](WP-F03-cloud-substrate.md) | `planned` | High |
-| F04 | [D1 tenant persistence and migrations](WP-F04-tenant-persistence.md) | `planned` | Very high |
+| F02 | [Wire contracts and test doubles](WP-F02-wire-contracts.md) | `done` | High |
+| F03 | [Cloudflare application substrate](WP-F03-cloud-substrate.md) | `done` | High |
+| F04 | [D1 tenant persistence and migrations](WP-F04-tenant-persistence.md) | `done` | Very high |
 
 ### Control plane
 
 | ID | Package | Status | Risk |
 | --- | --- | --- | --- |
-| C01 | [WorkspaceHub command and event kernel](WP-C01-command-kernel.md) | `planned` | Very high |
-| C02 | [Human identity and sessions](WP-C02-human-identity.md) | `planned` | High |
-| C03 | [Passkey enrollment and step-up](WP-C03-passkey-step-up.md) | `planned` | High |
-| C04 | [Workspace authorization](WP-C04-workspace-authorization.md) | `planned` | Very high |
+| C01 | [WorkspaceHub command and event kernel](WP-C01-command-kernel.md) | `done` | Very high |
+| C02 | [Human identity and sessions](WP-C02-human-identity.md) | `done` | High |
+| C03 | [Passkey enrollment and step-up](WP-C03-passkey-step-up.md) | `done` | High |
+| C04 | [Workspace authorization](WP-C04-workspace-authorization.md) | `done` | Very high |
 | C05 | [Human device and CLI credentials](WP-C05-human-device-credentials.md) | `planned` | High |
 | C06 | [Runner identity, grants, and tokens](WP-C06-runner-enrollment-channel.md) | `planned` | Very high |
-| C07 | [Projects, repository identity, and policy](WP-C07-work-domain.md) | `planned` | High |
-| C08 | [Tasks, runs, context, and work APIs](WP-C08-work-records.md) | `planned` | High |
+| C07 | [Projects, repository identity, and policy](WP-C07-work-domain.md) | `done` | High |
+| C08 | [Tasks, runs, context, and work APIs](WP-C08-work-records.md) | `done` | High |
 | C09 | [Durable launch orchestration](WP-C09-launch-orchestration.md) | `planned` | Very high |
 
 ### Local execution
@@ -371,7 +371,7 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 
 | ID | Package | Status | Risk |
 | --- | --- | --- | --- |
-| W01 | [Authenticated app and Work surface](WP-W01-app-shell.md) | `planned` | Medium |
+| W01 | [Authenticated app and Work surface](WP-W01-app-shell.md) | `done` | Medium |
 | W02 | [Runner and launch operations UI](WP-W02-launch-operations-ui.md) | `planned` | High |
 | E01 | [Event ingestion, projection, and replay](WP-E01-event-ingest-replay.md) | `planned` | Very high |
 | E02 | [Browser realtime, timeline, and presence](WP-E02-browser-realtime.md) | `planned` | High |
@@ -407,7 +407,7 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 | X01 | [Actionable notifications](WP-X01-notifications.md) | `planned` | Medium |
 | X02 | [Human CLI parity](WP-X02-human-cli.md) | `planned` | High |
 | X03 | [Remote MCP parity extensions](WP-X03-remote-mcp.md) | `planned` | Very high |
-| X03A | [Remote OAuth MCP core](WP-X03A-remote-mcp-core.md) | `planned` | Very high |
+| X03A | [Remote OAuth MCP core](WP-X03A-remote-mcp-core.md) | `done` | Very high |
 | X04 | [GitHub evidence integration](WP-X04-github.md) | `planned` | High |
 | X05 | [Operations, audit, and retention](WP-X05-operations.md) | `planned` | High |
 

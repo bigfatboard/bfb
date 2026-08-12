@@ -1,0 +1,31 @@
+{
+  "package": "C07",
+  "tested_commit": "58ec6a224f24c32c5bdd9af0074b6ce0864d8c12",
+  "captured_at": "2026-08-11T22:48:15Z",
+  "environment": "clean checkout on macOS 26.2 (25C56), arm64",
+  "runs": [
+    {
+      "command": "pnpm install --offline --frozen-lockfile",
+      "outcome": "passed",
+      "details": "Installed the exact lockfile into a fresh clone before build output existed."
+    },
+    {
+      "command": "pnpm test:c07",
+      "outcome": "passed",
+      "details": "Passed eight focused tests and a real three-Worker D1 and WorkspaceHub race with exactly one project and policy update winner."
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "details": "Repository verification passed with 327 TypeScript tests, protocol drift checks, Go checks, and unsigned Xcode build and tests."
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "details": "The clean checkout remained unchanged after verification."
+    }
+  ],
+  "production_or_shared_state_used": false,
+  "raw_logs_committed": false,
+  "redaction": "passed"
+}
