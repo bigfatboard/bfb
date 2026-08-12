@@ -6,21 +6,22 @@ This file is the resumable execution journal for [the Grok web/MCP goal](GROK-WE
 
 - Goal state: `active — correction and re-certification`
 - Branch: `goal/grok-web-mcp`
-- Last observed HEAD: 95e434cf6d3d9bd5c1ef6e73ef1a2dfd430c1a40
+- Last observed HEAD: 3b9b27c8151e8e640f5fbafd4f34b1d9056836a0
 - Last verified commit: 95e434cf6d3d9bd5c1ef6e73ef1a2dfd430c1a40
-- Last verification command/result: a fresh checkout passed the complete done-package chain, full `pnpm verify`, and `pnpm worktree:check`; the final marker was `W01_HANDOFF_OK`
-- Worktree checkpoint: X03A audit notes are the only uncommitted material state.
+- Last verification command/result: the uncommitted X03A implementation passed `pnpm verify` (343 tests plus protocol, lint, type, docs, roadmap, Go, Swift, and Xcode), its exact target, the real Chromium OAuth loop, installed Claude/Codex/Grok attempts, C01-C04, C07-C08, F03 substrate, the real D1 migration matrix, and integrated IC-1; clean-checkout proof still belongs to the next checkpoint commit
+- Worktree checkpoint: the complete X03A implementation, migration 0013, browser flow, provider harness, adversarial negatives, and the C08 manifest-head correction are uncommitted.
 - Active package: X03A — Remote OAuth MCP core
-- Active gate: correct the OAuth provider, delegated token lifecycle, strict MCP transport, tool boundaries, and real compatibility evidence before the implementation checkpoint
-- Active task: replace the synthetic OAuth/token path with the pinned Better Auth OAuth Provider flow and make the SDK validate the untouched MCP request
-- Resume here: continue from the executable X03A negatives after the baseline `pnpm test:x03a` result of 18/18
+- Active gate: run the full verifier, commit the implementation checkpoint, then certify that commit from a clean checkout
+- Active task: finish repository-wide verification without changing the proven OAuth/MCP authority boundary
+- Resume here: run `pnpm verify`; if green, inspect and selectively commit the current X03A implementation before clean-checkout certification
 - Blocking condition: `none`
-- Updated UTC: `2026-08-12T01:06:00Z`
+- Updated UTC: `2026-08-12T03:27:00Z`
 
 ## Final review findings
 
 - Open P0: none.
-- Open P1: unauthenticated MCP discovery, request rewriting that masks header/body errors, hard-coded resource identity, a custom authorization-code implementation in place of the required Better Auth OAuth Provider, advertised-but-missing refresh rotation, incomplete task-bound proposal enforcement, and synthetic provider evidence.
+- Open P1: none reproduced on the current worktree; clean-checkout certification remains before package completion.
+- Closed in the X03A worktree: every MCP request authenticates; the untouched request reaches the strict SDK handler; resource, routing, Host, Origin, body, abuse, scope, project, task, context, idempotency, and credential boundaries fail closed; Better Auth owns authorization-code, PKCE S256, opaque token, refresh rotation, and revocation mechanics; BFB owns action-bound passkey consent and delegation authority; real installed-client outcomes are retained without claiming unsupported compatibility.
 - Closed through W01: package evidence gating, substrate runtime proof, identity, passkey step-up, workspace/project authorization, work records, and the authenticated Work surface have clean-checkout acceptance proof.
 
 ## Package status

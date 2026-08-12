@@ -36,14 +36,18 @@ export interface AuthTestContext {
   auth: HumanAuth;
 }
 
-export function openAuthTestContext(): AuthTestContext {
+export function openAuthTestContext(oauthNow = "2026-08-11T20:00:00.000Z"): AuthTestContext {
   const raw = new Database(":memory:");
   raw.pragma("foreign_keys = ON");
   applyMigrationsForVerification(raw, migrationsDir);
+  const db = adaptBetterSqlite3(raw);
   return {
     raw,
-    db: adaptBetterSqlite3(raw),
-    auth: createHumanAuth(raw, AUTH_TEST_ENV),
+    db,
+    auth: createHumanAuth(raw, AUTH_TEST_ENV, {
+      db,
+      now: oauthNow,
+    }),
   };
 }
 
@@ -56,6 +60,8 @@ export async function seedAuthSession(
     email?: string;
     name?: string;
     humanId?: string;
+    now?: string;
+    expiresAt?: string;
   } = {},
 ): Promise<{ cookie: string; sessionId: string; token: string; userId: string }> {
   const userId = values.userId ?? "auth-user-c02";
@@ -63,8 +69,8 @@ export async function seedAuthSession(
   const token = values.token ?? "auth-token-c02";
   const email = values.email ?? "c02-human@synthetic.test";
   const name = values.name ?? "C02 Human";
-  const now = "2026-08-11T20:00:00.000Z";
-  const expiresAt = "2027-08-11T20:00:00.000Z";
+  const now = values.now ?? "2026-08-11T20:00:00.000Z";
+  const expiresAt = values.expiresAt ?? "2027-08-11T20:00:00.000Z";
 
   context.raw
     .prepare(

@@ -68,6 +68,25 @@ async function beginGitHubSignIn(context: AuthTestContext) {
   return { app, body, cookies: cookieHeader(response), response };
 }
 
+async function beginGitHubSignInWithCallback(context: AuthTestContext, callbackPath: string) {
+  const app = appFor(context);
+  const response = await app.request(
+    new Request(`${AUTH_TEST_ENV.APP_ORIGIN}/auth/sign-in/github`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: AUTH_TEST_ENV.APP_ORIGIN,
+        "sec-fetch-site": "same-origin",
+        "cf-connecting-ip": "192.0.2.11",
+      },
+      body: JSON.stringify({ callback_path: callbackPath }),
+    }),
+    undefined,
+    bindings(),
+  );
+  return { response, body: (await response.json()) as { url?: string } };
+}
+
 function mockGitHub(): void {
   vi.stubGlobal(
     "fetch",
@@ -134,6 +153,29 @@ afterEach(() => {
 });
 
 describe("GitHub human identity integration", () => {
+  it("preserves only bounded OAuth authorization callbacks through sign-in", async () => {
+    const context = openAuthTestContext();
+    const callback =
+      "/oauth/authorize?response_type=code&client_id=bfb-claude-code&state=state123&resource=https%3A%2F%2Fbfb.example.test%2Fmcp";
+    const allowed = await beginGitHubSignInWithCallback(context, callback);
+    expect(allowed.response.status).toBe(200);
+    expect(allowed.body.url).toContain("github.com/login/oauth/authorize");
+    const verification = context.raw
+      .prepare(`SELECT value FROM better_auth_verifications ORDER BY created_at DESC LIMIT 1`)
+      .get() as { value: string };
+    expect(verification.value).toContain(callback);
+
+    const external = await beginGitHubSignInWithCallback(context, "https://evil.example/callback");
+    expect(external.response.status).toBe(400);
+    const prefixSmuggle = await beginGitHubSignInWithCallback(
+      context,
+      "/oauth/authorize?next=1#https://evil.example/callback",
+    );
+    expect(prefixSmuggle.response.status).toBe(400);
+    const unrelated = await beginGitHubSignInWithCallback(context, "/settings");
+    expect(unrelated.response.status).toBe(400);
+  });
+
   it("creates an encrypted Better Auth session and permission-free BFB principal", async () => {
     const context = openAuthTestContext();
     const completed = await finishGitHubSignIn(context);

@@ -178,7 +178,7 @@ describe("production D1 adapter wiring", () => {
     });
   });
 
-  it("createFetchHandler without options.db serves tools/list via adaptD1", async () => {
+  it("createFetchHandler without options.db routes authenticated MCP through adaptD1", async () => {
     const { bindings } = await seededEnv();
     const fetch = createFetchHandler({ now: "2026-08-07T12:00:00Z" });
     const response = await fetch(
@@ -196,9 +196,10 @@ describe("production D1 adapter wiring", () => {
     );
     const text = await response.text();
     expect(text).not.toMatch(/mcp_misconfigured/);
-    expect(response.status).toBe(200);
-    const body = JSON.parse(text) as { tools?: unknown[] };
-    expect(body.tools?.length).toBe(7);
+    expect(response.status).toBe(401);
+    expect(response.headers.get("www-authenticate")).toContain(
+      "/.well-known/oauth-protected-resource",
+    );
   });
 
   it("options.db override still works for tests", async () => {

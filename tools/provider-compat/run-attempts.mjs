@@ -11,13 +11,19 @@ import { fileURLToPath } from "node:url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const REPO_ROOT = path.resolve(__dirname, "../..");
-const EVIDENCE_DIR = path.join(REPO_ROOT, "docs/work-packages/evidence/WP-X03A/attempts");
+const OUTPUT_DIR = path.resolve(
+  REPO_ROOT,
+  process.env.BFB_PROVIDER_COMPAT_OUTPUT ?? "test-results/provider-compat",
+);
+const ATTEMPTS_DIR = path.join(OUTPUT_DIR, "attempts");
 const SERVER_NAME = "bfb-x03a-provider-compat";
-const CLIENT_ID = "bfb-mcp-synthetic-client";
+const CLIENT_ID = "bfb-claude-code";
 const CALLBACK_PORT = 9999;
 const DEFAULT_PORT = 18765;
 const SCRATCH_LOG =
   process.env.BFB_PROVIDER_COMPAT_SCRATCH_LOG ?? process.env.PROVIDER_COMPAT_LOG ?? "";
+const HOME_DIR = process.env.HOME || null;
+const ANSI_COLOR_PATTERN = new RegExp(`${String.fromCodePoint(27)}\\[[0-9;]*m`, "g");
 
 /** Resolve clients from env override or PATH only — never machine-local home paths. */
 const candidates = {
@@ -36,13 +42,23 @@ function log(line) {
 }
 
 function redact(text) {
+  let redacted = String(text).replace(ANSI_COLOR_PATTERN, "");
+  if (HOME_DIR) {
+    redacted = redacted.replaceAll(HOME_DIR, "~");
+  }
   return (
-    String(text)
+    redacted
       // BFB opaque access tokens are mcp_ + long random; avoid mangling identifiers like mcp_http_client.
       .replace(/\bmcp_[A-Za-z0-9]{20,}\b/g, "mcp_[REDACTED]")
       .replace(/Bearer\s+[^\s"']+/gi, "Bearer [REDACTED]")
       .replace(/bfb_session=[^;\s]+/g, "bfb_session=[REDACTED]")
       .replace(/([?&])code=[A-Za-z0-9_-]{8,}/g, "$1code=[REDACTED]")
+      .replace(/([?&])state=[A-Za-z0-9_-]{8,}/g, "$1state=[REDACTED]")
+      .replace(/([?&])code_challenge=[A-Za-z0-9_-]{8,}/g, "$1code_challenge=[REDACTED]")
+      .replace(
+        /redirect_uri=http%3A%2F%2F127\.0\.0\.1%3A\d+%2Fcallback%2F[A-Za-z0-9_-]+/g,
+        "redirect_uri=http%3A%2F%2F127.0.0.1%3A[RANDOM]%2Fcallback%2F[RANDOM]",
+      )
       .replace(/access_token"\s*:\s*"[^"]+"/g, 'access_token":"[REDACTED]"')
       .replace(/refresh_token"\s*:\s*"[^"]+"/g, 'refresh_token":"[REDACTED]"')
       .replace(/\/Users\/[^/\s"'`]+/g, "/Users/[REDACTED]")
@@ -192,7 +208,7 @@ async function openDomainDb(require) {
   applyMigrationsForVerification(raw, path.join(REPO_ROOT, "migrations/d1"));
   const db = adaptBetterSqlite3(raw);
   await seedSyntheticWorkspace(db);
-  return db;
+  return { db, raw };
 }
 
 function fakeBinding(label) {
@@ -207,26 +223,47 @@ async function startBfbServer(port) {
   const { validateControlEnv } = await import(
     path.join(REPO_ROOT, "apps/control-worker/dist/env.js")
   );
-  const { MCP_RESOURCE, MCP_PROTOCOL_VERSION } = await import(
+  const { createHumanAuth, parseAuthKeys } = await import(
+    path.join(REPO_ROOT, "apps/control-worker/dist/auth/better-auth.js")
+  );
+  const { MCP_PROTOCOL_VERSION, mcpResource } = await import(
     path.join(REPO_ROOT, "packages/domain/dist/oauth.js")
   );
 
-  const db = await openDomainDb(require);
-  const appOrigin = `http://127.0.0.1:${port}`;
+  const { db, raw } = await openDomainDb(require);
+  const appOrigin = `http://localhost:${port}`;
+  const authEnv = {
+    APP_ORIGIN: appOrigin,
+    BETTER_AUTH_SECRETS:
+      "2:x03a-provider-compat-current-signing-key,1:x03a-provider-compat-previous-signing-key",
+    GITHUB_CLIENT_ID: "x03a-provider-compat-github-client",
+    GITHUB_CLIENT_SECRET: "x03a-provider-compat-github-secret",
+    AUTH_ABUSE_SECRET: "x03a-provider-compat-abuse-secret",
+  };
   const env = {
     DB: fakeBinding("db"),
     ARTIFACTS: fakeBinding("r2"),
+    ASSETS: fakeBinding("assets"),
     JOBS: fakeBinding("jobs"),
     JOBS_DLQ: fakeBinding("dlq"),
     WORKSPACE_HUB: fakeBinding("hub"),
     APP_ORIGIN: appOrigin,
-    ARTIFACT_ORIGIN: `http://127.0.0.1:${port + 1}`,
-    LAUNCH_ORIGIN: `http://127.0.0.1:${port + 2}`,
+    ARTIFACT_ORIGIN: `http://artifacts.localhost:${port + 1}`,
+    LAUNCH_ORIGIN: `http://launch.localhost:${port + 2}`,
     JURISDICTION: "eu",
     ENVIRONMENT: "local",
+    ...authEnv,
   };
   const validated = validateControlEnv(env);
-  const app = createControlApp(validated, { db, now: new Date().toISOString() });
+  const app = createControlApp(validated, {
+    db,
+    abuseSecret: authEnv.AUTH_ABUSE_SECRET,
+    humanAuth: () => ({
+      auth: createHumanAuth(raw, authEnv, { db, now: new Date().toISOString() }),
+      keys: parseAuthKeys(authEnv.BETTER_AUTH_SECRETS),
+      abuseSecret: authEnv.AUTH_ABUSE_SECRET,
+    }),
+  });
 
   const server = http.createServer(async (req, res) => {
     try {
@@ -244,8 +281,6 @@ async function startBfbServer(port) {
           headers.set(key, value);
         }
       }
-      // Harness-only: normalize Host to hostname so loopback:port matches F03 allowlist.
-      headers.set("host", host.split(":")[0] ?? "127.0.0.1");
       const init = { method: req.method ?? "GET", headers };
       if (bodyBuf.length > 0 && req.method !== "GET" && req.method !== "HEAD") {
         init.body = bodyBuf;
@@ -266,7 +301,7 @@ async function startBfbServer(port) {
 
   await new Promise((resolve, reject) => {
     server.once("error", reject);
-    server.listen(port, "127.0.0.1", resolve);
+    server.listen(port, "::", resolve);
   });
 
   return {
@@ -274,7 +309,7 @@ async function startBfbServer(port) {
     port,
     appOrigin,
     mcpUrl: `${appOrigin}/mcp`,
-    MCP_RESOURCE,
+    mcpResource: mcpResource(appOrigin),
     MCP_PROTOCOL_VERSION,
     close: () => new Promise((resolve) => server.close(() => resolve())),
   };
@@ -286,7 +321,7 @@ async function probeEndpoint(serverInfo) {
     ["healthz", () => fetch(`${serverInfo.appOrigin}/healthz`)],
     [
       "oauth-authorization-server",
-      () => fetch(`${serverInfo.appOrigin}/.well-known/oauth-authorization-server`),
+      () => fetch(`${serverInfo.appOrigin}/.well-known/oauth-authorization-server/auth`),
     ],
     [
       "oauth-protected-resource",
@@ -342,6 +377,46 @@ function pushCmd(commands, run) {
     stdout: redact(run.stdout.trim()),
     stderr: redact(run.stderr.trim()),
   });
+}
+
+function keepLines(value, predicate) {
+  return value
+    .split("\n")
+    .filter((line) => predicate(line))
+    .join("\n");
+}
+
+function retainClientEvidence(client, command) {
+  command.stdout = keepLines(command.stdout, (line) => !line.startsWith("File modified:"));
+  if (command.command.includes(" mcp list")) {
+    command.stdout = keepLines(command.stdout, (line) => line.includes(SERVER_NAME));
+  }
+  if (client === "grok" && command.command.includes(" mcp doctor")) {
+    try {
+      const parsed = JSON.parse(command.stdout);
+      command.stdout = JSON.stringify(
+        {
+          servers: Array.isArray(parsed.servers)
+            ? parsed.servers.filter((server) => server?.name === SERVER_NAME)
+            : [],
+          healthy_count: parsed.healthy_count,
+          failing_count: parsed.failing_count,
+        },
+        null,
+        2,
+      );
+    } catch {
+      command.stdout = keepLines(command.stdout, (line) => line.includes(SERVER_NAME));
+    }
+    command.stderr = keepLines(
+      command.stderr,
+      (line) =>
+        line.includes(SERVER_NAME) ||
+        line.includes("rejecting authorization server metadata") ||
+        line.includes("AuthRequired"),
+    );
+  }
+  return command;
 }
 
 async function attemptClaude(client, serverInfo) {
@@ -407,6 +482,7 @@ async function attemptClaude(client, serverInfo) {
       timeoutMs: 15_000,
     }),
   );
+  commands.forEach((command) => retainClientEvidence("claude", command));
 
   const ours = [get.stdout, get.stderr, list.stdout, list.stderr]
     .join("\n")
@@ -440,9 +516,9 @@ async function attemptClaude(client, serverInfo) {
     commandDetails: commands,
     result,
     limitations: [
-      "BFB requires server-preregistered public client, PKCE S256, exact redirect http://127.0.0.1:9999/callback",
-      "BFB authorize requires browser session cookie plus workspace_id and step_up_proof_id (C03)",
-      "Claude Code Streamable HTTP health probe did not send MCP-Protocol-Version 2026-07-28",
+      "BFB requires server-preregistered public client, PKCE S256, and exact redirect http://localhost:9999/callback",
+      "BFB browser checkpoint supplies the workspace/project boundary and C03 passkey proof before consent",
+      "The non-interactive CLI attempt emitted the expected authorization URL but could not complete a browser ceremony",
       "BFB rejects legacy initialize/Mcp-Session-Id; protocol is MCP 2026-07-28 stateless Streamable HTTP",
       "Cookie sessions cannot authenticate /mcp",
     ],
@@ -466,37 +542,45 @@ async function attemptCodex(client, serverInfo) {
     ? `@openai/codex ${client.packageVersion}${client.versionOk ? "" : " (native --version ENOENT)"}`
     : client.versionOutput.split("\n")[0];
 
-  const ver = await runCapture(client.path, ["--version"], { timeoutMs: 10_000 });
-  pushCmd(commands, ver);
-  const help = await runCapture(client.path, ["--help"], { timeoutMs: 10_000 });
-  pushCmd(commands, help);
-
-  if (ver.code === 0 || help.code === 0) {
-    pushCmd(commands, await runCapture(client.path, ["mcp", "--help"], { timeoutMs: 15_000 }));
-  } else {
-    pushCmd(
-      commands,
-      await runCapture(client.path, ["mcp", "add", "bfb-x03a", serverInfo.mcpUrl], {
-        timeoutMs: 10_000,
-      }),
-    );
-  }
+  pushCmd(commands, await runCapture(client.path, ["mcp", "remove", SERVER_NAME]));
+  const add = await runCapture(client.path, [
+    "mcp",
+    "add",
+    SERVER_NAME,
+    "--url",
+    serverInfo.mcpUrl,
+    "--oauth-client-id",
+    CLIENT_ID,
+  ]);
+  pushCmd(commands, add);
+  pushCmd(
+    commands,
+    await runCapture(client.path, ["mcp", "get", SERVER_NAME], { timeoutMs: 30_000 }),
+  );
+  pushCmd(commands, await runCapture(client.path, ["mcp", "list"], { timeoutMs: 30_000 }));
+  pushCmd(commands, await runCapture(client.path, ["mcp", "remove", SERVER_NAME]));
+  commands.forEach((command) => retainClientEvidence("codex", command));
 
   const combined = commands.map((c) => `${c.stdout}\n${c.stderr}`).join("\n");
-  let result = "attempted";
+  let result = "attempted — HTTP MCP configuration exercised";
   const limitations = [];
   if (/ENOENT/i.test(combined)) {
     result = "failed — native binary missing (ENOENT on darwin vendor codex); MCP not exercised";
     limitations.push(
       "npm @openai/codex wrapper cannot spawn vendor/aarch64-apple-darwin/codex/codex (ENOENT)",
     );
-  } else if (ver.code !== 0 && help.code !== 0) {
-    result = "failed — CLI would not start";
-  } else {
-    result = "attempted — CLI started; see command details for MCP support";
+  } else if (add.code !== 0 && !add.stdout.includes("Added global MCP server")) {
+    result = "failed — could not register HTTP MCP server";
+  } else if (add.stdout.includes("Added global MCP server")) {
+    result = "registered — OAuth browser ceremony incomplete";
+  } else if (/auth|oauth|login|401|unauthorized/i.test(combined)) {
+    result = "registered — OAuth required before MCP use";
   }
-  limitations.push("BFB accepts only preregistered public client bfb-mcp-synthetic-client");
-  limitations.push("No X03A acceptance weakening for broken local Codex installs");
+  limitations.push("Codex configuration supports an explicit OAuth client ID and resource");
+  limitations.push(
+    "Codex generates a random callback port/path, which cannot match BFB's exact preregistered redirect",
+  );
+  limitations.push("BFB rejects DCR/CIMD and accepts only preregistered public clients");
 
   summarizeResult({
     client: "Codex",
@@ -552,6 +636,7 @@ async function attemptGrok(client, serverInfo) {
       timeoutMs: 15_000,
     }),
   );
+  commands.forEach((command) => retainClientEvidence("grok", command));
 
   const ours = [doctor.stdout, doctor.stderr, list.stdout, list.stderr].join("\n");
   let result = "attempted — MCP config/doctor exercised";
@@ -582,15 +667,15 @@ async function attemptGrok(client, serverInfo) {
     result,
     limitations: [
       "Grok MCP HTTP doctor performs an initialize handshake; BFB rejects initialize and requires MCP-Protocol-Version 2026-07-28",
-      "OAuth against BFB preregistered client + C03 step-up is not a full delegated board-client loop from grok mcp alone",
-      "BFB protected-resource metadata advertises resource https://bfb.example.test/mcp (fixture constant) even when served on loopback",
+      "Grok 1.0.0 exposes HTTP/static-header configuration but no OAuth client-id or login command for this flow",
+      `BFB protected-resource metadata advertises the exact loopback resource ${serverInfo.mcpResource}`,
       "BFB does not open DCR/CIMD; unregistered clients fail closed",
     ],
   });
 }
 
 async function writeOutputs(serverInfo, probes, startedAt) {
-  await fs.mkdir(EVIDENCE_DIR, { recursive: true });
+  await fs.mkdir(ATTEMPTS_DIR, { recursive: true });
   // Remove prior harness temp artifacts if any.
   for (const name of [
     "_provider-server.ts",
@@ -600,7 +685,7 @@ async function writeOutputs(serverInfo, probes, startedAt) {
     "grok-build-cli.json",
   ]) {
     try {
-      await fs.unlink(path.join(EVIDENCE_DIR, name));
+      await fs.unlink(path.join(ATTEMPTS_DIR, name));
     } catch {
       // ignore
     }
@@ -616,10 +701,9 @@ async function writeOutputs(serverInfo, probes, startedAt) {
       app_origin: serverInfo.appOrigin,
       mcp_url: serverInfo.mcpUrl,
       protocol_version: serverInfo.MCP_PROTOCOL_VERSION,
-      resource_fixture: serverInfo.MCP_RESOURCE,
+      resource: serverInfo.mcpResource,
       preregistered_client_id: CLIENT_ID,
-      redirect_uri: `http://127.0.0.1:${CALLBACK_PORT}/callback`,
-      host_normalization: "harness strips non-default port from Host for allowedHostnames match",
+      redirect_uri: `http://localhost:${CALLBACK_PORT}/callback`,
     },
     harness_probes: probes,
     clients: results.map((r) => ({
@@ -640,7 +724,7 @@ async function writeOutputs(serverInfo, probes, startedAt) {
   };
 
   await fs.writeFile(
-    path.join(EVIDENCE_DIR, "attempt-summary.json"),
+    path.join(ATTEMPTS_DIR, "attempt-summary.json"),
     JSON.stringify(payload, null, 2) + "\n",
     "utf8",
   );
@@ -664,7 +748,7 @@ async function writeOutputs(serverInfo, probes, startedAt) {
       ...row.limitations.map((l) => `- ${l}`),
       "",
     ];
-    await fs.writeFile(path.join(EVIDENCE_DIR, `${safe}.log`), lines.join("\n"), "utf8");
+    await fs.writeFile(path.join(ATTEMPTS_DIR, `${safe}.log`), lines.join("\n"), "utf8");
   }
 
   const cookieProbe = probes.find((p) => p.name === "tools/list-with-cookie");
@@ -680,7 +764,7 @@ async function writeOutputs(serverInfo, probes, startedAt) {
 
   const md = `# Provider MCP client compatibility (X03A)
 
-Real installed-client attempts against a local BFB control app serving MCP \`2026-07-28\` at \`/mcp\` with OAuth authorization_code + PKCE S256 and server-preregistered public client \`${CLIENT_ID}\` (redirect \`http://127.0.0.1:${CALLBACK_PORT}/callback\`).
+Real installed-client attempts against a local BFB control app serving MCP \`2026-07-28\` at \`/mcp\` with OAuth authorization_code + PKCE S256 and server-preregistered public client \`${CLIENT_ID}\` (redirect \`http://localhost:${CALLBACK_PORT}/callback\`).
 
 Harness: \`node tools/provider-compat/run-attempts.mjs\` (Node 24.19.0). Endpoint: \`${serverInfo.mcpUrl}\`. Cookie auth on \`/mcp\` rejected by harness probe (HTTP ${cookieProbe?.status ?? "?"}).
 
@@ -690,27 +774,22 @@ ${tableRows}
 
 ## Harness notes
 
-- Local server uses \`createControlApp\` + migrated in-memory SQLite fixtures (\`seedSyntheticWorkspace\`).
-- Host header port is normalized in the harness only so loopback non-default ports match F03 hostname allowlisting; production uses canonical hosts.
-- Protected-resource metadata still advertises fixture resource \`${serverInfo.MCP_RESOURCE}\`.
+- Local server uses the production fetch handler with migrated in-memory SQLite fixtures (\`seedSyntheticWorkspace\`).
+- Protected-resource metadata advertises the exact served resource \`${serverInfo.mcpResource}\`.
 - These rows are **not** fixture-profile-only claims; each client binary was invoked on this machine.
 - Unsupported or incomplete outcomes do not change the frozen X03A transport or OAuth policy.
 
 ## Evidence artifacts
 
-- \`docs/work-packages/evidence/WP-X03A/attempts/attempt-summary.json\`
-- \`docs/work-packages/evidence/WP-X03A/attempts/claude.log\`
-- \`docs/work-packages/evidence/WP-X03A/attempts/codex.log\`
-- \`docs/work-packages/evidence/WP-X03A/attempts/grok.log\`
+- \`attempts/attempt-summary.json\`
+- \`attempts/claude.log\`
+- \`attempts/codex.log\`
+- \`attempts/grok.log\`
 
 Started: ${startedAt}  
 Ended: ${endedAt}
 `;
-  await fs.writeFile(
-    path.join(REPO_ROOT, "docs/work-packages/evidence/WP-X03A/provider-compat.md"),
-    md,
-    "utf8",
-  );
+  await fs.writeFile(path.join(OUTPUT_DIR, "provider-compat.md"), md, "utf8");
 
   if (SCRATCH_LOG) {
     await fs.mkdir(path.dirname(SCRATCH_LOG), { recursive: true });
@@ -760,7 +839,7 @@ async function main() {
     await attemptGrok(grok, serverInfo);
 
     await writeOutputs(serverInfo, probes, startedAt);
-    log("wrote evidence under docs/work-packages/evidence/WP-X03A/");
+    log(`wrote provider-compat output under ${redact(OUTPUT_DIR)}`);
     if (SCRATCH_LOG) log("wrote scratch log");
   } finally {
     await serverInfo.close();

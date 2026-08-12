@@ -31,19 +31,23 @@ export function createFetchHandler(options: ControlFetchOptions = {}) {
       const validated = validateControlEnv(env);
       // Production always binds D1. Tests inject options.db (better-sqlite3).
       const db = options.db ?? adaptD1(env.DB);
+      const authEnv: AuthEnv = options.authEnv ?? {
+        APP_ORIGIN: validated.origins.appOrigin,
+        BETTER_AUTH_SECRETS: env.BETTER_AUTH_SECRETS ?? "",
+        GITHUB_CLIENT_ID: env.GITHUB_CLIENT_ID ?? "",
+        GITHUB_CLIENT_SECRET: env.GITHUB_CLIENT_SECRET ?? "",
+        AUTH_ABUSE_SECRET: env.AUTH_ABUSE_SECRET ?? "",
+      };
       const app = createControlApp(validated, {
         db,
         now: options.now,
+        abuseSecret: authEnv.AUTH_ABUSE_SECRET,
         humanAuth: () => {
-          const authEnv: AuthEnv = options.authEnv ?? {
-            APP_ORIGIN: validated.origins.appOrigin,
-            BETTER_AUTH_SECRETS: env.BETTER_AUTH_SECRETS ?? "",
-            GITHUB_CLIENT_ID: env.GITHUB_CLIENT_ID ?? "",
-            GITHUB_CLIENT_SECRET: env.GITHUB_CLIENT_SECRET ?? "",
-            AUTH_ABUSE_SECRET: env.AUTH_ABUSE_SECRET ?? "",
-          };
           return {
-            auth: createHumanAuth(options.authDatabase ?? env.DB, authEnv),
+            auth: createHumanAuth(options.authDatabase ?? env.DB, authEnv, {
+              db,
+              now: options.now ?? new Date().toISOString(),
+            }),
             keys: parseAuthKeys(authEnv.BETTER_AUTH_SECRETS),
             abuseSecret: authEnv.AUTH_ABUSE_SECRET,
           };

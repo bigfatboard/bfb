@@ -21,6 +21,7 @@ describe("Better Auth configuration", () => {
     };
     expect(manifest.dependencies?.["better-auth"]).toBe("1.6.26");
     expect(manifest.dependencies?.["@better-auth/passkey"]).toBe("1.6.26");
+    expect(manifest.dependencies?.["@better-auth/oauth-provider"]).toBe("1.6.26");
     expect(manifest.dependencies?.["@simplewebauthn/server"]).toBe("13.3.2");
     expect(manifest.devDependencies?.["better-auth"]).toBeUndefined();
   });
@@ -57,12 +58,20 @@ describe("Better Auth configuration", () => {
         "/passkey/delete-passkey",
         "/passkey/generate-register-options",
         "/passkey/verify-authentication",
+        "/oauth2/create-client",
+        "/oauth2/delete-client",
+        "/oauth2/get-client",
+        "/oauth2/get-clients",
+        "/oauth2/introspect",
+        "/oauth2/register",
+        "/oauth2/update-client",
+        "/oauth2/client/rotate-secret",
         "/sign-in/email",
         "/sign-up/email",
         "/update-user",
       ]),
     );
-    expect(options.plugins?.map((plugin) => plugin.id)).toEqual(["passkey"]);
+    expect(options.plugins?.map((plugin) => plugin.id)).toEqual(["passkey", "oauth-provider"]);
   });
 
   it("requires user verification at the exact app RP and origin", () => {

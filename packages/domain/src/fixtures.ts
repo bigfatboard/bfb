@@ -132,8 +132,22 @@ export async function seedSyntheticWorkspace(
 
   await db
     .prepare(
-      `INSERT INTO preregistered_oauth_clients (client_id, redirect_uri, name, public_client)
-     VALUES (?, 'http://127.0.0.1:9999/callback', 'Synthetic MCP Client', 1)`,
+      `INSERT INTO better_auth_oauth_clients (
+         id, client_id, client_secret, disabled, skip_consent, enable_end_session,
+         subject_type, scopes, user_id, created_at, updated_at, name,
+         redirect_uris, token_endpoint_auth_method, grant_types, response_types,
+         public, type, require_pkce
+       ) VALUES (?, ?, NULL, 0, 0, 0, 'public', ?, NULL, ?, ?, ?, ?, 'none', ?, ?, 1, 'native', 1)`,
     )
-    .run(FIX.client);
+    .run(
+      FIX.client,
+      FIX.client,
+      JSON.stringify(["bfb:read", "bfb:task:write", "offline_access"]),
+      now,
+      now,
+      "Synthetic MCP Client",
+      JSON.stringify(["http://127.0.0.1:9999/callback"]),
+      JSON.stringify(["authorization_code", "refresh_token"]),
+      JSON.stringify(["code"]),
+    );
 }

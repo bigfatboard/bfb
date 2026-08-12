@@ -3,6 +3,10 @@
 
 import { betterAuth, type BetterAuthOptions } from "better-auth";
 import { passkey, type PasskeyOptions } from "@better-auth/passkey";
+import { oauthProvider } from "@better-auth/oauth-provider";
+import { getOAuthProviderState } from "@better-auth/oauth-provider";
+import type { SqlDatabase } from "@bfb/db";
+import { delegationGrantForState } from "@bfb/domain";
 
 export interface AuthEnv {
   APP_ORIGIN: string;
@@ -10,6 +14,11 @@ export interface AuthEnv {
   GITHUB_CLIENT_ID: string;
   GITHUB_CLIENT_SECRET: string;
   AUTH_ABUSE_SECRET: string;
+}
+
+export interface OAuthAuthorityDeps {
+  db: SqlDatabase;
+  now: string;
 }
 
 export interface AuthKey {
@@ -21,6 +30,7 @@ export type AuthDatabase = NonNullable<BetterAuthOptions["database"]>;
 
 const MIN_SECRET_LENGTH = 32;
 const MAX_SECRET_VERSIONS = 2;
+const MCP_SCOPES = ["bfb:read", "bfb:task:write", "offline_access"];
 
 const DISABLED_AUTH_PATHS = [
   "/account-info",
@@ -39,6 +49,18 @@ const DISABLED_AUTH_PATHS = [
   "/passkey/update-passkey",
   "/passkey/verify-authentication",
   "/passkey/verify-registration",
+  "/oauth2/create-client",
+  "/oauth2/delete-client",
+  "/oauth2/get-client",
+  "/oauth2/get-clients",
+  "/oauth2/introspect",
+  "/oauth2/register",
+  "/oauth2/update-client",
+  "/oauth2/client/rotate-secret",
+  "/oauth2/get-consent",
+  "/oauth2/get-consents",
+  "/oauth2/update-consent",
+  "/oauth2/delete-consent",
   "/refresh-token",
   "/request-password-reset",
   "/reset-password",
@@ -143,7 +165,11 @@ export function humanPasskeyOptions(appOrigin: string): PasskeyOptions {
   };
 }
 
-export function humanAuthOptions(database: AuthDatabase, env: AuthEnv): BetterAuthOptions {
+export function humanAuthOptions(
+  database: AuthDatabase,
+  env: AuthEnv,
+  oauthAuthority?: OAuthAuthorityDeps,
+): BetterAuthOptions {
   const { origin, keys } = validateAuthEnv(env);
   return {
     appName: "BFB",
@@ -216,7 +242,125 @@ export function humanAuthOptions(database: AuthDatabase, env: AuthEnv): BetterAu
     },
     rateLimit: { enabled: false },
     disabledPaths: [...DISABLED_AUTH_PATHS],
-    plugins: [passkey(humanPasskeyOptions(origin))],
+    plugins: [
+      passkey(humanPasskeyOptions(origin)),
+      oauthProvider({
+        loginPage: "/",
+        consentPage: "/oauth/consent",
+        scopes: MCP_SCOPES,
+        validAudiences: [`${origin}/mcp`],
+        accessTokenExpiresIn: 5 * 60,
+        refreshTokenExpiresIn: 15 * 60,
+        codeExpiresIn: 2 * 60,
+        allowDynamicClientRegistration: false,
+        allowUnauthenticatedClientRegistration: false,
+        grantTypes: ["authorization_code", "refresh_token"],
+        clientRegistrationDefaultScopes: MCP_SCOPES,
+        clientRegistrationAllowedScopes: MCP_SCOPES,
+        clientPrivileges: () => false,
+        ...(oauthAuthority
+          ? {
+              postLogin: {
+                page: "/oauth/consent",
+                shouldRedirect: () => false,
+                consentReferenceId: async ({ user, session, scopes }) => {
+                  const state = await getOAuthProviderState();
+                  const query = new URLSearchParams(state?.query ?? "");
+                  return delegationGrantForState(oauthAuthority.db, {
+                    state: query.get("state") ?? "",
+                    authUserId: user.id,
+                    sessionId: session.id,
+                    scopes,
+                    now: oauthAuthority.now,
+                  });
+                },
+              },
+            }
+          : {}),
+        disableJwtPlugin: true,
+        storeTokens: "hashed",
+        prefix: {
+          opaqueAccessToken: "mcp_",
+          refreshToken: "mcp_refresh_",
+        },
+        schema: {
+          oauthClient: {
+            modelName: "better_auth_oauth_clients",
+            fields: {
+              clientId: "client_id",
+              clientSecret: "client_secret",
+              disabled: "disabled",
+              skipConsent: "skip_consent",
+              enableEndSession: "enable_end_session",
+              subjectType: "subject_type",
+              scopes: "scopes",
+              userId: "user_id",
+              createdAt: "created_at",
+              updatedAt: "updated_at",
+              name: "name",
+              uri: "uri",
+              icon: "icon",
+              contacts: "contacts",
+              tos: "tos",
+              policy: "policy",
+              softwareId: "software_id",
+              softwareVersion: "software_version",
+              softwareStatement: "software_statement",
+              redirectUris: "redirect_uris",
+              postLogoutRedirectUris: "post_logout_redirect_uris",
+              tokenEndpointAuthMethod: "token_endpoint_auth_method",
+              grantTypes: "grant_types",
+              responseTypes: "response_types",
+              public: "public",
+              type: "type",
+              requirePKCE: "require_pkce",
+              referenceId: "reference_id",
+              metadata: "metadata",
+            },
+          },
+          oauthRefreshToken: {
+            modelName: "better_auth_oauth_refresh_tokens",
+            fields: {
+              token: "token",
+              clientId: "client_id",
+              sessionId: "session_id",
+              userId: "user_id",
+              referenceId: "reference_id",
+              expiresAt: "expires_at",
+              createdAt: "created_at",
+              revoked: "revoked",
+              authTime: "auth_time",
+              scopes: "scopes",
+            },
+          },
+          oauthAccessToken: {
+            modelName: "better_auth_oauth_access_tokens",
+            fields: {
+              token: "token",
+              clientId: "client_id",
+              sessionId: "session_id",
+              userId: "user_id",
+              referenceId: "reference_id",
+              refreshId: "refresh_id",
+              expiresAt: "expires_at",
+              createdAt: "created_at",
+              scopes: "scopes",
+            },
+          },
+          oauthConsent: {
+            modelName: "better_auth_oauth_consents",
+            fields: {
+              clientId: "client_id",
+              userId: "user_id",
+              referenceId: "reference_id",
+              scopes: "scopes",
+              createdAt: "created_at",
+              updatedAt: "updated_at",
+            },
+          },
+        },
+      }),
+    ],
     telemetry: { enabled: false },
     logger: { disabled: true },
     advanced: {
@@ -246,8 +390,12 @@ export function humanAuthOptions(database: AuthDatabase, env: AuthEnv): BetterAu
   };
 }
 
-export function createHumanAuth(database: AuthDatabase, env: AuthEnv) {
-  return betterAuth(humanAuthOptions(database, env));
+export function createHumanAuth(
+  database: AuthDatabase,
+  env: AuthEnv,
+  oauthAuthority?: OAuthAuthorityDeps,
+) {
+  return betterAuth(humanAuthOptions(database, env, oauthAuthority));
 }
 
 export type HumanAuth = ReturnType<typeof createHumanAuth>;

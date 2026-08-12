@@ -96,7 +96,6 @@ async function main(): Promise<void> {
       headers: {
         cookie,
         "content-type": "application/json",
-        Host: "bfb.identity.test",
         "MCP-Protocol-Version": "2026-07-28",
         "Mcp-Method": "tools/list",
       },

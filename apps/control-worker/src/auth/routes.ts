@@ -255,13 +255,25 @@ export async function handleAuthRoute(c: Context, deps: AuthRouteDeps): Promise<
     ) {
       return rejected(429);
     }
+    let callbackURL = "/";
+    if (bounded.bodyBytes > 0) {
+      try {
+        const body = (await bounded.request.clone().json()) as { callback_path?: unknown };
+        if (typeof body.callback_path !== "string" || !validOauthCallbackPath(body.callback_path)) {
+          return rejected();
+        }
+        callbackURL = body.callback_path;
+      } catch {
+        return rejected();
+      }
+    }
     try {
       return await deps.auth.handler(
         internalAuthRequest(
           bounded.request,
           deps.appOrigin,
           "/auth/sign-in/social",
-          JSON.stringify({ provider: "github", callbackURL: "/" }),
+          JSON.stringify({ provider: "github", callbackURL }),
         ),
       );
     } catch {
@@ -535,4 +547,21 @@ export async function handleAuthRoute(c: Context, deps: AuthRouteDeps): Promise<
   }
 
   return c.json({ error: "not_found" }, 404);
+}
+
+function validOauthCallbackPath(value: string): boolean {
+  if (value.length > 4096) {
+    return false;
+  }
+  try {
+    const callback = new URL(value, "https://bfb.invalid");
+    return (
+      callback.origin === "https://bfb.invalid" &&
+      callback.pathname === "/oauth/authorize" &&
+      callback.search.length > 1 &&
+      !callback.hash
+    );
+  } catch {
+    return false;
+  }
 }

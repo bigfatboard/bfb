@@ -321,7 +321,7 @@ async function main(): Promise<void> {
   await seedWorkSurface(authContext.db);
   const db = authContext.db;
   const authEnv: AuthEnv = { ...AUTH_TEST_ENV, APP_ORIGIN: ORIGIN };
-  const auth = createHumanAuth(authContext.raw, authEnv);
+  const auth = createHumanAuth(authContext.raw, authEnv, { db, now: NOW });
   const fixtureSessions: Record<FixtureRole, string> = {
     owner: (
       await seedAuthSession(authContext, {
@@ -359,6 +359,7 @@ async function main(): Promise<void> {
   const app = createControlApp(validated, {
     db,
     now: NOW,
+    abuseSecret: authEnv.AUTH_ABUSE_SECRET,
     humanAuth: () => ({
       auth,
       keys: parseAuthKeys(authEnv.BETTER_AUTH_SECRETS),

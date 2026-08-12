@@ -18,9 +18,13 @@ import {
 } from "./auth/session.js";
 import { isWorkerFirstPath, type ValidatedControlEnv } from "./env.js";
 import { handleMcpRequest } from "./mcp/handler.js";
+import { oauthAuthorizationScript, oauthAuthorizationStyles } from "./oauth/authorization-page.js";
 import {
   handleOauthAuthorize,
+  handleOauthConsent,
+  handleOauthConsentPage,
   handleOauthMetadata,
+  handleOauthRevoke,
   handleOauthToken,
   handleProtectedResourceMetadata,
 } from "./oauth/routes.js";
@@ -43,6 +47,7 @@ export function createControlApp(
     db?: SqlDatabase | undefined;
     now?: string | undefined;
     humanAuth?: (() => HumanAuthRuntime) | undefined;
+    abuseSecret?: string | undefined;
   } = {},
 ): Hono<{ Bindings: Record<string, unknown>; Variables: ControlAppVariables }> {
   const app = new Hono<{ Bindings: Record<string, unknown>; Variables: ControlAppVariables }>();
@@ -93,7 +98,7 @@ export function createControlApp(
   app.all("/mcp", async (c) => {
     const current = c.get("validated");
     const db = c.get("db") ?? options.db;
-    if (!current || !db) {
+    if (!current || !db || !options.abuseSecret) {
       return c.json({ ok: false, error: "mcp_misconfigured", message: "db/env required" }, 500);
     }
     // Hono test requests have no ExecutionContext; createMcpHandler accepts a minimal one.
@@ -109,6 +114,7 @@ export function createControlApp(
         db,
         allowedHostnames: [current.origins.appHostname],
         appOrigin: current.origins.appOrigin,
+        abuseSecret: options.abuseSecret,
         jurisdiction: current.jurisdiction,
         now: c.get("now") ?? now,
         workspaceHubNs: envBindings.WORKSPACE_HUB,
@@ -118,6 +124,15 @@ export function createControlApp(
   });
 
   app.all("/auth/*", async (c) => {
+    if (c.req.header("authorization")) {
+      return c.json(
+        { error: "credential_confusion", message: "bearer credentials cannot auth browser routes" },
+        401,
+      );
+    }
+    if (c.req.path.startsWith("/auth/oauth2/") || c.req.path.startsWith("/auth/.well-known/")) {
+      return c.json({ error: "not_found" }, 404);
+    }
     const db = c.get("db") ?? options.db;
     const current = c.get("validated");
     if (!db || !current) {
@@ -141,9 +156,23 @@ export function createControlApp(
     }
   });
 
-  app.get("/.well-known/oauth-authorization-server", (c) => {
+  app.get("/.well-known/oauth-authorization-server/auth", async (c) => {
     const current = c.get("validated");
-    return handleOauthMetadata(current?.origins.appOrigin ?? "https://bfb.example.test");
+    const db = c.get("db") ?? options.db;
+    if (!db || !current) {
+      return c.json({ error: "oauth_misconfigured" }, 500);
+    }
+    const runtime = options.humanAuth?.();
+    if (!runtime) {
+      return c.json({ error: "oauth_misconfigured" }, 500);
+    }
+    return handleOauthMetadata(c.req.raw, {
+      db,
+      auth: runtime.auth,
+      appOrigin: current.origins.appOrigin,
+      abuseSecret: runtime.abuseSecret,
+      now: c.get("now") ?? now,
+    });
   });
 
   app.get("/.well-known/oauth-protected-resource", (c) => {
@@ -168,11 +197,47 @@ export function createControlApp(
         db,
         auth: runtime.auth,
         appOrigin: current.origins.appOrigin,
+        abuseSecret: runtime.abuseSecret,
         now: c.get("now") ?? now,
       });
     } catch {
       return c.json({ error: "oauth_misconfigured" }, 500);
     }
+  });
+
+  app.get("/oauth/authorize.css", () => oauthAuthorizationStyles());
+  app.get("/oauth/authorize.js", () => oauthAuthorizationScript());
+
+  app.post("/oauth/consent", async (c) => {
+    const db = c.get("db") ?? options.db;
+    const current = c.get("validated");
+    const runtime = options.humanAuth?.();
+    if (!db || !current || !runtime) {
+      return c.json({ error: "oauth_misconfigured" }, 500);
+    }
+    return handleOauthConsent(c.req.raw, {
+      db,
+      auth: runtime.auth,
+      appOrigin: current.origins.appOrigin,
+      abuseSecret: runtime.abuseSecret,
+      now: c.get("now") ?? now,
+    });
+  });
+
+  app.get("/oauth/consent", async (c) => {
+    const db = c.get("db") ?? options.db;
+    const current = c.get("validated");
+    const runtime = options.humanAuth?.();
+    if (!db || !current || !runtime) {
+      return c.json({ error: "oauth_misconfigured" }, 500);
+    }
+    return handleOauthConsentPage(c.req.raw, {
+      db,
+      auth: runtime.auth,
+      appOrigin: current.origins.appOrigin,
+      abuseSecret: runtime.abuseSecret,
+      now: c.get("now") ?? now,
+    });
   });
 
   app.post("/oauth/token", async (c) => {
@@ -187,9 +252,34 @@ export function createControlApp(
         401,
       );
     }
+    const runtime = options.humanAuth?.();
+    if (!runtime) {
+      return c.json({ error: "oauth_misconfigured" }, 500);
+    }
     return handleOauthToken(c.req.raw, {
       db,
+      auth: runtime.auth,
       appOrigin: current.origins.appOrigin,
+      abuseSecret: runtime.abuseSecret,
+      now: c.get("now") ?? now,
+    });
+  });
+
+  app.post("/oauth/revoke", async (c) => {
+    const db = c.get("db") ?? options.db;
+    const current = c.get("validated");
+    const runtime = options.humanAuth?.();
+    if (!db || !current || !runtime) {
+      return c.json({ error: "oauth_misconfigured" }, 500);
+    }
+    if (hasBrowserSessionCookie(c.req.raw)) {
+      return c.json({ error: "credential_confusion" }, 401);
+    }
+    return handleOauthRevoke(c.req.raw, {
+      db,
+      auth: runtime.auth,
+      appOrigin: current.origins.appOrigin,
+      abuseSecret: runtime.abuseSecret,
       now: c.get("now") ?? now,
     });
   });

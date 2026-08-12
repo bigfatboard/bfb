@@ -11,6 +11,7 @@ import {
   assertScope,
   assertTaskChildAccess,
   getTask,
+  listProjectsPage,
   listTasksPage,
   listTaskSubtreePage,
   loadPrincipal,
@@ -56,20 +57,28 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
     "bfb_list_projects",
     {
       description: "List projects accessible to the authenticated delegation",
-      inputSchema: {},
+      inputSchema: {
+        limit: z.number().int().min(1).max(100).optional(),
+        cursor: z.string().max(128).optional(),
+      },
     },
-    async () => {
+    async ({ limit, cursor }) => {
       assertScope(deps.delegation, "bfb:read");
-      // membership ∩ delegation: only projects allowed by both role grants and delegation scope
-      let projectIds = principal.projectIds;
-      if (deps.delegation.projectId) {
-        projectIds = projectIds.filter((id) => id === deps.delegation.projectId);
-      }
+      const scopedPrincipal = {
+        ...principal,
+        projectIds: deps.delegation.projectId
+          ? principal.projectIds.filter((id) => id === deps.delegation.projectId)
+          : principal.projectIds,
+      };
+      const page = await listProjectsPage(deps.db, scopedPrincipal, {
+        ...(limit === undefined ? {} : { limit }),
+        ...(cursor === undefined ? {} : { cursor }),
+      });
       return {
         content: [
           {
             type: "text" as const,
-            text: JSON.stringify({ projects: projectIds }),
+            text: JSON.stringify(page),
           },
         ],
       };
@@ -82,7 +91,7 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
       description: "List tasks under the delegated boundary",
       inputSchema: {
         limit: z.number().int().min(1).max(100).optional(),
-        cursor: z.string().optional(),
+        cursor: z.string().max(128).optional(),
       },
     },
     async ({ limit, cursor }) => {
@@ -119,7 +128,7 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
     "bfb_get_task",
     {
       description: "Get one task by id within the delegated boundary",
-      inputSchema: { task_id: z.string() },
+      inputSchema: { task_id: z.string().min(1).max(128) },
     },
     async ({ task_id }) => {
       assertScope(deps.delegation, "bfb:read");
@@ -140,9 +149,12 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
     "bfb_get_context",
     {
       description: "Read agent-visible context for a task",
-      inputSchema: { task_id: z.string() },
+      inputSchema: {
+        task_id: z.string().min(1).max(128),
+        request_id: z.string().min(1).max(128),
+      },
     },
-    async ({ task_id }) => {
+    async ({ task_id, request_id }) => {
       assertScope(deps.delegation, "bfb:read");
       await assertTaskChildAccess(deps.db, principal, task_id);
       const task = await getTask(deps.db, deps.delegation.workspaceId, task_id);
@@ -155,7 +167,7 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
       await enforceDelegationAccess(deps.db, deps.delegation, task.project_id, task.id);
       const outcome = await executeWorkspaceCommand(hubDeps, deliverDelegatedAgentContextCommand, {
         workspaceId: deps.delegation.workspaceId,
-        idempotencyKey: `context-${task_id}-${deps.now}`,
+        idempotencyKey: request_id,
         authorizationEpoch: deps.delegation.authorizationEpoch,
         actorHumanId: deps.delegation.humanId,
         actorDelegationId: deps.delegation.delegationId,
@@ -179,9 +191,9 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
     {
       description: "Add a discussion comment to a task",
       inputSchema: {
-        task_id: z.string(),
-        body: z.string(),
-        request_id: z.string().optional(),
+        task_id: z.string().min(1).max(128),
+        body: z.string().min(1).max(2048),
+        request_id: z.string().min(1).max(128),
       },
     },
     async ({ task_id, body, request_id }) => {
@@ -196,14 +208,17 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
       await enforceDelegationAccess(deps.db, deps.delegation, task.project_id, task.id);
       const outcome = await executeWorkspaceCommand(hubDeps, addCommentCommand, {
         workspaceId: deps.delegation.workspaceId,
-        idempotencyKey: request_id ?? `comment-${task_id}-${deps.now}`,
+        idempotencyKey: request_id,
         authorizationEpoch: deps.delegation.authorizationEpoch,
         actorHumanId: deps.delegation.humanId,
         actorDelegationId: deps.delegation.delegationId,
         now: deps.now,
         input: { taskId: task_id, body, kind: "discussion" },
       });
-      return { content: [{ type: "text" as const, text: JSON.stringify(outcome) }] };
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(outcome) }],
+        ...(!outcome.ok && { isError: true }),
+      };
     },
   );
 
@@ -212,9 +227,9 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
     {
       description: "Report bounded progress on a task",
       inputSchema: {
-        task_id: z.string(),
-        summary: z.string(),
-        request_id: z.string().optional(),
+        task_id: z.string().min(1).max(128),
+        summary: z.string().min(1).max(2048),
+        request_id: z.string().min(1).max(128),
       },
     },
     async ({ task_id, summary, request_id }) => {
@@ -229,14 +244,17 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
       await enforceDelegationAccess(deps.db, deps.delegation, task.project_id, task.id);
       const outcome = await executeWorkspaceCommand(hubDeps, reportProgressCommand, {
         workspaceId: deps.delegation.workspaceId,
-        idempotencyKey: request_id ?? `progress-${task_id}-${deps.now}`,
+        idempotencyKey: request_id,
         authorizationEpoch: deps.delegation.authorizationEpoch,
         actorHumanId: deps.delegation.humanId,
         actorDelegationId: deps.delegation.delegationId,
         now: deps.now,
         input: { taskId: task_id, body: summary, kind: "progress" },
       });
-      return { content: [{ type: "text" as const, text: JSON.stringify(outcome) }] };
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(outcome) }],
+        ...(!outcome.ok && { isError: true }),
+      };
     },
   );
 
@@ -245,11 +263,11 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
     {
       description: "Propose a root task or create a policy-bounded child task",
       inputSchema: {
-        project_id: z.string(),
-        parent_task_id: z.string().optional(),
-        title: z.string(),
+        project_id: z.string().min(1).max(128),
+        parent_task_id: z.string().min(1).max(128).optional(),
+        title: z.string().min(1).max(512),
         priority: z.enum(["P0", "P1", "P2", "P3"]).optional(),
-        request_id: z.string().optional(),
+        request_id: z.string().min(1).max(128),
       },
     },
     async ({ project_id, parent_task_id, title, priority, request_id }) => {
@@ -257,7 +275,7 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
       await enforceDelegationAccess(deps.db, deps.delegation, project_id, parent_task_id);
       const outcome = await executeWorkspaceCommand(hubDeps, createTaskCommand, {
         workspaceId: deps.delegation.workspaceId,
-        idempotencyKey: request_id ?? `propose-${project_id}-${deps.now}`,
+        idempotencyKey: request_id,
         authorizationEpoch: deps.delegation.authorizationEpoch,
         actorHumanId: deps.delegation.humanId,
         actorDelegationId: deps.delegation.delegationId,
@@ -269,7 +287,10 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
           priority: priority ?? "P2",
         },
       });
-      return { content: [{ type: "text" as const, text: JSON.stringify(outcome) }] };
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(outcome) }],
+        ...(!outcome.ok && { isError: true }),
+      };
     },
   );
 

@@ -76,6 +76,7 @@ export async function consumeStepUpProof(
   expected: StepUpAction,
   nowIso: string,
   humanId?: string,
+  onConsumed?: ((tx: SqlDatabase, consumptionStamp: string) => Promise<void>) | undefined,
 ): Promise<void> {
   // Unique per-attempt stamp lets concurrent D1 batch consumers identify the
   // conditional UPDATE winner without relying on a pre-commit change count.
@@ -154,6 +155,7 @@ export async function consumeStepUpProof(
          WHERE proof_id = ? AND consumed_at IS NULL`,
       )
       .run(consumeStamp, proofId);
+    await onConsumed?.(tx, consumeStamp);
   });
   // Post-commit ownership check works for interactive sqlite TX and D1 batch flush.
   const after = (await db

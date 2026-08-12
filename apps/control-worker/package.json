@@ -5,6 +5,7 @@
   "type": "module",
   "exports": "./dist/index.js",
   "dependencies": {
+    "@better-auth/oauth-provider": "1.6.26",
     "@better-auth/passkey": "1.6.26",
     "@bfb/db": "workspace:*",
     "@bfb/domain": "workspace:*",

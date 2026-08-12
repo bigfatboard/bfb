@@ -5,17 +5,11 @@ import { describe, expect, it } from "vitest";
 
 import { WorkspaceHub } from "../src/hub.js";
 import { MCP_TOOL_NAMES, validateMcpRouting } from "../src/mcp-routing.js";
-import {
-  createDelegation,
-  MCP_RESOURCE,
-  resolveAccessToken,
-  enforceDelegationAccess,
-} from "../src/oauth.js";
-import { issueStepUpProof } from "../src/step-up.js";
+import { enforceDelegationAccess } from "../src/oauth.js";
 import { createTaskCommand, listTasks } from "../src/work-commands.js";
 import { loadPrincipal } from "../src/authorization.js";
 import { FIX } from "../src/fixtures.js";
-import { openDomainDb } from "./helpers.js";
+import { issueSyntheticMcpAccess, openDomainDb } from "./helpers.js";
 
 const policy = {
   allowedHostnames: ["bfb.example.test"],
@@ -97,25 +91,17 @@ describe("mcp routing and tools", () => {
     ]);
 
     const db = await openDomainDb();
-    const action = {
-      action: "oauth.delegation.create",
-      clientId: FIX.client,
-      resource: MCP_RESOURCE,
+    const { delegationId } = await issueSyntheticMcpAccess(db);
+    const delegation = {
       workspaceId: FIX.workspace,
-      projectId: FIX.projectA,
-      scopes: ["bfb:read", "bfb:task:write"],
-      authorizationEpoch: 1,
-      expiresAt: "2026-08-07T12:10:00Z",
-    };
-    const proofId = await issueStepUpProof(db, FIX.owner, action, "2026-08-07T12:00:00Z");
-    const { accessToken } = await createDelegation(db, {
-      ...action,
+      delegationId,
       humanId: FIX.owner,
-      now: "2026-08-07T12:00:01Z",
-      stepUpProofId: proofId,
-      scopes: action.scopes,
-    });
-    const delegation = await resolveAccessToken(db, accessToken, "2026-08-07T12:01:00Z");
+      clientId: FIX.client,
+      projectId: FIX.projectA,
+      taskId: null,
+      scopes: ["bfb:read", "bfb:task:write", "offline_access"],
+      authorizationEpoch: 1,
+    };
     const hub = new WorkspaceHub(db);
     const proposed = await hub.execute(createTaskCommand, {
       workspaceId: delegation.workspaceId,
@@ -138,25 +124,17 @@ describe("mcp routing and tools", () => {
 
   it("intersects membership with delegation project scope", async () => {
     const db = await openDomainDb();
-    const action = {
-      action: "oauth.delegation.create",
-      clientId: FIX.client,
-      resource: MCP_RESOURCE,
+    const { delegationId } = await issueSyntheticMcpAccess(db, { humanId: FIX.restricted });
+    const delegation = {
       workspaceId: FIX.workspace,
-      projectId: FIX.projectA,
-      scopes: ["bfb:read", "bfb:task:write"],
-      authorizationEpoch: 1,
-      expiresAt: "2026-08-07T12:10:00Z",
-    };
-    const proofId = await issueStepUpProof(db, FIX.restricted, action, "2026-08-07T12:00:00Z");
-    const { accessToken } = await createDelegation(db, {
-      ...action,
+      delegationId,
       humanId: FIX.restricted,
-      now: "2026-08-07T12:00:01Z",
-      stepUpProofId: proofId,
-      scopes: action.scopes,
-    });
-    const delegation = await resolveAccessToken(db, accessToken, "2026-08-07T12:01:00Z");
+      clientId: FIX.client,
+      projectId: FIX.projectA,
+      taskId: null,
+      scopes: ["bfb:read", "bfb:task:write", "offline_access"],
+      authorizationEpoch: 1,
+    };
     await expect(enforceDelegationAccess(db, delegation, FIX.projectA)).resolves.toBeUndefined();
     await expect(enforceDelegationAccess(db, delegation, FIX.projectB)).rejects.toThrow(
       /project not permitted|project outside/,

@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { adaptD1, type D1Like } from "@bfb/db";
+import { adaptD1, loadMigrationManifest, type D1Like } from "@bfb/db";
 import {
   randomUlid,
   type AgentContextItem,
@@ -19,6 +19,8 @@ import {
 import { createTestHarness } from "wrangler";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+const migrationManifest = loadMigrationManifest(resolve(repoRoot, "migrations/d1"));
+const migrationHeadFile = `${migrationManifest.migration_head}.sql`;
 const origin = "https://bfb.work-records.test";
 const now = "2026-08-12T08:00:00Z";
 const server = createTestHarness({
@@ -348,7 +350,7 @@ async function main(): Promise<void> {
       deliveries: 4,
       events: 14,
       cursor: 14,
-      migration_head: "0012_work_records.sql",
+      migration_head: migrationHeadFile,
     });
     await assert.rejects(
       db
