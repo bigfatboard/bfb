@@ -17,10 +17,10 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "5.20260810.1",
+    "@cloudflare/workers-types": "5.20260821.1",
     "@types/better-sqlite3": "7.6.13",
     "better-sqlite3": "12.6.2",
-    "wrangler": "4.120.1"
+    "wrangler": "4.125.0"
   },
   "scripts": {
     "build": "tsc -b --pretty false",
