@@ -15,7 +15,7 @@ Three humans can share a BFB workspace with different roles while BFB remains th
 ## Dependencies
 
 - **Requires:** C01, C02, C03.
-- **Unlocks:** C05, C06, C07, C08, C09, E01, V01, W01, X03A, X04, X05.
+- **Unlocks:** C05, C06, C07, C08, C09, D01, E01, V01, W01, X03A, X04, X05.
 - **Can run with:** local-only packages after L01.
 
 ## Scope

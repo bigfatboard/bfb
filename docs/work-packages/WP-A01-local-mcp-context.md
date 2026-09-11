@@ -11,7 +11,7 @@ An active local provider process can use stdio MCP to read exactly its run conte
 ## Dependencies
 
 - **Requires:** C08, E01, L01, L03, L05, L06, L08.
-- **Unlocks:** A02, A03, L07, P01, P02, V01, X03.
+- **Unlocks:** A02, A03, D02, L07, P01, P02, V01, X03.
 - **Can run with:** E02 and W02 after the run/context contracts freeze.
 
 ## Scope

@@ -11,7 +11,7 @@ The browser shows committed work within seconds and recovers from disconnect/hib
 ## Dependencies
 
 - **Requires:** E01, W01.
-- **Unlocks:** A02, G01, X01.
+- **Unlocks:** A02, D03, G01, X01.
 - **Can run with:** L07/W02 after run-state contracts freeze.
 
 ## Scope

@@ -15,7 +15,7 @@ Authorized humans and policy-scoped agents can manage the architecture's compact
 ## Dependencies
 
 - **Requires:** C01, C04, C07.
-- **Unlocks:** A01, A03, C09, E01, W01, X02, X03A, X05.
+- **Unlocks:** A01, A03, C09, D01, E01, W01, X02, X03A, X05.
 - **Can run with:** C06 after the shared D1 migration head is sequenced.
 
 ## Scope

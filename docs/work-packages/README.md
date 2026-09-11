@@ -4,7 +4,7 @@ This plan turns the [v0.1 architecture](../../ARCHITECTURE.md) into independentl
 
 The default is sequence over concurrency. Parallel work is allowed only where this document names a stable contract and non-overlapping ownership boundary.
 
-The program contains 42 work packages and nine integration checkpoints. Package IDs are stable identifiers, not a claim that packages execute in numeric order.
+The program contains 45 work packages, nine release integration checkpoints, and the MVP discussion checkpoint below. Package IDs are stable identifiers, not a claim that packages execute in numeric order. The approved [MVP plan](../../mvp.plan.md) prioritizes remote launch and human-initiated discussion; [ADR 0002](../adr/0002-human-initiated-discussions.md) records its domain and execution boundaries.
 
 ## Delivery rules
 
@@ -95,6 +95,11 @@ flowchart TD
         A02["A02 Human attention workflow"]
         A03["A03 Result submission and acceptance"]
         A04["A04 Measurements and provenance"]
+    end
+    subgraph Agentdiscussion["Agent discussion"]
+        D01["D01 Discussion records and permissions"]
+        D02["D02 Supervised discussion delivery"]
+        D03["D03 Discussion UI and human decisions"]
     end
     subgraph Visualreview["Visual review"]
         V01["V01 Artifact storage state machine"]
@@ -220,6 +225,20 @@ flowchart TD
     A03 --> A04
     E01 --> A04
     W01 --> A04
+    C01 --> D01
+    C04 --> D01
+    C08 --> D01
+    A01 --> D02
+    D01 --> D02
+    L03 --> D02
+    L05 --> D02
+    L06 --> D02
+    L08 --> D02
+    P01 --> D02
+    D01 --> D03
+    D02 --> D03
+    E02 --> D03
+    W01 --> D03
     A01 --> V01
     C01 --> V01
     C04 --> V01
@@ -385,6 +404,14 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 | A03 | [Result submission and acceptance](WP-A03-results.md) | `planned` | High |
 | A04 | [Measurements and provenance](WP-A04-measurements.md) | `planned` | High |
 
+### Agent discussion
+
+| ID | Package | Status | Risk |
+| --- | --- | --- | --- |
+| D01 | [Discussion records and permissions](WP-D01-discussion-records.md) | `planned` | Very high |
+| D02 | [Supervised discussion delivery](WP-D02-discussion-delivery.md) | `planned` | Very high |
+| D03 | [Discussion UI and human decisions](WP-D03-discussion-ui.md) | `planned` | High |
+
 ### Visual review
 
 | ID | Package | Status | Risk |
@@ -435,6 +462,8 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 | IC-8 — Release | G01–02 | Blank-account self-host and signed Mac install reproduce the same golden flow with recovery evidence |
 
 IC-3 deliberately proves launch authority, PTY behavior, locking, controls, and containment with the deterministic fake provider. The architecture’s user-visible first-launch claim is completed at IC-5, when L07 repeats that path with a supported real Claude version, trusted session binding, local MCP, replay, attention, and explicit result submission.
+
+MVP-D — Human-initiated discussion is owned by D03 and requires D01–D03 plus their dependency closure. Its gate is `pnpm test:mvp-discussion`: two read-only Claude/Codex participants exchange bounded correlated turns, recover or visibly pause after ambiguous delivery, permit human intervention, and produce a decision without advancing the task's work state. It does not certify deferred visual-review, Grok, external-integration, or release packages.
 
 ## Safe parallel windows
 

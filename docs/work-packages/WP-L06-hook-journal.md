@@ -11,7 +11,7 @@ Provider hooks return quickly while every accepted provider or daemon observatio
 ## Dependencies
 
 - **Requires:** F02, L01, L03, L05, L08.
-- **Unlocks:** A01, E01, L07, P01, P02, X02.
+- **Unlocks:** A01, D02, E01, L07, P01, P02, X02.
 - **Can run with:** W01 and other web work while using the F02 fake ingest server.
 
 ## Scope

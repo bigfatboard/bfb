@@ -15,7 +15,7 @@ An authorized human can navigate an attention-first BFB shell, select an explici
 ## Dependencies
 
 - **Requires:** C02, C03, C04, C08, F03.
-- **Unlocks:** A02, A03, A04, E02, V02, V03, W02, X05.
+- **Unlocks:** A02, A03, A04, D03, E02, V02, V03, W02, X05.
 - **Can run with:** local execution packages after APIs stabilize.
 
 ## Scope

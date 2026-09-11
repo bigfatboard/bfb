@@ -25,6 +25,7 @@ const categories = [
   { title: "Local execution", prefixes: ["L"] },
   { title: "Web and realtime", prefixes: ["W", "E"] },
   { title: "Agent and human loop", prefixes: ["A"] },
+  { title: "Agent discussion", prefixes: ["D"] },
   { title: "Visual review", prefixes: ["V"] },
   { title: "Provider parity", prefixes: ["P"] },
   { title: "External surfaces and operations", prefixes: ["X"] },

@@ -169,6 +169,20 @@ afterEach(async () => {
 });
 
 describe("work-package roadmap", () => {
+  test("includes discussion packages and their dependency edges", async () => {
+    const root = await fixtureRoot([
+      { id: "A03", unlocks: ["D01"] },
+      { id: "D01", requires: ["A03"], unlocks: ["D02"] },
+      { id: "D02", requires: ["D01"] },
+    ]);
+    await expect(writeGeneratedRoadmap(root)).resolves.toMatchObject({ issues: [] });
+    const readme = await readFile(path.join(root, "docs/work-packages/README.md"), "utf8");
+    expect(readme).toContain('subgraph Agentdiscussion["Agent discussion"]');
+    expect(readme).toContain("A03 --> D01");
+    expect(readme).toContain("D01 --> D02");
+    expect(readme).toContain("### Agent discussion");
+  });
+
   test("writes stable graph and index output twice", async () => {
     const root = await fixtureRoot([
       { id: "F01", unlocks: ["F02"] },

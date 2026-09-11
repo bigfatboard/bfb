@@ -11,7 +11,7 @@ Codex satisfies the frozen provider lifecycle using documented stable CLI, hook,
 ## Dependencies
 
 - **Requires:** A01, A03, E01, L03, L05, L06, L07.
-- **Unlocks:** G01, X02.
+- **Unlocks:** D02, G01, X02.
 - **Can run with:** P02; each owns only its provider-local descriptor/directory/manifest/setup/parser/fixtures and never edits a shared registry.
 
 ## Scope

@@ -11,7 +11,7 @@ A claimed launch starts only the locally allowlisted fake provider in the exact 
 ## Dependencies
 
 - **Requires:** C09, L01, L02, L03, L04, L08.
-- **Unlocks:** A01, L06, L07, P01, P02, W02, X02.
+- **Unlocks:** A01, D02, L06, L07, P01, P02, W02, X02.
 - **Can run with:** W01 and other web work after the C09/F02 launch contracts freeze.
 
 ## Scope
