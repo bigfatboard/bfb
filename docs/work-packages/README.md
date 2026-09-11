@@ -377,7 +377,7 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 
 | ID | Package | Status | Risk |
 | --- | --- | --- | --- |
-| L01 | [Go daemon and CLI kernel](WP-L01-daemon-kernel.md) | `in_progress` | High |
+| L01 | [Go daemon and CLI kernel](WP-L01-daemon-kernel.md) | `review` | High |
 | L02 | [Exact checkout registry](WP-L02-checkout-registry.md) | `planned` | High |
 | L03 | [Provider adapter kit](WP-L03-provider-kit.md) | `planned` | High |
 | L04 | [SwiftUI macOS application](WP-L04-macos-app.md) | `planned` | High |

@@ -1,6 +1,6 @@
 # WP-L01 — Go daemon and CLI kernel
 
-Status: `in_progress`
+Status: `review`
 
 Risk: High
 
@@ -69,6 +69,8 @@ One unprivileged `bfb` binary runs a reliable per-user daemon and exposes stable
 
 - Commit Local RPC fixtures, migration/fault results, redaction report, and daemon lifecycle log.
 - Feature packages add leaf handlers through the designated registration boundary.
+- Implementation commit `2ef952afc12dc2c45fb42aa98aea7665ed3a12a8` passed the exact target, `pnpm verify`, and `pnpm worktree:check` in a clean detached checkout on macOS. [Evidence](evidence/WP-L01/manifest.json) records the automated results and remaining environment acceptance.
+- Review remains open: native lifecycle fixtures used empty BFB state under the current macOS account, not a genuinely clean user account. Do not consume L01 as `done` until that explicit acceptance check passes or its scope is changed with Timo's approval.
 
 ## Risks and decisions
 

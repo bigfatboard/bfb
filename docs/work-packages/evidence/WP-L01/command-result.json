@@ -1,0 +1,41 @@
+{
+  "package": "L01",
+  "tested_commit": "2ef952afc12dc2c45fb42aa98aea7665ed3a12a8",
+  "recorded_on": "2026-09-11",
+  "automated_gate": "passed",
+  "package_acceptance": "incomplete",
+  "checkout": {
+    "detached": true,
+    "clean_before_install": true,
+    "clean_after_verification": true,
+    "frozen_install": "passed"
+  },
+  "checks": {
+    "protocol_drift": "passed",
+    "protocol_typescript_tests": 136,
+    "protocol_go_tests": "passed",
+    "race_tested_packages": ["internal/daemon", "internal/auth", "internal/cli", "cmd/bfb"],
+    "real_subprocess_crash_restart": "passed",
+    "real_launchd_install": "passed",
+    "compiled_swift_socket_client": "passed",
+    "repository_typescript_tests": 348,
+    "repository_go_checks": "passed",
+    "repository_swift_xcode_checks": "passed",
+    "repository_verification": "passed",
+    "ic1_checkpoint": "passed",
+    "ic1_browser_scenarios": 14,
+    "ic1_dedicated_oauth_rerun_scenarios": 2,
+    "worktree_check": "passed"
+  },
+  "unverified_acceptance": [
+    "Install, status and logs from a genuinely clean macOS user account; native tests used empty BFB state under the current account."
+  ],
+  "not_claimed": [
+    "Cross-user interactive login test",
+    "Signed native Keychain access",
+    "Clean-machine distribution",
+    "Enrollment or provider execution",
+    "Running local MVP"
+  ],
+  "retention": "Bounded assertion summaries only; no raw terminal output or personal state retained."
+}

@@ -1,0 +1,66 @@
+{
+  "$schema": "../manifest.schema.json",
+  "package": "L01",
+  "tested_commit": "2ef952afc12dc2c45fb42aa98aea7665ed3a12a8",
+  "protocol_version": "bfb-wire/1",
+  "schema_version": "1",
+  "migration_head": "local:001_kernel.sql",
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "xcode": "26.0.1",
+    "modernc.org/sqlite": "1.58.0",
+    "golang.org/x/sys": "0.47.0"
+  },
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56)",
+    "architecture": "arm64"
+  },
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-L01/command-result.json"
+    },
+    {
+      "command": "pnpm test:l01",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-L01/command-result.json"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-L01/command-result.json"
+    },
+    {
+      "command": "pnpm test:ic1",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-L01/command-result.json"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-L01/command-result.json"
+    }
+  ],
+  "outcome": "not_run",
+  "artifacts": [
+    "docs/work-packages/evidence/WP-L01/command-result.json",
+    "docs/work-packages/evidence/WP-L01/rpc-contract.md",
+    "docs/work-packages/evidence/WP-L01/storage-faults.md",
+    "docs/work-packages/evidence/WP-L01/redaction.md",
+    "docs/work-packages/evidence/WP-L01/lifecycle.md",
+    "protocol/fixtures/v1/valid/local-rpc.daemon-status.json",
+    "protocol/fixtures/v1/valid/local-rpc.daemon-conflict.json",
+    "protocol/fixtures/v1/invalid/local-rpc.private-payload.json",
+    "protocol/fixtures/v1/invalid/local-rpc.negative-recovery.json",
+    "internal/daemon/migrations/001_kernel.sql",
+    "internal/daemon/testdata/rpc-client.swift"
+  ],
+  "redaction": {
+    "status": "passed",
+    "prohibited_content": []
+  }
+}

@@ -2,7 +2,7 @@
 
 Updated: 11 September 2026
 
-Status: In progress — implementing L01 daemon/CLI kernel
+Status: In progress — L01 implementation verified; clean-account acceptance unresolved
 
 Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 
@@ -10,14 +10,14 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 
 - Implementation authorized; feature branch: `codex/remote-launch-discussion-mvp`, based on `main` at `e1bc7a0`.
 - Plan updated; ADR 0002 accepted; D01–D03 assigned with dependency edges, test targets and evidence paths. Roadmap generation now covers 45 packages.
-- Active package: L01, the daemon/CLI kernel. Its F01/F02 dependencies are done; contracts, exact target and evidence path are assigned.
-- L01 now implements private socket/CLI dispatch, SQLite WAL migrations/recovery, redacted logs, credential interfaces and per-user launchd installation. Its local gate passes, including real process restart, launchd and Swift-to-UDS tests; clean-checkout certification is still pending. No production action has been taken.
+- Active package: L01, the daemon/CLI kernel, in review. Its F01/F02 dependencies are done; implementation and bounded evidence are committed separately. No downstream package has started.
+- L01 implements private socket/CLI dispatch, SQLite WAL migrations/recovery, redacted logs, credential interfaces and per-user launchd installation. Its exact target, full repository verification and clean-worktree check pass at `2ef952a`, including real process restart, launchd and Swift-to-UDS tests. Clean-account acceptance remains unresolved. No production action has been taken.
 
 ## Milestones
 
 | Milestone | Packages | State | Completion check |
 | --- | --- | --- | --- |
-| Trusted Mac | L01–L03, C06, L08, L04 | L01 in progress | Enroll, register exact checkout, probe providers, reconnect, revoke |
+| Trusted Mac | L01–L03, C06, L08, L04 | L01 in review | Enroll, register exact checkout, probe providers, reconnect, revoke |
 | Remote launch | C09, L05, W02 | Pending | Card starts fake provider; contention, expiry, revocation and containment fail safely |
 | Real agent work | L06, E01–E02, A01–A04, L07, P01 | Pending | Claude/Codex start, scoped context, attention, explicit result and human acceptance |
 | Discussion | D01–D03 | Planned; ADR and gates recorded | Two read-only participants, bounded turns, recovery, intervention, human decision |
@@ -30,7 +30,8 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 - Provider discovery: Codex `0.153.4`, Claude Code `2.1.268`. Only version/help inspection has run; live adapter acceptance remains pending.
 - IC-1 passed in an isolated clean baseline checkout after installing the pinned Chromium build, building workspace packages and rebuilding the declared native SQLite dependency. This includes 14 browser scenarios and the dedicated two-scenario OAuth rerun. The initial environment failures were missing test dependencies, not established product failures.
 - Added `pnpm build` before the aggregate IC-1 domain tests so the command does not depend on previously generated package output.
-- L01 local `pnpm test:l01` passed with race detection, real subprocess crash/restart, per-user launchd installation, and a compiled Swift Unix-socket client. The full `pnpm verify` gate also passed after the final implementation changes. Clean-checkout certification follows the implementation commit.
+- L01 `pnpm test:l01` passed from a clean checkout with 136 TypeScript protocol tests, Go protocol checks and race-tested daemon/auth/CLI/binary packages, including real subprocess crash/restart, per-user launchd installation and a compiled Swift Unix-socket client. Clean-checkout `pnpm verify` passed 348 TypeScript tests plus Go and Swift/Xcode checks; `pnpm worktree:check` confirmed no tracked drift.
+- The updated `pnpm test:ic1` command also passed in the L01 clean checkout at `2ef952a`, including all 14 browser scenarios and the two-scenario dedicated OAuth rerun; the worktree remained clean afterward.
 
 ## Decisions and limitations
 
@@ -47,3 +48,4 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 - 11 September: assigned D01–D03 and DG-01–DG-03; generated roadmap passes with 45 packages. Added a regression for discussion-package generation. `pnpm verify` passed with 344 TypeScript tests, Go checks and Swift/Xcode checks.
 - 11 September: committed the plan/roadmap as `8e27776`; F02 prerequisite gate passed (132 TypeScript tests plus Go). Began L01 with isolated local-state, socket, storage, logging, credential-interface and lifecycle tests.
 - 11 September: first complete L01 local gate passed; added canonical daemon-status/error fixtures and documented CLI, storage recovery, limits and the native Keychain boundary still owned by L08/L04.
+- 11 September: committed L01 implementation as `2ef952a`; clean-checkout target, full verification and worktree check passed. Recorded bounded evidence and retained review status because the specified clean macOS account check has not run. L02 remains pending under dependency discipline.
