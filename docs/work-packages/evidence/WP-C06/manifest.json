@@ -1,0 +1,68 @@
+{
+  "$schema": "../manifest.schema.json",
+  "package": "C06",
+  "tested_commit": "02475746c36c0673bb389c43241536b256d2f9bc",
+  "protocol_version": "bfb-wire/1",
+  "schema_version": "1",
+  "migration_head": "0014_runner_identity.sql",
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "xcode": "26.0.1",
+    "wrangler": "4.120.1",
+    "playwright": "1.55.1",
+    "better-sqlite3": "12.6.2"
+  },
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56)",
+    "architecture": "arm64"
+  },
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C06/command-result.json"
+    },
+    {
+      "command": "pnpm test:c06",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C06/command-result.json"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C06/command-result.json"
+    },
+    {
+      "command": "pnpm test:w01:browser",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C06/command-result.json"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C06/command-result.json"
+    }
+  ],
+  "outcome": "passed",
+  "artifacts": [
+    "docs/work-packages/evidence/WP-C06/command-result.json",
+    "docs/work-packages/evidence/WP-C06/security-matrix.md",
+    "docs/contracts/runner-enrollment.md",
+    "protocol/fixtures/runner-possession.json",
+    "protocol/fixtures/runner-token-claims.json",
+    "packages/domain/test/runners.test.ts",
+    "packages/domain/test/step-up.test.ts",
+    "apps/control-worker/test/runner-routes.test.ts",
+    "apps/web/test/e2e/c06-runners.spec.ts",
+    "tools/runners/run.ts",
+    "tools/runners/worker.ts",
+    "tools/runners/fixtures.mjs"
+  ],
+  "redaction": {
+    "status": "passed",
+    "prohibited_content": []
+  }
+}

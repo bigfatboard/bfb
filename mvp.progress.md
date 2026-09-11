@@ -2,7 +2,7 @@
 
 Updated: 12 September 2026
 
-Status: In progress — L01/L02/L03 complete; implementing C06 runner identity and enrollment
+Status: In progress — L01/L02/L03/C06 complete; next is L08 native runner enrollment and channel
 
 Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 
@@ -13,14 +13,14 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 - L01, the daemon/CLI kernel, is done under ADR 0003's approved local scope. Its exact target, uncached native tests, full repository verification, IC-1 and clean-worktree check passed at `f19d188`; evidence is committed.
 - L02 implements local checkout link/list/verify/unlink, immutable filesystem/Git identity, path-free summaries and tightening-only repository policy. Clean certification passed at `0c436be`, including its exact target, full verification and clean-worktree assertion; the bounded evidence accompanies its done status.
 - L03's provider kit and synthetic lifecycle passed clean certification at `367ede9`: immutable probes/plans, capability ceilings, exact discussion identity, provider-local registration and approved setup/doctor transactions with atomic displaced-file retention and crash recovery. Real provider descriptors remain discovery-only; their tracked capabilities require L07/P01 certification.
-- C06 implementation now includes per-workspace P-256 public keys, private-by-default named-human/project grants, action-bound step-up, hashed single-use challenges, request-bound possession authentication and token/grant epoch fences. Its local target passes, including real Worker races and a browser non-UV assertion. Clean certification is pending; no later package consumes it yet.
+- C06 implements per-workspace P-256 public keys, private-by-default named-human/project grants, action-bound step-up, hashed single-use challenges, request-bound possession authentication and token/grant epoch fences. Clean certification passed at `0247574`, including real Worker races, browser non-UV assertions and the full browser regression. Bounded evidence is committed with its done status.
 - L01 implements private socket/CLI dispatch, SQLite WAL migrations/recovery, redacted logs, credential interfaces and per-user launchd installation, including real process restart, launchd and Swift-to-UDS tests. The genuinely fresh-account environment check remains untested and owned by G02. No production action has been taken.
 
 ## Milestones
 
 | Milestone | Packages | State | Completion check |
 | --- | --- | --- | --- |
-| Trusted Mac | L01–L03, C06, L08, L04 | L01/L02/L03 done; C06 in progress | Enroll, register exact checkout, probe providers, reconnect, revoke |
+| Trusted Mac | L01–L03, C06, L08, L04 | L01/L02/L03/C06 done; L08 next | Enroll, register exact checkout, probe providers, reconnect, revoke |
 | Remote launch | C09, L05, W02 | Pending | Card starts fake provider; contention, expiry, revocation and containment fail safely |
 | Real agent work | L06, E01–E02, A01–A04, L07, P01 | Pending | Claude/Codex start, scoped context, attention, explicit result and human acceptance |
 | Discussion | D01–D03 | Planned; ADR and gates recorded | Two read-only participants, bounded turns, recovery, intervention, human decision |
@@ -41,6 +41,7 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 - L03 live synthetic experiments on Claude Code `2.1.269` and Codex `0.153.4` observed fresh/resumed/forked identity, remembered context, wrong-session rejection and post-turn interrupt. Both process repeated input twice; Claude accepts overlapping writers while Codex rejects an active writer. BFB must own deduplication and fencing. Grok `1.0.25` remains discovery-only.
 - The live experiment also killed owned processes before identity observation and after turn observation, without retrying uncertain input. Inherited/peer write and escalation canaries stayed absent. Full read-only/managed-policy certification and native lower-authority external delivery remain unverified and unavailable to production manifests.
 - L03 clean certification at `367ede9` passed its exact target (five probe-classification cases, 139 protocol tests and native race tests), full repository verification (356 TypeScript tests, Go and Swift/Xcode), both bounded live provider experiments, Linux cross-build and the final clean-worktree assertion.
+- C06 clean certification at `0247574` passed its exact target (147 protocol and 64 focused TypeScript tests, Go protocol checks, real D1/WorkspaceHub races and one browser scenario), full verification (411 TypeScript tests, Go and Swift/Xcode), all 15 browser scenarios and the clean-worktree assertion. Revocation prevents renewal before cleanup; actual live sockets remain L08-owned.
 
 ## Decisions and limitations
 
@@ -67,3 +68,4 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 - 11 September: implemented L03 contracts and passed local race-tested fake lifecycle, injection, identity replacement, setup approval/concurrency and actual crash-recovery tests. Atomic publication now retains an edit made after the final hash check. The expanded real CLI experiment distinguishes supported, unsupported and unverified cases; clean certification is next.
 - 11 September: committed L03 implementation as `367ede9` and passed clean-checkout certification, including both live CLI probes. Recorded bounded capability/contract evidence and marked L03 done. Continuing with C06 runner identity, grants and proof-of-possession tokens.
 - 12 September: implemented C06 and passed its local target, real three-Worker races, key/workspace isolation and rate limits, browser user-verification/step-up negatives, and the full 15-scenario browser regression. Reproduced and fixed a stale named-human launch grant surviving membership removal/rejoin. The server contract deliberately leaves real Keychain keys, live socket delivery and runner management UI to L08/W02; clean-checkout certification is next.
+- 12 September: committed C06 implementation as `0247574`; its clean-checkout target, full verification, 15-browser regression and worktree check passed. Recorded bounded security/race evidence and marked C06 done. Continuing with L08 native enrollment, signed-component Keychain access and isolated runner connections.

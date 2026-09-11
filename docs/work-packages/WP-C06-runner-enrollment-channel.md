@@ -1,6 +1,6 @@
 # WP-C06 — Runner identity, grants, and tokens
 
-Status: `in_progress`
+Status: `done`
 
 Risk: Very high
 
