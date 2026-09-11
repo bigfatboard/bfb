@@ -161,7 +161,11 @@
         "additional_field",
         "intent_confusion",
         "shell_data",
-        "authoritative_runner_claim"
+        "authoritative_runner_claim",
+        "operation_failed",
+        "authorization_denied",
+        "unavailable",
+        "conflict"
       ]
     },
     "TypedError": {

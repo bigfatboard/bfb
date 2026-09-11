@@ -198,6 +198,11 @@ function diagnosticRank(error: TypedError): number {
     case "schema_invalid":
     case "authoritative_runner_claim":
       return 50;
+    case "operation_failed":
+    case "authorization_denied":
+    case "unavailable":
+    case "conflict":
+      return 60;
   }
 }
 

@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "request_id": "01JBFB0REQVEST100000000000",
+  "method": "daemon.status",
+  "direction": "response",
+  "payload": { "private_content": "synthetic-private-canary" }
+}

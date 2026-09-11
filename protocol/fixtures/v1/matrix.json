@@ -58,6 +58,28 @@
       "expect": "accept"
     },
     {
+      "path": "valid/local-rpc.daemon-status.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.daemon-conflict.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/local-rpc.private-payload.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/local-rpc.negative-recovery.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
       "path": "valid/runner-event-submission.heartbeat.json",
       "schema": "runner-event-submission",
       "expect": "accept"

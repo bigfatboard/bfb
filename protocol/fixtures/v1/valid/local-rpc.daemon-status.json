@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "request_id": "01JBFB0REQVEST100000000000",
+  "method": "daemon.status",
+  "direction": "response",
+  "payload": {
+    "status": "running",
+    "daemon_pid": 123,
+    "started_at": "2026-09-11T00:00:00Z",
+    "storage_version": 1,
+    "recovery_pending": 2
+  }
+}

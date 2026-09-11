@@ -27,6 +27,7 @@
     "swift:check": "tsx tools/repository/src/swift-cli.ts",
     "test": "vitest run",
     "test:protocol": "pnpm protocol:check && vitest run packages/protocol-ts/test && go test ./internal/protocol/...",
+    "test:l01": "pnpm test:protocol && go test -race ./internal/daemon/... ./internal/auth/... ./internal/cli/... ./cmd/bfb/...",
     "typecheck": "tsc -b --pretty false",
     "verify": "tsx tools/repository/src/verify.ts",
     "worktree:check": "tsx tools/repository/src/worktree-cli.ts",
@@ -49,7 +50,7 @@
     "test:x03a:browser": "playwright test apps/web/test/e2e/x03a-oauth.spec.ts --config tools/e2e/playwright.config.ts",
     "test:x03a:providers": "pnpm build && node tools/provider-compat/run-attempts.mjs",
     "test:x03a:providers:evidence": "BFB_PROVIDER_COMPAT_OUTPUT=docs/work-packages/evidence/WP-X03A pnpm test:x03a:providers",
-    "test:ic1": "pnpm test:domain && pnpm test:w01 && pnpm test:x03a"
+    "test:ic1": "pnpm build && pnpm test:domain && pnpm test:w01 && pnpm test:x03a"
   },
   "devDependencies": {
     "@playwright/test": "1.55.1",

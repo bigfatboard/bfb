@@ -31,7 +31,28 @@
       "type": "object",
       "additionalProperties": false,
       "maxProperties": 32,
-      "properties": {}
+      "properties": {
+        "status": { "type": "string", "enum": ["running", "stopping", "installed"] },
+        "daemon_pid": { "type": "integer", "minimum": 1, "maximum": 2147483647 },
+        "started_at": { "$ref": "primitives.json#/$defs/UtcTimestamp" },
+        "storage_version": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "recovery_pending": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "log_entries": {
+          "type": "array",
+          "maxItems": 200,
+          "items": { "type": "string", "maxLength": 512 }
+        },
+        "methods": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9_.]{0,63}$"
+          }
+        }
+      }
     }
   }
 }
