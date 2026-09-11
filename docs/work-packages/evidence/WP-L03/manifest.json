@@ -1,0 +1,82 @@
+{
+  "$schema": "../manifest.schema.json",
+  "package": "L03",
+  "tested_commit": "367ede9a2948dca89f3e7bbda47b3c254649abc4",
+  "protocol_version": "bfb-wire/1",
+  "schema_version": "1",
+  "migration_head": "local:002_checkouts.sql",
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "xcode": "26.0.1",
+    "golang.org/x/sys": "0.47.0",
+    "claude": "2.1.269",
+    "codex": "0.153.4",
+    "grok_discovery_only": "1.0.25"
+  },
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56)",
+    "architecture": "arm64"
+  },
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-L03/command-result.json"
+    },
+    {
+      "command": "pnpm test:l03",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-L03/command-result.json"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-L03/command-result.json"
+    },
+    {
+      "command": "node tools/provider-probe/run.mjs claude",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-L03/capability-matrix.json"
+    },
+    {
+      "command": "node tools/provider-probe/run.mjs codex",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-L03/capability-matrix.json"
+    },
+    {
+      "command": "GOOS=linux GOARCH=amd64 go build ./...",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-L03/command-result.json"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-L03/command-result.json"
+    }
+  ],
+  "outcome": "passed",
+  "artifacts": [
+    "docs/work-packages/evidence/WP-L03/command-result.json",
+    "docs/work-packages/evidence/WP-L03/contracts-and-setup.md",
+    "docs/work-packages/evidence/WP-L03/capability-matrix.json",
+    "internal/provider/README.md",
+    "internal/provider/contracts.go",
+    "internal/provider/kit_test.go",
+    "internal/provider/setup_test.go",
+    "internal/provider/setup_atomic_test.go",
+    "internal/providers/catalog.generated.go",
+    "internal/providers/fake/descriptor.go",
+    "internal/providers/fake/setup.go",
+    "cmd/bfb-fake-provider/main.go",
+    "tools/provider-probe/README.md",
+    "tools/provider-probe/run.mjs",
+    "tools/provider-probe/capabilities.test.mjs"
+  ],
+  "redaction": {
+    "status": "passed",
+    "prohibited_content": []
+  }
+}

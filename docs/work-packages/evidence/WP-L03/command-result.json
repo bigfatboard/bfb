@@ -1,0 +1,50 @@
+{
+  "package": "L03",
+  "tested_commit": "367ede9a2948dca89f3e7bbda47b3c254649abc4",
+  "recorded_on": "2026-09-11",
+  "automated_gate": "passed",
+  "package_acceptance": "passed",
+  "checkout": {
+    "detached": true,
+    "clean_before_install": true,
+    "clean_after_verification_and_live_probes": true,
+    "frozen_install": "passed"
+  },
+  "checks": {
+    "provider_registration_drift": "passed",
+    "probe_classification_tests": 5,
+    "protocol_typescript_tests": 139,
+    "protocol_go_differential_fixtures": "passed",
+    "l01_kernel_regression": "passed",
+    "provider_kit_native_race_tests": "passed",
+    "synthetic_owned_processes_and_escaped_child_cleanup": "passed",
+    "manifest_and_runtime_capability_intersection": "passed",
+    "unknown_versions_and_changed_probe_identity": "passed",
+    "argv_injection_and_peer_stdin_isolation": "passed",
+    "exact_discussion_session_binding_and_permission_ceiling": "passed",
+    "semantic_normalization_and_no_implicit_business_result": "passed",
+    "setup_approval_hash_and_unowned_semantics": "passed",
+    "setup_concurrent_writer_and_atomic_displacement": "passed",
+    "setup_failed_doctor_rollback_and_process_crash_recovery": "passed",
+    "live_claude_bounded_experiment": "passed",
+    "live_codex_bounded_experiment": "passed",
+    "repository_typescript_tests": 356,
+    "repository_go_checks": "passed",
+    "repository_swift_xcode_checks": "passed",
+    "repository_verification": "passed",
+    "linux_amd64_cross_build": "passed",
+    "worktree_check": "passed"
+  },
+  "not_claimed": [
+    "Tracked real-provider launch or complete inherited/managed permission isolation (L07/P01)",
+    "Native lower-authority external idle/active delivery; explicitly unverified",
+    "Native duplicate suppression; both tested CLIs process repeated input twice",
+    "Native Claude session exclusivity; simultaneous writers were observed",
+    "Durable BFB session fencing or ambiguous-delivery recovery (D02)",
+    "Terminal.app PTY handoff, daemon process identity or containment supervision (L05)",
+    "Real provider setup commands or changes to global provider configuration",
+    "Grok lifecycle behavior, Linux runtime acceptance or fresh macOS account",
+    "Running local MVP"
+  ],
+  "retention": "Bounded assertions and synthetic fixture source only; no raw provider streams, prompts, session identifiers, credentials, personal content or local absolute paths retained in evidence."
+}
