@@ -1,0 +1,40 @@
+{
+  "package": "L02",
+  "tested_commit": "0c436be74dd7744ed8c956a66acd1fc1f136072c",
+  "recorded_on": "2026-09-11",
+  "automated_gate": "passed",
+  "package_acceptance": "passed",
+  "checkout": {
+    "detached": true,
+    "clean_before_install": true,
+    "clean_after_verification": true,
+    "frozen_install": "passed"
+  },
+  "checks": {
+    "protocol_drift": "passed",
+    "protocol_typescript_tests": 139,
+    "protocol_go_differential_fixtures": "passed",
+    "shared_go_cloud_policy_cases": 5,
+    "real_apfs": "passed",
+    "apfs_case_behavior": "case-insensitive aliases resolve to one canonical identity",
+    "checkout_race_tests": "passed",
+    "real_cli_rpc_roundtrip": "passed",
+    "git_metadata_bytes_modes_timestamps_entries": "unchanged",
+    "previous_local_migration_and_atomic_rollback": "passed",
+    "repository_typescript_tests": 356,
+    "repository_go_checks": "passed",
+    "repository_swift_xcode_checks": "passed",
+    "repository_verification": "passed",
+    "linux_amd64_cross_build": "passed",
+    "worktree_check": "passed"
+  },
+  "not_claimed": [
+    "Provider execution or actual occupancy-lock acquisition (L05)",
+    "Signed native Keychain access or runner enrollment (L08/L04)",
+    "Immutable hosted repository-ID resolution",
+    "Linux runtime acceptance (cross-build only)",
+    "Fresh macOS account or removable-volume unplug test",
+    "Running local MVP"
+  ],
+  "retention": "Bounded assertion summaries and synthetic fixtures only; no raw output, credentials, personal content or local absolute paths retained."
+}

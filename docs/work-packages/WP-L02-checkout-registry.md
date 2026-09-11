@@ -1,6 +1,6 @@
 # WP-L02 — Exact checkout registry
 
-Status: `in_progress`
+Status: `done`
 
 Risk: High
 
@@ -72,6 +72,9 @@ No network request, Git repair, provider launch or automatic worktree creation i
 
 - Commit filesystem fixture matrix, zero-mutation Git proof, sanitized snapshots, and typed failures.
 - L05 receives `Revalidate(checkout_id)` and one canonical lock identity.
+- Clean certification at `0c436be` passed the exact target, full `pnpm verify`
+  (356 TypeScript tests plus Go/Swift), Linux cross-build and worktree check.
+  The committed evidence manifest records real APFS and bounded redaction proof.
 
 ## Risks and decisions
 
