@@ -2,7 +2,7 @@
 
 Updated: 11 September 2026
 
-Status: In progress — L01 implementation verified; clean-account acceptance unresolved
+Status: Blocked at acceptance — L01 implementation verified; awaiting a clean macOS account test or explicit approval to defer that check to G02
 
 Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 
