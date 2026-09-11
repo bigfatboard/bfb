@@ -1,9 +1,10 @@
 {
   "package": "L01",
-  "tested_commit": "2ef952afc12dc2c45fb42aa98aea7665ed3a12a8",
+  "tested_commit": "f19d18804384c48e9b6180cd8260c66a95f789fd",
   "recorded_on": "2026-09-11",
   "automated_gate": "passed",
-  "package_acceptance": "incomplete",
+  "package_acceptance": "passed",
+  "acceptance_scope": "ADR 0003: isolated empty BFB state in the current macOS GUI account; fresh-account release proof remains with G02",
   "checkout": {
     "detached": true,
     "clean_before_install": true,
@@ -15,6 +16,7 @@
     "protocol_typescript_tests": 136,
     "protocol_go_tests": "passed",
     "race_tested_packages": ["internal/daemon", "internal/auth", "internal/cli", "cmd/bfb"],
+    "uncached_native_acceptance": "passed",
     "real_subprocess_crash_restart": "passed",
     "real_launchd_install": "passed",
     "compiled_swift_socket_client": "passed",
@@ -27,7 +29,7 @@
     "ic1_dedicated_oauth_rerun_scenarios": 2,
     "worktree_check": "passed"
   },
-  "unverified_acceptance": [
+  "deferred_g02_acceptance_not_run": [
     "Install, status and logs from a genuinely clean macOS user account; native tests used empty BFB state under the current account."
   ],
   "not_claimed": [

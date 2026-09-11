@@ -1,7 +1,7 @@
 {
   "$schema": "../manifest.schema.json",
   "package": "L01",
-  "tested_commit": "2ef952afc12dc2c45fb42aa98aea7665ed3a12a8",
+  "tested_commit": "f19d18804384c48e9b6180cd8260c66a95f789fd",
   "protocol_version": "bfb-wire/1",
   "schema_version": "1",
   "migration_head": "local:001_kernel.sql",
@@ -30,6 +30,11 @@
       "artifact": "docs/work-packages/evidence/WP-L01/command-result.json"
     },
     {
+      "command": "go test -race -count=1 ./internal/daemon/... ./internal/auth/... ./internal/cli/... ./cmd/bfb/...",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-L01/command-result.json"
+    },
+    {
       "command": "pnpm verify",
       "outcome": "passed",
       "artifact": "docs/work-packages/evidence/WP-L01/command-result.json"
@@ -45,8 +50,9 @@
       "artifact": "docs/work-packages/evidence/WP-L01/command-result.json"
     }
   ],
-  "outcome": "not_run",
+  "outcome": "passed",
   "artifacts": [
+    "docs/adr/0003-local-mvp-account-test-scope.md",
     "docs/work-packages/evidence/WP-L01/command-result.json",
     "docs/work-packages/evidence/WP-L01/rpc-contract.md",
     "docs/work-packages/evidence/WP-L01/storage-faults.md",

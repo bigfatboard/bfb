@@ -1,6 +1,6 @@
 # L01 native lifecycle evidence
 
-The clean-checkout `pnpm test:l01` gate ran on macOS 26.2 arm64 in the current GUI login session. This is a bounded assertion trace, not a retained terminal transcript.
+The clean-checkout `pnpm test:l01` gate ran on macOS 26.2 arm64 in the current GUI login session at the manifest's tested commit. An additional `go test -race -count=1` run executed every native package without test-cache reuse. This is a bounded assertion trace, not a retained terminal transcript.
 
 `TestDaemonProcessCrashAndRestart` completed this sequence with a real freshly built binary and empty isolated state:
 
@@ -13,8 +13,8 @@ The clean-checkout `pnpm test:l01` gate ran on macOS 26.2 arm64 in the current G
 
 `TestLaunchdCleanBFBInstall` installed a uniquely labelled per-user launch agent, observed daemon health, checked a private plist, repeated the exact installation idempotently, rejected a different state-directory configuration without replacing the service, and rechecked health. Cleanup unloaded only the unique test service and removed its own plist. XML escaping/fixed-argument behavior passed `TestLaunchdPlistEscapesOnlyFixedArguments`.
 
-## Outstanding environment acceptance
+## Deferred release-environment acceptance
 
-These tests use empty BFB state under the existing macOS account. They do not prove installation from a genuinely clean macOS user account, which L01 explicitly requires. The manifest therefore records overall acceptance as `not_run` despite passing automated commands, and the package remains `review`, not `done`. No downstream package may consume it until that check passes or Timo explicitly approves a documented scope change.
+These tests use empty BFB state under the existing macOS account. They do not prove installation from a genuinely clean macOS user account. Timo approved moving that specific environment check to G02 in [ADR 0003](../../../adr/0003-local-mvp-account-test-scope.md). The manifest records the revised local L01 scope as passed; the fresh-account release check remains explicitly `not_run`, not a release waiver or an equivalent proof.
 
 The UID policy and OS permission assertions passed; a second interactive account was not used. Signed Keychain access belongs to L08/L04 and clean-machine release installation belongs to G02. No permanent daemon, enrolled runner, provider session or running MVP is claimed by these fixtures.

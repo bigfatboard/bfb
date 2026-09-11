@@ -2,7 +2,7 @@
 
 Updated: 11 September 2026
 
-Status: In progress — explicit autopilot authority recorded; recertifying L01 before L02
+Status: In progress — L01 complete; implementing L02 exact checkout registry
 
 Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 
@@ -10,14 +10,14 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 
 - Timo explicitly authorized Codex to finish the full local MVP independently on autopilot, without routine approval pauses, and instructed work to resume. This authority is recorded in the plan's Goal section. Feature branch: `codex/remote-launch-discussion-mvp`, based on `main` at `e1bc7a0`.
 - Plan updated; ADR 0002 accepted; D01–D03 assigned with dependency edges, test targets and evidence paths. Roadmap generation now covers 45 packages.
-- Active package: L01, the daemon/CLI kernel, in review. Its F01/F02 dependencies are done; implementation and bounded evidence are committed separately. No downstream package has started.
-- L01 implements private socket/CLI dispatch, SQLite WAL migrations/recovery, redacted logs, credential interfaces and per-user launchd installation. Its exact target, full repository verification and clean-worktree check pass at `2ef952a`, including real process restart, launchd and Swift-to-UDS tests. Timo approved deferring the fresh-account check to G02; certification under the revised L01 scope is next. No production action has been taken.
+- L01, the daemon/CLI kernel, is done under ADR 0003's approved local scope. Its exact target, uncached native tests, full repository verification, IC-1 and clean-worktree check passed at `f19d188`; evidence is committed. L02 exact checkout registration is next.
+- L01 implements private socket/CLI dispatch, SQLite WAL migrations/recovery, redacted logs, credential interfaces and per-user launchd installation, including real process restart, launchd and Swift-to-UDS tests. The genuinely fresh-account environment check remains untested and owned by G02. No production action has been taken.
 
 ## Milestones
 
 | Milestone | Packages | State | Completion check |
 | --- | --- | --- | --- |
-| Trusted Mac | L01–L03, C06, L08, L04 | L01 in review | Enroll, register exact checkout, probe providers, reconnect, revoke |
+| Trusted Mac | L01–L03, C06, L08, L04 | L01 done; L02 next | Enroll, register exact checkout, probe providers, reconnect, revoke |
 | Remote launch | C09, L05, W02 | Pending | Card starts fake provider; contention, expiry, revocation and containment fail safely |
 | Real agent work | L06, E01–E02, A01–A04, L07, P01 | Pending | Claude/Codex start, scoped context, attention, explicit result and human acceptance |
 | Discussion | D01–D03 | Planned; ADR and gates recorded | Two read-only participants, bounded turns, recovery, intervention, human decision |
@@ -51,3 +51,4 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 - 11 September: first complete L01 local gate passed; added canonical daemon-status/error fixtures and documented CLI, storage recovery, limits and the native Keychain boundary still owned by L08/L04.
 - 11 September: committed L01 implementation as `2ef952a`; clean-checkout target, full verification and worktree check passed. Recorded bounded evidence and retained review status because the specified clean macOS account check has not run. L02 remains pending under dependency discipline.
 - 11 September: resumed with Timo's approval to move the fresh-account environment test to G02. Recorded ADR 0003 before revising L01 acceptance; recertifying the approved local scope before consuming the package.
+- 11 September: recorded explicit authority to finish the full MVP independently on autopilot. L01 clean-checkout certification passed at `f19d188`, including an uncached native rerun and IC-1 regression; marked L01 done with the fresh-account G02 deferral preserved in evidence.

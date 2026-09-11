@@ -1,6 +1,6 @@
 # WP-L01 — Go daemon and CLI kernel
 
-Status: `review`
+Status: `done`
 
 Risk: High
 
@@ -69,8 +69,8 @@ One unprivileged `bfb` binary runs a reliable per-user daemon and exposes stable
 
 - Commit Local RPC fixtures, migration/fault results, redaction report, and daemon lifecycle log.
 - Feature packages add leaf handlers through the designated registration boundary.
-- Implementation commit `2ef952afc12dc2c45fb42aa98aea7665ed3a12a8` passed the exact target, `pnpm verify`, and `pnpm worktree:check` in a clean detached checkout on macOS. [Evidence](evidence/WP-L01/manifest.json) records the automated results and remaining environment acceptance.
-- Timo approved the account-test scope change in ADR 0003. Review now awaits clean-checkout certification and committed evidence under that scope; the fresh-account release test remains unverified in G02.
+- Approved-scope commit `f19d18804384c48e9b6180cd8260c66a95f789fd` passed the exact target, uncached native race tests, `pnpm verify`, IC-1 and `pnpm worktree:check` in a clean detached checkout on macOS. [Evidence](evidence/WP-L01/manifest.json) records those results.
+- Timo approved the account-test scope change in ADR 0003. The genuinely fresh-account release test remains explicitly unverified in G02; no signed Keychain or full running MVP claim follows from this kernel gate.
 
 ## Risks and decisions
 
