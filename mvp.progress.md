@@ -2,7 +2,7 @@
 
 Updated: 12 September 2026
 
-Status: In progress — L01/L02/L03/C06 complete; implementing L08 native runner enrollment and channel
+Status: In progress — L01/L02/L03/C06/L08 complete; next is the L04 native app
 
 Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 
@@ -14,14 +14,14 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 - L02 implements local checkout link/list/verify/unlink, immutable filesystem/Git identity, path-free summaries and tightening-only repository policy. Clean certification passed at `0c436be`, including its exact target, full verification and clean-worktree assertion; the bounded evidence accompanies its done status.
 - L03's provider kit and synthetic lifecycle passed clean certification at `367ede9`: immutable probes/plans, capability ceilings, exact discussion identity, provider-local registration and approved setup/doctor transactions with atomic displaced-file retention and crash recovery. Real provider descriptors remain discovery-only; their tracked capabilities require L07/P01 certification.
 - C06 implements per-workspace P-256 public keys, private-by-default named-human/project grants, action-bound step-up, hashed single-use challenges, request-bound possession authentication and token/grant epoch fences. Clean certification passed at `0247574`, including real Worker races, browser non-UV assertions and the full browser regression. Bounded evidence is committed with its done status.
-- L08 is in progress. Its local exact target and full repository verification pass. Native ACL/TLS and SQLite recovery checks pass. Browser pairing passes explicit-project/passkey/non-UV/reviewer/reload tests and desktop/mobile inspection. A signed launchd fixture connects two real Worker/D1 channels and passes lost-nudge pagination, hibernation, wake, expiry alarms, crash-gap recovery and live revocation. The HTTP/socket revocation race is fixed and has a real-TLS regression. Clean-checkout certification remains unfinished.
+- L08 clean certification passed at `18b7e20`: its exact target, full verification, C06, IC-1, real hub and D1 migration regressions, Linux cross-build and clean-worktree assertion. Native signed ACL/TLS, browser passkey pairing, two-workspace launchd/Worker channels, lost nudges, hibernation, wake, expiry alarms, crash recovery and live revocation are covered. Bounded evidence records the development-signing and whole-machine-sleep limitations; continuing with L04.
 - L01 implements private socket/CLI dispatch, SQLite WAL migrations/recovery, redacted logs, credential interfaces and per-user launchd installation, including real process restart, launchd and Swift-to-UDS tests. The genuinely fresh-account environment check remains untested and owned by G02. No production action has been taken.
 
 ## Milestones
 
 | Milestone | Packages | State | Completion check |
 | --- | --- | --- | --- |
-| Trusted Mac | L01–L03, C06, L08, L04 | L01/L02/L03/C06 done; L08 in progress | Enroll, register exact checkout, probe providers, reconnect, revoke |
+| Trusted Mac | L01–L03, C06, L08, L04 | L01/L02/L03/C06/L08 done; L04 next | Enroll, register exact checkout, probe providers, reconnect, revoke |
 | Remote launch | C09, L05, W02 | Pending | Card starts fake provider; contention, expiry, revocation and containment fail safely |
 | Real agent work | L06, E01–E02, A01–A04, L07, P01 | Pending | Claude/Codex start, scoped context, attention, explicit result and human acceptance |
 | Discussion | D01–D03 | Planned; ADR and gates recorded | Two read-only participants, bounded turns, recovery, intervention, human decision |
@@ -43,6 +43,7 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 - The live experiment also killed owned processes before identity observation and after turn observation, without retrying uncertain input. Inherited/peer write and escalation canaries stayed absent. Full read-only/managed-policy certification and native lower-authority external delivery remain unverified and unavailable to production manifests.
 - L03 clean certification at `367ede9` passed its exact target (five probe-classification cases, 139 protocol tests and native race tests), full repository verification (356 TypeScript tests, Go and Swift/Xcode), both bounded live provider experiments, Linux cross-build and the final clean-worktree assertion.
 - C06 clean certification at `0247574` passed its exact target (147 protocol and 64 focused TypeScript tests, Go protocol checks, real D1/WorkspaceHub races and one browser scenario), full verification (411 TypeScript tests, Go and Swift/Xcode), all 15 browser scenarios and the clean-worktree assertion. Revocation prevents renewal before cleanup; actual live sockets remain L08-owned.
+- L08 clean certification at `18b7e20` passed its exact target (159 protocol and 59 focused TypeScript tests, native race/ACL/launchd/Worker tests and browser pairing), full verification (436 TypeScript tests, Go and Swift/Xcode), C06 and IC-1 including all 16 browser scenarios, real hub and D1 migration regressions, Linux cross-build and the clean-worktree assertion.
 
 ## Decisions and limitations
 
@@ -74,3 +75,4 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 - 12 September: wired daemon-owned runner services, local enrollment/status/wake/forget operations, browser approval and sanitized inventory. Real channel testing reproduced a shared bootstrap-limit collision; recurring request challenges now have separate bounded IP/enrollment budgets and heartbeat replies no longer duplicate recovery pulls. Two-workspace native recovery passes through forced launchd restart. Terminal revocation notification handling and remaining certification checks are still in progress.
 - 12 September: fixed the HTTP/socket revocation race with an independent authenticated-fence reader and durable terminal cleanup. The full L08 target passes locally (159 protocol tests, 59 focused TypeScript tests, native race/ACL/launchd/Worker tests and browser pairing). `pnpm verify` passes with 436 TypeScript tests and Go/Swift checks. Both D1 and previous-head local migration rollback/recovery checks pass; clean-checkout certification is next.
 - 12 September: committed L08 implementation as `9ced7a7`. Clean L08, repository and C06 gates pass. IC-1 exposed hard-coded OAuth browser-test origins when using the supported alternate test port; the test now derives the actual signed-in app origin. Full clean certification is being repeated with that correction.
+- 12 September: committed the OAuth test-origin correction as `18b7e20`; full clean L08 certification and all affected regression gates pass. Recorded bounded evidence and marked L08 done. L04 native app implementation is next; no running-MVP or production claim is made.

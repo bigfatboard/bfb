@@ -1,6 +1,6 @@
 # WP-L08 — Runner enrollment and channel client
 
-Status: `in_progress`
+Status: `done`
 
 Risk: Very high
 
@@ -70,6 +70,7 @@ The unprivileged daemon enrolls one Mac separately into each selected workspace 
 
 - Commit enrollment/channel transcripts, multi-workspace isolation and renewal traces, sleep/wake/lost-nudge results, sanitized sync fixtures, signed-component ACL report, and the `RunnerConnection` contract.
 - L05 consumes durable command delivery but performs claim/final authorization and execution; L06 consumes authenticated event upload but retains explicit disposition authority.
+- Clean certification at `18b7e20` passed the exact L08 target, repository verification, C06, IC-1, real hub and D1 migration regressions, Linux cross-build and final worktree assertion. See the [committed manifest](evidence/WP-L08/manifest.json) and [bounded channel/ACL report](evidence/WP-L08/channel-matrix.md).
 
 ## Risks and decisions
 

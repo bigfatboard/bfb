@@ -1,0 +1,79 @@
+{
+  "package": "L08",
+  "tested_commit": "18b7e206657151cb76e63b4d97b5e88b50aa99d4",
+  "recorded_on": "2026-09-12",
+  "automated_gate": "passed",
+  "package_acceptance": "passed",
+  "test_configuration": {
+    "BFB_E2E_PORT": "4288",
+    "reason": "Uses the supported alternate browser-test port without stopping an unrelated local service."
+  },
+  "checkout": {
+    "detached": true,
+    "clean_before_install": true,
+    "clean_after_verification": true,
+    "frozen_install": "passed"
+  },
+  "checks": {
+    "protocol_fixture_and_codegen_drift": "passed",
+    "protocol_typescript_tests": 159,
+    "protocol_go_differential_fixtures": "passed",
+    "focused_typescript_tests": 59,
+    "native_go_race_tests": "passed",
+    "browser_pairing_scenarios": 1,
+    "repository_typescript_tests": 436,
+    "repository_go_checks": "passed",
+    "repository_swift_xcode_checks": "passed",
+    "repository_verification": "passed",
+    "c06_real_worker_races_and_browser": "passed",
+    "ic1_regression": "passed",
+    "full_browser_regression_scenarios": 16,
+    "dedicated_oauth_regression_scenarios": 2,
+    "real_workspace_hub_kernel": "passed",
+    "d1_empty_previous_fault_migration_matrix": "passed",
+    "local_previous_head_migration_rollback_and_upgrade": "passed",
+    "linux_amd64_cross_build": "passed",
+    "worktree_check": "passed"
+  },
+  "native_worker_assertions": {
+    "enrollments": 2,
+    "workspaces": 2,
+    "distinct_public_keys_runner_ids_and_connections": true,
+    "launchd_parentage_verified": true,
+    "app_started_by_fixture": false,
+    "signed_background_renewal": "passed",
+    "lost_nudge_allowed_references": 27,
+    "filtered_ungranted_references": 1,
+    "canonical_references_retained_after_receipts": 28,
+    "hibernation_preserved_connection": true,
+    "isolated_wake_rotated_only_target_workspace": true,
+    "real_expiry_alarm_and_renewal": "passed",
+    "daemon_kill_after_consumer_commit": "reconciled_without_duplicate_effect",
+    "allowed_durable_effects_after_restart": 28,
+    "live_grant_and_revocation_fences": "passed",
+    "pending_http_and_delayed_socket_fence_regressions": "passed",
+    "sanitized_real_checkout_inventory": "passed",
+    "exact_synthetic_service_and_keychain_cleanup": "passed"
+  },
+  "keychain_acl": {
+    "software_key": "P-256",
+    "approved_identity": "Apple-anchored hardened BFB daemon",
+    "unsigned_executable": "OS execution rejected on Apple Silicon",
+    "ad_hoc_same_identifier_direct_read": "rejected",
+    "unrelated_signed_component_direct_read": "rejected",
+    "token_replacement": "allowed_only_to_approved_code",
+    "signing_key_replacement": "rejected",
+    "release_notarization_or_upgrade": "not_claimed"
+  },
+  "not_claimed": [
+    "Whole-machine physical sleep or cross-device reachability",
+    "Notarized release identities, release upgrades or fresh macOS account certification (G02)",
+    "Cloudflare EU/US jurisdiction behavior in local Workerd",
+    "Real provider capability certification or provider credentials (L07/P01)",
+    "Launch claim/final authorization, execution or process activity (C09/L05)",
+    "Event persistence dispositions (L06/E01)",
+    "Human CLI credentials, runner management UI or discussion execution",
+    "Running complete local MVP or deployed behavior"
+  ],
+  "retention": "Bounded assertions and synthetic public protocol fixtures only. No raw logs, private keys, usable tokens, signatures, personal task content or local absolute paths are retained."
+}

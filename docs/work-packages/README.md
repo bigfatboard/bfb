@@ -384,7 +384,7 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 | L05 | [Terminal execution supervisor](WP-L05-terminal-supervisor.md) | `planned` | Very high |
 | L06 | [Hook journal and offline inbox](WP-L06-hook-journal.md) | `planned` | Very high |
 | L07 | [Claude Code reference adapter](WP-L07-claude-adapter.md) | `planned` | High |
-| L08 | [Runner enrollment and channel client](WP-L08-runner-channel-client.md) | `in_progress` | Very high |
+| L08 | [Runner enrollment and channel client](WP-L08-runner-channel-client.md) | `done` | Very high |
 
 ### Web and realtime
 
