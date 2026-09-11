@@ -2,7 +2,7 @@
 
 Updated: 11 September 2026
 
-Status: In progress — L01/L02 complete; provider adapter kit next
+Status: In progress — L01/L02 complete; implementing L03 provider adapter kit
 
 Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 
@@ -11,14 +11,15 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 - Timo explicitly authorized Codex to finish the full local MVP independently on autopilot, without routine approval pauses, and instructed work to resume. This authority is recorded in the plan's Goal section. Feature branch: `codex/remote-launch-discussion-mvp`, based on `main` at `e1bc7a0`.
 - Plan updated; ADR 0002 accepted; D01–D03 assigned with dependency edges, test targets and evidence paths. Roadmap generation now covers 45 packages.
 - L01, the daemon/CLI kernel, is done under ADR 0003's approved local scope. Its exact target, uncached native tests, full repository verification, IC-1 and clean-worktree check passed at `f19d188`; evidence is committed.
-- L02 implements local checkout link/list/verify/unlink, immutable filesystem/Git identity, path-free summaries and tightening-only repository policy. Clean certification passed at `0c436be`, including its exact target, full verification and clean-worktree assertion; the bounded evidence accompanies its done status. L03 provider adapter kit is next.
+- L02 implements local checkout link/list/verify/unlink, immutable filesystem/Git identity, path-free summaries and tightening-only repository policy. Clean certification passed at `0c436be`, including its exact target, full verification and clean-worktree assertion; the bounded evidence accompanies its done status.
+- L03's provider kit and synthetic lifecycle are implemented locally: immutable probes/plans, capability ceilings, exact discussion identity, provider-local registration and approved setup/doctor transactions with atomic displaced-file retention and crash recovery. Local native tests pass; final clean-checkout certification is pending. Real provider descriptors remain discovery-only.
 - L01 implements private socket/CLI dispatch, SQLite WAL migrations/recovery, redacted logs, credential interfaces and per-user launchd installation, including real process restart, launchd and Swift-to-UDS tests. The genuinely fresh-account environment check remains untested and owned by G02. No production action has been taken.
 
 ## Milestones
 
 | Milestone | Packages | State | Completion check |
 | --- | --- | --- | --- |
-| Trusted Mac | L01–L03, C06, L08, L04 | L01/L02 done; L03 next | Enroll, register exact checkout, probe providers, reconnect, revoke |
+| Trusted Mac | L01–L03, C06, L08, L04 | L01/L02 done; L03 in progress | Enroll, register exact checkout, probe providers, reconnect, revoke |
 | Remote launch | C09, L05, W02 | Pending | Card starts fake provider; contention, expiry, revocation and containment fail safely |
 | Real agent work | L06, E01–E02, A01–A04, L07, P01 | Pending | Claude/Codex start, scoped context, attention, explicit result and human acceptance |
 | Discussion | D01–D03 | Planned; ADR and gates recorded | Two read-only participants, bounded turns, recovery, intervention, human decision |
@@ -28,7 +29,7 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 
 - Starting repository baseline: 12 completed work packages; previous `pnpm verify` passed with 343 TypeScript tests plus Go and Swift checks.
 - The baseline is not evidence for the new MVP features.
-- Provider discovery: Codex `0.153.4`, Claude Code `2.1.268`. Only version/help inspection has run; live adapter acceptance remains pending.
+- Initial provider discovery found Codex `0.153.4` and Claude Code `2.1.268`. Claude subsequently updated; the live experiment below uses `2.1.269` and does not transfer evidence between versions.
 - IC-1 passed in an isolated clean baseline checkout after installing the pinned Chromium build, building workspace packages and rebuilding the declared native SQLite dependency. This includes 14 browser scenarios and the dedicated two-scenario OAuth rerun. The initial environment failures were missing test dependencies, not established product failures.
 - Added `pnpm build` before the aggregate IC-1 domain tests so the command does not depend on previously generated package output.
 - L01 `pnpm test:l01` passed from a clean checkout with 136 TypeScript protocol tests, Go protocol checks and race-tested daemon/auth/CLI/binary packages, including real subprocess crash/restart, per-user launchd installation and a compiled Swift Unix-socket client. Clean-checkout `pnpm verify` passed 348 TypeScript tests plus Go and Swift/Xcode checks; `pnpm worktree:check` confirmed no tracked drift.
@@ -36,6 +37,8 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 - L02 local acceptance passed: real APFS aliases/case spelling, linked worktrees/common-directory retargeting, directory replacement/removal, dirty/unborn/detached Git states, zero Git metadata writes, policy hash changes, default/pagination/restart behavior, and real CLI/RPC path redaction. Five shared policy fixtures pass through both Go YAML parsing and canonical cloud commands.
 - New conditional RPC fixtures exposed a diagnostic-category mismatch: both codecs rejected response paths, but TypeScript lacked Go's generic constant-error mapping. The mapping is aligned, with shared differential regression fixtures; 139 protocol tests pass.
 - L02 clean certification at `0c436be` passed `pnpm test:l02` and `pnpm verify` (356 TypeScript tests plus native Go and Swift/Xcode checks). Linux/amd64 cross-build and the final clean-worktree assertion passed. This is checkout registration/revalidation, not yet provider launch.
+- L03 live synthetic experiments on Claude Code `2.1.269` and Codex `0.153.4` observed fresh/resumed/forked identity, remembered context, wrong-session rejection and post-turn interrupt. Both process repeated input twice; Claude accepts overlapping writers while Codex rejects an active writer. BFB must own deduplication and fencing. Grok `1.0.25` remains discovery-only.
+- The live experiment also killed owned processes before identity observation and after turn observation, without retrying uncertain input. Inherited/peer write and escalation canaries stayed absent. Full read-only/managed-policy certification and native lower-authority external delivery remain unverified and unavailable to production manifests.
 
 ## Decisions and limitations
 
@@ -58,3 +61,5 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 - 11 September: recorded explicit authority to finish the full MVP independently on autopilot. L01 clean-checkout certification passed at `f19d188`, including an uncached native rerun and IC-1 regression; marked L01 done with the fresh-account G02 deferral preserved in evidence.
 - 11 September: implemented L02 and passed its local target, including race-tested checkout operations and the previous-head SQLite migration/rollback case. Clean-checkout certification is pending; no later package has consumed L02 yet.
 - 11 September: committed L02 implementation as `0c436be`; clean-checkout certification passed and bounded evidence records the filesystem, policy, RPC and migration assertions. Marked L02 done; continuing with L03.
+- 11 September: committed L02 certification as `f4b0a2f` and began L03. Current official provider documentation and installed CLI discovery guide the bounded capability experiment; help output is not acceptance proof.
+- 11 September: implemented L03 contracts and passed local race-tested fake lifecycle, injection, identity replacement, setup approval/concurrency and actual crash-recovery tests. Atomic publication now retains an edit made after the final hash check. The expanded real CLI experiment distinguishes supported, unsupported and unverified cases; clean certification is next.

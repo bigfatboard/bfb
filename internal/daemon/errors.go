@@ -42,6 +42,22 @@ var failures = map[string]struct {
 	"checkout_config_invalid":      {"authorization_denied", "Repository policy must contain only supported non-secret restrictions.", 3},
 	"checkout_config_changed":      {"conflict", "Repository policy changed; obtain a replacement specification and final authorization.", 6},
 	"checkout_policy_widening":     {"authorization_denied", "Repository policy cannot widen its parent policy.", 3},
+	"provider_manifest_invalid":    {"schema_invalid", "The packaged provider descriptor is invalid.", 2},
+	"provider_config_invalid":      {"schema_invalid", "The provider configuration is not supported.", 2},
+	"provider_path_unsafe":         {"authorization_denied", "The provider executable or configuration path is unsafe.", 3},
+	"provider_capability_denied":   {"authorization_denied", "A required provider capability is not authorized and verified.", 3},
+	"provider_discussion_unsafe":   {"authorization_denied", "The discussion does not have a verified read-only boundary.", 3},
+	"provider_session_invalid":     {"authorization_denied", "Continuation requires an explicit owned session binding.", 3},
+	"provider_probe_invalid":       {"authorization_denied", "The provider probe is not valid for this registry.", 3},
+	"provider_unavailable":         {"unavailable", "The provider is not installed or registered.", 4},
+	"provider_unsupported":         {"unavailable", "This provider version or integration is not certified for the requested behavior.", 4},
+	"provider_probe_failed":        {"operation_failed", "The bounded provider inspection failed.", 5},
+	"provider_event_invalid":       {"schema_invalid", "The provider event exceeds its semantic contract.", 2},
+	"provider_changed":             {"conflict", "The provider executable, version, integration or configuration changed; probe again.", 6},
+	"provider_probe_expired":       {"conflict", "The provider probe expired; probe again before launching.", 6},
+	"provider_setup_denied":        {"authorization_denied", "Setup requires approval of the exact BFB-owned diff.", 3},
+	"provider_setup_conflict":      {"conflict", "Provider configuration changed or a recovery is pending; existing data was preserved.", 6},
+	"provider_setup_failed":        {"operation_failed", "Provider setup or verification failed; inspect the bounded recovery status.", 5},
 }
 
 func (f *Failure) Error() string { return f.Diagnostic().Message }

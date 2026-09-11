@@ -28,6 +28,7 @@ const checks: Array<[string, string[]]> = [
   ["pnpm", ["lint"]],
   ["pnpm", ["typecheck"]],
   ["pnpm", ["protocol:check"]],
+  ["pnpm", ["provider:check"]],
   ["pnpm", ["test"]],
   ["pnpm", ["headers:check"]],
   ["pnpm", ["docs:check"]],

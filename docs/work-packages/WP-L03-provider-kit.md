@@ -1,8 +1,12 @@
 # WP-L03 — Provider adapter kit
 
-Status: `planned`
+Status: `in_progress`
 
 Risk: High
+
+Test target: `pnpm test:l03`
+
+Evidence manifest: `docs/work-packages/evidence/WP-L03/manifest.json`
 
 ## Outcome
 
@@ -33,6 +37,41 @@ Claude, Codex, Grok, and a fake provider implement one narrow tested lifecycle w
 ## Non-goals
 
 - Dynamic third-party plugins, parsing `--help` as capability truth, shell commands, keystroke simulation, provider-config rewrites without an approved diff, or pretending every provider supports identical hooks/usage/resume.
+
+## Contracts
+
+### Consumes
+
+- F02 canonical typed execution configuration and diagnostic categories; L01
+  local private-state and command-registration boundaries. Both dependencies are
+  done. L02 is also certified before this package starts.
+- ADR 0002's fixed read-only discussion boundary and distinction between turn
+  completion, provider process exit and explicit business result submission.
+
+### Produces
+
+- A Go provider kit with packaged descriptors, exact-version manifests, bounded
+  executable/configuration probes, capability intersection and immutable local
+  launch/continuation plans. Revalidation binds binary identity, symlink target,
+  observed version, config/integration hashes and manifest identity.
+- Deterministic provider-local registration and a synthetic executable covering
+  lifecycle, structured events, failure, child and process-group escape cases.
+  Real adapter packages remain responsible for their tracked provider behavior.
+- Setup proposal/application contracts with an explicit owned diff, approval
+  bound to that proposal, expected-hash comparison under a local lock, private
+  recovery copy, atomic publication, doctor verification and bounded rollback.
+- Bounded hook/turn semantic candidates without BFB correlation or persistence;
+  L06 owns that boundary. Discussion continuation requires an explicit observed
+  session identity and BFB-owned execution claim; it never uses a provider's
+  most-recent-session convenience option.
+- A reproducible early local capability experiment with synthetic Claude/Codex
+  sessions only. It records supported, unsupported and unverified cases against
+  exact executable versions, including unknown/busy targets and cancellation.
+  Native external delivery and fork remain optional until their boundaries pass.
+
+Unknown versions cannot receive tracked capabilities from help text or another
+version's evidence. No production app-server transport, additional SDK runtime
+or change to global provider configuration is introduced by the experiment.
 
 ## Work plan
 
