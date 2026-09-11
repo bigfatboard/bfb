@@ -63,14 +63,14 @@ One unprivileged `bfb` binary runs a reliable per-user daemon and exposes stable
 - Forced termination at migration/transaction boundaries leaves recoverable state.
 - Restart preserves records and reports unverified active processes as unknown until reconciled.
 - Redaction fixtures containing tokens, paths, task bodies, hook payloads, and environment values leak none of them.
-- `bfb daemon install/status/logs` works from a clean macOS user account.
+- `bfb daemon install/status/logs` works with empty private BFB state under the current unprivileged macOS GUI account. The genuinely fresh-account test is deferred to G02 under [ADR 0003](../adr/0003-local-mvp-account-test-scope.md), not claimed as passed.
 
 ## Evidence and handoff
 
 - Commit Local RPC fixtures, migration/fault results, redaction report, and daemon lifecycle log.
 - Feature packages add leaf handlers through the designated registration boundary.
 - Implementation commit `2ef952afc12dc2c45fb42aa98aea7665ed3a12a8` passed the exact target, `pnpm verify`, and `pnpm worktree:check` in a clean detached checkout on macOS. [Evidence](evidence/WP-L01/manifest.json) records the automated results and remaining environment acceptance.
-- Review remains open: native lifecycle fixtures used empty BFB state under the current macOS account, not a genuinely clean user account. Do not consume L01 as `done` until that explicit acceptance check passes or its scope is changed with Timo's approval.
+- Timo approved the account-test scope change in ADR 0003. Review now awaits clean-checkout certification and committed evidence under that scope; the fresh-account release test remains unverified in G02.
 
 ## Risks and decisions
 

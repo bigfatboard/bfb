@@ -22,6 +22,7 @@ A clean Cloudflare account and clean Mac can install a reproducible tagged BFB v
 - Document/test expand-contract D1 migrations, pre-destructive Time Travel/export, Durable Object lifecycle constraints, and Worker-vs-data rollback limits.
 - Build signed/notarized macOS application/binary with stable hook launcher path, Universal Link entitlement, self-host custom scheme, and preserved Keychain/database state.
 - Test clean install, first-owner bootstrap, enrollment, checkout link, provider setup, launch, realtime, attention, result, artifact review, and uninstall/upgrade behavior.
+- Include the genuinely fresh macOS user-account daemon installation, status and logs check deferred from L01 by [ADR 0003](../adr/0003-local-mvp-account-test-scope.md). Empty BFB state in an existing account is not this proof.
 - Add secret/key rotation with current/previous `kid`, incident recovery, DLQ/stuck outbox/upload/containment procedures, and release provenance/inventory.
 - Publish self-host instructions containing no hidden dashboard/manual prerequisites.
 - Execute AG-10 and OG-02 against clean release environments, then finalize the acceptance report inherited from G01.
@@ -44,6 +45,7 @@ A clean Cloudflare account and clean Mac can install a reproducible tagged BFB v
 - Empty and previous-release migrations pass; rollback drill states exactly when forward repair is required.
 - First-owner bootstrap consumes once and never promotes the first ordinary signer-in.
 - Signed/notarized Mac build preserves Keychain, Universal Link, hooks, database, locks, and recovery markers through upgrade.
+- `bfb daemon install/status/logs` passes from a genuinely fresh macOS user account, with account/environment evidence separate from L01's isolated-state fixtures.
 - Self-host completes the same golden flow as managed staging.
 - Staging and clean self-host post-deploy smoke verifies authenticated handlers, not merely CI/deploy success.
 - AG-10 and OG-02 are passed or explicitly waived under `ACCEPTANCE.md`, and the final report contains no remaining `not_run` release gate.

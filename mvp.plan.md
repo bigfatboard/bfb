@@ -14,6 +14,8 @@ The existing architecture supports that direction. The main missing piece is the
 
 Timo approved updating and implementing this plan on 11 September 2026. The discussion design is recorded in [ADR 0002](docs/adr/0002-human-initiated-discussions.md) before runtime changes. Production deployment remains a separately approved action. The [work-package roadmap](docs/work-packages/README.md) and [acceptance matrix](docs/work-packages/ACCEPTANCE.md) remain authoritative for dependencies and completion; [MVP progress](mvp.progress.md) records implementation checkpoints, verification, and remaining work.
 
+The approved [ADR 0003](docs/adr/0003-local-mvp-account-test-scope.md) moves L01's genuinely fresh macOS user-account check to G02 release certification. L01 still requires clean-checkout tests against empty private BFB state, real native lifecycle checks and its existing safety assertions. This is a narrow environment-test deferral, not a release pass or a waiver of other package gates.
+
 ## Where we are
 
 At the review baseline, the roadmap records 12 completed packages: platform foundations, identity and authorization, projects, task/run/context records, the board, and remote MCP core.

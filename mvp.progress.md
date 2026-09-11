@@ -2,7 +2,7 @@
 
 Updated: 11 September 2026
 
-Status: Blocked at acceptance — L01 implementation verified; awaiting a clean macOS account test or explicit approval to defer that check to G02
+Status: In progress — account-test deferral approved; recertifying L01 before L02
 
 Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 
@@ -41,6 +41,7 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 - No automatic worktrees, extra room backend, external room dependency, or production deployment.
 - Package status changes require the exact clean-checkout gate and committed redacted evidence. Milestone progress does not bypass this rule.
 - L01's native lifecycle checks use empty BFB state under the current macOS account. A genuinely new macOS account has not been tested; this is distinct from clean-checkout certification and remains an explicit acceptance limitation.
+- Timo approved deferring that specific fresh-account check to G02. ADR 0003 records the exception, preserves the existing safety tests, and forbids describing the release environment check as passed.
 
 ## Checkpoint log
 
@@ -49,3 +50,4 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 - 11 September: committed the plan/roadmap as `8e27776`; F02 prerequisite gate passed (132 TypeScript tests plus Go). Began L01 with isolated local-state, socket, storage, logging, credential-interface and lifecycle tests.
 - 11 September: first complete L01 local gate passed; added canonical daemon-status/error fixtures and documented CLI, storage recovery, limits and the native Keychain boundary still owned by L08/L04.
 - 11 September: committed L01 implementation as `2ef952a`; clean-checkout target, full verification and worktree check passed. Recorded bounded evidence and retained review status because the specified clean macOS account check has not run. L02 remains pending under dependency discipline.
+- 11 September: resumed with Timo's approval to move the fresh-account environment test to G02. Recorded ADR 0003 before revising L01 acceptance; recertifying the approved local scope before consuming the package.
