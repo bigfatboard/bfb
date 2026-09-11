@@ -2,16 +2,16 @@
 
 Updated: 11 September 2026
 
-Status: In progress — account-test deferral approved; recertifying L01 before L02
+Status: In progress — explicit autopilot authority recorded; recertifying L01 before L02
 
 Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 
 ## Current checkpoint
 
-- Implementation authorized; feature branch: `codex/remote-launch-discussion-mvp`, based on `main` at `e1bc7a0`.
+- Timo explicitly authorized Codex to finish the full local MVP independently on autopilot, without routine approval pauses, and instructed work to resume. This authority is recorded in the plan's Goal section. Feature branch: `codex/remote-launch-discussion-mvp`, based on `main` at `e1bc7a0`.
 - Plan updated; ADR 0002 accepted; D01–D03 assigned with dependency edges, test targets and evidence paths. Roadmap generation now covers 45 packages.
 - Active package: L01, the daemon/CLI kernel, in review. Its F01/F02 dependencies are done; implementation and bounded evidence are committed separately. No downstream package has started.
-- L01 implements private socket/CLI dispatch, SQLite WAL migrations/recovery, redacted logs, credential interfaces and per-user launchd installation. Its exact target, full repository verification and clean-worktree check pass at `2ef952a`, including real process restart, launchd and Swift-to-UDS tests. Clean-account acceptance remains unresolved. No production action has been taken.
+- L01 implements private socket/CLI dispatch, SQLite WAL migrations/recovery, redacted logs, credential interfaces and per-user launchd installation. Its exact target, full repository verification and clean-worktree check pass at `2ef952a`, including real process restart, launchd and Swift-to-UDS tests. Timo approved deferring the fresh-account check to G02; certification under the revised L01 scope is next. No production action has been taken.
 
 ## Milestones
 

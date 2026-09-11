@@ -16,6 +16,14 @@ Timo approved updating and implementing this plan on 11 September 2026. The disc
 
 The approved [ADR 0003](docs/adr/0003-local-mvp-account-test-scope.md) moves L01's genuinely fresh macOS user-account check to G02 release certification. L01 still requires clean-checkout tests against empty private BFB state, real native lifecycle checks and its existing safety assertions. This is a narrow environment-test deferral, not a release pass or a waiver of other package gates.
 
+### Explicit autopilot authority
+
+Timo explicitly grants Codex authority to finish this entire goal on its own, on autopilot. This authorization was reaffirmed on 11 September 2026 with an instruction to record it in the current goal and plan, then resume.
+
+Codex owns the necessary engineering decisions and operational follow-through within this approved local MVP: implementation, configuration, local migrations, builds, provider integration, testing, fixes, coherent commits, and leaving the application and runner running. Make reasonable in-scope decisions independently, keep `mvp.progress.md` current, and continue across packages without routine approval pauses or stopping at an intermediate milestone.
+
+The goal remains the fully working and verified local MVP described here, including remote Claude/Codex launch and bounded read-only discussions. Autopilot does not permit silently shrinking that outcome, fabricating evidence, weakening the architecture's trust boundaries, or treating unfinished acceptance as passed. Exhaust safe in-scope remedies before reporting a genuine blocker. Production deployment and consequential shared-state operations retain their separately confirmed rollout boundary.
+
 ## Where we are
 
 At the review baseline, the roadmap records 12 completed packages: platform foundations, identity and authorization, projects, task/run/context records, the board, and remote MCP core.
