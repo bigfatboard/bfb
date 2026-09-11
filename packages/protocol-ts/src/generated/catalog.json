@@ -1,7 +1,7 @@
 {
   "protocol": "bfb-wire/1",
   "schema_version": 1,
-  "schema_hash": "74d163bed3624c76420157df4f3868405f2dec7c30cbdeac39fb630d1f30a5a2",
+  "schema_hash": "532dc181fdfacead44be05df43f2d52a85bd869b8a45d416edafc9be8ff250ed",
   "documents": [
     {
       "name": "event-envelope",
@@ -14,6 +14,18 @@
     {
       "name": "runner-enrollment",
       "schema": "runner-enrollment.json"
+    },
+    {
+      "name": "runner-identity",
+      "schema": "runner-identity.json"
+    },
+    {
+      "name": "runner-challenge",
+      "schema": "runner-challenge.json"
+    },
+    {
+      "name": "runner-channel-close",
+      "schema": "runner-channel-close.json"
     },
     {
       "name": "checkout-summary",

@@ -536,6 +536,50 @@
       "schema": "event-envelope",
       "expect": "reject",
       "category": "type_mismatch"
+    },
+    {
+      "path": "valid/runner-identity.private.json",
+      "schema": "runner-identity",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/runner-challenge.token.json",
+      "schema": "runner-challenge",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/runner-challenge.request.json",
+      "schema": "runner-challenge",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/runner-channel-close.revoked.json",
+      "schema": "runner-channel-close",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/runner-challenge.audience.json",
+      "schema": "runner-challenge",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/runner-challenge.request-binding.json",
+      "schema": "runner-challenge",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/runner-challenge.private-key.json",
+      "schema": "runner-challenge",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/runner-channel-close.reason.json",
+      "schema": "runner-channel-close",
+      "expect": "reject",
+      "category": "type_mismatch"
     }
   ]
 }

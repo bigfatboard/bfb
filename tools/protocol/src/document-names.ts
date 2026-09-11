@@ -31,6 +31,24 @@ export const DOCUMENTS: DocumentSpec[] = [
     tsType: "RunnerEnrollment",
   },
   {
+    name: "runner-identity",
+    schemaFile: "runner-identity.json",
+    goType: "RunnerIdentity",
+    tsType: "RunnerIdentity",
+  },
+  {
+    name: "runner-challenge",
+    schemaFile: "runner-challenge.json",
+    goType: "RunnerChallenge",
+    tsType: "RunnerChallenge",
+  },
+  {
+    name: "runner-channel-close",
+    schemaFile: "runner-channel-close.json",
+    goType: "RunnerChannelClose",
+    tsType: "RunnerChannelClose",
+  },
+  {
     name: "checkout-summary",
     schemaFile: "checkout-summary.json",
     goType: "CheckoutSummary",

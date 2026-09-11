@@ -1,8 +1,8 @@
 # BFB MVP progress
 
-Updated: 11 September 2026
+Updated: 12 September 2026
 
-Status: In progress — L01/L02/L03 complete; runner identity and enrollment are next
+Status: In progress — L01/L02/L03 complete; implementing C06 runner identity and enrollment
 
 Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 
@@ -13,13 +13,14 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 - L01, the daemon/CLI kernel, is done under ADR 0003's approved local scope. Its exact target, uncached native tests, full repository verification, IC-1 and clean-worktree check passed at `f19d188`; evidence is committed.
 - L02 implements local checkout link/list/verify/unlink, immutable filesystem/Git identity, path-free summaries and tightening-only repository policy. Clean certification passed at `0c436be`, including its exact target, full verification and clean-worktree assertion; the bounded evidence accompanies its done status.
 - L03's provider kit and synthetic lifecycle passed clean certification at `367ede9`: immutable probes/plans, capability ceilings, exact discussion identity, provider-local registration and approved setup/doctor transactions with atomic displaced-file retention and crash recovery. Real provider descriptors remain discovery-only; their tracked capabilities require L07/P01 certification.
+- C06 implementation now includes per-workspace P-256 public keys, private-by-default named-human/project grants, action-bound step-up, hashed single-use challenges, request-bound possession authentication and token/grant epoch fences. Its local target passes, including real Worker races and a browser non-UV assertion. Clean certification is pending; no later package consumes it yet.
 - L01 implements private socket/CLI dispatch, SQLite WAL migrations/recovery, redacted logs, credential interfaces and per-user launchd installation, including real process restart, launchd and Swift-to-UDS tests. The genuinely fresh-account environment check remains untested and owned by G02. No production action has been taken.
 
 ## Milestones
 
 | Milestone | Packages | State | Completion check |
 | --- | --- | --- | --- |
-| Trusted Mac | L01–L03, C06, L08, L04 | L01/L02/L03 done; C06 next | Enroll, register exact checkout, probe providers, reconnect, revoke |
+| Trusted Mac | L01–L03, C06, L08, L04 | L01/L02/L03 done; C06 in progress | Enroll, register exact checkout, probe providers, reconnect, revoke |
 | Remote launch | C09, L05, W02 | Pending | Card starts fake provider; contention, expiry, revocation and containment fail safely |
 | Real agent work | L06, E01–E02, A01–A04, L07, P01 | Pending | Claude/Codex start, scoped context, attention, explicit result and human acceptance |
 | Discussion | D01–D03 | Planned; ADR and gates recorded | Two read-only participants, bounded turns, recovery, intervention, human decision |
@@ -65,3 +66,4 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 - 11 September: committed L02 certification as `f4b0a2f` and began L03. Current official provider documentation and installed CLI discovery guide the bounded capability experiment; help output is not acceptance proof.
 - 11 September: implemented L03 contracts and passed local race-tested fake lifecycle, injection, identity replacement, setup approval/concurrency and actual crash-recovery tests. Atomic publication now retains an edit made after the final hash check. The expanded real CLI experiment distinguishes supported, unsupported and unverified cases; clean certification is next.
 - 11 September: committed L03 implementation as `367ede9` and passed clean-checkout certification, including both live CLI probes. Recorded bounded capability/contract evidence and marked L03 done. Continuing with C06 runner identity, grants and proof-of-possession tokens.
+- 12 September: implemented C06 and passed its local target, real three-Worker races, key/workspace isolation and rate limits, browser user-verification/step-up negatives, and the full 15-scenario browser regression. Reproduced and fixed a stale named-human launch grant surviving membership removal/rejoin. The server contract deliberately leaves real Keychain keys, live socket delivery and runner management UI to L08/W02; clean-checkout certification is next.

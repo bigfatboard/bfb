@@ -82,5 +82,7 @@ describe("strict protocol generation", () => {
     expect(types).toMatch(/decision: "rejected";[\s\S]*rejection: \{/u);
     expect(types).toMatch(/disposition: "accepted";[\s\S]*diagnostic\?: never;/u);
     expect(types).toMatch(/disposition: "retryable";[\s\S]*diagnostic: \{/u);
+    expect(types).toMatch(/purpose: "token";[\s\S]*token_id: null;\s*request: null;/u);
+    expect(types).toMatch(/purpose: "request";[\s\S]*token_id: string;\s*request: \{/u);
   });
 });

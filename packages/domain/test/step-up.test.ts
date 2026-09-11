@@ -29,6 +29,14 @@ describe("passkey step-up", () => {
     ).rejects.toThrow(/already consumed/);
   });
 
+  it("rejects a proof before its server-issued timestamp", async () => {
+    const db = await openDomainDb();
+    const proof = await issueStepUpProof(db, FIX.owner, action, "2026-08-07T12:01:00Z");
+    await expect(
+      consumeStepUpProof(db, proof, action, "2026-08-07T12:00:00Z", FIX.owner),
+    ).rejects.toThrow(/time boundary/);
+  });
+
   it("allows only one winner under concurrent consume races", async () => {
     const db = await openDomainDb();
     const proofId = await issueStepUpProof(db, FIX.owner, action, "2026-08-07T12:00:00Z");

@@ -12,6 +12,8 @@ export * from "./mcp-routing.js";
 export * from "./oauth.js";
 export * from "./projects.js";
 export * from "./projections.js";
+export * from "./runner-crypto.js";
+export * from "./runners.js";
 export * from "./step-up.js";
 export * from "./work-commands.js";
 export * from "./work-records.js";

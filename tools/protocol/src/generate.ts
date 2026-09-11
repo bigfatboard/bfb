@@ -142,6 +142,10 @@ function tsTypeOf(
     return schema.enum.map((value) => JSON.stringify(value)).join(" | ");
   }
   const type = schema.type;
+  if (Array.isArray(type) && type.length === 2 && type.includes("null")) {
+    const nonNull = type.find((item) => item !== "null")!;
+    return tsTypeOf({ ...schema, type: nonNull }, rootSchema, registry, forceOptional) + " | null";
+  }
   if (type === "string") {
     return "string";
   }
@@ -150,6 +154,9 @@ function tsTypeOf(
   }
   if (type === "boolean") {
     return "boolean";
+  }
+  if (type === "null") {
+    return "null";
   }
   if (type === "array") {
     const items = schema.items ? tsTypeOf(schema.items, rootSchema, registry) : "unknown";
@@ -219,6 +226,7 @@ function discriminatedUnionType(
       }
       const required = new Set(schema.required ?? []);
       const forbidden = new Set<string>();
+      const overrides = new Map<string, JsonSchema>([[discriminator, { const: value }]]);
       for (const branch of branches) {
         for (const key of branch.then?.required ?? []) {
           required.add(key);
@@ -226,12 +234,15 @@ function discriminatedUnionType(
         for (const key of branch.then?.not?.required ?? []) {
           forbidden.add(key);
         }
+        for (const [key, property] of Object.entries(branch.then?.properties ?? {})) {
+          overrides.set(key, { ...schema.properties[key], ...property });
+        }
       }
       variants.push(
         tsObjectShape(schema, schema, registry, {
           required,
           forbidden,
-          overrides: new Map([[discriminator, { const: value }]]),
+          overrides,
         }),
       );
     }
@@ -268,6 +279,11 @@ function goTypeOf(
     }
   }
   const type = schema.type;
+  if (Array.isArray(type) && type.length === 2 && type.includes("null")) {
+    const nonNull = type.find((item) => item !== "null")!;
+    const nullable = goTypeOf({ ...schema, type: nonNull }, rootSchema, registry, fieldName);
+    return nullable.startsWith("map[") || nullable.startsWith("[]") ? nullable : "*" + nullable;
+  }
   if (type === "string") {
     return "string";
   }

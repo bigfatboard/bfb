@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/runner-identity.json",
+  "title": "RunnerIdentity",
+  "description": "Authoritative C06 identity and grant view, distinct from a runner connection summary.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "runner_id",
+    "workspace_id",
+    "owner_human_id",
+    "device_label",
+    "public_key_thumbprint",
+    "authorization_epoch",
+    "grant_epoch",
+    "status",
+    "enrolled_at",
+    "granted_project_ids",
+    "launcher_human_ids"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "runner_id": { "$ref": "primitives.json#/$defs/Ulid" },
+    "workspace_id": { "$ref": "primitives.json#/$defs/Ulid" },
+    "owner_human_id": { "$ref": "primitives.json#/$defs/Ulid" },
+    "device_label": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "public_key_thumbprint": { "$ref": "primitives.json#/$defs/Sha256Digest" },
+    "authorization_epoch": { "$ref": "primitives.json#/$defs/AuthorizationEpoch" },
+    "grant_epoch": { "$ref": "primitives.json#/$defs/AuthorizationEpoch" },
+    "status": { "type": "string", "enum": ["enrolled", "revoked"] },
+    "enrolled_at": { "$ref": "primitives.json#/$defs/UtcTimestamp" },
+    "granted_project_ids": {
+      "type": "array",
+      "maxItems": 64,
+      "uniqueItems": true,
+      "items": { "$ref": "primitives.json#/$defs/Ulid" }
+    },
+    "launcher_human_ids": {
+      "type": "array",
+      "maxItems": 64,
+      "uniqueItems": true,
+      "items": { "$ref": "primitives.json#/$defs/Ulid" }
+    }
+  }
+}

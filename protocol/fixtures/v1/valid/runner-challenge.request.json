@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "challenge_id": "01K00000000000000000000004",
+  "server_nonce": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+  "workspace_id": "01K00000000000000000000001",
+  "runner_id": "01K00000000000000000000002",
+  "audience": "bfb-runner",
+  "origin": "https://bfb.synthetic.test",
+  "public_key_thumbprint": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "purpose": "request",
+  "authorization_epoch": 1,
+  "owner_authorization_epoch": 2,
+  "grant_epoch": 3,
+  "token_epoch": 1,
+  "token_id": "01K00000000000000000000005",
+  "request": {
+    "method": "POST",
+    "path": "/runner/workspaces/01K00000000000000000000001/runners/01K00000000000000000000002/authenticate",
+    "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "issued_at": "2026-09-11T20:00:00.000Z",
+  "expires_at": "2026-09-11T20:01:00.000Z"
+}

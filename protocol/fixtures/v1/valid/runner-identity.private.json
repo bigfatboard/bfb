@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "runner_id": "01K00000000000000000000002",
+  "workspace_id": "01K00000000000000000000001",
+  "owner_human_id": "01K00000000000000000000003",
+  "device_label": "Synthetic Mac",
+  "public_key_thumbprint": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "authorization_epoch": 1,
+  "grant_epoch": 3,
+  "status": "enrolled",
+  "enrolled_at": "2026-09-11T20:00:00.000Z",
+  "granted_project_ids": [],
+  "launcher_human_ids": ["01K00000000000000000000003"]
+}

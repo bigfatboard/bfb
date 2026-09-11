@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/runner-challenge.json",
+  "title": "RunnerChallenge",
+  "description": "Server-generated single-use possession challenge. Nonce is transport-only; only its SHA-256 verifier is persisted.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "challenge_id",
+    "server_nonce",
+    "workspace_id",
+    "runner_id",
+    "audience",
+    "origin",
+    "public_key_thumbprint",
+    "purpose",
+    "authorization_epoch",
+    "owner_authorization_epoch",
+    "grant_epoch",
+    "token_epoch",
+    "token_id",
+    "request",
+    "issued_at",
+    "expires_at"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "challenge_id": { "$ref": "primitives.json#/$defs/Ulid" },
+    "server_nonce": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{43}$",
+      "minLength": 43,
+      "maxLength": 43
+    },
+    "workspace_id": { "$ref": "primitives.json#/$defs/Ulid" },
+    "runner_id": { "$ref": "primitives.json#/$defs/Ulid" },
+    "audience": { "type": "string", "const": "bfb-runner" },
+    "origin": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "public_key_thumbprint": { "$ref": "primitives.json#/$defs/Sha256Digest" },
+    "purpose": { "type": "string", "enum": ["token", "request"] },
+    "authorization_epoch": { "$ref": "primitives.json#/$defs/AuthorizationEpoch" },
+    "owner_authorization_epoch": { "$ref": "primitives.json#/$defs/AuthorizationEpoch" },
+    "grant_epoch": { "$ref": "primitives.json#/$defs/AuthorizationEpoch" },
+    "token_epoch": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "token_id": {
+      "type": ["string", "null"],
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "minLength": 26,
+      "maxLength": 26
+    },
+    "request": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["method", "path", "body_sha256"],
+      "properties": {
+        "method": { "type": "string", "enum": ["GET", "POST", "PUT", "DELETE"] },
+        "path": {
+          "type": "string",
+          "pattern": "^/runner/workspaces/[0-7][0-9A-HJKMNP-TV-Z]{25}/runners/[0-7][0-9A-HJKMNP-TV-Z]{25}/[A-Za-z0-9/_-]+$",
+          "maxLength": 512
+        },
+        "body_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "minLength": 64,
+          "maxLength": 64
+        }
+      }
+    },
+    "issued_at": { "$ref": "primitives.json#/$defs/UtcTimestamp" },
+    "expires_at": { "$ref": "primitives.json#/$defs/UtcTimestamp" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "purpose": { "const": "token" } }, "required": ["purpose"] },
+      "then": { "properties": { "token_id": { "type": "null" }, "request": { "type": "null" } } }
+    },
+    {
+      "if": { "properties": { "purpose": { "const": "request" } }, "required": ["purpose"] },
+      "then": {
+        "properties": { "token_id": { "type": "string" }, "request": { "type": "object" } }
+      }
+    }
+  ]
+}

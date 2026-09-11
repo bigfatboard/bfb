@@ -15,6 +15,10 @@ import { randomUlid } from "./ids.js";
 export interface HubCommand<TInput, TResult> {
   name: string;
   run: (input: TInput, ctx: HubContext) => Promise<TResult>;
+  /** Security commands explicitly project safe audit fields; results must remain non-secret. */
+  auditInput?: (input: TInput) => unknown;
+  /** One-use security exchanges must not replay a cached success. */
+  replay?: "reject";
 }
 
 export interface HubContext {
@@ -24,6 +28,7 @@ export interface HubContext {
   actorHumanId?: string | undefined;
   actorDelegationId?: string | undefined;
   actorSystemId?: string | undefined;
+  actorRunnerId?: string | undefined;
   authorizationEpoch: number;
 }
 
@@ -35,6 +40,7 @@ export interface CommandRequest<TInput> {
   actorHumanId?: string;
   actorDelegationId?: string;
   actorSystemId?: string;
+  actorRunnerId?: string;
   authorizationEpoch: number;
   now?: string;
 }
@@ -58,6 +64,7 @@ interface StoredIdempotency<TResult> {
   actorHumanId?: string | undefined;
   actorDelegationId?: string | undefined;
   actorSystemId?: string | undefined;
+  actorRunnerId?: string | undefined;
 }
 
 export class WorkspaceHub {
@@ -85,6 +92,9 @@ export class WorkspaceHub {
             .get(request.workspaceId, request.idempotencyKey)) as
             { command_name: string; result_json: string } | undefined;
           if (existing) {
+            if (command.replay === "reject") {
+              throw new DomainError("request_rejected", "request rejected");
+            }
             if (existing.command_name !== command.name) {
               return {
                 ok: false,
@@ -100,7 +110,8 @@ export class WorkspaceHub {
               (parsed.actorHumanId ?? undefined) !== (request.actorHumanId ?? undefined) ||
               (parsed.actorDelegationId ?? undefined) !==
                 (request.actorDelegationId ?? undefined) ||
-              (parsed.actorSystemId ?? undefined) !== (request.actorSystemId ?? undefined)
+              (parsed.actorSystemId ?? undefined) !== (request.actorSystemId ?? undefined) ||
+              (parsed.actorRunnerId ?? undefined) !== (request.actorRunnerId ?? undefined)
             ) {
               return {
                 ok: false,
@@ -127,6 +138,7 @@ export class WorkspaceHub {
             actorHumanId: request.actorHumanId,
             actorDelegationId: request.actorDelegationId,
             actorSystemId: request.actorSystemId,
+            actorRunnerId: request.actorRunnerId,
             authorizationEpoch: request.authorizationEpoch,
           };
           const result = await command.run(request.input, ctx);
@@ -139,9 +151,10 @@ export class WorkspaceHub {
               humanId: request.actorHumanId,
               delegationId: request.actorDelegationId,
               systemId: request.actorSystemId,
+              runnerId: request.actorRunnerId,
               authorizationEpoch: request.authorizationEpoch,
             },
-            input: request.input,
+            input: command.auditInput ? command.auditInput(request.input) : request.input,
             result,
           });
 
@@ -162,7 +175,10 @@ export class WorkspaceHub {
             .run(
               request.workspaceId,
               auditId,
-              request.actorDelegationId ?? request.actorHumanId ?? request.actorSystemId,
+              request.actorDelegationId ??
+                request.actorHumanId ??
+                request.actorRunnerId ??
+                request.actorSystemId,
               command.name,
               payload,
               now,
@@ -183,6 +199,7 @@ export class WorkspaceHub {
             actorHumanId: request.actorHumanId,
             actorDelegationId: request.actorDelegationId,
             actorSystemId: request.actorSystemId,
+            actorRunnerId: request.actorRunnerId,
           };
           await tx
             .prepare(
@@ -322,7 +339,7 @@ function validateCommand<TInput>(name: string, request: CommandRequest<TInput>):
     if (request.now !== undefined) {
       assertUtcTimestamp(request.now, "command time");
     }
-    if (!request.actorHumanId && !request.actorSystemId) {
+    if (!request.actorHumanId && !request.actorSystemId && !request.actorRunnerId) {
       throw new Error("command actor is required");
     }
     if (request.actorDelegationId && !request.actorHumanId) {
@@ -330,6 +347,15 @@ function validateCommand<TInput>(name: string, request: CommandRequest<TInput>):
     }
     if (request.actorSystemId && (request.actorHumanId || request.actorDelegationId)) {
       throw new Error("system commands cannot claim a human or delegation actor");
+    }
+    if (
+      request.actorRunnerId &&
+      (request.actorHumanId || request.actorDelegationId || request.actorSystemId)
+    ) {
+      throw new Error("runner commands cannot claim another principal");
+    }
+    if (request.actorRunnerId) {
+      assertUlid(request.actorRunnerId, "runner actor id");
     }
     if (request.actorHumanId) {
       assertUlid(request.actorHumanId, "human actor id");

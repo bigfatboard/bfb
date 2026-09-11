@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/runner-channel-close.json",
+  "title": "RunnerChannelClose",
+  "description": "Committed authority fence; consumers close affected sockets before credential cleanup and reauthorize pending launch commands.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "signal_id",
+    "workspace_id",
+    "runner_id",
+    "authorization_epoch",
+    "grant_epoch",
+    "token_epoch",
+    "reason",
+    "removed_human_id",
+    "created_at"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "kind": { "type": "string", "const": "runner.channel.close" },
+    "signal_id": { "$ref": "primitives.json#/$defs/Ulid" },
+    "workspace_id": { "$ref": "primitives.json#/$defs/Ulid" },
+    "runner_id": { "$ref": "primitives.json#/$defs/Ulid" },
+    "authorization_epoch": { "$ref": "primitives.json#/$defs/AuthorizationEpoch" },
+    "grant_epoch": { "$ref": "primitives.json#/$defs/AuthorizationEpoch" },
+    "token_epoch": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "reason": { "type": "string", "enum": ["revoked", "grants_changed", "token_rotated"] },
+    "removed_human_id": {
+      "type": ["string", "null"],
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "minLength": 26,
+      "maxLength": 26
+    },
+    "created_at": { "$ref": "primitives.json#/$defs/UtcTimestamp" }
+  }
+}

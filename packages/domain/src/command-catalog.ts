@@ -3,6 +3,14 @@
 
 import type { HubCommand } from "./hub.js";
 import {
+  authenticateRunnerRequestCommand,
+  enrollRunnerCommand,
+  exchangeRunnerTokenCommand,
+  issueRunnerChallengeCommand,
+  replaceRunnerGrantsCommand,
+  revokeRunnerCommand,
+} from "./runners.js";
+import {
   addCommentCommand,
   addContextCommand,
   addTaskDependencyCommand,
@@ -37,6 +45,15 @@ import {
 } from "./workspace-authorization.js";
 
 const commands = new Map<string, HubCommand<unknown, unknown>>([
+  [enrollRunnerCommand.name, enrollRunnerCommand as HubCommand<unknown, unknown>],
+  [replaceRunnerGrantsCommand.name, replaceRunnerGrantsCommand as HubCommand<unknown, unknown>],
+  [revokeRunnerCommand.name, revokeRunnerCommand as HubCommand<unknown, unknown>],
+  [issueRunnerChallengeCommand.name, issueRunnerChallengeCommand as HubCommand<unknown, unknown>],
+  [exchangeRunnerTokenCommand.name, exchangeRunnerTokenCommand as HubCommand<unknown, unknown>],
+  [
+    authenticateRunnerRequestCommand.name,
+    authenticateRunnerRequestCommand as HubCommand<unknown, unknown>,
+  ],
   [createTaskCommand.name, createTaskCommand as HubCommand<unknown, unknown>],
   [updateTaskCommand.name, updateTaskCommand as HubCommand<unknown, unknown>],
   [addCommentCommand.name, addCommentCommand as HubCommand<unknown, unknown>],

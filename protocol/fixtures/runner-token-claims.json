@@ -1,0 +1,21 @@
+{
+  "synthetic": true,
+  "format": "stateful-not-jwt",
+  "claims": {
+    "v": 1,
+    "sub": "01K00000000000000000000002",
+    "workspace_id": "01K00000000000000000000001",
+    "aud": "bfb-runner",
+    "iss": "https://bfb.synthetic.test",
+    "jti": "01K00000000000000000000005",
+    "iat": 1789156800,
+    "exp": 1789157100,
+    "authorization_epoch": 1,
+    "owner_authorization_epoch": 2,
+    "grant_epoch": 3,
+    "token_epoch": 1,
+    "cnf": {
+      "jkt": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  }
+}

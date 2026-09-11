@@ -1,7 +1,7 @@
 // ABOUTME: Seeds synthetic multi-role workspace fixtures for domain, web, and MCP tests.
 // ABOUTME: All data is labelled synthetic through stable IDs and test-only helpers.
 
-import type { SqlDatabase } from "@bfb/db";
+import type { Jurisdiction, SqlDatabase } from "@bfb/db";
 
 import { syntheticUlid } from "./ids.js";
 
@@ -29,13 +29,14 @@ export const FIX = {
 export async function seedSyntheticWorkspace(
   db: SqlDatabase,
   now = "2026-08-07T12:00:00Z",
+  jurisdiction: Jurisdiction = "eu",
 ): Promise<void> {
   await db
     .prepare(
       `INSERT INTO workspaces (id, slug, jurisdiction, created_at, resource_version)
-     VALUES (?, 'synthetic', 'eu', ?, 1)`,
+     VALUES (?, 'synthetic', ?, ?, 1)`,
     )
-    .run(FIX.workspace, now);
+    .run(FIX.workspace, jurisdiction, now);
 
   for (const [id, email, name] of [
     [FIX.owner, "owner@synthetic.test", "Synthetic Owner"],

@@ -226,7 +226,7 @@ test("agent preview excludes human-only context", async ({ page }) => {
 
 test("owner policy update completes through action-bound passkey UI", async ({ page }) => {
   await signInAndOpenBoard(page, "owner");
-  const cleanup = await enrollVirtualPasskey(page);
+  const { cleanup } = await enrollVirtualPasskey(page);
   try {
     await page.getByRole("button", { name: "Projects & policy" }).click();
     await expect(page.getByTestId("settings-surface")).toBeVisible();

@@ -58,7 +58,10 @@ export async function executeWorkspaceCommand<TInput, TResult>(
     };
   }
   const requestPrincipalId =
-    request.actorDelegationId ?? request.actorHumanId ?? request.actorSystemId;
+    request.actorDelegationId ??
+    request.actorHumanId ??
+    request.actorRunnerId ??
+    request.actorSystemId;
   if (requestPrincipalId !== scope.principalId) {
     return {
       ok: false,

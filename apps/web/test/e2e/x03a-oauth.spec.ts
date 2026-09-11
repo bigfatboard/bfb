@@ -11,7 +11,7 @@ import { enrollVirtualPasskey } from "./webauthn-helpers.js";
 
 test("human narrows a Claude OAuth request before provider consent", async ({ page }) => {
   await signInAs(page, "owner");
-  const cleanup = await enrollVirtualPasskey(page);
+  const { cleanup } = await enrollVirtualPasskey(page);
   try {
     const authorize = new URL("/oauth/authorize", "http://bfb.localhost:4173");
     for (const [key, value] of Object.entries({
