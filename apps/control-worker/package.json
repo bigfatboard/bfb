@@ -9,6 +9,7 @@
     "@better-auth/passkey": "1.6.26",
     "@bfb/db": "workspace:*",
     "@bfb/domain": "workspace:*",
+    "@bfb/protocol": "workspace:*",
     "@modelcontextprotocol/server": "2.0.0",
     "@simplewebauthn/server": "13.3.2",
     "agents": "0.20.1",

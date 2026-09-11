@@ -55,6 +55,36 @@ export const DOCUMENTS: DocumentSpec[] = [
     tsType: "CheckoutSummary",
   },
   {
+    name: "runner-local-enrollment",
+    schemaFile: "runner-local-enrollment.json",
+    goType: "RunnerLocalEnrollment",
+    tsType: "RunnerLocalEnrollment",
+  },
+  {
+    name: "runner-enrollment-handoff",
+    schemaFile: "runner-enrollment-handoff.json",
+    goType: "RunnerEnrollmentHandoff",
+    tsType: "RunnerEnrollmentHandoff",
+  },
+  {
+    name: "runner-channel-message",
+    schemaFile: "runner-channel-message.json",
+    goType: "RunnerChannelMessage",
+    tsType: "RunnerChannelMessage",
+  },
+  {
+    name: "runner-command-pull",
+    schemaFile: "runner-command-pull.json",
+    goType: "RunnerCommandPull",
+    tsType: "RunnerCommandPull",
+  },
+  {
+    name: "runner-inventory",
+    schemaFile: "runner-inventory.json",
+    goType: "RunnerInventory",
+    tsType: "RunnerInventory",
+  },
+  {
     name: "execution-assignment",
     schemaFile: "execution-assignment.json",
     goType: "ExecutionAssignment",

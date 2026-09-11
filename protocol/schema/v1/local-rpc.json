@@ -34,6 +34,20 @@
       "properties": {
         "workspace_id": { "$ref": "primitives.json#/$defs/Ulid" },
         "runner_id": { "$ref": "primitives.json#/$defs/Ulid" },
+        "app_origin": { "type": "string", "maxLength": 256, "pattern": "^https://[^/@?#]+$" },
+        "device_label": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "enrollment": { "$ref": "runner-local-enrollment.json" },
+        "enrollments": {
+          "type": "array",
+          "maxItems": 16,
+          "items": { "$ref": "runner-local-enrollment.json" }
+        },
+        "enrollment_url": {
+          "type": "string",
+          "maxLength": 2048,
+          "pattern": "^https://[^/@?#]+/runner-enroll#[A-Za-z0-9_-]+$"
+        },
+        "forgotten": { "type": "boolean" },
         "project_id": { "$ref": "primitives.json#/$defs/Ulid" },
         "checkout_id": { "$ref": "primitives.json#/$defs/Ulid" },
         "label": { "$ref": "checkout-summary.json#/$defs/Label" },

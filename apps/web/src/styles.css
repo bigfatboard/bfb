@@ -464,6 +464,54 @@ button {
   padding: 36px 24px 72px;
 }
 
+.runner-pairing {
+  width: min(100% - 40px, 660px);
+  margin: 48px auto 80px;
+}
+
+.runner-pairing > .brand-mark {
+  display: inline-block;
+  margin-bottom: 44px;
+  text-decoration: none;
+}
+
+.runner-pairing h1 {
+  font-size: clamp(2rem, 6vw, 2.75rem);
+  letter-spacing: -0.035em;
+  line-height: 1.08;
+}
+
+.pairing-intro {
+  color: var(--ink-soft);
+  line-height: 1.6;
+  margin-bottom: 32px;
+}
+
+.pairing-identity {
+  margin: 24px 0;
+  border-top: 1px solid var(--rule);
+}
+
+.pairing-identity > div {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.pairing-identity dt {
+  color: var(--ink-muted);
+  font-size: 0.8rem;
+  margin-bottom: 5px;
+}
+
+.pairing-identity dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.runner-pairing .settings-panel > .button-secondary {
+  margin-top: 12px;
+}
+
 .settings-heading {
   display: flex;
   align-items: flex-end;

@@ -17,6 +17,7 @@
     { "path": "tools/passkeys" },
     { "path": "tools/workspace-authorization" },
     { "path": "tools/projects" },
-    { "path": "tools/runners" }
+    { "path": "tools/runners" },
+    { "path": "tools/runner-channel" }
   ]
 }

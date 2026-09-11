@@ -35,9 +35,26 @@ type Request struct {
 type Handler func(context.Context, Request) (map[string]any, error)
 
 // Registry is populated before the server starts; it is not a dynamic plugin surface.
-type Registry struct{ handlers map[string]Handler }
+type Registry struct {
+	handlers map[string]Handler
+	services map[string]Service
+}
 
-func NewRegistry() *Registry { return &Registry{handlers: make(map[string]Handler)} }
+// Service starts with the daemon-owned database and returns a joining shutdown.
+// Shutdown runs before SQLite closes, including a partial startup failure.
+type Service func(context.Context, *Store) (func(), error)
+
+func NewRegistry() *Registry {
+	return &Registry{handlers: make(map[string]Handler), services: make(map[string]Service)}
+}
+
+func (r *Registry) RegisterService(name string, start Service) error {
+	if !methodPattern.MatchString(name) || start == nil || r.services[name] != nil {
+		return &Failure{Code: "invalid_request"}
+	}
+	r.services[name] = start
+	return nil
+}
 
 func (r *Registry) Register(method string, handler Handler) error {
 	if !methodPattern.MatchString(method) || handler == nil || r.handlers[method] != nil {

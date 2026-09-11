@@ -9,6 +9,7 @@ import { DomainError } from "@bfb/domain";
 import { handleWorkApi } from "./api/work.js";
 import { handleProjectApi } from "./api/projects.js";
 import { handleRunnerBrowserApi, handleRunnerNativeApi } from "./api/runners.js";
+import { handleRunnerChannelApi, isRunnerChannelPath } from "./api/runner-channel.js";
 import { handleWorkspaceAuthorization } from "./api/workspace-authorization.js";
 import type { AuthKey, HumanAuth } from "./auth/better-auth.js";
 import { handleAuthRoute } from "./auth/routes.js";
@@ -130,7 +131,10 @@ export function createControlApp(
     if (!current || !db || !options.abuseSecret)
       return c.json({ error: "runner_misconfigured" }, 500);
     const envBindings = (c.env ?? {}) as { WORKSPACE_HUB?: DurableObjectNamespace };
-    return handleRunnerNativeApi(c.req.raw, {
+    const handler = isRunnerChannelPath(c.req.path)
+      ? handleRunnerChannelApi
+      : handleRunnerNativeApi;
+    return handler(c.req.raw, {
       db,
       now: c.get("now") ?? now,
       jurisdiction: current.jurisdiction,

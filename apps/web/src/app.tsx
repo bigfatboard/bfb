@@ -8,6 +8,7 @@ import type { AttentionDeckItem, ProjectLane } from "@bfb/domain";
 import { WorkBoard, type AgentProfileSummary } from "./work/board.js";
 import { TaskComposer, WorkMutations } from "./work/mutations.js";
 import { WorkspaceSettings } from "./settings.js";
+import { RunnerEnrollmentPage } from "./runner-enrollment.js";
 
 export interface AppShellProps {
   /** Test injection; production loads from /auth/session + browser APIs. */
@@ -70,6 +71,9 @@ export function AppShell(props: AppShellProps = {}) {
   const [path, setPath] = useState(
     () => props.initialPath ?? (typeof window !== "undefined" ? window.location.pathname : "/"),
   );
+  const [hash, setHash] = useState(() =>
+    typeof window === "undefined" ? "" : window.location.hash,
+  );
   const [human, setHuman] = useState<SessionHuman | null>(null);
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([]);
   const [board, setBoard] = useState<BoardResponse | null>(null);
@@ -94,9 +98,16 @@ export function AppShell(props: AppShellProps = {}) {
     if (props.initialPath || typeof window === "undefined") {
       return;
     }
-    const onPopState = () => setPath(window.location.pathname);
+    const onPopState = () => {
+      setPath(window.location.pathname);
+      setHash(window.location.hash);
+    };
     window.addEventListener("popstate", onPopState);
-    return () => window.removeEventListener("popstate", onPopState);
+    window.addEventListener("hashchange", onPopState);
+    return () => {
+      window.removeEventListener("popstate", onPopState);
+      window.removeEventListener("hashchange", onPopState);
+    };
   }, [props.initialPath]);
 
   useEffect(() => {
@@ -240,6 +251,19 @@ export function AppShell(props: AppShellProps = {}) {
           Loading workspace authority…
         </div>
       </main>
+    );
+  }
+
+  if (path === "/runner-enroll") {
+    return (
+      <RunnerEnrollmentPage
+        key={hash}
+        fragment={hash}
+        fetchImpl={fetchFn}
+        csrfToken={csrfToken}
+        humanName={human?.display_name ?? null}
+        workspaces={workspaces}
+      />
     );
   }
 

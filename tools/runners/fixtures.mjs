@@ -73,6 +73,79 @@ const identity = {
   granted_project_ids: [],
   launcher_human_ids: [human],
 };
+// P-256's standard base point is public synthetic fixture material, not a secret.
+const publicKey = {
+  crv: "P-256",
+  kty: "EC",
+  x: Buffer.from(
+    "6b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296",
+    "hex",
+  ).toString("base64url"),
+  y: Buffer.from(
+    "4fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5",
+    "hex",
+  ).toString("base64url"),
+};
+const localEnrollment = {
+  runner_id: runner,
+  workspace_id: workspace,
+  app_origin: challenge.origin,
+  device_label: "Synthetic Mac",
+  public_key: publicKey,
+  public_key_thumbprint: `sha256:${hash(JSON.stringify(publicKey))}`,
+  connection_state: "pending_approval",
+  token_epoch: 0,
+  created_at: challenge.issued_at,
+};
+const handoff = {
+  device_label: localEnrollment.device_label,
+  public_key: publicKey,
+  runner_id: runner,
+  schema_version: 1,
+  workspace_id: workspace,
+};
+const channel = {
+  schema_version: 1,
+  kind: "runner.channel.ready",
+  workspace_id: workspace,
+  runner_id: runner,
+  connection_id: "01K00000000000000000000007",
+  token_epoch: 1,
+  server_time: challenge.issued_at,
+  auth_expires_at: "2026-09-11T20:05:00.000Z",
+  project_ids: [],
+};
+const pull = {
+  schema_version: 1,
+  workspace_id: workspace,
+  runner_id: runner,
+  more: false,
+  commands: [
+    {
+      command_id: "01K00000000000000000000008",
+      command_kind: "launch",
+      expires_at: "2026-09-11T20:02:00.000Z",
+    },
+  ],
+};
+const inventory = {
+  schema_version: 1,
+  workspace_id: workspace,
+  runner_id: runner,
+  revision: 1,
+  checkouts: [],
+  providers: [
+    {
+      provider: "fake",
+      version: "1.0.0",
+      manifest_id: `sha256:${"b".repeat(64)}`,
+      capabilities: ["launch.headless", "discussion.read_only"],
+      status: "healthy",
+      observed_at: challenge.issued_at,
+      expires_at: "2026-09-11T20:00:30.000Z",
+    },
+  ],
+};
 const fixtures = [
   ["valid/runner-identity.private.json", "runner-identity", identity],
   ["valid/runner-challenge.token.json", "runner-challenge", challenge],
@@ -101,6 +174,54 @@ const fixtures = [
     "runner-channel-close",
     { ...close, reason: "cleanup_done" },
     "type_mismatch",
+  ],
+  ["valid/runner-local-enrollment.pending.json", "runner-local-enrollment", localEnrollment],
+  [
+    "valid/runner-local-enrollment.key-pending.json",
+    "runner-local-enrollment",
+    {
+      ...localEnrollment,
+      connection_state: "key_pending",
+      public_key: null,
+      public_key_thumbprint: "",
+    },
+  ],
+  ["valid/runner-enrollment-handoff.public.json", "runner-enrollment-handoff", handoff],
+  ["valid/runner-channel-message.ready.json", "runner-channel-message", channel],
+  ["valid/runner-command-pull.pending.json", "runner-command-pull", pull],
+  ["valid/runner-inventory.sanitized.json", "runner-inventory", inventory],
+  [
+    "invalid/runner-local-enrollment.private-key.json",
+    "runner-local-enrollment",
+    { ...localEnrollment, public_key: { ...publicKey, d: "not-a-private-key" } },
+    "additional_field",
+  ],
+  [
+    "invalid/runner-channel-message.missing-time.json",
+    "runner-channel-message",
+    { ...channel, server_time: undefined },
+    "missing_field",
+  ],
+  [
+    "invalid/runner-command-pull.shell.json",
+    "runner-command-pull",
+    { ...pull, commands: [{ ...pull.commands[0], command: "synthetic-invalid-shell" }] },
+    "shell_data",
+  ],
+  [
+    "invalid/runner-inventory.configuration.json",
+    "runner-inventory",
+    {
+      ...inventory,
+      providers: [{ ...inventory.providers[0], configuration: "synthetic-private-config" }],
+    },
+    "additional_field",
+  ],
+  [
+    "invalid/runner-enrollment-handoff.private-key.json",
+    "runner-enrollment-handoff",
+    { ...handoff, public_key: { ...publicKey, d: "not-a-private-key" } },
+    "additional_field",
   ],
 ];
 

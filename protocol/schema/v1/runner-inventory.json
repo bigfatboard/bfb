@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/runner-inventory.json",
+  "title": "RunnerInventory",
+  "description": "One bounded replacement inventory of sanitized checkout and provider observations; local files and credentials never synchronize.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "workspace_id", "runner_id", "revision", "checkouts", "providers"],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "workspace_id": { "$ref": "primitives.json#/$defs/Ulid" },
+    "runner_id": { "$ref": "primitives.json#/$defs/Ulid" },
+    "revision": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+    "checkouts": { "type": "array", "maxItems": 25, "items": { "$ref": "checkout-summary.json" } },
+    "providers": { "type": "array", "maxItems": 4, "items": { "$ref": "#/$defs/ProviderReport" } }
+  },
+  "$defs": {
+    "ProviderReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "version",
+        "manifest_id",
+        "capabilities",
+        "status",
+        "observed_at",
+        "expires_at"
+      ],
+      "properties": {
+        "provider": { "type": "string", "enum": ["claude", "codex", "grok", "fake"] },
+        "version": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^([0-9]+\\.[0-9]+\\.[0-9]+)?$"
+        },
+        "manifest_id": { "type": "string", "maxLength": 71, "pattern": "^(sha256:[a-f0-9]{64})?$" },
+        "capabilities": {
+          "type": "array",
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "enum": [
+              "launch.interactive",
+              "launch.headless",
+              "filesystem.read_only",
+              "filesystem.workspace_write",
+              "approval.never",
+              "approval.on_request",
+              "approval.always",
+              "context.session_start",
+              "prompt.initial_constant",
+              "session.requested_id",
+              "session.resume",
+              "session.fork",
+              "discussion.read_only",
+              "turn.structured",
+              "hooks.session_start",
+              "mcp.stdio",
+              "control.interrupt",
+              "control.terminate"
+            ]
+          }
+        },
+        "status": {
+          "type": "string",
+          "enum": ["healthy", "unknown_version", "integration_unhealthy", "unavailable"]
+        },
+        "observed_at": { "$ref": "primitives.json#/$defs/UtcTimestamp" },
+        "expires_at": { "$ref": "primitives.json#/$defs/UtcTimestamp" }
+      }
+    }
+  }
+}

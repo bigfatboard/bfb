@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/runner-enrollment-handoff.json",
+  "title": "RunnerEnrollmentHandoff",
+  "description": "Canonical public browser fragment generated locally before human approval; it carries no signing key or token.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "workspace_id", "runner_id", "device_label", "public_key"],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "workspace_id": { "$ref": "primitives.json#/$defs/Ulid" },
+    "runner_id": { "$ref": "primitives.json#/$defs/Ulid" },
+    "device_label": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80,
+      "pattern": "^[\\p{L}\\p{N}][\\p{L}\\p{N} ._()'-]{0,79}$"
+    },
+    "public_key": { "$ref": "runner-local-enrollment.json#/$defs/PublicKey" }
+  }
+}

@@ -1,5 +1,5 @@
 {
-  "migration_head": "0014_runner_identity",
+  "migration_head": "0015_runner_channel",
   "migrations": [
     {
       "id": "0001_workspace_registry",
@@ -56,6 +56,10 @@
     {
       "id": "0014_runner_identity",
       "file": "0014_runner_identity.sql"
+    },
+    {
+      "id": "0015_runner_channel",
+      "file": "0015_runner_channel.sql"
     }
   ]
 }

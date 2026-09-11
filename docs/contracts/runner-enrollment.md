@@ -136,9 +136,9 @@ handshake or native HTTPS action:
 The principal carries separate runner and owner identities, current epochs,
 token ID, thumbprint, expiry and currently intersected project grants. L08 must
 store only these non-secret attachment fields, not raw tokens, cookies or proofs.
-Connection liveness never means process activity or task completion. Authenticated
-channels, socket alarms, privileged message rechecks, periodic pull and recovery
-are still L08/E01 work, not asserted as implemented by C06.
+Connection liveness never means process activity or task completion. L08's
+[native channel contract](runner-channel.md) specifies sockets, expiry alarms,
+privileged message rechecks and durable pull; E01 retains event disposition authority.
 
 ## Transaction, revocation and abuse guarantees
 
@@ -169,7 +169,11 @@ challenge can renew only while the owner still has an eligible active role.
 
 C01's durable rate-limit service gates browser approval, challenge issuance,
 proof exchange and authentication. There are separate keyed IP and subject
-buckets per surface, with 20 mutations or 60 reads per minute. Both changing
+buckets per surface, with 20 bootstrap mutations or 60 reads per minute. Recurring
+L08 request-challenge, channel, pull and inventory surfaces have separate bounds:
+120 attempts per enrollment and 1,024 per IP per minute. An outer challenge-envelope
+budget also bounds malformed input; token challenges retain the 20-attempt bootstrap
+budget after parsing. Both changing
 runner IDs from one IP and changing IPs for one runner retain an authoritative
 limit. No raw IP enters bucket keys, D1 rows or application logs. Incoming
 oversize/malformed bodies are rejected without buffering past the byte bound.

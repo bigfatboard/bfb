@@ -51,6 +51,19 @@ const POLICY = {
   maxBodyBytes: RUNNER_BODY_LIMIT,
 } as const;
 
+// Authenticated channel traffic includes a new request challenge for each page,
+// heartbeat recovery pull and inventory. Keep the unauthenticated token-bootstrap
+// limit separate; one Mac may have sixteen active workspace enrollments.
+const CHANNEL_POLICY = { ...POLICY, attemptLimit: 120, pollLimit: 120 } as const;
+const CHANNEL_IP_POLICY = { ...POLICY, attemptLimit: 1024, pollLimit: 1024 } as const;
+const CHANNEL_SURFACES = new Set([
+  "challenge-envelope",
+  "request-challenge",
+  "connect",
+  "commands/pull",
+  "inventory",
+]);
+
 function response(body: unknown, status = 200): Response {
   return Response.json(body, {
     status,
@@ -70,6 +83,7 @@ async function budget(
 ): Promise<void> {
   if (typeof deps.abuseSecret !== "string" || deps.abuseSecret.length < 32) rejectRunnerRequest();
   const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
+  const channel = CHANNEL_SURFACES.has(surface);
   const expiresAt = new Date(Date.parse(deps.now) + POLICY.windowSeconds * 1000).toISOString();
   // Per-address and per-subject dimensions prevent both many-ID and many-IP bypasses.
   for (const [bucketSubject, seed] of [
@@ -89,13 +103,13 @@ async function budget(
         now: deps.now,
         expiresAt,
       },
-      POLICY,
+      channel ? (bucketSubject === "all" ? CHANNEL_IP_POLICY : CHANNEL_POLICY) : POLICY,
     );
     if (!decision.allowed) rejectRunnerRequest();
   }
 }
 
-async function execute<TInput, TResult>(
+export async function executeRunnerCommand<TInput, TResult>(
   deps: RunnerApiDeps,
   command: HubCommand<TInput, TResult>,
   request: CommandRequest<TInput>,
@@ -150,7 +164,7 @@ export async function handleRunnerBrowserApi(
         "project_ids",
         "step_up_proof_id",
       ]);
-      const result = await execute(deps, enrollRunnerCommand, {
+      const result = await executeRunnerCommand(deps, enrollRunnerCommand, {
         ...common,
         input: {
           runnerId: input.runner_id,
@@ -173,7 +187,7 @@ export async function handleRunnerBrowserApi(
         "step_up_proof_id",
       ]);
       return response(
-        await execute(deps, replaceRunnerGrantsCommand, {
+        await executeRunnerCommand(deps, replaceRunnerGrantsCommand, {
           ...common,
           input: {
             runnerId: runner,
@@ -187,7 +201,7 @@ export async function handleRunnerBrowserApi(
     }
     const input = runnerObject(body, ["step_up_proof_id"]);
     return response(
-      await execute(deps, revokeRunnerCommand, {
+      await executeRunnerCommand(deps, revokeRunnerCommand, {
         ...common,
         input: { runnerId: runner, stepUpProofId: runnerId(input.step_up_proof_id) },
       }),
@@ -222,6 +236,18 @@ function rejectBrowserCredentials(request: Request, appOrigin: string): void {
     rejectRunnerRequest();
 }
 
+/** Shared abuse and credential-type guard for C06 exchanges and L08 channel requests. */
+export async function guardRunnerTransport(
+  request: Request,
+  deps: RunnerApiDeps,
+  workspaceId: string,
+  runner: string,
+  surface: string,
+): Promise<void> {
+  await budget(request, deps, `${runnerId(workspaceId)}:${runnerId(runner)}`, surface);
+  rejectBrowserCredentials(request, deps.appOrigin);
+}
+
 /** Native endpoints reject cookies and browser Origins; they never create human credentials. */
 export async function handleRunnerNativeApi(
   request: Request,
@@ -229,8 +255,13 @@ export async function handleRunnerNativeApi(
 ): Promise<Response> {
   try {
     const target = channelTarget(request);
-    await budget(request, deps, `${target.workspaceId}:${target.runnerId}`, target.action);
-    rejectBrowserCredentials(request, deps.appOrigin);
+    await guardRunnerTransport(
+      request,
+      deps,
+      target.workspaceId,
+      target.runnerId,
+      target.action === "challenge" ? "challenge-envelope" : target.action,
+    );
     if (request.method !== "POST") return rejected();
     const body = await readBoundedJson(request, RUNNER_BODY_LIMIT);
     const common = {
@@ -241,8 +272,14 @@ export async function handleRunnerNativeApi(
     };
     if (target.action === "challenge") {
       const input = runnerObject(body, ["purpose", "token", "request"]);
+      await budget(
+        request,
+        deps,
+        `${target.workspaceId}:${target.runnerId}`,
+        input.purpose === "request" ? "request-challenge" : "challenge",
+      );
       const nonce = runnerSecret();
-      const result = await execute(deps, issueRunnerChallengeCommand, {
+      const result = await executeRunnerCommand(deps, issueRunnerChallengeCommand, {
         ...common,
         actorSystemId: RUNNER_CHALLENGE_ISSUER_ID,
         input: {
@@ -271,7 +308,7 @@ export async function handleRunnerNativeApi(
     };
     if (target.action === "token") {
       const secret = runnerSecret();
-      const result = await execute(deps, exchangeRunnerTokenCommand, {
+      const result = await executeRunnerCommand(deps, exchangeRunnerTokenCommand, {
         ...common,
         actorRunnerId: target.runnerId,
         input: { ...proof, tokenSecretHash: runnerHash(secret) },
@@ -310,7 +347,7 @@ export async function authenticateRunnerRequest(
   token: string,
   actualRequest: RunnerRequestBinding,
 ): Promise<RunnerPrincipal> {
-  return execute(deps, authenticateRunnerRequestCommand, {
+  return executeRunnerCommand(deps, authenticateRunnerRequestCommand, {
     workspaceId,
     actorRunnerId: proof.runnerId,
     authorizationEpoch: 1,

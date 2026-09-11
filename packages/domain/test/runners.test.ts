@@ -37,6 +37,234 @@ import {
   RUNNER_CHALLENGE_ISSUER_ID,
 } from "../src/runners.js";
 import { openDomainDb } from "./helpers.js";
+import {
+  appendRunnerCommandReference,
+  pullRunnerCommands,
+  replaceRunnerInventoryCommand,
+  resolveRunnerCommandReference,
+  touchRunnerConnectionCommand,
+} from "../src/runner-channel.js";
+import { assertCurrentRunnerPrincipal, type RunnerPrincipal } from "../src/runners.js";
+import type { RunnerInventory } from "@bfb/protocol";
+
+async function channelFixture() {
+  const f = await fixture();
+  await f.enroll();
+  const { issued } = await f.token();
+  const claims = issued.claims;
+  const principal: RunnerPrincipal = {
+    kind: "runner",
+    workspaceId: FIX.workspace,
+    runnerId: f.runner,
+    ownerHumanId: FIX.owner,
+    authorizationEpoch: claims.authorization_epoch,
+    ownerAuthorizationEpoch: claims.owner_authorization_epoch,
+    grantEpoch: claims.grant_epoch,
+    tokenEpoch: claims.token_epoch,
+    tokenId: claims.jti,
+    keyThumbprint: claims.cnf.jkt,
+    authExpiresAt: new Date(claims.exp * 1000).toISOString(),
+    projectIds: [FIX.projectA],
+  };
+  return { ...f, principal };
+}
+
+describe("runner channel durable observations", () => {
+  it("keeps current connection identity separate and rejects replaced, stale or cross-workspace heartbeats", async () => {
+    const f = await channelFixture();
+    const connectionId = randomUlid();
+    expect(
+      result(
+        await f.native(touchRunnerConnectionCommand, {
+          principal: f.principal,
+          connectionId,
+          mode: "open",
+        }),
+      ),
+    ).toEqual({ connection_id: connectionId, last_seen_at: NOW });
+    expect(
+      (
+        await f.native(touchRunnerConnectionCommand, {
+          principal: f.principal,
+          connectionId,
+          mode: "heartbeat",
+        })
+      ).ok,
+    ).toBe(true);
+    const replaced = randomUlid();
+    expect(
+      (
+        await f.native(touchRunnerConnectionCommand, {
+          principal: f.principal,
+          connectionId: replaced,
+          mode: "open",
+        })
+      ).ok,
+    ).toBe(true);
+    expect(
+      (
+        await f.native(touchRunnerConnectionCommand, {
+          principal: f.principal,
+          connectionId,
+          mode: "heartbeat",
+        })
+      ).ok,
+    ).toBe(false);
+    await expect(
+      assertCurrentRunnerPrincipal(f.db, { ...f.principal, workspaceId: randomUlid() }, NOW),
+    ).rejects.toThrow();
+    await expect(
+      assertCurrentRunnerPrincipal(f.db, f.principal, "2026-09-11T20:05:00.000Z"),
+    ).rejects.toThrow();
+    await f.token();
+    await expect(assertCurrentRunnerPrincipal(f.db, f.principal, NOW)).rejects.toThrow();
+  });
+
+  it("accepts only bounded, scoped and fresh inventories with monotonic revisions", async () => {
+    const f = await channelFixture();
+    const inventory: RunnerInventory = {
+      schema_version: 1,
+      workspace_id: FIX.workspace,
+      runner_id: f.runner,
+      revision: 1,
+      checkouts: [],
+      providers: [
+        {
+          provider: "fake",
+          version: "1.0.0",
+          manifest_id: `sha256:${"a".repeat(64)}`,
+          capabilities: ["launch.headless"],
+          status: "healthy",
+          observed_at: NOW,
+          expires_at: "2026-09-11T20:00:30.000Z",
+        },
+      ],
+    };
+    const replace = (value: unknown) =>
+      f.native(replaceRunnerInventoryCommand, {
+        principal: f.principal,
+        inventory: value as RunnerInventory,
+      });
+    expect((await replace(inventory)).ok).toBe(true);
+    expect((await replace(inventory)).ok).toBe(true);
+    expect((await replace({ ...inventory, providers: [] })).ok).toBe(false);
+    for (const change of [
+      { workspace_id: randomUlid() },
+      { runner_id: randomUlid() },
+      { providers: [{ ...inventory.providers[0], configuration: "synthetic-private" }] },
+      { providers: [{ ...inventory.providers[0], status: "unavailable" }] },
+      { providers: [{ ...inventory.providers[0], observed_at: "2026-09-11T19:59:00.000Z" }] },
+      { providers: [{ ...inventory.providers[0], expires_at: "2026-09-11T20:02:00.000Z" }] },
+      { providers: [inventory.providers[0], inventory.providers[0]] },
+    ])
+      expect((await replace({ ...inventory, revision: 2, ...change })).ok).toBe(false);
+    const checkout = JSON.parse(
+      readFileSync(
+        new URL(
+          "../../../protocol/fixtures/v1/valid/checkout-summary.validated.json",
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+    );
+    const scoped = {
+      ...checkout,
+      workspace_id: FIX.workspace,
+      runner_id: f.runner,
+      project_id: FIX.projectA,
+    };
+    expect((await replace({ ...inventory, revision: 2, checkouts: [scoped] })).ok).toBe(true);
+    expect(
+      (
+        await replace({
+          ...inventory,
+          revision: 3,
+          checkouts: [{ ...scoped, project_id: FIX.projectB }],
+        })
+      ).ok,
+    ).toBe(false);
+    expect(
+      (
+        await replace({
+          ...inventory,
+          revision: 3,
+          checkouts: [{ ...scoped, local_path: "/synthetic/private" }],
+        })
+      ).ok,
+    ).toBe(false);
+    expect(
+      (
+        await replace({
+          ...inventory,
+          revision: 3,
+          checkouts: Array.from({ length: 26 }, () => scoped),
+        })
+      ).ok,
+    ).toBe(false);
+    expect(
+      await f.db
+        .prepare(`SELECT revision FROM runner_inventories WHERE workspace_id = ? AND runner_id = ?`)
+        .get(FIX.workspace, f.runner),
+    ).toEqual({ revision: 2 });
+  });
+
+  it("pulls canonical pending references after authorization filtering and retains expired work for its owner", async () => {
+    const f = await channelFixture();
+    const references: string[] = [];
+    const create: HubCommand<{ count: number }, null> = {
+      name: "synthetic.references.create",
+      async run(input, ctx) {
+        for (let index = 0; index < input.count; index++) {
+          const id = randomUlid();
+          references.push(id);
+          await appendRunnerCommandReference(ctx, f.runner, FIX.projectA, {
+            command_id: id,
+            command_kind: "launch",
+            expires_at: "2026-09-11T19:00:00.000Z",
+          });
+        }
+        await appendRunnerCommandReference(ctx, f.runner, FIX.projectB, {
+          command_id: randomUlid(),
+          command_kind: "launch",
+          expires_at: "2026-09-11T19:00:00.000Z",
+        });
+        return null;
+      },
+    };
+    result(await f.human(create, { count: 28 }));
+    const first = await pullRunnerCommands(
+      f.db,
+      { ...f.principal, projectIds: [FIX.projectA, FIX.projectB] },
+      NOW,
+    );
+    expect(first.commands).toHaveLength(25);
+    expect(first.more).toBe(true);
+    const second = await pullRunnerCommands(f.db, f.principal, NOW, first.next_command_id);
+    expect(second.commands).toHaveLength(3);
+    expect(second.more).toBe(false);
+    expect([...first.commands, ...second.commands].map((item) => item.command_id)).toEqual(
+      references.sort(),
+    );
+    result(
+      await f.human(
+        {
+          name: "synthetic.references.resolve",
+          async run(_: null, ctx) {
+            await resolveRunnerCommandReference(ctx, f.runner, references[0]!);
+            return null;
+          },
+        },
+        null,
+      ),
+    );
+    expect((await pullRunnerCommands(f.db, f.principal, NOW)).commands[0]!.command_id).not.toBe(
+      references[0],
+    );
+    const proof = await f.step("runner.revoke", f.runner);
+    result(await f.human(revokeRunnerCommand, { runnerId: f.runner, stepUpProofId: proof }));
+    await expect(pullRunnerCommands(f.db, f.principal, NOW)).rejects.toThrow();
+  });
+});
 
 const NOW = "2026-09-11T20:00:00.000Z";
 const ORIGIN = "https://bfb.example.test";

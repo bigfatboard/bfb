@@ -26,6 +26,7 @@ type Server struct {
 	started    string
 	socketInfo os.FileInfo
 	workers    sync.WaitGroup
+	services   []func()
 }
 
 func Start(ctx context.Context, paths Paths, extensions *Registry) (*Server, error) {
@@ -79,6 +80,23 @@ func Start(ctx context.Context, paths Paths, extensions *Registry) (*Server, err
 	}
 	runContext, stop := context.WithCancel(ctx)
 	s.stop = stop
+	if extensions != nil {
+		for _, start := range extensions.services {
+			shutdown, startErr := start(runContext, store)
+			if startErr != nil {
+				stop()
+				_ = s.listener.Close()
+				for _, closeService := range s.services {
+					closeService()
+				}
+				_ = os.Remove(paths.Socket)
+				_ = store.Close()
+				_ = lock.Close()
+				return nil, AsFailure(startErr)
+			}
+			s.services = append(s.services, shutdown)
+		}
+	}
 	go s.serve(runContext)
 	return s, nil
 }
@@ -131,6 +149,9 @@ func (s *Server) serve(ctx context.Context) {
 	}
 	s.stop()
 	s.workers.Wait()
+	for _, closeService := range s.services {
+		closeService()
+	}
 	_ = s.Logger.Record(LogEvent{Event: "daemon_stopped"})
 	_ = s.Store.Close()
 	if current, err := os.Lstat(s.Paths.Socket); err == nil && os.SameFile(current, s.socketInfo) {

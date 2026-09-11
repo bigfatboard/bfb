@@ -813,6 +813,60 @@ export const authenticateRunnerRequestCommand: HubCommand<
   },
 };
 
+/** Rechecks a previously verified internal principal; this never authenticates public credentials. */
+export async function assertCurrentRunnerPrincipal(
+  db: SqlDatabase,
+  principal: RunnerPrincipal,
+  now: string,
+): Promise<RunnerPrincipal> {
+  if (principal.kind !== "runner" || !Number.isFinite(Date.parse(now))) rejectRunnerRequest();
+  const current = await row(db, principal.workspaceId, principal.runnerId);
+  const owner = await loadPrincipal(db, current.workspace_id, current.owner_human_id);
+  assertRole(owner, ["owner", "member"]);
+  const stored = (await db
+    .prepare(
+      `SELECT claims_json, expires_at, revoked_at FROM runner_tokens WHERE workspace_id = ? AND runner_id = ? AND id = ?`,
+    )
+    .get(principal.workspaceId, principal.runnerId, runnerId(principal.tokenId))) as
+    { claims_json: string; expires_at: string; revoked_at: string | null } | undefined;
+  if (
+    !stored ||
+    stored.revoked_at ||
+    current.revoked_at ||
+    principal.ownerHumanId !== current.owner_human_id ||
+    principal.authorizationEpoch !== current.authorization_epoch ||
+    principal.ownerAuthorizationEpoch !== owner.authorizationEpoch ||
+    principal.grantEpoch !== current.grant_epoch ||
+    principal.tokenEpoch !== current.token_epoch ||
+    principal.keyThumbprint !== current.key_thumbprint ||
+    principal.authExpiresAt !== stored.expires_at ||
+    Date.parse(stored.expires_at) <= Date.parse(now)
+  )
+    rejectRunnerRequest();
+  const claims = JSON.parse(stored.claims_json) as RunnerTokenClaims;
+  if (
+    claims.v !== 1 ||
+    claims.sub !== principal.runnerId ||
+    claims.workspace_id !== principal.workspaceId ||
+    claims.aud !== "bfb-runner" ||
+    claims.jti !== principal.tokenId ||
+    claims.iat > Math.floor(Date.parse(now) / 1000) ||
+    claims.authorization_epoch !== current.authorization_epoch ||
+    claims.owner_authorization_epoch !== owner.authorizationEpoch ||
+    claims.grant_epoch !== current.grant_epoch ||
+    claims.token_epoch !== current.token_epoch ||
+    claims.cnf.jkt !== current.key_thumbprint ||
+    claims.exp * 1000 !== Date.parse(stored.expires_at)
+  )
+    rejectRunnerRequest();
+  return {
+    ...principal,
+    projectIds: (await projectIds(db, principal.workspaceId, principal.runnerId)).filter((id) =>
+      owner.projectIds.includes(id),
+    ),
+  };
+}
+
 /** C09 must call this again at creation, claim, and final authorization; a snapshot is not a grant. */
 export async function assertRunnerLaunchAuthority(
   db: SqlDatabase,

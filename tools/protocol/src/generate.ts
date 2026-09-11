@@ -160,7 +160,7 @@ function tsTypeOf(
   }
   if (type === "array") {
     const items = schema.items ? tsTypeOf(schema.items, rootSchema, registry) : "unknown";
-    return items + "[]";
+    return (items.includes(" | ") ? "(" + items + ")" : items) + "[]";
   }
   if (type === "object") {
     if (!schema.properties || Object.keys(schema.properties).length === 0) {

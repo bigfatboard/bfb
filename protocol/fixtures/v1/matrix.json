@@ -580,6 +580,66 @@
       "schema": "runner-channel-close",
       "expect": "reject",
       "category": "type_mismatch"
+    },
+    {
+      "path": "valid/runner-local-enrollment.pending.json",
+      "schema": "runner-local-enrollment",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/runner-local-enrollment.key-pending.json",
+      "schema": "runner-local-enrollment",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/runner-enrollment-handoff.public.json",
+      "schema": "runner-enrollment-handoff",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/runner-channel-message.ready.json",
+      "schema": "runner-channel-message",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/runner-command-pull.pending.json",
+      "schema": "runner-command-pull",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/runner-inventory.sanitized.json",
+      "schema": "runner-inventory",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/runner-local-enrollment.private-key.json",
+      "schema": "runner-local-enrollment",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/runner-channel-message.missing-time.json",
+      "schema": "runner-channel-message",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/runner-command-pull.shell.json",
+      "schema": "runner-command-pull",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/runner-inventory.configuration.json",
+      "schema": "runner-inventory",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/runner-enrollment-handoff.private-key.json",
+      "schema": "runner-enrollment-handoff",
+      "expect": "reject",
+      "category": "additional_field"
     }
   ]
 }

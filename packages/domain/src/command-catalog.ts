@@ -2,6 +2,7 @@
 // ABOUTME: Transports send command names; only registered commands may mutate workspace state.
 
 import type { HubCommand } from "./hub.js";
+import { touchRunnerConnectionCommand, replaceRunnerInventoryCommand } from "./runner-channel.js";
 import {
   authenticateRunnerRequestCommand,
   enrollRunnerCommand,
@@ -45,6 +46,11 @@ import {
 } from "./workspace-authorization.js";
 
 const commands = new Map<string, HubCommand<unknown, unknown>>([
+  [touchRunnerConnectionCommand.name, touchRunnerConnectionCommand as HubCommand<unknown, unknown>],
+  [
+    replaceRunnerInventoryCommand.name,
+    replaceRunnerInventoryCommand as HubCommand<unknown, unknown>,
+  ],
   [enrollRunnerCommand.name, enrollRunnerCommand as HubCommand<unknown, unknown>],
   [replaceRunnerGrantsCommand.name, replaceRunnerGrantsCommand as HubCommand<unknown, unknown>],
   [revokeRunnerCommand.name, revokeRunnerCommand as HubCommand<unknown, unknown>],

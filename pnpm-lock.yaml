@@ -57,6 +57,9 @@ importers:
       '@bfb/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@bfb/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol-ts
       '@modelcontextprotocol/server':
         specifier: 2.0.0
         version: 2.0.0
@@ -94,6 +97,9 @@ importers:
       '@bfb/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@bfb/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol-ts
       react:
         specifier: 19.2.8
         version: 19.2.8
@@ -135,6 +141,9 @@ importers:
       '@bfb/db':
         specifier: workspace:*
         version: link:../db
+      '@bfb/protocol':
+        specifier: workspace:*
+        version: link:../protocol-ts
     devDependencies:
       '@types/better-sqlite3':
         specifier: 7.6.13
@@ -234,6 +243,22 @@ importers:
         version: 0.28.2
 
   tools/repository: {}
+
+  tools/runner-channel:
+    dependencies:
+      '@bfb/control-worker':
+        specifier: workspace:*
+        version: link:../../apps/control-worker
+      '@bfb/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@bfb/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+    devDependencies:
+      wrangler:
+        specifier: 4.120.1
+        version: 4.120.1(@cloudflare/workers-types@5.20260810.1)
 
   tools/runners:
     dependencies:

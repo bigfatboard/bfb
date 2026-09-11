@@ -176,6 +176,44 @@ func TestCorruptAndForeignDatabasePreserved(t *testing.T) {
 	}
 }
 
+func TestRunnerMigrationUpgradesCheckoutHeadAndRollsBackAtomically(t *testing.T) {
+	paths := testPaths(t)
+	previous, err := openStore(context.Background(), paths, kernelMigrations()[:2], nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = previous.DB.Exec("INSERT INTO process_observations VALUES ('l08-preserved', 123, 'synthetic-start', 'ended')"); err != nil {
+		t.Fatal(err)
+	}
+	_ = previous.Close()
+	_, err = openStore(context.Background(), paths, kernelMigrations(), func(version int) error {
+		if version == 3 {
+			return errors.New("synthetic runner migration interruption")
+		}
+		return nil
+	})
+	if err == nil {
+		t.Fatal("runner migration interruption ignored")
+	}
+	previous, err = openStore(context.Background(), paths, kernelMigrations()[:2], nil)
+	if err != nil {
+		t.Fatal("previous checkout head could not reopen", err)
+	}
+	var count int
+	if err = previous.DB.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE name IN ('runner_enrollments', 'runner_command_inbox')").Scan(&count); err != nil || count != 0 {
+		t.Fatal("partial runner tables survived", count, err)
+	}
+	_ = previous.Close()
+	upgraded := openTestStore(t, paths)
+	defer upgraded.Close()
+	if err = upgraded.DB.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('checkouts', 'runner_enrollments', 'runner_command_inbox')").Scan(&count); err != nil || count != 3 {
+		t.Fatal("runner upgrade missing schema", count, err)
+	}
+	if err = upgraded.DB.QueryRow("SELECT COUNT(*) FROM process_observations WHERE id = 'l08-preserved'").Scan(&count); err != nil || count != 1 {
+		t.Fatal("runner upgrade lost existing state", count, err)
+	}
+}
+
 func TestStorageRejectsSymlinksAndPublicFiles(t *testing.T) {
 	for _, suffix := range []string{"", "-wal", "-shm", "-journal"} {
 		t.Run("symlink"+suffix, func(t *testing.T) {

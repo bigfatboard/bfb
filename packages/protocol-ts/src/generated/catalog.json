@@ -1,7 +1,7 @@
 {
   "protocol": "bfb-wire/1",
   "schema_version": 1,
-  "schema_hash": "532dc181fdfacead44be05df43f2d52a85bd869b8a45d416edafc9be8ff250ed",
+  "schema_hash": "76790c93b02fbd50fa1415305fc9a220d74874c11cad097f9c1adb0a9179d408",
   "documents": [
     {
       "name": "event-envelope",
@@ -30,6 +30,26 @@
     {
       "name": "checkout-summary",
       "schema": "checkout-summary.json"
+    },
+    {
+      "name": "runner-local-enrollment",
+      "schema": "runner-local-enrollment.json"
+    },
+    {
+      "name": "runner-enrollment-handoff",
+      "schema": "runner-enrollment-handoff.json"
+    },
+    {
+      "name": "runner-channel-message",
+      "schema": "runner-channel-message.json"
+    },
+    {
+      "name": "runner-command-pull",
+      "schema": "runner-command-pull.json"
+    },
+    {
+      "name": "runner-inventory",
+      "schema": "runner-inventory.json"
     },
     {
       "name": "execution-assignment",

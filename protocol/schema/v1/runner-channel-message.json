@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/runner-channel-message.json",
+  "title": "RunnerChannelMessage",
+  "description": "Bounded channel heartbeat and durable-command nudge; never an execution instruction or event acknowledgement.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "kind", "workspace_id", "runner_id", "connection_id"],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "runner.channel.ready",
+        "runner.channel.heartbeat",
+        "runner.channel.alive",
+        "runner.commands.available"
+      ]
+    },
+    "workspace_id": { "$ref": "primitives.json#/$defs/Ulid" },
+    "runner_id": { "$ref": "primitives.json#/$defs/Ulid" },
+    "connection_id": { "$ref": "primitives.json#/$defs/Ulid" },
+    "token_epoch": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+    "auth_expires_at": { "$ref": "primitives.json#/$defs/UtcTimestamp" },
+    "server_time": { "$ref": "primitives.json#/$defs/UtcTimestamp" },
+    "project_ids": {
+      "type": "array",
+      "maxItems": 100,
+      "uniqueItems": true,
+      "items": { "$ref": "primitives.json#/$defs/Ulid" }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "kind": { "enum": ["runner.channel.ready", "runner.channel.alive"] } },
+        "required": ["kind"]
+      },
+      "then": {
+        "required": ["token_epoch", "auth_expires_at", "server_time", "project_ids"],
+        "properties": {
+          "token_epoch": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+          "auth_expires_at": { "$ref": "primitives.json#/$defs/UtcTimestamp" },
+          "server_time": { "$ref": "primitives.json#/$defs/UtcTimestamp" },
+          "project_ids": {
+            "type": "array",
+            "maxItems": 100,
+            "uniqueItems": true,
+            "items": { "$ref": "primitives.json#/$defs/Ulid" }
+          }
+        }
+      }
+    }
+  ]
+}

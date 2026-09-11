@@ -541,7 +541,7 @@ The stable HTTP namespace is `/api/v1`. Its resource groups are:
 - `/runners`, `/checkouts`, `/launches`, and `/events`.
 - `/integrations/github`, `/notifications`, `/usage`, and `/audit`.
 
-Browser WebSockets use `/realtime/workspaces/:workspaceId`; runner sockets use `/runner/connect`. The REST API returns current state and replay cursors. A WebSocket message contains a committed cursor and a compact event summary, never the only copy of a state change.
+Browser WebSockets use `/realtime/workspaces/:workspaceId`; runner sockets use `/runner/workspaces/:workspaceId/runners/:runnerId/connect`, binding the same scoped path as the runner's possession challenge. The REST API returns current state and replay cursors. A WebSocket message contains a committed cursor and a compact event summary, never the only copy of a state change. Runner command nudges carry connection identity only; the daemon retrieves durable command references through an authenticated pull.
 
 All BFB-issued resource IDs are opaque ULIDs. Provider session/turn/tool IDs and GitHub/integration IDs are bounded opaque strings stored only in provider-specific fields. Time is stored in UTC with the original provider occurrence time and the server receipt time. Every public response includes a schema version where it may be persisted by another component.
 

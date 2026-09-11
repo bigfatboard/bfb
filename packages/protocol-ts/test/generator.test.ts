@@ -7,6 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { afterEach, describe, expect, it } from "vitest";
+import ts from "typescript";
 
 import { generateProtocol } from "../../../tools/protocol/src/generate.js";
 
@@ -84,5 +85,28 @@ describe("strict protocol generation", () => {
     expect(types).toMatch(/disposition: "retryable";[\s\S]*diagnostic: \{/u);
     expect(types).toMatch(/purpose: "token";[\s\S]*token_id: null;\s*request: null;/u);
     expect(types).toMatch(/purpose: "request";[\s\S]*token_id: string;\s*request: \{/u);
+  });
+
+  it("keeps enum-array items inside the array type", async () => {
+    const root = await temporaryProtocol();
+    await generateProtocol(root, { formatCwd: repositoryRoot });
+    const check = path.join(root, "array-check.ts");
+    await writeFile(
+      check,
+      'import type { RunnerInventory } from "./packages/protocol-ts/src/generated/types.js";\ndeclare const inventory: RunnerInventory;\nconst capabilities: string[] = inventory.providers[0]!.capabilities;\nvoid capabilities;\n',
+    );
+    const program = ts.createProgram([check], {
+      noEmit: true,
+      strict: true,
+      skipLibCheck: true,
+      types: [],
+      target: ts.ScriptTarget.ES2023,
+      module: ts.ModuleKind.NodeNext,
+    });
+    expect(
+      program
+        .getSemanticDiagnostics()
+        .map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n")),
+    ).toEqual([]);
   });
 });

@@ -11,7 +11,8 @@
     }
   },
   "dependencies": {
-    "@bfb/db": "workspace:*"
+    "@bfb/db": "workspace:*",
+    "@bfb/protocol": "workspace:*"
   },
   "devDependencies": {
     "@types/better-sqlite3": "7.6.13",

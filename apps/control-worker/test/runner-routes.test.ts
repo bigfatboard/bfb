@@ -303,4 +303,91 @@ describe("C06 browser and native runner routes", () => {
     expect(buckets).not.toContain("192.0.2.");
     expect(buckets).not.toContain(f.enrollment.runnerId);
   });
+
+  it("separates recurring request challenges from bootstrap limits without removing their subject bound", async () => {
+    const f = await fixture();
+    await f.enroll();
+    const issued = await f.native("token", await f.proof(await f.challenge()));
+    const { token } = (await issued.json()) as { token: string };
+    const body = {
+      purpose: "request",
+      token,
+      request: { method: "POST", path: `${f.nativePath}/inventory`, body_sha256: runnerHash("{}") },
+    };
+    // The initial token challenge also consumes one of the 120 envelope slots.
+    for (let index = 0; index < 119; index += 1) {
+      expect(
+        (await f.native("challenge", body, { "cf-connecting-ip": "192.0.2.119" })).status,
+      ).toBe(200);
+    }
+    expect((await f.native("challenge", body, { "cf-connecting-ip": "192.0.2.120" })).status).toBe(
+      403,
+    );
+    expect(f.context.raw.prepare(`SELECT COUNT(*) AS count FROM runner_challenges`).get()).toEqual({
+      count: 120,
+    });
+  });
+
+  it("binds inventory proof to exact bytes and rejects replay, browser credentials and injected metadata", async () => {
+    const f = await fixture();
+    await f.enroll();
+    const issued = await f.native("token", await f.proof(await f.challenge()));
+    const { token } = (await issued.json()) as { token: string };
+    const inventory = {
+      schema_version: 1,
+      workspace_id: FIX.workspace,
+      runner_id: f.enrollment.runnerId,
+      revision: 1,
+      checkouts: [],
+      providers: [],
+    };
+    async function header(body: unknown) {
+      return Buffer.from(
+        JSON.stringify({
+          ...(await f.proof(
+            await f.challenge({
+              purpose: "request",
+              token,
+              request: {
+                method: "POST",
+                path: `${f.nativePath}/inventory`,
+                body_sha256: runnerHash(JSON.stringify(body)),
+              },
+            }),
+          )),
+          token,
+        }),
+      ).toString("base64url");
+    }
+    const proof = await header(inventory);
+    expect(
+      (
+        await f.native("inventory", inventory, {
+          "x-bfb-runner-proof": proof,
+          cookie: f.session.cookie,
+        })
+      ).status,
+    ).toBe(403);
+    expect((await f.native("inventory", inventory, { "x-bfb-runner-proof": proof })).status).toBe(
+      200,
+    );
+    expect((await f.native("inventory", inventory, { "x-bfb-runner-proof": proof })).status).toBe(
+      403,
+    );
+    const changed = { ...inventory, revision: 2 };
+    expect(
+      (await f.native("inventory", changed, { "x-bfb-runner-proof": await header(inventory) }))
+        .status,
+    ).toBe(403);
+    const injected = { ...changed, provider_configuration: "synthetic secret canary" };
+    expect(
+      (await f.native("inventory", injected, { "x-bfb-runner-proof": await header(injected) }))
+        .status,
+    ).toBe(403);
+    const row = f.context.raw
+      .prepare(`SELECT revision, inventory_json FROM runner_inventories`)
+      .get();
+    expect(row).toMatchObject({ revision: 1 });
+    expect(JSON.stringify(row)).not.toContain("synthetic secret canary");
+  });
 });

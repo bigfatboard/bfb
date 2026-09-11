@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/runner-command-pull.json",
+  "title": "RunnerCommandPull",
+  "description": "Bounded durable command references. Owners reauthorize, claim and handle expiration; delivery does not authorize execution.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "workspace_id", "runner_id", "commands", "more"],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "workspace_id": { "$ref": "primitives.json#/$defs/Ulid" },
+    "runner_id": { "$ref": "primitives.json#/$defs/Ulid" },
+    "commands": {
+      "type": "array",
+      "maxItems": 25,
+      "items": { "$ref": "#/$defs/CommandReference" }
+    },
+    "more": { "type": "boolean" },
+    "next_command_id": { "$ref": "primitives.json#/$defs/Ulid" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "more": { "const": true } }, "required": ["more"] },
+      "then": {
+        "required": ["next_command_id"],
+        "properties": { "next_command_id": { "$ref": "primitives.json#/$defs/Ulid" } }
+      }
+    }
+  ],
+  "$defs": {
+    "CommandReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["command_id", "command_kind", "expires_at"],
+      "properties": {
+        "command_id": { "$ref": "primitives.json#/$defs/Ulid" },
+        "command_kind": { "type": "string", "enum": ["launch", "run_control", "discussion_turn"] },
+        "expires_at": { "$ref": "primitives.json#/$defs/UtcTimestamp" }
+      }
+    }
+  }
+}
