@@ -28,6 +28,7 @@
     "test": "vitest run",
     "test:protocol": "pnpm protocol:check && vitest run packages/protocol-ts/test && go test ./internal/protocol/...",
     "test:l01": "pnpm test:protocol && go test -race ./internal/daemon/... ./internal/auth/... ./internal/cli/... ./cmd/bfb/...",
+    "test:l02": "pnpm build && pnpm test:l01 && vitest run packages/domain/test/checkout-contract.test.ts && go test -race -count=1 ./internal/checkout/...",
     "typecheck": "tsc -b --pretty false",
     "verify": "tsx tools/repository/src/verify.ts",
     "worktree:check": "tsx tools/repository/src/worktree-cli.ts",

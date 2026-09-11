@@ -41,7 +41,7 @@ func Start(ctx context.Context, paths Paths, extensions *Registry) (*Server, err
 		_ = lock.Close()
 		return nil, err
 	}
-	s := &Server{Paths: paths, Store: store, Logger: NewLogger(paths), Done: make(chan struct{}), registry: NewRegistry(), lock: lock, started: time.Now().UTC().Format(time.RFC3339Nano)}
+	s := &Server{Paths: paths, Store: store, Logger: NewLogger(paths), Done: make(chan struct{}), registry: NewRegistry(), lock: lock, started: time.Now().UTC().Truncate(time.Microsecond).Format(time.RFC3339Nano)}
 	if err = s.register(extensions); err != nil {
 		_ = store.Close()
 		_ = lock.Close()
@@ -170,7 +170,7 @@ func (s *Server) handle(ctx context.Context, connection *net.UnixConn) {
 		var payload map[string]any
 		if handler := s.registry.handlers[request.Method]; handler != nil {
 			requestContext, cancel := context.WithTimeout(ctx, 10*time.Second)
-			payload, err = invokeHandler(requestContext, handler, Request{Envelope: request, Peer: peer})
+			payload, err = invokeHandler(requestContext, handler, Request{Envelope: request, Peer: peer, Store: s.Store})
 			cancel()
 		} else {
 			err = &Failure{Code: "unknown_method"}

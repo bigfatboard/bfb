@@ -733,6 +733,15 @@ function categorize(
         path: error.instancePath,
       };
     }
+    if (error.keyword === "const") {
+      return {
+        schema_version: 1,
+        category: "type_mismatch",
+        code: "const",
+        message: "value does not match required constant",
+        ...(error.instancePath ? { path: error.instancePath } : {}),
+      };
+    }
     if (error.keyword === "uniqueItems") {
       const uniqueError: TypedError = {
         schema_version: 1,

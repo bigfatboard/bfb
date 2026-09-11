@@ -32,6 +32,37 @@
       "additionalProperties": false,
       "maxProperties": 32,
       "properties": {
+        "workspace_id": { "$ref": "primitives.json#/$defs/Ulid" },
+        "runner_id": { "$ref": "primitives.json#/$defs/Ulid" },
+        "project_id": { "$ref": "primitives.json#/$defs/Ulid" },
+        "checkout_id": { "$ref": "primitives.json#/$defs/Ulid" },
+        "label": { "$ref": "checkout-summary.json#/$defs/Label" },
+        "repository_identity": { "$ref": "checkout-summary.json#/$defs/RepositoryIdentity" },
+        "workspace_subpath": { "$ref": "checkout-summary.json#/$defs/WorkspaceSubpath" },
+        "remote_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "local_path": {
+          "description": "Local link input only; never a synchronized field or response.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096,
+          "pattern": "^/[^\\x00-\\x1f\\x7f]*$"
+        },
+        "is_default": { "type": "boolean" },
+        "unlinked": { "type": "boolean" },
+        "limit": { "type": "integer", "minimum": 1, "maximum": 25 },
+        "after_checkout_id": { "$ref": "primitives.json#/$defs/Ulid" },
+        "next_checkout_id": { "$ref": "primitives.json#/$defs/Ulid" },
+        "checkout": { "$ref": "checkout-summary.json" },
+        "checkouts": {
+          "type": "array",
+          "maxItems": 25,
+          "items": { "$ref": "checkout-summary.json" }
+        },
         "status": { "type": "string", "enum": ["running", "stopping", "installed"] },
         "daemon_pid": { "type": "integer", "minimum": 1, "maximum": 2147483647 },
         "started_at": { "$ref": "primitives.json#/$defs/UtcTimestamp" },
@@ -54,5 +85,25 @@
         }
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": ["payload"],
+        "properties": {
+          "payload": {
+            "type": "object",
+            "required": ["local_path"],
+            "properties": { "local_path": {} }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "direction": { "const": "request" },
+          "method": { "const": "checkout.link" }
+        }
+      }
+    }
+  ]
 }

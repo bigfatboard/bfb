@@ -12,7 +12,7 @@ import (
 	"github.com/qdis/bfb/internal/daemon"
 )
 
-func RegisterDaemon(registry *Registry) {
+func RegisterDaemon(registry *Registry, methods *daemon.Registry) {
 	register := func(command Command) {
 		if err := registry.Register(command); err != nil {
 			panic("duplicate built-in CLI command")
@@ -22,7 +22,7 @@ func RegisterDaemon(registry *Registry) {
 		if len(invocation.Args) != 0 {
 			return nil, &daemon.Failure{Code: "invalid_request"}
 		}
-		server, err := daemon.Start(ctx, invocation.Paths, nil)
+		server, err := daemon.Start(ctx, invocation.Paths, methods)
 		if err != nil {
 			_ = daemon.NewLogger(invocation.Paths).Record(daemon.LogEvent{Event: "rpc_failed", Code: daemon.AsFailure(err).Diagnostic().Code})
 			return nil, err

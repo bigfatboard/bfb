@@ -3,6 +3,23 @@
   "schema_version": 1,
   "fixtures": [
     {
+      "path": "valid/local-rpc.checkout-link.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/local-rpc.response-path.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.unrelated-request-path.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
       "path": "valid/event-envelope.heartbeat.json",
       "schema": "event-envelope",
       "expect": "accept"

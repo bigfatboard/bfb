@@ -7,6 +7,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -101,13 +102,52 @@ func TestMigrationRollbackAndChecksum(t *testing.T) {
 		t.Fatalf("checksum: %v", err)
 	}
 	s = openTestStore(t, p)
-	if _, err = s.DB.Exec("INSERT INTO schema_migrations VALUES (2, '002_future.sql', 'future')"); err != nil {
+	future := StorageVersion + 1
+	if _, err = s.DB.Exec("INSERT INTO schema_migrations VALUES (?, ?, 'future')", future, fmt.Sprintf("%03d_future.sql", future)); err != nil {
 		t.Fatal(err)
 	}
 	_ = s.Close()
 	_, err = OpenStore(context.Background(), p)
 	if err == nil || AsFailure(err).Code != "migration_mismatch" {
 		t.Fatalf("newer DB: %v", err)
+	}
+}
+
+func TestCheckoutMigrationUpgradesKernelAndRollsBackAtomically(t *testing.T) {
+	p := testPaths(t)
+	previous, err := openStore(context.Background(), p, kernelMigrations()[:1], nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = previous.DB.Exec("INSERT INTO process_observations VALUES ('preserved', 123, 'synthetic-start', 'ended')"); err != nil {
+		t.Fatal(err)
+	}
+	_ = previous.Close()
+	_, err = openStore(context.Background(), p, kernelMigrations(), func(version int) error {
+		if version == 2 {
+			return errors.New("synthetic interrupted migration")
+		}
+		return nil
+	})
+	if err == nil {
+		t.Fatal("migration fault was ignored")
+	}
+	previous, err = openStore(context.Background(), p, kernelMigrations()[:1], nil)
+	if err != nil {
+		t.Fatal("failed migration prevented opening old schema", err)
+	}
+	var count int
+	if err = previous.DB.QueryRow("SELECT count(*) FROM sqlite_master WHERE name = 'checkouts'").Scan(&count); err != nil || count != 0 {
+		t.Fatal("partial checkout schema survived rollback")
+	}
+	_ = previous.Close()
+	upgraded := openTestStore(t, p)
+	defer upgraded.Close()
+	if err = upgraded.DB.QueryRow("SELECT count(*) FROM process_observations WHERE id = 'preserved'").Scan(&count); err != nil || count != 1 {
+		t.Fatalf("upgrade lost kernel data: %v", err)
+	}
+	if err = upgraded.DB.QueryRow("SELECT count(*) FROM checkouts").Scan(&count); err != nil || count != 0 {
+		t.Fatalf("checkout schema unavailable: %v", err)
 	}
 }
 
@@ -180,7 +220,7 @@ func TestProcessCrashAtMigrationBoundary(t *testing.T) {
 	s := openTestStore(t, p)
 	defer s.Close()
 	var count int
-	if err = s.DB.QueryRow("SELECT count(*) FROM schema_migrations").Scan(&count); err != nil || count != 1 {
+	if err = s.DB.QueryRow("SELECT count(*) FROM schema_migrations").Scan(&count); err != nil || count != StorageVersion {
 		t.Fatalf("migration recovery %d: %v", count, err)
 	}
 }

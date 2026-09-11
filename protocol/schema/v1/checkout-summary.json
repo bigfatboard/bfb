@@ -8,9 +8,16 @@
   "required": [
     "schema_version",
     "checkout_id",
+    "workspace_id",
     "runner_id",
     "project_id",
+    "label",
     "repository_identity",
+    "workspace_subpath",
+    "physical_worktree_hash",
+    "repository_config_hash",
+    "is_default",
+    "dirty",
     "status",
     "validated_at"
   ],
@@ -19,21 +26,43 @@
     "checkout_id": {
       "$ref": "primitives.json#/$defs/Ulid"
     },
+    "workspace_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
     "runner_id": {
       "$ref": "primitives.json#/$defs/Ulid"
     },
     "project_id": {
       "$ref": "primitives.json#/$defs/Ulid"
     },
-    "repository_identity": {
+    "label": { "$ref": "#/$defs/Label" },
+    "repository_identity": { "$ref": "#/$defs/RepositoryIdentity" },
+    "workspace_subpath": { "$ref": "#/$defs/WorkspaceSubpath" },
+    "physical_worktree_hash": { "$ref": "primitives.json#/$defs/Sha256Digest" },
+    "repository_config_hash": { "$ref": "primitives.json#/$defs/Sha256Digest" },
+    "is_default": { "type": "boolean" },
+    "branch": {
       "type": "string",
       "minLength": 1,
-      "maxLength": 512
+      "maxLength": 255,
+      "pattern": "^[^/\\\\\\x00-\\x1f\\x7f][^\\\\\\x00-\\x1f\\x7f]*$"
     },
-    "workspace_subpath": {
+    "head": { "type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" },
+    "dirty": { "type": "boolean" },
+    "block_reason": {
       "type": "string",
-      "minLength": 1,
-      "maxLength": 512
+      "enum": [
+        "checkout_path_missing",
+        "checkout_path_unsafe",
+        "checkout_git_unavailable",
+        "checkout_not_worktree",
+        "checkout_identity_changed",
+        "checkout_repository_mismatch",
+        "checkout_subpath_mismatch",
+        "checkout_config_invalid",
+        "checkout_config_changed",
+        "checkout_policy_widening"
+      ]
     },
     "status": {
       "type": "string",
@@ -41,6 +70,26 @@
     },
     "validated_at": {
       "$ref": "primitives.json#/$defs/UtcTimestamp"
+    }
+  },
+  "$defs": {
+    "Label": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[^/\\\\\\x00-\\x1f\\x7f]+$"
+    },
+    "RepositoryIdentity": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^[a-z0-9][a-z0-9.-]*/[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
+    },
+    "WorkspaceSubpath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^[^/\\\\~:\\x00-\\x1f\\x7f][^\\\\:\\x00-\\x1f\\x7f]*$"
     }
   }
 }

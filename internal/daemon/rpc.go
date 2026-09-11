@@ -29,6 +29,7 @@ type Peer struct{ UID, PID int }
 type Request struct {
 	Envelope generated.LocalRpcEnvelope
 	Peer     Peer
+	Store    *Store
 }
 
 type Handler func(context.Context, Request) (map[string]any, error)

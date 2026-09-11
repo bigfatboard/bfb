@@ -1,0 +1,101 @@
+{
+  "contract": "bfb-checkout-policy/1",
+  "fixtures": [
+    {
+      "name": "empty-inherits",
+      "yaml": "# Local restrictions are absent.\n",
+      "document": {},
+      "canonical": "{}",
+      "hash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "parent": {
+        "allowed_providers": ["claude", "codex"],
+        "allow_agent_root_propose": true,
+        "allow_pass_to_agent": false,
+        "allow_run_overrides": true
+      },
+      "effective": {
+        "allowed_providers": ["claude", "codex"],
+        "allow_agent_root_propose": true,
+        "allow_pass_to_agent": false,
+        "allow_run_overrides": true
+      }
+    },
+    {
+      "name": "sorted-deduplicated-providers",
+      "yaml": "allowed_providers: [codex, claude, codex]\n",
+      "document": {
+        "allowed_providers": ["codex", "claude", "codex"]
+      },
+      "canonical": "{\"allowed_providers\":[\"claude\",\"codex\"]}",
+      "hash": "sha256:1ac596862fa8488d961e093b9923786a86997e8986189293f4fde94a6639bdc4",
+      "parent": {
+        "allowed_providers": ["claude", "codex"],
+        "allow_agent_root_propose": true,
+        "allow_pass_to_agent": false,
+        "allow_run_overrides": true
+      },
+      "effective": {
+        "allowed_providers": ["claude", "codex"],
+        "allow_agent_root_propose": true,
+        "allow_pass_to_agent": false,
+        "allow_run_overrides": true
+      }
+    },
+    {
+      "name": "deny-all",
+      "yaml": "allowed_providers: []\nallow_run_overrides: false\nallow_pass_to_agent: false\nallow_agent_root_propose: false\n",
+      "document": {
+        "allowed_providers": [],
+        "allow_run_overrides": false,
+        "allow_pass_to_agent": false,
+        "allow_agent_root_propose": false
+      },
+      "canonical": "{\"allow_agent_root_propose\":false,\"allow_pass_to_agent\":false,\"allow_run_overrides\":false,\"allowed_providers\":[]}",
+      "hash": "sha256:c9fb67826bacf14c55572ae56650ec26c1d165ce7f0777402dcf0514172659d0",
+      "parent": {
+        "allowed_providers": ["claude", "codex"],
+        "allow_agent_root_propose": true,
+        "allow_pass_to_agent": false,
+        "allow_run_overrides": true
+      },
+      "effective": {
+        "allowed_providers": [],
+        "allow_agent_root_propose": false,
+        "allow_pass_to_agent": false,
+        "allow_run_overrides": false
+      }
+    },
+    {
+      "name": "flag-widening",
+      "yaml": "allow_pass_to_agent: true\n",
+      "document": {
+        "allow_pass_to_agent": true
+      },
+      "canonical": "{\"allow_pass_to_agent\":true}",
+      "hash": "sha256:b1c8518f80fb0c768c21180d7243e09cdcc4d676cdbf380aa1d6604be1622094",
+      "parent": {
+        "allowed_providers": ["claude", "codex"],
+        "allow_agent_root_propose": true,
+        "allow_pass_to_agent": false,
+        "allow_run_overrides": true
+      },
+      "error": "checkout_policy_widening"
+    },
+    {
+      "name": "provider-widening",
+      "yaml": "allowed_providers: [grok]\n",
+      "document": {
+        "allowed_providers": ["grok"]
+      },
+      "canonical": "{\"allowed_providers\":[\"grok\"]}",
+      "hash": "sha256:db56a5f4f48dd5827af0be8673e50ed86ed045a83bd1e10bd0ca3e58ce2ef0ae",
+      "parent": {
+        "allowed_providers": ["claude", "codex"],
+        "allow_agent_root_propose": true,
+        "allow_pass_to_agent": false,
+        "allow_run_overrides": true
+      },
+      "error": "checkout_policy_widening"
+    }
+  ]
+}

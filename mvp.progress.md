@@ -2,7 +2,7 @@
 
 Updated: 11 September 2026
 
-Status: In progress — L01 complete; implementing L02 exact checkout registry
+Status: In progress — L01 complete; certifying L02 exact checkout registry
 
 Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 
@@ -10,14 +10,15 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 
 - Timo explicitly authorized Codex to finish the full local MVP independently on autopilot, without routine approval pauses, and instructed work to resume. This authority is recorded in the plan's Goal section. Feature branch: `codex/remote-launch-discussion-mvp`, based on `main` at `e1bc7a0`.
 - Plan updated; ADR 0002 accepted; D01–D03 assigned with dependency edges, test targets and evidence paths. Roadmap generation now covers 45 packages.
-- L01, the daemon/CLI kernel, is done under ADR 0003's approved local scope. Its exact target, uncached native tests, full repository verification, IC-1 and clean-worktree check passed at `f19d188`; evidence is committed. L02 exact checkout registration is next.
+- L01, the daemon/CLI kernel, is done under ADR 0003's approved local scope. Its exact target, uncached native tests, full repository verification, IC-1 and clean-worktree check passed at `f19d188`; evidence is committed.
+- L02 now implements local checkout link/list/verify/unlink, immutable filesystem/Git identity, path-free summaries and tightening-only repository policy. Its local target passed; clean-checkout certification and committed evidence are next, before L03.
 - L01 implements private socket/CLI dispatch, SQLite WAL migrations/recovery, redacted logs, credential interfaces and per-user launchd installation, including real process restart, launchd and Swift-to-UDS tests. The genuinely fresh-account environment check remains untested and owned by G02. No production action has been taken.
 
 ## Milestones
 
 | Milestone | Packages | State | Completion check |
 | --- | --- | --- | --- |
-| Trusted Mac | L01–L03, C06, L08, L04 | L01 done; L02 next | Enroll, register exact checkout, probe providers, reconnect, revoke |
+| Trusted Mac | L01–L03, C06, L08, L04 | L01 done; L02 in progress | Enroll, register exact checkout, probe providers, reconnect, revoke |
 | Remote launch | C09, L05, W02 | Pending | Card starts fake provider; contention, expiry, revocation and containment fail safely |
 | Real agent work | L06, E01–E02, A01–A04, L07, P01 | Pending | Claude/Codex start, scoped context, attention, explicit result and human acceptance |
 | Discussion | D01–D03 | Planned; ADR and gates recorded | Two read-only participants, bounded turns, recovery, intervention, human decision |
@@ -32,6 +33,8 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 - Added `pnpm build` before the aggregate IC-1 domain tests so the command does not depend on previously generated package output.
 - L01 `pnpm test:l01` passed from a clean checkout with 136 TypeScript protocol tests, Go protocol checks and race-tested daemon/auth/CLI/binary packages, including real subprocess crash/restart, per-user launchd installation and a compiled Swift Unix-socket client. Clean-checkout `pnpm verify` passed 348 TypeScript tests plus Go and Swift/Xcode checks; `pnpm worktree:check` confirmed no tracked drift.
 - The updated `pnpm test:ic1` command also passed in the L01 clean checkout at `2ef952a`, including all 14 browser scenarios and the two-scenario dedicated OAuth rerun; the worktree remained clean afterward.
+- L02 local acceptance passed: real APFS aliases/case spelling, linked worktrees/common-directory retargeting, directory replacement/removal, dirty/unborn/detached Git states, zero Git metadata writes, policy hash changes, default/pagination/restart behavior, and real CLI/RPC path redaction. Five shared policy fixtures pass through both Go YAML parsing and canonical cloud commands.
+- New conditional RPC fixtures exposed a diagnostic-category mismatch: both codecs rejected response paths, but TypeScript lacked Go's generic constant-error mapping. The mapping is aligned, with shared differential regression fixtures; 139 protocol tests pass.
 
 ## Decisions and limitations
 
@@ -52,3 +55,4 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 - 11 September: committed L01 implementation as `2ef952a`; clean-checkout target, full verification and worktree check passed. Recorded bounded evidence and retained review status because the specified clean macOS account check has not run. L02 remains pending under dependency discipline.
 - 11 September: resumed with Timo's approval to move the fresh-account environment test to G02. Recorded ADR 0003 before revising L01 acceptance; recertifying the approved local scope before consuming the package.
 - 11 September: recorded explicit authority to finish the full MVP independently on autopilot. L01 clean-checkout certification passed at `f19d188`, including an uncached native rerun and IC-1 regression; marked L01 done with the fresh-account G02 deferral preserved in evidence.
+- 11 September: implemented L02 and passed its local target, including race-tested checkout operations and the previous-head SQLite migration/rollback case. Clean-checkout certification is pending; no later package has consumed L02 yet.

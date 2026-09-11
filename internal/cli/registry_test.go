@@ -15,7 +15,7 @@ import (
 
 func TestBuiltinDispatchAndExitCodes(t *testing.T) {
 	registry := NewRegistry()
-	RegisterDaemon(registry)
+	RegisterDaemon(registry, nil)
 	for _, fixture := range []struct {
 		args []string
 		exit int
