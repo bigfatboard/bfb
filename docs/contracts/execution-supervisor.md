@@ -68,6 +68,22 @@ supervisor or daemon crash. An escaped observed descendant, unverifiable identit
 incomplete inspection or unknown delivery becomes persistent `containment_unknown`.
 TTL, a cloud release hint, result state and a new enrollment cannot override it.
 
+All enrollments use the same private lock directory under this user's daemon state.
+The filename is derived from the L02 physical-worktree digest, not checkout spelling,
+runner identity or the cloud fence. A no-follow descriptor owns the stable `flock`
+inode; a separately atomically replaced HMAC record binds the local lock ID,
+execution, assignment/fencing generations, supervisor identity and bounded observed
+process history. Writes sync the file and directory. Missing, corrupt, public,
+hard-linked, symlinked or semantically invalid evidence cannot become a free lock.
+Closing a descriptor without a verified release leaves the marker intact. An
+incomplete process history cannot prove absence by forgetting the missing identities.
+
+The provider-start path must gate execution until the new group leader is durably
+recorded. A fixed BFB child can wait on a private inherited pipe before its provider
+`exec`; EOF or an expired grant forbids that exec. A crash between process creation
+and registration therefore cannot leave an unrecorded executing provider. This gate
+is still an integration requirement; the lock primitive alone does not certify it.
+
 Only an explicit local recovery operation may inspect and clear unknown containment.
 It must prove the owned/observed processes are gone and no live lock holder remains;
 missing or ambiguous evidence blocks. Recovery does not kill unknown processes.

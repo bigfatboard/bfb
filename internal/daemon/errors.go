@@ -39,6 +39,7 @@ var failures = map[string]struct {
 	"already_running":               {"conflict", "A daemon already owns this local state directory.", 6},
 	"install_conflict":              {"conflict", "A different daemon installation already exists; it was not overwritten.", 6},
 	"checkout_not_found":            {"unavailable", "This checkout is not linked.", 4},
+	"checkout_occupied":             {"conflict", "A local execution still owns this physical worktree.", 6},
 	"checkout_path_missing":         {"unavailable", "The registered checkout directory is missing.", 4},
 	"checkout_path_unsafe":          {"authorization_denied", "The checkout path or policy file is unsafe.", 3},
 	"checkout_git_unavailable":      {"unavailable", "Read-only Git inspection could not complete.", 4},

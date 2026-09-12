@@ -14,9 +14,12 @@ import (
 const maxObservedProcesses = 256
 
 type Process struct {
-	PID, ParentPID, GroupID, UID int
-	StartIdentity                string
-	Zombie                       bool
+	PID           int    `json:"pid"`
+	ParentPID     int    `json:"parent_pid"`
+	GroupID       int    `json:"group_id"`
+	UID           int    `json:"uid"`
+	StartIdentity string `json:"start_identity"`
+	Zombie        bool   `json:"zombie"`
 }
 
 func (process Process) Same(other Process) bool {
@@ -26,11 +29,11 @@ func (process Process) Same(other Process) bool {
 type ProcessTable map[int]Process
 
 type Group struct {
-	Leader     Process
-	Observed   map[int]Process
-	Unknown    bool
-	HadEscape  bool
-	Incomplete bool
+	Leader     Process         `json:"leader"`
+	Observed   map[int]Process `json:"observed"`
+	Unknown    bool            `json:"unknown"`
+	HadEscape  bool            `json:"had_escape"`
+	Incomplete bool            `json:"incomplete"`
 }
 
 type GroupObservation struct {
