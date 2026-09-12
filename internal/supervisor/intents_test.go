@@ -20,11 +20,19 @@ import (
 
 func fixtureIntents(t *testing.T) (*IntentStore, *daemon.Store, generated.LaunchClaimResult, time.Time) {
 	t.Helper()
-	root, err := os.MkdirTemp("/tmp", "bfb-intents-")
-	if err != nil {
-		t.Fatal(err)
+	return fixtureIntentsAt(t, "")
+}
+
+func fixtureIntentsAt(t *testing.T, root string) (*IntentStore, *daemon.Store, generated.LaunchClaimResult, time.Time) {
+	t.Helper()
+	if root == "" {
+		var err error
+		root, err = os.MkdirTemp("/tmp", "bfb-intents-")
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = os.RemoveAll(root) })
 	}
-	t.Cleanup(func() { _ = os.RemoveAll(root) })
 	paths, err := daemon.StatePaths(root)
 	if err != nil || paths.Prepare() != nil {
 		t.Fatal("private fixture paths unavailable", err)

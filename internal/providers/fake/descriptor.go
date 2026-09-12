@@ -42,6 +42,9 @@ func (Adapter) Launch(input provider.LaunchInput) (provider.Invocation, error) {
 		args = append(args, "--session", input.RequestedSessionID)
 	}
 	if config.InitialTurnTransport == "provider_prompt" {
+		if config.Mode == "interactive" {
+			return provider.Invocation{Arguments: append(args, "--initial-prompt", provider.InitialInstruction)}, nil
+		}
 		args = append(args, "--initial-stdin")
 		return provider.Invocation{Arguments: args, Stdin: []byte(provider.InitialInstruction)}, nil
 	}

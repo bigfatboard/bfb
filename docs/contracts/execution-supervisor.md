@@ -138,11 +138,34 @@ hard-linked, symlinked or semantically invalid evidence cannot become a free loc
 Closing a descriptor without a verified release leaves the marker intact. An
 incomplete process history cannot prove absence by forgetting the missing identities.
 
-The provider-start path must gate execution until the new group leader is durably
-recorded. A fixed BFB child can wait on a private inherited pipe before its provider
-`exec`; EOF or an expired grant forbids that exec. A crash between process creation
-and registration therefore cannot leave an unrecorded executing provider. This gate
-is still an integration requirement; the lock primitive alone does not certify it.
+The provider-start gate uses a fixed BFB child and two private inherited pipes, not
+an invocation supplied by the cloud or pipe writer. The child checks its signed,
+registered kernel parent, independently loads the assignment and local preparation,
+and compiles its provider plan. The parent records the wrapper's native identity in
+the durable lock even while preparation is pending. Provider containment observations
+start after bounded version/health probes have ended, so these separately grouped
+inspection processes do not masquerade as escaped provider descendants.
+
+Before opening the gate, the parent requires durable daemon group registration,
+fresh local checks and another online final authorization using the original
+supervisor/lock identity. The strict single-frame pipe permit binds the child's
+native identity, intent, random readiness nonce and lock ID. It expires within five
+seconds and never beyond the launch deadline. EOF, cancellation, malformed or
+duplicate fields and a dead/different parent forbid execution. Inherited pipes use
+nonblocking descriptors so their [Go read/write deadlines](https://pkg.go.dev/os#NewFile)
+remain effective; the preparation wait is bounded to 30 seconds.
+
+The child verifies the authenticated lock record and live native lock holder,
+rechecks checkout/artifacts, pins the exact registered directory for `fchdir`, and
+revalidates executable/configuration sources without starting a new probe process.
+It closes private descriptors and replaces itself with explicit locally compiled
+argv. Interactive stdin remains the PTY; the fake adapter supplies only the fixed
+initial instruction through its native prompt argument. Fresh-launch preparation
+rejects a resume specification instead of silently starting a new session.
+
+Native PTY tests exercise this gate, including supervisor loss before permission
+with a retained ownership record and absent exec canary. CLI/daemon lifecycle and
+real Terminal acceptance remain in progress; these tests do not certify L05 alone.
 
 Only an explicit local recovery operation may inspect and clear unknown containment.
 It must prove the owned/observed processes are gone and no live lock holder remains;

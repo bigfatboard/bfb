@@ -340,3 +340,26 @@ func (registry *Registry) Revalidate(ctx context.Context, plan Plan, now time.Ti
 	}
 	return nil
 }
+
+// RevalidateSources performs no process creation. A gated child uses it after
+// its group is recorded, without creating out-of-group version/health probes.
+// It complements, rather than replaces, the preceding full fresh probe.
+func (registry *Registry) RevalidateSources(plan Plan, now time.Time) error {
+	probe := plan.probe
+	descriptor, ok := registry.descriptors[probe.Provider]
+	if !ok || probe.registry != registry || probe.seal != probeSeal(probe) || plan.Provider != probe.Provider || plan.ManifestID != probe.ManifestID || manifestID(descriptor.Manifest) != probe.ManifestID || probe.Status != "healthy" {
+		return Failure("provider_probe_invalid")
+	}
+	if now.Before(probe.ObservedAt) || !now.Before(probe.ExpiresAt) {
+		return Failure("provider_probe_expired")
+	}
+	executable, err := fingerprint(probe.installation.Executable, true)
+	if err != nil || executable != probe.executable {
+		return Failure("provider_changed")
+	}
+	configuration, err := configurationHash(probe.installation.ConfigFiles)
+	if err != nil || configuration != probe.configurationHash {
+		return Failure("provider_changed")
+	}
+	return nil
+}

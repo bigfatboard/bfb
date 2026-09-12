@@ -61,8 +61,9 @@ func main() {
 	fork := flag.Bool("fork", false, "Fork the observed session")
 	turn := flag.String("turn", "synthetic-turn", "Synthetic turn")
 	initial := flag.Bool("initial-stdin", false, "Consume the fixed prompt on stdin")
+	initialPrompt := flag.String("initial-prompt", "", "Use the compiled interactive initial instruction")
 	flag.Parse()
-	if flag.NArg() != 0 {
+	if flag.NArg() != 0 || *initialPrompt != "" && (*initialPrompt != provider.InitialInstruction || *mode != "interactive" || *initial) {
 		os.Exit(2)
 	}
 	if *resume != "" {
@@ -113,6 +114,10 @@ func main() {
 			os.Exit(2)
 		}
 		emit(provider.Candidate{Kind: "turn_started", SessionID: *session, TurnID: *turn})
+	}
+	if *initialPrompt != "" {
+		emit(provider.Candidate{Kind: "turn_started", SessionID: *session, TurnID: *turn})
+		emit(provider.Candidate{Kind: "turn_completed", SessionID: *session, TurnID: *turn, Outcome: "succeeded"})
 	}
 	if !*initial || scenario == "hang" || scenario == "child" || scenario == "escape" || scenario == "ignore_interrupt" {
 		for {

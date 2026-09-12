@@ -46,3 +46,24 @@ func canonicalDirectory(path string) (canonical, identity string, err error) {
 func physicalWorktreeHash(rootIdentity string) string {
 	return digest("bfb-physical-worktree/1\n" + rootIdentity)
 }
+
+// OpenExecutionDirectory pins the already revalidated cwd for fchdir. It grants
+// no launch authority; the caller still owns policy and final online checks.
+func OpenExecutionDirectory(location Location) (*os.File, error) {
+	fd, err := unix.Open(location.WorkingDirectory, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_CLOEXEC|unix.O_NOFOLLOW, 0)
+	if err != nil {
+		return nil, failure("checkout_identity_changed")
+	}
+	file := os.NewFile(uintptr(fd), "execution-working-directory")
+	info, statErr := file.Stat()
+	canonical, pathErr := directoryPath(file)
+	identity := ""
+	if statErr == nil && info.IsDir() {
+		identity, err = directoryIdentity(file, info)
+	}
+	if statErr != nil || pathErr != nil || err != nil || canonical != location.WorkingDirectory || identity != location.CwdIdentity {
+		_ = file.Close()
+		return nil, failure("checkout_identity_changed")
+	}
+	return file, nil
+}

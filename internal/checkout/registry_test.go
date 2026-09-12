@@ -101,6 +101,31 @@ func linkInput(root string) LinkInput {
 	return LinkInput{WorkspaceID: workspaceID, RunnerID: runnerID, ProjectID: projectID, Path: root, RepositoryIdentity: "github.com/qdis/bfb", Label: "Synthetic checkout", WorkspaceSubpath: "."}
 }
 
+func TestExecutionDirectoryPinsExactRegisteredIdentity(t *testing.T) {
+	registry, _, _ := fixtureRegistry(t)
+	root := fixtureRepository(t, true)
+	record, err := registry.Link(context.Background(), linkInput(root))
+	must(t, err)
+	directory, err := OpenExecutionDirectory(record.Location)
+	must(t, err)
+	defer directory.Close()
+	before, err := directory.Stat()
+	must(t, err)
+	must(t, os.Rename(root, root+".original"))
+	must(t, os.Mkdir(root, 0700))
+	if replaced, err := OpenExecutionDirectory(record.Location); err == nil {
+		_ = replaced.Close()
+		t.Fatal("replacement directory accepted for execution")
+	}
+	after, err := directory.Stat()
+	must(t, err)
+	current, err := os.Stat(root)
+	must(t, err)
+	if !os.SameFile(before, after) || os.SameFile(after, current) {
+		t.Fatal("execution descriptor changed identity with its path")
+	}
+}
+
 type metadataEntry struct {
 	Mode     fs.FileMode
 	Modified time.Time

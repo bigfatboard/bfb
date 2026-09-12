@@ -503,6 +503,56 @@ func TestRevalidationIncludesIntegrationAndManifestIdentity(t *testing.T) {
 	requireCode(t, other.Revalidate(context.Background(), plan, time.Now()), "provider_probe_invalid")
 }
 
+func TestNonExecutingSourceRevalidationAndInteractivePrompt(t *testing.T) {
+	for _, fault := range []string{"unchanged", "replaced_binary", "configuration", "expired", "other_registry", "mutated_plan"} {
+		t.Run(fault, func(t *testing.T) {
+			registry, installation, input, policy := fixture(t)
+			input.Config.Mode = "interactive"
+			input.Config.RequiredCapabilities = []string{"launch.interactive"}
+			probe := mustProbe(t, registry, installation)
+			plan, err := registry.PlanLaunch(probe, input, policy, time.Now())
+			if err != nil {
+				t.Fatal(err)
+			}
+			invocation := plan.Invocation()
+			if len(invocation.Stdin) != 0 || len(invocation.Arguments) < 2 || invocation.Arguments[len(invocation.Arguments)-2] != "--initial-prompt" || invocation.Arguments[len(invocation.Arguments)-1] != provider.InitialInstruction {
+				t.Fatal("interactive prompt consumed terminal stdin")
+			}
+			now := time.Now()
+			canary := filepath.Join(t.TempDir(), "should-not-execute")
+			switch fault {
+			case "replaced_binary":
+				if err := os.Rename(installation.Executable, installation.Executable+".old"); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(installation.Executable, []byte("#!/bin/sh\n/usr/bin/touch '"+canary+"'\n"), 0700); err != nil {
+					t.Fatal(err)
+				}
+			case "configuration":
+				if err := os.WriteFile(installation.ConfigFiles[0].Path, []byte("changed"), 0600); err != nil {
+					t.Fatal(err)
+				}
+			case "expired":
+				now = probe.ExpiresAt
+			case "other_registry":
+				registry, err = provider.NewRegistry(providers.Descriptors())
+				if err != nil {
+					t.Fatal(err)
+				}
+			case "mutated_plan":
+				plan.ManifestID = provider.Hash(nil)
+			}
+			err = registry.RevalidateSources(plan, now)
+			if (fault == "unchanged") != (err == nil) {
+				t.Fatal("wrong source revalidation disposition", err)
+			}
+			if _, err := os.Stat(canary); !os.IsNotExist(err) {
+				t.Fatal("source revalidation executed the replacement")
+			}
+		})
+	}
+}
+
 func TestBoundedNormalizationNeverProducesBusinessResults(t *testing.T) {
 	registry, _, _, _ := fixture(t)
 	for _, kind := range []string{"result_submitted", "attention_requested", "task_completed", "process_exit", "terminal_closed", "context_injected"} {
