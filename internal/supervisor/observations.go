@@ -150,20 +150,40 @@ func (store *IntentStore) captureProcess(ctx context.Context, observed LocalAssi
 		}
 		kind, state, diagnostic = "execution_detached", "containment_unknown", "containment_unknown"
 	case "gone":
-		if assignment.Supervisor == nil || assignment.Group == nil || assignment.LockID == "" || (state != "group_ready" && state != "running" && state != "containment_unknown") {
+		if assignment.Supervisor == nil || assignment.LockID == "" || (state != "registered" && state != "group_ready" && state != "running" && state != "containment_unknown") {
 			return nil, failure("execution_assignment_invalid")
+		}
+		if assignment.Group == nil {
+			history, err := readNativeHistory(ctx, tx, assignment)
+			if err != nil || history.Group == nil || history.LocalReleasedAt == "" {
+				return nil, failure("containment_unknown")
+			}
 		}
 		kind = "execution_ended"
 		if state != "containment_unknown" {
 			state = "ending"
 		}
 	case "never_started":
-		// Only the durable cleanup transaction can establish that a still
-		// unregistered intent can no longer acquire execution authority.
-		var cleanup sql.NullString
-		if assignment.Supervisor != nil || assignment.Group != nil || assignment.LockID != "" || state != "blocked" || capture.Diagnostic == nil ||
-			tx.QueryRowContext(ctx, "SELECT cleanup_lock_id FROM execution_commands WHERE runner_id = ? AND command_id = ?", assignment.Claim.Assignment.RunnerId, assignment.Claim.Specification.LaunchId).Scan(&cleanup) != nil || !cleanup.Valid || !executionID.MatchString(cleanup.String) {
+		if assignment.Group != nil || capture.Diagnostic == nil {
 			return nil, failure("execution_assignment_invalid")
+		}
+		if assignment.Supervisor == nil {
+			// Unregistered cleanup must atomically exclude future registration.
+			var cleanup sql.NullString
+			if assignment.LockID != "" || state != "blocked" ||
+				tx.QueryRowContext(ctx, "SELECT cleanup_lock_id FROM execution_commands WHERE runner_id = ? AND command_id = ?", assignment.Claim.Assignment.RunnerId, assignment.Claim.Specification.LaunchId).Scan(&cleanup) != nil || !cleanup.Valid || !executionID.MatchString(cleanup.String) {
+				return nil, failure("execution_assignment_invalid")
+			}
+		} else {
+			// A registered helper can fail before spawning. Only authenticated
+			// local release with complete empty group history proves that end.
+			history, err := readNativeHistory(ctx, tx, assignment)
+			if err != nil || history.Group != nil || history.LocalReleasedAt == "" || (state != "registered" && state != "containment_unknown") {
+				return nil, failure("containment_unknown")
+			}
+			if state != "containment_unknown" {
+				state = "blocked"
+			}
 		}
 		kind, diagnostic = "launch_blocked", daemon.AsFailure(capture.Diagnostic).Diagnostic().Code
 	default:

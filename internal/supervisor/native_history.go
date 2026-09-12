@@ -8,16 +8,25 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"time"
 )
 
 type nativeHistory struct {
-	Group     *Group `json:"group"`
-	Uncertain bool   `json:"uncertain"`
+	Group           *Group `json:"group"`
+	Uncertain       bool   `json:"uncertain"`
+	LocalReleasedAt string `json:"local_released_at,omitempty"`
 }
 
 func (history nativeHistory) valid(assignment LocalAssignment) bool {
 	if assignment.Supervisor == nil {
 		return false
+	}
+	if history.LocalReleasedAt != "" {
+		stamp, err := time.Parse(time.RFC3339Nano, history.LocalReleasedAt)
+		created, createdErr := time.Parse(time.RFC3339Nano, assignment.CreatedAt)
+		if err != nil || createdErr != nil || assignment.LockID == "" || localTimestamp(stamp) != history.LocalReleasedAt || stamp.Before(created) {
+			return false
+		}
 	}
 	if history.Group == nil {
 		return true
@@ -109,7 +118,10 @@ func (store *IntentStore) rememberNative(ctx context.Context, observed LocalAssi
 	if err != nil {
 		return nativeHistory{}, err
 	}
-	merged := nativeHistory{Group: mergeGroups(prior.Group, fresh.Group), Uncertain: prior.Uncertain || fresh.Uncertain}
+	merged := nativeHistory{Group: mergeGroups(prior.Group, fresh.Group), Uncertain: prior.Uncertain || fresh.Uncertain, LocalReleasedAt: prior.LocalReleasedAt}
+	if merged.LocalReleasedAt == "" {
+		merged.LocalReleasedAt = fresh.LocalReleasedAt
+	}
 	if !merged.valid(assignment) {
 		return nativeHistory{}, failure("containment_unknown")
 	}

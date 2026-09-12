@@ -79,6 +79,7 @@ func (service *Service) Start(ctx context.Context, store *daemon.Store) (func(),
 		var workers sync.WaitGroup
 		workers.Go(func() { service.runQueue(ctx, service.store, files) })
 		workers.Go(func() { service.runObserver(ctx, service.store, files, store.Paths) })
+		workers.Go(func() { service.runLeases(ctx, service.store, files, store.Paths) })
 		workers.Wait()
 	}()
 	service.started.Do(func() { close(service.ready) })

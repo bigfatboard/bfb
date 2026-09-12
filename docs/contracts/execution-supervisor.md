@@ -213,8 +213,42 @@ Explicit local recovery serializes with daemon inspection, merges both process
 histories, and requires a free native lock and actual process absence. An already
 released helper marker cannot bypass a daemon-observed descendant. The recovered
 authenticated marker retains the merged history and explicit-local flag; neither
-event import nor ordinary observation clears uncertainty. CLI recovery exposure,
-fresh cloud lease maintenance and production entry-point wiring remain in progress.
+event import nor ordinary observation clears uncertainty. CLI recovery exposure
+and production entry-point wiring remain in progress.
+
+Four independent lease workers inspect registered, lock-pinned executions on a
+15-second cadence, separately from launch workers and the local event sink. Each
+attempt reconciles the original winning claim before fresh native inspection and
+commits a lease sequence greater than both its local counter and C09's receipt
+before sending. Lease request bodies are not persisted or replayed. A lost reply
+requires another reconciliation and a newly timed observation. Slow inspection,
+clock reversal or facts older than five seconds cannot become a lease request.
+This cadence is not a guarantee of connectivity; delayed/failed requests never
+extend authority locally or turn expired cloud TTL into release permission.
+
+A waiting wrapper cannot renew or attach provider work. The first renewal also
+requires durable native startup capture, including when lease inspection is the
+only check that sees the provider image before its parent exits. An existing
+startup checkpoint permits fresh verified child-only renewals after restart.
+Normal group end while
+the helper restores foreground and exits is retried without poisoning containment.
+Native uncertainty retains the original supervisor/lock/group identity and cannot
+be cleared by a later good heartbeat. A recovered marker may release cloud
+containment only when it covers every daemon-retained descendant and fresh native
+inspection proves the helper, whole group and lock are gone.
+
+Before a release request, bounded native history retains the first verified local
+release time. This historical checkpoint never supplies fresh lease authority.
+It permits local settlement after a strict bound `released` or `superseded` cloud
+receipt plus fresh absence of all original native identities, even if a new
+execution has replaced the physical marker after a lost release reply. Settlement
+neither reads nor changes the successor's marker, lease or processes. HTTP success
+alone cannot complete delivery; process-end capture must also commit before the
+original local command is complete. Event-capacity failure cannot prevent fresh
+cloud release but leaves local delivery pending until its end fact can be retained.
+Registered pre-spawn failure can end without inventing provider startup. Incomplete
+spawn history still blocks recovery. Cleanup before any local lock identity was
+pinned remains a separate registered phase under implementation.
 
 ## Persistence and recovery
 

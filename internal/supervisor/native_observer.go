@@ -51,33 +51,15 @@ func (service *Service) runObserver(ctx context.Context, store *IntentStore, fil
 }
 
 func (service *Service) observeNative(ctx context.Context, store *IntentStore, inspector nativeInspector, assignment LocalAssignment) (nativeFacts, error) {
-	service.nativeMu.Lock()
-	defer service.nativeMu.Unlock()
-	history, err := readNativeHistory(ctx, store.db, assignment)
+	facts, checkpoint, err := service.inspectNative(ctx, store, inspector, assignment)
 	if err != nil {
-		return nativeFacts{}, err
-	}
-	checkpoint, err := store.observationCheckpoint(ctx, assignment.IntentID)
-	if err != nil {
-		return nativeFacts{}, err
-	}
-	started := service.options.Now()
-	facts := inspector.inspect(assignment, history, checkpoint.ProviderObserved != "")
-	// Native inspection cannot lose an observed descendant merely because the
-	// event sink is full. The helper's own HMAC marker remains single-writer.
-	facts.History, err = store.rememberNative(ctx, assignment, facts.History)
-	if err != nil {
-		return nativeFacts{}, err
-	}
-	now := service.options.Now()
-	if now.Before(started) || now.Sub(started) > finalRequestLimit {
-		return nativeFacts{}, failure("containment_unknown")
+		return facts, err
 	}
 	if checkpoint.ProcessAbsent != "" {
 		return facts, nil
 	}
 	if facts.History.Uncertain || (facts.History.Group != nil && facts.History.Group.Unknown) {
-		if _, err = store.captureProcess(ctx, assignment, processCapture{State: "unknown"}, now); err != nil {
+		if _, err = store.captureProcess(ctx, assignment, processCapture{State: "unknown"}, facts.ObservedAt); err != nil {
 			return facts, err
 		}
 		if facts.Capture.State != "gone" {
@@ -85,9 +67,44 @@ func (service *Service) observeNative(ctx context.Context, store *IntentStore, i
 		}
 	}
 	if facts.Capture.State != "" {
-		_, err = store.captureProcess(ctx, assignment, facts.Capture, now)
+		_, err = store.captureProcess(ctx, assignment, facts.Capture, facts.ObservedAt)
 	}
 	return facts, err
+}
+
+// Inspection retains native history independently of replayable-event capacity.
+// Callers decide event capture; historical events never authorize a lease request.
+func (service *Service) inspectNative(ctx context.Context, store *IntentStore, inspector nativeInspector, assignment LocalAssignment) (nativeFacts, observationCheckpoint, error) {
+	service.nativeMu.Lock()
+	defer service.nativeMu.Unlock()
+	history, err := readNativeHistory(ctx, store.db, assignment)
+	if err != nil {
+		return nativeFacts{}, observationCheckpoint{}, err
+	}
+	checkpoint, err := store.observationCheckpoint(ctx, assignment.IntentID)
+	if err != nil {
+		return nativeFacts{}, checkpoint, err
+	}
+	started := service.options.Now()
+	facts := inspector.inspect(assignment, history, checkpoint.ProviderObserved != "")
+	now := service.options.Now()
+	if now.Before(started) || now.Sub(started) > finalRequestLimit {
+		// Even a slow inspection must retain newly seen descendants. It cannot
+		// create a release checkpoint or become request-bound lease evidence.
+		_, _ = store.rememberNative(ctx, assignment, facts.History)
+		return nativeFacts{}, checkpoint, failure("containment_unknown")
+	}
+	if facts.LocalReleased && facts.History.LocalReleasedAt == "" {
+		facts.History.LocalReleasedAt = localTimestamp(now)
+	}
+	// Native inspection cannot lose an observed descendant merely because the
+	// event sink is full. The helper's own HMAC marker remains single-writer.
+	facts.History, err = store.rememberNative(ctx, assignment, facts.History)
+	if err != nil {
+		return nativeFacts{}, checkpoint, err
+	}
+	facts.ObservedAt = now
+	return facts, checkpoint, nil
 }
 
 // RecoverLocal is a local inspection operation, not a runner-command handler.

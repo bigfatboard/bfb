@@ -6,6 +6,7 @@ package supervisor
 import (
 	"encoding/json"
 	"errors"
+	"time"
 
 	"github.com/qdis/bfb/internal/daemon"
 	"golang.org/x/sys/unix"
@@ -62,6 +63,8 @@ type nativeFacts struct {
 	LockState       string
 	Descendants     string
 	RecoveryLocal   bool
+	LocalReleased   bool
+	ObservedAt      time.Time
 }
 
 func unknownNative(history nativeHistory) nativeFacts {
@@ -102,7 +105,7 @@ func (inspector nativeInspector) inspect(assignment LocalAssignment, history nat
 		return unknownNative(history)
 	}
 	history.Group = mergeGroups(history.Group, locked.Record.Group)
-	facts := nativeFacts{History: history, SupervisorState: ownerState, LockState: "gone", GroupState: "never_started", Descendants: "none", RecoveryLocal: locked.Record.RecoveryLocal}
+	facts := nativeFacts{History: history, SupervisorState: ownerState, LockState: "gone", GroupState: "never_started", Descendants: "none"}
 	if locked.Held {
 		facts.LockState = "held"
 	}
@@ -194,5 +197,28 @@ func (inspector nativeInspector) inspect(assignment LocalAssignment, history nat
 	if facts.History.Uncertain && facts.Capture.State != "gone" {
 		facts.Capture = processCapture{State: "unknown"}
 	}
+	// A recovered marker must include every daemon-retained identity. An old
+	// local recovery flag cannot clear a descendant discovered afterward.
+	if ownerState == "gone" && !locked.Held && locked.Record.State == "released" &&
+		((facts.GroupState == "gone" && facts.Descendants == "gone") || (facts.GroupState == "never_started" && facts.Descendants == "none")) {
+		facts.RecoveryLocal = locked.Record.RecoveryLocal && groupCovers(locked.Record.Group, facts.History.Group)
+		facts.LocalReleased = !facts.History.Uncertain || facts.RecoveryLocal
+	}
 	return facts
+}
+
+func groupCovers(record, observed *Group) bool {
+	if observed == nil {
+		return record == nil
+	}
+	if record == nil || record.Leader != observed.Leader || (observed.Unknown && !record.Unknown) ||
+		(observed.HadEscape && !record.HadEscape) || (observed.Incomplete && !record.Incomplete) {
+		return false
+	}
+	for pid, process := range observed.Observed {
+		if record.Observed[pid] != process {
+			return false
+		}
+	}
+	return true
 }
