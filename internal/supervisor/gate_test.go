@@ -4,27 +4,11 @@
 package supervisor
 
 import (
-	"context"
 	"os"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/qdis/bfb/internal/daemon"
-	"github.com/qdis/bfb/internal/provider"
-	"github.com/qdis/bfb/internal/providers/fake"
 )
-
-func TestFreshExecutionRejectsResumeBeforeOpeningLocalState(t *testing.T) {
-	_, assignment, _, _ := fixtureAssignmentFiles(t)
-	assignment.Claim.Specification.ResumeSession = map[string]any{"provider_session_id": daemon.NewRequestID(), "observed_session_id": "synthetic-session"}
-	registry, err := provider.NewRegistry([]provider.Descriptor{fake.Descriptor()})
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = loadExecution(context.Background(), daemon.Paths{}, assignment, registry, nil)
-	assertFailure(t, err, "provider_session_invalid")
-}
 
 func TestGatePermitBindsOneChildAndShortFreshDeadline(t *testing.T) {
 	_, wire, _, _ := fixtureAssignmentFiles(t)

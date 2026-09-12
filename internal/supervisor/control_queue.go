@@ -68,7 +68,7 @@ func (service *Service) processControl(ctx context.Context, store *IntentStore, 
 		// effect. Reclaiming here could reject an in-flight termination after
 		// its group ends but before the helper acknowledges its signal.
 		deadline, _ := time.Parse(time.RFC3339Nano, command.ExpiresAt)
-		if current.State == "prepared" && current.Action != "resume" && !service.options.Now().Before(deadline) {
+		if (current.State == "prepared" || current.Action == "resume") && !service.options.Now().Before(deadline) {
 			body, err = current.claimRequest()
 			if err != nil {
 				return err
@@ -82,6 +82,9 @@ func (service *Service) processControl(ctx context.Context, store *IntentStore, 
 				return failure("execution_authorization_failed")
 			}
 			return store.completeControl(ctx, command, receipt)
+		}
+		if current.Action == "resume" {
+			return service.processResumeControl(ctx, store, command, current, connection)
 		}
 		return nil
 	}

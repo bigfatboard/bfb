@@ -157,6 +157,11 @@ func (service *Service) processLaunch(ctx context.Context, store *IntentStore, f
 }
 
 func (service *Service) prepareLaunch(ctx context.Context, store *IntentStore, files *AssignmentFiles, command LocalCommand, claim generated.LaunchClaimResult, connection runner.RunnerConnection) error {
+	// The independently pulled child may beat the control claim reply. Keep
+	// its original claim pending until the durable resume binding is ready.
+	if _, err := resumeForClaim(ctx, store.db, claim, service.options.Now()); err != nil {
+		return err
+	}
 	if err := service.prepareAndOffer(ctx, store, files, command, claim); err != nil {
 		if cleanupErr := service.cleanupUnstarted(ctx, store, command, connection); cleanupErr != nil {
 			return cleanupErr
@@ -167,8 +172,9 @@ func (service *Service) prepareLaunch(ctx context.Context, store *IntentStore, f
 }
 
 func (service *Service) prepareAndOffer(ctx context.Context, store *IntentStore, files *AssignmentFiles, command LocalCommand, claim generated.LaunchClaimResult) error {
-	if claim.Specification.ResumeSession != nil {
-		return failure("provider_session_invalid")
+	source, err := resumeForClaim(ctx, store.db, claim, service.options.Now())
+	if err != nil {
+		return err
 	}
 	if service.options.OpenTerminal == nil {
 		return failure("app_unavailable")
@@ -195,7 +201,7 @@ func (service *Service) prepareAndOffer(ctx context.Context, store *IntentStore,
 	if err != nil || probe.Status != "healthy" || probe.Version != claim.Snapshot.ProviderVersion || probe.ManifestID != claim.Snapshot.ProviderManifestId {
 		return failure("provider_changed")
 	}
-	plan, err := registry.PlanLaunch(probe, provider.LaunchInput{Config: config, WorkingDirectory: record.Location.WorkingDirectory}, provider.Policy{AllowedCapabilities: probe.Capabilities}, service.options.Now())
+	plan, err := planExecution(registry, probe, claim, record.Location.WorkingDirectory, source, service.options.Now())
 	if err != nil {
 		return err
 	}
@@ -210,6 +216,9 @@ func (service *Service) prepareAndOffer(ctx context.Context, store *IntentStore,
 		return err
 	}
 	if err = registry.RevalidateSources(plan, service.options.Now()); err != nil {
+		return err
+	}
+	if _, err = resumeForClaim(ctx, store.db, claim, service.options.Now()); err != nil {
 		return err
 	}
 	if won, err := store.Offer(ctx, assignment.IntentID); err != nil || !won {

@@ -189,6 +189,55 @@ func TestNativeInspectionRepeatsChecksAfterImageIO(t *testing.T) {
 	}
 }
 
+func TestNativeReleaseProofCoversOnlyItsCompleteObservedHistory(t *testing.T) {
+	ctx := context.Background()
+	store, _, assignment, now := observationFixture(t)
+	f, inspector := inspectionFixture(t, assignment)
+	f.image = true
+	service := NewService(ServiceOptions{Now: func() time.Time { return now }})
+	if _, err := service.observeNative(ctx, store, inspector, assignment); err != nil {
+		t.Fatal(err)
+	}
+	delete(f.table, assignment.Supervisor.Process.PID)
+	delete(f.table, assignment.Group.PID)
+	f.locked.Held, f.locked.Record.State = false, "released"
+	now = now.Add(time.Second)
+	if _, err := service.observeNative(ctx, store, inspector, assignment); err != nil {
+		t.Fatal(err)
+	}
+	history, err := readNativeHistory(ctx, store.db, assignment)
+	if err != nil || history.LocalReleasedAt == "" || history.ReleasedGroupHash != nativeGroupHash(history.Group) {
+		t.Fatal("native release did not certify its retained history", err)
+	}
+	originalHash, originalTime := history.ReleasedGroupHash, history.LocalReleasedAt
+	escaped := fixtureProcess(1800, 1, 1800)
+	history.Group.Observed[escaped.PID] = escaped
+	history.Group.Unknown, history.Group.HadEscape, history.Uncertain = true, true, true
+	if _, err = store.rememberNative(ctx, assignment, history); err != nil {
+		t.Fatal(err)
+	}
+	now = now.Add(time.Second)
+	// The newly retained process is absent, but the old helper marker does
+	// not cover this unknown history and cannot grant automatic recovery.
+	if _, _, err := service.inspectNative(ctx, store, inspector, assignment); err != nil {
+		t.Fatal(err)
+	}
+	history, err = readNativeHistory(ctx, store.db, assignment)
+	if err != nil || history.ReleasedGroupHash != originalHash || history.ReleasedGroupHash == nativeGroupHash(history.Group) || history.LocalReleasedAt != originalTime {
+		t.Fatal("old release proof expanded to uninspected history", err)
+	}
+	// Model the already independently tested explicit local recovery marker.
+	// Reinspection may certify it, without erasing historical uncertainty.
+	f.locked.Record.RecoveryLocal, f.locked.Record.Group = true, mergeGroups(history.Group, nil)
+	if _, _, err := service.inspectNative(ctx, store, inspector, assignment); err != nil {
+		t.Fatal(err)
+	}
+	history, err = readNativeHistory(ctx, store.db, assignment)
+	if err != nil || !history.Uncertain || !history.Group.HadEscape || history.ReleasedGroupHash != nativeGroupHash(history.Group) || history.ReleasedGroupHash == originalHash || history.LocalReleasedAt != originalTime {
+		t.Fatal("recovered release did not certify precisely its retained history", err)
+	}
+}
+
 func TestDaemonObservationRetainsEscapeAcrossCapacityFailureAndRestart(t *testing.T) {
 	ctx := context.Background()
 	store, local, assignment, now := observationFixture(t)

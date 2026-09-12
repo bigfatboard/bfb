@@ -94,8 +94,11 @@ func (service *Service) inspectNative(ctx context.Context, store *IntentStore, i
 		_, _ = store.rememberNative(ctx, assignment, facts.History)
 		return nativeFacts{}, checkpoint, failure("containment_unknown")
 	}
-	if facts.LocalReleased && facts.History.LocalReleasedAt == "" {
-		facts.History.LocalReleasedAt = localTimestamp(now)
+	if facts.LocalReleased {
+		if facts.History.LocalReleasedAt == "" {
+			facts.History.LocalReleasedAt = localTimestamp(now)
+		}
+		facts.History.ReleasedGroupHash = nativeGroupHash(facts.History.Group)
 	}
 	// Native inspection cannot lose an observed descendant merely because the
 	// event sink is full. The helper's own HMAC marker remains single-writer.

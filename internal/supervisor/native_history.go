@@ -9,17 +9,23 @@ import (
 	"encoding/json"
 	"errors"
 	"time"
+
+	"github.com/qdis/bfb/internal/provider"
 )
 
 type nativeHistory struct {
 	Group              *Group `json:"group"`
 	Uncertain          bool   `json:"uncertain"`
 	LocalReleasedAt    string `json:"local_released_at,omitempty"`
+	ReleasedGroupHash  string `json:"released_group_hash,omitempty"`
 	PreflightStoppedAt string `json:"preflight_stopped_at,omitempty"`
 }
 
 func (history nativeHistory) valid(assignment LocalAssignment) bool {
 	if assignment.Supervisor == nil {
+		return false
+	}
+	if history.ReleasedGroupHash != "" && (history.LocalReleasedAt == "" || !worktreeDigest.MatchString(history.ReleasedGroupHash)) {
 		return false
 	}
 	if history.LocalReleasedAt != "" {
@@ -47,6 +53,11 @@ func (history nativeHistory) valid(assignment LocalAssignment) bool {
 	}
 	record := LockRecord{Version: 1, LockID: assignment.LockID, Binding: assignment.lockBinding(), Owner: assignment.Supervisor.Process, Group: group, State: "containment_unknown"}
 	return record.valid()
+}
+
+func nativeGroupHash(group *Group) string {
+	data, _ := json.Marshal(group)
+	return provider.Hash(data)
 }
 
 func (assignment LocalAssignment) lockBinding() LockBinding {
@@ -128,12 +139,20 @@ func (store *IntentStore) rememberNative(ctx context.Context, observed LocalAssi
 	if err != nil {
 		return nativeHistory{}, err
 	}
-	merged := nativeHistory{Group: mergeGroups(prior.Group, fresh.Group), Uncertain: prior.Uncertain || fresh.Uncertain, LocalReleasedAt: prior.LocalReleasedAt, PreflightStoppedAt: prior.PreflightStoppedAt}
+	merged := nativeHistory{Group: mergeGroups(prior.Group, fresh.Group), Uncertain: prior.Uncertain || fresh.Uncertain, LocalReleasedAt: prior.LocalReleasedAt, ReleasedGroupHash: prior.ReleasedGroupHash, PreflightStoppedAt: prior.PreflightStoppedAt}
 	if merged.LocalReleasedAt == "" {
 		merged.LocalReleasedAt = fresh.LocalReleasedAt
 	}
 	if merged.PreflightStoppedAt == "" {
 		merged.PreflightStoppedAt = fresh.PreflightStoppedAt
+	}
+	// A later descendant must not inherit an older release checkpoint. Only
+	// a fresh native release proof can certify the complete retained history.
+	if fresh.ReleasedGroupHash != "" && fresh.ReleasedGroupHash != prior.ReleasedGroupHash {
+		if fresh.ReleasedGroupHash != nativeGroupHash(merged.Group) {
+			return nativeHistory{}, failure("containment_unknown")
+		}
+		merged.ReleasedGroupHash = fresh.ReleasedGroupHash
 	}
 	if !merged.valid(assignment) {
 		return nativeHistory{}, failure("containment_unknown")

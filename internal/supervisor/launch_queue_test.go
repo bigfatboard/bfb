@@ -273,7 +273,7 @@ func TestExecutionCheckoutReturnsFreshGitFactsWithoutPersistingThem(t *testing.T
 
 func TestLaunchPreflightFailuresBlockBeforeExecution(t *testing.T) {
 	binary := fixtureQueueBinary(t)
-	for _, fault := range []string{"moved_checkout", "headless", "version", "manifest", "unavailable", "consent_denied", "session_locked", "app_delivery_unknown", "resume"} {
+	for _, fault := range []string{"moved_checkout", "headless", "version", "manifest", "unavailable", "consent_denied", "session_locked", "app_delivery_unknown"} {
 		t.Run(fault, func(t *testing.T) {
 			f := fixtureLaunchQueue(t, binary)
 			expectedOpens := 0
@@ -295,8 +295,6 @@ func TestLaunchPreflightFailuresBlockBeforeExecution(t *testing.T) {
 			case "consent_denied", "session_locked", "app_delivery_unknown":
 				expectedOpens = 1
 				f.service.options.OpenTerminal = func(context.Context, string) error { f.opens++; return failure(fault) }
-			case "resume":
-				f.claim.Specification.ResumeSession = map[string]any{"provider_session_id": daemon.NewRequestID(), "observed_session_id": "synthetic-session"}
 			}
 			var err error
 			f.claim.Specification.ConfigSnapshotHash, err = snapshotHash(f.claim.Snapshot)

@@ -239,6 +239,12 @@ inspection proves the helper, whole group and lock are gone.
 
 Before a release request, bounded native history retains the first verified local
 release time. This historical checkpoint never supplies fresh lease authority.
+Fresh native release also fingerprints the complete retained group history.
+Newly recorded descendants or containment uncertainty do not inherit that proof;
+exact-session resume requires a matching fingerprint plus fresh kernel absence.
+An older record without the fingerprint cannot authorize resume. Only a fresh
+verified release/recovery inspection can certify the enlarged history, without
+erasing its historical uncertainty.
 It permits local settlement after a strict bound `released` or `superseded` cloud
 receipt plus fresh absence of all original native identities, even if a new
 execution has replaced the physical marker after a lost release reply. Settlement
@@ -362,8 +368,9 @@ rechecks checkout/artifacts, pins the exact registered directory for `fchdir`, a
 revalidates executable/configuration sources without starting a new probe process.
 It closes private descriptors and replaces itself with explicit locally compiled
 argv. Interactive stdin remains the PTY; the fake adapter supplies only the fixed
-initial instruction through its native prompt argument. Fresh-launch preparation
-rejects a resume specification instead of silently starting a new session.
+initial instruction through its native prompt argument. A resume specification
+uses the separately certified L03 resume planner and cannot fall through to a
+fresh session.
 
 Native PTY tests exercise this gate, including supervisor loss before permission
 with a retained ownership record and absent exec canary. CLI/daemon lifecycle and
@@ -396,9 +403,10 @@ without overwriting local effect evidence or changing native containment.
 
 The control inbox has four workers independent of launch preparation, with a
 one-second retry backoff so a prepared control cannot delay a later result for a
-minute. It reads
-bound metadata and acknowledges recorded local outcomes, never signals or opens
-Terminal. The effect owner must perform its own fresh claim before delivery.
+minute. It reads bound metadata and acknowledges recorded local outcomes, never
+signals or opens Terminal. Signal/focus owners perform their own fresh claim
+before delivery. Resume dispatch claims its single child only after native
+source-absence checks, as described below.
 An acknowledgement does not reclaim the effect: after termination, a new claim
 could reject the already-ended target before its valid acknowledgement arrives.
 Lost cloud acknowledgements are reconciled against a fresh bound read, retaining
@@ -441,12 +449,53 @@ terminal local outcome. Fast provider exit still gives the helper one bounded
 result-delivery attempt before it exits. Applied means the signal request was
 accepted, not that a provider turn completed or the run result changed.
 
-Native signal RPC and helper handling are implemented and covered by socket and
-real-process tests with the signing boundary injected. Focus of the exact existing
-Terminal, consumption of the single resumed launch, production entry-point wiring
-and real signed Terminal integration remain under implementation. The metadata
-queue does not claim a resume or create its child launch before its consumer is
-connected. These tests are not a substitute for real Terminal acceptance.
+### Exact-session resume
+
+The resume consumer first requires the original registered execution, a captured
+provider start and whole-group end, completed original launch delivery, and a
+release fingerprint matching all retained native history. Fresh kernel inspection
+must find the original helper, provider group and every recorded descendant gone.
+A live reused PID remains ambiguous. Stored release or cloud TTL alone is not
+absence proof; this path cannot clear a native recovery marker.
+
+A fresh bounded C09 control claim creates or returns one immutable child launch.
+After the reply, the local transaction repeats source/expiry checks and commits
+`applying` before accepting that exact child into the normal launch inbox. Lost
+claim replies reuse the original control claim. A crash between effect binding
+and inbox acceptance retries only acceptance of the same child ID. A child pulled
+before this binding waits without opening Terminal or irreversibly cleaning up
+its valid reservation.
+
+The child must preserve workspace, project, task, run, runner, checkout and
+configuration snapshot; it must use distinct launch/execution IDs and newer
+assignment and fencing generations. Its observed session comes from C09's
+immutable authorized specification, never terminal output or an implicit latest
+session. Both daemon preparation and the independently authenticated helper use
+`PlanResume`, which additionally requires `session.resume.interactive` in the
+manifest/runtime/policy intersection. Missing session/binding, closed control,
+changed snapshot, ambiguous source or missing release history blocks preparation.
+
+The ordinary single-use Terminal intent, new physical-worktree lock and online
+final-authorization gate still apply. Source binding and fresh native absence
+are rechecked before offering Terminal, when the helper reconstructs its plan,
+and during pre-exec revalidation. Replacing the physical marker with the new
+owned lock does not erase the old source's retained process history. No resume
+consumer signals the old group, clears occupancy, writes terminal input or skips
+checkout/provider revalidation.
+
+Applied resume requires both a locally observed child provider image and strict
+original-claim reconciliation showing that C09 recorded that child as started.
+Opening Terminal, claiming a child or receiving only one of those observations
+is insufficient. This acknowledges the exact planned launch, not a provider turn,
+successful provider-session attachment or business result. A settled rejected
+child produces local rejection. Lost acknowledgement and restart cannot offer
+another Terminal intent or create another execution.
+
+Native signal and resume handling are implemented with socket/process and
+synthetic cloud/signing tests. Focus of the exact existing Terminal, production
+entry-point wiring and real signed Terminal integration remain under implementation.
+These tests are not a substitute for real Terminal acceptance or complete L05
+certification.
 
 Expired/cancelled/revoked launches, unavailable sessions, consent denial, stale
 snapshots, changed providers and occupied/moved checkouts fail with bounded typed

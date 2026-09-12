@@ -42,7 +42,7 @@ func TestControlQueueReadsWithoutClaimingOrInventingAnEffect(t *testing.T) {
 				return encodedFixture(t, f.receipt), nil
 			})
 			for range 3 {
-				if err := service.processControl(context.Background(), f.store, f.command); err != nil {
+				if err := service.processControl(context.Background(), f.store, f.command); (err != nil) != (action == "resume") {
 					t.Fatal(err)
 				}
 			}

@@ -84,11 +84,6 @@ func loadExecution(ctx context.Context, paths daemon.Paths, assignment generated
 	if validateLocalAssignment(assignment) != nil || registry == nil {
 		return nil, failure("execution_assignment_invalid")
 	}
-	// Exact-session continuation has its own ownership/plan path. A resume
-	// specification must never fall through to a fresh interactive session.
-	if assignment.Claim.Specification.ResumeSession != nil {
-		return nil, failure("provider_session_invalid")
-	}
 	if _, err := launchDeadline(assignment, time.Now()); err != nil {
 		return nil, err
 	}
@@ -102,6 +97,10 @@ func loadExecution(ctx context.Context, paths daemon.Paths, assignment generated
 			_ = db.Close()
 		}
 	}()
+	source, err := resumeForClaim(ctx, db, assignment.Claim, time.Now())
+	if err != nil {
+		return nil, err
+	}
 	record, err := checkCheckout(ctx, checkout.NewRegistry(db), assignment)
 	if err != nil {
 		return nil, err
@@ -119,7 +118,7 @@ func loadExecution(ctx context.Context, paths daemon.Paths, assignment generated
 	if err != nil {
 		return nil, err
 	}
-	plan, err := registry.PlanLaunch(probe, provider.LaunchInput{Config: assignment.Claim.Specification.ExecutionConfig, WorkingDirectory: record.Location.WorkingDirectory}, provider.Policy{AllowedCapabilities: probe.Capabilities}, time.Now())
+	plan, err := planExecution(registry, probe, assignment.Claim, record.Location.WorkingDirectory, source, time.Now())
 	if err != nil {
 		return nil, err
 	}
@@ -134,6 +133,9 @@ func loadExecution(ctx context.Context, paths daemon.Paths, assignment generated
 
 func (execution *preparedExecution) revalidate(ctx context.Context) error {
 	if _, err := launchDeadline(execution.assignment, time.Now()); err != nil {
+		return err
+	}
+	if _, err := resumeForClaim(ctx, execution.db, execution.assignment.Claim, time.Now()); err != nil {
 		return err
 	}
 	current, err := checkCheckout(ctx, checkout.NewRegistry(execution.db), execution.assignment)
