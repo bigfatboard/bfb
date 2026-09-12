@@ -162,6 +162,35 @@ agent-working interval. The local event sink preserves typed provenance for L06;
 C09 lease renewal uses only freshly verified supervisor, group and lock evidence.
 Closing the app or losing the daemon/cloud connection cannot release the local lock.
 
+Local migration `006_execution_observations.sql` adds immutable first-provider-image
+and whole-group-absence observation times, independent of pending event retention.
+The local sink atomically assigns an event ID and execution-local sequence, captures
+the strict `local-execution-observation` document and advances its checkpoint. The
+sequence is not L06's enrollment upload-stream sequence. Only the daemon's local
+inspection path can supply these facts; no RPC accepts them. Capture and checkpoint
+roll back together on failure. The sink holds at most 8,192 observations and refuses
+new rows when full without deleting accepted records or affecting the native fence.
+
+An observed BFB wrapper does not attach an agent or create a process heartbeat.
+First native provider-image observation creates `execution_attached`; subsequent
+verified group presence creates at most one heartbeat per 15 seconds, using the
+actual observation time. Restart or delayed inspection does not backfill a missing
+interval. `provider_start: unobserved` describes missing startup evidence, not proof
+that the provider never executed. No process event reports working time or a result.
+Unknown containment creates a bounded `execution_detached` fact and stays sticky;
+subsequent absence can close event creation but cannot clear the occupancy marker.
+
+Verified group absence creates one `execution_ended` observation and fixes a
+15-second final-hook grace deadline. Repeated capture cannot extend that deadline,
+and no new process heartbeat follows absence. Grace expiry transitions an ordinary
+local `ending` record to `ended` without another event or a run-result mutation.
+The window boundary alone is not hook or upload authorization. A hook may arrive
+before the daemon observes the provider image; L06 must still validate its immutable
+assignment and correlation. A never-started launch requires the durable cleanup
+barrier and has no provider hook window. Reading pending observations does not
+acknowledge import, delete rows or supply fresh C09 lease evidence. L06 owns durable
+import, upload-stream sequencing and explicit delivery dispositions.
+
 ## Persistence and recovery
 
 The local execution assignment and its random correlation capability are private,

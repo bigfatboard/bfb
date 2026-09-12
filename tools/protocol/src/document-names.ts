@@ -234,6 +234,12 @@ export const DOCUMENTS: DocumentSpec[] = [
     goType: "RunControlResult",
     tsType: "RunControlResult",
   },
+  {
+    name: "local-execution-observation",
+    schemaFile: "local-execution-observation.json",
+    goType: "LocalExecutionObservation",
+    tsType: "LocalExecutionObservation",
+  },
 ];
 
 export const SHELL_FIELDS = [

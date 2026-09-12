@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/local-execution-observation.json",
+  "title": "LocalExecutionObservation",
+  "description": "Durable daemon-observed process facts for the local event sink. Sequence is execution-local, not an upload stream sequence. No lease, result, activity or invocation authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "event_id",
+    "run_execution_id",
+    "assignment_generation",
+    "sequence",
+    "kind",
+    "occurred_at",
+    "capture_origin",
+    "process_state",
+    "provider_start"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "event_id": { "$ref": "primitives.json#/$defs/Ulid" },
+    "run_execution_id": { "$ref": "primitives.json#/$defs/Ulid" },
+    "assignment_generation": { "$ref": "primitives.json#/$defs/AssignmentGeneration" },
+    "sequence": { "$ref": "primitives.json#/$defs/SourceSequence" },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "launch_blocked",
+        "execution_attached",
+        "execution_detached",
+        "execution_ended",
+        "heartbeat"
+      ]
+    },
+    "occurred_at": {
+      "$ref": "primitives.json#/$defs/UtcTimestamp",
+      "description": "Time of native observation, never a reconstructed process start or exit time."
+    },
+    "capture_origin": { "type": "string", "const": "runner_observed" },
+    "process_state": { "type": "string", "enum": ["live", "gone", "never_started", "unknown"] },
+    "provider_start": {
+      "type": "string",
+      "enum": ["observed", "unobserved"],
+      "description": "Historical native image observation. Unobserved does not assert that the provider never executed."
+    },
+    "diagnostic": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[a-z][a-z0-9_]*$"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "kind": { "enum": ["execution_attached", "heartbeat"] } },
+        "required": ["kind"]
+      },
+      "then": {
+        "properties": {
+          "process_state": { "const": "live" },
+          "provider_start": { "const": "observed" }
+        },
+        "not": { "properties": { "diagnostic": {} }, "required": ["diagnostic"] }
+      }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "execution_detached" } }, "required": ["kind"] },
+      "then": {
+        "properties": {
+          "process_state": { "const": "unknown" },
+          "diagnostic": { "const": "containment_unknown" }
+        },
+        "required": ["diagnostic"]
+      }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "execution_ended" } }, "required": ["kind"] },
+      "then": {
+        "properties": { "process_state": { "const": "gone" } },
+        "not": { "properties": { "diagnostic": {} }, "required": ["diagnostic"] }
+      }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "launch_blocked" } }, "required": ["kind"] },
+      "then": {
+        "properties": {
+          "process_state": { "const": "never_started" },
+          "provider_start": { "const": "unobserved" },
+          "diagnostic": {}
+        },
+        "required": ["diagnostic"]
+      }
+    }
+  ]
+}

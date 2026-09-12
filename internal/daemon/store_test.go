@@ -150,6 +150,51 @@ AND claim_started_at = '2026-09-12T12:00:00Z' AND state = 'waiting' AND cleanup_
 	}
 }
 
+func TestObservationMigrationPreservesPriorSequencesAndRollsBack(t *testing.T) {
+	ctx := context.Background()
+	paths := testPaths(t)
+	previous, err := openStore(ctx, paths, kernelMigrations()[:5], nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = previous.DB.Exec(`INSERT INTO execution_commands
+(runner_id,command_id,workspace_id,command_kind,expires_at,received_at,claim_key,claim_started_at,state)
+VALUES ('runner','command','workspace','launch','2026-09-12T12:02:00Z','2026-09-12T12:00:00Z',
+'original-claim','2026-09-12T12:00:00Z','waiting');
+INSERT INTO local_execution_assignments(execution_id,assignment_generation,workspace_id,project_id,task_id,run_id,
+runner_id,checkout_id,launch_id,intent_id,physical_worktree_hash,fencing_generation,claim_json,provider_identity_hash,
+correlation_token,created_at,expires_at,state,event_sequence,lease_sequence)
+VALUES ('execution',1,'workspace','project','task','run','runner','checkout','command','intent','physical',2,'{}',
+'provider','correlation','2026-09-12T12:00:00Z','2026-09-12T12:02:00Z','group_ready',0,9)`); err != nil {
+		t.Fatal(err)
+	}
+	_ = previous.Close()
+	if _, err = openStore(ctx, paths, kernelMigrations(), func(version int) error {
+		if version == 6 {
+			return errors.New("synthetic observation migration interruption")
+		}
+		return nil
+	}); err == nil {
+		t.Fatal("observation migration ignored interruption")
+	}
+	previous, err = openStore(ctx, paths, kernelMigrations()[:5], nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var count int
+	if err = previous.DB.QueryRow("SELECT count(*) FROM pragma_table_info('local_execution_assignments') WHERE name = 'provider_observed_at'").Scan(&count); err != nil || count != 0 {
+		t.Fatal("partial observation migration survived rollback", err)
+	}
+	_ = previous.Close()
+	upgraded := openTestStore(t, paths)
+	defer upgraded.Close()
+	if err = upgraded.DB.QueryRow(`SELECT count(*) FROM local_execution_assignments
+WHERE state = 'group_ready' AND assignment_generation = 1 AND fencing_generation = 2 AND event_sequence = 0 AND lease_sequence = 9
+AND provider_observed_at IS NULL AND process_absent_at IS NULL AND last_process_observed_at IS NULL`).Scan(&count); err != nil || count != 1 {
+		t.Fatal("observation migration changed execution identity or invented history", err)
+	}
+}
+
 func TestExecutionMigrationPreservesPriorStateAndRollsBack(t *testing.T) {
 	paths := testPaths(t)
 	previous, err := openStore(context.Background(), paths, kernelMigrations()[:3], nil)

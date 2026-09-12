@@ -53,6 +53,73 @@ function fixture(schema, suffix, value, category) {
 fixture("local-execution-assignment", "synthetic", assignment);
 fixture("local-rpc", "registration-request", request);
 fixture("local-rpc", "registration-response", response);
+const observation = {
+  schema_version: 1,
+  event_id: claim.specification.launch_id,
+  run_execution_id: claim.assignment.run_execution_id,
+  assignment_generation: claim.assignment.assignment_generation,
+  sequence: 1,
+  kind: "execution_attached",
+  occurred_at: "2026-09-12T12:00:03Z",
+  capture_origin: "runner_observed",
+  process_state: "live",
+  provider_start: "observed",
+};
+const detached = {
+  ...observation,
+  kind: "execution_detached",
+  process_state: "unknown",
+  diagnostic: "containment_unknown",
+};
+const blocked = {
+  ...observation,
+  kind: "launch_blocked",
+  process_state: "never_started",
+  provider_start: "unobserved",
+  diagnostic: "expired_intent",
+};
+for (const [name, value] of [
+  ["attached", observation],
+  ["heartbeat", { ...observation, kind: "heartbeat" }],
+  ["detached", detached],
+  ["ended", { ...observation, kind: "execution_ended", process_state: "gone" }],
+  [
+    "ended-unobserved",
+    {
+      ...observation,
+      kind: "execution_ended",
+      process_state: "gone",
+      provider_start: "unobserved",
+    },
+  ],
+  ["blocked", blocked],
+])
+  fixture("local-execution-observation", name, value);
+for (const [name, value, category] of [
+  ["working", { ...observation, activity: "working" }, "additional_field"],
+  ["result", { ...observation, result: "accepted" }, "additional_field"],
+  ["shell", { ...observation, argv: ["synthetic"] }, "shell_data"],
+  ["lease", { ...observation, local_lock_id: claim.specification.launch_id }, "additional_field"],
+  ["origin", { ...observation, capture_origin: "agent_reported" }, "type_mismatch"],
+  ["no-image", { ...observation, provider_start: "unobserved" }, "type_mismatch"],
+  ["heartbeat-gone", { ...observation, kind: "heartbeat", process_state: "gone" }, "type_mismatch"],
+  [
+    "heartbeat-diagnostic",
+    { ...observation, kind: "heartbeat", diagnostic: "containment_unknown" },
+    "schema_invalid",
+  ],
+  ["detached-live", { ...detached, process_state: "live" }, "type_mismatch"],
+  ["detached-reason", { ...detached, diagnostic: undefined }, "missing_field"],
+  ["ended-live", { ...observation, kind: "execution_ended" }, "type_mismatch"],
+  ["blocked-live", { ...blocked, process_state: "live" }, "type_mismatch"],
+  ["blocked-image", { ...blocked, provider_start: "observed" }, "type_mismatch"],
+  ["blocked-reason", { ...blocked, diagnostic: undefined }, "missing_field"],
+  ["private-reason", { ...blocked, diagnostic: "/synthetic/private" }, "type_mismatch"],
+  ["no-sequence", { ...observation, sequence: 0 }, "bound_exceeded"],
+  ["unsafe-sequence", { ...observation, sequence: 9007199254740992 }, "bound_exceeded"],
+  ["bad-generation", { ...observation, assignment_generation: 0 }, "bound_exceeded"],
+])
+  fixture("local-execution-observation", name, value, category);
 const authorize = {
   ...request,
   method: "execution.authorize",

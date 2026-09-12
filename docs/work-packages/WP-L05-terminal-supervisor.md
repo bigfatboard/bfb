@@ -49,7 +49,7 @@ A claimed launch starts only the locally allowlisted fake provider in the exact 
 
 - [Local execution supervision v1](../contracts/execution-supervisor.md): one-time local intent and authenticated assignment, persistent local occupancy, native process identity, PTY handoff, run controls and explicit local recovery.
 - Additive local execution RPC/assignment/observation schemas with generated TypeScript/Go/Swift codecs; deterministic synthetic protocol fixtures owned by `pnpm supervisor:fixtures`.
-- Local migrations `004_execution_supervision.sql` and `005_launch_cleanup.sql`; bounded local recovery, observation and command records, with atomic unstarted cleanup exclusion. No new cloud business state outside C09 is introduced.
+- Local migrations `004_execution_supervision.sql`, `005_launch_cleanup.sql` and `006_execution_observations.sql`; bounded local recovery, observation and command records, with atomic unstarted cleanup exclusion and durable process-observation checkpoints. No new cloud business state outside C09 is introduced.
 - Exact `pnpm test:l05` gate: protocol parity, native race/lock/process tests, pre-exec swap and lifecycle fault tests, real signed Terminal integration and bounded evidence. A PTY-only test cannot substitute for the required Terminal integration.
 
 ## Work plan
