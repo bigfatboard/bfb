@@ -47,7 +47,7 @@ func TestNativeGatedPTY(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, scenario := range []string{"success", "first_authorization", "final_authorization", "record_failure", "binary_swap", "configuration_swap", "artifact_swap", "working_directory_swap", "lock_abandoned", "child_parent_mismatch", "parent_loss"} {
+	for _, scenario := range []string{"success", "first_authorization", "spawn_failure", "parent_source_changed", "final_authorization", "record_failure", "binary_swap", "configuration_swap", "artifact_swap", "working_directory_swap", "lock_abandoned", "child_parent_mismatch", "parent_loss"} {
 		t.Run(scenario, func(t *testing.T) {
 			stateRoot, err := os.MkdirTemp("/tmp", "bfb-gate-test-")
 			if err != nil {
@@ -362,15 +362,28 @@ func TestNativeGatedPTYFixture(t *testing.T) {
 			return nil
 		},
 	}
+	inspect := gateFixtureInspector
+	if scenario == "parent_source_changed" {
+		inspect = func(peer daemon.Peer) (SupervisorIdentity, error) {
+			identity, err := gateFixtureInspector(peer)
+			if peer.PID == os.Getpid() {
+				identity.ExecutableHash = provider.Hash([]byte("changed-helper-source"))
+			}
+			return identity, err
+		}
+	}
 	process, startErr := startGated(context.Background(), execution, lock, terminal, callbacks, func() *exec.Cmd {
 		command := exec.Command(self, "-test.run=^TestNativeGatedChild$", "-test.timeout=25s")
+		if scenario == "spawn_failure" {
+			command.Path = filepath.Join(t.TempDir(), "missing-fixed-child")
+		}
 		command.Env = append(os.Environ(), "BFB_GATE_CHILD=1", "BFB_GATE_ROOT="+execution.paths.Root, "BFB_GATE_INTENT="+execution.assignment.TerminalIntentId)
 		return command
-	}, gateFixtureInspector)
+	}, inspect)
 	if (scenario == "success") != (startErr == nil) {
 		t.Fatal("unexpected start disposition", startErr)
 	}
-	if scenario == "first_authorization" {
+	if scenario == "first_authorization" || scenario == "spawn_failure" || scenario == "parent_source_changed" {
 		if process != nil || authorizations != 1 || recordings != 0 {
 			t.Fatal("child created without first authorization")
 		}
@@ -394,28 +407,19 @@ func TestNativeGatedPTYFixture(t *testing.T) {
 		}
 		_ = process.command.Wait()
 	}()
-	deadline := time.Now().Add(10 * time.Second)
-	for {
-		table, err := InspectProcesses()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if lock.record.Group.ProveGone(table) {
-			break
-		}
-		if !time.Now().Before(deadline) {
-			t.Fatal("gate child did not end")
-		}
-		time.Sleep(10 * time.Millisecond)
+	lifetime, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	err = superviseOwned(lifetime, process, terminal, foreground, startErr)
+	if startErr == nil && err != nil || startErr != nil && (err == nil || daemon.AsFailure(err).Code != daemon.AsFailure(startErr).Code) {
+		t.Fatal("supervisor lifetime lost the start disposition", err)
+	}
+	if process.command.ProcessState == nil || !ownedProcessesGone(lock) {
+		t.Fatal("supervisor did not reap after complete group absence")
 	}
 	if scenario != "lock_abandoned" {
-		if err := lock.Release(); err != nil {
-			t.Fatal(err)
+		if lock.record.State != "released" || !lock.closed {
+			t.Fatal("supervisor did not release verified group")
 		}
-	}
-	_ = process.command.Wait() // Group end and closed signal authority precede reaping.
-	if restored, err := RestoreForeground(int(terminal.Fd()), process.leader.GroupID, foreground); err != nil || !restored {
-		t.Fatal("foreground restoration failed", err)
 	}
 	if current, err := unix.IoctlGetInt(int(terminal.Fd()), unix.TIOCGPGRP); err != nil || current != foreground {
 		t.Fatal("wrong restored foreground", err)

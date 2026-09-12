@@ -193,6 +193,29 @@ the durable lock even while preparation is pending. Provider containment observa
 start after bounded version/health probes have ended, so these separately grouped
 inspection processes do not masquerade as escaped provider descendants.
 
+Before creating that child, the parent repeats its own signed build/fingerprint
+check and durably marks spawning as pending. Successful native PID/start/group
+recording clears this marker; only a proven `Start` failure can cancel it without
+a child identity. A crash between spawn and registration therefore cannot turn an
+incomplete reservation into a never-started recovery. Unrecorded process history
+continues to block recovery, even after the known parent exits.
+
+The helper lifetime loop observes without reading provider input or waiting on
+cloud connectivity. Local helper shutdown uses verified `SIGTERM`, followed by
+verified `SIGKILL` after five seconds if the owned group remains alive. It never
+signals ambiguous containment. An observed escape retains the live fence while
+the helper remains active; shutdown may abandon the descriptor but leaves its
+durable marker intact. Proven whole-group absence permits final reaping and
+non-stealing foreground restoration, not automatic clearance of an unknown marker.
+Foreground restoration precedes reaping while the original PID is still reserved.
+A disappeared terminal cannot skip lock disposition or final reaping.
+
+The fixed child receives only its local UUID and the standard local `--data-dir`
+option generated from the parent's private daemon configuration. This direct
+local argv is not a Terminal shell string and never contains a cloud-selected path,
+provider invocation or checkout. The Terminal command remains the fixed helper
+path and `__launch <uuid>`.
+
 Before opening the gate, the parent requires durable daemon group registration,
 fresh local checks and another online final authorization using the original
 supervisor/lock identity. The strict single-frame pipe permit binds the child's

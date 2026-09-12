@@ -160,6 +160,9 @@ func TestLockRequiresWholeGroupAbsenceBeforeRelease(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer lock.Close()
+	if err := lock.beginSpawn(); err != nil {
+		t.Fatal(err)
+	}
 	_, leader := fixtureSleep(t)
 	wrong := leader
 	wrong.StartIdentity = "1:1"
@@ -188,6 +191,15 @@ func TestLockRequiresWholeGroupAbsenceBeforeRelease(t *testing.T) {
 }
 
 func TestCrashMarkerRetainsSurvivingOwnedProcess(t *testing.T) {
+	testCrashMarker(t, false)
+}
+
+func TestCrashBetweenSpawnAndIdentityCannotRelease(t *testing.T) {
+	testCrashMarker(t, true)
+}
+
+func testCrashMarker(t *testing.T, unrecorded bool) {
+	t.Helper()
 	store := fixtureLockStore(t)
 	binding := fixtureBinding()
 	encoded, _ := json.Marshal(binding)
@@ -195,6 +207,9 @@ func TestCrashMarkerRetainsSurvivingOwnedProcess(t *testing.T) {
 	defer cancel()
 	command := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestLockCrashFixture$", "-test.timeout=20s")
 	command.Env = append(os.Environ(), "BFB_L05_LOCK_FIXTURE="+store.directory.file.Name(), "BFB_L05_LOCK_BINDING="+string(encoded))
+	if unrecorded {
+		command.Env = append(command.Env, "BFB_L05_LOCK_UNRECORDED=1")
+	}
 	output, err := command.StdoutPipe()
 	if err != nil {
 		t.Fatal(err)
@@ -234,6 +249,12 @@ func TestCrashMarkerRetainsSurvivingOwnedProcess(t *testing.T) {
 		t.Fatal(err)
 	}
 	awaitAbsent(t, leader.PID)
+	if unrecorded {
+		// Without a recorded start/ancestry, recovery cannot establish that
+		// all potentially created descendants were observed and are gone.
+		assertFailure(t, store.RecoverLocal(binding), "containment_unknown")
+		return
+	}
 	wrong := binding
 	wrong.AssignmentGeneration++
 	assertFailure(t, store.RecoverLocal(wrong), "containment_unknown")
@@ -273,9 +294,14 @@ func TestLockCrashFixture(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer lock.Close()
-	_, leader := fixtureSleep(t)
-	if err = lock.Attach(leader); err != nil {
+	if err := lock.beginSpawn(); err != nil {
 		t.Fatal(err)
+	}
+	_, leader := fixtureSleep(t)
+	if os.Getenv("BFB_L05_LOCK_UNRECORDED") == "" {
+		if err = lock.Attach(leader); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if err = json.NewEncoder(os.Stdout).Encode(leader); err != nil {
 		t.Fatal(err)
@@ -327,5 +353,42 @@ func TestRecoveryRejectsReusedIdentitiesAndIncompleteHistory(t *testing.T) {
 			_, err = store.Acquire(fixtureBinding())
 			assertFailure(t, err, "containment_unknown")
 		})
+	}
+}
+
+func TestSpawnBarrierRequiresARecordedChildOrProvenStartFailure(t *testing.T) {
+	store := fixtureLockStore(t)
+	lock, err := store.Acquire(fixtureBinding())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lock.Close()
+	assertFailure(t, lock.cancelSpawn(), "containment_unknown")
+	if err := lock.beginSpawn(); err != nil {
+		t.Fatal(err)
+	}
+	record, err := store.read(lock.record.Binding.PhysicalWorktreeHash)
+	if err != nil || !record.SpawnPending || record.Group != nil {
+		t.Fatal("spawn barrier not durable", err)
+	}
+	assertFailure(t, lock.Release(), "containment_unknown")
+	assertFailure(t, lock.beginSpawn(), "containment_unknown")
+	if observed, err := lock.Observe(); err == nil || observed.State != "containment_unknown" {
+		t.Fatal("pending spawn reported as never started")
+	}
+	if err := lock.cancelSpawn(); err != nil {
+		t.Fatal(err)
+	}
+	if observed, err := lock.Observe(); err != nil || observed.State != "never_started" {
+		t.Fatal("failed native start did not clear pending marker", err)
+	}
+	if err := lock.Release(); err != nil {
+		t.Fatal(err)
+	}
+	for _, state := range []string{"owned", "released", "containment_unknown"} {
+		record.State = state
+		if record.valid() {
+			t.Fatal("pending spawn accepted with contradictory state", state)
+		}
 	}
 }

@@ -14,6 +14,17 @@ func fixtureProcess(pid, parent, group int) Process {
 	return Process{PID: pid, ParentPID: parent, GroupID: group, UID: os.Getuid(), StartIdentity: "1000:42"}
 }
 
+func killFixture(t *testing.T, process Process) {
+	t.Helper()
+	table, err := InspectProcesses()
+	if err != nil || !process.Same(table[process.PID]) {
+		t.Fatal("fixture process identity changed")
+	}
+	if err := syscall.Kill(process.PID, syscall.SIGKILL); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestGroupTracksSurvivingChildren(t *testing.T) {
 	leader := fixtureProcess(1201, 1200, 1201)
 	group, err := NewGroup(leader)

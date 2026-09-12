@@ -151,17 +151,6 @@ func TestNativePTY(t *testing.T) {
 	}
 }
 
-func killFixture(t *testing.T, process Process) {
-	t.Helper()
-	table, err := InspectProcesses()
-	if err != nil || !process.Same(table[process.PID]) {
-		t.Fatal("fixture process identity changed")
-	}
-	if err := syscall.Kill(process.PID, syscall.SIGKILL); err != nil {
-		t.Fatal(err)
-	}
-}
-
 // This runs only as the child of the outer script-created controlling PTY.
 func TestNativePTYFixture(t *testing.T) {
 	scenario := os.Getenv("BFB_L05_PTY_FIXTURE")

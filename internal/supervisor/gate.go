@@ -126,7 +126,7 @@ func readHeldLock(paths daemon.Paths, assignment generated.LocalExecutionAssignm
 	claim := assignment.Claim
 	binding := LockBinding{ExecutionID: claim.Assignment.RunExecutionId, AssignmentGeneration: claim.Assignment.AssignmentGeneration, FencingGeneration: claim.FencingGeneration, PhysicalWorktreeHash: claim.Snapshot.PhysicalWorktreeHash}
 	record, err := store.read(binding.PhysicalWorktreeHash)
-	if err != nil || (record.State != "reserved" && record.State != "owned") || record.Binding != binding || record.LockID != lockID || record.Owner.PID != int(assignment.Supervisor.Pid) || record.Owner.StartIdentity != assignment.Supervisor.StartIdentity {
+	if err != nil || record.SpawnPending || (record.State != "reserved" && record.State != "owned") || record.Binding != binding || record.LockID != lockID || record.Owner.PID != int(assignment.Supervisor.Pid) || record.Owner.StartIdentity != assignment.Supervisor.StartIdentity {
 		return LockRecord{}, failure("containment_unknown")
 	}
 	fence, err := directory.open(lockName(binding.PhysicalWorktreeHash, ".lock"), unix.O_RDONLY)
@@ -307,7 +307,17 @@ func startGated(ctx context.Context, execution *preparedExecution, lock *Worktre
 	command.ExtraFiles = []*os.File{gateRead, readyWrite}
 	command.Stdin, command.Stdout, command.Stderr = tty, tty, tty
 	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Foreground: true, Ctty: int(tty.Fd())}
+	parent, err := inspect(daemon.Peer{UID: os.Getuid(), PID: os.Getpid()})
+	if err != nil || parent.wire() != execution.assignment.Supervisor || parent.Process != record.Owner {
+		return nil, failure("peer_denied")
+	}
+	if err := lock.beginSpawn(); err != nil {
+		return nil, err
+	}
 	if err := command.Start(); err != nil {
+		if clearErr := lock.cancelSpawn(); clearErr != nil {
+			return nil, clearErr
+		}
 		return nil, failure("execution_terminal_lost")
 	}
 	process := &gatedProcess{command: command, lock: lock}
@@ -323,13 +333,20 @@ func startGated(ctx context.Context, execution *preparedExecution, lock *Worktre
 	// waits for a child's preparation to finish.
 	stop := context.AfterFunc(ctx, func() { _ = gateWrite.Close(); _ = readyRead.Close() })
 	defer stop()
-	identity, err := inspect(daemon.Peer{UID: os.Getuid(), PID: command.Process.Pid})
-	if err != nil || identity.ExecutableHash != execution.assignment.Supervisor.ExecutableHash || identity.Process.ParentPID != os.Getpid() || identity.Process.GroupID != identity.Process.PID {
-		return process, failure("peer_denied")
+	// Capture containment before the slower signature check. This grants no
+	// provider execution authority, but preserves the owned child on rejection.
+	table, err := InspectProcesses()
+	child := table[command.Process.Pid]
+	if err != nil || !validRecordedProcess(child) || child.Zombie || child.ParentPID != os.Getpid() || child.GroupID != child.PID {
+		return process, failure("containment_unknown")
 	}
-	process.leader = identity.Process
+	process.leader = child
 	if err := lock.Attach(process.leader); err != nil {
 		return process, err
+	}
+	identity, err := inspect(daemon.Peer{UID: os.Getuid(), PID: command.Process.Pid})
+	if err != nil || identity.ExecutableHash != execution.assignment.Supervisor.ExecutableHash || identity.Process != process.leader {
+		return process, failure("peer_denied")
 	}
 	// Record the waiting wrapper even if its preparation fails. Provider
 	// containment observations begin only after its bounded probes have ended.

@@ -39,6 +39,7 @@ type LockRecord struct {
 	Group         *Group      `json:"group"`
 	State         string      `json:"state"`
 	RecoveryLocal bool        `json:"recovery_local"`
+	SpawnPending  bool        `json:"spawn_pending,omitempty"`
 }
 
 func validRecordedProcess(process Process) bool {
@@ -56,6 +57,9 @@ func (record LockRecord) valid() bool {
 		return false
 	}
 	group := record.Group
+	if record.SpawnPending && (record.State != "reserved" || group != nil || record.RecoveryLocal) {
+		return false
+	}
 	if group == nil {
 		return record.State != "owned"
 	}
@@ -174,6 +178,37 @@ func (lock *WorktreeLock) persist() error {
 	return nil
 }
 
+// beginSpawn closes the crash window before process creation. If the owner
+// disappears before recording a native child identity, absence is unprovable;
+// recovery must not reinterpret the old reservation as never having spawned.
+func (lock *WorktreeLock) beginSpawn() error {
+	lock.mu.Lock()
+	defer lock.mu.Unlock()
+	if err := lock.check(); err != nil {
+		return err
+	}
+	if lock.record.State != "reserved" || lock.record.Group != nil || lock.record.SpawnPending {
+		return failure("containment_unknown")
+	}
+	lock.record.SpawnPending = true
+	return lock.persist()
+}
+
+// cancelSpawn is used only after exec.Cmd.Start proves process creation failed.
+// A successful Start, lost inspection, EOF or child exit cannot clear this flag.
+func (lock *WorktreeLock) cancelSpawn() error {
+	lock.mu.Lock()
+	defer lock.mu.Unlock()
+	if err := lock.check(); err != nil {
+		return err
+	}
+	if lock.record.State != "reserved" || lock.record.Group != nil || !lock.record.SpawnPending {
+		return failure("containment_unknown")
+	}
+	lock.record.SpawnPending = false
+	return lock.persist()
+}
+
 // check is called under the owner mutex before every effect. The stable inode
 // must still be present, and only the process which acquired it may act.
 func (lock *WorktreeLock) check() error {
@@ -219,7 +254,7 @@ func (lock *WorktreeLock) Attach(leader Process) error {
 	if err != nil {
 		return err
 	}
-	lock.record.Group, lock.record.State = group, "owned"
+	lock.record.Group, lock.record.State, lock.record.SpawnPending = group, "owned", false
 	return lock.persist()
 }
 
@@ -229,6 +264,9 @@ func (lock *WorktreeLock) observe() (GroupObservation, error) {
 		return GroupObservation{State: "containment_unknown"}, err
 	}
 	if lock.record.Group == nil {
+		if lock.record.SpawnPending {
+			return GroupObservation{State: "containment_unknown"}, failure("containment_unknown")
+		}
 		return GroupObservation{State: "never_started"}, nil
 	}
 	table, err := InspectProcesses()
@@ -313,7 +351,7 @@ func (store *LockStore) RecoverLocal(binding LockBinding) error {
 	}
 	defer file.Close()
 	record, err := store.read(binding.PhysicalWorktreeHash)
-	if err != nil || record.Binding != binding {
+	if err != nil || record.Binding != binding || record.SpawnPending {
 		return failure("containment_unknown")
 	}
 	if record.State == "released" {
