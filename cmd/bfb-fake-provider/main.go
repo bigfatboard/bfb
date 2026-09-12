@@ -77,13 +77,17 @@ func main() {
 	}
 	scenario := os.Getenv("BFB_FAKE_SCENARIO")
 	if scenario == "child-worker" {
-		time.Sleep(10 * time.Second)
+		lifetime, err := strconv.Atoi(os.Getenv("BFB_FAKE_CHILD_LIFETIME_MS"))
+		if err != nil || lifetime < 1 || lifetime > 30000 {
+			lifetime = 10000
+		}
+		time.Sleep(time.Duration(lifetime) * time.Millisecond)
 		return
 	}
 	var child *exec.Cmd
 	if scenario == "child" || scenario == "escape" {
 		child = exec.Command(os.Args[0], "--mode", "headless")
-		child.Env = []string{"BFB_FAKE_SCENARIO=child-worker"}
+		child.Env = []string{"BFB_FAKE_SCENARIO=child-worker", "BFB_FAKE_CHILD_LIFETIME_MS=" + os.Getenv("BFB_FAKE_CHILD_LIFETIME_MS")}
 		if scenario == "escape" {
 			child.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 		}

@@ -1,8 +1,12 @@
 # WP-L05 — Terminal execution supervisor
 
-Status: `planned`
+Status: `in_progress`
 
 Risk: Very high
+
+Test target: `pnpm test:l05`
+
+Evidence manifest: `docs/work-packages/evidence/WP-L05/manifest.json`
 
 ## Outcome
 
@@ -33,6 +37,20 @@ A claimed launch starts only the locally allowlisted fake provider in the exact 
 ## Non-goals
 
 - Claude-specific flags, arbitrary remote commands, server cwd/argv, cloud reacquisition of a claimed lease, web-cleared containment recovery, killing ambiguous processes, macOS sandboxing, or protection from deliberately untracked human processes.
+
+## Contracts
+
+### Consumes
+
+- C09 [launch orchestration v1](../contracts/launch-orchestration.md), D1 head `0016_launch_orchestration`, strict generated claim/snapshot/final/control/lease types, and the existing RunnerConnection possession transport. C09 is certified at `e22e2cf`; its exact checkpoint passed again at the evidence handoff `c625911` before L05 edits.
+- L01 private local RPC and SQLite migration head `003_runner_enrollments`, L02 immutable checkout identity/revalidation, L03 immutable local provider probes/plans, L04 signed-app delivery of a distinct local UUID, and L08 durable command-consumer acceptance.
+
+### Produces
+
+- [Local execution supervision v1](../contracts/execution-supervisor.md): one-time local intent and authenticated assignment, persistent local occupancy, native process identity, PTY handoff, run controls and explicit local recovery.
+- Additive local execution RPC/assignment/observation schemas with generated TypeScript/Go/Swift codecs; deterministic synthetic protocol fixtures owned by `pnpm supervisor:fixtures`.
+- Local migration `004_execution_supervision.sql`; bounded local recovery, observation and command records. No new cloud business state outside C09 is introduced.
+- Exact `pnpm test:l05` gate: protocol parity, native race/lock/process tests, pre-exec swap and lifecycle fault tests, real signed Terminal integration and bounded evidence. A PTY-only test cannot substitute for the required Terminal integration.
 
 ## Work plan
 

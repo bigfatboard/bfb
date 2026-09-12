@@ -2,7 +2,7 @@
 
 Updated: 12 September 2026
 
-Status: In progress — C09 certified; L05 local execution is next
+Status: In progress — C09 certified; L05 native supervision under implementation
 
 Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 
@@ -24,7 +24,7 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 | Milestone | Packages | State | Completion check |
 | --- | --- | --- | --- |
 | Trusted Mac | L01–L03, C06, L08, L04 | All milestone packages done | Enroll, register exact checkout, probe providers, reconnect, revoke |
-| Remote launch | C09, L05, W02 | C09 done; L05 next | Card starts fake provider; contention, expiry, revocation and containment fail safely |
+| Remote launch | C09, L05, W02 | C09 done; L05 in progress | Card starts fake provider; contention, expiry, revocation and containment fail safely |
 | Real agent work | L06, E01–E02, A01–A04, L07, P01 | Pending | Claude/Codex start, scoped context, attention, explicit result and human acceptance |
 | Discussion | D01–D03 | Planned; ADR and gates recorded | Two read-only participants, bounded turns, recovery, intervention, human decision |
 | Running local delivery | Integrated MVP | Pending | Start services, full browser/runner/provider smoke, negative checks and health instructions |
@@ -88,3 +88,5 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 - 12 September: Timo reported Terminal access allowed and Terminal started. The unchanged `c1653e6` clean checkout passed exact `pnpm test:l04`, now including an actual synthetic fixed-UUID helper receipt and four Terminal acknowledgements across the initial open and three relaunch cycles. Notification denial, malicious-link/socket/signature negatives and independent daemon/child/storage survival pass. Recorded bounded evidence and marked L04 done; C09 durable launch orchestration is next. This completes the milestone packages, not the running full MVP or release certification.
 - 12 September: committed C09 implementation as `9b92ef7`. Its exact gate and full repository verification pass in a clean checkout, as do C01 and populated/empty D1 regression gates. C07 exposed a stale exported migration-head constant despite successful D1 migration; corrected the constant and added a manifest-drift assertion. Clean certification is being repeated before C09 can be marked done.
 - 12 September: committed the migration-head correction as `e22e2cf`; the complete clean certification sequence passes, including all 16 browser scenarios and the dedicated two-scenario OAuth rerun. Recorded bounded C09 evidence and marked the package done. Continuing with L05's fake-provider Terminal supervisor; real process/lock and real-provider behavior remain unclaimed.
+- 12 September: committed C09 evidence as `c625911`, repeated its exact checkpoint and froze L05's local supervision contract. Beginning with isolated native PTY/process-group proof before connecting durable intents, final online authorization and containment recovery. L05 acceptance remains unverified.
+- 12 September: L05's isolated macOS PTY proof passes under the race detector: actual foreground Ctrl-C, a 17-second child surviving parent death with a 15-second observation, escaped-descendant detection, and conditional non-stealing foreground restoration. Kernel identity and conservative process-table tests pass. This is the initial process-control proof, not integrated durable launch, lock, recovery or real Terminal.app acceptance.
