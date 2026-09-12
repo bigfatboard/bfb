@@ -35,6 +35,9 @@
         "wake_intent_id": { "$ref": "primitives.json#/$defs/Ulid" },
         "terminal_intent_id": { "$ref": "primitives.json#/$defs/TerminalIntentId" },
         "execution_assignment": { "$ref": "local-execution-assignment.json" },
+        "local_lock_id": { "$ref": "primitives.json#/$defs/Ulid" },
+        "process_group_id": { "type": "integer", "minimum": 2, "maximum": 2147483647 },
+        "final_authorization": { "$ref": "final-authorization.json" },
         "app_delivery_id": { "$ref": "primitives.json#/$defs/Ulid" },
         "notification_id": { "$ref": "primitives.json#/$defs/Ulid" },
         "app_session_state": { "type": "string", "enum": ["available", "locked", "login_window"] },
@@ -122,6 +125,70 @@
     }
   },
   "allOf": [
+    {
+      "if": {
+        "required": ["payload"],
+        "properties": {
+          "payload": {
+            "type": "object",
+            "required": ["local_lock_id"],
+            "properties": { "local_lock_id": {} }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "direction": { "const": "request" },
+          "method": { "enum": ["execution.authorize", "execution.group"] },
+          "payload": {
+            "type": "object",
+            "required": ["terminal_intent_id"],
+            "properties": { "terminal_intent_id": {} }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["payload"],
+        "properties": {
+          "payload": {
+            "type": "object",
+            "required": ["process_group_id"],
+            "properties": { "process_group_id": {} }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "direction": { "const": "request" },
+          "method": { "const": "execution.group" },
+          "payload": {
+            "type": "object",
+            "required": ["terminal_intent_id", "local_lock_id"],
+            "properties": { "terminal_intent_id": {}, "local_lock_id": {} }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["payload"],
+        "properties": {
+          "payload": {
+            "type": "object",
+            "required": ["final_authorization"],
+            "properties": { "final_authorization": {} }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "direction": { "const": "response" },
+          "method": { "const": "execution.authorize" }
+        }
+      }
+    },
     {
       "if": {
         "required": ["payload"],

@@ -53,6 +53,76 @@ function fixture(schema, suffix, value, category) {
 fixture("local-execution-assignment", "synthetic", assignment);
 fixture("local-rpc", "registration-request", request);
 fixture("local-rpc", "registration-response", response);
+const authorize = {
+  ...request,
+  method: "execution.authorize",
+  payload: { terminal_intent_id: intent, local_lock_id: claim.specification.launch_id },
+};
+const group = {
+  ...authorize,
+  method: "execution.group",
+  payload: { ...authorize.payload, process_group_id: 1235 },
+};
+const authorized = {
+  ...authorize,
+  direction: "response",
+  payload: {
+    final_authorization: {
+      schema_version: 1,
+      launch_id: claim.specification.launch_id,
+      run_execution_id: claim.assignment.run_execution_id,
+      assignment_generation: claim.assignment.assignment_generation,
+      decision: "authorized",
+      authorized_at: "2026-09-12T12:00:03Z",
+    },
+  },
+};
+fixture("local-rpc", "authorize-request", authorize);
+fixture("local-rpc", "authorize-response", authorized);
+fixture("local-rpc", "group-request", group);
+fixture("local-rpc", "group-response", { ...group, direction: "response", payload: {} });
+fixture(
+  "local-rpc",
+  "group-other-method",
+  { ...group, method: "execution.register" },
+  "type_mismatch",
+);
+fixture(
+  "local-rpc",
+  "group-response-identity",
+  { ...group, direction: "response" },
+  "type_mismatch",
+);
+fixture(
+  "local-rpc",
+  "group-without-lock",
+  { ...group, payload: { terminal_intent_id: intent, process_group_id: 1235 } },
+  "missing_field",
+);
+fixture(
+  "local-rpc",
+  "group-unsafe-pid",
+  { ...group, payload: { ...group.payload, process_group_id: 1 } },
+  "bound_exceeded",
+);
+fixture(
+  "local-rpc",
+  "authorize-supplied-decision",
+  { ...authorized, direction: "request" },
+  "type_mismatch",
+);
+fixture(
+  "local-rpc",
+  "authorize-other-method",
+  { ...authorized, method: "daemon.status" },
+  "type_mismatch",
+);
+fixture(
+  "local-rpc",
+  "authorize-lock-other-method",
+  { ...authorize, method: "checkout.link" },
+  "type_mismatch",
+);
 fixture(
   "local-execution-assignment",
   "shell",

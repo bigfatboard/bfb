@@ -155,6 +155,24 @@ duplicate fields and a dead/different parent forbid execution. Inherited pipes u
 nonblocking descriptors so their [Go read/write deadlines](https://pkg.go.dev/os#NewFile)
 remain effective; the preparation wait is bounded to 30 seconds.
 
+The fixed helper callbacks use `execution.authorize` with only the local intent
+and lock ID, and `execution.group` with those IDs plus the native group ID. The
+daemon derives the C09 final request from the stored assignment; no supplied
+supervisor, snapshot, provider plan or invocation can replace it. Every request
+authenticates the registered signed peer and reads the existing authenticated
+worktree marker with a live native lock holder. Group registration also verifies
+the exact signed direct child and durably commits its PID/start/group identity
+before replying. Duplicate registration preserves the original group.
+
+Before its first online request, the daemon pins the lock ID locally so that a
+lost response retains C09's possible cleanup binding. Every authorization attempt
+uses the current enrollment connection and a new bounded request, never a cached
+grant. Both daemon and helper require a strict successful C09 response for the
+exact launch/execution/generation within a five-second round trip, with at most
+five seconds of timestamp disagreement. Larger clock disagreement blocks rather
+than extending authority. The daemon rechecks native ownership and the unchanged
+final-request binding after network I/O. It does not send signals or reap children.
+
 The child verifies the authenticated lock record and live native lock holder,
 rechecks checkout/artifacts, pins the exact registered directory for `fchdir`, and
 revalidates executable/configuration sources without starting a new probe process.

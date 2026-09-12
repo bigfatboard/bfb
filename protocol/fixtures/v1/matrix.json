@@ -1191,6 +1191,68 @@
       "expect": "accept"
     },
     {
+      "path": "valid/local-rpc.l05-authorize-request.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l05-authorize-response.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l05-group-request.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l05-group-response.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/local-rpc.l05-group-other-method.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.l05-group-response-identity.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.l05-group-without-lock.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/local-rpc.l05-group-unsafe-pid.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/local-rpc.l05-authorize-supplied-decision.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.l05-authorize-other-method.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.l05-authorize-lock-other-method.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
       "path": "invalid/local-execution-assignment.l05-shell.json",
       "schema": "local-execution-assignment",
       "expect": "reject",

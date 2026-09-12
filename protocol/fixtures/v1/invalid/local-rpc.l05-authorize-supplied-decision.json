@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "request_id": "01K00000000000000000000008",
+  "method": "execution.authorize",
+  "direction": "request",
+  "payload": {
+    "final_authorization": {
+      "schema_version": 1,
+      "launch_id": "01K00000000000000000000008",
+      "run_execution_id": "01K00000000000000000000001",
+      "assignment_generation": 1,
+      "decision": "authorized",
+      "authorized_at": "2026-09-12T12:00:03Z"
+    }
+  }
+}

@@ -13,11 +13,13 @@ import (
 
 	"github.com/qdis/bfb/internal/daemon"
 	"github.com/qdis/bfb/internal/protocol/generated"
+	"github.com/qdis/bfb/internal/runner"
 )
 
 type ServiceOptions struct {
 	InspectHelper func(daemon.Peer) (SupervisorIdentity, error)
 	Now           func() time.Time
+	Connection    func(string) (runner.RunnerConnection, error)
 }
 
 type Service struct {
@@ -25,6 +27,7 @@ type Service struct {
 	mu      sync.RWMutex
 	store   *IntentStore
 	files   *AssignmentFiles
+	paths   daemon.Paths
 	ready   chan struct{}
 	started sync.Once
 }
@@ -51,6 +54,7 @@ func (service *Service) Start(_ context.Context, store *daemon.Store) (func(), e
 	}
 	service.store = NewIntentStore(store.DB)
 	service.files = files
+	service.paths = store.Paths
 	service.started.Do(func() { close(service.ready) })
 	return func() {
 		service.mu.Lock()
@@ -64,7 +68,16 @@ func RegisterRPC(registry *daemon.Registry, service *Service) error {
 	if err := registry.RegisterService("execution", service.Start); err != nil {
 		return err
 	}
-	return registry.Register("execution.register", service.register)
+	for method, handler := range map[string]daemon.Handler{
+		"execution.register":  service.register,
+		"execution.authorize": service.authorize,
+		"execution.group":     service.recordGroup,
+	} {
+		if err := registry.Register(method, handler); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (service *Service) waitReady(ctx context.Context) error {
@@ -81,7 +94,7 @@ func (identity SupervisorIdentity) wire() generated.SupervisorIdentity {
 }
 
 func (assignment LocalAssignment) wire() (generated.LocalExecutionAssignment, error) {
-	if assignment.Supervisor == nil || assignment.State != "registered" {
+	if assignment.Supervisor == nil || (assignment.State != "registered" && assignment.State != "group_ready") {
 		return generated.LocalExecutionAssignment{}, failure("execution_intent_consumed")
 	}
 	wire := generated.LocalExecutionAssignment{

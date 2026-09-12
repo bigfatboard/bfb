@@ -107,27 +107,37 @@ func (permit gatePermit) valid(ready gateReady, child Process, assignment genera
 // The child independently verifies authenticated durable ownership and a live
 // flock holder. A valid-looking pipe permit cannot substitute for either fact.
 func verifyGateLock(paths daemon.Paths, assignment generated.LocalExecutionAssignment, permit gatePermit) error {
+	record, err := readHeldLock(paths, assignment, permit.LockID)
+	if err != nil || record.State != "owned" || record.Group == nil || record.Group.Leader != permit.Child {
+		return failure("containment_unknown")
+	}
+	return nil
+}
+
+// readHeldLock never creates or repairs evidence. A free flock, even with a
+// valid historical ownership record, is not current execution authority.
+func readHeldLock(paths daemon.Paths, assignment generated.LocalExecutionAssignment, lockID string) (LockRecord, error) {
 	directory, err := openExistingPrivateDirectory(worktreeLocksPath(paths))
 	if err != nil {
-		return failure("containment_unknown")
+		return LockRecord{}, failure("containment_unknown")
 	}
 	defer directory.file.Close()
 	store := &LockStore{directory: directory}
 	claim := assignment.Claim
 	binding := LockBinding{ExecutionID: claim.Assignment.RunExecutionId, AssignmentGeneration: claim.Assignment.AssignmentGeneration, FencingGeneration: claim.FencingGeneration, PhysicalWorktreeHash: claim.Snapshot.PhysicalWorktreeHash}
 	record, err := store.read(binding.PhysicalWorktreeHash)
-	if err != nil || record.State != "owned" || record.Binding != binding || record.LockID != permit.LockID || record.Owner.PID != int(assignment.Supervisor.Pid) || record.Owner.StartIdentity != assignment.Supervisor.StartIdentity || record.Group == nil || record.Group.Leader != permit.Child {
-		return failure("containment_unknown")
+	if err != nil || (record.State != "reserved" && record.State != "owned") || record.Binding != binding || record.LockID != lockID || record.Owner.PID != int(assignment.Supervisor.Pid) || record.Owner.StartIdentity != assignment.Supervisor.StartIdentity {
+		return LockRecord{}, failure("containment_unknown")
 	}
 	fence, err := directory.open(lockName(binding.PhysicalWorktreeHash, ".lock"), unix.O_RDONLY)
 	if err != nil {
-		return failure("containment_unknown")
+		return LockRecord{}, failure("containment_unknown")
 	}
 	defer fence.Close()
 	if err := unix.Flock(int(fence.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != unix.EWOULDBLOCK {
-		return failure("containment_unknown")
+		return LockRecord{}, failure("containment_unknown")
 	}
-	return nil
+	return record, nil
 }
 
 // RunExecChild is reachable only through the fixed local __exec entry point.

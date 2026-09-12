@@ -81,6 +81,8 @@ type LocalAssignment struct {
 	IntentID, State, ProviderIdentityHash, CorrelationToken, CreatedAt string
 	Claim                                                              generated.LaunchClaimResult
 	Supervisor                                                         *SupervisorIdentity
+	LockID                                                             string
+	Group                                                              *Process
 }
 
 func newIntentID() (string, error) {
@@ -95,7 +97,7 @@ func newIntentID() (string, error) {
 
 const assignmentColumns = `intent_id,state,provider_identity_hash,correlation_token,created_at,claim_json,supervisor_json,
 execution_id,assignment_generation,workspace_id,project_id,task_id,run_id,runner_id,checkout_id,launch_id,
-physical_worktree_hash,fencing_generation,expires_at`
+physical_worktree_hash,fencing_generation,expires_at,local_lock_id,owned_group_json`
 
 type assignmentScanner interface{ Scan(...any) error }
 
@@ -103,11 +105,12 @@ func scanAssignment(row assignmentScanner) (LocalAssignment, error) {
 	var assignment LocalAssignment
 	var data string
 	var supervisor sql.NullString
+	var lock, group sql.NullString
 	var pinned generated.ExecutionAssignment
 	var launch, physical, expires string
 	var fence int64
 	if err := row.Scan(&assignment.IntentID, &assignment.State, &assignment.ProviderIdentityHash, &assignment.CorrelationToken, &assignment.CreatedAt, &data, &supervisor,
-		&pinned.RunExecutionId, &pinned.AssignmentGeneration, &pinned.WorkspaceId, &pinned.ProjectId, &pinned.TaskId, &pinned.RunId, &pinned.RunnerId, &pinned.CheckoutId, &launch, &physical, &fence, &expires); err != nil {
+		&pinned.RunExecutionId, &pinned.AssignmentGeneration, &pinned.WorkspaceId, &pinned.ProjectId, &pinned.TaskId, &pinned.RunId, &pinned.RunnerId, &pinned.CheckoutId, &launch, &physical, &fence, &expires, &lock, &group); err != nil {
 		return LocalAssignment{}, failure("execution_assignment_invalid")
 	}
 	if !terminalIntent.MatchString(assignment.IntentID) || !worktreeDigest.MatchString(assignment.ProviderIdentityHash) || len(data) > 32768 || strictPrivateJSON([]byte(data), &assignment.Claim) != nil {
@@ -131,6 +134,22 @@ func scanAssignment(row assignmentScanner) (LocalAssignment, error) {
 			return LocalAssignment{}, failure("execution_assignment_invalid")
 		}
 		assignment.Supervisor = &identity
+	}
+	if lock.Valid {
+		if !executionID.MatchString(lock.String) || assignment.Supervisor == nil {
+			return LocalAssignment{}, failure("execution_assignment_invalid")
+		}
+		assignment.LockID = lock.String
+	}
+	if group.Valid {
+		var leader Process
+		if strictPrivateJSON([]byte(group.String), &leader) != nil || !validRecordedProcess(leader) || leader.Zombie || leader.GroupID != leader.PID || assignment.Supervisor == nil || leader.ParentPID != assignment.Supervisor.Process.PID || assignment.LockID == "" {
+			return LocalAssignment{}, failure("execution_assignment_invalid")
+		}
+		assignment.Group = &leader
+	}
+	if (assignment.State == "group_ready" || assignment.State == "running") && assignment.Group == nil {
+		return LocalAssignment{}, failure("execution_assignment_invalid")
 	}
 	return assignment, nil
 }
