@@ -380,7 +380,7 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 | L01 | [Go daemon and CLI kernel](WP-L01-daemon-kernel.md) | `done` | High |
 | L02 | [Exact checkout registry](WP-L02-checkout-registry.md) | `done` | High |
 | L03 | [Provider adapter kit](WP-L03-provider-kit.md) | `done` | High |
-| L04 | [SwiftUI macOS application](WP-L04-macos-app.md) | `in_progress` | High |
+| L04 | [SwiftUI macOS application](WP-L04-macos-app.md) | `done` | High |
 | L05 | [Terminal execution supervisor](WP-L05-terminal-supervisor.md) | `planned` | Very high |
 | L06 | [Hook journal and offline inbox](WP-L06-hook-journal.md) | `planned` | Very high |
 | L07 | [Claude Code reference adapter](WP-L07-claude-adapter.md) | `planned` | High |

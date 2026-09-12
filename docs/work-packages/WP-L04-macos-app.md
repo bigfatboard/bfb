@@ -1,6 +1,6 @@
 # WP-L04 — SwiftUI macOS application
 
-Status: `in_progress`
+Status: `done`
 
 Risk: High
 
@@ -73,4 +73,5 @@ A thin native menu-bar app exposes runner status, browser pairing, wake intents,
 ## Risks and decisions
 
 - Universal Links and Apple Events differ between development and signed distribution; both need repeatable gates.
-- Timo approved development provisioning on 12 September. The BFB explicit App ID, Associated Domains capability and Mac development profile now exist, restricted to the existing developer certificate and this test Mac. The exact clean-checkout gate passed at `0cc3cb9`, including three relaunch cycles. Visual review led to copy/accessibility fixes in `c1653e6`, whose repository verification and cross-build pass. After an unresolved explicit consent request, the updated native gate observed Terminal opening but its Apple Event timing out (`-1712`, reported as `app_delivery_unknown`). The Terminal/OS dialog state needs human inspection because automated access is unavailable. The Mac subsequently locked again. L04 remains in progress until the updated gate passes and its bounded evidence is committed.
+- Clean-checkout certification at `c1653e6` passed the exact target, repository verification, Linux cross-build and clean-worktree assertion. The native gate proves a real fixed-helper Terminal invocation, three daemon-driven app relaunch cycles and notification-denied behavior. The committed [evidence](evidence/WP-L04/manifest.json) separates actual native observations, injected negatives and release-environment limitations.
+- Timo approved development provisioning and resolved the Terminal access prerequisite. An intermediate Apple Event timeout was recorded as an unknown delivery and failed the gate; it was not bypassed or counted as success. Public AASA/CDN discovery, notarization and fresh-account certification remain G02 work.
