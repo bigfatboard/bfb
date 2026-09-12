@@ -37,14 +37,14 @@ type commandRetry struct {
 }
 
 func (service *Service) runQueue(ctx context.Context, store *IntentStore, files *AssignmentFiles) {
-	service.runCommands(ctx, store, "launch", service.wake, 45*time.Second, 5*time.Second, func(ctx context.Context, command LocalCommand) error {
+	service.runCommands(ctx, store, "launch", service.wake, 45*time.Second, 5*time.Second, time.Minute, func(ctx context.Context, command LocalCommand) error {
 		return service.processLaunch(ctx, store, files, command)
 	})
 }
 
 // Each command kind has independent bounded workers. Slow provider preparation
 // cannot occupy the workers responsible for an existing execution's controls.
-func (service *Service) runCommands(ctx context.Context, store *IntentStore, kind string, wake <-chan struct{}, timeout, retryMinimum time.Duration, process func(context.Context, LocalCommand) error) {
+func (service *Service) runCommands(ctx context.Context, store *IntentStore, kind string, wake <-chan struct{}, timeout, retryMinimum, retryMaximum time.Duration, process func(context.Context, LocalCommand) error) {
 	// Registration-only harnesses do not configure a runner transport. Keep
 	// their accepted records untouched until an execution consumer is present.
 	if service.options.Connection == nil {
@@ -92,7 +92,7 @@ func (service *Service) runCommands(ctx context.Context, store *IntentStore, kin
 		case <-ticker.C:
 		case key := <-finished:
 			delete(inFlight, key)
-			delay := max(retryMinimum, min(time.Minute, retry[key].delay*2))
+			delay := max(retryMinimum, min(retryMaximum, retry[key].delay*2))
 			retry[key] = commandRetry{next: time.Now().Add(delay), delay: delay}
 		}
 	}

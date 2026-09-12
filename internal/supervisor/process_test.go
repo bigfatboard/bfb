@@ -124,3 +124,25 @@ func TestSignalCannotUseAReusedPIDIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestSignalRechecksLocalPermissionAfterNativeOwnership(t *testing.T) {
+	leader := ownedGateTestChild(t)
+	group, err := NewGroup(leader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checks := 0
+	err = group.signal(syscall.SIGTERM, func() error {
+		checks++
+		return failure("expired_intent")
+	})
+	assertFailure(t, err, "expired_intent")
+	table, err := InspectProcesses()
+	if err != nil || checks != 1 || !leader.Same(table[leader.PID]) || table[leader.PID].Zombie || group.Unknown {
+		t.Fatal("expired permission signalled or poisoned owned group", err)
+	}
+	group.Leader.StartIdentity = "1:1"
+	if err := group.signal(syscall.SIGTERM, func() error { checks++; return nil }); err == nil || checks != 1 {
+		t.Fatal("permission callback bypassed native identity")
+	}
+}

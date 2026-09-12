@@ -394,7 +394,9 @@ effect owner receives it. Concurrent deliveries have one winner. Applied, reject
 and uncertain effects cannot reopen, and terminal cloud receipts close the inbox
 without overwriting local effect evidence or changing native containment.
 
-The control inbox has four workers independent of launch preparation. It reads
+The control inbox has four workers independent of launch preparation, with a
+one-second retry backoff so a prepared control cannot delay a later result for a
+minute. It reads
 bound metadata and acknowledges recorded local outcomes, never signals or opens
 Terminal. The effect owner must perform its own fresh claim before delivery.
 An acknowledgement does not reclaim the effect: after termination, a new claim
@@ -405,10 +407,46 @@ the original claim and local outcome. Restart marks in-flight native effects
 result. A late reply cannot erase that uncertainty. This timeout does not extend
 the five-second freshness limit for an actual effect.
 
-The durable inbox and delivery barriers are implemented. Native control RPC,
-helper signal handling, focus of the exact existing Terminal and consumption of
-the single resumed launch remain under implementation. The metadata queue does
-not claim a resume or create its child launch before that consumer is connected.
+`execution.control` accepts only the local intent UUID and authenticates the
+original signed helper before reading its assignment. Native inspection must
+verify the original supervisor, live owned group, held local lock and complete
+contained descendant history. A pending signal control obtains a fresh bounded
+C09 claim through its original enrollment and repeats native checks after the
+network response. The original launch deadline is not runtime-control authority;
+the new control's own expiry applies. An ended parent with live owned children
+remains controllable without mistaking the provider for the old BFB exec wrapper.
+
+Delivery returns only the response-only `local-execution-control` document:
+local intent, control/execution IDs, generation, interrupt/terminate/cancel action,
+authorization time and expiry. No PID, group, signal number or invocation crosses
+this boundary. The helper checks exact binding and a five-second round trip,
+then submits the request to its single native lifetime loop. Freshness is checked
+again after native inspection, immediately before `killpg`. Interrupt sends one
+verified `SIGINT`. Terminate/cancel begin the same fixed TERM/five-second-KILL
+shutdown as local helper cancellation; subsequent escalation rechecks native
+identity and does not depend on extending the original control TTL.
+
+The lifetime loop alone observes, signals, restores foreground and reaps. A
+separate cancellable poller cannot block native lifetime on cloud connectivity.
+Per-helper bounded deduplication backs the durable daemon barrier. A pending
+control receives a local rejection if native containment, binding or freshness
+fails before its signal; an error after signal dispatch is `delivery_unknown`,
+including a failed marker write after a successful syscall. Such uncertainty
+retains occupancy and never retries or escalates that effect.
+
+`execution.control_result` accepts only the original local intent, control ID and
+applied/local-rejected/unknown disposition. It authenticates the original helper,
+including after the group has ended, and cannot rebind a control or rewrite its
+terminal local outcome. Fast provider exit still gives the helper one bounded
+result-delivery attempt before it exits. Applied means the signal request was
+accepted, not that a provider turn completed or the run result changed.
+
+Native signal RPC and helper handling are implemented and covered by socket and
+real-process tests with the signing boundary injected. Focus of the exact existing
+Terminal, consumption of the single resumed launch, production entry-point wiring
+and real signed Terminal integration remain under implementation. The metadata
+queue does not claim a resume or create its child launch before its consumer is
+connected. These tests are not a substitute for real Terminal acceptance.
 
 Expired/cancelled/revoked launches, unavailable sessions, consent denial, stale
 snapshots, changed providers and occupied/moved checkouts fail with bounded typed

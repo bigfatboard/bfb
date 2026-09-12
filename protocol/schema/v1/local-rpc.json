@@ -35,6 +35,12 @@
         "wake_intent_id": { "$ref": "primitives.json#/$defs/Ulid" },
         "terminal_intent_id": { "$ref": "primitives.json#/$defs/TerminalIntentId" },
         "execution_assignment": { "$ref": "local-execution-assignment.json" },
+        "execution_control": { "$ref": "local-execution-control.json" },
+        "control_id": { "$ref": "primitives.json#/$defs/Ulid" },
+        "control_disposition": {
+          "type": "string",
+          "enum": ["applied", "local_rejected", "delivery_unknown"]
+        },
         "local_lock_id": { "$ref": "primitives.json#/$defs/Ulid" },
         "process_group_id": { "type": "integer", "minimum": 2, "maximum": 2147483647 },
         "final_authorization": { "$ref": "final-authorization.json" },
@@ -125,6 +131,49 @@
     }
   },
   "allOf": [
+    {
+      "if": {
+        "required": ["payload"],
+        "properties": {
+          "payload": {
+            "type": "object",
+            "required": ["execution_control"],
+            "properties": { "execution_control": {} }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "direction": { "const": "response" },
+          "method": { "const": "execution.control" }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["payload"],
+        "properties": {
+          "payload": {
+            "type": "object",
+            "anyOf": [
+              { "required": ["control_id"], "properties": { "control_id": {} } },
+              { "required": ["control_disposition"], "properties": { "control_disposition": {} } }
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "direction": { "const": "request" },
+          "method": { "const": "execution.control_result" },
+          "payload": {
+            "type": "object",
+            "required": ["terminal_intent_id", "control_id", "control_disposition"],
+            "properties": { "terminal_intent_id": {}, "control_id": {}, "control_disposition": {} }
+          }
+        }
+      }
+    },
     {
       "if": {
         "required": ["payload"],

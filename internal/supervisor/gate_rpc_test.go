@@ -57,7 +57,7 @@ func finalFixture(t *testing.T) *gateRPCFixture {
 		fixture.requests.Add(1)
 		var request generated.LaunchFinalRequest
 		if json.Unmarshal(body, &request) != nil || method != "POST" || path != "launch/authorize" || request != finalRequest(fixture.assignment, fixture.lock.record.LockID) {
-			t.Error("cloud request did not derive the stored assignment")
+			t.Errorf("cloud request did not derive the stored assignment: %s %s", method, path)
 			return nil, failure("invalid_request")
 		}
 		stored, err := store.ByIntent(ctx, issued.IntentID)
@@ -88,9 +88,25 @@ func finalFixture(t *testing.T) *gateRPCFixture {
 		},
 	})
 	fixture.service = service
-	registry := daemon.NewRegistry()
-	if err := RegisterRPC(registry, service); err != nil {
+	files, err := OpenAssignmentFiles(local.Paths.Root)
+	if err != nil {
 		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = files.Close() })
+	service.store, service.files, service.paths = store, files, local.Paths
+	close(service.ready)
+	registry := daemon.NewRegistry()
+	// This fixture owns only gate RPC I/O. Starting background maintenance
+	// against its authorization-only transport races unrelated reconcile
+	// requests into the fault counters. Worker integration has separate gates.
+	for method, handler := range map[string]daemon.Handler{
+		"execution.register":  service.register,
+		"execution.authorize": service.authorize,
+		"execution.group":     service.recordGroup,
+	} {
+		if err := registry.Register(method, handler); err != nil {
+			t.Fatal(err)
+		}
 	}
 	server, err := daemon.Start(context.Background(), local.Paths, registry)
 	if err != nil {

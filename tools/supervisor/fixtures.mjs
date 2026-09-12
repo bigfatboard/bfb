@@ -53,6 +53,85 @@ function fixture(schema, suffix, value, category) {
 fixture("local-execution-assignment", "synthetic", assignment);
 fixture("local-rpc", "registration-request", request);
 fixture("local-rpc", "registration-response", response);
+const control = {
+  schema_version: 1,
+  terminal_intent_id: intent,
+  control_id: claim.specification.launch_id,
+  run_execution_id: claim.assignment.run_execution_id,
+  assignment_generation: claim.assignment.assignment_generation,
+  action: "interrupt",
+  authorized_at: "2026-09-12T12:00:03Z",
+  expires_at: "2026-09-12T12:00:33Z",
+};
+const controlPoll = { ...request, method: "execution.control" };
+const controlReply = {
+  ...controlPoll,
+  direction: "response",
+  payload: { execution_control: control },
+};
+const controlResult = {
+  ...request,
+  method: "execution.control_result",
+  payload: {
+    terminal_intent_id: intent,
+    control_id: control.control_id,
+    control_disposition: "applied",
+  },
+};
+for (const action of ["interrupt", "terminate", "cancel"])
+  fixture("local-execution-control", action, { ...control, action });
+fixture("local-rpc", "control-poll", controlPoll);
+fixture("local-rpc", "control-reply", controlReply);
+fixture("local-rpc", "control-empty", { ...controlReply, payload: {} });
+fixture("local-rpc", "control-result-empty", {
+  ...controlResult,
+  direction: "response",
+  payload: {},
+});
+for (const control_disposition of ["applied", "local_rejected", "delivery_unknown"])
+  fixture("local-rpc", "control-result-" + control_disposition, {
+    ...controlResult,
+    payload: { ...controlResult.payload, control_disposition },
+  });
+for (const [name, value, category] of [
+  ["signal", { ...control, signal: 9 }, "additional_field"],
+  ["pid", { ...control, process_group_id: 1235 }, "additional_field"],
+  ["argv", { ...control, argv: ["synthetic"] }, "shell_data"],
+  ["resume", { ...control, action: "resume" }, "type_mismatch"],
+  ["focus", { ...control, action: "focus" }, "type_mismatch"],
+  ["no-time", { ...control, authorized_at: undefined }, "missing_field"],
+  ["no-intent", { ...control, terminal_intent_id: undefined }, "missing_field"],
+  ["cloud-intent", { ...control, terminal_intent_id: control.control_id }, "bound_exceeded"],
+  ["generation", { ...control, assignment_generation: 0 }, "bound_exceeded"],
+])
+  fixture("local-execution-control", name, value, category);
+for (const [name, value, category] of [
+  ["request", { ...controlReply, direction: "request" }, "type_mismatch"],
+  ["method", { ...controlReply, method: "execution.register" }, "type_mismatch"],
+  ["result-response", { ...controlResult, direction: "response" }, "type_mismatch"],
+  ["result-method", { ...controlResult, method: "execution.control" }, "type_mismatch"],
+  [
+    "result-no-id",
+    { ...controlResult, payload: { ...controlResult.payload, control_id: undefined } },
+    "missing_field",
+  ],
+  [
+    "result-no-outcome",
+    { ...controlResult, payload: { ...controlResult.payload, control_disposition: undefined } },
+    "missing_field",
+  ],
+  [
+    "result-no-intent",
+    { ...controlResult, payload: { ...controlResult.payload, terminal_intent_id: undefined } },
+    "missing_field",
+  ],
+  [
+    "result-fake",
+    { ...controlResult, payload: { ...controlResult.payload, control_disposition: "completed" } },
+    "type_mismatch",
+  ],
+])
+  fixture("local-rpc", "control-" + name, value, category);
 const observation = {
   schema_version: 1,
   event_id: claim.specification.launch_id,

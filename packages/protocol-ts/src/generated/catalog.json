@@ -1,7 +1,7 @@
 {
   "protocol": "bfb-wire/1",
   "schema_version": 1,
-  "schema_hash": "ef539b91bcd1dc914b03123e5239a9ee813aac841caf48d4480a4c6804ab1376",
+  "schema_hash": "a1ba674eb506a6b308aa5904ceb86253d9a35b231c289958fa3a414c8df635bd",
   "documents": [
     {
       "name": "event-envelope",
@@ -154,6 +154,10 @@
     {
       "name": "local-execution-observation",
       "schema": "local-execution-observation.json"
+    },
+    {
+      "name": "local-execution-control",
+      "schema": "local-execution-control.json"
     }
   ]
 }

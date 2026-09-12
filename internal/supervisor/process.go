@@ -127,6 +127,12 @@ func (group *Group) Observe(table ProcessTable) GroupObservation {
 // signals. The supervisor keeps its direct child unreaped until the whole group
 // ends, reserving the leader's PID against reuse. Signal and reap must serialize.
 func (group *Group) Signal(signal syscall.Signal) error {
+	return group.signal(signal, nil)
+}
+
+// authorize is a local precondition evaluated after native inspection and
+// immediately before killpg. It cannot choose or replace the owned target.
+func (group *Group) signal(signal syscall.Signal, authorize func() error) error {
 	if signal != syscall.SIGINT && signal != syscall.SIGTERM && signal != syscall.SIGHUP && signal != syscall.SIGKILL {
 		return failure("invalid_request")
 	}
@@ -139,6 +145,11 @@ func (group *Group) Signal(signal syscall.Signal) error {
 	leader := table[group.Leader.PID]
 	if observation.State != "live" || !group.Leader.Same(leader) || leader.ParentPID != os.Getpid() || group.Leader.GroupID <= 1 || group.Leader.GroupID == syscall.Getpgrp() {
 		return failure("containment_unknown")
+	}
+	if authorize != nil {
+		if err := authorize(); err != nil {
+			return err
+		}
 	}
 	if err := syscall.Kill(-group.Leader.GroupID, signal); err != nil {
 		return failure("execution_signal_failed")

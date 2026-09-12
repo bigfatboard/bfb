@@ -221,7 +221,7 @@ func TestControlWorkerCapacityIsIndependentOfBlockedLaunches(t *testing.T) {
 	}
 	var workers sync.WaitGroup
 	workers.Go(func() {
-		service.runCommands(ctx, f.store, "launch", service.wake, time.Minute, time.Second, func(ctx context.Context, _ LocalCommand) error {
+		service.runCommands(ctx, f.store, "launch", service.wake, time.Minute, time.Second, time.Minute, func(ctx context.Context, _ LocalCommand) error {
 			launchStarted <- struct{}{}
 			<-ctx.Done()
 			return ctx.Err()

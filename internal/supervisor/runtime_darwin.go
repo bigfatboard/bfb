@@ -89,5 +89,10 @@ func RunHelper(ctx context.Context, paths daemon.Paths, intent string, registry 
 	// Closing the reader or the bounded startup context cannot end the owned
 	// provider lifetime. Native supervision continues under the helper context.
 	_ = execution.db.Close()
+	if startErr == nil {
+		controls, stopControls := startHelperControls(paths, assignment)
+		defer stopControls()
+		return superviseOwnedControls(ctx, process, terminal, foreground, startErr, assignment, controls)
+	}
 	return superviseOwned(ctx, process, terminal, foreground, startErr)
 }

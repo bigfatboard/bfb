@@ -300,13 +300,17 @@ func (lock *WorktreeLock) Observe() (GroupObservation, error) {
 }
 
 func (lock *WorktreeLock) Signal(signal syscall.Signal) error {
+	return lock.signal(signal, nil)
+}
+
+func (lock *WorktreeLock) signal(signal syscall.Signal, authorize func() error) error {
 	lock.mu.Lock()
 	defer lock.mu.Unlock()
 	observation, err := lock.observe()
 	if err != nil || observation.State != "live" {
 		return failure("containment_unknown")
 	}
-	err = lock.record.Group.Signal(signal)
+	err = lock.record.Group.signal(signal, authorize)
 	if lock.record.Group.Unknown {
 		lock.record.State = "containment_unknown"
 	}

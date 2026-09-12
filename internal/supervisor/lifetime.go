@@ -8,6 +8,9 @@ import (
 	"os"
 	"syscall"
 	"time"
+
+	"github.com/qdis/bfb/internal/daemon"
+	"github.com/qdis/bfb/internal/protocol/generated"
 )
 
 const processInspectionInterval = 100 * time.Millisecond
@@ -17,6 +20,10 @@ const processTerminationGrace = 5 * time.Second
 // failed. It never reads provider stdio. Cloud/daemon availability is unrelated
 // to local lock lifetime, and a provider exit does not submit a run result.
 func superviseOwned(ctx context.Context, process *gatedProcess, terminal *os.File, foreground int, startErr error) error {
+	return superviseOwnedControls(ctx, process, terminal, foreground, startErr, generated.LocalExecutionAssignment{}, nil)
+}
+
+func superviseOwnedControls(ctx context.Context, process *gatedProcess, terminal *os.File, foreground int, startErr error, assignment generated.LocalExecutionAssignment, controls <-chan helperControl) error {
 	if process == nil || process.command == nil || process.command.Process == nil || process.lock == nil || terminal == nil || foreground <= 1 {
 		return failure("invalid_request")
 	}
@@ -24,6 +31,9 @@ func superviseOwned(ctx context.Context, process *gatedProcess, terminal *os.Fil
 	defer lock.Close() // Only a verified Release clears durable occupancy.
 	lock.mu.Lock()
 	bound := lock.record.Group != nil && lock.record.Group.Leader == process.leader
+	if controls != nil {
+		bound = bound && assignment.Claim.Assignment.RunExecutionId == lock.record.Binding.ExecutionID && assignment.Claim.Assignment.AssignmentGeneration == lock.record.Binding.AssignmentGeneration
+	}
 	lock.mu.Unlock()
 	if !validRecordedProcess(process.leader) || process.leader.ParentPID != os.Getpid() || process.command.Process.Pid != process.leader.PID || !bound {
 		// A pending spawn without captured identity cannot be made safe by
@@ -34,6 +44,13 @@ func superviseOwned(ctx context.Context, process *gatedProcess, terminal *os.Fil
 	defer ticker.Stop()
 	var stopping time.Time
 	terminationSent, killSent := false, false
+	completed := map[string]string{}
+	var pending *helperControl
+	defer func() {
+		if pending != nil {
+			pending.complete("local_rejected")
+		}
+	}()
 	for {
 		observation, err := lock.Observe()
 		if err == nil && observation.State == "gone" {
@@ -53,6 +70,56 @@ func superviseOwned(ctx context.Context, process *gatedProcess, terminal *os.Fil
 		}
 		if ctx.Err() != nil && stopping.IsZero() {
 			stopping = time.Now()
+		}
+		if pending != nil {
+			control := pending.delivery
+			var signalErr error
+			authorize := func() error {
+				if !validHelperControl(control, assignment, time.Now()) {
+					return failure("expired_intent")
+				}
+				return nil
+			}
+			disposition, duplicate := completed[control.ControlId]
+			if !duplicate {
+				disposition = "local_rejected"
+				if len(completed) < 8192 && err == nil && observation.State == "live" && validHelperControl(control, assignment, time.Now()) {
+					switch control.Action {
+					case "interrupt":
+						if stopping.IsZero() {
+							disposition = "applied"
+							signalErr = lock.signal(syscall.SIGINT, authorize)
+						}
+					case "terminate", "cancel":
+						disposition = "applied"
+						if !terminationSent {
+							signalErr = lock.signal(syscall.SIGTERM, authorize)
+							if signalErr == nil {
+								stopping, terminationSent = time.Now(), true
+							}
+						}
+					}
+				}
+				if signalErr != nil {
+					disposition = "delivery_unknown"
+					if daemon.AsFailure(signalErr).Code == "expired_intent" {
+						disposition, signalErr = "local_rejected", nil
+					}
+				}
+				if len(completed) < 8192 {
+					completed[control.ControlId] = disposition
+				}
+			}
+			pending.complete(disposition)
+			pending = nil
+			if signalErr != nil {
+				// Signal may have succeeded before durable marker persistence
+				// failed. Do not retry or escalate an uncertain native effect.
+				if fresh, inspectErr := lock.Observe(); inspectErr == nil && fresh.State == "gone" {
+					return finishOwned(process, terminal, foreground, startErr, true)
+				}
+				return failure("containment_unknown")
+			}
 		}
 		if !stopping.IsZero() && observation.State == "live" && err == nil {
 			if !terminationSent {
@@ -77,13 +144,19 @@ func superviseOwned(ctx context.Context, process *gatedProcess, terminal *os.Fil
 		}
 		// A cancelled context must not turn this into a busy loop or cause
 		// early reaping. Continue native observation through verified group end.
-		if stopping.IsZero() {
-			select {
-			case <-ctx.Done():
-			case <-ticker.C:
+		cancelled := ctx.Done()
+		if !stopping.IsZero() {
+			cancelled = nil
+		}
+		select {
+		case <-cancelled:
+		case <-ticker.C:
+		case control, ok := <-controls:
+			if ok {
+				pending = &control
+			} else {
+				controls = nil
 			}
-		} else {
-			<-ticker.C
 		}
 	}
 }

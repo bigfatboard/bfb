@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "request_id": "01K00000000000000000000008",
+  "method": "execution.register",
+  "direction": "response",
+  "payload": {
+    "execution_control": {
+      "schema_version": 1,
+      "terminal_intent_id": "e0da52a9-d0cb-47d8-867b-e08f684b9001",
+      "control_id": "01K00000000000000000000008",
+      "run_execution_id": "01K00000000000000000000001",
+      "assignment_generation": 1,
+      "action": "interrupt",
+      "authorized_at": "2026-09-12T12:00:03Z",
+      "expires_at": "2026-09-12T12:00:33Z"
+    }
+  }
+}

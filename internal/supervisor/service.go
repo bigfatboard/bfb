@@ -136,9 +136,11 @@ func RegisterRPC(registry *daemon.Registry, service *Service) error {
 		return err
 	}
 	for method, handler := range map[string]daemon.Handler{
-		"execution.register":  service.register,
-		"execution.authorize": service.authorize,
-		"execution.group":     service.recordGroup,
+		"execution.register":       service.register,
+		"execution.authorize":      service.authorize,
+		"execution.group":          service.recordGroup,
+		"execution.control":        service.pollControl,
+		"execution.control_result": service.recordControl,
 	} {
 		if err := registry.Register(method, handler); err != nil {
 			return err

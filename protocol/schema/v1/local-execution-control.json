@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/local-execution-control.json",
+  "title": "LocalExecutionControl",
+  "description": "One-way, freshly authorized delivery to the original signed execution helper. No PID, signal number, invocation or cached launch authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "terminal_intent_id",
+    "control_id",
+    "run_execution_id",
+    "assignment_generation",
+    "action",
+    "authorized_at",
+    "expires_at"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "terminal_intent_id": { "$ref": "primitives.json#/$defs/TerminalIntentId" },
+    "control_id": { "$ref": "primitives.json#/$defs/Ulid" },
+    "run_execution_id": { "$ref": "primitives.json#/$defs/Ulid" },
+    "assignment_generation": { "$ref": "primitives.json#/$defs/AssignmentGeneration" },
+    "action": { "type": "string", "enum": ["interrupt", "terminate", "cancel"] },
+    "authorized_at": { "$ref": "primitives.json#/$defs/UtcTimestamp" },
+    "expires_at": { "$ref": "primitives.json#/$defs/UtcTimestamp" }
+  }
+}

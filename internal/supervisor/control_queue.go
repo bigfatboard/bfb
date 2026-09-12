@@ -11,7 +11,7 @@ import (
 )
 
 func (service *Service) runControlQueue(ctx context.Context, store *IntentStore) {
-	service.runCommands(ctx, store, "run_control", service.controlWake, 15*time.Second, time.Second, func(ctx context.Context, command LocalCommand) error {
+	service.runCommands(ctx, store, "run_control", service.controlWake, 15*time.Second, time.Second, time.Second, func(ctx context.Context, command LocalCommand) error {
 		return service.processControl(ctx, store, command)
 	})
 }

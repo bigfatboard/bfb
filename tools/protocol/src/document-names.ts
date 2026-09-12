@@ -240,6 +240,12 @@ export const DOCUMENTS: DocumentSpec[] = [
     goType: "LocalExecutionObservation",
     tsType: "LocalExecutionObservation",
   },
+  {
+    name: "local-execution-control",
+    schemaFile: "local-execution-control.json",
+    goType: "LocalExecutionControl",
+    tsType: "LocalExecutionControl",
+  },
 ];
 
 export const SHELL_FIELDS = [
