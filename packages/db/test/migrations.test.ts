@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { MIGRATION_HEAD } from "../src/index.js";
 import {
   applyMigrationsForVerification,
   assertNoStartupMigrationImport,
@@ -112,6 +113,7 @@ describe("d1 migrations", () => {
       discoveredSqlFiles(migrationsDir),
     );
     expect(migrationHead(migrationsDir)).toBe(migrations.at(-1)?.id);
+    expect(MIGRATION_HEAD).toBe(migrationHead(migrationsDir));
   });
 
   it("rejects manifest head, ordering, and checked-in file drift", () => {

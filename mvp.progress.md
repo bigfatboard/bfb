@@ -2,7 +2,7 @@
 
 Updated: 12 September 2026
 
-Status: In progress — C09 local gates pass; clean-checkout certification is next
+Status: In progress — C09 clean-checkout certification; migration-head drift corrected
 
 Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 
@@ -86,3 +86,4 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 - 12 September: committed the provisioning/helper corrections and three-cycle native regression gate as `0cc3cb9`. A clean checkout passed frozen installation, full repository verification (462 TypeScript tests, Go checks and 11 Swift tests), Linux cross-build and the clean-worktree assertion. The current native probe also confirmed the verified helper works through the private filesystem alias and the console remains locked. Exact `pnpm test:l04` certification and visual review remain pending; the partial clean checks do not mark L04 done.
 - 12 September: after Timo unlocked the Mac, exact `pnpm test:l04` passed in the clean `0cc3cb9` checkout, including all three relaunch cycles. Reviewed the real menu/status window, offline recovery, scrolling and keyboard focus. Committed the neutral heading, accurate Start runner instruction and general-purpose busy label as `c1653e6`; its clean repository verification and cross-build pass. The explicit Terminal-consent control remained pending without an observed decision. The following native gate failed with `app_delivery_unknown`; temporary bounded tracing proved Terminal opened, then the Apple Event send timed out with `-1712`. All temporary diagnostics were removed and owned test processes closed. Automated access to Terminal/system consent UI is unavailable; human dialog inspection is needed, and the Mac locked again. No completion evidence or downstream implementation is claimed.
 - 12 September: Timo reported Terminal access allowed and Terminal started. The unchanged `c1653e6` clean checkout passed exact `pnpm test:l04`, now including an actual synthetic fixed-UUID helper receipt and four Terminal acknowledgements across the initial open and three relaunch cycles. Notification denial, malicious-link/socket/signature negatives and independent daemon/child/storage survival pass. Recorded bounded evidence and marked L04 done; C09 durable launch orchestration is next. This completes the milestone packages, not the running full MVP or release certification.
+- 12 September: committed C09 implementation as `9b92ef7`. Its exact gate and full repository verification pass in a clean checkout, as do C01 and populated/empty D1 regression gates. C07 exposed a stale exported migration-head constant despite successful D1 migration; corrected the constant and added a manifest-drift assertion. Clean certification is being repeated before C09 can be marked done.
