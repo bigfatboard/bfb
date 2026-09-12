@@ -257,12 +257,12 @@ type RunnerCommandPull struct {
 }
 
 type RunnerInventory struct {
-	SchemaVersion int64            `json:"schema_version"`
-	WorkspaceId   Ulid             `json:"workspace_id"`
-	RunnerId      Ulid             `json:"runner_id"`
-	Revision      int64            `json:"revision"`
-	Checkouts     []map[string]any `json:"checkouts"`
-	Providers     []map[string]any `json:"providers"`
+	SchemaVersion int64             `json:"schema_version"`
+	WorkspaceId   Ulid              `json:"workspace_id"`
+	RunnerId      Ulid              `json:"runner_id"`
+	Revision      int64             `json:"revision"`
+	Checkouts     []CheckoutSummary `json:"checkouts"`
+	Providers     []map[string]any  `json:"providers"`
 }
 
 type ExecutionAssignment struct {
@@ -403,9 +403,9 @@ type LaunchSnapshot struct {
 
 type LaunchClaimResult struct {
 	SchemaVersion     int64                `json:"schema_version"`
-	Specification     map[string]any       `json:"specification"`
-	Snapshot          map[string]any       `json:"snapshot"`
-	Assignment        map[string]any       `json:"assignment"`
+	Specification     LaunchSpecification  `json:"specification"`
+	Snapshot          LaunchSnapshot       `json:"snapshot"`
+	Assignment        ExecutionAssignment  `json:"assignment"`
 	FencingGeneration AssignmentGeneration `json:"fencing_generation"`
 	LeaseExpiresAt    UtcTimestamp         `json:"lease_expires_at"`
 }

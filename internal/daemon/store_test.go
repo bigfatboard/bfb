@@ -113,6 +113,44 @@ func TestMigrationRollbackAndChecksum(t *testing.T) {
 	}
 }
 
+func TestExecutionMigrationPreservesPriorStateAndRollsBack(t *testing.T) {
+	paths := testPaths(t)
+	previous, err := openStore(context.Background(), paths, kernelMigrations()[:3], nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = previous.DB.Exec("INSERT INTO process_observations VALUES ('preserved-execution', 123, 'synthetic', 'ended')"); err != nil {
+		t.Fatal(err)
+	}
+	_ = previous.Close()
+	_, err = openStore(context.Background(), paths, kernelMigrations(), func(version int) error {
+		if version == 4 {
+			return errors.New("synthetic execution migration interruption")
+		}
+		return nil
+	})
+	if err == nil {
+		t.Fatal("execution migration interruption was ignored")
+	}
+	previous, err = openStore(context.Background(), paths, kernelMigrations()[:3], nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var count int
+	if err = previous.DB.QueryRow("SELECT count(*) FROM sqlite_master WHERE name = 'local_execution_assignments'").Scan(&count); err != nil || count != 0 {
+		t.Fatal("partial execution migration survived rollback", err)
+	}
+	_ = previous.Close()
+	upgraded := openTestStore(t, paths)
+	defer upgraded.Close()
+	if err = upgraded.DB.QueryRow("SELECT count(*) FROM process_observations WHERE id = 'preserved-execution' AND state = 'ended'").Scan(&count); err != nil || count != 1 {
+		t.Fatal("execution migration lost prior state", err)
+	}
+	if err = upgraded.DB.QueryRow("SELECT count(*) FROM schema_migrations").Scan(&count); err != nil || count != StorageVersion {
+		t.Fatal("execution migration head mismatch", err)
+	}
+}
+
 func TestCheckoutMigrationUpgradesKernelAndRollsBackAtomically(t *testing.T) {
 	p := testPaths(t)
 	previous, err := openStore(context.Background(), p, kernelMigrations()[:1], nil)

@@ -88,6 +88,37 @@ func requireCode(t *testing.T, err error, code string) {
 	}
 }
 
+func TestInstallationIdentityAcrossIndependentHelpers(t *testing.T) {
+	registry, installation, _, _ := fixture(t)
+	probe := mustProbe(t, registry, installation)
+	expected, err := registry.IdentityHash(probe)
+	if err != nil || !strings.HasPrefix(expected, "sha256:") {
+		t.Fatal("missing sealed installation identity", err)
+	}
+	other, err := provider.NewRegistry(providers.Descriptors())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = other.IdentityHash(probe); err == nil {
+		t.Fatal("a different registry accepted the original probe")
+	}
+	current := mustProbe(t, other, installation)
+	actual, err := other.IdentityHash(current)
+	if err != nil || expected != actual {
+		t.Fatal("unchanged installation changed identity across probes", err)
+	}
+	current.Version = "99.0.0"
+	_, err = other.IdentityHash(current)
+	requireCode(t, err, "provider_probe_invalid")
+	if err = os.WriteFile(installation.ConfigFiles[0].Path, []byte(`{"synthetic":true}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	changed, err := other.IdentityHash(mustProbe(t, other, installation))
+	if err != nil || expected == changed {
+		t.Fatal("configuration swap retained the installation identity", err)
+	}
+}
+
 func TestManifestDiscoveryAndIntersection(t *testing.T) {
 	registry, installation, input, policy := fixture(t)
 	if !reflect.DeepEqual(registry.Names(), []string{"claude", "codex", "fake", "grok"}) {

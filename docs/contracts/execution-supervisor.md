@@ -22,6 +22,22 @@ the local intent or returning private execution data. A duplicate helper cannot
 take over a consumed intent. A lost reply may be reconciled only with the same
 registered process; a crash never authorizes a fresh automatic execution.
 
+Local migration `004_execution_supervision.sql` separates the durable command
+inbox, immutable assignment/intent identity, process observations and control-effect
+dispositions. The command's original claim key survives redelivery. Issuing an
+intent or offering it to Terminal is single-use under concurrent transactions;
+unknown delivery cannot mint or offer another one. Native registration is committed
+before returning the assignment. Database triggers prevent rebinding the execution
+or clearing an already registered supervisor.
+
+A registered helper reads the existing checkout registry through SQLite
+[read-only mode](https://www.sqlite.org/uri.html), with schema checksum validation.
+It does not run daemon startup migrations or reset process observations. WAL change
+detection remains enabled. Its independent L03 probe must reproduce the claimed
+installation-identity digest, covering executable/configuration fingerprints,
+version, integration and manifest/capabilities. Fresh probe timestamps and the
+helper's normal local environment are not durable identity or cloud credentials.
+
 The helper acquires the Mac-wide physical-worktree lock and durable recovery
 marker. With that fence held it repeats checkout, repository policy and provider
 probe checks, obtains a new online C09 final authorization, and revalidates local

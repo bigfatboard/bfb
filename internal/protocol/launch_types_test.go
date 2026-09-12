@@ -38,3 +38,26 @@ func TestLaunchConfigurationTypedRoundTrip(t *testing.T) {
 		t.Fatal("typed launch did not retain its entire wire configuration")
 	}
 }
+
+func TestClaimReferencesKeepNamedGoTypes(t *testing.T) {
+	root, err := protocol.RepositoryRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(protocol.FixturePath(root, "valid/launch-claim-result.c09-synthetic.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var claim generated.LaunchClaimResult
+	if err = json.Unmarshal(data, &claim); err != nil {
+		t.Fatal(err)
+	}
+	if claim.Specification.RunExecutionId != claim.Assignment.RunExecutionId || claim.Snapshot.WorkspaceId != claim.Assignment.WorkspaceId || claim.Snapshot.ExecutionConfig.Provider != "fake" {
+		t.Fatal("claim references lost their typed identity and configuration")
+	}
+	roundTrip, err := json.Marshal(claim)
+	want, got := protocol.DecodeWireDocument("launch-claim-result", data), protocol.DecodeWireDocument("launch-claim-result", roundTrip)
+	if err != nil || !want.OK || !got.OK || want.JSON != got.JSON {
+		t.Fatal("typed claim did not retain its full specification, snapshot and assignment")
+	}
+}

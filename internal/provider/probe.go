@@ -260,6 +260,26 @@ func (registry *Registry) Probe(ctx context.Context, name string, installation I
 
 func probeSeal(probe Probe) string { data, _ := json.Marshal(probe); return Hash(data) }
 
+// IdentityHash binds a separately re-probed helper to the original local
+// installation. Time and ambient environment are not durable credentials; a
+// new probe must still pass its own freshness, health and capability checks.
+func (registry *Registry) IdentityHash(probe Probe) (string, error) {
+	if probe.registry != registry || probe.seal != probeSeal(probe) {
+		return "", Failure("provider_probe_invalid")
+	}
+	data, err := json.Marshal(struct {
+		Domain                                string
+		Provider, Version, ManifestID, Status string
+		Capabilities                          []string
+		Executable                            FileStamp
+		ConfigurationHash, IntegrationHash    string
+	}{"bfb-provider-installation/1", probe.Provider, probe.Version, probe.ManifestID, probe.Status, probe.Capabilities, probe.executable, probe.configurationHash, probe.installation.IntegrationHash})
+	if err != nil {
+		return "", Failure("provider_probe_invalid")
+	}
+	return Hash(data), nil
+}
+
 func (registry *Registry) Revalidate(ctx context.Context, plan Plan, now time.Time) error {
 	if plan.probe.registry != registry || plan.probe.seal != probeSeal(plan.probe) {
 		return Failure("provider_probe_invalid")

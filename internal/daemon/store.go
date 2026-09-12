@@ -20,10 +20,13 @@ import (
 //go:embed migrations/*.sql
 var migrationFiles embed.FS
 
-const StorageVersion = 3
+const StorageVersion = 4
 const applicationID = 0x424642
 
-type Store struct{ DB *sql.DB }
+type Store struct {
+	DB    *sql.DB
+	Paths Paths
+}
 
 type migration struct {
 	name, sql string
@@ -88,7 +91,7 @@ func openStore(ctx context.Context, paths Paths, migrations []migration, beforeC
 		return nil, &Failure{Code: "storage_failed"}
 	}
 	failed = false
-	return &Store{DB: db}, nil
+	return &Store{DB: db, Paths: paths}, nil
 }
 
 func applyMigrations(ctx context.Context, db *sql.DB, migrations []migration, beforeCommit func(int) error) error {

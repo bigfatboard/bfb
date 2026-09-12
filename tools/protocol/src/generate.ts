@@ -267,6 +267,10 @@ function goTypeOf(
     if (primitiveName && exportedPrimitiveSet.has(primitiveName)) {
       return primitiveName;
     }
+    const document = DOCUMENTS.find((candidate) => candidate.schemaFile === schema.$ref);
+    if (document) {
+      return document.goType;
+    }
     const resolved = resolveRef(rootSchema, schema.$ref, registry);
     return goTypeOf(resolved.schema, resolved.owner, registry, fieldName);
   }
