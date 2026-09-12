@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/launch-reconciliation.json",
+  "title": "LaunchReconciliation",
+  "description": "Cleanup-only binding for an already won claim; never execution configuration or launch authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "workspace_id",
+    "runner_id",
+    "launch_id",
+    "run_execution_id",
+    "assignment_generation",
+    "physical_worktree_hash",
+    "launch_state",
+    "reservation_state"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "workspace_id": { "$ref": "primitives.json#/$defs/Ulid" },
+    "runner_id": { "$ref": "primitives.json#/$defs/Ulid" },
+    "launch_id": { "$ref": "primitives.json#/$defs/Ulid" },
+    "run_execution_id": { "$ref": "primitives.json#/$defs/Ulid" },
+    "assignment_generation": { "$ref": "primitives.json#/$defs/AssignmentGeneration" },
+    "physical_worktree_hash": { "$ref": "primitives.json#/$defs/Sha256Digest" },
+    "launch_state": { "type": "string", "enum": ["claimed", "started", "rejected", "expired"] },
+    "reservation_state": {
+      "type": "string",
+      "enum": ["reserved", "live", "containment_unknown", "released", "superseded"]
+    },
+    "fencing_generation": { "$ref": "primitives.json#/$defs/AssignmentGeneration" },
+    "observation_sequence": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "lease_expires_at": { "$ref": "primitives.json#/$defs/UtcTimestamp" }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "reservation_state": { "const": "superseded" } },
+        "required": ["reservation_state"]
+      },
+      "then": {
+        "properties": {
+          "fencing_generation": { "not": {} },
+          "observation_sequence": { "not": {} },
+          "lease_expires_at": { "not": {} }
+        }
+      },
+      "else": {
+        "properties": {
+          "fencing_generation": {},
+          "observation_sequence": {},
+          "lease_expires_at": {}
+        },
+        "required": ["fencing_generation", "observation_sequence", "lease_expires_at"]
+      }
+    }
+  ]
+}

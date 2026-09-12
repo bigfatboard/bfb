@@ -180,19 +180,39 @@ describe("launch browser and native routes", () => {
         )
       ).status,
     ).toBe(403);
-    const claim = await f.send(
-      await f.signed("launch/claim", {
-        schema_version: 1,
-        launch_id: launch.launch_id,
-        runner_id: f.runner,
-        idempotency_key: randomUlid(),
-        claimed_at: LAUNCH_NOW,
-      }),
-    );
+    const claimRequest = {
+      schema_version: 1,
+      launch_id: launch.launch_id,
+      runner_id: f.runner,
+      idempotency_key: randomUlid(),
+      claimed_at: LAUNCH_NOW,
+    };
+    const claim = await f.send(await f.signed("launch/claim", claimRequest));
     expect(claim.status, await claim.clone().text()).toBe(200);
     const result = (await claim.json()) as { state: string; claim: LaunchClaimResult };
     expect(result.state).toBe("claimed");
     const { specification: spec, snapshot } = result.claim;
+    const reconcileRequest = await f.signed("launch/reconcile", claimRequest);
+    const reconciliation = await f.send(reconcileRequest.clone());
+    expect(reconciliation.status, await reconciliation.clone().text()).toBe(200);
+    expect(reconciliation.headers.get("cache-control")).toBe("no-store");
+    expect(await reconciliation.json()).toMatchObject({
+      launch_id: spec.launch_id,
+      run_execution_id: spec.run_execution_id,
+      reservation_state: "reserved",
+      fencing_generation: result.claim.fencing_generation,
+    });
+    expect((await f.send(reconcileRequest)).status).toBe(403);
+    expect(
+      (
+        await f.send(
+          await f.signed("launch/reconcile", {
+            ...claimRequest,
+            idempotency_key: randomUlid(),
+          }),
+        )
+      ).status,
+    ).toBe(403);
     const auth = await f.send(
       await f.signed("launch/authorize", {
         schema_version: 1,

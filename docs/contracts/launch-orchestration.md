@@ -20,6 +20,18 @@ that exact claim do not acquire another lease. Final authorization is always onl
 and freshly evaluated. The local single-use intent and supervisor remain necessary
 to prevent duplicate execution after a retried response.
 
+The authenticated `launch/reconcile` endpoint accepts the original claim request
+and returns cleanup-only assignment/fence metadata for that runner, signing key and
+winning claim key. It remains usable after lease freshness/launch expiry or human
+launch-grant revocation, but never after runner authentication is revoked. It does
+not return a snapshot or execution configuration, update launch/lease state, renew
+a deadline, reacquire occupancy or authorize execution. A fresh Hub envelope avoids
+cached results. A released reservation reports its current observation sequence;
+after another execution replaces it, the old request receives `superseded` without
+the replacement's fence or other execution identity. An unclaimed request has no
+reconciliation binding. The Mac must still supply verified local absence through
+the existing lease-observation path; knowing a fence is not absence proof.
+
 Browser commands require a direct authorized human session with CSRF protection.
 Native commands require C06 request-bound device possession and a current runner
 principal. Neither substitutes for the other. Claim and final authorization recheck

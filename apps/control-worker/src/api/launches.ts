@@ -19,6 +19,7 @@ import {
   observeCheckoutLeaseCommand,
   randomUlid,
   readRunnerControl,
+  reconcileLaunchCommand,
   redeemLaunchWakeCommand,
   rejectLaunchCommand,
   rejectRunnerRequest,
@@ -54,7 +55,7 @@ import {
 } from "./runners.js";
 
 const nativePattern =
-  /^\/runner\/workspaces\/([^/]+)\/runners\/([^/]+)\/(launch\/(?:claim|authorize|reject|tighten)|wake\/redeem|controls\/(?:read|claim|acknowledge)|leases\/observe)$/;
+  /^\/runner\/workspaces\/([^/]+)\/runners\/([^/]+)\/(launch\/(?:claim|reconcile|authorize|reject|tighten)|wake\/redeem|controls\/(?:read|claim|acknowledge)|leases\/observe)$/;
 
 export function isRunnerLaunchPath(path: string): boolean {
   return nativePattern.test(path);
@@ -193,6 +194,13 @@ export async function handleLaunchNativeApi(
         input,
       });
     switch (action) {
+      case "launch/reconcile":
+        return response(
+          await run(reconcileLaunchCommand, {
+            principal,
+            claim: decode<LaunchClaim>("launch-claim", bytes),
+          }),
+        );
       case "launch/claim":
         return response(
           await run(claimLaunchCommand, {

@@ -35,6 +35,7 @@ import type {
   CheckoutLeaseObservation,
   LaunchClaimResult,
   LaunchFinalRequest,
+  LaunchReconciliation,
   LaunchStartRequest,
   RunnerInventory,
 } from "@bfb/protocol";
@@ -898,6 +899,71 @@ try {
   const rawWakes = [wake.intent_id];
   for (const response of abuse.filter((response) => response.status === 201))
     rawWakes.push(((await response.json()) as { intent_id: string }).intent_id);
+  const lostClaim = claimInput(fresh);
+  // Discard the successful claim response; only the persisted request survives on the Mac.
+  await accepted<Claimed>(await signed(0, "launch/claim", lostClaim));
+  const retainedLease = await db
+    .prepare(`SELECT * FROM checkout_leases WHERE runner_id = ?`)
+    .get(runner);
+  now = launchDeadline(now, 46_000);
+  await inventory();
+  assert.equal((await signed(1, "launch/claim", lostClaim)).status, 403);
+  await hubWorker.evictDurableObject("WorkspaceHub", { name: FIX.workspace });
+  const reconciled = await accepted<LaunchReconciliation>(
+    await signed(1, "launch/reconcile", lostClaim),
+  );
+  assert.equal(reconciled.run_execution_id, fresh.run_execution_id);
+  assert.equal(reconciled.reservation_state, "reserved");
+  assert.equal(reconciled.observation_sequence, 0);
+  assert(!("specification" in reconciled) && !("snapshot" in reconciled));
+  assert.deepEqual(
+    await db.prepare(`SELECT * FROM checkout_leases WHERE runner_id = ?`).get(runner),
+    retainedLease,
+  );
+  assert.equal(
+    (await signed(0, "launch/reconcile", { ...lostClaim, idempotency_key: randomUlid() })).status,
+    403,
+  );
+  await accepted(
+    await signed(0, "launch/reject", {
+      schema_version: 1,
+      launch_id: reconciled.launch_id,
+      run_execution_id: reconciled.run_execution_id,
+      assignment_generation: reconciled.assignment_generation,
+    }),
+  );
+  assert.equal(
+    (
+      await accepted<{ state: string }>(
+        await signed(1, "leases/observe", {
+          schema_version: 1,
+          run_execution_id: reconciled.run_execution_id,
+          assignment_generation: reconciled.assignment_generation,
+          fencing_generation: reconciled.fencing_generation,
+          sequence: reconciled.observation_sequence! + 1,
+          observed_at: now,
+          operation: "release",
+          local_lock_id: randomUlid(),
+          owned_group_id: 0,
+          owned_group_start_identity: "",
+          supervisor_state: "never_started",
+          group_state: "never_started",
+          lock_state: "never_acquired",
+          descendants_state: "none",
+          recovery_local: false,
+        }),
+      )
+    ).state,
+    "released",
+  );
+  assert.equal(
+    (await accepted<LaunchReconciliation>(await signed(0, "launch/reconcile", lostClaim)))
+      .reservation_state,
+    "released",
+  );
+  console.log(
+    "C09_D1_RECONCILE_OK lost claim response survives expiry and Hub eviction; cleanup-only fence does not renew authority",
+  );
   const canaries = [...rawWakes, token, secret, SESSION_TOKEN];
   for (const table of [
     "launch_wake_intents",

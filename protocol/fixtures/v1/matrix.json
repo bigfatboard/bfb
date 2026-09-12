@@ -839,6 +839,23 @@
       "category": "additional_field"
     },
     {
+      "path": "valid/launch-reconciliation.c09-synthetic.json",
+      "schema": "launch-reconciliation",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/launch-reconciliation.c09-shell.json",
+      "schema": "launch-reconciliation",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/launch-reconciliation.c09-path.json",
+      "schema": "launch-reconciliation",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
       "path": "valid/launch-final-request.c09-synthetic.json",
       "schema": "launch-final-request",
       "expect": "accept"
@@ -1061,6 +1078,28 @@
       "path": "valid/run-control-request.c09-cancel.json",
       "schema": "run-control-request",
       "expect": "accept"
+    },
+    {
+      "path": "valid/launch-reconciliation.c09-superseded.json",
+      "schema": "launch-reconciliation",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/launch-reconciliation.c09-released.json",
+      "schema": "launch-reconciliation",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/launch-reconciliation.c09-missing-fence.json",
+      "schema": "launch-reconciliation",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/launch-reconciliation.c09-superseded-fence.json",
+      "schema": "launch-reconciliation",
+      "expect": "reject",
+      "category": "schema_invalid"
     },
     {
       "path": "valid/launch-specification.c09-resume.json",

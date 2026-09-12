@@ -11,6 +11,7 @@ import { launchDeadline } from "../src/launch-state.js";
 import {
   authorizeLaunchCommand,
   claimLaunchCommand,
+  reconcileLaunchCommand,
   rejectLaunchCommand,
   startLaunchCommand,
   tightenLaunchCommand,
@@ -67,6 +68,191 @@ describe("durable launch orchestration", () => {
     expect(pulled.commands).toEqual([
       { command_id: launch.launch_id, command_kind: "launch", expires_at: launch.expires_at },
     ]);
+  });
+
+  it.each([46_000, 120_001])(
+    "recovers a lost claim after %s ms without extending authority",
+    async (delay) => {
+      const f = await launchFixture(),
+        c = await f.claim(),
+        later = launchDeadline(LAUNCH_NOW, delay);
+      await f.refresh(later);
+      const retry = await f.native(
+        claimLaunchCommand,
+        { principal: f.principal, claim: c.request },
+        later,
+      );
+      if (delay < 120_000) expect(retry.ok).toBe(false);
+      else expect(success(retry)).toEqual({ state: "expired", reason: "launch_expired" });
+      const before = await f.db.prepare(`SELECT * FROM checkout_leases`).get();
+      const binding = success(
+        await f.native(
+          reconcileLaunchCommand,
+          {
+            principal: f.principal,
+            claim: c.request,
+          },
+          later,
+        ),
+      );
+      expect(binding).toEqual({
+        schema_version: 1,
+        workspace_id: FIX.workspace,
+        runner_id: f.runner,
+        launch_id: c.request.launch_id,
+        run_execution_id: c.final.run_execution_id,
+        assignment_generation: 1,
+        physical_worktree_hash: c.final.physical_worktree_hash,
+        launch_state: delay < 120_000 ? "claimed" : "expired",
+        reservation_state: "reserved",
+        fencing_generation: 1,
+        observation_sequence: 0,
+        lease_expires_at: launchDeadline(LAUNCH_NOW, 45_000),
+      });
+      expect(await f.db.prepare(`SELECT * FROM checkout_leases`).get()).toEqual(before);
+      expect(
+        success(
+          await f.native(
+            authorizeLaunchCommand,
+            {
+              principal: f.principal,
+              authorization: c.final,
+            },
+            later,
+          ),
+        ).decision,
+      ).toBe("rejected");
+      expect(
+        success(
+          await f.native(
+            observeCheckoutLeaseCommand,
+            {
+              principal: f.principal,
+              observation: {
+                schema_version: 1,
+                run_execution_id: binding.run_execution_id,
+                assignment_generation: binding.assignment_generation,
+                fencing_generation: binding.fencing_generation!,
+                sequence: binding.observation_sequence! + 1,
+                observed_at: later,
+                operation: "release",
+                local_lock_id: randomUlid(),
+                owned_group_id: 0,
+                owned_group_start_identity: "",
+                supervisor_state: "never_started",
+                group_state: "never_started",
+                lock_state: "never_acquired",
+                descendants_state: "none",
+                recovery_local: false,
+              },
+            },
+            later,
+          ),
+        ).state,
+      ).toBe("released");
+      expect(
+        success(
+          await f.native(
+            reconcileLaunchCommand,
+            {
+              principal: f.principal,
+              claim: c.request,
+            },
+            later,
+          ),
+        ),
+      ).toMatchObject({ reservation_state: "released", observation_sequence: 1 });
+      const next = success(
+        await f.human(
+          startLaunchCommand,
+          {
+            ...f.start,
+            expected_task_version: 3,
+            idempotency_key: randomUlid(),
+          },
+          later,
+        ),
+      );
+      const nextClaim = success(
+        await f.native(
+          claimLaunchCommand,
+          {
+            principal: f.principal,
+            claim: {
+              ...c.request,
+              launch_id: next.launch_id,
+              idempotency_key: randomUlid(),
+              claimed_at: later,
+            },
+          },
+          later,
+        ),
+      );
+      expect(nextClaim.state).toBe("claimed");
+      if (nextClaim.state === "claimed") expect(nextClaim.claim.fencing_generation).toBe(2);
+      const old = success(
+        await f.native(
+          reconcileLaunchCommand,
+          {
+            principal: f.principal,
+            claim: c.request,
+          },
+          later,
+        ),
+      );
+      expect(old.reservation_state).toBe("superseded");
+      expect(old).not.toHaveProperty("fencing_generation");
+      expect(old).not.toHaveProperty("observation_sequence");
+      expect(old).not.toHaveProperty("lease_expires_at");
+    },
+  );
+
+  it("keeps cleanup readable after launch-grant revocation without restoring that grant", async () => {
+    const f = await launchFixture(),
+      c = await f.claim();
+    await f.db.prepare(`UPDATE runner_launch_grants SET revoked_at = ?`).run(LAUNCH_NOW);
+    expect(
+      success(await f.native(claimLaunchCommand, { principal: f.principal, claim: c.request }))
+        .state,
+    ).toBe("rejected");
+    expect(
+      success(await f.native(reconcileLaunchCommand, { principal: f.principal, claim: c.request })),
+    ).toMatchObject({
+      reservation_state: "reserved",
+      launch_state: "rejected",
+    });
+    expect(
+      success(
+        await f.native(authorizeLaunchCommand, { principal: f.principal, authorization: c.final }),
+      ).decision,
+    ).toBe("rejected");
+  });
+
+  it("does not disclose cleanup bindings to an unclaimed key, another runner, workspace or proof type", async () => {
+    const f = await launchFixture(),
+      c = await f.claim();
+    for (const claim of [
+      { ...c.request, idempotency_key: randomUlid() },
+      { ...c.request, runner_id: randomUlid() },
+      { ...c.request, launch_id: randomUlid() },
+      { ...c.request, device_proof_nonce: "synthetic-invalid-nonce" },
+      { ...c.request, argv: ["synthetic"] },
+    ])
+      expect((await f.native(reconcileLaunchCommand, { principal: f.principal, claim })).ok).toBe(
+        false,
+      );
+    for (const principal of [
+      { ...f.principal, workspaceId: randomUlid() },
+      { ...f.principal, runnerId: randomUlid() },
+      { ...f.principal, keyThumbprint: "synthetic-other-key" },
+    ])
+      expect((await f.native(reconcileLaunchCommand, { principal, claim: c.request })).ok).toBe(
+        false,
+      );
+    await f.db.prepare(`UPDATE runners SET revoked_at = ?`).run(LAUNCH_NOW);
+    expect(
+      (await f.native(reconcileLaunchCommand, { principal: f.principal, claim: c.request })).ok,
+    ).toBe(false);
   });
 
   it("does not turn an expired reconnect into a claim and leaves the run result open", async () => {

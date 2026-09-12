@@ -163,6 +163,12 @@ export const DOCUMENTS: DocumentSpec[] = [
     tsType: "LaunchFinalRequest",
   },
   {
+    name: "launch-reconciliation",
+    schemaFile: "launch-reconciliation.json",
+    goType: "LaunchReconciliation",
+    tsType: "LaunchReconciliation",
+  },
+  {
     name: "checkout-lease-observation",
     schemaFile: "checkout-lease-observation.json",
     goType: "CheckoutLeaseObservation",

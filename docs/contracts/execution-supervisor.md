@@ -30,6 +30,12 @@ unknown delivery cannot mint or offer another one. Native registration is commit
 before returning the assignment. Database triggers prevent rebinding the execution
 or clearing an already registered supervisor.
 
+If the claim response is lost, the original persisted request can retrieve C09's
+cleanup-only reconciliation binding even after lease/launch expiry. This cannot
+create a local intent or replace final authorization. The daemon must consult its
+durable intent/registration and native lock/process evidence before reporting an
+unstarted release; absence of an HTTP reply alone is not proof that nothing started.
+
 A registered helper reads the existing checkout registry through SQLite
 [read-only mode](https://www.sqlite.org/uri.html), with schema checksum validation.
 It does not run daemon startup migrations or reset process observations. WAL change

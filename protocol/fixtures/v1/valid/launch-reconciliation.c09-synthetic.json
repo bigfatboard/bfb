@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "workspace_id": "01K00000000000000000000006",
+  "runner_id": "01K00000000000000000000003",
+  "launch_id": "01K00000000000000000000008",
+  "run_execution_id": "01K00000000000000000000001",
+  "assignment_generation": 1,
+  "physical_worktree_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "launch_state": "expired",
+  "reservation_state": "reserved",
+  "fencing_generation": 1,
+  "observation_sequence": 0,
+  "lease_expires_at": "2026-09-12T12:00:45.000Z"
+}

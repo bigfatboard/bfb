@@ -1,7 +1,7 @@
 {
   "protocol": "bfb-wire/1",
   "schema_version": 1,
-  "schema_hash": "8cf5e674e5a105a2545b467c5fa41c1383a79e3273277f6c05e3ecfb0447b5bf",
+  "schema_hash": "99e08e60e82111e205052174b105d0d1a04097ae84424aac3063a6c1fb7cbe7e",
   "documents": [
     {
       "name": "event-envelope",
@@ -102,6 +102,10 @@
     {
       "name": "launch-final-request",
       "schema": "launch-final-request.json"
+    },
+    {
+      "name": "launch-reconciliation",
+      "schema": "launch-reconciliation.json"
     },
     {
       "name": "checkout-lease-observation",

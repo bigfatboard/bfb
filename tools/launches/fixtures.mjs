@@ -108,6 +108,19 @@ const claimed = {
   fencing_generation: 1,
   lease_expires_at: "2026-09-12T12:00:45.000Z",
 };
+const reconciliation = {
+  schema_version: 1,
+  workspace_id: snapshot.workspace_id,
+  runner_id: start.runner_id,
+  launch_id: specification.launch_id,
+  ...binding,
+  physical_worktree_hash: digest,
+  launch_state: "expired",
+  reservation_state: "reserved",
+  fencing_generation: 1,
+  observation_sequence: 0,
+  lease_expires_at: claimed.lease_expires_at,
+};
 const supervisor = { pid: 1234, start_identity: "123456:1000", executable_hash: digest };
 const final = {
   schema_version: 1,
@@ -172,6 +185,7 @@ const documents = [
   ["launch-start-request", start],
   ["launch-snapshot", snapshot],
   ["launch-claim-result", claimed],
+  ["launch-reconciliation", reconciliation],
   ["launch-final-request", final],
   ["checkout-lease-observation", observation],
   ["run-control-request", control],
@@ -218,6 +232,20 @@ for (const [schema, value] of documents) {
 }
 for (const action of ["focus_existing", "resume", "terminate", "cancel"])
   fixture("run-control-request", action, { ...control, action });
+const superseded = Object.fromEntries(
+  Object.entries(reconciliation).filter(
+    ([key]) => !["fencing_generation", "observation_sequence", "lease_expires_at"].includes(key),
+  ),
+);
+fixture("launch-reconciliation", "superseded", { ...superseded, reservation_state: "superseded" });
+fixture("launch-reconciliation", "released", { ...reconciliation, reservation_state: "released" });
+fixture("launch-reconciliation", "missing-fence", superseded, "missing_field");
+fixture(
+  "launch-reconciliation",
+  "superseded-fence",
+  { ...reconciliation, reservation_state: "superseded" },
+  "schema_invalid",
+);
 fixture("launch-specification", "resume", {
   ...specification,
   resume_session: { provider_session_id: id(14), observed_session_id: "synthetic-session-1" },

@@ -5,6 +5,7 @@ import type { HubCommand } from "./hub.js";
 import {
   startLaunchCommand,
   claimLaunchCommand,
+  reconcileLaunchCommand,
   authorizeLaunchCommand,
   rejectLaunchCommand,
   tightenLaunchCommand,
@@ -62,6 +63,7 @@ import {
 const commands = new Map<string, HubCommand<unknown, unknown>>([
   [startLaunchCommand.name, startLaunchCommand as HubCommand<unknown, unknown>],
   [claimLaunchCommand.name, claimLaunchCommand as HubCommand<unknown, unknown>],
+  [reconcileLaunchCommand.name, reconcileLaunchCommand as HubCommand<unknown, unknown>],
   [authorizeLaunchCommand.name, authorizeLaunchCommand as HubCommand<unknown, unknown>],
   [rejectLaunchCommand.name, rejectLaunchCommand as HubCommand<unknown, unknown>],
   [tightenLaunchCommand.name, tightenLaunchCommand as HubCommand<unknown, unknown>],

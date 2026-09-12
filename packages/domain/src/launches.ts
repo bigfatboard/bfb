@@ -7,6 +7,7 @@ import type {
   LaunchClaim,
   LaunchClaimResult,
   LaunchFinalRequest,
+  LaunchReconciliation,
   LaunchSnapshot,
   LaunchStartRequest,
 } from "@bfb/protocol";
@@ -276,6 +277,56 @@ function claimResult(row: LaunchRow, lease: LeaseRow): LaunchClaimResult {
 type ClaimOutcome =
   | { state: "claimed"; claim: LaunchClaimResult }
   | { state: "expired" | "rejected"; reason: "launch_expired" | "launch_blocked" };
+
+export const reconcileLaunchCommand: HubCommand<
+  { principal: RunnerPrincipal; claim: LaunchClaim },
+  LaunchReconciliation
+> = {
+  name: "launch.reconcile",
+  replay: "reject",
+  auditInput: (input) => ({ runnerId: input.principal.runnerId, launchId: input.claim.launch_id }),
+  async run(input, ctx) {
+    runnerObject(input, ["principal", "claim"]);
+    const request = launchWire<LaunchClaim>("launch-claim", input.claim);
+    const principal = await launchRunner(ctx, input.principal);
+    if (request.runner_id !== principal.runnerId || request.device_proof_nonce !== undefined)
+      rejectRunnerRequest();
+    const row = await readLaunch(ctx.db, ctx.workspaceId, request.launch_id);
+    if (
+      row.runner_id !== principal.runnerId ||
+      row.runner_key_thumbprint !== principal.keyThumbprint ||
+      row.state === "pending" ||
+      row.claim_key_hash !== runnerHash(request.idempotency_key)
+    )
+      rejectRunnerRequest();
+    const lease = await readLease(ctx.db, row);
+    if (!lease || lease.workspace_id !== ctx.workspaceId) rejectRunnerRequest();
+    const retained =
+      lease.execution_id === row.execution_id &&
+      lease.assignment_generation === row.assignment_generation;
+    if (!retained && row.execution_state !== "ended") rejectRunnerRequest();
+    // Revoked launch authority cannot strand a reservation: this returns no configuration,
+    // performs no launch/lease writes, and cannot substitute for final authorization.
+    return launchWire<LaunchReconciliation>("launch-reconciliation", {
+      schema_version: 1,
+      workspace_id: ctx.workspaceId,
+      runner_id: row.runner_id,
+      launch_id: row.id,
+      run_execution_id: row.execution_id,
+      assignment_generation: row.assignment_generation,
+      physical_worktree_hash: row.physical_worktree_hash,
+      launch_state: row.state,
+      reservation_state: retained ? lease.state : "superseded",
+      ...(retained
+        ? {
+            fencing_generation: lease.fencing_generation,
+            observation_sequence: lease.observation_sequence,
+            lease_expires_at: lease.expires_at,
+          }
+        : {}),
+    });
+  },
+};
 
 export const claimLaunchCommand: HubCommand<
   { principal: RunnerPrincipal; claim: LaunchClaim },
