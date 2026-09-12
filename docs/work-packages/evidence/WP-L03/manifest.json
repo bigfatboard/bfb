@@ -1,19 +1,16 @@
 {
   "$schema": "../manifest.schema.json",
   "package": "L03",
-  "tested_commit": "367ede9a2948dca89f3e7bbda47b3c254649abc4",
+  "tested_commit": "32f135401d3235736422e3c70c24039fb663458b",
   "protocol_version": "bfb-wire/1",
   "schema_version": "1",
-  "migration_head": "local:002_checkouts.sql",
+  "migration_head": "local:008_run_control_delivery.sql",
   "toolchains": {
     "node": "24.19.0",
     "pnpm": "11.21.0",
     "go": "1.26.5",
     "xcode": "26.0.1",
-    "golang.org/x/sys": "0.47.0",
-    "claude": "2.1.269",
-    "codex": "0.153.4",
-    "grok_discovery_only": "1.0.25"
+    "golang.org/x/sys": "0.47.0"
   },
   "environment": {
     "kind": "clean_checkout",
@@ -24,47 +21,39 @@
     {
       "command": "pnpm install --frozen-lockfile",
       "outcome": "passed",
-      "artifact": "docs/work-packages/evidence/WP-L03/command-result.json"
+      "artifact": "docs/work-packages/evidence/WP-L03/interactive-resume.json"
     },
     {
       "command": "pnpm test:l03",
       "outcome": "passed",
-      "artifact": "docs/work-packages/evidence/WP-L03/command-result.json"
+      "artifact": "docs/work-packages/evidence/WP-L03/interactive-resume.json"
     },
     {
       "command": "pnpm verify",
       "outcome": "passed",
-      "artifact": "docs/work-packages/evidence/WP-L03/command-result.json"
+      "artifact": "docs/work-packages/evidence/WP-L03/interactive-resume.json"
     },
     {
-      "command": "node tools/provider-probe/run.mjs claude",
+      "command": "CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build ./...",
       "outcome": "passed",
-      "artifact": "docs/work-packages/evidence/WP-L03/capability-matrix.json"
-    },
-    {
-      "command": "node tools/provider-probe/run.mjs codex",
-      "outcome": "passed",
-      "artifact": "docs/work-packages/evidence/WP-L03/capability-matrix.json"
-    },
-    {
-      "command": "GOOS=linux GOARCH=amd64 go build ./...",
-      "outcome": "passed",
-      "artifact": "docs/work-packages/evidence/WP-L03/command-result.json"
+      "artifact": "docs/work-packages/evidence/WP-L03/interactive-resume.json"
     },
     {
       "command": "pnpm worktree:check",
       "outcome": "passed",
-      "artifact": "docs/work-packages/evidence/WP-L03/command-result.json"
+      "artifact": "docs/work-packages/evidence/WP-L03/interactive-resume.json"
     }
   ],
   "outcome": "passed",
   "artifacts": [
+    "docs/work-packages/evidence/WP-L03/interactive-resume.json",
     "docs/work-packages/evidence/WP-L03/command-result.json",
     "docs/work-packages/evidence/WP-L03/contracts-and-setup.md",
     "docs/work-packages/evidence/WP-L03/capability-matrix.json",
     "internal/provider/README.md",
     "internal/provider/contracts.go",
     "internal/provider/kit_test.go",
+    "internal/provider/resume_test.go",
     "internal/provider/setup_test.go",
     "internal/provider/setup_atomic_test.go",
     "internal/providers/catalog.generated.go",

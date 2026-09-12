@@ -1,0 +1,52 @@
+{
+  "package": "L03",
+  "tested_commit": "32f135401d3235736422e3c70c24039fb663458b",
+  "recorded_on": "2026-09-13",
+  "scope": "Additive interactive-resume contract correction and complete exact-target regression",
+  "outcome": "passed",
+  "checkout": {
+    "detached": true,
+    "clean_before_install": true,
+    "frozen_install": "passed",
+    "clean_after_verification": true
+  },
+  "checks": {
+    "exact_pnpm_test_l03": "passed",
+    "deterministic_provider_registration": "passed",
+    "probe_classification_tests": 5,
+    "protocol_typescript_tests": 333,
+    "protocol_go_parity": "passed",
+    "l01_kernel_regression": "passed",
+    "complete_provider_race_suite": "passed",
+    "exact_interactive_session_native_process": "passed",
+    "unknown_session_has_no_fresh_session_fallback": "passed",
+    "no_requested_new_session_or_implicit_fork": "passed",
+    "malformed_or_missing_owned_session_binding": "passed",
+    "interactive_resume_manifest_runtime_and_policy_ceilings": "passed",
+    "immutable_resume_invocation": "passed",
+    "expired_probe_and_changed_installation_fail_closed": "passed",
+    "context_only_resume_emits_no_automatic_turn": "passed",
+    "fixed_initial_prompt_preserves_terminal_stdin": "passed",
+    "existing_discussion_and_setup_contracts": "passed",
+    "repository_typescript_tests": 680,
+    "repository_go_checks": "passed",
+    "repository_swift_tests": 11,
+    "repository_verification": "passed",
+    "linux_amd64_cross_build": "passed",
+    "worktree_check": "passed"
+  },
+  "baseline_evidence": {
+    "tested_commit": "367ede9a2948dca89f3e7bbda47b3c254649abc4",
+    "commands": "docs/work-packages/evidence/WP-L03/command-result.json",
+    "live_provider_experiments": "docs/work-packages/evidence/WP-L03/capability-matrix.json",
+    "note": "The original live synthetic experiments remain version-specific historical evidence. They were not repeated by this contract correction, and no real adapter gained tracked capabilities."
+  },
+  "not_claimed": [
+    "Real-provider interactive resume or new real-provider capability certification",
+    "Supervisor consumption of a resumed child launch or native stopped-source proof",
+    "Terminal.app integration acceptance or complete L05 certification",
+    "Discussion single-writer fencing, delivery or business completion",
+    "Running local MVP"
+  ],
+  "retention": "Bounded assertions and synthetic fixture source only; no raw logs, provider streams, credentials, private content or local absolute paths."
+}
