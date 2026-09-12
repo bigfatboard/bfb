@@ -386,6 +386,30 @@ report/reconcile that ambiguity instead of blindly repeating it. Focus must targ
 the existing owned Terminal; resume uses C09's exact observed session and new
 independently claimed execution rather than starting another writer in a live one.
 
+Local migration `008_run_control_delivery.sql` pins the control's original claim,
+execution/generation, action and expiry, with a write-once resumed-launch ID and
+effect-start timestamp. Recording metadata leaves it `prepared`; a cloud read or
+claim cannot label a local action applied. Delivery commits `applying` before the
+effect owner receives it. Concurrent deliveries have one winner. Applied, rejected
+and uncertain effects cannot reopen, and terminal cloud receipts close the inbox
+without overwriting local effect evidence or changing native containment.
+
+The control inbox has four workers independent of launch preparation. It reads
+bound metadata and acknowledges recorded local outcomes, never signals or opens
+Terminal. The effect owner must perform its own fresh claim before delivery.
+An acknowledgement does not reclaim the effect: after termination, a new claim
+could reject the already-ended target before its valid acknowledgement arrives.
+Lost cloud acknowledgements are reconciled against a fresh bound read, retaining
+the original claim and local outcome. Restart marks in-flight native effects
+`delivery_unknown`; the queue also does so after ten seconds without a helper
+result. A late reply cannot erase that uncertainty. This timeout does not extend
+the five-second freshness limit for an actual effect.
+
+The durable inbox and delivery barriers are implemented. Native control RPC,
+helper signal handling, focus of the exact existing Terminal and consumption of
+the single resumed launch remain under implementation. The metadata queue does
+not claim a resume or create its child launch before that consumer is connected.
+
 Expired/cancelled/revoked launches, unavailable sessions, consent denial, stale
 snapshots, changed providers and occupied/moved checkouts fail with bounded typed
 diagnostics. They do not submit or accept a run result. Unknown Terminal delivery

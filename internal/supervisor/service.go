@@ -28,15 +28,16 @@ type ServiceOptions struct {
 }
 
 type Service struct {
-	options  ServiceOptions
-	mu       sync.RWMutex
-	nativeMu sync.Mutex
-	store    *IntentStore
-	files    *AssignmentFiles
-	paths    daemon.Paths
-	ready    chan struct{}
-	started  sync.Once
-	wake     chan struct{}
+	options     ServiceOptions
+	mu          sync.RWMutex
+	nativeMu    sync.Mutex
+	store       *IntentStore
+	files       *AssignmentFiles
+	paths       daemon.Paths
+	ready       chan struct{}
+	started     sync.Once
+	wake        chan struct{}
+	controlWake chan struct{}
 }
 
 func NewService(options ServiceOptions) *Service {
@@ -56,7 +57,7 @@ func NewService(options ServiceOptions) *Service {
 	if options.Installation == nil {
 		options.Installation = localInstallationForLaunch
 	}
-	return &Service{options: options, ready: make(chan struct{}), wake: make(chan struct{}, 1)}
+	return &Service{options: options, ready: make(chan struct{}), wake: make(chan struct{}, 1), controlWake: make(chan struct{}, 1)}
 }
 
 func (service *Service) Start(ctx context.Context, store *daemon.Store) (func(), error) {
@@ -69,7 +70,12 @@ func (service *Service) Start(ctx context.Context, store *daemon.Store) (func(),
 	if err != nil {
 		return nil, err
 	}
-	service.store = NewIntentStore(store.DB)
+	intents := NewIntentStore(store.DB)
+	if err := intents.recoverControls(ctx); err != nil {
+		_ = files.Close()
+		return nil, err
+	}
+	service.store = intents
 	service.files = files
 	service.paths = store.Paths
 	ctx, cancel := context.WithCancel(ctx)
@@ -78,6 +84,7 @@ func (service *Service) Start(ctx context.Context, store *daemon.Store) (func(),
 		defer close(done)
 		var workers sync.WaitGroup
 		workers.Go(func() { service.runQueue(ctx, service.store, files) })
+		workers.Go(func() { service.runControlQueue(ctx, service.store) })
 		workers.Go(func() { service.runObserver(ctx, service.store, files, store.Paths) })
 		workers.Go(func() { service.runLeases(ctx, service.store, files, store.Paths) })
 		workers.Wait()
@@ -99,7 +106,7 @@ func (service *Service) Start(ctx context.Context, store *daemon.Store) (func(),
 // Accept is the L08 consumer boundary: commit before acknowledging delivery.
 // Pulling, probing and Terminal delivery run independently of the channel reader.
 func (service *Service) Accept(ctx context.Context, enrollment runner.Enrollment, reference runner.CommandReference) error {
-	if reference.Kind != "launch" {
+	if reference.Kind != "launch" && reference.Kind != "run_control" {
 		return failure("invalid_request")
 	}
 	if err := service.waitReady(ctx); err != nil {
@@ -113,8 +120,12 @@ func (service *Service) Accept(ctx context.Context, enrollment runner.Enrollment
 	if err := service.store.Accept(ctx, enrollment, reference, service.options.Now()); err != nil {
 		return err
 	}
+	wake := service.wake
+	if reference.Kind == "run_control" {
+		wake = service.controlWake
+	}
 	select {
-	case service.wake <- struct{}{}:
+	case wake <- struct{}{}:
 	default:
 	}
 	return nil

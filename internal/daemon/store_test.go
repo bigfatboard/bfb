@@ -236,6 +236,56 @@ VALUES ('runner','command','workspace','launch','2026-09-12T12:02:00Z','2026-09-
 	}
 }
 
+func TestControlDeliveryMigrationPreservesClaimAndRollsBack(t *testing.T) {
+	ctx := context.Background()
+	paths := testPaths(t)
+	previous, err := openStore(ctx, paths, kernelMigrations()[:7], nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = previous.DB.Exec(`INSERT INTO execution_commands
+(runner_id,command_id,workspace_id,command_kind,expires_at,received_at,claim_key,claim_started_at,state)
+VALUES ('runner','command','workspace','launch','2026-09-12T12:02:00Z','2026-09-12T12:00:00Z',
+'original-claim','2026-09-12T12:00:00Z','waiting');
+INSERT INTO local_execution_assignments(execution_id,assignment_generation,workspace_id,project_id,task_id,run_id,
+runner_id,checkout_id,launch_id,intent_id,physical_worktree_hash,fencing_generation,claim_json,provider_identity_hash,
+correlation_token,created_at,expires_at,state)
+VALUES ('execution',1,'workspace','project','task','run','runner','checkout','command','intent','physical',2,'{}',
+'provider','correlation','2026-09-12T12:00:00Z','2026-09-12T12:02:00Z','group_ready');
+INSERT INTO execution_control_effects (control_id,execution_id,assignment_generation,runner_id,action,claim_key,expires_at,state)
+VALUES ('control','execution',1,'runner','interrupt','original-control-claim','2026-09-12T13:02:00Z','prepared')`); err != nil {
+		t.Fatal(err)
+	}
+	_ = previous.Close()
+	if _, err = openStore(ctx, paths, kernelMigrations(), func(version int) error {
+		if version == 8 {
+			return errors.New("synthetic control migration interruption")
+		}
+		return nil
+	}); err == nil {
+		t.Fatal("control migration ignored interruption")
+	}
+	previous, err = openStore(ctx, paths, kernelMigrations()[:7], nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var count int
+	if err = previous.DB.QueryRow("SELECT count(*) FROM pragma_table_info('execution_control_effects') WHERE name = 'effect_started_at'").Scan(&count); err != nil || count != 0 {
+		t.Fatal("partial delivery migration survived rollback", err)
+	}
+	_ = previous.Close()
+	upgraded := openTestStore(t, paths)
+	defer upgraded.Close()
+	if err = upgraded.DB.QueryRow(`SELECT count(*) FROM execution_control_effects WHERE control_id = 'control' AND execution_id = 'execution'
+AND assignment_generation = 1 AND claim_key = 'original-control-claim' AND action = 'interrupt' AND state = 'prepared'
+AND effect_started_at IS NULL AND resume_launch_id IS NULL`).Scan(&count); err != nil || count != 1 {
+		t.Fatal("migration invented delivery or changed the original control", err)
+	}
+	if _, err = upgraded.DB.Exec("UPDATE execution_control_effects SET state = 'applied'"); err == nil {
+		t.Fatal("migration allowed success without delivery")
+	}
+}
+
 func TestExecutionMigrationPreservesPriorStateAndRollsBack(t *testing.T) {
 	paths := testPaths(t)
 	previous, err := openStore(context.Background(), paths, kernelMigrations()[:3], nil)

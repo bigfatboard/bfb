@@ -21,7 +21,11 @@ func scanCommand(row assignmentScanner, command *LocalCommand) error {
 // Pending closes its cursor before the caller can query an assignment on the
 // daemon's single database connection. In-flight execution does not hold it open.
 func (store *IntentStore) Pending(ctx context.Context) ([]LocalCommand, error) {
-	rows, err := store.db.QueryContext(ctx, "SELECT "+commandColumns+" FROM execution_commands WHERE state IN ('queued','waiting') AND command_kind = 'launch' ORDER BY received_at,runner_id,command_id LIMIT 256")
+	return store.pending(ctx, "launch")
+}
+
+func (store *IntentStore) pending(ctx context.Context, kind string) ([]LocalCommand, error) {
+	rows, err := store.db.QueryContext(ctx, "SELECT "+commandColumns+" FROM execution_commands WHERE state IN ('queued','waiting') AND command_kind = ? ORDER BY received_at,runner_id,command_id LIMIT 256", kind)
 	if err != nil {
 		return nil, failure("storage_failed")
 	}

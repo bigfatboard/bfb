@@ -37,6 +37,14 @@ type commandRetry struct {
 }
 
 func (service *Service) runQueue(ctx context.Context, store *IntentStore, files *AssignmentFiles) {
+	service.runCommands(ctx, store, "launch", service.wake, 45*time.Second, 5*time.Second, func(ctx context.Context, command LocalCommand) error {
+		return service.processLaunch(ctx, store, files, command)
+	})
+}
+
+// Each command kind has independent bounded workers. Slow provider preparation
+// cannot occupy the workers responsible for an existing execution's controls.
+func (service *Service) runCommands(ctx context.Context, store *IntentStore, kind string, wake <-chan struct{}, timeout, retryMinimum time.Duration, process func(context.Context, LocalCommand) error) {
 	// Registration-only harnesses do not configure a runner transport. Keep
 	// their accepted records untouched until an execution consumer is present.
 	if service.options.Connection == nil {
@@ -52,7 +60,7 @@ func (service *Service) runQueue(ctx context.Context, store *IntentStore, files 
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	for ctx.Err() == nil {
-		commands, err := store.Pending(ctx)
+		commands, err := store.pending(ctx, kind)
 		if err == nil {
 			pending := map[commandKey]bool{}
 			for _, command := range commands {
@@ -63,9 +71,9 @@ func (service *Service) runQueue(ctx context.Context, store *IntentStore, files 
 				}
 				inFlight[key] = true
 				workers.Go(func() {
-					attempt, cancel := context.WithTimeout(ctx, 45*time.Second)
+					attempt, cancel := context.WithTimeout(ctx, timeout)
 					defer cancel()
-					err := service.processLaunch(attempt, store, files, command)
+					err := process(attempt, command)
 					if attempt.Err() == nil {
 						_ = store.Wait(attempt, command, err)
 					}
@@ -80,11 +88,11 @@ func (service *Service) runQueue(ctx context.Context, store *IntentStore, files 
 		}
 		select {
 		case <-ctx.Done():
-		case <-service.wake:
+		case <-wake:
 		case <-ticker.C:
 		case key := <-finished:
 			delete(inFlight, key)
-			delay := max(5*time.Second, min(time.Minute, retry[key].delay*2))
+			delay := max(retryMinimum, min(time.Minute, retry[key].delay*2))
 			retry[key] = commandRetry{next: time.Now().Add(delay), delay: delay}
 		}
 	}
