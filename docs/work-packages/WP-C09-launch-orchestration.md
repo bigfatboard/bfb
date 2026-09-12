@@ -1,6 +1,6 @@
 # WP-C09 — Durable launch orchestration
 
-Status: `in_progress`
+Status: `done`
 
 Risk: Very high
 
@@ -77,6 +77,7 @@ An authorized Start request creates one immutable, expiring launch assignment th
 
 ## Evidence and handoff
 
+- Clean-checkout certification passed at `e22e2cfbde79c6430047f9f9bf0ef1acd88383ec`: exact `pnpm test:c09`, repository verification, C01/D1/C07/C08/C06/IC-1 regressions, Linux cross-build and clean-worktree checks. The [manifest](evidence/WP-C09/manifest.json) records exact commands and bounded [state, race and release-proof evidence](evidence/WP-C09/state-transition-matrix.md).
 - Commit contention traces, state-transition matrix, malicious-field/link fixtures, nudge/link/control race tests, run-control authorization/idempotency fixtures, lease-release proof matrix, and containment-recovery traces.
 - L08 consumes durable command/nudge/claim/link contracts. L05 receives one immutable assignment/specification and owns local validation, supervisor/process-group evidence, lock acquisition, and recovery inspection.
 

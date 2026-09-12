@@ -1,0 +1,100 @@
+{
+  "package": "C09",
+  "tested_commit": "e22e2cfbde79c6430047f9f9bf0ef1acd88383ec",
+  "recorded_on": "2026-09-12",
+  "automated_gate": "passed",
+  "package_acceptance": "passed",
+  "test_configuration": {
+    "BFB_E2E_PORT": "4288",
+    "workers": 3,
+    "api_isolates": 2,
+    "canonical_hub": "production WorkspaceHub implementation",
+    "runner_authentication": "real request-bound P-256 possession signatures; synthetic token and identity fixtures",
+    "time": "synthetic request clock; actual WebSocket token times use the local runtime clock",
+    "deployment": "local only"
+  },
+  "checkout": {
+    "detached": true,
+    "clean_before_install": true,
+    "clean_after_verification": true,
+    "frozen_install": "passed"
+  },
+  "checks": {
+    "c09_owned_fixtures": {
+      "valid": 23,
+      "invalid": 39,
+      "total": 62
+    },
+    "protocol_typescript_tests": 247,
+    "protocol_go_differential_fixtures": "passed",
+    "typed_go_execution_config_round_trip": "passed",
+    "focused_typescript_tests": {
+      "launches": 26,
+      "leases": 11,
+      "controls": 15,
+      "wake": 8,
+      "mounted_routes": 4,
+      "migrations": 7,
+      "total": 71
+    },
+    "real_worker_d1_gate": "passed",
+    "repository_typescript_tests": 588,
+    "repository_go_checks": "passed",
+    "repository_swift_tests": 11,
+    "repository_swift_xcode_checks": "passed",
+    "repository_verification": "passed",
+    "c01_hub_regression": "passed",
+    "empty_previous_populated_d1_regression": "passed",
+    "c07_project_policy_regression": "passed",
+    "c08_work_record_regression": "passed",
+    "c06_runner_possession_regression": "passed",
+    "c06_browser_scenarios": 1,
+    "ic1_domain_tests": 163,
+    "ic1_board_tests": 9,
+    "ic1_browser_scenarios": 16,
+    "ic1_oauth_tests": 28,
+    "ic1_oauth_browser_rerun": 2,
+    "linux_amd64_cross_build": "passed",
+    "worktree_check": "passed"
+  },
+  "durable_assertions": {
+    "populated_0015_history_preserved": true,
+    "empty_0016_foreign_keys_clean": true,
+    "injected_outbox_failure_rolls_back_all_launch_state": true,
+    "duplicate_start_one_assignment": true,
+    "physical_alias_claim_winners": 1,
+    "winning_claim_retry_fence": 1,
+    "hub_eviction_keeps_fence": true,
+    "wake_redemption_winners": 1,
+    "nudge_and_wake_do_not_claim": true,
+    "missed_nudge_pull_recovers_existing_command": true,
+    "control_read_is_not_authority": true,
+    "duplicate_controls_one_disposition": true,
+    "containment_unknown_survives_ttl_and_eviction": true,
+    "ordinary_release_cannot_clear_unknown": true,
+    "explicit_complete_local_recovery_releases": true,
+    "resume_new_execution_same_run": true,
+    "resume_next_fence": 2,
+    "final_revocation_retains_checkout": true,
+    "expiry_preserves_open_run_result": true,
+    "shared_wake_budget": {
+      "concurrent_requests": 22,
+      "created": 19,
+      "rejected": 3
+    },
+    "raw_capability_database_and_runtime_log_scan": "passed"
+  },
+  "regression_correction": {
+    "initial_commit": "9b92ef748e496db2deaaf9162b176cbe325bf11b",
+    "observation": "Clean C07 correctly detected the old exported migration head after D1 applied 0016.",
+    "resolution": "Updated MIGRATION_HEAD and extended the manifest-agreement regression; exact C09 and the entire certification sequence passed at the certified revision."
+  },
+  "not_claimed": [
+    "Real Terminal/PTY job control, native process inspection, local physical locks, local effect deduplication or containment recovery (L05)",
+    "Real Claude/Codex provider execution and session hooks (L07/P01)",
+    "Human Start/control UI and IC-3 (W02)",
+    "Event ingestion or session history observed from a real provider (L06/E01); the resume gate explicitly seeds synthetic observed history",
+    "Public AASA/custom-link association, remote deployment, cross-device reachability or completion of the running local MVP"
+  ],
+  "retention": "Bounded synthetic assertions, deterministic protocol fixtures and code only. No raw terminal output, private task content, local absolute paths, provider credentials, raw wake values, tokens or signed request bodies retained."
+}

@@ -371,7 +371,7 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 | C06 | [Runner identity, grants, and tokens](WP-C06-runner-enrollment-channel.md) | `done` | Very high |
 | C07 | [Projects, repository identity, and policy](WP-C07-work-domain.md) | `done` | High |
 | C08 | [Tasks, runs, context, and work APIs](WP-C08-work-records.md) | `done` | High |
-| C09 | [Durable launch orchestration](WP-C09-launch-orchestration.md) | `in_progress` | Very high |
+| C09 | [Durable launch orchestration](WP-C09-launch-orchestration.md) | `done` | Very high |
 
 ### Local execution
 

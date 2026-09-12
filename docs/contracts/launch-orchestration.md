@@ -158,3 +158,8 @@ both check modes run in the package/repository gates. The D1 gate upgrades popul
 L05 supplies actual Terminal/PTY/lock/process proof. L07/P01 supply real provider
 behavior. W02 supplies the human launch/control UI. These are not C09 completion
 claims, and no link delivery is evidence that a local process started.
+
+C09 clean-checkout certification is recorded in the
+[committed evidence manifest](../work-packages/evidence/WP-C09/manifest.json), with
+the complete negative, concurrency and lease-release matrix. The exported D1
+migration head is checked against the ordered SQL manifest in the repository gate.
