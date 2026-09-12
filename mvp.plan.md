@@ -12,7 +12,7 @@ Make the next release deliver two concrete actions: **Start this task on my Mac*
 
 The existing architecture supports that direction. The main missing piece is the local execution system; discussion also needs an explicit domain model.
 
-Timo approved updating and implementing this plan on 11 September 2026. The discussion design is recorded in [ADR 0002](docs/adr/0002-human-initiated-discussions.md) before runtime changes. Production deployment remains a separately approved action. The [work-package roadmap](docs/work-packages/README.md) and [acceptance matrix](docs/work-packages/ACCEPTANCE.md) remain authoritative for dependencies and completion; [MVP progress](mvp.progress.md) records implementation checkpoints, verification, and remaining work.
+Timo approved updating and implementing this plan on 11 September 2026. The discussion design is recorded in [ADR 0002](docs/adr/0002-human-initiated-discussions.md) before runtime changes. The autopilot authority below governs necessary operational actions; an unrelated production rollout is outside this local MVP. The [work-package roadmap](docs/work-packages/README.md) and [acceptance matrix](docs/work-packages/ACCEPTANCE.md) remain authoritative for dependencies and completion; [MVP progress](mvp.progress.md) records implementation checkpoints, verification, and remaining work.
 
 The approved [ADR 0003](docs/adr/0003-local-mvp-account-test-scope.md) moves L01's genuinely fresh macOS user-account check to G02 release certification. L01 still requires clean-checkout tests against empty private BFB state, real native lifecycle checks and its existing safety assertions. This is a narrow environment-test deferral, not a release pass or a waiver of other package gates.
 
@@ -22,7 +22,7 @@ Timo explicitly grants Codex authority to finish this entire goal on its own, on
 
 Codex owns the necessary engineering decisions and operational follow-through within this approved local MVP: implementation, configuration, local migrations, builds, provider integration, testing, fixes, coherent commits, and leaving the application and runner running. Make reasonable in-scope decisions independently, keep `mvp.progress.md` current, and continue across packages without routine approval pauses or stopping at an intermediate milestone.
 
-The goal remains the fully working and verified local MVP described here, including remote Claude/Codex launch and bounded read-only discussions. Autopilot does not permit silently shrinking that outcome, fabricating evidence, weakening the architecture's trust boundaries, or treating unfinished acceptance as passed. Exhaust safe in-scope remedies before reporting a genuine blocker. Production deployment and consequential shared-state operations retain their separately confirmed rollout boundary.
+The goal remains the fully working and verified local MVP described here, including remote Claude/Codex launch and bounded read-only discussions. Autopilot does not permit silently shrinking that outcome, fabricating evidence, weakening the architecture's trust boundaries, or treating unfinished acceptance as passed. Exhaust safe in-scope remedies before reporting a genuine blocker. Timo's updated instructions on 12 September authorize necessary shared-state and production actions within full autopilot without repeated rollout confirmation; the task remains the local MVP, so this does not add an unrelated production rollout. Timo also explicitly approved the BFB development App ID, Associated Domains and Mac provisioning setup.
 
 ## Where we are
 
@@ -114,6 +114,6 @@ The pilot is successful when a human can start real work remotely, initiate a tw
 
 Update `mvp.progress.md` whenever a package changes state, a material test or limitation changes, and periodically during longer implementation. It must distinguish implemented, verified, running, and still-pending capabilities. Local completion is not full v0.1 release certification: the deferred artifact, Grok, external-integration, and release packages remain outside this MVP.
 
-Each implemented package must pass its exact test target from a clean checkout, commit its bounded evidence manifest, and pass `pnpm verify` before handoff. A production rollout requires a separately confirmed plan followed by deployed smoke tests.
+Each implemented package must pass its exact test target from a clean checkout, commit its bounded evidence manifest, and pass `pnpm verify` before handoff. Any deployment within the authorized task requires deployed smoke tests; green CI alone is insufficient.
 
 At the review baseline on 11 September 2026, `pnpm verify` passed: 343 tests, Go checks, and macOS checks. This records the starting point, not acceptance evidence for the proposed capabilities. No runtime implementation or deployment was performed for this plan.

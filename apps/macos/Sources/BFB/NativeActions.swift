@@ -157,7 +157,7 @@ enum SignedInstallation {
     guard let team = app[kSecCodeInfoTeamIdentifier as String] as? String, !team.isEmpty,
       team == cli[kSecCodeInfoTeamIdentifier as String] as? String
     else { throw NativeFailure(code: "app_unavailable") }
-    return helper
+    return helper.standardizedFileURL
   }
 
   static func associatedHosts(in bundle: Bundle = .main) -> Set<String> {

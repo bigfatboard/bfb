@@ -73,4 +73,4 @@ A thin native menu-bar app exposes runner status, browser pairing, wake intents,
 ## Risks and decisions
 
 - Universal Links and Apple Events differ between development and signed distribution; both need repeatable gates.
-- Native investigation confirmed a missing eligible Mac provisioning profile for the Associated Domains entitlement; existing iOS profiles are not substitutes. The first running self-hosted build reported the actual Mac as locked. L04 remains in progress until the full gate can prove the configured managed build and available-session behavior; no Apple Developer shared state has been changed.
+- Timo approved development provisioning on 12 September. The BFB explicit App ID, Associated Domains capability and Mac development profile now exist, restricted to the existing developer certificate and this test Mac. The managed native gate passed once after correcting the verified helper's private-filesystem alias normalization. A repeated relaunch check and visual inspection remain pending because the console locked again; clean-checkout certification is not yet claimed.

@@ -55,9 +55,10 @@ export async function buildSignedApp({
     assert.equal(entitlements["com.apple.application-identifier"], profileTeam + ".com.qdis.bfb");
     const allowed = entitlements["com.apple.developer.associated-domains"];
     assert.ok(
-      Array.isArray(allowed) &&
-        (allowed.includes("*") ||
-          associatedHosts.every((host) => allowed.includes("applinks:" + host))),
+      allowed === "*" ||
+        (Array.isArray(allowed) &&
+          (allowed.includes("*") ||
+            associatedHosts.every((host) => allowed.includes("applinks:" + host)))),
       "The profile must authorize every configured associated domain",
     );
   }

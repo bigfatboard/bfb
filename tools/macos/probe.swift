@@ -9,6 +9,10 @@ struct NativeAcceptanceProbe {
   static func main() async {
     do {
       let arguments = CommandLine.arguments
+      if arguments.count == 2 && arguments[1] == "session" {
+        try emit(["ok": true, "session": InteractiveSession.current().rawValue])
+        return
+      }
       if arguments.count == 3 && arguments[1] == "locate" {
         let path = URL(fileURLWithPath: arguments[2]).resolvingSymlinksInPath().path
         let pid = await MainActor.run {
@@ -47,6 +51,9 @@ struct NativeAcceptanceProbe {
           throw WireFailure.invalidEnvelope
         }
         let helper = try SignedInstallation.helper(in: bundle)
+        _ = try TerminalCommand.make(
+          helper: helper,
+          intent: TerminalIntentID("e0da52a9-d0cb-47d8-867b-e08f684b9001"))
         try emit([
           "ok": true, "helper_name": helper.lastPathComponent,
           "hosts": SignedInstallation.associatedHosts(in: bundle).sorted(),

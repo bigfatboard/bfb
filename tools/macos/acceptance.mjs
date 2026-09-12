@@ -10,6 +10,7 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  realpath,
   rm,
   symlink,
   writeFile,
@@ -176,6 +177,11 @@ try {
   assert.equal(signature.ok, true);
   assert.equal(signature.helper_name, "bfb");
   assert.deepEqual(signature.hosts, associatedHosts);
+  assert.equal(
+    (await probeJSON("installation", await realpath(build.app))).ok,
+    true,
+    "The verified helper must remain usable through macOS's private filesystem alias",
+  );
   const info = join(build.app, "Contents/Info.plist");
   const scheme = await capture("/usr/libexec/PlistBuddy", [
     "-c",
@@ -225,7 +231,16 @@ try {
     "peer_denied",
   );
 
-  await run("/usr/bin/open", ["-n", "-g", "-a", build.app]);
+  await run("/usr/bin/open", [
+    "-n",
+    "-g",
+    "--stdout",
+    join(workspace, "app-native.log"),
+    "--stderr",
+    join(workspace, "app-native.log"),
+    "-a",
+    build.app,
+  ]);
   const ready = await until(async () => {
     const snapshot = await rpc("synthetic.inspect");
     return readPID(snapshot) > 0 ? snapshot : false;
@@ -290,30 +305,40 @@ try {
     }),
   );
 
-  assert.equal((await probeJSON("terminate", String(appPID), build.app)).ok, true);
-  await until(() => !running(appPID), "app-only graceful quit");
-  const afterQuit = await rpc("synthetic.inspect");
-  assert.ok(afterQuit.payload.log_entries.includes("child_alive"));
-  assert.ok(afterQuit.payload.log_entries.includes("observation:attached"));
-  assert.equal((await rpc("daemon.status")).payload.status, "running");
-  const oldPID = appPID;
-  appPID = undefined;
-  const relaunched = await rpc("synthetic.terminal", { terminal_intent_id: local });
-  if (lockedSession) {
-    assert.equal(relaunched.error?.code, "session_locked");
-    assert.equal((await probeJSON("locate", build.app)).pid, 0);
-  } else {
-    assert.ok(
-      !relaunched.error || relaunched.error.code === "consent_denied",
-      JSON.stringify(relaunched.error),
-    );
-    const afterRelaunch = await until(async () => {
-      const response = await rpc("synthetic.inspect");
-      return readPID(response) !== oldPID ? response : false;
-    }, "daemon-driven app relaunch");
-    appPID = readPID(afterRelaunch);
-    assert.ok(appPID > 0);
-    assert.ok(afterRelaunch.payload.log_entries.includes("child_alive"));
+  for (let cycle = 0; cycle < (lockedSession ? 1 : 3); cycle++) {
+    assert.equal((await probeJSON("terminate", String(appPID), build.app)).ok, true);
+    await until(() => !running(appPID), "app-only graceful quit");
+    const afterQuit = await rpc("synthetic.inspect");
+    assert.ok(afterQuit.payload.log_entries.includes("child_alive"));
+    assert.ok(afterQuit.payload.log_entries.includes("observation:attached"));
+    assert.equal((await rpc("daemon.status")).payload.status, "running");
+    const oldPID = appPID;
+    appPID = undefined;
+    const relaunched = await rpc("synthetic.terminal", { terminal_intent_id: local });
+    if (relaunched.error?.code === "app_unavailable")
+      console.log(
+        JSON.stringify({
+          relaunch: await rpc("synthetic.inspect"),
+          app: await probeJSON("locate", build.app),
+          console: await probeJSON("session"),
+        }),
+      );
+    if (lockedSession) {
+      assert.equal(relaunched.error?.code, "session_locked");
+      assert.equal((await probeJSON("locate", build.app)).pid, 0);
+    } else {
+      assert.ok(
+        !relaunched.error || relaunched.error.code === "consent_denied",
+        JSON.stringify(relaunched.error),
+      );
+      const afterRelaunch = await until(async () => {
+        const response = await rpc("synthetic.inspect");
+        return readPID(response) !== oldPID ? response : false;
+      }, "daemon-driven app relaunch");
+      appPID = readPID(afterRelaunch);
+      assert.ok(appPID > 0);
+      assert.ok(afterRelaunch.payload.log_entries.includes("child_alive"));
+    }
   }
 
   await socketCase(
