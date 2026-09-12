@@ -432,6 +432,66 @@ func TestBoundProbeAndPlanRevalidationDoNotExecuteReplacedBinary(t *testing.T) {
 	}
 }
 
+func TestHistoricalInstallationSourceNeverGrantsLaunchOrExecutes(t *testing.T) {
+	for _, fault := range []string{"unchanged", "binary", "configuration", "integration", "bad_hash", "missing_binary", "missing_configuration", "added_configuration", "symlink"} {
+		t.Run(fault, func(t *testing.T) {
+			registry, installation, input, policy := fixture(t)
+			probe := mustProbe(t, registry, installation)
+			_, source, err := registry.InstallationSource(probe)
+			if err != nil {
+				t.Fatal(err)
+			}
+			stamp, err := provider.VerifyInstallationSource(installation, source)
+			if err != nil || stamp.RequestedPath != installation.Executable || stamp.Hash == "" {
+				t.Fatal("unchanged historical source unavailable", err)
+			}
+			canary := filepath.Join(t.TempDir(), "unexpected-exec")
+			switch fault {
+			case "binary":
+				if err := os.Rename(installation.Executable, installation.Executable+".original"); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(installation.Executable, []byte("#!/bin/sh\n/usr/bin/touch '"+canary+"'\n"), 0700); err != nil {
+					t.Fatal(err)
+				}
+			case "configuration":
+				if err := os.WriteFile(installation.ConfigFiles[0].Path, []byte("changed"), 0600); err != nil {
+					t.Fatal(err)
+				}
+			case "integration":
+				installation.IntegrationHash = provider.Hash([]byte("changed"))
+			case "bad_hash":
+				source = ""
+			case "missing_binary":
+				if err := os.Remove(installation.Executable); err != nil {
+					t.Fatal(err)
+				}
+			case "missing_configuration":
+				if err := os.Remove(installation.ConfigFiles[0].Path); err != nil {
+					t.Fatal(err)
+				}
+			case "added_configuration":
+				installation.ConfigFiles = append(installation.ConfigFiles, provider.ConfigSource{Name: "additional", Path: filepath.Join(t.TempDir(), "absent")})
+			case "symlink":
+				link := installation.Executable + ".link"
+				if err := os.Symlink(installation.Executable, link); err != nil {
+					t.Fatal(err)
+				}
+				installation.Executable = link
+			}
+			got, err := provider.VerifyInstallationSource(installation, source)
+			if (fault == "unchanged") != (err == nil) || err == nil && got != stamp {
+				t.Fatal("historical source disposition", err)
+			}
+			_, err = registry.PlanLaunch(probe, input, policy, probe.ExpiresAt.Add(time.Hour))
+			requireCode(t, err, "provider_probe_expired")
+			if _, err := os.Stat(canary); !os.IsNotExist(err) {
+				t.Fatal("historical observation executed a replacement")
+			}
+		})
+	}
+}
+
 func TestProbeRejectsUnsafePathsAndEnvironment(t *testing.T) {
 	for _, name := range []string{"relative", "mode", "config_symlink", "bad_hash", "duplicate_environment", "nul_environment"} {
 		t.Run(name, func(t *testing.T) {

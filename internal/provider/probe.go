@@ -231,6 +231,25 @@ func sourceHash(executable FileStamp, configuration, integration string) string 
 	return Hash(data)
 }
 
+// VerifyInstallationSource reads only existing files. The expected source comes
+// from authenticated preparation, not the caller's current installation. This
+// permits historical process-image inspection without extending probe freshness
+// or granting new launch authority. No version or health command runs here.
+func VerifyInstallationSource(installation Installation, expectedSource string) (FileStamp, error) {
+	if !hashPattern.MatchString(expectedSource) || !hashPattern.MatchString(installation.IntegrationHash) {
+		return FileStamp{}, Failure("provider_probe_invalid")
+	}
+	executable, err := fingerprint(installation.Executable, true)
+	if err != nil {
+		return FileStamp{}, err
+	}
+	configuration, err := configurationHash(installation.ConfigFiles)
+	if err != nil || sourceHash(executable, configuration, installation.IntegrationHash) != expectedSource {
+		return FileStamp{}, Failure("provider_changed")
+	}
+	return executable, nil
+}
+
 // InstallationSource preserves the exact original probe inputs across helpers.
 // Returned slices are copies; callers must not persist the ambient environment.
 func (registry *Registry) InstallationSource(probe Probe) (Installation, string, error) {

@@ -140,6 +140,22 @@ The supervisor retains its direct child unreaped until the owned group is gone;
 even a zombie leader reserves its PID against reuse. Signals and final reaping are
 serialized by the owning supervisor, not raced from an unrelated daemon process.
 
+Provider startup additionally requires the prepared native executable to be the
+owned child's running image. Darwin dynamic code validity is checked before
+reading its executable URL, with process identity and authenticated source
+fingerprints checked around repeated native queries. A waiting signed BFB wrapper,
+pipe EOF or provider output cannot establish this fact. This provider check does
+not relax the separate exact-build Apple-signature requirement for BFB helpers.
+Interpreted launchers do not pass merely because their script exists; their
+provider-specific identity contract belongs to L07/P01 certification.
+
+Historical source verification reads only existing files and never reprobes a
+running installation or extends the 30-second launch probe. Apple documents that
+[signing-information queries](https://developer.apple.com/documentation/security/seccodecopysigninginformation(_:_:_:))
+alone do not validate code; dynamic validity must first match the running code to
+its on-disk signing information. Native regression tests keep an old image running
+while replacing its pathname and require rejection of the replacement identity.
+
 Parent exit does not end ownership while any owned child remains. Every 15 seconds
 of verified group presence creates a local process-heartbeat observation, not an
 agent-working interval. The local event sink preserves typed provenance for L06;

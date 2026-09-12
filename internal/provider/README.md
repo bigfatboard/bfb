@@ -51,6 +51,11 @@ Plan `Revalidate` uses the same guard, so a replaced binary cannot run first and
 only then be rejected. L05 freezes this evidence locally for a separately started
 helper, which also compares the resulting full identity, version and manifest.
 
+`VerifyInstallationSource` returns the unchanged executable fingerprint from that
+authenticated source without executing a probe. L05 uses it to inspect an existing
+process after launch-probe expiry. It provides no capabilities, plan or new launch
+authority; the ordinary fresh-probe requirements still apply before execution.
+
 Launch plans return defensive copies of argv, environment and stdin. A safe
 initial turn uses the fixed `InitialInstruction`; context injection alone stays
 `waiting_initial_turn` or `waiting_user_submit`, never `working`.
