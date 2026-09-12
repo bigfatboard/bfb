@@ -12,17 +12,26 @@ actor FixtureRPC: LocalRPCTransport {
   var requests: [Request] = []
   var responses: [String: WireLocalRpcEnvelopePayload]
   var failures: [String: String]
+  let pollDelay: Duration
+  let onRequest: (@Sendable (Request) -> Void)?
 
-  init(responses: [String: WireLocalRpcEnvelopePayload] = [:], failures: [String: String] = [:]) {
+  init(
+    responses: [String: WireLocalRpcEnvelopePayload] = [:], failures: [String: String] = [:],
+    pollDelay: Duration = .milliseconds(20), onRequest: (@Sendable (Request) -> Void)? = nil
+  ) {
     self.responses = responses
     self.failures = failures
+    self.pollDelay = pollDelay
+    self.onRequest = onRequest
   }
 
   func call(_ method: String, payload: WireLocalRpcEnvelopePayload?) async throws
     -> WireLocalRpcEnvelope
   {
-    requests.append(Request(method: method, payload: payload))
-    if method == "app.poll" { try await Task.sleep(for: .milliseconds(20)) }
+    let request = Request(method: method, payload: payload)
+    requests.append(request)
+    onRequest?(request)
+    if method == "app.poll" { try await Task.sleep(for: pollDelay) }
     if let error = failures[method] { throw NativeFailure(code: error) }
     let response = WireLocalRpcEnvelope(
       schemaVersion: 1, requestId: try LocalRPC.requestID(), method: method, direction: "response",
@@ -151,21 +160,29 @@ final class NativeActionTests: XCTestCase {
 
   func testModelQuitDoesNotStopDaemonOrRepeatTerminalDelivery() async throws {
     let capture = CommandCapture()
-    let rpc = FixtureRPC(responses: [
-      "daemon.status": WireLocalRpcEnvelopePayload(status: "running", daemonPid: 123),
-      "runner.list": WireLocalRpcEnvelopePayload(enrollments: []),
-      "app.poll": WireLocalRpcEnvelopePayload(
-        terminalIntentId: local, appDeliveryId: wake, appAction: "open_terminal"),
-    ])
+    let acknowledged = expectation(description: "Original and repeated delivery acknowledged")
+    acknowledged.expectedFulfillmentCount = 2
+    let rpc = FixtureRPC(
+      responses: [
+        "daemon.status": WireLocalRpcEnvelopePayload(status: "running", daemonPid: 123),
+        "runner.list": WireLocalRpcEnvelopePayload(enrollments: []),
+        "app.poll": WireLocalRpcEnvelopePayload(
+          terminalIntentId: local, appDeliveryId: wake, appAction: "open_terminal"),
+      ], pollDelay: .milliseconds(120),
+      onRequest: { request in
+        if request.method == "app.complete" && request.payload?.appResult == "terminal_opened" {
+          acknowledged.fulfill()
+        }
+      })
     let actions = NativeActions(
       session: { .available },
       helper: { URL(fileURLWithPath: "/Applications/BFB.app/Contents/Helpers/bfb") },
       openTerminal: {}, emitTerminal: { capture.append($0) })
     let model = RunnerModel(transport: rpc, actions: actions)
     model.start()
-    try await Task.sleep(for: .milliseconds(160))
+    defer { model.stop() }
+    await fulfillment(of: [acknowledged], timeout: 3)
     model.stop()
-    try await Task.sleep(for: .milliseconds(30))
     XCTAssertEqual(capture.values().count, 1)
     let calls = await rpc.requests
     XCTAssertFalse(calls.contains { $0.method == "daemon.stop" })
