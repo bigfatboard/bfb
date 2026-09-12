@@ -25,9 +25,11 @@ The synthetic executable is built by `go build ./cmd/bfb-fake-provider`.
 - L06 owns correlation, event envelopes, sequencing, persistence and upload.
   Hook parsers return only bounded semantic candidates. They cannot emit task
   completion, attention creation or result submission.
-- D02 owns durable session assignment/fencing and delivery records. A
-  `SessionBinding` must come from that local store with its execution guard held,
-  not from a peer message or a guessed most-recent session.
+- L05 owns interactive resume's stopped-source proof and new execution guard;
+  D02 owns discussion session fencing and delivery records. A `SessionBinding`
+  must come from authenticated assignment state, not a peer message or a guessed
+  most-recent session. The kit validates its shape, not native process absence
+  or cloud authorization; the execution owner must establish those separately.
 
 ## Probe and invocation contract
 
@@ -59,6 +61,18 @@ authority; the ordinary fresh-probe requirements still apply before execution.
 Launch plans return defensive copies of argv, environment and stdin. A safe
 initial turn uses the fixed `InitialInstruction`; context injection alone stays
 `waiting_initial_turn` or `waiting_user_submit`, never `working`.
+
+`PlanResume` and the adapter's `Resume` entry point continue an exact interactive
+`SessionBinding`. They require valid owned run/execution/generation identities,
+no requested new session ID, and the intersection of `session.resume` and
+`session.resume.interactive`, in addition to the ordinary launch/policy checks.
+Headless-only continuation evidence cannot enable interactive resume. There is
+no optional session, implicit most-recent target, or fork on this path. Resume
+plans retain the same installation revalidation, immutable invocation and fixed
+initial-turn transport as fresh launches; a plan is not a session observation
+or evidence that a provider started a turn. Unknown exact targets must fail
+without falling back to a fresh session. Real adapters own that runtime proof.
+
 Discussion plans require headless, read-only, no permission prompts or inherited
 context, a bounded turn ID, and verified structured/read-only capabilities.
 The compiled turn argv builder never receives peer content. The kit encodes that

@@ -64,6 +64,7 @@ type Descriptor struct {
 type Adapter interface {
 	Inspect(context.Context, Installation) (RuntimeHealth, error)
 	Launch(LaunchInput) (Invocation, error)
+	Resume(ResumeInput) (Invocation, error)
 	Turn(TurnInput) (Invocation, error)
 	NormalizeHook([]byte) (*Candidate, error)
 	NormalizeTurn([]byte) (*TurnEvent, error)
@@ -86,13 +87,19 @@ type LaunchInput struct {
 }
 
 // SessionBinding must come from the local ownership/assignment store, not peer content.
-// D02 owns its durable fencing and keeps the execution guard held through the turn.
+// L05 and D02 own durable fencing and hold the execution guard through resumed work.
 type SessionBinding struct {
 	Provider    string
 	ObservedID  string
 	RunID       string
 	ExecutionID string
 	Generation  int64
+}
+
+// ResumeInput continues an exact owned interactive session without selecting a new ID or fork.
+type ResumeInput struct {
+	LaunchInput
+	Session SessionBinding
 }
 
 type TurnInput struct {

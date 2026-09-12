@@ -11,7 +11,7 @@ import (
 )
 
 func Capabilities() []string {
-	return []string{"launch.interactive", "launch.headless", "filesystem.read_only", "filesystem.workspace_write", "approval.never", "approval.on_request", "approval.always", "context.session_start", "prompt.initial_constant", "session.requested_id", "session.resume", "session.fork", "discussion.read_only", "turn.structured", "hooks.session_start", "mcp.stdio", "control.interrupt", "control.terminate"}
+	return []string{"launch.interactive", "launch.headless", "filesystem.read_only", "filesystem.workspace_write", "approval.never", "approval.on_request", "approval.always", "context.session_start", "prompt.initial_constant", "session.requested_id", "session.resume", "session.resume.interactive", "session.fork", "discussion.read_only", "turn.structured", "hooks.session_start", "mcp.stdio", "control.interrupt", "control.terminate"}
 }
 
 func Descriptor() provider.Descriptor {
@@ -63,6 +63,15 @@ func (adapter Adapter) Turn(input provider.TurnInput) (provider.Invocation, erro
 	if input.Fork {
 		invocation.Arguments = append(invocation.Arguments, "--fork")
 	}
+	return invocation, nil
+}
+
+func (adapter Adapter) Resume(input provider.ResumeInput) (provider.Invocation, error) {
+	invocation, err := adapter.Launch(input.LaunchInput)
+	if err != nil {
+		return invocation, err
+	}
+	invocation.Arguments = append(invocation.Arguments, "--resume", input.Session.ObservedID)
 	return invocation, nil
 }
 

@@ -64,6 +64,10 @@ Claude, Codex, Grok, and a fake provider implement one narrow tested lifecycle w
   L06 owns that boundary. Discussion continuation requires an explicit observed
   session identity and BFB-owned execution claim; it never uses a provider's
   most-recent-session convenience option.
+- A distinct interactive `PlanResume`/adapter `Resume` contract with an exact
+  owned session binding and the additional `session.resume.interactive`
+  capability. Headless continuation cannot imply interactive certification;
+  L05 still owns stopped-source proof, fencing and final authorization.
 - A reproducible early local capability experiment with synthetic Claude/Codex
   sessions only. It records supported, unsupported and unverified cases against
   exact executable versions, including unknown/busy targets and cancellation.
@@ -85,6 +89,10 @@ or change to global provider configuration is introduced by the experiment.
 - Malicious task/profile/checkout strings cannot alter executable or argv; only the fixed manifest-approved initial instruction may enter its documented transport.
 - Unknown versions fail closed for required tracked capabilities.
 - Fake provider covers interactive, headless, resume, interrupt, termination, child, and escape cases.
+- Interactive resume preserves the exact observed session, rejects missing or
+  malformed ownership and new-session requests, and fails an unknown runtime
+  target without a fresh-session fallback. Each manifest, runtime and policy
+  capability ceiling is independently enforced before the adapter is called.
 - Replacing the probed binary, symlink target, version, provider configuration, or integration hash before execution invalidates the launch plan.
 - Setup changes only approved BFB-owned entries, detects a concurrent edit, writes atomically, and restores the prior valid configuration if doctor fails.
 - Stop, terminal close, tool failure, or process exit never becomes result submission.

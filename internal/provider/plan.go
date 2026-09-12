@@ -114,6 +114,34 @@ func (registry *Registry) PlanLaunch(probe Probe, input LaunchInput, policy Poli
 	return makePlan(probe, input, invocation)
 }
 
+func validSession(binding SessionBinding, provider string) bool {
+	return binding.Provider == provider && sessionPattern.MatchString(binding.ObservedID) &&
+		ulidPattern.MatchString(binding.RunID) && ulidPattern.MatchString(binding.ExecutionID) &&
+		binding.Generation >= 1 && binding.Generation <= 9007199254740991
+}
+
+func (registry *Registry) PlanResume(probe Probe, input ResumeInput, policy Policy, now time.Time) (Plan, error) {
+	descriptor, err := registry.validatePlan(probe, input.LaunchInput, policy, now)
+	if err != nil {
+		return Plan{}, err
+	}
+	if input.Config.Mode != "interactive" || input.RequestedSessionID != "" || !validSession(input.Session, probe.Provider) {
+		return Plan{}, Failure("provider_session_invalid")
+	}
+	available := Intersection(probe.Capabilities, policy.AllowedCapabilities)
+	for _, capability := range []string{"session.resume", "session.resume.interactive"} {
+		if !slices.Contains(available, capability) {
+			return Plan{}, Failure("provider_capability_denied")
+		}
+	}
+	input.Config.RequiredCapabilities = slices.Clone(input.Config.RequiredCapabilities)
+	invocation, err := descriptor.Adapter.Resume(input)
+	if err != nil {
+		return Plan{}, err
+	}
+	return makePlan(probe, input.LaunchInput, invocation)
+}
+
 func (registry *Registry) PlanTurn(probe Probe, input TurnInput, policy Policy, now time.Time) (Plan, error) {
 	descriptor, err := registry.validatePlan(probe, input.LaunchInput, policy, now)
 	if err != nil {
@@ -125,7 +153,7 @@ func (registry *Registry) PlanTurn(probe Probe, input TurnInput, policy Policy, 
 	required := []string{"discussion.read_only", "turn.structured"}
 	if input.Session != nil {
 		binding := *input.Session
-		if binding.Provider != probe.Provider || !sessionPattern.MatchString(binding.ObservedID) || !ulidPattern.MatchString(binding.RunID) || !ulidPattern.MatchString(binding.ExecutionID) || binding.Generation < 1 || binding.Generation > 9007199254740991 || input.RequestedSessionID != "" {
+		if !validSession(binding, probe.Provider) || input.RequestedSessionID != "" {
 			return Plan{}, Failure("provider_session_invalid")
 		}
 		input.Session = &binding
