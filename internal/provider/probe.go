@@ -209,6 +209,41 @@ func (registry *Registry) Names() []string {
 func manifestID(manifest Manifest) string { data, _ := json.Marshal(manifest); return Hash(data) }
 
 func (registry *Registry) Probe(ctx context.Context, name string, installation Installation, now time.Time) (Probe, error) {
+	return registry.probe(ctx, name, installation, "", now)
+}
+
+// ProbeBound rejects replaced executable/configuration sources before invoking
+// even a version or health command. expectedSource comes from a sealed probe.
+func (registry *Registry) ProbeBound(ctx context.Context, name string, installation Installation, expectedSource string, now time.Time) (Probe, error) {
+	if !hashPattern.MatchString(expectedSource) {
+		return Probe{}, Failure("provider_probe_invalid")
+	}
+	return registry.probe(ctx, name, installation, expectedSource, now)
+}
+
+func sourceHash(executable FileStamp, configuration, integration string) string {
+	data, _ := json.Marshal(struct {
+		Domain        string
+		Executable    FileStamp
+		Configuration string
+		Integration   string
+	}{"bfb-provider-source/1", executable, configuration, integration})
+	return Hash(data)
+}
+
+// InstallationSource preserves the exact original probe inputs across helpers.
+// Returned slices are copies; callers must not persist the ambient environment.
+func (registry *Registry) InstallationSource(probe Probe) (Installation, string, error) {
+	if probe.registry != registry || probe.seal != probeSeal(probe) {
+		return Installation{}, "", Failure("provider_probe_invalid")
+	}
+	installation := probe.installation
+	installation.ConfigFiles = slices.Clone(installation.ConfigFiles)
+	installation.Environment = slices.Clone(installation.Environment)
+	return installation, sourceHash(probe.executable, probe.configurationHash, installation.IntegrationHash), nil
+}
+
+func (registry *Registry) probe(ctx context.Context, name string, installation Installation, expectedSource string, now time.Time) (Probe, error) {
 	descriptor, ok := registry.descriptors[name]
 	if !ok {
 		return Probe{}, Failure("provider_unavailable")
@@ -225,6 +260,9 @@ func (registry *Registry) Probe(ctx context.Context, name string, installation I
 	}
 	if !hashPattern.MatchString(installation.IntegrationHash) || !validEnvironment(installation.Environment) {
 		return Probe{}, Failure("provider_config_invalid")
+	}
+	if expectedSource != "" && sourceHash(executable, configHash, installation.IntegrationHash) != expectedSource {
+		return Probe{}, Failure("provider_changed")
 	}
 	local := installation
 	local.Executable = executable.CanonicalPath
@@ -291,7 +329,8 @@ func (registry *Registry) Revalidate(ctx context.Context, plan Plan, now time.Ti
 	if now.Before(plan.probe.ObservedAt) || !now.Before(plan.probe.ExpiresAt) {
 		return Failure("provider_probe_expired")
 	}
-	current, err := registry.Probe(ctx, plan.probe.Provider, plan.probe.installation, now)
+	expectedSource := sourceHash(plan.probe.executable, plan.probe.configurationHash, plan.probe.installation.IntegrationHash)
+	current, err := registry.ProbeBound(ctx, plan.probe.Provider, plan.probe.installation, expectedSource, now)
 	if err != nil {
 		return err
 	}

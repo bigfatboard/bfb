@@ -66,6 +66,22 @@ installation-identity digest, covering executable/configuration fingerprints,
 version, integration and manifest/capabilities. Fresh probe timestamps and the
 helper's normal local environment are not durable identity or cloud credentials.
 
+The daemon freezes local executable/configuration locations and the sealed probe's
+source fingerprint in an authenticated preparation record before offering the
+intent. The independent helper checks that fingerprint before executing even a
+version/health probe, then compares full installation identity, observed version
+and manifest with the claim. Preparation serializes no argv or environment. It
+removes inherited `BFB_*` values and later adds only the nine scoped execution,
+correlation and artifact-location variables listed in the architecture.
+
+Artifacts live in private `run-artifacts/<execution-id>` directories below daemon
+state. Native ancestor identity checks reject state inside the registered Git
+root, including case aliases and symlinks, before creating output directories.
+Preparation pins the artifact device/inode; missing, replaced, symlinked or public
+directories block and are not recreated by a retry. The helper repeats this
+inspection before execution. Artifact output contains no assignment authentication
+key and is not a metadata storage or invocation-authority surface.
+
 The helper acquires the Mac-wide physical-worktree lock and durable recovery
 marker. With that fence held it repeats checkout, repository policy and provider
 probe checks, obtains a new online C09 final authorization, and revalidates local

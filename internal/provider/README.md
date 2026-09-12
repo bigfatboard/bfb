@@ -44,6 +44,13 @@ not grant capabilities. `Revalidate` reprobes those facts immediately before
 execution; a changed/unknown/unhealthy/expired installation fails closed. Local
 policy cannot make an unknown version inherit another version's certification.
 
+`InstallationSource` derives defensive installation copies and a source hash from
+the sealed original probe. `ProbeBound` checks executable and configuration
+fingerprints against that hash before invoking even `--version` or a health probe.
+Plan `Revalidate` uses the same guard, so a replaced binary cannot run first and
+only then be rejected. L05 freezes this evidence locally for a separately started
+helper, which also compares the resulting full identity, version and manifest.
+
 Launch plans return defensive copies of argv, environment and stdin. A safe
 initial turn uses the fixed `InitialInstruction`; context injection alone stays
 `waiting_initial_turn` or `waiting_user_submit`, never `working`.

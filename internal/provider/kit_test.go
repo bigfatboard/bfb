@@ -391,6 +391,47 @@ func TestPreExecIdentityRevalidation(t *testing.T) {
 	}
 }
 
+func TestBoundProbeAndPlanRevalidationDoNotExecuteReplacedBinary(t *testing.T) {
+	registry, installation, input, policy := fixture(t)
+	probe := mustProbe(t, registry, installation)
+	plan, err := registry.PlanLaunch(probe, input, policy, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	local, source, err := registry.InstallationSource(probe)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := registry.ProbeBound(context.Background(), "fake", local, source, time.Now()); err != nil {
+		t.Fatal("unchanged bound probe", err)
+	}
+	local.ConfigFiles[0].Path = "/synthetic-wrong-config"
+	again, sameSource, err := registry.InstallationSource(probe)
+	if err != nil || sameSource != source || again.ConfigFiles[0].Path != installation.ConfigFiles[0].Path {
+		t.Fatal("source evidence exposed mutable probe inputs", err)
+	}
+	altered := probe
+	altered.Version = "99.0.0"
+	_, _, err = registry.InstallationSource(altered)
+	requireCode(t, err, "provider_probe_invalid")
+	_, err = registry.ProbeBound(context.Background(), "fake", installation, "", time.Now())
+	requireCode(t, err, "provider_probe_invalid")
+	canary := filepath.Join(input.WorkingDirectory, "replaced-probe-executed")
+	if err := os.Rename(installation.Executable, installation.Executable+"-original"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(installation.Executable, []byte("#!/bin/sh\n: > '"+canary+"'\nexit 1\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	_, err = registry.ProbeBound(context.Background(), "fake", installation, source, time.Now())
+	requireCode(t, err, "provider_changed")
+	err = registry.Revalidate(context.Background(), plan, time.Now())
+	requireCode(t, err, "provider_changed")
+	if _, err := os.Lstat(canary); !os.IsNotExist(err) {
+		t.Fatal("replacement executable ran a version or health probe")
+	}
+}
+
 func TestProbeRejectsUnsafePathsAndEnvironment(t *testing.T) {
 	for _, name := range []string{"relative", "mode", "config_symlink", "bad_hash", "duplicate_environment", "nul_environment"} {
 		t.Run(name, func(t *testing.T) {
