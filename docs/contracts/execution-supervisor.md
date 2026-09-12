@@ -41,6 +41,23 @@ unknown delivery cannot mint or offer another one. Native registration is commit
 before returning the assignment. Database triggers prevent rebinding the execution
 or clearing an already registered supervisor.
 
+Local migration `005_launch_cleanup.sql` adds a distinct immutable cleanup ID,
+initially absent for existing and newly accepted commands. Beginning unstarted
+cleanup atomically pins that ID and blocks any unregistered intent. The same
+transaction excludes a racing registration, and a database trigger prevents
+later intent issuance. The ID labels never-acquired lock evidence; it does not
+create a physical lock or replace a registered supervisor's actual lock identity.
+Confirmed completion cannot reopen through redelivery or a queue retry.
+
+The launch consumer acknowledges only durable acceptance. Four bounded workers
+process the recovered queue independently of the runner channel, with per-command
+backoff from five seconds to one minute. They reuse the original claim request and
+never claim or offer a previously offered/registered intent again. Shutdown cancels
+and joins those workers before closing private assignment files. Registered
+executions remain owned by native lifecycle observation, not by the unstarted
+cleanup path. Missing provider adapters/installations fail closed; the fake provider
+is available only through a compiled synthetic-harness installation boundary.
+
 After that transaction, registration atomically publishes the strict assignment in
 the user-private `execution-records` directory, authenticated over both its bytes
 and local-intent filename. Publication is immutable and serialized by a stable
@@ -57,6 +74,14 @@ cleanup-only reconciliation binding even after lease/launch expiry. This cannot
 create a local intent or replace final authorization. The daemon must consult its
 durable intent/registration and native lock/process evidence before reporting an
 unstarted release; absence of an HTTP reply alone is not proof that nothing started.
+
+A terminal `never_acquired` receipt settles a locally unissued command without a
+lease write. An unstarted reserved launch requires the durable local cleanup barrier,
+a bound reconciliation receipt, rejection of the unstarted cloud launch and a fresh
+never-started lease observation. Completion then requires another bound receipt;
+neither an HTTP success nor a lost release acknowledgement suffices. Live or unknown
+containment, conflicting bindings, or any registered local supervisor block this
+path. A lost release reply is reconciled with the same cleanup ID after restart.
 
 A registered helper reads the existing checkout registry through SQLite
 [read-only mode](https://www.sqlite.org/uri.html), with schema checksum validation.
@@ -81,6 +106,12 @@ Preparation pins the artifact device/inode; missing, replaced, symlinked or publ
 directories block and are not recreated by a retry. The helper repeats this
 inspection before execution. Artifact output contains no assignment authentication
 key and is not a metadata storage or invocation-authority surface.
+
+An issued but unoffered intent may continue after restart only if its authenticated
+preparation still exists and its original sources pass a non-executing fingerprint
+check before probing. A missing preparation is blocked, not reconstructed from a
+new installation. Execution preflight returns freshly observed Git branch, HEAD,
+dirty state and observation time without rewriting checkout registration.
 
 The helper acquires the Mac-wide physical-worktree lock and durable recovery
 marker. With that fence held it repeats checkout, repository policy and provider

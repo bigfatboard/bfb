@@ -6,12 +6,63 @@ package supervisor
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"time"
 
 	"github.com/qdis/bfb/internal/protocol"
 	"github.com/qdis/bfb/internal/protocol/generated"
 	"github.com/qdis/bfb/internal/provider"
 )
+
+// claimOutcome validates the non-document HTTP wrapper before the generated
+// claim decoder. Map unmarshalling alone would hide duplicate JSON keys.
+func claimOutcome(data []byte, command LocalCommand) (*generated.LaunchClaimResult, error) {
+	if len(data) == 0 || len(data) > 40000 {
+		return nil, failure("execution_assignment_invalid")
+	}
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	if token, err := decoder.Token(); err != nil || token != json.Delim('{') {
+		return nil, failure("execution_assignment_invalid")
+	}
+	fields := map[string]json.RawMessage{}
+	for decoder.More() {
+		token, err := decoder.Token()
+		key, ok := token.(string)
+		if err != nil || !ok || (key != "state" && key != "claim" && key != "reason") || fields[key] != nil {
+			return nil, failure("execution_assignment_invalid")
+		}
+		var value json.RawMessage
+		if decoder.Decode(&value) != nil {
+			return nil, failure("execution_assignment_invalid")
+		}
+		fields[key] = value
+	}
+	if token, err := decoder.Token(); err != nil || token != json.Delim('}') {
+		return nil, failure("execution_assignment_invalid")
+	}
+	if _, err := decoder.Token(); err != io.EOF || len(fields) != 2 {
+		return nil, failure("execution_assignment_invalid")
+	}
+	var state, reason string
+	if json.Unmarshal(fields["state"], &state) != nil {
+		return nil, failure("execution_assignment_invalid")
+	}
+	if state == "claimed" && fields["claim"] != nil {
+		decoded := protocol.DecodeWireDocument("launch-claim-result", fields["claim"])
+		var claim generated.LaunchClaimResult
+		if !decoded.OK || json.Unmarshal([]byte(decoded.JSON), &claim) != nil {
+			return nil, failure("execution_assignment_invalid")
+		}
+		if err := validateClaim(claim, command.WorkspaceID, command.RunnerID, command.ID, command.ExpiresAt); err != nil {
+			return nil, err
+		}
+		return &claim, nil
+	}
+	if json.Unmarshal(fields["reason"], &reason) == nil && ((state == "expired" && reason == "launch_expired") || (state == "rejected" && reason == "launch_blocked")) {
+		return nil, nil
+	}
+	return nil, failure("execution_assignment_invalid")
+}
 
 func wireJSON(document string, value any) ([]byte, error) {
 	data, err := json.Marshal(value)

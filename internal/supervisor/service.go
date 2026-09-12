@@ -13,6 +13,8 @@ import (
 
 	"github.com/qdis/bfb/internal/daemon"
 	"github.com/qdis/bfb/internal/protocol/generated"
+	"github.com/qdis/bfb/internal/provider"
+	"github.com/qdis/bfb/internal/providers"
 	"github.com/qdis/bfb/internal/runner"
 )
 
@@ -20,6 +22,9 @@ type ServiceOptions struct {
 	InspectHelper func(daemon.Peer) (SupervisorIdentity, error)
 	Now           func() time.Time
 	Connection    func(string) (runner.RunnerConnection, error)
+	Providers     *provider.Registry
+	Installation  func(context.Context, string) (provider.Installation, error)
+	OpenTerminal  func(context.Context, string) error
 }
 
 type Service struct {
@@ -30,6 +35,7 @@ type Service struct {
 	paths   daemon.Paths
 	ready   chan struct{}
 	started sync.Once
+	wake    chan struct{}
 }
 
 func NewService(options ServiceOptions) *Service {
@@ -39,10 +45,20 @@ func NewService(options ServiceOptions) *Service {
 	if options.Now == nil {
 		options.Now = time.Now
 	}
-	return &Service{options: options, ready: make(chan struct{})}
+	if options.Providers == nil {
+		var err error
+		options.Providers, err = provider.NewRegistry(providers.Descriptors())
+		if err != nil {
+			panic("invalid compiled provider descriptors")
+		}
+	}
+	if options.Installation == nil {
+		options.Installation = localInstallationForLaunch
+	}
+	return &Service{options: options, ready: make(chan struct{}), wake: make(chan struct{}, 1)}
 }
 
-func (service *Service) Start(_ context.Context, store *daemon.Store) (func(), error) {
+func (service *Service) Start(ctx context.Context, store *daemon.Store) (func(), error) {
 	service.mu.Lock()
 	defer service.mu.Unlock()
 	if service.store != nil {
@@ -55,13 +71,45 @@ func (service *Service) Start(_ context.Context, store *daemon.Store) (func(), e
 	service.store = NewIntentStore(store.DB)
 	service.files = files
 	service.paths = store.Paths
+	ctx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() { defer close(done); service.runQueue(ctx, service.store, files) }()
 	service.started.Do(func() { close(service.ready) })
+	var closeOnce sync.Once
 	return func() {
-		service.mu.Lock()
-		defer service.mu.Unlock()
-		_ = files.Close()
-		service.store, service.files = nil, nil
+		closeOnce.Do(func() {
+			cancel()
+			<-done
+			service.mu.Lock()
+			defer service.mu.Unlock()
+			_ = files.Close()
+			service.store, service.files = nil, nil
+		})
 	}, nil
+}
+
+// Accept is the L08 consumer boundary: commit before acknowledging delivery.
+// Pulling, probing and Terminal delivery run independently of the channel reader.
+func (service *Service) Accept(ctx context.Context, enrollment runner.Enrollment, reference runner.CommandReference) error {
+	if reference.Kind != "launch" {
+		return failure("invalid_request")
+	}
+	if err := service.waitReady(ctx); err != nil {
+		return err
+	}
+	service.mu.RLock()
+	defer service.mu.RUnlock()
+	if service.store == nil {
+		return failure("daemon_offline")
+	}
+	if err := service.store.Accept(ctx, enrollment, reference, service.options.Now()); err != nil {
+		return err
+	}
+	select {
+	case service.wake <- struct{}{}:
+	default:
+	}
+	return nil
 }
 
 func RegisterRPC(registry *daemon.Registry, service *Service) error {

@@ -27,6 +27,7 @@ func NewIntentStore(db *sql.DB) *IntentStore { return &IntentStore{db: db} }
 
 type LocalCommand struct {
 	WorkspaceID, RunnerID, ID, Kind, ExpiresAt, ClaimKey, ClaimStartedAt, State string
+	CleanupLockID                                                               string
 }
 
 func localTimestamp(now time.Time) string {
@@ -61,7 +62,7 @@ ON CONFLICT(runner_id,command_id) DO NOTHING`, enrollment.RunnerID, reference.ID
 
 func (store *IntentStore) Command(ctx context.Context, runner, id string) (LocalCommand, error) {
 	var command LocalCommand
-	err := store.db.QueryRowContext(ctx, `SELECT workspace_id,runner_id,command_id,command_kind,expires_at,claim_key,claim_started_at,state FROM execution_commands WHERE runner_id = ? AND command_id = ?`, runner, id).Scan(&command.WorkspaceID, &command.RunnerID, &command.ID, &command.Kind, &command.ExpiresAt, &command.ClaimKey, &command.ClaimStartedAt, &command.State)
+	err := scanCommand(store.db.QueryRowContext(ctx, "SELECT "+commandColumns+" FROM execution_commands WHERE runner_id = ? AND command_id = ?", runner, id), &command)
 	if err != nil {
 		return LocalCommand{}, failure("storage_failed")
 	}
@@ -162,7 +163,7 @@ func (store *IntentStore) ByIntent(ctx context.Context, intent string) (LocalAss
 }
 
 func (store *IntentStore) Issue(ctx context.Context, command LocalCommand, claim generated.LaunchClaimResult, providerIdentity string, now time.Time) (LocalAssignment, error) {
-	if command.Kind != "launch" || !worktreeDigest.MatchString(providerIdentity) {
+	if command.Kind != "launch" || command.CleanupLockID != "" || (command.State != "queued" && command.State != "waiting") || !worktreeDigest.MatchString(providerIdentity) {
 		return LocalAssignment{}, failure("invalid_request")
 	}
 	stored, err := store.Command(ctx, command.RunnerID, command.ID)

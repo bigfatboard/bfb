@@ -113,6 +113,43 @@ func TestMigrationRollbackAndChecksum(t *testing.T) {
 	}
 }
 
+func TestCleanupMigrationPreservesOriginalClaimAndRollsBack(t *testing.T) {
+	ctx := context.Background()
+	paths := testPaths(t)
+	previous, err := openStore(ctx, paths, kernelMigrations()[:4], nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = previous.DB.Exec(`INSERT INTO execution_commands VALUES ('runner','command','workspace','launch',
+'2026-09-12T12:02:00Z','2026-09-12T12:00:00Z','original-claim','2026-09-12T12:00:00Z','waiting',NULL)`); err != nil {
+		t.Fatal(err)
+	}
+	_ = previous.Close()
+	if _, err = openStore(ctx, paths, kernelMigrations(), func(version int) error {
+		if version == 5 {
+			return errors.New("synthetic cleanup migration interruption")
+		}
+		return nil
+	}); err == nil {
+		t.Fatal("cleanup migration ignored interruption")
+	}
+	previous, err = openStore(ctx, paths, kernelMigrations()[:4], nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var count int
+	if err = previous.DB.QueryRow("SELECT count(*) FROM pragma_table_info('execution_commands') WHERE name = 'cleanup_lock_id'").Scan(&count); err != nil || count != 0 {
+		t.Fatal("partial cleanup migration survived rollback", err)
+	}
+	_ = previous.Close()
+	upgraded := openTestStore(t, paths)
+	defer upgraded.Close()
+	if err = upgraded.DB.QueryRow(`SELECT count(*) FROM execution_commands WHERE claim_key = 'original-claim'
+AND claim_started_at = '2026-09-12T12:00:00Z' AND state = 'waiting' AND cleanup_lock_id IS NULL`).Scan(&count); err != nil || count != 1 {
+		t.Fatal("cleanup migration changed original claim", err)
+	}
+}
+
 func TestExecutionMigrationPreservesPriorStateAndRollsBack(t *testing.T) {
 	paths := testPaths(t)
 	previous, err := openStore(context.Background(), paths, kernelMigrations()[:3], nil)

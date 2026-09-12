@@ -65,6 +65,16 @@ func checkCheckout(ctx context.Context, registry *checkout.Registry, assignment 
 	if observed.Location != record.Location {
 		return checkout.Record{}, failure("checkout_identity_changed")
 	}
+	// Registration supplies identity, not current Git facts. Keep this fresh
+	// observation local without turning execution preflight into a registry write.
+	record.Summary.Branch, record.Summary.Head = nil, nil
+	if observed.Branch != "" {
+		record.Summary.Branch = &observed.Branch
+	}
+	if observed.Head != "" {
+		record.Summary.Head = &observed.Head
+	}
+	record.Summary.Dirty, record.Summary.ValidatedAt = observed.Dirty, observed.ValidatedAt
 	return record, nil
 }
 
