@@ -20,7 +20,7 @@ import (
 //go:embed migrations/*.sql
 var migrationFiles embed.FS
 
-const StorageVersion = 6
+const StorageVersion = 7
 const applicationID = 0x424642
 
 type Store struct {

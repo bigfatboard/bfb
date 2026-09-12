@@ -108,13 +108,13 @@ func TestCloseDoesNotReleaseAndLocalRecoveryCannotIgnoreLiveOwner(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertFailure(t, store.RecoverLocal(binding), "checkout_occupied")
+	assertFailure(t, store.recoverLocal(binding, nil), "checkout_occupied")
 	if err = lock.Close(); err != nil {
 		t.Fatal(err)
 	}
 	_, err = store.Acquire(fixtureBinding())
 	assertFailure(t, err, "containment_unknown")
-	assertFailure(t, store.RecoverLocal(binding), "containment_unknown")
+	assertFailure(t, store.recoverLocal(binding, nil), "containment_unknown")
 	record, err := store.read(binding.PhysicalWorktreeHash)
 	if err != nil || record.State != "reserved" || record.RecoveryLocal {
 		t.Fatal("abandoned reservation was released")
@@ -232,14 +232,14 @@ func testCrashMarker(t *testing.T, unrecorded bool) {
 			_ = syscall.Kill(leader.PID, syscall.SIGKILL)
 		}
 	})
-	assertFailure(t, store.RecoverLocal(binding), "checkout_occupied")
+	assertFailure(t, store.recoverLocal(binding, nil), "checkout_occupied")
 	if err = command.Process.Kill(); err != nil {
 		t.Fatal(err)
 	}
 	_ = command.Wait()
 	_, err = store.Acquire(fixtureBinding())
 	assertFailure(t, err, "containment_unknown")
-	assertFailure(t, store.RecoverLocal(binding), "containment_unknown")
+	assertFailure(t, store.recoverLocal(binding, nil), "containment_unknown")
 	table, err := InspectProcesses()
 	if err != nil || !leader.Same(table[leader.PID]) || table[leader.PID].Zombie {
 		t.Fatal("fixture child did not outlive supervisor")
@@ -252,13 +252,13 @@ func testCrashMarker(t *testing.T, unrecorded bool) {
 	if unrecorded {
 		// Without a recorded start/ancestry, recovery cannot establish that
 		// all potentially created descendants were observed and are gone.
-		assertFailure(t, store.RecoverLocal(binding), "containment_unknown")
+		assertFailure(t, store.recoverLocal(binding, nil), "containment_unknown")
 		return
 	}
 	wrong := binding
 	wrong.AssignmentGeneration++
-	assertFailure(t, store.RecoverLocal(wrong), "containment_unknown")
-	if err = store.RecoverLocal(binding); err != nil {
+	assertFailure(t, store.recoverLocal(wrong, nil), "containment_unknown")
+	if err = store.recoverLocal(binding, nil); err != nil {
 		t.Fatal(err)
 	}
 	record, err := store.read(binding.PhysicalWorktreeHash)
@@ -349,7 +349,7 @@ func TestRecoveryRejectsReusedIdentitiesAndIncompleteHistory(t *testing.T) {
 			if err = store.directory.write(lockName(binding.PhysicalWorktreeHash, ".json"), record); err != nil {
 				t.Fatal(err)
 			}
-			assertFailure(t, store.RecoverLocal(binding), "containment_unknown")
+			assertFailure(t, store.recoverLocal(binding, nil), "containment_unknown")
 			_, err = store.Acquire(fixtureBinding())
 			assertFailure(t, err, "containment_unknown")
 		})

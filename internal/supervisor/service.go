@@ -28,14 +28,15 @@ type ServiceOptions struct {
 }
 
 type Service struct {
-	options ServiceOptions
-	mu      sync.RWMutex
-	store   *IntentStore
-	files   *AssignmentFiles
-	paths   daemon.Paths
-	ready   chan struct{}
-	started sync.Once
-	wake    chan struct{}
+	options  ServiceOptions
+	mu       sync.RWMutex
+	nativeMu sync.Mutex
+	store    *IntentStore
+	files    *AssignmentFiles
+	paths    daemon.Paths
+	ready    chan struct{}
+	started  sync.Once
+	wake     chan struct{}
 }
 
 func NewService(options ServiceOptions) *Service {
@@ -73,7 +74,13 @@ func (service *Service) Start(ctx context.Context, store *daemon.Store) (func(),
 	service.paths = store.Paths
 	ctx, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})
-	go func() { defer close(done); service.runQueue(ctx, service.store, files) }()
+	go func() {
+		defer close(done)
+		var workers sync.WaitGroup
+		workers.Go(func() { service.runQueue(ctx, service.store, files) })
+		workers.Go(func() { service.runObserver(ctx, service.store, files, store.Paths) })
+		workers.Wait()
+	}()
 	service.started.Do(func() { close(service.ready) })
 	var closeOnce sync.Once
 	return func() {

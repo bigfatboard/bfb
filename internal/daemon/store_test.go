@@ -195,6 +195,47 @@ AND provider_observed_at IS NULL AND process_absent_at IS NULL AND last_process_
 	}
 }
 
+func TestNativeHistoryMigrationDoesNotInventObservedDescendants(t *testing.T) {
+	ctx := context.Background()
+	paths := testPaths(t)
+	previous, err := openStore(ctx, paths, kernelMigrations()[:6], nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = previous.DB.Exec(`INSERT INTO execution_commands
+(runner_id,command_id,workspace_id,command_kind,expires_at,received_at,claim_key,claim_started_at,state)
+VALUES ('runner','command','workspace','launch','2026-09-12T12:02:00Z','2026-09-12T12:00:00Z',
+'original-claim','2026-09-12T12:00:00Z','waiting')`); err != nil {
+		t.Fatal(err)
+	}
+	_ = previous.Close()
+	if _, err = openStore(ctx, paths, kernelMigrations(), func(version int) error {
+		if version == 7 {
+			return errors.New("synthetic native-history migration interruption")
+		}
+		return nil
+	}); err == nil {
+		t.Fatal("native-history migration ignored interruption")
+	}
+	previous, err = openStore(ctx, paths, kernelMigrations()[:6], nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var count int
+	if err = previous.DB.QueryRow("SELECT count(*) FROM sqlite_schema WHERE name = 'execution_native_history'").Scan(&count); err != nil || count != 0 {
+		t.Fatal("partial native-history migration survived rollback", err)
+	}
+	_ = previous.Close()
+	upgraded := openTestStore(t, paths)
+	defer upgraded.Close()
+	if err = upgraded.DB.QueryRow("SELECT count(*) FROM execution_native_history").Scan(&count); err != nil || count != 0 {
+		t.Fatal("migration invented native process history", err)
+	}
+	if err = upgraded.DB.QueryRow("SELECT count(*) FROM execution_commands WHERE claim_key = 'original-claim' AND state = 'waiting'").Scan(&count); err != nil || count != 1 {
+		t.Fatal("native-history migration changed original command", err)
+	}
+}
+
 func TestExecutionMigrationPreservesPriorStateAndRollsBack(t *testing.T) {
 	paths := testPaths(t)
 	previous, err := openStore(context.Background(), paths, kernelMigrations()[:3], nil)

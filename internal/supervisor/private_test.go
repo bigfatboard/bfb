@@ -79,7 +79,7 @@ func TestPrivateRecordFaultsCannotReleaseOccupancy(t *testing.T) {
 			}
 			_, err = store.Acquire(binding)
 			assertFailure(t, err, "containment_unknown")
-			assertFailure(t, store.RecoverLocal(binding), "containment_unknown")
+			assertFailure(t, store.recoverLocal(binding, nil), "containment_unknown")
 		})
 	}
 }

@@ -191,6 +191,31 @@ barrier and has no provider hook window. Reading pending observations does not
 acknowledge import, delete rows or supply fresh C09 lease evidence. L06 owns durable
 import, upload-stream sequencing and explicit delivery dispositions.
 
+The daemon's one-second native inspection loop is independent of launch retry
+workers and network I/O. It reads existing authenticated lock state without
+creating or repairing it, checks the registered signed helper and kernel process
+table, and repeats those checks after provider-image inspection. A helper still
+preparing its child is waiting; its bounded preflight probes are not provider
+descendants. A historical startup checkpoint permits later whole-group heartbeats
+without executing another probe or requiring the original provider parent to live.
+
+Local migration `007_native_inspection.sql` retains up to 256 observed process
+identities per execution in a separate bounded daemon history. Inspection merges
+that history with the helper's authenticated marker before and after native reads.
+It commits newly observed descendants and sticky uncertainty before attempting an
+event insert, so event capacity or a restart cannot discard a known escaped child.
+Overflow retains incomplete history and blocks recovery; conflicting PID identities
+never replace previously observed ownership. Final authorization rejects uncertain
+history even when no detached event could be captured. The daemon never races the
+helper by writing its live lock marker, signalling its group or reaping its child.
+
+Explicit local recovery serializes with daemon inspection, merges both process
+histories, and requires a free native lock and actual process absence. An already
+released helper marker cannot bypass a daemon-observed descendant. The recovered
+authenticated marker retains the merged history and explicit-local flag; neither
+event import nor ordinary observation clears uncertainty. CLI recovery exposure,
+fresh cloud lease maintenance and production entry-point wiring remain in progress.
+
 ## Persistence and recovery
 
 The local execution assignment and its random correlation capability are private,

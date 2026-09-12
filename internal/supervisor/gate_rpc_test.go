@@ -190,6 +190,29 @@ func TestGateRPCCommitsOwnershipAndReauthorizesEveryRequest(t *testing.T) {
 	}
 }
 
+func TestGateRPCRechecksNativeHistoryAfterOnlineAuthorization(t *testing.T) {
+	fixture := finalFixture(t)
+	fixture.connection.request = func(ctx context.Context, method, path string, body []byte) ([]byte, error) {
+		fixture.requests.Add(1)
+		assignment, err := fixture.store.ByIntent(ctx, fixture.assignment.TerminalIntentId)
+		if err != nil {
+			return nil, err
+		}
+		// Retention can succeed even when the event sink cannot create a
+		// detached event. Assignment state alone cannot authorize this reply.
+		if _, err := fixture.store.rememberNative(ctx, assignment, nativeHistory{Uncertain: true}); err != nil {
+			return nil, err
+		}
+		return json.Marshal(fixture.authorized())
+	}
+	if _, err := fixture.call("execution.authorize", fixture.payload()); err == nil || fixture.requests.Load() != 1 {
+		t.Fatal("online reply ignored newly retained native uncertainty", err)
+	}
+	if _, err := fixture.call("execution.authorize", fixture.payload()); err == nil || fixture.requests.Load() != 1 {
+		t.Fatal("uncertain history allowed another online authorization", err)
+	}
+}
+
 func TestGateRPCRejectsUnverifiedOwnershipBeforeCloud(t *testing.T) {
 	for _, fault := range []string{"wrong_lock", "wrong_intent", "extra_pid", "expired", "ended", "unsigned", "reused_parent", "other_parent", "lock_closed", "lock_changed", "group_without_pin", "wrong_group", "wrong_child_build", "reused_child"} {
 		t.Run(fault, func(t *testing.T) {

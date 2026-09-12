@@ -48,6 +48,10 @@ func (service *Service) gateOwner(ctx context.Context, peer daemon.Peer, input g
 	if err != nil {
 		return LocalAssignment{}, LockRecord{}, err
 	}
+	history, err := readNativeHistory(ctx, service.store.db, assignment)
+	if err != nil || history.Uncertain || (history.Group != nil && history.Group.Unknown) {
+		return LocalAssignment{}, LockRecord{}, failure("containment_unknown")
+	}
 	if assignment.Supervisor == nil || *assignment.Supervisor != owner || (assignment.LockID != "" && assignment.LockID != input.LockID) {
 		return LocalAssignment{}, LockRecord{}, failure("peer_denied")
 	}

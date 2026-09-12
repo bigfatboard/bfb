@@ -130,7 +130,7 @@ func TestLifetimeRetainsChildrenAndUnknownContainment(t *testing.T) {
 				if err != nil || !process.leader.Same(table[process.leader.PID]) || !table[process.leader.PID].Zombie || !child.Same(table[child.PID]) || table[child.PID].Zombie {
 					t.Fatal("parent exit ended live child ownership", err)
 				}
-				assertFailure(t, process.lock.store.RecoverLocal(process.lock.record.Binding), "checkout_occupied")
+				assertFailure(t, process.lock.store.recoverLocal(process.lock.record.Binding, nil), "checkout_occupied")
 				select {
 				case err := <-done:
 					t.Fatal("supervisor ended before the owned child", err)

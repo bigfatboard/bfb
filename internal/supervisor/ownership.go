@@ -30,6 +30,10 @@ func (store *IntentStore) PinOwnership(ctx context.Context, intent string, owner
 	if assignment.Supervisor == nil || *assignment.Supervisor != owner || (assignment.State != "registered" && assignment.State != "group_ready") || (assignment.LockID != "" && assignment.LockID != lockID) || (group != nil && assignment.Group != nil && *group != *assignment.Group) {
 		return LocalAssignment{}, failure("execution_assignment_invalid")
 	}
+	history, err := readNativeHistory(ctx, tx, assignment)
+	if err != nil || history.Uncertain || (history.Group != nil && (history.Group.Unknown || (group != nil && history.Group.Leader != *group))) {
+		return LocalAssignment{}, failure("containment_unknown")
+	}
 	wire, err := assignment.wire()
 	if err != nil {
 		return LocalAssignment{}, err

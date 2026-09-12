@@ -97,11 +97,15 @@ type WorktreeLock struct {
 	failed bool
 }
 
-func (store *LockStore) fence(hash string) (*os.File, error) {
+func (store *LockStore) fence(hash string, create bool) (*os.File, error) {
 	if !worktreeDigest.MatchString(hash) {
 		return nil, failure("invalid_request")
 	}
-	file, err := store.directory.open(lockName(hash, ".lock"), unix.O_CREAT|unix.O_RDWR)
+	flags := unix.O_RDONLY
+	if create {
+		flags = unix.O_CREAT | unix.O_RDWR
+	}
+	file, err := store.directory.open(lockName(hash, ".lock"), flags)
 	if err != nil {
 		return nil, failure("unsafe_state")
 	}
@@ -131,7 +135,7 @@ func (store *LockStore) Acquire(binding LockBinding) (*WorktreeLock, error) {
 	if !binding.valid() {
 		return nil, failure("invalid_request")
 	}
-	file, err := store.fence(binding.PhysicalWorktreeHash)
+	file, err := store.fence(binding.PhysicalWorktreeHash, true)
 	if err != nil {
 		return nil, err
 	}
@@ -339,13 +343,13 @@ func (lock *WorktreeLock) Close() error {
 	return lock.file.Close()
 }
 
-// RecoverLocal is invoked only by explicit local inspection, never a cloud
-// command or timer. A reused observed PID is still ambiguity, not proof of exit.
-func (store *LockStore) RecoverLocal(binding LockBinding) error {
+// recoverLocal is invoked only by explicit local inspection, never a cloud
+// command or timer. The caller must supply the daemon's retained history too.
+func (store *LockStore) recoverLocal(binding LockBinding, observed *Group) error {
 	if !binding.valid() {
 		return failure("invalid_request")
 	}
-	file, err := store.fence(binding.PhysicalWorktreeHash)
+	file, err := store.fence(binding.PhysicalWorktreeHash, false)
 	if err != nil {
 		return err
 	}
@@ -354,8 +358,12 @@ func (store *LockStore) RecoverLocal(binding LockBinding) error {
 	if err != nil || record.Binding != binding || record.SpawnPending {
 		return failure("containment_unknown")
 	}
-	if record.State == "released" {
-		return nil
+	record.Group = mergeGroups(record.Group, observed)
+	if record.Group != nil && record.Group.Unknown && record.State != "released" {
+		record.State = "containment_unknown"
+	}
+	if !record.valid() {
+		return failure("containment_unknown")
 	}
 	table, err := InspectProcesses()
 	owner, present := table[record.Owner.PID]
