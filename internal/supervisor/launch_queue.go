@@ -105,19 +105,19 @@ func (service *Service) processLaunch(ctx context.Context, store *IntentStore, f
 	if err != nil || connection == nil {
 		return failure("daemon_offline")
 	}
-	if command.CleanupLockID != "" {
-		return service.cleanupUnstarted(ctx, store, command, connection)
-	}
 	assignment, err := store.ByCommand(ctx, command)
 	if err != nil {
 		return err
 	}
+	if assignment != nil && assignment.Supervisor != nil {
+		// Registered executions belong to native lifecycle observation; they
+		// can never fall through to another claim, intent or Terminal open.
+		return nil
+	}
+	if command.CleanupLockID != "" {
+		return service.cleanupUnstarted(ctx, store, command, connection)
+	}
 	if assignment != nil {
-		if assignment.Supervisor != nil {
-			// Registered executions belong to native lifecycle observation; they
-			// can never fall through to another claim, intent or Terminal open.
-			return nil
-		}
 		deadline, _ := time.Parse(time.RFC3339Nano, command.ExpiresAt)
 		if !service.options.Now().Before(deadline) || assignment.State == "blocked" {
 			return service.cleanupUnstarted(ctx, store, command, connection)

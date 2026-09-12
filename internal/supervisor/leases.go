@@ -67,11 +67,6 @@ func (service *Service) maintainLease(ctx context.Context, store *IntentStore, i
 	if err != nil || assignment.Supervisor == nil {
 		return failure("execution_assignment_invalid")
 	}
-	// Before the first pinned final request no provider can pass the child
-	// gate. Cleanup of that distinct registered phase has no lease identity.
-	if assignment.LockID == "" {
-		return nil
-	}
 	command, err := store.Command(ctx, assignment.Claim.Assignment.RunnerId, assignment.Claim.Specification.LaunchId)
 	if err != nil || command.State == "complete" {
 		return err
@@ -94,6 +89,9 @@ func (service *Service) maintainLease(ctx context.Context, store *IntentStore, i
 	receipt, err := reconciliation(data, command, &assignment)
 	if err != nil {
 		return err
+	}
+	if assignment.LockID == "" {
+		return service.cleanupPreflight(ctx, store, inspector, assignment, command, connection, receipt)
 	}
 	if receipt.ReservationState == "released" || receipt.ReservationState == "superseded" {
 		return service.settleRegistered(ctx, store, inspector, assignment)

@@ -175,10 +175,11 @@ func (store *IntentStore) captureProcess(ctx context.Context, observed LocalAssi
 				return nil, failure("execution_assignment_invalid")
 			}
 		} else {
-			// A registered helper can fail before spawning. Only authenticated
-			// local release with complete empty group history proves that end.
+			// A registered helper needs either native release or a closed final-
+			// authorization gate with fresh preflight supervisor absence.
 			history, err := readNativeHistory(ctx, tx, assignment)
-			if err != nil || history.Group != nil || history.LocalReleasedAt == "" || (state != "registered" && state != "containment_unknown") {
+			if err != nil || history.Group != nil || (history.LocalReleasedAt == "" && !hasPreflightProof(ctx, tx, assignment)) ||
+				(state != "registered" && state != "containment_unknown" && !(state == "blocked" && history.PreflightStoppedAt != "")) {
 				return nil, failure("containment_unknown")
 			}
 			if state != "containment_unknown" {

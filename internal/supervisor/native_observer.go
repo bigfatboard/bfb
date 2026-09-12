@@ -122,15 +122,25 @@ func (service *Service) RecoverLocal(ctx context.Context, intent string) error {
 		return failure("daemon_offline")
 	}
 	assignment, err := service.store.ByIntent(ctx, intent)
-	if err != nil || assignment.Supervisor == nil || assignment.LockID == "" {
+	if err != nil || assignment.Supervisor == nil {
 		return failure("containment_unknown")
 	}
 	history, err := readNativeHistory(ctx, service.store.db, assignment)
 	if err != nil {
 		return err
 	}
-	if _, err := readNativeLock(service.paths, assignment); err != nil {
-		return err
+	if assignment.LockID == "" {
+		if !hasPreflightProof(ctx, service.store.db, assignment) {
+			return failure("containment_unknown")
+		}
+		locked, err := readBoundNativeLock(service.paths, assignment)
+		if err != nil || locked.Record.Group != nil || locked.Record.SpawnPending {
+			return failure("containment_unknown")
+		}
+	} else {
+		if _, err := readNativeLock(service.paths, assignment); err != nil {
+			return err
+		}
 	}
 	// Opening existing private state cannot repair or fabricate missing proof.
 	directory, err := openExistingPrivateDirectory(worktreeLocksPath(service.paths))

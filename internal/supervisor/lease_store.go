@@ -1,5 +1,5 @@
 // ABOUTME: Reserves monotonic request-bound lease sequences independently of replayable event sequences.
-// ABOUTME: Completes registered launch delivery only after durable local release and process-end capture.
+// ABOUTME: Completes registered launch delivery only after durable native absence proof and process-end capture.
 
 package supervisor
 
@@ -15,8 +15,11 @@ func (store *IntentStore) nextLeaseSequence(ctx context.Context, observed LocalA
 	}
 	defer tx.Rollback()
 	assignment, err := scanAssignment(tx.QueryRowContext(ctx, "SELECT "+assignmentColumns+" FROM local_execution_assignments WHERE intent_id = ?", observed.IntentID))
-	if err != nil || !sameObservedAssignment(assignment, observed) || assignment.Supervisor == nil || assignment.LockID == "" {
+	if err != nil || !sameObservedAssignment(assignment, observed) || assignment.Supervisor == nil {
 		return 0, failure("execution_assignment_invalid")
+	}
+	if assignment.LockID == "" && !hasPreflightProof(ctx, tx, assignment) {
+		return 0, failure("containment_unknown")
 	}
 	var sequence int64
 	if err = tx.QueryRowContext(ctx, `SELECT lease_sequence FROM local_execution_assignments a WHERE intent_id = ?
@@ -41,11 +44,11 @@ func (store *IntentStore) completeRegistered(ctx context.Context, observed Local
 	}
 	defer tx.Rollback()
 	assignment, err := scanAssignment(tx.QueryRowContext(ctx, "SELECT "+assignmentColumns+" FROM local_execution_assignments WHERE intent_id = ?", observed.IntentID))
-	if err != nil || !sameObservedAssignment(assignment, observed) || assignment.Supervisor == nil || assignment.LockID == "" {
+	if err != nil || !sameObservedAssignment(assignment, observed) || assignment.Supervisor == nil {
 		return failure("execution_assignment_invalid")
 	}
 	history, err := readNativeHistory(ctx, tx, assignment)
-	if err != nil || history.LocalReleasedAt == "" {
+	if err != nil || (history.LocalReleasedAt == "" && !hasPreflightProof(ctx, tx, assignment)) {
 		return failure("containment_unknown")
 	}
 	checkpoint, err := scanObservationCheckpoint(tx.QueryRowContext(ctx, "SELECT "+observationColumns+" FROM local_execution_assignments WHERE intent_id = ?", assignment.IntentID))

@@ -12,9 +12,10 @@ import (
 )
 
 type nativeHistory struct {
-	Group           *Group `json:"group"`
-	Uncertain       bool   `json:"uncertain"`
-	LocalReleasedAt string `json:"local_released_at,omitempty"`
+	Group              *Group `json:"group"`
+	Uncertain          bool   `json:"uncertain"`
+	LocalReleasedAt    string `json:"local_released_at,omitempty"`
+	PreflightStoppedAt string `json:"preflight_stopped_at,omitempty"`
 }
 
 func (history nativeHistory) valid(assignment LocalAssignment) bool {
@@ -25,6 +26,15 @@ func (history nativeHistory) valid(assignment LocalAssignment) bool {
 		stamp, err := time.Parse(time.RFC3339Nano, history.LocalReleasedAt)
 		created, createdErr := time.Parse(time.RFC3339Nano, assignment.CreatedAt)
 		if err != nil || createdErr != nil || assignment.LockID == "" || localTimestamp(stamp) != history.LocalReleasedAt || stamp.Before(created) {
+			return false
+		}
+	}
+	if history.PreflightStoppedAt != "" {
+		stamp, err := time.Parse(time.RFC3339Nano, history.PreflightStoppedAt)
+		created, createdErr := time.Parse(time.RFC3339Nano, assignment.CreatedAt)
+		if err != nil || createdErr != nil || localTimestamp(stamp) != history.PreflightStoppedAt || stamp.Before(created) ||
+			assignment.LockID != "" || assignment.Group != nil || history.Group != nil || history.LocalReleasedAt != "" ||
+			(assignment.State != "blocked" && assignment.State != "containment_unknown") {
 			return false
 		}
 	}
@@ -118,9 +128,12 @@ func (store *IntentStore) rememberNative(ctx context.Context, observed LocalAssi
 	if err != nil {
 		return nativeHistory{}, err
 	}
-	merged := nativeHistory{Group: mergeGroups(prior.Group, fresh.Group), Uncertain: prior.Uncertain || fresh.Uncertain, LocalReleasedAt: prior.LocalReleasedAt}
+	merged := nativeHistory{Group: mergeGroups(prior.Group, fresh.Group), Uncertain: prior.Uncertain || fresh.Uncertain, LocalReleasedAt: prior.LocalReleasedAt, PreflightStoppedAt: prior.PreflightStoppedAt}
 	if merged.LocalReleasedAt == "" {
 		merged.LocalReleasedAt = fresh.LocalReleasedAt
+	}
+	if merged.PreflightStoppedAt == "" {
+		merged.PreflightStoppedAt = fresh.PreflightStoppedAt
 	}
 	if !merged.valid(assignment) {
 		return nativeHistory{}, failure("containment_unknown")

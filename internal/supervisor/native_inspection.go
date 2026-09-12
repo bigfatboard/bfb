@@ -23,6 +23,19 @@ func readNativeLock(paths daemon.Paths, assignment LocalAssignment) (nativeLock,
 	if assignment.Supervisor == nil || assignment.LockID == "" {
 		return nativeLock{}, failure("containment_unknown")
 	}
+	locked, err := readBoundNativeLock(paths, assignment)
+	if err != nil || locked.Record.LockID != assignment.LockID {
+		return nativeLock{}, failure("containment_unknown")
+	}
+	return locked, nil
+}
+
+// Explicit local preflight recovery may inspect an unpinned marker. It still
+// requires the original assignment and exact supervisor, never another owner.
+func readBoundNativeLock(paths daemon.Paths, assignment LocalAssignment) (nativeLock, error) {
+	if assignment.Supervisor == nil {
+		return nativeLock{}, failure("containment_unknown")
+	}
 	directory, err := openExistingPrivateDirectory(worktreeLocksPath(paths))
 	if err != nil {
 		return nativeLock{}, failure("containment_unknown")
@@ -41,7 +54,7 @@ func readNativeLock(paths daemon.Paths, assignment LocalAssignment) (nativeLock,
 	}
 	store := &LockStore{directory: directory}
 	record, err := store.read(binding.PhysicalWorktreeHash)
-	if err != nil || record.Binding != binding || record.LockID != assignment.LockID || record.Owner != assignment.Supervisor.Process ||
+	if err != nil || record.Binding != binding || record.Owner != assignment.Supervisor.Process ||
 		(assignment.Group != nil && (record.Group == nil || record.Group.Leader != *assignment.Group)) {
 		return nativeLock{}, failure("containment_unknown")
 	}
@@ -95,6 +108,11 @@ func (inspector nativeInspector) inspect(assignment LocalAssignment, history nat
 	// Registration precedes preparation, acquisition and spawn. A still-live
 	// signed helper in that phase is waiting, not an escaped provider.
 	if assignment.LockID == "" {
+		if ownerState == "gone" || history.PreflightStoppedAt != "" {
+			// No final authorization was sent before pinning. The lease worker
+			// closes that gate atomically before recording preflight absence.
+			return nativeFacts{History: history, SupervisorState: ownerState}
+		}
 		if ownerState == "verified" && !history.Uncertain {
 			return nativeFacts{History: history, SupervisorState: ownerState}
 		}

@@ -45,7 +45,7 @@ Local migration `005_launch_cleanup.sql` adds a distinct immutable cleanup ID,
 initially absent for existing and newly accepted commands. Beginning unstarted
 cleanup atomically pins that ID and blocks any unregistered intent. The same
 transaction excludes a racing registration, and a database trigger prevents
-later intent issuance. The ID labels never-acquired lock evidence; it does not
+later intent issuance. The ID labels cleanup-only absence evidence; it does not
 create a physical lock or replace a registered supervisor's actual lock identity.
 Confirmed completion cannot reopen through redelivery or a queue retry.
 
@@ -216,7 +216,7 @@ authenticated marker retains the merged history and explicit-local flag; neither
 event import nor ordinary observation clears uncertainty. CLI recovery exposure
 and production entry-point wiring remain in progress.
 
-Four independent lease workers inspect registered, lock-pinned executions on a
+Four independent lease workers inspect registered executions on a
 15-second cadence, separately from launch workers and the local event sink. Each
 attempt reconciles the original winning claim before fresh native inspection and
 commits a lease sequence greater than both its local counter and C09's receipt
@@ -247,8 +247,34 @@ alone cannot complete delivery; process-end capture must also commit before the
 original local command is complete. Event-capacity failure cannot prevent fresh
 cloud release but leaves local delivery pending until its end fact can be retained.
 Registered pre-spawn failure can end without inventing provider startup. Incomplete
-spawn history still blocks recovery. Cleanup before any local lock identity was
-pinned remains a separate registered phase under implementation.
+spawn history still blocks recovery.
+
+A registered helper that never pinned its local lock has a distinct cleanup path.
+The daemon commits `PinOwnership` before sending any final online authorization;
+the helper cannot spawn a provider child before that authorization. After bound
+reconciliation and native helper absence, cleanup atomically blocks future pinning
+and preserves the supervisor identity. Native absence is checked again after the
+transaction. A separate preflight-stop checkpoint records this closed-gate proof,
+not physical-marker release. Started/live or cloud-unknown receipts contradict
+this phase and cannot become automatic release authority.
+
+The fresh cleanup observation reports the original supervisor gone, no provider
+group ever started, and that supervisor's lock descriptor gone. It uses the durable
+cleanup-only ID without pinning it as physical ownership. No physical marker is
+read, initialized, cleared or replaced: a helper may have acquired and abandoned a
+reserved marker before pinning, and another enrollment may hold the physical lock.
+The original helper's absence and closed spawn gate prove its descriptor is gone;
+they do not declare another owner's lock free. Canonical cloud settlement and
+native process-end capture still precede local command completion, and retries
+must use fresh native evidence even when the preflight checkpoint already exists.
+
+An abandoned preflight marker continues blocking native acquisition after cloud
+release. Only explicit local recovery may open the existing authenticated marker
+and fence, verify the original binding and supervisor, require no recorded or
+pending spawn, and prove native owner absence plus a free flock before marking it
+recovered. Recovery never adopts the marker's ID into the blocked assignment or
+reopens its final-authorization gate. Missing, conflicting, corrupted or held
+physical evidence cannot be repaired into release by this operation.
 
 ## Persistence and recovery
 
