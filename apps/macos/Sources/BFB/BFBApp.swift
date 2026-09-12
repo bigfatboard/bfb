@@ -103,7 +103,7 @@ struct RunnerStatusView: View {
             .font(.system(size: 28, weight: .medium)).foregroundStyle(.tint).accessibilityHidden(
               true)
           VStack(alignment: .leading, spacing: 5) {
-            Text("Your Mac, connected").font(.title2.weight(.semibold))
+            Text("BFB on this Mac").font(.title2.weight(.semibold))
             Text("Runner connections and local access.").foregroundStyle(.secondary)
           }
           Spacer()
@@ -216,7 +216,7 @@ struct RunnerStatusView: View {
         .disabled(
           !model.daemonRunning || model.busy || origin.isEmpty || workspaceID.isEmpty
             || deviceLabel.isEmpty)
-        if model.busy { ProgressView().controlSize(.small).accessibilityLabel("Connecting") }
+        if model.busy { ProgressView().controlSize(.small).accessibilityLabel("Working") }
       }
     }
   }

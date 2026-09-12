@@ -289,7 +289,7 @@ enum RunnerCopy {
 
   static func recovery(_ code: String) -> String {
     switch code {
-    case "daemon_offline": return "The runner is unavailable. Start it below, then retry."
+    case "daemon_offline": return "The runner is unavailable. Choose Start runner, then retry."
     case "install_failed":
       return
         "The runner could not be installed. Check the signed BFB installation; existing state was preserved."
