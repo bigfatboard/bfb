@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "request_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+  "method": "app.poll",
+  "direction": "request",
+  "payload": { "app_session_state": "locked" }
+}

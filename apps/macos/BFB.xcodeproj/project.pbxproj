@@ -7,11 +7,28 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		BF100000000000000000000B /* NativeActionTests.swift in Tests */ = {isa = PBXBuildFile; fileRef = BF1000000000000000000016 /* NativeActionTests.swift */; };
+		BF1000000000000000000005 /* LocalRPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF1000000000000000000013 /* LocalRPC.swift */; };
+		BF1000000000000000000006 /* NativeActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF1000000000000000000014 /* NativeActions.swift */; };
+		BF1000000000000000000007 /* RunnerModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF1000000000000000000015 /* RunnerModel.swift */; };
+		BF1000000000000000000008 /* LocalRPC.swift in Tests */ = {isa = PBXBuildFile; fileRef = BF1000000000000000000013 /* LocalRPC.swift */; };
+		BF1000000000000000000009 /* NativeActions.swift in Tests */ = {isa = PBXBuildFile; fileRef = BF1000000000000000000014 /* NativeActions.swift */; };
+		BF100000000000000000000A /* RunnerModel.swift in Tests */ = {isa = PBXBuildFile; fileRef = BF1000000000000000000015 /* RunnerModel.swift */; };
+		BF1000000000000000000001 /* WireGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF1000000000000000000011 /* WireGenerated.swift */; };
+		BF1000000000000000000002 /* WireCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF1000000000000000000012 /* WireCodec.swift */; };
+		BF1000000000000000000003 /* WireGenerated.swift in Tests */ = {isa = PBXBuildFile; fileRef = BF1000000000000000000011 /* WireGenerated.swift */; };
+		BF1000000000000000000004 /* WireCodec.swift in Tests */ = {isa = PBXBuildFile; fileRef = BF1000000000000000000012 /* WireCodec.swift */; };
 		BF0000000000000000000001 /* BFBApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF0000000000000000000011 /* BFBApp.swift */; };
 		BF0000000000000000000002 /* BFBTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF0000000000000000000012 /* BFBTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		BF1000000000000000000016 /* NativeActionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeActionTests.swift; sourceTree = "<group>"; };
+		BF1000000000000000000013 /* LocalRPC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalRPC.swift; sourceTree = "<group>"; };
+		BF1000000000000000000014 /* NativeActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeActions.swift; sourceTree = "<group>"; };
+		BF1000000000000000000015 /* RunnerModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerModel.swift; sourceTree = "<group>"; };
+		BF1000000000000000000011 /* WireGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WireGenerated.swift; sourceTree = "<group>"; };
+		BF1000000000000000000012 /* WireCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WireCodec.swift; sourceTree = "<group>"; };
 		BF0000000000000000000011 /* BFBApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BFBApp.swift; sourceTree = "<group>"; };
 		BF0000000000000000000012 /* BFBTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BFBTests.swift; sourceTree = "<group>"; };
 		BF0000000000000000000013 /* BFB.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BFB.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -49,6 +66,11 @@
 			isa = PBXGroup;
 			children = (
 				BF0000000000000000000011 /* BFBApp.swift */,
+				BF1000000000000000000011 /* WireGenerated.swift */,
+				BF1000000000000000000012 /* WireCodec.swift */,
+				BF1000000000000000000013 /* LocalRPC.swift */,
+				BF1000000000000000000014 /* NativeActions.swift */,
+				BF1000000000000000000015 /* RunnerModel.swift */,
 			);
 			path = Sources/BFB;
 			sourceTree = "<group>";
@@ -57,6 +79,7 @@
 			isa = PBXGroup;
 			children = (
 				BF0000000000000000000012 /* BFBTests.swift */,
+				BF1000000000000000000016 /* NativeActionTests.swift */,
 			);
 			path = Tests/BFBTests;
 			sourceTree = "<group>";
@@ -167,6 +190,11 @@
 			buildActionMask = 2147483647;
 			files = (
 				BF0000000000000000000001 /* BFBApp.swift in Sources */,
+				BF1000000000000000000001 /* WireGenerated.swift in Sources */,
+				BF1000000000000000000002 /* WireCodec.swift in Sources */,
+				BF1000000000000000000005 /* LocalRPC.swift in Sources */,
+				BF1000000000000000000006 /* NativeActions.swift in Sources */,
+				BF1000000000000000000007 /* RunnerModel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -175,6 +203,12 @@
 			buildActionMask = 2147483647;
 			files = (
 				BF0000000000000000000002 /* BFBTests.swift in Sources */,
+				BF1000000000000000000003 /* WireGenerated.swift in Tests */,
+				BF1000000000000000000004 /* WireCodec.swift in Tests */,
+				BF1000000000000000000008 /* LocalRPC.swift in Tests */,
+				BF1000000000000000000009 /* NativeActions.swift in Tests */,
+				BF100000000000000000000A /* RunnerModel.swift in Tests */,
+				BF100000000000000000000B /* NativeActionTests.swift in Tests */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -223,6 +257,8 @@
 				CODE_SIGNING_ALLOWED = NO;
 				CODE_SIGNING_REQUIRED = NO;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Sources/BFB/Info.plist;
+				CODE_SIGN_ENTITLEMENTS = Sources/BFB/BFB.entitlements;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.qdis.bfb;
@@ -237,6 +273,8 @@
 				CODE_SIGNING_ALLOWED = NO;
 				CODE_SIGNING_REQUIRED = NO;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Sources/BFB/Info.plist;
+				CODE_SIGN_ENTITLEMENTS = Sources/BFB/BFB.entitlements;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.qdis.bfb;

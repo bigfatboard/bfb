@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "request_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+  "method": "app.poll",
+  "direction": "response",
+  "payload": {
+    "app_delivery_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "app_action": "notify_attention",
+    "notification_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+  }
+}

@@ -13,6 +13,12 @@ protocol/fixtures/v1/invalid/event-envelope.round-up-fractional-cursor.json
 protocol/fixtures/v1/invalid/event-envelope.rounded-fractional-version.json
 protocol/fixtures/v1/invalid/event-envelope.tiny-fractional-cursor.json
 protocol/fixtures/v1/invalid/event-envelope.unsafe-schema-version.json
+protocol/fixtures/v1/invalid/local-rpc.l04-duplicate-key.json
+protocol/fixtures/v1/invalid/local-rpc.l04-fractional-version.json
+protocol/fixtures/v1/invalid/local-rpc.l04-exponent-version.json
+protocol/fixtures/v1/invalid/local-rpc.l04-lone-surrogate.json
+protocol/fixtures/v1/valid/local-rpc.l04-exact-integer.json
+protocol/fixtures/v1/valid/local-rpc.l04-long-integer.json
 dist/
 coverage/
 node_modules/

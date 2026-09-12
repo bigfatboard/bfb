@@ -32,6 +32,26 @@
       "additionalProperties": false,
       "maxProperties": 32,
       "properties": {
+        "wake_intent_id": { "$ref": "primitives.json#/$defs/Ulid" },
+        "terminal_intent_id": { "$ref": "primitives.json#/$defs/TerminalIntentId" },
+        "app_delivery_id": { "$ref": "primitives.json#/$defs/Ulid" },
+        "notification_id": { "$ref": "primitives.json#/$defs/Ulid" },
+        "app_session_state": { "type": "string", "enum": ["available", "locked", "login_window"] },
+        "app_action": { "type": "string", "enum": ["open_terminal", "notify_attention"] },
+        "app_result": {
+          "type": "string",
+          "enum": [
+            "terminal_opened",
+            "notification_delivered",
+            "notification_denied",
+            "consent_denied",
+            "session_locked",
+            "app_unavailable",
+            "app_delivery_unknown",
+            "expired_intent",
+            "revoked"
+          ]
+        },
         "workspace_id": { "$ref": "primitives.json#/$defs/Ulid" },
         "runner_id": { "$ref": "primitives.json#/$defs/Ulid" },
         "app_origin": { "type": "string", "maxLength": 256, "pattern": "^https://[^/@?#]+$" },

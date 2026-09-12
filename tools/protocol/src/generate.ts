@@ -13,8 +13,9 @@ import formatsModule from "ajv-formats";
 import { build } from "esbuild";
 
 import { DOCUMENTS, PROTOCOL_HEAD, SCHEMA_VERSION } from "./document-names.js";
+import { generateSwift } from "./swift.js";
 
-interface JsonSchema {
+export interface JsonSchema {
   $id?: string;
   title?: string;
   description?: string;
@@ -28,6 +29,7 @@ interface JsonSchema {
   $ref?: string;
   $defs?: Record<string, JsonSchema>;
   allOf?: JsonSchema[];
+  anyOf?: JsonSchema[];
   if?: JsonSchema;
   then?: JsonSchema;
   not?: JsonSchema;
@@ -42,6 +44,7 @@ interface JsonSchema {
 }
 
 const EXPORTED_PRIMITIVES = [
+  "TerminalIntentId",
   "Ulid",
   "UtcTimestamp",
   "ResourceVersion",
@@ -618,6 +621,7 @@ export async function generateProtocol(
   }
   goSchemaParts.push("}", "");
   await writeFile(path.join(goOutDir, "schemas.go"), goSchemaParts.join("\n"));
+  await generateSwift(root, registry, schemaHash);
 
   // Catalog stamp for drift checks
   await writeFile(

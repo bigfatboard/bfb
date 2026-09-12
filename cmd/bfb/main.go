@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/qdis/bfb/internal/appbridge"
 	"github.com/qdis/bfb/internal/checkout"
 	"github.com/qdis/bfb/internal/cli"
 	"github.com/qdis/bfb/internal/daemon"
@@ -20,6 +21,9 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	methods := daemon.NewRegistry()
+	if err := appbridge.RegisterRPC(methods, appbridge.New(appbridge.Options{})); err != nil {
+		panic("duplicate built-in app operation")
+	}
 	if err := checkout.RegisterRPC(methods); err != nil {
 		panic("duplicate built-in local operation")
 	}

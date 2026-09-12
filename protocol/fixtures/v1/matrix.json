@@ -2,11 +2,7 @@
   "protocol": "bfb-wire/1",
   "schema_version": 1,
   "fixtures": [
-    {
-      "path": "valid/local-rpc.checkout-link.json",
-      "schema": "local-rpc",
-      "expect": "accept"
-    },
+    { "path": "valid/local-rpc.checkout-link.json", "schema": "local-rpc", "expect": "accept" },
     {
       "path": "invalid/local-rpc.response-path.json",
       "schema": "local-rpc",
@@ -49,11 +45,7 @@
       "schema": "launch-specification",
       "expect": "accept"
     },
-    {
-      "path": "valid/launch-claim.request.json",
-      "schema": "launch-claim",
-      "expect": "accept"
-    },
+    { "path": "valid/launch-claim.request.json", "schema": "launch-claim", "expect": "accept" },
     {
       "path": "valid/final-authorization.authorized.json",
       "schema": "final-authorization",
@@ -64,26 +56,10 @@
       "schema": "cloud-wake-intent",
       "expect": "accept"
     },
-    {
-      "path": "valid/terminal-intent.basic.json",
-      "schema": "terminal-intent",
-      "expect": "accept"
-    },
-    {
-      "path": "valid/local-rpc.request.json",
-      "schema": "local-rpc",
-      "expect": "accept"
-    },
-    {
-      "path": "valid/local-rpc.daemon-status.json",
-      "schema": "local-rpc",
-      "expect": "accept"
-    },
-    {
-      "path": "valid/local-rpc.daemon-conflict.json",
-      "schema": "local-rpc",
-      "expect": "accept"
-    },
+    { "path": "valid/terminal-intent.basic.json", "schema": "terminal-intent", "expect": "accept" },
+    { "path": "valid/local-rpc.request.json", "schema": "local-rpc", "expect": "accept" },
+    { "path": "valid/local-rpc.daemon-status.json", "schema": "local-rpc", "expect": "accept" },
+    { "path": "valid/local-rpc.daemon-conflict.json", "schema": "local-rpc", "expect": "accept" },
     {
       "path": "invalid/local-rpc.private-payload.json",
       "schema": "local-rpc",
@@ -101,11 +77,7 @@
       "schema": "runner-event-submission",
       "expect": "accept"
     },
-    {
-      "path": "valid/typed-error.bound.json",
-      "schema": "typed-error",
-      "expect": "accept"
-    },
+    { "path": "valid/typed-error.bound.json", "schema": "typed-error", "expect": "accept" },
     {
       "path": "invalid/event-envelope.unknown-version.json",
       "schema": "event-envelope",
@@ -640,6 +612,116 @@
       "schema": "runner-enrollment-handoff",
       "expect": "reject",
       "category": "additional_field"
-    }
+    },
+    { "path": "valid/local-rpc.l04-wake.json", "schema": "local-rpc", "expect": "accept" },
+    { "path": "valid/local-rpc.l04-terminal.json", "schema": "local-rpc", "expect": "accept" },
+    { "path": "valid/local-rpc.l04-notification.json", "schema": "local-rpc", "expect": "accept" },
+    { "path": "valid/local-rpc.l04-locked.json", "schema": "local-rpc", "expect": "accept" },
+    { "path": "valid/local-rpc.l04-complete.json", "schema": "local-rpc", "expect": "accept" },
+    { "path": "valid/local-rpc.l04-enrollment.json", "schema": "local-rpc", "expect": "accept" },
+    { "path": "valid/local-rpc.l04-pending-key.json", "schema": "local-rpc", "expect": "accept" },
+    {
+      "path": "valid/local-rpc.l04-unicode-scalars.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/local-rpc.l04-unknown-version.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "unknown_version"
+    },
+    {
+      "path": "invalid/local-rpc.l04-cloud-as-terminal.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/local-rpc.l04-terminal-as-cloud.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/local-rpc.l04-uppercase-uuid.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.l04-uuid-version.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.l04-nested-extra.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/local-rpc.l04-missing-key.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/local-rpc.l04-null-active-key.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.l04-calendar-date.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.l04-timestamp-precision.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.l04-timestamp-offset.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.l04-unicode-bound.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/local-rpc.l04-duplicate-key.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "schema_invalid"
+    },
+    {
+      "path": "invalid/local-rpc.l04-fractional-version.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.l04-exponent-version.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "unknown_version"
+    },
+    {
+      "path": "invalid/local-rpc.l04-lone-surrogate.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "schema_invalid"
+    },
+    { "path": "valid/local-rpc.l04-exact-integer.json", "schema": "local-rpc", "expect": "accept" },
+    { "path": "valid/local-rpc.l04-long-integer.json", "schema": "local-rpc", "expect": "accept" }
   ]
 }

@@ -20,7 +20,7 @@
       "const": "terminal_local"
     },
     "local_intent_id": {
-      "$ref": "primitives.json#/$defs/Ulid"
+      "$ref": "primitives.json#/$defs/TerminalIntentId"
     },
     "launch_id": {
       "$ref": "primitives.json#/$defs/Ulid"

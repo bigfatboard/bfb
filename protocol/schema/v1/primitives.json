@@ -4,6 +4,13 @@
   "title": "BFBWirePrimitives",
   "description": "Shared bounded primitive definitions for BFB wire contracts.",
   "$defs": {
+    "TerminalIntentId": {
+      "description": "Canonical lowercase daemon-local UUIDv4, never a cloud wake ULID.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      "minLength": 36,
+      "maxLength": 36
+    },
     "Ulid": {
       "type": "string",
       "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
