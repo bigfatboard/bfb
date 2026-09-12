@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -72,6 +73,43 @@ func TestDaemonLifecycleAndPeerIdentity(t *testing.T) {
 	result, err := Call(context.Background(), p, "daemon.status", nil)
 	if err != nil || result.Payload["recovery_pending"] != float64(1) {
 		t.Fatalf("restart lost unknown process: %+v %v", result, err)
+	}
+}
+
+func TestAdditionalServerAuthorizationRunsBeforeSendingPayload(t *testing.T) {
+	paths := testPaths(t)
+	registry := NewRegistry()
+	var received atomic.Int32
+	if err := registry.Register("fixture.private", func(context.Context, Request) (map[string]any, error) {
+		received.Add(1)
+		return map[string]any{"status": "running"}, nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	server, err := Start(context.Background(), paths, registry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer server.Close()
+	var checked Peer
+	deny := func(peer Peer) error { checked = peer; return &Failure{Code: "peer_denied"} }
+	if _, err = CallWithPeerAuthorization(context.Background(), paths, "fixture.private", map[string]any{"daemon_pid": 1234}, deny); err == nil || AsFailure(err).Code != "peer_denied" {
+		t.Fatal("server verification did not reject", err)
+	}
+	if checked != (Peer{UID: os.Getuid(), PID: os.Getpid()}) {
+		t.Fatal("server verifier did not receive kernel identity")
+	}
+	if received.Load() != 0 {
+		t.Fatal("private data sent before server authorization")
+	}
+	if _, err = CallWithPeerAuthorization(context.Background(), paths, "fixture.private", nil, nil); err == nil {
+		t.Fatal("missing verifier accepted")
+	}
+	if _, err = CallWithPeerAuthorization(context.Background(), paths, "fixture.private", nil, func(peer Peer) error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if received.Load() != 1 {
+		t.Fatal("authorized request not delivered once")
 	}
 }
 

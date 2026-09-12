@@ -13,6 +13,7 @@ package appbridge
 #include <CoreGraphics/CoreGraphics.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <limits.h>
 
 static bool bfb_hardened(CFDictionaryRef info) {
   CFNumberRef flagsValue = CFDictionaryGetValue(info, kSecCodeInfoFlags);
@@ -26,7 +27,7 @@ static bool bfb_hardened(CFDictionaryRef info) {
   return true;
 }
 
-static SecRequirementRef bfb_app_requirement(void) {
+static SecRequirementRef bfb_requirement(CFStringRef identifier) {
   SecCodeRef self = NULL;
   SecRequirementRef daemonRequirement = NULL, appRequirement = NULL;
   CFDictionaryRef info = NULL;
@@ -37,7 +38,7 @@ static SecRequirementRef bfb_app_requirement(void) {
   if (status == errSecSuccess && bfb_hardened(info)) {
     CFStringRef team = CFDictionaryGetValue(info, kSecCodeInfoTeamIdentifier);
     if (team && CFGetTypeID(team) == CFStringGetTypeID() && CFStringGetLength(team) == 10) {
-      CFStringRef text = CFStringCreateWithFormat(NULL, NULL, CFSTR("identifier \"com.qdis.bfb\" and anchor apple generic and certificate leaf[subject.OU] = \"%@\""), team);
+      CFStringRef text = CFStringCreateWithFormat(NULL, NULL, CFSTR("identifier \"%@\" and anchor apple generic and certificate leaf[subject.OU] = \"%@\""), identifier, team);
       SecRequirementCreateWithString(text, kSecCSDefaultFlags, &appRequirement);
       CFRelease(text);
     }
@@ -48,9 +49,9 @@ static SecRequirementRef bfb_app_requirement(void) {
   return appRequirement;
 }
 
-static bool bfb_verify_app_pid(int pid) {
-  SecRequirementRef requirement = bfb_app_requirement();
-  if (!requirement) return false;
+static SecCodeRef bfb_checked_pid(int pid, CFStringRef identifier) {
+  SecRequirementRef requirement = bfb_requirement(identifier);
+  if (!requirement) return NULL;
   CFNumberRef number = CFNumberCreate(NULL, kCFNumberIntType, &pid);
   const void *keys[] = { kSecGuestAttributePid };
   const void *values[] = { number };
@@ -62,13 +63,47 @@ static bool bfb_verify_app_pid(int pid) {
   if (status == errSecSuccess) status = SecCodeCopySigningInformation(code, kSecCSSigningInformation, &info);
   bool valid = status == errSecSuccess && bfb_hardened(info);
   if (info) CFRelease(info);
-  if (code) CFRelease(code);
   CFRelease(attributes); CFRelease(number); CFRelease(requirement);
-  return valid;
+  if (!valid && code) { CFRelease(code); code = NULL; }
+  return code;
+}
+
+static bool bfb_verify_app_pid(int pid) {
+  SecCodeRef code = bfb_checked_pid(pid, CFSTR("com.qdis.bfb"));
+  if (!code) return false;
+  CFRelease(code);
+  return true;
+}
+
+static char *bfb_helper_path(int pid) {
+  SecCodeRef peer = bfb_checked_pid(pid, CFSTR("com.tenira.bfb.daemon"));
+  SecCodeRef self = bfb_checked_pid(getpid(), CFSTR("com.tenira.bfb.daemon"));
+  CFDictionaryRef peerInfo = NULL, selfInfo = NULL;
+  char *path = NULL;
+  if (peer && self &&
+      SecCodeCopySigningInformation(peer, kSecCSSigningInformation, &peerInfo) == errSecSuccess &&
+      SecCodeCopySigningInformation(self, kSecCSSigningInformation, &selfInfo) == errSecSuccess) {
+    CFDataRef peerHash = CFDictionaryGetValue(peerInfo, kSecCodeInfoUnique);
+    CFDataRef selfHash = CFDictionaryGetValue(selfInfo, kSecCodeInfoUnique);
+    CFURLRef executable = CFDictionaryGetValue(peerInfo, kSecCodeInfoMainExecutable);
+    if (peerHash && selfHash && executable && CFGetTypeID(peerHash) == CFDataGetTypeID() &&
+        CFGetTypeID(selfHash) == CFDataGetTypeID() && CFGetTypeID(executable) == CFURLGetTypeID() &&
+        CFEqual(peerHash, selfHash)) {
+      path = malloc(PATH_MAX);
+      if (path && !CFURLGetFileSystemRepresentation(executable, true, (UInt8 *)path, PATH_MAX)) {
+        free(path); path = NULL;
+      }
+    }
+  }
+  if (peerInfo) CFRelease(peerInfo);
+  if (selfInfo) CFRelease(selfInfo);
+  if (peer) CFRelease(peer);
+  if (self) CFRelease(self);
+  return path;
 }
 
 static bool bfb_verify_app_path(const char *path) {
-  SecRequirementRef requirement = bfb_app_requirement();
+  SecRequirementRef requirement = bfb_requirement(CFSTR("com.qdis.bfb"));
   if (!requirement) return false;
   CFURLRef url = CFURLCreateFromFileSystemRepresentation(NULL, (const UInt8 *)path, strlen(path), true);
   SecStaticCodeRef code = NULL;
@@ -114,6 +149,20 @@ func authorizeApp(peer daemon.Peer) error {
 		return &daemon.Failure{Code: "peer_denied"}
 	}
 	return nil
+}
+
+// HelperExecutable accepts the daemon's exact hardened signed helper build,
+// not another same-user process or another version with the same identifier.
+func HelperExecutable(peer daemon.Peer) (string, error) {
+	if peer.UID != os.Getuid() || peer.PID <= 1 {
+		return "", &daemon.Failure{Code: "peer_denied"}
+	}
+	path := C.bfb_helper_path(C.int(peer.PID))
+	if path == nil {
+		return "", &daemon.Failure{Code: "peer_denied"}
+	}
+	defer C.free(unsafe.Pointer(path))
+	return C.GoString(path), nil
 }
 
 func wakeInstalledApp(ctx context.Context) error {

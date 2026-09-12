@@ -127,6 +127,12 @@ export const DOCUMENTS: DocumentSpec[] = [
     tsType: "LocalRpcEnvelope",
   },
   {
+    name: "local-execution-assignment",
+    schemaFile: "local-execution-assignment.json",
+    goType: "LocalExecutionAssignment",
+    tsType: "LocalExecutionAssignment",
+  },
+  {
     name: "runner-event-submission",
     schemaFile: "runner-event-submission.json",
     goType: "RunnerEventSubmission",

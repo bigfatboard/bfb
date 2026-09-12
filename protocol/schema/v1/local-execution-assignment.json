@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/local-execution-assignment.json",
+  "title": "LocalExecutionAssignment",
+  "description": "User-private assignment returned only after signed helper registration; correlation is not business authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "terminal_intent_id",
+    "claim",
+    "provider_identity_hash",
+    "correlation_token",
+    "supervisor"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "terminal_intent_id": { "$ref": "primitives.json#/$defs/TerminalIntentId" },
+    "claim": { "$ref": "launch-claim-result.json" },
+    "provider_identity_hash": { "$ref": "primitives.json#/$defs/Sha256Digest" },
+    "correlation_token": {
+      "type": "string",
+      "minLength": 43,
+      "maxLength": 43,
+      "pattern": "^[A-Za-z0-9_-]{43}$"
+    },
+    "supervisor": { "$ref": "primitives.json#/$defs/SupervisorIdentity" }
+  }
+}

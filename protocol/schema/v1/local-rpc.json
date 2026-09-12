@@ -34,6 +34,7 @@
       "properties": {
         "wake_intent_id": { "$ref": "primitives.json#/$defs/Ulid" },
         "terminal_intent_id": { "$ref": "primitives.json#/$defs/TerminalIntentId" },
+        "execution_assignment": { "$ref": "local-execution-assignment.json" },
         "app_delivery_id": { "$ref": "primitives.json#/$defs/Ulid" },
         "notification_id": { "$ref": "primitives.json#/$defs/Ulid" },
         "app_session_state": { "type": "string", "enum": ["available", "locked", "login_window"] },
@@ -121,6 +122,24 @@
     }
   },
   "allOf": [
+    {
+      "if": {
+        "required": ["payload"],
+        "properties": {
+          "payload": {
+            "type": "object",
+            "required": ["execution_assignment"],
+            "properties": { "execution_assignment": {} }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "direction": { "const": "response" },
+          "method": { "const": "execution.register" }
+        }
+      }
+    },
     {
       "if": {
         "required": ["payload"],

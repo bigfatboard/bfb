@@ -1,7 +1,7 @@
 {
   "protocol": "bfb-wire/1",
   "schema_version": 1,
-  "schema_hash": "99e08e60e82111e205052174b105d0d1a04097ae84424aac3063a6c1fb7cbe7e",
+  "schema_hash": "1d367da7a4e8fd38f48ddfd07e2de9ca1e0ab3ee8bc10fb020f2112ec30e9258",
   "documents": [
     {
       "name": "event-envelope",
@@ -78,6 +78,10 @@
     {
       "name": "local-rpc",
       "schema": "local-rpc.json"
+    },
+    {
+      "name": "local-execution-assignment",
+      "schema": "local-execution-assignment.json"
     },
     {
       "name": "runner-event-submission",

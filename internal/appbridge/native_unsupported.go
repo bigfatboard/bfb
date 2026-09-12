@@ -12,3 +12,7 @@ import (
 
 func wakeInstalledApp(context.Context) error { return &daemon.Failure{Code: "app_unavailable"} }
 func authorizeApp(daemon.Peer) error         { return &daemon.Failure{Code: "peer_denied"} }
+
+func HelperExecutable(daemon.Peer) (string, error) {
+	return "", &daemon.Failure{Code: "peer_denied"}
+}

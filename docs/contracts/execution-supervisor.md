@@ -22,6 +22,17 @@ the local intent or returning private execution data. A duplicate helper cannot
 take over a consumed intent. A lost reply may be reconciled only with the same
 registered process; a crash never authorizes a fresh automatic execution.
 
+`execution.register` accepts only the local intent UUID. Its response-only
+`local-execution-assignment` document contains the claimed binding, bounded
+correlation value and verified supervisor identity, never local paths. A supplied
+PID or extra field cannot choose the peer. Both ends verify the same hardened
+Apple-signed helper build and signing team, including its code identity and current
+executable fingerprint. The helper checks the daemon before transmitting its UUID,
+then checks that the returned supervisor is itself. A different helper build, even
+with the same signing identifier/team, must restart into a matching installation.
+The native verifier uses Apple's [dynamic code validation](https://developer.apple.com/documentation/security/seccodecheckvalidity(_:_:_:))
+before reading signing information; an unvalidated filesystem path is not process identity.
+
 Local migration `004_execution_supervision.sql` separates the durable command
 inbox, immutable assignment/intent identity, process observations and control-effect
 dispositions. The command's original claim key survives redelivery. Issuing an
@@ -141,3 +152,9 @@ entries; `pnpm protocol:generate` owns generated codecs. Test-only installation,
 clock and transport boundaries are compiled harness dependencies, not remotely
 selectable configuration. Real Claude/Codex adapters, hook ingestion, MCP business
 authority and browser Start UI remain with their owning packages.
+
+`node tools/supervisor/helper-peer.mjs` exercises actual signed Unix-socket peers:
+mutual exact-build verification, registration-before-reply, same-process reply
+reconciliation, rejection of a second helper and alternate build/identifier/
+entitlement/ad-hoc signatures. It is a registration proof, not Terminal execution
+or provider-start acceptance. Its synthetic controls are absent from the production CLI.

@@ -51,6 +51,7 @@ const EXPORTED_PRIMITIVES = [
   "WorkspaceCursor",
   "SourceSequence",
   "AssignmentGeneration",
+  "SupervisorIdentity",
   "IdempotencyKey",
   "OpaqueToken",
   "BoundedLabel",

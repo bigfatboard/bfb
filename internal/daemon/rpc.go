@@ -142,6 +142,19 @@ func authorizePeer(peer Peer) error {
 }
 
 func Call(ctx context.Context, paths Paths, method string, payload map[string]any) (generated.LocalRpcEnvelope, error) {
+	return call(ctx, paths, method, payload, nil)
+}
+
+// CallWithPeerAuthorization checks an additional native server identity before
+// sending private execution data. The callback receives only kernel peer facts.
+func CallWithPeerAuthorization(ctx context.Context, paths Paths, method string, payload map[string]any, authorize func(Peer) error) (generated.LocalRpcEnvelope, error) {
+	if authorize == nil {
+		return generated.LocalRpcEnvelope{}, &Failure{Code: "peer_denied"}
+	}
+	return call(ctx, paths, method, payload, authorize)
+}
+
+func call(ctx context.Context, paths Paths, method string, payload map[string]any, extraAuthorization func(Peer) error) (generated.LocalRpcEnvelope, error) {
 	request := generated.LocalRpcEnvelope{SchemaVersion: 1, RequestId: NewRequestID(), Method: method, Direction: "request", Payload: payload}
 	data, err := EncodeEnvelope(request)
 	if err != nil {
@@ -168,6 +181,10 @@ func Call(ctx context.Context, paths Paths, method string, payload map[string]an
 	defer stopCancellation()
 	peer, err := socketPeer(connection.(*net.UnixConn))
 	if err != nil || authorizePeer(peer) != nil {
+		failure := &Failure{Code: "peer_denied"}
+		return Response(method, request.RequestId, nil, failure), failure
+	}
+	if extraAuthorization != nil && extraAuthorization(peer) != nil {
 		failure := &Failure{Code: "peer_denied"}
 		return Response(method, request.RequestId, nil, failure), failure
 	}

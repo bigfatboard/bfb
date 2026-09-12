@@ -32,6 +32,10 @@ type FileStamp struct {
 
 func Hash(data []byte) string { return fmt.Sprintf("sha256:%x", sha256.Sum256(data)) }
 
+// FingerprintExecutable shares the provider kit's no-follow identity checks
+// with the signed supervisor handoff; it grants no invocation authority.
+func FingerprintExecutable(path string) (FileStamp, error) { return fingerprint(path, true) }
+
 func fingerprint(path string, executable bool) (FileStamp, error) {
 	if !filepath.IsAbs(path) || len(path) > 4096 || strings.ContainsAny(path, "\x00\r\n") {
 		return FileStamp{}, Failure("provider_path_unsafe")
