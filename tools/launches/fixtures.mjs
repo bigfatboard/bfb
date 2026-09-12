@@ -239,6 +239,24 @@ const superseded = Object.fromEntries(
 );
 fixture("launch-reconciliation", "superseded", { ...superseded, reservation_state: "superseded" });
 fixture("launch-reconciliation", "released", { ...reconciliation, reservation_state: "released" });
+const neverAcquired = { ...superseded, reservation_state: "never_acquired" };
+fixture("launch-reconciliation", "never-acquired", neverAcquired);
+fixture("launch-reconciliation", "never-acquired-rejected", {
+  ...neverAcquired,
+  launch_state: "rejected",
+});
+fixture(
+  "launch-reconciliation",
+  "never-acquired-live",
+  { ...neverAcquired, launch_state: "started" },
+  "type_mismatch",
+);
+fixture(
+  "launch-reconciliation",
+  "never-acquired-fence",
+  { ...reconciliation, reservation_state: "never_acquired" },
+  "schema_invalid",
+);
 fixture("launch-reconciliation", "missing-fence", superseded, "missing_field");
 fixture(
   "launch-reconciliation",

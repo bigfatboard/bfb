@@ -2,7 +2,7 @@
 // @ts-nocheck -- AJV emits JavaScript; the codec owns its typed facade.
 /* oxlint-disable */
 // Protocol: bfb-wire/1
-// Schema hash: b95a617cae808d484390676ee7adee636cbcef7418d29a3eb8e138c4bc808eca
+// Schema hash: 9edcc24195f1fdaae1670c425d475512c695249ff15254518474ef7c82969fbe
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __commonJS = (cb, mod) =>
   function __require() {
@@ -30878,7 +30878,7 @@ var schema155 = {
     launch_state: { type: "string", enum: ["claimed", "started", "rejected", "expired"] },
     reservation_state: {
       type: "string",
-      enum: ["reserved", "live", "containment_unknown", "released", "superseded"],
+      enum: ["reserved", "live", "containment_unknown", "released", "superseded", "never_acquired"],
     },
     fencing_generation: { $ref: "primitives.json#/$defs/AssignmentGeneration" },
     observation_sequence: { type: "integer", minimum: 0, maximum: 9007199254740991 },
@@ -30887,7 +30887,7 @@ var schema155 = {
   allOf: [
     {
       if: {
-        properties: { reservation_state: { const: "superseded" } },
+        properties: { reservation_state: { enum: ["superseded", "never_acquired"] } },
         required: ["reservation_state"],
       },
       then: {
@@ -30901,6 +30901,13 @@ var schema155 = {
         properties: { fencing_generation: {}, observation_sequence: {}, lease_expires_at: {} },
         required: ["fencing_generation", "observation_sequence", "lease_expires_at"],
       },
+    },
+    {
+      if: {
+        properties: { reservation_state: { const: "never_acquired" } },
+        required: ["reservation_state"],
+      },
+      then: { properties: { launch_state: { enum: ["rejected", "expired"] } } },
     },
   ],
 };
@@ -30935,7 +30942,8 @@ function validate53(
       errors++;
     } else {
       if (data.reservation_state !== void 0 && func0.call(data, "reservation_state")) {
-        if ("superseded" !== data.reservation_state) {
+        let data0 = data.reservation_state;
+        if (!(data0 === "superseded" || data0 === "never_acquired")) {
           const err1 = {};
           if (vErrors === null) {
             vErrors = [err1];
@@ -31092,74 +31100,106 @@ function validate53(
     }
     errors++;
   }
+  const _errs14 = errors;
+  let valid4 = true;
+  const _errs15 = errors;
   if (data && typeof data == "object" && !Array.isArray(data)) {
-    if (data.schema_version === void 0 || !func0.call(data, "schema_version")) {
-      const err9 = {
-        instancePath,
-        schemaPath: "#/required",
-        keyword: "required",
-        params: { missingProperty: "schema_version" },
-        message: "must have required property 'schema_version'",
-      };
+    let missing1;
+    if (
+      (data.reservation_state === void 0 || !func0.call(data, "reservation_state")) &&
+      (missing1 = "reservation_state")
+    ) {
+      const err9 = {};
       if (vErrors === null) {
         vErrors = [err9];
       } else {
         vErrors.push(err9);
       }
       errors++;
-    }
-    if (data.workspace_id === void 0 || !func0.call(data, "workspace_id")) {
-      const err10 = {
-        instancePath,
-        schemaPath: "#/required",
-        keyword: "required",
-        params: { missingProperty: "workspace_id" },
-        message: "must have required property 'workspace_id'",
-      };
-      if (vErrors === null) {
-        vErrors = [err10];
-      } else {
-        vErrors.push(err10);
+    } else {
+      if (data.reservation_state !== void 0 && func0.call(data, "reservation_state")) {
+        if ("never_acquired" !== data.reservation_state) {
+          const err10 = {};
+          if (vErrors === null) {
+            vErrors = [err10];
+          } else {
+            vErrors.push(err10);
+          }
+          errors++;
+        }
       }
-      errors++;
     }
-    if (data.runner_id === void 0 || !func0.call(data, "runner_id")) {
-      const err11 = {
-        instancePath,
-        schemaPath: "#/required",
-        keyword: "required",
-        params: { missingProperty: "runner_id" },
-        message: "must have required property 'runner_id'",
-      };
-      if (vErrors === null) {
-        vErrors = [err11];
-      } else {
-        vErrors.push(err11);
+  }
+  var _valid1 = _errs15 === errors;
+  errors = _errs14;
+  if (vErrors !== null) {
+    if (_errs14) {
+      vErrors.length = _errs14;
+    } else {
+      vErrors = null;
+    }
+  }
+  if (_valid1) {
+    const _errs17 = errors;
+    if (data && typeof data == "object" && !Array.isArray(data)) {
+      if (data.launch_state !== void 0 && func0.call(data, "launch_state")) {
+        let data5 = data.launch_state;
+        if (!(data5 === "rejected" || data5 === "expired")) {
+          const err11 = {
+            instancePath: instancePath + "/launch_state",
+            schemaPath: "#/allOf/1/then/properties/launch_state/enum",
+            keyword: "enum",
+            params: { allowedValues: schema155.allOf[1].then.properties.launch_state.enum },
+            message: "must be equal to one of the allowed values",
+          };
+          if (vErrors === null) {
+            vErrors = [err11];
+          } else {
+            vErrors.push(err11);
+          }
+          errors++;
+        }
       }
-      errors++;
     }
-    if (data.launch_id === void 0 || !func0.call(data, "launch_id")) {
-      const err12 = {
-        instancePath,
-        schemaPath: "#/required",
-        keyword: "required",
-        params: { missingProperty: "launch_id" },
-        message: "must have required property 'launch_id'",
-      };
-      if (vErrors === null) {
-        vErrors = [err12];
-      } else {
-        vErrors.push(err12);
-      }
-      errors++;
+    var _valid1 = _errs17 === errors;
+    valid4 = _valid1;
+    if (valid4) {
+      var props1 = {};
+      props1.launch_state = true;
+      props1.reservation_state = true;
     }
-    if (data.run_execution_id === void 0 || !func0.call(data, "run_execution_id")) {
+  }
+  if (!valid4) {
+    const err12 = {
+      instancePath,
+      schemaPath: "#/allOf/1/if",
+      keyword: "if",
+      params: { failingKeyword: "then" },
+      message: 'must match "then" schema',
+    };
+    if (vErrors === null) {
+      vErrors = [err12];
+    } else {
+      vErrors.push(err12);
+    }
+    errors++;
+  }
+  if (props0 !== true && props1 !== void 0) {
+    if (props1 === true) {
+      props0 = true;
+    } else {
+      props0 = props0 || {};
+      Object.assign(props0, props1);
+    }
+  }
+  if (data && typeof data == "object" && !Array.isArray(data)) {
+    if (data.schema_version === void 0 || !func0.call(data, "schema_version")) {
       const err13 = {
         instancePath,
         schemaPath: "#/required",
         keyword: "required",
-        params: { missingProperty: "run_execution_id" },
-        message: "must have required property 'run_execution_id'",
+        params: { missingProperty: "schema_version" },
+        message: "must have required property 'schema_version'",
       };
       if (vErrors === null) {
         vErrors = [err13];
@@ -31168,13 +31208,13 @@ function validate53(
       }
       errors++;
     }
-    if (data.assignment_generation === void 0 || !func0.call(data, "assignment_generation")) {
+    if (data.workspace_id === void 0 || !func0.call(data, "workspace_id")) {
       const err14 = {
         instancePath,
         schemaPath: "#/required",
         keyword: "required",
-        params: { missingProperty: "assignment_generation" },
-        message: "must have required property 'assignment_generation'",
+        params: { missingProperty: "workspace_id" },
+        message: "must have required property 'workspace_id'",
       };
       if (vErrors === null) {
         vErrors = [err14];
@@ -31183,13 +31223,13 @@ function validate53(
       }
       errors++;
     }
-    if (data.physical_worktree_hash === void 0 || !func0.call(data, "physical_worktree_hash")) {
+    if (data.runner_id === void 0 || !func0.call(data, "runner_id")) {
       const err15 = {
         instancePath,
         schemaPath: "#/required",
         keyword: "required",
-        params: { missingProperty: "physical_worktree_hash" },
-        message: "must have required property 'physical_worktree_hash'",
+        params: { missingProperty: "runner_id" },
+        message: "must have required property 'runner_id'",
       };
       if (vErrors === null) {
         vErrors = [err15];
@@ -31198,13 +31238,13 @@ function validate53(
       }
       errors++;
     }
-    if (data.launch_state === void 0 || !func0.call(data, "launch_state")) {
+    if (data.launch_id === void 0 || !func0.call(data, "launch_id")) {
       const err16 = {
         instancePath,
         schemaPath: "#/required",
         keyword: "required",
-        params: { missingProperty: "launch_state" },
-        message: "must have required property 'launch_state'",
+        params: { missingProperty: "launch_id" },
+        message: "must have required property 'launch_id'",
       };
       if (vErrors === null) {
         vErrors = [err16];
@@ -31213,13 +31253,13 @@ function validate53(
       }
       errors++;
     }
-    if (data.reservation_state === void 0 || !func0.call(data, "reservation_state")) {
+    if (data.run_execution_id === void 0 || !func0.call(data, "run_execution_id")) {
       const err17 = {
         instancePath,
         schemaPath: "#/required",
         keyword: "required",
-        params: { missingProperty: "reservation_state" },
-        message: "must have required property 'reservation_state'",
+        params: { missingProperty: "run_execution_id" },
+        message: "must have required property 'run_execution_id'",
       };
       if (vErrors === null) {
         vErrors = [err17];
@@ -31228,9 +31268,69 @@ function validate53(
       }
       errors++;
     }
+    if (data.assignment_generation === void 0 || !func0.call(data, "assignment_generation")) {
+      const err18 = {
+        instancePath,
+        schemaPath: "#/required",
+        keyword: "required",
+        params: { missingProperty: "assignment_generation" },
+        message: "must have required property 'assignment_generation'",
+      };
+      if (vErrors === null) {
+        vErrors = [err18];
+      } else {
+        vErrors.push(err18);
+      }
+      errors++;
+    }
+    if (data.physical_worktree_hash === void 0 || !func0.call(data, "physical_worktree_hash")) {
+      const err19 = {
+        instancePath,
+        schemaPath: "#/required",
+        keyword: "required",
+        params: { missingProperty: "physical_worktree_hash" },
+        message: "must have required property 'physical_worktree_hash'",
+      };
+      if (vErrors === null) {
+        vErrors = [err19];
+      } else {
+        vErrors.push(err19);
+      }
+      errors++;
+    }
+    if (data.launch_state === void 0 || !func0.call(data, "launch_state")) {
+      const err20 = {
+        instancePath,
+        schemaPath: "#/required",
+        keyword: "required",
+        params: { missingProperty: "launch_state" },
+        message: "must have required property 'launch_state'",
+      };
+      if (vErrors === null) {
+        vErrors = [err20];
+      } else {
+        vErrors.push(err20);
+      }
+      errors++;
+    }
+    if (data.reservation_state === void 0 || !func0.call(data, "reservation_state")) {
+      const err21 = {
+        instancePath,
+        schemaPath: "#/required",
+        keyword: "required",
+        params: { missingProperty: "reservation_state" },
+        message: "must have required property 'reservation_state'",
+      };
+      if (vErrors === null) {
+        vErrors = [err21];
+      } else {
+        vErrors.push(err21);
+      }
+      errors++;
+    }
     for (const key0 of Object.keys(data)) {
       if (!func0.call(schema155.properties, key0)) {
-        const err18 = {
+        const err22 = {
           instancePath,
           schemaPath: "#/additionalProperties",
           keyword: "additionalProperties",
@@ -31238,17 +31338,17 @@ function validate53(
           message: "must NOT have additional properties",
         };
         if (vErrors === null) {
-          vErrors = [err18];
+          vErrors = [err22];
         } else {
-          vErrors.push(err18);
+          vErrors.push(err22);
         }
         errors++;
       }
     }
     if (data.schema_version !== void 0 && func0.call(data, "schema_version")) {
-      let data4 = data.schema_version;
-      if (!(typeof data4 == "number" && !(data4 % 1) && !isNaN(data4) && isFinite(data4))) {
-        const err19 = {
+      let data6 = data.schema_version;
+      if (!(typeof data6 == "number" && !(data6 % 1) && !isNaN(data6) && isFinite(data6))) {
+        const err23 = {
           instancePath: instancePath + "/schema_version",
           schemaPath: "#/properties/schema_version/type",
           keyword: "type",
@@ -31256,83 +31356,19 @@ function validate53(
           message: "must be integer",
         };
         if (vErrors === null) {
-          vErrors = [err19];
+          vErrors = [err23];
         } else {
-          vErrors.push(err19);
+          vErrors.push(err23);
         }
         errors++;
       }
-      if (1 !== data4) {
-        const err20 = {
+      if (1 !== data6) {
+        const err24 = {
           instancePath: instancePath + "/schema_version",
           schemaPath: "#/properties/schema_version/const",
           keyword: "const",
           params: { allowedValue: 1 },
           message: "must be equal to constant",
-        };
-        if (vErrors === null) {
-          vErrors = [err20];
-        } else {
-          vErrors.push(err20);
-        }
-        errors++;
-      }
-    }
-    if (data.workspace_id !== void 0 && func0.call(data, "workspace_id")) {
-      let data5 = data.workspace_id;
-      if (typeof data5 === "string") {
-        if (func69(data5) > 26) {
-          const err21 = {
-            instancePath: instancePath + "/workspace_id",
-            schemaPath: "primitives.json#/$defs/Ulid/maxLength",
-            keyword: "maxLength",
-            params: { limit: 26 },
-            message: "must NOT have more than 26 characters",
-          };
-          if (vErrors === null) {
-            vErrors = [err21];
-          } else {
-            vErrors.push(err21);
-          }
-          errors++;
-        }
-        if (func69(data5) < 26) {
-          const err22 = {
-            instancePath: instancePath + "/workspace_id",
-            schemaPath: "primitives.json#/$defs/Ulid/minLength",
-            keyword: "minLength",
-            params: { limit: 26 },
-            message: "must NOT have fewer than 26 characters",
-          };
-          if (vErrors === null) {
-            vErrors = [err22];
-          } else {
-            vErrors.push(err22);
-          }
-          errors++;
-        }
-        if (!pattern4.test(data5)) {
-          const err23 = {
-            instancePath: instancePath + "/workspace_id",
-            schemaPath: "primitives.json#/$defs/Ulid/pattern",
-            keyword: "pattern",
-            params: { pattern: "^[0-7][0-9A-HJKMNP-TV-Z]{25}$" },
-            message: 'must match pattern "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"',
-          };
-          if (vErrors === null) {
-            vErrors = [err23];
-          } else {
-            vErrors.push(err23);
-          }
-          errors++;
-        }
-      } else {
-        const err24 = {
-          instancePath: instancePath + "/workspace_id",
-          schemaPath: "primitives.json#/$defs/Ulid/type",
-          keyword: "type",
-          params: { type: "string" },
-          message: "must be string",
         };
         if (vErrors === null) {
           vErrors = [err24];
@@ -31342,12 +31378,12 @@ function validate53(
         errors++;
       }
     }
-    if (data.runner_id !== void 0 && func0.call(data, "runner_id")) {
-      let data6 = data.runner_id;
-      if (typeof data6 === "string") {
-        if (func69(data6) > 26) {
+    if (data.workspace_id !== void 0 && func0.call(data, "workspace_id")) {
+      let data7 = data.workspace_id;
+      if (typeof data7 === "string") {
+        if (func69(data7) > 26) {
           const err25 = {
-            instancePath: instancePath + "/runner_id",
+            instancePath: instancePath + "/workspace_id",
             schemaPath: "primitives.json#/$defs/Ulid/maxLength",
             keyword: "maxLength",
             params: { limit: 26 },
@@ -31360,9 +31396,9 @@ function validate53(
           }
           errors++;
         }
-        if (func69(data6) < 26) {
+        if (func69(data7) < 26) {
           const err26 = {
-            instancePath: instancePath + "/runner_id",
+            instancePath: instancePath + "/workspace_id",
             schemaPath: "primitives.json#/$defs/Ulid/minLength",
             keyword: "minLength",
             params: { limit: 26 },
@@ -31375,9 +31411,9 @@ function validate53(
           }
           errors++;
         }
-        if (!pattern4.test(data6)) {
+        if (!pattern4.test(data7)) {
           const err27 = {
-            instancePath: instancePath + "/runner_id",
+            instancePath: instancePath + "/workspace_id",
             schemaPath: "primitives.json#/$defs/Ulid/pattern",
             keyword: "pattern",
             params: { pattern: "^[0-7][0-9A-HJKMNP-TV-Z]{25}$" },
@@ -31392,7 +31428,7 @@ function validate53(
         }
       } else {
         const err28 = {
-          instancePath: instancePath + "/runner_id",
+          instancePath: instancePath + "/workspace_id",
           schemaPath: "primitives.json#/$defs/Ulid/type",
           keyword: "type",
           params: { type: "string" },
@@ -31406,12 +31442,12 @@ function validate53(
         errors++;
       }
     }
-    if (data.launch_id !== void 0 && func0.call(data, "launch_id")) {
-      let data7 = data.launch_id;
-      if (typeof data7 === "string") {
-        if (func69(data7) > 26) {
+    if (data.runner_id !== void 0 && func0.call(data, "runner_id")) {
+      let data8 = data.runner_id;
+      if (typeof data8 === "string") {
+        if (func69(data8) > 26) {
           const err29 = {
-            instancePath: instancePath + "/launch_id",
+            instancePath: instancePath + "/runner_id",
             schemaPath: "primitives.json#/$defs/Ulid/maxLength",
             keyword: "maxLength",
             params: { limit: 26 },
@@ -31424,9 +31460,9 @@ function validate53(
           }
           errors++;
         }
-        if (func69(data7) < 26) {
+        if (func69(data8) < 26) {
           const err30 = {
-            instancePath: instancePath + "/launch_id",
+            instancePath: instancePath + "/runner_id",
             schemaPath: "primitives.json#/$defs/Ulid/minLength",
             keyword: "minLength",
             params: { limit: 26 },
@@ -31439,9 +31475,9 @@ function validate53(
           }
           errors++;
         }
-        if (!pattern4.test(data7)) {
+        if (!pattern4.test(data8)) {
           const err31 = {
-            instancePath: instancePath + "/launch_id",
+            instancePath: instancePath + "/runner_id",
             schemaPath: "primitives.json#/$defs/Ulid/pattern",
             keyword: "pattern",
             params: { pattern: "^[0-7][0-9A-HJKMNP-TV-Z]{25}$" },
@@ -31456,7 +31492,7 @@ function validate53(
         }
       } else {
         const err32 = {
-          instancePath: instancePath + "/launch_id",
+          instancePath: instancePath + "/runner_id",
           schemaPath: "primitives.json#/$defs/Ulid/type",
           keyword: "type",
           params: { type: "string" },
@@ -31470,12 +31506,12 @@ function validate53(
         errors++;
       }
     }
-    if (data.run_execution_id !== void 0 && func0.call(data, "run_execution_id")) {
-      let data8 = data.run_execution_id;
-      if (typeof data8 === "string") {
-        if (func69(data8) > 26) {
+    if (data.launch_id !== void 0 && func0.call(data, "launch_id")) {
+      let data9 = data.launch_id;
+      if (typeof data9 === "string") {
+        if (func69(data9) > 26) {
           const err33 = {
-            instancePath: instancePath + "/run_execution_id",
+            instancePath: instancePath + "/launch_id",
             schemaPath: "primitives.json#/$defs/Ulid/maxLength",
             keyword: "maxLength",
             params: { limit: 26 },
@@ -31488,9 +31524,9 @@ function validate53(
           }
           errors++;
         }
-        if (func69(data8) < 26) {
+        if (func69(data9) < 26) {
           const err34 = {
-            instancePath: instancePath + "/run_execution_id",
+            instancePath: instancePath + "/launch_id",
             schemaPath: "primitives.json#/$defs/Ulid/minLength",
             keyword: "minLength",
             params: { limit: 26 },
@@ -31503,9 +31539,9 @@ function validate53(
           }
           errors++;
         }
-        if (!pattern4.test(data8)) {
+        if (!pattern4.test(data9)) {
           const err35 = {
-            instancePath: instancePath + "/run_execution_id",
+            instancePath: instancePath + "/launch_id",
             schemaPath: "primitives.json#/$defs/Ulid/pattern",
             keyword: "pattern",
             params: { pattern: "^[0-7][0-9A-HJKMNP-TV-Z]{25}$" },
@@ -31520,7 +31556,7 @@ function validate53(
         }
       } else {
         const err36 = {
-          instancePath: instancePath + "/run_execution_id",
+          instancePath: instancePath + "/launch_id",
           schemaPath: "primitives.json#/$defs/Ulid/type",
           keyword: "type",
           params: { type: "string" },
@@ -31534,31 +31570,31 @@ function validate53(
         errors++;
       }
     }
-    if (data.assignment_generation !== void 0 && func0.call(data, "assignment_generation")) {
-      let data9 = data.assignment_generation;
-      if (!(typeof data9 == "number" && !(data9 % 1) && !isNaN(data9) && isFinite(data9))) {
-        const err37 = {
-          instancePath: instancePath + "/assignment_generation",
-          schemaPath: "primitives.json#/$defs/AssignmentGeneration/type",
-          keyword: "type",
-          params: { type: "integer" },
-          message: "must be integer",
-        };
-        if (vErrors === null) {
-          vErrors = [err37];
-        } else {
-          vErrors.push(err37);
+    if (data.run_execution_id !== void 0 && func0.call(data, "run_execution_id")) {
+      let data10 = data.run_execution_id;
+      if (typeof data10 === "string") {
+        if (func69(data10) > 26) {
+          const err37 = {
+            instancePath: instancePath + "/run_execution_id",
+            schemaPath: "primitives.json#/$defs/Ulid/maxLength",
+            keyword: "maxLength",
+            params: { limit: 26 },
+            message: "must NOT have more than 26 characters",
+          };
+          if (vErrors === null) {
+            vErrors = [err37];
+          } else {
+            vErrors.push(err37);
+          }
+          errors++;
         }
-        errors++;
-      }
-      if (typeof data9 == "number" && isFinite(data9)) {
-        if (data9 > 9007199254740991 || isNaN(data9)) {
+        if (func69(data10) < 26) {
           const err38 = {
-            instancePath: instancePath + "/assignment_generation",
-            schemaPath: "primitives.json#/$defs/AssignmentGeneration/maximum",
-            keyword: "maximum",
-            params: { comparison: "<=", limit: 9007199254740991 },
-            message: "must be <= 9007199254740991",
+            instancePath: instancePath + "/run_execution_id",
+            schemaPath: "primitives.json#/$defs/Ulid/minLength",
+            keyword: "minLength",
+            params: { limit: 26 },
+            message: "must NOT have fewer than 26 characters",
           };
           if (vErrors === null) {
             vErrors = [err38];
@@ -31567,13 +31603,13 @@ function validate53(
           }
           errors++;
         }
-        if (data9 < 1 || isNaN(data9)) {
+        if (!pattern4.test(data10)) {
           const err39 = {
-            instancePath: instancePath + "/assignment_generation",
-            schemaPath: "primitives.json#/$defs/AssignmentGeneration/minimum",
-            keyword: "minimum",
-            params: { comparison: ">=", limit: 1 },
-            message: "must be >= 1",
+            instancePath: instancePath + "/run_execution_id",
+            schemaPath: "primitives.json#/$defs/Ulid/pattern",
+            keyword: "pattern",
+            params: { pattern: "^[0-7][0-9A-HJKMNP-TV-Z]{25}$" },
+            message: 'must match pattern "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"',
           };
           if (vErrors === null) {
             vErrors = [err39];
@@ -31582,48 +31618,47 @@ function validate53(
           }
           errors++;
         }
+      } else {
+        const err40 = {
+          instancePath: instancePath + "/run_execution_id",
+          schemaPath: "primitives.json#/$defs/Ulid/type",
+          keyword: "type",
+          params: { type: "string" },
+          message: "must be string",
+        };
+        if (vErrors === null) {
+          vErrors = [err40];
+        } else {
+          vErrors.push(err40);
+        }
+        errors++;
       }
     }
-    if (data.physical_worktree_hash !== void 0 && func0.call(data, "physical_worktree_hash")) {
-      let data10 = data.physical_worktree_hash;
-      if (typeof data10 === "string") {
-        if (func69(data10) > 71) {
-          const err40 = {
-            instancePath: instancePath + "/physical_worktree_hash",
-            schemaPath: "primitives.json#/$defs/Sha256Digest/maxLength",
-            keyword: "maxLength",
-            params: { limit: 71 },
-            message: "must NOT have more than 71 characters",
-          };
-          if (vErrors === null) {
-            vErrors = [err40];
-          } else {
-            vErrors.push(err40);
-          }
-          errors++;
+    if (data.assignment_generation !== void 0 && func0.call(data, "assignment_generation")) {
+      let data11 = data.assignment_generation;
+      if (!(typeof data11 == "number" && !(data11 % 1) && !isNaN(data11) && isFinite(data11))) {
+        const err41 = {
+          instancePath: instancePath + "/assignment_generation",
+          schemaPath: "primitives.json#/$defs/AssignmentGeneration/type",
+          keyword: "type",
+          params: { type: "integer" },
+          message: "must be integer",
+        };
+        if (vErrors === null) {
+          vErrors = [err41];
+        } else {
+          vErrors.push(err41);
         }
-        if (func69(data10) < 71) {
-          const err41 = {
-            instancePath: instancePath + "/physical_worktree_hash",
-            schemaPath: "primitives.json#/$defs/Sha256Digest/minLength",
-            keyword: "minLength",
-            params: { limit: 71 },
-            message: "must NOT have fewer than 71 characters",
-          };
-          if (vErrors === null) {
-            vErrors = [err41];
-          } else {
-            vErrors.push(err41);
-          }
-          errors++;
-        }
-        if (!pattern7.test(data10)) {
+        errors++;
+      }
+      if (typeof data11 == "number" && isFinite(data11)) {
+        if (data11 > 9007199254740991 || isNaN(data11)) {
           const err42 = {
-            instancePath: instancePath + "/physical_worktree_hash",
-            schemaPath: "primitives.json#/$defs/Sha256Digest/pattern",
-            keyword: "pattern",
-            params: { pattern: "^sha256:[0-9a-f]{64}$" },
-            message: 'must match pattern "^sha256:[0-9a-f]{64}$"',
+            instancePath: instancePath + "/assignment_generation",
+            schemaPath: "primitives.json#/$defs/AssignmentGeneration/maximum",
+            keyword: "maximum",
+            params: { comparison: "<=", limit: 9007199254740991 },
+            message: "must be <= 9007199254740991",
           };
           if (vErrors === null) {
             vErrors = [err42];
@@ -31632,90 +31667,78 @@ function validate53(
           }
           errors++;
         }
+        if (data11 < 1 || isNaN(data11)) {
+          const err43 = {
+            instancePath: instancePath + "/assignment_generation",
+            schemaPath: "primitives.json#/$defs/AssignmentGeneration/minimum",
+            keyword: "minimum",
+            params: { comparison: ">=", limit: 1 },
+            message: "must be >= 1",
+          };
+          if (vErrors === null) {
+            vErrors = [err43];
+          } else {
+            vErrors.push(err43);
+          }
+          errors++;
+        }
+      }
+    }
+    if (data.physical_worktree_hash !== void 0 && func0.call(data, "physical_worktree_hash")) {
+      let data12 = data.physical_worktree_hash;
+      if (typeof data12 === "string") {
+        if (func69(data12) > 71) {
+          const err44 = {
+            instancePath: instancePath + "/physical_worktree_hash",
+            schemaPath: "primitives.json#/$defs/Sha256Digest/maxLength",
+            keyword: "maxLength",
+            params: { limit: 71 },
+            message: "must NOT have more than 71 characters",
+          };
+          if (vErrors === null) {
+            vErrors = [err44];
+          } else {
+            vErrors.push(err44);
+          }
+          errors++;
+        }
+        if (func69(data12) < 71) {
+          const err45 = {
+            instancePath: instancePath + "/physical_worktree_hash",
+            schemaPath: "primitives.json#/$defs/Sha256Digest/minLength",
+            keyword: "minLength",
+            params: { limit: 71 },
+            message: "must NOT have fewer than 71 characters",
+          };
+          if (vErrors === null) {
+            vErrors = [err45];
+          } else {
+            vErrors.push(err45);
+          }
+          errors++;
+        }
+        if (!pattern7.test(data12)) {
+          const err46 = {
+            instancePath: instancePath + "/physical_worktree_hash",
+            schemaPath: "primitives.json#/$defs/Sha256Digest/pattern",
+            keyword: "pattern",
+            params: { pattern: "^sha256:[0-9a-f]{64}$" },
+            message: 'must match pattern "^sha256:[0-9a-f]{64}$"',
+          };
+          if (vErrors === null) {
+            vErrors = [err46];
+          } else {
+            vErrors.push(err46);
+          }
+          errors++;
+        }
       } else {
-        const err43 = {
+        const err47 = {
           instancePath: instancePath + "/physical_worktree_hash",
           schemaPath: "primitives.json#/$defs/Sha256Digest/type",
           keyword: "type",
           params: { type: "string" },
           message: "must be string",
-        };
-        if (vErrors === null) {
-          vErrors = [err43];
-        } else {
-          vErrors.push(err43);
-        }
-        errors++;
-      }
-    }
-    if (data.launch_state !== void 0 && func0.call(data, "launch_state")) {
-      let data11 = data.launch_state;
-      if (typeof data11 !== "string") {
-        const err44 = {
-          instancePath: instancePath + "/launch_state",
-          schemaPath: "#/properties/launch_state/type",
-          keyword: "type",
-          params: { type: "string" },
-          message: "must be string",
-        };
-        if (vErrors === null) {
-          vErrors = [err44];
-        } else {
-          vErrors.push(err44);
-        }
-        errors++;
-      }
-      if (!(
-        data11 === "claimed" ||
-        data11 === "started" ||
-        data11 === "rejected" ||
-        data11 === "expired"
-      )) {
-        const err45 = {
-          instancePath: instancePath + "/launch_state",
-          schemaPath: "#/properties/launch_state/enum",
-          keyword: "enum",
-          params: { allowedValues: schema155.properties.launch_state.enum },
-          message: "must be equal to one of the allowed values",
-        };
-        if (vErrors === null) {
-          vErrors = [err45];
-        } else {
-          vErrors.push(err45);
-        }
-        errors++;
-      }
-    }
-    if (data.reservation_state !== void 0 && func0.call(data, "reservation_state")) {
-      let data12 = data.reservation_state;
-      if (typeof data12 !== "string") {
-        const err46 = {
-          instancePath: instancePath + "/reservation_state",
-          schemaPath: "#/properties/reservation_state/type",
-          keyword: "type",
-          params: { type: "string" },
-          message: "must be string",
-        };
-        if (vErrors === null) {
-          vErrors = [err46];
-        } else {
-          vErrors.push(err46);
-        }
-        errors++;
-      }
-      if (!(
-        data12 === "reserved" ||
-        data12 === "live" ||
-        data12 === "containment_unknown" ||
-        data12 === "released" ||
-        data12 === "superseded"
-      )) {
-        const err47 = {
-          instancePath: instancePath + "/reservation_state",
-          schemaPath: "#/properties/reservation_state/enum",
-          keyword: "enum",
-          params: { allowedValues: schema155.properties.reservation_state.enum },
-          message: "must be equal to one of the allowed values",
         };
         if (vErrors === null) {
           vErrors = [err47];
@@ -31725,15 +31748,15 @@ function validate53(
         errors++;
       }
     }
-    if (data.fencing_generation !== void 0 && func0.call(data, "fencing_generation")) {
-      let data13 = data.fencing_generation;
-      if (!(typeof data13 == "number" && !(data13 % 1) && !isNaN(data13) && isFinite(data13))) {
+    if (data.launch_state !== void 0 && func0.call(data, "launch_state")) {
+      let data13 = data.launch_state;
+      if (typeof data13 !== "string") {
         const err48 = {
-          instancePath: instancePath + "/fencing_generation",
-          schemaPath: "primitives.json#/$defs/AssignmentGeneration/type",
+          instancePath: instancePath + "/launch_state",
+          schemaPath: "#/properties/launch_state/type",
           keyword: "type",
-          params: { type: "integer" },
-          message: "must be integer",
+          params: { type: "string" },
+          message: "must be string",
         };
         if (vErrors === null) {
           vErrors = [err48];
@@ -31742,48 +31765,58 @@ function validate53(
         }
         errors++;
       }
-      if (typeof data13 == "number" && isFinite(data13)) {
-        if (data13 > 9007199254740991 || isNaN(data13)) {
-          const err49 = {
-            instancePath: instancePath + "/fencing_generation",
-            schemaPath: "primitives.json#/$defs/AssignmentGeneration/maximum",
-            keyword: "maximum",
-            params: { comparison: "<=", limit: 9007199254740991 },
-            message: "must be <= 9007199254740991",
-          };
-          if (vErrors === null) {
-            vErrors = [err49];
-          } else {
-            vErrors.push(err49);
-          }
-          errors++;
+      if (!(
+        data13 === "claimed" ||
+        data13 === "started" ||
+        data13 === "rejected" ||
+        data13 === "expired"
+      )) {
+        const err49 = {
+          instancePath: instancePath + "/launch_state",
+          schemaPath: "#/properties/launch_state/enum",
+          keyword: "enum",
+          params: { allowedValues: schema155.properties.launch_state.enum },
+          message: "must be equal to one of the allowed values",
+        };
+        if (vErrors === null) {
+          vErrors = [err49];
+        } else {
+          vErrors.push(err49);
         }
-        if (data13 < 1 || isNaN(data13)) {
-          const err50 = {
-            instancePath: instancePath + "/fencing_generation",
-            schemaPath: "primitives.json#/$defs/AssignmentGeneration/minimum",
-            keyword: "minimum",
-            params: { comparison: ">=", limit: 1 },
-            message: "must be >= 1",
-          };
-          if (vErrors === null) {
-            vErrors = [err50];
-          } else {
-            vErrors.push(err50);
-          }
-          errors++;
-        }
+        errors++;
       }
     }
-    if (data.observation_sequence !== void 0 && func0.call(data, "observation_sequence")) {
-      let data14 = data.observation_sequence;
-      if (!(typeof data14 == "number" && !(data14 % 1) && !isNaN(data14) && isFinite(data14))) {
-        const err51 = {
-          instancePath: instancePath + "/observation_sequence",
-          schemaPath: "#/properties/observation_sequence/type",
+    if (data.reservation_state !== void 0 && func0.call(data, "reservation_state")) {
+      let data14 = data.reservation_state;
+      if (typeof data14 !== "string") {
+        const err50 = {
+          instancePath: instancePath + "/reservation_state",
+          schemaPath: "#/properties/reservation_state/type",
           keyword: "type",
-          params: { type: "integer" },
-          message: "must be integer",
+          params: { type: "string" },
+          message: "must be string",
+        };
+        if (vErrors === null) {
+          vErrors = [err50];
+        } else {
+          vErrors.push(err50);
+        }
+        errors++;
+      }
+      if (!(
+        data14 === "reserved" ||
+        data14 === "live" ||
+        data14 === "containment_unknown" ||
+        data14 === "released" ||
+        data14 === "superseded" ||
+        data14 === "never_acquired"
+      )) {
+        const err51 = {
+          instancePath: instancePath + "/reservation_state",
+          schemaPath: "#/properties/reservation_state/enum",
+          keyword: "enum",
+          params: { allowedValues: schema155.properties.reservation_state.enum },
+          message: "must be equal to one of the allowed values",
         };
         if (vErrors === null) {
           vErrors = [err51];
@@ -31792,29 +31825,32 @@ function validate53(
         }
         errors++;
       }
-      if (typeof data14 == "number" && isFinite(data14)) {
-        if (data14 > 9007199254740991 || isNaN(data14)) {
-          const err52 = {
-            instancePath: instancePath + "/observation_sequence",
-            schemaPath: "#/properties/observation_sequence/maximum",
+    }
+    if (data.fencing_generation !== void 0 && func0.call(data, "fencing_generation")) {
+      let data15 = data.fencing_generation;
+      if (!(typeof data15 == "number" && !(data15 % 1) && !isNaN(data15) && isFinite(data15))) {
+        const err52 = {
+          instancePath: instancePath + "/fencing_generation",
+          schemaPath: "primitives.json#/$defs/AssignmentGeneration/type",
+          keyword: "type",
+          params: { type: "integer" },
+          message: "must be integer",
+        };
+        if (vErrors === null) {
+          vErrors = [err52];
+        } else {
+          vErrors.push(err52);
+        }
+        errors++;
+      }
+      if (typeof data15 == "number" && isFinite(data15)) {
+        if (data15 > 9007199254740991 || isNaN(data15)) {
+          const err53 = {
+            instancePath: instancePath + "/fencing_generation",
+            schemaPath: "primitives.json#/$defs/AssignmentGeneration/maximum",
             keyword: "maximum",
             params: { comparison: "<=", limit: 9007199254740991 },
             message: "must be <= 9007199254740991",
-          };
-          if (vErrors === null) {
-            vErrors = [err52];
-          } else {
-            vErrors.push(err52);
-          }
-          errors++;
-        }
-        if (data14 < 0 || isNaN(data14)) {
-          const err53 = {
-            instancePath: instancePath + "/observation_sequence",
-            schemaPath: "#/properties/observation_sequence/minimum",
-            keyword: "minimum",
-            params: { comparison: ">=", limit: 0 },
-            message: "must be >= 0",
           };
           if (vErrors === null) {
             vErrors = [err53];
@@ -31823,18 +31859,13 @@ function validate53(
           }
           errors++;
         }
-      }
-    }
-    if (data.lease_expires_at !== void 0 && func0.call(data, "lease_expires_at")) {
-      let data15 = data.lease_expires_at;
-      if (typeof data15 === "string") {
-        if (func69(data15) > 30) {
+        if (data15 < 1 || isNaN(data15)) {
           const err54 = {
-            instancePath: instancePath + "/lease_expires_at",
-            schemaPath: "primitives.json#/$defs/UtcTimestamp/maxLength",
-            keyword: "maxLength",
-            params: { limit: 30 },
-            message: "must NOT have more than 30 characters",
+            instancePath: instancePath + "/fencing_generation",
+            schemaPath: "primitives.json#/$defs/AssignmentGeneration/minimum",
+            keyword: "minimum",
+            params: { comparison: ">=", limit: 1 },
+            message: "must be >= 1",
           };
           if (vErrors === null) {
             vErrors = [err54];
@@ -31843,8 +31874,78 @@ function validate53(
           }
           errors++;
         }
-        if (func69(data15) < 20) {
-          const err55 = {
+      }
+    }
+    if (data.observation_sequence !== void 0 && func0.call(data, "observation_sequence")) {
+      let data16 = data.observation_sequence;
+      if (!(typeof data16 == "number" && !(data16 % 1) && !isNaN(data16) && isFinite(data16))) {
+        const err55 = {
+          instancePath: instancePath + "/observation_sequence",
+          schemaPath: "#/properties/observation_sequence/type",
+          keyword: "type",
+          params: { type: "integer" },
+          message: "must be integer",
+        };
+        if (vErrors === null) {
+          vErrors = [err55];
+        } else {
+          vErrors.push(err55);
+        }
+        errors++;
+      }
+      if (typeof data16 == "number" && isFinite(data16)) {
+        if (data16 > 9007199254740991 || isNaN(data16)) {
+          const err56 = {
+            instancePath: instancePath + "/observation_sequence",
+            schemaPath: "#/properties/observation_sequence/maximum",
+            keyword: "maximum",
+            params: { comparison: "<=", limit: 9007199254740991 },
+            message: "must be <= 9007199254740991",
+          };
+          if (vErrors === null) {
+            vErrors = [err56];
+          } else {
+            vErrors.push(err56);
+          }
+          errors++;
+        }
+        if (data16 < 0 || isNaN(data16)) {
+          const err57 = {
+            instancePath: instancePath + "/observation_sequence",
+            schemaPath: "#/properties/observation_sequence/minimum",
+            keyword: "minimum",
+            params: { comparison: ">=", limit: 0 },
+            message: "must be >= 0",
+          };
+          if (vErrors === null) {
+            vErrors = [err57];
+          } else {
+            vErrors.push(err57);
+          }
+          errors++;
+        }
+      }
+    }
+    if (data.lease_expires_at !== void 0 && func0.call(data, "lease_expires_at")) {
+      let data17 = data.lease_expires_at;
+      if (typeof data17 === "string") {
+        if (func69(data17) > 30) {
+          const err58 = {
+            instancePath: instancePath + "/lease_expires_at",
+            schemaPath: "primitives.json#/$defs/UtcTimestamp/maxLength",
+            keyword: "maxLength",
+            params: { limit: 30 },
+            message: "must NOT have more than 30 characters",
+          };
+          if (vErrors === null) {
+            vErrors = [err58];
+          } else {
+            vErrors.push(err58);
+          }
+          errors++;
+        }
+        if (func69(data17) < 20) {
+          const err59 = {
             instancePath: instancePath + "/lease_expires_at",
             schemaPath: "primitives.json#/$defs/UtcTimestamp/minLength",
             keyword: "minLength",
@@ -31852,14 +31953,14 @@ function validate53(
             message: "must NOT have fewer than 20 characters",
           };
           if (vErrors === null) {
-            vErrors = [err55];
+            vErrors = [err59];
           } else {
-            vErrors.push(err55);
+            vErrors.push(err59);
           }
           errors++;
         }
-        if (!pattern5.test(data15)) {
-          const err56 = {
+        if (!pattern5.test(data17)) {
+          const err60 = {
             instancePath: instancePath + "/lease_expires_at",
             schemaPath: "primitives.json#/$defs/UtcTimestamp/pattern",
             keyword: "pattern",
@@ -31870,14 +31971,14 @@ function validate53(
               'must match pattern "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-5][0-9](\\.[0-9]{1,6})?Z$"',
           };
           if (vErrors === null) {
-            vErrors = [err56];
+            vErrors = [err60];
           } else {
-            vErrors.push(err56);
+            vErrors.push(err60);
           }
           errors++;
         }
-        if (!formats0.validate(data15)) {
-          const err57 = {
+        if (!formats0.validate(data17)) {
+          const err61 = {
             instancePath: instancePath + "/lease_expires_at",
             schemaPath: "primitives.json#/$defs/UtcTimestamp/format",
             keyword: "format",
@@ -31885,14 +31986,14 @@ function validate53(
             message: 'must match format "date-time"',
           };
           if (vErrors === null) {
-            vErrors = [err57];
+            vErrors = [err61];
           } else {
-            vErrors.push(err57);
+            vErrors.push(err61);
           }
           errors++;
         }
       } else {
-        const err58 = {
+        const err62 = {
           instancePath: instancePath + "/lease_expires_at",
           schemaPath: "primitives.json#/$defs/UtcTimestamp/type",
           keyword: "type",
@@ -31900,15 +32001,15 @@ function validate53(
           message: "must be string",
         };
         if (vErrors === null) {
-          vErrors = [err58];
+          vErrors = [err62];
         } else {
-          vErrors.push(err58);
+          vErrors.push(err62);
         }
         errors++;
       }
     }
   } else {
-    const err59 = {
+    const err63 = {
       instancePath,
       schemaPath: "#/type",
       keyword: "type",
@@ -31916,9 +32017,9 @@ function validate53(
       message: "must be object",
     };
     if (vErrors === null) {
-      vErrors = [err59];
+      vErrors = [err63];
     } else {
-      vErrors.push(err59);
+      vErrors.push(err63);
     }
     errors++;
   }

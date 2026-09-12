@@ -868,8 +868,9 @@ try {
   const expiring = await accepted<Launch>(await browser(0, "launches", blockedStart), 201);
   now = launchDeadline(INITIAL, 242_000);
   await inventory();
+  const unclaimedRequest = claimInput(expiring);
   const expired = await accepted<{ state: string }>(
-    await signed(1, "launch/claim", claimInput(expiring)),
+    await signed(1, "launch/claim", unclaimedRequest),
   );
   assert.equal(expired.state, "expired");
   assert.deepEqual(
@@ -905,6 +906,25 @@ try {
   const retainedLease = await db
     .prepare(`SELECT * FROM checkout_leases WHERE runner_id = ?`)
     .get(runner);
+  await hubWorker.evictDurableObject("WorkspaceHub", { name: FIX.workspace });
+  const unclaimed = await accepted<LaunchReconciliation>(
+    await signed(1, "launch/reconcile", unclaimedRequest),
+  );
+  assert.equal(unclaimed.reservation_state, "never_acquired");
+  assert.equal(unclaimed.run_execution_id, expiring.run_execution_id);
+  assert.equal(unclaimed.launch_state, "expired");
+  for (const field of [
+    "fencing_generation",
+    "observation_sequence",
+    "lease_expires_at",
+    "specification",
+    "snapshot",
+  ])
+    assert(!(field in unclaimed), "never-acquired receipt disclosed another reservation");
+  assert.deepEqual(
+    await db.prepare(`SELECT * FROM checkout_leases WHERE runner_id = ?`).get(runner),
+    retainedLease,
+  );
   now = launchDeadline(now, 46_000);
   await inventory();
   assert.equal((await signed(1, "launch/claim", lostClaim)).status, 403);
@@ -962,7 +982,7 @@ try {
     "released",
   );
   console.log(
-    "C09_D1_RECONCILE_OK lost claim response survives expiry and Hub eviction; cleanup-only fence does not renew authority",
+    "C09_D1_RECONCILE_OK lost claim and never-acquired rejection survive expiry and Hub eviction; cleanup metadata neither renews authority nor exposes another fence",
   );
   const canaries = [...rawWakes, token, secret, SESSION_TOKEN];
   for (const table of [

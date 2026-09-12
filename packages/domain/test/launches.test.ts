@@ -228,6 +228,60 @@ describe("durable launch orchestration", () => {
     ).toBe("rejected");
   });
 
+  it.each(["expiry", "revoked_grant"])(
+    "reconciles a lost %s response before any lease was acquired",
+    async (fault) => {
+      const f = await launchFixture();
+      const launch = success(await f.human(startLaunchCommand, f.start));
+      const claim = {
+        schema_version: 1 as const,
+        launch_id: launch.launch_id,
+        runner_id: f.runner,
+        idempotency_key: randomUlid(),
+        claimed_at: LAUNCH_NOW,
+      };
+      expect((await f.native(reconcileLaunchCommand, { principal: f.principal, claim })).ok).toBe(
+        false,
+      );
+      const later = fault === "expiry" ? launchDeadline(LAUNCH_NOW, 120_001) : LAUNCH_NOW;
+      await f.refresh(later);
+      if (fault === "revoked_grant")
+        await f.db.prepare(`UPDATE runner_launch_grants SET revoked_at = ?`).run(later);
+      const rejected = success(
+        await f.native(claimLaunchCommand, { principal: f.principal, claim }, later),
+      );
+      expect(rejected.state).toBe(fault === "expiry" ? "expired" : "rejected");
+      expect(await f.db.prepare(`SELECT COUNT(*) AS count FROM checkout_leases`).get()).toEqual({
+        count: 0,
+      });
+      const binding = success(
+        await f.native(reconcileLaunchCommand, { principal: f.principal, claim }, later),
+      );
+      expect(binding).toEqual({
+        schema_version: 1,
+        workspace_id: FIX.workspace,
+        runner_id: f.runner,
+        launch_id: launch.launch_id,
+        run_execution_id: launch.run_execution_id,
+        assignment_generation: launch.assignment_generation,
+        physical_worktree_hash: f.inventory().checkouts[0]!.physical_worktree_hash,
+        launch_state: rejected.state,
+        reservation_state: "never_acquired",
+      });
+      for (const principal of [
+        { ...f.principal, runnerId: randomUlid() },
+        { ...f.principal, keyThumbprint: "synthetic-other-key" },
+        { ...f.principal, workspaceId: randomUlid() },
+      ])
+        expect((await f.native(reconcileLaunchCommand, { principal, claim }, later)).ok).toBe(
+          false,
+        );
+      expect(await f.db.prepare(`SELECT COUNT(*) AS count FROM checkout_leases`).get()).toEqual({
+        count: 0,
+      });
+    },
+  );
+
   it("does not disclose cleanup bindings to an unclaimed key, another runner, workspace or proof type", async () => {
     const f = await launchFixture(),
       c = await f.claim();

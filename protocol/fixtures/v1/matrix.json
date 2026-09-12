@@ -788,6 +788,143 @@
       "expect": "accept"
     },
     {
+      "path": "valid/local-execution-assignment.l05-synthetic.json",
+      "schema": "local-execution-assignment",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l05-registration-request.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l05-registration-response.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l05-authorize-request.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l05-authorize-response.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l05-group-request.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l05-group-response.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/local-rpc.l05-group-other-method.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.l05-group-response-identity.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.l05-group-without-lock.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/local-rpc.l05-group-unsafe-pid.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/local-rpc.l05-authorize-supplied-decision.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.l05-authorize-other-method.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.l05-authorize-lock-other-method.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-execution-assignment.l05-shell.json",
+      "schema": "local-execution-assignment",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/local-execution-assignment.l05-path.json",
+      "schema": "local-execution-assignment",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/local-execution-assignment.l05-cloud-wake.json",
+      "schema": "local-execution-assignment",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/local-execution-assignment.l05-short-correlation.json",
+      "schema": "local-execution-assignment",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/local-execution-assignment.l05-missing-supervisor.json",
+      "schema": "local-execution-assignment",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/local-execution-assignment.l05-invalid-pid.json",
+      "schema": "local-execution-assignment",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/local-execution-assignment.l05-process-path.json",
+      "schema": "local-execution-assignment",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/local-rpc.l05-assignment-request.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.l05-assignment-method.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.l05-assignment-nested-shell.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
       "path": "valid/launch-start-request.c09-synthetic.json",
       "schema": "launch-start-request",
       "expect": "accept"
@@ -1090,6 +1227,28 @@
       "expect": "accept"
     },
     {
+      "path": "valid/launch-reconciliation.c09-never-acquired.json",
+      "schema": "launch-reconciliation",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/launch-reconciliation.c09-never-acquired-rejected.json",
+      "schema": "launch-reconciliation",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/launch-reconciliation.c09-never-acquired-live.json",
+      "schema": "launch-reconciliation",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/launch-reconciliation.c09-never-acquired-fence.json",
+      "schema": "launch-reconciliation",
+      "expect": "reject",
+      "category": "schema_invalid"
+    },
+    {
       "path": "invalid/launch-reconciliation.c09-missing-fence.json",
       "schema": "launch-reconciliation",
       "expect": "reject",
@@ -1172,143 +1331,6 @@
     {
       "path": "invalid/checkout-lease-observation.c09-process-path.json",
       "schema": "checkout-lease-observation",
-      "expect": "reject",
-      "category": "shell_data"
-    },
-    {
-      "path": "valid/local-execution-assignment.l05-synthetic.json",
-      "schema": "local-execution-assignment",
-      "expect": "accept"
-    },
-    {
-      "path": "valid/local-rpc.l05-registration-request.json",
-      "schema": "local-rpc",
-      "expect": "accept"
-    },
-    {
-      "path": "valid/local-rpc.l05-registration-response.json",
-      "schema": "local-rpc",
-      "expect": "accept"
-    },
-    {
-      "path": "valid/local-rpc.l05-authorize-request.json",
-      "schema": "local-rpc",
-      "expect": "accept"
-    },
-    {
-      "path": "valid/local-rpc.l05-authorize-response.json",
-      "schema": "local-rpc",
-      "expect": "accept"
-    },
-    {
-      "path": "valid/local-rpc.l05-group-request.json",
-      "schema": "local-rpc",
-      "expect": "accept"
-    },
-    {
-      "path": "valid/local-rpc.l05-group-response.json",
-      "schema": "local-rpc",
-      "expect": "accept"
-    },
-    {
-      "path": "invalid/local-rpc.l05-group-other-method.json",
-      "schema": "local-rpc",
-      "expect": "reject",
-      "category": "type_mismatch"
-    },
-    {
-      "path": "invalid/local-rpc.l05-group-response-identity.json",
-      "schema": "local-rpc",
-      "expect": "reject",
-      "category": "type_mismatch"
-    },
-    {
-      "path": "invalid/local-rpc.l05-group-without-lock.json",
-      "schema": "local-rpc",
-      "expect": "reject",
-      "category": "missing_field"
-    },
-    {
-      "path": "invalid/local-rpc.l05-group-unsafe-pid.json",
-      "schema": "local-rpc",
-      "expect": "reject",
-      "category": "bound_exceeded"
-    },
-    {
-      "path": "invalid/local-rpc.l05-authorize-supplied-decision.json",
-      "schema": "local-rpc",
-      "expect": "reject",
-      "category": "type_mismatch"
-    },
-    {
-      "path": "invalid/local-rpc.l05-authorize-other-method.json",
-      "schema": "local-rpc",
-      "expect": "reject",
-      "category": "type_mismatch"
-    },
-    {
-      "path": "invalid/local-rpc.l05-authorize-lock-other-method.json",
-      "schema": "local-rpc",
-      "expect": "reject",
-      "category": "type_mismatch"
-    },
-    {
-      "path": "invalid/local-execution-assignment.l05-shell.json",
-      "schema": "local-execution-assignment",
-      "expect": "reject",
-      "category": "shell_data"
-    },
-    {
-      "path": "invalid/local-execution-assignment.l05-path.json",
-      "schema": "local-execution-assignment",
-      "expect": "reject",
-      "category": "additional_field"
-    },
-    {
-      "path": "invalid/local-execution-assignment.l05-cloud-wake.json",
-      "schema": "local-execution-assignment",
-      "expect": "reject",
-      "category": "bound_exceeded"
-    },
-    {
-      "path": "invalid/local-execution-assignment.l05-short-correlation.json",
-      "schema": "local-execution-assignment",
-      "expect": "reject",
-      "category": "bound_exceeded"
-    },
-    {
-      "path": "invalid/local-execution-assignment.l05-missing-supervisor.json",
-      "schema": "local-execution-assignment",
-      "expect": "reject",
-      "category": "missing_field"
-    },
-    {
-      "path": "invalid/local-execution-assignment.l05-invalid-pid.json",
-      "schema": "local-execution-assignment",
-      "expect": "reject",
-      "category": "bound_exceeded"
-    },
-    {
-      "path": "invalid/local-execution-assignment.l05-process-path.json",
-      "schema": "local-execution-assignment",
-      "expect": "reject",
-      "category": "shell_data"
-    },
-    {
-      "path": "invalid/local-rpc.l05-assignment-request.json",
-      "schema": "local-rpc",
-      "expect": "reject",
-      "category": "type_mismatch"
-    },
-    {
-      "path": "invalid/local-rpc.l05-assignment-method.json",
-      "schema": "local-rpc",
-      "expect": "reject",
-      "category": "type_mismatch"
-    },
-    {
-      "path": "invalid/local-rpc.l05-assignment-nested-shell.json",
-      "schema": "local-rpc",
       "expect": "reject",
       "category": "shell_data"
     }

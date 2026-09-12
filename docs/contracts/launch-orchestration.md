@@ -28,7 +28,11 @@ not return a snapshot or execution configuration, update launch/lease state, ren
 a deadline, reacquire occupancy or authorize execution. A fresh Hub envelope avoids
 cached results. A released reservation reports its current observation sequence;
 after another execution replaces it, the old request receives `superseded` without
-the replacement's fence or other execution identity. An unclaimed request has no
+the replacement's fence or other execution identity. A rejected/expired command
+with no winning claim and no reservation for its execution reports `never_acquired`
+to its originally assigned, currently authenticated runner/signing key. This
+terminal receipt has no fence, lease sequence or deadline and cannot disclose or
+release another execution's reservation. A pending unclaimed request still has no
 reconciliation binding. The Mac must still supply verified local absence through
 the existing lease-observation path; knowing a fence is not absence proof.
 

@@ -296,10 +296,33 @@ export const reconcileLaunchCommand: HubCommand<
       row.runner_id !== principal.runnerId ||
       row.runner_key_thumbprint !== principal.keyThumbprint ||
       row.state === "pending" ||
-      row.claim_key_hash !== runnerHash(request.idempotency_key)
+      (row.claim_key_hash !== null && row.claim_key_hash !== runnerHash(request.idempotency_key))
     )
       rejectRunnerRequest();
     const lease = await readLease(ctx.db, row);
+    if (row.claim_key_hash === null) {
+      // A terminal command with no winning claim never acquired its own
+      // reservation. Do not expose or release another execution's lease.
+      if (
+        (row.state !== "expired" && row.state !== "rejected") ||
+        row.execution_state !== "ended" ||
+        row.final_authorized_at !== null ||
+        row.final_identity_json !== null ||
+        lease?.execution_id === row.execution_id
+      )
+        rejectRunnerRequest();
+      return launchWire<LaunchReconciliation>("launch-reconciliation", {
+        schema_version: 1,
+        workspace_id: ctx.workspaceId,
+        runner_id: row.runner_id,
+        launch_id: row.id,
+        run_execution_id: row.execution_id,
+        assignment_generation: row.assignment_generation,
+        physical_worktree_hash: row.physical_worktree_hash,
+        launch_state: row.state,
+        reservation_state: "never_acquired",
+      });
+    }
     if (!lease || lease.workspace_id !== ctx.workspaceId) rejectRunnerRequest();
     const retained =
       lease.execution_id === row.execution_id &&
