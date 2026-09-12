@@ -4,8 +4,8 @@
 package supervisor
 
 import (
+	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"os"
 	"sync"
@@ -24,6 +24,7 @@ type Service struct {
 	options ServiceOptions
 	mu      sync.RWMutex
 	store   *IntentStore
+	files   *AssignmentFiles
 	ready   chan struct{}
 	started sync.Once
 }
@@ -44,9 +45,19 @@ func (service *Service) Start(_ context.Context, store *daemon.Store) (func(), e
 	if service.store != nil {
 		return nil, failure("already_running")
 	}
+	files, err := OpenAssignmentFiles(store.Paths.Root)
+	if err != nil {
+		return nil, err
+	}
 	service.store = NewIntentStore(store.DB)
+	service.files = files
 	service.started.Do(func() { close(service.ready) })
-	return func() { service.mu.Lock(); defer service.mu.Unlock(); service.store = nil }, nil
+	return func() {
+		service.mu.Lock()
+		defer service.mu.Unlock()
+		_ = files.Close()
+		service.store, service.files = nil, nil
+	}, nil
 }
 
 func RegisterRPC(registry *daemon.Registry, service *Service) error {
@@ -56,18 +67,13 @@ func RegisterRPC(registry *daemon.Registry, service *Service) error {
 	return registry.Register("execution.register", service.register)
 }
 
-func (service *Service) intents(ctx context.Context) (*IntentStore, error) {
+func (service *Service) waitReady(ctx context.Context) error {
 	select {
 	case <-service.ready:
 	case <-ctx.Done():
-		return nil, failure("daemon_offline")
+		return failure("daemon_offline")
 	}
-	service.mu.RLock()
-	defer service.mu.RUnlock()
-	if service.store == nil {
-		return nil, failure("daemon_offline")
-	}
-	return service.store, nil
+	return nil
 }
 
 func (identity SupervisorIdentity) wire() generated.SupervisorIdentity {
@@ -98,16 +104,23 @@ func (service *Service) register(ctx context.Context, request daemon.Request) (m
 	if err != nil {
 		return nil, failure("peer_denied")
 	}
-	store, err := service.intents(ctx)
-	if err != nil {
+	if err := service.waitReady(ctx); err != nil {
 		return nil, err
 	}
-	assignment, err := store.Register(ctx, intent, identity, service.options.Now())
+	service.mu.RLock()
+	defer service.mu.RUnlock()
+	if service.store == nil || service.files == nil {
+		return nil, failure("daemon_offline")
+	}
+	assignment, err := service.store.Register(ctx, intent, identity, service.options.Now())
 	if err != nil {
 		return nil, err
 	}
 	wire, err := assignment.wire()
 	if err != nil {
+		return nil, err
+	}
+	if err := service.files.Publish(wire); err != nil {
 		return nil, err
 	}
 	return map[string]any{"execution_assignment": wire}, nil
@@ -128,7 +141,22 @@ func RegisterHelper(ctx context.Context, paths daemon.Paths, intent string) (gen
 	if err != nil {
 		return generated.LocalExecutionAssignment{}, err
 	}
-	return registeredResponse(response.Payload, intent, self, time.Now())
+	assignment, err := registeredResponse(response.Payload, intent, self, time.Now())
+	if err != nil {
+		return generated.LocalExecutionAssignment{}, err
+	}
+	files, err := ReadAssignmentFiles(paths.Root)
+	if err != nil {
+		return generated.LocalExecutionAssignment{}, err
+	}
+	defer files.Close()
+	stored, err := files.Read(intent)
+	want, _ := json.Marshal(assignment)
+	actual, _ := json.Marshal(stored)
+	if err != nil || !bytes.Equal(want, actual) {
+		return generated.LocalExecutionAssignment{}, failure("execution_assignment_invalid")
+	}
+	return assignment, nil
 }
 
 func registeredResponse(payload map[string]any, intent string, self SupervisorIdentity, now time.Time) (generated.LocalExecutionAssignment, error) {
@@ -141,16 +169,12 @@ func registeredResponse(payload map[string]any, intent string, self SupervisorId
 		return generated.LocalExecutionAssignment{}, failure("execution_assignment_invalid")
 	}
 	claim := assignment.Claim
-	if err := validateClaim(claim, claim.Assignment.WorkspaceId, claim.Assignment.RunnerId, claim.Specification.LaunchId, claim.Specification.ExpiresAt); err != nil {
+	if err := validateLocalAssignment(assignment); err != nil {
 		return generated.LocalExecutionAssignment{}, err
 	}
 	deadline, _ := time.Parse(time.RFC3339Nano, claim.Specification.ExpiresAt)
 	if !now.Before(deadline) {
 		return generated.LocalExecutionAssignment{}, failure("expired_intent")
-	}
-	token, err := base64.RawURLEncoding.DecodeString(assignment.CorrelationToken)
-	if err != nil || len(token) != 32 || base64.RawURLEncoding.EncodeToString(token) != assignment.CorrelationToken {
-		return generated.LocalExecutionAssignment{}, failure("execution_assignment_invalid")
 	}
 	return assignment, nil
 }

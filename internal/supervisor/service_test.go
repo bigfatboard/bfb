@@ -7,6 +7,8 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -55,6 +57,15 @@ func TestRegistrationRPCCommitsBeforeReplyAndReconcilesSameHelper(t *testing.T) 
 		if err != nil || stored.Supervisor == nil || *stored.Supervisor != self || stored.State != "registered" {
 			t.Fatal("reply preceded durable registration", err)
 		}
+		files, err := ReadAssignmentFiles(local.Paths.Root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		published, err := files.Read(assignment.IntentID)
+		_ = files.Close()
+		if err != nil || !reflect.DeepEqual(published, registered) {
+			t.Fatal("reply preceded authenticated publication", err)
+		}
 		data, _ := json.Marshal(registered)
 		if original != nil && string(original) != string(data) {
 			t.Fatal("lost reply minted another assignment")
@@ -91,5 +102,50 @@ func TestRegistrationRPCCommitsBeforeReplyAndReconcilesSameHelper(t *testing.T) 
 				t.Fatal("confused response accepted")
 			}
 		})
+	}
+}
+
+func TestRegistrationPublicationFailureKeepsOriginalSupervisor(t *testing.T) {
+	intents, local, claim, now := fixtureIntents(t)
+	assignment := issueFixture(t, intents, claim, now)
+	if offered, err := intents.Offer(context.Background(), assignment.IntentID); err != nil || !offered {
+		t.Fatal("offer", err)
+	}
+	self := SupervisorIdentity{Process: fixtureProcess(1201, 1, 1201), ExecutableHash: "sha256:" + strings.Repeat("a", 64)}
+	service := NewService(ServiceOptions{Now: func() time.Time { return now }, InspectHelper: func(daemon.Peer) (SupervisorIdentity, error) { return self, nil }})
+	close, err := service.Start(context.Background(), local)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer close()
+	path := filepath.Join(local.Paths.Root, "execution-records", assignment.IntentID+".assignment.json")
+	// Prevent publication after the registration transaction has committed.
+	if err := os.Mkdir(path, 0700); err != nil {
+		t.Fatal(err)
+	}
+	request := daemon.Request{Envelope: generated.LocalRpcEnvelope{Payload: map[string]any{"terminal_intent_id": assignment.IntentID}}}
+	if reply, err := service.register(context.Background(), request); err == nil || reply != nil {
+		t.Fatal("failed publication returned execution data")
+	}
+	stored, err := intents.ByIntent(context.Background(), assignment.IntentID)
+	if err != nil || stored.Supervisor == nil || *stored.Supervisor != self || stored.State != "registered" {
+		t.Fatal("failed publication forgot registered supervisor", err)
+	}
+	self.Process.PID++
+	if _, err := service.register(context.Background(), request); err == nil {
+		t.Fatal("new process took over unpublished assignment")
+	}
+	self = *stored.Supervisor
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.register(context.Background(), request); err != nil {
+		t.Fatal("same-process retry did not finish missing publication", err)
+	}
+	if err := os.WriteFile(path, []byte("corrupt synthetic record"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.register(context.Background(), request); err == nil {
+		t.Fatal("retry overwrote corrupt publication")
 	}
 }

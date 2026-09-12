@@ -41,6 +41,17 @@ unknown delivery cannot mint or offer another one. Native registration is commit
 before returning the assignment. Database triggers prevent rebinding the execution
 or clearing an already registered supervisor.
 
+After that transaction, registration atomically publishes the strict assignment in
+the user-private `execution-records` directory, authenticated over both its bytes
+and local-intent filename. Publication is immutable and serialized by a stable
+per-record lock with a bounded wait. The same registered process can finish a
+missing publication after a failed write; it cannot overwrite conflicting or
+corrupt evidence. The helper independently verifies that the authenticated file
+equals the socket reply. Read-only access never initializes directories, keys or
+lock files and never opens the daemon database. Retained assignments are historical
+correlation evidence: reading one after the launch deadline grants no new execution
+authority, and registration still rejects that deadline.
+
 If the claim response is lost, the original persisted request can retrieve C09's
 cleanup-only reconciliation binding even after lease/launch expiry. This cannot
 create a local intent or replace final authorization. The daemon must consult its

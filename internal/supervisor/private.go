@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"syscall"
+	"time"
 
 	"golang.org/x/sys/unix"
 )
@@ -25,19 +26,30 @@ const maxPrivateRecord = 128 * 1024
 var privateName = regexp.MustCompile(`^[a-zA-Z0-9_.-]{1,160}$`)
 
 type privateDirectory struct {
-	file *os.File
-	key  []byte
+	file     *os.File
+	key      []byte
+	writable bool
 }
 
 // The caller supplies a directory below the daemon's prepared private root, not
 // a checkout. Holding the directory descriptor prevents path replacement from
 // redirecting a later record write through a symlink.
 func openPrivateDirectory(path string) (*privateDirectory, error) {
+	return openPrivateRecords(path, true)
+}
+
+func openExistingPrivateDirectory(path string) (*privateDirectory, error) {
+	return openPrivateRecords(path, false)
+}
+
+func openPrivateRecords(path string, create bool) (*privateDirectory, error) {
 	if !filepath.IsAbs(path) || filepath.Clean(path) != path || path == "/" {
 		return nil, failure("unsafe_state")
 	}
-	if err := os.Mkdir(path, 0700); err != nil && !errors.Is(err, os.ErrExist) {
-		return nil, failure("unsafe_state")
+	if create {
+		if err := os.Mkdir(path, 0700); err != nil && !errors.Is(err, os.ErrExist) {
+			return nil, failure("unsafe_state")
+		}
 	}
 	fd, err := unix.Open(path, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_CLOEXEC|unix.O_NOFOLLOW, 0)
 	if err != nil {
@@ -49,13 +61,21 @@ func openPrivateDirectory(path string) (*privateDirectory, error) {
 		_ = file.Close()
 		return nil, failure("unsafe_state")
 	}
-	directory := &privateDirectory{file: file}
+	directory := &privateDirectory{file: file, writable: create}
+	if !create {
+		directory.key, err = directory.loadKey(false)
+		if err != nil {
+			_ = file.Close()
+			return nil, failure("unsafe_state")
+		}
+		return directory, nil
+	}
 	// Serialize first creation so another helper cannot observe a partial key.
 	initialization, err := directory.open("authentication.lock", unix.O_CREAT|unix.O_RDWR)
 	if err == nil {
 		err = unix.Flock(int(initialization.Fd()), unix.LOCK_EX|unix.LOCK_NB)
 		if err == nil {
-			directory.key, err = directory.loadKey()
+			directory.key, err = directory.loadKey(true)
 		}
 		_ = initialization.Close()
 	}
@@ -72,6 +92,9 @@ func privateOwned(info os.FileInfo) bool {
 }
 
 func (directory *privateDirectory) open(name string, flags int) (*os.File, error) {
+	if !directory.writable && flags&(unix.O_WRONLY|unix.O_RDWR|unix.O_CREAT|unix.O_TRUNC|unix.O_APPEND) != 0 {
+		return nil, failure("unsafe_state")
+	}
 	if !privateName.MatchString(name) || name == "." || name == ".." {
 		return nil, failure("unsafe_state")
 	}
@@ -106,9 +129,9 @@ func (directory *privateDirectory) open(name string, flags int) (*os.File, error
 	return file, nil
 }
 
-func (directory *privateDirectory) loadKey() ([]byte, error) {
+func (directory *privateDirectory) loadKey(create bool) ([]byte, error) {
 	file, err := directory.open("authentication.key", unix.O_RDONLY)
-	if errors.Is(err, unix.ENOENT) {
+	if create && errors.Is(err, unix.ENOENT) {
 		key := make([]byte, 32)
 		if _, err = rand.Read(key); err != nil {
 			return nil, err
@@ -191,7 +214,7 @@ func (directory *privateDirectory) read(name string, target any) error {
 }
 
 func (directory *privateDirectory) write(name string, value any) error {
-	if !privateName.MatchString(name) || name == "." || name == ".." {
+	if !directory.writable || !privateName.MatchString(name) || name == "." || name == ".." {
 		return failure("unsafe_state")
 	}
 	data, err := json.Marshal(value)
@@ -226,6 +249,51 @@ func (directory *privateDirectory) write(name string, value any) error {
 	}
 	if err != nil {
 		return failure("storage_failed")
+	}
+	return nil
+}
+
+// A stable per-record inode serializes immutable publication across instances.
+// Existing authenticated bytes must match exactly; corruption is never repaired
+// by overwriting the evidence. A missing publication can reconcile a lost reply.
+func (directory *privateDirectory) createOnce(name string, value any) error {
+	guard, err := directory.open(name+".lock", unix.O_CREAT|unix.O_RDWR)
+	if err != nil {
+		return err
+	}
+	defer guard.Close()
+	deadline := time.Now().Add(time.Second)
+	for {
+		err = unix.Flock(int(guard.Fd()), unix.LOCK_EX|unix.LOCK_NB)
+		if err == nil {
+			break
+		}
+		if !errors.Is(err, unix.EWOULDBLOCK) || !time.Now().Before(deadline) {
+			return failure("storage_failed")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	current, err := directory.open(name+".lock", unix.O_RDONLY)
+	if err != nil {
+		return err
+	}
+	expectedInfo, expectedErr := guard.Stat()
+	currentInfo, currentErr := current.Stat()
+	_ = current.Close()
+	if expectedErr != nil || currentErr != nil || !os.SameFile(expectedInfo, currentInfo) {
+		return failure("unsafe_state")
+	}
+	var existing json.RawMessage
+	err = directory.read(name, &existing)
+	if errors.Is(err, unix.ENOENT) {
+		return directory.write(name, value)
+	}
+	if err != nil {
+		return err
+	}
+	expected, err := json.Marshal(value)
+	if err != nil || !bytes.Equal(existing, expected) {
+		return failure("execution_assignment_invalid")
 	}
 	return nil
 }
