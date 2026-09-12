@@ -558,7 +558,8 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
                   agent_profile_id, agent_profile_version, canonical_json,
                   content_hash, created_at
            FROM run_configuration_snapshots
-           WHERE workspace_id = ? AND run_id = ?`,
+           WHERE workspace_id = ? AND run_id = ?
+           ORDER BY snapshot_generation DESC LIMIT 1`,
         )
         .get(deps.workspaceId, runId);
       return snapshot ? json({ snapshot }) : json({ error: "not_found" }, 404);
@@ -635,7 +636,7 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
           await execute(createProviderSessionCommand, requestId(record), {
             runId,
             executionId,
-            provider: requiredString(record, "provider") as "claude" | "codex" | "grok",
+            provider: requiredString(record, "provider") as "claude" | "codex" | "grok" | "fake",
             ...(requestedSessionId === undefined ? {} : { requestedSessionId }),
           }),
         );

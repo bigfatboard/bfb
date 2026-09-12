@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "idempotency_key": "c09-control-synthetic",
+  "runner_id": "01K00000000000000000000003",
+  "run_execution_id": "01K00000000000000000000001",
+  "assignment_generation": 1,
+  "action": "focus_existing"
+}

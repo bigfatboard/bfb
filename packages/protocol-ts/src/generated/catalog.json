@@ -1,7 +1,7 @@
 {
   "protocol": "bfb-wire/1",
   "schema_version": 1,
-  "schema_hash": "907220e611fd9807b28d4187bce6fac5cb103a257867f96fc607bb6b10eb6ec5",
+  "schema_hash": "8cf5e674e5a105a2545b467c5fa41c1383a79e3273277f6c05e3ecfb0447b5bf",
   "documents": [
     {
       "name": "event-envelope",
@@ -86,6 +86,62 @@
     {
       "name": "typed-error",
       "schema": "typed-error.json"
+    },
+    {
+      "name": "launch-start-request",
+      "schema": "launch-start-request.json"
+    },
+    {
+      "name": "launch-snapshot",
+      "schema": "launch-snapshot.json"
+    },
+    {
+      "name": "launch-claim-result",
+      "schema": "launch-claim-result.json"
+    },
+    {
+      "name": "launch-final-request",
+      "schema": "launch-final-request.json"
+    },
+    {
+      "name": "checkout-lease-observation",
+      "schema": "checkout-lease-observation.json"
+    },
+    {
+      "name": "run-control-request",
+      "schema": "run-control-request.json"
+    },
+    {
+      "name": "run-control-claim",
+      "schema": "run-control-claim.json"
+    },
+    {
+      "name": "run-control-disposition",
+      "schema": "run-control-disposition.json"
+    },
+    {
+      "name": "launch-reject-request",
+      "schema": "launch-reject-request.json"
+    },
+    {
+      "name": "launch-tighten-request",
+      "schema": "launch-tighten-request.json"
+    },
+    {
+      "name": "launch-wake-request",
+      "schema": "launch-wake-request.json"
+    },
+    {
+      "name": "launch-wake-redemption",
+      "schema": "launch-wake-redemption.json"
+    },
+    {
+      "name": "run-control-reference",
+      "schema": "run-control-reference.json"
+    },
+    {
+      "name": "run-control-result",
+      "schema": "run-control-result.json"
     }
   ]
 }

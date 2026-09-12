@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "workspace_id": "01K00000000000000000000006",
+  "project_id": "01K00000000000000000000007",
+  "task_id": "01K00000000000000000000002",
+  "agent_profile_id": "01K00000000000000000000005",
+  "workspace_policy_version": 2,
+  "project_policy_version": 2,
+  "repository_config_version": 2,
+  "agent_profile_version": 1,
+  "snapshot_generation": 1,
+  "physical_worktree_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "repository_identity_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "provider_manifest_id": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "provider_version": "1.0.0",
+  "repository_config_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "workspace_policy": {
+    "allowed_providers": ["fake"],
+    "allow_agent_root_propose": false,
+    "allow_pass_to_agent": true,
+    "allow_run_overrides": false
+  },
+  "project_policy": {
+    "allowed_providers": ["fake"],
+    "allow_agent_root_propose": false,
+    "allow_pass_to_agent": true,
+    "allow_run_overrides": false
+  },
+  "repository_policy": {
+    "allowed_providers": ["fake"],
+    "allow_agent_root_propose": false,
+    "allow_pass_to_agent": true,
+    "allow_run_overrides": false
+  },
+  "execution_config": {
+    "provider": "fake",
+    "mode": "interactive",
+    "model": "synthetic",
+    "effort": "high",
+    "approval_policy": "never",
+    "filesystem_policy": "read_only",
+    "context_injection": "session_start_additional_context",
+    "initial_turn_transport": "provider_prompt",
+    "required_capabilities": [
+      "launch.interactive",
+      "filesystem.read_only",
+      "approval.never",
+      "context.session_start",
+      "prompt.initial_constant",
+      "hooks.session_start",
+      "mcp.stdio"
+    ]
+  },
+  "command": "synthetic-invalid-shell"
+}

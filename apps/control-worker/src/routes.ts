@@ -10,6 +10,11 @@ import { handleWorkApi } from "./api/work.js";
 import { handleProjectApi } from "./api/projects.js";
 import { handleRunnerBrowserApi, handleRunnerNativeApi } from "./api/runners.js";
 import { handleRunnerChannelApi, isRunnerChannelPath } from "./api/runner-channel.js";
+import {
+  handleLaunchBrowserApi,
+  handleLaunchNativeApi,
+  isRunnerLaunchPath,
+} from "./api/launches.js";
 import { handleWorkspaceAuthorization } from "./api/workspace-authorization.js";
 import type { AuthKey, HumanAuth } from "./auth/better-auth.js";
 import { handleAuthRoute } from "./auth/routes.js";
@@ -131,9 +136,11 @@ export function createControlApp(
     if (!current || !db || !options.abuseSecret)
       return c.json({ error: "runner_misconfigured" }, 500);
     const envBindings = (c.env ?? {}) as { WORKSPACE_HUB?: DurableObjectNamespace };
-    const handler = isRunnerChannelPath(c.req.path)
-      ? handleRunnerChannelApi
-      : handleRunnerNativeApi;
+    const handler = isRunnerLaunchPath(c.req.path)
+      ? handleLaunchNativeApi
+      : isRunnerChannelPath(c.req.path)
+        ? handleRunnerChannelApi
+        : handleRunnerNativeApi;
     return handler(c.req.raw, {
       db,
       now: c.get("now") ?? now,
@@ -449,6 +456,17 @@ export function createControlApp(
         workspaceHubNs: envBindings.WORKSPACE_HUB,
       };
       const projectPrefix = `/api/v1/workspaces/${workspaceId}`;
+      if (
+        c.req.path === `${projectPrefix}/launches` ||
+        c.req.path.startsWith(`${projectPrefix}/launches/`) ||
+        c.req.path === `${projectPrefix}/run-controls`
+      ) {
+        return await handleLaunchBrowserApi(c.req.raw, {
+          ...apiDeps,
+          appOrigin: current.origins.appOrigin,
+          abuseSecret: runtime.abuseSecret,
+        });
+      }
       if (
         c.req.path === `${projectPrefix}/runners` ||
         c.req.path.startsWith(`${projectPrefix}/runners/`)

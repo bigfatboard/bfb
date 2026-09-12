@@ -15,7 +15,7 @@ import {
 import { DomainError, type HubCommand, type HubContext } from "./hub.js";
 import { isUlid, randomUlid } from "./ids.js";
 
-export const PROVIDERS = ["claude", "codex", "grok"] as const;
+export const PROVIDERS = ["claude", "codex", "grok", "fake"] as const;
 export type Provider = (typeof PROVIDERS)[number];
 export type ProjectAccessMode = "workspace" | "restricted";
 
@@ -688,7 +688,7 @@ function canonicalJson(value: unknown): string {
   return JSON.stringify(value);
 }
 
-function repositoryConfig(
+export function normalizeRepositoryConfig(
   document: unknown,
   parent: PolicySettings,
 ): { canonical: string; settings: PolicySettings } {
@@ -766,7 +766,7 @@ export const reportRepositoryConfigCommand: HubCommand<
     if (!current || current.resource_version !== input.expectedVersion) {
       throw new DomainError("stale_version", "repository config version conflict");
     }
-    const normalized = repositoryConfig(input.document, project);
+    const normalized = normalizeRepositoryConfig(input.document, project);
     const hash = `sha256:${createHash("sha256").update(normalized.canonical, "utf8").digest("hex")}`;
     if (!HASH_PATTERN.test(input.contentHash) || input.contentHash !== hash) {
       throw new DomainError("config_hash_mismatch", "repository config hash does not match");
@@ -836,6 +836,9 @@ function normalizedProfile(
 ): Omit<AgentProfileRecord, "id" | "resource_version"> {
   if (!PROVIDERS.includes(input.provider)) {
     throw new DomainError("invalid_argument", "profile provider is invalid");
+  }
+  if (input.provider === "fake" && input.model !== "synthetic") {
+    throw new DomainError("invalid_argument", "synthetic profiles require the synthetic model");
   }
   if (input.executionMode !== "interactive" && input.executionMode !== "headless") {
     throw new DomainError("invalid_argument", "profile execution mode is invalid");

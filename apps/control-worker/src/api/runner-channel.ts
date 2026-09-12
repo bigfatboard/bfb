@@ -1,7 +1,6 @@
 // ABOUTME: Authenticates runner channel handshakes, durable pulls and sanitized inventory with fresh request possession.
 // ABOUTME: Keeps proofs out of URLs, socket attachments and business payloads while routing mutations through WorkspaceHub.
 
-import { createHash } from "node:crypto";
 import { createAuthorizationContext, WorkspaceRepository } from "@bfb/db";
 import {
   randomUlid,
@@ -16,7 +15,7 @@ import { decodeWireDocument, type RunnerInventory } from "@bfb/protocol";
 
 import { workspaceNamespaceForJurisdiction } from "../env.js";
 import {
-  authenticateRunnerRequest,
+  readPossessedRunnerRequest,
   executeRunnerCommand,
   guardRunnerTransport,
   type RunnerApiDeps,
@@ -77,69 +76,15 @@ export async function handleRunnerChannelApi(
         request.headers.get("sec-websocket-protocol") !== "bfb.runner.v1")
     )
       rejectRunnerRequest();
-    const encoded = request.headers.get("x-bfb-runner-proof");
-    if (!encoded || encoded.length > 8192 || !/^[A-Za-z0-9_-]+$/.test(encoded))
-      rejectRunnerRequest();
-    const proofBytes = Buffer.from(encoded, "base64url");
-    if (proofBytes.toString("base64url") !== encoded) rejectRunnerRequest();
-    const proofText = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(proofBytes);
-    const proof = runnerObject(JSON.parse(proofText), [
-      "challenge_id",
-      "server_nonce",
-      "signature",
-      "token",
-    ]);
-    if (
-      typeof proof.token !== "string" ||
-      typeof proof.server_nonce !== "string" ||
-      typeof proof.signature !== "string"
-    )
-      rejectRunnerRequest();
-    if (
-      JSON.stringify({
-        challenge_id: proof.challenge_id,
-        server_nonce: proof.server_nonce,
-        signature: proof.signature,
-        token: proof.token,
-      }) !== proofText
-    )
-      rejectRunnerRequest();
-    // Read exactly once; authentication binds these bytes, not reserialized JSON.
     const limit = action === "inventory" ? RUNNER_INVENTORY_LIMIT : 8192;
-    const reader = request.body?.getReader();
-    const chunks: Uint8Array[] = [];
-    let size = 0;
-    if (reader) {
-      while (true) {
-        const chunk = await reader.read();
-        if (chunk.done) break;
-        size += chunk.value.byteLength;
-        if (size > limit) {
-          await reader.cancel();
-          rejectRunnerRequest();
-        }
-        chunks.push(chunk.value);
-      }
-    }
-    if (action === "connect" && size !== 0) rejectRunnerRequest();
-    const bytes = Buffer.concat(chunks);
-    const principal = await authenticateRunnerRequest(
+    const { principal, bytes } = await readPossessedRunnerRequest(
+      request,
       deps,
       workspaceId,
-      {
-        runnerId: runner,
-        challengeId: runnerId(proof.challenge_id),
-        serverNonce: proof.server_nonce,
-        signature: proof.signature,
-        origin: deps.appOrigin,
-      },
-      proof.token,
-      {
-        method: request.method,
-        path: url.pathname,
-        body_sha256: createHash("sha256").update(bytes).digest("hex"),
-      },
+      runner,
+      limit,
     );
+    if (action === "connect" && bytes.byteLength !== 0) rejectRunnerRequest();
     if (action === "connect") {
       const stub = await hub(deps, principal);
       return stub.fetch("https://bfb-hub.internal/runner/connect", {

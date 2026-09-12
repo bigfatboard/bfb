@@ -1,7 +1,7 @@
 // ABOUTME: Serves browser-approved runner enrollment and bounded proof-of-possession exchanges.
 // ABOUTME: Durable abuse counters and strict projections keep credentials out of D1 command history.
 
-import { createHmac } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 
 import { createAuthorizationContext, type Jurisdiction, type SqlDatabase } from "@bfb/db";
 import {
@@ -33,7 +33,7 @@ import {
 
 import type { BrowserPrincipal } from "../auth/session.js";
 import { executeWorkspaceCommand } from "../hub-client.js";
-import { readBoundedJson } from "./request.js";
+import { readBoundedBytes, readBoundedJson } from "./request.js";
 
 export interface RunnerApiDeps {
   db: SqlDatabase;
@@ -62,6 +62,7 @@ const CHANNEL_SURFACES = new Set([
   "connect",
   "commands/pull",
   "inventory",
+  "leases/observe",
 ]);
 
 function response(body: unknown, status = 200): Response {
@@ -246,6 +247,61 @@ export async function guardRunnerTransport(
 ): Promise<void> {
   await budget(request, deps, `${runnerId(workspaceId)}:${runnerId(runner)}`, surface);
   rejectBrowserCredentials(request, deps.appOrigin);
+}
+
+/** The caller applies the transport abuse guard before decoding any proof or body. */
+export async function readPossessedRunnerRequest(
+  request: Request,
+  deps: RunnerApiDeps,
+  workspaceId: string,
+  runner: string,
+  limit: number,
+): Promise<{ principal: RunnerPrincipal; bytes: Uint8Array<ArrayBuffer> }> {
+  const encoded = request.headers.get("x-bfb-runner-proof");
+  if (!encoded || encoded.length > 8192 || !/^[A-Za-z0-9_-]+$/.test(encoded)) rejectRunnerRequest();
+  const proofBytes = Buffer.from(encoded, "base64url");
+  if (proofBytes.toString("base64url") !== encoded) rejectRunnerRequest();
+  const proofText = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(proofBytes);
+  const proof = runnerObject(JSON.parse(proofText), [
+    "challenge_id",
+    "server_nonce",
+    "signature",
+    "token",
+  ]);
+  if (
+    typeof proof.token !== "string" ||
+    typeof proof.server_nonce !== "string" ||
+    typeof proof.signature !== "string"
+  )
+    rejectRunnerRequest();
+  if (
+    JSON.stringify({
+      challenge_id: proof.challenge_id,
+      server_nonce: proof.server_nonce,
+      signature: proof.signature,
+      token: proof.token,
+    }) !== proofText
+  )
+    rejectRunnerRequest();
+  const bytes = await readBoundedBytes(request, limit);
+  const principal = await authenticateRunnerRequest(
+    deps,
+    workspaceId,
+    {
+      runnerId: runner,
+      challengeId: runnerId(proof.challenge_id),
+      serverNonce: proof.server_nonce,
+      signature: proof.signature,
+      origin: deps.appOrigin,
+    },
+    proof.token,
+    {
+      method: request.method,
+      path: new URL(request.url).pathname,
+      body_sha256: createHash("sha256").update(bytes).digest("hex"),
+    },
+  );
+  return { principal, bytes };
 }
 
 /** Native endpoints reject cookies and browser Origins; they never create human credentials. */

@@ -18,6 +18,7 @@
     { "path": "tools/workspace-authorization" },
     { "path": "tools/projects" },
     { "path": "tools/runners" },
-    { "path": "tools/runner-channel" }
+    { "path": "tools/runner-channel" },
+    { "path": "tools/launches" }
   ]
 }

@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "launch_id": "01K00000000000000000000008",
+  "run_execution_id": "01K00000000000000000000001",
+  "assignment_generation": 1,
+  "command": "synthetic-invalid-shell"
+}

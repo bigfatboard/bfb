@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/launch-final-request.json",
+  "title": "LaunchFinalRequest",
+  "description": "A fresh final online authorization bound to exact immutable snapshot and supervisor.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "launch_id",
+    "run_execution_id",
+    "assignment_generation",
+    "fencing_generation",
+    "config_snapshot_id",
+    "config_snapshot_hash",
+    "repository_config_hash",
+    "physical_worktree_hash",
+    "supervisor",
+    "local_lock_id"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "launch_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "run_execution_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "assignment_generation": {
+      "$ref": "primitives.json#/$defs/AssignmentGeneration"
+    },
+    "fencing_generation": {
+      "$ref": "primitives.json#/$defs/AssignmentGeneration"
+    },
+    "config_snapshot_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "config_snapshot_hash": {
+      "$ref": "primitives.json#/$defs/Sha256Digest"
+    },
+    "repository_config_hash": {
+      "$ref": "primitives.json#/$defs/Sha256Digest"
+    },
+    "physical_worktree_hash": {
+      "$ref": "primitives.json#/$defs/Sha256Digest"
+    },
+    "supervisor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pid", "start_identity", "executable_hash"],
+      "properties": {
+        "pid": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "start_identity": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 64,
+          "pattern": "^[0-9]+:[0-9]+$"
+        },
+        "executable_hash": {
+          "$ref": "primitives.json#/$defs/Sha256Digest"
+        }
+      }
+    },
+    "local_lock_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    }
+  }
+}

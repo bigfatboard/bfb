@@ -126,7 +126,7 @@
     },
     "ProviderName": {
       "type": "string",
-      "enum": ["claude", "codex", "grok"]
+      "enum": ["claude", "codex", "grok", "fake"]
     },
     "SourceRef": {
       "type": "object",

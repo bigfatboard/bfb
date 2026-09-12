@@ -116,7 +116,7 @@ func safeConfigNode(node *yaml.Node, depth int, count *int) bool {
 }
 
 func knownProvider(provider string) bool {
-	return provider == "claude" || provider == "codex" || provider == "grok"
+	return provider == "claude" || provider == "codex" || provider == "grok" || provider == "fake"
 }
 
 // Tighten requires the authoritative parent policy; a config document alone grants nothing.

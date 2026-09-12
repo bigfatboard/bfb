@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/checkout-lease-observation.json",
+  "title": "CheckoutLeaseObservation",
+  "description": "Authenticated local containment evidence; TTL alone is never release proof.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_execution_id",
+    "assignment_generation",
+    "fencing_generation",
+    "sequence",
+    "observed_at",
+    "operation",
+    "local_lock_id",
+    "owned_group_id",
+    "owned_group_start_identity",
+    "supervisor_state",
+    "group_state",
+    "lock_state",
+    "descendants_state",
+    "recovery_local"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "run_execution_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "assignment_generation": {
+      "$ref": "primitives.json#/$defs/AssignmentGeneration"
+    },
+    "fencing_generation": {
+      "$ref": "primitives.json#/$defs/AssignmentGeneration"
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "observed_at": {
+      "$ref": "primitives.json#/$defs/UtcTimestamp"
+    },
+    "operation": {
+      "type": "string",
+      "enum": ["renew", "release", "recover", "unknown"]
+    },
+    "supervisor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pid", "start_identity", "executable_hash"],
+      "properties": {
+        "pid": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "start_identity": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 64,
+          "pattern": "^[0-9]+:[0-9]+$"
+        },
+        "executable_hash": {
+          "$ref": "primitives.json#/$defs/Sha256Digest"
+        }
+      }
+    },
+    "local_lock_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "owned_group_id": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 2147483647
+    },
+    "owned_group_start_identity": {
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^([0-9]+:[0-9]+)?$"
+    },
+    "supervisor_state": {
+      "type": "string",
+      "enum": ["verified", "gone", "never_started", "ambiguous"]
+    },
+    "group_state": {
+      "type": "string",
+      "enum": ["live", "gone", "never_started", "unknown"]
+    },
+    "lock_state": {
+      "type": "string",
+      "enum": ["held", "gone", "never_acquired", "unknown"]
+    },
+    "descendants_state": {
+      "type": "string",
+      "enum": ["contained", "gone", "none", "escaped", "unknown"]
+    },
+    "recovery_local": {
+      "type": "boolean"
+    }
+  }
+}

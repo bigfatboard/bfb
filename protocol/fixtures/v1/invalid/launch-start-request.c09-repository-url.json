@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "idempotency_key": "c09-start-synthetic",
+  "task_id": "01K00000000000000000000002",
+  "expected_task_version": 1,
+  "runner_id": "01K00000000000000000000003",
+  "checkout_id": "01K00000000000000000000004",
+  "agent_profile_id": "01K00000000000000000000005",
+  "workspace_policy_version": 2,
+  "project_policy_version": 2,
+  "repository_config_version": 2,
+  "agent_profile_version": 1,
+  "repository_url": "https://synthetic.invalid/repo"
+}

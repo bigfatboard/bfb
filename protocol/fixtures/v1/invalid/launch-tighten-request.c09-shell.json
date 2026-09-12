@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "launch_id": "01K00000000000000000000008",
+  "run_execution_id": "01K00000000000000000000001",
+  "assignment_generation": 1,
+  "fencing_generation": 1,
+  "config_snapshot_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "repository_config_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "document": {
+    "allowed_providers": ["fake"],
+    "allow_run_overrides": false
+  },
+  "command": "synthetic-invalid-shell"
+}

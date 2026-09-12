@@ -138,6 +138,90 @@ export const DOCUMENTS: DocumentSpec[] = [
     goType: "TypedError",
     tsType: "TypedError",
   },
+  {
+    name: "launch-start-request",
+    schemaFile: "launch-start-request.json",
+    goType: "LaunchStartRequest",
+    tsType: "LaunchStartRequest",
+  },
+  {
+    name: "launch-snapshot",
+    schemaFile: "launch-snapshot.json",
+    goType: "LaunchSnapshot",
+    tsType: "LaunchSnapshot",
+  },
+  {
+    name: "launch-claim-result",
+    schemaFile: "launch-claim-result.json",
+    goType: "LaunchClaimResult",
+    tsType: "LaunchClaimResult",
+  },
+  {
+    name: "launch-final-request",
+    schemaFile: "launch-final-request.json",
+    goType: "LaunchFinalRequest",
+    tsType: "LaunchFinalRequest",
+  },
+  {
+    name: "checkout-lease-observation",
+    schemaFile: "checkout-lease-observation.json",
+    goType: "CheckoutLeaseObservation",
+    tsType: "CheckoutLeaseObservation",
+  },
+  {
+    name: "run-control-request",
+    schemaFile: "run-control-request.json",
+    goType: "RunControlRequest",
+    tsType: "RunControlRequest",
+  },
+  {
+    name: "run-control-claim",
+    schemaFile: "run-control-claim.json",
+    goType: "RunControlClaim",
+    tsType: "RunControlClaim",
+  },
+  {
+    name: "run-control-disposition",
+    schemaFile: "run-control-disposition.json",
+    goType: "RunControlDisposition",
+    tsType: "RunControlDisposition",
+  },
+  {
+    name: "launch-reject-request",
+    schemaFile: "launch-reject-request.json",
+    goType: "LaunchRejectRequest",
+    tsType: "LaunchRejectRequest",
+  },
+  {
+    name: "launch-tighten-request",
+    schemaFile: "launch-tighten-request.json",
+    goType: "LaunchTightenRequest",
+    tsType: "LaunchTightenRequest",
+  },
+  {
+    name: "launch-wake-request",
+    schemaFile: "launch-wake-request.json",
+    goType: "LaunchWakeRequest",
+    tsType: "LaunchWakeRequest",
+  },
+  {
+    name: "launch-wake-redemption",
+    schemaFile: "launch-wake-redemption.json",
+    goType: "LaunchWakeRedemption",
+    tsType: "LaunchWakeRedemption",
+  },
+  {
+    name: "run-control-reference",
+    schemaFile: "run-control-reference.json",
+    goType: "RunControlReference",
+    tsType: "RunControlReference",
+  },
+  {
+    name: "run-control-result",
+    schemaFile: "run-control-result.json",
+    goType: "RunControlResult",
+    tsType: "RunControlResult",
+  },
 ];
 
 export const SHELL_FIELDS = [

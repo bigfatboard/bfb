@@ -2,7 +2,11 @@
   "protocol": "bfb-wire/1",
   "schema_version": 1,
   "fixtures": [
-    { "path": "valid/local-rpc.checkout-link.json", "schema": "local-rpc", "expect": "accept" },
+    {
+      "path": "valid/local-rpc.checkout-link.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
     {
       "path": "invalid/local-rpc.response-path.json",
       "schema": "local-rpc",
@@ -45,7 +49,11 @@
       "schema": "launch-specification",
       "expect": "accept"
     },
-    { "path": "valid/launch-claim.request.json", "schema": "launch-claim", "expect": "accept" },
+    {
+      "path": "valid/launch-claim.request.json",
+      "schema": "launch-claim",
+      "expect": "accept"
+    },
     {
       "path": "valid/final-authorization.authorized.json",
       "schema": "final-authorization",
@@ -56,10 +64,26 @@
       "schema": "cloud-wake-intent",
       "expect": "accept"
     },
-    { "path": "valid/terminal-intent.basic.json", "schema": "terminal-intent", "expect": "accept" },
-    { "path": "valid/local-rpc.request.json", "schema": "local-rpc", "expect": "accept" },
-    { "path": "valid/local-rpc.daemon-status.json", "schema": "local-rpc", "expect": "accept" },
-    { "path": "valid/local-rpc.daemon-conflict.json", "schema": "local-rpc", "expect": "accept" },
+    {
+      "path": "valid/terminal-intent.basic.json",
+      "schema": "terminal-intent",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.request.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.daemon-status.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.daemon-conflict.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
     {
       "path": "invalid/local-rpc.private-payload.json",
       "schema": "local-rpc",
@@ -77,7 +101,11 @@
       "schema": "runner-event-submission",
       "expect": "accept"
     },
-    { "path": "valid/typed-error.bound.json", "schema": "typed-error", "expect": "accept" },
+    {
+      "path": "valid/typed-error.bound.json",
+      "schema": "typed-error",
+      "expect": "accept"
+    },
     {
       "path": "invalid/event-envelope.unknown-version.json",
       "schema": "event-envelope",
@@ -613,13 +641,41 @@
       "expect": "reject",
       "category": "additional_field"
     },
-    { "path": "valid/local-rpc.l04-wake.json", "schema": "local-rpc", "expect": "accept" },
-    { "path": "valid/local-rpc.l04-terminal.json", "schema": "local-rpc", "expect": "accept" },
-    { "path": "valid/local-rpc.l04-notification.json", "schema": "local-rpc", "expect": "accept" },
-    { "path": "valid/local-rpc.l04-locked.json", "schema": "local-rpc", "expect": "accept" },
-    { "path": "valid/local-rpc.l04-complete.json", "schema": "local-rpc", "expect": "accept" },
-    { "path": "valid/local-rpc.l04-enrollment.json", "schema": "local-rpc", "expect": "accept" },
-    { "path": "valid/local-rpc.l04-pending-key.json", "schema": "local-rpc", "expect": "accept" },
+    {
+      "path": "valid/local-rpc.l04-wake.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l04-terminal.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l04-notification.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l04-locked.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l04-complete.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l04-enrollment.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l04-pending-key.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
     {
       "path": "valid/local-rpc.l04-unicode-scalars.json",
       "schema": "local-rpc",
@@ -721,7 +777,364 @@
       "expect": "reject",
       "category": "schema_invalid"
     },
-    { "path": "valid/local-rpc.l04-exact-integer.json", "schema": "local-rpc", "expect": "accept" },
-    { "path": "valid/local-rpc.l04-long-integer.json", "schema": "local-rpc", "expect": "accept" }
+    {
+      "path": "valid/local-rpc.l04-exact-integer.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l04-long-integer.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/launch-start-request.c09-synthetic.json",
+      "schema": "launch-start-request",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/launch-start-request.c09-shell.json",
+      "schema": "launch-start-request",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/launch-start-request.c09-path.json",
+      "schema": "launch-start-request",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "valid/launch-snapshot.c09-synthetic.json",
+      "schema": "launch-snapshot",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/launch-snapshot.c09-shell.json",
+      "schema": "launch-snapshot",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/launch-snapshot.c09-path.json",
+      "schema": "launch-snapshot",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "valid/launch-claim-result.c09-synthetic.json",
+      "schema": "launch-claim-result",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/launch-claim-result.c09-shell.json",
+      "schema": "launch-claim-result",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/launch-claim-result.c09-path.json",
+      "schema": "launch-claim-result",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "valid/launch-final-request.c09-synthetic.json",
+      "schema": "launch-final-request",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/launch-final-request.c09-shell.json",
+      "schema": "launch-final-request",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/launch-final-request.c09-path.json",
+      "schema": "launch-final-request",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "valid/checkout-lease-observation.c09-synthetic.json",
+      "schema": "checkout-lease-observation",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/checkout-lease-observation.c09-shell.json",
+      "schema": "checkout-lease-observation",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/checkout-lease-observation.c09-path.json",
+      "schema": "checkout-lease-observation",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "valid/run-control-request.c09-synthetic.json",
+      "schema": "run-control-request",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/run-control-request.c09-shell.json",
+      "schema": "run-control-request",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/run-control-request.c09-path.json",
+      "schema": "run-control-request",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "valid/run-control-claim.c09-synthetic.json",
+      "schema": "run-control-claim",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/run-control-claim.c09-shell.json",
+      "schema": "run-control-claim",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/run-control-claim.c09-path.json",
+      "schema": "run-control-claim",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "valid/run-control-disposition.c09-synthetic.json",
+      "schema": "run-control-disposition",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/run-control-disposition.c09-shell.json",
+      "schema": "run-control-disposition",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/run-control-disposition.c09-path.json",
+      "schema": "run-control-disposition",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "valid/launch-reject-request.c09-synthetic.json",
+      "schema": "launch-reject-request",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/launch-reject-request.c09-shell.json",
+      "schema": "launch-reject-request",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/launch-reject-request.c09-path.json",
+      "schema": "launch-reject-request",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "valid/launch-tighten-request.c09-synthetic.json",
+      "schema": "launch-tighten-request",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/launch-tighten-request.c09-shell.json",
+      "schema": "launch-tighten-request",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/launch-tighten-request.c09-path.json",
+      "schema": "launch-tighten-request",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "valid/launch-wake-request.c09-synthetic.json",
+      "schema": "launch-wake-request",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/launch-wake-request.c09-shell.json",
+      "schema": "launch-wake-request",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/launch-wake-request.c09-path.json",
+      "schema": "launch-wake-request",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "valid/launch-wake-redemption.c09-synthetic.json",
+      "schema": "launch-wake-redemption",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/launch-wake-redemption.c09-shell.json",
+      "schema": "launch-wake-redemption",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/launch-wake-redemption.c09-path.json",
+      "schema": "launch-wake-redemption",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "valid/launch-specification.c09-synthetic.json",
+      "schema": "launch-specification",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/launch-specification.c09-shell.json",
+      "schema": "launch-specification",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/launch-specification.c09-path.json",
+      "schema": "launch-specification",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "valid/run-control-reference.c09-synthetic.json",
+      "schema": "run-control-reference",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/run-control-reference.c09-shell.json",
+      "schema": "run-control-reference",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/run-control-reference.c09-path.json",
+      "schema": "run-control-reference",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "valid/run-control-result.c09-synthetic.json",
+      "schema": "run-control-result",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/run-control-result.c09-shell.json",
+      "schema": "run-control-result",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/run-control-result.c09-path.json",
+      "schema": "run-control-result",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "valid/run-control-request.c09-focus_existing.json",
+      "schema": "run-control-request",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/run-control-request.c09-resume.json",
+      "schema": "run-control-request",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/run-control-request.c09-terminate.json",
+      "schema": "run-control-request",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/run-control-request.c09-cancel.json",
+      "schema": "run-control-request",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/launch-specification.c09-resume.json",
+      "schema": "launch-specification",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/launch-specification.c09-resume-shell.json",
+      "schema": "launch-specification",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/launch-specification.c09-model-shell.json",
+      "schema": "launch-specification",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/launch-claim-result.c09-nested-shell.json",
+      "schema": "launch-claim-result",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/launch-tighten-request.c09-instructions.json",
+      "schema": "launch-tighten-request",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/launch-start-request.c09-repository-url.json",
+      "schema": "launch-start-request",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/launch-start-request.c09-branch.json",
+      "schema": "launch-start-request",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/launch-start-request.c09-token.json",
+      "schema": "launch-start-request",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/run-control-request.c09-arbitrary-signal.json",
+      "schema": "run-control-request",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "valid/checkout-lease-observation.c09-unknown.json",
+      "schema": "checkout-lease-observation",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/checkout-lease-observation.c09-recover.json",
+      "schema": "checkout-lease-observation",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/checkout-lease-observation.c09-release-never-started.json",
+      "schema": "checkout-lease-observation",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/checkout-lease-observation.c09-process-path.json",
+      "schema": "checkout-lease-observation",
+      "expect": "reject",
+      "category": "shell_data"
+    }
   ]
 }

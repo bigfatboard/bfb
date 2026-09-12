@@ -2,6 +2,20 @@
 // ABOUTME: Transports send command names; only registered commands may mutate workspace state.
 
 import type { HubCommand } from "./hub.js";
+import {
+  startLaunchCommand,
+  claimLaunchCommand,
+  authorizeLaunchCommand,
+  rejectLaunchCommand,
+  tightenLaunchCommand,
+} from "./launches.js";
+import { issueLaunchWakeCommand, redeemLaunchWakeCommand } from "./launch-wake.js";
+import { observeCheckoutLeaseCommand } from "./checkout-leases.js";
+import {
+  createRunControlCommand,
+  claimRunControlCommand,
+  acknowledgeRunControlCommand,
+} from "./run-controls.js";
 import { touchRunnerConnectionCommand, replaceRunnerInventoryCommand } from "./runner-channel.js";
 import {
   authenticateRunnerRequestCommand,
@@ -46,6 +60,17 @@ import {
 } from "./workspace-authorization.js";
 
 const commands = new Map<string, HubCommand<unknown, unknown>>([
+  [startLaunchCommand.name, startLaunchCommand as HubCommand<unknown, unknown>],
+  [claimLaunchCommand.name, claimLaunchCommand as HubCommand<unknown, unknown>],
+  [authorizeLaunchCommand.name, authorizeLaunchCommand as HubCommand<unknown, unknown>],
+  [rejectLaunchCommand.name, rejectLaunchCommand as HubCommand<unknown, unknown>],
+  [tightenLaunchCommand.name, tightenLaunchCommand as HubCommand<unknown, unknown>],
+  [issueLaunchWakeCommand.name, issueLaunchWakeCommand as HubCommand<unknown, unknown>],
+  [redeemLaunchWakeCommand.name, redeemLaunchWakeCommand as HubCommand<unknown, unknown>],
+  [observeCheckoutLeaseCommand.name, observeCheckoutLeaseCommand as HubCommand<unknown, unknown>],
+  [createRunControlCommand.name, createRunControlCommand as HubCommand<unknown, unknown>],
+  [claimRunControlCommand.name, claimRunControlCommand as HubCommand<unknown, unknown>],
+  [acknowledgeRunControlCommand.name, acknowledgeRunControlCommand as HubCommand<unknown, unknown>],
   [touchRunnerConnectionCommand.name, touchRunnerConnectionCommand as HubCommand<unknown, unknown>],
   [
     replaceRunnerInventoryCommand.name,

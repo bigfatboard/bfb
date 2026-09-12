@@ -2,7 +2,7 @@
 
 Updated: 12 September 2026
 
-Status: In progress — L04 certified; continuing with C09 durable launch orchestration
+Status: In progress — C09 local gates pass; clean-checkout certification is next
 
 Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 
@@ -16,6 +16,7 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 - C06 implements per-workspace P-256 public keys, private-by-default named-human/project grants, action-bound step-up, hashed single-use challenges, request-bound possession authentication and token/grant epoch fences. Clean certification passed at `0247574`, including real Worker races, browser non-UV assertions and the full browser regression. Bounded evidence is committed with its done status.
 - L08 clean certification passed at `18b7e20`: its exact target, full verification, C06, IC-1, real hub and D1 migration regressions, Linux cross-build and clean-worktree assertion. Native signed ACL/TLS, browser passkey pairing, two-workspace launchd/Worker channels, lost nudges, hibernation, wake, expiry alarms, crash recovery and live revocation are covered. Bounded evidence records the development-signing and whole-machine-sleep limitations; continuing with L04.
 - L04 clean certification passed at `c1653e6`: exact `pnpm test:l04`, full repository verification, Linux cross-build and the final clean-worktree assertion. The signed native gate proves a real fixed-helper Terminal receipt, three daemon-driven app relaunch cycles, opaque wake identity and notification-denied behavior. Native visual review and its copy/accessibility corrections are complete. Bounded evidence records the earlier consent-denied and timeout observations without treating them as final success. L04 is done; continuing with C09 before L05 can consume the launch contracts.
+- C09 implements immutable launches/snapshots, fenced checkout occupancy, online claim/final checks, tightening-only replacement, exact-session resume, durable controls and verifier-only wake hints. Its exact target passes locally: 247 protocol tests with Go parity, 71 focused domain/API/migration tests, real WebSocket delivery and two-Worker D1 races, populated/empty upgrades, rollback, expiry and containment recovery. Full repository verification passes with 588 TypeScript tests, Go checks and 11 Swift tests. Clean-checkout certification remains required; no dependent package has consumed C09 yet.
 - L01 implements private socket/CLI dispatch, SQLite WAL migrations/recovery, redacted logs, credential interfaces and per-user launchd installation, including real process restart, launchd and Swift-to-UDS tests. The genuinely fresh-account environment check remains untested and owned by G02. No production action has been taken.
 
 ## Milestones
@@ -23,7 +24,7 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 | Milestone | Packages | State | Completion check |
 | --- | --- | --- | --- |
 | Trusted Mac | L01–L03, C06, L08, L04 | All milestone packages done | Enroll, register exact checkout, probe providers, reconnect, revoke |
-| Remote launch | C09, L05, W02 | Pending | Card starts fake provider; contention, expiry, revocation and containment fail safely |
+| Remote launch | C09, L05, W02 | C09 local gates pass; certification pending | Card starts fake provider; contention, expiry, revocation and containment fail safely |
 | Real agent work | L06, E01–E02, A01–A04, L07, P01 | Pending | Claude/Codex start, scoped context, attention, explicit result and human acceptance |
 | Discussion | D01–D03 | Planned; ADR and gates recorded | Two read-only participants, bounded turns, recovery, intervention, human decision |
 | Running local delivery | Integrated MVP | Pending | Start services, full browser/runner/provider smoke, negative checks and health instructions |

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/launch-wake-request.json",
+  "title": "LaunchWakeRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "launch_id"],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "launch_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    }
+  }
+}

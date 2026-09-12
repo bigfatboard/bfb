@@ -322,6 +322,10 @@ function goStructLines(
   rootSchema: JsonSchema,
   registry: Map<string, JsonSchema>,
 ): string[] {
+  if (schema.$ref) {
+    const resolved = resolveRef(rootSchema, schema.$ref, registry);
+    return goStructLines(name, resolved.schema, resolved.owner, registry);
+  }
   if (!schema.properties || Object.keys(schema.properties).length === 0) {
     return ["type " + name + " struct{}", ""];
   }
