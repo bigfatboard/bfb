@@ -2,7 +2,7 @@
 
 Updated: 13 September 2026
 
-Status: Blocked — D01 discussion records done; L05 requires an unlocked Mac and Terminal UI access
+Status: Blocked — D01 discussion records done; Mac unlocked, L05 Terminal automation still denied
 
 Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 
@@ -30,9 +30,10 @@ surviving-child heartbeat and occupancy, sticky escape, signed explicit recovery
 PID-reuse protection and confirmed cloud release. Full native race tests,
 repository verification (706 TypeScript tests, Go and 15 Swift tests) and Linux
 executable/test compilation also pass. Those are implementation-checkout results,
-not real Terminal acceptance. The Mac GUI remains locked and automated Terminal
-UI access is unavailable; L05 is blocked on real focus and Ctrl-C/close coverage
-and subsequent clean package certification. D01 can proceed separately from its
+not real Terminal acceptance. The resumed 13 September check finds the Mac GUI
+available, but the computer-control tool explicitly denies Terminal access for
+safety reasons. L05 remains blocked on real focus and Ctrl-C/close coverage and
+subsequent clean package certification. D01 completed separately from its
 already-done prerequisites; no package may consume unfinished L05.
 
 D01 clean certification passed at `5856a93`. It implements discussion-purpose runs, frozen briefs/rosters, bounded turns,
@@ -49,9 +50,10 @@ are deterministic. Full repository verification passes (804 TypeScript tests,
 Go checks and 15 Swift tests), as do exact C08/C09, Linux cross-build and the final
 clean-worktree check. The committed evidence manifest marks D01 done without
 claiming provider execution. Every remaining package in the approved MVP depends
-directly or transitively on L05. A fresh native probe still reports a locked Mac;
-real Terminal focus/Ctrl-C/close acceptance and permitted UI control remain the
-concrete blocker. No unfinished package is consumed and the full MVP is not done.
+directly or transitively on L05. The Mac is now unlocked, but permitted Terminal
+automation remains unavailable. The remaining interaction harness and exact
+clean-checkout gate are not complete; this is separate from BFB's macOS Automation
+consent. No unfinished package is consumed and the full MVP is not done.
 
 | Milestone | Packages | State | Completion check |
 | --- | --- | --- | --- |
