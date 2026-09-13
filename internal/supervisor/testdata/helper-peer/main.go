@@ -39,6 +39,20 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	if (os.Args[1] == "recover-client" || os.Args[1] == "verified-recover-client") && len(os.Args) == 4 {
+		var callErr error
+		if os.Args[1] == "verified-recover-client" {
+			callErr = supervisor.RecoverExecution(ctx, paths, os.Args[3])
+		} else {
+			_, callErr = daemon.Call(ctx, paths, "execution.recover", map[string]any{"terminal_intent_id": os.Args[3]})
+		}
+		value := receipt{Accepted: callErr == nil, Variant: variant}
+		if callErr != nil {
+			value.Code = daemon.AsFailure(callErr).Code
+		}
+		_ = json.NewEncoder(os.Stdout).Encode(value)
+		return
+	}
 	if (os.Args[1] == "client" || os.Args[1] == "verified-client") && len(os.Args) == 4 {
 		var assignment generated.LocalExecutionAssignment
 		var callErr error
@@ -126,6 +140,23 @@ func main() {
 		} else if value.Accepted || value.Code != "peer_denied" {
 			panic("untrusted helper was accepted")
 		}
+		mode = "recover-client"
+		if index == 0 {
+			mode = "verified-recover-client"
+		}
+		data, err = exec.CommandContext(ctx, executable, mode, paths.Root, assignment.IntentID).Output()
+		if err != nil || json.Unmarshal(data, &value) != nil {
+			panic("synthetic recovery client did not reach its authenticated response")
+		}
+		wantCode := "peer_denied"
+		if index < 2 {
+			// A fresh matching helper may request inspection, but the missing
+			// native marker cannot become evidence of absence or be initialized.
+			wantCode = "containment_unknown"
+		}
+		if value.Accepted || value.Code != wantCode {
+			panic("local recovery bypassed signed-peer or native-proof requirements")
+		}
 	}
-	fmt.Println("L05_SIGNED_HELPER_OK mutual exact-build authentication; registration committed once; same-process retry stable; takeover, other build, identifier, relaxed and ad-hoc signatures rejected")
+	fmt.Println("L05_SIGNED_HELPER_OK mutual exact-build authentication; registration committed once; same-process retry stable; takeover, other build, identifier, relaxed and ad-hoc signatures rejected; local recovery requires matching helper and existing native proof")
 }

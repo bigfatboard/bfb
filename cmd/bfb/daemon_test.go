@@ -80,6 +80,7 @@ func TestDaemonProcessCrashAndRestart(t *testing.T) {
 	}
 	for method, payload := range map[string]map[string]any{
 		"execution.register": {"terminal_intent_id": "00000000-0000-4000-8000-000000000001"},
+		"execution.recover":  {"terminal_intent_id": "00000000-0000-4000-8000-000000000001"},
 		"app.wake":           {"wake_intent_id": daemon.NewRequestID()},
 	} {
 		if _, err := daemon.Call(context.Background(), paths, method, payload); daemon.AsFailure(err).Code != "peer_denied" {

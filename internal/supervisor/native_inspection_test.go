@@ -511,6 +511,13 @@ func TestLocalRecoveryIncludesDaemonOnlyDescendantsEvenAfterHelperRelease(t *tes
 			if err != nil || !recovered.RecoveryLocal || recovered.State != "released" || !recovered.Group.HadEscape || recovered.Group.Observed[descendant.PID] != descendant {
 				t.Fatal("recovery discarded daemon-observed history", recovered, err)
 			}
+			history, err := readNativeHistory(ctx, store.db, assignment)
+			if err != nil || history.LocalReleasedAt == "" || history.ReleasedGroupHash != nativeGroupHash(history.Group) || !history.Uncertain || !history.Group.HadEscape || history.Group.Observed[descendant.PID] != descendant {
+				t.Fatal("local recovery did not certify the retained release history", history, err)
+			}
+			if events, err := store.PendingObservations(ctx, 256); err != nil || len(events) != 0 {
+				t.Fatal("local recovery fabricated process events", events, err)
+			}
 		})
 	}
 }

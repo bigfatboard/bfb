@@ -1,4 +1,4 @@
-// ABOUTME: Dispatches the two fixed private execution entry points into the native supervisor.
+// ABOUTME: Dispatches fixed private execution helpers and explicit local containment recovery.
 // ABOUTME: Accepts only a local intent argument and leaves provider binding to the executable's composition root.
 
 package cli
@@ -14,15 +14,16 @@ var terminalIntentPattern = regexp.MustCompile(`^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-
 
 type ExecutionHandler func(context.Context, daemon.Paths, string) error
 
-func RegisterExecution(registry *Registry, launch, execute ExecutionHandler) {
+func RegisterExecution(registry *Registry, launch, execute, recover ExecutionHandler) {
 	for _, entry := range []struct {
-		path, method string
-		run          ExecutionHandler
+		path, method, summary string
+		run                   ExecutionHandler
 	}{
-		{"__launch", "execution.launch", launch},
-		{"__exec", "execution.exec", execute},
+		{"__launch", "execution.launch", "Private fixed execution helper", launch},
+		{"__exec", "execution.exec", "Private fixed execution helper", execute},
+		{"execution recover", "execution.recover", "Inspect and recover an absent local execution: INTENT_UUID", recover},
 	} {
-		if err := registry.Register(Command{Path: entry.path, Method: entry.method, Summary: "Private fixed execution helper", Run: func(ctx context.Context, invocation Invocation) (map[string]any, error) {
+		if err := registry.Register(Command{Path: entry.path, Method: entry.method, Summary: entry.summary, Run: func(ctx context.Context, invocation Invocation) (map[string]any, error) {
 			if len(invocation.Args) != 1 || !terminalIntentPattern.MatchString(invocation.Args[0]) || entry.run == nil {
 				return nil, &daemon.Failure{Code: "invalid_request"}
 			}

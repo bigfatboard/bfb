@@ -137,6 +137,38 @@
   },
   "allOf": [
     {
+      "if": { "properties": { "method": { "const": "execution.recover" } } },
+      "then": { "properties": { "direction": { "enum": ["request", "response"] } } }
+    },
+    {
+      "if": {
+        "properties": {
+          "method": { "const": "execution.recover" },
+          "direction": { "const": "request" }
+        }
+      },
+      "then": {
+        "required": ["payload"],
+        "properties": {
+          "payload": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["terminal_intent_id"],
+            "properties": { "terminal_intent_id": {} }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "method": { "const": "execution.recover" },
+          "direction": { "const": "response" }
+        }
+      },
+      "then": { "properties": { "payload": { "type": "object", "maxProperties": 0 } } }
+    },
+    {
       "if": {
         "properties": {
           "method": { "const": "app.focus_check" },

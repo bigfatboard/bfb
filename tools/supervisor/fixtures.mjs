@@ -53,6 +53,26 @@ function fixture(schema, suffix, value, category) {
 fixture("local-execution-assignment", "synthetic", assignment);
 fixture("local-rpc", "registration-request", request);
 fixture("local-rpc", "registration-response", response);
+const recovery = { ...request, method: "execution.recover" };
+fixture("local-rpc", "recovery-request", recovery);
+fixture("local-rpc", "recovery-response", { ...recovery, direction: "response", payload: {} });
+for (const [suffix, value, category] of [
+  ["missing-payload", { ...recovery, payload: undefined }, "missing_field"],
+  ["missing-intent", { ...recovery, payload: {} }, "missing_field"],
+  [
+    "cloud-intent",
+    { ...recovery, payload: { terminal_intent_id: claim.specification.launch_id } },
+    "bound_exceeded",
+  ],
+  [
+    "supplied-pid",
+    { ...recovery, payload: { ...recovery.payload, daemon_pid: 1234 } },
+    "additional_field",
+  ],
+  ["response-target", { ...recovery, direction: "response" }, "bound_exceeded"],
+  ["event", { ...recovery, direction: "event" }, "type_mismatch"],
+])
+  fixture("local-rpc", "recovery-" + suffix, value, category);
 const control = {
   schema_version: 1,
   terminal_intent_id: intent,

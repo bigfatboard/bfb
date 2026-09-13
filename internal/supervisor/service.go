@@ -144,6 +144,7 @@ func RegisterRPC(registry *daemon.Registry, service *Service) error {
 		"execution.group":          service.recordGroup,
 		"execution.control":        service.pollControl,
 		"execution.control_result": service.recordControl,
+		"execution.recover":        service.recover,
 	} {
 		if err := registry.Register(method, handler); err != nil {
 			return err

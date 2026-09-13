@@ -16,7 +16,7 @@ func (service *Service) nativeInspector(paths daemon.Paths, files *AssignmentFil
 		lock: func(assignment LocalAssignment) (nativeLock, error) { return readNativeLock(paths, assignment) },
 		image: func(assignment LocalAssignment, process Process) error {
 			var preparation LaunchPreparation
-			if files.directory.read(assignment.IntentID+".preparation.json", &preparation) != nil || !preparation.matches(assignment.IntentID, assignment.ProviderIdentityHash, assignment.Claim) {
+			if files == nil || files.directory.read(assignment.IntentID+".preparation.json", &preparation) != nil || !preparation.matches(assignment.IntentID, assignment.ProviderIdentityHash, assignment.Claim) {
 				return failure("execution_assignment_invalid")
 			}
 			return inspectProviderImage(process, preparation)
@@ -77,6 +77,10 @@ func (service *Service) observeNative(ctx context.Context, store *IntentStore, i
 func (service *Service) inspectNative(ctx context.Context, store *IntentStore, inspector nativeInspector, assignment LocalAssignment) (nativeFacts, observationCheckpoint, error) {
 	service.nativeMu.Lock()
 	defer service.nativeMu.Unlock()
+	return service.inspectNativeLocked(ctx, store, inspector, assignment)
+}
+
+func (service *Service) inspectNativeLocked(ctx context.Context, store *IntentStore, inspector nativeInspector, assignment LocalAssignment) (nativeFacts, observationCheckpoint, error) {
 	history, err := readNativeHistory(ctx, store.db, assignment)
 	if err != nil {
 		return nativeFacts{}, observationCheckpoint{}, err
@@ -112,7 +116,7 @@ func (service *Service) inspectNative(ctx context.Context, store *IntentStore, i
 
 // RecoverLocal is a local inspection operation, not a runner-command handler.
 // Serializing with capture prevents recovery from racing a new remembered PID.
-// CLI/RPC exposure must authenticate its local caller; no cloud path calls it.
+// The recovery RPC authenticates its local caller; no cloud path calls it.
 func (service *Service) RecoverLocal(ctx context.Context, intent string) error {
 	if !terminalIntent.MatchString(intent) {
 		return failure("invalid_request")
@@ -156,5 +160,22 @@ func (service *Service) RecoverLocal(ctx context.Context, intent string) error {
 	// existing fence, so missing evidence cannot be initialized into absence.
 	directory.writable = true
 	locks := &LockStore{directory: directory}
-	return locks.recoverLocal(assignment.lockBinding(), history.Group)
+	if err := locks.recoverLocal(assignment.lockBinding(), history.Group); err != nil {
+		return err
+	}
+	if assignment.LockID == "" {
+		// Closed preflight authorization is separate from pinned-lock release.
+		return nil
+	}
+	// Completed assignments may no longer be visited by observers or lease
+	// workers. Certify their complete recovered history here using fresh native
+	// absence, while retaining uncertainty and without fabricating an event.
+	facts, _, err := service.inspectNativeLocked(ctx, service.store, service.nativeInspector(service.paths, service.files), assignment)
+	if err != nil {
+		return err
+	}
+	if !facts.LocalReleased || !facts.RecoveryLocal {
+		return failure("containment_unknown")
+	}
+	return nil
 }

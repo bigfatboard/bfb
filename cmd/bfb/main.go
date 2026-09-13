@@ -62,6 +62,6 @@ func main() {
 		},
 		func(ctx context.Context, paths daemon.Paths, intent string) error {
 			return supervisor.RunExecChild(ctx, paths, intent, providerRegistry)
-		})
+		}, supervisor.RecoverExecution)
 	os.Exit(registry.Execute(ctx, os.Args[1:], os.Stdin, os.Stdout))
 }

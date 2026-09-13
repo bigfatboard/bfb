@@ -226,8 +226,19 @@ Explicit local recovery serializes with daemon inspection, merges both process
 histories, and requires a free native lock and actual process absence. An already
 released helper marker cannot bypass a daemon-observed descendant. The recovered
 authenticated marker retains the merged history and explicit-local flag; neither
-event import nor ordinary observation clears uncertainty. CLI recovery exposure
-remains in progress.
+event import nor ordinary observation clears uncertainty. A pinned execution also
+receives a fresh release-history fingerprint during this operation, including when
+its observer and lease workers have already settled. Missing or changed proof
+still fails closed; recovery does not fabricate process events or clear historical
+uncertainty.
+
+The local `bfb execution recover <intent-uuid>` command calls `execution.recover`
+through the private socket. Both ends require the same signed helper build before
+transmitting or acting on the target. The caller is a new matching helper, not the
+ended execution owner. The strict request contains only the local intent UUID and
+the response contains no execution data. It cannot accept a cloud ID, supplied PID,
+group, path, signal, force option or replacement assignment. A failed absence check
+leaves occupancy intact. No runner command invokes this recovery operation.
 
 Four independent lease workers inspect registered executions on a
 15-second cadence, separately from launch workers and the local event sink. Each
