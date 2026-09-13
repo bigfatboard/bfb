@@ -1,6 +1,6 @@
 # WP-D01 — Discussion records and permissions
 
-Status: `planned`
+Status: `in_progress`
 
 Risk: Very high
 
@@ -14,7 +14,7 @@ A human can create a task-linked discussion with two authorized participants and
 
 ## Dependencies
 
-- **Requires:** C01, C04, C08.
+- **Requires:** C01, C04, C06, C08, C09, L08.
 - **Unlocks:** D02, D03.
 - **Can run with:** none during shared D1/hub/domain changes.
 
@@ -33,11 +33,11 @@ A human can create a task-linked discussion with two authorized participants and
 
 ### Consumes
 
-- C01 workspace command serialization/idempotency and event cursor; C04 current human/project authority; C08 task/context/run records and agent-visible audience rules; ADR 0002.
+- C01 workspace command serialization/idempotency and event cursor; C04 current human/project authority; C06 current named-human/runner/project grants; C08 task/context/run records and agent-visible audience rules; C09 snapshot generations and ordinary-launch isolation; L08 sanitized registered-checkout inventory; ADR 0002. All dependencies are done; L05 is not consumed.
 
 ### Produces
 
-- Discussion command/record v1 and versioned wire schemas with immutable brief, participant purpose, message/turn/delivery correlation, typed conclusions and human decision semantics.
+- [Discussion command/record v1](../contracts/discussions.md) and versioned wire schemas with immutable brief, participant purpose, message/turn/delivery correlation, typed conclusions and human decision semantics.
 - `pnpm test:d01` and the declared redacted evidence manifest.
 
 ## Work plan

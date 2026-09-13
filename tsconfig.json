@@ -19,6 +19,7 @@
     { "path": "tools/projects" },
     { "path": "tools/runners" },
     { "path": "tools/runner-channel" },
-    { "path": "tools/launches" }
+    { "path": "tools/launches" },
+    { "path": "tools/discussions" }
   ]
 }

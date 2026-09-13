@@ -129,6 +129,7 @@ export const startLaunchCommand: HubCommand<
         | undefined;
       if (
         !retry ||
+        retry.purpose !== "work" ||
         retry.task_id !== task.id ||
         retry.project_id !== task.project_id ||
         retry.agent_profile_id !== input.agent_profile_id ||

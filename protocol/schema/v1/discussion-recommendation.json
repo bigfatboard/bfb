@@ -1,0 +1,195 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/discussion-recommendation.json",
+  "title": "DiscussionRecommendation",
+  "description": "A bounded attributed recommendation with evidence, disagreement and human questions; never human acceptance.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "recommendation",
+    "reasons",
+    "evidence",
+    "agreement",
+    "disagreements",
+    "human_questions"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "recommendation": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048
+    },
+    "reasons": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 6,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 1024
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "explanation"],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": ["context", "repository"]
+          },
+          "context_id": {
+            "$ref": "primitives.json#/$defs/Ulid"
+          },
+          "repository_path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "pattern": "^[^/\\\\\\x00-\\x1f\\x7f][^\\\\\\x00-\\x1f\\x7f]*$"
+          },
+          "git_revision": {
+            "type": "string",
+            "maxLength": 64,
+            "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"
+          },
+          "line": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000000
+          },
+          "explanation": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "enum": ["context"]
+                }
+              },
+              "required": ["kind"]
+            },
+            "then": {
+              "required": ["context_id"],
+              "properties": {
+                "context_id": {}
+              },
+              "not": {
+                "anyOf": [
+                  {
+                    "properties": {
+                      "repository_path": {}
+                    },
+                    "required": ["repository_path"]
+                  },
+                  {
+                    "properties": {
+                      "git_revision": {}
+                    },
+                    "required": ["git_revision"]
+                  },
+                  {
+                    "properties": {
+                      "line": {}
+                    },
+                    "required": ["line"]
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "enum": ["repository"]
+                }
+              },
+              "required": ["kind"]
+            },
+            "then": {
+              "required": ["repository_path", "git_revision"],
+              "properties": {
+                "repository_path": {},
+                "git_revision": {}
+              },
+              "not": {
+                "anyOf": [
+                  {
+                    "properties": {
+                      "context_id": {}
+                    },
+                    "required": ["context_id"]
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    "agreement": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 6,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["message_id", "reason"],
+        "properties": {
+          "message_id": {
+            "$ref": "primitives.json#/$defs/Ulid"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          }
+        }
+      }
+    },
+    "disagreements": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 6,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["message_id", "reason"],
+        "properties": {
+          "message_id": {
+            "$ref": "primitives.json#/$defs/Ulid"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          }
+        }
+      }
+    },
+    "human_questions": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 6,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 512
+      }
+    }
+  }
+}

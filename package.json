@@ -52,6 +52,8 @@
     "runner:fixtures": "node tools/runners/fixtures.mjs",
     "launch:fixtures": "node tools/launches/fixtures.mjs",
     "supervisor:fixtures": "node tools/supervisor/fixtures.mjs",
+    "discussion:fixtures": "node tools/discussions/fixtures.mjs",
+    "test:d01": "node tools/discussions/fixtures.mjs --check && pnpm build && pnpm test:protocol && vitest run packages/domain/test/discussions.test.ts packages/domain/test/discussion-lifecycle.test.ts packages/domain/test/discussion-invariants.test.ts apps/control-worker/test/discussion-routes.test.ts packages/db/test/migrations.test.ts packages/domain/test/work.test.ts packages/domain/test/projections.test.ts packages/domain/test/launches.test.ts packages/domain/test/checkout-leases.test.ts packages/domain/test/run-controls.test.ts apps/control-worker/test/work-routes.test.ts && tsx tools/discussions/run.ts",
     "test:c06:browser": "playwright test apps/web/test/e2e/c06-runners.spec.ts --config tools/e2e/playwright.config.ts",
     "test:c07": "pnpm build && vitest run packages/domain/test/projects.test.ts apps/control-worker/test/project-routes.test.ts && tsx tools/projects/run.ts",
     "test:c08": "pnpm build && vitest run packages/domain/test/work.test.ts packages/domain/test/projections.test.ts packages/domain/test/mcp.test.ts apps/control-worker/test/work-routes.test.ts apps/control-worker/test/mcp-handler.test.ts && pnpm exec tsc -b tools/work-records --pretty false && tsx tools/work-records/run.ts",

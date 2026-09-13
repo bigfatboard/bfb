@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "idempotency_key": "d01-synthetic-turn",
+  "discussion_id": "01K00000000000000000000006",
+  "expected_version": 3,
+  "turn_id": "01K00000000000000000000008",
+  "expected_turn_version": 1,
+  "action": "complete",
+  "delivery_id": "01K00000000000000000000009",
+  "expected_delivery_version": 1,
+  "session_id": "01K00000000000000000000014",
+  "output": {
+    "schema_version": 1,
+    "recommendation": "Synthetic recommendation, not work acceptance.",
+    "reasons": ["Synthetic bounded rationale."],
+    "evidence": [
+      {
+        "kind": "context",
+        "context_id": "01K00000000000000000000007",
+        "explanation": "Synthetic brief constraint."
+      },
+      {
+        "kind": "repository",
+        "repository_path": "src/synthetic.ts",
+        "git_revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "line": 4,
+        "explanation": "Synthetic revision-bound evidence."
+      }
+    ],
+    "agreement": [
+      {
+        "message_id": "01K00000000000000000000020",
+        "reason": "Synthetic shared premise."
+      }
+    ],
+    "disagreements": [
+      {
+        "message_id": "01K00000000000000000000021",
+        "reason": "Synthetic unresolved tradeoff."
+      }
+    ],
+    "human_questions": ["Which synthetic tradeoff is acceptable?"]
+  }
+}

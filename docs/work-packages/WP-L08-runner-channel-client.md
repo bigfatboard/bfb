@@ -15,7 +15,7 @@ The unprivileged daemon enrolls one Mac separately into each selected workspace 
 ## Dependencies
 
 - **Requires:** C06, F02, L01, L02, L03.
-- **Unlocks:** A01, D02, G02, L04, L05, L06, W02, X02, X05.
+- **Unlocks:** A01, D01, D02, G02, L04, L05, L06, W02, X02, X05.
 - **Can run with:** C09 after C06's server runner contracts freeze.
 
 ## Scope

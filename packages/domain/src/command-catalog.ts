@@ -3,6 +3,12 @@
 
 import type { HubCommand } from "./hub.js";
 import {
+  createDiscussionCommand,
+  changeDiscussionCommand,
+  concludeDiscussionCommand,
+} from "./discussions.js";
+import { changeDiscussionTurnCommand } from "./discussion-turns.js";
+import {
   startLaunchCommand,
   claimLaunchCommand,
   reconcileLaunchCommand,
@@ -61,6 +67,10 @@ import {
 } from "./workspace-authorization.js";
 
 const commands = new Map<string, HubCommand<unknown, unknown>>([
+  [createDiscussionCommand.name, createDiscussionCommand as HubCommand<unknown, unknown>],
+  [changeDiscussionCommand.name, changeDiscussionCommand as HubCommand<unknown, unknown>],
+  [concludeDiscussionCommand.name, concludeDiscussionCommand as HubCommand<unknown, unknown>],
+  [changeDiscussionTurnCommand.name, changeDiscussionTurnCommand as HubCommand<unknown, unknown>],
   [startLaunchCommand.name, startLaunchCommand as HubCommand<unknown, unknown>],
   [claimLaunchCommand.name, claimLaunchCommand as HubCommand<unknown, unknown>],
   [reconcileLaunchCommand.name, reconcileLaunchCommand as HubCommand<unknown, unknown>],

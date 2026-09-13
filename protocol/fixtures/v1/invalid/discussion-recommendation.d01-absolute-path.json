@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "recommendation": "Synthetic recommendation, not work acceptance.",
+  "reasons": ["Synthetic bounded rationale."],
+  "evidence": [
+    {
+      "kind": "repository",
+      "repository_path": "/synthetic/private.ts",
+      "git_revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "line": 4,
+      "explanation": "Synthetic revision-bound evidence."
+    }
+  ],
+  "agreement": [
+    {
+      "message_id": "01K00000000000000000000020",
+      "reason": "Synthetic shared premise."
+    }
+  ],
+  "disagreements": [
+    {
+      "message_id": "01K00000000000000000000021",
+      "reason": "Synthetic unresolved tradeoff."
+    }
+  ],
+  "human_questions": ["Which synthetic tradeoff is acceptable?"]
+}

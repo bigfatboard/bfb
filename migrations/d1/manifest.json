@@ -1,5 +1,5 @@
 {
-  "migration_head": "0016_launch_orchestration",
+  "migration_head": "0017_discussions",
   "migrations": [
     {
       "id": "0001_workspace_registry",
@@ -64,6 +64,10 @@
     {
       "id": "0016_launch_orchestration",
       "file": "0016_launch_orchestration.sql"
+    },
+    {
+      "id": "0017_discussions",
+      "file": "0017_discussions.sql"
     }
   ]
 }

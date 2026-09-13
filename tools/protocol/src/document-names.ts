@@ -252,6 +252,42 @@ export const DOCUMENTS: DocumentSpec[] = [
     goType: "LocalExecutionFocus",
     tsType: "LocalExecutionFocus",
   },
+  {
+    name: "discussion-create-request",
+    schemaFile: "discussion-create-request.json",
+    goType: "DiscussionCreateRequest",
+    tsType: "DiscussionCreateRequest",
+  },
+  {
+    name: "discussion-change-request",
+    schemaFile: "discussion-change-request.json",
+    goType: "DiscussionChangeRequest",
+    tsType: "DiscussionChangeRequest",
+  },
+  {
+    name: "discussion-turn-request",
+    schemaFile: "discussion-turn-request.json",
+    goType: "DiscussionTurnRequest",
+    tsType: "DiscussionTurnRequest",
+  },
+  {
+    name: "discussion-recommendation",
+    schemaFile: "discussion-recommendation.json",
+    goType: "DiscussionRecommendation",
+    tsType: "DiscussionRecommendation",
+  },
+  {
+    name: "discussion-receipt",
+    schemaFile: "discussion-receipt.json",
+    goType: "DiscussionReceipt",
+    tsType: "DiscussionReceipt",
+  },
+  {
+    name: "discussion-view",
+    schemaFile: "discussion-view.json",
+    goType: "DiscussionView",
+    tsType: "DiscussionView",
+  },
 ];
 
 export const SHELL_FIELDS = [

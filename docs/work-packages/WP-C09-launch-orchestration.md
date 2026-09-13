@@ -15,7 +15,7 @@ An authorized Start request creates one immutable, expiring launch assignment th
 ## Dependencies
 
 - **Requires:** C01, C04, C06, C07, C08.
-- **Unlocks:** E01, L05, W02, X02, X05.
+- **Unlocks:** D01, E01, L05, W02, X02, X05.
 - **Can run with:** L02/L03/L08 against contract fixtures.
 
 ## Scope

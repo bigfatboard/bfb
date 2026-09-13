@@ -1,0 +1,479 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/discussion-view.json",
+  "title": "DiscussionView",
+  "description": "A current-authority human or exact participant projection of frozen discussion context and attributed bounded history.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "scope",
+    "discussion_id",
+    "task_id",
+    "state",
+    "version",
+    "deadline",
+    "brief_hash",
+    "brief",
+    "participants",
+    "turns",
+    "messages"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "scope": {
+      "type": "string",
+      "enum": ["human", "participant"]
+    },
+    "discussion_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "task_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "state": {
+      "type": "string",
+      "enum": ["active", "paused", "concluded", "cancelled", "failed"]
+    },
+    "reason": {
+      "type": "string",
+      "enum": [
+        "human_cancelled",
+        "deadline_exceeded",
+        "context_changed",
+        "sponsor_revoked",
+        "delivery_ambiguous",
+        "provider_failed"
+      ]
+    },
+    "version": {
+      "$ref": "primitives.json#/$defs/ResourceVersion"
+    },
+    "deadline": {
+      "$ref": "primitives.json#/$defs/UtcTimestamp"
+    },
+    "brief_hash": {
+      "$ref": "primitives.json#/$defs/Sha256Digest"
+    },
+    "brief": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "task_id", "title", "question", "git_revision", "context"],
+      "properties": {
+        "schema_version": {
+          "type": "integer",
+          "const": 1
+        },
+        "task_id": {
+          "$ref": "primitives.json#/$defs/Ulid"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "question": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "git_revision": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"
+        },
+        "context": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "kind", "body", "version", "audience", "content_hash", "created_at"],
+            "properties": {
+              "id": {
+                "$ref": "primitives.json#/$defs/Ulid"
+              },
+              "kind": {
+                "type": "string",
+                "enum": ["brief", "acceptance", "constraint", "plan", "decision", "link", "note"]
+              },
+              "body": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 16384
+              },
+              "version": {
+                "$ref": "primitives.json#/$defs/ResourceVersion"
+              },
+              "audience": {
+                "type": "string",
+                "enum": ["agent", "both"]
+              },
+              "content_hash": {
+                "$ref": "primitives.json#/$defs/Sha256Digest"
+              },
+              "created_at": {
+                "$ref": "primitives.json#/$defs/UtcTimestamp"
+              }
+            }
+          }
+        }
+      }
+    },
+    "dispatch_block_reason": {
+      "type": "string",
+      "enum": ["deadline_exceeded", "context_changed", "sponsor_revoked"]
+    },
+    "viewer_run_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "participants": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "run_id",
+          "agent_profile_id",
+          "name",
+          "provider",
+          "runner_id",
+          "checkout_id"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "primitives.json#/$defs/Ulid"
+          },
+          "run_id": {
+            "$ref": "primitives.json#/$defs/Ulid"
+          },
+          "agent_profile_id": {
+            "$ref": "primitives.json#/$defs/Ulid"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "provider": {
+            "type": "string",
+            "enum": ["claude", "codex"]
+          },
+          "runner_id": {
+            "$ref": "primitives.json#/$defs/Ulid"
+          },
+          "checkout_id": {
+            "$ref": "primitives.json#/$defs/Ulid"
+          }
+        }
+      }
+    },
+    "turns": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 6,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "participant_id", "ordinal", "state", "version"],
+        "properties": {
+          "id": {
+            "$ref": "primitives.json#/$defs/Ulid"
+          },
+          "participant_id": {
+            "$ref": "primitives.json#/$defs/Ulid"
+          },
+          "ordinal": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 6
+          },
+          "state": {
+            "type": "string",
+            "enum": ["planned", "active", "completed", "failed", "cancelled"]
+          },
+          "version": {
+            "$ref": "primitives.json#/$defs/ResourceVersion"
+          },
+          "delivery": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "version", "state", "source_message_ids"],
+            "properties": {
+              "id": {
+                "$ref": "primitives.json#/$defs/Ulid"
+              },
+              "version": {
+                "$ref": "primitives.json#/$defs/ResourceVersion"
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "accepted",
+                  "dispatched",
+                  "acknowledged",
+                  "completed",
+                  "ambiguous",
+                  "failed"
+                ]
+              },
+              "session_id": {
+                "$ref": "primitives.json#/$defs/Ulid"
+              },
+              "source_message_ids": {
+                "type": "array",
+                "minItems": 0,
+                "maxItems": 18,
+                "items": {
+                  "$ref": "primitives.json#/$defs/Ulid"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "messages": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 18,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "kind", "created_at"],
+        "properties": {
+          "id": {
+            "$ref": "primitives.json#/$defs/Ulid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["intervention", "recommendation"]
+          },
+          "created_at": {
+            "$ref": "primitives.json#/$defs/UtcTimestamp"
+          },
+          "author_human_id": {
+            "$ref": "primitives.json#/$defs/Ulid"
+          },
+          "participant_id": {
+            "$ref": "primitives.json#/$defs/Ulid"
+          },
+          "run_id": {
+            "$ref": "primitives.json#/$defs/Ulid"
+          },
+          "session_id": {
+            "$ref": "primitives.json#/$defs/Ulid"
+          },
+          "turn_id": {
+            "$ref": "primitives.json#/$defs/Ulid"
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "output": {
+            "$ref": "discussion-recommendation.json"
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "enum": ["intervention"]
+                }
+              },
+              "required": ["kind"]
+            },
+            "then": {
+              "required": ["author_human_id", "text"],
+              "properties": {
+                "author_human_id": {},
+                "text": {}
+              },
+              "not": {
+                "anyOf": [
+                  {
+                    "properties": {
+                      "participant_id": {}
+                    },
+                    "required": ["participant_id"]
+                  },
+                  {
+                    "properties": {
+                      "run_id": {}
+                    },
+                    "required": ["run_id"]
+                  },
+                  {
+                    "properties": {
+                      "session_id": {}
+                    },
+                    "required": ["session_id"]
+                  },
+                  {
+                    "properties": {
+                      "turn_id": {}
+                    },
+                    "required": ["turn_id"]
+                  },
+                  {
+                    "properties": {
+                      "output": {}
+                    },
+                    "required": ["output"]
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "enum": ["recommendation"]
+                }
+              },
+              "required": ["kind"]
+            },
+            "then": {
+              "required": ["participant_id", "run_id", "session_id", "turn_id", "output"],
+              "properties": {
+                "participant_id": {},
+                "run_id": {},
+                "session_id": {},
+                "turn_id": {},
+                "output": {}
+              },
+              "not": {
+                "anyOf": [
+                  {
+                    "properties": {
+                      "author_human_id": {}
+                    },
+                    "required": ["author_human_id"]
+                  },
+                  {
+                    "properties": {
+                      "text": {}
+                    },
+                    "required": ["text"]
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    "conclusion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["recommendation_ids", "created_at"],
+      "properties": {
+        "recommendation_ids": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "$ref": "primitives.json#/$defs/Ulid"
+          }
+        },
+        "created_at": {
+          "$ref": "primitives.json#/$defs/UtcTimestamp"
+        }
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "human_id", "kind", "summary", "recommendation_ids", "created_at"],
+      "properties": {
+        "id": {
+          "$ref": "primitives.json#/$defs/Ulid"
+        },
+        "human_id": {
+          "$ref": "primitives.json#/$defs/Ulid"
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["record_recommendation", "decline", "needs_more_context"]
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "recommendation_ids": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 6,
+          "items": {
+            "$ref": "primitives.json#/$defs/Ulid"
+          }
+        },
+        "created_at": {
+          "$ref": "primitives.json#/$defs/UtcTimestamp"
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "scope": {
+            "enum": ["participant"]
+          }
+        },
+        "required": ["scope"]
+      },
+      "then": {
+        "required": ["viewer_run_id"],
+        "properties": {
+          "viewer_run_id": {}
+        },
+        "not": {
+          "anyOf": [
+            {
+              "properties": {
+                "decision": {}
+              },
+              "required": ["decision"]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "scope": {
+            "enum": ["human"]
+          }
+        },
+        "required": ["scope"]
+      },
+      "then": {
+        "not": {
+          "anyOf": [
+            {
+              "properties": {
+                "viewer_run_id": {}
+              },
+              "required": ["viewer_run_id"]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -279,6 +279,11 @@ try {
         assert.equal(row.snapshot_generation, 1);
         delete row.snapshot_generation;
       }
+    if (table === "runs")
+      for (const row of rows) {
+        assert.equal(row.purpose, "work");
+        delete row.purpose;
+      }
     assert.deepEqual(rows, before[index], `${table} history changed during upgrade`);
   }
   assert.deepEqual(await db.prepare("PRAGMA foreign_key_check").all(), []);

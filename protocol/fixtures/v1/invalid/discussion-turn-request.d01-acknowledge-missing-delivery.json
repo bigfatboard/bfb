@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "idempotency_key": "d01-synthetic-turn",
+  "discussion_id": "01K00000000000000000000006",
+  "expected_version": 3,
+  "turn_id": "01K00000000000000000000008",
+  "expected_turn_version": 1,
+  "action": "acknowledge",
+  "expected_delivery_version": 1,
+  "session_id": "01K00000000000000000000014"
+}

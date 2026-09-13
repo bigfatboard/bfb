@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "idempotency_key": "d01-synthetic-change",
+  "discussion_id": "01K00000000000000000000006",
+  "expected_version": 1,
+  "action": "conclude",
+  "text": "Synthetic human clarification."
+}

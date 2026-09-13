@@ -155,7 +155,7 @@ export async function readLaunch(
     JOIN run_configuration_snapshots AS snapshot ON snapshot.workspace_id = launch.workspace_id AND snapshot.id = launch.snapshot_id
     JOIN run_executions AS execution ON execution.workspace_id = launch.workspace_id AND execution.id = launch.execution_id
     JOIN runs AS run ON run.workspace_id = launch.workspace_id AND run.id = launch.run_id
-    WHERE launch.workspace_id = ? AND launch.id = ?`,
+    WHERE launch.workspace_id = ? AND launch.id = ? AND run.purpose = 'work'`,
     )
     .get(workspace, id)) as LaunchRow | undefined;
   if (!row) rejectRunnerRequest();
@@ -517,7 +517,7 @@ export async function endUnstartedLaunch(
       `UPDATE tasks SET state = 'ready', resource_version = resource_version + 1
     WHERE workspace_id = ? AND id = ? AND state = 'active' AND NOT EXISTS (
       SELECT 1 FROM run_executions AS execution JOIN runs AS run ON run.workspace_id = execution.workspace_id AND run.id = execution.run_id
-      WHERE run.workspace_id = tasks.workspace_id AND run.task_id = tasks.id AND execution.state != 'ended')`,
+      WHERE run.workspace_id = tasks.workspace_id AND run.task_id = tasks.id AND run.purpose = 'work' AND execution.state != 'ended')`,
     )
     .run(ctx.workspaceId, row.task_id);
   await resolveRunnerCommandReference(ctx, row.runner_id, row.id);

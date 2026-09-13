@@ -15,7 +15,7 @@ The control plane can enroll one Mac separately into multiple workspaces and iss
 ## Dependencies
 
 - **Requires:** C01, C03, C04, C07, F02.
-- **Unlocks:** C09, E01, L04, L08, W02, X02, X05.
+- **Unlocks:** C09, D01, E01, L04, L08, W02, X02, X05.
 - **Can run with:** C08 after the shared migration head is agreed.
 
 ## Scope

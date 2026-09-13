@@ -160,7 +160,7 @@ export async function buildProjectLanes(
     .prepare(
       `SELECT task_id, result_state, activity
        FROM runs
-       WHERE workspace_id = ?
+       WHERE workspace_id = ? AND purpose = 'work'
        ORDER BY created_at DESC, id ASC`,
     )
     .all(workspaceId)) as Array<{

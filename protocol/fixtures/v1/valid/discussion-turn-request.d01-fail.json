@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "idempotency_key": "d01-synthetic-turn",
+  "discussion_id": "01K00000000000000000000006",
+  "expected_version": 3,
+  "turn_id": "01K00000000000000000000008",
+  "expected_turn_version": 1,
+  "action": "fail",
+  "delivery_id": "01K00000000000000000000009",
+  "expected_delivery_version": 1,
+  "reason": "provider_failed"
+}

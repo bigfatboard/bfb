@@ -1772,6 +1772,361 @@
       "schema": "local-rpc",
       "expect": "reject",
       "category": "shell_data"
+    },
+    {
+      "path": "valid/discussion-create-request.d01-synthetic.json",
+      "schema": "discussion-create-request",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/discussion-create-request.d01-unknown-field.json",
+      "schema": "discussion-create-request",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/discussion-create-request.d01-future-version.json",
+      "schema": "discussion-create-request",
+      "expect": "reject",
+      "category": "unknown_version"
+    },
+    {
+      "path": "valid/discussion-change-request.d01-synthetic.json",
+      "schema": "discussion-change-request",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/discussion-change-request.d01-unknown-field.json",
+      "schema": "discussion-change-request",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/discussion-change-request.d01-future-version.json",
+      "schema": "discussion-change-request",
+      "expect": "reject",
+      "category": "unknown_version"
+    },
+    {
+      "path": "valid/discussion-recommendation.d01-synthetic.json",
+      "schema": "discussion-recommendation",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/discussion-recommendation.d01-unknown-field.json",
+      "schema": "discussion-recommendation",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/discussion-recommendation.d01-future-version.json",
+      "schema": "discussion-recommendation",
+      "expect": "reject",
+      "category": "unknown_version"
+    },
+    {
+      "path": "valid/discussion-turn-request.d01-synthetic.json",
+      "schema": "discussion-turn-request",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/discussion-turn-request.d01-unknown-field.json",
+      "schema": "discussion-turn-request",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/discussion-turn-request.d01-future-version.json",
+      "schema": "discussion-turn-request",
+      "expect": "reject",
+      "category": "unknown_version"
+    },
+    {
+      "path": "valid/discussion-receipt.d01-synthetic.json",
+      "schema": "discussion-receipt",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/discussion-receipt.d01-unknown-field.json",
+      "schema": "discussion-receipt",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/discussion-receipt.d01-future-version.json",
+      "schema": "discussion-receipt",
+      "expect": "reject",
+      "category": "unknown_version"
+    },
+    {
+      "path": "valid/discussion-view.d01-synthetic.json",
+      "schema": "discussion-view",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/discussion-view.d01-unknown-field.json",
+      "schema": "discussion-view",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/discussion-view.d01-future-version.json",
+      "schema": "discussion-view",
+      "expect": "reject",
+      "category": "unknown_version"
+    },
+    {
+      "path": "valid/discussion-create-request.d01-bounded-options.json",
+      "schema": "discussion-create-request",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/discussion-create-request.d01-three-participants.json",
+      "schema": "discussion-create-request",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/discussion-create-request.d01-too-many-rounds.json",
+      "schema": "discussion-create-request",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/discussion-create-request.d01-unbounded-duration.json",
+      "schema": "discussion-create-request",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/discussion-create-request.d01-long-question.json",
+      "schema": "discussion-create-request",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/discussion-create-request.d01-branch-not-revision.json",
+      "schema": "discussion-create-request",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/discussion-create-request.d01-caller-run.json",
+      "schema": "discussion-create-request",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "valid/discussion-change-request.d01-cancel.json",
+      "schema": "discussion-change-request",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/discussion-change-request.d01-cancel-with-text.json",
+      "schema": "discussion-change-request",
+      "expect": "reject",
+      "category": "schema_invalid"
+    },
+    {
+      "path": "valid/discussion-change-request.d01-conclude.json",
+      "schema": "discussion-change-request",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/discussion-change-request.d01-conclude-with-text.json",
+      "schema": "discussion-change-request",
+      "expect": "reject",
+      "category": "schema_invalid"
+    },
+    {
+      "path": "valid/discussion-change-request.d01-decision.json",
+      "schema": "discussion-change-request",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/discussion-change-request.d01-missing-text.json",
+      "schema": "discussion-change-request",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/discussion-change-request.d01-missing-decision.json",
+      "schema": "discussion-change-request",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/discussion-change-request.d01-work-acceptance.json",
+      "schema": "discussion-change-request",
+      "expect": "reject",
+      "category": "unknown_kind"
+    },
+    {
+      "path": "valid/discussion-turn-request.d01-dispatch.json",
+      "schema": "discussion-turn-request",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/discussion-turn-request.d01-dispatch-missing-delivery.json",
+      "schema": "discussion-turn-request",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "valid/discussion-turn-request.d01-ambiguous.json",
+      "schema": "discussion-turn-request",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/discussion-turn-request.d01-ambiguous-missing-delivery.json",
+      "schema": "discussion-turn-request",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "valid/discussion-turn-request.d01-acknowledge.json",
+      "schema": "discussion-turn-request",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/discussion-turn-request.d01-acknowledge-missing-delivery.json",
+      "schema": "discussion-turn-request",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "valid/discussion-turn-request.d01-complete.json",
+      "schema": "discussion-turn-request",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/discussion-turn-request.d01-complete-missing-delivery.json",
+      "schema": "discussion-turn-request",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "valid/discussion-turn-request.d01-fail.json",
+      "schema": "discussion-turn-request",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/discussion-turn-request.d01-fail-missing-delivery.json",
+      "schema": "discussion-turn-request",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/discussion-turn-request.d01-accept-with-delivery.json",
+      "schema": "discussion-turn-request",
+      "expect": "reject",
+      "category": "schema_invalid"
+    },
+    {
+      "path": "invalid/discussion-turn-request.d01-complete-without-output.json",
+      "schema": "discussion-turn-request",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/discussion-turn-request.d01-ack-without-session.json",
+      "schema": "discussion-turn-request",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/discussion-turn-request.d01-wrong-actor-field.json",
+      "schema": "discussion-turn-request",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "valid/discussion-recommendation.d01-textual-done-is-data.json",
+      "schema": "discussion-recommendation",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/discussion-recommendation.d01-empty-reasons.json",
+      "schema": "discussion-recommendation",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/discussion-recommendation.d01-context-without-id.json",
+      "schema": "discussion-recommendation",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/discussion-recommendation.d01-repository-without-revision.json",
+      "schema": "discussion-recommendation",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/discussion-recommendation.d01-mixed-evidence-identity.json",
+      "schema": "discussion-recommendation",
+      "expect": "reject",
+      "category": "schema_invalid"
+    },
+    {
+      "path": "invalid/discussion-recommendation.d01-absolute-path.json",
+      "schema": "discussion-recommendation",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/discussion-recommendation.d01-missing-disagreement-id.json",
+      "schema": "discussion-recommendation",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "valid/discussion-view.d01-participant.json",
+      "schema": "discussion-view",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/discussion-view.d01-participant-without-run.json",
+      "schema": "discussion-view",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/discussion-view.d01-participant-human-decision.json",
+      "schema": "discussion-view",
+      "expect": "reject",
+      "category": "schema_invalid"
+    },
+    {
+      "path": "invalid/discussion-view.d01-human-run-override.json",
+      "schema": "discussion-view",
+      "expect": "reject",
+      "category": "schema_invalid"
+    },
+    {
+      "path": "invalid/discussion-view.d01-human-only-context.json",
+      "schema": "discussion-view",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/discussion-view.d01-missing-session-attribution.json",
+      "schema": "discussion-view",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/discussion-view.d01-peer-as-human.json",
+      "schema": "discussion-view",
+      "expect": "reject",
+      "category": "schema_invalid"
+    },
+    {
+      "path": "invalid/discussion-receipt.d01-private-content.json",
+      "schema": "discussion-receipt",
+      "expect": "reject",
+      "category": "additional_field"
     }
   ]
 }

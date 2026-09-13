@@ -227,7 +227,10 @@ flowchart TD
     W01 --> A04
     C01 --> D01
     C04 --> D01
+    C06 --> D01
     C08 --> D01
+    C09 --> D01
+    L08 --> D01
     A01 --> D02
     D01 --> D02
     L03 --> D02
@@ -408,7 +411,7 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 
 | ID | Package | Status | Risk |
 | --- | --- | --- | --- |
-| D01 | [Discussion records and permissions](WP-D01-discussion-records.md) | `planned` | Very high |
+| D01 | [Discussion records and permissions](WP-D01-discussion-records.md) | `in_progress` | Very high |
 | D02 | [Supervised discussion delivery](WP-D02-discussion-delivery.md) | `planned` | Very high |
 | D03 | [Discussion UI and human decisions](WP-D03-discussion-ui.md) | `planned` | High |
 

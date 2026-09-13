@@ -7,6 +7,7 @@ import type { SqlDatabase } from "@bfb/db";
 import { DomainError } from "@bfb/domain";
 
 import { handleWorkApi } from "./api/work.js";
+import { handleDiscussionApi } from "./api/discussions.js";
 import { handleProjectApi } from "./api/projects.js";
 import { handleRunnerBrowserApi, handleRunnerNativeApi } from "./api/runners.js";
 import { handleRunnerChannelApi, isRunnerChannelPath } from "./api/runner-channel.js";
@@ -456,6 +457,12 @@ export function createControlApp(
         workspaceHubNs: envBindings.WORKSPACE_HUB,
       };
       const projectPrefix = `/api/v1/workspaces/${workspaceId}`;
+      if (
+        /^\/api\/v1\/workspaces\/[^/]+\/(?:discussions(?:\/|$)|tasks\/[^/]+\/discussions(?:\/|$))/.test(
+          c.req.path,
+        )
+      )
+        return await handleDiscussionApi(c.req.raw, apiDeps);
       if (
         c.req.path === `${projectPrefix}/launches` ||
         c.req.path.startsWith(`${projectPrefix}/launches/`) ||

@@ -116,6 +116,7 @@ export interface RunRecord {
   task_id: string;
   requested_by_human_id: string;
   agent_profile_id: string;
+  purpose: "work" | "discussion";
   result_state: RunResultState;
   activity: RunActivity;
   resource_version: number;
@@ -162,6 +163,22 @@ export async function prepareRunCreation(
   input: CreateRunInput,
   ctx: HubContext,
 ): Promise<PreparedRunCreation> {
+  return preparePurposeRun(input, ctx, "work");
+}
+
+/** Discussion commands reuse policy snapshots without advancing ordinary task work. */
+export async function prepareDiscussionRunCreation(
+  input: CreateRunInput,
+  ctx: HubContext,
+): Promise<PreparedRunCreation> {
+  return preparePurposeRun(input, ctx, "discussion");
+}
+
+async function preparePurposeRun(
+  input: CreateRunInput,
+  ctx: HubContext,
+  purpose: RunRecord["purpose"],
+): Promise<PreparedRunCreation> {
   const principal = await requireHuman(ctx);
   const task = await getTask(ctx.db, ctx.workspaceId, input.taskId);
   if (!task) {
@@ -172,7 +189,7 @@ export async function prepareRunCreation(
   if (task.resource_version !== expectedTaskVersion) {
     throw new DomainError("stale_version", "task version conflict");
   }
-  if (task.state !== "ready") {
+  if (purpose === "work" && task.state !== "ready") {
     throw new DomainError("invalid_transition", "a new run requires a ready task");
   }
   const workspacePolicyVersion = version(input.workspacePolicyVersion, "workspace policy version");
@@ -281,11 +298,15 @@ export async function prepareRunCreation(
         task_id: task.id,
         requested_by_human_id: principal.humanId,
         agent_profile_id: input.agentProfileId,
+        purpose,
         result_state: "open",
         activity: "unknown",
         resource_version: 1,
       },
-      task: { ...task, state: "active", resource_version: task.resource_version + 1 },
+      task:
+        purpose === "work"
+          ? { ...task, state: "active", resource_version: task.resource_version + 1 }
+          : task,
       snapshot: { id: snapshotId, contentHash, canonicalJson: canonical },
     },
   };
@@ -303,8 +324,8 @@ export async function persistRunCreation(
       .prepare(
         `INSERT INTO runs
          (workspace_id, id, project_id, task_id, requested_by_human_id,
-          agent_profile_id, result_state, activity, resource_version, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, 'open', 'unknown', 1, ?)`,
+          agent_profile_id, purpose, result_state, activity, resource_version, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'open', 'unknown', 1, ?)`,
       )
       .run(
         ctx.workspaceId,
@@ -313,6 +334,7 @@ export async function persistRunCreation(
         task.id,
         run.requested_by_human_id,
         input.agentProfileId,
+        run.purpose,
         ctx.now,
       );
   await ctx.db
@@ -338,12 +360,13 @@ export async function persistRunCreation(
       ctx.now,
       prepared.snapshotGeneration ?? 1,
     );
-  await ctx.db
-    .prepare(
-      `UPDATE tasks SET state = 'active', resource_version = ?
+  if (run.purpose === "work")
+    await ctx.db
+      .prepare(
+        `UPDATE tasks SET state = 'active', resource_version = ?
          WHERE workspace_id = ? AND id = ? AND resource_version = ?`,
-    )
-    .run(task.resource_version, ctx.workspaceId, task.id, input.expectedTaskVersion);
+      )
+      .run(task.resource_version, ctx.workspaceId, task.id, input.expectedTaskVersion);
 }
 
 export interface UpdateRunActivityInput {
@@ -361,9 +384,9 @@ export const updateRunActivityCommand: HubCommand<UpdateRunActivityInput, RunRec
     }
     const run = (await ctx.db
       .prepare(
-        `SELECT id, project_id, task_id, requested_by_human_id, agent_profile_id,
+        `SELECT id, project_id, task_id, requested_by_human_id, agent_profile_id, purpose,
                 result_state, activity, resource_version
-         FROM runs WHERE workspace_id = ? AND id = ?`,
+         FROM runs WHERE workspace_id = ? AND id = ? AND purpose = 'work'`,
       )
       .get(ctx.workspaceId, input.runId)) as RunRecord | undefined;
     if (!run) {
@@ -419,7 +442,7 @@ export const createExecutionCommand: HubCommand<CreateExecutionInput, ExecutionR
                 (SELECT COUNT(*) FROM provider_sessions AS session
                  WHERE session.workspace_id = run.workspace_id
                    AND session.run_id = run.id) AS provider_sessions
-         FROM runs AS run WHERE run.workspace_id = ? AND run.id = ?`,
+         FROM runs AS run WHERE run.workspace_id = ? AND run.id = ? AND run.purpose = 'work'`,
       )
       .get(ctx.workspaceId, input.runId)) as
       | {
@@ -484,7 +507,7 @@ export const transitionExecutionCommand: HubCommand<TransitionExecutionInput, Ex
                 run.project_id
          FROM run_executions AS execution
          JOIN runs AS run ON run.workspace_id = execution.workspace_id AND run.id = execution.run_id
-         WHERE execution.workspace_id = ? AND execution.run_id = ? AND execution.id = ?`,
+         WHERE execution.workspace_id = ? AND execution.run_id = ? AND execution.id = ? AND run.purpose = 'work'`,
       )
       .get(ctx.workspaceId, input.runId, input.executionId)) as
       (ExecutionRecord & { project_id: string }) | undefined;
@@ -549,7 +572,7 @@ export const createProviderSessionCommand: HubCommand<
          JOIN runs AS run ON run.workspace_id = execution.workspace_id AND run.id = execution.run_id
          JOIN agent_profiles AS profile
            ON profile.workspace_id = run.workspace_id AND profile.id = run.agent_profile_id
-         WHERE execution.workspace_id = ? AND execution.id = ? AND execution.run_id = ?`,
+         WHERE execution.workspace_id = ? AND execution.id = ? AND execution.run_id = ? AND run.purpose = 'work'`,
       )
       .get(ctx.workspaceId, input.executionId, input.runId)) as
       | {

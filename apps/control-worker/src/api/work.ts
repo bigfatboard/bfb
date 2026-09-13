@@ -497,7 +497,7 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
         .prepare(
           `SELECT id, project_id, task_id, requested_by_human_id, agent_profile_id,
                   result_state, activity, resource_version, created_at
-           FROM runs WHERE workspace_id = ? AND task_id = ?
+           FROM runs WHERE workspace_id = ? AND task_id = ? AND purpose = 'work'
              ${pagination.cursor ? "AND id > ?" : ""}
            ORDER BY id ASC LIMIT ?`,
         )
@@ -519,7 +519,7 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
       .prepare(
         `SELECT id, project_id, task_id, requested_by_human_id, agent_profile_id,
                 result_state, activity, resource_version, created_at
-         FROM runs WHERE workspace_id = ? AND id = ?`,
+         FROM runs WHERE workspace_id = ? AND id = ? AND purpose = 'work'`,
       )
       .get(deps.workspaceId, runId)) as { project_id: string } | undefined;
     if (!run) {

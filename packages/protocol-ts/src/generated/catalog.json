@@ -1,7 +1,7 @@
 {
   "protocol": "bfb-wire/1",
   "schema_version": 1,
-  "schema_hash": "31e8214c5bb64c359831e890ccdb813c84e126b2553ae14ba1fbd62f84dbe1c6",
+  "schema_hash": "e03bfd6428798f51ebf279cf811946f823f156d1912dfc02291dc0c8e7491bd6",
   "documents": [
     {
       "name": "event-envelope",
@@ -162,6 +162,30 @@
     {
       "name": "local-execution-focus",
       "schema": "local-execution-focus.json"
+    },
+    {
+      "name": "discussion-create-request",
+      "schema": "discussion-create-request.json"
+    },
+    {
+      "name": "discussion-change-request",
+      "schema": "discussion-change-request.json"
+    },
+    {
+      "name": "discussion-turn-request",
+      "schema": "discussion-turn-request.json"
+    },
+    {
+      "name": "discussion-recommendation",
+      "schema": "discussion-recommendation.json"
+    },
+    {
+      "name": "discussion-receipt",
+      "schema": "discussion-receipt.json"
+    },
+    {
+      "name": "discussion-view",
+      "schema": "discussion-view.json"
     }
   ]
 }

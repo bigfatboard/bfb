@@ -995,7 +995,7 @@ async function deliverAgentContext(
     const run = await db
       .prepare(
         `SELECT 1 AS found FROM runs
-         WHERE workspace_id = ? AND id = ? AND task_id = ?
+         WHERE workspace_id = ? AND id = ? AND task_id = ? AND purpose = 'work'
            AND result_state IN ('open', 'changes_requested')`,
       )
       .get(workspaceId, authority.runId, taskId);

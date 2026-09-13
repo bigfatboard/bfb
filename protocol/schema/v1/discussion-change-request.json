@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/discussion-change-request.json",
+  "title": "DiscussionChangeRequest",
+  "description": "Explicit human intervention, cancellation, conclusion or decision with no launch authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "idempotency_key", "discussion_id", "expected_version", "action"],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "idempotency_key": {
+      "$ref": "primitives.json#/$defs/IdempotencyKey"
+    },
+    "discussion_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "expected_version": {
+      "$ref": "primitives.json#/$defs/ResourceVersion"
+    },
+    "action": {
+      "type": "string",
+      "enum": ["intervene", "cancel", "conclude", "decide"]
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "summary", "recommendation_ids"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["record_recommendation", "decline", "needs_more_context"]
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "recommendation_ids": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 6,
+          "items": {
+            "$ref": "primitives.json#/$defs/Ulid"
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "enum": ["intervene"]
+          }
+        },
+        "required": ["action"]
+      },
+      "then": {
+        "required": ["text"],
+        "not": {
+          "anyOf": [
+            {
+              "required": ["decision"],
+              "properties": {
+                "decision": {}
+              }
+            }
+          ]
+        },
+        "properties": {
+          "text": {}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "enum": ["cancel", "conclude"]
+          }
+        },
+        "required": ["action"]
+      },
+      "then": {
+        "not": {
+          "anyOf": [
+            {
+              "required": ["text"],
+              "properties": {
+                "text": {}
+              }
+            },
+            {
+              "required": ["decision"],
+              "properties": {
+                "decision": {}
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "enum": ["decide"]
+          }
+        },
+        "required": ["action"]
+      },
+      "then": {
+        "required": ["decision"],
+        "not": {
+          "anyOf": [
+            {
+              "required": ["text"],
+              "properties": {
+                "text": {}
+              }
+            }
+          ]
+        },
+        "properties": {
+          "decision": {}
+        }
+      }
+    }
+  ]
+}
