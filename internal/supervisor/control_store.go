@@ -73,6 +73,25 @@ func (store *IntentStore) persistControl(ctx context.Context, command LocalComma
 	if _, err = currentControlCommand(ctx, tx, command); err != nil {
 		return controlEffect{}, err
 	}
+	if complete {
+		var exists bool
+		if err := tx.QueryRowContext(ctx, "SELECT EXISTS (SELECT 1 FROM local_execution_assignments WHERE execution_id = ? AND assignment_generation = ?)", receipt.RunExecutionId, receipt.AssignmentGeneration).Scan(&exists); err != nil {
+			return controlEffect{}, failure("storage_failed")
+		}
+		if !exists {
+			// Terminal cloud receipts close only inbox delivery. No assignment means
+			// there can be no local effect for this target; an existing differently
+			// bound effect must not be hidden by a retargeted terminal receipt.
+			var count int
+			if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM execution_control_effects WHERE control_id = ?", command.ID).Scan(&count); err != nil || count != 0 {
+				return controlEffect{}, failure("execution_assignment_invalid")
+			}
+			if _, err := tx.ExecContext(ctx, "UPDATE execution_commands SET state = 'complete', diagnostic = NULL WHERE runner_id = ? AND command_id = ?", command.RunnerID, command.ID); err != nil || tx.Commit() != nil {
+				return controlEffect{}, failure("storage_failed")
+			}
+			return controlEffect{}, nil
+		}
+	}
 	assignment, err := scanAssignment(tx.QueryRowContext(ctx, "SELECT "+assignmentColumns+" FROM local_execution_assignments WHERE execution_id = ? AND assignment_generation = ?", receipt.RunExecutionId, receipt.AssignmentGeneration))
 	if err != nil || assignment.Claim.Assignment.WorkspaceId != command.WorkspaceID || assignment.Claim.Assignment.RunnerId != command.RunnerID {
 		return controlEffect{}, failure("execution_assignment_invalid")

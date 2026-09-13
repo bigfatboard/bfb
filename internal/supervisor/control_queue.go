@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/qdis/bfb/internal/protocol/generated"
+	"github.com/qdis/bfb/internal/runner"
 )
 
 func (service *Service) runControlQueue(ctx context.Context, store *IntentStore) {
@@ -59,6 +60,16 @@ func (service *Service) processControl(ctx context.Context, store *IntentStore, 
 	if controlTerminal(receipt) {
 		return store.completeControl(ctx, command, receipt)
 	}
+	deadline, _ := time.Parse(time.RFC3339Nano, command.ExpiresAt)
+	if effect == nil && receipt.Action != "resume" && !service.options.Now().Before(deadline) {
+		// A launch can be cancelled before it creates a local assignment. Its
+		// control can still expire; this branch never authorizes a native effect.
+		// Resume is excluded because clock skew could turn its claim into a new
+		// child launch without the required local source-absence checks.
+		bound := controlEffect{ID: command.ID, ExecutionID: receipt.RunExecutionId, Generation: receipt.AssignmentGeneration,
+			RunnerID: command.RunnerID, Action: receipt.Action, ClaimKey: command.ClaimKey, ExpiresAt: command.ExpiresAt}
+		return service.expireControl(ctx, store, command, bound, connection)
+	}
 	current, err := store.rememberControl(ctx, command, receipt)
 	if err != nil {
 		return err
@@ -67,21 +78,8 @@ func (service *Service) processControl(ctx context.Context, store *IntentStore, 
 		// Only the authenticated effect owner claims immediately before its
 		// effect. Reclaiming here could reject an in-flight termination after
 		// its group ends but before the helper acknowledges its signal.
-		deadline, _ := time.Parse(time.RFC3339Nano, command.ExpiresAt)
 		if (current.State == "prepared" || current.Action == "resume") && !service.options.Now().Before(deadline) {
-			body, err = current.claimRequest()
-			if err != nil {
-				return err
-			}
-			data, err = requestLaunch(ctx, connection, "controls/claim", body)
-			if err != nil {
-				return err
-			}
-			receipt, err = controlOutcome(data, command)
-			if err != nil || !current.matches(command, receipt) || !controlTerminal(receipt) {
-				return failure("execution_authorization_failed")
-			}
-			return store.completeControl(ctx, command, receipt)
+			return service.expireControl(ctx, store, command, current, connection)
 		}
 		if current.Action == "resume" {
 			return service.processResumeControl(ctx, store, command, current, connection)
@@ -105,6 +103,22 @@ func (service *Service) processControl(ctx context.Context, store *IntentStore, 
 	receipt, err = controlOutcome(data, command)
 	if err != nil || !current.matches(command, receipt) || !controlTerminal(receipt) {
 		return failure("execution_assignment_invalid")
+	}
+	return store.completeControl(ctx, command, receipt)
+}
+
+func (service *Service) expireControl(ctx context.Context, store *IntentStore, command LocalCommand, bound controlEffect, connection runner.RunnerConnection) error {
+	body, err := bound.claimRequest()
+	if err != nil {
+		return err
+	}
+	data, err := requestLaunch(ctx, connection, "controls/claim", body)
+	if err != nil {
+		return err
+	}
+	receipt, err := controlOutcome(data, command)
+	if err != nil || !bound.matches(command, receipt) || !controlTerminal(receipt) {
+		return failure("execution_authorization_failed")
 	}
 	return store.completeControl(ctx, command, receipt)
 }

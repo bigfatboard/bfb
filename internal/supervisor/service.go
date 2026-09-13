@@ -26,12 +26,14 @@ type ServiceOptions struct {
 	Installation  func(context.Context, string) (provider.Installation, error)
 	OpenTerminal  func(context.Context, string) error
 	FocusTerminal func(context.Context, generated.LocalExecutionFocus, func(context.Context) error) error
+	WakeRunner    func(string) error
 }
 
 type Service struct {
 	options     ServiceOptions
 	mu          sync.RWMutex
 	nativeMu    sync.Mutex
+	wakeMu      sync.Mutex
 	store       *IntentStore
 	files       *AssignmentFiles
 	paths       daemon.Paths

@@ -73,6 +73,27 @@ func TestDaemonProcessCrashAndRestart(t *testing.T) {
 		return command
 	}
 	first := start()
+	// The production binary includes supervision, while unsigned test clients
+	// still cannot register a helper or cause an app/wake effect.
+	if info, err := os.Stat(filepath.Join(paths.Root, "execution-records")); err != nil || !info.IsDir() {
+		t.Fatal("production execution service did not start", err)
+	}
+	for method, payload := range map[string]map[string]any{
+		"execution.register": {"terminal_intent_id": "00000000-0000-4000-8000-000000000001"},
+		"app.wake":           {"wake_intent_id": daemon.NewRequestID()},
+	} {
+		if _, err := daemon.Call(context.Background(), paths, method, payload); daemon.AsFailure(err).Code != "peer_denied" {
+			t.Fatal("production native boundary missing or bypassed", method, err)
+		}
+	}
+	for _, helper := range []string{"__launch", "__exec"} {
+		command := exec.Command(binary, "--data-dir", paths.Root, "--json", helper, "synthetic-private")
+		data, err := command.Output()
+		var response generated.LocalRpcEnvelope
+		if err == nil || command.ProcessState.ExitCode() != 2 || json.Unmarshal(data, &response) != nil || response.Error == nil || response.Error.Code != "invalid_request" {
+			t.Fatal("production fixed helper dispatch missing", helper, err)
+		}
+	}
 	duplicate := exec.Command(binary, "--data-dir", paths.Root, "--json", "daemon", "run")
 	data, err := duplicate.Output()
 	if err == nil || duplicate.ProcessState.ExitCode() != 6 {

@@ -1,5 +1,5 @@
 // ABOUTME: Supplies local daemon lifecycle and diagnostic CLI leaf commands.
-// ABOUTME: Keeps future hook, MCP and execution entry points explicitly unavailable until implemented.
+// ABOUTME: Keeps future hook and MCP entry points explicitly unavailable until implemented.
 
 package cli
 
@@ -78,7 +78,7 @@ func RegisterDaemon(registry *Registry, methods *daemon.Registry) {
 		}
 		return map[string]any{"status": "installed"}, nil
 	}})
-	for _, item := range []struct{ path, method string }{{"hook ingest", "hook.ingest"}, {"mcp stdio", "mcp.stdio"}, {"__launch", "execution.launch"}} {
+	for _, item := range []struct{ path, method string }{{"hook ingest", "hook.ingest"}, {"mcp stdio", "mcp.stdio"}} {
 		register(Command{Path: item.path, Method: item.method, Summary: "Reserved; capability not implemented yet", Run: func(_ context.Context, _ Invocation) (map[string]any, error) {
 			return nil, &daemon.Failure{Code: "not_implemented"}
 		}})

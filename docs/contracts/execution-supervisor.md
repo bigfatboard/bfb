@@ -15,6 +15,19 @@ immutable snapshot, exact L02 checkout and L03 provider identity, and persists a
 fresh daemon-local UUID. Only that UUID is passed to the signed app's fixed
 `bfb __launch <uuid>` command. A cloud wake ULID is never a Terminal intent. Wake
 redemption tries only existing enrollment connections and merely triggers a pull.
+The production entry point wires the launch and run-control consumers to the same
+execution service, the service to the runner manager's bound connections, and
+Terminal delivery to the signed-app bridge. The hidden `__launch` and `__exec`
+commands share the daemon's compiled provider registry and accept one local UUID,
+never an invocation or descriptor-number arguments.
+
+Wake redemption permits one in-flight batch of at most sixteen existing,
+credentialed enrollment connections under a five-second deadline. It rejects
+replay, malformed or ambiguous receipts, wrong runner binding and observed
+revocation uniformly. A single bound success only reconnects that runner to pull
+its durable queue; it does not accept the returned launch ID as a command, create
+an assignment, open Terminal, or persist the raw wake hint. Offline delivery still
+relies on L08's ordinary reconnect/pull lifecycle.
 
 The helper authenticates to the user-only daemon socket. The daemon derives its
 UID/PID, executable and start identity from the operating system before consuming
@@ -214,7 +227,7 @@ histories, and requires a free native lock and actual process absence. An alread
 released helper marker cannot bypass a daemon-observed descendant. The recovered
 authenticated marker retains the merged history and explicit-local flag; neither
 event import nor ordinary observation clears uncertainty. CLI recovery exposure
-and production entry-point wiring remain in progress.
+remains in progress.
 
 Four independent lease workers inspect registered executions on a
 15-second cadence, separately from launch workers and the local event sink. Each
@@ -400,6 +413,15 @@ claim cannot label a local action applied. Delivery commits `applying` before th
 effect owner receives it. Concurrent deliveries have one winner. Applied, rejected
 and uncertain effects cannot reopen, and terminal cloud receipts close the inbox
 without overwriting local effect evidence or changing native containment.
+
+A launch cancelled before local assignment creation can still have a queued
+control reference. A terminal bound cloud receipt closes that inbox record
+transactionally without creating an assignment, effect or observation. It cannot
+hide an existing effect by changing the target to an absent assignment. An expired
+non-resume control may use its original claim only to obtain a terminal receipt;
+a nonterminal response is not completion or permission for any native action.
+Missing resume sources never use that cleanup path, because clock skew must not
+turn expiry reconciliation into child-launch creation.
 
 The control inbox has four workers independent of launch preparation, with a
 one-second retry backoff so a prepared control cannot delay a later result for a

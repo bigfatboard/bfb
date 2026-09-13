@@ -12,6 +12,9 @@ import (
 	"github.com/qdis/bfb/internal/provider"
 )
 
-func RunHelper(context.Context, daemon.Paths, string, *provider.Registry) error {
+func RunHelper(_ context.Context, _ daemon.Paths, intent string, registry *provider.Registry) error {
+	if !terminalIntent.MatchString(intent) || registry == nil {
+		return failure("invalid_request")
+	}
 	return failure("platform_unavailable")
 }

@@ -24,7 +24,7 @@ func TestBuiltinDispatchAndExitCodes(t *testing.T) {
 		{[]string{"--json"}, 0, ""},
 		{[]string{"--json", "hook", "ingest"}, 4, "not_implemented"},
 		{[]string{"--json", "mcp", "stdio"}, 4, "not_implemented"},
-		{[]string{"--json", "__launch", "synthetic-token"}, 4, "not_implemented"},
+		{[]string{"--json", "__launch", "synthetic-token"}, 2, "unknown_method"},
 		{[]string{"--json", "unknown", "synthetic-private"}, 2, "unknown_method"},
 		{[]string{"--json", "daemon", "status", "unexpected"}, 2, "invalid_request"},
 		{[]string{"--json", "daemon", "logs", "--lines", "201"}, 2, "invalid_request"},
