@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		BF100000000000000000000C /* TerminalObjects.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF1000000000000000000017 /* TerminalObjects.swift */; };
+		BF100000000000000000000D /* TerminalObjects.swift in Tests */ = {isa = PBXBuildFile; fileRef = BF1000000000000000000017 /* TerminalObjects.swift */; };
 		BF100000000000000000000B /* NativeActionTests.swift in Tests */ = {isa = PBXBuildFile; fileRef = BF1000000000000000000016 /* NativeActionTests.swift */; };
 		BF1000000000000000000005 /* LocalRPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF1000000000000000000013 /* LocalRPC.swift */; };
 		BF1000000000000000000006 /* NativeActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF1000000000000000000014 /* NativeActions.swift */; };
@@ -23,6 +25,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		BF1000000000000000000017 /* TerminalObjects.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalObjects.swift; sourceTree = "<group>"; };
 		BF1000000000000000000016 /* NativeActionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeActionTests.swift; sourceTree = "<group>"; };
 		BF1000000000000000000013 /* LocalRPC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalRPC.swift; sourceTree = "<group>"; };
 		BF1000000000000000000014 /* NativeActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeActions.swift; sourceTree = "<group>"; };
@@ -70,6 +73,7 @@
 				BF1000000000000000000012 /* WireCodec.swift */,
 				BF1000000000000000000013 /* LocalRPC.swift */,
 				BF1000000000000000000014 /* NativeActions.swift */,
+				BF1000000000000000000017 /* TerminalObjects.swift */,
 				BF1000000000000000000015 /* RunnerModel.swift */,
 			);
 			path = Sources/BFB;
@@ -194,6 +198,7 @@
 				BF1000000000000000000002 /* WireCodec.swift in Sources */,
 				BF1000000000000000000005 /* LocalRPC.swift in Sources */,
 				BF1000000000000000000006 /* NativeActions.swift in Sources */,
+				BF100000000000000000000C /* TerminalObjects.swift in Sources */,
 				BF1000000000000000000007 /* RunnerModel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -207,6 +212,7 @@
 				BF1000000000000000000004 /* WireCodec.swift in Tests */,
 				BF1000000000000000000008 /* LocalRPC.swift in Tests */,
 				BF1000000000000000000009 /* NativeActions.swift in Tests */,
+				BF100000000000000000000D /* TerminalObjects.swift in Tests */,
 				BF100000000000000000000A /* RunnerModel.swift in Tests */,
 				BF100000000000000000000B /* NativeActionTests.swift in Tests */,
 			);

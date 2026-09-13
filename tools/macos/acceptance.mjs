@@ -158,6 +158,7 @@ try {
     "WireCodec.swift",
     "LocalRPC.swift",
     "NativeActions.swift",
+    "TerminalObjects.swift",
   ].map((file) => join(root, "apps/macos/Sources/BFB", file));
   await run(
     "xcrun",
@@ -290,6 +291,39 @@ try {
         return false;
       }
     }, "real fixed UUID helper invocation");
+  if (process.argv.includes("--require-focus")) {
+    assert.ok(
+      !terminal.error,
+      "Terminal consent and an available GUI session are required for exact-tab focus acceptance",
+    );
+    const routingPath = join(state, "synthetic-terminal-routing.json");
+    const original = await until(async () => {
+      try {
+        return JSON.parse(await readFile(routingPath, "utf8"));
+      } catch {
+        return false;
+      }
+    }, "first owned Terminal routing fixture");
+    assert.match(original.tty, /^\/dev\/ttys[0-9]{3,6}$/u);
+    // The later Terminal must not be selected when focusing the first one.
+    assert.ok(!(await rpc("synthetic.terminal", { terminal_intent_id: local })).error);
+    await until(
+      async () => JSON.parse(await readFile(routingPath, "utf8")).tty !== original.tty,
+      "second distinct Terminal device",
+    );
+    await writeFile(routingPath, JSON.stringify(original), { mode: 0o600 });
+    const focus = await rpc("synthetic.focus");
+    assert.ok(!focus.error, JSON.stringify(focus.error));
+    const missing = await rpc("synthetic.focus", {
+      terminal_intent_id: "e0da52a9-d0cb-47d8-867b-e08f684b9002",
+    });
+    assert.equal(missing.error?.code, "app_unavailable");
+    await writeFile(routingPath, JSON.stringify({ tty: "/dev/ttys999999" }), { mode: 0o600 });
+    assert.equal((await rpc("synthetic.focus")).error?.code, "app_unavailable");
+    await writeFile(routingPath, JSON.stringify(original), { mode: 0o600 });
+    assert.ok(!(await rpc("synthetic.focus")).error);
+    console.log("L05_TERMINAL_FOCUS_ROUTING_PASSED");
+  }
   const notification = await rpc("synthetic.notify", { notification_id: wake });
   assert.ok(
     lockedSession

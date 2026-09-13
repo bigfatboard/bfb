@@ -12,12 +12,14 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
 
 	"github.com/qdis/bfb/internal/appbridge"
 	"github.com/qdis/bfb/internal/daemon"
+	"github.com/qdis/bfb/internal/protocol/generated"
 )
 
 const terminalID = "e0da52a9-d0cb-47d8-867b-e08f684b9001"
@@ -39,6 +41,21 @@ func main() {
 			os.Exit(3)
 		}
 		if err := os.WriteFile(filepath.Join(state.Directory, "terminal-received"), []byte("synthetic UUID handoff accepted\n"), 0600); err != nil {
+			os.Exit(3)
+		}
+		// A synthetic metadata fixture for the app's real Apple-event routing.
+		// Native execution authority is exercised separately by L05, not inferred
+		// from this test-only file or the already completed fixture helper.
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		tty := exec.CommandContext(ctx, "/usr/bin/tty")
+		tty.Stdin = os.Stdin
+		device, err := tty.Output()
+		if err != nil {
+			os.Exit(3)
+		}
+		routing, err := json.Marshal(map[string]string{"tty": strings.TrimSpace(string(device))})
+		if err != nil || os.WriteFile(filepath.Join(state.Directory, "synthetic-terminal-routing.json"), routing, 0600) != nil {
 			os.Exit(3)
 		}
 		fmt.Println("BFB synthetic Terminal handoff accepted.")
@@ -85,6 +102,29 @@ func main() {
 	if err := registry.Register("synthetic.notify", func(ctx context.Context, request daemon.Request) (map[string]any, error) {
 		id, _ := request.Envelope.Payload["notification_id"].(string)
 		return map[string]any{}, bridge.NotifyAttention(ctx, id)
+	}); err != nil {
+		panic(err)
+	}
+	if err := registry.Register("synthetic.focus", func(ctx context.Context, request daemon.Request) (map[string]any, error) {
+		intent := terminalID
+		if len(request.Envelope.Payload) != 0 {
+			var ok bool
+			intent, ok = request.Envelope.Payload["terminal_intent_id"].(string)
+			if !ok || len(request.Envelope.Payload) != 1 {
+				return nil, &daemon.Failure{Code: "invalid_request"}
+			}
+		}
+		var routing struct {
+			TTY string `json:"tty"`
+		}
+		data, err := os.ReadFile(filepath.Join(paths.Root, "synthetic-terminal-routing.json"))
+		if err != nil || json.Unmarshal(data, &routing) != nil {
+			return nil, &daemon.Failure{Code: "invalid_request"}
+		}
+		now := time.Now().UTC().Truncate(time.Microsecond)
+		target := generated.LocalExecutionFocus{SchemaVersion: 1, TerminalIntentId: intent, ControlId: daemon.NewRequestID(), RunExecutionId: daemon.NewRequestID(), AssignmentGeneration: 1, Tty: routing.TTY,
+			AuthorizedAt: now.Format(time.RFC3339Nano), ExpiresAt: now.Add(time.Minute).Format(time.RFC3339Nano)}
+		return map[string]any{}, bridge.FocusTerminal(ctx, target, func(context.Context) error { return nil })
 	}); err != nil {
 		panic(err)
 	}

@@ -28,15 +28,16 @@ Managed hosts come from the app's verified code-signature entitlements, not a UR
 
 ## Native action delivery
 
-`internal/appbridge.Bridge` exposes `OpenTerminal(ctx, terminalIntentID)` and `NotifyAttention(ctx, notificationID)` to their owning daemon packages. It does not expose an RPC operation to create Terminal intents. The only app RPC operations are:
+`internal/appbridge.Bridge` exposes `OpenTerminal(ctx, terminalIntentID)`, `FocusTerminal(ctx, target, check)` and `NotifyAttention(ctx, notificationID)` to their owning daemon packages. L05 supplies the local focus target and a private native-authorization callback; neither is accepted from a cloud link. The bridge does not expose an RPC operation to create Terminal intents. Its app RPC operations are:
 
 | Operation | Request | Response |
 | --- | --- | --- |
 | `app.wake` | Cloud `wake_intent_id` only | Empty acknowledgement or typed failure from the launch owner |
 | `app.poll` | `app_session_state`: available, locked or login_window | Empty after at most two seconds, or one bounded delivery |
 | `app.complete` | `app_delivery_id` and `app_result` | Empty acknowledgement or typed failure |
+| `app.focus_check` | Pending `app_delivery_id` only | Empty acknowledgement after L05 rechecks its original native binding, or typed failure |
 
-A Terminal delivery has exactly `app_delivery_id`, `app_action: open_terminal` and `terminal_intent_id`. A notification delivery replaces the Terminal ID with an opaque `notification_id` and uses `app_action: notify_attention`. Extra application-action fields are rejected even if they are valid in some other Local RPC operation.
+A Terminal delivery has exactly `app_delivery_id`, `app_action: open_terminal` and `terminal_intent_id`. A focus delivery has exactly `app_delivery_id`, `app_action: focus_terminal` and the response-only `execution_focus` document. A notification delivery replaces the Terminal ID with an opaque `notification_id` and uses `app_action: notify_attention`. Extra application-action fields are rejected even if they are valid in some other Local RPC operation.
 
 The daemon limits pending deliveries to 32 and total delivery time to seven seconds. An offered delivery is never automatically re-offered. The signed peer's kernel PID binds acknowledgements; a bounded 256-entry receipt cache handles a lost acknowledgement response. If the app never received an offer, failure is `app_unavailable`; after an unacknowledged offer, it is `app_delivery_unknown`. The supervisor must reconcile the local single-use intent before retrying. This bridge's in-memory delivery state is not the durable launch ledger.
 
@@ -46,7 +47,11 @@ The app rechecks the console user, login completion and lock state before intera
 
 `TerminalIntentId` is a canonical lowercase UUIDv4, distinct from the cloud ULID. This freezes the architecture's UUID requirement for the previously unconsumed F02 Terminal placeholder. L05 creates and consumes that intent; it alone performs final authorization and validates the checkout/provider/lease.
 
-Terminal receives one `core/dosc` Apple Event whose direct parameter contains only the shell-quoted, app-owned absolute `Contents/Helpers/bfb` path, the literal `__launch` subcommand and the validated UUID. The event targets only `com.apple.Terminal`; there is no AppleScript interpolation, provider argument transport, keystroke injection or alternate-terminal fallback. The helper and enclosing app signatures must be valid, hardened and from the same Apple signing team.
+Terminal receives one `core/dosc` Apple Event whose direct parameter contains only the shell-quoted, app-owned absolute `Contents/Helpers/bfb` path, the literal `__launch` subcommand and the validated UUID. The event targets only the existing `com.apple.Terminal` process after LaunchServices opens that fixed application. There is no AppleScript interpolation, provider argument transport, keystroke injection or alternate-terminal fallback. The helper and enclosing app signatures must be valid, hardened and from the same Apple signing team.
+
+The L05 extension verifies that the returned tab belongs to a newly created, uniquely identified window, then places the local intent UUID in that tab's hidden custom-title property. A metadata failure after the bootstrap is `app_delivery_unknown`, not proof that no helper started. Focus resolves the conjunction of this tag and L05's kernel-observed TTY; it never reads contents, scrollback or process-name prose. Every selection/window mutation uses an Apple-event predicate instead of a cached tab index. Window mutations additionally require the selected tab still to match. The process PID and launch date remain fixed throughout; focus never opens or relaunches Terminal.
+
+The app requests a fresh `app.focus_check` before each effect and rechecks GUI availability, the five-second authorization window, control expiry and cancellation. The bridge validates its still-pending delivery, original signed app PID and native callback without caching authorization. `terminal_focused` is returned only after selection/frontmost verification; any error after an attempted selection remains `app_delivery_unknown`. A missing/changed target has no frontmost-window fallback. Apple's [object-specifier and comparison contracts](https://developer.apple.com/documentation/coreservices/apple_events/1572744-constants_for_object_specifiers_) define the typed predicate construction; Terminal's installed scripting dictionary defines its window/tab properties.
 
 Native delivery does not prompt for Automation consent. The explicit **Enable Terminal access** control requests it separately, off the UI actor; denied or not-yet-granted permission returns `consent_denied`. Notifications similarly require explicit permission. Their title/body are fixed, carry no task content, and offer only **Open BFB**; a notification does not answer a question or launch a command. X01/A02 own later domain routing and notification policy.
 

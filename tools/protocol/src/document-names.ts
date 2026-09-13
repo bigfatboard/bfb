@@ -246,6 +246,12 @@ export const DOCUMENTS: DocumentSpec[] = [
     goType: "LocalExecutionControl",
     tsType: "LocalExecutionControl",
   },
+  {
+    name: "local-execution-focus",
+    schemaFile: "local-execution-focus.json",
+    goType: "LocalExecutionFocus",
+    tsType: "LocalExecutionFocus",
+  },
 ];
 
 export const SHELL_FIELDS = [

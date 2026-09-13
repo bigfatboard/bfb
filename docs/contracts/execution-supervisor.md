@@ -404,8 +404,8 @@ without overwriting local effect evidence or changing native containment.
 The control inbox has four workers independent of launch preparation, with a
 one-second retry backoff so a prepared control cannot delay a later result for a
 minute. It reads bound metadata and acknowledges recorded local outcomes, never
-signals or opens Terminal. Signal/focus owners perform their own fresh claim
-before delivery. Resume dispatch claims its single child only after native
+signals directly. The signed helper claims signal delivery; the focus worker
+performs a fresh claim before sending its guarded app action. Resume dispatch claims its single child only after native
 source-absence checks, as described below.
 An acknowledgement does not reclaim the effect: after termination, a new claim
 could reject the already-ended target before its valid acknowledgement arrives.
@@ -449,6 +449,32 @@ terminal local outcome. Fast provider exit still gives the helper one bounded
 result-delivery attempt before it exits. Applied means the signal request was
 accepted, not that a provider turn completed or the run result changed.
 
+### Exact existing Terminal focus
+
+`focus_existing` requires the original signed live helper, owned live group,
+held physical lock and complete contained history. The daemon maps the helper's
+Darwin kernel controlling-device number to a local character-device node and
+repeats PID/start/device checks around that lookup. A fresh C09 claim and a second
+native inspection precede the durable `applying` barrier. The original launch's
+expired deadline is not reused as runtime authority.
+
+The response-only `local-execution-focus` document carries the local intent,
+control/execution/generation, native TTY and bounded authorization timestamps.
+It contains no PID, window selector, shell command or remote path. The bridge
+retains a private callback bound to the original command/assignment. The signed
+app sends only its pending delivery ID to `app.focus_check`; each check repeats
+native ownership, held-lock/history, exact device, command state and expiry.
+Closing the command, stopping the group, losing the lock, changing the app peer
+or timing out invalidates this route before the next effect.
+
+The app matches its opaque hidden tab tag plus that device, using fixed
+Terminal Apple-event properties. It selects only the unique matching tab and
+raises only the window whose selected tab still matches. All mutations recheck
+the GUI session and fresh daemon authorization. Success requires native
+selection/frontmost verification. Partial UI effects or lost replies remain
+unknown and are not repeated after restart; no fallback opens another Terminal,
+resumes a provider or selects an unrelated frontmost window.
+
 ### Exact-session resume
 
 The resume consumer first requires the original registered execution, a captured
@@ -491,11 +517,11 @@ successful provider-session attachment or business result. A settled rejected
 child produces local rejection. Lost acknowledgement and restart cannot offer
 another Terminal intent or create another execution.
 
-Native signal and resume handling are implemented with socket/process and
-synthetic cloud/signing tests. Focus of the exact existing Terminal, production
-entry-point wiring and real signed Terminal integration remain under implementation.
-These tests are not a substitute for real Terminal acceptance or complete L05
-certification.
+Native signal, resume and focus delivery have socket/process/PTY tests with
+explicit synthetic cloud, signing and UI boundaries. Swift tests cover exact
+predicate construction and per-effect authorization, expiry and ambiguity.
+Production entry-point wiring and real signed Terminal focus/supervision
+acceptance remain unfinished. These tests are not complete L05 certification.
 
 Expired/cancelled/revoked launches, unavailable sessions, consent denial, stale
 snapshots, changed providers and occupied/moved checkouts fail with bounded typed

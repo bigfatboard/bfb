@@ -5,11 +5,14 @@ package appbridge
 
 import (
 	"context"
+	"encoding/json"
 	"regexp"
 	"sync"
 	"time"
 
 	"github.com/qdis/bfb/internal/daemon"
+	"github.com/qdis/bfb/internal/protocol"
+	"github.com/qdis/bfb/internal/protocol/generated"
 )
 
 var ulidPattern = regexp.MustCompile(`^[0-7][0-9A-HJKMNP-TV-Z]{25}$`)
@@ -27,6 +30,10 @@ type delivery struct {
 	pid                   int
 	offered               bool
 	result                chan string
+	focus                 *generated.LocalExecutionFocus
+	check                 func(context.Context) error
+	ctx                   context.Context
+	focusChecked          bool
 }
 
 type acknowledgement struct {
@@ -90,7 +97,17 @@ func (b *Bridge) OpenTerminal(ctx context.Context, terminalIntentID string) erro
 	if !terminalPattern.MatchString(terminalIntentID) {
 		return &daemon.Failure{Code: "invalid_request"}
 	}
-	return b.deliver(ctx, "open_terminal", terminalIntentID)
+	return b.deliver(ctx, &delivery{action: "open_terminal", reference: terminalIntentID})
+}
+
+// FocusTerminal is local-only and retains the original daemon authorization
+// closure. The app cannot replace its assignment or choose another TTY.
+func (b *Bridge) FocusTerminal(ctx context.Context, target generated.LocalExecutionFocus, check func(context.Context) error) error {
+	data, err := json.Marshal(target)
+	if err != nil || !protocol.DecodeWireDocument("local-execution-focus", data).OK || check == nil {
+		return &daemon.Failure{Code: "invalid_request"}
+	}
+	return b.deliver(ctx, &delivery{action: "focus_terminal", focus: &target, check: check})
 }
 
 // NotifyAttention contains no task body, response content, credentials or executable action.
@@ -98,10 +115,10 @@ func (b *Bridge) NotifyAttention(ctx context.Context, notificationID string) err
 	if !ulidPattern.MatchString(notificationID) {
 		return &daemon.Failure{Code: "invalid_request"}
 	}
-	return b.deliver(ctx, "notify_attention", notificationID)
+	return b.deliver(ctx, &delivery{action: "notify_attention", reference: notificationID})
 }
 
-func (b *Bridge) deliver(ctx context.Context, action, reference string) error {
+func (b *Bridge) deliver(ctx context.Context, d *delivery) error {
 	ctx, cancel := context.WithTimeout(ctx, 7*time.Second)
 	defer cancel()
 	b.mu.Lock()
@@ -117,7 +134,7 @@ func (b *Bridge) deliver(ctx context.Context, action, reference string) error {
 	if err := b.options.WakeApp(ctx); err != nil {
 		return err
 	}
-	d := &delivery{id: daemon.NewRequestID(), action: action, reference: reference, result: make(chan string, 1)}
+	d.id, d.ctx, d.result = daemon.NewRequestID(), ctx, make(chan string, 1)
 	b.mu.Lock()
 	if !b.running || len(b.pending) >= 32 || ctx.Err() != nil {
 		b.mu.Unlock()
@@ -162,7 +179,7 @@ func (b *Bridge) deliver(ctx context.Context, action, reference string) error {
 
 func outcome(result string) error {
 	switch result {
-	case "terminal_opened", "notification_delivered":
+	case "terminal_opened", "terminal_focused", "notification_delivered":
 		return nil
 	case "notification_denied", "consent_denied", "session_locked", "app_unavailable", "app_delivery_unknown", "expired_intent":
 		return &daemon.Failure{Code: result}
@@ -201,6 +218,8 @@ func (b *Bridge) poll(ctx context.Context, peer daemon.Peer, state string) (map[
 			payload := map[string]any{"app_delivery_id": d.id, "app_action": d.action}
 			if d.action == "open_terminal" {
 				payload["terminal_intent_id"] = d.reference
+			} else if d.action == "focus_terminal" {
+				payload["execution_focus"] = *d.focus
 			} else {
 				payload["notification_id"] = d.reference
 			}
@@ -230,7 +249,10 @@ func (b *Bridge) complete(peer daemon.Peer, id, result string) error {
 		if d.id != id || !d.offered || d.pid != peer.PID {
 			continue
 		}
-		if (result == "terminal_opened" && d.action != "open_terminal") || (result == "notification_delivered" && d.action != "notify_attention") {
+		if (result == "terminal_opened" && d.action != "open_terminal") || (result == "terminal_focused" && d.action != "focus_terminal") || (result == "notification_delivered" && d.action != "notify_attention") {
+			return &daemon.Failure{Code: "invalid_request"}
+		}
+		if result == "terminal_focused" && !d.focusChecked {
 			return &daemon.Failure{Code: "invalid_request"}
 		}
 		if result == "" || (outcome(result) != nil && daemon.AsFailure(outcome(result)).Code == "invalid_request") {
@@ -248,11 +270,45 @@ func (b *Bridge) complete(peer daemon.Peer, id, result string) error {
 	return &daemon.Failure{Code: "expired_intent"}
 }
 
+func (b *Bridge) checkFocus(ctx context.Context, peer daemon.Peer, id string) error {
+	lookup := func() *delivery {
+		b.mu.Lock()
+		defer b.mu.Unlock()
+		if !b.running || b.state != "available" || b.appPID != peer.PID || time.Since(b.lastPoll) > 5*time.Second {
+			return nil
+		}
+		if _, done := b.completed[id]; done {
+			return nil
+		}
+		for _, d := range b.pending {
+			if d.id == id && d.action == "focus_terminal" && d.offered && d.pid == peer.PID && d.ctx.Err() == nil {
+				return d
+			}
+		}
+		return nil
+	}
+	d := lookup()
+	if d == nil {
+		return &daemon.Failure{Code: "expired_intent"}
+	}
+	// Never hold the bridge mutex across native inspection or private-store I/O.
+	if err := d.check(ctx); err != nil {
+		return err
+	}
+	if ctx.Err() != nil || lookup() != d {
+		return &daemon.Failure{Code: "expired_intent"}
+	}
+	b.mu.Lock()
+	d.focusChecked = true
+	b.mu.Unlock()
+	return nil
+}
+
 func RegisterRPC(registry *daemon.Registry, bridge *Bridge) error {
 	if err := registry.RegisterService("app.bridge", bridge.Start); err != nil {
 		return err
 	}
-	for _, method := range []string{"app.wake", "app.poll", "app.complete"} {
+	for _, method := range []string{"app.wake", "app.poll", "app.complete", "app.focus_check"} {
 		if err := registry.Register(method, func(ctx context.Context, request daemon.Request) (map[string]any, error) {
 			if err := bridge.options.AuthorizePeer(request.Peer); err != nil {
 				return nil, err
@@ -281,6 +337,12 @@ func RegisterRPC(registry *daemon.Registry, bridge *Bridge) error {
 					return nil, &daemon.Failure{Code: "invalid_request"}
 				}
 				return map[string]any{}, bridge.complete(request.Peer, id, result)
+			case "app.focus_check":
+				id, _ := payload["app_delivery_id"].(string)
+				if len(payload) != 1 || !ulidPattern.MatchString(id) {
+					return nil, &daemon.Failure{Code: "invalid_request"}
+				}
+				return map[string]any{}, bridge.checkFocus(ctx, request.Peer, id)
 			}
 			return nil, &daemon.Failure{Code: "invalid_request"}
 		}); err != nil {

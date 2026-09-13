@@ -1,5 +1,5 @@
 // ABOUTME: Reconciles durable run-control references and acknowledges only separately recorded local results.
-// ABOUTME: Keeps metadata polling independent of launch preparation and never performs native effects in the daemon queue.
+// ABOUTME: Separates signed-helper signals from app focus and exact-session child-launch delivery.
 
 package supervisor
 
@@ -85,6 +85,9 @@ func (service *Service) processControl(ctx context.Context, store *IntentStore, 
 		}
 		if current.Action == "resume" {
 			return service.processResumeControl(ctx, store, command, current, connection)
+		}
+		if current.Action == "focus_existing" && current.State == "prepared" {
+			return service.processFocusControl(ctx, store, command, current, connection)
 		}
 		return nil
 	}

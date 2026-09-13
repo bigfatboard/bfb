@@ -132,6 +132,67 @@ for (const [name, value, category] of [
   ],
 ])
   fixture("local-rpc", "control-" + name, value, category);
+const focus = { ...control, tty: "/dev/ttys001" };
+delete focus.action;
+const focusReply = {
+  ...request,
+  method: "app.poll",
+  direction: "response",
+  payload: {
+    app_delivery_id: control.control_id,
+    app_action: "focus_terminal",
+    execution_focus: focus,
+  },
+};
+const focusCheck = {
+  ...request,
+  method: "app.focus_check",
+  payload: { app_delivery_id: control.control_id },
+};
+fixture("local-execution-focus", "synthetic", focus);
+fixture("local-rpc", "focus-delivery", focusReply);
+fixture("local-rpc", "focus-check", focusCheck);
+fixture("local-rpc", "focus-checked", { ...focusCheck, direction: "response", payload: {} });
+fixture("local-rpc", "focus-result", {
+  ...request,
+  method: "app.complete",
+  payload: { app_delivery_id: control.control_id, app_result: "terminal_focused" },
+});
+for (const [name, value, category] of [
+  ["pid", { ...focus, pid: 1234 }, "additional_field"],
+  ["command", { ...focus, command: "synthetic" }, "shell_data"],
+  ["path", { ...focus, tty: "/synthetic/path" }, "type_mismatch"],
+  ["newline", { ...focus, tty: "/dev/ttys001\n" }, "type_mismatch"],
+  ["missing-time", { ...focus, authorized_at: undefined }, "missing_field"],
+  ["generation", { ...focus, assignment_generation: 0 }, "bound_exceeded"],
+])
+  fixture("local-execution-focus", name, value, category);
+for (const [name, value, category] of [
+  ["request", { ...focusReply, direction: "request" }, "type_mismatch"],
+  ["method", { ...focusReply, method: "execution.control" }, "type_mismatch"],
+  [
+    "action",
+    { ...focusReply, payload: { ...focusReply.payload, app_action: "open_terminal" } },
+    "type_mismatch",
+  ],
+  [
+    "no-delivery",
+    { ...focusReply, payload: { ...focusReply.payload, app_delivery_id: undefined } },
+    "missing_field",
+  ],
+  ["check-no-delivery", { ...focusCheck, payload: {} }, "missing_field"],
+  [
+    "check-retarget",
+    { ...focusCheck, payload: { ...focusCheck.payload, terminal_intent_id: intent } },
+    "additional_field",
+  ],
+  [
+    "check-reply-target",
+    { ...focusCheck, direction: "response", payload: { ...focusCheck.payload } },
+    "bound_exceeded",
+  ],
+])
+  fixture("local-rpc", "focus-" + name, value, category);
 const observation = {
   schema_version: 1,
   event_id: claim.specification.launch_id,

@@ -25,6 +25,7 @@ type ServiceOptions struct {
 	Providers     *provider.Registry
 	Installation  func(context.Context, string) (provider.Installation, error)
 	OpenTerminal  func(context.Context, string) error
+	FocusTerminal func(context.Context, generated.LocalExecutionFocus, func(context.Context) error) error
 }
 
 type Service struct {

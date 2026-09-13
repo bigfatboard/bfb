@@ -169,6 +169,20 @@ func TestNativePTYFixture(t *testing.T) {
 	if err != nil || foreground != syscall.Getpgrp() {
 		t.Fatal("fixture does not own its controlling terminal")
 	}
+	processes, err := InspectProcesses()
+	if err != nil {
+		t.Fatal(err)
+	}
+	self := processes[os.Getpid()]
+	tty, err := controllingTTY(self)
+	var inputStat, ttyStat unix.Stat_t
+	if err != nil || unix.Fstat(int(os.Stdin.Fd()), &inputStat) != nil || unix.Lstat(tty, &ttyStat) != nil || inputStat.Rdev != ttyStat.Rdev {
+		t.Fatal("kernel controlling device did not match the owned PTY", err)
+	}
+	self.StartIdentity += "-reused"
+	if _, err = controllingTTY(self); err == nil {
+		t.Fatal("reused PID selected a Terminal device")
+	}
 	registry, err := provider.NewRegistry([]provider.Descriptor{fake.Descriptor()})
 	if err != nil {
 		t.Fatal(err)

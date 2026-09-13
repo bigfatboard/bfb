@@ -70,11 +70,12 @@ enum InteractiveSession: String, Sendable {
 
 enum AppDelivery: Equatable, Sendable {
   case terminal(id: String, intent: TerminalIntentID)
+  case focus(id: String, target: TerminalFocus)
   case notification(id: String, notificationID: String)
 
   var id: String {
     switch self {
-    case .terminal(let id, _), .notification(let id, _): return id
+    case .terminal(let id, _), .focus(let id, _), .notification(let id, _): return id
     }
   }
 
@@ -92,6 +93,12 @@ enum AppDelivery: Equatable, Sendable {
         let intent = payload.terminalIntentId
       else { throw WireFailure.invalidEnvelope }
       self = .terminal(id: id, intent: try TerminalIntentID(intent))
+    case "focus_terminal":
+      guard
+        Set(fields?.keys.map { $0 } ?? []) == ["app_delivery_id", "app_action", "execution_focus"],
+        let target = payload.executionFocus
+      else { throw WireFailure.invalidEnvelope }
+      self = .focus(id: id, target: try TerminalFocus(target))
     case "notify_attention":
       guard
         Set(fields?.keys.map { $0 } ?? []) == ["app_delivery_id", "app_action", "notification_id"],
@@ -194,25 +201,8 @@ enum TerminalEvents {
       target.aeDesc, AEEventClass(0x636F_7265), AEEventID(0x646F_7363), ask)
   }
 
-  static func send(command: String) throws {
-    let event = NSAppleEventDescriptor(
-      eventClass: AEEventClass(0x636F_7265), eventID: AEEventID(0x646F_7363),
-      targetDescriptor: NSAppleEventDescriptor(bundleIdentifier: "com.apple.Terminal"),
-      returnID: AEReturnID(kAutoGenerateReturnID), transactionID: AETransactionID(kAnyTransactionID)
-    )
-    event.setParam(NSAppleEventDescriptor(string: command), forKeyword: AEKeyword(keyDirectObject))
-    let options = NSAppleEventDescriptor.SendOptions(
-      rawValue: UInt(kAEWaitReply | kAENeverInteract | kAEDoNotPromptForUserConsent))
-    do {
-      let reply = try event.sendEvent(options: options, timeout: 5)
-      if let error = reply.paramDescriptor(forKeyword: AEKeyword(keyErrorNumber)),
-        error.int32Value != 0
-      {
-        throw NativeFailure(code: result(for: error.int32Value))
-      }
-    } catch let failure as NativeFailure { throw failure } catch {
-      throw NativeFailure(code: result(for: Int32((error as NSError).code)))
-    }
+  static func send(command: String, intent: TerminalIntentID) throws {
+    try TerminalObjects.open(command: command, intent: intent)
   }
 
   static func result(for status: Int32) -> String {
@@ -229,10 +219,18 @@ struct NativeActions {
   var session: () -> InteractiveSession = InteractiveSession.current
   var helper: () throws -> URL = { try SignedInstallation.helper() }
   var openTerminal: () async throws -> Void = TerminalEvents.launchApplication
-  var emitTerminal: @Sendable (String) throws -> Void = TerminalEvents.send
+  var emitTerminal: @Sendable (String, TerminalIntentID) throws -> Void = TerminalEvents.send
   var notify: (String) async -> String = NativeNotifications.deliver
+  var now: () -> Date = Date.init
+  var findFocus: @Sendable (TerminalFocus) throws -> TerminalSelection = TerminalObjects.find
+  var focusStep: @Sendable (TerminalSelection, TerminalFocusStep) throws -> Void = {
+    try $1.perform($0)
+  }
 
-  func perform(_ delivery: AppDelivery) async -> String {
+  func perform(
+    _ delivery: AppDelivery,
+    authorizeFocus: () async throws -> Void = { throw NativeFailure(code: "app_unavailable") }
+  ) async -> String {
     guard session() == .available else {
       return session() == .locked ? "session_locked" : "app_unavailable"
     }
@@ -243,10 +241,39 @@ struct NativeActions {
         try await openTerminal()
         guard session() == .available else { return "session_locked" }
         let send = emitTerminal
-        try await Task.detached(priority: .userInitiated) { try send(command) }.value
+        try await Task.detached(priority: .userInitiated) { try send(command, intent) }.value
         return "terminal_opened"
       } catch let error as NativeFailure { return error.code } catch { return "app_unavailable" }
     case .notification(_, let id): return await notify(id)
+    case .focus(_, let target):
+      var attempted = false
+      do {
+        try target.check(at: now())
+        try await authorizeFocus()
+        let find = findFocus
+        let selected = try await Task.detached(priority: .userInitiated) { try find(target) }.value
+        for step in TerminalFocusStep.allCases {
+          guard session() == .available else { throw NativeFailure(code: "session_locked") }
+          try target.check(at: now())
+          try await authorizeFocus()
+          guard session() == .available else { throw NativeFailure(code: "session_locked") }
+          try target.check(at: now())
+          try Task.checkCancellation()
+          let performStep = focusStep
+          // An Apple-event timeout can occur after selection took effect.
+          attempted = true
+          try await Task.detached(priority: .userInitiated) { try performStep(selected, step) }
+            .value
+        }
+        return "terminal_focused"
+      } catch {
+        if attempted { return "app_delivery_unknown" }
+        let code = (error as? NativeFailure)?.code ?? "app_unavailable"
+        return [
+          "session_locked", "consent_denied", "expired_intent", "app_unavailable",
+          "app_delivery_unknown",
+        ].contains(code) ? code : "app_unavailable"
+      }
     }
   }
 }

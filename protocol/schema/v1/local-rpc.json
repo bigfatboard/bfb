@@ -36,6 +36,7 @@
         "terminal_intent_id": { "$ref": "primitives.json#/$defs/TerminalIntentId" },
         "execution_assignment": { "$ref": "local-execution-assignment.json" },
         "execution_control": { "$ref": "local-execution-control.json" },
+        "execution_focus": { "$ref": "local-execution-focus.json" },
         "control_id": { "$ref": "primitives.json#/$defs/Ulid" },
         "control_disposition": {
           "type": "string",
@@ -47,11 +48,15 @@
         "app_delivery_id": { "$ref": "primitives.json#/$defs/Ulid" },
         "notification_id": { "$ref": "primitives.json#/$defs/Ulid" },
         "app_session_state": { "type": "string", "enum": ["available", "locked", "login_window"] },
-        "app_action": { "type": "string", "enum": ["open_terminal", "notify_attention"] },
+        "app_action": {
+          "type": "string",
+          "enum": ["open_terminal", "focus_terminal", "notify_attention"]
+        },
         "app_result": {
           "type": "string",
           "enum": [
             "terminal_opened",
+            "terminal_focused",
             "notification_delivered",
             "notification_denied",
             "consent_denied",
@@ -131,6 +136,57 @@
     }
   },
   "allOf": [
+    {
+      "if": {
+        "properties": {
+          "method": { "const": "app.focus_check" },
+          "direction": { "const": "request" }
+        }
+      },
+      "then": {
+        "required": ["payload"],
+        "properties": {
+          "payload": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["app_delivery_id"],
+            "properties": { "app_delivery_id": {} }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "method": { "const": "app.focus_check" },
+          "direction": { "const": "response" }
+        }
+      },
+      "then": { "properties": { "payload": { "type": "object", "maxProperties": 0 } } }
+    },
+    {
+      "if": {
+        "required": ["payload"],
+        "properties": {
+          "payload": {
+            "type": "object",
+            "required": ["execution_focus"],
+            "properties": { "execution_focus": {} }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "direction": { "const": "response" },
+          "method": { "const": "app.poll" },
+          "payload": {
+            "type": "object",
+            "required": ["app_delivery_id", "app_action"],
+            "properties": { "app_delivery_id": {}, "app_action": { "const": "focus_terminal" } }
+          }
+        }
+      }
+    },
     {
       "if": {
         "required": ["payload"],

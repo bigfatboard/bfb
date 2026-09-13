@@ -1,6 +1,7 @@
 // ABOUTME: Proves native links, Terminal commands and runner UI states remain separated.
 // ABOUTME: Captures synthetic actions and typed consent/session failures without bypassing macOS dialogs.
 
+import CoreServices
 import Foundation
 import XCTest
 
@@ -52,6 +53,161 @@ final class NativeActionTests: XCTestCase {
   private let wake = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
   private let local = "e0da52a9-d0cb-47d8-867b-e08f684b9001"
 
+  private func focusWire(at date: Date) -> WireLocalExecutionFocus {
+    let format = ISO8601DateFormatter()
+    return WireLocalExecutionFocus(
+      schemaVersion: 1, terminalIntentId: local, controlId: wake,
+      runExecutionId: "01ARZ3NDEKTSV4RRFFQ69G5FAW", assignmentGeneration: 2, tty: "/dev/ttys001",
+      authorizedAt: format.string(from: date),
+      expiresAt: format.string(from: date.addingTimeInterval(30)))
+  }
+
+  func testFocusChecksEveryEffectAndNeverOpensOrTypes() async throws {
+    let date = Date(timeIntervalSince1970: 1_800_000_000)
+    let target = try TerminalFocus(focusWire(at: date))
+    let capture = CommandCapture()
+    let actions = NativeActions(
+      session: { .available },
+      helper: {
+        XCTFail("focus resolved a launch helper")
+        throw NativeFailure(code: "app_unavailable")
+      },
+      openTerminal: { XCTFail("focus opened Terminal") },
+      emitTerminal: { _, _ in XCTFail("focus sent a shell command") },
+      now: { date },
+      findFocus: { focus in
+        capture.append("find")
+        return TerminalSelection(
+          endpoint: TerminalEndpoint(pid: 42, launchedAt: date), windowID: 99, focus: focus)
+      },
+      focusStep: { selection, step in
+        XCTAssertEqual(selection.focus, target)
+        XCTAssertEqual(selection.windowID, 99)
+        capture.append(String(describing: step))
+      })
+    var checks = 0
+    let result = await actions.perform(.focus(id: wake, target: target)) {
+      checks += 1
+      capture.append("check")
+    }
+    XCTAssertEqual(result, "terminal_focused")
+    XCTAssertEqual(checks, 5)
+    XCTAssertEqual(
+      capture.values(),
+      [
+        "check", "find", "check", "select", "check", "unminimize", "check", "raise", "check",
+        "verify",
+      ])
+  }
+
+  func testFocusFailureBeforeAndAfterSelectionRemainsTruthful() async throws {
+    let date = Date(timeIntervalSince1970: 1_800_000_000)
+    let target = try TerminalFocus(focusWire(at: date))
+    for rejectedCheck in 1...5 {
+      let capture = CommandCapture()
+      let actions = NativeActions(
+        session: { .available }, openTerminal: { XCTFail("focus fell back to open") },
+        now: { date },
+        findFocus: { focus in
+          TerminalSelection(
+            endpoint: TerminalEndpoint(pid: 42, launchedAt: date), windowID: 99, focus: focus)
+        }, focusStep: { _, step in capture.append(String(describing: step)) })
+      var checks = 0
+      let result = await actions.perform(.focus(id: wake, target: target)) {
+        checks += 1
+        if checks == rejectedCheck { throw NativeFailure(code: "containment_unknown") }
+      }
+      XCTAssertEqual(result, rejectedCheck <= 2 ? "app_unavailable" : "app_delivery_unknown")
+      XCTAssertEqual(capture.values().count, max(0, rejectedCheck - 2))
+    }
+    let missing = NativeActions(
+      session: { .available }, openTerminal: { XCTFail("missing tab opened a replacement") },
+      now: { date }, findFocus: { _ in throw NativeFailure(code: "app_unavailable") },
+      focusStep: { _, _ in XCTFail("missing target performed an effect") })
+    let missingResult = await missing.perform(.focus(id: wake, target: target)) {}
+    XCTAssertEqual(missingResult, "app_unavailable")
+  }
+
+  func testFocusExpiryLockAndAmbiguousAppleEventNeverRepeat() async throws {
+    let date = Date(timeIntervalSince1970: 1_800_000_000)
+    let target = try TerminalFocus(focusWire(at: date))
+    for offset in [-0.001, 5.001, 30] {
+      let actions = NativeActions(
+        session: { .available }, now: { date.addingTimeInterval(offset) },
+        findFocus: { _ in
+          XCTFail("expired focus looked up a target")
+          throw NativeFailure(code: "app_unavailable")
+        })
+      let result = await actions.perform(.focus(id: wake, target: target)) {
+        XCTFail("expired focus requested authorization")
+      }
+      XCTAssertEqual(result, "expired_intent")
+    }
+    for fault in ["lock", "expire", "lost_event"] {
+      let capture = CommandCapture()
+      var current = date
+      var locked = false
+      var checks = 0
+      let actions = NativeActions(
+        session: { locked ? .locked : .available }, now: { current },
+        findFocus: { focus in
+          TerminalSelection(
+            endpoint: TerminalEndpoint(pid: 42, launchedAt: date), windowID: 99, focus: focus)
+        },
+        focusStep: { _, step in
+          capture.append(String(describing: step))
+          if fault == "lost_event" { throw NativeFailure(code: "app_delivery_unknown") }
+        })
+      let result = await actions.perform(.focus(id: wake, target: target)) {
+        checks += 1
+        if checks == 2 {
+          if fault == "lock" { locked = true }
+          if fault == "expire" { current = date.addingTimeInterval(6) }
+        }
+      }
+      XCTAssertEqual(
+        result,
+        fault == "lock"
+          ? "session_locked" : fault == "expire" ? "expired_intent" : "app_delivery_unknown")
+      XCTAssertEqual(capture.values().count, fault == "lost_event" ? 1 : 0)
+    }
+  }
+
+  func testFocusRoutingIsStrictAndWindowMutationsUseSelectedTabPredicates() throws {
+    let date = Date(timeIntervalSince1970: 1_800_000_000)
+    let wire = focusWire(at: date)
+    let payload = WireLocalRpcEnvelopePayload(
+      executionFocus: wire, appDeliveryId: wake, appAction: "focus_terminal")
+    XCTAssertNoThrow(try AppDelivery(payload))
+    var injected = payload
+    injected.terminalIntentId = local
+    XCTAssertThrowsError(try AppDelivery(injected))
+    for tty in ["/dev/tty", "/dev/ttys001\n", "/dev/ttys001;echo", "/synthetic/path"] {
+      var invalid = wire
+      invalid.tty = tty
+      XCTAssertThrowsError(try TerminalFocus(invalid))
+    }
+    let selection = TerminalSelection(
+      endpoint: TerminalEndpoint(pid: 42, launchedAt: date), windowID: 99,
+      focus: try TerminalFocus(wire))
+    for descriptor in [
+      try TerminalObjects.tab(selection), try TerminalObjects.selectedWindow(selection),
+    ] {
+      XCTAssertEqual(descriptor.descriptorType, DescType(typeObjectSpecifier))
+      XCTAssertEqual(
+        descriptor.forKeyword(AEKeyword(keyAEKeyForm))?.enumCodeValue, OSType(formTest))
+      let predicate = try XCTUnwrap(descriptor.forKeyword(AEKeyword(keyAEKeyData)))
+      XCTAssertEqual(predicate.descriptorType, DescType(typeLogicalDescriptor))
+      let terms = try XCTUnwrap(predicate.forKeyword(AEKeyword(keyAELogicalTerms)))
+      XCTAssertTrue(terms.numberOfItems == 2 || terms.numberOfItems == 3)
+      let values = try (1...terms.numberOfItems).map {
+        try XCTUnwrap(terms.atIndex($0)?.forKeyword(AEKeyword(keyAEObject2)))
+      }
+      XCTAssertTrue(values.contains { $0.stringValue == local })
+      XCTAssertTrue(values.contains { $0.stringValue == wire.tty })
+    }
+  }
+
   func testWakeSourcesPreserveIdentityAndOnlyForwardWakeRPC() async throws {
     let rpc = FixtureRPC()
     let custom = try WakeLink("bfb://launch/" + wake, associatedHosts: ["launch.bfb.example"])
@@ -94,7 +250,7 @@ final class NativeActionTests: XCTestCase {
     let helper = URL(fileURLWithPath: "/Applications/BFB's App.app/Contents/Helpers/bfb")
     let actions = NativeActions(
       session: { .available }, helper: { helper }, openTerminal: {},
-      emitTerminal: { capture.append($0) },
+      emitTerminal: { command, _ in capture.append(command) },
       notify: { _ in
         XCTFail("Terminal delivery became notification")
         return "app_unavailable"
@@ -123,14 +279,14 @@ final class NativeActionTests: XCTestCase {
           XCTFail("locked session inspected helper")
           return URL(fileURLWithPath: "/synthetic")
         }, openTerminal: { XCTFail("locked session opened Terminal") },
-        emitTerminal: { capture.append($0) })
+        emitTerminal: { command, _ in capture.append(command) })
       let result = await actions.perform(delivery)
       XCTAssertEqual(result, session == .locked ? "session_locked" : "app_unavailable")
     }
     let denied = NativeActions(
       session: { .available },
       helper: { URL(fileURLWithPath: "/Applications/BFB.app/Contents/Helpers/bfb") },
-      openTerminal: {}, emitTerminal: { _ in throw NativeFailure(code: "consent_denied") })
+      openTerminal: {}, emitTerminal: { _, _ in throw NativeFailure(code: "consent_denied") })
     let result = await denied.perform(delivery)
     XCTAssertEqual(result, "consent_denied")
     XCTAssertTrue(capture.values().isEmpty)
@@ -177,7 +333,7 @@ final class NativeActionTests: XCTestCase {
     let actions = NativeActions(
       session: { .available },
       helper: { URL(fileURLWithPath: "/Applications/BFB.app/Contents/Helpers/bfb") },
-      openTerminal: {}, emitTerminal: { capture.append($0) })
+      openTerminal: {}, emitTerminal: { command, _ in capture.append(command) })
     let model = RunnerModel(transport: rpc, actions: actions)
     model.start()
     defer { model.stop() }

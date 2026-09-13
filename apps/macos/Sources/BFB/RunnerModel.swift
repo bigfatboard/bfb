@@ -210,13 +210,20 @@ final class RunnerModel: ObservableObject {
     if let previous = results[delivery.id] {
       result = previous
     } else {
-      result = await actions.perform(delivery)
+      result = await actions.perform(delivery) {
+        _ = try await self.transport.call(
+          "app.focus_check", payload: WireLocalRpcEnvelopePayload(appDeliveryId: delivery.id))
+      }
       results[delivery.id] = result
       resultOrder.append(delivery.id)
       if resultOrder.count > 256 { results.removeValue(forKey: resultOrder.removeFirst()) }
     }
     pendingAcknowledgement = (delivery.id, result)
-    if result != "terminal_opened" && result != "notification_delivered" { errorCode = result }
+    if result != "terminal_opened" && result != "terminal_focused"
+      && result != "notification_delivered"
+    {
+      errorCode = result
+    }
   }
 
   private func report(_ error: Error) {
