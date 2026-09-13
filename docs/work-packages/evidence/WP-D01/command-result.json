@@ -1,0 +1,83 @@
+{
+  "package": "D01",
+  "tested_commit": "5856a935319156e4ea60143bc4b94505efe86b7b",
+  "recorded_on": "2026-09-13",
+  "automated_gate": "passed",
+  "package_acceptance": "passed",
+  "protocol_schema_hash": "e03bfd6428798f51ebf279cf811946f823f156d1912dfc02291dc0c8e7491bd6",
+  "checkout": {
+    "detached": true,
+    "clean_before_install": true,
+    "frozen_install": "passed",
+    "clean_after_verification": true
+  },
+  "test_configuration": {
+    "workers": 3,
+    "independent_command_clients": 2,
+    "canonical_hub": "production WorkspaceHub Durable Object and domain FIFO",
+    "canonical_database": "local Wrangler D1",
+    "human_api": "mounted production browser routes with signed synthetic Better Auth sessions and CSRF",
+    "session_boundary": "synthetic trusted-runtime records, not real provider observations or a public run-login route",
+    "time": "bounded synthetic command clock",
+    "deployment": "local only"
+  },
+  "checks": {
+    "owned_wire_fixtures": { "valid": 17, "invalid": 45, "total": 62 },
+    "protocol_typescript_tests": 421,
+    "protocol_go_differential_fixtures": "passed",
+    "typed_go_discussion_round_trips": 8,
+    "focused_typescript_tests": {
+      "discussion_domain": 31,
+      "discussion_browser_routes": 5,
+      "related_migration_work_launch_regressions": 75,
+      "total": 111
+    },
+    "real_d1_hub_gate": "passed",
+    "repository_typescript_tests": 804,
+    "repository_go_checks": "passed",
+    "repository_swift_tests": 15,
+    "repository_swift_xcode_checks": "passed",
+    "repository_verification": "passed",
+    "c08_exact_work_record_regression": "passed",
+    "c08_focused_typescript_tests": 22,
+    "c08_real_d1_gate": "passed",
+    "c09_exact_launch_regression": "passed",
+    "c09_focused_typescript_tests": 77,
+    "c09_real_d1_migration_and_worker_gate": "passed",
+    "linux_amd64_cross_build": "passed",
+    "clean_worktree_check": "passed"
+  },
+  "durable_assertions": {
+    "empty_migration_foreign_keys_clean": true,
+    "populated_0016_upgrade_preserves_work_history": true,
+    "legacy_run_purpose_is_work": true,
+    "late_receipt_failure_rolls_back_entire_discussion_and_cursor": true,
+    "simultaneous_duplicate_creates": 12,
+    "committed_discussions": 1,
+    "participant_runs": 2,
+    "create_receipt_survives_hub_eviction": true,
+    "changed_retry_input_rejected": true,
+    "stale_intervention_race_winners": 1,
+    "completed_turns": 6,
+    "distinct_dispatch_races": 6,
+    "dispatch_winners_per_turn": 1,
+    "observed_session_bindings": 2,
+    "continuation_survives_hub_eviction": true,
+    "duplicate_completion_has_one_message": true,
+    "simultaneous_human_decision_winners": 1,
+    "task_remains_ready_at_version_one": true,
+    "participant_results_remain_open_on_conclusion": true,
+    "no_ordinary_launch_created": true,
+    "immutable_history_rejects_update_and_delete": true,
+    "current_authority_precedes_receipt_replay": true,
+    "private_discussion_content_absent_from_semantic_receipts": true
+  },
+  "not_claimed": [
+    "Real Claude/Codex execution, read-only permission enforcement or observed provider session evidence",
+    "Native Terminal acceptance, process containment, per-session execution fencing or physical checkout inspection",
+    "D02 supervised delivery, native cancellation, deadline termination or crash reconciliation",
+    "D03 discussion UI, live browser invalidation, deployed Cloudflare behavior or cross-device reachability",
+    "Completion of the full local MVP; L05 Terminal acceptance remains blocked by the locked GUI and unavailable UI control"
+  ],
+  "retention": "Bounded synthetic assertion summaries, deterministic protocol fixtures and test code only. No raw logs, terminal transcripts, real task bodies, credentials, request secrets or local absolute paths are retained."
+}

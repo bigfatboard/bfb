@@ -1,8 +1,9 @@
 # D01 discussion authority and causal state
 
-This bounded matrix describes executable synthetic assertions. Clean-checkout
-certification is still pending; the package is not yet done. No provider executes
-in these tests. The observed sessions are deliberately seeded at the internal
+Clean-checkout certification passed at
+`5856a935319156e4ea60143bc4b94505efe86b7b`. This bounded matrix describes
+executable synthetic assertions; no provider executes in these tests.
+The observed sessions are deliberately seeded at the internal
 trusted-runtime boundary, not accepted from public browser requests.
 
 ## Real D1 and WorkspaceHub
@@ -56,7 +57,7 @@ stands in for canonical persistence or hub serialization.
 
 ## Wire contract and limitations
 
-`pnpm discussion:fixtures` owns 62 visibly synthetic fixtures. TypeScript and Go
+`pnpm discussion:fixtures` owns 62 visibly synthetic fixtures (17 valid, 45 invalid). TypeScript and Go
 test the same accept/reject matrix, and typed Go round trips retain conditional
 turn output, session attribution, evidence and scoped views. Generated TypeScript,
 Go and Swift output is drift-checked. The fixture generator's check mode performs

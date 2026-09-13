@@ -411,7 +411,7 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 
 | ID | Package | Status | Risk |
 | --- | --- | --- | --- |
-| D01 | [Discussion records and permissions](WP-D01-discussion-records.md) | `in_progress` | Very high |
+| D01 | [Discussion records and permissions](WP-D01-discussion-records.md) | `done` | Very high |
 | D02 | [Supervised discussion delivery](WP-D02-discussion-delivery.md) | `planned` | Very high |
 | D03 | [Discussion UI and human decisions](WP-D03-discussion-ui.md) | `planned` | High |
 

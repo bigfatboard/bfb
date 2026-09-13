@@ -2,7 +2,7 @@
 
 Updated: 13 September 2026
 
-Status: In progress — D01 discussion records under implementation; L05 blocked on Terminal acceptance
+Status: Blocked — D01 discussion records done; L05 requires an unlocked Mac and Terminal UI access
 
 Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 
@@ -35,27 +35,30 @@ UI access is unavailable; L05 is blocked on real focus and Ctrl-C/close coverage
 and subsequent clean package certification. D01 can proceed separately from its
 already-done prerequisites; no package may consume unfinished L05.
 
-D01 now implements discussion-purpose runs, frozen briefs/rosters, bounded turns,
+D01 clean certification passed at `5856a93`. It implements discussion-purpose runs, frozen briefs/rosters, bounded turns,
 immutable session binding, distinct delivery states, attributed recommendations,
 human intervention/cancellation/decisions and filtered participant reads. Its
 human API exposes no participant-authority override. Exact `pnpm test:d01` passes
-in the implementation checkout: 421 protocol tests with Go parity and typed round
+from a clean detached checkout: 421 protocol tests with Go parity and typed round
 trips, 111 focused tests (including 31 discussion-domain and five mounted browser
 tests), and real D1/WorkspaceHub checks. Two independent Workers prove duplicate
 creation, stale-edit/dispatch/decision races, eviction, six bounded turns and late
 batch rollback. Empty and populated 0016-to-0017 migrations preserve ordinary
 work, snapshots, sessions and event cursors. The 62 synthetic discussion fixtures
 are deterministic. Full repository verification passes (804 TypeScript tests,
-Go checks and 15 Swift tests), as do the exact C08/C09 regressions. Clean-checkout
-certification and the committed evidence manifest remain pending.
-D01 is not done and this is not provider-execution evidence.
+Go checks and 15 Swift tests), as do exact C08/C09, Linux cross-build and the final
+clean-worktree check. The committed evidence manifest marks D01 done without
+claiming provider execution. Every remaining package in the approved MVP depends
+directly or transitively on L05. A fresh native probe still reports a locked Mac;
+real Terminal focus/Ctrl-C/close acceptance and permitted UI control remain the
+concrete blocker. No unfinished package is consumed and the full MVP is not done.
 
 | Milestone | Packages | State | Completion check |
 | --- | --- | --- | --- |
 | Trusted Mac | L01–L03, C06, L08, L04 | All milestone packages done | Enroll, register exact checkout, probe providers, reconnect, revoke |
 | Remote launch | C09, L05, W02 | C09 done; L05 blocked on Terminal acceptance | Card starts fake provider; contention, expiry, revocation and containment fail safely |
 | Real agent work | L06, E01–E02, A01–A04, L07, P01 | Pending | Claude/Codex start, scoped context, attention, explicit result and human acceptance |
-| Discussion | D01–D03 | D01 in progress; D02/D03 planned | Two read-only participants, bounded turns, recovery, intervention, human decision |
+| Discussion | D01–D03 | D01 done; D02/D03 wait on execution prerequisites | Two read-only participants, bounded turns, recovery, intervention, human decision |
 | Running local delivery | Integrated MVP | Pending | Start services, full browser/runner/provider smoke, negative checks and health instructions |
 
 ## Verification

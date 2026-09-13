@@ -1,6 +1,6 @@
 # WP-D01 — Discussion records and permissions
 
-Status: `in_progress`
+Status: `done`
 
 Risk: Very high
 
@@ -58,6 +58,7 @@ A human can create a task-linked discussion with two authorized participants and
 ## Evidence and handoff
 
 - Commit schema/migration head, permission/state-transition matrix, replay/concurrency results, and bounded synthetic contract fixtures indexed by the manifest. D02 consumes these frozen commands rather than duplicating business logic.
+- Clean certification passed at `5856a935319156e4ea60143bc4b94505efe86b7b`: exact D01, full repository verification, exact C08/C09 regressions, Linux cross-build and clean-worktree check. The committed manifest indexes bounded synthetic evidence; no provider or native Terminal execution is claimed.
 
 ## Risks and decisions
 

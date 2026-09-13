@@ -1,8 +1,9 @@
 # Human-initiated discussions v1
 
 Owner: [D01](../work-packages/WP-D01-discussion-records.md), under
-[ADR 0002](../adr/0002-human-initiated-discussions.md). Implementation is in progress;
-this contract is not completion evidence. Exact acceptance: `pnpm test:d01`.
+[ADR 0002](../adr/0002-human-initiated-discussions.md). Clean acceptance evidence
+is indexed by the [D01 manifest](../work-packages/evidence/WP-D01/manifest.json).
+Exact acceptance: `pnpm test:d01`.
 
 ## Authority and work isolation
 
