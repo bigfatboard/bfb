@@ -29,6 +29,7 @@ export async function buildSignedApp({
   associatedHosts = [],
   provisioningProfile,
   helperPackage = "./cmd/bfb",
+  helperTests = false,
 } = {}) {
   assert.equal(process.platform, "darwin", "Native app building requires macOS");
   let profileTeam;
@@ -108,7 +109,8 @@ export async function buildSignedApp({
   });
   const helper = join(app, "Contents/Helpers/bfb");
   await mkdir(dirname(helper), { recursive: true });
-  await run("go", ["build", "-o", helper, helperPackage]);
+  assert.ok(!helperTests || configuration === "Debug", "A test helper is a Debug-only fixture");
+  await run("go", [...(helperTests ? ["test", "-c"] : ["build"]), "-o", helper, helperPackage]);
   await run("codesign", [
     "--force",
     "--sign",

@@ -2,7 +2,7 @@
 
 Updated: 13 September 2026
 
-Status: In progress — C09 certified; L05 native supervision under implementation
+Status: In progress — C09 certified; L05 blocked on native Terminal acceptance
 
 Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 
@@ -23,10 +23,22 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 
 ## Milestones
 
+The signed L05 integration harness now exercises the full local helper chain with
+a synthetic C09 transport, without substituting native identity checks. Its PTY
+diagnostic passes exact cwd/Git/argv/environment checks, duplicate bound interrupt,
+surviving-child heartbeat and occupancy, sticky escape, signed explicit recovery,
+PID-reuse protection and confirmed cloud release. Full native race tests,
+repository verification (706 TypeScript tests, Go and 15 Swift tests) and Linux
+executable/test compilation also pass. Those are implementation-checkout results,
+not real Terminal acceptance. The Mac GUI remains locked and automated Terminal
+UI access is unavailable; L05 is blocked on real focus and Ctrl-C/close coverage
+and subsequent clean package certification. D01 can proceed separately from its
+already-done prerequisites; no package may consume unfinished L05.
+
 | Milestone | Packages | State | Completion check |
 | --- | --- | --- | --- |
 | Trusted Mac | L01–L03, C06, L08, L04 | All milestone packages done | Enroll, register exact checkout, probe providers, reconnect, revoke |
-| Remote launch | C09, L05, W02 | C09 done; L05 in progress | Card starts fake provider; contention, expiry, revocation and containment fail safely |
+| Remote launch | C09, L05, W02 | C09 done; L05 blocked on Terminal acceptance | Card starts fake provider; contention, expiry, revocation and containment fail safely |
 | Real agent work | L06, E01–E02, A01–A04, L07, P01 | Pending | Claude/Codex start, scoped context, attention, explicit result and human acceptance |
 | Discussion | D01–D03 | Planned; ADR and gates recorded | Two read-only participants, bounded turns, recovery, intervention, human decision |
 | Running local delivery | Integrated MVP | Pending | Start services, full browser/runner/provider smoke, negative checks and health instructions |

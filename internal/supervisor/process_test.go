@@ -109,6 +109,9 @@ func TestSignalCannotUseAReusedPIDIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	group.Leader.StartIdentity = "1:1"
+	// The retained record is internally consistent. Only a fresh kernel read
+	// can discover that this PID now has another start identity.
+	group.Observed[leader.PID] = group.Leader
 	if group.Signal(syscall.SIGTERM) == nil {
 		t.Fatal("reused PID authorized a signal")
 	}

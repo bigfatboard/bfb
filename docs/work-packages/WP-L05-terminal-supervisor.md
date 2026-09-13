@@ -1,6 +1,6 @@
 # WP-L05 — Terminal execution supervisor
 
-Status: `in_progress`
+Status: `blocked`
 
 Risk: Very high
 
@@ -84,3 +84,4 @@ A claimed launch starts only the locally allowlisted fake provider in the exact 
 ## Risks and decisions
 
 - This is the highest-risk macOS component. Do not debug provider behavior until the fake-provider supervisor suite is clean.
+- Native implementation and signed PTY diagnostics pass, but real Terminal focus, Ctrl-C and close acceptance is unfinished. Repeated native checks still report a locked GUI session, and automated access to the Terminal/system UI has been denied. Completing this gate requires an unlocked session and permitted test access; no alternate input path may bypass that denial. Independent packages with already-done prerequisites may proceed, but none may consume L05 as done.

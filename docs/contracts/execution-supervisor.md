@@ -3,6 +3,32 @@
 Owner: [L05](../work-packages/WP-L05-terminal-supervisor.md). Gate: `pnpm test:l05`.
 Implementation and acceptance are in progress; this contract is not completion evidence.
 
+## Native acceptance harness
+
+`node tools/supervisor/native-execution.mjs` builds an isolated development-signed
+Debug app with a compiled test helper. That helper calls the same `RunHelper`,
+`RunExecChild`, service, signed socket, process inspection, event sink, lease and
+control implementations as production. Only provider installation and the strict
+synthetic C09 transport are replaced; native helper/app identities are never
+overridden. No synthetic installation is exposed by the production CLI.
+
+The separately compiled fake provider records actual kernel, cwd, Git, argv and
+scoped-environment facts in its private artifact directory outside the checkout.
+Its child/escape faults are bounded and driven only by its local test controller.
+The tests retain a surviving child's lock and heartbeat after parent death and
+exercise signed local recovery only after helper, descendant and lock absence.
+An internally consistent stale PID/start record also checks that fresh kernel
+inspection refuses a signal to a live process with another identity; it does not
+force the operating system to recycle a PID.
+
+`--pty-diagnostic` runs the signed chain through a native PTY without opening the
+app or controlling Terminal. It explicitly cannot satisfy Terminal acceptance.
+The real Terminal mode requires an available GUI session; its native
+open/focus/control delivery remains unverified. Actual Terminal Ctrl-C/close coverage and the complete
+clean-checkout `test:l05` gate are still pending. Private synthetic execution files
+and complete command logs stay local; committed evidence must contain bounded
+redacted assertions, not environment values, correlation capabilities or paths.
+
 ## Boundaries and sequence
 
 The existing runner command inbox feeds the local execution service. It durably
