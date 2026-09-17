@@ -1,0 +1,67 @@
+{
+  "$schema": "../manifest.schema.json",
+  "package": "X03",
+  "tested_commit": "a9d350dd28ca83070be5e8a80e74b92fb31d8371",
+  "protocol_version": "MCP/2026-07-28 + bfb-wire/1",
+  "schema_version": "1",
+  "migration_head": "0027_measurements",
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "agents": "0.20.1",
+    "@modelcontextprotocol/server": "2.0.0",
+    "better-auth": "1.6.26",
+    "@better-auth/oauth-provider": "1.6.26",
+    "playwright": "1.55.1",
+    "go": "1.26.5",
+    "xcode": "26.0.1"
+  },
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56)",
+    "architecture": "arm64"
+  },
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-X03/command-result.json"
+    },
+    {
+      "command": "pnpm test:x03",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-X03/command-result.json"
+    },
+    {
+      "command": "pnpm test:x03a",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-X03/command-result.json"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-X03/command-result.json"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-X03/command-result.json"
+    }
+  ],
+  "outcome": "passed",
+  "artifacts": [
+    "docs/work-packages/evidence/WP-X03/command-result.json",
+    "docs/work-packages/evidence/WP-X03/acceptance-matrix.md",
+    "docs/work-packages/evidence/WP-X03/attack-matrix.md",
+    "docs/contracts/remote-mcp-extensions.md",
+    "packages/domain/src/remote-parity.ts",
+    "packages/domain/test/remote-parity.test.ts",
+    "apps/control-worker/src/mcp/server-factory.ts",
+    "apps/control-worker/test/mcp-remote-parity.test.ts",
+    "apps/web/test/e2e/x03a-oauth.spec.ts"
+  ],
+  "redaction": {
+    "status": "passed",
+    "prohibited_content": []
+  }
+}

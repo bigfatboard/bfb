@@ -1,0 +1,44 @@
+{
+  "package": "X03",
+  "tested_commit": "a9d350dd28ca83070be5e8a80e74b92fb31d8371",
+  "environment": "clean checkout for install, build, and test:x03; implementation worktree for the regression gates",
+  "outcome": "passed",
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "scope": "clean detached checkout of the tested commit"
+    },
+    {
+      "command": "pnpm build",
+      "outcome": "passed",
+      "scope": "clean detached checkout of the tested commit"
+    },
+    {
+      "command": "pnpm test:x03",
+      "outcome": "passed",
+      "result": "54 focused tests across 7 suites plus 2 Chromium OAuth scenarios on BFB_E2E_PORT=4193",
+      "scope": "clean detached checkout of the tested commit"
+    },
+    {
+      "command": "pnpm test:x03a",
+      "outcome": "passed",
+      "result": "28 focused tests plus 2 Chromium OAuth scenarios with the twelve-tool map",
+      "scope": "implementation worktree at the tested commit"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "result": "full repository verification including protocol, lint, type, docs, roadmap, Go, Swift, and Xcode checks",
+      "scope": "implementation worktree at the tested commit"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "scope": "implementation worktree at the tested commit"
+    }
+  ],
+  "clean_checkout_marker": "X03_CLEAN_CHECKOUT_OK",
+  "migration_head": "0027_measurements",
+  "redaction": "passed"
+}
