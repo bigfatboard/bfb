@@ -96,6 +96,8 @@ consent. No unfinished package is consumed and the full MVP is not done.
 
 ## Checkpoint log
 
+- 17 September: P01 Codex adapter implemented on `muse/p01` against the frozen L03 kit for Codex `0.153.4`: provider-local descriptor/manifest, exact-checkout interactive/headless plans, exact-session resume and exec-fork turns, hook/JSONL normalization with provider-reported usage, transactional hooks.json/config.toml setup with doctor and rollback, and an experimental-transport exclusion suite. `pnpm test:p01` (composed like `test:l03` plus the race-tested codex package) passes; status stays `planned` with live MCP (A01), ledger (E01), results (A03), supervision (L05), journal (L06), and reference parity (L07) explicitly pending; the local-MCP/ledger/submission end-to-end checkpoint is not claimed.
+
 - 11 September: began the approved MVP implementation and incorporated the follow-up agent-chat research into the plan.
 - 11 September: assigned D01–D03 and DG-01–DG-03; generated roadmap passes with 45 packages. Added a regression for discussion-package generation. `pnpm verify` passed with 344 TypeScript tests, Go checks and Swift/Xcode checks.
 - 11 September: committed the plan/roadmap as `8e27776`; F02 prerequisite gate passed (132 TypeScript tests plus Go). Began L01 with isolated local-state, socket, storage, logging, credential-interface and lifecycle tests.

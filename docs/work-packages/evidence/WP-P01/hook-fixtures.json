@@ -1,0 +1,171 @@
+{
+  "package": "P01",
+  "scope": "Raw Codex hook stdin payloads to bounded L03 semantic candidates. All identities are synthetic; local paths in inputs are dropped by the parser and never appear in candidates.",
+  "fixtures": [
+    {
+      "name": "sessionstart-startup-binds",
+      "raw": {
+        "hook_event_name": "SessionStart",
+        "session_id": "thr_synthetic0199a21381c0",
+        "source": "startup",
+        "cwd": "<redacted-local-path>",
+        "transcript_path": "<redacted-local-path>",
+        "model": "gpt-5.6-sol"
+      },
+      "candidate": { "kind": "session_started", "session_id": "thr_synthetic0199a21381c0" },
+      "notes": "Bootstrap context is the constant instruction and opens no turn."
+    },
+    {
+      "name": "sessionstart-resume-binds",
+      "raw": {
+        "hook_event_name": "SessionStart",
+        "session_id": "thr_synthetic0199a21381c0",
+        "source": "resume",
+        "cwd": "<redacted-local-path>",
+        "transcript_path": "<redacted-local-path>",
+        "model": "gpt-5.6-sol"
+      },
+      "candidate": { "kind": "session_started", "session_id": "thr_synthetic0199a21381c0" },
+      "notes": "Resume re-binds the same observed identity; no new session is selected."
+    },
+    {
+      "name": "sessionstart-compact-silent",
+      "raw": {
+        "hook_event_name": "SessionStart",
+        "session_id": "thr_synthetic0199a21381c0",
+        "source": "compact",
+        "cwd": "<redacted-local-path>",
+        "transcript_path": "<redacted-local-path>",
+        "model": "gpt-5.6-sol"
+      },
+      "candidate": null,
+      "notes": "Compact continuations bind nothing; no false fresh-session binding."
+    },
+    {
+      "name": "stop-completes-turn-without-result",
+      "raw": {
+        "hook_event_name": "Stop",
+        "session_id": "thr_synthetic0199a21381c0",
+        "turn_id": "trk_synthetic07ab44",
+        "stop_hook_active": false,
+        "last_assistant_message": "synthetic text (not forwarded)"
+      },
+      "candidate": {
+        "kind": "turn_completed",
+        "session_id": "thr_synthetic0199a21381c0",
+        "turn_id": "trk_synthetic07ab44"
+      },
+      "notes": "Stop is turn telemetry only; no candidate kind can submit or accept a result."
+    },
+    {
+      "name": "sessionend-ends-session",
+      "raw": {
+        "hook_event_name": "SessionEnd",
+        "session_id": "thr_synthetic0199a21381c0",
+        "reason": "other",
+        "cwd": "<redacted-local-path>",
+        "transcript_path": "<redacted-local-path>"
+      },
+      "candidate": { "kind": "session_ended", "session_id": "thr_synthetic0199a21381c0" },
+      "notes": "Advisory end; output never steers the session."
+    },
+    {
+      "name": "pretooluse-starts-tool",
+      "raw": {
+        "hook_event_name": "PreToolUse",
+        "session_id": "thr_synthetic0199a21381c0",
+        "turn_id": "trk_synthetic07ab44",
+        "tool_name": "Bash",
+        "tool_use_id": "call_synthetic01",
+        "tool_input": "<never-forwarded>"
+      },
+      "candidate": {
+        "kind": "tool_started",
+        "session_id": "thr_synthetic0199a21381c0",
+        "turn_id": "trk_synthetic07ab44",
+        "tool": "Bash",
+        "source_event_id": "call_synthetic01"
+      },
+      "notes": "Tool input is never forwarded; only name and call identity cross the boundary."
+    },
+    {
+      "name": "posttooluse-completes-tool",
+      "raw": {
+        "hook_event_name": "PostToolUse",
+        "session_id": "thr_synthetic0199a21381c0",
+        "turn_id": "trk_synthetic07ab44",
+        "tool_name": "mcp__bfb__bfb_get_context",
+        "tool_use_id": "call_synthetic02",
+        "tool_response": "<never-forwarded>"
+      },
+      "candidate": {
+        "kind": "tool_completed",
+        "session_id": "thr_synthetic0199a21381c0",
+        "turn_id": "trk_synthetic07ab44",
+        "tool": "mcp__bfb__bfb_get_context",
+        "source_event_id": "call_synthetic02"
+      },
+      "notes": "No outcome is inferred from untyped tool output."
+    },
+    {
+      "name": "interrupt-marks-interruption",
+      "raw": {
+        "hook_event_name": "Interrupt",
+        "session_id": "thr_synthetic0199a21381c0",
+        "turn_id": "trk_synthetic07ab44",
+        "permission_mode": "default"
+      },
+      "candidate": {
+        "kind": "interrupted",
+        "session_id": "thr_synthetic0199a21381c0",
+        "turn_id": "trk_synthetic07ab44"
+      },
+      "notes": "Interruption is telemetry; hook output cannot restart the turn."
+    },
+    {
+      "name": "userpromptsubmit-opens-turn",
+      "raw": {
+        "hook_event_name": "UserPromptSubmit",
+        "session_id": "thr_synthetic0199a21381c0",
+        "turn_id": "trk_synthetic07ab44",
+        "prompt": "<never-forwarded>"
+      },
+      "candidate": {
+        "kind": "turn_started",
+        "session_id": "thr_synthetic0199a21381c0",
+        "turn_id": "trk_synthetic07ab44"
+      },
+      "notes": "A submitted prompt is an honestly observed turn start."
+    },
+    {
+      "name": "permissionrequest-stays-silent",
+      "raw": {
+        "hook_event_name": "PermissionRequest",
+        "session_id": "thr_synthetic0199a21381c0",
+        "turn_id": "trk_synthetic07ab44",
+        "tool_name": "Bash",
+        "tool_input": "<never-forwarded>"
+      },
+      "candidate": null,
+      "notes": "Native approval dialogs are distinct from BFB attention requests and never become candidates."
+    },
+    {
+      "name": "subagentstop-stays-silent",
+      "raw": {
+        "hook_event_name": "SubagentStop",
+        "session_id": "thr_synthetic0199a21381c0",
+        "turn_id": "trk_synthetic07ab44",
+        "agent_id": "agent_synthetic01",
+        "agent_type": "synthetic"
+      },
+      "candidate": null,
+      "notes": "Subagent activity is not run-turn activity."
+    }
+  ],
+  "rejections": [
+    "SessionStart with an unknown source fails closed instead of binding.",
+    "SessionStart or turn events with missing or malformed session identities fail closed.",
+    "SessionEnd with an unexpected reason fails closed.",
+    "Malformed JSON, duplicate keys, and oversized payloads fail closed."
+  ]
+}
