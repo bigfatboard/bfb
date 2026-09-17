@@ -3,6 +3,11 @@
 
 import type { HubCommand } from "./hub.js";
 import {
+  answerAttentionCommand,
+  requestAttentionCommand,
+  resolveAttentionCommand,
+} from "./attention.js";
+import {
   createDiscussionCommand,
   changeDiscussionCommand,
   concludeDiscussionCommand,
@@ -74,6 +79,9 @@ import {
 
 const commands = new Map<string, HubCommand<unknown, unknown>>([
   [ingestRunnerEventsCommand.name, ingestRunnerEventsCommand as HubCommand<unknown, unknown>],
+  [requestAttentionCommand.name, requestAttentionCommand as HubCommand<unknown, unknown>],
+  [answerAttentionCommand.name, answerAttentionCommand as HubCommand<unknown, unknown>],
+  [resolveAttentionCommand.name, resolveAttentionCommand as HubCommand<unknown, unknown>],
   [createDiscussionCommand.name, createDiscussionCommand as HubCommand<unknown, unknown>],
   [changeDiscussionCommand.name, changeDiscussionCommand as HubCommand<unknown, unknown>],
   [concludeDiscussionCommand.name, concludeDiscussionCommand as HubCommand<unknown, unknown>],
