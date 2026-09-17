@@ -28,6 +28,10 @@ export interface ControlBindings {
   GITHUB_CLIENT_ID?: string;
   GITHUB_CLIENT_SECRET?: string;
   AUTH_ABUSE_SECRET?: string;
+  GITHUB_WEBHOOK_SECRET?: string;
+  GITHUB_API_BASE?: string;
+  GITHUB_APP_ID?: string;
+  GITHUB_APP_PRIVATE_KEY?: string;
 }
 
 export interface ValidatedControlEnv {
