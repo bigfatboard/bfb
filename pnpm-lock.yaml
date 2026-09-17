@@ -309,6 +309,22 @@ importers:
         specifier: 0.28.2
         version: 0.28.2
 
+  tools/realtime:
+    dependencies:
+      '@bfb/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@bfb/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+      '@bfb/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol-ts
+    devDependencies:
+      wrangler:
+        specifier: 4.120.1
+        version: 4.120.1(@cloudflare/workers-types@5.20260810.1)
+
   tools/repository: {}
 
   tools/runner-channel:
