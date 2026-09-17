@@ -33,6 +33,7 @@
     "test:l01": "pnpm test:protocol && go test -race ./internal/daemon/... ./internal/auth/... ./internal/cli/... ./cmd/bfb/...",
     "test:l02": "pnpm build && pnpm test:l01 && vitest run packages/domain/test/checkout-contract.test.ts && go test -race -count=1 ./internal/checkout/...",
     "test:l03": "pnpm provider:check && node --test tools/provider-probe/capabilities.test.mjs && pnpm test:l01 && go test -race -count=1 ./internal/provider/... ./internal/providers/... ./cmd/bfb-fake-provider/...",
+    "test:l07": "pnpm test:l03 && go test -race -count=1 ./internal/providers/claude/...",
     "test:l04": "node tools/macos/fixtures.mjs --check && pnpm test:protocol && go test -race -count=1 ./internal/appbridge/... ./internal/daemon/... && pnpm swift:check && node tools/macos/acceptance.mjs --require-managed",
     "test:l08": "node tools/runners/fixtures.mjs --check && pnpm build && pnpm test:protocol && vitest run packages/domain/test/runners.test.ts apps/control-worker/test/runner-routes.test.ts apps/control-worker/test/runner-channels.test.ts apps/web/test/runner-enrollment.test.ts && go test -race -count=1 ./internal/auth/... ./internal/runner/... ./internal/daemon/... ./internal/cli/... ./cmd/bfb/... && tsx tools/runner-channel/run.ts && pnpm build:web && pnpm test:l08:browser",
     "test:l08:browser": "playwright test apps/web/test/e2e/l08-enrollment.spec.ts --config tools/e2e/playwright.config.ts",

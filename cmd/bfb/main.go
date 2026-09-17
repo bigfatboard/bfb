@@ -15,6 +15,7 @@ import (
 	"github.com/qdis/bfb/internal/daemon"
 	"github.com/qdis/bfb/internal/provider"
 	"github.com/qdis/bfb/internal/providers"
+	"github.com/qdis/bfb/internal/providers/claude"
 	"github.com/qdis/bfb/internal/runner"
 	"github.com/qdis/bfb/internal/supervisor"
 )
@@ -57,6 +58,7 @@ func main() {
 	cli.RegisterMCP(registry)
 	cli.RegisterCheckout(registry)
 	cli.RegisterRunner(registry)
+	claude.RegisterCommands(registry)
 	cli.RegisterExecution(registry,
 		func(ctx context.Context, paths daemon.Paths, intent string) error {
 			return supervisor.RunHelper(ctx, paths, intent, providerRegistry)

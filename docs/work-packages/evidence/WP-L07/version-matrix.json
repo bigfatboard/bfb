@@ -1,0 +1,59 @@
+{
+  "package": "L07",
+  "recorded_on": "2026-09-17",
+  "scope": "Claude Code reference-adapter certification. Capabilities never transfer between versions.",
+  "providers": [
+    {
+      "provider": "claude",
+      "version": "2.1.274",
+      "manifest_version": "1.0.0",
+      "status": "certified_tracked_interactive",
+      "capabilities_granted": [
+        "approval.on_request",
+        "context.session_start",
+        "control.interrupt",
+        "control.terminate",
+        "filesystem.workspace_write",
+        "hooks.session_start",
+        "launch.interactive",
+        "prompt.initial_constant",
+        "session.requested_id",
+        "session.resume",
+        "session.resume.interactive"
+      ],
+      "capabilities_withheld": [
+        "discussion.read_only",
+        "filesystem.read_only",
+        "launch.headless",
+        "mcp.stdio",
+        "session.fork",
+        "turn.structured"
+      ],
+      "models": ["fable", "haiku", "opus", "sonnet"],
+      "observations": [
+        "--version prints '<semver> (Claude Code)' on stdout",
+        "SessionStart/UserPromptSubmit/SessionEnd stdin shapes captured live in an isolated home",
+        "User-scope MCP servers live in ~/.claude.json under mcpServers; hooks fire from ~/.claude/settings.json",
+        "Exec-form hook (command plus args, no shell) fires on SessionStart via --init-only without a model turn",
+        "Unauthenticated -p run still fires SessionStart, UserPromptSubmit, and SessionEnd before failing",
+        "claude doctor exits 0 offline in an isolated home without touching real configuration"
+      ],
+      "limitations": [
+        "No authenticated turns were run; live tool-turn and Stop captures stay pending",
+        "MCP stdio entry is registered but its startup handshake needs A01",
+        "Read-only tool boundaries and headless transports are uncertified and fail closed",
+        "Only approval.on_request with filesystem.workspace_write is certified",
+        "Rewritten config files are canonicalized; already-current files are never rewritten"
+      ]
+    },
+    {
+      "provider": "claude",
+      "version": "2.1.269",
+      "status": "historical_l03_only",
+      "note": "Early synthetic-session experiment owned by WP-L03; its observations do not grant L07 capabilities."
+    }
+  ],
+  "withheld_by_default": [
+    "Any version not listed above probes as unknown_version with no tracked capabilities."
+  ]
+}

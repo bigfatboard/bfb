@@ -1,0 +1,12 @@
+{
+  "_comment": "Schema-derived from the documented Stop input; a stopped turn is telemetry and never submits a result.",
+  "background_tasks": [],
+  "cwd": "<checkout>",
+  "hook_event_name": "Stop",
+  "last_assistant_message": "<redacted>",
+  "permission_mode": "default",
+  "session_crons": [],
+  "session_id": "11111111-1111-4111-8111-111111111111",
+  "stop_hook_active": false,
+  "transcript_path": "<home>/.claude/projects/<project>/11111111-1111-4111-8111-111111111111.jsonl"
+}

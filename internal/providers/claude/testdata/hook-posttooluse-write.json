@@ -1,0 +1,19 @@
+{
+  "_comment": "Schema-derived from the documented PostToolUse input; tool response never enters a candidate.",
+  "cwd": "<checkout>",
+  "duration_ms": 12,
+  "hook_event_name": "PostToolUse",
+  "permission_mode": "default",
+  "session_id": "11111111-1111-4111-8111-111111111111",
+  "tool_input": {
+    "content": "<redacted>",
+    "file_path": "<checkout>/file.txt"
+  },
+  "tool_name": "Write",
+  "tool_response": {
+    "filePath": "<checkout>/file.txt",
+    "type": "create"
+  },
+  "tool_use_id": "toolu_01ABC123DEF456",
+  "transcript_path": "<home>/.claude/projects/<project>/11111111-1111-4111-8111-111111111111.jsonl"
+}

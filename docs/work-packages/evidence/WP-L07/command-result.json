@@ -1,0 +1,56 @@
+{
+  "package": "L07",
+  "tested_commit": "dfbf93e13ef2904696a391e3598cd91ede6962bc",
+  "claude_version": "2.1.274",
+  "commands": [
+    {
+      "command": "pnpm test:l07",
+      "outcome": "passed",
+      "detail": "L03 chain (provider:check, capability classification, L01 gate, provider race suite) plus race-tested internal/providers/claude suite, from the implementation checkout and from a clean detached checkout."
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "detail": "Format, lint, typecheck, protocol/provider checks, full TypeScript suite, ABOUTME headers, docs, roadmap, Go (gofmt plus vet-equivalent checks), and Swift/Xcode checks."
+    },
+    {
+      "command": "CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build ./...",
+      "outcome": "passed",
+      "detail": "Linux cross-compilation of the whole module including the new adapter and CLI wiring."
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "detail": "Passes from a clean tree; it rejects the dirty tree by design while work is uncommitted."
+    },
+    {
+      "command": "clean-checkout gate on the tested commit (install, build, test:l07)",
+      "outcome": "passed",
+      "detail": "Detached worktree at the tested commit: frozen install, build, and test:l07 all exit 0. Worktree removed afterwards."
+    },
+    {
+      "command": "bfb provider setup claude plus bfb provider doctor claude",
+      "outcome": "passed",
+      "detail": "Preview, combined-approval apply, and doctor exercised against the real Claude Code 2.1.274 in an isolated home: every check passed except the honestly unverified local-MCP startup (A01 pending). No real user configuration was touched."
+    }
+  ],
+  "proven_now": [
+    "probe, capability manifest 1.0.0, and unknown-version fail-closed policy",
+    "provider-local descriptor registration without shared-contract changes",
+    "previewed, approved, hash-CAS, atomic, post-doctor, rollback setup for both user-level files",
+    "provider setup/doctor claude commands with combined approval binding",
+    "stable app-owned hook launcher path in exec form",
+    "raw-hook-to-semantic-candidate parsing with captured and schema-derived fixtures",
+    "interactive launch and exact-session resume plans with fail-closed policy ceilings",
+    "interrupt and terminate semantic mapping",
+    "SessionStart requested-vs-observed binding check",
+    "integration-hash, drift, unknown-version, concurrent-edit, rollback, and duplicate-hook diagnostics"
+  ],
+  "pending_on_dependencies": [
+    "A01: local run-scoped MCP server startup handshake and mcp.stdio grant",
+    "E01: real event-ingest endpoint behind the journal upload path",
+    "L05: exact-checkout launch, pre-exec revalidation, and process supervision consuming the LaunchPlan",
+    "L06: hook ingest, SessionStart correlation binding, envelope creation, and offline inbox",
+    "A01 plus E01 plus L05 plus L06: the real end-to-end checkpoint and authenticated live tool-turn captures"
+  ]
+}

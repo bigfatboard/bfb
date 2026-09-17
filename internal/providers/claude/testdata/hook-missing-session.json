@@ -1,0 +1,5 @@
+{
+  "_comment": "Missing session identity; must fail.",
+  "cwd": "<checkout>",
+  "hook_event_name": "Stop"
+}
