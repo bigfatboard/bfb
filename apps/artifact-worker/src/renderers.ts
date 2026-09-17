@@ -51,9 +51,9 @@ function truncateNotice(shown: string): string {
  * classified once, so generated markup is never reparsed and `*` is excluded
  * from link targets to keep emphasis parsing out of attributes.
  */
-// The outer group keeps matched tokens in the split output next to escaped gaps.
+// The single group keeps matched tokens in the split output next to escaped gaps.
 const INLINE_TOKEN =
-  /((`[^`\n]{1,500}`|\[[^\[\]\n]{1,200}\]\(https?:\/\/[^\s<>"'`()*]{1,500}\)|\*\*[^*\n]{1,500}\*\*|\*[^*\n]{1,200}\*))/g;
+  /(`[^`\n]{1,500}`|\[[^\[\]\n]{1,200}\]\(https?:\/\/[^\s<>"'`()*]{1,500}\)|\*\*[^*\n]{1,500}\*\*|\*[^*\n]{1,200}\*)/g;
 
 function renderInline(raw: string): string {
   return raw
@@ -167,9 +167,15 @@ const MERMAID_DANGEROUS_LINE =
 const MERMAID_COMMENT_LINE = /^\s*%%/;
 const MERMAID_GRAPH_LINE = /^\s*graph\s+(TD|TB|LR|RL|BT)\s*$/i;
 const MERMAID_NODE_LINE =
-  /^\s*([A-Za-z0-9_]{1,32})(?:\(\(\(([^()\n]{1,200})\)\)\)|\(([^()\n]{1,200})\)|\[([^\[\]\n]{1,200})\]|\{([^{}\n]{1,200})\})?\s*$/;
-const MERMAID_EDGE_LINE =
-  /^\s*([A-Za-z0-9_]{1,32})\s*(-->|---|==>)\s*(?:\|([^|\n]{1,100})\|\s*)?([A-Za-z0-9_]{1,32})\s*$/;
+  /^\s*([A-Za-z0-9_]{1,32})(?:\(\(([^()\n]{1,200})\)\)|\(([^()\n]{1,200})\)|\[([^\[\]\n]{1,200})\]|\{([^{}\n]{1,200})\})?\s*$/;
+const MERMAID_ENDPOINT_LABEL = String.raw`(?:\(\(([^()\n]{1,200})\)\)|\(([^()\n]{1,200})\)|\[([^\[\]\n]{1,200})\]|\{([^{}\n]{1,200})\})?`;
+const MERMAID_EDGE_LINE = new RegExp(
+  String.raw`^\s*([A-Za-z0-9_]{1,32})` +
+    MERMAID_ENDPOINT_LABEL +
+    String.raw`\s*(-->|---|==>)\s*(?:\|([^|\n]{1,100})\|\s*)?([A-Za-z0-9_]{1,32})` +
+    MERMAID_ENDPOINT_LABEL +
+    String.raw`\s*$`,
+);
 
 interface MermaidGraph {
   nodes: Map<string, string>;
@@ -201,11 +207,38 @@ export function parseMermaidGraph(source: string): MermaidGraph | { overCap: tru
     const edge = MERMAID_EDGE_LINE.exec(rawLine);
     if (edge) {
       if (graph.edges.length >= VIEWER_MAX_MERMAID_EDGES) return { overCap: true };
-      const [, from, kind, label, to] = edge as unknown as [string, string, string, string, string];
-      for (const id of [from!, to!]) {
+      const [
+        ,
+        from,
+        fromStadium,
+        fromRound,
+        fromRect,
+        fromDiamond,
+        kind,
+        label,
+        to,
+        toStadium,
+        toRound,
+        toRect,
+        toDiamond,
+      ] = edge;
+      const fromLabel = (fromStadium ?? fromRound ?? fromRect ?? fromDiamond ?? from!).slice(
+        0,
+        VIEWER_MAX_MERMAID_LABEL_CHARS,
+      );
+      const toLabel = (toStadium ?? toRound ?? toRect ?? toDiamond ?? to!).slice(
+        0,
+        VIEWER_MAX_MERMAID_LABEL_CHARS,
+      );
+      for (const [id, endpointLabel] of [
+        [from!, fromLabel],
+        [to!, toLabel],
+      ] as const) {
         if (!graph.nodes.has(id)) {
           if (graph.nodes.size >= VIEWER_MAX_MERMAID_NODES) return { overCap: true };
-          graph.nodes.set(id, id);
+          graph.nodes.set(id, endpointLabel);
+        } else if (endpointLabel !== id) {
+          graph.nodes.set(id, endpointLabel);
         }
       }
       graph.edges.push({ from: from!, to: to!, kind: kind!, label: (label ?? "").slice(0, 100) });
