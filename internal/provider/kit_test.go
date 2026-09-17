@@ -164,6 +164,14 @@ func TestProviderOwnedVersionParsers(t *testing.T) {
 		}
 		_, err = descriptor.ParseVersion([]byte(fixture.raw + "unexpected second version\n"))
 		requireCode(t, err, "provider_probe_failed")
+		// Uncertified providers stay discovery-only. Claude carries L07's
+		// certified manifest and adapter; codex and grok await P01/P02.
+		if descriptor.Name == "claude" {
+			if descriptor.Adapter == nil || len(descriptor.Manifest.TestedVersions) == 0 || len(descriptor.Manifest.Capabilities) == 0 {
+				t.Fatal("certified claude descriptor lost its manifest")
+			}
+			continue
+		}
 		if descriptor.Name != "fake" && (len(descriptor.Manifest.Capabilities) != 0 || len(descriptor.Manifest.TestedVersions) != 0 || descriptor.Adapter != nil) {
 			t.Fatal("discovery acquired unverified tracking capabilities")
 		}
