@@ -23,6 +23,11 @@ export const FIX = {
   contextAgent: syntheticUlid("CTXAGENT"),
   runDelegable: syntheticUlid("RUNDELG"),
   eventAttention: syntheticUlid("EVTATTN"),
+  attentionTask: syntheticUlid("TASKATN2"),
+  attentionBlocker: syntheticUlid("ATTNB1CK"),
+  attentionCredential: syntheticUlid("ATTNCRED"),
+  attentionReview: syntheticUlid("ATTNRVW"),
+  attentionDestructive: syntheticUlid("ATTNDESTR"),
   client: "bfb-mcp-synthetic-client",
 };
 

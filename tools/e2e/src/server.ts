@@ -98,6 +98,8 @@ async function seedWorkSurface(db: SqlDatabase): Promise<void> {
       NOW,
     );
 
+  await seedAttentionSurface(db);
+
   await db
     .prepare(`INSERT INTO workspace_cursors (workspace_id, cursor) VALUES (?, 1)`)
     .run(FIX.workspace);
@@ -137,6 +139,157 @@ async function seedWorkSurface(db: SqlDatabase): Promise<void> {
       contentHash(agentBody),
       NOW,
     );
+}
+
+/** Seeds one claimed execution per attention run plus four ranked open requests. */
+async function seedAttentionSurface(db: SqlDatabase): Promise<void> {
+  const runner = "01SYNTHETICATNRUNNER0000001";
+  const executionA = "01SYNTHETICATNEXECA0000001";
+  const executionB = "01SYNTHETICATNEXECB0000001";
+  const runA = "01SYNTHETICATNRUNA0000001";
+  await db
+    .prepare(
+      `INSERT INTO tasks (
+         workspace_id, id, project_id, parent_task_id, title, state, priority, due_at,
+         next_owner_type, next_owner_id, next_action_reason, punchline,
+         resource_version, created_by_human_id, created_by_delegation_id, created_at
+       ) VALUES (?, ?, ?, NULL, 'Approve the attention queue shape', 'active', 'P1', NULL,
+          'agent_profile', ?, 'An agent run is waiting on these decisions.',
+          'Attention fixture task.', 1, ?, NULL, ?)`,
+    )
+    .run(FIX.workspace, FIX.attentionTask, FIX.projectA, FIX.profileCodex, FIX.owner, NOW);
+  await db
+    .prepare(
+      `INSERT INTO runs
+       (workspace_id, id, project_id, task_id, requested_by_human_id, agent_profile_id,
+        result_state, activity, resource_version, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'open', 'needs_human', 1, ?)`,
+    )
+    .run(FIX.workspace, runA, FIX.projectA, FIX.attentionTask, FIX.owner, FIX.profileCodex, NOW);
+  await db
+    .prepare(
+      `INSERT INTO runners (workspace_id, id, owner_human_id, device_label, public_key_json, key_thumbprint, token_epoch, enrolled_at)
+       VALUES (?, ?, ?, 'Synthetic attention Mac', '{}', 'synthetic-attention-e2e', 1, ?)`,
+    )
+    .run(FIX.workspace, runner, FIX.owner, NOW);
+  for (const project of [FIX.projectA, FIX.projectB]) {
+    await db
+      .prepare(`INSERT INTO runner_project_grants VALUES (?, ?, ?)`)
+      .run(FIX.workspace, runner, project);
+  }
+  for (const [execution, run, task, project] of [
+    [executionA, runA, FIX.attentionTask, FIX.projectA],
+    [executionB, FIX.runDelegable, FIX.taskDelegable, FIX.projectB],
+  ] as const) {
+    await db
+      .prepare(
+        `INSERT INTO run_executions (workspace_id, id, run_id, state, created_at)
+         VALUES (?, ?, ?, 'attached', ?)`,
+      )
+      .run(FIX.workspace, execution, run, NOW);
+    await db
+      .prepare(
+        `INSERT INTO execution_assignments
+         (workspace_id, execution_id, assignment_generation, run_id, task_id, project_id,
+          runner_id, checkout_id, physical_worktree_hash, requesting_human_id,
+          requesting_human_epoch, runner_authorization_epoch, runner_grant_epoch,
+          runner_key_thumbprint, created_at)
+         VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, ?, 1, 1, 1, 'synthetic-attention-e2e', ?)`,
+      )
+      .run(
+        FIX.workspace,
+        execution,
+        run,
+        task,
+        project,
+        runner,
+        `checkout-${execution}`,
+        `sha256:${"e".repeat(64)}`,
+        FIX.owner,
+        NOW,
+      );
+  }
+  const requests = [
+    {
+      id: FIX.attentionBlocker,
+      project: FIX.projectA,
+      task: FIX.attentionTask,
+      run: runA,
+      execution: executionA,
+      kind: "blocker",
+      role: "member",
+      question: "Synthetic blocker question",
+      blocking: 1,
+      at: "2026-08-07T11:00:00Z",
+    },
+    {
+      id: FIX.attentionDestructive,
+      project: FIX.projectB,
+      task: FIX.taskDelegable,
+      run: FIX.runDelegable,
+      execution: executionB,
+      kind: "destructive_action",
+      role: "owner",
+      question: "Synthetic destructive-action question",
+      blocking: 1,
+      at: "2026-08-07T11:01:00Z",
+    },
+    {
+      id: FIX.attentionCredential,
+      project: FIX.projectA,
+      task: FIX.attentionTask,
+      run: runA,
+      execution: executionA,
+      kind: "credential",
+      role: "owner",
+      question: "Synthetic credential question",
+      blocking: 0,
+      at: "2026-08-07T11:02:00Z",
+    },
+    {
+      id: FIX.attentionReview,
+      project: FIX.projectA,
+      task: FIX.attentionTask,
+      run: runA,
+      execution: executionA,
+      kind: "review",
+      role: "reviewer",
+      question: "Synthetic review question",
+      blocking: 0,
+      at: "2026-08-07T11:03:00Z",
+    },
+  ] as const;
+  for (const request of requests) {
+    await db
+      .prepare(
+        `INSERT INTO attention_requests
+         (workspace_id, id, project_id, task_id, run_id, run_execution_id,
+          assignment_generation, kind, required_role, reference_kind, reference_id,
+          question, blocking, state, answer, answered_by_human_id,
+          requested_at, first_response_at, answered_at, resolved_at, resource_version)
+         VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, NULL, NULL, ?, ?, 'open', NULL, NULL, ?, NULL, NULL, NULL, 1)`,
+      )
+      .run(
+        FIX.workspace,
+        request.id,
+        request.project,
+        request.task,
+        request.run,
+        request.execution,
+        request.kind,
+        request.role,
+        request.question,
+        request.blocking,
+        request.at,
+      );
+    await db
+      .prepare(
+        `INSERT INTO attention_observations
+         (workspace_id, observation_id, attention_id, observed_kind, actor_type, actor_id, occurred_at)
+         VALUES (?, ?, ?, 'requested', 'agent_run', ?, ?)`,
+      )
+      .run(FIX.workspace, `obs-${request.id}`, request.id, request.run, request.at);
+  }
 }
 
 function fakeBinding<T extends object>(label: string): T {
