@@ -13,6 +13,7 @@ import {
 function env(overrides: Partial<ArtifactBindings> = {}): ArtifactBindings {
   return {
     ARTIFACTS: { __synthetic: "r2" } as unknown as R2Bucket,
+    DB: { __synthetic: "d1" } as unknown as D1Database,
     ARTIFACT_ORIGIN: "https://artifacts.bfb.example.test",
     APP_ORIGIN: "https://bfb.example.test",
     ENVIRONMENT: "local",
@@ -31,6 +32,16 @@ describe("artifact env", () => {
     const value = env();
     delete (value as { ARTIFACTS?: R2Bucket }).ARTIFACTS;
     expect(() => validateArtifactEnv(value)).toThrow(/missing binding: ARTIFACTS/);
+  });
+
+  it("rejects a missing D1 binding", () => {
+    const value = env();
+    delete (value as { DB?: D1Database }).DB;
+    expect(() => validateArtifactEnv(value)).toThrow(/missing binding: DB/);
+  });
+
+  it("fails uploads closed without an abuse secret", () => {
+    expect(validateArtifactEnv(env()).uploadAbuseSecret).toBe("");
   });
 
   it("rejects shared hostnames even on different ports", () => {

@@ -32,6 +32,12 @@ importers:
 
   apps/artifact-worker:
     dependencies:
+      '@bfb/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@bfb/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       hono:
         specifier: 4.13.1
         version: 4.13.1
@@ -39,6 +45,12 @@ importers:
       '@cloudflare/workers-types':
         specifier: 5.20260810.1
         version: 5.20260810.1
+      '@types/better-sqlite3':
+        specifier: 7.6.13
+        version: 7.6.13
+      better-sqlite3:
+        specifier: 12.6.2
+        version: 12.6.2
       wrangler:
         specifier: 4.120.1
         version: 4.120.1(@cloudflare/workers-types@5.20260810.1)

@@ -4,11 +4,19 @@
 name = "bfb-artifact-local"
 main = "src/index.ts"
 compatibility_date = "2026-08-01"
+compatibility_flags = ["nodejs_compat"]
 
 [vars]
 ENVIRONMENT = "local"
 ARTIFACT_ORIGIN = "http://artifacts.bfb.localhost:8788"
 APP_ORIGIN = "http://bfb.localhost:8787"
+UPLOAD_ABUSE_SECRET = "v01-local-upload-abuse-secret-9f27c4axx-long"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "bfb-local"
+database_id = "00000000-0000-4000-8000-000000000001"
+migrations_dir = "../../migrations/d1"
 
 [dev]
 ip = "127.0.0.1"
