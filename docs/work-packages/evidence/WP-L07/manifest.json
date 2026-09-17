@@ -10,7 +10,7 @@
     "pnpm": "11.21.0",
     "go": "1.26.5",
     "xcode": "26.0.1",
-    "claude": "2.1.274"
+    "claude": "2.1.275"
   },
   "environment": {
     "kind": "clean_checkout",

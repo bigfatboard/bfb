@@ -56,8 +56,9 @@ A card can open a supported Claude Code version in the exact checkout, bind the 
 ### Produces
 
 - Claude provider-local descriptor, capability manifest `1.0.0` with tested
-  version `2.1.274`, and adapter (interactive launch, exact-session resume,
-  interrupt/terminate, raw-hook parser, setup/doctor editors and CLI).
+  versions `2.1.274` and `2.1.275`, and adapter (interactive launch,
+  exact-session resume, interrupt/terminate, raw-hook parser, setup/doctor
+  editors and CLI).
 - `provider setup claude` / `provider doctor claude` transaction shape with
   combined proposal approval, drift/duplicate/unknown-version diagnostics, and
   an honestly unverified local-MCP startup check pending A01.
@@ -99,8 +100,13 @@ A card can open a supported Claude Code version in the exact checkout, bind the 
 ## Risks and decisions
 
 - CLI flags, trust behavior, and hook payloads are external contracts; keep real-version fixtures and fail closed on drift.
-- Only `2.1.274` is certified. Any auto-updated version probes as
-  `unknown_version` with no tracked capabilities until its fixtures pass.
+- Only `2.1.274` and `2.1.275` are certified. Any other auto-updated
+  version probes as `unknown_version` with no tracked capabilities until its
+  fixtures pass. The 2.1.275 recapture found no certified-surface change
+  from 2.1.274 (identical hook key sets, config locations, and
+  setup/doctor behavior); the only observed differences are `--init-only`
+  missing from `--help` (the flag still works) and a login hint appended
+  to the unauthenticated `-p` stderr.
 - Headless launch, discussion turns, fork, read-only tool boundaries, and MCP
   stdio stay uncertified until A01/E01 prove the local server and ledger;
   configs requiring them fail closed at plan time.
@@ -118,7 +124,7 @@ A card can open a supported Claude Code version in the exact checkout, bind the 
   this branch; `Status` stays `planned` because A01, E01, L05, and L06 are not
   `done`, so `pnpm roadmap:check` rejects anything beyond `planned`.
 - Acceptance 3 (unknown version blocks tracked mode): proven. Any version
-  other than `2.1.274` probes as `unknown_version` with no tracked
+  other than `2.1.274`/`2.1.275` probes as `unknown_version` with no tracked
   capabilities; plan and doctor fail closed.
 - Acceptance 4 (setup preservation, approved diff, concurrent-edit abort,
   rollback, byte-identical untouched files): proven through the L03

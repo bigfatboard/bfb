@@ -1,7 +1,7 @@
 {
   "package": "L07",
   "tested_commit": "dfbf93e13ef2904696a391e3598cd91ede6962bc",
-  "claude_version": "2.1.274",
+  "claude_version": "2.1.275",
   "commands": [
     {
       "command": "pnpm test:l07",
@@ -31,7 +31,7 @@
     {
       "command": "bfb provider setup claude plus bfb provider doctor claude",
       "outcome": "passed",
-      "detail": "Preview, combined-approval apply, and doctor exercised against the real Claude Code 2.1.274 in an isolated home: every check passed except the honestly unverified local-MCP startup (A01 pending). No real user configuration was touched."
+      "detail": "Preview, combined-approval apply, re-preview, and doctor exercised against the real Claude Code 2.1.275 in an isolated home: apply records both files, re-preview is current with no unapproved diff, and every doctor check passed except the honestly unverified local-MCP startup (A01 pending). 2.1.274 behavior stands on the committed fixtures and stub-versioned suites. No real user configuration was touched."
     }
   ],
   "proven_now": [
