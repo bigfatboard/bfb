@@ -2127,6 +2127,28 @@
       "schema": "discussion-receipt",
       "expect": "reject",
       "category": "additional_field"
+    },
+    {
+      "path": "valid/local-rpc.v01-publish-request.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.v01-publish-response.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/local-rpc.v01-publish-unknown-field.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/local-rpc.v01-publish-missing-path.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "missing_field"
     }
   ]
 }
