@@ -31,6 +31,22 @@ queue = "bfb-jobs"
 binding = "JOBS_DLQ"
 queue = "bfb-jobs-dlq"
 
+# X01 owns these notification queue names and this consumer registration.
+[[queues.producers]]
+binding = "NOTIFY_JOBS"
+queue = "bfb-notify"
+
+[[queues.producers]]
+binding = "NOTIFY_DLQ"
+queue = "bfb-notify-dlq"
+
+[[queues.consumers]]
+queue = "bfb-notify"
+max_batch_size = 10
+max_batch_timeout = 5
+max_retries = 5
+dead_letter_queue = "bfb-notify-dlq"
+
 [assets]
 directory = "../web/dist"
 binding = "ASSETS"

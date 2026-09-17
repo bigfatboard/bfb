@@ -66,6 +66,29 @@ export function createFetchHandler(options: ControlFetchOptions = {}) {
 
 export default {
   fetch: createFetchHandler(),
+  async queue(
+    batch: MessageBatch,
+    env: ControlBindings,
+    _ctx?: ExecutionContext,
+  ): Promise<void> {
+    const validated = validateControlEnv(env);
+    if (!validated.bindings.NOTIFY_JOBS || !validated.bindings.NOTIFY_DLQ) {
+      throw new Error("notification queue bindings are not configured");
+    }
+    const { handleNotifyQueue } = await import("./notifications/queue.js");
+    await handleNotifyQueue(
+      batch as MessageBatch<import("./notifications/queue.js").NotifyMessage>,
+      {
+        DB: validated.bindings.DB,
+        NOTIFY_JOBS: validated.bindings.NOTIFY_JOBS,
+        NOTIFY_DLQ: validated.bindings.NOTIFY_DLQ,
+        APP_ORIGIN: validated.origins.appOrigin,
+        VAPID_PUBLIC_KEY: validated.bindings.VAPID_PUBLIC_KEY,
+        VAPID_PRIVATE_KEY: validated.bindings.VAPID_PRIVATE_KEY,
+        VAPID_SUBJECT: validated.bindings.VAPID_SUBJECT,
+      },
+    );
+  },
   async scheduled(
     _controller: ScheduledController,
     env: ControlBindings,
@@ -77,6 +100,12 @@ export default {
       await runArtifactSweep(adaptD1(env.DB), new Date().toISOString());
     } catch {
       // The sweep is idempotent and retried on the next Cron tick.
+    }
+    try {
+      const { runNotificationSweep } = await import("./notifications/sweep.js");
+      await runNotificationSweep(env);
+    } catch {
+      // Notification dispatch is idempotent and retried on the next Cron tick.
     }
   },
 };

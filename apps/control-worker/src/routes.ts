@@ -7,6 +7,8 @@ import type { SqlDatabase } from "@bfb/db";
 import { DomainError } from "@bfb/domain";
 
 import { handleAttentionApi } from "./api/attention.js";
+import { handleNotificationApi } from "./api/notifications.js";
+import { handleNotificationRunnerApi, isNotificationRunnerPath } from "./api/notification-runner.js";
 import { handleEventBrowserApi, handleRunnerEventApi, isRunnerEventPath } from "./api/events.js";
 import { handleBrowserRealtimeApi, isBrowserRealtimePath } from "./api/realtime.js";
 import { handleWorkApi } from "./api/work.js";
@@ -148,7 +150,9 @@ export function createControlApp(
         ? handleRunnerEventApi
         : isRunnerChannelPath(c.req.path)
           ? handleRunnerChannelApi
-          : handleRunnerNativeApi;
+          : isNotificationRunnerPath(c.req.path)
+            ? handleNotificationRunnerApi
+            : handleRunnerNativeApi;
     return handler(c.req.raw, {
       db,
       now: c.get("now") ?? now,
@@ -538,6 +542,17 @@ export function createControlApp(
         c.req.path.startsWith(`${projectPrefix}/attention/`)
       ) {
         return await handleAttentionApi(c.req.raw, apiDeps);
+      }
+      if (
+        c.req.path === `${projectPrefix}/notifications/preferences` ||
+        c.req.path === `${projectPrefix}/notifications/deliveries` ||
+        c.req.path === `${projectPrefix}/notifications/push-endpoints` ||
+        c.req.path.startsWith(`${projectPrefix}/notifications/push-endpoints/`)
+      ) {
+        return await handleNotificationApi(c.req.raw, {
+          ...apiDeps,
+          abuseSecret: runtime.abuseSecret,
+        });
       }
       return await handleWorkApi(c.req.raw, apiDeps);
     } catch (error) {

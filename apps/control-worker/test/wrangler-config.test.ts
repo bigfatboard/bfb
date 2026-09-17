@@ -79,7 +79,14 @@ describe("wrangler substrate configs", () => {
       expect(body).toMatch(/migrations_dir = "\.\.\/\.\.\/migrations\/d1"/);
       expect(body).toMatch(/\[triggers\]/);
       expect(body).toMatch(/crons\s*=\s*\["\*\/5 \* \* \* \*"\]/);
-      expect(body).not.toMatch(/\[\[queues\.consumers\]\]/);
+      // X01 owns the only queue consumer: the notification queue with its
+      // matching DLQ. Later packages add their own distinct queues/consumers.
+      const consumers = [...body.matchAll(/\[\[queues\.consumers\]\]\s*\nqueue = "([^"]+)"\s*\nmax_batch_size = 10\s*\nmax_batch_timeout = 5\s*\nmax_retries = 5\s*\ndead_letter_queue = "([^"]+)"/g)];
+      expect(consumers.length).toBe(1);
+      expect(consumers[0]?.[1]).toMatch(/^bfb-notify(-staging)?(-local)?$/);
+      expect(consumers[0]?.[2]).toBe(`${consumers[0]?.[1]?.replace(/-notify/, "-notify-dlq")}`);
+      expect(body).toMatch(/binding = "NOTIFY_JOBS"/);
+      expect(body).toMatch(/binding = "NOTIFY_DLQ"/);
     }
   });
 

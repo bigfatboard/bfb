@@ -1,5 +1,5 @@
 {
-  "migration_head": "0025_discussion_delivery",
+  "migration_head": "0030_notifications",
   "migrations": [
     {
       "id": "0001_workspace_registry",
@@ -92,6 +92,10 @@
     {
       "id": "0025_discussion_delivery",
       "file": "0025_discussion_delivery.sql"
+    },
+    {
+      "id": "0030_notifications",
+      "file": "0030_notifications.sql"
     }
   ]
 }

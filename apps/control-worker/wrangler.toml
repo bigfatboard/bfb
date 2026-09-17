@@ -36,6 +36,24 @@ queue = "bfb-jobs-local"
 binding = "JOBS_DLQ"
 queue = "bfb-jobs-dlq-local"
 
+# X01 owns these notification queue names and this consumer registration.
+# Other packages (for example X04) add their own distinct queues, DLQs and
+# consumers; nothing shares the NOTIFY_* bindings.
+[[queues.producers]]
+binding = "NOTIFY_JOBS"
+queue = "bfb-notify-local"
+
+[[queues.producers]]
+binding = "NOTIFY_DLQ"
+queue = "bfb-notify-dlq-local"
+
+[[queues.consumers]]
+queue = "bfb-notify-local"
+max_batch_size = 10
+max_batch_timeout = 5
+max_retries = 5
+dead_letter_queue = "bfb-notify-dlq-local"
+
 [assets]
 directory = "../web/dist"
 binding = "ASSETS"
