@@ -1,0 +1,18 @@
+{
+  "provider": "claude",
+  "source": "hook usage payload with cache read and creation counters",
+  "quality": "provider_reported",
+  "raw": {
+    "input_tokens": 10,
+    "output_tokens": 20,
+    "cache_read_input_tokens": 4,
+    "cache_creation_input_tokens": 6
+  },
+  "expected": {
+    "input": 10,
+    "output": 20,
+    "cache_read": 4,
+    "cache_write": 6,
+    "reasoning": null
+  }
+}

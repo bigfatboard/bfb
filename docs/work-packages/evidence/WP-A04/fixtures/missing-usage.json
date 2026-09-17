@@ -1,0 +1,13 @@
+{
+  "provider": "codex",
+  "source": "turn.completed with no usage object; the provider exposed no count",
+  "quality": "unavailable",
+  "raw": {},
+  "expected": {
+    "input": null,
+    "output": null,
+    "cache_read": null,
+    "cache_write": null,
+    "reasoning": null
+  }
+}

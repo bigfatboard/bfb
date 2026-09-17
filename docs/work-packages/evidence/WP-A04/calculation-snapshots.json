@@ -1,0 +1,59 @@
+{
+  "snapshots": {
+    "migration": {
+      "preserved_task": "01M0YRJ1EHHG9CQDFSCM348W0M",
+      "tables": 5
+    },
+    "claim": {
+      "run": "01KTXJ3K4Q5ZR5PMH0MPHA0CR7",
+      "execution": "01H6TP6JWACVKPWSH484K17W96"
+    },
+    "fixtures": {
+      "normalized": 3
+    },
+    "tokens": {
+      "stored": 3,
+      "duplicate_replays": 1,
+      "conflicts": 1
+    },
+    "intervals": {
+      "stored": 2,
+      "union_ms": 180000
+    },
+    "derivation": {
+      "launch_latency_ms": 30000,
+      "active_ms": 50000,
+      "process_elapsed_ms": 330000,
+      "offline_ms": 230000,
+      "attention_wait_ms": 120000,
+      "external_wait_ms": 180000,
+      "exact_input": 1000000,
+      "estimated_input": 100,
+      "unavailable": 1
+    },
+    "prices": {
+      "current_usd": 4.5,
+      "historical_usd": 6,
+      "unknown_model": "unknown_model"
+    },
+    "review_timer": {
+      "observations": 2,
+      "stopped_total_ms": 240000,
+      "double_start_rejected": true,
+      "foreign_stop_rejected": true
+    },
+    "browser_activity": {
+      "capped": true,
+      "stored_ms": 300000
+    },
+    "aggregation": {
+      "cells": 1,
+      "runs": 1,
+      "provider": "fake"
+    },
+    "token_facts": {
+      "rows": 3,
+      "exact_input": 1000000
+    }
+  }
+}
