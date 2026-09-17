@@ -103,8 +103,19 @@ export function useRunRealtime(options: {
   transport?: RealtimeTransport;
   nowImpl?: () => number;
 }): RunRealtime {
-  const fetchFn = options.fetchImpl ?? fetch;
-  const nowImpl = options.nowImpl ?? (() => Date.now());
+  // Seams stay in refs so the socket lifecycle below runs once per run and
+  // never reconnects just because an inline default was recreated on render.
+  // The fetch wrapper preserves a bare call: window.fetch throws when it is
+  // invoked as a method on a foreign receiver.
+  const seams = useRef({
+    fetchFn: (...args: Parameters<typeof fetch>) => (options.fetchImpl ?? fetch)(...args),
+    nowImpl: options.nowImpl ?? (() => Date.now()),
+    transport: options.transport,
+  });
+  const fetchImpl = options.fetchImpl ?? fetch;
+  seams.current.fetchFn = (...args: Parameters<typeof fetch>) => fetchImpl(...args);
+  seams.current.nowImpl = options.nowImpl ?? (() => Date.now());
+  seams.current.transport = options.transport;
   const [envelopes, setEnvelopes] = useState<ReplayEnvelope[]>([]);
   const [comments, setComments] = useState<CommentNote[]>([]);
   const [memberOnly, setMemberOnly] = useState(false);
@@ -112,23 +123,25 @@ export function useRunRealtime(options: {
   const [socketOpen, setSocketOpen] = useState(false);
   const [lastSignalAt, setLastSignalAt] = useState<number | null>(null);
   const [retryCount, setRetryCount] = useState(0);
-  const [clock, setClock] = useState(() => nowImpl());
+  const [clock, setClock] = useState(() => Date.now());
   const machine = useRef(createResyncMachine(0));
   const channel = useRef<RealtimeChannel | null>(null);
   const connectionId = useRef<string | null>(null);
+  const readyReceived = useRef(false);
+  const fallbackTried = useRef(false);
   const mounted = useRef(true);
   const state = useRef({ runId: options.runId, workspaceId: options.workspaceId });
   state.current = { runId: options.runId, workspaceId: options.workspaceId };
 
   const markSignal = useCallback(() => {
-    if (mounted.current) setLastSignalAt(nowImpl());
-  }, [nowImpl]);
+    if (mounted.current) setLastSignalAt(seams.current.nowImpl());
+  }, []);
 
   const runFetch = useCallback(
     async (after: number, through: number): Promise<void> => {
       const { runId, workspaceId } = state.current;
       if (!runId || !mounted.current) return;
-      const response = await fetchFn(
+      const response = await seams.current.fetchFn(
         `/api/v1/workspaces/${workspaceId}/events?after_cursor=${after}&through_cursor=${through}&limit=${REPLAY_LIMIT}`,
       );
       if (response.status === 403) {
@@ -168,20 +181,55 @@ export function useRunRealtime(options: {
         requestedThrough: through,
         hasMore: body.has_more === true,
       });
+      // Self-recursion is safe: stable deps keep one callback instance alive.
       for (const effect of pending) await runFetch(effect.after, effect.through);
     },
-    [fetchFn, markSignal],
+    [markSignal],
   );
+
+  /**
+   * HTTP fallback when the socket dies before the first ready mark. The
+   * response carries the authoritative high-water cursor, which re-enters
+   * the machine as a synthetic ready so ordering and dedupe stay
+   * single-pathed. A 403 here is the reviewer fence, not a retryable fault.
+   */
+  const fallbackLoad = useCallback(async (): Promise<void> => {
+    const { runId, workspaceId } = state.current;
+    if (!runId || !mounted.current) return;
+    let response: Response;
+    try {
+      response = await seams.current.fetchFn(
+        `/api/v1/workspaces/${workspaceId}/events?after_cursor=0&through_cursor=${Number.MAX_SAFE_INTEGER}&limit=1`,
+      );
+    } catch {
+      return;
+    }
+    if (!mounted.current) return;
+    if (response.status === 403) {
+      setMemberOnly(true);
+      setRetryCount(MAX_RETRIES);
+      machine.current.dispatch({ type: "replay-failed", error: "member-only replay" });
+      return;
+    }
+    if (!response.ok) return;
+    const body = await readJson(response);
+    const highWater = typeof body.high_water_cursor === "number" ? body.high_water_cursor : 0;
+    markSignal();
+    const effects = machine.current.dispatch({ type: "ready", highWater });
+    for (const effect of effects) await runFetch(effect.after, effect.through);
+  }, [markSignal, runFetch]);
 
   const connect = useCallback(() => {
     const { runId, workspaceId } = state.current;
     if (!runId) return;
     const url = socketUrl(workspaceId);
-    const transport = options.transport ?? browserTransport();
+    const transport = seams.current.transport ?? browserTransport();
     if (!url) return;
     channel.current?.close();
     channel.current = null;
     connectionId.current = null;
+    readyReceived.current = false;
+    fallbackTried.current = false;
     machine.current = createResyncMachine(
       machine.current.snapshot().appliedThrough,
     );
@@ -199,6 +247,7 @@ export function useRunRealtime(options: {
       if (!frame || frame.workspaceId !== state.current.workspaceId) return;
       markSignal();
       if (frame.kind === "ready") {
+        readyReceived.current = true;
         connectionId.current = frame.connectionId;
         setSocketOpen(true);
         const effects = machine.current.dispatch({ type: "ready", highWater: frame.highWater });
@@ -231,6 +280,10 @@ export function useRunRealtime(options: {
         setNotice("Workspace access changed. Reload to resume live updates.");
         return;
       }
+      if (!readyReceived.current && !fallbackTried.current) {
+        fallbackTried.current = true;
+        void fallbackLoad();
+      }
       setRetryCount((count) => {
         if (TRANSIENT_CLOSE.has(code) && count < MAX_RETRIES && typeof window !== "undefined") {
           window.setTimeout(() => {
@@ -244,7 +297,7 @@ export function useRunRealtime(options: {
         return count;
       });
     };
-  }, [markSignal, options.transport, runFetch]);
+  }, [fallbackLoad, markSignal, runFetch]);
 
   const reconnect = useCallback(() => {
     setNotice(null);
@@ -264,7 +317,7 @@ export function useRunRealtime(options: {
     if (!runId) return undefined;
     void (async () => {
       try {
-        const response = await fetchFn(
+        const response = await seams.current.fetchFn(
           `/api/v1/workspaces/${workspaceId}/tasks/${options.taskId}/comments?limit=100`,
         );
         if (!response.ok || !mounted.current) return;
@@ -292,7 +345,7 @@ export function useRunRealtime(options: {
       }
     }, HEARTBEAT_INTERVAL_MS);
     const ticker = window.setInterval(() => {
-      if (mounted.current) setClock(nowImpl());
+      if (mounted.current) setClock(seams.current.nowImpl());
     }, 5000);
     return () => {
       mounted.current = false;
@@ -301,7 +354,7 @@ export function useRunRealtime(options: {
       channel.current?.close();
       channel.current = null;
     };
-  }, [connect, fetchFn, nowImpl, options.runId, options.taskId, options.workspaceId]);
+  }, [connect, options.runId, options.taskId, options.workspaceId]);
 
   const entries = useMemo(() => buildTimelineEntries(envelopes), [envelopes]);
   const connectivity = deriveConnectivity({ socketOpen, lastSignalAt, now: clock });
