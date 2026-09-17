@@ -271,24 +271,24 @@ func TestSubmitResultReplayMatrix(t *testing.T) {
 		}
 	})
 	terminal := []struct {
-		name      string
-		authority fakeAuthority
-		policy    bool
-		clock     time.Duration
-		reason    string
+		name   string
+		state  AuthorityState
+		policy bool
+		clock  time.Duration
+		reason string
 	}{
-		{"revoked", fakeAuthority{state: AuthorityState{Revoked: true}}, true, time.Hour, "revoked"},
-		{"execution ended", fakeAuthority{state: AuthorityState{ExecutionEnded: true}}, true, time.Hour, "execution_ended"},
-		{"terminal result", fakeAuthority{state: AuthorityState{ResultTerminal: true}}, true, time.Hour, "result_terminal"},
-		{"expired", fakeAuthority{}, true, 25 * time.Hour, "expired"},
-		{"policy changed", fakeAuthority{}, false, time.Hour, "policy_changed"},
+		{"revoked", AuthorityState{Revoked: true}, true, time.Hour, "revoked"},
+		{"execution ended", AuthorityState{ExecutionEnded: true}, true, time.Hour, "execution_ended"},
+		{"terminal result", AuthorityState{ResultTerminal: true}, true, time.Hour, "result_terminal"},
+		{"expired", AuthorityState{}, true, 25 * time.Hour, "expired"},
+		{"policy changed", AuthorityState{}, false, time.Hour, "policy_changed"},
 	}
 	for _, tc := range terminal {
 		t.Run(tc.name, func(t *testing.T) {
 			journal := stage(t, "submit-replay-"+strings.ReplaceAll(tc.name, " ", "-"))
 			defer journal.Close()
 			online := syntheticTransport()
-			results, err := Replay(context.Background(), journal, online, &fakeAuthority{state: tc.authority.state}, fakeReplayPolicy{allow: tc.policy}, syntheticTime.Add(tc.clock), 16)
+			results, err := Replay(context.Background(), journal, online, &fakeAuthority{state: tc.state}, fakeReplayPolicy{allow: tc.policy}, syntheticTime.Add(tc.clock), 16)
 			if err != nil {
 				t.Fatal(err)
 			}
