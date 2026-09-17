@@ -21,7 +21,6 @@ import { createTestHarness } from "wrangler";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const migrationManifest = loadMigrationManifest(resolve(repoRoot, "migrations/d1"));
-const migrationHeadFile = `${migrationManifest.migration_head}.sql`;
 const origin = "https://bfb.results.test";
 const now = "2026-08-12T08:00:00Z";
 const later = "2026-08-12T09:00:00Z";
@@ -145,7 +144,10 @@ async function main(): Promise<void> {
     await server.listen();
     const hubWorker = server.getWorker("bfb-results-hub");
     await hubWorker.applyD1Migrations("DB");
-    assert.equal(migrationHeadFile, "0024_result_submissions.sql");
+    assert.ok(
+      migrationManifest.migrations.some((entry) => entry.id === "0024_result_submissions"),
+      "A03 result submission migration must be registered",
+    );
     const env = (await hubWorker.getEnv()) as unknown as HubEnv;
     const db = adaptD1(env.DB);
     const workspaceId = randomUlid();

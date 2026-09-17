@@ -20,7 +20,6 @@ const execFileAsync = promisify(execFile);
 const migrationsDir = resolve(root, "migrations/d1");
 
 const manifest = loadMigrationManifest(migrationsDir);
-assert.equal(manifest.migration_head, "0025_discussion_delivery");
 assert.ok(
   manifest.migrations.some((entry) => entry.id === "0025_discussion_delivery"),
   "D02 delivery migration must be registered",
@@ -29,7 +28,7 @@ assert.ok(
 const db = new Database(":memory:");
 const applied = applyMigrationsForVerification(db as unknown as MigrationDatabase, migrationsDir);
 assert.equal(applied.status, "complete");
-assert.equal(applied.head, "0025_discussion_delivery");
+assert.ok(applied.head >= "0025_discussion_delivery", "D02 delivery migration must be applied");
 for (const index of [
   "discussion_deliveries_d02_schedule",
   "discussion_turns_d02_schedule",
