@@ -748,7 +748,7 @@ try {
     "",
   ].join("\n");
   writeFileSync(join(evidenceDir, "hostile-corpus.md"), corpusReport);
-  writeFileSync(join(evidenceDir, "headers.json"), JSON.stringify(headerCaptures, null, 2));
+  writeFileSync(join(evidenceDir, "headers.json"), `${JSON.stringify(headerCaptures, null, 2)}\n`);
   console.log(`[v02] evidence: ${evidenceDir}`);
 
   console.log(JSON.stringify({ ...outcomes, evidenceDir }));
