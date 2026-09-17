@@ -15,10 +15,10 @@ const MaxOutputBytes = 8192
 // EvidenceRef attributes one supporting reference to frozen context or to a
 // repository-relative file at the frozen Git revision.
 type EvidenceRef struct {
-	Kind            string `json:"kind"`
-	ContextID       string `json:"context_id,omitempty"`
-	RepositoryPath  string `json:"repository_path,omitempty"`
-	GitRevision     string `json:"git_revision,omitempty"`
+	Kind           string `json:"kind"`
+	ContextID      string `json:"context_id,omitempty"`
+	RepositoryPath string `json:"repository_path,omitempty"`
+	GitRevision    string `json:"git_revision,omitempty"`
 }
 
 // MessageRef attributes one agreement or disagreement to a completed source message.
@@ -29,13 +29,13 @@ type MessageRef struct {
 
 // Recommendation is the bounded typed output of one participant turn.
 type Recommendation struct {
-	SchemaVersion  int          `json:"schema_version"`
-	Recommendation string       `json:"recommendation"`
-	Reasons        []string     `json:"reasons"`
+	SchemaVersion  int           `json:"schema_version"`
+	Recommendation string        `json:"recommendation"`
+	Reasons        []string      `json:"reasons"`
 	Evidence       []EvidenceRef `json:"evidence"`
-	Agreement      []MessageRef `json:"agreement"`
-	Disagreements  []MessageRef `json:"disagreements"`
-	HumanQuestions []string     `json:"human_questions"`
+	Agreement      []MessageRef  `json:"agreement"`
+	Disagreements  []MessageRef  `json:"disagreements"`
+	HumanQuestions []string      `json:"human_questions"`
 }
 
 func validMessageID(value string) bool {
@@ -152,9 +152,9 @@ func (store *Store) ReadOutput(ctx context.Context, discussionID string, slot, o
 // Conclusion freezes references to the final two attributed recommendations.
 // It preserves disagreements verbatim and never synthesizes consensus.
 type Conclusion struct {
-	DiscussionID     string           `json:"discussion_id"`
+	DiscussionID     string            `json:"discussion_id"`
 	Recommendations  [2]Recommendation `json:"recommendations"`
-	DisagreementKept bool             `json:"disagreement_kept"`
+	DisagreementKept bool              `json:"disagreement_kept"`
 }
 
 // AssembleConclusion builds the bounded conclusion from the final two

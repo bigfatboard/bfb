@@ -120,17 +120,30 @@ func (store *Store) Owned(ctx context.Context, discussionID string, slot int) (O
 }
 
 // CheckWriter verifies the calling worker still holds the current fencing
-// generation. A superseded worker fails with fencing_stale and must stop.
+// generation and the owner is live. A superseded worker fails with
+// fencing_stale and must stop; new effects need a live owner.
 func (store *Store) CheckWriter(ctx context.Context, discussionID string, slot int, worker string, fencing int64) (Ownership, error) {
+	current, err := store.checkFencing(ctx, discussionID, slot, worker, fencing)
+	if err != nil {
+		return Ownership{}, err
+	}
+	if current.State != "owned" {
+		return Ownership{}, failure("discussion_stopped")
+	}
+	return current, nil
+}
+
+// checkFencing verifies worker/fencing currency without a liveness gate.
+// Reconciling an existing effect (acknowledge, confirm, complete, fail,
+// ambiguous) settles old work and stays allowed while paused; only new
+// dispatches require a live owner through CheckWriter.
+func (store *Store) checkFencing(ctx context.Context, discussionID string, slot int, worker string, fencing int64) (Ownership, error) {
 	current, err := store.Owned(ctx, discussionID, slot)
 	if err != nil {
 		return Ownership{}, err
 	}
 	if current.OwnerWorker != worker || current.Fencing != fencing {
 		return Ownership{}, failure("fencing_stale")
-	}
-	if current.State != "owned" {
-		return Ownership{}, failure("discussion_stopped")
 	}
 	return current, nil
 }
@@ -142,7 +155,9 @@ func (store *Store) BindSession(ctx context.Context, discussionID string, slot i
 	if !sessionPattern.MatchString(observed) {
 		return failure("session_mismatch")
 	}
-	current, err := store.CheckWriter(ctx, discussionID, slot, worker, fencing)
+	// Binding settles session identity for an existing effect, so currency
+	// suffices: the first acknowledgement may arrive while paused.
+	current, err := store.checkFencing(ctx, discussionID, slot, worker, fencing)
 	if err != nil {
 		return err
 	}
@@ -184,9 +199,10 @@ func (store *Store) Pause(ctx context.Context, discussionID string, slot int, wo
 }
 
 // Release frees ownership after every in-flight attempt has settled. Process
-// uncertainty retains guards: unknown attempts block release.
+// uncertainty retains guards: unknown and ambiguous attempts block release,
+// and a paused owner reports recovery_pending rather than releasing.
 func (store *Store) Release(ctx context.Context, discussionID string, slot int, worker string, fencing int64, now string) error {
-	current, err := store.CheckWriter(ctx, discussionID, slot, worker, fencing)
+	current, err := store.checkFencing(ctx, discussionID, slot, worker, fencing)
 	if err != nil {
 		return err
 	}
@@ -199,6 +215,9 @@ func (store *Store) Release(ctx context.Context, discussionID string, slot int, 
 	}
 	if unsettled != 0 {
 		return failure("recovery_pending")
+	}
+	if current.State != "owned" {
+		return failure("discussion_stopped")
 	}
 	if _, err := store.db.ExecContext(ctx,
 		`UPDATE discussion_ownership SET state = 'released', revision = revision + 1, updated_at = ?
@@ -223,10 +242,14 @@ func (store *Store) Reacquire(ctx context.Context, discussionID string, slot int
 	if current.State == "released" {
 		return Ownership{}, failure("invalid_request")
 	}
+	// Reopen must run first: started and acknowledged attempts block
+	// reacquire until they are marked unknown. Recorded attempts never
+	// reached an effect and stay retryable; unknown and ambiguous attempts
+	// already retain their guards and travel with the new fencing generation.
 	var unsettled int
 	if err := store.db.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM discussion_attempts
-		 WHERE discussion_id = ? AND slot = ? AND state IN ('recorded', 'effect_started', 'acknowledged', 'unknown')`,
+		 WHERE discussion_id = ? AND slot = ? AND state IN ('effect_started', 'acknowledged')`,
 		discussionID, slot).Scan(&unsettled); err != nil {
 		return Ownership{}, failure("storage_failed")
 	}

@@ -66,10 +66,10 @@ type TurnRequest struct {
 
 // TurnResult is the observed provider outcome for one turn.
 type TurnResult struct {
-	ObservedSession   string
-	Output            []byte
-	ProviderEffect    bool
-	ProviderEvidence  string
+	ObservedSession  string
+	Output           []byte
+	ProviderEffect   bool
+	ProviderEvidence string
 }
 
 // Runner executes one planned turn behind the recorded attempt. The fake
@@ -91,6 +91,9 @@ func (store *Store) RecordAttempt(ctx context.Context, request TurnRequest, fenc
 		!validIdentity(request.DeliveryID) || (request.Slot != 0 && request.Slot != 1) ||
 		request.Ordinal < 1 || request.Ordinal > MaxTurns || !validWorker(request.IdempotencyKey) {
 		return Attempt{}, failure("invalid_request")
+	}
+	if _, err := store.CheckWriter(ctx, request.DiscussionID, request.Slot, request.Worker, request.Fencing); err != nil {
+		return Attempt{}, err
 	}
 	attemptID := request.DeliveryID
 	_, err := store.db.ExecContext(ctx,
@@ -146,19 +149,46 @@ func (store *Store) MarkEffectStarted(ctx context.Context, attemptID, worker str
 	if err != nil {
 		return err
 	}
-	if attempt.Fencing != fencing {
-		return failure("fencing_stale")
+	if _, err := store.checkFencing(ctx, attempt.DiscussionID, attempt.Slot, worker, fencing); err != nil {
+		return err
 	}
 	if attempt.State != "recorded" {
 		return failure("invalid_transition")
 	}
-	if _, err := store.CheckWriter(ctx, attempt.DiscussionID, attempt.Slot, worker, fencing); err != nil {
+	if _, err := store.db.ExecContext(ctx,
+		`UPDATE discussion_attempts SET state = 'effect_started', effect_started = 1, fencing = ?, updated_at = ?
+		 WHERE attempt_id = ? AND state = 'recorded'`,
+		fencing, now, attemptID); err != nil {
+		return failure("storage_failed")
+	}
+	return nil
+}
+
+// NoEffectError reports a proven provider non-start: the runner refused the
+// spawn before any child could exist, so no external effect is possible.
+// DispatchTurn returns the attempt to recorded and reports dispatch_failed,
+// which stays retryable. Any uncertain loss keeps the attempt started.
+type NoEffectError struct{ Reason string }
+
+func (err *NoEffectError) Error() string { return "discussion: no provider effect: " + err.Reason }
+
+// MarkRecorded returns a started attempt to recorded after a proven non-start.
+// It never applies to an uncertain loss: those reconcile through Reopen.
+func (store *Store) MarkRecorded(ctx context.Context, attemptID, worker string, fencing int64, now string) error {
+	attempt, err := store.ReadAttempt(ctx, attemptID)
+	if err != nil {
 		return err
 	}
+	if _, err := store.checkFencing(ctx, attempt.DiscussionID, attempt.Slot, worker, fencing); err != nil {
+		return err
+	}
+	if attempt.State != "effect_started" {
+		return failure("invalid_transition")
+	}
 	if _, err := store.db.ExecContext(ctx,
-		`UPDATE discussion_attempts SET state = 'effect_started', effect_started = 1, updated_at = ?
-		 WHERE attempt_id = ? AND state = 'recorded'`,
-		now, attemptID); err != nil {
+		`UPDATE discussion_attempts SET state = 'recorded', effect_started = 0, fencing = ?, updated_at = ?
+		 WHERE attempt_id = ? AND state = 'effect_started'`,
+		fencing, now, attemptID); err != nil {
 		return failure("storage_failed")
 	}
 	return nil
@@ -177,15 +207,12 @@ func (store *Store) Acknowledge(ctx context.Context, attemptID, worker string, f
 	if err != nil {
 		return err
 	}
-	if attempt.Fencing != fencing {
-		return failure("fencing_stale")
+	ownership, err := store.checkFencing(ctx, attempt.DiscussionID, attempt.Slot, worker, fencing)
+	if err != nil {
+		return err
 	}
 	if attempt.State != "effect_started" {
 		return failure("invalid_transition")
-	}
-	ownership, err := store.CheckWriter(ctx, attempt.DiscussionID, attempt.Slot, worker, fencing)
-	if err != nil {
-		return err
 	}
 	if ownership.ObservedSession != "" && ownership.ObservedSession != session {
 		return failure("session_mismatch")
@@ -206,9 +233,54 @@ func (store *Store) Acknowledge(ctx context.Context, attemptID, worker string, f
 		}
 	}
 	if _, err := store.db.ExecContext(ctx,
-		`UPDATE discussion_attempts SET state = 'acknowledged', session_id = ?, updated_at = ?
+		`UPDATE discussion_attempts SET state = 'acknowledged', session_id = ?, fencing = ?, updated_at = ?
 		 WHERE attempt_id = ? AND state = 'effect_started'`,
-		session, now, attemptID); err != nil {
+		session, fencing, now, attemptID); err != nil {
+		return failure("storage_failed")
+	}
+	return nil
+}
+
+// ConfirmUnknown reconciles an unknown attempt after provider facts prove its
+// effect: the observed session binds exactly once, exactly like Acknowledge,
+// and the attempt carries the current fencing forward.
+func (store *Store) ConfirmUnknown(ctx context.Context, attemptID, worker string, fencing int64, session string, now string) error {
+	if !sessionPattern.MatchString(session) {
+		return failure("session_mismatch")
+	}
+	attempt, err := store.ReadAttempt(ctx, attemptID)
+	if err != nil {
+		return err
+	}
+	ownership, err := store.checkFencing(ctx, attempt.DiscussionID, attempt.Slot, worker, fencing)
+	if err != nil {
+		return err
+	}
+	if attempt.State != "unknown" {
+		return failure("invalid_transition")
+	}
+	if ownership.ObservedSession != "" && ownership.ObservedSession != session {
+		return failure("session_mismatch")
+	}
+	var holder string
+	err = store.db.QueryRowContext(ctx,
+		`SELECT discussion_id FROM discussion_ownership WHERE observed_session = ? AND NOT (discussion_id = ? AND slot = ?)`,
+		session, attempt.DiscussionID, attempt.Slot).Scan(&holder)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return failure("storage_failed")
+	}
+	if err == nil {
+		return failure("session_busy")
+	}
+	if ownership.ObservedSession == "" {
+		if err := store.BindSession(ctx, attempt.DiscussionID, attempt.Slot, worker, fencing, session); err != nil {
+			return err
+		}
+	}
+	if _, err := store.db.ExecContext(ctx,
+		`UPDATE discussion_attempts SET state = 'acknowledged', session_id = ?, fencing = ?, updated_at = ?
+		 WHERE attempt_id = ? AND state = 'unknown'`,
+		session, fencing, now, attemptID); err != nil {
 		return failure("storage_failed")
 	}
 	return nil
@@ -220,18 +292,15 @@ func (store *Store) CompleteAttempt(ctx context.Context, attemptID, worker strin
 	if err != nil {
 		return err
 	}
-	if attempt.Fencing != fencing {
-		return failure("fencing_stale")
+	if _, err := store.checkFencing(ctx, attempt.DiscussionID, attempt.Slot, worker, fencing); err != nil {
+		return err
 	}
 	if attempt.State != "acknowledged" {
 		return failure("invalid_transition")
 	}
-	if _, err := store.CheckWriter(ctx, attempt.DiscussionID, attempt.Slot, worker, fencing); err != nil {
-		return err
-	}
 	if _, err := store.db.ExecContext(ctx,
-		`UPDATE discussion_attempts SET state = 'completed', updated_at = ? WHERE attempt_id = ? AND state = 'acknowledged'`,
-		now, attemptID); err != nil {
+		`UPDATE discussion_attempts SET state = 'completed', fencing = ?, updated_at = ? WHERE attempt_id = ? AND state = 'acknowledged'`,
+		fencing, now, attemptID); err != nil {
 		return failure("storage_failed")
 	}
 	return nil
@@ -243,19 +312,16 @@ func (store *Store) FailAttempt(ctx context.Context, attemptID, worker string, f
 	if err != nil {
 		return err
 	}
-	if attempt.Fencing != fencing {
-		return failure("fencing_stale")
+	if _, err := store.checkFencing(ctx, attempt.DiscussionID, attempt.Slot, worker, fencing); err != nil {
+		return err
 	}
 	switch attempt.State {
 	case "completed", "failed":
 		return failure("invalid_transition")
 	}
-	if _, err := store.CheckWriter(ctx, attempt.DiscussionID, attempt.Slot, worker, fencing); err != nil {
-		return err
-	}
 	if _, err := store.db.ExecContext(ctx,
-		`UPDATE discussion_attempts SET state = 'failed', updated_at = ? WHERE attempt_id = ?`,
-		now, attemptID); err != nil {
+		`UPDATE discussion_attempts SET state = 'failed', fencing = ?, updated_at = ? WHERE attempt_id = ?`,
+		fencing, now, attemptID); err != nil {
 		return failure("storage_failed")
 	}
 	return nil
@@ -284,21 +350,15 @@ func (store *Store) MarkAmbiguous(ctx context.Context, attemptID, worker string,
 	if err != nil {
 		return err
 	}
-	if attempt.Fencing != fencing {
-		return failure("fencing_stale")
+	if _, err := store.checkFencing(ctx, attempt.DiscussionID, attempt.Slot, worker, fencing); err != nil {
+		return err
 	}
 	if attempt.State != "unknown" && attempt.State != "effect_started" && attempt.State != "acknowledged" {
 		return failure("invalid_transition")
 	}
-	if _, err := store.CheckWriter(ctx, attempt.DiscussionID, attempt.Slot, worker, fencing); err != nil {
-		// A paused owner still reconciles ambiguity: ownership outlives the turn.
-		if Code(err) != "discussion_stopped" {
-			return err
-		}
-	}
 	if _, err := store.db.ExecContext(ctx,
-		`UPDATE discussion_attempts SET state = 'ambiguous', updated_at = ? WHERE attempt_id = ?`,
-		now, attemptID); err != nil {
+		`UPDATE discussion_attempts SET state = 'ambiguous', fencing = ?, updated_at = ? WHERE attempt_id = ?`,
+		fencing, now, attemptID); err != nil {
 		return failure("storage_failed")
 	}
 	if err := store.Pause(ctx, attempt.DiscussionID, attempt.Slot, worker, fencing, now); err != nil {
@@ -404,6 +464,12 @@ func DispatchTurn(ctx context.Context, store *Store, planner Planner, authority 
 	}
 	result, err := runner.RunTurn(ctx, request, invocation)
 	if err != nil {
+		var proven *NoEffectError
+		if !result.ProviderEffect && errors.As(err, &proven) {
+			// The runner proves no effect began: back to recorded, retryable.
+			_ = store.MarkRecorded(ctx, attempt.ID, request.Worker, request.Fencing, now)
+			return failure("dispatch_failed")
+		}
 		// The effect may have started: reconcile through Reopen, never retry here.
 		return failure("delivery_unknown")
 	}
