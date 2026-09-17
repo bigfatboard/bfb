@@ -7,6 +7,7 @@ import type { AttentionDeckItem, ProjectLane } from "@bfb/domain";
 
 import { WorkBoard, type AgentProfileSummary } from "./work/board.js";
 import { TaskComposer, WorkMutations } from "./work/mutations.js";
+import { RunnerOperations } from "./launch/operations.js";
 import { WorkspaceSettings } from "./settings.js";
 import { RunnerEnrollmentPage } from "./runner-enrollment.js";
 
@@ -39,7 +40,7 @@ interface BoardResponse {
   agent_work_available: boolean;
 }
 
-type AppView = "work" | "attention" | "latest" | "load" | "settings";
+type AppView = "work" | "attention" | "latest" | "load" | "runners" | "settings";
 
 interface ParsedRoute {
   workspaceSlug: string | null;
@@ -47,7 +48,9 @@ interface ParsedRoute {
 }
 
 function parseRoute(pathname: string): ParsedRoute {
-  const match = pathname.match(/^\/w\/([^/]+)(?:\/(work|attention|latest|load|settings))?\/?$/);
+  const match = pathname.match(
+    /^\/w\/([^/]+)(?:\/(work|attention|latest|load|runners|settings))?\/?$/,
+  );
   return {
     workspaceSlug: match?.[1] ?? null,
     view: (match?.[2] as AppView | undefined) ?? "work",
@@ -337,7 +340,7 @@ export function AppShell(props: AppShellProps = {}) {
       </header>
 
       <nav className="route-nav" aria-label="Product">
-        {(["work", "attention", "latest", "load"] as const).map((view) => (
+        {(["work", "attention", "latest", "load", "runners"] as const).map((view) => (
           <button
             key={view}
             type="button"
@@ -443,6 +446,15 @@ export function AppShell(props: AppShellProps = {}) {
           fetchImpl={fetchFn}
           onChanged={() => void reloadBoard()}
         />
+      ) : board && route.view === "runners" ? (
+        <RunnerOperations
+          workspaceId={workspace.id}
+          humanId={board.human.id}
+          role={board.role}
+          authorizationEpoch={board.authorization_epoch}
+          csrfToken={csrfToken}
+          fetchImpl={fetchFn}
+        />
       ) : board ? (
         <section className="placeholder-route" data-testid={`${route.view}-placeholder`}>
           <p className="section-label">{route.view.toUpperCase()}</p>
@@ -461,6 +473,7 @@ export function AppShell(props: AppShellProps = {}) {
         <WorkMutations
           workspaceId={workspace.id}
           selectedTaskId={selectedTaskId}
+          humanId={board.human.id}
           role={board.role}
           agentProfiles={agentProfiles}
           fetchImpl={fetchFn}

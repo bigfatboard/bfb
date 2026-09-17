@@ -1,0 +1,34 @@
+{
+  "commit": "625309ef7c4acbaba588c773db9675be8db6ee84",
+  "command": "pnpm test:w02",
+  "environment": {
+    "browser": "Chromium (Playwright 1.55)",
+    "ports": { "e2e": 4174 },
+    "provider": "fake/synthetic (L03, no credentials)",
+    "runtime": "Node 24.19.0, pnpm 11.21.0, Go 1.26.5, Xcode 26"
+  },
+  "evidence": [
+    "blocked-states.md",
+    "command-result.json",
+    "containment.png",
+    "expired-retry.png",
+    "fake-launch-recording.md",
+    "grants.png",
+    "idempotency-traces.md",
+    "manifest.json",
+    "member-start.png",
+    "permission-matrix.md",
+    "process-ended.png",
+    "runners.png",
+    "start-pending.png",
+    "step-up-trace.md",
+    "wake-link.png"
+  ],
+  "inputs": [],
+  "outcome": "passed",
+  "package": "W02",
+  "redacted": true,
+  "risk": "High",
+  "status": "planned",
+  "test_target": "pnpm test:w02"
+}

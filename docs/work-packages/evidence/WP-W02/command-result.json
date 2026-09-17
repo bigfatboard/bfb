@@ -1,0 +1,26 @@
+[
+  {
+    "command": "pnpm test:w02",
+    "exit": 0,
+    "note": "C09 fixture check, build, protocol checks, launch domain suites, W02 unit suites, web build, synthetic C09 launch drive, and 9 Chromium scenarios all pass.",
+    "time": "2026-09-17T22:39:29Z"
+  },
+  {
+    "command": "BFB_CAPTURE_W02_EVIDENCE=1 pnpm test:w02:browser",
+    "exit": 0,
+    "note": "9 Chromium scenarios pass; screenshots and reports captured to the manifest directory.",
+    "time": "2026-09-17T22:45:01Z"
+  },
+  {
+    "command": "BFB_E2E_PORT=4174 pnpm verify",
+    "exit": 0,
+    "note": "Full repository verification passes (TypeScript, Go, Swift/Xcode, docs, roadmap, protocol, fixture checks).",
+    "time": "2026-09-17T22:44:31Z"
+  },
+  {
+    "command": "pnpm worktree:check",
+    "exit": 0,
+    "note": "Worktree clean after the evidence commit.",
+    "time": "2026-09-17T23:00:00Z"
+  }
+]

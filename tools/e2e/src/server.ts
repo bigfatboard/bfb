@@ -7,7 +7,24 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createServer as createViteServer, type ViteDevServer } from "vite";
 
-import { FIX, randomUlid, seedSyntheticWorkspace } from "@bfb/domain";
+import {
+  authorizeLaunchCommand,
+  claimLaunchCommand,
+  createAgentProfileCommand,
+  FIX,
+  launchDeadline,
+  observeCheckoutLeaseCommand,
+  randomUlid,
+  reportRepositoryConfigCommand,
+  runnerHash,
+  seedSyntheticWorkspace,
+  startLaunchCommand,
+  updateProjectPolicyCommand,
+  updateWorkspacePolicyCommand,
+  WorkspaceHub,
+  type HubCommand,
+  type RunnerPrincipal,
+} from "@bfb/domain";
 
 import {
   createHumanAuth,
@@ -141,6 +158,400 @@ async function seedWorkSurface(db: SqlDatabase): Promise<void> {
 
 function fakeBinding<T extends object>(label: string): T {
   return { __synthetic: label } as unknown as T;
+}
+
+const W02_RUNNER = FIX.taskLaunch.slice(0, 24) + "R1";
+const W02_CHECKOUT_A = FIX.taskLaunch.slice(0, 24) + "A1";
+const W02_CHECKOUT_B = FIX.taskLaunch.slice(0, 24) + "B1";
+const W02_CHECKOUT_C = FIX.taskLaunch.slice(0, 24) + "C1";
+const W02_HASH_A = `sha256:${"a".repeat(64)}`;
+const W02_HASH_B = `sha256:${"b".repeat(64)}`;
+const W02_HASH_C = `sha256:${"c".repeat(64)}`;
+const W02_EMPTY_CONFIG = `sha256:${runnerHash("{}")}`;
+
+/**
+ * Seeds one synthetic owner runner with two validated checkouts, a fake
+ * provider profile, and three settled launch chains. The ready task is left
+ * for the browser to Start; hub commands keep every settled chain honest.
+ */
+async function seedLaunchOperations(db: SqlDatabase): Promise<void> {
+  const hub = new WorkspaceHub(db);
+  async function human<I, R>(command: HubCommand<I, R>, input: I): Promise<R> {
+    const outcome = await hub.execute(command, {
+      workspaceId: FIX.workspace,
+      actorHumanId: FIX.owner,
+      authorizationEpoch: 1,
+      now: NOW,
+      idempotencyKey: randomUlid(),
+      input,
+    });
+    if (!outcome.ok) {
+      throw new Error(`w02 seed failed: ${JSON.stringify(outcome)}`);
+    }
+    return outcome.result;
+  }
+  function native<I, R>(command: HubCommand<I, R>, input: I, now = NOW) {
+    return hub.execute(command, {
+      workspaceId: FIX.workspace,
+      actorRunnerId: W02_RUNNER,
+      authorizationEpoch: 1,
+      now,
+      idempotencyKey: randomUlid(),
+      input,
+    });
+  }
+  async function nativeOk<I, R>(command: HubCommand<I, R>, input: I, now = NOW): Promise<R> {
+    const outcome = await native(command, input, now);
+    if (!outcome.ok) {
+      throw new Error(`w02 seed failed: ${JSON.stringify(outcome)}`);
+    }
+    return outcome.result;
+  }
+
+  const policy = {
+    allowedProviders: ["claude", "codex", "grok", "fake"],
+    allowAgentRootPropose: false,
+    allowPassToAgent: true,
+    allowRunOverrides: true,
+  } as const;
+  await human(updateWorkspacePolicyCommand, {
+    ...policy,
+    allowedProviders: [...policy.allowedProviders],
+    expectedVersion: 1,
+  });
+  await human(updateProjectPolicyCommand, {
+    ...policy,
+    allowedProviders: [...policy.allowedProviders],
+    expectedVersion: 1,
+    projectId: FIX.projectA,
+  });
+  await human(reportRepositoryConfigCommand, {
+    projectId: FIX.projectA,
+    expectedVersion: 1,
+    document: {},
+    contentHash: W02_EMPTY_CONFIG,
+  });
+  const profile = await human(createAgentProfileCommand, {
+    name: "Synthetic launch provider",
+    provider: "fake",
+    model: "synthetic",
+    executionMode: "interactive",
+    harnessMode: "restricted",
+  });
+
+  const thumbprint = `sha256:${"c".repeat(64)}`;
+  await db
+    .prepare(
+      `INSERT INTO runners (workspace_id, id, owner_human_id, device_label, public_key_json, key_thumbprint, token_epoch, enrolled_at)
+       VALUES (?, ?, ?, 'Synthetic Launch Mac', '{}', ?, 1, ?)`,
+    )
+    .run(FIX.workspace, W02_RUNNER, FIX.owner, thumbprint, NOW);
+  await db
+    .prepare(`INSERT INTO runner_project_grants VALUES (?, ?, ?)`)
+    .run(FIX.workspace, W02_RUNNER, FIX.projectA);
+  for (const launcher of [FIX.owner, FIX.member]) {
+    await db
+      .prepare(
+        `INSERT INTO runner_launch_grants (workspace_id, runner_id, human_id, granted_at)
+         VALUES (?, ?, ?, ?)`,
+      )
+      .run(FIX.workspace, W02_RUNNER, launcher, NOW);
+  }
+  const tokenId = randomUlid();
+  await db
+    .prepare(
+      `INSERT INTO runner_tokens (workspace_id, runner_id, id, token_hash, claims_json, expires_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      FIX.workspace,
+      W02_RUNNER,
+      tokenId,
+      runnerHash("synthetic-not-a-token"),
+      JSON.stringify({
+        v: 1,
+        sub: W02_RUNNER,
+        workspace_id: FIX.workspace,
+        aud: "bfb-runner",
+        iss: "https://bfb.example.test",
+        jti: tokenId,
+        iat: Date.parse(NOW) / 1000,
+        exp: Date.parse(NOW) / 1000 + 3600,
+        authorization_epoch: 1,
+        owner_authorization_epoch: 1,
+        grant_epoch: 1,
+        token_epoch: 1,
+        cnf: { jkt: thumbprint },
+      }),
+      new Date(Date.parse(NOW) + 3600_000).toISOString(),
+    );
+  const inventory = {
+    schema_version: 1,
+    workspace_id: FIX.workspace,
+    runner_id: W02_RUNNER,
+    revision: 1,
+    checkouts: [
+      {
+        schema_version: 1,
+        checkout_id: W02_CHECKOUT_A,
+        workspace_id: FIX.workspace,
+        runner_id: W02_RUNNER,
+        project_id: FIX.projectA,
+        label: "Synthetic Alpha Checkout",
+        repository_identity: "synthetic/alpha",
+        workspace_subpath: ".",
+        physical_worktree_hash: W02_HASH_A,
+        repository_config_hash: W02_EMPTY_CONFIG,
+        is_default: true,
+        branch: "main",
+        head: "a".repeat(40),
+        dirty: false,
+        status: "validated",
+        validated_at: NOW,
+      },
+      {
+        schema_version: 1,
+        checkout_id: W02_CHECKOUT_B,
+        workspace_id: FIX.workspace,
+        runner_id: W02_RUNNER,
+        project_id: FIX.projectA,
+        label: "Synthetic Beta Checkout",
+        repository_identity: "synthetic/alpha",
+        workspace_subpath: ".",
+        physical_worktree_hash: W02_HASH_B,
+        repository_config_hash: W02_EMPTY_CONFIG,
+        is_default: false,
+        branch: "feature/synthetic",
+        head: "b".repeat(40),
+        dirty: true,
+        status: "validated",
+        validated_at: NOW,
+      },
+      {
+        schema_version: 1,
+        checkout_id: W02_CHECKOUT_C,
+        workspace_id: FIX.workspace,
+        runner_id: W02_RUNNER,
+        project_id: FIX.projectA,
+        label: "Synthetic Gamma Checkout",
+        repository_identity: "synthetic/alpha",
+        workspace_subpath: ".",
+        physical_worktree_hash: W02_HASH_C,
+        repository_config_hash: W02_EMPTY_CONFIG,
+        is_default: false,
+        branch: "main",
+        head: "c".repeat(40),
+        dirty: false,
+        status: "validated",
+        validated_at: NOW,
+      },
+    ],
+    providers: [
+      {
+        provider: "fake",
+        version: "1.0.0",
+        manifest_id: W02_HASH_A,
+        status: "healthy",
+        observed_at: NOW,
+        expires_at: launchDeadline(NOW, 30_000),
+        capabilities: [
+          "launch.interactive",
+          "filesystem.read_only",
+          "approval.never",
+          "context.session_start",
+          "prompt.initial_constant",
+          "hooks.session_start",
+          "mcp.stdio",
+          "control.interrupt",
+          "control.terminate",
+          "session.resume",
+        ],
+      },
+    ],
+  };
+  await db
+    .prepare(
+      `INSERT INTO runner_inventories (workspace_id, runner_id, revision, inventory_json, received_at)
+       VALUES (?, ?, 1, ?, ?)`,
+    )
+    .run(FIX.workspace, W02_RUNNER, JSON.stringify(inventory), NOW);
+
+  for (const [taskId, title] of [
+    [FIX.taskLaunch, "Synthetic launch card"],
+    [FIX.taskLaunchStart, "Synthetic member launch card"],
+    [FIX.taskLaunchExpired, "Synthetic expired launch"],
+    [FIX.taskLaunchContained, "Synthetic contained launch"],
+    [FIX.taskLaunchEnded, "Synthetic ended launch"],
+  ] as const) {
+    await db
+      .prepare(
+        `INSERT INTO tasks (
+           workspace_id, id, project_id, parent_task_id, title, state, priority, due_at,
+           next_owner_type, next_owner_id, next_action_reason, punchline,
+           resource_version, created_by_human_id, created_by_delegation_id, created_at
+         ) VALUES (?, ?, ?, NULL, ?, 'ready', 'P1', NULL, 'human', ?, 'Launch the synthetic card.', 'Synthetic punchline.', 1, ?, NULL, ?)`,
+      )
+      .run(FIX.workspace, taskId, FIX.projectA, title, FIX.owner, FIX.owner, NOW);
+  }
+
+  const principal: RunnerPrincipal = {
+    kind: "runner",
+    workspaceId: FIX.workspace,
+    runnerId: W02_RUNNER,
+    ownerHumanId: FIX.owner,
+    authorizationEpoch: 1,
+    ownerAuthorizationEpoch: 1,
+    grantEpoch: 1,
+    tokenEpoch: 1,
+    tokenId,
+    keyThumbprint: thumbprint,
+    authExpiresAt: new Date(Date.parse(NOW) + 3600_000).toISOString(),
+    projectIds: [FIX.projectA],
+  };
+  async function start(taskId: string, checkoutId: string) {
+    return human(startLaunchCommand, {
+      schema_version: 1,
+      idempotency_key: randomUlid(),
+      task_id: taskId,
+      expected_task_version: 1,
+      runner_id: W02_RUNNER,
+      checkout_id: checkoutId,
+      agent_profile_id: profile.id,
+      agent_profile_version: 1,
+      workspace_policy_version: 2,
+      project_policy_version: 2,
+      repository_config_version: 2,
+    });
+  }
+
+  const expired = await start(FIX.taskLaunchExpired, W02_CHECKOUT_A);
+  const expiredAt = new Date(Date.parse(NOW) + 130_000).toISOString();
+  await nativeOk(
+    claimLaunchCommand,
+    {
+      principal,
+      claim: {
+        schema_version: 1,
+        launch_id: expired.launch_id,
+        runner_id: W02_RUNNER,
+        idempotency_key: randomUlid(),
+        claimed_at: expiredAt,
+      },
+    },
+    expiredAt,
+  );
+
+  const contained = await start(FIX.taskLaunchContained, W02_CHECKOUT_B);
+  const containedClaim = await nativeOk(claimLaunchCommand, {
+    principal,
+    claim: {
+      schema_version: 1,
+      launch_id: contained.launch_id,
+      runner_id: W02_RUNNER,
+      idempotency_key: randomUlid(),
+      claimed_at: NOW,
+    },
+  });
+  if (containedClaim.state !== "claimed") {
+    throw new Error("w02 seed failed: contained claim did not win");
+  }
+  await nativeOk(observeCheckoutLeaseCommand, {
+    principal,
+    observation: {
+      schema_version: 1,
+      run_execution_id: containedClaim.claim.specification.run_execution_id,
+      assignment_generation: containedClaim.claim.specification.assignment_generation,
+      fencing_generation: containedClaim.claim.fencing_generation,
+      sequence: 1,
+      observed_at: NOW,
+      operation: "renew",
+      supervisor: {
+        pid: 1234,
+        start_identity: "123456:1000",
+        executable_hash: W02_HASH_A,
+      },
+      local_lock_id: randomUlid(),
+      owned_group_id: 1235,
+      owned_group_start_identity: "123456:2000",
+      supervisor_state: "verified",
+      group_state: "live",
+      lock_state: "held",
+      descendants_state: "escaped",
+      recovery_local: false,
+    },
+  });
+
+  const ended = await start(FIX.taskLaunchEnded, W02_CHECKOUT_C);
+  const endedClaim = await nativeOk(claimLaunchCommand, {
+    principal,
+    claim: {
+      schema_version: 1,
+      launch_id: ended.launch_id,
+      runner_id: W02_RUNNER,
+      idempotency_key: randomUlid(),
+      claimed_at: NOW,
+    },
+  });
+  if (endedClaim.state !== "claimed") {
+    throw new Error("w02 seed failed: ended claim did not win");
+  }
+  const final = endedClaim.claim;
+  const endedLockId = randomUlid();
+  await nativeOk(authorizeLaunchCommand, {
+    principal,
+    authorization: {
+      schema_version: 1,
+      launch_id: ended.launch_id,
+      run_execution_id: final.specification.run_execution_id,
+      assignment_generation: final.specification.assignment_generation,
+      fencing_generation: final.fencing_generation,
+      config_snapshot_id: final.specification.config_snapshot_id,
+      config_snapshot_hash: final.specification.config_snapshot_hash,
+      repository_config_hash: final.snapshot.repository_config_hash,
+      physical_worktree_hash: final.snapshot.physical_worktree_hash,
+      supervisor: {
+        pid: 1234,
+        start_identity: "123456:1000",
+        executable_hash: W02_HASH_A,
+      },
+      local_lock_id: endedLockId,
+    },
+  });
+  const liveObservation = {
+    schema_version: 1,
+    run_execution_id: final.specification.run_execution_id,
+    assignment_generation: final.specification.assignment_generation,
+    fencing_generation: final.fencing_generation,
+    sequence: 1,
+    observed_at: NOW,
+    operation: "renew",
+    supervisor: {
+      pid: 1234,
+      start_identity: "123456:1000",
+      executable_hash: W02_HASH_A,
+    },
+    local_lock_id: endedLockId,
+    owned_group_id: 1235,
+    owned_group_start_identity: "123456:2000",
+    supervisor_state: "verified",
+    group_state: "live",
+    lock_state: "held",
+    descendants_state: "contained",
+    recovery_local: false,
+  } as const;
+  await nativeOk(observeCheckoutLeaseCommand, { principal, observation: liveObservation });
+  await nativeOk(observeCheckoutLeaseCommand, {
+    principal,
+    observation: {
+      ...liveObservation,
+      sequence: 2,
+      operation: "release",
+      supervisor_state: "gone",
+      group_state: "gone",
+      lock_state: "gone",
+      descendants_state: "gone",
+    },
+  });
 }
 
 function controlBindings(db: SqlDatabase): ControlBindings {
@@ -319,6 +730,7 @@ async function main(): Promise<void> {
   const authContext = openAuthTestContext();
   await seedSyntheticWorkspace(authContext.db, NOW);
   await seedWorkSurface(authContext.db);
+  await seedLaunchOperations(authContext.db);
   const db = authContext.db;
   const authEnv: AuthEnv = { ...AUTH_TEST_ENV, APP_ORIGIN: ORIGIN };
   const auth = createHumanAuth(authContext.raw, authEnv, { db, now: NOW });
