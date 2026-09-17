@@ -96,6 +96,9 @@ consent. No unfinished package is consumed and the full MVP is not done.
 
 ## Checkpoint log
 
+- 17 September: L07 Claude reference adapter implemented on `muse/l07` (probe/manifest 1.0.0 for tested 2.1.274, interactive and exact-session resume plans, raw-hook parser with fixtures, previewed/approved setup with rollback, `provider setup/doctor claude`). Exact `pnpm test:l07`, full verification, Linux cross-build, and the clean-checkout gate are recorded in the package evidence; status stays `planned` with the A01/E01/L05/L06 end-to-end checkpoint explicitly pending.
+
+
 - 11 September: began the approved MVP implementation and incorporated the follow-up agent-chat research into the plan.
 - 11 September: assigned D01–D03 and DG-01–DG-03; generated roadmap passes with 45 packages. Added a regression for discussion-package generation. `pnpm verify` passed with 344 TypeScript tests, Go checks and Swift/Xcode checks.
 - 11 September: committed the plan/roadmap as `8e27776`; F02 prerequisite gate passed (132 TypeScript tests plus Go). Began L01 with isolated local-state, socket, storage, logging, credential-interface and lifecycle tests.
