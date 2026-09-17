@@ -143,7 +143,8 @@ func TestDoctorCommand(t *testing.T) {
 		t.Fatalf("doctor passed without setup: %s", output)
 	}
 	// Failure envelopes carry the category code; per-check lines print on success.
-	if !strings.Contains(output, "provider_setup_failed") && !strings.Contains(output, "provider_unavailable") {
+	// An uncertified installed version fails closed before setup is checked.
+	if !strings.Contains(output, "provider_setup_failed") && !strings.Contains(output, "provider_unavailable") && !strings.Contains(output, "provider_unsupported") {
 		t.Fatalf("missing diagnostic: %s", output)
 	}
 	_, preview := execute(t, home, "provider", "setup", "claude")
