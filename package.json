@@ -49,6 +49,7 @@
     "test:c03": "pnpm build && vitest run packages/domain/test/step-up.test.ts apps/control-worker/test/auth-configuration.test.ts apps/control-worker/test/passkey-routes.test.ts && tsx tools/passkeys/run.ts && pnpm test:c03:browser",
     "test:c04": "pnpm build && vitest run packages/domain/test/authorization.test.ts apps/control-worker/test/workspace-authorization-routes.test.ts && pnpm exec tsc -b tools/workspace-authorization --pretty false && tsx tools/workspace-authorization/run.ts",
     "test:c06": "node tools/runners/fixtures.mjs --check && pnpm build && pnpm test:protocol && vitest run packages/domain/test/runners.test.ts packages/domain/test/step-up.test.ts packages/domain/test/hub.test.ts apps/control-worker/test/runner-routes.test.ts && pnpm build:web && pnpm exec tsc -b tools/runners --pretty false && tsx tools/runners/run.ts && pnpm test:c06:browser",
+    "test:c05": "pnpm build && pnpm test:protocol && vitest run packages/domain/test/cli-credentials.test.ts apps/control-worker/test/auth-configuration.test.ts apps/control-worker/test/cli-credentials.test.ts && pnpm build:web && pnpm exec tsc -b tools/cli-credentials --pretty false && tsx tools/cli-credentials/run.ts",
     "runner:fixtures": "node tools/runners/fixtures.mjs",
     "launch:fixtures": "node tools/launches/fixtures.mjs",
     "supervisor:fixtures": "node tools/supervisor/fixtures.mjs",
