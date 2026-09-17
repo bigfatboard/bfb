@@ -46,9 +46,10 @@ CREATE TABLE api_key_bindings (
       OR (principal_type = 'integration' AND human_id IS NULL))
 );
 
--- One active binding per bootstrap credential: a second approval of the same
--- device code fails instead of creating an ambiguous exchange target.
+-- One active binding per bootstrap credential across workspaces: a second
+-- approval of the same device code fails instead of creating an ambiguous
+-- exchange target. The exchange lookup is by device hash, so this must be global.
 CREATE UNIQUE INDEX api_key_bindings_device_hash_uidx
-  ON api_key_bindings (workspace_id, device_code_hash) WHERE revoked_at IS NULL;
+  ON api_key_bindings (device_code_hash) WHERE revoked_at IS NULL;
 CREATE INDEX api_key_bindings_human_idx
   ON api_key_bindings (workspace_id, human_id);

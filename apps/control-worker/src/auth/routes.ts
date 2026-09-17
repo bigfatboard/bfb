@@ -123,6 +123,8 @@ function deviceForward(request: Request, appOrigin: string, path: string, body?:
   const headers = new Headers();
   const cookie = request.headers.get("cookie");
   if (cookie) headers.set("cookie", cookie);
+  // Cookie-authenticated plugin endpoints enforce an exact trusted Origin.
+  headers.set("origin", appOrigin);
   if (body !== undefined) headers.set("content-type", "application/json");
   const init: RequestInit = {
     method: body === undefined && request.method === "GET" ? "GET" : "POST",

@@ -103,16 +103,20 @@ async function executeCliCommand<TInput, TResult>(
   return outcome.result;
 }
 
-function pluginRequest(request: Request, appOrigin: string, path: string, body?: string): Request {
+function pluginRequest(
+  request: Request,
+  appOrigin: string,
+  method: "GET" | "POST",
+  path: string,
+  body?: string,
+): Request {
   const headers = new Headers();
   const cookie = request.headers.get("cookie");
   if (cookie) headers.set("cookie", cookie);
+  // Cookie-authenticated plugin endpoints enforce an exact trusted Origin.
+  headers.set("origin", appOrigin);
   if (body !== undefined) headers.set("content-type", "application/json");
-  const init: RequestInit = {
-    method: body === undefined && request.method === "GET" ? "GET" : "POST",
-    headers,
-    redirect: "manual",
-  };
+  const init: RequestInit = { method, headers, redirect: "manual" };
   if (body !== undefined) init.body = body;
   return new Request(new URL(path, appOrigin), init);
 }
@@ -124,7 +128,13 @@ export async function approvePluginDeviceCode(
   userCode: string,
 ): Promise<boolean> {
   const approved = await deps.auth.handler(
-    pluginRequest(request, deps.appOrigin, "/auth/device/approve", JSON.stringify({ userCode })),
+    pluginRequest(
+      request,
+      deps.appOrigin,
+      "POST",
+      "/auth/device/approve",
+      JSON.stringify({ userCode }),
+    ),
   );
   return approved.ok;
 }
@@ -139,6 +149,7 @@ export async function claimPluginDeviceCode(
     pluginRequest(
       request,
       deps.appOrigin,
+      "GET",
       `/auth/device?user_code=${encodeURIComponent(userCode)}`,
     ),
   );
