@@ -1,7 +1,7 @@
 // ABOUTME: Owns human CLI device bootstrap, workspace-bound key bindings, and revocation.
 // ABOUTME: Only key hashes persist; every request rechecks binding, membership, and epoch.
 
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 
 import type { SqlDatabase } from "@bfb/db";
 
@@ -81,14 +81,6 @@ export function rejectCliRequest(): never {
 
 export function cliHash(value: string): string {
   return createHash("sha256").update(value, "utf8").digest("hex");
-}
-
-function cliHashEqual(left: string, right: string): boolean {
-  return (
-    HEX_PATTERN.test(left) &&
-    HEX_PATTERN.test(right) &&
-    timingSafeEqual(Buffer.from(left, "hex"), Buffer.from(right, "hex"))
-  );
 }
 
 export function mintCliKey(): { key: string; keyHash: string; keyPrefix: string } {
@@ -434,10 +426,18 @@ export const exchangeCredentialCommand: HubCommand<
          WHERE workspace_id = ? AND id = ? AND key_hash IS NULL AND revoked_at IS NULL`,
       )
       .run(input.keyHash, input.keyPrefix, ctx.now, ctx.workspaceId, binding.id);
-    const guard = (await ctx.db
-      .prepare(`SELECT key_hash FROM api_key_bindings WHERE workspace_id = ? AND id = ?`)
-      .get(ctx.workspaceId, binding.id)) as { key_hash: string | null } | undefined;
-    if (!guard || !cliHashEqual(guard.key_hash ?? "", String(input.keyHash))) rejectCliRequest();
+    // D1 batches cannot read after a queued write, so the single-claim check is
+    // a guard row: D1 evaluates the predicate at commit time and aborts the
+    // entire batch when a racing exchange claimed the binding first.
+    const guardId = randomUlid();
+    await ctx.db
+      .prepare(
+        `INSERT INTO cli_mutation_guards (id, valid) VALUES (?,
+         (SELECT COUNT(*) = 1 FROM api_key_bindings
+          WHERE workspace_id = ? AND id = ? AND key_hash = ?))`,
+      )
+      .run(guardId, ctx.workspaceId, binding.id, String(input.keyHash));
+    await ctx.db.prepare(`DELETE FROM cli_mutation_guards WHERE id = ?`).run(guardId);
     await ctx.db.prepare(`DELETE FROM better_auth_device_codes WHERE id = ?`).run(record.id);
     return {
       schema_version: 1,
@@ -477,8 +477,7 @@ export const revokeBindingCommand: HubCommand<RevokeBindingInput, CliBindingSumm
         .prepare(`DELETE FROM better_auth_device_codes WHERE id = ?`)
         .run(binding.device_row_id);
     }
-    const refreshed = await bindingRow(ctx.db, ctx.workspaceId, binding.id);
-    return summary(refreshed, Date.parse(ctx.now));
+    return summary({ ...binding, revoked_at: binding.revoked_at ?? ctx.now }, Date.parse(ctx.now));
   },
 };
 

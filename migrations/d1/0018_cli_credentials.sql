@@ -53,3 +53,10 @@ CREATE UNIQUE INDEX api_key_bindings_device_hash_uidx
   ON api_key_bindings (device_code_hash) WHERE revoked_at IS NULL;
 CREATE INDEX api_key_bindings_human_idx
   ON api_key_bindings (workspace_id, human_id);
+
+-- An assertion row exists only inside a transaction. A failed SQL predicate aborts
+-- the entire D1 batch, including the key activation it guards.
+CREATE TABLE cli_mutation_guards (
+  id TEXT NOT NULL PRIMARY KEY,
+  valid INTEGER NOT NULL CHECK (valid = 1)
+);
