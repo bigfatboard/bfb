@@ -168,10 +168,7 @@ const commands = new Map<string, HubCommand<unknown, unknown>>([
     updateGitHubPermissionsCommand.name,
     updateGitHubPermissionsCommand as HubCommand<unknown, unknown>,
   ],
-  [
-    receiveGitHubWebhookCommand.name,
-    receiveGitHubWebhookCommand as HubCommand<unknown, unknown>,
-  ],
+  [receiveGitHubWebhookCommand.name, receiveGitHubWebhookCommand as HubCommand<unknown, unknown>],
   [reconcileGitHubCommand.name, reconcileGitHubCommand as HubCommand<unknown, unknown>],
   [linkGitHubEvidenceCommand.name, linkGitHubEvidenceCommand as HubCommand<unknown, unknown>],
   [submitResultCommand.name, submitResultCommand as HubCommand<unknown, unknown>],

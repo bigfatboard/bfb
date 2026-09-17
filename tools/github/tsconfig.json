@@ -7,8 +7,5 @@
     "types": ["node"]
   },
   "include": ["run.ts", "double.ts", "hub-proxy.ts"],
-  "references": [
-    { "path": "../../packages/domain" },
-    { "path": "../../packages/db" }
-  ]
+  "references": [{ "path": "../../packages/domain" }, { "path": "../../packages/db" }]
 }

@@ -79,7 +79,11 @@ describe("wrangler substrate configs", () => {
       expect(body).toMatch(/migrations_dir = "\.\.\/\.\.\/migrations\/d1"/);
       expect(body).toMatch(/\[triggers\]/);
       expect(body).toMatch(/crons\s*=\s*\["\*\/5 \* \* \* \*"\]/);
-      expect(body).not.toMatch(/\[\[queues\.consumers\]\]/);
+      // X04 is the first Queue consumer: the control worker consumes the JOBS
+      // queue with bounded batches and a DLQ backstop on every env.
+      expect(body).toMatch(/\[\[queues\.consumers\]\]/);
+      expect(body).toMatch(/dead_letter_queue = "bfb-jobs-dlq[^"]*"/);
+      expect(body).toMatch(/max_retries = 5/);
     }
   });
 

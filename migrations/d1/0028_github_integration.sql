@@ -4,8 +4,8 @@
 PRAGMA defer_foreign_keys = ON;
 
 CREATE TABLE github_app_installations (
-  installation_id TEXT NOT NULL PRIMARY KEY CHECK (length(installation_id) BETWEEN 1 AND 64),
   workspace_id TEXT NOT NULL REFERENCES workspaces (id),
+  installation_id TEXT NOT NULL CHECK (length(installation_id) BETWEEN 1 AND 64),
   app_id TEXT NOT NULL CHECK (length(app_id) BETWEEN 1 AND 64),
   app_slug TEXT NOT NULL CHECK (length(app_slug) BETWEEN 1 AND 128),
   account_id TEXT NOT NULL CHECK (length(account_id) BETWEEN 1 AND 64),
@@ -18,17 +18,19 @@ CREATE TABLE github_app_installations (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   revoked_at TEXT CHECK (revoked_at IS NULL OR length(revoked_at) BETWEEN 1 AND 64),
-  resource_version INTEGER NOT NULL CHECK (resource_version >= 1)
+  resource_version INTEGER NOT NULL CHECK (resource_version >= 1),
+  PRIMARY KEY (workspace_id, installation_id)
 );
 
-CREATE INDEX github_installations_by_workspace
-  ON github_app_installations (workspace_id);
+-- One installation maps to exactly one authorized workspace.
+CREATE UNIQUE INDEX github_installation_single_workspace
+  ON github_app_installations (installation_id);
 
 CREATE TABLE github_repository_links (
   workspace_id TEXT NOT NULL REFERENCES workspaces (id),
   id TEXT NOT NULL CHECK (length(id) BETWEEN 8 AND 128),
   repository_id TEXT NOT NULL CHECK (length(repository_id) BETWEEN 1 AND 64),
-  installation_id TEXT NOT NULL REFERENCES github_app_installations (installation_id),
+  installation_id TEXT NOT NULL CHECK (length(installation_id) BETWEEN 1 AND 64),
   project_id TEXT NOT NULL,
   full_name TEXT NOT NULL CHECK (length(full_name) BETWEEN 1 AND 256),
   default_branch TEXT NOT NULL CHECK (length(default_branch) BETWEEN 1 AND 256),
@@ -37,7 +39,9 @@ CREATE TABLE github_repository_links (
   closed_at TEXT CHECK (closed_at IS NULL OR length(closed_at) BETWEEN 1 AND 64),
   resource_version INTEGER NOT NULL CHECK (resource_version >= 1),
   PRIMARY KEY (workspace_id, id),
-  FOREIGN KEY (workspace_id, project_id) REFERENCES projects (workspace_id, id)
+  FOREIGN KEY (workspace_id, project_id) REFERENCES projects (workspace_id, id),
+  FOREIGN KEY (workspace_id, installation_id)
+    REFERENCES github_app_installations (workspace_id, installation_id)
 );
 
 -- One installation/repository maps to exactly one authorized workspace/project.

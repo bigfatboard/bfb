@@ -54,7 +54,9 @@ const NOW = "2026-09-18T12:00:00.000Z";
 const INSTALLATION = "12345678";
 const REPOSITORY = "87654321";
 
-function spyHandle(body: unknown): GitHubQueueHandle & { acked: number; retried: number; delays: number[] } {
+function spyHandle(
+  body: unknown,
+): GitHubQueueHandle & { acked: number; retried: number; delays: number[] } {
   const handle = {
     body,
     acked: 0,
@@ -71,7 +73,9 @@ function spyHandle(body: unknown): GitHubQueueHandle & { acked: number; retried:
   return handle;
 }
 
-function fakeClient(mode: { fetch?: "ok" | "revoked" | "throw"; mint?: "ok" | "revoked" | "throw" } = {}): GitHubRestClient & { minted: string[]; fetched: string[] } {
+function fakeClient(
+  mode: { fetch?: "ok" | "revoked" | "throw"; mint?: "ok" | "revoked" | "throw" } = {},
+): GitHubRestClient & { minted: string[]; fetched: string[] } {
   const client = {
     minted: [] as string[],
     fetched: [] as string[],
@@ -302,7 +306,9 @@ describe("X04 github queue consumer", () => {
     expect(client.minted).toEqual([INSTALLATION, INSTALLATION]);
     expect(client.fetched).toEqual([REPOSITORY, REPOSITORY]);
     const states = (await db
-      .prepare(`SELECT delivery_id, state FROM github_webhook_deliveries WHERE delivery_id IN (?, ?) ORDER BY delivery_id`)
+      .prepare(
+        `SELECT delivery_id, state FROM github_webhook_deliveries WHERE delivery_id IN (?, ?) ORDER BY delivery_id`,
+      )
       .all(first, second)) as Array<{ delivery_id: string; state: string }>;
     expect(states.map((row) => row.state)).toEqual(["applied", "applied"]);
   });
@@ -320,9 +326,10 @@ describe("X04 github queue consumer", () => {
     });
     await consumeGitHubQueueMessage(handle, deps);
     expect(handle.acked).toBe(1);
-    const dlq = (await db
-      .prepare(`SELECT error, attempts FROM github_dlq`)
-      .all()) as Array<{ error: string; attempts: number }>;
+    const dlq = (await db.prepare(`SELECT error, attempts FROM github_dlq`).all()) as Array<{
+      error: string;
+      attempts: number;
+    }>;
     expect(dlq).toHaveLength(1);
     expect(dlq[0]?.error).toBe("outbox_missing");
   });
@@ -410,7 +417,15 @@ describe("X04 github queue consumer", () => {
     });
     // The crash: D1 committed, no Queue message was ever sent.
     const sent: GitHubQueueMessage[] = [];
-    const sweep = await runGitHubSweep(db, { async send(message) { sent.push(message); } }, NOW);
+    const sweep = await runGitHubSweep(
+      db,
+      {
+        async send(message) {
+          sent.push(message);
+        },
+      },
+      NOW,
+    );
     expect(sweep).toEqual({ claimed: 1, reclaimed: 0, sent: 1, sendFailures: 0 });
     expect(sent[0]?.delivery_id).toBe(deliveryId);
     // A failed send stays recoverable: the row is dispatched with backoff.

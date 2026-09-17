@@ -172,7 +172,10 @@ export async function executeGitHubSystemCommand<TInput, TResult>(
   input: TInput,
   systemId: string,
   idempotencyKey: string,
-): Promise<{ ok: true; result: TResult; replayed: boolean } | { ok: false; error: { code: string; message: string } }> {
+): Promise<
+  | { ok: true; result: TResult; replayed: boolean }
+  | { ok: false; error: { code: string; message: string } }
+> {
   const request: CommandRequest<TInput> = {
     workspaceId,
     idempotencyKey,
@@ -193,7 +196,10 @@ export async function executeGitHubSystemCommand<TInput, TResult>(
         | { ok: true; result: TResult; replayed: boolean }
         | { ok: false; error: { code: string; message: string } };
       if (!response.ok) {
-        return { ok: false, error: { code: "hub_rpc_failed", message: `hub DO returned ${response.status}` } };
+        return {
+          ok: false,
+          error: { code: "hub_rpc_failed", message: `hub DO returned ${response.status}` },
+        };
       }
       return body;
     } catch (error) {
@@ -248,7 +254,10 @@ export async function handleGitHubWebhook(
       return json({ error: "webhook_event_invalid", message: "webhook event is invalid" }, 400);
     }
     if (!/^[A-Za-z0-9._:~-]{8,128}$/.test(deliveryId)) {
-      return json({ error: "webhook_delivery_invalid", message: "webhook delivery is invalid" }, 400);
+      return json(
+        { error: "webhook_delivery_invalid", message: "webhook delivery is invalid" },
+        400,
+      );
     }
     let payload: unknown;
     try {
@@ -273,7 +282,10 @@ export async function handleGitHubWebhook(
     await budget(request, deps, `installation:${effect.installationId}`, "webhook", WEBHOOK_POLICY);
     const workspaceId = await resolveWorkspaceForInstallation(deps, effect.installationId);
     if (!workspaceId) {
-      return json({ error: "unknown_installation", message: "github installation is not registered" }, 404);
+      return json(
+        { error: "unknown_installation", message: "github installation is not registered" },
+        404,
+      );
     }
     const outcome = await executeGitHubSystemCommand(
       deps,
@@ -317,7 +329,10 @@ export async function handleGitHubWebhook(
       return json({ received: true, ignored: true, state: outcome.result.state }, 202);
     }
     if (!deps.jobs) {
-      return json({ error: "github_not_configured", message: "github queue is not configured" }, 500);
+      return json(
+        { error: "github_not_configured", message: "github queue is not configured" },
+        500,
+      );
     }
     const message = githubQueueMessage({
       workspaceId,
@@ -330,14 +345,14 @@ export async function handleGitHubWebhook(
     } catch {
       // D1 committed; the send failed. Cron recovery re-enqueues the pending
       // outbox row and GitHub redelivery converges on the duplicate path.
-      return json({ error: "github_enqueue_failed", message: "delivery committed, enqueue failed" }, 500);
+      return json(
+        { error: "github_enqueue_failed", message: "delivery committed, enqueue failed" },
+        500,
+      );
     }
     // A hub replay is itself a duplicate: the stored outcome committed once.
     const duplicate = outcome.replayed || outcome.result.duplicate;
-    return json(
-      { received: true, duplicate, outbox_id: outcome.result.outbox_id },
-      202,
-    );
+    return json({ received: true, duplicate, outbox_id: outcome.result.outbox_id }, 202);
   } catch (error) {
     if (error instanceof DomainError) {
       if (error.code === "request_rejected") {
@@ -549,7 +564,8 @@ export async function handleGitHubBrowserApi(
       });
     }
     if (tail === "/evidence/links") {
-      const state = body.state === undefined ? undefined : (body.state as Record<string, string | null>);
+      const state =
+        body.state === undefined ? undefined : (body.state as Record<string, string | null>);
       return mutate(deps, principal, linkGitHubEvidenceCommand, key, {
         projectId: requiredString(body, "project_id"),
         ...(body.task_id === undefined ? {} : { taskId: body.task_id as string }),
@@ -601,7 +617,11 @@ function pemToDer(pem: string): Uint8Array {
   return bytes;
 }
 
-async function signGitHubAppJwt(appId: string, privateKeyPem: string, nowMs: number): Promise<string> {
+async function signGitHubAppJwt(
+  appId: string,
+  privateKeyPem: string,
+  nowMs: number,
+): Promise<string> {
   const key = await crypto.subtle.importKey(
     "pkcs8",
     pemToDer(privateKeyPem) as BufferSource,
@@ -620,7 +640,11 @@ async function signGitHubAppJwt(appId: string, privateKeyPem: string, nowMs: num
     iss: appId,
   });
   const signature = new Uint8Array(
-    await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key, new TextEncoder().encode(`${header}.${claims}`)),
+    await crypto.subtle.sign(
+      "RSASSA-PKCS1-v1_5",
+      key,
+      new TextEncoder().encode(`${header}.${claims}`),
+    ),
   );
   let binary = "";
   for (const byte of signature) {
@@ -673,10 +697,7 @@ export function createGitHubRestClient(deps: {
       if (typeof body.token !== "string" || !body.token || typeof body.expires_at !== "string") {
         throw new DomainError("github_unreachable", "github token response is invalid");
       }
-      const expiresAtMs = Math.min(
-        Date.parse(body.expires_at),
-        Date.now() + 10 * 60 * 1000,
-      );
+      const expiresAtMs = Math.min(Date.parse(body.expires_at), Date.now() + 10 * 60 * 1000);
       tokenCache.set(installationId, { token: body.token, expiresAtMs });
       return { token: body.token, expiresAt: new Date(expiresAtMs).toISOString() };
     },
@@ -737,12 +758,14 @@ async function loadDeliveryContext(
     .prepare(
       `SELECT workspace_id, delivery_id, state, attempts FROM github_integration_outbox WHERE workspace_id = ? AND outbox_id = ?`,
     )
-    .get(message.workspace_id, message.outbox_id)) as {
-    workspace_id: string;
-    delivery_id: string;
-    state: string;
-    attempts: number;
-  } | undefined;
+    .get(message.workspace_id, message.outbox_id)) as
+    | {
+        workspace_id: string;
+        delivery_id: string;
+        state: string;
+        attempts: number;
+      }
+    | undefined;
   if (!outbox || outbox.delivery_id !== message.delivery_id) {
     return null;
   }
@@ -750,15 +773,20 @@ async function loadDeliveryContext(
     .prepare(
       `SELECT event, effect_json, state FROM github_webhook_deliveries WHERE workspace_id = ? AND delivery_id = ?`,
     )
-    .get(message.workspace_id, message.delivery_id)) as {
-    event: string;
-    effect_json: string;
-    state: string;
-  } | undefined;
+    .get(message.workspace_id, message.delivery_id)) as
+    | {
+        event: string;
+        effect_json: string;
+        state: string;
+      }
+    | undefined;
   if (!delivery) {
     return null;
   }
-  const effect = JSON.parse(delivery.effect_json) as { installationId: string; repositoryId: string | null };
+  const effect = JSON.parse(delivery.effect_json) as {
+    installationId: string;
+    repositoryId: string | null;
+  };
   return {
     workspaceId: message.workspace_id,
     outboxId: message.outbox_id,
@@ -841,11 +869,17 @@ export async function consumeGitHubQueueMessage(
           )
           .get(context.repositoryId)) as { full_name: string; default_branch: string } | undefined)
       : undefined;
-    await reconcileThroughHub(deps, context, link === undefined ? undefined : {
-      repositoryFullName: link.full_name,
-      defaultBranch: link.default_branch,
-      fetchedAt: deps.now,
-    });
+    await reconcileThroughHub(
+      deps,
+      context,
+      link === undefined
+        ? undefined
+        : {
+            repositoryFullName: link.full_name,
+            defaultBranch: link.default_branch,
+            fetchedAt: deps.now,
+          },
+    );
     handle.ack();
     return;
   }
@@ -860,7 +894,15 @@ export async function consumeGitHubQueueMessage(
     return;
   }
   if (!context.repositoryId) {
-    await writeGitHubDlqRow(deps.db, context.workspaceId, context.outboxId, context.deliveryId, "delivery_missing_repository", context.attempts, deps.now);
+    await writeGitHubDlqRow(
+      deps.db,
+      context.workspaceId,
+      context.outboxId,
+      context.deliveryId,
+      "delivery_missing_repository",
+      context.attempts,
+      deps.now,
+    );
     handle.ack();
     return;
   }
@@ -878,7 +920,12 @@ export async function consumeGitHubQueueMessage(
       }
       return;
     }
-    await failAttempt(deps, handle, context, error instanceof Error ? error.message : "mint failed");
+    await failAttempt(
+      deps,
+      handle,
+      context,
+      error instanceof Error ? error.message : "mint failed",
+    );
     return;
   }
   let observed: ReconcileGitHubObserved;

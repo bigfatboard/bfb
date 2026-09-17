@@ -12,6 +12,8 @@ import { adaptD1, loadMigrationManifest, type D1Like, type SqlDatabase } from "@
 import {
   createProjectCommand,
   FIX,
+  GITHUB_PERMISSIONS_ALLOWLIST,
+  GITHUB_WEBHOOK_EVENTS_ALLOWLIST,
   GITHUB_WEBHOOK_SYSTEM_ID,
   issueStepUpProof,
   randomUlid,
@@ -167,7 +169,17 @@ async function main(): Promise<void> {
         { binding: "JOBS_DLQ", queue: DLQ },
       ],
       ...(consume
-        ? { consumers: [{ queue: QUEUE, max_batch_size: 10, max_batch_timeout: 5, max_retries: 3, dead_letter_queue: DLQ }] }
+        ? {
+            consumers: [
+              {
+                queue: QUEUE,
+                max_batch_size: 10,
+                max_batch_timeout: 5,
+                max_retries: 3,
+                dead_letter_queue: DLQ,
+              },
+            ],
+          }
         : {}),
     },
     assets: { directory: assetsDir, binding: "ASSETS" },
@@ -195,7 +207,9 @@ async function main(): Promise<void> {
           name: "bfb-x04-proxy",
           main: resolve(toolDir, "hub-proxy.ts"),
           durable_objects: {
-            bindings: [{ name: "WORKSPACE_HUB", class_name: "WorkspaceHub", script_name: "bfb-x04-hub" }],
+            bindings: [
+              { name: "WORKSPACE_HUB", class_name: "WorkspaceHub", script_name: "bfb-x04-hub" },
+            ],
           },
         },
       },
@@ -229,20 +243,16 @@ async function main(): Promise<void> {
       text = text.split(FIXTURE_OLDER).join(new Date(Date.parse(at) - 5 * 60 * 1000).toISOString());
     }
     const raw = new TextEncoder().encode(text);
-    const response = await fetchWorker(
-      pick(),
-      `${ORIGIN}/webhooks/github`,
-      {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-github-event": fixture.event,
-          "x-github-delivery": delivery ?? fixture.delivery_id,
-          "x-hub-signature-256": signature(raw, secret),
-        },
-        body: raw as unknown as BodyInit,
+    const response = await fetchWorker(pick(), `${ORIGIN}/webhooks/github`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-github-event": fixture.event,
+        "x-github-delivery": delivery ?? fixture.delivery_id,
+        "x-hub-signature-256": signature(raw, secret),
       },
-    );
+      body: raw as unknown as BodyInit,
+    });
     return { status: response.status, body: await response.json() };
   }
 
@@ -277,9 +287,33 @@ async function main(): Promise<void> {
     const db = adaptD1(env.DB);
 
     await seedSyntheticWorkspace(db, now, "global");
-    await seedHuman(db, "x04-user", "x04-owner-session", "x04-owner-token", FIX.owner, "owner@synthetic.test", now);
-    await seedHuman(db, "x04-member-user", "x04-member-session", "x04-member-token", FIX.member, "member@synthetic.test", now);
-    await seedHuman(db, "x04-reviewer-user", "x04-reviewer-session", "x04-reviewer-token", FIX.reviewer, "restricted@synthetic.test", now);
+    await seedHuman(
+      db,
+      "x04-user",
+      "x04-owner-session",
+      "x04-owner-token",
+      FIX.owner,
+      "owner@synthetic.test",
+      now,
+    );
+    await seedHuman(
+      db,
+      "x04-member-user",
+      "x04-member-session",
+      "x04-member-token",
+      FIX.member,
+      "member@synthetic.test",
+      now,
+    );
+    await seedHuman(
+      db,
+      "x04-reviewer-user",
+      "x04-reviewer-session",
+      "x04-reviewer-token",
+      FIX.reviewer,
+      "restricted@synthetic.test",
+      now,
+    );
 
     const hub = new WorkspaceHub(db);
     const projectOutcome = await hub.execute(createProjectCommand, {
@@ -302,7 +336,11 @@ async function main(): Promise<void> {
     const projectId = (projectOutcome.result as { id: string }).id;
     const base = `/api/v1/workspaces/${FIX.workspace}/github`;
     const stepUpNow = () => new Date().toISOString();
-    async function stepUp(action: string, targetId: string, humanId: string = FIX.owner): Promise<string> {
+    async function stepUp(
+      action: string,
+      targetId: string,
+      humanId: string = FIX.owner,
+    ): Promise<string> {
       const issued = stepUpNow();
       return issueStepUpProof(
         db,
@@ -320,12 +358,18 @@ async function main(): Promise<void> {
     }
     const deliveryState = (deliveryId: string) =>
       db
-        .prepare(`SELECT state FROM github_webhook_deliveries WHERE workspace_id = ? AND delivery_id = ?`)
+        .prepare(
+          `SELECT state FROM github_webhook_deliveries WHERE workspace_id = ? AND delivery_id = ?`,
+        )
         .get(FIX.workspace, deliveryId) as Promise<{ state: string } | undefined>;
     const outboxFor = (deliveryId: string) =>
       db
-        .prepare(`SELECT outbox_id, state, attempts FROM github_integration_outbox WHERE workspace_id = ? AND delivery_id = ?`)
-        .get(FIX.workspace, deliveryId) as Promise<{ outbox_id: string; state: string; attempts: number } | undefined>;
+        .prepare(
+          `SELECT outbox_id, state, attempts FROM github_integration_outbox WHERE workspace_id = ? AND delivery_id = ?`,
+        )
+        .get(FIX.workspace, deliveryId) as Promise<
+        { outbox_id: string; state: string; attempts: number } | undefined
+      >;
 
     // F1: HMAC rejection happens before parsing.
     {
@@ -368,8 +412,14 @@ async function main(): Promise<void> {
     }
 
     // F2: Owner step-up management matrix over real browser routes.
+    const authMatrix: Array<{ action: string; actor: string; step_up: string; status: number }> =
+      [];
     {
-      const memberProof = await stepUp("github.install", "github-installation:12345678", FIX.member);
+      const memberProof = await stepUp(
+        "github.install",
+        "github-installation:12345678",
+        FIX.member,
+      );
       const denied = await browser("POST", `${base}/installations`, MEMBER, {
         request_id: "x04-e2e-install-denied",
         installation_id: "12345678",
@@ -383,7 +433,17 @@ async function main(): Promise<void> {
         step_up_proof_id: memberProof,
       });
       assert.equal(denied.status, 403, JSON.stringify(denied.body));
-      const reviewerProof = await stepUp("github.install", "github-installation:12345678", FIX.reviewer);
+      authMatrix.push({
+        action: "install",
+        actor: "member",
+        step_up: "fresh",
+        status: denied.status,
+      });
+      const reviewerProof = await stepUp(
+        "github.install",
+        "github-installation:12345678",
+        FIX.reviewer,
+      );
       const reviewerDenied = await browser("POST", `${base}/installations`, REVIEWER, {
         request_id: "x04-e2e-install-reviewer",
         installation_id: "12345678",
@@ -397,6 +457,12 @@ async function main(): Promise<void> {
         step_up_proof_id: reviewerProof,
       });
       assert.equal(reviewerDenied.status, 403, JSON.stringify(reviewerDenied.body));
+      authMatrix.push({
+        action: "install",
+        actor: "reviewer",
+        step_up: "fresh",
+        status: reviewerDenied.status,
+      });
       const ownerProof = await stepUp("github.install", "github-installation:12345678");
       const installed = await browser("POST", `${base}/installations`, OWNER, {
         request_id: "x04-e2e-install-1",
@@ -411,6 +477,12 @@ async function main(): Promise<void> {
         step_up_proof_id: ownerProof,
       });
       assert.equal(installed.status, 200, JSON.stringify(installed.body));
+      authMatrix.push({
+        action: "install",
+        actor: "owner",
+        step_up: "fresh",
+        status: installed.status,
+      });
       const replayProof = await stepUp("github.install", "github-installation:12345678");
       const duplicate = await browser("POST", `${base}/installations`, OWNER, {
         request_id: "x04-e2e-install-2",
@@ -425,6 +497,12 @@ async function main(): Promise<void> {
         step_up_proof_id: replayProof,
       });
       assert.equal(duplicate.status, 409);
+      authMatrix.push({
+        action: "install-duplicate",
+        actor: "owner",
+        step_up: "fresh",
+        status: duplicate.status,
+      });
       const wideProof = await stepUp("github.permissions.update", "github-installation:12345678");
       const wide = await browser("POST", `${base}/installations/12345678/permissions`, OWNER, {
         request_id: "x04-e2e-permissions-wide",
@@ -434,7 +512,46 @@ async function main(): Promise<void> {
         step_up_proof_id: wideProof,
       });
       assert.equal(wide.status, 409);
-      note("F2", "member install denied; owner install pending; duplicate and write-permission changes rejected");
+      authMatrix.push({
+        action: "permissions-write",
+        actor: "owner",
+        step_up: "fresh",
+        status: wide.status,
+      });
+      const permProof = await stepUp("github.permissions.update", "github-installation:12345678");
+      const perms = await browser("POST", `${base}/installations/12345678/permissions`, OWNER, {
+        request_id: "x04-e2e-permissions-1",
+        expected_version: 1,
+        permissions: { metadata: "read" },
+        events: ["push"],
+        step_up_proof_id: permProof,
+      });
+      assert.equal(perms.status, 200);
+      authMatrix.push({
+        action: "permissions",
+        actor: "owner",
+        step_up: "fresh",
+        status: perms.status,
+      });
+      // The same proof replayed is consumed: step-up rejects it before any version check.
+      const replay = await browser("POST", `${base}/installations/12345678/permissions`, OWNER, {
+        request_id: "x04-e2e-permissions-2",
+        expected_version: 2,
+        permissions: { metadata: "read" },
+        events: ["push"],
+        step_up_proof_id: permProof,
+      });
+      assert.equal(replay.status, 403);
+      authMatrix.push({
+        action: "permissions",
+        actor: "owner",
+        step_up: "consumed",
+        status: replay.status,
+      });
+      note(
+        "F2",
+        "member install denied; owner install pending; duplicate and write-permission changes rejected",
+      );
       pass("F2-management");
     }
 
@@ -555,7 +672,10 @@ async function main(): Promise<void> {
           `SELECT version_token FROM github_evidence WHERE workspace_id = ? AND kind = 'commit' AND observed_by = 'github'`,
         )
         .all(FIX.workspace)) as Array<{ version_token: string }>;
-      assert.deepEqual(evidence.map((row) => row.version_token), ["b".repeat(40)]);
+      assert.deepEqual(
+        evidence.map((row) => row.version_token),
+        ["b".repeat(40)],
+      );
       note("F7", "older push superseded; newest sha remains the single effect");
       pass("F7-out-of-order");
     }
@@ -603,7 +723,9 @@ async function main(): Promise<void> {
       assert.equal((await deliveryState(feature.delivery_id))?.state, "received");
       note("F8", "crash state holds received/pending with no early processing");
       // The real Cron trigger recovers the missed enqueue end to end.
-      await server.getWorker("bfb-x04-a").scheduled({ cron: "*/5 * * * *", scheduledTime: new Date() });
+      await server
+        .getWorker("bfb-x04-a")
+        .scheduled({ cron: "*/5 * * * *", scheduledTime: new Date() });
       await poll("crashed delivery applied", async () => {
         const row = await deliveryState(feature.delivery_id);
         return row?.state === "applied" ? row : null;
@@ -696,7 +818,9 @@ async function main(): Promise<void> {
 
     // F11: revocation closes links and ignores later deliveries without minting.
     {
-      const mintsBefore = double.log().filter((entry) => entry.path.includes("access_tokens")).length;
+      const mintsBefore = double
+        .log()
+        .filter((entry) => entry.path.includes("access_tokens")).length;
       const deleted = await loadFixture("installation.deleted.json");
       assert.equal((await postWebhook(deleted)).status, 202);
       await poll("installation revoked", async () => {
@@ -827,7 +951,10 @@ async function main(): Promise<void> {
         .prepare(`SELECT state FROM tasks WHERE workspace_id = ? AND id = ?`)
         .get(FIX.workspace, taskId)) as { state: string };
       assert.equal(task.state, "ready");
-      note("F12", "issue events link evidence only; task stays canonical; provenance upgrades on github match");
+      note(
+        "F12",
+        "issue events link evidence only; task stays canonical; provenance upgrades on github match",
+      );
       pass("F12-provenance");
     }
 
@@ -873,16 +1000,55 @@ async function main(): Promise<void> {
       // The double must have seen a well-formed JWT but never the App key.
       const mints = double.log().filter((entry) => entry.path.includes("access_tokens"));
       assert.ok(mints.length >= 1, "expected at least one token mint");
-      assert.ok(mints.every((entry) => entry.auth === "jwt"), "mints use App JWT bearer");
+      assert.ok(
+        mints.every((entry) => entry.auth === "jwt"),
+        "mints use App JWT bearer",
+      );
       assert.deepEqual(hits, []);
       await mkdir(evidenceDir, { recursive: true });
-      await writeFile(resolve(evidenceDir, "canary-scan.json"), `${JSON.stringify({ scanned: Object.keys(haystacks), hits: 0, outcome: "passed" }, null, 2)}\n`);
+      await writeFile(
+        resolve(evidenceDir, "canary-scan.json"),
+        `${JSON.stringify({ scanned: Object.keys(haystacks), hits: 0, outcome: "passed" }, null, 2)}\n`,
+      );
       note("F13", `canary scan passed over ${Object.keys(haystacks).join(", ")}`);
       pass("F13-canary");
     }
 
     // Evidence traces.
     await mkdir(evidenceDir, { recursive: true });
+    const matrix = [
+      "| Action | Actor | Step-up | HTTP |",
+      "| --- | --- | --- | --- |",
+      ...authMatrix.map(
+        (row) => `| ${row.action} | ${row.actor} | ${row.step_up} | ${row.status} |`,
+      ),
+    ].join("\n");
+    await writeFile(resolve(evidenceDir, "auth-matrix.md"), `${matrix}\n`);
+    const statusSnapshot = await browser("GET", `${base}/status`, OWNER);
+    assert.equal(statusSnapshot.status, 200);
+    const recorded = (
+      statusSnapshot.body as {
+        installations: Array<{ permissions: Record<string, string>; events: string[] }>;
+      }
+    ).installations;
+    for (const installation of recorded) {
+      for (const [name, access] of Object.entries(installation.permissions)) {
+        assert.ok(
+          (GITHUB_PERMISSIONS_ALLOWLIST[name] as readonly string[] | undefined)?.includes(access),
+          `recorded permission ${name}:${access} is outside the inventory`,
+        );
+      }
+      for (const event of installation.events) {
+        assert.ok(
+          (GITHUB_WEBHOOK_EVENTS_ALLOWLIST as readonly string[]).includes(event),
+          `recorded event ${event} is outside the inventory`,
+        );
+      }
+    }
+    await writeFile(
+      resolve(evidenceDir, "permission-inventory.json"),
+      `${JSON.stringify({ allowlist: GITHUB_PERMISSIONS_ALLOWLIST, events: GITHUB_WEBHOOK_EVENTS_ALLOWLIST, recorded }, null, 2)}\n`,
+    );
     const faultMatrix = [
       "| Fault | Expected | Observed |",
       "| --- | --- | --- |",
@@ -900,13 +1066,19 @@ async function main(): Promise<void> {
       "| Issue closed | evidence only, task unchanged | F12 |",
     ].join("\n");
     await writeFile(resolve(evidenceDir, "fault-matrix.md"), `${faultMatrix}\n`);
-    await writeFile(resolve(evidenceDir, "command-result.json"), `${JSON.stringify({ command: "pnpm test:x04", scenarios: scenarioResults, outcome: "passed" }, null, 2)}\n`);
+    await writeFile(
+      resolve(evidenceDir, "command-result.json"),
+      `${JSON.stringify({ command: "pnpm test:x04", scenarios: scenarioResults, outcome: "passed" }, null, 2)}\n`,
+    );
     const effects = (await db
       .prepare(
         `SELECT delivery_id, event, action, installation_id, repository_id, state FROM github_webhook_deliveries WHERE workspace_id = ? ORDER BY received_at, delivery_id`,
       )
       .all(FIX.workspace)) as unknown[];
-    await writeFile(resolve(evidenceDir, "delivery-effects.json"), `${JSON.stringify(effects, null, 2)}\n`);
+    await writeFile(
+      resolve(evidenceDir, "delivery-effects.json"),
+      `${JSON.stringify(effects, null, 2)}\n`,
+    );
     console.log("X04_E2E_OK all scenarios passed");
   } catch (error) {
     for (const entry of server.getLogs().slice(-15)) {

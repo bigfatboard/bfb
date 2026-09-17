@@ -1,0 +1,98 @@
+[
+  {
+    "delivery_id": "x04-delivery-install-created",
+    "event": "installation",
+    "action": "created",
+    "installation_id": "12345678",
+    "repository_id": null,
+    "state": "applied"
+  },
+  {
+    "delivery_id": "x04-delivery-push-new",
+    "event": "push",
+    "action": null,
+    "installation_id": "12345678",
+    "repository_id": "87654321",
+    "state": "applied"
+  },
+  {
+    "delivery_id": "x04-delivery-push-old",
+    "event": "push",
+    "action": null,
+    "installation_id": "12345678",
+    "repository_id": "87654321",
+    "state": "superseded"
+  },
+  {
+    "delivery_id": "x04-delivery-push-feature",
+    "event": "push",
+    "action": null,
+    "installation_id": "12345678",
+    "repository_id": "87654321",
+    "state": "applied"
+  },
+  {
+    "delivery_id": "x04-delivery-pr-opened",
+    "event": "pull_request",
+    "action": "opened",
+    "installation_id": "12345678",
+    "repository_id": "87654321",
+    "state": "applied"
+  },
+  {
+    "delivery_id": "x04-delivery-install-suspend",
+    "event": "installation",
+    "action": "suspend",
+    "installation_id": "12345678",
+    "repository_id": null,
+    "state": "applied"
+  },
+  {
+    "delivery_id": "x04-delivery-install-unsuspend",
+    "event": "installation",
+    "action": "unsuspend",
+    "installation_id": "12345678",
+    "repository_id": null,
+    "state": "applied"
+  },
+  {
+    "delivery_id": "x04-delivery-check-retry",
+    "event": "check_run",
+    "action": "completed",
+    "installation_id": "12345678",
+    "repository_id": "87654321",
+    "state": "applied"
+  },
+  {
+    "delivery_id": "x04-delivery-install-deleted",
+    "event": "installation",
+    "action": "deleted",
+    "installation_id": "12345678",
+    "repository_id": null,
+    "state": "applied"
+  },
+  {
+    "delivery_id": "x04-delivery-push-after-revoke",
+    "event": "push",
+    "action": null,
+    "installation_id": "12345678",
+    "repository_id": "87654321",
+    "state": "ignored"
+  },
+  {
+    "delivery_id": "x04-delivery-install-second",
+    "event": "installation",
+    "action": "created",
+    "installation_id": "12345679",
+    "repository_id": null,
+    "state": "applied"
+  },
+  {
+    "delivery_id": "x04-delivery-issue-second",
+    "event": "issues",
+    "action": "opened",
+    "installation_id": "12345679",
+    "repository_id": "87654321",
+    "state": "applied"
+  }
+]

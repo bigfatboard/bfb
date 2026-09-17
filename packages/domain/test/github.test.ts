@@ -141,7 +141,11 @@ async function activate(db: SqlDatabase): Promise<void> {
     input: {
       outboxId: result.outbox_id as string,
       deliveryId: result.delivery_id,
-      observed: { repositoryFullName: "synthetic-org/synthetic-repo", defaultBranch: "main", fetchedAt: NOW },
+      observed: {
+        repositoryFullName: "synthetic-org/synthetic-repo",
+        defaultBranch: "main",
+        fetchedAt: NOW,
+      },
     },
   });
   if (!reconciled.ok) {
@@ -201,9 +205,7 @@ function sign(body: Uint8Array, secret: string = SECRET): string {
 describe("github webhook signature", () => {
   it("accepts a valid signature and rejects forgeries before parsing", () => {
     const body = new TextEncoder().encode(`{"not":"json`);
-    expect(() =>
-      verifyGitHubWebhookSignature(SECRET, body, sign(body)),
-    ).not.toThrow();
+    expect(() => verifyGitHubWebhookSignature(SECRET, body, sign(body))).not.toThrow();
     expect(() => verifyGitHubWebhookSignature("wrong-secret", body, sign(body))).toThrow(
       DomainError,
     );
@@ -211,9 +213,7 @@ describe("github webhook signature", () => {
       verifyGitHubWebhookSignature(SECRET, body, sign(new TextEncoder().encode("other"))),
     ).toThrow(DomainError);
     expect(() => verifyGitHubWebhookSignature(SECRET, body, null)).toThrow(DomainError);
-    expect(() => verifyGitHubWebhookSignature(SECRET, body, "sha1=deadbeef")).toThrow(
-      DomainError,
-    );
+    expect(() => verifyGitHubWebhookSignature(SECRET, body, "sha1=deadbeef")).toThrow(DomainError);
     expect(() => verifyGitHubWebhookSignature("", body, sign(body, ""))).toThrow(DomainError);
   });
 
@@ -234,7 +234,12 @@ describe("github effect extraction", () => {
   it("extracts push, pull_request, check_run, and issues effects", () => {
     const push = extractWebhookEffect(
       "push",
-      { ref: "refs/heads/main", head_commit: { id: "a".repeat(40), timestamp: NOW }, repository, installation },
+      {
+        ref: "refs/heads/main",
+        head_commit: { id: "a".repeat(40), timestamp: NOW },
+        repository,
+        installation,
+      },
       LATER,
     );
     expect(push.supported).toBe(true);
@@ -265,7 +270,14 @@ describe("github effect extraction", () => {
       "check_run",
       {
         action: "completed",
-        check_run: { id: 4242, name: "ci", head_sha: "c".repeat(40), status: "completed", conclusion: "success", completed_at: NOW },
+        check_run: {
+          id: 4242,
+          name: "ci",
+          head_sha: "c".repeat(40),
+          status: "completed",
+          conclusion: "success",
+          completed_at: NOW,
+        },
         repository,
         installation,
       },
@@ -276,7 +288,12 @@ describe("github effect extraction", () => {
 
     const issue = extractWebhookEffect(
       "issues",
-      { action: "closed", issue: { number: 9, state: "closed", title: "Synthetic", updated_at: NOW }, repository, installation },
+      {
+        action: "closed",
+        issue: { number: 9, state: "closed", title: "Synthetic", updated_at: NOW },
+        repository,
+        installation,
+      },
       LATER,
     );
     expect(issue.effect?.ref).toBe("9");
@@ -305,9 +322,9 @@ describe("github installation management", () => {
     await expect(
       install(db, { permissions: { ...PERMISSIONS, metadata: "write" } }),
     ).rejects.toThrow(/outside the v0.1 inventory/);
-    await expect(
-      install(db, { permissions: { unknown_scope: "read" } }),
-    ).rejects.toThrow(/must be an object with known fields/);
+    await expect(install(db, { permissions: { unknown_scope: "read" } })).rejects.toThrow(
+      /must be an object with known fields/,
+    );
     await expect(install(db, { events: ["push", "secret_scanning_alert"] })).rejects.toThrow(
       /not subscribed/,
     );
@@ -363,7 +380,14 @@ describe("github installation management", () => {
     await activate(db);
     const projectId = await createGitHubProject(db);
     await mapRepo(db, projectId);
-    const proof = await stepUp(db, FIX.owner, "github.remove", `github-installation:${INSTALLATION}`, 1, LATER);
+    const proof = await stepUp(
+      db,
+      FIX.owner,
+      "github.remove",
+      `github-installation:${INSTALLATION}`,
+      1,
+      LATER,
+    );
     const removed = await hub(db).execute(removeGitHubCommand, {
       workspaceId: FIX.workspace,
       idempotencyKey: randomUlid(),
@@ -376,7 +400,14 @@ describe("github installation management", () => {
     const status = await getGitHubStatus(db, FIX.workspace);
     expect(status.installations[0]?.status).toBe("revoked");
     expect(status.links).toHaveLength(0);
-    const proof2 = await stepUp(db, FIX.owner, "github.remove", `github-installation:${INSTALLATION}`, 1, LATER);
+    const proof2 = await stepUp(
+      db,
+      FIX.owner,
+      "github.remove",
+      `github-installation:${INSTALLATION}`,
+      1,
+      LATER,
+    );
     const again = await hub(db).execute(removeGitHubCommand, {
       workspaceId: FIX.workspace,
       idempotencyKey: randomUlid(),
@@ -407,17 +438,35 @@ describe("github installation management", () => {
           ...input,
         },
       });
-    const proof = await stepUp(db, FIX.owner, "github.permissions.update", `github-installation:${INSTALLATION}`);
-    expect(
-      (await attempt({ permissions: { metadata: "write" }, stepUpProofId: proof })).ok,
-    ).toBe(false);
-    const proof2 = await stepUp(db, FIX.owner, "github.permissions.update", `github-installation:${INSTALLATION}`);
-    expect(
-      (await attempt({ expectedVersion: 9, stepUpProofId: proof2 })).ok,
-    ).toBe(false);
-    const memberProof = await stepUp(db, FIX.member, "github.permissions.update", `github-installation:${INSTALLATION}`);
+    const proof = await stepUp(
+      db,
+      FIX.owner,
+      "github.permissions.update",
+      `github-installation:${INSTALLATION}`,
+    );
+    expect((await attempt({ permissions: { metadata: "write" }, stepUpProofId: proof })).ok).toBe(
+      false,
+    );
+    const proof2 = await stepUp(
+      db,
+      FIX.owner,
+      "github.permissions.update",
+      `github-installation:${INSTALLATION}`,
+    );
+    expect((await attempt({ expectedVersion: 9, stepUpProofId: proof2 })).ok).toBe(false);
+    const memberProof = await stepUp(
+      db,
+      FIX.member,
+      "github.permissions.update",
+      `github-installation:${INSTALLATION}`,
+    );
     expect((await attempt({ stepUpProofId: memberProof })).ok).toBe(false);
-    const proof3 = await stepUp(db, FIX.owner, "github.permissions.update", `github-installation:${INSTALLATION}`);
+    const proof3 = await stepUp(
+      db,
+      FIX.owner,
+      "github.permissions.update",
+      `github-installation:${INSTALLATION}`,
+    );
     const ok = await attempt({ stepUpProofId: proof3 });
     expect(ok.ok).toBe(true);
   });
@@ -429,7 +478,12 @@ describe("github repository mapping", () => {
     await install(db);
     // Mapping requires an active installation: pending fails closed.
     const projectId = await createGitHubProject(db);
-    const pendingProof = await stepUp(db, FIX.owner, "github.repository.map", `github-link:${REPOSITORY}`);
+    const pendingProof = await stepUp(
+      db,
+      FIX.owner,
+      "github.repository.map",
+      `github-link:${REPOSITORY}`,
+    );
     const pending = await hub(db).execute(mapGitHubRepositoryCommand, {
       workspaceId: FIX.workspace,
       idempotencyKey: randomUlid(),
@@ -459,7 +513,12 @@ describe("github repository mapping", () => {
     await activate(db);
     const projectId = await createGitHubProject(db);
     // A project declaring a different immutable repository cannot be mapped.
-    const mismatchProof = await stepUp(db, FIX.owner, "github.repository.map", "github-link:11111111");
+    const mismatchProof = await stepUp(
+      db,
+      FIX.owner,
+      "github.repository.map",
+      "github-link:11111111",
+    );
     const mismatch = await hub(db).execute(mapGitHubRepositoryCommand, {
       workspaceId: FIX.workspace,
       idempotencyKey: randomUlid(),
@@ -477,7 +536,12 @@ describe("github repository mapping", () => {
     });
     expect(mismatch.ok).toBe(false);
     // A member cannot remap even with a valid proof shape.
-    const memberProof = await stepUp(db, FIX.member, "github.repository.map", `github-link:${REPOSITORY}`);
+    const memberProof = await stepUp(
+      db,
+      FIX.member,
+      "github.repository.map",
+      `github-link:${REPOSITORY}`,
+    );
     const member = await hub(db).execute(mapGitHubRepositoryCommand, {
       workspaceId: FIX.workspace,
       idempotencyKey: randomUlid(),
@@ -522,7 +586,14 @@ describe("github repository mapping", () => {
     // Same repository id with a different subpath is a distinct project identity.
     expect(second.ok).toBe(true);
     const projectB = (second as { ok: true; result: { id: string } }).result.id;
-    const proof = await stepUp(db, FIX.owner, "github.repository.map", `github-link:${REPOSITORY}`, 1, LATER);
+    const proof = await stepUp(
+      db,
+      FIX.owner,
+      "github.repository.map",
+      `github-link:${REPOSITORY}`,
+      1,
+      LATER,
+    );
     const remapped = await hub(db).execute(mapGitHubRepositoryCommand, {
       workspaceId: FIX.workspace,
       idempotencyKey: randomUlid(),
@@ -681,9 +752,7 @@ describe("github webhook receive and reconcile", () => {
       },
     });
     expect(third.ok).toBe(true);
-    expect(
-      (third as { ok: true; result: ReceiveGitHubWebhookResult }).result.duplicate,
-    ).toBe(true);
+    expect((third as { ok: true; result: ReceiveGitHubWebhookResult }).result.duplicate).toBe(true);
     const outbox = (await db
       .prepare(`SELECT COUNT(*) AS count FROM github_integration_outbox WHERE delivery_id = ?`)
       .get(deliveryId)) as { count: number };
@@ -868,16 +937,21 @@ describe("github webhook receive and reconcile", () => {
     await mapRepo(db, projectId);
     // Deleted flips the installation to revoked and closes links.
     const deletedId = randomUlid();
-    await receive(db, deletedId, {
-      event: "installation",
-      action: "deleted",
-      installationId: INSTALLATION,
-      repositoryId: null,
-      occurredAt: LATER,
-      ref: null,
-      version: null,
-      detail: {},
-    }, LATER);
+    await receive(
+      db,
+      deletedId,
+      {
+        event: "installation",
+        action: "deleted",
+        installationId: INSTALLATION,
+        repositoryId: null,
+        occurredAt: LATER,
+        ref: null,
+        version: null,
+        detail: {},
+      },
+      LATER,
+    );
     const outbox = (await db
       .prepare(`SELECT outbox_id FROM github_integration_outbox WHERE delivery_id = ?`)
       .get(deletedId)) as { outbox_id: string };
@@ -1003,11 +1077,15 @@ describe("github evidence linking and provenance", () => {
     ).toEqual([{ kind: "github", ref, provenance: "runner_observed" }]);
     // A version mismatch is not verification either.
     expect(
-      await getEvidenceVerificationStatus(db, FIX.workspace, [{ kind: "github", ref, version: "other" }]),
+      await getEvidenceVerificationStatus(db, FIX.workspace, [
+        { kind: "github", ref, version: "other" },
+      ]),
     ).toEqual([{ kind: "github", ref, provenance: "runner_observed" }]);
     // Non-github kinds stay opaque per the results contract.
     expect(
-      await getEvidenceVerificationStatus(db, FIX.workspace, [{ kind: "artifact_version", ref: "x" }]),
+      await getEvidenceVerificationStatus(db, FIX.workspace, [
+        { kind: "artifact_version", ref: "x" },
+      ]),
     ).toEqual([{ kind: "artifact_version", ref: "x", provenance: "opaque" }]);
   });
 });
@@ -1076,7 +1154,9 @@ describe("github queue envelope and outbox recovery", () => {
     expect(attempts).toBeGreaterThan(1);
     // Exhausted rows move to visible DLQ state.
     await db
-      .prepare(`UPDATE github_integration_outbox SET attempts = 5, updated_at = ? WHERE outbox_id = ?`)
+      .prepare(
+        `UPDATE github_integration_outbox SET attempts = 5, updated_at = ? WHERE outbox_id = ?`,
+      )
       .run(NOW, first[0]?.outbox_id as string);
     await writeGitHubDlqRow(
       db,

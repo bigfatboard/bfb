@@ -60,20 +60,10 @@ export type GitHubWebhookEvent = (typeof GITHUB_WEBHOOK_EVENTS_ALLOWLIST)[number
 
 export type GitHubInstallationStatus = "pending" | "active" | "suspended" | "revoked";
 export type GitHubDeliveryState =
-  | "received"
-  | "queued"
-  | "applied"
-  | "superseded"
-  | "ignored"
-  | "failed";
+  "received" | "queued" | "applied" | "superseded" | "ignored" | "failed";
 export type GitHubOutboxState = "pending" | "dispatched" | "done" | "dlq";
 export type GitHubEvidenceKind =
-  | "issue"
-  | "branch"
-  | "commit"
-  | "pull_request"
-  | "check"
-  | "deployment";
+  "issue" | "branch" | "commit" | "pull_request" | "check" | "deployment";
 export type GitHubObserver = "github" | "runner" | "human";
 
 export const GITHUB_STEP_UP_ACTIONS = {
@@ -96,7 +86,11 @@ function fail(code: string, message: string): never {
   throw new DomainError(code, message);
 }
 
-function closedObject(value: unknown, keys: readonly string[], what: string): Record<string, unknown> {
+function closedObject(
+  value: unknown,
+  keys: readonly string[],
+  what: string,
+): Record<string, unknown> {
   if (
     !value ||
     typeof value !== "object" ||
@@ -139,10 +133,12 @@ function boundedText(value: unknown, field: string, maximum: number, pattern?: R
   if (pattern && !pattern.test(value)) {
     fail("invalid_argument", `${field} is invalid`);
   }
-  if ([...value].some((character) => {
-    const code = character.codePointAt(0) ?? 0;
-    return code <= 0x1f || code === 0x7f;
-  })) {
+  if (
+    [...value].some((character) => {
+      const code = character.codePointAt(0) ?? 0;
+      return code <= 0x1f || code === 0x7f;
+    })
+  ) {
     fail("invalid_argument", `${field} is invalid`);
   }
   return value;
@@ -248,8 +244,7 @@ export function extractWebhookEffect(
   const installation = installationOf(body);
   const installationId = numericId(installation.id, "installation id");
   const repository = repositoryOf(body);
-  const repositoryId =
-    repository === null ? null : numericId(repository.id, "repository id");
+  const repositoryId = repository === null ? null : numericId(repository.id, "repository id");
   const action = optionalText(body.action, "webhook action", 64, ACTION_PATTERN);
   const detail: Record<string, string> = {};
   let ref: string | null = null;
@@ -265,7 +260,12 @@ export function extractWebhookEffect(
 
   switch (event) {
     case "installation": {
-      take("account_login", (installation.account as Record<string, unknown> | undefined)?.login, 128, LOGIN_PATTERN);
+      take(
+        "account_login",
+        (installation.account as Record<string, unknown> | undefined)?.login,
+        128,
+        LOGIN_PATTERN,
+      );
       take("account_type", (installation.account as Record<string, unknown> | undefined)?.type, 32);
       occurredAt = payloadTime(installation.updated_at) ?? receivedAt;
       break;
@@ -296,14 +296,22 @@ export function extractWebhookEffect(
         occurredAt = receivedAt;
         break;
       }
-      const head = closedObject(body.head_commit, ["id", "timestamp", "message", "author", "url", "distinct", "added", "removed", "modified"], "push head commit");
+      const head = closedObject(
+        body.head_commit,
+        ["id", "timestamp", "message", "author", "url", "distinct", "added", "removed", "modified"],
+        "push head commit",
+      );
       const sha = boundedText(head.id, "push sha", 64, SHA_PATTERN);
       version = sha;
       occurredAt = payloadTime(head.timestamp) ?? receivedAt;
       break;
     }
     case "pull_request": {
-      const pull = closedObject(body.pull_request ?? {}, ["number", "head", "base", "state", "merged", "updated_at", "title"], "pull request");
+      const pull = closedObject(
+        body.pull_request ?? {},
+        ["number", "head", "base", "state", "merged", "updated_at", "title"],
+        "pull request",
+      );
       const number = countText(pull.number, "pull request number");
       const head = (pull.head ?? {}) as Record<string, unknown>;
       ref = number;
@@ -314,7 +322,11 @@ export function extractWebhookEffect(
       break;
     }
     case "check_run": {
-      const check = closedObject(body.check_run ?? {}, ["id", "name", "head_sha", "status", "conclusion", "started_at", "completed_at"], "check run");
+      const check = closedObject(
+        body.check_run ?? {},
+        ["id", "name", "head_sha", "status", "conclusion", "started_at", "completed_at"],
+        "check run",
+      );
       ref = countText(check.id, "check run id");
       take("check_name", check.name, 256);
       take("check_status", check.status, 32);
@@ -327,7 +339,11 @@ export function extractWebhookEffect(
       break;
     }
     case "check_suite": {
-      const suite = closedObject(body.check_suite ?? {}, ["id", "head_sha", "status", "conclusion", "updated_at", "created_at"], "check suite");
+      const suite = closedObject(
+        body.check_suite ?? {},
+        ["id", "head_sha", "status", "conclusion", "updated_at", "created_at"],
+        "check suite",
+      );
       ref = countText(suite.id, "check suite id");
       take("check_status", suite.status, 32);
       take("check_conclusion", suite.conclusion, 32);
@@ -347,7 +363,11 @@ export function extractWebhookEffect(
       break;
     }
     case "issues": {
-      const issue = closedObject(body.issue ?? {}, ["number", "state", "title", "updated_at"], "issue");
+      const issue = closedObject(
+        body.issue ?? {},
+        ["number", "state", "title", "updated_at"],
+        "issue",
+      );
       ref = countText(issue.number, "issue number");
       version = boundedText(issue.state, "issue state", 32);
       take("issue_title", issue.title, 256);
@@ -355,7 +375,11 @@ export function extractWebhookEffect(
       break;
     }
     case "deployment": {
-      const deployment = closedObject(body.deployment ?? {}, ["id", "sha", "environment", "created_at"], "deployment");
+      const deployment = closedObject(
+        body.deployment ?? {},
+        ["id", "sha", "environment", "created_at"],
+        "deployment",
+      );
       ref = countText(deployment.id, "deployment id");
       take("deployment_environment", deployment.environment, 128);
       take("head_sha", deployment.sha, 64, SHA_PATTERN);
@@ -463,12 +487,19 @@ async function prepareStepUp(
 }
 
 function assertPermissionsSubset(permissions: unknown): Record<string, string> {
-  const body = closedObject(permissions, Object.keys(GITHUB_PERMISSIONS_ALLOWLIST), "github permissions");
+  const body = closedObject(
+    permissions,
+    Object.keys(GITHUB_PERMISSIONS_ALLOWLIST),
+    "github permissions",
+  );
   const result: Record<string, string> = {};
   for (const [name, access] of Object.entries(body)) {
     const allowed = GITHUB_PERMISSIONS_ALLOWLIST[name];
     if (!allowed || typeof access !== "string" || !allowed.includes(access)) {
-      fail("github_permission_forbidden", `github permission ${name} is outside the v0.1 inventory`);
+      fail(
+        "github_permission_forbidden",
+        `github permission ${name} is outside the v0.1 inventory`,
+      );
     }
     result[name] = access;
   }
@@ -481,7 +512,10 @@ function assertEventsSubset(events: unknown): string[] {
   }
   const result = [...new Set(events)].sort();
   for (const event of result) {
-    if (typeof event !== "string" || !(GITHUB_WEBHOOK_EVENTS_ALLOWLIST as readonly string[]).includes(event)) {
+    if (
+      typeof event !== "string" ||
+      !(GITHUB_WEBHOOK_EVENTS_ALLOWLIST as readonly string[]).includes(event)
+    ) {
       fail("github_event_forbidden", `github webhook event ${String(event)} is not subscribed`);
     }
   }
@@ -515,7 +549,21 @@ export const installGitHubCommand: HubCommand<InstallGitHubInput, GitHubInstalla
   replay: "reject",
   auditInput: (input) => ({ installationId: input.installationId }),
   async run(input, ctx) {
-    closedObject(input, ["installationId", "appId", "appSlug", "accountId", "accountLogin", "accountType", "permissions", "events", "stepUpProofId"], "github install");
+    closedObject(
+      input,
+      [
+        "installationId",
+        "appId",
+        "appSlug",
+        "accountId",
+        "accountLogin",
+        "accountType",
+        "permissions",
+        "events",
+        "stepUpProofId",
+      ],
+      "github install",
+    );
     await requireOwner(ctx);
     const installationId = numericId(input.installationId, "installation id");
     const appId = numericId(input.appId, "app id");
@@ -533,8 +581,7 @@ export const installGitHubCommand: HubCommand<InstallGitHubInput, GitHubInstalla
         `SELECT status, resource_version FROM github_app_installations WHERE installation_id = ?`,
       )
       .get(installationId)) as
-      | { status: GitHubInstallationStatus; resource_version: number }
-      | undefined;
+      { status: GitHubInstallationStatus; resource_version: number } | undefined;
     if (existing && existing.status !== "revoked") {
       fail("already_exists", "github installation is already registered");
     }
@@ -556,8 +603,16 @@ export const installGitHubCommand: HubCommand<InstallGitHubInput, GitHubInstalla
            WHERE installation_id = ?`,
         )
         .run(
-          ctx.workspaceId, appId, appSlug, accountId, accountLogin, input.accountType,
-          JSON.stringify(permissions), JSON.stringify(events), ctx.actorHumanId, ctx.now,
+          ctx.workspaceId,
+          appId,
+          appSlug,
+          accountId,
+          accountLogin,
+          input.accountType,
+          JSON.stringify(permissions),
+          JSON.stringify(events),
+          ctx.actorHumanId,
+          ctx.now,
           installationId,
         );
       // No post-write re-read: D1 batches forbid reads after a queued write.
@@ -580,9 +635,18 @@ export const installGitHubCommand: HubCommand<InstallGitHubInput, GitHubInstalla
          VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, NULL, 1)`,
       )
       .run(
-        installationId, ctx.workspaceId, appId, appSlug, accountId, accountLogin,
-        input.accountType, JSON.stringify(permissions), JSON.stringify(events),
-        ctx.actorHumanId, ctx.now, ctx.now,
+        installationId,
+        ctx.workspaceId,
+        appId,
+        appSlug,
+        accountId,
+        accountLogin,
+        input.accountType,
+        JSON.stringify(permissions),
+        JSON.stringify(events),
+        ctx.actorHumanId,
+        ctx.now,
+        ctx.now,
       );
     return {
       installation_id: installationId,
@@ -691,12 +755,19 @@ export interface MapGitHubRepositoryInput {
   stepUpProofId: string;
 }
 
-export const mapGitHubRepositoryCommand: HubCommand<MapGitHubRepositoryInput, GitHubRepositoryLinkSummary> = {
+export const mapGitHubRepositoryCommand: HubCommand<
+  MapGitHubRepositoryInput,
+  GitHubRepositoryLinkSummary
+> = {
   name: "github.repository.map",
   replay: "reject",
   auditInput: (input) => ({ repositoryId: input.repositoryId, projectId: input.projectId }),
   async run(input, ctx) {
-    closedObject(input, ["installationId", "repositoryId", "projectId", "fullName", "defaultBranch", "stepUpProofId"], "github repository map");
+    closedObject(
+      input,
+      ["installationId", "repositoryId", "projectId", "fullName", "defaultBranch", "stepUpProofId"],
+      "github repository map",
+    );
     const principal = await requireOwner(ctx);
     const installationId = numericId(input.installationId, "installation id");
     const repositoryId = numericId(input.repositoryId, "repository id");
@@ -710,7 +781,8 @@ export const mapGitHubRepositoryCommand: HubCommand<MapGitHubRepositoryInput, Gi
       .prepare(
         `SELECT workspace_id, status FROM github_app_installations WHERE installation_id = ?`,
       )
-      .get(installationId)) as { workspace_id: string; status: GitHubInstallationStatus } | undefined;
+      .get(installationId)) as
+      { workspace_id: string; status: GitHubInstallationStatus } | undefined;
     if (!installation || installation.workspace_id !== ctx.workspaceId) {
       fail("not_found", "github installation not found");
     }
@@ -722,8 +794,7 @@ export const mapGitHubRepositoryCommand: HubCommand<MapGitHubRepositoryInput, Gi
         `SELECT repository_host, hosted_repository_id FROM projects WHERE workspace_id = ? AND id = ?`,
       )
       .get(ctx.workspaceId, input.projectId)) as
-      | { repository_host: string; hosted_repository_id: string }
-      | undefined;
+      { repository_host: string; hosted_repository_id: string } | undefined;
     if (!project) {
       fail("not_found", "project not found");
     }
@@ -756,8 +827,14 @@ export const mapGitHubRepositoryCommand: HubCommand<MapGitHubRepositoryInput, Gi
          VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, NULL, 1)`,
       )
       .run(
-        ctx.workspaceId, linkId, repositoryId, installationId, input.projectId,
-        fullName, defaultBranch, ctx.now,
+        ctx.workspaceId,
+        linkId,
+        repositoryId,
+        installationId,
+        input.projectId,
+        fullName,
+        defaultBranch,
+        ctx.now,
       );
     return {
       link_id: linkId,
@@ -781,12 +858,19 @@ export interface UpdateGitHubPermissionsInput {
   stepUpProofId: string;
 }
 
-export const updateGitHubPermissionsCommand: HubCommand<UpdateGitHubPermissionsInput, GitHubInstallationSummary> = {
+export const updateGitHubPermissionsCommand: HubCommand<
+  UpdateGitHubPermissionsInput,
+  GitHubInstallationSummary
+> = {
   name: "github.permissions.update",
   replay: "reject",
   auditInput: (input) => ({ installationId: input.installationId }),
   async run(input, ctx) {
-    closedObject(input, ["installationId", "expectedVersion", "permissions", "events", "stepUpProofId"], "github permissions update");
+    closedObject(
+      input,
+      ["installationId", "expectedVersion", "permissions", "events", "stepUpProofId"],
+      "github permissions update",
+    );
     await requireOwner(ctx);
     const installationId = numericId(input.installationId, "installation id");
     if (!Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 1) {
@@ -850,7 +934,12 @@ export const updateGitHubPermissionsCommand: HubCommand<UpdateGitHubPermissionsI
 };
 
 function assertSystem(ctx: HubContext, expected: string): void {
-  if (ctx.actorSystemId !== expected || ctx.actorHumanId || ctx.actorDelegationId || ctx.actorRunnerId) {
+  if (
+    ctx.actorSystemId !== expected ||
+    ctx.actorHumanId ||
+    ctx.actorDelegationId ||
+    ctx.actorRunnerId
+  ) {
     fail("forbidden", "github pipeline commands require their system actor");
   }
 }
@@ -875,7 +964,10 @@ export interface ReceiveGitHubWebhookResult {
  * row. The Queue enqueue happens after this command commits; a crash between
  * the two is recovered by Cron redelivery of `pending` outbox rows.
  */
-export const receiveGitHubWebhookCommand: HubCommand<ReceiveGitHubWebhookInput, ReceiveGitHubWebhookResult> = {
+export const receiveGitHubWebhookCommand: HubCommand<
+  ReceiveGitHubWebhookInput,
+  ReceiveGitHubWebhookResult
+> = {
   name: "github.webhook.receive",
   auditInput: (input) => ({ deliveryId: input.deliveryId, event: input.event }),
   async run(input, ctx) {
@@ -904,8 +996,7 @@ export const receiveGitHubWebhookCommand: HubCommand<ReceiveGitHubWebhookInput, 
         `SELECT workspace_id, status FROM github_app_installations WHERE installation_id = ?`,
       )
       .get(effect.installationId)) as
-      | { workspace_id: string; status: GitHubInstallationStatus }
-      | undefined;
+      { workspace_id: string; status: GitHubInstallationStatus } | undefined;
     if (!installation) {
       fail("unknown_installation", "github installation is not registered");
     }
@@ -926,8 +1017,15 @@ export const receiveGitHubWebhookCommand: HubCommand<ReceiveGitHubWebhookInput, 
            ON CONFLICT (workspace_id, delivery_id) DO NOTHING`,
         )
         .run(
-          ctx.workspaceId, input.deliveryId, input.event, effect.action, effect.installationId,
-          effect.repositoryId, effectJson, ctx.now, ctx.now,
+          ctx.workspaceId,
+          input.deliveryId,
+          input.event,
+          effect.action,
+          effect.installationId,
+          effect.repositoryId,
+          effectJson,
+          ctx.now,
+          ctx.now,
         );
       return {
         workspace_id: ctx.workspaceId,
@@ -940,7 +1038,8 @@ export const receiveGitHubWebhookCommand: HubCommand<ReceiveGitHubWebhookInput, 
     // Lifecycle recovery flows through suspension: unsuspend clears it and
     // deleted revokes it. Everything else waits for GitHub redelivery.
     const lifecycleRecovery =
-      effect.event === "installation" && (effect.action === "unsuspend" || effect.action === "deleted");
+      effect.event === "installation" &&
+      (effect.action === "unsuspend" || effect.action === "deleted");
     if (installation.status === "suspended" && !lifecycleRecovery) {
       fail("installation_suspended", "github installation is suspended");
     }
@@ -975,8 +1074,14 @@ export const receiveGitHubWebhookCommand: HubCommand<ReceiveGitHubWebhookInput, 
          VALUES (?, ?, ?, ?, ?, ?, ?, 'received', ?, NULL, NULL)`,
       )
       .run(
-        ctx.workspaceId, input.deliveryId, input.event, effect.action, effect.installationId,
-        effect.repositoryId, effectJson, ctx.now,
+        ctx.workspaceId,
+        input.deliveryId,
+        input.event,
+        effect.action,
+        effect.installationId,
+        effect.repositoryId,
+        effectJson,
+        ctx.now,
       );
     await ctx.db
       .prepare(
@@ -1015,9 +1120,18 @@ export interface ReconcileGitHubResult {
 }
 
 function observedState(input: unknown): ReconcileGitHubObserved {
-  const body = closedObject(input, ["repositoryFullName", "defaultBranch", "fetchedAt"], "reconcile observation");
+  const body = closedObject(
+    input,
+    ["repositoryFullName", "defaultBranch", "fetchedAt"],
+    "reconcile observation",
+  );
   return {
-    repositoryFullName: boundedText(body.repositoryFullName, "repository full name", 256, FULL_NAME_PATTERN),
+    repositoryFullName: boundedText(
+      body.repositoryFullName,
+      "repository full name",
+      256,
+      FULL_NAME_PATTERN,
+    ),
     defaultBranch: boundedText(body.defaultBranch, "default branch", 256, BRANCH_PATTERN),
     fetchedAt: utcTime(body.fetchedAt, "fetched at"),
   };
@@ -1110,8 +1224,7 @@ export const reconcileGitHubCommand: HubCommand<ReconcileGitHubInput, ReconcileG
         `SELECT delivery_id, state, attempts FROM github_integration_outbox WHERE workspace_id = ? AND outbox_id = ?`,
       )
       .get(ctx.workspaceId, input.outboxId)) as
-      | { delivery_id: string; state: GitHubOutboxState; attempts: number }
-      | undefined;
+      { delivery_id: string; state: GitHubOutboxState; attempts: number } | undefined;
     if (!outbox) {
       fail("outbox_missing", "github outbox row is missing");
     }
@@ -1126,13 +1239,25 @@ export const reconcileGitHubCommand: HubCommand<ReconcileGitHubInput, ReconcileG
         `SELECT event, effect_json, state FROM github_webhook_deliveries WHERE workspace_id = ? AND delivery_id = ?`,
       )
       .get(ctx.workspaceId, input.deliveryId)) as
-      | { event: string; effect_json: string; state: GitHubDeliveryState }
-      | undefined;
+      { event: string; effect_json: string; state: GitHubDeliveryState } | undefined;
     if (!delivery) {
       fail("delivery_missing", "github delivery is missing");
     }
-    if (delivery.state === "applied" || delivery.state === "superseded" || delivery.state === "ignored") {
-      await finishOutbox(ctx.db, ctx.workspaceId, input.outboxId, "done", input.deliveryId, delivery.state, null, ctx.now);
+    if (
+      delivery.state === "applied" ||
+      delivery.state === "superseded" ||
+      delivery.state === "ignored"
+    ) {
+      await finishOutbox(
+        ctx.db,
+        ctx.workspaceId,
+        input.outboxId,
+        "done",
+        input.deliveryId,
+        delivery.state,
+        null,
+        ctx.now,
+      );
       return { effect: "already_done", reason: `delivery is ${delivery.state}` };
     }
     if (outbox.attempts >= GITHUB_OUTBOX_MAX_ATTEMPTS) {
@@ -1142,17 +1267,33 @@ export const reconcileGitHubCommand: HubCommand<ReconcileGitHubInput, ReconcileG
            VALUES (?, ?, ?, 'github.reconcile', 'attempts_exhausted', ?, ?)`,
         )
         .run(ctx.workspaceId, input.outboxId, input.deliveryId, outbox.attempts, ctx.now);
-      await finishOutbox(ctx.db, ctx.workspaceId, input.outboxId, "dlq", input.deliveryId, "failed", "attempts_exhausted", ctx.now);
+      await finishOutbox(
+        ctx.db,
+        ctx.workspaceId,
+        input.outboxId,
+        "dlq",
+        input.deliveryId,
+        "failed",
+        "attempts_exhausted",
+        ctx.now,
+      );
       return { effect: "dlq", reason: "attempts exhausted" };
     }
     const effect = JSON.parse(delivery.effect_json) as GitHubDeliveryEffect;
     const installation = (await ctx.db
-      .prepare(
-        `SELECT status FROM github_app_installations WHERE installation_id = ?`,
-      )
+      .prepare(`SELECT status FROM github_app_installations WHERE installation_id = ?`)
       .get(effect.installationId)) as { status: GitHubInstallationStatus } | undefined;
     if (!installation || installation.status === "revoked") {
-      await finishOutbox(ctx.db, ctx.workspaceId, input.outboxId, "done", input.deliveryId, "ignored", "installation_revoked", ctx.now);
+      await finishOutbox(
+        ctx.db,
+        ctx.workspaceId,
+        input.outboxId,
+        "done",
+        input.deliveryId,
+        "ignored",
+        "installation_revoked",
+        ctx.now,
+      );
       return { effect: "ignored", reason: "installation revoked" };
     }
     if (effect.event === "installation") {
@@ -1165,7 +1306,16 @@ export const reconcileGitHubCommand: HubCommand<ReconcileGitHubInput, ReconcileG
     }
     if (effect.event === "installation_repositories") {
       // Repository mapping stays Owner-only: record the delivery, change no link.
-      await finishOutbox(ctx.db, ctx.workspaceId, input.outboxId, "done", input.deliveryId, "applied", null, ctx.now);
+      await finishOutbox(
+        ctx.db,
+        ctx.workspaceId,
+        input.outboxId,
+        "done",
+        input.deliveryId,
+        "applied",
+        null,
+        ctx.now,
+      );
       return { effect: "applied", reason: "recorded without link change" };
     }
     if (!effect.repositoryId) {
@@ -1182,7 +1332,16 @@ export const reconcileGitHubCommand: HubCommand<ReconcileGitHubInput, ReconcileG
       )
       .get(effect.repositoryId)) as { project_id: string; default_branch: string } | undefined;
     if (!link) {
-      await finishOutbox(ctx.db, ctx.workspaceId, input.outboxId, "done", input.deliveryId, "ignored", "repository_unmapped", ctx.now);
+      await finishOutbox(
+        ctx.db,
+        ctx.workspaceId,
+        input.outboxId,
+        "done",
+        input.deliveryId,
+        "ignored",
+        "repository_unmapped",
+        ctx.now,
+      );
       return { effect: "ignored", reason: "repository is not mapped" };
     }
     const stream = streamForEvent(effect.event);
@@ -1194,14 +1353,22 @@ export const reconcileGitHubCommand: HubCommand<ReconcileGitHubInput, ReconcileG
         `SELECT last_event_time, last_delivery_id FROM github_reconcile_state WHERE workspace_id = ? AND repository_id = ? AND stream = ?`,
       )
       .get(ctx.workspaceId, effect.repositoryId, stream)) as
-      | { last_event_time: string; last_delivery_id: string }
-      | undefined;
+      { last_event_time: string; last_delivery_id: string } | undefined;
     if (
       guard &&
       (guard.last_event_time > effect.occurredAt ||
         (guard.last_event_time === effect.occurredAt && guard.last_delivery_id >= input.deliveryId))
     ) {
-      await finishOutbox(ctx.db, ctx.workspaceId, input.outboxId, "done", input.deliveryId, "superseded", null, ctx.now);
+      await finishOutbox(
+        ctx.db,
+        ctx.workspaceId,
+        input.outboxId,
+        "done",
+        input.deliveryId,
+        "superseded",
+        null,
+        ctx.now,
+      );
       return { effect: "superseded", reason: "a newer delivery already applied" };
     }
     if (observed.defaultBranch !== link.default_branch) {
@@ -1242,7 +1409,11 @@ export const reconcileGitHubCommand: HubCommand<ReconcileGitHubInput, ReconcileG
           kind,
           ref: effect.ref,
           versionToken: effect.version,
-          state: { action: effect.action, ...effect.detail, full_name: observed.repositoryFullName },
+          state: {
+            action: effect.action,
+            ...effect.detail,
+            full_name: observed.repositoryFullName,
+          },
           observedBy: "github",
           observedAt: ctx.now,
         });
@@ -1257,8 +1428,24 @@ export const reconcileGitHubCommand: HubCommand<ReconcileGitHubInput, ReconcileG
            last_delivery_id = excluded.last_delivery_id,
            updated_at = excluded.updated_at`,
       )
-      .run(ctx.workspaceId, effect.repositoryId, stream, effect.occurredAt, input.deliveryId, ctx.now);
-    await finishOutbox(ctx.db, ctx.workspaceId, input.outboxId, "done", input.deliveryId, "applied", null, ctx.now);
+      .run(
+        ctx.workspaceId,
+        effect.repositoryId,
+        stream,
+        effect.occurredAt,
+        input.deliveryId,
+        ctx.now,
+      );
+    await finishOutbox(
+      ctx.db,
+      ctx.workspaceId,
+      input.outboxId,
+      "done",
+      input.deliveryId,
+      "applied",
+      null,
+      ctx.now,
+    );
     return { effect: "applied", reason: "converged to current github state" };
   },
 };
@@ -1306,7 +1493,16 @@ async function applyInstallationEvent(
       )
       .run(ctx.now, effect.installationId);
   }
-  await finishOutbox(ctx.db, ctx.workspaceId, input.outboxId, "done", input.deliveryId, "applied", null, ctx.now);
+  await finishOutbox(
+    ctx.db,
+    ctx.workspaceId,
+    input.outboxId,
+    "done",
+    input.deliveryId,
+    "applied",
+    null,
+    ctx.now,
+  );
   return { effect: "applied", reason: `installation ${action ?? "event"} applied` };
 }
 
@@ -1343,8 +1539,17 @@ async function upsertEvidence(
          resource_version = github_evidence.resource_version + 1`,
     )
     .run(
-      workspaceId, randomUlid(), input.projectId, input.taskId ?? null, input.repositoryId,
-      input.kind, input.ref, input.versionToken, stateJson, input.observedBy, input.observedAt,
+      workspaceId,
+      randomUlid(),
+      input.projectId,
+      input.taskId ?? null,
+      input.repositoryId,
+      input.kind,
+      input.ref,
+      input.versionToken,
+      stateJson,
+      input.observedBy,
+      input.observedAt,
     );
 }
 
@@ -1379,91 +1584,148 @@ export interface GitHubEvidenceRecord {
  * `github` observer is reserved for webhook reconcile; human and runner
  * callers record their own provenance, and task state is never touched.
  */
-export const linkGitHubEvidenceCommand: HubCommand<LinkGitHubEvidenceInput, GitHubEvidenceRecord> = {
-  name: "github.evidence.link",
-  auditInput: (input) => ({ projectId: input.projectId, kind: input.kind, ref: input.ref }),
-  async run(input, ctx) {
-    closedObject(input, ["projectId", "taskId", "repositoryId", "kind", "ref", "versionToken", "state", "observedBy"], "github evidence link");
-    if (!ctx.actorHumanId) {
-      fail("unauthenticated", "human actor required");
-    }
-    const principal = await loadPrincipal(ctx.db, ctx.workspaceId, ctx.actorHumanId);
-    assertEpoch(principal, ctx.authorizationEpoch);
-    assertRole(principal, ["owner", "member"]);
-    if (!isUlid(input.projectId)) {
-      fail("invalid_argument", "project id is invalid");
-    }
-    assertProjectAccess(principal, input.projectId);
-    let taskId: string | null = null;
-    if (input.taskId !== undefined) {
-      if (!isUlid(input.taskId)) {
-        fail("invalid_argument", "task id is invalid");
+export const linkGitHubEvidenceCommand: HubCommand<LinkGitHubEvidenceInput, GitHubEvidenceRecord> =
+  {
+    name: "github.evidence.link",
+    auditInput: (input) => ({ projectId: input.projectId, kind: input.kind, ref: input.ref }),
+    async run(input, ctx) {
+      closedObject(
+        input,
+        [
+          "projectId",
+          "taskId",
+          "repositoryId",
+          "kind",
+          "ref",
+          "versionToken",
+          "state",
+          "observedBy",
+        ],
+        "github evidence link",
+      );
+      if (!ctx.actorHumanId) {
+        fail("unauthenticated", "human actor required");
       }
-      const task = (await ctx.db
-        .prepare(`SELECT project_id FROM tasks WHERE workspace_id = ? AND id = ?`)
-        .get(ctx.workspaceId, input.taskId)) as { project_id: string } | undefined;
-      if (!task) {
-        fail("not_found", "task not found");
+      const principal = await loadPrincipal(ctx.db, ctx.workspaceId, ctx.actorHumanId);
+      assertEpoch(principal, ctx.authorizationEpoch);
+      assertRole(principal, ["owner", "member"]);
+      if (!isUlid(input.projectId)) {
+        fail("invalid_argument", "project id is invalid");
       }
-      if (task.project_id !== input.projectId) {
-        fail("invalid_argument", "task does not belong to the project");
+      assertProjectAccess(principal, input.projectId);
+      let taskId: string | null = null;
+      if (input.taskId !== undefined) {
+        if (!isUlid(input.taskId)) {
+          fail("invalid_argument", "task id is invalid");
+        }
+        const task = (await ctx.db
+          .prepare(`SELECT project_id FROM tasks WHERE workspace_id = ? AND id = ?`)
+          .get(ctx.workspaceId, input.taskId)) as { project_id: string } | undefined;
+        if (!task) {
+          fail("not_found", "task not found");
+        }
+        if (task.project_id !== input.projectId) {
+          fail("invalid_argument", "task does not belong to the project");
+        }
+        taskId = input.taskId;
       }
-      taskId = input.taskId;
-    }
-    const repositoryId = numericId(input.repositoryId, "repository id");
-    if (!["issue", "branch", "commit", "pull_request", "check", "deployment"].includes(input.kind)) {
-      fail("invalid_argument", "evidence kind is invalid");
-    }
-    const ref = boundedText(input.ref, "evidence ref", 512);
-    const versionToken = boundedText(input.versionToken, "evidence version", 128);
-    if (input.observedBy !== "runner" && input.observedBy !== "human") {
-      fail("invalid_argument", "evidence observer is invalid");
-    }
-    const state = input.state === undefined ? {} : closedObject(input.state, Object.keys(input.state), "evidence state");
-    for (const [key, value] of Object.entries(state)) {
-      if (value !== null && typeof value !== "string") {
-        fail("invalid_argument", `evidence state ${key} is invalid`);
+      const repositoryId = numericId(input.repositoryId, "repository id");
+      if (
+        !["issue", "branch", "commit", "pull_request", "check", "deployment"].includes(input.kind)
+      ) {
+        fail("invalid_argument", "evidence kind is invalid");
       }
-      if (typeof value === "string" && (value.length > 512 || [...value].some((c) => {
-        const code = c.codePointAt(0) ?? 0;
-        return code <= 0x1f || code === 0x7f;
-      }))) {
-        fail("invalid_argument", `evidence state ${key} is invalid`);
+      const ref = boundedText(input.ref, "evidence ref", 512);
+      const versionToken = boundedText(input.versionToken, "evidence version", 128);
+      if (input.observedBy !== "runner" && input.observedBy !== "human") {
+        fail("invalid_argument", "evidence observer is invalid");
       }
-    }
-    // Read-first upsert: D1 batches forbid reads after a queued write.
-    const prior = (await ctx.db
-      .prepare(
-        `SELECT id, task_id, resource_version FROM github_evidence
-         WHERE workspace_id = ? AND repository_id = ? AND kind = ? AND ref = ? AND observed_by = ?`,
-      )
-      .get(ctx.workspaceId, repositoryId, input.kind, ref, input.observedBy)) as {
-      id: string;
-      task_id: string | null;
-      resource_version: number;
-    } | undefined;
-    const stateJson = JSON.stringify(state);
-    if (ref.length > 512 || versionToken.length > 128 || stateJson.length > 2048) {
-      fail("invalid_argument", "github evidence exceeds its bounds");
-    }
-    if (!prior) {
-      const id = randomUlid();
-      await ctx.db
+      const state =
+        input.state === undefined
+          ? {}
+          : closedObject(input.state, Object.keys(input.state), "evidence state");
+      for (const [key, value] of Object.entries(state)) {
+        if (value !== null && typeof value !== "string") {
+          fail("invalid_argument", `evidence state ${key} is invalid`);
+        }
+        if (
+          typeof value === "string" &&
+          (value.length > 512 ||
+            [...value].some((c) => {
+              const code = c.codePointAt(0) ?? 0;
+              return code <= 0x1f || code === 0x7f;
+            }))
+        ) {
+          fail("invalid_argument", `evidence state ${key} is invalid`);
+        }
+      }
+      // Read-first upsert: D1 batches forbid reads after a queued write.
+      const prior = (await ctx.db
         .prepare(
-          `INSERT INTO github_evidence
+          `SELECT id, task_id, resource_version FROM github_evidence
+         WHERE workspace_id = ? AND repository_id = ? AND kind = ? AND ref = ? AND observed_by = ?`,
+        )
+        .get(ctx.workspaceId, repositoryId, input.kind, ref, input.observedBy)) as
+        | {
+            id: string;
+            task_id: string | null;
+            resource_version: number;
+          }
+        | undefined;
+      const stateJson = JSON.stringify(state);
+      if (ref.length > 512 || versionToken.length > 128 || stateJson.length > 2048) {
+        fail("invalid_argument", "github evidence exceeds its bounds");
+      }
+      if (!prior) {
+        const id = randomUlid();
+        await ctx.db
+          .prepare(
+            `INSERT INTO github_evidence
            (workspace_id, id, project_id, task_id, repository_id, kind, ref,
             version_token, state_json, observed_by, observed_at, resource_version)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+          )
+          .run(
+            ctx.workspaceId,
+            id,
+            input.projectId,
+            taskId,
+            repositoryId,
+            input.kind,
+            ref,
+            versionToken,
+            stateJson,
+            input.observedBy,
+            ctx.now,
+          );
+        return {
+          id,
+          workspace_id: ctx.workspaceId,
+          project_id: input.projectId,
+          task_id: taskId,
+          repository_id: repositoryId,
+          kind: input.kind,
+          ref,
+          version_token: versionToken,
+          state: state as Record<string, unknown>,
+          observed_by: input.observedBy,
+          observed_at: ctx.now,
+          resource_version: 1,
+        };
+      }
+      await ctx.db
+        .prepare(
+          `UPDATE github_evidence
+         SET version_token = ?, state_json = ?, observed_at = ?,
+             task_id = COALESCE(task_id, ?), resource_version = resource_version + 1
+         WHERE workspace_id = ? AND id = ?`,
         )
-        .run(
-          ctx.workspaceId, id, input.projectId, taskId, repositoryId, input.kind, ref,
-          versionToken, stateJson, input.observedBy, ctx.now,
-        );
+        .run(versionToken, stateJson, ctx.now, taskId, ctx.workspaceId, prior.id);
       return {
-        id,
+        id: prior.id,
         workspace_id: ctx.workspaceId,
         project_id: input.projectId,
-        task_id: taskId,
+        task_id: prior.task_id ?? taskId,
         repository_id: repositoryId,
         kind: input.kind,
         ref,
@@ -1471,33 +1733,10 @@ export const linkGitHubEvidenceCommand: HubCommand<LinkGitHubEvidenceInput, GitH
         state: state as Record<string, unknown>,
         observed_by: input.observedBy,
         observed_at: ctx.now,
-        resource_version: 1,
+        resource_version: prior.resource_version + 1,
       };
-    }
-    await ctx.db
-      .prepare(
-        `UPDATE github_evidence
-         SET version_token = ?, state_json = ?, observed_at = ?,
-             task_id = COALESCE(task_id, ?), resource_version = resource_version + 1
-         WHERE workspace_id = ? AND id = ?`,
-      )
-      .run(versionToken, stateJson, ctx.now, taskId, ctx.workspaceId, prior.id);
-    return {
-      id: prior.id,
-      workspace_id: ctx.workspaceId,
-      project_id: input.projectId,
-      task_id: prior.task_id ?? taskId,
-      repository_id: repositoryId,
-      kind: input.kind,
-      ref,
-      version_token: versionToken,
-      state: state as Record<string, unknown>,
-      observed_by: input.observedBy,
-      observed_at: ctx.now,
-      resource_version: prior.resource_version + 1,
-    };
-  },
-};
+    },
+  };
 
 function knownPayloadKeys(event: string): readonly string[] {
   switch (event) {
@@ -1514,7 +1753,16 @@ function knownPayloadKeys(event: string): readonly string[] {
     case "check_suite":
       return ["action", "check_suite", "repository", "installation", "sender"];
     case "status":
-      return ["state", "sha", "context", "name", "updated_at", "repository", "installation", "sender"];
+      return [
+        "state",
+        "sha",
+        "context",
+        "name",
+        "updated_at",
+        "repository",
+        "installation",
+        "sender",
+      ];
     case "issues":
       return ["action", "issue", "repository", "installation", "sender"];
     case "deployment":
@@ -1540,7 +1788,10 @@ export interface GitHubStatusView {
 }
 
 /** Workspace-scoped installation and link status for Owner/member reads. */
-export async function getGitHubStatus(db: SqlDatabase, workspaceId: string): Promise<GitHubStatusView> {
+export async function getGitHubStatus(
+  db: SqlDatabase,
+  workspaceId: string,
+): Promise<GitHubStatusView> {
   const installations = (await db
     .prepare(
       `SELECT installation_id, app_slug, account_login, status, permissions_json, events_json, resource_version
@@ -1727,7 +1978,8 @@ export async function getEvidenceVerificationStatus(
     }>;
     const verified = rows.some(
       (row) =>
-        row.observed_by === "github" && (item.version === undefined || row.version_token === item.version),
+        row.observed_by === "github" &&
+        (item.version === undefined || row.version_token === item.version),
     );
     if (verified) {
       out.push({ kind: item.kind, ref: item.ref, provenance: "github_verified" });
@@ -1780,7 +2032,11 @@ export function githubQueueMessage(input: {
 
 /** Parses one Queue body; anything else is a poison envelope. */
 export function parseGitHubQueueMessage(body: unknown): GitHubQueueMessage {
-  const envelope = closedObject(body, ["schema_version", "kind", "workspace_id", "outbox_id", "delivery_id", "attempt"], "queue message");
+  const envelope = closedObject(
+    body,
+    ["schema_version", "kind", "workspace_id", "outbox_id", "delivery_id", "attempt"],
+    "queue message",
+  );
   if (envelope.schema_version !== 1 || envelope.kind !== "github.outbox.dispatch") {
     fail("queue_message_poison", "queue message envelope is unknown");
   }
@@ -1844,19 +2100,21 @@ export async function claimGitHubOutboxBatch(
     const next = new Date(Date.parse(now) + backoff * 1000).toISOString();
     // The conditional UPDATE is the atomic claim: concurrent Cron ticks race
     // here and exactly one of them matches the still-pending row.
-    const claimedRow = await db
+    const claimedRow = (await db
       .prepare(
         `UPDATE github_integration_outbox
          SET state = 'dispatched', attempts = attempts + 1, next_attempt_at = ?, updated_at = ?
          WHERE workspace_id = ? AND outbox_id = ? AND state = 'pending'
          RETURNING workspace_id, outbox_id, delivery_id, attempts`,
       )
-      .get(next, now, row.workspace_id, row.outbox_id) as {
-      workspace_id: string;
-      outbox_id: string;
-      delivery_id: string;
-      attempts: number;
-    } | undefined;
+      .get(next, now, row.workspace_id, row.outbox_id)) as
+      | {
+          workspace_id: string;
+          outbox_id: string;
+          delivery_id: string;
+          attempts: number;
+        }
+      | undefined;
     if (claimedRow) {
       claimed.push(outboxMessage(claimedRow));
     }
@@ -1893,7 +2151,15 @@ export async function reclaimStaleGitHubOutbox(
   const redriven: GitHubQueueMessage[] = [];
   for (const row of stale) {
     if (row.attempts >= GITHUB_OUTBOX_MAX_ATTEMPTS) {
-      await writeGitHubDlqRow(db, row.workspace_id, row.outbox_id, row.delivery_id, "stale_attempts_exhausted", row.attempts, now);
+      await writeGitHubDlqRow(
+        db,
+        row.workspace_id,
+        row.outbox_id,
+        row.delivery_id,
+        "stale_attempts_exhausted",
+        row.attempts,
+        now,
+      );
       continue;
     }
     const backoff = githubOutboxBackoffSeconds(row.attempts + 1);

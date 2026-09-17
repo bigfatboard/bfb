@@ -57,7 +57,7 @@ function bindings(context: AuthTestContext, queue: CapturingQueue): ControlBindi
     LAUNCH_ORIGIN: "https://launch.bfb.example.test",
     JURISDICTION: "eu",
     ENVIRONMENT: "local",
-    ...( { GITHUB_WEBHOOK_SECRET: SECRET } as Record<string, string>),
+    ...({ GITHUB_WEBHOOK_SECRET: SECRET } as Record<string, string>),
   };
 }
 
@@ -138,7 +138,12 @@ function sign(body: Uint8Array, secret: string = SECRET): string {
   return `sha256=${createHmac("sha256", secret).update(body).digest("hex")}`;
 }
 
-function webhook(body: Uint8Array, event: string, delivery: string, signature: string | null): Request {
+function webhook(
+  body: Uint8Array,
+  event: string,
+  delivery: string,
+  signature: string | null,
+): Request {
   const headers: Record<string, string> = {
     "content-type": "application/json",
     "x-github-event": event,
@@ -159,7 +164,10 @@ function pushPayload(sha: string): Record<string, unknown> {
     ref: "refs/heads/main",
     head_commit: { id: sha, timestamp: NOW },
     repository: { id: Number(REPOSITORY), full_name: "synthetic-org/synthetic-repo" },
-    installation: { id: Number(INSTALLATION), account: { login: "synthetic-org", type: "Organization" } },
+    installation: {
+      id: Number(INSTALLATION),
+      account: { login: "synthetic-org", type: "Organization" },
+    },
   };
 }
 
@@ -218,7 +226,10 @@ describe("X04 github webhook route", () => {
     const garbage = new TextEncoder().encode("{invalid-json");
     const forged = await send(webhook(garbage, "push", "delivery-forge-1", sign(garbage, "wrong")));
     expect(forged.status).toBe(401);
-    expect(await forged.json()).toEqual({ error: "webhook_signature_invalid", message: "webhook signature is invalid" });
+    expect(await forged.json()).toEqual({
+      error: "webhook_signature_invalid",
+      message: "webhook signature is invalid",
+    });
 
     // Missing signature: 401.
     const unsigned = await send(webhook(garbage, "push", "delivery-forge-2", null));
@@ -263,7 +274,12 @@ describe("X04 github management routes", () => {
       send(mutation(`${base}${path}`, cookie, csrfToken, value));
 
     // Member cannot install.
-    const memberProof = await proofFor(context, FIX.member, "github.install", `github-installation:${INSTALLATION}`);
+    const memberProof = await proofFor(
+      context,
+      FIX.member,
+      "github.install",
+      `github-installation:${INSTALLATION}`,
+    );
     const denied = await post("/installations", member.cookie, memberCsrf, {
       request_id: "github-route-install-denied",
       installation_id: INSTALLATION,
@@ -279,7 +295,12 @@ describe("X04 github management routes", () => {
     expect(denied.status).toBe(403);
 
     // Owner installs.
-    const ownerProof = await proofFor(context, FIX.owner, "github.install", `github-installation:${INSTALLATION}`);
+    const ownerProof = await proofFor(
+      context,
+      FIX.owner,
+      "github.install",
+      `github-installation:${INSTALLATION}`,
+    );
     const installed = await post("/installations", owner.cookie, ownerCsrf, {
       request_id: "github-route-install-1",
       installation_id: INSTALLATION,
@@ -296,7 +317,12 @@ describe("X04 github management routes", () => {
 
     // Mapping before activation fails closed.
     const projectId = await createGitHubProject(context);
-    const mapProof = await proofFor(context, FIX.owner, "github.repository.map", `github-link:${REPOSITORY}`);
+    const mapProof = await proofFor(
+      context,
+      FIX.owner,
+      "github.repository.map",
+      `github-link:${REPOSITORY}`,
+    );
     const early = await post("/repository-links", owner.cookie, ownerCsrf, {
       request_id: "github-route-map-early",
       installation_id: INSTALLATION,
@@ -311,10 +337,16 @@ describe("X04 github management routes", () => {
     // Activate through the installation.created webhook, then map.
     const created = {
       action: "created",
-      installation: { id: Number(INSTALLATION), account: { login: "synthetic-org", type: "Organization" }, updated_at: NOW },
+      installation: {
+        id: Number(INSTALLATION),
+        account: { login: "synthetic-org", type: "Organization" },
+        updated_at: NOW,
+      },
     };
     const createdRaw = new TextEncoder().encode(JSON.stringify(created));
-    const activateResponse = await send(webhook(createdRaw, "installation", "delivery-route-activate", sign(createdRaw)));
+    const activateResponse = await send(
+      webhook(createdRaw, "installation", "delivery-route-activate", sign(createdRaw)),
+    );
     expect(activateResponse.status, await activateResponse.clone().text()).toBe(202);
     expect(queue.sent).toHaveLength(1);
     const queued = queue.sent[0] as Record<string, unknown>;
@@ -361,7 +393,12 @@ describe("X04 github management routes", () => {
     expect(handle.retried).toBe(false);
     expect(minted).toBe(0);
 
-    const mapProof2 = await proofFor(context, FIX.owner, "github.repository.map", `github-link:${REPOSITORY}`);
+    const mapProof2 = await proofFor(
+      context,
+      FIX.owner,
+      "github.repository.map",
+      `github-link:${REPOSITORY}`,
+    );
     const mapped = await post("/repository-links", owner.cookie, ownerCsrf, {
       request_id: "github-route-map-1",
       installation_id: INSTALLATION,
@@ -375,7 +412,9 @@ describe("X04 github management routes", () => {
 
     // Status is visible to owners and members, not reviewers.
     const status = await send(
-      new Request(`${AUTH_TEST_ENV.APP_ORIGIN}${base}/status`, { headers: { cookie: owner.cookie } }),
+      new Request(`${AUTH_TEST_ENV.APP_ORIGIN}${base}/status`, {
+        headers: { cookie: owner.cookie },
+      }),
       undefined,
       currentBindings,
     );
@@ -387,7 +426,9 @@ describe("X04 github management routes", () => {
     expect(statusBody.installations[0]?.status).toBe("active");
     expect(statusBody.links[0]?.project_id).toBe(projectId);
     const reviewerStatus = await send(
-      new Request(`${AUTH_TEST_ENV.APP_ORIGIN}${base}/status`, { headers: { cookie: reviewer.cookie } }),
+      new Request(`${AUTH_TEST_ENV.APP_ORIGIN}${base}/status`, {
+        headers: { cookie: reviewer.cookie },
+      }),
       undefined,
       currentBindings,
     );
@@ -423,17 +464,32 @@ describe("X04 github management routes", () => {
     expect(verified.status).toBe(200);
 
     // Remove revokes behind step-up; a second remove fails.
-    const removeProof = await proofFor(context, FIX.owner, "github.remove", `github-installation:${INSTALLATION}`);
+    const removeProof = await proofFor(
+      context,
+      FIX.owner,
+      "github.remove",
+      `github-installation:${INSTALLATION}`,
+    );
     const removed = await post(`/installations/${INSTALLATION}/remove`, owner.cookie, ownerCsrf, {
       request_id: "github-route-remove-1",
       step_up_proof_id: removeProof,
     });
     expect(removed.status, await removed.clone().text()).toBe(200);
-    const removeProof2 = await proofFor(context, FIX.owner, "github.remove", `github-installation:${INSTALLATION}`);
-    const removedAgain = await post(`/installations/${INSTALLATION}/remove`, owner.cookie, ownerCsrf, {
-      request_id: "github-route-remove-2",
-      step_up_proof_id: removeProof2,
-    });
+    const removeProof2 = await proofFor(
+      context,
+      FIX.owner,
+      "github.remove",
+      `github-installation:${INSTALLATION}`,
+    );
+    const removedAgain = await post(
+      `/installations/${INSTALLATION}/remove`,
+      owner.cookie,
+      ownerCsrf,
+      {
+        request_id: "github-route-remove-2",
+        step_up_proof_id: removeProof2,
+      },
+    );
     expect(removedAgain.status).toBe(409);
   });
 });
