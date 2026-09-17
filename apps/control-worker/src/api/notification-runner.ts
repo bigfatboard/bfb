@@ -3,7 +3,6 @@
 
 import {
   ackMacosNotifications,
-  DomainError,
   pullMacosNotifications,
   runnerId,
   rejectRunnerRequest,
@@ -68,10 +67,9 @@ export async function handleNotificationRunnerApi(
         deps.now,
       ),
     );
-  } catch (error) {
-    if (error instanceof DomainError) {
-      return response({ error: error.code, message: "request rejected" }, 400);
-    }
+  } catch {
+    // Uniform rejection: possession, binding, and body failures are
+    // indistinguishable on the runner transport.
     return response({ error: "request_rejected", message: "request rejected" }, 403);
   }
 }

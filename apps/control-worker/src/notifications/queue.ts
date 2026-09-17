@@ -1,7 +1,7 @@
 // ABOUTME: Consumes notification event messages with per-message isolation and visible DLQ state.
 // ABOUTME: Retries stay idempotent on stable delivery IDs; poison lands in D1 plus the DLQ binding.
 
-import { adaptD1 } from "@bfb/db";
+import type { SqlDatabase } from "@bfb/db";
 import {
   buildPushPayload,
   deletePushEndpoint,
@@ -15,14 +15,11 @@ import {
 
 import { PUSH_TTL_SECONDS, sendPushMessage, type VapidSecrets } from "./push.js";
 
-export interface NotifyQueueEnv {
-  DB: D1Database;
-  NOTIFY_JOBS: Queue;
-  NOTIFY_DLQ: Queue;
-  APP_ORIGIN: string;
-  VAPID_PUBLIC_KEY?: string | undefined;
-  VAPID_PRIVATE_KEY?: string | undefined;
-  VAPID_SUBJECT?: string | undefined;
+export interface NotifyQueueDeps {
+  db: SqlDatabase;
+  sendDlq: (copy: DlqCopy) => Promise<void>;
+  appOrigin: string;
+  vapid: VapidSecrets | null;
 }
 
 export interface NotifyMessage {
@@ -65,18 +62,9 @@ function readMessage(body: unknown): NotifyMessage | null {
   return body as NotifyMessage;
 }
 
-function vapidSecrets(env: NotifyQueueEnv): VapidSecrets | null {
-  if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY || !env.VAPID_SUBJECT) return null;
-  return {
-    publicKey: env.VAPID_PUBLIC_KEY,
-    privateKey: env.VAPID_PRIVATE_KEY,
-    subject: env.VAPID_SUBJECT,
-  };
-}
-
-async function sendDlqCopy(env: NotifyQueueEnv, copy: DlqCopy): Promise<void> {
+async function sendDlqCopy(deps: NotifyQueueDeps, copy: DlqCopy): Promise<void> {
   try {
-    await env.NOTIFY_DLQ.send(copy, { contentType: "json" });
+    await deps.sendDlq(copy);
   } catch {
     // The D1 dead_lettered row is the durable record; the DLQ copy is monitoring.
   }
@@ -89,11 +77,11 @@ async function sendDlqCopy(env: NotifyQueueEnv, copy: DlqCopy): Promise<void> {
  */
 export async function handleNotifyMessage(
   message: { body: NotifyMessage; attempts: number; ack: () => void; retry: () => void },
-  env: NotifyQueueEnv,
+  deps: NotifyQueueDeps,
   now: string,
   fetchImpl: typeof fetch = fetch,
 ): Promise<void> {
-  const db = adaptD1(env.DB);
+  const db = deps.db;
   const body = message.body;
   if (
     body.job_id !== notificationJobId(body.workspace_id, body.event_cursor) ||
@@ -135,7 +123,7 @@ export async function handleNotifyMessage(
       });
       continue;
     }
-    const secrets = vapidSecrets(env);
+    const secrets = deps.vapid;
     if (!secrets) {
       await recordDeliveryOutcome(db, {
         workspaceId: body.workspace_id,
@@ -146,7 +134,7 @@ export async function handleNotifyMessage(
       continue;
     }
     const payload = buildPushPayload({
-      appOrigin: env.APP_ORIGIN,
+      appOrigin: deps.appOrigin,
       workspaceId: body.workspace_id,
       subject: loaded.subject,
       category: loaded.delivery.category,
@@ -199,7 +187,7 @@ export async function handleNotifyMessage(
         outcome,
         now,
       });
-      await sendDlqCopy(env, {
+      await sendDlqCopy(deps, {
         schema_version: 1,
         job_id: body.job_id,
         workspace_id: body.workspace_id,
@@ -230,7 +218,7 @@ export async function handleNotifyMessage(
 /** Queue entrypoint: isolates every message so one poison batch never replays successes. */
 export async function handleNotifyQueue(
   batch: MessageBatch<NotifyMessage>,
-  env: NotifyQueueEnv,
+  deps: NotifyQueueDeps,
   now: string = new Date().toISOString(),
   fetchImpl: typeof fetch = fetch,
 ): Promise<void> {
@@ -248,7 +236,7 @@ export async function handleNotifyQueue(
           ack: () => message.ack(),
           retry: () => message.retry(),
         },
-        env,
+        deps,
         now,
         fetchImpl,
       );

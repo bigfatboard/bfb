@@ -76,16 +76,27 @@ export default {
       throw new Error("notification queue bindings are not configured");
     }
     const { handleNotifyQueue } = await import("./notifications/queue.js");
+    const { adaptD1 } = await import("@bfb/db");
+    const dlq = validated.bindings.NOTIFY_DLQ;
+    const vapid =
+      validated.bindings.VAPID_PUBLIC_KEY &&
+      validated.bindings.VAPID_PRIVATE_KEY &&
+      validated.bindings.VAPID_SUBJECT
+        ? {
+            publicKey: validated.bindings.VAPID_PUBLIC_KEY,
+            privateKey: validated.bindings.VAPID_PRIVATE_KEY,
+            subject: validated.bindings.VAPID_SUBJECT,
+          }
+        : null;
     await handleNotifyQueue(
       batch as MessageBatch<import("./notifications/queue.js").NotifyMessage>,
       {
-        DB: validated.bindings.DB,
-        NOTIFY_JOBS: validated.bindings.NOTIFY_JOBS,
-        NOTIFY_DLQ: validated.bindings.NOTIFY_DLQ,
-        APP_ORIGIN: validated.origins.appOrigin,
-        VAPID_PUBLIC_KEY: validated.bindings.VAPID_PUBLIC_KEY,
-        VAPID_PRIVATE_KEY: validated.bindings.VAPID_PRIVATE_KEY,
-        VAPID_SUBJECT: validated.bindings.VAPID_SUBJECT,
+        db: adaptD1(validated.bindings.DB),
+        sendDlq: async (copy) => {
+          await dlq.send(copy, { contentType: "json" });
+        },
+        appOrigin: validated.origins.appOrigin,
+        vapid,
       },
     );
   },
