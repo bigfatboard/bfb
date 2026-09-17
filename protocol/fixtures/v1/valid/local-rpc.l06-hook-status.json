@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "request_id": "01JBFB06H00KRECE1PT0000000",
+  "direction": "response",
+  "method": "hook.status",
+  "payload": {
+    "hook_pending": 3,
+    "hook_quarantined": 1,
+    "telemetry_degraded": false
+  }
+}

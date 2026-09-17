@@ -1,7 +1,7 @@
 {
   "protocol": "bfb-wire/1",
   "schema_version": 1,
-  "schema_hash": "e03bfd6428798f51ebf279cf811946f823f156d1912dfc02291dc0c8e7491bd6",
+  "schema_hash": "b7bd5a46cea8ef5bd1e9839c82bd78a2e228d7adcf62136ed81dacc6742d8425",
   "documents": [
     {
       "name": "event-envelope",

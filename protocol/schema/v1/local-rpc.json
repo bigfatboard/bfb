@@ -131,11 +131,63 @@
             "maxLength": 64,
             "pattern": "^[a-z][a-z0-9_.]{0,63}$"
           }
-        }
+        },
+        "hook_status": {
+          "type": "string",
+          "enum": ["accepted", "duplicate", "quarantined", "rejected", "inbox"]
+        },
+        "hook_event_id": { "$ref": "primitives.json#/$defs/Ulid" },
+        "hook_sequence": { "$ref": "primitives.json#/$defs/SourceSequence" },
+        "hook_code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_]{0,63}$"
+        },
+        "hook_pending": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "hook_quarantined": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "telemetry_degraded": { "type": "boolean" },
+        "degraded_reason": { "type": "string", "maxLength": 64 }
       }
     }
   },
   "allOf": [
+    {
+      "if": {
+        "required": ["payload"],
+        "properties": {
+          "payload": {
+            "type": "object",
+            "required": ["hook_status"],
+            "properties": { "hook_status": {} }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "direction": { "const": "response" },
+          "method": { "const": "hook.ingest" }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["payload"],
+        "properties": {
+          "payload": {
+            "type": "object",
+            "required": ["hook_pending"],
+            "properties": { "hook_pending": {} }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "direction": { "const": "response" },
+          "method": { "const": "hook.status" }
+        }
+      }
+    },
     {
       "if": { "properties": { "method": { "const": "execution.recover" } } },
       "then": { "properties": { "direction": { "enum": ["request", "response"] } } }
