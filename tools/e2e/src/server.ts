@@ -556,6 +556,7 @@ async function seedE02Chains(db: SqlDatabase): Promise<E02State> {
       title,
       priority: "P2",
     });
+    const snapshot = await currentPolicyVersions(db);
     const launch = await human(startLaunchCommand, {
       schema_version: 1,
       idempotency_key: randomUlid(),
@@ -856,9 +857,9 @@ async function seedLaunchOperations(db: SqlDatabase): Promise<void> {
       checkout_id: checkoutId,
       agent_profile_id: profile.id,
       agent_profile_version: 1,
-      workspace_policy_version: 2,
-      project_policy_version: 2,
-      repository_config_version: 2,
+      workspace_policy_version: snapshot.workspace,
+      project_policy_version: snapshot.project,
+      repository_config_version: snapshot.config,
     });
   }
 
