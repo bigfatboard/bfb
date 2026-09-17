@@ -1,0 +1,42 @@
+{
+  "package": "V01",
+  "tested_commit": "e2b6e2a530cb1cdebfcb9ce06b5f3f7ef4b95936",
+  "recorded_on": "2026-09-17",
+  "automated_gate": "passed",
+  "package_acceptance": "passed",
+  "checkout": {
+    "detached": true,
+    "clean_before_install": true,
+    "clean_after_verification": true,
+    "frozen_install": "passed"
+  },
+  "checks": {
+    "protocol_fixture_and_codegen_drift": "passed",
+    "protocol_typescript_tests": 425,
+    "focused_typescript_tests": 42,
+    "repository_typescript_tests": 859,
+    "repository_go_checks": "passed",
+    "repository_swift_xcode_checks": "passed",
+    "repository_verification": "passed",
+    "worktree_check": "passed"
+  },
+  "workerd": {
+    "workers": 4,
+    "control_isolates": 2,
+    "upload_grants_issued": 45,
+    "same_hash_race_http_statuses": [200, 200],
+    "object_rows_for_raced_hash": 1,
+    "upload_budget_statuses": "20x200-then-403-with-spared-grant-redeemed-from-fresh-ip",
+    "swept_abandoned_versions": 31,
+    "persisted_raw_secrets": false
+  },
+  "not_claimed": [
+    "Artifact views and byte serving (V02)",
+    "Review surfacing (V03)",
+    "Blob retention deletion (later package)",
+    "CLI-credential auth on publication routes (X02)",
+    "Run-scoped agent authority (A01 registers it against these commands)",
+    "Running local MVP or deployed behavior"
+  ],
+  "retention": "Bounded assertions, counts, and synthetic fixture rows only. No raw upload secrets, bearer values, artifact bytes, digests in rate keys, IP addresses, or local absolute paths are retained."
+}
