@@ -41,11 +41,33 @@ async function openRunners(page: Parameters<typeof openTaskCard>[0]): Promise<vo
 }
 
 /**
- * Pins the Start form to W02's runner and checkout. The shared fixture also
- * enrols the E02 Mac, whose list position is random per server start, so the
- * launchable[0] default must never decide where a W02 launch posts.
+ * Pins the Start form to W02's profile, runner, and checkout. The shared
+ * fixture also enrols the E02 Mac and its timeline profile, whose list
+ * positions differ from the pre-E02 suite, so order-dependent defaults must
+ * never decide where a W02 launch posts. Retries additionally require the
+ * original run's agent profile, so the profile pin is load-bearing there.
  */
 async function selectW02RunnerAndCheckout(page: Page): Promise<void> {
+  const profile = page.getByTestId("start-profile");
+  let providerValue = "";
+  await expect
+    .poll(
+      async () => {
+        const options = await profile.locator("option").evaluateAll((nodes) =>
+          nodes.map((node) => ({
+            value: (node as HTMLOptionElement).value,
+            text: node.textContent ?? "",
+          })),
+        );
+        providerValue =
+          options.find((option) => option.text.includes("Synthetic launch provider"))?.value ??
+          "";
+        return providerValue;
+      },
+      { timeout: 15_000 },
+    )
+    .not.toBe("");
+  await profile.selectOption(providerValue);
   await page.getByTestId("start-runner").selectOption(W02_RUNNER_ID);
   await expect(page.getByTestId("start-runner")).toHaveValue(W02_RUNNER_ID);
   const checkout = page.getByTestId("start-checkout");
