@@ -102,9 +102,8 @@ test("owner submits, reviewer requests changes, owner supersedes and accepts", a
     request_id: "a03-browser-run-001",
   });
   expect(created.status, JSON.stringify(created.json)).toBe(200);
-  const runId = (
-    (created.json.result as { run: { id: string } } | undefined)?.run as { id: string }
-  ).id;
+  const createdResult = created.json.result as { run?: { id?: string } } | undefined;
+  const runId = createdResult?.run?.id ?? "";
   expect(runId).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/);
 
   const submitted = await api(page, "POST", `${BASE}/runs/${runId}/results`, {
@@ -117,11 +116,9 @@ test("owner submits, reviewer requests changes, owner supersedes and accepts", a
     request_id: "a03-browser-submit-001",
   });
   expect(submitted.status).toBe(200);
-  const firstSubmissionId = (
-    (submitted.json.result as { submission: { id: string } } | undefined)?.submission as {
-      id: string;
-    }
-  ).id;
+  const submittedResult = submitted.json.result as { submission?: { id?: string } } | undefined;
+  const firstSubmissionId = submittedResult?.submission?.id ?? "";
+  expect(firstSubmissionId).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/);
 
   await page.reload();
   await openWorkSurface(page);
