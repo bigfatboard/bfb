@@ -1,0 +1,56 @@
+{
+  "package": "X04",
+  "tested_commit": "88a91e65e4f254a6433ff16cb1273eeef4e966a5",
+  "protocol_version": "bfb-wire/1",
+  "schema_version": "1",
+  "migration_head": "0028_github_integration",
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "wrangler": "4.120.1"
+  },
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56)",
+    "architecture": "arm64"
+  },
+  "commands": [
+    {
+      "command": "pnpm test:x04",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-X04/command-result.json"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-X04/command-result.json"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-X04/command-result.json"
+    }
+  ],
+  "outcome": "passed",
+  "artifacts": [
+    "docs/work-packages/evidence/WP-X04/auth-matrix.md",
+    "docs/work-packages/evidence/WP-X04/canary-scan.json",
+    "docs/work-packages/evidence/WP-X04/command-result.json",
+    "docs/work-packages/evidence/WP-X04/delivery-effects.json",
+    "docs/work-packages/evidence/WP-X04/fault-matrix.md",
+    "docs/work-packages/evidence/WP-X04/permission-inventory.json"
+  ],
+  "redaction": {
+    "status": "passed",
+    "prohibited_content": [
+      "private keys",
+      "installation tokens",
+      "webhook secrets",
+      "abuse secrets",
+      "session tokens",
+      "local absolute paths",
+      "raw terminal output"
+    ]
+  }
+}
