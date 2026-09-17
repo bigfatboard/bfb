@@ -60,7 +60,7 @@ consent. No unfinished package is consumed and the full MVP is not done.
 | Trusted Mac | L01–L03, C06, L08, L04 | All milestone packages done | Enroll, register exact checkout, probe providers, reconnect, revoke |
 | Remote launch | C09, L05, W02 | C09 done; L05 blocked on Terminal acceptance | Card starts fake provider; contention, expiry, revocation and containment fail safely |
 | Real agent work | L06, E01–E02, A01–A04, L07, P01 | Pending — E01, A01, V01, L06, L07 and P01 implemented on their branches with gates and evidence complete; all await L05 | Claude/Codex start, scoped context, attention, explicit result and human acceptance |
-| Discussion | D01–D03 | D01 done; D02/D03 wait on execution prerequisites | Two read-only participants, bounded turns, recovery, intervention, human decision |
+| Discussion | D01–D03 | D01 done; D02 implemented with gate and evidence complete, still planned pending A01, L05, L06, L07, P01; D03 waits | Two read-only participants, bounded turns, recovery, intervention, human decision |
 | Running local delivery | Integrated MVP | Pending | Start services, full browser/runner/provider smoke, negative checks and health instructions |
 
 ## Verification
@@ -98,6 +98,7 @@ consent. No unfinished package is consumed and the full MVP is not done.
 
 - 17 September: P01 Codex adapter implemented on `muse/p01` against the frozen L03 kit for Codex `0.153.4`: provider-local descriptor/manifest, exact-checkout interactive/headless plans, exact-session resume and exec-fork turns, hook/JSONL normalization with provider-reported usage, transactional hooks.json/config.toml setup with doctor and rollback, and an experimental-transport exclusion suite. `pnpm test:p01` (composed like `test:l03` plus the race-tested codex package) passes; status stays `planned` with live MCP (A01), ledger (E01), results (A03), supervision (L05), journal (L06), and reference parity (L07) explicitly pending; the local-MCP/ledger/submission end-to-end checkpoint is not claimed.
 - 17 September: L07 Claude reference adapter implemented on `muse/l07` (probe/manifest 1.0.0 for tested 2.1.274, interactive and exact-session resume plans, raw-hook parser with fixtures, previewed/approved setup with rollback, `provider setup/doctor claude`). Exact `pnpm test:l07`, full verification, Linux cross-build, and the clean-checkout gate are recorded in the package evidence; status stays `planned` with the A01/E01/L05/L06 end-to-end checkpoint explicitly pending.
+- 17 September: D02 supervised discussion delivery implemented on `muse/d02`: durable dispatch with session fencing (local migration 012), read-only owned-session turns through the L03 kit, bounded scheduler and conclusions, crash/restart reconcile-or-pause recovery, and peer-escalation negatives. `pnpm test:d02` passes including real-binary Codex 0.153.4 offline planning; no live model turn ran (no credentials/consent). Implementation, gate, and evidence are complete; status stays `planned` pending A01, L05, L06, L07, and P01.
 
 - 11 September: began the approved MVP implementation and incorporated the follow-up agent-chat research into the plan.
 - 11 September: assigned D01–D03 and DG-01–DG-03; generated roadmap passes with 45 packages. Added a regression for discussion-package generation. `pnpm verify` passed with 344 TypeScript tests, Go checks and Swift/Xcode checks.
