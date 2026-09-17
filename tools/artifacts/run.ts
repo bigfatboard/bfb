@@ -626,7 +626,10 @@ try {
     budgetStatuses.push(response.status);
     await response.arrayBuffer();
   }
-  assert.deepEqual(budgetStatuses.slice(0, 20), new Array(20).fill(200));
+  assert.deepEqual(
+    budgetStatuses.slice(0, 20),
+    Array.from({ length: 20 }, () => 200),
+  );
   assert.equal(budgetStatuses[20], 403);
   note("budget_exhausted");
   // The budgeted-out grant was never consumed, so a fresh IP still redeems it.

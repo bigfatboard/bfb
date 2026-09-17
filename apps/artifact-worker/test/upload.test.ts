@@ -67,7 +67,7 @@ function fakeR2() {
         objects.set(key, {
           bytes,
           sha256: options?.sha256 ?? digest(bytes),
-          customMetadata: { ...(options?.customMetadata ?? {}) },
+          customMetadata: { ...options?.customMetadata },
         });
         return { key } as R2Object;
       },
