@@ -87,4 +87,6 @@ type WorkTransport interface {
 	// GetAttention returns the committed metadata for one of the run's own
 	// requests. Records outside the run boundary report not_found.
 	GetAttention(ctx context.Context, boundary Boundary, attentionID string) (AttentionRecord, error)
+	// SubmitResult submits an immutable result for human review.
+	SubmitResult(ctx context.Context, boundary Boundary, input SubmitResultInput, requestID string) (SubmitResultResult, error)
 }

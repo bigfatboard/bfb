@@ -38,6 +38,7 @@ func ToolDescriptors() []ToolDescriptor {
 		{Name: "bfb_request_human", Description: "Request a typed human decision from the run's attention queue.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{"kind": map[string]any{"type": "string", "description": "Attention kind.", "enum": []string{"clarification", "review", "credential", "capability", "destructive_action", "blocker"}}, "question": stringSchema("Bounded question for the human.", 1, maxBodyLen), "reference_kind": map[string]any{"type": "string", "description": "Optional immutable-object kind; travels with reference_id.", "maxLength": 64}, "reference_id": map[string]any{"type": "string", "description": "Optional immutable-object ID; travels with reference_kind.", "maxLength": maxIDLen}, "blocking": map[string]any{"type": "boolean", "description": "Whether the run is blocked on the answer."}, "request_id": requestID}, "required": []string{"kind", "question", "blocking", "request_id"}, "additionalProperties": false}},
 		{Name: "bfb_get_attention", Description: "Read the committed metadata for one of the run's attention requests.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{"attention_id": map[string]any{"type": "string", "description": "Attention request ID; must belong to the run.", "maxLength": maxIDLen}, "request_id": requestID}, "required": []string{"attention_id", "request_id"}, "additionalProperties": false}},
 		{Name: "bfb_wait_for_attention", Description: "Poll committed attention state for up to 30 seconds, then report pending.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{"attention_id": map[string]any{"type": "string", "description": "Attention request ID; must belong to the run.", "maxLength": maxIDLen}, "request_id": requestID}, "required": []string{"attention_id", "request_id"}, "additionalProperties": false}},
+		{Name: "bfb_submit_result", Description: "Submit an immutable result summary with evidence for human review.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{"summary": stringSchema("Result summary.", 1, maxSummaryLen), "limitations": stringSchema("Known limitations.", 1, maxLimitationsLen), "evidence_refs": map[string]any{"type": "array", "description": "At most 20 generic evidence references.", "maxItems": maxEvidenceRefs, "items": map[string]any{"type": "object"}}, "git_branch": stringSchema("Observed Git branch.", 1, maxBranchLen), "git_commit": stringSchema("Observed 40-character Git commit.", 40, 40), "git_dirty": map[string]any{"type": "boolean", "description": "Whether the observed worktree was dirty."}, "request_id": requestID}, "required": []string{"summary", "request_id"}, "additionalProperties": false}},
 	}
 }
 
@@ -118,7 +119,7 @@ func (host *Host) CallTool(ctx context.Context, name string, params map[string]a
 		}
 	}
 	if !known {
-		if name == "bfb_submit_result" || name == "bfb_publish_artifact" ||
+		if name == "bfb_publish_artifact" ||
 			name == "bfb_list_projects" || name == "bfb_list_tasks" {
 			return nil, fail("not_implemented")
 		}
@@ -186,6 +187,8 @@ func allowedParams(name string) map[string]bool {
 		return map[string]bool{"request_id": true, "kind": true, "question": true, "reference_kind": true, "reference_id": true, "blocking": true}
 	case "bfb_get_attention", "bfb_wait_for_attention":
 		return map[string]bool{"request_id": true, "attention_id": true}
+	case "bfb_submit_result":
+		return map[string]bool{"request_id": true, "summary": true, "limitations": true, "evidence_refs": true, "git_branch": true, "git_commit": true, "git_dirty": true}
 	default:
 		return common
 	}
@@ -233,6 +236,8 @@ func (host *Host) write(ctx context.Context, name string, params map[string]any,
 		return host.transport.AddComment(ctx, boundary, payload.comment, requestID)
 	case "bfb_report_progress":
 		return host.transport.ReportProgress(ctx, boundary, payload.summary, payload.percent, payload.confidence, requestID)
+	case "bfb_submit_result":
+		return host.transport.SubmitResult(ctx, boundary, payload.submit, requestID)
 	default:
 		return host.transport.ProposeTask(ctx, boundary, payload.propose, requestID)
 	}
@@ -245,6 +250,7 @@ type validatedWrite struct {
 	percent    *float64
 	confidence *float64
 	propose    ProposeTaskInput
+	submit     SubmitResultInput
 	canonical  map[string]any
 	version    int64
 }
@@ -373,6 +379,13 @@ func validatedPayload(name string, params map[string]any, boundary Boundary) (*v
 		}
 		payload.propose = input
 		payload.canonical = map[string]any{"tool": name, "input": canonical}
+	case "bfb_submit_result":
+		input, canonical, err := ValidateSubmitInput(params)
+		if err != nil {
+			return nil, err
+		}
+		payload.submit = input
+		payload.canonical = map[string]any{"tool": name, "input": canonical}
 	default:
 		return nil, fail("method_not_found")
 	}
@@ -383,25 +396,6 @@ func (host *Host) offline(name string, payload *validatedWrite, requestID string
 	if host.policy.Decide(name) != OfflinePending {
 		return nil, fail("offline_rejected")
 	}
-	if host.journal == nil {
-		return nil, fail("offline_rejected")
-	}
-	if result, code, ok, err := host.journal.Outcome(requestID); err == nil && ok {
-		if code != "" {
-			return nil, replayCodeFailure(code)
-		}
-		return result, nil
-	}
-	if existing, ok, err := host.journal.Pending(requestID); err == nil && ok {
-		return pendingOutcome(existing), nil
-	}
-	if count, err := host.journal.CountForRun(boundary.RunID); err != nil || count >= maxPendingPerRun {
-		return nil, fail("request_rejected")
-	}
-	encoded, err := json.Marshal(payload.canonical)
-	if err != nil || len(encoded) > 4096 {
-		return nil, fail("request_rejected")
-	}
 	now := host.now().UTC().Truncate(time.Microsecond)
 	operation := PendingOperation{
 		RequestID:       requestID,
@@ -411,17 +405,43 @@ func (host *Host) offline(name string, payload *validatedWrite, requestID string
 		Principal:       host.principal,
 		Grant:           host.grant,
 		ExpectedVersion: payload.version,
-		PayloadHash:     hashHex(encoded),
-		PayloadJSON:     string(encoded),
 		CapturedAt:      now.Format(time.RFC3339Nano),
 		ExpiresAt:       now.Add(pendingTTLHours * time.Hour).Format(time.RFC3339Nano),
 		PolicyDecision:  string(OfflinePending),
 	}
+	return stagePending(host.journal, payload.canonical, operation)
+}
+
+// stagePending stores one validated offline operation idempotently and
+// returns its pending_sync receipt. Repeats return the original receipt or
+// the stored terminal outcome instead of duplicating the effect.
+func stagePending(journal Journal, canonical map[string]any, operation PendingOperation) (any, error) {
+	if journal == nil {
+		return nil, fail("offline_rejected")
+	}
+	if result, code, ok, err := journal.Outcome(operation.RequestID); err == nil && ok {
+		if code != "" {
+			return nil, replayCodeFailure(code)
+		}
+		return result, nil
+	}
+	if existing, ok, err := journal.Pending(operation.RequestID); err == nil && ok {
+		return pendingOutcome(existing), nil
+	}
+	if count, err := journal.CountForRun(operation.Boundary.RunID); err != nil || count >= maxPendingPerRun {
+		return nil, fail("request_rejected")
+	}
+	encoded, err := json.Marshal(canonical)
+	if err != nil || len(encoded) > 4096 {
+		return nil, fail("request_rejected")
+	}
+	operation.PayloadHash = hashHex(encoded)
+	operation.PayloadJSON = string(encoded)
 	operation.CaptureProof = captureProof(operation)
-	if _, err := host.journal.Store(operation); err != nil {
+	if _, err := journal.Store(operation); err != nil {
 		return nil, fail("internal_error")
 	}
-	stored, ok, err := host.journal.Pending(requestID)
+	stored, ok, err := journal.Pending(operation.RequestID)
 	if err != nil || !ok {
 		return nil, fail("internal_error")
 	}

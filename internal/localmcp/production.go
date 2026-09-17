@@ -148,6 +148,10 @@ func (OfflineTransport) GetAttention(_ context.Context, _ Boundary, _ string) (A
 	return AttentionRecord{}, fail("offline_rejected")
 }
 
+func (OfflineTransport) SubmitResult(_ context.Context, _ Boundary, _ SubmitResultInput, _ string) (SubmitResultResult, error) {
+	return SubmitResultResult{}, fail("offline_rejected")
+}
+
 // ProvisionalBindings reports no trusted binding yet. L06 plugs its
 // hook-journal reader in here at merge; until then every mutation returns
 // session_not_bound while bootstrap reads stay available.

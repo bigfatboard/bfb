@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { LaunchSection } from "../launch/operations.js";
 import type { AgentProfileSummary } from "./board.js";
+import { ResultPanel } from "./result.js";
 
 type WorkspaceRole = "owner" | "member" | "reviewer";
 
@@ -97,7 +98,7 @@ interface MutationClient {
   patch(path: string, body: unknown): Promise<Record<string, unknown>>;
 }
 
-function client(fetchFn: typeof fetch, csrfToken: string): MutationClient {
+export function client(fetchFn: typeof fetch, csrfToken: string): MutationClient {
   async function send(method: string, path: string, body?: unknown) {
     const response = await fetchFn(path, {
       method,
@@ -397,6 +398,23 @@ export function WorkMutations(props: WorkMutationsProps) {
             </div>
             <p className="unavailable-copy">Time and token measurements are unavailable.</p>
           </section>
+
+          {task ? (
+            <ResultPanel
+              key={`${task.id}:${task.resource_version}`}
+              workspaceId={props.workspaceId}
+              taskId={task.id}
+              taskState={task.state}
+              taskVersion={task.resource_version}
+              role={props.role}
+              fetchImpl={fetchFn}
+              csrfToken={props.csrfToken ?? ""}
+              onReviewed={() => {
+                void loadTask();
+                props.onChanged();
+              }}
+            />
+          ) : null}
 
           {canManage ? (
             <section aria-labelledby="edit-task-heading">

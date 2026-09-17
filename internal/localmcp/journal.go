@@ -106,14 +106,71 @@ func OpenJournal(path string) (*SQLiteJournal, error) {
 	if err = db.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
 		return nil, fail("storage_failed")
 	}
-	if version != 0 && version != 11 {
+	if version != 0 && version != 11 && version != 12 {
 		return nil, fail("migration_mismatch")
 	}
-	if _, err = db.Exec("PRAGMA user_version=11"); err != nil {
+	if version == 11 {
+		if err = widenJournalTools(db); err != nil {
+			return nil, fail("storage_failed")
+		}
+	}
+	if _, err = db.Exec("PRAGMA user_version=12"); err != nil {
 		return nil, fail("storage_failed")
 	}
 	failed = false
 	return &SQLiteJournal{db: db}, nil
+}
+
+// widenJournalTools rebuilds a version-11 journal whose tool CHECK predates
+// result submission. Rows are preserved; only the CHECK widens. New files
+// already carry the wide CHECK from migration 011.
+func widenJournalTools(db *sql.DB) error {
+	if _, err := db.Exec(`CREATE TABLE pending_operations_a03 (
+    request_id TEXT PRIMARY KEY,
+    tool TEXT NOT NULL CHECK (tool IN ('bfb_update_task', 'bfb_add_comment', 'bfb_report_progress', 'bfb_propose_task', 'bfb_submit_result')),
+    workspace_id TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    task_id TEXT NOT NULL,
+    run_id TEXT NOT NULL,
+    runner_id TEXT NOT NULL,
+    checkout_id TEXT NOT NULL,
+    execution_id TEXT NOT NULL,
+    assignment_generation INTEGER NOT NULL CHECK (assignment_generation >= 1),
+    observed_session_id TEXT NOT NULL,
+    principal TEXT NOT NULL,
+    grant_name TEXT NOT NULL,
+    expected_version INTEGER NOT NULL CHECK (expected_version >= 0),
+    payload_hash TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    capture_proof TEXT NOT NULL,
+    captured_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    policy_decision TEXT NOT NULL CHECK (policy_decision = 'pending_sync'),
+    state TEXT NOT NULL CHECK (state IN ('pending', 'applied', 'rejected')),
+    outcome_json TEXT
+) STRICT`); err != nil {
+		return err
+	}
+	if _, err := db.Exec(`INSERT INTO pending_operations_a03
+(request_id, tool, workspace_id, project_id, task_id, run_id, runner_id, checkout_id,
+ execution_id, assignment_generation, observed_session_id, principal, grant_name,
+ expected_version, payload_hash, payload_json, capture_proof, captured_at, expires_at,
+ policy_decision, state, outcome_json)
+SELECT request_id, tool, workspace_id, project_id, task_id, run_id, runner_id, checkout_id,
+ execution_id, assignment_generation, observed_session_id, principal, grant_name,
+ expected_version, payload_hash, payload_json, capture_proof, captured_at, expires_at,
+ policy_decision, state, outcome_json FROM pending_operations`); err != nil {
+		return err
+	}
+	if _, err := db.Exec(`DROP TABLE pending_operations`); err != nil {
+		return err
+	}
+	if _, err := db.Exec(`ALTER TABLE pending_operations_a03 RENAME TO pending_operations`); err != nil {
+		return err
+	}
+	_, err := db.Exec(`CREATE INDEX IF NOT EXISTS pending_operations_run_state
+    ON pending_operations (run_id, state, captured_at)`)
+	return err
 }
 
 func (journal *SQLiteJournal) Close() error { return journal.db.Close() }
@@ -403,6 +460,13 @@ func executeReplay(ctx context.Context, transport WorkTransport, operation Pendi
 			return nil, true, "payload_invalid"
 		}
 		result, callErr := transport.ProposeTask(ctx, boundary, restored, requestID)
+		return replayEffect(result, callErr)
+	case "bfb_submit_result":
+		restored, err := restoreSubmit(input)
+		if err != nil {
+			return nil, true, "payload_invalid"
+		}
+		result, callErr := transport.SubmitResult(ctx, boundary, restored, requestID)
 		return replayEffect(result, callErr)
 	default:
 		return nil, true, "payload_invalid"

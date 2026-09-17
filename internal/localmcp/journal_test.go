@@ -163,7 +163,7 @@ func TestJournalMigrationAndBounds(t *testing.T) {
 	}
 	defer journal.Close()
 	var version int
-	if err := journal.db.QueryRow("PRAGMA user_version").Scan(&version); err != nil || version != 11 {
+	if err := journal.db.QueryRow("PRAGMA user_version").Scan(&version); err != nil || version != 12 {
 		t.Fatalf("journal migration head is %d: %v", version, err)
 	}
 	record := syntheticAssignment()

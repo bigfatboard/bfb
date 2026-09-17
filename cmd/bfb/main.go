@@ -81,6 +81,7 @@ func main() {
 	cli.RegisterArtifact(registry, daemon.Call)
 	cli.RegisterRunner(registry)
 	claude.RegisterCommands(registry)
+	cli.RegisterRun(registry)
 	cli.RegisterExecution(registry,
 		func(ctx context.Context, paths daemon.Paths, intent string) error {
 			return supervisor.RunHelper(ctx, paths, intent, providerRegistry)

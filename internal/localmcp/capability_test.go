@@ -243,7 +243,7 @@ func TestWriteValidationRejects(t *testing.T) {
 		{"bad priority", "bfb_propose_task", map[string]any{"title": "x", "priority": "P9", "request_id": "reject-006"}, "invalid_params"},
 		{"root proposal rejected by policy", "bfb_propose_task", map[string]any{"title": "Root backlog", "request_id": "reject-007"}, "policy_rejected"},
 		{"attention request validated", "bfb_request_human", map[string]any{"request_id": "reject-008"}, "invalid_params"},
-		{"result tool absent", "bfb_submit_result", map[string]any{"request_id": "reject-009"}, "not_implemented"},
+		{"result tool requires summary", "bfb_submit_result", map[string]any{"request_id": "reject-009"}, "invalid_params"},
 		{"unknown tool", "bfb_launch_rocket", map[string]any{"request_id": "reject-010"}, "method_not_found"},
 	}
 	for _, tc := range rejects {

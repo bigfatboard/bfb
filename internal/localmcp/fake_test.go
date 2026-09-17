@@ -108,6 +108,7 @@ type fakeTransport struct {
 	attention map[string]*AttentionRecord
 	attnRun   map[string]string
 	attnSeq   int
+	submitted []SubmitResultInput
 	seen      map[string]any
 	calls     map[string]int
 	failCode  string
@@ -264,6 +265,17 @@ func (fake *fakeTransport) answerAttention(id, answer string) {
 		record.AnsweredAt = syntheticTime.Format(time.RFC3339Nano)
 		record.FirstResponseAt = record.AnsweredAt
 	}
+}
+
+func (fake *fakeTransport) SubmitResult(_ context.Context, _ Boundary, input SubmitResultInput, requestID string) (SubmitResultResult, error) {
+	result, err := fake.dedupe(requestID, func() any {
+		fake.submitted = append(fake.submitted, input)
+		return SubmitResultResult{SubmissionID: fmt.Sprintf("submission-%d", len(fake.submitted)), Version: int64(len(fake.submitted)), ResultState: "submitted"}
+	})
+	if err != nil {
+		return SubmitResultResult{}, err
+	}
+	return result.(SubmitResultResult), nil
 }
 
 func (fake *fakeTransport) ProposeTask(_ context.Context, boundary Boundary, input ProposeTaskInput, requestID string) (ProposeTaskResult, error) {

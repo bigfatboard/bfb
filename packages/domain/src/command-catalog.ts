@@ -61,6 +61,13 @@ import {
   updateTaskCommand,
 } from "./work-commands.js";
 import {
+  acceptResultCommand,
+  cancelRunCommand,
+  failRunCommand,
+  requestChangesCommand,
+  submitResultCommand,
+} from "./results.js";
+import {
   createExecutionCommand,
   createProviderSessionCommand,
   createRunCommand,
@@ -145,6 +152,11 @@ const commands = new Map<string, HubCommand<unknown, unknown>>([
   [createExecutionCommand.name, createExecutionCommand as HubCommand<unknown, unknown>],
   [transitionExecutionCommand.name, transitionExecutionCommand as HubCommand<unknown, unknown>],
   [createProviderSessionCommand.name, createProviderSessionCommand as HubCommand<unknown, unknown>],
+  [submitResultCommand.name, submitResultCommand as HubCommand<unknown, unknown>],
+  [requestChangesCommand.name, requestChangesCommand as HubCommand<unknown, unknown>],
+  [acceptResultCommand.name, acceptResultCommand as HubCommand<unknown, unknown>],
+  [failRunCommand.name, failRunCommand as HubCommand<unknown, unknown>],
+  [cancelRunCommand.name, cancelRunCommand as HubCommand<unknown, unknown>],
   [createInvitationCommand.name, createInvitationCommand as HubCommand<unknown, unknown>],
   [changeMemberRoleCommand.name, changeMemberRoleCommand as HubCommand<unknown, unknown>],
   [removeMemberCommand.name, removeMemberCommand as HubCommand<unknown, unknown>],
