@@ -40,6 +40,7 @@
     "journal:fixtures": "node tools/journal/fixtures.mjs",
     "test:l08:browser": "playwright test apps/web/test/e2e/l08-enrollment.spec.ts --config tools/e2e/playwright.config.ts",
     "test:p01": "pnpm test:l03 && go test -race -count=1 ./internal/providers/codex/...",
+    "test:p02": "pnpm test:l03 && go test -race -count=1 ./internal/providers/grok/...",
     "typecheck": "tsc -b --pretty false",
     "verify": "tsx tools/repository/src/verify.ts",
     "worktree:check": "tsx tools/repository/src/worktree-cli.ts",

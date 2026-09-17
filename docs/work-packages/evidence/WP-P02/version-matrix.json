@@ -1,0 +1,132 @@
+{
+  "capabilities": [
+    {
+      "capability": "approval.never",
+      "evidence": "p02-test:TestInteractiveLaunchExactCheckout",
+      "notes": "Emits documented --always-approve. Deny rules and PreToolUse hooks still apply per Grok docs.",
+      "status": "supported"
+    },
+    {
+      "capability": "approval.on_request",
+      "evidence": "p02-test:TestInteractiveLaunchExactCheckout",
+      "notes": "No flag; the documented default Ask mode prompts for anything not already allowed.",
+      "status": "supported"
+    },
+    {
+      "capability": "control.interrupt",
+      "evidence": "p02-test:TestInterruptTerminateMapping",
+      "notes": "Semantic interrupt request; L05 verifies process identity and signals.",
+      "status": "supported"
+    },
+    {
+      "capability": "control.terminate",
+      "evidence": "p02-test:TestInterruptTerminateMapping",
+      "notes": "Semantic terminate request; L05 owns TERM/KILL escalation.",
+      "status": "supported"
+    },
+    {
+      "capability": "filesystem.read_only",
+      "evidence": "p02-test:TestInteractiveLaunchExactCheckout; bounded offline probe refuses unknown profiles",
+      "notes": "Maps to documented --sandbox read-only. An unknown profile refuses to start (exit 1).",
+      "status": "supported"
+    },
+    {
+      "capability": "filesystem.workspace_write",
+      "evidence": "p02-test:TestInteractiveLaunchExactCheckout",
+      "notes": "Maps to documented --sandbox workspace (writes under the verified working directory).",
+      "status": "supported"
+    },
+    {
+      "capability": "hooks.session_start",
+      "evidence": "p02-test setup/doctor; hook-fixtures.json; bounded offline probe discovers the installed hook via inspect",
+      "notes": "User-level hooks/bfb.json installs the BFB binder through the approved transaction; doctor verifies it. Live hook firing awaits the L05 checkpoint.",
+      "status": "supported"
+    },
+    {
+      "capability": "launch.interactive",
+      "evidence": "p02-test:TestInteractiveLaunchExactCheckout",
+      "notes": "grok --cwd <verified-dir> --sandbox <profile> --model <tested> --reasoning-effort <effort>, no prompt: every plan starts waiting_user_submit.",
+      "status": "supported"
+    },
+    {
+      "capability": "mcp.stdio",
+      "evidence": "p02-test MCP setup/doctor; bounded offline probe round-tripped the TOML block through mcp list",
+      "notes": "config.toml carries [mcp_servers.bfb] with the stable launcher and mcp stdio args; writes go through the CAS transaction.",
+      "status": "supported"
+    },
+    {
+      "capability": "session.requested_id",
+      "evidence": "p02-test:TestRequestedSessionIDRequiresUUID",
+      "notes": "--session-id for a new UUID only. Titles and --continue are never emitted; non-UUID values fail closed. Positive binding awaits live L05 proof.",
+      "status": "supported"
+    },
+    {
+      "capability": "session.resume",
+      "evidence": "p02-test:TestResumeContinuesExactSession",
+      "notes": "--resume <exact-uuid>; never --continue, titles, or --fork-session. Unknown targets fail visibly at runtime without a fresh-session fallback.",
+      "status": "supported"
+    },
+    {
+      "capability": "session.resume.interactive",
+      "evidence": "p02-test:TestResumeContinuesExactSession via PlanResume",
+      "notes": "Exact owned binding with run/execution/generation identities; kit and adapter both reject malformed and non-UUID bindings.",
+      "status": "supported"
+    }
+  ],
+  "limitations": [
+    "Live model runs were never attempted: no prompt was sent, no session was opened, and no transcript exists. Fresh/resume identity evidence is documentation plus parser/setup proof, not live runs.",
+    "Hook firing (stdin payload delivery, sessionId trust at runtime) is documented but not live-verified; first-fire correlation proof waits on L05 supervised launch.",
+    "Resumed sessions inherit the bound session's working root; BFB resumes only sessions it launched in the same verified checkout.",
+    "Reasoning effort passes BFB low/medium/high through to --reasoning-effort unvalidated at plan time; an invalid value fails visibly at runtime.",
+    "Unknown -p/--output-format JSON shapes are the reason headless stays withheld; grok usage <id> remains a manual diagnostic, never ledger input.",
+    "Per-machine binary identity is bound at probe time by L05; no binary hash is recorded here.",
+    "The --version banner omits the release-channel suffix under a bare temporary home; the parser accepts both banner shapes for the tested version only."
+  ],
+  "live_observations": {
+    "method": "Bounded offline probes against grok 1.0.34 in an isolated temporary home (HOME/GROK_HOME redirected) and scratch directories; no repository paths, no personal configuration, no credentials, no model calls.",
+    "auth_before_validation": "Headless -p with an invalid --session-id and --resume of an unknown UUID both stop at sign-in in an unauthenticated home, so flag-validation order could not be observed; the adapter validates UUID shape before emitting either flag.",
+    "cwd": "grok --cwd <dir> inspect --json reports the requested directory in its cwd field.",
+    "hooks_discovery": "A hand-written hooks/bfb.json with the BFB SessionStart entry is discovered by grok inspect --json as a user hook with the exact command target.",
+    "mcp_round_trip": "grok mcp add bfb -- <launcher> mcp stdio writes [mcp_servers.bfb] with command, args, and enabled; grok mcp list --json returns the same command and args.",
+    "sandbox_rejection": "--sandbox bogus-profile refuses to start with exit 1 instead of running unsandboxed.",
+    "sessions_and_usage": "sessions list reports no sessions in an empty home; usage of an unknown session exits 1 with a not-found error.",
+    "tui_probes_avoided": "--resume in TUI mode blocks waiting on the terminal, so TUI-invoking probes were terminated rather than completed; no TUI behavior is claimed.",
+    "version": "grok --version prints grok 1.0.34 (<build>) [stable]; the channel suffix is absent under a bare temporary home."
+  },
+  "model": "grok-4.6",
+  "package": "P02",
+  "provider": "grok",
+  "recorded_on": "2026-09-18",
+  "scope": "Adapter contract certification against the frozen L03 kit with an owned stub executable and synthetic fixtures. Live model runs were never attempted; only the observed behaviors below ground adapter decisions.",
+  "version": "1.0.34",
+  "withheld_by_policy": [
+    {
+      "capability": "approval.always",
+      "reason": "Ask still honors remembered allows, so Grok has no always-prompt counterpart; always fails closed with provider_capability_denied."
+    },
+    {
+      "capability": "context.session_start",
+      "reason": "SessionStart documents no additional-context output that opens no turn; configs requesting injection fail closed."
+    },
+    {
+      "capability": "discussion.read_only",
+      "reason": "Headless -p output shapes need a live model call to verify; discussion turns fail closed."
+    },
+    {
+      "capability": "launch.headless",
+      "reason": "Unattended -p executes tools under unverified approval/usage surfaces; headless plans fail closed."
+    },
+    {
+      "capability": "prompt.initial_constant",
+      "reason": "Positional-prompt auto-submit is unverified; interactive plans carry no prompt and start waiting_user_submit."
+    },
+    {
+      "capability": "session.fork",
+      "reason": "No supported Turn path consumes it; --fork-session is never emitted."
+    },
+    {
+      "capability": "turn.structured",
+      "reason": "Headless JSONL has no verified event source, so usage stays unavailable and is never estimated."
+    }
+  ]
+}

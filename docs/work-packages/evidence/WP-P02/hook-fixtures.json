@@ -1,0 +1,198 @@
+{
+  "fixtures": [
+    {
+      "candidate": {
+        "kind": "session_started",
+        "session_id": "123e4567-e89b-12d3-a456-426614174000"
+      },
+      "name": "sessionstart-binds",
+      "notes": "SessionStart binds the documented session ID. Bootstrap context opens no turn.",
+      "raw": {
+        "cwd": "<redacted-local-path>",
+        "hookEventName": "SessionStart",
+        "sessionId": "123e4567-e89b-12d3-a456-426614174000",
+        "workspaceRoot": "<redacted-local-path>"
+      }
+    },
+    {
+      "candidate": {
+        "kind": "session_ended",
+        "session_id": "123e4567-e89b-12d3-a456-426614174000"
+      },
+      "name": "sessionend-ends",
+      "notes": "SessionEnd closes the session. It never submits or accepts a result.",
+      "raw": {
+        "cwd": "<redacted-local-path>",
+        "hookEventName": "SessionEnd",
+        "sessionId": "123e4567-e89b-12d3-a456-426614174000",
+        "workspaceRoot": "<redacted-local-path>"
+      }
+    },
+    {
+      "candidate": { "kind": "turn_started", "session_id": "123e4567-e89b-12d3-a456-426614174000" },
+      "name": "userpromptsubmit-opens-turn",
+      "notes": "A submitted human prompt opens turn telemetry. waiting_user_submit launches depend on this event.",
+      "raw": {
+        "cwd": "<redacted-local-path>",
+        "hookEventName": "UserPromptSubmit",
+        "sessionId": "123e4567-e89b-12d3-a456-426614174000",
+        "workspaceRoot": "<redacted-local-path>"
+      }
+    },
+    {
+      "candidate": {
+        "kind": "turn_completed",
+        "session_id": "123e4567-e89b-12d3-a456-426614174000"
+      },
+      "name": "stop-completes-turn-without-result",
+      "notes": "Stop is turn telemetry only; no candidate kind can submit or accept a result.",
+      "raw": {
+        "cwd": "<redacted-local-path>",
+        "hookEventName": "Stop",
+        "sessionId": "123e4567-e89b-12d3-a456-426614174000",
+        "workspaceRoot": "<redacted-local-path>"
+      }
+    },
+    {
+      "candidate": {
+        "kind": "provider_error",
+        "session_id": "123e4567-e89b-12d3-a456-426614174000"
+      },
+      "name": "stopfailure-stays-telemetry",
+      "notes": "A failed turn stays provider telemetry with no result implication.",
+      "raw": {
+        "cwd": "<redacted-local-path>",
+        "hookEventName": "StopFailure",
+        "sessionId": "123e4567-e89b-12d3-a456-426614174000",
+        "workspaceRoot": "<redacted-local-path>"
+      }
+    },
+    {
+      "candidate": {
+        "kind": "tool_started",
+        "session_id": "123e4567-e89b-12d3-a456-426614174000",
+        "tool": "Bash"
+      },
+      "name": "pretooluse-starts-tool",
+      "notes": "Tool input and local paths are dropped; only the bounded tool name crosses.",
+      "raw": {
+        "cwd": "<redacted-local-path>",
+        "hookEventName": "PreToolUse",
+        "sessionId": "123e4567-e89b-12d3-a456-426614174000",
+        "toolInput": "<never-forwarded>",
+        "toolName": "Bash",
+        "workspaceRoot": "<redacted-local-path>"
+      }
+    },
+    {
+      "candidate": {
+        "kind": "tool_completed",
+        "session_id": "123e4567-e89b-12d3-a456-426614174000",
+        "tool": "Read"
+      },
+      "name": "posttooluse-completes-tool",
+      "notes": "Successful tool completion carries no outcome and no result.",
+      "raw": {
+        "cwd": "<redacted-local-path>",
+        "hookEventName": "PostToolUse",
+        "sessionId": "123e4567-e89b-12d3-a456-426614174000",
+        "toolInput": "<never-forwarded>",
+        "toolName": "Read",
+        "workspaceRoot": "<redacted-local-path>"
+      }
+    },
+    {
+      "candidate": {
+        "kind": "tool_completed",
+        "outcome": "failed",
+        "session_id": "123e4567-e89b-12d3-a456-426614174000",
+        "tool": "Bash"
+      },
+      "name": "posttoolusefailure-marks-failed-outcome",
+      "notes": "Tool failure stays tool telemetry with a failed outcome; it is not a turn or run verdict.",
+      "raw": {
+        "cwd": "<redacted-local-path>",
+        "hookEventName": "PostToolUseFailure",
+        "sessionId": "123e4567-e89b-12d3-a456-426614174000",
+        "toolInput": "<never-forwarded>",
+        "toolName": "Bash",
+        "workspaceRoot": "<redacted-local-path>"
+      }
+    },
+    {
+      "candidate": null,
+      "name": "permissiondenied-stays-silent",
+      "notes": "Vendor-native permission dialogs are distinct from BFB attention requests and never become candidates.",
+      "raw": {
+        "cwd": "<redacted-local-path>",
+        "hookEventName": "PermissionDenied",
+        "sessionId": "123e4567-e89b-12d3-a456-426614174000",
+        "toolName": "Bash",
+        "workspaceRoot": "<redacted-local-path>"
+      }
+    },
+    {
+      "candidate": null,
+      "name": "notification-stays-silent",
+      "notes": "Agent notifications are not turn activity.",
+      "raw": {
+        "cwd": "<redacted-local-path>",
+        "hookEventName": "Notification",
+        "sessionId": "123e4567-e89b-12d3-a456-426614174000",
+        "workspaceRoot": "<redacted-local-path>"
+      }
+    },
+    {
+      "candidate": null,
+      "name": "subagentstop-stays-silent",
+      "notes": "Subagent activity is not run-turn activity.",
+      "raw": {
+        "cwd": "<redacted-local-path>",
+        "hookEventName": "SubagentStop",
+        "sessionId": "123e4567-e89b-12d3-a456-426614174000",
+        "workspaceRoot": "<redacted-local-path>"
+      }
+    },
+    {
+      "candidate": null,
+      "name": "precompact-stays-silent",
+      "notes": "Compaction binds no session and opens no turn.",
+      "raw": {
+        "cwd": "<redacted-local-path>",
+        "hookEventName": "PreCompact",
+        "sessionId": "123e4567-e89b-12d3-a456-426614174000",
+        "workspaceRoot": "<redacted-local-path>"
+      }
+    },
+    {
+      "candidate": null,
+      "name": "future-event-stays-silent",
+      "notes": "Unknown event names are ignored for forward compatibility instead of failing the stream.",
+      "raw": {
+        "cwd": "<redacted-local-path>",
+        "hookEventName": "FutureEvent",
+        "sessionId": "123e4567-e89b-12d3-a456-426614174000",
+        "workspaceRoot": "<redacted-local-path>"
+      }
+    },
+    {
+      "candidate": null,
+      "name": "snake-case-shape-stays-silent",
+      "notes": "Payloads outside the documented camelCase contract name no event and stay silent; a known event with an undocumented session key fails closed instead.",
+      "raw": {
+        "cwd": "<redacted-local-path>",
+        "hook_event_name": "SessionStart",
+        "session_id": "123e4567-e89b-12d3-a456-426614174000"
+      }
+    }
+  ],
+  "package": "P02",
+  "rejections": [
+    "SessionStart with a missing or malformed session identity fails closed instead of binding.",
+    "A known event with an undocumented session key fails closed instead of binding a guessed session.",
+    "Turn and tool events with missing or malformed session identities fail closed.",
+    "Duplicate keys, trailing data, non-UTF8, and oversize payloads fail closed.",
+    "Headless turn input has no supported surface: NormalizeTurn always yields nothing, so usage stays unavailable and is never estimated."
+  ],
+  "scope": "Raw Grok hook stdin payloads to bounded L03 semantic candidates. Field names are the documented camelCase contract (hookEventName, sessionId). All identities are synthetic; local paths in inputs are dropped by the parser and never appear in candidates."
+}

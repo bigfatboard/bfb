@@ -165,10 +165,10 @@ func TestProviderOwnedVersionParsers(t *testing.T) {
 		_, err = descriptor.ParseVersion([]byte(fixture.raw + "unexpected second version\n"))
 		requireCode(t, err, "provider_probe_failed")
 		// Certified real providers grant only their owning package's verified
-		// manifest. P01 certifies codex and L07 certifies claude; every other
-		// real descriptor stays discovery-only until its owning package amends
-		// this set.
-		certified := descriptor.Name == "codex" || descriptor.Name == "claude"
+		// manifest. P01 certifies codex, P02 certifies grok, and L07 certifies
+		// claude; every other real descriptor stays discovery-only until its
+		// owning package amends this set.
+		certified := descriptor.Name == "codex" || descriptor.Name == "claude" || descriptor.Name == "grok"
 		if !certified && descriptor.Name != "fake" && (len(descriptor.Manifest.Capabilities) != 0 || len(descriptor.Manifest.TestedVersions) != 0 || descriptor.Adapter != nil) {
 			t.Fatal("discovery acquired unverified tracking capabilities")
 		}
