@@ -117,18 +117,33 @@ A card can open a supported Claude Code version in the exact checkout, bind the 
 - State: adapter, parser, setup/doctor CLI, fixtures, and evidence exist on
   this branch; `Status` stays `planned` because A01, E01, L05, and L06 are not
   `done`, so `pnpm roadmap:check` rejects anything beyond `planned`.
-- Proven now by `pnpm test:l07`: probe/manifest/version policy, descriptor
-  registration, previewed/approved/CAS/atomic setup with rollback,
-  setup/doctor CLI, stable hook launcher, raw-to-candidate parsing with
-  fixtures, interactive and exact-session resume plans, interrupt/terminate
-  mapping, `SessionStart` requested-vs-observed binding, and every listed
-  diagnostic (integration hash, drift, unknown version, concurrent edit,
-  rollback, duplicate hooks).
-- Explicitly pending on A01, E01, L05, L06: the real end-to-end checkpoint
-  (card → exact checkout → Claude opens → trusted `SessionStart` binds → MCP
-  context loads → semantic events commit), resume into the same unfinished
-  run, MCP stdio grant and startup handshake, and authenticated live
-  tool-turn/Stop captures.
+- Acceptance 3 (unknown version blocks tracked mode): proven. Any version
+  other than `2.1.274` probes as `unknown_version` with no tracked
+  capabilities; plan and doctor fail closed.
+- Acceptance 4 (setup preservation, approved diff, concurrent-edit abort,
+  rollback, byte-identical untouched files): proven through the L03
+  transaction for both user-level files, including idempotent no-op runs.
+- Acceptance 5 (replaced binary/config detected before `exec`): proven at
+  the adapter layer (probe identity, `Revalidate`, integration-hash drift);
+  L05's pre-exec consumption of that revalidation waits on L05.
+- Acceptance 6 (duplicate hooks diagnosed, concurrent deliveries safe):
+  proven. Identical deliveries share one content-derived suppression
+  identity; duplicates, drift, and concurrent edits are diagnosed; the
+  transaction never overwrites a concurrent edit.
+- Acceptance 7 (Stop, failed tool, terminal close, process exit never
+  submit/accept a result): proven. `Stop` maps to turn telemetry,
+  `PostToolUseFailure` to failed/interrupted telemetry, `SessionEnd` to
+  session end; the candidate type carries no result-submission field, and
+  headless exit paths stay uncertified.
+- Acceptance 1 (card → exact checkout → Claude opens → trusted `SessionStart`
+  binds → MCP context loads → semantic events commit): pending. Adapter
+  plans, hook parsing, and the `SessionStart` binding check are proven, but
+  the live chain waits on L05 (launch/supervision), L06 (journal/binding),
+  E01 (ingest), and A01 (MCP context).
+- Acceptance 2 (resume attaches the observed session to the same unfinished
+  run): pending. Exact-session resume plans and UUID binding are proven;
+  the resumed execution, source-absence proof, and durable binding wait on
+  L05 and L06.
 - Commands: `pnpm test:l07`, `bfb provider setup claude`, `bfb provider doctor
   claude`. Doctor reports `mcp_startup_unverified` until A01 lands.
 - Known limitations: rewritten config files are canonicalized (semantics
