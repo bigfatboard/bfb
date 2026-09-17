@@ -455,7 +455,11 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
         run_id: z.string().min(1).max(128),
         format: z.enum(ARTIFACT_FORMATS),
         role: z.enum(ARTIFACT_ROLES),
-        declared_size: z.number().int().min(1).max(5 * 1024 * 1024),
+        declared_size: z
+          .number()
+          .int()
+          .min(1)
+          .max(5 * 1024 * 1024),
         expected_digest: z.string().min(1).max(128),
         request_id: z.string().min(1).max(128),
       },
@@ -519,7 +523,11 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
       inputSchema: {
         version_id: z.string().min(1).max(128),
         content_hash: z.string().min(1).max(128),
-        size: z.number().int().min(1).max(5 * 1024 * 1024),
+        size: z
+          .number()
+          .int()
+          .min(1)
+          .max(5 * 1024 * 1024),
         request_id: z.string().min(1).max(128),
       },
     },

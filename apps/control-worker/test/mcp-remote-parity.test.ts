@@ -7,7 +7,10 @@ import {
   markArtifactFailedCommand,
   recordVerifiedUpload,
 } from "../../../packages/domain/src/artifacts.js";
-import { answerAttentionCommand, resolveAttentionCommand } from "../../../packages/domain/src/attention.js";
+import {
+  answerAttentionCommand,
+  resolveAttentionCommand,
+} from "../../../packages/domain/src/attention.js";
 import {
   acceptResultCommand,
   cancelRunCommand,
@@ -18,8 +21,14 @@ import { FIX } from "../../../packages/domain/src/fixtures.js";
 import { WorkspaceHub } from "../../../packages/domain/src/hub.js";
 import { randomUlid } from "../../../packages/domain/src/ids.js";
 import { revokeDelegation } from "../../../packages/domain/src/oauth.js";
-import { createTaskCommand, updateTaskCommand } from "../../../packages/domain/src/work-commands.js";
-import { createExecutionCommand, createRunCommand } from "../../../packages/domain/src/work-records.js";
+import {
+  createTaskCommand,
+  updateTaskCommand,
+} from "../../../packages/domain/src/work-commands.js";
+import {
+  createExecutionCommand,
+  createRunCommand,
+} from "../../../packages/domain/src/work-records.js";
 import { issueSyntheticMcpAccess, openDomainDb } from "../../../packages/domain/test/helpers.js";
 import { createTestWorkspaceHubNamespace } from "../src/hub-client.js";
 import { handleMcpRequest } from "../src/mcp/handler.js";
@@ -195,7 +204,9 @@ describe("remote mcp parity extensions", () => {
       request_id: "submit-request-1",
     })) as {
       ok: boolean;
-      result: { submission: { version: number; submitted_by_kind: string; submitted_by_id: string } };
+      result: {
+        submission: { version: number; submitted_by_kind: string; submitted_by_id: string };
+      };
     };
     expect(submitted).toMatchObject({
       ok: true,
@@ -261,7 +272,10 @@ describe("remote mcp parity extensions", () => {
       size: 18,
       request_id: "finalize-request-1",
     })) as { ok: boolean; result: { state: string; content_hash: string } };
-    expect(finalized).toMatchObject({ ok: true, result: { state: "available", content_hash: DIGEST } });
+    expect(finalized).toMatchObject({
+      ok: true,
+      result: { state: "available", content_hash: DIGEST },
+    });
   });
 
   it("keeps every extension tool inside the delegated project and task boundary", async () => {
@@ -270,11 +284,27 @@ describe("remote mcp parity extensions", () => {
     const away = await seedRun(db, "boundary-away", FIX.projectB);
     const { accessToken } = await issueSyntheticMcpAccess(db, { projectId: FIX.projectA });
     const escapes: Array<[string, Record<string, unknown>]> = [
-      ["bfb_request_human", { run_id: away.runId, kind: "clarification", question: "x", blocking: false, request_id: "escape-1" }],
+      [
+        "bfb_request_human",
+        {
+          run_id: away.runId,
+          kind: "clarification",
+          question: "x",
+          blocking: false,
+          request_id: "escape-1",
+        },
+      ],
       ["bfb_submit_result", { run_id: away.runId, summary: "x", request_id: "escape-2" }],
       [
         "bfb_publish_artifact",
-        { run_id: away.runId, format: "markdown", role: "review", declared_size: 3, expected_digest: DIGEST, request_id: "escape-3" },
+        {
+          run_id: away.runId,
+          format: "markdown",
+          role: "review",
+          declared_size: 3,
+          expected_digest: DIGEST,
+          request_id: "escape-3",
+        },
       ],
       [
         "bfb_finalize_artifact",
@@ -284,7 +314,9 @@ describe("remote mcp parity extensions", () => {
     for (const [name, args] of escapes) {
       const response = await request(db, "tools/call", name, args, accessToken);
       expect(response.status).toBe(200);
-      expect(((await response.json()) as { result: { isError?: boolean } }).result.isError).toBe(true);
+      expect(((await response.json()) as { result: { isError?: boolean } }).result.isError).toBe(
+        true,
+      );
     }
     const requested = (await call(db, accessToken, "bfb_request_human", {
       run_id: home.runId,
@@ -329,18 +361,39 @@ describe("remote mcp parity extensions", () => {
     })) as { attention: { id: string } };
     expect(read.attention.id).toBe(attentionId);
     const denials: Array<[string, Record<string, unknown>]> = [
-      ["bfb_request_human", { run_id: runId, kind: "clarification", question: "x", blocking: false, request_id: "scope-1" }],
+      [
+        "bfb_request_human",
+        {
+          run_id: runId,
+          kind: "clarification",
+          question: "x",
+          blocking: false,
+          request_id: "scope-1",
+        },
+      ],
       ["bfb_submit_result", { run_id: runId, summary: "x", request_id: "scope-2" }],
       [
         "bfb_publish_artifact",
-        { run_id: runId, format: "markdown", role: "review", declared_size: 3, expected_digest: DIGEST, request_id: "scope-3" },
+        {
+          run_id: runId,
+          format: "markdown",
+          role: "review",
+          declared_size: 3,
+          expected_digest: DIGEST,
+          request_id: "scope-3",
+        },
       ],
-      ["bfb_finalize_artifact", { version_id: randomUlid(), content_hash: DIGEST, size: 3, request_id: "scope-4" }],
+      [
+        "bfb_finalize_artifact",
+        { version_id: randomUlid(), content_hash: DIGEST, size: 3, request_id: "scope-4" },
+      ],
       ["bfb_add_comment", { task_id: taskId, body: "x", request_id: "scope-5" }],
     ];
     for (const [name, args] of denials) {
       const response = await request(db, "tools/call", name, args, readOnly.accessToken);
-      const body = (await response.json()) as { result: { isError?: boolean; content?: Array<{ text: string }> } };
+      const body = (await response.json()) as {
+        result: { isError?: boolean; content?: Array<{ text: string }> };
+      };
       expect(body.result.isError).toBe(true);
       expect(JSON.stringify(body.result.content)).toMatch(/insufficient_scope|missing scope/);
     }
@@ -381,10 +434,16 @@ describe("remote mcp parity extensions", () => {
       db,
       "tools/call",
       "bfb_submit_result",
-      { run_id: second.runId, summary: "Synthetic beta submission", request_id: "shared-request-key" },
+      {
+        run_id: second.runId,
+        summary: "Synthetic beta submission",
+        request_id: "shared-request-key",
+      },
       beta.accessToken,
     );
-    const betaBody = (await betaReplay.json()) as { result: { isError?: boolean; content?: Array<{ text: string }> } };
+    const betaBody = (await betaReplay.json()) as {
+      result: { isError?: boolean; content?: Array<{ text: string }> };
+    };
     expect(betaBody.result.isError).toBe(true);
     expect(JSON.stringify(betaBody.result.content)).toContain("idempotency_authority_mismatch");
     const alphaReread = (await call(db, alpha.accessToken, "bfb_submit_result", {
@@ -535,7 +594,13 @@ describe("remote mcp parity extensions", () => {
       "bfb_promote_task",
       "bfb_admin_policy",
     ]) {
-      const response = await request(db, "tools/call", name, { request_id: "attack-probe" }, accessToken);
+      const response = await request(
+        db,
+        "tools/call",
+        name,
+        { request_id: "attack-probe" },
+        accessToken,
+      );
       if (response.status === 200) {
         const body = (await response.json()) as { result?: { content?: unknown } };
         expect(body.result?.content, name).toBeUndefined();

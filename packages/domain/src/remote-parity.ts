@@ -18,12 +18,7 @@ import {
   type AttentionRecord,
   type AttentionState,
 } from "./attention.js";
-import {
-  assertEpoch,
-  assertProjectAccess,
-  assertRole,
-  loadPrincipal,
-} from "./authorization.js";
+import { assertEpoch, assertProjectAccess, assertRole, loadPrincipal } from "./authorization.js";
 import { DomainError, type HubCommand, type HubContext } from "./hub.js";
 import { isUlid, randomUlid } from "./ids.js";
 import { enforceDelegationAccess, type ActiveDelegation } from "./oauth.js";
@@ -136,14 +131,21 @@ function boundedText(value: unknown, field: string, minimum: number, maximum: nu
   return normalized;
 }
 
-function exactKeys(value: unknown, keys: readonly string[], code: "invalid_argument" | "request_rejected"): void {
+function exactKeys(
+  value: unknown,
+  keys: readonly string[],
+  code: "invalid_argument" | "request_rejected",
+): void {
   if (
     !value ||
     typeof value !== "object" ||
     Array.isArray(value) ||
     Object.keys(value).some((key) => !keys.includes(key))
   ) {
-    throw new DomainError(code, code === "invalid_argument" ? "command input is invalid" : "request rejected");
+    throw new DomainError(
+      code,
+      code === "invalid_argument" ? "command input is invalid" : "request rejected",
+    );
   }
 }
 
@@ -169,7 +171,11 @@ function artifactRole(value: unknown): ArtifactRole {
 }
 
 function artifactSize(value: unknown, role: ArtifactRole): number {
-  if (!Number.isSafeInteger(value) || (value as number) < 1 || (value as number) > roleMaxBytes(role)) {
+  if (
+    !Number.isSafeInteger(value) ||
+    (value as number) < 1 ||
+    (value as number) > roleMaxBytes(role)
+  ) {
     throw new DomainError("request_rejected", "request rejected");
   }
   return value as number;
@@ -235,8 +241,7 @@ async function latestExecutionAssignment(
        ORDER BY assignment_generation DESC LIMIT 1`,
     )
     .get(workspaceId, runId)) as
-    | { execution_id: string; assignment_generation: number }
-    | undefined;
+    { execution_id: string; assignment_generation: number } | undefined;
   if (!row) {
     throw new DomainError("invalid_transition", "run has no execution context");
   }
@@ -292,7 +297,11 @@ export const requestDelegatedAttentionCommand: HubCommand<
   async run(input, ctx) {
     const authority = await requireDelegationAuthority(ctx, "bfb:task:write");
     assertRole(authority.principal, ["owner", "member", "reviewer"]);
-    exactKeys(input, ["runId", "kind", "question", "referenceKind", "referenceId", "blocking"], "invalid_argument");
+    exactKeys(
+      input,
+      ["runId", "kind", "question", "referenceKind", "referenceId", "blocking"],
+      "invalid_argument",
+    );
     if (!isUlid(input.runId)) {
       throw new DomainError("not_found", "run not found");
     }
@@ -302,8 +311,7 @@ export const requestDelegatedAttentionCommand: HubCommand<
          WHERE workspace_id = ? AND id = ? AND purpose = 'work'`,
       )
       .get(ctx.workspaceId, input.runId)) as
-      | { id: string; project_id: string; task_id: string; result_state: string }
-      | undefined;
+      { id: string; project_id: string; task_id: string; result_state: string } | undefined;
     if (!run) {
       throw new DomainError("not_found", "run not found");
     }
@@ -627,7 +635,15 @@ export const createDelegatedArtifactCommand: HubCommand<
     assertRole(authority.principal, ["owner", "member"]);
     exactKeys(
       input,
-      ["artifactId", "runId", "format", "role", "declaredSize", "expectedDigest", "grantSecretHash"],
+      [
+        "artifactId",
+        "runId",
+        "format",
+        "role",
+        "declaredSize",
+        "expectedDigest",
+        "grantSecretHash",
+      ],
       "request_rejected",
     );
     const format = artifactFormat(input.format);
@@ -643,8 +659,7 @@ export const createDelegatedArtifactCommand: HubCommand<
     const run = (await ctx.db
       .prepare(`SELECT id, project_id, task_id FROM runs WHERE workspace_id = ? AND id = ?`)
       .get(ctx.workspaceId, input.runId)) as
-      | { id: string; project_id: string; task_id: string }
-      | undefined;
+      { id: string; project_id: string; task_id: string } | undefined;
     if (!run) {
       throw new DomainError("request_rejected", "request rejected");
     }
@@ -663,8 +678,7 @@ export const createDelegatedArtifactCommand: HubCommand<
       const existing = (await ctx.db
         .prepare(`SELECT id, run_id, format, role FROM artifacts WHERE workspace_id = ? AND id = ?`)
         .get(ctx.workspaceId, artifactId)) as
-        | { id: string; run_id: string | null; format: string; role: string }
-        | undefined;
+        { id: string; run_id: string | null; format: string; role: string } | undefined;
       if (!existing) {
         throw new DomainError("request_rejected", "request rejected");
       }
@@ -837,8 +851,7 @@ export const finalizeDelegatedArtifactCommand: HubCommand<
     const run = (await ctx.db
       .prepare(`SELECT id, project_id, task_id FROM runs WHERE workspace_id = ? AND id = ?`)
       .get(ctx.workspaceId, artifact.run_id)) as
-      | { id: string; project_id: string; task_id: string }
-      | undefined;
+      { id: string; project_id: string; task_id: string } | undefined;
     if (!run) {
       throw new DomainError("request_rejected", "request rejected");
     }
@@ -853,9 +866,7 @@ export const finalizeDelegatedArtifactCommand: HubCommand<
         `SELECT content_hash, size FROM artifact_upload_receipts
          WHERE workspace_id = ? AND version_id = ?`,
       )
-      .get(ctx.workspaceId, input.versionId)) as
-      | { content_hash: string; size: number }
-      | undefined;
+      .get(ctx.workspaceId, input.versionId)) as { content_hash: string; size: number } | undefined;
     if (!receipt || receipt.content_hash !== contentHash || receipt.size !== input.size) {
       throw new DomainError("request_rejected", "request rejected");
     }

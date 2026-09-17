@@ -171,7 +171,9 @@ async function seedExecution(
       `INSERT INTO runner_project_grants (workspace_id, runner_id, project_id) VALUES (?, ?, ?)`,
     )
     .run(FIX.workspace, runnerId, projectId);
-  const execution = ok(await hub.execute(createExecutionCommand, human(`${key}-execution`, { runId })));
+  const execution = ok(
+    await hub.execute(createExecutionCommand, human(`${key}-execution`, { runId })),
+  );
   await db
     .prepare(
       `INSERT INTO execution_assignments
@@ -250,7 +252,9 @@ describe("delegated attention request", () => {
       actor_type: string;
       actor_id: string;
     }>;
-    expect(observations).toEqual([{ observed_kind: "requested", actor_type: "human", actor_id: FIX.owner }]);
+    expect(observations).toEqual([
+      { observed_kind: "requested", actor_type: "human", actor_id: FIX.owner },
+    ]);
     const audit = (await db
       .prepare(
         `SELECT payload_json FROM audit_events WHERE workspace_id = ? AND action = ?
@@ -288,23 +292,20 @@ describe("delegated attention request", () => {
       expiresAt: "2026-09-12T13:00:00.000Z",
     });
     const delegatedRecord = ok(
-      await f.hub.execute(
-        requestDelegatedAttentionCommand,
-        {
-          workspaceId: FIX.workspace,
-          idempotencyKey: randomUlid(),
-          authorizationEpoch: 1,
-          actorHumanId: FIX.owner,
-          actorDelegationId: delegationId,
-          now: LAUNCH_NOW,
-          input: {
-            runId: bound.runId,
-            kind: "blocker",
-            question: "Synthetic twin question",
-            blocking: false,
-          },
+      await f.hub.execute(requestDelegatedAttentionCommand, {
+        workspaceId: FIX.workspace,
+        idempotencyKey: randomUlid(),
+        authorizationEpoch: 1,
+        actorHumanId: FIX.owner,
+        actorDelegationId: delegationId,
+        now: LAUNCH_NOW,
+        input: {
+          runId: bound.runId,
+          kind: "blocker",
+          question: "Synthetic twin question",
+          blocking: false,
         },
-      ),
+      }),
     );
     for (const record of [runnerRecord, delegatedRecord]) {
       expect(record).toMatchObject({
@@ -340,9 +341,9 @@ describe("delegated attention request", () => {
     expect(
       err(await attempt({ kind: "clarification", question: "x".repeat(2049), blocking: true })),
     ).toBe("invalid_argument");
-    expect(
-      err(await attempt({ kind: "clarification", question: "badchar", blocking: true })),
-    ).toBe("invalid_argument");
+    expect(err(await attempt({ kind: "clarification", question: "badchar", blocking: true }))).toBe(
+      "invalid_argument",
+    );
     expect(
       err(
         await attempt({
@@ -378,7 +379,11 @@ describe("delegated attention request", () => {
     const foreign = await createTaskAndRun(db, hub, "foreign", FIX.projectB);
     await seedExecution(db, hub, "foreign", foreign.runId, foreign.taskId, FIX.projectB);
     const delegationId = await seedDelegation(db);
-    const base = { kind: "clarification" as const, question: "Synthetic boundary", blocking: false };
+    const base = {
+      kind: "clarification" as const,
+      question: "Synthetic boundary",
+      blocking: false,
+    };
     expect(
       err(
         await hub.execute(
@@ -437,7 +442,10 @@ describe("delegated attention request", () => {
       blocking: false,
     };
     const first = ok(
-      await hub.execute(requestDelegatedAttentionCommand, delegated("replay-key", delegationId, input)),
+      await hub.execute(
+        requestDelegatedAttentionCommand,
+        delegated("replay-key", delegationId, input),
+      ),
     );
     const second = ok(
       await hub.execute(
@@ -466,7 +474,12 @@ describe("delegated attention request", () => {
     const revoked = await seedDelegation(db);
     await revokeDelegation(db, FIX.workspace, revoked, NOW);
     expect(
-      err(await hub.execute(requestDelegatedAttentionCommand, delegated("fence-revoked", revoked, input))),
+      err(
+        await hub.execute(
+          requestDelegatedAttentionCommand,
+          delegated("fence-revoked", revoked, input),
+        ),
+      ),
     ).toBe("forbidden");
     const expired = await seedDelegation(db, { expiresAt: NOW });
     expect(
@@ -479,13 +492,20 @@ describe("delegated attention request", () => {
     ).toBe("forbidden");
     const readOnly = await seedDelegation(db, { scopes: ["bfb:read", "offline_access"] });
     expect(
-      err(await hub.execute(requestDelegatedAttentionCommand, delegated("fence-readonly", readOnly, input))),
+      err(
+        await hub.execute(
+          requestDelegatedAttentionCommand,
+          delegated("fence-readonly", readOnly, input),
+        ),
+      ),
     ).toBe("insufficient_scope");
     const stale = await seedDelegation(db);
     await bumpMemberEpoch(db, FIX.workspace, FIX.owner);
-    expect(err(await hub.execute(requestDelegatedAttentionCommand, delegated("fence-stale", stale, input)))).toBe(
-      "stale_authorization",
-    );
+    expect(
+      err(
+        await hub.execute(requestDelegatedAttentionCommand, delegated("fence-stale", stale, input)),
+      ),
+    ).toBe("stale_authorization");
     expect(
       err(await hub.execute(requestDelegatedAttentionCommand, human("fence-direct", input))),
     ).toBe("forbidden");
@@ -610,7 +630,10 @@ describe("delegated result submission", () => {
     for (const { input, code } of invalid) {
       const humanErr = err(await hub.execute(submitResultCommand, human(randomUlid(), input)));
       const delegatedErr = err(
-        await hub.execute(submitDelegatedResultCommand, delegated(randomUlid(), delegationId, input)),
+        await hub.execute(
+          submitDelegatedResultCommand,
+          delegated(randomUlid(), delegationId, input),
+        ),
       );
       expect(humanErr).toBe(code);
       expect(delegatedErr).toBe(code);
@@ -625,7 +648,10 @@ describe("delegated result submission", () => {
     const delegationId = await seedDelegation(db);
     const input = { runId, summary: "Synthetic idempotent submission" };
     const first = ok(
-      await hub.execute(submitDelegatedResultCommand, delegated("submit-once", delegationId, input)),
+      await hub.execute(
+        submitDelegatedResultCommand,
+        delegated("submit-once", delegationId, input),
+      ),
     );
     const second = ok(
       await hub.execute(
@@ -635,14 +661,19 @@ describe("delegated result submission", () => {
     );
     expect(second.submission.id).toBe(first.submission.id);
     const count = (await db
-      .prepare(`SELECT COUNT(*) AS count FROM result_submissions WHERE workspace_id = ? AND run_id = ?`)
+      .prepare(
+        `SELECT COUNT(*) AS count FROM result_submissions WHERE workspace_id = ? AND run_id = ?`,
+      )
       .get(FIX.workspace, runId)) as { count: number };
     expect(count).toEqual({ count: 1 });
     expect(
       err(
         await hub.execute(
           submitDelegatedResultCommand,
-          delegated("submit-again", delegationId, { ...input, summary: "Synthetic second version" }),
+          delegated("submit-again", delegationId, {
+            ...input,
+            summary: "Synthetic second version",
+          }),
         ),
       ),
     ).toBe("invalid_transition");
@@ -719,7 +750,9 @@ describe("delegated artifact publication", () => {
     );
     expect(created).toMatchObject({ state: "uploading", format: "markdown", role: "review" });
     const grant = (await db
-      .prepare(`SELECT human_id, run_id, grant_hash, consumed_at FROM artifact_upload_grants WHERE id = ?`)
+      .prepare(
+        `SELECT human_id, run_id, grant_hash, consumed_at FROM artifact_upload_grants WHERE id = ?`,
+      )
       .get(created.upload_grant.grant_id)) as Record<string, unknown>;
     expect(grant).toMatchObject({
       human_id: FIX.owner,
@@ -742,21 +775,22 @@ describe("delegated artifact publication", () => {
     const { runId } = await createTaskAndRun(db, hub, "artifact-twin");
     const delegationId = await seedDelegation(db);
     const attempt = (
-      command:
-        | typeof createArtifactCommand
-        | typeof createDelegatedArtifactCommand,
+      command: typeof createArtifactCommand | typeof createDelegatedArtifactCommand,
       input: Record<string, unknown>,
       extra: { humanId?: string; delegationId?: string } = {},
     ) =>
-      hub.execute(command as never, {
-        workspaceId: FIX.workspace,
-        idempotencyKey: randomUlid(),
-        authorizationEpoch: 1,
-        actorHumanId: extra.humanId ?? FIX.owner,
-        ...(extra.delegationId === undefined ? {} : { actorDelegationId: extra.delegationId }),
-        now: NOW,
-        input: input as never,
-      } as never);
+      hub.execute(
+        command as never,
+        {
+          workspaceId: FIX.workspace,
+          idempotencyKey: randomUlid(),
+          authorizationEpoch: 1,
+          actorHumanId: extra.humanId ?? FIX.owner,
+          ...(extra.delegationId === undefined ? {} : { actorDelegationId: extra.delegationId }),
+          now: NOW,
+          input: input as never,
+        } as never,
+      );
     const vectors: Array<{ input: Record<string, unknown>; code: string }> = [
       { input: createInput(runId, { format: "exe" }), code: "request_rejected" },
       { input: createInput(runId, { role: "viewer" }), code: "request_rejected" },
@@ -777,11 +811,13 @@ describe("delegated artifact publication", () => {
     ];
     for (const { input, code } of vectors) {
       expect(err(await attempt(createArtifactCommand, input))).toBe(code);
-      expect(err(await attempt(createDelegatedArtifactCommand, input, { delegationId }))).toBe(code);
+      expect(err(await attempt(createDelegatedArtifactCommand, input, { delegationId }))).toBe(
+        code,
+      );
     }
-    expect(err(await attempt(createArtifactCommand, createInput(runId), { humanId: FIX.restricted }))).toBe(
-      "forbidden",
-    );
+    expect(
+      err(await attempt(createArtifactCommand, createInput(runId), { humanId: FIX.restricted })),
+    ).toBe("forbidden");
     const reviewerDelegation = await seedDelegation(db, {
       humanId: FIX.reviewer,
     });
@@ -819,11 +855,14 @@ describe("delegated artifact publication", () => {
     ).toBe("forbidden");
     const minted = mintUploadGrantSecret();
     const humanCreated = ok(
-      await hub.execute(createArtifactCommand, human("artifact-human", {
-        ...createInput(runId),
-        runId: null,
-        grantSecretHash: minted.secretHash,
-      })),
+      await hub.execute(
+        createArtifactCommand,
+        human("artifact-human", {
+          ...createInput(runId),
+          runId: null,
+          grantSecretHash: minted.secretHash,
+        }),
+      ),
     );
     await recordVerifiedUpload(db, {
       workspaceId: FIX.workspace,

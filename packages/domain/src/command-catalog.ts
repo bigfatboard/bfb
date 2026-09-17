@@ -171,10 +171,7 @@ const commands = new Map<string, HubCommand<unknown, unknown>>([
   [transitionExecutionCommand.name, transitionExecutionCommand as HubCommand<unknown, unknown>],
   [createProviderSessionCommand.name, createProviderSessionCommand as HubCommand<unknown, unknown>],
   [submitResultCommand.name, submitResultCommand as HubCommand<unknown, unknown>],
-  [
-    submitDelegatedResultCommand.name,
-    submitDelegatedResultCommand as HubCommand<unknown, unknown>,
-  ],
+  [submitDelegatedResultCommand.name, submitDelegatedResultCommand as HubCommand<unknown, unknown>],
   [
     requestDelegatedAttentionCommand.name,
     requestDelegatedAttentionCommand as HubCommand<unknown, unknown>,
