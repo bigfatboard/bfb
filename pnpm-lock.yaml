@@ -168,6 +168,25 @@ importers:
 
   packages/ui: {}
 
+  tools/artifacts:
+    dependencies:
+      '@bfb/artifact-worker':
+        specifier: workspace:*
+        version: link:../../apps/artifact-worker
+      '@bfb/control-worker':
+        specifier: workspace:*
+        version: link:../../apps/control-worker
+      '@bfb/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@bfb/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+    devDependencies:
+      wrangler:
+        specifier: 4.120.1
+        version: 4.120.1(@cloudflare/workers-types@5.20260810.1)
+
   tools/cli-credentials:
     dependencies:
       '@bfb/control-worker':

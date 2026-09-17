@@ -1,0 +1,24 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": ".",
+    "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo",
+    "types": ["node"]
+  },
+  "include": ["run.ts", "control.ts", "artifact.ts"],
+  "references": [
+    {
+      "path": "../../packages/domain"
+    },
+    {
+      "path": "../../packages/db"
+    },
+    {
+      "path": "../../apps/control-worker"
+    },
+    {
+      "path": "../../apps/artifact-worker"
+    }
+  ]
+}
