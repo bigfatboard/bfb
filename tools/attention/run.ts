@@ -194,10 +194,9 @@ try {
       .all(FIX.workspace),
     beforeUpgrade,
   );
-  assert.deepEqual(
-    await db.prepare(`SELECT COUNT(*) AS count FROM attention_requests`).get(),
-    { count: 0 },
-  );
+  assert.deepEqual(await db.prepare(`SELECT COUNT(*) AS count FROM attention_requests`).get(), {
+    count: 0,
+  });
   assert.deepEqual(await db.prepare("PRAGMA foreign_key_check").all(), []);
   record("migration_ok", { preserved_task: preserved.id });
   console.log("A02_MIGRATION_OK populated 0019 upgrade preserves tasks and opens empty attention");
@@ -367,12 +366,20 @@ try {
 
   // Agent requests attention; identical idempotency keys replay one record.
   const t0 = Date.now();
-  const first = await native<AttentionRecord>(requestAttentionCommand.name, requestBody("clarification", "HARNESS-Q1", true));
+  const first = await native<AttentionRecord>(
+    requestAttentionCommand.name,
+    requestBody("clarification", "HARNESS-Q1", true),
+  );
   const requestMs = Date.now() - t0;
   assert.equal(first.state, "open");
   assert.equal(first.required_role, "reviewer");
   assert.equal(first.resource_version, 1);
-  record("requested", { id: first.id, kind: first.kind, version: first.resource_version, elapsed_ms: requestMs });
+  record("requested", {
+    id: first.id,
+    kind: first.kind,
+    version: first.resource_version,
+    elapsed_ms: requestMs,
+  });
   const replayKey = randomUlid();
   const replayInput = requestBody("credential", "HARNESS-Q2", false);
   const replayOutcome = await (async () => {
@@ -409,7 +416,9 @@ try {
         }),
       }),
     ]);
-    return Promise.all(both.map(async (response) => (await response.json()) as CommandOutcome<AttentionRecord>));
+    return Promise.all(
+      both.map(async (response) => (await response.json()) as CommandOutcome<AttentionRecord>),
+    );
   })();
   assert(replayOutcome.every((outcome) => outcome.ok));
   const replayed = replayOutcome.map((outcome) => (outcome.ok ? outcome.result.id : null));
@@ -443,7 +452,10 @@ try {
   });
   const waiterSeen = await getAttention(db, FIX.workspace, [FIX.projectA], first.id);
   assert.deepEqual(waiterSeen, answered);
-  record("waiter_returned_identical", { id: waiterSeen?.id, version: waiterSeen?.resource_version });
+  record("waiter_returned_identical", {
+    id: waiterSeen?.id,
+    version: waiterSeen?.resource_version,
+  });
   console.log("A02_WAIT_OK waiter polls pending, then returns the committed answer identically");
 
   // Duplicate answers never overwrite the committed response.
@@ -521,17 +533,23 @@ try {
   });
   const after: string[] = [];
   for (let index = 0; index < 3; index++) {
-    after.push((await getAttention(db, FIX.workspace, [FIX.projectA], slow.id))?.state ?? "missing");
+    after.push(
+      (await getAttention(db, FIX.workspace, [FIX.projectA], slow.id))?.state ?? "missing",
+    );
   }
   assert.deepEqual(after, ["answered", "answered", "answered"]);
   record("timeout_retry", { pending_polls: pollsBefore, repeat_reads: after });
   console.log("A02_TIMEOUT_OK five pending polls, then repeated reads return the answer");
 
   // Foreign execution and terminal runs cannot request attention.
-  const foreign = await execute<AttentionRecord>(requestAttentionCommand.name, {
-    ...requestBody("clarification", "HARNESS-FOREIGN", false),
-    executionId: randomUlid(),
-  }, { actorRunnerId: runner });
+  const foreign = await execute<AttentionRecord>(
+    requestAttentionCommand.name,
+    {
+      ...requestBody("clarification", "HARNESS-FOREIGN", false),
+      executionId: randomUlid(),
+    },
+    { actorRunnerId: runner },
+  );
   assert(!foreign.ok && foreign.error.code === "request_rejected");
   await db
     .prepare(`UPDATE runs SET result_state = 'failed' WHERE workspace_id = ? AND id = ?`)
@@ -542,7 +560,10 @@ try {
     { actorRunnerId: runner },
   );
   assert(!terminal.ok && terminal.error.code === "invalid_transition");
-  record("request_guards", { foreign_execution: "request_rejected", terminal_run: "invalid_transition" });
+  record("request_guards", {
+    foreign_execution: "request_rejected",
+    terminal_run: "invalid_transition",
+  });
   console.log("A02_GUARDS_OK foreign executions and terminal runs cannot request");
 
   // Revocation: the old epoch fails; current authority still answers other requests.
@@ -619,8 +640,14 @@ try {
     total_steps: recording.length,
   };
   await mkdir(evidenceDir, { recursive: true });
-  await writeFile(resolve(evidenceDir, "recording.jsonl"), `${recording.map((entry) => JSON.stringify(entry)).join("\n")}\n`);
-  await writeFile(resolve(evidenceDir, "raw-timing-observations.json"), `${JSON.stringify(timings, null, 2)}\n`);
+  await writeFile(
+    resolve(evidenceDir, "recording.jsonl"),
+    `${recording.map((entry) => JSON.stringify(entry)).join("\n")}\n`,
+  );
+  await writeFile(
+    resolve(evidenceDir, "raw-timing-observations.json"),
+    `${JSON.stringify(timings, null, 2)}\n`,
+  );
   console.log("A02_EVIDENCE_OK recording and raw timing observations written");
 } catch (error) {
   server.debug();

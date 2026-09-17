@@ -17,7 +17,6 @@ import {
 } from "../src/attention.js";
 import { bumpMemberEpoch } from "../src/authorization.js";
 import { FIX } from "../src/fixtures.js";
-import type { HubCommand } from "../src/hub.js";
 import { randomUlid } from "../src/ids.js";
 import { claimLaunchCommand, startLaunchCommand } from "../src/launches.js";
 import { createTaskCommand } from "../src/work-commands.js";
@@ -116,19 +115,6 @@ function requestInput(
     blocking: true,
     ...overrides,
   };
-}
-
-async function requestAs<I, R>(f: Fixture, command: HubCommand<I, R>, input: I): Promise<R> {
-  return success(
-    await f.hub.execute(command, {
-      workspaceId: FIX.workspace,
-      idempotencyKey: randomUlid(),
-      actorHumanId: FIX.owner,
-      authorizationEpoch: 1,
-      now: LAUNCH_NOW,
-      input,
-    }),
-  );
 }
 
 async function answerAs(
@@ -468,7 +454,9 @@ describe("attention reads and ranking", () => {
 
   it("validates read bounds", async () => {
     const f = await launchFixture();
-    await expect(listAttention(f.db, FIX.workspace, [FIX.projectA], { limit: 0 })).rejects.toThrow();
+    await expect(
+      listAttention(f.db, FIX.workspace, [FIX.projectA], { limit: 0 }),
+    ).rejects.toThrow();
     await expect(
       listAttention(f.db, FIX.workspace, [FIX.projectA], { state: "bogus" as never }),
     ).rejects.toThrow();

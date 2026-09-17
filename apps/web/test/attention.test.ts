@@ -61,8 +61,18 @@ describe("attention home presentation", () => {
 
   it("carries the ranked server order with explainable reasons", () => {
     const ranked = [
-      item({ id: "a", kind: "blocker", blocking: true, rank_reason: "blocking blocker requested t0" }),
-      item({ id: "b", kind: "review", blocking: false, rank_reason: "non-blocking review requested t1" }),
+      item({
+        id: "a",
+        kind: "blocker",
+        blocking: true,
+        rank_reason: "blocking blocker requested t0",
+      }),
+      item({
+        id: "b",
+        kind: "review",
+        blocking: false,
+        rank_reason: "non-blocking review requested t1",
+      }),
     ];
     expect(ranked.map((entry) => entry.id)).toEqual(["a", "b"]);
     for (const entry of ranked) {

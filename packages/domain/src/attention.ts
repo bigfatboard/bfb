@@ -138,11 +138,7 @@ function boundedText(value: unknown, field: string, maximum: number): string {
   return normalized;
 }
 
-function optionalBoundedText(
-  value: unknown,
-  field: string,
-  maximum: number,
-): string | null {
+function optionalBoundedText(value: unknown, field: string, maximum: number): string | null {
   if (value === undefined || value === null) {
     return null;
   }
@@ -356,15 +352,7 @@ export const requestAttentionCommand: HubCommand<RequestAttentionInput, Attentio
         body.blocking === true ? 1 : 0,
         ctx.now,
       );
-    await insertObservation(
-      ctx.db,
-      ctx.workspaceId,
-      id,
-      "requested",
-      "agent_run",
-      runId,
-      ctx.now,
-    );
+    await insertObservation(ctx.db, ctx.workspaceId, id, "requested", "agent_run", runId, ctx.now);
     // D1 batch transactions forbid reads after a queued write, so the
     // committed record is constructed here instead of re-selected.
     return {
@@ -433,16 +421,7 @@ export const answerAttentionCommand: HubCommand<AnswerAttentionInput, AttentionR
              answered_at = ?, first_response_at = ?, resource_version = ?
          WHERE workspace_id = ? AND id = ? AND resource_version = ?`,
       )
-      .run(
-        answer,
-        principal.humanId,
-        ctx.now,
-        ctx.now,
-        next,
-        ctx.workspaceId,
-        record.id,
-        expected,
-      );
+      .run(answer, principal.humanId, ctx.now, ctx.now, next, ctx.workspaceId, record.id, expected);
     await insertObservation(
       ctx.db,
       ctx.workspaceId,
@@ -584,12 +563,9 @@ export async function listAttention(
                 a.requested_at ASC, a.id ASC
        LIMIT ?`,
     )
-    .all(
-      workspaceId,
-      ...projectIds,
-      ...(state === undefined ? [] : [state]),
-      limit,
-    )) as Array<Record<string, unknown>>;
+    .all(workspaceId, ...projectIds, ...(state === undefined ? [] : [state]), limit)) as Array<
+    Record<string, unknown>
+  >;
   return rows.map((row) => {
     const record = rowToRecord(row);
     return {

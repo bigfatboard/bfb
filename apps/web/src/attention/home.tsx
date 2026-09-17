@@ -4,12 +4,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 export type AttentionKind =
-  | "clarification"
-  | "review"
-  | "credential"
-  | "capability"
-  | "destructive_action"
-  | "blocker";
+  "clarification" | "review" | "credential" | "capability" | "destructive_action" | "blocker";
 
 export type AttentionState = "open" | "answered" | "resolved";
 
@@ -50,7 +45,11 @@ export const STATE_LABELS: Record<AttentionState, string> = {
 };
 
 export function requiredRoleLabel(role: AttentionHomeItem["required_role"]): string {
-  return role === "owner" ? "Needs an owner" : role === "member" ? "Needs a member" : "Reviewer can answer";
+  return role === "owner"
+    ? "Needs an owner"
+    : role === "member"
+      ? "Needs a member"
+      : "Reviewer can answer";
 }
 
 export const NATIVE_PERMISSION_NOTICE =
@@ -193,14 +192,17 @@ export function AttentionHome(props: {
     setPendingId(id);
     setActionError(null);
     try {
-      const response = await fetchFn(`/api/v1/workspaces/${props.workspaceId}/attention/${id}/${path}`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          ...(props.csrfToken ? { "x-bfb-csrf": props.csrfToken } : {}),
+      const response = await fetchFn(
+        `/api/v1/workspaces/${props.workspaceId}/attention/${id}/${path}`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            ...(props.csrfToken ? { "x-bfb-csrf": props.csrfToken } : {}),
+          },
+          body: JSON.stringify({ ...body, request_id: `attention-ui-${id}-${Date.now()}` }),
         },
-        body: JSON.stringify({ ...body, request_id: `attention-ui-${id}-${Date.now()}` }),
-      });
+      );
       if (!response.ok) {
         const failure = (await response.json().catch(() => ({}))) as {
           error?: { code?: string };

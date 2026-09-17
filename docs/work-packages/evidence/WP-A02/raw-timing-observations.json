@@ -1,0 +1,22 @@
+{
+  "request_ms": 6,
+  "answer_ms": 5,
+  "pending_polls": [
+    {
+      "index": 0,
+      "elapsed_ms": 10,
+      "state": "open"
+    },
+    {
+      "index": 1,
+      "elapsed_ms": 20,
+      "state": "open"
+    },
+    {
+      "index": 2,
+      "elapsed_ms": 30,
+      "state": "open"
+    }
+  ],
+  "total_steps": 16
+}

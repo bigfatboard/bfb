@@ -311,7 +311,9 @@ async function seedAttentionRun(
   });
   const claimed = await native<{
     state: string;
-    claim: { specification: { run_execution_id: string; assignment_generation: number; run_id: string } };
+    claim: {
+      specification: { run_execution_id: string; assignment_generation: number; run_id: string };
+    };
   }>(claimLaunchCommand, {
     principal,
     claim: {
@@ -338,7 +340,11 @@ async function seedAttentionRun(
 describe("A02 browser attention API", () => {
   it("lists ranked attention and hides unknown IDs", async () => {
     const { context, owner, reviewer } = await contextWithSessions();
-    const { attentionId } = await seedAttentionRun(context, "clarification", "Synthetic route question");
+    const { attentionId } = await seedAttentionRun(
+      context,
+      "clarification",
+      "Synthetic route question",
+    );
     const app = appFor(context);
     const currentBindings = bindings(context);
     const base = `/api/v1/workspaces/${FIX.workspace}`;
@@ -370,7 +376,11 @@ describe("A02 browser attention API", () => {
 
   it("answers, resolves, and protects duplicates and versions", async () => {
     const { context, owner, reviewer } = await contextWithSessions();
-    const { attentionId } = await seedAttentionRun(context, "clarification", "Synthetic answer flow");
+    const { attentionId } = await seedAttentionRun(
+      context,
+      "clarification",
+      "Synthetic answer flow",
+    );
     const app = appFor(context);
     const currentBindings = bindings(context);
     const ownerCsrf = await csrf(app, currentBindings, owner.cookie);
@@ -445,7 +455,11 @@ describe("A02 browser attention API", () => {
 
   it("rejects reviewer answers on owner-only requests and unauthenticated writes", async () => {
     const { context, owner, reviewer } = await contextWithSessions();
-    const { attentionId } = await seedAttentionRun(context, "credential", "Synthetic credential need");
+    const { attentionId } = await seedAttentionRun(
+      context,
+      "credential",
+      "Synthetic credential need",
+    );
     const app = appFor(context);
     const currentBindings = bindings(context);
     const ownerCsrf = await csrf(app, currentBindings, owner.cookie);

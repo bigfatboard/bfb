@@ -68,9 +68,7 @@ test("reviewer answers a review request but cannot satisfy an owner-only credent
   );
 });
 
-test("committed answers survive a full reload without any socket delivery", async ({
-  page,
-}) => {
+test("committed answers survive a full reload without any socket delivery", async ({ page }) => {
   await signInAndOpenBoard(page, "owner");
   await openAttention(page);
   await page

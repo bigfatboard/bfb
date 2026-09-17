@@ -450,7 +450,9 @@ export function AppShell(props: AppShellProps = {}) {
             <div>
               <p className="section-label">{workspace.slug.toUpperCase()} / ATTENTION</p>
               <h1>What needs a person now</h1>
-              <p>Ranked agent requests with committed answers. Newest truth is polled, never pushed.</p>
+              <p>
+                Ranked agent requests with committed answers. Newest truth is polled, never pushed.
+              </p>
             </div>
           </div>
           <AttentionHome
