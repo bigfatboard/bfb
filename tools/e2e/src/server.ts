@@ -342,6 +342,32 @@ const E02_DIGEST = `sha256:${"e02".padEnd(64, "0")}`;
 const E02_CONFIG = `sha256:${runnerHash("{}")}`;
 
 /** Seeds one runner with two claimed executions (live + stale timelines) for E02. */
+/** Current policy and config versions for project A: seeds run in sequence and must not assume version 1. */
+async function currentPolicyVersions(
+  db: SqlDatabase,
+): Promise<{ workspace: number; project: number; config: number }> {
+  const read = async (sql: string, ...params: string[]): Promise<number> => {
+    const row = (await db.prepare(sql).get(...params)) as { resource_version?: number } | undefined;
+    return row?.resource_version ?? 1;
+  };
+  return {
+    workspace: await read(
+      `SELECT resource_version FROM workspace_policies WHERE workspace_id = ?`,
+      FIX.workspace,
+    ),
+    project: await read(
+      `SELECT resource_version FROM project_policies WHERE workspace_id = ? AND project_id = ?`,
+      FIX.workspace,
+      FIX.projectA,
+    ),
+    config: await read(
+      `SELECT resource_version FROM repository_configs WHERE workspace_id = ? AND project_id = ?`,
+      FIX.workspace,
+      FIX.projectA,
+    ),
+  };
+}
+
 async function seedE02Chains(db: SqlDatabase): Promise<E02State> {
   const hub = workspaceHub(db, FIX.workspace);
   const runner = randomUlid();
@@ -394,15 +420,16 @@ async function seedE02Chains(db: SqlDatabase): Promise<E02State> {
     allowPassToAgent: true,
     allowRunOverrides: true,
   };
-  await human(updateWorkspacePolicyCommand, { ...policy, expectedVersion: 1 });
+  const versions = await currentPolicyVersions(db);
+  await human(updateWorkspacePolicyCommand, { ...policy, expectedVersion: versions.workspace });
   await human(updateProjectPolicyCommand, {
     ...policy,
-    expectedVersion: 1,
+    expectedVersion: versions.project,
     projectId: FIX.projectA,
   });
   await human(reportRepositoryConfigCommand, {
     projectId: FIX.projectA,
-    expectedVersion: 1,
+    expectedVersion: versions.config,
     document: {},
     contentHash: E02_CONFIG,
   });
@@ -623,20 +650,21 @@ async function seedLaunchOperations(db: SqlDatabase): Promise<void> {
     allowPassToAgent: true,
     allowRunOverrides: true,
   } as const;
+  const versions = await currentPolicyVersions(db);
   await human(updateWorkspacePolicyCommand, {
     ...policy,
     allowedProviders: [...policy.allowedProviders],
-    expectedVersion: 1,
+    expectedVersion: versions.workspace,
   });
   await human(updateProjectPolicyCommand, {
     ...policy,
     allowedProviders: [...policy.allowedProviders],
-    expectedVersion: 1,
+    expectedVersion: versions.project,
     projectId: FIX.projectA,
   });
   await human(reportRepositoryConfigCommand, {
     projectId: FIX.projectA,
-    expectedVersion: 1,
+    expectedVersion: versions.config,
     document: {},
     contentHash: W02_EMPTY_CONFIG,
   });
