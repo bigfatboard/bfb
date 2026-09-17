@@ -419,7 +419,7 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 
 | ID | Package | Status | Risk |
 | --- | --- | --- | --- |
-| V01 | [Artifact storage state machine](WP-V01-artifact-storage.md) | `planned` | Very high |
+| V01 | [Artifact storage state machine](WP-V01-artifact-storage.md) | `planned` | High |
 | V02 | [Isolated artifact viewer](WP-V02-artifact-viewer.md) | `planned` | Very high |
 | V03 | [Immutable artifact review](WP-V03-artifact-review.md) | `planned` | High |
 
