@@ -146,7 +146,11 @@ const submitArgs = [
 {
   const dataDir = mkdtempSync(join(tmpdir(), "bfb-a03-data-"));
   seedAssignments(join(dataDir, "state.sqlite"), "running", correlation);
-  const run = submit(submitArgs, scopedEnv({ BFB_RUNNER_TOKEN: "synthetic-harness-bearer" }), dataDir);
+  const run = submit(
+    submitArgs,
+    scopedEnv({ BFB_RUNNER_TOKEN: "synthetic-harness-bearer" }),
+    dataDir,
+  );
   assert.notEqual(run.status, 0);
   const failure = receipt(run.stdout)["error"] as { code?: string };
   assert.equal(failure.code, "invalid_request");

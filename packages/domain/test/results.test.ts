@@ -136,7 +136,9 @@ async function seedRunnerAgent(
     )
     .run(FIX.workspace, runnerId, FIX.owner, `synthetic-result-key-${key}`, NOW);
   await db
-    .prepare(`INSERT INTO runner_project_grants (workspace_id, runner_id, project_id) VALUES (?, ?, ?)`)
+    .prepare(
+      `INSERT INTO runner_project_grants (workspace_id, runner_id, project_id) VALUES (?, ?, ?)`,
+    )
     .run(FIX.workspace, runnerId, FIX.projectA);
   const execution = ok(
     await hub.execute(createExecutionCommand, human(`${key}-execution`, { runId })),
@@ -265,7 +267,9 @@ describe("result submission commands", () => {
     expect(await readTask(db, taskId)).toMatchObject({ state: "review", resource_version: 3 });
     await expect(
       db
-        .prepare(`UPDATE result_submissions SET summary = 'rewritten' WHERE workspace_id = ? AND id = ?`)
+        .prepare(
+          `UPDATE result_submissions SET summary = 'rewritten' WHERE workspace_id = ? AND id = ?`,
+        )
         .run(FIX.workspace, submitted.submission.id),
     ).rejects.toThrow(/immutable/);
     await expect(
@@ -480,7 +484,11 @@ describe("result submission commands", () => {
     expect(reviewerChanges.runResultState).toBe("changes_requested");
     const reviewerFail = await hub.execute(
       failRunCommand,
-      human("matrix-reviewer-fail", { runId, expectedRunVersion: reviewerChanges.runVersion }, FIX.reviewer),
+      human(
+        "matrix-reviewer-fail",
+        { runId, expectedRunVersion: reviewerChanges.runVersion },
+        FIX.reviewer,
+      ),
     );
     expect(err(reviewerFail)).toBe("forbidden");
   });
@@ -548,7 +556,10 @@ describe("result submission commands", () => {
     const hub = new WorkspaceHub(db);
     const first = await createTaskAndRun(db, hub, "fail");
     const failed = ok(
-      await hub.execute(failRunCommand, human("fail-once", { runId: first.runId, expectedRunVersion: 1 })),
+      await hub.execute(
+        failRunCommand,
+        human("fail-once", { runId: first.runId, expectedRunVersion: 1 }),
+      ),
     );
     expect(failed.runResultState).toBe("failed");
     expect(await readTask(db, first.taskId)).toMatchObject({ state: "active" });
@@ -561,7 +572,10 @@ describe("result submission commands", () => {
     );
     const failSubmitted = await hub.execute(
       failRunCommand,
-      human("cancel-fail-submitted", { runId: second.runId, expectedRunVersion: submitted.runVersion }),
+      human("cancel-fail-submitted", {
+        runId: second.runId,
+        expectedRunVersion: submitted.runVersion,
+      }),
     );
     expect(err(failSubmitted)).toBe("invalid_transition");
     const runVersion = (await readRun(db, second.runId)).resource_version;
@@ -587,7 +601,11 @@ describe("result submission commands", () => {
     expect(await readTask(db, second.taskId)).toMatchObject({ state: "active" });
     const activity = await hub.execute(
       updateRunActivityCommand,
-      human("cancel-activity", { runId: second.runId, expectedVersion: changed.runVersion + 1, activity: "working" as const }),
+      human("cancel-activity", {
+        runId: second.runId,
+        expectedVersion: changed.runVersion + 1,
+        activity: "working" as const,
+      }),
     );
     expect(err(activity)).toBe("invalid_transition");
   });
@@ -771,7 +789,9 @@ describe("result outdated detection", () => {
     expect(after[0]).toMatchObject({ outdated: true });
     expect(after[0]?.outdated_reasons).toEqual(["config_changed"]);
     const stored = (await db
-      .prepare(`SELECT summary, config_hash FROM result_submissions WHERE workspace_id = ? AND id = ?`)
+      .prepare(
+        `SELECT summary, config_hash FROM result_submissions WHERE workspace_id = ? AND id = ?`,
+      )
       .get(FIX.workspace, submitted.submission.id)) as {
       summary: string;
       config_hash: string;
@@ -825,12 +845,22 @@ describe("headless success rule", () => {
       }),
     ).toBe(true);
     const negatives = [
-      { executionMode: "interactive", endReason: "process_exit", exitCode: 0, successAttested: true },
+      {
+        executionMode: "interactive",
+        endReason: "process_exit",
+        exitCode: 0,
+        successAttested: true,
+      },
       { executionMode: "headless", endReason: "terminated", exitCode: 0, successAttested: true },
       { executionMode: "headless", endReason: "process_exit", exitCode: 1, successAttested: true },
       { executionMode: "headless", endReason: "process_exit", exitCode: 0, successAttested: false },
       { executionMode: "headless", endReason: null, exitCode: 0, successAttested: true },
-      { executionMode: "headless", endReason: "process_exit", exitCode: null, successAttested: true },
+      {
+        executionMode: "headless",
+        endReason: "process_exit",
+        exitCode: null,
+        successAttested: true,
+      },
       { executionMode: "headless", endReason: "lost", exitCode: 0, successAttested: true },
     ] as const;
     for (const facts of negatives) {
@@ -931,4 +961,3 @@ describe("acceptance revocation and lease retention", () => {
     expect(await readRun(db, runId)).toMatchObject({ result_state: "accepted" });
   });
 });
-

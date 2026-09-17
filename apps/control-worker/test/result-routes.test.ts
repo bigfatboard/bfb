@@ -188,9 +188,15 @@ describe("A03 result browser API", () => {
       currentBindings,
     );
     expect(submit.status, await submit.clone().text()).toBe(200);
-    const first = ((await submit.json()) as {
-      result: { submission: { id: string; version: number }; runVersion: number; taskVersion: number };
-    }).result;
+    const first = (
+      (await submit.json()) as {
+        result: {
+          submission: { id: string; version: number };
+          runVersion: number;
+          taskVersion: number;
+        };
+      }
+    ).result;
     expect(first.submission.version).toBe(1);
 
     const retry = await app.request(
@@ -202,11 +208,11 @@ describe("A03 result browser API", () => {
       currentBindings,
     );
     expect(retry.status).toBe(200);
-    const retried = ((await retry.json()) as {
+    const retried = (await retry.json()) as {
       ok: boolean;
       replayed: boolean;
       result: { submission: { id: string } };
-    });
+    };
     expect(retried.replayed).toBe(true);
     expect(retried.result.submission.id).toBe(first.submission.id);
 
@@ -220,7 +226,11 @@ describe("A03 result browser API", () => {
     );
     expect(reviewerSubmit.status).toBe(403);
 
-    const taskInReview = await app.request(get(`${base}/tasks/${taskId}`, owner.cookie), undefined, currentBindings);
+    const taskInReview = await app.request(
+      get(`${base}/tasks/${taskId}`, owner.cookie),
+      undefined,
+      currentBindings,
+    );
     expect(taskInReview.status).toBe(200);
     expect(((await taskInReview.json()) as { task: { state: string } }).task.state).toBe("review");
 
@@ -260,9 +270,15 @@ describe("A03 result browser API", () => {
       currentBindings,
     );
     expect(second.status, await second.clone().text()).toBe(200);
-    const secondBody = ((await second.json()) as {
-      result: { submission: { id: string; version: number }; runVersion: number; taskVersion: number };
-    }).result;
+    const secondBody = (
+      (await second.json()) as {
+        result: {
+          submission: { id: string; version: number };
+          runVersion: number;
+          taskVersion: number;
+        };
+      }
+    ).result;
     expect(secondBody.submission.version).toBe(2);
 
     const listed = await app.request(
@@ -271,9 +287,11 @@ describe("A03 result browser API", () => {
       currentBindings,
     );
     expect(listed.status).toBe(200);
-    const submissions = ((await listed.json()) as {
-      submissions: Array<{ version: number; outdated: boolean; outdated_reasons: string[] }>;
-    }).submissions;
+    const submissions = (
+      (await listed.json()) as {
+        submissions: Array<{ version: number; outdated: boolean; outdated_reasons: string[] }>;
+      }
+    ).submissions;
     expect(submissions.map((entry) => entry.version)).toEqual([2, 1]);
     expect(submissions[1]).toMatchObject({ outdated: true, outdated_reasons: ["superseded"] });
     expect(submissions[0]).toMatchObject({ outdated: false, outdated_reasons: [] });
@@ -304,7 +322,11 @@ describe("A03 result browser API", () => {
     );
     expect(accepted.status, await accepted.clone().text()).toBe(200);
 
-    const taskDone = await app.request(get(`${base}/tasks/${taskId}`, owner.cookie), undefined, currentBindings);
+    const taskDone = await app.request(
+      get(`${base}/tasks/${taskId}`, owner.cookie),
+      undefined,
+      currentBindings,
+    );
     expect(((await taskDone.json()) as { task: { state: string } }).task.state).toBe("done");
 
     const smuggled = await app.request(
@@ -344,7 +366,11 @@ describe("A03 result browser API", () => {
       currentBindings,
     );
     expect(failed.status, await failed.clone().text()).toBe(200);
-    const taskAfter = await app.request(get(`${base}/tasks/${taskId}`, owner.cookie), undefined, currentBindings);
+    const taskAfter = await app.request(
+      get(`${base}/tasks/${taskId}`, owner.cookie),
+      undefined,
+      currentBindings,
+    );
     expect(((await taskAfter.json()) as { task: { state: string } }).task.state).toBe("active");
 
     const again = await app.request(

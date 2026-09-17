@@ -5,12 +5,7 @@ import assert from "node:assert/strict";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import {
-  adaptD1,
-  loadMigrationManifest,
-  type D1Like,
-  type SqlDatabase,
-} from "@bfb/db";
+import { adaptD1, loadMigrationManifest, type D1Like, type SqlDatabase } from "@bfb/db";
 import {
   listResultSubmissions,
   randomUlid,
@@ -292,7 +287,10 @@ async function main(): Promise<void> {
         ],
       }),
     );
-    assert.equal(code(duplicate as CommandOutcome<never>, "duplicate evidence"), "invalid_argument");
+    assert.equal(
+      code(duplicate as CommandOutcome<never>, "duplicate evidence"),
+      "invalid_argument",
+    );
     const reviewerSubmit = await execute<SubmitResultResult>(
       "bfb-results-a",
       workspaceId,
@@ -515,20 +513,14 @@ async function main(): Promise<void> {
         }),
       ),
     ]);
-    assert.equal(
-      racers.filter((outcome) => outcome.ok).length,
-      1,
-      JSON.stringify(racers),
-    );
+    assert.equal(racers.filter((outcome) => outcome.ok).length, 1, JSON.stringify(racers));
     const loser = racers.find((outcome) => !outcome.ok) as CommandOutcome<never>;
     assert.equal(loser.ok, false);
     if (!loser.ok) {
       assert.equal(loser.error.code, "invalid_transition");
     }
     const reviews = (await db
-      .prepare(
-        `SELECT decision FROM result_reviews WHERE workspace_id = ? AND run_id = ?`,
-      )
+      .prepare(`SELECT decision FROM result_reviews WHERE workspace_id = ? AND run_id = ?`)
       .all(workspaceId, runTwoId)) as Array<{ decision: string }>;
     assert.equal(reviews.length, 1);
     const winner = racers.find((outcome) => outcome.ok);

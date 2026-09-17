@@ -123,11 +123,7 @@ function boundedText(value: unknown, field: string, minimum: number, maximum: nu
   return normalized;
 }
 
-function optionalBoundedText(
-  value: unknown,
-  field: string,
-  maximum: number,
-): string | undefined {
+function optionalBoundedText(value: unknown, field: string, maximum: number): string | undefined {
   if (value === undefined) {
     return undefined;
   }
@@ -177,7 +173,12 @@ function evidenceRefs(value: unknown): EvidenceRef[] {
       throw new DomainError("invalid_argument", "duplicate evidence reference");
     }
     seen.add(identity);
-    return { kind, ref, ...(version === undefined ? {} : { version }), ...(hash === undefined ? {} : { hash }) };
+    return {
+      kind,
+      ref,
+      ...(version === undefined ? {} : { version }),
+      ...(hash === undefined ? {} : { hash }),
+    };
   });
 }
 
@@ -281,12 +282,9 @@ async function resolveSubmitter(ctx: HubContext, run: RunRow): Promise<ResultSub
   }
   if (ctx.actorRunnerId && !ctx.actorHumanId) {
     const runner = (await ctx.db
-      .prepare(
-        `SELECT id, revoked_at FROM runners WHERE workspace_id = ? AND id = ?`,
-      )
+      .prepare(`SELECT id, revoked_at FROM runners WHERE workspace_id = ? AND id = ?`)
       .get(ctx.workspaceId, ctx.actorRunnerId)) as
-      | { id: string; revoked_at: string | null }
-      | undefined;
+      { id: string; revoked_at: string | null } | undefined;
     if (!runner || runner.revoked_at !== null) {
       throw new DomainError("forbidden", "runner cannot submit for this run");
     }

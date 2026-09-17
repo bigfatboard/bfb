@@ -77,19 +77,14 @@ async function openTaskSheet(page: Page, taskId: string): Promise<void> {
   await expect(page.getByTestId("result-panel")).toBeVisible();
 }
 
-test("owner submits, reviewer requests changes, owner supersedes and accepts", async ({
-  page,
-}) => {
+test("owner submits, reviewer requests changes, owner supersedes and accepts", async ({ page }) => {
   await signInAs(page, "owner");
   await openWorkSurface(page);
 
   await page.getByRole("button", { name: "New task" }).click();
   await page.getByTestId("create-task-project").selectOption(FIX.projectA);
   await page.getByTestId("create-task-title").fill(TASK_TITLE);
-  await page
-    .getByTestId("create-task-form")
-    .getByRole("button", { name: "Create task" })
-    .click();
+  await page.getByTestId("create-task-form").getByRole("button", { name: "Create task" }).click();
   const card = page.locator(".task-card", { hasText: TASK_TITLE }).first();
   await expect(card).toBeVisible();
   const cardId = await card.getAttribute("id");

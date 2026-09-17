@@ -76,8 +76,7 @@ export interface ResultViewProps {
 
 export function ResultView(props: ResultViewProps) {
   const latest = props.submissions[0] ?? null;
-  const reviewable =
-    props.taskState === "review" && latest !== null && latest.outdated === false;
+  const reviewable = props.taskState === "review" && latest !== null && latest.outdated === false;
   const canRequestChanges =
     props.role === "owner" || props.role === "member" || props.role === "reviewer";
   const canAccept = props.role === "owner" || props.role === "member";
@@ -114,7 +113,8 @@ export function ResultView(props: ResultViewProps) {
           <div className="truth-row">
             <span>Evidence</span>
             <strong data-testid="result-evidence-count">
-              {submission.evidence_refs.length} reference{submission.evidence_refs.length === 1 ? "" : "s"}
+              {submission.evidence_refs.length} reference
+              {submission.evidence_refs.length === 1 ? "" : "s"}
             </strong>
           </div>
           {submission.git_commit ? (
@@ -183,8 +183,8 @@ export function ResultView(props: ResultViewProps) {
       ) : null}
       {props.taskState === "review" && latest && latest.outdated ? (
         <p className="unavailable-copy" data-testid="result-stale-note">
-          The latest submission is outdated. A newer submission or configuration change needs
-          review before acceptance.
+          The latest submission is outdated. A newer submission or configuration change needs review
+          before acceptance.
         </p>
       ) : null}
     </section>
@@ -245,9 +245,7 @@ export function ResultPanel(props: ResultPanelProps) {
         submission_id: latest.id,
         expected_run_version: latestRun.resource_version,
         expected_task_version: props.taskVersion,
-        ...(decision === "request_changes" && comment.trim()
-          ? { comment: comment.trim() }
-          : {}),
+        ...(decision === "request_changes" && comment.trim() ? { comment: comment.trim() } : {}),
         request_id: requestId(`web-${decision.replace("_", "-")}`),
       });
       setComment("");
