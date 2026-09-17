@@ -11,6 +11,7 @@ export * from "./hub.js";
 export * from "./hub-registry.js";
 export * from "./ids.js";
 export * from "./mcp-routing.js";
+export * from "./measurements.js";
 export * from "./oauth.js";
 export * from "./projects.js";
 export * from "./projections.js";

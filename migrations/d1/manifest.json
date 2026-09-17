@@ -1,5 +1,5 @@
 {
-  "migration_head": "0024_result_submissions",
+  "migration_head": "0027_measurements",
   "migrations": [
     {
       "id": "0001_workspace_registry",
@@ -88,6 +88,10 @@
     {
       "id": "0024_result_submissions",
       "file": "0024_result_submissions.sql"
+    },
+    {
+      "id": "0027_measurements",
+      "file": "0027_measurements.sql"
     }
   ]
 }
