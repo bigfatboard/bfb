@@ -10,6 +10,7 @@ import (
 	"syscall"
 
 	"github.com/qdis/bfb/internal/appbridge"
+	"github.com/qdis/bfb/internal/artifact"
 	"github.com/qdis/bfb/internal/checkout"
 	"github.com/qdis/bfb/internal/cli"
 	"github.com/qdis/bfb/internal/daemon"
@@ -47,6 +48,9 @@ func main() {
 	if err := checkout.RegisterRPC(methods); err != nil {
 		panic("duplicate built-in local operation")
 	}
+	if err := artifact.RegisterRPC(methods); err != nil {
+		panic("duplicate built-in artifact operation")
+	}
 	if err := runner.RegisterRPC(methods, manager); err != nil {
 		panic("duplicate built-in runner operation")
 	}
@@ -57,6 +61,7 @@ func main() {
 	cli.RegisterDaemon(registry, methods)
 	cli.RegisterMCP(registry)
 	cli.RegisterCheckout(registry)
+	cli.RegisterArtifact(registry, daemon.Call)
 	cli.RegisterRunner(registry)
 	claude.RegisterCommands(registry)
 	cli.RegisterExecution(registry,

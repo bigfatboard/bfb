@@ -1,5 +1,7 @@
-// ABOUTME: Serves the cookie-less Artifact Worker origin shell with private R2 binding only.
-// ABOUTME: Upload/view grant behavior is owned by V01; this package keeps the origin inert.
+// ABOUTME: Serves the cookie-less Artifact Worker origin with bounded upload grants.
+// ABOUTME: Bytes are accepted only against a consumed one-time grant; views are owned by V02.
+
+import { adaptD1, type SqlDatabase } from "@bfb/db";
 
 import {
   assertNoAppCookie,
@@ -7,9 +9,15 @@ import {
   validateArtifactEnv,
   type ArtifactBindings,
 } from "./env.js";
+import { handleUpload } from "./upload.js";
 
-export default {
-  async fetch(request: Request, env: ArtifactBindings): Promise<Response> {
+export interface ArtifactFetchOptions {
+  db?: SqlDatabase;
+  now?: string;
+}
+
+export function createArtifactFetchHandler(options: ArtifactFetchOptions = {}) {
+  return async function fetch(request: Request, env: ArtifactBindings): Promise<Response> {
     let validated;
     try {
       validated = validateArtifactEnv(env);
@@ -20,6 +28,8 @@ export default {
         headers: { "content-type": "application/json; charset=utf-8" },
       });
     }
+    const db = options.db ?? adaptD1(validated.db);
+    const now = options.now ?? new Date().toISOString();
 
     try {
       assertNoAppCookie(request);
@@ -57,13 +67,23 @@ export default {
         );
       }
 
+      const upload = /^\/upload\/([^/]+)$/.exec(url.pathname);
+      if (upload?.[1]) {
+        return handleUpload(request, upload[1], {
+          db,
+          artifacts: validated.artifacts,
+          now,
+          abuseSecret: validated.uploadAbuseSecret,
+        });
+      }
+
       const headers = corsHeaders(request, validated.artifactOrigin);
       headers.set("content-type", "application/json; charset=utf-8");
       return new Response(
         JSON.stringify({
           ok: false,
           error: "artifact_not_implemented",
-          message: "Artifact upload and view are owned by V01",
+          message: "Artifact views are owned by V02",
         }),
         { status: 501, headers },
       );
@@ -77,5 +97,11 @@ export default {
         },
       );
     }
+  };
+}
+
+export default {
+  async fetch(request: Request, env: ArtifactBindings): Promise<Response> {
+    return createArtifactFetchHandler()(request, env);
   },
 };

@@ -131,6 +131,65 @@
             "maxLength": 64,
             "pattern": "^[a-z][a-z0-9_.]{0,63}$"
           }
+        },
+        "control_url": {
+          "description": "Artifact publication input only; Control Worker origin.",
+          "type": "string",
+          "maxLength": 256,
+          "pattern": "^https?://[^/@?#]+$"
+        },
+        "artifacts_url": {
+          "description": "Artifact publication input only; Artifact Worker origin.",
+          "type": "string",
+          "maxLength": 256,
+          "pattern": "^https?://[^/@?#]+$"
+        },
+        "artifact_id": { "$ref": "primitives.json#/$defs/Ulid" },
+        "run_id": { "$ref": "primitives.json#/$defs/Ulid" },
+        "artifact_format": {
+          "type": "string",
+          "enum": ["markdown", "mermaid", "diff", "svg", "png", "jpeg", "html", "log", "json"]
+        },
+        "artifact_role": {
+          "type": "string",
+          "enum": ["review", "log"]
+        },
+        "artifact_path": {
+          "description": "Local publication input only; never a synchronized field or response.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096,
+          "pattern": "^/[^\\x00-\\x1f\\x7f]*$"
+        },
+        "artifact_cookie": {
+          "description": "Local credential input only; never logged or synchronized.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "artifact_bearer": {
+          "description": "Local credential input only; never logged or synchronized.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "version_id": { "$ref": "primitives.json#/$defs/Ulid" },
+        "content_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "minLength": 64,
+          "maxLength": 64
+        },
+        "r2_key": {
+          "description": "Server-derived artifact response only; never a caller input.",
+          "type": "string",
+          "maxLength": 512,
+          "pattern": "^workspaces/[^\\x00-\\x1f\\x7f]+$"
+        },
+        "artifact_size": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5242880
         }
       }
     }
@@ -359,6 +418,66 @@
         "properties": {
           "direction": { "const": "request" },
           "method": { "const": "checkout.link" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "method": { "const": "artifact.publish" },
+          "direction": { "const": "request" }
+        }
+      },
+      "then": {
+        "required": ["payload"],
+        "properties": {
+          "payload": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "control_url",
+              "artifacts_url",
+              "workspace_id",
+              "artifact_format",
+              "artifact_role",
+              "artifact_path"
+            ],
+            "properties": {
+              "control_url": {},
+              "artifacts_url": {},
+              "workspace_id": {},
+              "artifact_id": {},
+              "run_id": {},
+              "artifact_format": {},
+              "artifact_role": {},
+              "artifact_path": {},
+              "artifact_cookie": {},
+              "artifact_bearer": {}
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["payload"],
+        "properties": {
+          "payload": {
+            "type": "object",
+            "required": ["version_id", "content_hash"],
+            "properties": { "version_id": {}, "content_hash": {} }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "direction": { "const": "response" },
+          "method": { "const": "artifact.publish" },
+          "payload": {
+            "type": "object",
+            "required": ["version_id", "content_hash", "artifact_size"],
+            "properties": { "version_id": {}, "content_hash": {}, "artifact_size": {} }
+          }
         }
       }
     }

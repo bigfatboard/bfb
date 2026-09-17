@@ -66,7 +66,17 @@ export function createFetchHandler(options: ControlFetchOptions = {}) {
 
 export default {
   fetch: createFetchHandler(),
-  scheduled(_controller: ScheduledController, env: ControlBindings, _ctx: ExecutionContext): void {
+  async scheduled(
+    _controller: ScheduledController,
+    env: ControlBindings,
+    _ctx: ExecutionContext,
+  ): Promise<void> {
     validateControlEnv(env);
+    try {
+      const { runArtifactSweep } = await import("./api/artifacts.js");
+      await runArtifactSweep(adaptD1(env.DB), new Date().toISOString());
+    } catch {
+      // The sweep is idempotent and retried on the next Cron tick.
+    }
   },
 };

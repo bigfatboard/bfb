@@ -2,18 +2,23 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "dist",
-    "rootDir": "src",
+    "rootDir": ".",
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo",
-    "types": ["@cloudflare/workers-types", "node"],
-    "lib": ["ES2023"]
+    "types": ["node"]
   },
-  "include": ["src/**/*.ts"],
+  "include": ["run.ts", "control.ts", "artifact.ts"],
   "references": [
     {
       "path": "../../packages/domain"
     },
     {
       "path": "../../packages/db"
+    },
+    {
+      "path": "../../apps/control-worker"
+    },
+    {
+      "path": "../../apps/artifact-worker"
     }
   ]
 }

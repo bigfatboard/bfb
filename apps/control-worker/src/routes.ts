@@ -8,6 +8,7 @@ import { DomainError } from "@bfb/domain";
 
 import { handleEventBrowserApi, handleRunnerEventApi, isRunnerEventPath } from "./api/events.js";
 import { handleWorkApi } from "./api/work.js";
+import { handleArtifactBrowserApi } from "./api/artifacts.js";
 import { handleCliBrowserApi, handleCliPublicApi } from "./api/cli-credentials.js";
 import { handleDiscussionApi } from "./api/discussions.js";
 import { handleProjectApi } from "./api/projects.js";
@@ -479,6 +480,18 @@ export function createControlApp(
         )
       )
         return await handleDiscussionApi(c.req.raw, apiDeps);
+      if (
+        c.req.path === `${projectPrefix}/artifacts` ||
+        c.req.path.startsWith(`${projectPrefix}/artifacts/`)
+      ) {
+        return await handleArtifactBrowserApi(c.req.raw, {
+          ...apiDeps,
+          db,
+          auth: runtime.auth,
+          appOrigin: current.origins.appOrigin,
+          abuseSecret: runtime.abuseSecret,
+        });
+      }
       if (
         c.req.path === `${projectPrefix}/launches` ||
         c.req.path.startsWith(`${projectPrefix}/launches/`) ||
