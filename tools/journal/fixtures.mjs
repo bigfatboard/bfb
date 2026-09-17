@@ -65,17 +65,13 @@ fixture("local-rpc", "hook-degraded", {
 });
 for (const [suffix, value, category] of [
   ["hook-status-value", { ...accepted, payload: { hook_status: "stored" } }, "type_mismatch"],
-  ["hook-event-value", { ...accepted, payload: { ...accepted.payload, hook_event_id: "not-a-ulid" } }, "bound_exceeded"],
   [
-    "hook-method",
-    { ...accepted, method: "daemon.status" },
-    "type_mismatch",
+    "hook-event-value",
+    { ...accepted, payload: { ...accepted.payload, hook_event_id: "not-a-ulid" } },
+    "bound_exceeded",
   ],
-  [
-    "hook-direction",
-    { ...accepted, direction: "request" },
-    "type_mismatch",
-  ],
+  ["hook-method", { ...accepted, method: "daemon.status" }, "type_mismatch"],
+  ["hook-direction", { ...accepted, direction: "request" }, "type_mismatch"],
   [
     "hook-status-method",
     {
