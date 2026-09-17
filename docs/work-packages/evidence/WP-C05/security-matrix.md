@@ -1,6 +1,6 @@
 # C05 security and isolation evidence
 
-Tested commit: `<tested-commit>`.
+Tested commit: `846b12fbe7556d8c45f787c59520a0c64c6e0391`.
 
 The exact `pnpm test:c05` target passed in a clean detached checkout. The matrix below summarizes retained synthetic assertions, not production observations.
 
