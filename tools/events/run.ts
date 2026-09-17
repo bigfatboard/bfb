@@ -52,7 +52,9 @@ const client = {
   ...base,
   main: resolve(root, "tools/work-records/worker.ts"),
   durable_objects: {
-    bindings: [{ name: "WORKSPACE_HUB", class_name: "WorkspaceHub", script_name: "bfb-events-hub" }],
+    bindings: [
+      { name: "WORKSPACE_HUB", class_name: "WorkspaceHub", script_name: "bfb-events-hub" },
+    ],
   },
 };
 const server = createTestHarness({
@@ -209,10 +211,9 @@ try {
       .all(FIX.workspace),
     beforeUpgrade,
   );
-  assert.deepEqual(
-    await db.prepare(`SELECT COUNT(*) AS count FROM event_ledger`).get(),
-    { count: 0 },
-  );
+  assert.deepEqual(await db.prepare(`SELECT COUNT(*) AS count FROM event_ledger`).get(), {
+    count: 0,
+  });
   console.log("E01_MIGRATION_OK populated 0018 upgrade preserves tasks and opens an empty ledger");
 
   const policy = {
@@ -333,7 +334,11 @@ try {
     ],
   };
   await success(
-    await execute(replaceRunnerInventoryCommand.name, { principal, inventory }, { actorRunnerId: runner }),
+    await execute(
+      replaceRunnerInventoryCommand.name,
+      { principal, inventory },
+      { actorRunnerId: runner },
+    ),
   );
   const launch = await human<{ launch_id: string }>(startLaunchCommand.name, {
     schema_version: 1,
@@ -349,7 +354,12 @@ try {
     repository_config_version: 2,
   });
   const claimed = success(
-    await execute<{ state: string; claim: { specification: { run_execution_id: string; assignment_generation: number; run_id: string } } }>(
+    await execute<{
+      state: string;
+      claim: {
+        specification: { run_execution_id: string; assignment_generation: number; run_id: string };
+      };
+    }>(
       claimLaunchCommand.name,
       {
         principal,
@@ -370,7 +380,10 @@ try {
   const runId = claimed.claim.specification.run_id;
 
   // F1 duplicate transport plus acknowledgement loss: one effect, absolute totals.
-  const duplicate = [item(executionId, generation, streamA, 1), item(executionId, generation, streamA, 2, "turn_started")];
+  const duplicate = [
+    item(executionId, generation, streamA, 1),
+    item(executionId, generation, streamA, 2, "turn_started"),
+  ];
   const first = await nativeIngest(duplicate);
   assert.deepEqual(
     first.dispositions.map((entry) => entry.disposition),
@@ -394,8 +407,14 @@ try {
 
   // F3 concurrent batches across both Workers: disjoint ranges, single effects.
   const concurrent = await Promise.all([
-    nativeIngest([item(executionId, generation, streamB, 1), item(executionId, generation, streamB, 2)]),
-    nativeIngest([item(executionId, generation, streamB, 3), item(executionId, generation, streamB, 4, "tool_finished")]),
+    nativeIngest([
+      item(executionId, generation, streamB, 1),
+      item(executionId, generation, streamB, 2),
+    ]),
+    nativeIngest([
+      item(executionId, generation, streamB, 3),
+      item(executionId, generation, streamB, 4, "tool_finished"),
+    ]),
   ]);
   for (const outcome of concurrent) {
     assert.deepEqual(
@@ -404,7 +423,9 @@ try {
     );
   }
   const ledger = (await db
-    .prepare(`SELECT event_id, workspace_cursor FROM event_ledger WHERE workspace_id = ? ORDER BY workspace_cursor`)
+    .prepare(
+      `SELECT event_id, workspace_cursor FROM event_ledger WHERE workspace_id = ? ORDER BY workspace_cursor`,
+    )
     .all(FIX.workspace)) as Array<{ event_id: string; workspace_cursor: number }>;
   assert.equal(ledger.length, 8);
   assert.equal(new Set(ledger.map((row) => row.event_id)).size, 8);
@@ -457,7 +478,10 @@ try {
   });
   void launch2;
   const delayed = await nativeIngest([
-    { ...item(executionId, generation, streamA, 9, "progress_reported"), occurred_at: "2026-09-10T12:00:00.000Z" },
+    {
+      ...item(executionId, generation, streamA, 9, "progress_reported"),
+      occurred_at: "2026-09-10T12:00:00.000Z",
+    },
   ]);
   assert.deepEqual(
     delayed.dispositions.map((entry) => entry.disposition),
@@ -505,10 +529,30 @@ try {
   // F6 acknowledgement loss after poison: committed rows report already_committed,
   // absolute totals never double increment.
   const totals = async () => ({
-    ledger: ((await db.prepare(`SELECT COUNT(*) AS total FROM event_ledger WHERE workspace_id = ?`).get(FIX.workspace)) as { total: number }).total,
-    observations: ((await db.prepare(`SELECT COUNT(*) AS total FROM measurement_observations WHERE workspace_id = ?`).get(FIX.workspace)) as { total: number }).total,
-    runCount: ((await db.prepare(`SELECT event_count FROM run_event_projections WHERE workspace_id = ? AND run_id = ?`).get(FIX.workspace, runId)) as { event_count: number }).event_count,
-    heartbeats: ((await db.prepare(`SELECT heartbeat_count FROM execution_event_projections WHERE workspace_id = ? AND run_execution_id = ?`).get(FIX.workspace, executionId)) as { heartbeat_count: number }).heartbeat_count,
+    ledger: (
+      (await db
+        .prepare(`SELECT COUNT(*) AS total FROM event_ledger WHERE workspace_id = ?`)
+        .get(FIX.workspace)) as { total: number }
+    ).total,
+    observations: (
+      (await db
+        .prepare(`SELECT COUNT(*) AS total FROM measurement_observations WHERE workspace_id = ?`)
+        .get(FIX.workspace)) as { total: number }
+    ).total,
+    runCount: (
+      (await db
+        .prepare(
+          `SELECT event_count FROM run_event_projections WHERE workspace_id = ? AND run_id = ?`,
+        )
+        .get(FIX.workspace, runId)) as { event_count: number }
+    ).event_count,
+    heartbeats: (
+      (await db
+        .prepare(
+          `SELECT heartbeat_count FROM execution_event_projections WHERE workspace_id = ? AND run_execution_id = ?`,
+        )
+        .get(FIX.workspace, executionId)) as { heartbeat_count: number }
+    ).heartbeat_count,
   });
   const settled = await totals();
   const replay = await nativeIngest(duplicate);
@@ -533,7 +577,9 @@ try {
     ["accepted", "accepted", "accepted"],
   );
   assert.deepEqual(
-    await db.prepare(`SELECT result_state FROM runs WHERE workspace_id = ? AND id = ?`).get(FIX.workspace, runId),
+    await db
+      .prepare(`SELECT result_state FROM runs WHERE workspace_id = ? AND id = ?`)
+      .get(FIX.workspace, runId),
     { result_state: "open" },
   );
 
@@ -547,15 +593,20 @@ try {
   const highWater = await readLedgerHighWater(db, authorization);
   const maxCursor = (
     (await db
-      .prepare(`SELECT MAX(workspace_cursor) AS max_cursor FROM event_ledger WHERE workspace_id = ?`)
+      .prepare(
+        `SELECT MAX(workspace_cursor) AS max_cursor FROM event_ledger WHERE workspace_id = ?`,
+      )
       .get(FIX.workspace)) as { max_cursor: number }
   ).max_cursor;
   assert.equal(highWater, maxCursor);
-  const replayed = await listLedgerEvents(db, authorization, { afterCursor: 0, throughCursor: highWater });
+  const replayed = await listLedgerEvents(db, authorization, {
+    afterCursor: 0,
+    throughCursor: highWater,
+  });
   assert.equal(replayed.length, (await totals()).ledger);
   assert.deepEqual(
     replayed.map((entry) => entry.workspace_cursor),
-    [...replayed.map((entry) => entry.workspace_cursor)].sort((a, b) => a - b),
+    replayed.map((entry) => entry.workspace_cursor).sort((a, b) => a - b),
   );
   for (const envelope of replayed) {
     assert.equal(envelope.workspace_id, FIX.workspace);
@@ -564,13 +615,14 @@ try {
   }
 
   // Actor/provenance matrix, raw-observation boundary, projection invariants.
-  assert.deepEqual(await db
-    .prepare(
-      `SELECT actor_type, COUNT(*) AS total FROM event_ledger WHERE workspace_id = ? GROUP BY actor_type ORDER BY actor_type`,
-    )
-    .all(FIX.workspace), [
-    { actor_type: "runner", total: (await totals()).ledger },
-  ]);
+  assert.deepEqual(
+    await db
+      .prepare(
+        `SELECT actor_type, COUNT(*) AS total FROM event_ledger WHERE workspace_id = ? GROUP BY actor_type ORDER BY actor_type`,
+      )
+      .all(FIX.workspace),
+    [{ actor_type: "runner", total: (await totals()).ledger }],
+  );
   const provenance = (await db
     .prepare(
       `SELECT DISTINCT capture_origin, actor_type FROM event_ledger WHERE workspace_id = ? ORDER BY 1, 2`,

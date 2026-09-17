@@ -15,10 +15,7 @@ import {
   type RunnerTokenClaims,
 } from "@bfb/domain";
 
-import {
-  launchFixture,
-  LAUNCH_NOW,
-} from "../../../packages/domain/test/launch-fixture.js";
+import { launchFixture, LAUNCH_NOW } from "../../../packages/domain/test/launch-fixture.js";
 import { parseAuthKeys } from "../src/auth/better-auth.js";
 import { validateControlEnv, type ControlBindings } from "../src/env.js";
 import { createTestWorkspaceHubNamespace } from "../src/hub-client.js";
@@ -151,7 +148,7 @@ async function fixture() {
           "x-bfb-csrf": csrf,
           "content-type": "application/json",
         },
-        body: JSON.stringify(body),
+        ...(method === "POST" ? { body: JSON.stringify(body) } : {}),
       }),
       undefined,
       env,
@@ -179,10 +176,28 @@ async function fixture() {
     expect(result.state).toBe("claimed");
     return result.claim.specification;
   }
-  return { ...f, context, env, app, browserGet, browserPost, signed, send, csrf, reviewer, startAndClaim };
+  return {
+    ...f,
+    context,
+    env,
+    app,
+    browserGet,
+    browserPost,
+    signed,
+    send,
+    csrf,
+    reviewer,
+    startAndClaim,
+  };
 }
 
-function batch(executionId: string, generation: number, stream: string, from: number, kinds: string[]) {
+function batch(
+  executionId: string,
+  generation: number,
+  stream: string,
+  from: number,
+  kinds: string[],
+) {
   return {
     schema_version: 1,
     events: kinds.map((kind, index) => ({
@@ -207,7 +222,10 @@ describe("event ingest and replay routes", () => {
       await f.startAndClaim();
     const stream = randomUlid();
     const first = await f.send(
-      await f.signed("events/ingest", batch(executionId, generation, stream, 1, ["heartbeat", "turn_started"])),
+      await f.signed(
+        "events/ingest",
+        batch(executionId, generation, stream, 1, ["heartbeat", "turn_started"]),
+      ),
     );
     expect(first.status, await first.clone().text()).toBe(200);
     expect(first.headers.get("cache-control")).toBe("no-store");
@@ -343,14 +361,18 @@ describe("event ingest and replay routes", () => {
   it("keeps browser replay read-only and fenced to workspace members", async () => {
     const f = await fixture();
     await f.startAndClaim();
-    const before = (await f.browserGet("/events/high-water").then((response) => response.json())) as {
+    const before = (await f
+      .browserGet("/events/high-water")
+      .then((response) => response.json())) as {
       high_water_cursor: number;
     };
     const posted = await f.browserPost("/events", {});
     expect([404, 403]).toContain(posted.status);
     const deleted = await f.browserPost("/events", {}, "DELETE");
     expect([404, 403]).toContain(deleted.status);
-    const after = (await f.browserGet("/events/high-water").then((response) => response.json())) as {
+    const after = (await f
+      .browserGet("/events/high-water")
+      .then((response) => response.json())) as {
       high_water_cursor: number;
     };
     expect(after.high_water_cursor).toBe(before.high_water_cursor);

@@ -19,7 +19,6 @@ import type { RunnerPrincipal } from "../src/runners.js";
 import { createTaskCommand } from "../src/work-commands.js";
 import { createExecutionCommand, createRunCommand } from "../src/work-records.js";
 import { claimLaunchCommand, startLaunchCommand } from "../src/launches.js";
-import { launchDeadline } from "../src/launch-state.js";
 import { runnerHash } from "../src/runner-crypto.js";
 import { LAUNCH_NOW, launchFixture, success } from "./launch-fixture.js";
 
@@ -192,11 +191,9 @@ async function secondRunner(f: Fixture): Promise<RunnerPrincipal> {
        VALUES (?, ?, ?, 'Synthetic E01 second Mac', '{}', ?, 1, ?)`,
     )
     .run(FIX.workspace, runner, FIX.owner, thumbprint, LAUNCH_NOW);
-  await f.db.prepare(`INSERT INTO runner_project_grants VALUES (?, ?, ?)`).run(
-    FIX.workspace,
-    runner,
-    FIX.projectA,
-  );
+  await f.db
+    .prepare(`INSERT INTO runner_project_grants VALUES (?, ?, ?)`)
+    .run(FIX.workspace, runner, FIX.projectA);
   await f.db
     .prepare(
       `INSERT INTO runner_launch_grants (workspace_id, runner_id, human_id, granted_at) VALUES (?, ?, ?, ?)`,
@@ -262,12 +259,16 @@ describe("event ingest", () => {
     expect(rows[1]).toMatchObject({ actor_type: "agent_run", actor_id: bound.executionId });
 
     const observations = (await f.db
-      .prepare(`SELECT observation_id, measure_kind, actor_type FROM measurement_observations WHERE workspace_id = ?`)
+      .prepare(
+        `SELECT observation_id, measure_kind, actor_type FROM measurement_observations WHERE workspace_id = ?`,
+      )
       .all(FIX.workspace)) as Array<Record<string, unknown>>;
     expect(observations).toHaveLength(2);
 
     const runProjection = (await f.db
-      .prepare(`SELECT event_count, last_cursor, last_kind FROM run_event_projections WHERE workspace_id = ? AND run_id = ?`)
+      .prepare(
+        `SELECT event_count, last_cursor, last_kind FROM run_event_projections WHERE workspace_id = ? AND run_id = ?`,
+      )
       .get(FIX.workspace, bound.runId)) as Record<string, unknown>;
     expect(runProjection).toMatchObject({
       event_count: 2,
@@ -335,7 +336,9 @@ describe("event ingest", () => {
 
     expect(await ledgerRows(f.db, FIX.workspace)).toHaveLength(2);
     const runProjection = (await f.db
-      .prepare(`SELECT event_count, last_cursor FROM run_event_projections WHERE workspace_id = ? AND run_id = ?`)
+      .prepare(
+        `SELECT event_count, last_cursor FROM run_event_projections WHERE workspace_id = ? AND run_id = ?`,
+      )
       .get(FIX.workspace, bound.runId)) as Record<string, unknown>;
     expect(runProjection).toMatchObject({ event_count: 2, last_cursor: base + 2 });
     const toolCounter = (await f.db
@@ -379,9 +382,9 @@ describe("event ingest", () => {
     // disjoint (the hub audit row consumes the top of each reservation).
     const leftCursors = [left.high_water_cursor - 1, left.high_water_cursor];
     const rightCursors = [right.high_water_cursor - 1, right.high_water_cursor];
-    const cursors = (
-      await ledgerRows(f.db, FIX.workspace)
-    ).map((row) => row.workspace_cursor as number);
+    const cursors = (await ledgerRows(f.db, FIX.workspace)).map(
+      (row) => row.workspace_cursor as number,
+    );
     expect(new Set(cursors).size).toBe(6);
     for (const pair of [leftCursors, rightCursors]) {
       expect(cursors).toContain(pair[0]);
@@ -490,19 +493,16 @@ describe("event ingest", () => {
     const f = await launchFixture();
     const bound = await claimedExecution(f);
     const other = await secondRunner(f);
-    const wrong = await ingest(
-      f,
-      [submission(bound, freshStream(), 1)],
-      LAUNCH_NOW,
-      other,
-    );
+    const wrong = await ingest(f, [submission(bound, freshStream(), 1)], LAUNCH_NOW, other);
     expect(dispositionsOf(wrong)).toEqual(["permanently_rejected"]);
     expect(wrong.dispositions[0]).toMatchObject({
       disposition: "permanently_rejected",
       diagnostic: { code: "wrong_runner" },
     });
     await f.db
-      .prepare(`DELETE FROM runner_project_grants WHERE workspace_id = ? AND runner_id = ? AND project_id = ?`)
+      .prepare(
+        `DELETE FROM runner_project_grants WHERE workspace_id = ? AND runner_id = ? AND project_id = ?`,
+      )
       .run(FIX.workspace, f.runner, FIX.projectA);
     const revoked = await ingest(f, [submission(bound, freshStream(), 1)]);
     expect(revoked.dispositions[0]).toMatchObject({
@@ -565,10 +565,16 @@ describe("event ingest", () => {
     const bound = await claimedExecution(f);
     const stream = freshStream();
     const result = await ingest(f, [
-      submission(bound, stream, 1, { kind: "session_started", provider_session_id: "sess-synthetic-1" }),
+      submission(bound, stream, 1, {
+        kind: "session_started",
+        provider_session_id: "sess-synthetic-1",
+      }),
       submission(bound, stream, 2, { kind: "attention_requested" }),
       submission(bound, stream, 3, { kind: "result_submitted", capture_origin: "agent_reported" }),
-      submission(bound, stream, 4, { kind: "session_ended", provider_session_id: "sess-synthetic-1" }),
+      submission(bound, stream, 4, {
+        kind: "session_ended",
+        provider_session_id: "sess-synthetic-1",
+      }),
       submission(bound, stream, 5, { kind: "execution_ended" }),
       submission(bound, stream, 6, { kind: "heartbeat" }),
     ]);
@@ -638,7 +644,11 @@ describe("event ingest", () => {
       listLedgerEvents(f.db, authorization, { afterCursor: base + 3, throughCursor: base + 2 }),
     ).rejects.toMatchObject({ code: "invalid_event_range" });
     await expect(
-      listLedgerEvents(f.db, authorization, { afterCursor: 0, throughCursor: base + 3, limit: 101 }),
+      listLedgerEvents(f.db, authorization, {
+        afterCursor: 0,
+        throughCursor: base + 3,
+        limit: 101,
+      }),
     ).rejects.toMatchObject({ code: "invalid_event_range" });
   });
 
@@ -665,7 +675,10 @@ describe("event ingest", () => {
       actorRunnerId: f.runner,
       authorizationEpoch: 1,
       now: LAUNCH_NOW,
-      input: { principal: f.principal, events: [submission(bound, freshStream(), 1), "not-an-object"] },
+      input: {
+        principal: f.principal,
+        events: [submission(bound, freshStream(), 1), "not-an-object"],
+      },
     });
     expect(poison.ok).toBe(false);
     expect(await ledgerRows(f.db, FIX.workspace)).toHaveLength(0);
