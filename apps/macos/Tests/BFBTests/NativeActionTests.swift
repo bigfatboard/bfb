@@ -208,6 +208,28 @@ final class NativeActionTests: XCTestCase {
     }
   }
 
+  func testEveryElementOrdinalReadsBackNativeAndSelectedWindowIsScoped() throws {
+    let every = try TerminalObjects.all(OSType(cWindow))
+    let ordinal = try XCTUnwrap(every.forKeyword(AEKeyword(keyAEKeyData)))
+    XCTAssertEqual(ordinal.descriptorType, DescType(typeAbsoluteOrdinal))
+    let code: OSType = (ordinal.data as Data).withUnsafeBytes { $0.load(as: OSType.self) }
+    XCTAssertEqual(code, OSType(kAEAll))
+    let date = Date(timeIntervalSince1970: 1_800_000_000)
+    let selection = TerminalSelection(
+      endpoint: TerminalEndpoint(pid: 42, launchedAt: date), windowID: 99,
+      focus: try TerminalFocus(focusWire(at: date)))
+    let scoped = try TerminalObjects.selectedWindow(selection)
+    let container = try XCTUnwrap(scoped.forKeyword(AEKeyword(keyAEContainer)))
+    XCTAssertEqual(container.descriptorType, DescType(typeObjectSpecifier))
+    XCTAssertEqual(
+      container.forKeyword(AEKeyword(keyAEKeyForm))?.enumCodeValue, OSType(formUniqueID))
+    XCTAssertEqual(
+      container.forKeyword(AEKeyword(keyAEKeyData))?.int32Value, selection.windowID)
+    let predicate = try XCTUnwrap(scoped.forKeyword(AEKeyword(keyAEKeyData)))
+    let terms = try XCTUnwrap(predicate.forKeyword(AEKeyword(keyAELogicalTerms)))
+    XCTAssertEqual(terms.numberOfItems, 2)
+  }
+
   func testWakeSourcesPreserveIdentityAndOnlyForwardWakeRPC() async throws {
     let rpc = FixtureRPC()
     let custom = try WakeLink("bfb://launch/" + wake, associatedHosts: ["launch.bfb.example"])

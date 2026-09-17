@@ -114,9 +114,15 @@ enum TerminalObjects {
   static func all(_ kind: OSType, in container: NSAppleEventDescriptor = .null()) throws
     -> NSAppleEventDescriptor
   {
+    // The absolute-ordinal key is built directly: coercing a type descriptor
+    // to an absolute ordinal is not handled on current macOS releases.
+    // Descriptor data holds the native in-memory representation: the four
+    // bytes are read back into an OSType, so they must not be byte-swapped.
+    var code = OSType(kAEAll)
+    let ordinalData = withUnsafeBytes(of: &code) { Data($0) }
     guard
-      let ordinal = NSAppleEventDescriptor(typeCode: OSType(kAEAll)).coerce(
-        toDescriptorType: DescType(typeAbsoluteOrdinal))
+      let ordinal = NSAppleEventDescriptor(
+        descriptorType: DescType(typeAbsoluteOrdinal), data: ordinalData)
     else {
       throw NativeFailure(code: "app_delivery_unknown")
     }
@@ -181,14 +187,15 @@ enum TerminalObjects {
 
   // The selected-tab predicate is resolved by Terminal in the same event as
   // each window mutation. Closing or moving the tab cannot target its replacement.
+  // The test is scoped to the addressed window: Terminal evaluates a test
+  // against one concrete container and leaves tests over a null or
+  // every-element container unevaluated.
   static func selectedWindow(_ selection: TerminalSelection) throws -> NSAppleEventDescriptor {
     let candidate = try examined()
     let selected = try property(selectedTab, of: candidate)
     return try object(
-      OSType(cWindow), form: OSType(formTest),
+      OSType(cWindow), in: window(selection.windowID), form: OSType(formTest),
       key: and([
-        equal(
-          property(OSType(pID), of: candidate), NSAppleEventDescriptor(int32: selection.windowID)),
         equal(
           property(ttyProperty, of: selected), NSAppleEventDescriptor(string: selection.focus.tty)),
         equal(
