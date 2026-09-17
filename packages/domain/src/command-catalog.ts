@@ -68,6 +68,12 @@ import {
   updateTaskCommand,
 } from "./work-commands.js";
 import {
+  createDelegatedArtifactCommand,
+  finalizeDelegatedArtifactCommand,
+  requestDelegatedAttentionCommand,
+  submitDelegatedResultCommand,
+} from "./remote-parity.js";
+import {
   acceptResultCommand,
   cancelRunCommand,
   failRunCommand,
@@ -165,6 +171,22 @@ const commands = new Map<string, HubCommand<unknown, unknown>>([
   [transitionExecutionCommand.name, transitionExecutionCommand as HubCommand<unknown, unknown>],
   [createProviderSessionCommand.name, createProviderSessionCommand as HubCommand<unknown, unknown>],
   [submitResultCommand.name, submitResultCommand as HubCommand<unknown, unknown>],
+  [
+    submitDelegatedResultCommand.name,
+    submitDelegatedResultCommand as HubCommand<unknown, unknown>,
+  ],
+  [
+    requestDelegatedAttentionCommand.name,
+    requestDelegatedAttentionCommand as HubCommand<unknown, unknown>,
+  ],
+  [
+    createDelegatedArtifactCommand.name,
+    createDelegatedArtifactCommand as HubCommand<unknown, unknown>,
+  ],
+  [
+    finalizeDelegatedArtifactCommand.name,
+    finalizeDelegatedArtifactCommand as HubCommand<unknown, unknown>,
+  ],
   [requestChangesCommand.name, requestChangesCommand as HubCommand<unknown, unknown>],
   [acceptResultCommand.name, acceptResultCommand as HubCommand<unknown, unknown>],
   [failRunCommand.name, failRunCommand as HubCommand<unknown, unknown>],
