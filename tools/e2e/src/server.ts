@@ -230,9 +230,11 @@ async function seedE02Chains(db: SqlDatabase): Promise<E02State> {
     if (!outcome.ok) throw new Error(`e02 seed ${command.name} failed: ${outcome.error.code}`);
     return outcome.result;
   }
+  // Extend the v1 baseline instead of replacing it: the W01 browser surface
+  // asserts the seeded providers and flags, so only "fake" is appended.
   const policy = {
-    allowedProviders: ["fake"],
-    allowAgentRootPropose: false,
+    allowedProviders: ["claude", "codex", "grok", "fake"],
+    allowAgentRootPropose: true,
     allowPassToAgent: true,
     allowRunOverrides: true,
   };
