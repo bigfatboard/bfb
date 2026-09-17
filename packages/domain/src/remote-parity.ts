@@ -136,6 +136,17 @@ function boundedText(value: unknown, field: string, minimum: number, maximum: nu
   return normalized;
 }
 
+function exactKeys(value: unknown, keys: readonly string[], code: "invalid_argument" | "request_rejected"): void {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    Array.isArray(value) ||
+    Object.keys(value).some((key) => !keys.includes(key))
+  ) {
+    throw new DomainError(code, code === "invalid_argument" ? "command input is invalid" : "request rejected");
+  }
+}
+
 function artifactDigest(value: unknown): string {
   if (typeof value !== "string" || !HEX64.test(value)) {
     throw new DomainError("request_rejected", "request rejected");
@@ -281,6 +292,7 @@ export const requestDelegatedAttentionCommand: HubCommand<
   async run(input, ctx) {
     const authority = await requireDelegationAuthority(ctx, "bfb:task:write");
     assertRole(authority.principal, ["owner", "member", "reviewer"]);
+    exactKeys(input, ["runId", "kind", "question", "referenceKind", "referenceId", "blocking"], "invalid_argument");
     if (!isUlid(input.runId)) {
       throw new DomainError("not_found", "run not found");
     }
@@ -613,9 +625,11 @@ export const createDelegatedArtifactCommand: HubCommand<
   async run(input, ctx) {
     const authority = await requireDelegationAuthority(ctx, "bfb:task:write");
     assertRole(authority.principal, ["owner", "member"]);
-    if (!input || typeof input !== "object" || Array.isArray(input)) {
-      throw new DomainError("request_rejected", "request rejected");
-    }
+    exactKeys(
+      input,
+      ["artifactId", "runId", "format", "role", "declaredSize", "expectedDigest", "grantSecretHash"],
+      "request_rejected",
+    );
     const format = artifactFormat(input.format);
     const role = artifactRole(input.role);
     const declaredSize = artifactSize(input.declaredSize, role);
@@ -786,9 +800,7 @@ export const finalizeDelegatedArtifactCommand: HubCommand<
   async run(input, ctx) {
     const authority = await requireDelegationAuthority(ctx, "bfb:task:write");
     assertRole(authority.principal, ["owner", "member"]);
-    if (!input || typeof input !== "object" || Array.isArray(input)) {
-      throw new DomainError("request_rejected", "request rejected");
-    }
+    exactKeys(input, ["versionId", "contentHash", "size"], "request_rejected");
     if (typeof input.versionId !== "string" || !isUlid(input.versionId)) {
       throw new DomainError("request_rejected", "request rejected");
     }
