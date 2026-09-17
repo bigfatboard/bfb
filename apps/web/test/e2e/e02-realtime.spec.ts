@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 
 import { expect, test, type Page } from "@playwright/test";
 
-import { EVIDENCE_DIR as W01_DIR, signInAndOpenBoard, signInAs } from "./helpers.js";
+import { signInAndOpenBoard } from "./helpers.js";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const capturedEvidenceDir = path.join(rootDir, "docs/work-packages/evidence/WP-E02/browser");
@@ -45,10 +45,7 @@ async function commit(
 
 async function openTaskTimeline(page: Page, taskId: string): Promise<void> {
   await expect(page.locator(`#task-${taskId}`)).toBeVisible();
-  await page
-    .locator(`#task-${taskId}`)
-    .getByRole("button", { name: /Open / })
-    .click();
+  await page.locator(`#task-${taskId}`).getByRole("button", { name: /Open / }).click();
   await expect(page.getByTestId("task-detail")).toBeVisible();
   await expect(page.getByTestId("run-timeline-section")).toBeVisible();
 }
@@ -164,13 +161,18 @@ test("human presence comes from committed notes and never claims review", async 
       const { csrf_token: csrfToken } = (await session.json()) as { csrf_token: string };
       const workspace = "synthetic";
       const list = await fetch("/api/v1/workspaces");
-      const { workspaces } = (await list.json()) as { workspaces: Array<{ id: string; slug: string }> };
+      const { workspaces } = (await list.json()) as {
+        workspaces: Array<{ id: string; slug: string }>;
+      };
       const workspaceId = workspaces.find((entry) => entry.slug === workspace)?.id;
       if (!workspaceId) throw new Error("fixture workspace missing");
       const response = await fetch(`/api/v1/workspaces/${workspaceId}/tasks/${taskId}/comments`, {
         method: "POST",
         headers: { "content-type": "application/json", "x-bfb-csrf": csrfToken },
-        body: JSON.stringify({ body: "Timeline check from the owner.", request_id: "e02-human-note" }),
+        body: JSON.stringify({
+          body: "Timeline check from the owner.",
+          request_id: "e02-human-note",
+        }),
       });
       if (!response.ok) throw new Error(`comment failed: ${response.status}`);
     },

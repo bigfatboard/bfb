@@ -161,10 +161,7 @@ describe("browser realtime sockets", () => {
     const water = await f.commit(["heartbeat"]);
     const socket = fakeSocket();
     const sockets = manager(f.db, [socket]);
-    const { connectionId } = await sockets.admit(
-      socket,
-      handshake(FIX.owner, "session-owner-e02"),
-    );
+    const { connectionId } = await sockets.admit(socket, handshake(FIX.owner, "session-owner-e02"));
     expect(connectionId).toMatch(/^01K/);
     expect(socket.sent.map((raw) => JSON.parse(raw))).toEqual([
       {
@@ -210,10 +207,7 @@ describe("browser realtime sockets", () => {
     const f = await fixture();
     const socket = fakeSocket();
     const sockets = manager(f.db, [socket]);
-    const { connectionId } = await sockets.admit(
-      socket,
-      handshake(FIX.owner, "session-owner-e02"),
-    );
+    const { connectionId } = await sockets.admit(socket, handshake(FIX.owner, "session-owner-e02"));
     await sockets.message(
       socket,
       JSON.stringify({

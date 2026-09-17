@@ -44,7 +44,9 @@ const client = {
   ...base,
   main: resolve(root, "tools/realtime/worker.ts"),
   durable_objects: {
-    bindings: [{ name: "WORKSPACE_HUB", class_name: "WorkspaceHub", script_name: "bfb-realtime-hub" }],
+    bindings: [
+      { name: "WORKSPACE_HUB", class_name: "WorkspaceHub", script_name: "bfb-realtime-hub" },
+    ],
   },
 };
 const server = createTestHarness({
@@ -171,7 +173,9 @@ interface SocketTap {
   readyState(): number;
 }
 
-async function connect(handshake: Record<string, unknown>): Promise<{ status: number; tap: SocketTap | null }> {
+async function connect(
+  handshake: Record<string, unknown>,
+): Promise<{ status: number; tap: SocketTap | null }> {
   const worker = server.getWorker("bfb-realtime-a");
   const response = await worker.fetch(`${origin}/realtime-test/${FIX.workspace}/connect`, {
     method: "GET",
@@ -187,7 +191,10 @@ async function connect(handshake: Record<string, unknown>): Promise<{ status: nu
     send(data: string): void;
     close(): void;
     readonly readyState: number;
-    addEventListener(type: string, listener: (event: { data?: unknown; code?: number }) => void): void;
+    addEventListener(
+      type: string,
+      listener: (event: { data?: unknown; code?: number }) => void,
+    ): void;
   };
   const tap: SocketTap = {
     messages: [],
@@ -301,7 +308,9 @@ try {
        VALUES (?, ?, ?, 'Synthetic E02 harness Mac', '{}', ?, 1, ?)`,
     )
     .run(FIX.workspace, runner, FIX.owner, principal.keyThumbprint, now);
-  await db.prepare(`INSERT INTO runner_project_grants VALUES (?, ?, ?)`).run(FIX.workspace, runner, FIX.projectA);
+  await db
+    .prepare(`INSERT INTO runner_project_grants VALUES (?, ?, ?)`)
+    .run(FIX.workspace, runner, FIX.projectA);
   await db
     .prepare(
       `INSERT INTO runner_launch_grants (workspace_id, runner_id, human_id, granted_at) VALUES (?, ?, ?, ?)`,
@@ -422,8 +431,18 @@ try {
   executionId = claimed.claim.specification.run_execution_id;
   generation = claimed.claim.specification.assignment_generation;
 
-  const ownerHandshake = browserPrincipal(FIX.owner, "e02-harness-owner-session", "owner", sessionExpiry);
-  const memberHandshake = browserPrincipal(FIX.member, "e02-harness-member-session", "member", sessionExpiry);
+  const ownerHandshake = browserPrincipal(
+    FIX.owner,
+    "e02-harness-owner-session",
+    "owner",
+    sessionExpiry,
+  );
+  const memberHandshake = browserPrincipal(
+    FIX.member,
+    "e02-harness-member-session",
+    "member",
+    sessionExpiry,
+  );
 
   // R1 subscribe handshake: ready carries the D1 high-water, attachments stay secret-free.
   const owner = await connect(ownerHandshake);
@@ -433,7 +452,14 @@ try {
   assert.equal(member.status, 101);
   const memberTap = member.tap as SocketTap;
   const ownerReady = (await waitFor(ownerTap, 1, "owner ready")).map((raw) => JSON.parse(raw));
-  assert.deepEqual(Object.keys(ownerReady[0]).sort(), ["connection_id", "high_water_cursor", "kind", "schema_version", "server_time", "workspace_id"]);
+  assert.deepEqual(Object.keys(ownerReady[0]).sort(), [
+    "connection_id",
+    "high_water_cursor",
+    "kind",
+    "schema_version",
+    "server_time",
+    "workspace_id",
+  ]);
   assert.equal(ownerReady[0].kind, "browser.realtime.ready");
   const readyWater = ownerReady[0].high_water_cursor as number;
   const memberReady = (await waitFor(memberTap, 1, "member ready")).map((raw) => JSON.parse(raw));
@@ -444,12 +470,20 @@ try {
   // (Heartbeat framing rides the same dispatch; its gap rule is unit-tested
   // with injected clocks and browser-tested against the shared manager.)
   const committed = await nativeIngest(["heartbeat", "turn_started"]);
-  assert.deepEqual(committed.dispositions.map((entry) => entry.disposition), ["accepted", "accepted"]);
+  assert.deepEqual(
+    committed.dispositions.map((entry) => entry.disposition),
+    ["accepted", "accepted"],
+  );
   const ownerAfter = await waitFor(ownerTap, 2, "owner invalidation");
   const memberAfter = await waitFor(memberTap, 2, "member invalidation");
   for (const raw of [ownerAfter[1], memberAfter[1]]) {
     const frame = JSON.parse(raw as string) as Record<string, unknown>;
-    assert.deepEqual(Object.keys(frame).sort(), ["high_water_cursor", "kind", "schema_version", "workspace_id"]);
+    assert.deepEqual(Object.keys(frame).sort(), [
+      "high_water_cursor",
+      "kind",
+      "schema_version",
+      "workspace_id",
+    ]);
     assert.equal(frame.kind, "event.committed");
     assert.equal(frame.high_water_cursor, committed.high_water_cursor);
     assert.ok(!(raw as string).includes("token"));
@@ -475,13 +509,17 @@ try {
   const ownerAgain = await connect(ownerHandshake);
   assert.equal(ownerAgain.status, 101);
   const ownerAgainTap = ownerAgain.tap as SocketTap;
-  const againReady = (await waitFor(ownerAgainTap, 1, "reconnect ready")).map((raw) => JSON.parse(raw));
+  const againReady = (await waitFor(ownerAgainTap, 1, "reconnect ready")).map((raw) =>
+    JSON.parse(raw),
+  );
   assert.equal(againReady[0].kind, "browser.realtime.ready");
   assert.equal(againReady[0].high_water_cursor, hostileCommitted.high_water_cursor);
   assert.notEqual(againReady[0].connection_id, ownerReady[0].connection_id);
 
   // R5 expired sessions never subscribe.
-  const expired = await connect(browserPrincipal(FIX.owner, "e02-harness-owner-session", "owner", sessionExpiredAt));
+  const expired = await connect(
+    browserPrincipal(FIX.owner, "e02-harness-owner-session", "owner", sessionExpiredAt),
+  );
   assert.equal(expired.status, 403);
 
   // R4 revocation closes only the affected socket on the next committed command.

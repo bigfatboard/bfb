@@ -30,7 +30,10 @@ import {
   type RunnerPrincipal,
 } from "@bfb/domain";
 import type { RunnerInventory } from "@bfb/protocol";
-import { BrowserSockets, type RealtimeSocket } from "../../../apps/control-worker/src/realtime/browser-sockets.js";
+import {
+  BrowserSockets,
+  type RealtimeSocket,
+} from "../../../apps/control-worker/src/realtime/browser-sockets.js";
 
 import {
   createHumanAuth,
@@ -796,7 +799,11 @@ async function main(): Promise<void> {
     const role = match?.[1] as FixtureRole | undefined;
     if (!role) return false;
     const userId =
-      role === "owner" ? "auth-owner-e2e" : role === "member" ? "auth-member-e2e" : "auth-restricted-e2e";
+      role === "owner"
+        ? "auth-owner-e2e"
+        : role === "member"
+          ? "auth-member-e2e"
+          : "auth-restricted-e2e";
     await db
       .prepare(
         `INSERT INTO better_auth_sessions
@@ -885,9 +892,7 @@ async function main(): Promise<void> {
         }
         const sessionId = E02_SESSION_BY_ROLE[role];
         const session = (await db
-          .prepare(
-            `SELECT expires_at FROM better_auth_sessions WHERE id = ?`,
-          )
+          .prepare(`SELECT expires_at FROM better_auth_sessions WHERE id = ?`)
           .get(sessionId)) as { expires_at: string } | undefined;
         if (!session) {
           rejectUpgrade(socket, "403 Forbidden");
@@ -922,16 +927,14 @@ async function main(): Promise<void> {
           ws.on("close", () => {
             realtimeEntries.delete(entry);
           });
-          void realtime
-            .admit(adapter, handshake)
-            .catch(() => {
-              try {
-                ws.close(1011, "channel_unavailable");
-              } catch {
-                /* Already disconnected. */
-              }
-              realtimeEntries.delete(entry);
-            });
+          void realtime.admit(adapter, handshake).catch(() => {
+            try {
+              ws.close(1011, "channel_unavailable");
+            } catch {
+              /* Already disconnected. */
+            }
+            realtimeEntries.delete(entry);
+          });
         });
       } catch {
         rejectUpgrade(socket, "500 Internal Server Error");

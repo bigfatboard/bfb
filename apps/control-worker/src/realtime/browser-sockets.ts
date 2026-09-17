@@ -205,7 +205,10 @@ export class BrowserSockets {
       )
       .get(attachment.sessionId, attachment.humanId)) as { expires_at: string } | undefined;
     if (!session) return { ok: false, reason: "session_revoked", code: 4403 };
-    if (!Number.isFinite(Date.parse(session.expires_at)) || Date.parse(session.expires_at) <= nowMs) {
+    if (
+      !Number.isFinite(Date.parse(session.expires_at)) ||
+      Date.parse(session.expires_at) <= nowMs
+    ) {
       return { ok: false, reason: "session_expired", code: 4401 };
     }
     const member = (await this.db
@@ -221,8 +224,7 @@ export class BrowserSockets {
            AND epoch.revoked_at IS NULL`,
       )
       .get(attachment.workspaceId, attachment.humanId)) as
-      | { role: string; authorization_epoch: number }
-      | undefined;
+      { role: string; authorization_epoch: number } | undefined;
     if (
       !member ||
       member.authorization_epoch !== attachment.authorizationEpoch ||
@@ -233,7 +235,12 @@ export class BrowserSockets {
     return { ok: true };
   }
 
-  private closeUnauthorized(socket: RealtimeSocket, attachment: BrowserAttachment, reason: BrowserCloseReason, code: 4401 | 4403): void {
+  private closeUnauthorized(
+    socket: RealtimeSocket,
+    attachment: BrowserAttachment,
+    reason: BrowserCloseReason,
+    code: 4401 | 4403,
+  ): void {
     try {
       socket.send(
         JSON.stringify({
@@ -289,7 +296,10 @@ export class BrowserSockets {
     try {
       if (socket.readyState !== WebSocket.OPEN) return;
       const attachment = parseAttachment(socket.readAttachment());
-      if (typeof data !== "string" || new TextEncoder().encode(data).byteLength > BROWSER_MESSAGE_LIMIT) {
+      if (
+        typeof data !== "string" ||
+        new TextEncoder().encode(data).byteLength > BROWSER_MESSAGE_LIMIT
+      ) {
         rejectRunnerRequest();
       }
       const frame = runnerObject(JSON.parse(data as string), [
@@ -306,7 +316,10 @@ export class BrowserSockets {
       ) {
         rejectRunnerRequest();
       }
-      if (Date.parse(this.clock()) - Date.parse(attachment.lastHeartbeatAt) < BROWSER_HEARTBEAT_MIN_GAP_MS) {
+      if (
+        Date.parse(this.clock()) - Date.parse(attachment.lastHeartbeatAt) <
+        BROWSER_HEARTBEAT_MIN_GAP_MS
+      ) {
         rejectRunnerRequest();
       }
       const verdict = await this.recheck(attachment);
@@ -404,7 +417,10 @@ export class BrowserSockets {
     let expiry = Number.POSITIVE_INFINITY;
     for (const socket of this.live()) {
       try {
-        expiry = Math.min(expiry, Date.parse(parseAttachment(socket.readAttachment()).sessionExpiresAt));
+        expiry = Math.min(
+          expiry,
+          Date.parse(parseAttachment(socket.readAttachment()).sessionExpiresAt),
+        );
       } catch {
         this.fail(socket, 1008, "request_rejected");
       }
@@ -412,11 +428,17 @@ export class BrowserSockets {
     return expiry;
   }
 
-  async schedule(setAlarm: (at: number) => Promise<void>, deleteAlarm: () => Promise<void>): Promise<void> {
+  async schedule(
+    setAlarm: (at: number) => Promise<void>,
+    deleteAlarm: () => Promise<void>,
+  ): Promise<void> {
     let expiry = Number.POSITIVE_INFINITY;
     for (const socket of this.live()) {
       try {
-        expiry = Math.min(expiry, Date.parse(parseAttachment(socket.readAttachment()).sessionExpiresAt));
+        expiry = Math.min(
+          expiry,
+          Date.parse(parseAttachment(socket.readAttachment()).sessionExpiresAt),
+        );
       } catch {
         this.fail(socket, 1008, "request_rejected");
       }

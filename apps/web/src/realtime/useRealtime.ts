@@ -99,9 +99,9 @@ export function useRunRealtime(options: {
   workspaceId: string;
   taskId: string;
   runId: string | null;
-  fetchImpl?: typeof fetch;
-  transport?: RealtimeTransport;
-  nowImpl?: () => number;
+  fetchImpl?: typeof fetch | undefined;
+  transport?: RealtimeTransport | undefined;
+  nowImpl?: (() => number) | undefined;
 }): RunRealtime {
   // Seams stay in refs so the socket lifecycle below runs once per run and
   // never reconnects just because an inline default was recreated on render.
@@ -230,9 +230,7 @@ export function useRunRealtime(options: {
     connectionId.current = null;
     readyReceived.current = false;
     fallbackTried.current = false;
-    machine.current = createResyncMachine(
-      machine.current.snapshot().appliedThrough,
-    );
+    machine.current = createResyncMachine(machine.current.snapshot().appliedThrough);
     setSocketOpen(false);
     const next = transport.open(url, "bfb.browser.v1");
     channel.current = next;

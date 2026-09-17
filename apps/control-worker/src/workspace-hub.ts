@@ -52,10 +52,10 @@ export class WorkspaceHub extends DurableObject<ControlBindings> {
   constructor(ctx: DurableObjectState, env: ControlBindings) {
     super(ctx, env);
     this.channels = new RunnerChannels(ctx, env.DB, () => this.lane());
-    this.browsers = new BrowserSockets(
-      (tag) => [...ctx.getWebSockets(tag)].map(wrapSocket),
-      { db: adaptD1(env.DB), newConnectionId: () => randomUlid() },
-    );
+    this.browsers = new BrowserSockets((tag) => [...ctx.getWebSockets(tag)].map(wrapSocket), {
+      db: adaptD1(env.DB),
+      newConnectionId: () => randomUlid(),
+    });
   }
 
   private lane(): DomainWorkspaceHub {

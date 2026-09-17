@@ -2,11 +2,7 @@
 // ABOUTME: Only IDs, epochs, and expiry cross into the socket handshake; cookies and tokens never do.
 
 import { createAuthorizationContext, WorkspaceRepository } from "@bfb/db";
-import {
-  assertLedgerBrowserAccess,
-  loadPrincipal,
-  runnerId,
-} from "@bfb/domain";
+import { assertLedgerBrowserAccess, loadPrincipal, runnerId } from "@bfb/domain";
 
 import type { HumanAuth } from "../auth/better-auth.js";
 import { resolveBrowserPrincipal, type BrowserPrincipal } from "../auth/session.js";
@@ -48,7 +44,8 @@ async function hubStub(
       jurisdiction: deps.jurisdiction,
     }),
   ).getWorkspace();
-  if (!workspace || workspace.jurisdiction !== deps.jurisdiction) throw new Error("unknown workspace");
+  if (!workspace || workspace.jurisdiction !== deps.jurisdiction)
+    throw new Error("unknown workspace");
   const namespace = workspaceNamespaceForJurisdiction(deps.workspaceHubNs, workspace.jurisdiction);
   return namespace.get(namespace.idFromName(workspace.id));
 }
@@ -92,7 +89,12 @@ export async function handleBrowserRealtimeApi(
       return failure(401, "session_expired");
     }
     const principal = await loadPrincipal(deps.db, workspaceId, resolved.humanId);
-    await assertLedgerBrowserAccess(deps.db, workspaceId, resolved.humanId, principal.authorizationEpoch);
+    await assertLedgerBrowserAccess(
+      deps.db,
+      workspaceId,
+      resolved.humanId,
+      principal.authorizationEpoch,
+    );
     const stub = await hubStub(deps, workspaceId, principal.authorizationEpoch);
     return stub.fetch("https://bfb-hub.internal/browser/connect", {
       method: "GET",

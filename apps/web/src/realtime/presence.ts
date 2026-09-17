@@ -14,9 +14,7 @@ export interface HumanNote {
   author_human_id: string | null;
 }
 
-export type HumanPresence =
-  | { kind: "note"; at: string }
-  | { kind: "none" };
+export type HumanPresence = { kind: "note"; at: string } | { kind: "none" };
 
 const TERMINAL_EXECUTION = new Set(["execution_ended", "execution_detached"]);
 
@@ -66,10 +64,7 @@ function hasOpenTurn(envelopes: readonly ReplayEnvelope[]): boolean {
  * prompt is idle; heartbeat-only runs are never working; empty runs are
  * unknown rather than assumed idle.
  */
-export function deriveActivity(
-  envelopes: readonly ReplayEnvelope[],
-  now: number,
-): RunActivity {
+export function deriveActivity(envelopes: readonly ReplayEnvelope[], now: number): RunActivity {
   if (envelopes.length === 0) return "unknown";
   if (hasOpenTurn(envelopes)) return "working";
   const ordered = [...envelopes].sort(

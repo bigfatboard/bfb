@@ -9,9 +9,9 @@ import { useRunRealtime, type RealtimeTransport } from "./useRealtime.js";
 export interface RunTimelineProps {
   workspaceId: string;
   taskId: string;
-  fetchImpl?: typeof fetch;
-  transport?: RealtimeTransport;
-  nowImpl?: () => number;
+  fetchImpl?: typeof fetch | undefined;
+  transport?: RealtimeTransport | undefined;
+  nowImpl?: (() => number) | undefined;
 }
 
 interface RunRecord {
@@ -70,7 +70,11 @@ export function RunTimeline(props: RunTimelineProps) {
 
   if (realtime.memberOnly) {
     return (
-      <section className="run-timeline" aria-label="Run timeline" data-testid="run-timeline-section">
+      <section
+        className="run-timeline"
+        aria-label="Run timeline"
+        data-testid="run-timeline-section"
+      >
         <p className="section-label">RUN TIMELINE</p>
         <p data-testid="timeline-member-only">
           Run history is limited to workspace members. Reviewers keep project-scoped access.
@@ -91,7 +95,12 @@ export function RunTimeline(props: RunTimelineProps) {
       {realtime.notice ? (
         <p role="alert" className="inline-error" data-testid="realtime-notice">
           {realtime.notice}{" "}
-          <button type="button" className="button-secondary" data-testid="realtime-reconnect" onClick={realtime.reconnect}>
+          <button
+            type="button"
+            className="button-secondary"
+            data-testid="realtime-reconnect"
+            onClick={realtime.reconnect}
+          >
             Reconnect
           </button>
         </p>

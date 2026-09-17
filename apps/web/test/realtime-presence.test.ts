@@ -38,21 +38,21 @@ describe("presence derivation", () => {
     expect(deriveConnectivity({ socketOpen: false, lastSignalAt: NOW, now: NOW })).toBe("offline");
     expect(deriveConnectivity({ socketOpen: true, lastSignalAt: null, now: NOW })).toBe("live");
     expect(deriveConnectivity({ socketOpen: true, lastSignalAt: NOW, now: NOW })).toBe("live");
-    expect(
-      deriveConnectivity({ socketOpen: true, lastSignalAt: NOW - 44_999, now: NOW }),
-    ).toBe("live");
-    expect(
-      deriveConnectivity({ socketOpen: true, lastSignalAt: NOW - 45_000, now: NOW }),
-    ).toBe("stale");
+    expect(deriveConnectivity({ socketOpen: true, lastSignalAt: NOW - 44_999, now: NOW })).toBe(
+      "live",
+    );
+    expect(deriveConnectivity({ socketOpen: true, lastSignalAt: NOW - 45_000, now: NOW })).toBe(
+      "stale",
+    );
   });
 
   it("reads process presence from heartbeats only", () => {
     expect(deriveProcessPresence([], NOW)).toBe("unknown");
     expect(deriveProcessPresence([envelope("turn_started")], NOW)).toBe("unknown");
     expect(deriveProcessPresence([envelope("heartbeat")], NOW)).toBe("alive");
-    expect(
-      deriveProcessPresence([envelope("heartbeat", "2026-09-12T11:59:00.000Z")], NOW),
-    ).toBe("stale");
+    expect(deriveProcessPresence([envelope("heartbeat", "2026-09-12T11:59:00.000Z")], NOW)).toBe(
+      "stale",
+    );
   });
 
   it("never labels a heartbeat-only run working", () => {
@@ -65,26 +65,20 @@ describe("presence derivation", () => {
   it("requires an open turn interval for working and closes it on terminal rows", () => {
     cursor = 0;
     expect(deriveActivity([envelope("turn_started")], NOW)).toBe("working");
-    expect(
-      deriveActivity([envelope("turn_started"), envelope("turn_stopped")], NOW),
-    ).toBe("idle");
-    expect(
-      deriveActivity([envelope("turn_started"), envelope("turn_failed")], NOW),
-    ).toBe("idle");
+    expect(deriveActivity([envelope("turn_started"), envelope("turn_stopped")], NOW)).toBe("idle");
+    expect(deriveActivity([envelope("turn_started"), envelope("turn_failed")], NOW)).toBe("idle");
     // A dead execution mid-turn is offline, not working.
     expect(
       deriveActivity([envelope("turn_started"), envelope("execution_ended")], NOW + 60_000),
     ).toBe("offline");
-    expect(
-      deriveActivity([envelope("attention_requested")], NOW),
-    ).toBe("needs_human");
+    expect(deriveActivity([envelope("attention_requested")], NOW)).toBe("needs_human");
   });
 
   it("derives human presence from committed notes and never claims review", () => {
     expect(deriveHumanPresence([])).toEqual({ kind: "none" });
-    expect(
-      deriveHumanPresence([{ id: "c1", created_at: AT, author_human_id: null }]),
-    ).toEqual({ kind: "none" });
+    expect(deriveHumanPresence([{ id: "c1", created_at: AT, author_human_id: null }])).toEqual({
+      kind: "none",
+    });
     const presence = deriveHumanPresence([
       { id: "c1", created_at: "2026-09-12T11:40:00.000Z", author_human_id: "human-1" },
       { id: "c2", created_at: "2026-09-12T11:50:00.000Z", author_human_id: "human-2" },

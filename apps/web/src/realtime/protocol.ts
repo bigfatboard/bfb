@@ -151,10 +151,11 @@ export function parseReplayEnvelope(raw: unknown): ReplayEnvelope | null {
   const kind = text(row.kind, 64);
   const actor = record(row.actor);
   const source = record(row.source);
-  const actorType = actor ? text(actor.type, 32) : null;
-  const actorId = actor ? text(actor.id, 256) : null;
-  const sourceType = source ? text(source.type, 32) : null;
-  const sourceId = source ? text(source.id, 256) : null;
+  if (!actor || !source) return null;
+  const actorType = text(actor.type, 32);
+  const actorId = text(actor.id, 256);
+  const sourceType = text(source.type, 32);
+  const sourceId = text(source.id, 256);
   const at = text(row.occurred_at, 64);
   const received = text(row.received_at, 64);
   const cursorValue = cursor(row.workspace_cursor);
@@ -175,7 +176,10 @@ export function parseReplayEnvelope(raw: unknown): ReplayEnvelope | null {
   ) {
     return null;
   }
-  if (typeof row.assignment_generation !== "number" || !Number.isSafeInteger(row.assignment_generation)) {
+  if (
+    typeof row.assignment_generation !== "number" ||
+    !Number.isSafeInteger(row.assignment_generation)
+  ) {
     return null;
   }
   const envelope: ReplayEnvelope = {

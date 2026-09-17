@@ -5,11 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ReplayEnvelope } from "../src/realtime/protocol.js";
 import { parseReplayEnvelope, parseServerFrame } from "../src/realtime/protocol.js";
-import {
-  buildTimelineEntries,
-  shortId,
-  summarizeEventKind,
-} from "../src/realtime/timeline.js";
+import { buildTimelineEntries, shortId, summarizeEventKind } from "../src/realtime/timeline.js";
 
 function envelope(overrides: Partial<ReplayEnvelope> = {}): ReplayEnvelope {
   return {
@@ -91,7 +87,8 @@ describe("timeline projection", () => {
     expect(parseReplayEnvelope({ ...envelope(), actor: { type: "runner" } })).toBeNull();
     expect(parseReplayEnvelope({ ...envelope(), occurred_at: "not-a-time" })).toBeNull();
     expect(
-      parseReplayEnvelope({ ...envelope(), provider_session_id: "<ok>", kind: "heartbeat" })?.provider_session_id,
+      parseReplayEnvelope({ ...envelope(), provider_session_id: "<ok>", kind: "heartbeat" })
+        ?.provider_session_id,
     ).toBe("<ok>");
     expect(parseServerFrame({ kind: "event.committed" })).toBeNull();
     expect(
@@ -112,7 +109,12 @@ describe("timeline projection", () => {
       }),
     ).toEqual({ kind: "invalidation", workspaceId: "w", highWater: 4 });
     expect(
-      parseServerFrame({ schema_version: 1, kind: "browser.realtime.close", workspace_id: "w", reason: "bogus" }),
+      parseServerFrame({
+        schema_version: 1,
+        kind: "browser.realtime.close",
+        workspace_id: "w",
+        reason: "bogus",
+      }),
     ).toBeNull();
   });
 });

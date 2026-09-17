@@ -118,7 +118,10 @@ export function createResyncMachine(initialCursor: number): {
           (left, right) => left.workspace_cursor - right.workspace_cursor,
         );
         for (const envelope of ordered) {
-          if (envelope.workspace_cursor <= event.requestedThrough && !state.seen.has(envelope.event_id)) {
+          if (
+            envelope.workspace_cursor <= event.requestedThrough &&
+            !state.seen.has(envelope.event_id)
+          ) {
             state.seen.add(envelope.event_id);
             state.applied.push(envelope);
           }

@@ -29,9 +29,14 @@ function harness() {
   const ledger: ReplayEnvelope[] = [];
   const machine = createResyncMachine(0);
   let open = false;
-  function fetch({ after, through }: FetchEffect): { envelopes: ReplayEnvelope[]; hasMore: boolean } {
+  function fetch({ after, through }: FetchEffect): {
+    envelopes: ReplayEnvelope[];
+    hasMore: boolean;
+  } {
     return {
-      envelopes: ledger.filter((row) => row.workspace_cursor > after && row.workspace_cursor <= through),
+      envelopes: ledger.filter(
+        (row) => row.workspace_cursor > after && row.workspace_cursor <= through,
+      ),
       hasMore: false,
     };
   }
@@ -48,14 +53,22 @@ function harness() {
       }
     },
     ready(): FetchEffect[] {
-      const highWater = ledger.length > 0 ? (ledger[ledger.length - 1] as ReplayEnvelope).workspace_cursor : 0;
+      const highWater =
+        ledger.length > 0 ? (ledger[ledger.length - 1] as ReplayEnvelope).workspace_cursor : 0;
       return machine.dispatch({ type: "ready", highWater });
     },
     resolve(effects: FetchEffect[]): FetchEffect[] {
       const next: FetchEffect[] = [];
       for (const effect of effects) {
         const page = fetch(effect);
-        next.push(...machine.dispatch({ type: "replay-done", envelopes: page.envelopes, requestedThrough: effect.through, hasMore: page.hasMore }));
+        next.push(
+          ...machine.dispatch({
+            type: "replay-done",
+            envelopes: page.envelopes,
+            requestedThrough: effect.through,
+            hasMore: page.hasMore,
+          }),
+        );
       }
       return next;
     },
@@ -196,7 +209,8 @@ describe("subscribe-first resync races", () => {
         .filter((cursor) => cursor > after && cursor <= through)
         .slice(0, take)
         .map((cursor) => envelope(cursor));
-      const last = rows.length > 0 ? (rows[rows.length - 1] as ReplayEnvelope).workspace_cursor : after;
+      const last =
+        rows.length > 0 ? (rows[rows.length - 1] as ReplayEnvelope).workspace_cursor : after;
       return h.machine.dispatch({
         type: "replay-done",
         envelopes: rows,
