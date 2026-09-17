@@ -145,7 +145,12 @@ async function main(): Promise<void> {
     await server.listen();
     const hubWorker = server.getWorker("bfb-results-hub");
     await hubWorker.applyD1Migrations("DB");
-    assert.equal(migrationHeadFile, "0024_result_submissions.sql");
+    // Append-only D1 heads move forward as later packages land; A03 requires
+    // its own migration to be present, never that it is still the head.
+    assert.ok(
+      migrationManifest.migrations.some((entry) => entry.file === "0024_result_submissions.sql"),
+      `A03 migration is missing from ${migrationHeadFile}`,
+    );
     const env = (await hubWorker.getEnv()) as unknown as HubEnv;
     const db = adaptD1(env.DB);
     const workspaceId = randomUlid();
