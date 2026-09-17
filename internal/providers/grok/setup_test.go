@@ -42,7 +42,8 @@ func TestHooksEditorInstallsAllManagedEvents(t *testing.T) {
 		t.Fatalf("unexpected diff namespace: %+v", diff)
 	}
 	text := string(after)
-	for _, fragment := range append(append([]string{hookCommand(), `"hooks"`, `"timeout"`}, grok.ManagedHookEvents()...)) {
+	fragments := append([]string{hookCommand(), `"hooks"`, `"timeout"`}, grok.ManagedHookEvents()...)
+	for _, fragment := range fragments {
 		if !strings.Contains(text, fragment) {
 			t.Fatalf("hooks setup lost content %s:\n%s", fragment, text)
 		}
