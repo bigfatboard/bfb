@@ -1,5 +1,5 @@
 {
-  "migration_head": "0020_artifact_storage",
+  "migration_head": "0025_discussion_delivery",
   "migrations": [
     {
       "id": "0001_workspace_registry",
@@ -80,6 +80,10 @@
     {
       "id": "0020_artifact_storage",
       "file": "0020_artifact_storage.sql"
+    },
+    {
+      "id": "0025_discussion_delivery",
+      "file": "0025_discussion_delivery.sql"
     }
   ]
 }
