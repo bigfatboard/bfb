@@ -5,6 +5,7 @@ import { adaptD1 } from "@bfb/db";
 import { DurableObject } from "cloudflare:workers";
 import {
   type CommandRequest,
+  randomUlid,
   resolveCommand,
   WorkspaceHub as DomainWorkspaceHub,
   runnerObject,
@@ -13,9 +14,30 @@ import {
 } from "@bfb/domain";
 
 import type { ControlBindings } from "./env.js";
+import {
+  BROWSER_REALTIME_PROTOCOL,
+  BROWSER_REALTIME_TAG,
+  BrowserSockets,
+  type RealtimeSocket,
+} from "./realtime/browser-sockets.js";
 import { RunnerChannels } from "./runner-channels.js";
 
 const MAX_COMMAND_BYTES = 65_536;
+const MAX_PRINCIPAL_BYTES = 2048;
+
+function wrapSocket(socket: WebSocket): RealtimeSocket {
+  return {
+    get readyState() {
+      return socket.readyState;
+    },
+    send: (data: string) => socket.send(data),
+    close: (code: number, reason: string) => {
+      if (socket.readyState === WebSocket.OPEN) socket.close(code, reason);
+    },
+    readAttachment: () => socket.deserializeAttachment(),
+    writeAttachment: (value: unknown) => socket.serializeAttachment(value),
+  };
+}
 
 /**
  * Cloudflare Durable Object entry for the workspace command kernel.
@@ -24,11 +46,16 @@ const MAX_COMMAND_BYTES = 65_536;
 export class WorkspaceHub extends DurableObject<ControlBindings> {
   private domainLane: DomainWorkspaceHub | null = null;
   private readonly channels: RunnerChannels;
+  private readonly browsers: BrowserSockets;
   private transportTail: Promise<void> = Promise.resolve();
 
   constructor(ctx: DurableObjectState, env: ControlBindings) {
     super(ctx, env);
     this.channels = new RunnerChannels(ctx, env.DB, () => this.lane());
+    this.browsers = new BrowserSockets((tag) => [...ctx.getWebSockets(tag)].map(wrapSocket), {
+      db: adaptD1(env.DB),
+      newConnectionId: () => randomUlid(),
+    });
   }
 
   private lane(): DomainWorkspaceHub {
@@ -54,29 +81,118 @@ export class WorkspaceHub extends DurableObject<ControlBindings> {
   }
 
   override async webSocketMessage(socket: WebSocket, message: string | ArrayBuffer): Promise<void> {
-    return this.serial(() => this.channels.message(socket, message));
+    return this.serial(async () => {
+      if (this.browsers.owns(wrapSocket(socket))) {
+        await this.browsers.message(wrapSocket(socket), message);
+      } else {
+        await this.channels.message(socket, message);
+      }
+      await this.scheduleAlarms();
+    });
   }
 
   override async webSocketClose(socket: WebSocket): Promise<void> {
-    return this.serial(() => this.channels.closed(socket));
+    return this.serial(async () => {
+      if (!this.browsers.owns(wrapSocket(socket))) await this.channels.closed(socket);
+      await this.scheduleAlarms();
+    });
   }
 
   override async webSocketError(socket: WebSocket): Promise<void> {
-    return this.serial(() => this.channels.closed(socket));
+    return this.serial(async () => {
+      if (!this.browsers.owns(wrapSocket(socket))) await this.channels.closed(socket);
+      await this.scheduleAlarms();
+    });
   }
 
   override async alarm(): Promise<void> {
-    return this.serial(() => this.channels.alarm());
+    return this.serial(async () => {
+      await this.channels.alarm();
+      await this.browsers.alarm();
+      await this.scheduleAlarms();
+    });
+  }
+
+  /**
+   * One shared alarm covers runner expiries and browser session expiries.
+   * Either class alone would delete the timer while the other still needs it.
+   */
+  private async scheduleAlarms(): Promise<void> {
+    let expiry = Number.POSITIVE_INFINITY;
+    try {
+      expiry = Math.min(expiry, this.channels.earliestExpiry(), this.browsers.earliestExpiry());
+    } catch {
+      // Corrupt attachments are already closed by the expiry readers.
+    }
+    try {
+      if (Number.isFinite(expiry)) {
+        await this.ctx.storage.setAlarm(Math.max(Date.now() + 1, expiry));
+      } else {
+        await this.ctx.storage.deleteAlarm();
+      }
+    } catch {
+      // No live authority may outlast expiry if the persistent timer is lost.
+      for (const socket of this.ctx.getWebSockets()) {
+        try {
+          if (socket.readyState === WebSocket.OPEN) socket.close(1011, "channel_unavailable");
+        } catch {
+          /* Already disconnected. */
+        }
+      }
+    }
   }
 
   private async handle(request: Request): Promise<Response> {
     const path = new URL(request.url).pathname;
+    if (path === "/browser/connect" && request.method === "GET") {
+      try {
+        const metadata = request.headers.get("x-bfb-browser-principal");
+        if (!metadata || new TextEncoder().encode(metadata).byteLength > MAX_PRINCIPAL_BYTES)
+          throw new Error("invalid browser principal metadata");
+        if (
+          request.headers.get("upgrade") !== "websocket" ||
+          request.headers.get("sec-websocket-protocol") !== BROWSER_REALTIME_PROTOCOL
+        )
+          throw new Error("invalid browser upgrade");
+        const handshake = JSON.parse(metadata) as unknown;
+        const pair = new WebSocketPair();
+        const client = pair[0];
+        const server = pair[1];
+        this.ctx.acceptWebSocket(server, [BROWSER_REALTIME_TAG]);
+        try {
+          await this.browsers.admit(wrapSocket(server), handshake);
+          await this.scheduleAlarms();
+        } catch (error) {
+          try {
+            server.close(1011, "channel_unavailable");
+          } catch {
+            /* Already disconnected. */
+          }
+          throw error;
+        }
+        return new Response(null, {
+          status: 101,
+          webSocket: client,
+          headers: {
+            "sec-websocket-protocol": BROWSER_REALTIME_PROTOCOL,
+            "cache-control": "no-store",
+          },
+        });
+      } catch {
+        return Response.json(
+          { error: "request_rejected" },
+          { status: 403, headers: { "cache-control": "no-store" } },
+        );
+      }
+    }
     if (path === "/runner/connect" && request.method === "GET") {
       try {
         const metadata = request.headers.get("x-bfb-runner-principal");
         if (!metadata || metadata.length > 8192 || request.headers.get("upgrade") !== "websocket")
           throw new Error("invalid runner channel metadata");
-        return await this.channels.open(JSON.parse(metadata) as RunnerPrincipal);
+        const response = await this.channels.open(JSON.parse(metadata) as RunnerPrincipal);
+        await this.scheduleAlarms();
+        return response;
       } catch {
         return Response.json(
           { error: "request_rejected" },
@@ -150,7 +266,11 @@ export class WorkspaceHub extends DurableObject<ControlBindings> {
 
     try {
       const outcome = await this.lane().execute(command, body.request);
-      if (outcome.ok) await this.channels.afterCommand();
+      if (outcome.ok) {
+        await this.channels.afterCommand();
+        await this.browsers.afterCommand();
+        await this.scheduleAlarms();
+      }
       return Response.json(outcome);
     } catch (error) {
       return Response.json(

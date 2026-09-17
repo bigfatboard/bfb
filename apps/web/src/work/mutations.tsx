@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { LaunchSection } from "../launch/operations.js";
 import type { AgentProfileSummary } from "./board.js";
 import { ResultPanel } from "./result.js";
+import { RunTimeline } from "../realtime/RunTimeline.js";
 
 type WorkspaceRole = "owner" | "member" | "reviewer";
 
@@ -413,6 +414,13 @@ export function WorkMutations(props: WorkMutationsProps) {
                 void loadTask();
                 props.onChanged();
               }}
+            />
+          ) : null}
+          {task ? (
+            <RunTimeline
+              workspaceId={props.workspaceId}
+              taskId={task.id}
+              fetchImpl={props.fetchImpl}
             />
           ) : null}
 

@@ -1,6 +1,8 @@
 // ABOUTME: Manages hibernating runner sockets with current-epoch rechecks and persistent expiry alarms.
 // ABOUTME: Sends only connection observations and recoverable nudges; D1 remains authority for every command.
 
+export const RUNNER_SOCKET_TAG = "bfb-runner";
+
 import { adaptD1, type SqlDatabase } from "@bfb/db";
 import {
   assertCurrentRunnerPrincipal,
@@ -81,8 +83,9 @@ export class RunnerChannels {
   async open(principal: RunnerPrincipal): Promise<Response> {
     const current = await assertCurrentRunnerPrincipal(this.db, principal, this.now());
     if (
-      this.state.getWebSockets().filter((socket) => socket.readyState === WebSocket.OPEN).length >=
-      64
+      this.state
+        .getWebSockets(RUNNER_SOCKET_TAG)
+        .filter((socket) => socket.readyState === WebSocket.OPEN).length >= 64
     )
       rejectRunnerRequest();
     const connectionId = randomUlid();
@@ -92,7 +95,7 @@ export class RunnerChannels {
     const pair = new WebSocketPair();
     const client = pair[0];
     const server = pair[1];
-    this.state.acceptWebSocket(server, [`runner:${current.runnerId}`]);
+    this.state.acceptWebSocket(server, [RUNNER_SOCKET_TAG, `runner:${current.runnerId}`]);
     const attachment: Attachment = {
       schema_version: 1,
       principal: current,
@@ -219,7 +222,7 @@ export class RunnerChannels {
 
   /** Called in the same transport FIFO after every committed workspace command. */
   async afterCommand(): Promise<void> {
-    for (const socket of this.state.getWebSockets()) {
+    for (const socket of this.state.getWebSockets(RUNNER_SOCKET_TAG)) {
       if (socket.readyState !== WebSocket.OPEN) continue;
       let attachment: Attachment;
       try {
@@ -262,9 +265,10 @@ export class RunnerChannels {
     await this.afterCommand();
   }
 
-  async schedule(): Promise<void> {
+  /** Earliest attached runner expiry over live runner sockets; closes corrupt attachments. */
+  earliestExpiry(): number {
     let expiry = Number.POSITIVE_INFINITY;
-    for (const socket of this.state.getWebSockets()) {
+    for (const socket of this.state.getWebSockets(RUNNER_SOCKET_TAG)) {
       if (socket.readyState !== WebSocket.OPEN) continue;
       try {
         expiry = Math.min(expiry, Date.parse(this.attachment(socket).principal.authExpiresAt));
@@ -272,13 +276,18 @@ export class RunnerChannels {
         this.close(socket, 1008, "request_rejected");
       }
     }
+    return expiry;
+  }
+
+  async schedule(): Promise<void> {
+    const expiry = this.earliestExpiry();
     try {
       if (Number.isFinite(expiry))
         await this.state.storage.setAlarm(Math.max(Date.parse(this.now()) + 1, expiry));
       else await this.state.storage.deleteAlarm();
     } catch {
       // No live authority may outlast expiry if the persistent timer is lost.
-      for (const socket of this.state.getWebSockets())
+      for (const socket of this.state.getWebSockets(RUNNER_SOCKET_TAG))
         this.close(socket, 1011, "channel_unavailable");
     }
   }

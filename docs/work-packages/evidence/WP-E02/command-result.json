@@ -1,0 +1,31 @@
+{
+  "package": "E02",
+  "tested_commit": "98cf0e110ddab20cb9fd403788d6d0f2e7f9c78f",
+  "results": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "detail": "clean detached checkout at the tested commit; frozen install completed"
+    },
+    {
+      "command": "pnpm build",
+      "outcome": "passed",
+      "detail": "clean-checkout TypeScript build completed"
+    },
+    {
+      "command": "pnpm test:e02",
+      "outcome": "passed",
+      "detail": "build, 32 vitest cases (browser sockets, realtime routes, resync races, timeline, presence), tools/realtime typecheck, two-Worker D1 harness E02_REALTIME_OK (handshake, fan-out, reconnect, expiry, revocation, hostile cleanliness), e02-realtime Playwright suite 8 passed on BFB_E2E_PORT=4181"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "detail": "full repository verification in the implementation checkout, including format, lint, typecheck, headers, docs, roadmap, Go, and Swift/Xcode checks; full unit suite 870 passed and browser directory 24 passed"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "detail": "clean worktree assertion with the implementation changes committed"
+    }
+  ]
+}

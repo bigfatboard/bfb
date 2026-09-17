@@ -1,0 +1,61 @@
+{
+  "$schema": "../manifest.schema.json",
+  "package": "E02",
+  "tested_commit": "98cf0e110ddab20cb9fd403788d6d0f2e7f9c78f",
+  "protocol_version": "bfb-wire/1",
+  "schema_version": "1",
+  "migration_head": "d1:0019_event_ledger.sql",
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "xcode": "26.0.1",
+    "wrangler": "4.120.1"
+  },
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56), local Wrangler D1 and Workerd",
+    "architecture": "arm64"
+  },
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-E02/command-result.json"
+    },
+    {
+      "command": "pnpm build",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-E02/command-result.json"
+    },
+    {
+      "command": "pnpm test:e02",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-E02/command-result.json"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-E02/command-result.json"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-E02/command-result.json"
+    }
+  ],
+  "outcome": "passed",
+  "artifacts": [
+    "docs/work-packages/evidence/WP-E02/command-result.json",
+    "docs/work-packages/evidence/WP-E02/replay-race-matrix.md",
+    "docs/work-packages/evidence/WP-E02/eviction-expiry-traces.md",
+    "docs/work-packages/evidence/WP-E02/timeline-presence.md",
+    "docs/work-packages/evidence/WP-E02/browser/replay-trace.md",
+    "docs/work-packages/evidence/WP-E02/browser/presence-stale.md",
+    "docs/work-packages/evidence/WP-E02/browser/hostile-timeline.md",
+    "docs/work-packages/evidence/WP-E02/browser/timeline.png",
+    "docs/work-packages/evidence/WP-E02/browser/presence-stale.png",
+    "docs/work-packages/evidence/WP-E02/browser/hostile-timeline.png"
+  ],
+  "redaction": { "status": "passed", "prohibited_content": [] }
+}

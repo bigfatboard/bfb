@@ -8,6 +8,7 @@ import { DomainError } from "@bfb/domain";
 
 import { handleAttentionApi } from "./api/attention.js";
 import { handleEventBrowserApi, handleRunnerEventApi, isRunnerEventPath } from "./api/events.js";
+import { handleBrowserRealtimeApi, isBrowserRealtimePath } from "./api/realtime.js";
 import { handleWorkApi } from "./api/work.js";
 import { handleArtifactBrowserApi } from "./api/artifacts.js";
 import { handleCliBrowserApi, handleCliPublicApi } from "./api/cli-credentials.js";
@@ -596,16 +597,56 @@ export function createControlApp(
     ),
   );
 
-  app.all("/realtime/*", (c) =>
-    c.json(
-      {
-        ok: false,
-        error: "realtime_not_implemented",
-        message: "Realtime is owned by E02",
-      },
-      501,
-    ),
-  );
+  app.all("/realtime/*", async (c) => {
+    const db = c.get("db") ?? options.db;
+    const current = c.get("validated");
+    if (!db || !current) {
+      return c.json({ error: "api_misconfigured" }, 500);
+    }
+    if (!isBrowserRealtimePath(c.req.path)) {
+      return c.json({ error: "not_found" }, 404);
+    }
+    const origin = c.req.header("origin") ?? "";
+    if (origin !== current.origins.appOrigin) {
+      return c.json({ error: "csrf_origin", message: "origin check failed for realtime" }, 403);
+    }
+    let runtime: HumanAuthRuntime;
+    try {
+      const resolved = options.humanAuth?.();
+      if (!resolved) {
+        return c.json({ error: "api_misconfigured" }, 500);
+      }
+      runtime = resolved;
+    } catch {
+      return c.json({ error: "api_misconfigured" }, 500);
+    }
+    let principal;
+    try {
+      principal = await resolveBrowserPrincipal(db, runtime.auth, c.req.raw, c.get("now") ?? now);
+    } catch {
+      return c.json({ error: "identity_conflict", message: "identity linking required" }, 409);
+    }
+    if (!principal) {
+      return c.json({ error: "unauthenticated" }, 401);
+    }
+    const match = c.req.path.match(/^\/realtime\/workspaces\/([^/]+)/);
+    const workspaceId = match?.[1];
+    if (!workspaceId) {
+      return c.json({ error: "not_found" }, 404);
+    }
+    const envBindings = (c.env ?? {}) as { WORKSPACE_HUB?: DurableObjectNamespace };
+    return handleBrowserRealtimeApi(c.req.raw, {
+      db,
+      principal,
+      workspaceId,
+      now: c.get("now") ?? now,
+      jurisdiction: current.jurisdiction,
+      appOrigin: current.origins.appOrigin,
+      abuseSecret: options.abuseSecret ?? "",
+      workspaceHubNs: envBindings.WORKSPACE_HUB,
+      auth: runtime.auth,
+    });
+  });
 
   app.all("/runner/*", (c) => {
     if (hasBrowserSessionCookie(c.req.raw)) {
