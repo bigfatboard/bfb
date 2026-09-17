@@ -174,24 +174,24 @@ test("iframe redemption rejects a foreign channel nonce", async ({ page }) => {
   record("| Iframe wrong nonce | bootstrap submits, server rejects before bytes |");
 });
 
-test("iframe redemption ignores messages without a transferred port", async ({ page }) => {
+test("iframe redemption attempts nothing without a ready answer", async ({ page }) => {
   const successBefore = fixture.redeemSuccess();
   const errorBefore = fixture.redeemError();
   await driveIframe(page, "html", "no-port");
   await page.waitForTimeout(2500);
   expect(fixture.redeemSuccess() - successBefore).toBe(0);
   expect(fixture.redeemError() - errorBefore).toBe(0);
-  record("| Iframe message without port | bootstrap ignores it, no redemption attempted |");
+  record("| Iframe unanswered ready signal | bootstrap waits, no redemption attempted |");
 });
 
-test("iframe redemption consumes a grant exactly once across messages", async ({ page }) => {
+test("iframe redemption consumes a grant exactly once across ready answers", async ({ page }) => {
   const successBefore = fixture.redeemSuccess();
   const errorBefore = fixture.redeemError();
   await driveIframe(page, "html", "double");
   await page.waitForTimeout(3000);
   expect(fixture.redeemSuccess() - successBefore).toBe(1);
   expect(fixture.redeemError() - errorBefore).toBe(0);
-  record("| Iframe double message | single redemption, second channel message ignored |");
+  record("| Iframe double ready answer | single redemption, second port message ignored |");
 });
 
 interface TopProbe {
