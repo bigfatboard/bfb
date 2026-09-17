@@ -31,6 +31,7 @@ describe("normalized human identity", () => {
       .all()) as Array<{ name: string }>;
     expect(authTables.map((row) => row.name)).toEqual([
       "better_auth_accounts",
+      "better_auth_device_codes",
       "better_auth_oauth_access_tokens",
       "better_auth_oauth_clients",
       "better_auth_oauth_consents",
