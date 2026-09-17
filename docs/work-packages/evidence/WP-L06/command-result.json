@@ -1,0 +1,58 @@
+{
+  "package": "L06",
+  "tested_commit": "b0a4f7d050efff87af57f20c3a18180b8e33b374",
+  "recorded_on": "2026-09-17",
+  "automated_gate": "passed",
+  "package_acceptance": "passed",
+  "package_status": "planned",
+  "status_note": "Implementation, gate and evidence are complete; the package stays planned because L05 is not done, and no later package may consume it yet.",
+  "checkout": {
+    "detached": true,
+    "clean_before_install": true,
+    "frozen_install": "passed"
+  },
+  "checks": {
+    "journal_fixture_generation": 13,
+    "protocol_fixture_and_codegen_drift": "passed",
+    "protocol_typescript_tests": 434,
+    "protocol_go_differential_fixtures": "passed",
+    "journal_go_race_tests": 25,
+    "daemon_go_race_tests": "passed",
+    "cli_go_race_tests": "passed",
+    "supervisor_go_race_tests": "passed",
+    "supervisor_backend_adapter": "passed",
+    "fake_ingest_acceptance_checks": 6,
+    "repository_verification": "passed",
+    "repository_swift_xcode_checks": "passed",
+    "linux_amd64_cross_build": "passed",
+    "worktree_check": "passed"
+  },
+  "fault_matrix_assertions": {
+    "concurrent_first_sessions_one_binding": true,
+    "duplicate_session_matches_binding": true,
+    "competing_session_quarantined_never_rebinds": true,
+    "invalid_correlation_generation_rejected_without_rows": true,
+    "oversized_input_rejected": true,
+    "corrupt_full_inbox_quarantined_with_degraded_state": true,
+    "daemon_kill_loses_no_accepted_event": true,
+    "upload_ack_boundaries_keep_rows_queued": true,
+    "retryable_backs_off": true,
+    "permanent_reject_quarantines_without_blocking": true,
+    "already_committed_deletes_without_duplicate_effect": true,
+    "concurrent_runs_keep_attribution": true,
+    "hook_latency_bounded_without_cloud": true,
+    "heartbeat_gaps_preserved_not_backfilled": true,
+    "grace_replay_without_correlation_secret": true,
+    "unknown_provider_fields_never_reach_cloud": true,
+    "daemon_kinds_unassertable_through_hooks": true
+  },
+  "not_claimed": [
+    "Real provider hook shapes for Claude/Codex/Grok (L07/P01)",
+    "Real ingest endpoint behavior (E01)",
+    "Real Terminal acceptance that blocks L05",
+    "Byte-exact ENOSPC volume fill; a write fault of the same class is injected",
+    "Browser or macOS app surface",
+    "Running complete local MVP or deployed behavior"
+  ],
+  "retention": "Bounded assertions and synthetic public protocol fixtures only. No raw logs, correlation secrets, provider transcripts, usable tokens, task content or local absolute paths are retained."
+}
