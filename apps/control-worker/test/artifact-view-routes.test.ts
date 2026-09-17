@@ -36,10 +36,22 @@ function digest(bytes: Uint8Array): string {
 async function fixture() {
   const context = openAuthTestContext(NOW);
   await seedSyntheticWorkspace(context.db, NOW, "global");
-  async function session(userId: string, sessionId: string, token: string, humanId: string, email: string) {
+  async function session(
+    userId: string,
+    sessionId: string,
+    token: string,
+    humanId: string,
+    email: string,
+  ) {
     return seedAuthSession(context, { userId, sessionId, token, humanId, email, now: NOW });
   }
-  const owner = await session("view-user", "view-session", "view-token", FIX.owner, "owner@synthetic.test");
+  const owner = await session(
+    "view-user",
+    "view-session",
+    "view-token",
+    FIX.owner,
+    "owner@synthetic.test",
+  );
   const member = await session(
     "view-member-user",
     "view-member-session",
@@ -115,7 +127,7 @@ async function fixture() {
           "x-bfb-csrf": sessionPair.csrf,
           "cf-connecting-ip": ip,
         },
-        body: method === "GET" ? undefined : JSON.stringify(body),
+        ...(method === "GET" ? {} : { body: JSON.stringify(body) }),
       }),
       undefined,
       env,
@@ -244,7 +256,10 @@ describe("artifact view grant routes", () => {
     expect(row.grant_hash).toBe(artifactHash(payload.secret));
     expect(row.view_nonce_hash).toBe(artifactHash(payload.nonce));
     // Reloading mints a fresh grant rather than reissuing the secret.
-    const second = (await (await post(`${prefix}/${versionId}/views`, {})).json()) as Record<string, string>;
+    const second = (await (await post(`${prefix}/${versionId}/views`, {})).json()) as Record<
+      string,
+      string
+    >;
     expect(second.view_id).not.toBe(payload.view_id);
     expect(second.secret).not.toBe(payload.secret);
   });
@@ -266,7 +281,13 @@ describe("artifact view grant routes", () => {
       expect(response.status, path).toBe(403);
       expect(await response.json()).toEqual(uniform);
     }
-    const getResponse = await post(`${prefix}/${versionId}/views`, {}, undefined, "192.0.2.81", "GET");
+    const getResponse = await post(
+      `${prefix}/${versionId}/views`,
+      {},
+      undefined,
+      "192.0.2.81",
+      "GET",
+    );
     expect(getResponse.status).toBe(403);
     expect(await getResponse.json()).toEqual(uniform);
   });
@@ -308,9 +329,7 @@ describe("artifact view grant routes", () => {
     expect(statuses.slice(0, 20)).toEqual(Array.from({ length: 20 }, () => 201));
     expect(statuses[20]).toBe(403);
     expect(
-      await (
-        await post(`${prefix}/${versionId}/views`, {}, member, "192.0.2.99")
-      ).json(),
+      await (await post(`${prefix}/${versionId}/views`, {}, member, "192.0.2.99")).json(),
     ).toEqual({ error: "request_rejected", message: "request rejected" });
   });
 });

@@ -64,7 +64,13 @@ function viewObject(value: unknown, keys: readonly string[]): Record<string, unk
 
 async function viewAuditOutbox(
   db: SqlDatabase,
-  entry: { workspaceId: string; versionId: string | null; viewId: string | null; action: string; now: string },
+  entry: {
+    workspaceId: string;
+    versionId: string | null;
+    viewId: string | null;
+    action: string;
+    now: string;
+  },
 ): Promise<void> {
   // Audit carries the non-secret view ID only; secrets and nonces never persist here.
   await db

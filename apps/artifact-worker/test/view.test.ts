@@ -273,7 +273,10 @@ describe("artifact view bootstrap", () => {
     const r2 = fakeR2();
     const malformed = await call(db, r2.bucket, bootstrapRequest("not-a-view"));
     expect(malformed.status).toBe(403);
-    expect(await malformed.json()).toEqual({ error: "request_rejected", message: "request rejected" });
+    expect(await malformed.json()).toEqual({
+      error: "request_rejected",
+      message: "request rejected",
+    });
     const posted = await call(
       db,
       r2.bucket,
@@ -303,7 +306,11 @@ describe("artifact view redemption", () => {
     const r2 = fakeR2();
     const version = await publish(db, r2, { format: "html", bytes: HTML });
     const grant = await issue(db, version.version_id);
-    const response = await call(db, r2.bucket, redeemRequest(grant.view_id, grant.secret, grant.nonce));
+    const response = await call(
+      db,
+      r2.bucket,
+      redeemRequest(grant.view_id, grant.secret, grant.nonce),
+    );
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8");
     expect(response.headers.get("content-security-policy")).toBe(viewFinalCsp(APP_ORIGIN));
@@ -332,9 +339,21 @@ describe("artifact view redemption", () => {
         bytes: new TextEncoder().encode("graph TD\nA-->B\n"),
         type: "text/html; charset=utf-8",
       },
-      { format: "diff", bytes: new TextEncoder().encode("--- a\n+++ b\n"), type: "text/html; charset=utf-8" },
-      { format: "json", bytes: new TextEncoder().encode(`{"a":1}`), type: "text/html; charset=utf-8" },
-      { format: "log", bytes: new TextEncoder().encode("line one\n"), type: "text/html; charset=utf-8" },
+      {
+        format: "diff",
+        bytes: new TextEncoder().encode("--- a\n+++ b\n"),
+        type: "text/html; charset=utf-8",
+      },
+      {
+        format: "json",
+        bytes: new TextEncoder().encode(`{"a":1}`),
+        type: "text/html; charset=utf-8",
+      },
+      {
+        format: "log",
+        bytes: new TextEncoder().encode("line one\n"),
+        type: "text/html; charset=utf-8",
+      },
     ];
     for (const candidate of cases) {
       const version = await publish(db, r2, { format: candidate.format, bytes: candidate.bytes });
@@ -359,8 +378,12 @@ describe("artifact view redemption", () => {
         db,
         r2.bucket,
         redeemRequest(
-          (await issue(db, (await publish(db, r2, { format: "markdown", bytes: MARKDOWN })).version_id))
-            .view_id,
+          (
+            await issue(
+              db,
+              (await publish(db, r2, { format: "markdown", bytes: MARKDOWN })).version_id,
+            )
+          ).view_id,
           "x".repeat(43),
           "0".repeat(32),
         ),
@@ -375,7 +398,11 @@ describe("artifact view redemption", () => {
     const version = await publish(db, r2, { format: "html", bytes: HTML });
     const grant = await issue(db, version.version_id);
     const getsBefore = r2.calls.filter((entry) => entry.op === "get").length;
-    const first = await call(db, r2.bucket, redeemRequest(grant.view_id, grant.secret, grant.nonce));
+    const first = await call(
+      db,
+      r2.bucket,
+      redeemRequest(grant.view_id, grant.secret, grant.nonce),
+    );
     expect(first.status).toBe(200);
     const uniform = { error: "request_rejected", message: "request rejected" };
     const attempts: Request[] = [
@@ -451,7 +478,11 @@ describe("artifact view redemption", () => {
     const key = `workspaces/${FIX.workspace}/artifacts/sha256/${digest(HTML)}`;
     const missing = await issue(db, version.version_id);
     r2.objects.delete(key);
-    const gone = await call(db, r2.bucket, redeemRequest(missing.view_id, missing.secret, missing.nonce));
+    const gone = await call(
+      db,
+      r2.bucket,
+      redeemRequest(missing.view_id, missing.secret, missing.nonce),
+    );
     expect(gone.status).toBe(500);
     expect(await gone.json()).toEqual({ error: "view_failed" });
     const tampered = await issue(db, version.version_id);

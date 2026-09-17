@@ -203,10 +203,13 @@ export function handleViewBootstrap(
     });
   }
   if (!isUlid(viewId)) {
-    return new Response(JSON.stringify({ error: "request_rejected", message: "request rejected" }), {
-      status: 403,
-      headers,
-    });
+    return new Response(
+      JSON.stringify({ error: "request_rejected", message: "request rejected" }),
+      {
+        status: 403,
+        headers,
+      },
+    );
   }
   // Never set Set-Cookie on the artifact origin; the bootstrap carries no bytes.
   return new Response(buildViewBootstrap(), { status: 200, headers });

@@ -66,14 +66,21 @@ export function ArtifactViewer(props: ArtifactViewerProps) {
           },
         };
       },
-      listenMessages: (handler: (event: {
-        origin: string;
-        source: unknown;
-        data: unknown;
-        ports: unknown[];
-      }) => void) => {
+      listenMessages: (
+        handler: (event: {
+          origin: string;
+          source: unknown;
+          data: unknown;
+          ports: unknown[];
+        }) => void,
+      ) => {
         const listener = (event: MessageEvent) => {
-          handler({ origin: event.origin, source: event.source, data: event.data, ports: [...event.ports] });
+          handler({
+            origin: event.origin,
+            source: event.source,
+            data: event.data,
+            ports: [...event.ports],
+          });
         };
         window.addEventListener("message", listener);
         return () => {
@@ -111,10 +118,13 @@ export function ArtifactViewer(props: ArtifactViewerProps) {
         </div>
       ) : null}
       {phase === "loading" || (phase === "idle" && armed) ? <p>Loading preview.</p> : null}
-      {phase === "failed" ? <p>Preview unavailable. Reload the preview to request a new grant.</p> : null}
+      {phase === "failed" ? (
+        <p>Preview unavailable. Reload the preview to request a new grant.</p>
+      ) : null}
       {phase === "stopped" ? <p>Preview stopped.</p> : null}
       <div ref={containerRef} data-testid="artifact-frame-container" />
-      {armed && (phase === "ready" || phase === "loading" || phase === "stopped" || phase === "failed") ? (
+      {armed &&
+      (phase === "ready" || phase === "loading" || phase === "stopped" || phase === "failed") ? (
         <div>
           <button data-testid="viewer-stop" type="button" onClick={() => handleRef.current?.stop()}>
             Stop

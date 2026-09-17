@@ -22,12 +22,10 @@ on A01). The Handoff records the exact state.
 
 ## Dependencies
 
-- **Requires:** V01 (artifact versions, upload/finalize, R2 layout), C01
-  (`WorkspaceHub`, durable abuse budgets, audit outbox), F03 (two-origin
-  substrate and origins), W01 (app shell, renderer surface).
-- **Unlocks:** V03 (immutable view component), V04.
-- **Can run with:** L05, W02, E02 (UI changes kept to artifact view surfaces),
-  L06, A02, A03. D1 migration number `0026` is reserved for this package.
+- **Requires:** V01, C01, F03, W01.
+- **Unlocks:** V03, X02.
+- **Can run with:** L05, W02, E02, L06, A02, A03. UI changes stay on artifact
+  view surfaces; D1 migration number `0026` is reserved for this package.
 
 ## Scope
 
@@ -168,3 +166,7 @@ sandbox and CSP claims and live in `apps/web/test/e2e/v02-viewer.spec.ts`.
 - V03 receives the frozen `docs/contracts/artifact-viewer.md`, the
   `ArtifactViewer` component with its port-answering lifecycle, and the
   immutable view surfaces; it MUST NOT inject bytes into trusted DOM.
+- Graph notes: `Unlocks` lists V03 and X02 (both require V02); V04 has no
+  package file yet, so it cannot be listed until it exists. F03's unlock list
+  gained the missing V02 entry (one line) so `pnpm roadmap:write` regenerates
+  the index.

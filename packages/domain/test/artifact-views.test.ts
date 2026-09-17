@@ -209,24 +209,26 @@ describe("artifact view grants", () => {
       viewNonce: mintViewNonce(),
       sessionHash: SESSION_HASH,
     };
-    expect(await failure(human(createViewGrantCommand, { ...input, versionId: syntheticUlid("NOVIEW") }))).toBe(
-      "request_rejected",
-    );
+    expect(
+      await failure(
+        human(createViewGrantCommand, { ...input, versionId: syntheticUlid("NOVIEW") }),
+      ),
+    ).toBe("request_rejected");
     expect(await failure(human(createViewGrantCommand, { ...input, versionId: "bad" }))).toBe(
       "request_rejected",
     );
-    expect(
-      await failure(human(createViewGrantCommand, { ...input, grantSecretHash: "bad" })),
-    ).toBe("request_rejected");
+    expect(await failure(human(createViewGrantCommand, { ...input, grantSecretHash: "bad" }))).toBe(
+      "request_rejected",
+    );
     expect(await failure(human(createViewGrantCommand, { ...input, viewNonce: "bad" }))).toBe(
       "request_rejected",
     );
     expect(await failure(human(createViewGrantCommand, { ...input, sessionHash: "bad" }))).toBe(
       "request_rejected",
     );
-    expect(
-      await failure(human(createViewGrantCommand, { ...input, extra: true } as never)),
-    ).toBe("request_rejected");
+    expect(await failure(human(createViewGrantCommand, { ...input, extra: true } as never))).toBe(
+      "request_rejected",
+    );
     expect(await failure(human(createViewGrantCommand, input, { epoch: 2 }))).toBe(
       "stale_authorization",
     );
@@ -285,7 +287,12 @@ describe("artifact view grants", () => {
       format: "html",
     });
     await expect(
-      redeemViewGrant(db, { viewId: grant.view_id, secret: grant.secret, nonce: grant.nonce, now: NOW }),
+      redeemViewGrant(db, {
+        viewId: grant.view_id,
+        secret: grant.secret,
+        nonce: grant.nonce,
+        now: NOW,
+      }),
     ).rejects.toThrow();
     const row = (await db
       .prepare(`SELECT consumed_at FROM artifact_view_grants WHERE id = ?`)
@@ -323,12 +330,22 @@ describe("artifact view grants", () => {
     const version = await available();
     const expired = await issue(version.version_id);
     await expect(
-      redeemViewGrant(db, { viewId: expired.view_id, secret: expired.secret, nonce: expired.nonce, now: LATE }),
+      redeemViewGrant(db, {
+        viewId: expired.view_id,
+        secret: expired.secret,
+        nonce: expired.nonce,
+        now: LATE,
+      }),
     ).rejects.toThrow();
     const live = await issue(version.version_id);
     await bumpMemberEpoch(db, FIX.workspace, FIX.owner);
     await expect(
-      redeemViewGrant(db, { viewId: live.view_id, secret: live.secret, nonce: live.nonce, now: NOW }),
+      redeemViewGrant(db, {
+        viewId: live.view_id,
+        secret: live.secret,
+        nonce: live.nonce,
+        now: NOW,
+      }),
     ).rejects.toThrow();
   });
 
@@ -351,7 +368,9 @@ describe("artifact view grants", () => {
     const version = await available();
     const grant = await issue(version.version_id);
     expect(issueViewGrantResponse(grant, grant.secret, grant.nonce).secret).toBe(grant.secret);
-    expect(() => issueViewGrantResponse(grant, mintViewGrantSecret().secret, grant.nonce)).toThrow();
+    expect(() =>
+      issueViewGrantResponse(grant, mintViewGrantSecret().secret, grant.nonce),
+    ).toThrow();
     expect(() => issueViewGrantResponse(grant, grant.secret, mintViewNonce())).not.toThrow();
   });
 });

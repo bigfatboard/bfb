@@ -68,7 +68,9 @@ export async function handleArtifactViewGrantApi(
     if (typeof deps.abuseSecret !== "string" || deps.abuseSecret.length < 32) return rejected();
     const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
     const budgeted = await consumeArtifactBudget(deps.db, {
-      ipSeed: createHmac("sha256", deps.abuseSecret).update(`artifact-ip:${ip.slice(0, 64)}`).digest("hex"),
+      ipSeed: createHmac("sha256", deps.abuseSecret)
+        .update(`artifact-ip:${ip.slice(0, 64)}`)
+        .digest("hex"),
       subjectSeed: createHmac("sha256", deps.abuseSecret).update("artifact-subject").digest("hex"),
       surface: "artifact:view-create",
       subject: artifactSubject(`view-create:${principal.humanId}`),
@@ -105,11 +107,7 @@ export async function handleArtifactViewGrantApi(
       },
     );
     if (!outcome.ok || outcome.replayed) throw new DomainError("request_rejected", "rejected");
-    const grant = issueViewGrantResponse(
-      outcome.result as ViewGrant,
-      minted.secret,
-      nonce,
-    );
+    const grant = issueViewGrantResponse(outcome.result as ViewGrant, minted.secret, nonce);
     // The grant hash never leaves the server; the response carries the
     // one-time secret and channel nonce over the authenticated session only.
     return response(

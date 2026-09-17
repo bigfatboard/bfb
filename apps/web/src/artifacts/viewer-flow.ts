@@ -95,7 +95,7 @@ export function createArtifactViewer(host: ViewerHost): ArtifactViewerHandle {
 
   function setPhase(next: ViewerPhase): void {
     phase = next;
-    for (const listener of [...listeners]) listener(next);
+    for (const listener of listeners) listener(next);
   }
 
   function dropListener(): void {

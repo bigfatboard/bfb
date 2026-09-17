@@ -49,7 +49,7 @@ describe("text renderers", () => {
     expect(html).toContain("<ul>");
     expect(html).toContain("<ol>");
     // The javascript: target stays unlinked visible text; only href creation would be active.
-    expect(html).not.toContain("href=\"javascript");
+    expect(html).not.toContain('href="javascript');
     expect(html).toContain("[evil](javascript:alert(1))");
     expect(html).toContain("&lt;script&gt;");
     expect(html).toContain("&lt;img src=x onerror=alert(1)&gt;");
@@ -82,7 +82,10 @@ describe("text renderers", () => {
   });
 
   it("falls back safely past graph caps or without a graph line", () => {
-    const edges = Array.from({ length: VIEWER_MAX_MERMAID_EDGES + 1 }, (_, index) => `N${index}-->M${index}`);
+    const edges = Array.from(
+      { length: VIEWER_MAX_MERMAID_EDGES + 1 },
+      (_, index) => `N${index}-->M${index}`,
+    );
     const over = renderMermaidToSvg(`graph TD\n${edges.join("\n")}\n`);
     expect(over.kind).toBe("fallback");
     const nodes = Array.from({ length: VIEWER_MAX_MERMAID_NODES + 1 }, (_, index) => `N${index}`);

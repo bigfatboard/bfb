@@ -71,15 +71,13 @@ async function driveIframe(
 }
 
 async function readReports(page: Page, expected: number): Promise<ProbeReport[]> {
-  await page.waitForFunction(
-    `window.__reports && window.__reports.length >= ${expected}`,
-    null,
-    { timeout: 20000 },
-  );
+  await page.waitForFunction(`window.__reports && window.__reports.length >= ${expected}`, null, {
+    timeout: 20000,
+  });
   await page.waitForTimeout(2000);
-  return (await page.evaluate(
-    () => (window as unknown as { __reports: ProbeReport[] }).__reports,
-  )).filter((entry) => typeof entry.attack === "string" && typeof entry.result === "string");
+  return (
+    await page.evaluate(() => (window as unknown as { __reports: ProbeReport[] }).__reports)
+  ).filter((entry) => typeof entry.attack === "string" && typeof entry.result === "string");
 }
 
 function resultFor(reports: ProbeReport[], attack: string): string[] {
@@ -89,12 +87,10 @@ function resultFor(reports: ProbeReport[], attack: string): string[] {
 }
 
 async function expectNoDownload(page: Page): Promise<void> {
-  const downloaded = await page
-    .waitForEvent("download", { timeout: 1500 })
-    .then(
-      () => true,
-      () => false,
-    );
+  const downloaded = await page.waitForEvent("download", { timeout: 1500 }).then(
+    () => true,
+    () => false,
+  );
   expect(downloaded, "sandboxed preview must not produce a download").toBe(false);
 }
 
@@ -149,7 +145,9 @@ test("iframe hostile SVG stays contained and reaches no app surface", async ({ p
   expect(resultFor(reports, "parent-dom")).toEqual(["blocked"]);
   await expectNoDownload(page);
   expect(fixture.hits.length - hitsBefore).toBe(0);
-  record("| Iframe hostile SVG | cookie empty, API and beacons blocked, popup null, navigation contained, zero app hits |");
+  record(
+    "| Iframe hostile SVG | cookie empty, API and beacons blocked, popup null, navigation contained, zero app hits |",
+  );
 });
 
 test("iframe image and rendered markdown load without app contact", async ({ page }) => {
@@ -207,7 +205,10 @@ interface TopProbe {
   history: number;
 }
 
-async function openTopLevel(page: Page, version: string): Promise<{ secret: string; viewId: string }> {
+async function openTopLevel(
+  page: Page,
+  version: string,
+): Promise<{ secret: string; viewId: string }> {
   const issued = await fixture.issueGrant(fixture.versions[version]!);
   await page.addInitScript(
     `window.__injectedSecret=${JSON.stringify(issued.secret)};window.__injectedNonce=${JSON.stringify(issued.nonce)};`,
@@ -224,72 +225,75 @@ async function openTopLevel(page: Page, version: string): Promise<{ secret: stri
 }
 
 async function probeTopLevel(page: Page): Promise<TopProbe> {
-  return page.evaluate(
-    async (app: string) => {
-      const out = {} as Record<string, string | number>;
-      try {
-        out.cookie = document.cookie || "empty-cookie";
-      } catch {
-        out.cookie = "blocked-throw";
-      }
-      out.referrer = document.referrer;
-      try {
-        await fetch(`${app}/__test/hit?t=api`);
-        out.api = "fetched";
-      } catch (error) {
-        out.api = `blocked:${error instanceof Error ? error.name : "unknown"}`;
-      }
-      try {
-        location.href = `${app}/__test/hit?t=topnav`;
-        out.navScheduled = "no-throw";
-      } catch {
-        out.navScheduled = "throw";
-      }
-      await new Promise((resolve) => setTimeout(resolve, 600));
-      out.location = location.href;
-      try {
-        const opened = window.open(`${app}/__test/hit?t=popup`);
-        out.popup = opened === null ? "blocked-null" : "opened";
-      } catch {
-        out.popup = "blocked-throw";
-      }
-      const form = document.createElementNS("http://www.w3.org/1999/xhtml", "form");
-      form.method = "POST";
-      form.action = `${app}/__test/hit?t=form`;
-      (document.body || document.documentElement).appendChild(form);
-      try {
-        form.submit();
-      } catch {
-        // Blocked submissions stay on the redeemed document.
-      }
-      await new Promise((resolve) => setTimeout(resolve, 800));
-      out.afterForm = location.href;
-      try {
-        localStorage.setItem("x", "1");
-        out.storage = "writable";
-      } catch {
-        out.storage = "blocked";
-      }
-      out.scripts = document.querySelectorAll("script").length;
-      out.history = history.length;
-      return out as unknown as TopProbe;
-    },
-    APP,
-  );
+  return page.evaluate(async (app: string) => {
+    const out = {} as Record<string, string | number>;
+    try {
+      out.cookie = document.cookie || "empty-cookie";
+    } catch {
+      out.cookie = "blocked-throw";
+    }
+    out.referrer = document.referrer;
+    try {
+      await fetch(`${app}/__test/hit?t=api`);
+      out.api = "fetched";
+    } catch (error) {
+      out.api = `blocked:${error instanceof Error ? error.name : "unknown"}`;
+    }
+    try {
+      location.href = `${app}/__test/hit?t=topnav`;
+      out.navScheduled = "no-throw";
+    } catch {
+      out.navScheduled = "throw";
+    }
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    out.location = location.href;
+    try {
+      const opened = window.open(`${app}/__test/hit?t=popup`);
+      out.popup = opened === null ? "blocked-null" : "opened";
+    } catch {
+      out.popup = "blocked-throw";
+    }
+    const form = document.createElementNS("http://www.w3.org/1999/xhtml", "form");
+    form.method = "POST";
+    form.action = `${app}/__test/hit?t=form`;
+    (document.body || document.documentElement).appendChild(form);
+    try {
+      form.submit();
+    } catch {
+      // Blocked submissions stay on the redeemed document.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    out.afterForm = location.href;
+    try {
+      localStorage.setItem("x", "1");
+      out.storage = "writable";
+    } catch {
+      out.storage = "blocked";
+    }
+    out.scripts = document.querySelectorAll("script").length;
+    out.history = history.length;
+    return out as unknown as TopProbe;
+  }, APP);
 }
 
 function hitsSince(index: number): Array<{ url: string; referer: string; cookie: boolean }> {
   return fixture.hits.slice(index);
 }
 
-function expectNoExfiltration(hits: Array<{ url: string; referer: string; cookie: boolean }>, secret: string): void {
+function expectNoExfiltration(
+  hits: Array<{ url: string; referer: string; cookie: boolean }>,
+  secret: string,
+): void {
   // Fetch, beacons, images, popups, forms, and downloads never send a
   // request. Top-level self-navigation may issue a bare GET that commits away
   // from the hostile document; it must carry no credential, no referrer, and
   // no secret, and the 204 targets below prove the hostile page keeps no
   // footing when the target answers without content.
   for (const vector of ["t=api", "t=img", "t=popup", "t=form", "t=download"]) {
-    expect(hits.filter((entry) => entry.url.includes(vector)), vector).toEqual([]);
+    expect(
+      hits.filter((entry) => entry.url.includes(vector)),
+      vector,
+    ).toEqual([]);
   }
   for (const entry of hits) {
     expect(entry.cookie, entry.url).toBe(false);
@@ -312,7 +316,9 @@ test("top-level hostile HTML remains constrained by the response sandbox", async
   expect(probe.scripts).toBeGreaterThan(0);
   await expectNoDownload(page);
   expectNoExfiltration(hitsSince(hitsBefore), secret);
-  record("| Top-level hostile HTML | cookie empty, referrer empty, network/forms/popups/downloads send nothing, self-navigation carries no credential or secret, page keeps no attacker footing |");
+  record(
+    "| Top-level hostile HTML | cookie empty, referrer empty, network/forms/popups/downloads send nothing, self-navigation carries no credential or secret, page keeps no attacker footing |",
+  );
 });
 
 test("top-level hostile SVG remains constrained by the response sandbox", async ({ page }) => {
@@ -324,7 +330,9 @@ test("top-level hostile SVG remains constrained by the response sandbox", async 
   expect(probe.location).toBe(`${ART}/view/${viewId}/redeem`);
   expect(probe.afterForm).toBe(`${ART}/view/${viewId}/redeem`);
   expectNoExfiltration(hitsSince(hitsBefore), secret);
-  record("| Top-level hostile SVG | cookie empty, network/forms/popups send nothing, self-navigation carries no credential or secret |");
+  record(
+    "| Top-level hostile SVG | cookie empty, network/forms/popups send nothing, self-navigation carries no credential or secret |",
+  );
 });
 
 test("top-level rendered markdown is inert text under the same policy", async ({ page }) => {
@@ -337,7 +345,9 @@ test("top-level rendered markdown is inert text under the same policy", async ({
   expect(html).toContain("synthetic review");
   expect(html).toContain("&lt;script&gt;");
   expect(html).not.toContain("<script");
-  record("| Top-level markdown | no script elements, hostile markup visible only as escaped text |");
+  record(
+    "| Top-level markdown | no script elements, hostile markup visible only as escaped text |",
+  );
 });
 
 test("top-level strict mermaid drops active lines and caps huge diagrams", async ({ page }) => {
@@ -349,7 +359,9 @@ test("top-level strict mermaid drops active lines and caps huge diagrams", async
   await openTopLevel(page, "mermaidHuge");
   const fallback = await page.evaluate(() => document.body.innerText);
   expect(fallback.toLowerCase()).toContain("preview unavailable");
-  record("| Top-level mermaid | active directives dropped without links, over-cap diagram falls back fast |");
+  record(
+    "| Top-level mermaid | active directives dropped without links, over-cap diagram falls back fast |",
+  );
 });
 
 test("top-level image loads under the same policy", async ({ page }) => {

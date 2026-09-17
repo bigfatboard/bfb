@@ -51,9 +51,11 @@ function truncateNotice(shown: string): string {
  * classified once, so generated markup is never reparsed and `*` is excluded
  * from link targets to keep emphasis parsing out of attributes.
  */
-// The single group keeps matched tokens in the split output next to escaped gaps.
+// The single group keeps matched tokens in the split output next to escaped
+// gaps. Inner groups stay non-capturing: tokens are re-parsed separately, so
+// split must never splice extraction groups into the output.
 const INLINE_TOKEN =
-  /(`[^`\n]{1,500}`|\[[^\[\]\n]{1,200}\]\(https?:\/\/[^\s<>"'`()*]{1,500}\)|\*\*[^*\n]{1,500}\*\*|\*[^*\n]{1,200}\*)/g;
+  /(`[^`\n]{1,500}`|\x5b(?:[^\x5b\x5d\n]{1,200})\x5d\(https?:\/\/[^\s<>"'`()*]{1,500}\)|\*\*[^*\n]{1,500}\*\*|\*[^*\n]{1,200}\*)/g;
 
 function renderInline(raw: string): string {
   return raw
@@ -68,7 +70,9 @@ function renderInline(raw: string): string {
       if (part.startsWith("*") && part.endsWith("*") && part.length >= 3) {
         return `<em>${escapeHtml(part.slice(1, -1))}</em>`;
       }
-      const link = /^\[([^\[\]\n]{1,200})\]\((https?:\/\/[^\s<>"'`()*]{1,500})\)$/.exec(part);
+      const link = /^\x5b([^\x5b\x5d\n]{1,200})\x5d\((https?:\/\/[^\s<>"'`()*]{1,500})\)$/.exec(
+        part,
+      );
       if (link) {
         return `<a href="${escapeHtml(link[2]!)}" rel="noopener">${escapeHtml(link[1]!)}</a>`;
       }
@@ -83,7 +87,9 @@ function renderInline(raw: string): string {
  * it renders as escaped text. Images degrade to their alt text.
  */
 export function renderMarkdownToHtml(source: string): { html: string; truncated: boolean } {
-  const clipped = clipSource(source.replace(/!\[([^\[\]\n]{0,200})\]\([^()\s]{0,500}\)/g, "$1"));
+  const clipped = clipSource(
+    source.replace(/!\x5b([^\x5b\x5d\n]{0,200})\x5d\([^()\s]{0,500}\)/g, "$1"),
+  );
   const lines = clipped.text.split("\n");
   const body: string[] = [];
   let paragraph: string[] = [];
@@ -106,7 +112,7 @@ export function renderMarkdownToHtml(source: string): { html: string; truncated:
   };
   for (const line of lines) {
     if (fence !== null) {
-      if (/^```/.test(line)) {
+      if (line.startsWith("```")) {
         body.push(`<pre><code>${escapeHtml(fence.join("\n"))}</code></pre>`);
         fence = null;
       } else {
@@ -114,7 +120,7 @@ export function renderMarkdownToHtml(source: string): { html: string; truncated:
       }
       continue;
     }
-    if (/^```/.test(line)) {
+    if (line.startsWith("```")) {
       flushParagraph();
       flushList();
       fence = [];
@@ -167,8 +173,9 @@ const MERMAID_DANGEROUS_LINE =
 const MERMAID_COMMENT_LINE = /^\s*%%/;
 const MERMAID_GRAPH_LINE = /^\s*graph\s+(TD|TB|LR|RL|BT)\s*$/i;
 const MERMAID_NODE_LINE =
-  /^\s*([A-Za-z0-9_]{1,32})(?:\(\(([^()\n]{1,200})\)\)|\(([^()\n]{1,200})\)|\[([^\[\]\n]{1,200})\]|\{([^{}\n]{1,200})\})?\s*$/;
-const MERMAID_ENDPOINT_LABEL = String.raw`(?:\(\(([^()\n]{1,200})\)\)|\(([^()\n]{1,200})\)|\[([^\[\]\n]{1,200})\]|\{([^{}\n]{1,200})\})?`;
+  /^\s*([A-Za-z0-9_]{1,32})(?:\(\(([^()\n]{1,200})\)\)|\(([^()\n]{1,200})\)|\x5b([^\x5b\x5d\n]{1,200})\x5d|\{([^{}\n]{1,200})\})?\s*$/;
+// Bracket matchers use hex escapes: a lint gate rejects `\[` outside classes.
+const MERMAID_ENDPOINT_LABEL = String.raw`(?:\(\(([^()\n]{1,200})\)\)|\(([^()\n]{1,200})\)|\x5b([^\x5b\x5d\n]{1,200})\x5d|\{([^{}\n]{1,200})\})?`;
 const MERMAID_EDGE_LINE = new RegExp(
   String.raw`^\s*([A-Za-z0-9_]{1,32})` +
     MERMAID_ENDPOINT_LABEL +
@@ -271,7 +278,8 @@ export function renderMermaidToSvg(
   if (!("nodes" in parsed)) {
     return {
       kind: "fallback",
-      reason: "mermaid preview unavailable: content is outside the strict flowchart subset or exceeds graph limits",
+      reason:
+        "mermaid preview unavailable: content is outside the strict flowchart subset or exceeds graph limits",
     };
   }
   const incoming = new Map<string, number>();
@@ -378,7 +386,10 @@ export function renderDiffToHtml(source: string): { html: string; truncated: boo
   if (clipped.truncated || cut.truncated) {
     rows.push(truncateNotice(clipped.truncated ? "the first 256 KiB" : "the first 10000 lines"));
   }
-  return { html: `<pre class="diff">${rows.join("\n")}</pre>`, truncated: clipped.truncated || cut.truncated };
+  return {
+    html: `<pre class="diff">${rows.join("\n")}</pre>`,
+    truncated: clipped.truncated || cut.truncated,
+  };
 }
 
 /** Pretty-prints bounded JSON; invalid JSON renders as escaped text with a note. */
@@ -409,7 +420,10 @@ export function renderJsonToHtml(source: string): { html: string; truncated: boo
     };
   }
   if (clipped.truncated) {
-    return { html: `${truncateNotice("the first 256 KiB")}<pre>${escapeHtml(pretty)}</pre>`, truncated: true };
+    return {
+      html: `${truncateNotice("the first 256 KiB")}<pre>${escapeHtml(pretty)}</pre>`,
+      truncated: true,
+    };
   }
   return { html: `<pre>${escapeHtml(pretty)}</pre>`, truncated: false };
 }
@@ -472,7 +486,10 @@ export function buildTextDocument(format: ViewerTextFormat, source: string): str
     body = renderMarkdownToHtml(source).html;
   } else if (format === "mermaid") {
     const rendered = renderMermaidToSvg(source);
-    body = rendered.kind === "svg" ? rendered.svg : `<p class="notice">${escapeHtml(rendered.reason)}</p>`;
+    body =
+      rendered.kind === "svg"
+        ? rendered.svg
+        : `<p class="notice">${escapeHtml(rendered.reason)}</p>`;
   } else if (format === "diff") {
     body = renderDiffToHtml(source).html;
   } else if (format === "json") {

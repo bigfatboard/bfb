@@ -15,12 +15,7 @@ import {
   VIEW_PERMISSIONS_POLICY,
 } from "@bfb/artifact-worker";
 import { adaptD1, type D1Like, type SqlDatabase } from "@bfb/db";
-import {
-  FIX,
-  bumpMemberEpoch,
-  seedSyntheticWorkspace,
-  syntheticUlid,
-} from "@bfb/domain";
+import { FIX, bumpMemberEpoch, seedSyntheticWorkspace, syntheticUlid } from "@bfb/domain";
 import { createTestHarness } from "wrangler";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -188,7 +183,13 @@ function browser(
   return server.getWorker(index % 2 ? "bfb-v02-b" : "bfb-v02-a").fetch(ORIGIN + path, init);
 }
 
-function upload(grantId: string, secret: string, body: Uint8Array, ip = "192.0.2.91", now: string = T0) {
+function upload(
+  grantId: string,
+  secret: string,
+  body: Uint8Array,
+  ip = "192.0.2.91",
+  now: string = T0,
+) {
   return server.getWorker("bfb-v02-artifact").fetch(`${ARTIFACT_ORIGIN}/upload/${grantId}`, {
     method: "PUT",
     headers: {
@@ -317,7 +318,13 @@ async function publish(
     version_id: string;
     upload_grant: { grant_id: string; secret: string };
   };
-  const uploaded = await upload(created.upload_grant.grant_id, created.upload_grant.secret, bytes, ip, now);
+  const uploaded = await upload(
+    created.upload_grant.grant_id,
+    created.upload_grant.secret,
+    bytes,
+    ip,
+    now,
+  );
   assert.equal(uploaded.status, 200, `upload failed: ${await uploaded.clone().text()}`);
   const finalized = await browser(
     1 - index,
@@ -349,11 +356,19 @@ function captureHeaders(name: string, response: WorkerResponse): void {
 }
 
 function expectFinalPolicy(response: WorkerResponse, label: string): void {
-  assert.equal(response.headers.get("content-security-policy"), viewFinalCsp(ORIGIN), `${label} CSP`);
+  assert.equal(
+    response.headers.get("content-security-policy"),
+    viewFinalCsp(ORIGIN),
+    `${label} CSP`,
+  );
   assert.equal(response.headers.get("cache-control"), "private, no-store", `${label} cache`);
   assert.equal(response.headers.get("referrer-policy"), "no-referrer", `${label} referrer`);
   assert.equal(response.headers.get("x-content-type-options"), "nosniff", `${label} nosniff`);
-  assert.equal(response.headers.get("permissions-policy"), VIEW_PERMISSIONS_POLICY, `${label} permissions`);
+  assert.equal(
+    response.headers.get("permissions-policy"),
+    VIEW_PERMISSIONS_POLICY,
+    `${label} permissions`,
+  );
   assert.equal(response.headers.get("set-cookie"), null, `${label} set-cookie`);
 }
 
@@ -366,7 +381,14 @@ try {
 
   await seedSyntheticWorkspace(db, T0, "global");
   await seedHuman(db, "v02-user", SESSION, SESSION_TOKEN, FIX.owner, "owner@synthetic.test");
-  await seedHuman(db, "v02-member-user", MEMBER_SESSION, MEMBER_TOKEN, FIX.member, "member@synthetic.test");
+  await seedHuman(
+    db,
+    "v02-member-user",
+    MEMBER_SESSION,
+    MEMBER_TOKEN,
+    FIX.member,
+    "member@synthetic.test",
+  );
   await seedHuman(
     db,
     "v02-reviewer-user",
@@ -412,10 +434,11 @@ try {
   const malformedBootstrap = await bootstrap("not-a-view");
   assert.equal(malformedBootstrap.status, 403);
   note("bootstrap_malformed_rejected");
-  const cookied = await server.getWorker("bfb-v02-artifact").fetch(
-    `${ARTIFACT_ORIGIN}/view/${syntheticUlid("V02COOK")}`,
-    { headers: { cookie: "__Host-bfb_session=stolen", "x-v02-test-time": T0 } },
-  );
+  const cookied = await server
+    .getWorker("bfb-v02-artifact")
+    .fetch(`${ARTIFACT_ORIGIN}/view/${syntheticUlid("V02COOK")}`, {
+      headers: { cookie: "__Host-bfb_session=stolen", "x-v02-test-time": T0 },
+    });
   assert.equal(cookied.status, 400);
   note("artifact_cookie_rejected");
 
@@ -504,7 +527,9 @@ try {
   const fresh = await createView(1, versions.html);
   secrets.push(fresh.secret);
   nonces.push(fresh.nonce);
-  await rejected(await redeem(fresh.view_id, "wrong-secret-value-0123456789abcdef0123", fresh.nonce));
+  await rejected(
+    await redeem(fresh.view_id, "wrong-secret-value-0123456789abcdef0123", fresh.nonce),
+  );
   note("wrong_secret_rejected");
   await rejected(await redeem(fresh.view_id, fresh.secret, "f".repeat(32)));
   note("wrong_nonce_rejected");
@@ -512,13 +537,32 @@ try {
   note("unknown_view_rejected");
   await rejected(await redeem("not-a-view", fresh.secret, fresh.nonce));
   note("malformed_view_rejected");
-  const oversized = await redeem(fresh.view_id, fresh.secret, fresh.nonce, "192.0.2.91", T0, `&pad=${"x".repeat(9000)}`);
+  const oversized = await redeem(
+    fresh.view_id,
+    fresh.secret,
+    fresh.nonce,
+    "192.0.2.91",
+    T0,
+    `&pad=${"x".repeat(9000)}`,
+  );
   assert.equal(oversized.status, 413);
   note("oversize_rejected");
   corpusRows.push(
-    { case: "Grant replay", proof: "same view redeemed twice", result: "403 uniform, one byte effect" },
-    { case: "Wrong secret", proof: "valid view ID with unknown secret", result: "403 uniform, no effect" },
-    { case: "Wrong nonce", proof: "valid secret with foreign channel nonce", result: "403 uniform, no effect" },
+    {
+      case: "Grant replay",
+      proof: "same view redeemed twice",
+      result: "403 uniform, one byte effect",
+    },
+    {
+      case: "Wrong secret",
+      proof: "valid view ID with unknown secret",
+      result: "403 uniform, no effect",
+    },
+    {
+      case: "Wrong nonce",
+      proof: "valid secret with foreign channel nonce",
+      result: "403 uniform, no effect",
+    },
     { case: "Unknown view", proof: "random view ID with live secret", result: "403 uniform" },
     { case: "Oversized body", proof: "9 KiB redemption padding", result: "413 before bytes" },
   );
@@ -527,7 +571,10 @@ try {
   const expiring = await createView(0, versions.html, OWNER, "192.0.2.93", T1);
   secrets.push(expiring.secret);
   nonces.push(expiring.nonce);
-  assert.equal((await redeem(expiring.view_id, expiring.secret, expiring.nonce, "192.0.2.93", T1_LATE)).status, 403);
+  assert.equal(
+    (await redeem(expiring.view_id, expiring.secret, expiring.nonce, "192.0.2.93", T1_LATE)).status,
+    403,
+  );
   note("expiry_rejected");
   const revoked = await createView(0, versions.html, OWNER, "192.0.2.93", T1);
   secrets.push(revoked.secret);
@@ -537,17 +584,26 @@ try {
   note("revoked_redeem_rejected");
   const reviewerView = await createView(1, versions.html, REVIEWER, "192.0.2.93", T1);
   assert.equal(
-    (await redeem(reviewerView.view_id, reviewerView.secret, reviewerView.nonce, "192.0.2.93", T1)).status,
+    (await redeem(reviewerView.view_id, reviewerView.secret, reviewerView.nonce, "192.0.2.93", T1))
+      .status,
     200,
   );
   note("reviewer_preview");
   const uploadingVersion = (await (
-    await browser(0, "POST", `/api/v1/workspaces/${FIX.workspace}/artifacts`, {
-      format: "markdown",
-      role: "review",
-      declared_size: LOG_TEXT.byteLength,
-      expected_digest: digest(LOG_TEXT),
-    }, OWNER, "192.0.2.93", T1)
+    await browser(
+      0,
+      "POST",
+      `/api/v1/workspaces/${FIX.workspace}/artifacts`,
+      {
+        format: "markdown",
+        role: "review",
+        declared_size: LOG_TEXT.byteLength,
+        expected_digest: digest(LOG_TEXT),
+      },
+      OWNER,
+      "192.0.2.93",
+      T1,
+    )
   ).json()) as { version_id: string };
   const uploadingView = await browser(
     0,
@@ -562,13 +618,19 @@ try {
   note("uploading_version_rejected");
   corpusRows.push(
     { case: "Expired grant", proof: "redeem past 5-minute TTL", result: "403 before bytes" },
-    { case: "Revoked epoch", proof: "membership epoch bumped after issuance", result: "403 before bytes" },
+    {
+      case: "Revoked epoch",
+      proof: "membership epoch bumped after issuance",
+      result: "403 before bytes",
+    },
     { case: "Reviewer preview", proof: "reviewer role opens an available version", result: "200" },
     { case: "Uploading version", proof: "view grant for non-available version", result: "403" },
   );
 
   // R2 tampering fails closed without leaking the grant.
-  const TAMPER_HTML = new TextEncoder().encode("<!doctype html><html><body><p>tamper</p></body></html>");
+  const TAMPER_HTML = new TextEncoder().encode(
+    "<!doctype html><html><body><p>tamper</p></body></html>",
+  );
   const tamperVersion = await publish(0, "html", TAMPER_HTML, "192.0.2.94", T2);
   const tamperGrant = await createView(1, tamperVersion, OWNER, "192.0.2.94", T2);
   secrets.push(tamperGrant.secret);
@@ -580,7 +642,13 @@ try {
     `workspaces/${FIX.workspace}/artifacts/sha256/${digest(TAMPER_HTML)}`,
     new TextEncoder().encode("tampered bytes"),
   );
-  const tampered = await redeem(tamperGrant.view_id, tamperGrant.secret, tamperGrant.nonce, "192.0.2.94", T2);
+  const tampered = await redeem(
+    tamperGrant.view_id,
+    tamperGrant.secret,
+    tamperGrant.nonce,
+    "192.0.2.94",
+    T2,
+  );
   assert.equal(tampered.status, 500);
   const tamperedBody = await tampered.text();
   assert(!tamperedBody.includes(tamperGrant.secret), "failure must not leak the grant");
@@ -595,22 +663,43 @@ try {
   const budgetGrants: CreatedView[] = [];
   for (let index = 0; index < 21; index += 1) {
     budgetGrants.push(
-      await createView(index, versions.html, index < 11 ? OWNER : MEMBER, `192.0.2.${128 + index}`, T3),
+      await createView(
+        index,
+        versions.html,
+        index < 11 ? OWNER : MEMBER,
+        `192.0.2.${128 + index}`,
+        T3,
+      ),
     );
   }
   const budgetStatuses: number[] = [];
   for (const candidate of budgetGrants) {
-    const response = await redeem(candidate.view_id, candidate.secret, candidate.nonce, "192.0.2.94", T3);
+    const response = await redeem(
+      candidate.view_id,
+      candidate.secret,
+      candidate.nonce,
+      "192.0.2.94",
+      T3,
+    );
     budgetStatuses.push(response.status);
     await response.arrayBuffer();
   }
-  assert.deepEqual(budgetStatuses.slice(0, 20), Array.from({ length: 20 }, () => 200));
+  assert.deepEqual(
+    budgetStatuses.slice(0, 20),
+    Array.from({ length: 20 }, () => 200),
+  );
   assert.equal(budgetStatuses[20], 403);
   note("budget_exhausted");
   const spared = budgetGrants[20]!;
   secrets.push(spared.secret);
   nonces.push(spared.nonce);
-  const sparedResponse = await redeem(spared.view_id, spared.secret, spared.nonce, "192.0.2.95", T3);
+  const sparedResponse = await redeem(
+    spared.view_id,
+    spared.secret,
+    spared.nonce,
+    "192.0.2.95",
+    T3,
+  );
   assert.equal(sparedResponse.status, 200);
   note("budget_isolated_by_ip");
   corpusRows.push({
@@ -634,7 +723,10 @@ try {
   for (const nonce of nonces) {
     assert(!dump.includes(nonce), "channel nonce retained outside its hash");
   }
-  assert(!dump.includes("/tmp/") && !dump.includes("/Users/"), "local path retained in diagnostics");
+  assert(
+    !dump.includes("/tmp/") && !dump.includes("/Users/"),
+    "local path retained in diagnostics",
+  );
   const buckets = (await db.prepare(`SELECT bucket_key FROM rate_limit_buckets`).all()) as Array<{
     bucket_key: string;
   }>;

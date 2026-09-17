@@ -59,7 +59,7 @@ function fakeHost(issued: ViewerGrant[] = [grant()]): {
     issuedRefs,
     requests: () => requests,
     emit: (event) => {
-      for (const handler of [...handlers]) handler(event);
+      for (const handler of handlers) handler(event);
     },
     host: {
       readyTimeoutMs: 50,
@@ -152,9 +152,9 @@ describe("artifact viewer flow", () => {
         origin: forged.origin,
         source: forged.source,
         data: (forged as { data?: unknown }).data ?? { type: "bfb-view-ready" },
-        ports:
-          (forged as { ports?: unknown[] }).ports ??
-          [{ postMessage: () => {}, close: () => {} }],
+        ports: (forged as { ports?: unknown[] }).ports ?? [
+          { postMessage: () => {}, close: () => {} },
+        ],
       });
       expect(fake.posted).toEqual([]);
     }
