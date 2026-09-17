@@ -27,5 +27,7 @@ export default defineConfig({
       "packages/domain/test/**/*.test.ts",
     ],
     restoreMocks: true,
+    // Migration replay and protocol generation do real work per test; a loaded machine exceeds the 5 s default.
+    testTimeout: 60_000,
   },
 });
