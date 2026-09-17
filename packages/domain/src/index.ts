@@ -16,6 +16,7 @@ export * from "./measurements.js";
 export * from "./oauth.js";
 export * from "./projects.js";
 export * from "./projections.js";
+export * from "./remote-parity.js";
 export * from "./runner-crypto.js";
 export * from "./runners.js";
 export * from "./runner-channel.js";
