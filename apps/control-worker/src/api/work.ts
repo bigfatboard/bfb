@@ -3,6 +3,7 @@
 
 import { createAuthorizationContext, type SqlDatabase } from "@bfb/db";
 import {
+  acceptResultCommand,
   addCommentCommand,
   addContextCommand,
   addTaskDependencyCommand,
@@ -11,19 +12,25 @@ import {
   assertTaskChildAccess,
   buildNeedsNowDeck,
   buildProjectLanes,
+  cancelRunCommand,
   createExecutionCommand,
   createProviderSessionCommand,
   createRunCommand,
   createTaskCommand,
   DomainError,
+  failRunCommand,
   getAgentContext,
   getTask,
   isUlid,
+  listResultSubmissions,
   listTasksPage,
   loadPrincipal,
+  requestChangesCommand,
+  submitResultCommand,
   transitionExecutionCommand,
   updateRunActivityCommand,
   updateTaskCommand,
+  type EvidenceRef,
   type TaskPriority,
   type TaskState,
 } from "@bfb/domain";
@@ -547,6 +554,85 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
             | "idle"
             | "offline"
             | "unknown",
+        }),
+      );
+    }
+    if (rest === "/results" && request.method === "GET") {
+      return json({
+        submissions: await listResultSubmissions(deps.db, deps.workspaceId, runId),
+      });
+    }
+    if (rest === "/results" && request.method === "POST") {
+      const record = await body(request, [
+        "summary",
+        "limitations",
+        "evidence_refs",
+        "git_branch",
+        "git_commit",
+        "git_dirty",
+        "request_id",
+      ]);
+      const limitations = optionalString(record, "limitations");
+      const evidenceRefs = record["evidence_refs"] as EvidenceRef[] | undefined;
+      const gitBranch = optionalString(record, "git_branch");
+      const gitCommit = optionalString(record, "git_commit");
+      const gitDirty = optionalBoolean(record, "git_dirty");
+      return outcomeResponse(
+        await execute(submitResultCommand, requestId(record), {
+          runId,
+          summary: requiredString(record, "summary"),
+          ...(limitations === undefined ? {} : { limitations }),
+          ...(evidenceRefs === undefined ? {} : { evidenceRefs }),
+          ...(gitBranch === undefined ? {} : { gitBranch }),
+          ...(gitCommit === undefined ? {} : { gitCommit }),
+          ...(gitDirty === undefined ? {} : { gitDirty }),
+        }),
+      );
+    }
+    if (rest === "/review" && request.method === "POST") {
+      const record = await body(request, [
+        "decision",
+        "submission_id",
+        "expected_run_version",
+        "expected_task_version",
+        "comment",
+        "request_id",
+      ]);
+      const decision = requiredString(record, "decision");
+      if (decision !== "accept" && decision !== "request_changes") {
+        throw new DomainError("invalid_argument", "review decision is invalid");
+      }
+      const comment = optionalString(record, "comment");
+      const input = {
+        runId,
+        submissionId: requiredString(record, "submission_id"),
+        expectedRunVersion: requiredVersion(record, "expected_run_version"),
+        expectedTaskVersion: requiredVersion(record, "expected_task_version"),
+        ...(comment === undefined ? {} : { comment }),
+      };
+      return outcomeResponse(
+        await execute(
+          decision === "accept" ? acceptResultCommand : requestChangesCommand,
+          requestId(record),
+          input,
+        ),
+      );
+    }
+    if (rest === "/failure" && request.method === "POST") {
+      const record = await body(request, ["expected_run_version", "request_id"]);
+      return outcomeResponse(
+        await execute(failRunCommand, requestId(record), {
+          runId,
+          expectedRunVersion: requiredVersion(record, "expected_run_version"),
+        }),
+      );
+    }
+    if (rest === "/cancellation" && request.method === "POST") {
+      const record = await body(request, ["expected_run_version", "request_id"]);
+      return outcomeResponse(
+        await execute(cancelRunCommand, requestId(record), {
+          runId,
+          expectedRunVersion: requiredVersion(record, "expected_run_version"),
         }),
       );
     }

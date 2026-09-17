@@ -651,8 +651,8 @@ export interface SubmissionView extends SubmissionRecord {
 export async function listResultSubmissions(
   db: {
     prepare(query: string): {
-      get(...params: unknown[]): unknown;
-      all(...params: unknown[]): unknown[];
+      get(...params: unknown[]): Promise<unknown>;
+      all(...params: unknown[]): Promise<unknown[]>;
     };
   },
   workspaceId: string,
