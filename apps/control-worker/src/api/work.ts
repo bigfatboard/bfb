@@ -20,12 +20,18 @@ import {
   DomainError,
   failRunCommand,
   getAgentContext,
+  getRunMeasurements,
   getTask,
+  getTaskMeasurements,
   isUlid,
+  listReviewTimers,
   listResultSubmissions,
   listTasksPage,
   loadPrincipal,
+  recordBrowserActivityCommand,
   requestChangesCommand,
+  startReviewTimerCommand,
+  stopReviewTimerCommand,
   submitResultCommand,
   transitionExecutionCommand,
   updateRunActivityCommand,
@@ -274,6 +280,31 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
     return outcomeResponse(outcome);
   }
 
+  if (path === `${base}/browser-activity` && request.method === "POST") {
+    const record = await body(request, ["task_id", "started_at", "ended_at", "observation_id", "request_id"]);
+    const taskId = optionalString(record, "task_id");
+    const observationId = optionalString(record, "observation_id");
+    return outcomeResponse(
+      await execute(recordBrowserActivityCommand, requestId(record), {
+        ...(taskId === undefined ? {} : { taskId }),
+        startedAt: requiredString(record, "started_at"),
+        endedAt: requiredString(record, "ended_at"),
+        ...(observationId === undefined ? {} : { observationId }),
+      }),
+    );
+  }
+
+  const stopMatch = path.match(new RegExp(`^${base}/review-timers/([^/]+)/stop$`));
+  if (stopMatch && request.method === "POST") {
+    const record = await body(request, ["expected_version", "request_id"]);
+    return outcomeResponse(
+      await execute(stopReviewTimerCommand, requestId(record), {
+        timerId: stopMatch[1] ?? "",
+        expectedVersion: requiredVersion(record),
+      }),
+    );
+  }
+
   const taskMatch = path.match(new RegExp(`^${base}/tasks/([^/]+)(.*)$`));
   if (taskMatch) {
     const taskId = taskMatch[1] ?? "";
@@ -284,6 +315,40 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
       }
       const task = await getTask(deps.db, deps.workspaceId, taskId);
       return task ? json({ task }) : json({ error: "not_found" }, 404);
+    }
+    if (rest === "/measurements" && request.method === "GET") {
+      if (!(await canReadTask(deps.db, principal, taskId))) {
+        return json({ error: "not_found" }, 404);
+      }
+      try {
+        return json({
+          measurements: await getTaskMeasurements(deps.db, deps.workspaceId, taskId, deps.now),
+        });
+      } catch (error) {
+        if (error instanceof DomainError && error.code === "not_found") {
+          return json({ error: "not_found" }, 404);
+        }
+        throw error;
+      }
+    }
+    if (rest === "/review-timers" && request.method === "GET") {
+      if (!(await canReadTask(deps.db, principal, taskId))) {
+        return json({ error: "not_found" }, 404);
+      }
+      return json({ timers: await listReviewTimers(deps.db, deps.workspaceId, taskId) });
+    }
+    if (rest === "/review-timers" && request.method === "POST") {
+      if (!(await canReadTask(deps.db, principal, taskId))) {
+        return json({ error: "not_found" }, 404);
+      }
+      const record = await body(request, ["run_id", "request_id"]);
+      const runId = optionalString(record, "run_id");
+      return outcomeResponse(
+        await execute(startReviewTimerCommand, requestId(record), {
+          taskId,
+          ...(runId === undefined ? {} : { runId }),
+        }),
+      );
     }
     if (rest === "" && request.method === "PATCH") {
       const record = await body(request, [
@@ -539,6 +604,18 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
     }
     if (rest === "" && request.method === "GET") {
       return json({ run });
+    }
+    if (rest === "/measurements" && request.method === "GET") {
+      try {
+        return json({
+          measurements: await getRunMeasurements(deps.db, deps.workspaceId, runId, deps.now),
+        });
+      } catch (error) {
+        if (error instanceof DomainError && error.code === "not_found") {
+          return json({ error: "not_found" }, 404);
+        }
+        throw error;
+      }
     }
     if (rest === "/activity" && request.method === "PATCH") {
       const record = await body(request, ["expected_version", "activity", "request_id"]);
