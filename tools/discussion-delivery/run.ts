@@ -59,7 +59,9 @@ try {
 }
 
 if (process.env["BFB_D02_CODEX_CONSENT"] === "1") {
-  console.log("D02_CODEX_LIVE_CONSENT live-turn consent is set; run the bounded experiment explicitly");
+  console.log(
+    "D02_CODEX_LIVE_CONSENT live-turn consent is set; run the bounded experiment explicitly",
+  );
 } else {
   console.log(
     "D02_CODEX_LIVE_SKIPPED no live model turn without explicit consent; offline adapter evidence only",
