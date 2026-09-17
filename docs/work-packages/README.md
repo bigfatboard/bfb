@@ -370,7 +370,7 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 | C02 | [Human identity and sessions](WP-C02-human-identity.md) | `done` | High |
 | C03 | [Passkey enrollment and step-up](WP-C03-passkey-step-up.md) | `done` | High |
 | C04 | [Workspace authorization](WP-C04-workspace-authorization.md) | `done` | Very high |
-| C05 | [Human device and CLI credentials](WP-C05-human-device-credentials.md) | `review` | High |
+| C05 | [Human device and CLI credentials](WP-C05-human-device-credentials.md) | `done` | High |
 | C06 | [Runner identity, grants, and tokens](WP-C06-runner-enrollment-channel.md) | `done` | Very high |
 | C07 | [Projects, repository identity, and policy](WP-C07-work-domain.md) | `done` | High |
 | C08 | [Tasks, runs, context, and work APIs](WP-C08-work-records.md) | `done` | High |

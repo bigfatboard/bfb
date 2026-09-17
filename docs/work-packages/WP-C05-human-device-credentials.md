@@ -1,6 +1,6 @@
 # WP-C05 — Human device and CLI credentials
 
-Status: `review`
+Status: `done`
 
 Risk: High
 
