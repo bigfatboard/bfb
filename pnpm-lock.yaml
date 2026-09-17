@@ -203,6 +203,19 @@ importers:
         specifier: 4.120.1
         version: 4.120.1(@cloudflare/workers-types@5.20260810.1)
 
+  tools/discussion-delivery:
+    dependencies:
+      '@bfb/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      better-sqlite3:
+        specifier: 12.6.2
+        version: 12.6.2
+    devDependencies:
+      '@types/better-sqlite3':
+        specifier: 7.6.13
+        version: 7.6.13
+
   tools/discussions:
     dependencies:
       '@bfb/db':
