@@ -14,6 +14,13 @@ import {
   resolveAttentionCommand,
 } from "./attention.js";
 import {
+  recordBrowserActivityCommand,
+  reportIntervalCommand,
+  reportTokensCommand,
+  startReviewTimerCommand,
+  stopReviewTimerCommand,
+} from "./measurements.js";
+import {
   createDiscussionCommand,
   changeDiscussionCommand,
   concludeDiscussionCommand,
@@ -95,6 +102,11 @@ const commands = new Map<string, HubCommand<unknown, unknown>>([
   [requestAttentionCommand.name, requestAttentionCommand as HubCommand<unknown, unknown>],
   [answerAttentionCommand.name, answerAttentionCommand as HubCommand<unknown, unknown>],
   [resolveAttentionCommand.name, resolveAttentionCommand as HubCommand<unknown, unknown>],
+  [reportTokensCommand.name, reportTokensCommand as HubCommand<unknown, unknown>],
+  [reportIntervalCommand.name, reportIntervalCommand as HubCommand<unknown, unknown>],
+  [startReviewTimerCommand.name, startReviewTimerCommand as HubCommand<unknown, unknown>],
+  [stopReviewTimerCommand.name, stopReviewTimerCommand as HubCommand<unknown, unknown>],
+  [recordBrowserActivityCommand.name, recordBrowserActivityCommand as HubCommand<unknown, unknown>],
   [createDiscussionCommand.name, createDiscussionCommand as HubCommand<unknown, unknown>],
   [changeDiscussionCommand.name, changeDiscussionCommand as HubCommand<unknown, unknown>],
   [concludeDiscussionCommand.name, concludeDiscussionCommand as HubCommand<unknown, unknown>],

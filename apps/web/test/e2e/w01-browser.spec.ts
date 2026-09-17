@@ -385,5 +385,6 @@ test("owner can pass intended ownership to another permitted human", async ({ pa
   await form.getByLabel("Why this handoff").fill("Member owns the release checklist.");
   await form.getByRole("button", { name: "Pass work" }).click();
   await expect(page.getByTestId("mutation-status")).toContainText("No run was started");
-  await expect(page.getByText("Time and token measurements are unavailable.")).toBeVisible();
+  await expect(page.getByTestId("measurements-panel")).toBeVisible();
+  await expect(page.getByTestId("measurements-human")).toBeVisible();
 });

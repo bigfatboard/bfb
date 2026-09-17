@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { LaunchSection } from "../launch/operations.js";
 import type { AgentProfileSummary } from "./board.js";
+import { MeasurementsPanel } from "./measurements.js";
 import { ResultPanel } from "./result.js";
 import { RunTimeline } from "../realtime/RunTimeline.js";
 
@@ -397,7 +398,13 @@ export function WorkMutations(props: WorkMutationsProps) {
               <span>Version</span>
               <code>{task.resource_version}</code>
             </div>
-            <p className="unavailable-copy">Time and token measurements are unavailable.</p>
+            <MeasurementsPanel
+              key={`measurements-${task.id}`}
+              workspaceId={props.workspaceId}
+              taskId={task.id}
+              fetchImpl={fetchFn}
+              csrfToken={props.csrfToken ?? ""}
+            />
           </section>
 
           {task ? (
