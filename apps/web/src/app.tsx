@@ -493,6 +493,7 @@ export function AppShell(props: AppShellProps = {}) {
           workspaceId={workspace.id}
           selectedTaskId={selectedTaskId}
           humanId={board.human.id}
+          humanDisplayName={board.human.display_name}
           role={board.role}
           agentProfiles={agentProfiles}
           fetchImpl={fetchFn}
