@@ -2,6 +2,7 @@
 // ABOUTME: Transports import these commands instead of owning parallel business logic.
 
 export * from "./abuse.js";
+export * from "./artifact-views.js";
 export * from "./artifacts.js";
 export * from "./attention.js";
 export * from "./authorization.js";

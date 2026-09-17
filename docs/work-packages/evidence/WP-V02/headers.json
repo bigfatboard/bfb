@@ -1,0 +1,101 @@
+{
+  "bootstrap": {
+    "cache-control": "private, no-store",
+    "content-security-policy": "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'none'; connect-src 'none'; font-src 'none'; object-src 'none'; frame-src 'none'; form-action 'self'; base-uri 'none'; frame-ancestors https://bfb.v02.test",
+    "content-type": "text/html; charset=utf-8",
+    "mf-content-encoding": "gzip",
+    "permissions-policy": "accelerometer=(), camera=(), display-capture=(), fullscreen=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-get=(), screen-wake-lock=(), sync-xhr=(), usb=(), web-share=(), xr-spatial-tracking=()",
+    "referrer-policy": "no-referrer",
+    "transfer-encoding": "chunked",
+    "x-content-type-options": "nosniff"
+  },
+  "redeem:html": {
+    "cache-control": "private, no-store",
+    "content-security-policy": "default-src 'none'; sandbox allow-scripts; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; font-src 'none'; object-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors https://bfb.v02.test",
+    "content-type": "text/html; charset=utf-8",
+    "mf-content-encoding": "gzip",
+    "permissions-policy": "accelerometer=(), camera=(), display-capture=(), fullscreen=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-get=(), screen-wake-lock=(), sync-xhr=(), usb=(), web-share=(), xr-spatial-tracking=()",
+    "referrer-policy": "no-referrer",
+    "transfer-encoding": "chunked",
+    "x-content-type-options": "nosniff"
+  },
+  "redeem:svg": {
+    "cache-control": "private, no-store",
+    "content-security-policy": "default-src 'none'; sandbox allow-scripts; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; font-src 'none'; object-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors https://bfb.v02.test",
+    "content-type": "image/svg+xml",
+    "mf-content-encoding": "gzip",
+    "permissions-policy": "accelerometer=(), camera=(), display-capture=(), fullscreen=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-get=(), screen-wake-lock=(), sync-xhr=(), usb=(), web-share=(), xr-spatial-tracking=()",
+    "referrer-policy": "no-referrer",
+    "transfer-encoding": "chunked",
+    "x-content-type-options": "nosniff"
+  },
+  "redeem:markdown": {
+    "cache-control": "private, no-store",
+    "content-security-policy": "default-src 'none'; sandbox allow-scripts; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; font-src 'none'; object-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors https://bfb.v02.test",
+    "content-type": "text/html; charset=utf-8",
+    "mf-content-encoding": "gzip",
+    "permissions-policy": "accelerometer=(), camera=(), display-capture=(), fullscreen=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-get=(), screen-wake-lock=(), sync-xhr=(), usb=(), web-share=(), xr-spatial-tracking=()",
+    "referrer-policy": "no-referrer",
+    "transfer-encoding": "chunked",
+    "x-content-type-options": "nosniff"
+  },
+  "redeem:mermaid": {
+    "cache-control": "private, no-store",
+    "content-security-policy": "default-src 'none'; sandbox allow-scripts; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; font-src 'none'; object-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors https://bfb.v02.test",
+    "content-type": "text/html; charset=utf-8",
+    "mf-content-encoding": "gzip",
+    "permissions-policy": "accelerometer=(), camera=(), display-capture=(), fullscreen=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-get=(), screen-wake-lock=(), sync-xhr=(), usb=(), web-share=(), xr-spatial-tracking=()",
+    "referrer-policy": "no-referrer",
+    "transfer-encoding": "chunked",
+    "x-content-type-options": "nosniff"
+  },
+  "redeem:mermaid-huge": {
+    "cache-control": "private, no-store",
+    "content-security-policy": "default-src 'none'; sandbox allow-scripts; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; font-src 'none'; object-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors https://bfb.v02.test",
+    "content-type": "text/html; charset=utf-8",
+    "mf-content-encoding": "gzip",
+    "permissions-policy": "accelerometer=(), camera=(), display-capture=(), fullscreen=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-get=(), screen-wake-lock=(), sync-xhr=(), usb=(), web-share=(), xr-spatial-tracking=()",
+    "referrer-policy": "no-referrer",
+    "transfer-encoding": "chunked",
+    "x-content-type-options": "nosniff"
+  },
+  "redeem:json": {
+    "cache-control": "private, no-store",
+    "content-security-policy": "default-src 'none'; sandbox allow-scripts; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; font-src 'none'; object-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors https://bfb.v02.test",
+    "content-type": "text/html; charset=utf-8",
+    "mf-content-encoding": "gzip",
+    "permissions-policy": "accelerometer=(), camera=(), display-capture=(), fullscreen=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-get=(), screen-wake-lock=(), sync-xhr=(), usb=(), web-share=(), xr-spatial-tracking=()",
+    "referrer-policy": "no-referrer",
+    "transfer-encoding": "chunked",
+    "x-content-type-options": "nosniff"
+  },
+  "redeem:diff": {
+    "cache-control": "private, no-store",
+    "content-security-policy": "default-src 'none'; sandbox allow-scripts; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; font-src 'none'; object-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors https://bfb.v02.test",
+    "content-type": "text/html; charset=utf-8",
+    "mf-content-encoding": "gzip",
+    "permissions-policy": "accelerometer=(), camera=(), display-capture=(), fullscreen=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-get=(), screen-wake-lock=(), sync-xhr=(), usb=(), web-share=(), xr-spatial-tracking=()",
+    "referrer-policy": "no-referrer",
+    "transfer-encoding": "chunked",
+    "x-content-type-options": "nosniff"
+  },
+  "redeem:log": {
+    "cache-control": "private, no-store",
+    "content-security-policy": "default-src 'none'; sandbox allow-scripts; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; font-src 'none'; object-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors https://bfb.v02.test",
+    "content-type": "text/html; charset=utf-8",
+    "mf-content-encoding": "gzip",
+    "permissions-policy": "accelerometer=(), camera=(), display-capture=(), fullscreen=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-get=(), screen-wake-lock=(), sync-xhr=(), usb=(), web-share=(), xr-spatial-tracking=()",
+    "referrer-policy": "no-referrer",
+    "transfer-encoding": "chunked",
+    "x-content-type-options": "nosniff"
+  },
+  "redeem:png": {
+    "cache-control": "private, no-store",
+    "content-length": "19",
+    "content-security-policy": "default-src 'none'; sandbox allow-scripts; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; font-src 'none'; object-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors https://bfb.v02.test",
+    "content-type": "image/png",
+    "permissions-policy": "accelerometer=(), camera=(), display-capture=(), fullscreen=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-get=(), screen-wake-lock=(), sync-xhr=(), usb=(), web-share=(), xr-spatial-tracking=()",
+    "referrer-policy": "no-referrer",
+    "x-content-type-options": "nosniff"
+  }
+}

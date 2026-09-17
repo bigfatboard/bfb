@@ -94,6 +94,10 @@
       "file": "0025_discussion_delivery.sql"
     },
     {
+      "id": "0026_artifact_viewer",
+      "file": "0026_artifact_viewer.sql"
+    },
+    {
       "id": "0027_measurements",
       "file": "0027_measurements.sql"
     }

@@ -10,6 +10,16 @@ import {
   type ArtifactBindings,
 } from "./env.js";
 import { handleUpload } from "./upload.js";
+import { handleViewBootstrap, handleViewRedeem } from "./view.js";
+
+export {
+  buildViewBootstrap,
+  VIEW_BOOTSTRAP_SCRIPT,
+  VIEW_PERMISSIONS_POLICY,
+  viewBootstrapCsp,
+  viewFinalCsp,
+} from "./view.js";
+export { buildTextDocument, buildViewerFallback, isViewerTextFormat } from "./renderers.js";
 
 export interface ArtifactFetchOptions {
   db?: SqlDatabase;
@@ -77,15 +87,30 @@ export function createArtifactFetchHandler(options: ArtifactFetchOptions = {}) {
         });
       }
 
+      const redeem = /^\/view\/([^/]+)\/redeem$/.exec(url.pathname);
+      if (redeem?.[1]) {
+        return handleViewRedeem(request, redeem[1], {
+          db,
+          artifacts: validated.artifacts,
+          now,
+          abuseSecret: validated.uploadAbuseSecret,
+          appOrigin: validated.appOrigin,
+        });
+      }
+      const view = /^\/view\/([^/]+)$/.exec(url.pathname);
+      if (view?.[1]) {
+        return handleViewBootstrap(request, view[1], { appOrigin: validated.appOrigin });
+      }
+
       const headers = corsHeaders(request, validated.artifactOrigin);
       headers.set("content-type", "application/json; charset=utf-8");
       return new Response(
         JSON.stringify({
           ok: false,
-          error: "artifact_not_implemented",
-          message: "Artifact views are owned by V02",
+          error: "artifact_not_found",
+          message: "Unknown artifact path",
         }),
-        { status: 501, headers },
+        { status: 404, headers },
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : "artifact_request_failed";

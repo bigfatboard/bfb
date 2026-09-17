@@ -484,7 +484,8 @@ describe("artifact upload", () => {
       ENVIRONMENT: "local",
       UPLOAD_ABUSE_SECRET: ABUSE_SECRET,
     });
-    expect(missing.status).toBe(501);
+    // V02 owns the view path: malformed view IDs fail uniformly, not as unimplemented.
+    expect(missing.status).toBe(403);
   });
 
   it("reissues a grant after a consumed attempt and converges receipts", async () => {
