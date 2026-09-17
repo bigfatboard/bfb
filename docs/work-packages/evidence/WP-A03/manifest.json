@@ -1,7 +1,7 @@
 {
   "$schema": "../manifest.schema.json",
   "package": "A03",
-  "tested_commit": "ea7b0e6091d99786ae0421b2669ee3177e1b024d",
+  "tested_commit": "88a3d33418932b9d022b966c3550682b0fe4cc3e",
   "protocol_version": "bfb-wire/1",
   "schema_version": "1",
   "migration_head": "0024_result_submissions",
