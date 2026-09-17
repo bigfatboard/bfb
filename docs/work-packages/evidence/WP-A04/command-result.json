@@ -1,0 +1,44 @@
+{
+  "gate": "pnpm test:a04",
+  "tested_tree": "34691ee59b32291bdcba7e53897559a936e8e487",
+  "outcome": "passed",
+  "steps": [
+    {
+      "command": "pnpm build",
+      "outcome": "passed"
+    },
+    {
+      "command": "vitest run packages/domain/test/measurements.test.ts apps/control-worker/test/measurement-routes.test.ts apps/web/test/measurements.test.ts packages/db/test/migrations.test.ts",
+      "outcome": "passed",
+      "detail": "4 files, 49 tests (34 domain, 4 routes, 4 view, 7 migrations)"
+    },
+    {
+      "command": "pnpm exec tsc -b tools/measurements --pretty false",
+      "outcome": "passed"
+    },
+    {
+      "command": "tsx tools/measurements/run.ts",
+      "outcome": "passed",
+      "detail": "A04 worker harness: migration upgrade, cross-worker duplicate/conflict, overlap union, derivation, price history, timer races, capped activity, aggregation over real Workers and D1"
+    },
+    {
+      "command": "pnpm build:web",
+      "outcome": "passed"
+    },
+    {
+      "command": "BFB_E2E_PORT=4187 playwright test apps/web/test/e2e/a04-measurements.spec.ts",
+      "outcome": "passed",
+      "detail": "2 browser tests: separated task-sheet sections with run API trace; owner review-timer start/stop with screenshots"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "detail": "format, lint, typecheck, protocol, provider, full tests, headers, docs, roadmap, go, swift"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed"
+    }
+  ],
+  "redaction": "summary only; no terminal output, secrets, or local paths retained"
+}

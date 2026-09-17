@@ -1,12 +1,12 @@
 {
   "snapshots": {
     "migration": {
-      "preserved_task": "015BGQXKW1DVA4577NCS04S5ZA",
+      "preserved_task": "015F7G01MQHNE45HDE0RY389PC",
       "tables": 5
     },
     "claim": {
-      "run": "01MACSRTJBNK28ARJENREKRMM1",
-      "execution": "014NH9B2087V8WZWWKJWBH1SKB"
+      "run": "01PD66P21SDPM7TPD50FD2EN0G",
+      "execution": "010VP9Z4FR8N74MPMG9NZKND40"
     },
     "fixtures": {
       "normalized": 3

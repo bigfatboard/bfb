@@ -1,0 +1,75 @@
+{
+  "artifacts": [
+    "docs/work-packages/evidence/WP-A04/manifest.json",
+    "docs/work-packages/evidence/WP-A04/command-result.json",
+    "docs/work-packages/evidence/WP-A04/calculation-snapshots.json",
+    "docs/work-packages/evidence/WP-A04/acceptance-matrix.md",
+    "docs/work-packages/evidence/WP-A04/interval-property-notes.md",
+    "docs/work-packages/evidence/WP-A04/review-timer.md",
+    "docs/work-packages/evidence/WP-A04/fixtures/codex-usage.json",
+    "docs/work-packages/evidence/WP-A04/fixtures/claude-usage.json",
+    "docs/work-packages/evidence/WP-A04/fixtures/missing-usage.json",
+    "docs/work-packages/evidence/WP-A04/browser/measurements-task.png",
+    "docs/work-packages/evidence/WP-A04/browser/measurements-timer-open.png",
+    "docs/work-packages/evidence/WP-A04/browser/measurements-timer-stopped.png",
+    "docs/work-packages/evidence/WP-A04/browser/measurements-flow.md",
+    "docs/contracts/measurements.md",
+    "packages/domain/src/measurements.ts",
+    "packages/domain/test/measurements.test.ts",
+    "packages/domain/src/command-catalog.ts",
+    "apps/control-worker/src/api/work.ts",
+    "apps/control-worker/test/measurement-routes.test.ts",
+    "apps/web/src/work/measurements.tsx",
+    "apps/web/test/measurements.test.ts",
+    "apps/web/test/e2e/a04-measurements.spec.ts",
+    "tools/measurements/run.ts",
+    "migrations/d1/0027_measurements.sql"
+  ],
+  "ci": {
+    "status": "not_run"
+  },
+  "commands": [
+    {
+      "artifact": "docs/work-packages/evidence/WP-A04/command-result.json",
+      "command": "pnpm test:a04",
+      "outcome": "passed"
+    },
+    {
+      "artifact": "docs/work-packages/evidence/WP-A04/command-result.json",
+      "command": "pnpm verify",
+      "outcome": "passed"
+    },
+    {
+      "artifact": "docs/work-packages/evidence/WP-A04/command-result.json",
+      "command": "pnpm worktree:check",
+      "outcome": "passed"
+    },
+    {
+      "artifact": "docs/work-packages/evidence/WP-A04/command-result.json",
+      "command": "clean-checkout gate: pnpm install --frozen-lockfile, pnpm build, pnpm test:a04",
+      "outcome": "passed"
+    }
+  ],
+  "environment": {
+    "architecture": "arm64",
+    "kind": "local",
+    "os": "macOS 26.2"
+  },
+  "migration_head": "0027_measurements",
+  "outcome": "passed",
+  "package": "A04",
+  "protocol_version": "bfb-wire/1",
+  "redaction": {
+    "prohibited_content": ["secrets", "local absolute paths", "raw terminal output"],
+    "status": "passed"
+  },
+  "schema_version": "1",
+  "tested_commit": "34691ee59b32291bdcba7e53897559a936e8e487",
+  "toolchains": {
+    "better-sqlite3": "12.6.2",
+    "go": "1.26.5",
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "wrangler": "4.125.0"
+  }
+}
