@@ -9,9 +9,18 @@ import {
   buildControlRequest,
   buildStartRequest,
   buildWakeLink,
+  describeCheckoutDisplay,
   describeLaunchStatus,
+  isLaunchableRunner,
+  linkedCheckoutsMessage,
+  loadLaunchableCheckoutStatuses,
   newIdempotencyKey,
+  providerStatusMessage,
+  refreshTaskLaunches,
+  selectLaunchableRunners,
+  type CheckoutStatus,
   type LaunchStatus,
+  type RunnerSummary,
 } from "../src/launch/api.js";
 
 const START_KEYS = [
@@ -288,5 +297,171 @@ describe("w02 launch presentation", () => {
       const shown = describeLaunchStatus(baseLaunch({ result_state: resultState }));
       expect(shown.headline).not.toContain(resultState);
     }
+  });
+});
+
+function baseRunner(overrides: Partial<RunnerSummary> = {}): RunnerSummary {
+  const owner = randomUlid();
+  return {
+    schema_version: 1,
+    runner_id: randomUlid(),
+    workspace_id: randomUlid(),
+    owner_human_id: owner,
+    device_label: "Synthetic Mac",
+    public_key_thumbprint: "synthetic-thumbprint",
+    authorization_epoch: 1,
+    grant_epoch: 1,
+    status: "enrolled",
+    enrolled_at: "2026-08-07T12:00:00.000Z",
+    granted_project_ids: [],
+    launcher_human_ids: [owner],
+    ...overrides,
+  };
+}
+
+function baseCheckoutStatus(overrides: Partial<CheckoutStatus> = {}): CheckoutStatus {
+  return {
+    runner_id: randomUlid(),
+    device_label: "Synthetic Mac",
+    owner_human_id: randomUlid(),
+    status: "enrolled",
+    inventory_revision: 1,
+    inventory_received_at: "2026-08-07T12:00:00.000Z",
+    inventory_valid: true,
+    checkouts: [],
+    providers: [],
+    ...overrides,
+  };
+}
+
+describe("w02 runner inventory reads", () => {
+  it("treats only enrolled launchers as launchable", () => {
+    const human = randomUlid();
+    const owned = baseRunner({ owner_human_id: human, launcher_human_ids: [human] });
+    const shared = baseRunner({
+      owner_human_id: randomUlid(),
+      launcher_human_ids: [randomUlid(), human],
+    });
+    const ungranted = baseRunner({
+      owner_human_id: randomUlid(),
+      launcher_human_ids: [randomUlid()],
+    });
+    const revoked = baseRunner({
+      owner_human_id: human,
+      launcher_human_ids: [human],
+      status: "revoked",
+    });
+    expect(isLaunchableRunner(owned, human)).toBe(true);
+    expect(isLaunchableRunner(shared, human)).toBe(true);
+    expect(isLaunchableRunner(ungranted, human)).toBe(false);
+    expect(isLaunchableRunner(revoked, human)).toBe(false);
+    expect(selectLaunchableRunners([ungranted, owned, revoked, shared], human)).toEqual([
+      owned,
+      shared,
+    ]);
+  });
+
+  it("loads checkout status only for launchable runners", async () => {
+    const human = randomUlid();
+    const launchable = baseRunner({ owner_human_id: human, launcher_human_ids: [human] });
+    const ungranted = baseRunner({
+      owner_human_id: randomUlid(),
+      launcher_human_ids: [randomUlid()],
+    });
+    const revoked = baseRunner({
+      owner_human_id: human,
+      launcher_human_ids: [human],
+      status: "revoked",
+    });
+    const seen: string[] = [];
+    const client = {
+      checkoutStatus: async (runnerId: string) => {
+        seen.push(runnerId);
+        return baseCheckoutStatus({ runner_id: runnerId });
+      },
+    };
+    const { statuses, failures } = await loadLaunchableCheckoutStatuses(
+      client,
+      [ungranted, launchable, revoked],
+      human,
+    );
+    expect(seen).toEqual([launchable.runner_id]);
+    expect(Object.keys(statuses)).toEqual([launchable.runner_id]);
+    expect(failures).toEqual({});
+  });
+
+  it("records a rejected checkout read instead of an empty inventory", async () => {
+    const human = randomUlid();
+    const launchable = baseRunner({ owner_human_id: human, launcher_human_ids: [human] });
+    const client = {
+      checkoutStatus: async () => {
+        throw new Error("Launch read failed (403)");
+      },
+    };
+    const { statuses, failures } = await loadLaunchableCheckoutStatuses(
+      client,
+      [launchable],
+      human,
+    );
+    expect(statuses[launchable.runner_id]).toBeUndefined();
+    expect(failures[launchable.runner_id]).toMatch(/403/);
+    expect(describeCheckoutDisplay(undefined, true)).toBe("unavailable");
+    expect(linkedCheckoutsMessage(undefined, true)).not.toMatch(/has not reported a checkout yet/);
+    expect(providerStatusMessage(undefined, true)).toMatch(/unavailable/);
+  });
+
+  it("keeps empty and invalid inventories distinct from unavailable reads", () => {
+    const empty = baseCheckoutStatus({
+      inventory_valid: false,
+      inventory_received_at: null,
+    });
+    const invalid = baseCheckoutStatus({
+      inventory_valid: false,
+      inventory_received_at: "2026-08-07T12:00:00.000Z",
+    });
+    const ready = baseCheckoutStatus({
+      checkouts: [
+        {
+          schema_version: 1,
+          checkout_id: randomUlid(),
+          workspace_id: randomUlid(),
+          runner_id: randomUlid(),
+          project_id: randomUlid(),
+          label: "Synthetic Alpha Checkout",
+          repository_identity: "synthetic/alpha",
+          workspace_subpath: ".",
+          physical_worktree_hash: `sha256:${"a".repeat(64)}`,
+          repository_config_hash: `sha256:${"b".repeat(64)}`,
+          is_default: true,
+          dirty: false,
+          status: "validated",
+          validated_at: "2026-08-07T12:00:00.000Z",
+        },
+      ],
+    });
+    expect(describeCheckoutDisplay(ready, false)).toBe("ready");
+    expect(linkedCheckoutsMessage(ready, false)).toBeNull();
+    expect(describeCheckoutDisplay(empty, false)).toBe("empty");
+    expect(describeCheckoutDisplay(invalid, false)).toBe("invalid");
+    expect(describeCheckoutDisplay(undefined, false)).toBe("unavailable");
+    expect(linkedCheckoutsMessage(empty, false)).toMatch(/has not reported a checkout yet/);
+    expect(linkedCheckoutsMessage(invalid, false)).toMatch(/failed validation/);
+    expect(providerStatusMessage(empty, false)).toMatch(/No provider report/);
+  });
+
+  it("refreshes only launches after a command, never runner inventories", async () => {
+    const calls: string[] = [];
+    const launches = [baseLaunch(), baseLaunch()];
+    const client = {
+      launchesForTask: async (taskId: string) => {
+        calls.push(taskId);
+        return { launches };
+      },
+    };
+    const body = await refreshTaskLaunches(client, "task-id");
+    expect(body.launches).toEqual(launches);
+    expect(calls).toEqual(["task-id"]);
+    expect("listRunners" in client).toBe(false);
+    expect("checkoutStatus" in client).toBe(false);
   });
 });
