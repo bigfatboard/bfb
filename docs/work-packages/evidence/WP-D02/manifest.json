@@ -1,0 +1,73 @@
+{
+  "$schema": "../manifest.schema.json",
+  "package": "D02",
+  "tested_commit": "b35d1ccb3c9ae0ad688978ecd9977d4d467d39ad",
+  "protocol_version": "bfb-wire/1",
+  "schema_version": "1",
+  "migration_head": "d1:0025_discussion_delivery.sql;local:012_discussion_delivery.sql",
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "xcode": "26.0.1",
+    "wrangler": "4.120.1"
+  },
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56), local run",
+    "architecture": "arm64"
+  },
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-D02/command-result.json"
+    },
+    {
+      "command": "pnpm test:d02",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-D02/command-result.json"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-D02/command-result.json"
+    },
+    {
+      "command": "GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./...",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-D02/command-result.json"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-D02/command-result.json"
+    }
+  ],
+  "outcome": "passed",
+  "artifacts": [
+    "docs/work-packages/evidence/WP-D02/command-result.json",
+    "docs/work-packages/evidence/WP-D02/fencing-state.md",
+    "docs/work-packages/evidence/WP-D02/crash-matrix.md",
+    "docs/work-packages/evidence/WP-D02/readonly-negatives.md",
+    "docs/work-packages/evidence/WP-D02/fixture-summary.md",
+    "docs/work-packages/evidence/WP-D02/recovery.md",
+    "docs/work-packages/evidence/WP-D02/codex-continuation.md",
+    "docs/contracts/discussion-delivery.md",
+    "tools/discussion-delivery/run.ts",
+    "internal/discussion/store.go",
+    "internal/discussion/ownership.go",
+    "internal/discussion/schedule.go",
+    "internal/discussion/delivery.go",
+    "internal/discussion/output.go",
+    "internal/discussion/recovery.go",
+    "internal/discussion/planner.go",
+    "internal/discussion/migrations/012_discussion_delivery.sql",
+    "migrations/d1/0025_discussion_delivery.sql",
+    "migrations/d1/manifest.json"
+  ],
+  "redaction": {
+    "status": "passed",
+    "prohibited_content": []
+  }
+}
