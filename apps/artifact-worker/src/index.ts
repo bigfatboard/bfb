@@ -12,6 +12,15 @@ import {
 import { handleUpload } from "./upload.js";
 import { handleViewBootstrap, handleViewRedeem } from "./view.js";
 
+export {
+  buildViewBootstrap,
+  VIEW_BOOTSTRAP_SCRIPT,
+  VIEW_PERMISSIONS_POLICY,
+  viewBootstrapCsp,
+  viewFinalCsp,
+} from "./view.js";
+export { buildTextDocument, buildViewerFallback, isViewerTextFormat } from "./renderers.js";
+
 export interface ArtifactFetchOptions {
   db?: SqlDatabase;
   now?: string;
