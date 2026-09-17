@@ -22,6 +22,7 @@
     { "path": "tools/runner-channel" },
     { "path": "tools/launches" },
     { "path": "tools/discussions" },
-    { "path": "tools/attention" }
+    { "path": "tools/attention" },
+    { "path": "tools/discussion-delivery" }
   ]
 }

@@ -1,0 +1,41 @@
+{
+  "package": "D02",
+  "tested_commit": "0f41dd15803998d318819942862bcbd41ef20d21",
+  "results": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "note": "clean detached checkout at the tested commit"
+    },
+    {
+      "command": "pnpm build",
+      "outcome": "passed",
+      "note": "tsc project references including tools/discussion-delivery"
+    },
+    {
+      "command": "pnpm test:d02",
+      "outcome": "passed",
+      "note": "D01 fixtures 62 checked; protocol checks; db migrations 7 passed; D02 runner migration plus codex 0.153.4 probe; go race suite internal/discussion 30 tests passed"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "blocked",
+      "note": "lint, protocol, 889 TypeScript tests, ABOUTME headers, docs, roadmap, swift pass; go:check fails on pre-existing L07 TestDoctorCommand drift (installed claude 2.1.275 vs tested 2.1.274), reproduced on the base commit without D02 changes"
+    },
+    {
+      "command": "GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./...",
+      "outcome": "passed",
+      "note": "cross-compile in the implementation checkout"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "note": "clean tree"
+    },
+    {
+      "command": "go test -race -count=1 ./internal/discussion/...",
+      "outcome": "passed",
+      "note": "30 tests: ownership, fencing, schedule, fault matrix, peer negatives, read-only, recovery, real-binary codex planning, conclusions"
+    }
+  ]
+}

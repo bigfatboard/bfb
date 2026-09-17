@@ -34,11 +34,11 @@ The enrolled Mac conducts a bounded read-only Claude/Codex exchange using owned 
 
 ### Consumes
 
-- D01 discussion v1; L03 certified turn plans and semantic parsers; L05 owned process/checkout guards; L06 journal/dispositions; L08 authenticated runner channel; A01 context/capability scope; P01 and L07 certified Codex/Claude adapters.
+- D01 discussion v1 (`docs/contracts/discussions.md`); L03 certified turn plans and semantic parsers (`internal/provider`, `internal/providers`); L05 owned process/checkout guards (`docs/contracts/execution-supervisor.md`); L06 journal/dispositions (`docs/contracts/observed-session.md`, `internal/journal`); L08 authenticated runner channel (`docs/contracts/runner-channel.md`); A01 context/capability scope (`docs/contracts/local-mcp.md`); P01 and L07 certified Codex/Claude adapters (`internal/providers/codex`, `internal/providers/claude`).
 
 ### Produces
 
-- Discussion delivery v1 with session fencing, causal message/attempt/turn IDs, recovery decisions, bounded participant output, and scheduler state.
+- [Discussion delivery v1](../contracts/discussion-delivery.md) with session fencing, causal message/attempt/turn IDs, recovery decisions, bounded participant output, and scheduler state.
 - `pnpm test:d02` and the declared redacted exact-provider evidence manifest.
 
 ## Work plan
@@ -57,10 +57,27 @@ The enrolled Mac conducts a bounded read-only Claude/Codex exchange using owned 
 - Both providers preserve exact session identity across turns; missing/changed/unsupported identity and malformed/oversized output fail visibly.
 - Exact target passes from a clean checkout with synthetic fixtures and bounded real-provider evidence; unavailable auth or consent is reported, not replaced by fake success.
 
-## Evidence and handoff
+## Evidence
 
-- Commit delivery/fencing state diagrams, crash matrix, read-only/escalation negatives, exact-version fixture summaries, and runtime recovery evidence. D03 consumes committed state rather than interpreting provider prose.
+- `docs/work-packages/evidence/WP-D02/manifest.json` indexing the tested commit, contract version, migration heads, toolchains, commands, and redaction status per the evidence manifest schema.
+- `docs/work-packages/evidence/WP-D02/fencing-state.md`: ownership/fencing and delivery state diagrams.
+- `docs/work-packages/evidence/WP-D02/crash-matrix.md`: the deterministic fault-injection matrix with owning test and observed result per boundary.
+- `docs/work-packages/evidence/WP-D02/readonly-negatives.md`: read-only enforcement and peer-escalation negatives.
+- `docs/work-packages/evidence/WP-D02/fixture-summary.md`: exact-version fixture summary (fake 1.0.0, Codex 0.153.4, Claude 2.1.275 observed).
+- `docs/work-packages/evidence/WP-D02/recovery.md`: restart-recovery runtime evidence.
+- `docs/work-packages/evidence/WP-D02/codex-continuation.md`: bounded real-provider experiment report (offline adapter evidence; no live model turn without consent).
+- `docs/work-packages/evidence/WP-D02/command-result.json`: bounded aggregate command outcomes.
 
 ## Risks and decisions
 
 - Native external-message delivery remains optional and capability-tested. A provider process exit is neither message acknowledgement nor task completion.
+- Headless Claude turns stay unsupported: the installed Claude 2.1.275 differs from the L07-tested 2.1.274, and the adapter certifies no headless turn transport on any version. Claude delivery fails closed and visibly.
+- No live model turn ran in this package: Codex credentials and explicit consent were unavailable, so real-provider evidence is the offline adapter proof (version, health, argv planning), not a transcript.
+
+## Handoff
+
+- Implementation, gate, and evidence are complete on this branch, but A01, L05, L06, L07, and P01 are not `done`, so this package stays `planned` per the roadmap status rule and D03 must not consume it yet.
+- State: `internal/discussion` (delivery store at local migration 012, ownership/fencing, scheduler, dispatch, bounded outputs, recovery, L03 kit planner) with `go test -race ./internal/discussion/...` passing; D1 migration `0025_discussion_delivery` (covering indexes only; D01 records unchanged); contract `docs/contracts/discussion-delivery.md`.
+- Commands: `pnpm test:d02`; `GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./...`; `pnpm verify`; `pnpm worktree:check`.
+- D03 consumes committed discussion messages and conclusions through D01 reads plus the delivery states named in the contract; it never interprets provider prose.
+- Known limitations: live supervised launch, pre-exec revalidation at spawn, and signaling wait on L05; trusted session binding from live hooks waits on L06; run-scoped context loading waits on A01; live Codex turns and Claude parity wait on provider credentials, consent, and L07/P01 completion.
