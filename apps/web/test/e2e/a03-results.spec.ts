@@ -92,13 +92,47 @@ test("owner submits, reviewer requests changes, owner supersedes and accepts", a
   expect(taskId).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/);
   await page.getByRole("button", { name: "Close task" }).click();
 
+  const taskRead = await api(page, "GET", `${BASE}/tasks/${taskId}`);
+  expect(taskRead.status, JSON.stringify(taskRead.json)).toBe(200);
+  const freshTask = taskRead.json.task as { resource_version?: unknown } | undefined;
+  expect(typeof freshTask?.resource_version).toBe("number");
+
+  const workspacePolicyRead = await api(page, "GET", `${BASE}/workspace-policy`);
+  expect(workspacePolicyRead.status, JSON.stringify(workspacePolicyRead.json)).toBe(200);
+  const workspacePolicy = workspacePolicyRead.json.policy as
+    { resourceVersion?: unknown } | undefined;
+  expect(typeof workspacePolicy?.resourceVersion).toBe("number");
+
+  const projectPolicyRead = await api(page, "GET", `${BASE}/projects/${FIX.projectA}/policy`);
+  expect(projectPolicyRead.status, JSON.stringify(projectPolicyRead.json)).toBe(200);
+  const projectPolicy = projectPolicyRead.json.policy as { resourceVersion?: unknown } | undefined;
+  expect(typeof projectPolicy?.resourceVersion).toBe("number");
+
+  const repositoryConfigRead = await api(
+    page,
+    "GET",
+    `${BASE}/projects/${FIX.projectA}/repository-config`,
+  );
+  expect(repositoryConfigRead.status, JSON.stringify(repositoryConfigRead.json)).toBe(200);
+  const repositoryConfig = repositoryConfigRead.json.config as
+    { resource_version?: unknown } | undefined;
+  expect(typeof repositoryConfig?.resource_version).toBe("number");
+
+  const profilesRead = await api(page, "GET", `${BASE}/agent-profiles?limit=100`);
+  expect(profilesRead.status, JSON.stringify(profilesRead.json)).toBe(200);
+  expect(Array.isArray(profilesRead.json.profiles)).toBe(true);
+  const profile = (
+    profilesRead.json.profiles as Array<{ id?: unknown; resource_version?: unknown }>
+  ).find((entry) => entry.id === FIX.profileCodex);
+  expect(typeof profile?.resource_version).toBe("number");
+
   const created = await api(page, "POST", `${BASE}/tasks/${taskId}/runs`, {
-    expected_task_version: 1,
+    expected_task_version: freshTask?.resource_version,
     agent_profile_id: FIX.profileCodex,
-    workspace_policy_version: 1,
-    project_policy_version: 1,
-    repository_config_version: 1,
-    agent_profile_version: 1,
+    workspace_policy_version: workspacePolicy?.resourceVersion,
+    project_policy_version: projectPolicy?.resourceVersion,
+    repository_config_version: repositoryConfig?.resource_version,
+    agent_profile_version: profile?.resource_version,
     request_id: "a03-browser-run-001",
   });
   expect(created.status, JSON.stringify(created.json)).toBe(200);
