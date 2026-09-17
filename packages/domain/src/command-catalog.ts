@@ -3,6 +3,12 @@
 
 import type { HubCommand } from "./hub.js";
 import {
+  createArtifactCommand,
+  finalizeArtifactCommand,
+  issueArtifactGrantCommand,
+  markArtifactFailedCommand,
+} from "./artifacts.js";
+import {
   createDiscussionCommand,
   changeDiscussionCommand,
   concludeDiscussionCommand,
@@ -93,6 +99,10 @@ const commands = new Map<string, HubCommand<unknown, unknown>>([
     replaceRunnerInventoryCommand.name,
     replaceRunnerInventoryCommand as HubCommand<unknown, unknown>,
   ],
+  [createArtifactCommand.name, createArtifactCommand as HubCommand<unknown, unknown>],
+  [issueArtifactGrantCommand.name, issueArtifactGrantCommand as HubCommand<unknown, unknown>],
+  [finalizeArtifactCommand.name, finalizeArtifactCommand as HubCommand<unknown, unknown>],
+  [markArtifactFailedCommand.name, markArtifactFailedCommand as HubCommand<unknown, unknown>],
   [authorizeDeviceCommand.name, authorizeDeviceCommand as HubCommand<unknown, unknown>],
   [exchangeCredentialCommand.name, exchangeCredentialCommand as HubCommand<unknown, unknown>],
   [revokeBindingCommand.name, revokeBindingCommand as HubCommand<unknown, unknown>],
