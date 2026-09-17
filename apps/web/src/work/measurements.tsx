@@ -138,7 +138,9 @@ export function MeasurementsView(props: MeasurementsViewProps) {
           <span>{props.error}</span>
         </div>
       ) : null}
-      {!measurements && !props.error ? <p data-testid="measurements-loading">Loading measurements…</p> : null}
+      {!measurements && !props.error ? (
+        <p data-testid="measurements-loading">Loading measurements…</p>
+      ) : null}
       {measurements ? (
         <>
           <div className="truth-row" data-testid="measurements-human">
@@ -213,9 +215,7 @@ export function MeasurementsView(props: MeasurementsViewProps) {
           </div>
           {props.timers.map((timer) => (
             <div className="truth-row" key={timer.id} data-testid="review-timer-row">
-              <span>
-                Review timer · {timer.state}
-              </span>
+              <span>Review timer · {timer.state}</span>
               {timer.state === "open" ? (
                 <button
                   type="button"
@@ -291,9 +291,12 @@ export function MeasurementsPanel(props: MeasurementsPanelProps) {
     setPending(true);
     setError(null);
     try {
-      await api.post(`/api/v1/workspaces/${props.workspaceId}/tasks/${props.taskId}/review-timers`, {
-        request_id: requestId("web-review-timer"),
-      });
+      await api.post(
+        `/api/v1/workspaces/${props.workspaceId}/tasks/${props.taskId}/review-timers`,
+        {
+          request_id: requestId("web-review-timer"),
+        },
+      );
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Request failed");

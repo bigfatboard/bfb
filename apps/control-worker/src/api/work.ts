@@ -281,7 +281,13 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
   }
 
   if (path === `${base}/browser-activity` && request.method === "POST") {
-    const record = await body(request, ["task_id", "started_at", "ended_at", "observation_id", "request_id"]);
+    const record = await body(request, [
+      "task_id",
+      "started_at",
+      "ended_at",
+      "observation_id",
+      "request_id",
+    ]);
     const taskId = optionalString(record, "task_id");
     const observationId = optionalString(record, "observation_id");
     return outcomeResponse(

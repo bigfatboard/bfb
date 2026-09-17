@@ -87,10 +87,7 @@ export function unionIntervalsMs(intervals: readonly IntervalMs[]): UnionTotal {
 }
 
 /** Clips intervals to a half-open window; spans outside the window contribute nothing. */
-export function clipIntervals(
-  intervals: readonly IntervalMs[],
-  window: IntervalMs,
-): IntervalMs[] {
+export function clipIntervals(intervals: readonly IntervalMs[], window: IntervalMs): IntervalMs[] {
   if (window.end <= window.start) {
     return [];
   }
@@ -201,14 +198,44 @@ export interface PriceEntry {
 }
 
 export const PRICE_CATALOG_2026_06_01: Record<string, PriceEntry> = {
-  "codex-fixture-model": { input: 2.0, output: 8.0, cache_read: 0.5, cache_write: 2.0, reasoning: 8.0 },
-  "claude-fixture-model": { input: 3.0, output: 15.0, cache_read: 0.3, cache_write: 3.75, reasoning: 15.0 },
+  "codex-fixture-model": {
+    input: 2.0,
+    output: 8.0,
+    cache_read: 0.5,
+    cache_write: 2.0,
+    reasoning: 8.0,
+  },
+  "claude-fixture-model": {
+    input: 3.0,
+    output: 15.0,
+    cache_read: 0.3,
+    cache_write: 3.75,
+    reasoning: 15.0,
+  },
 };
 
 export const PRICE_CATALOG_2026_09_01: Record<string, PriceEntry> = {
-  "codex-fixture-model": { input: 1.5, output: 6.0, cache_read: 0.4, cache_write: 1.5, reasoning: 6.0 },
-  "claude-fixture-model": { input: 3.0, output: 15.0, cache_read: 0.3, cache_write: 3.75, reasoning: 15.0 },
-  "grok-fixture-model": { input: 2.0, output: 10.0, cache_read: 0.5, cache_write: 2.0, reasoning: 10.0 },
+  "codex-fixture-model": {
+    input: 1.5,
+    output: 6.0,
+    cache_read: 0.4,
+    cache_write: 1.5,
+    reasoning: 6.0,
+  },
+  "claude-fixture-model": {
+    input: 3.0,
+    output: 15.0,
+    cache_read: 0.3,
+    cache_write: 3.75,
+    reasoning: 15.0,
+  },
+  "grok-fixture-model": {
+    input: 2.0,
+    output: 10.0,
+    cache_read: 0.5,
+    cache_write: 2.0,
+    reasoning: 10.0,
+  },
 };
 
 export const PRICE_CATALOGS: Record<string, Record<string, PriceEntry>> = {
@@ -240,7 +267,12 @@ export function calculateCost(
     throw new DomainError("invalid_argument", "price catalog version is unknown");
   }
   if (!model || !catalog[model]) {
-    return { amount_usd: null, catalog_version: catalogVersion, calculated_at: calculatedAt, reason: "unknown_model" };
+    return {
+      amount_usd: null,
+      catalog_version: catalogVersion,
+      calculated_at: calculatedAt,
+      reason: "unknown_model",
+    };
   }
   const entry = catalog[model] as PriceEntry;
   let amount = 0;
@@ -355,7 +387,14 @@ function modelName(value: unknown): string | null {
     throw new DomainError("invalid_argument", "model is invalid");
   }
   const normalized = value.trim();
-  if (!normalized || normalized.length > 128 || /[\u0000-\u001f\u007f]/.test(normalized)) {
+  if (
+    !normalized ||
+    [...normalized].length > 128 ||
+    [...normalized].some((character) => {
+      const code = character.codePointAt(0) ?? 0;
+      return code <= 0x1f || code === 0x7f;
+    })
+  ) {
     throw new DomainError("invalid_argument", "model is invalid");
   }
   return normalized;
@@ -463,10 +502,16 @@ export const reportTokensCommand: HubCommand<ReportTokensInput, TokenObservation
       executionId,
       body.assignmentGeneration,
     );
-    if (typeof body.provider !== "string" || !MEASUREMENT_PROVIDERS.includes(body.provider as MeasurementProvider)) {
+    if (
+      typeof body.provider !== "string" ||
+      !MEASUREMENT_PROVIDERS.includes(body.provider as MeasurementProvider)
+    ) {
       rejectRunnerRequest();
     }
-    if (typeof body.quality !== "string" || !TOKEN_QUALITIES.includes(body.quality as TokenQuality)) {
+    if (
+      typeof body.quality !== "string" ||
+      !TOKEN_QUALITIES.includes(body.quality as TokenQuality)
+    ) {
       rejectRunnerRequest();
     }
     const quality = body.quality as TokenQuality;
@@ -767,9 +812,7 @@ export const startReviewTimerCommand: HubCommand<StartReviewTimerInput, ReviewTi
         `SELECT id FROM review_timers
          WHERE workspace_id = ? AND task_id = ? AND started_by_human_id = ? AND state = 'open'`,
       )
-      .get(ctx.workspaceId, body.taskId, ctx.actorHumanId as string)) as
-      | { id: string }
-      | undefined;
+      .get(ctx.workspaceId, body.taskId, ctx.actorHumanId as string)) as { id: string } | undefined;
     if (open) {
       throw new DomainError("timer_open", "a review timer is already open for this task");
     }
@@ -897,7 +940,9 @@ export const recordBrowserActivityCommand: HubCommand<
       taskId = body.taskId;
     }
     const capped = end - start > BROWSER_ACTIVITY_CAP_MS;
-    const storedEnd = capped ? new Date(start + BROWSER_ACTIVITY_CAP_MS).toISOString() : body.endedAt;
+    const storedEnd = capped
+      ? new Date(start + BROWSER_ACTIVITY_CAP_MS).toISOString()
+      : body.endedAt;
     let id: string;
     try {
       id = observationId(body.observationId);
@@ -1332,12 +1377,16 @@ export async function getRunMeasurements(
     }
   }
 
-  const elapsedStart = attachSpans.length > 0 ? Math.min(...attachSpans.map((span) => span.start)) : null;
-  const elapsedEnd = attachSpans.length > 0 ? Math.max(...attachSpans.map((span) => span.end)) : null;
+  const elapsedStart =
+    attachSpans.length > 0 ? Math.min(...attachSpans.map((span) => span.start)) : null;
+  const elapsedEnd =
+    attachSpans.length > 0 ? Math.max(...attachSpans.map((span) => span.end)) : null;
   const reportedAlive = reported
     .filter((row) => row.interval_kind === "process_alive")
     .map((row) => ({ start: Date.parse(row.started_at), end: Date.parse(row.ended_at) }))
-    .filter((span) => Number.isFinite(span.start) && Number.isFinite(span.end) && span.end > span.start);
+    .filter(
+      (span) => Number.isFinite(span.start) && Number.isFinite(span.end) && span.end > span.start,
+    );
   const alive = unionIntervalsMs([...attachSpans, ...reportedAlive]);
 
   const pairedActive: IntervalMs[] = [];
@@ -1371,7 +1420,9 @@ export async function getRunMeasurements(
   const reportedActive = reported
     .filter((row) => row.interval_kind === "active")
     .map((row) => ({ start: Date.parse(row.started_at), end: Date.parse(row.ended_at) }))
-    .filter((span) => Number.isFinite(span.start) && Number.isFinite(span.end) && span.end > span.start);
+    .filter(
+      (span) => Number.isFinite(span.start) && Number.isFinite(span.end) && span.end > span.start,
+    );
   const active = unionIntervalsMs([...pairedActive, ...reportedActive]);
 
   const waitSpans: IntervalMs[] = [];
@@ -1397,7 +1448,9 @@ export async function getRunMeasurements(
     reported
       .filter((row) => row.interval_kind === kind)
       .map((row) => ({ start: Date.parse(row.started_at), end: Date.parse(row.ended_at) }))
-      .filter((span) => Number.isFinite(span.start) && Number.isFinite(span.end) && span.end > span.start);
+      .filter(
+        (span) => Number.isFinite(span.start) && Number.isFinite(span.end) && span.end > span.start,
+      );
   const externalUnion = unionIntervalsMs(reportedByKind("external_wait"));
   const idleUnion = unionIntervalsMs(reportedByKind("idle"));
 
@@ -1426,11 +1479,19 @@ export async function getRunMeasurements(
   let launchLatency: number | null = null;
   let launchReason: string | null = null;
   if (commands.length > 0) {
-    const first = commands[0] as { execution_id: string; state: string; created_at: string; expires_at: string; cancelled_at: string | null };
+    const first = commands[0] as {
+      execution_id: string;
+      state: string;
+      created_at: string;
+      expires_at: string;
+      cancelled_at: string | null;
+    };
     const created = parseMs(first.created_at);
     const attachedAt = Math.min(
       ...ledger
-        .filter((row) => row.kind === "execution_attached" && row.run_execution_id === first.execution_id)
+        .filter(
+          (row) => row.kind === "execution_attached" && row.run_execution_id === first.execution_id,
+        )
         .map((row) => parseMs(row.occurred_at) ?? Number.POSITIVE_INFINITY),
     );
     if (created !== null) {
@@ -1439,8 +1500,12 @@ export async function getRunMeasurements(
       } else if (first.cancelled_at) {
         const cancelled = parseMs(first.cancelled_at);
         launchLatency = cancelled !== null ? cancelled - created : null;
-        launchReason = launchLatency === null ? "cancelled time unreadable" : `launch ${first.state}`;
-      } else if (first.state === "expired" || nowMs > (parseMs(first.expires_at) ?? Number.POSITIVE_INFINITY)) {
+        launchReason =
+          launchLatency === null ? "cancelled time unreadable" : `launch ${first.state}`;
+      } else if (
+        first.state === "expired" ||
+        nowMs > (parseMs(first.expires_at) ?? Number.POSITIVE_INFINITY)
+      ) {
         const expiry = parseMs(first.expires_at);
         launchLatency = expiry !== null ? expiry - created : null;
         launchReason = "launch expired before attach";
@@ -1457,7 +1522,10 @@ export async function getRunMeasurements(
   const terminal = ["accepted", "failed", "cancelled"].includes(run.result_state);
   const submittedMs = submissions ? parseMs(submissions.submitted_at) : null;
   const reviewedMs = review ? parseMs(review.created_at) : null;
-  const lastEvidence = Math.max(submittedMs ?? Number.NEGATIVE_INFINITY, reviewedMs ?? Number.NEGATIVE_INFINITY);
+  const lastEvidence = Math.max(
+    submittedMs ?? Number.NEGATIVE_INFINITY,
+    reviewedMs ?? Number.NEGATIVE_INFINITY,
+  );
   const runAgeMs =
     Number.isFinite(lastEvidence) && (lastEvidence as number) > 0
       ? (lastEvidence as number) - (parseMs(run.created_at) ?? (lastEvidence as number))
@@ -1490,7 +1558,8 @@ export async function getRunMeasurements(
     times: {
       launch_latency_ms: launchLatency,
       launch_latency_reason: launchLatency === null ? launchReason : null,
-      process_elapsed_ms: elapsedStart !== null && elapsedEnd !== null ? elapsedEnd - elapsedStart : null,
+      process_elapsed_ms:
+        elapsedStart !== null && elapsedEnd !== null ? elapsedEnd - elapsedStart : null,
       process_alive_ms: alive.total_ms,
       active_ms: active.total_ms,
       attention_wait_ms: attentionWait.total_ms,
@@ -1566,9 +1635,7 @@ export async function getTaskMeasurements(
   const nowMs = Date.parse(now);
   const task = (await db
     .prepare(`SELECT id, project_id, priority FROM tasks WHERE workspace_id = ? AND id = ?`)
-    .get(workspaceId, taskId)) as
-    | { id: string; project_id: string; priority: string }
-    | undefined;
+    .get(workspaceId, taskId)) as { id: string; project_id: string; priority: string } | undefined;
   if (!task) {
     throw new DomainError("not_found", "task not found");
   }
@@ -1702,10 +1769,7 @@ export async function getTaskMeasurements(
       attention_wait_ms: runs.reduce((sum, run) => sum + run.times.attention_wait_ms, 0),
       exact_tokens: exactTokens,
       estimated_tokens: estimatedTokens,
-      unavailable_token_reports: runs.reduce(
-        (sum, run) => sum + run.tokens.unavailable_count,
-        0,
-      ),
+      unavailable_token_reports: runs.reduce((sum, run) => sum + run.tokens.unavailable_count, 0),
     },
     review: { timers, stopped_total_ms: stoppedTotal, open_ms: openMs },
     attention,
@@ -1803,8 +1867,20 @@ export async function aggregateMeasurements(
       active_ms: 0,
       process_elapsed_ms: 0,
       attention_wait_ms: 0,
-      exact_tokens: { input: null, output: null, cache_read: null, cache_write: null, reasoning: null },
-      estimated_tokens: { input: null, output: null, cache_read: null, cache_write: null, reasoning: null },
+      exact_tokens: {
+        input: null,
+        output: null,
+        cache_read: null,
+        cache_write: null,
+        reasoning: null,
+      },
+      estimated_tokens: {
+        input: null,
+        output: null,
+        cache_read: null,
+        cache_write: null,
+        reasoning: null,
+      },
       unavailable_token_reports: 0,
       attention_requests: 0,
       submission_versions: 0,

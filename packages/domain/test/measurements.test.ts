@@ -80,11 +80,7 @@ async function insertLedger(
     );
 }
 
-async function endExecution(
-  db: SqlDatabase,
-  executionId: string,
-  endedAt: string,
-): Promise<void> {
+async function endExecution(db: SqlDatabase, executionId: string, endedAt: string): Promise<void> {
   await db
     .prepare(
       `UPDATE run_executions SET state = 'ended', end_reason = 'process_exit', ended_at = ?
@@ -106,7 +102,12 @@ function mulberry32(seed: number): () => number {
 
 describe("unionIntervalsMs", () => {
   it("merges overlapping intervals without double counting", () => {
-    expect(unionIntervalsMs([{ start: 0, end: 100 }, { start: 50, end: 150 }])).toEqual({
+    expect(
+      unionIntervalsMs([
+        { start: 0, end: 100 },
+        { start: 50, end: 150 },
+      ]),
+    ).toEqual({
       total_ms: 150,
       observation_count: 1,
     });
@@ -124,7 +125,10 @@ describe("unionIntervalsMs", () => {
 
   it("ignores zero-length intervals and reports empty input honestly", () => {
     expect(unionIntervalsMs([])).toEqual({ total_ms: 0, observation_count: 0 });
-    expect(unionIntervalsMs([{ start: 42, end: 42 }])).toEqual({ total_ms: 0, observation_count: 1 });
+    expect(unionIntervalsMs([{ start: 42, end: 42 }])).toEqual({
+      total_ms: 0,
+      observation_count: 1,
+    });
   });
 
   it("collapses exact duplicate replays to one contribution", () => {
@@ -197,9 +201,15 @@ describe("normalizeTokenFields", () => {
       reasoning: null,
     });
     expect(tokenFieldsPresent(fields)).toBe(true);
-    expect(tokenFieldsPresent({ input: null, output: null, cache_read: null, cache_write: null, reasoning: null })).toBe(
-      false,
-    );
+    expect(
+      tokenFieldsPresent({
+        input: null,
+        output: null,
+        cache_read: null,
+        cache_write: null,
+        reasoning: null,
+      }),
+    ).toBe(false);
   });
 
   it("rejects negative, fractional, and unsafe counts", () => {
@@ -237,24 +247,50 @@ describe("normalizeTokenFields", () => {
 });
 
 describe("calculateCost", () => {
-  const tokens: TokenFields = { input: 1_000_000, output: 500_000, cache_read: null, cache_write: null, reasoning: null };
+  const tokens: TokenFields = {
+    input: 1_000_000,
+    output: 500_000,
+    cache_read: null,
+    cache_write: null,
+    reasoning: null,
+  };
 
   it("prices exact token facts under the current catalog", () => {
-    const cost = calculateCost(tokens, "codex-fixture-model", CURRENT_PRICE_CATALOG_VERSION, "2026-09-12T12:00:00.000Z");
+    const cost = calculateCost(
+      tokens,
+      "codex-fixture-model",
+      CURRENT_PRICE_CATALOG_VERSION,
+      "2026-09-12T12:00:00.000Z",
+    );
     expect(cost).toMatchObject({ catalog_version: CURRENT_PRICE_CATALOG_VERSION, reason: null });
     expect(cost.amount_usd).toBeCloseTo(1.5 + 3.0, 9);
   });
 
   it("recomputes historical totals under a superseded catalog without touching token facts", () => {
-    const current = calculateCost(tokens, "codex-fixture-model", "2026-09-01", "2026-09-12T12:00:00.000Z");
-    const historical = calculateCost(tokens, "codex-fixture-model", "2026-06-01", "2026-09-12T12:00:00.000Z");
+    const current = calculateCost(
+      tokens,
+      "codex-fixture-model",
+      "2026-09-01",
+      "2026-09-12T12:00:00.000Z",
+    );
+    const historical = calculateCost(
+      tokens,
+      "codex-fixture-model",
+      "2026-06-01",
+      "2026-09-12T12:00:00.000Z",
+    );
     expect(historical.amount_usd).toBeCloseTo(2.0 + 4.0, 9);
     expect(historical.amount_usd).not.toBe(current.amount_usd);
     expect(Object.keys(PRICE_CATALOGS)).toEqual(["2026-06-01", "2026-09-01"]);
   });
 
   it("returns null instead of another model's price for unknown models", () => {
-    const cost = calculateCost(tokens, "unlisted-model", CURRENT_PRICE_CATALOG_VERSION, "2026-09-12T12:00:00.000Z");
+    const cost = calculateCost(
+      tokens,
+      "unlisted-model",
+      CURRENT_PRICE_CATALOG_VERSION,
+      "2026-09-12T12:00:00.000Z",
+    );
     expect(cost).toEqual({
       amount_usd: null,
       catalog_version: CURRENT_PRICE_CATALOG_VERSION,
@@ -264,7 +300,9 @@ describe("calculateCost", () => {
   });
 
   it("rejects unknown catalog versions", () => {
-    expect(() => calculateCost(tokens, "codex-fixture-model", "2020-01-01", "2026-09-12T12:00:00.000Z")).toThrow();
+    expect(() =>
+      calculateCost(tokens, "codex-fixture-model", "2020-01-01", "2026-09-12T12:00:00.000Z"),
+    ).toThrow();
   });
 
   it("exposes the heartbeat and browser-activity constants the derivations rely on", () => {
@@ -347,7 +385,12 @@ describe("token.report and interval.report", () => {
       provider: "codex" as const,
       quality: "provider_reported" as const,
     };
-    success(await f.native(reportTokensCommand, { ...base, tokens: { input_tokens: 1, output_tokens: 1 } }));
+    success(
+      await f.native(reportTokensCommand, {
+        ...base,
+        tokens: { input_tokens: 1, output_tokens: 1 },
+      }),
+    );
     const confused = await f.native(reportTokensCommand, {
       ...base,
       tokens: { input_tokens: 2, output_tokens: 1 },
@@ -405,6 +448,18 @@ describe("token.report and interval.report", () => {
       endedAt: "2026-09-12T12:01:00.000Z",
     });
     expect(inverted).toMatchObject({ ok: false });
+
+    const controlModel = await f.native(reportTokensCommand, {
+      principal: f.principal,
+      runId: spec.run_id,
+      executionId: spec.run_execution_id,
+      assignmentGeneration: spec.assignment_generation,
+      provider: "codex" as const,
+      model: "bad\nmodel",
+      tokens: { input_tokens: 1, output_tokens: 1 },
+      quality: "provider_reported" as const,
+    });
+    expect(controlModel).toMatchObject({ ok: false });
   });
 
   it("stores unavailable usage honestly instead of inventing zeros", async () => {
@@ -452,12 +507,40 @@ describe("run derivations", () => {
     const f = await launchFixture();
     const { spec } = await attachedRun(f);
     const base = { runId: spec.run_id, executionId: spec.run_execution_id, taskId: spec.task_id };
-    await insertLedger(f.db, { ...base, kind: "execution_attached", occurredAt: "2026-09-12T12:00:00.000Z" });
-    await insertLedger(f.db, { ...base, kind: "turn_started", occurredAt: "2026-09-12T12:00:10.000Z" });
-    await insertLedger(f.db, { ...base, kind: "tool_started", occurredAt: "2026-09-12T12:00:20.000Z" });
-    await insertLedger(f.db, { ...base, kind: "tool_finished", occurredAt: "2026-09-12T12:00:40.000Z" });
-    await insertLedger(f.db, { ...base, kind: "turn_stopped", occurredAt: "2026-09-12T12:01:00.000Z" });
-    for (const stamp of ["12:00:15", "12:00:30", "12:00:45", "12:01:00", "12:01:15", "12:01:30", "12:01:45"]) {
+    await insertLedger(f.db, {
+      ...base,
+      kind: "execution_attached",
+      occurredAt: "2026-09-12T12:00:00.000Z",
+    });
+    await insertLedger(f.db, {
+      ...base,
+      kind: "turn_started",
+      occurredAt: "2026-09-12T12:00:10.000Z",
+    });
+    await insertLedger(f.db, {
+      ...base,
+      kind: "tool_started",
+      occurredAt: "2026-09-12T12:00:20.000Z",
+    });
+    await insertLedger(f.db, {
+      ...base,
+      kind: "tool_finished",
+      occurredAt: "2026-09-12T12:00:40.000Z",
+    });
+    await insertLedger(f.db, {
+      ...base,
+      kind: "turn_stopped",
+      occurredAt: "2026-09-12T12:01:00.000Z",
+    });
+    for (const stamp of [
+      "12:00:15",
+      "12:00:30",
+      "12:00:45",
+      "12:01:00",
+      "12:01:15",
+      "12:01:30",
+      "12:01:45",
+    ]) {
       await insertLedger(f.db, {
         ...base,
         kind: "heartbeat",
@@ -466,7 +549,12 @@ describe("run derivations", () => {
     }
     await endExecution(f.db, spec.run_execution_id, "2026-09-12T12:02:00.000Z");
 
-    const measured = await getRunMeasurements(f.db, FIX.workspace, spec.run_id, "2026-09-12T12:05:00.000Z");
+    const measured = await getRunMeasurements(
+      f.db,
+      FIX.workspace,
+      spec.run_id,
+      "2026-09-12T12:05:00.000Z",
+    );
     expect(measured.times.active_ms).toBe(50_000);
     expect(measured.times.process_elapsed_ms).toBe(120_000);
     expect(measured.times.process_alive_ms).toBe(120_000);
@@ -480,12 +568,29 @@ describe("run derivations", () => {
     const f = await launchFixture();
     const { spec } = await attachedRun(f);
     const base = { runId: spec.run_id, executionId: spec.run_execution_id, taskId: spec.task_id };
-    await insertLedger(f.db, { ...base, kind: "execution_attached", occurredAt: "2026-09-12T12:00:00.000Z" });
-    await insertLedger(f.db, { ...base, kind: "heartbeat", occurredAt: "2026-09-12T12:00:10.000Z" });
-    await insertLedger(f.db, { ...base, kind: "heartbeat", occurredAt: "2026-09-12T12:05:00.000Z" });
+    await insertLedger(f.db, {
+      ...base,
+      kind: "execution_attached",
+      occurredAt: "2026-09-12T12:00:00.000Z",
+    });
+    await insertLedger(f.db, {
+      ...base,
+      kind: "heartbeat",
+      occurredAt: "2026-09-12T12:00:10.000Z",
+    });
+    await insertLedger(f.db, {
+      ...base,
+      kind: "heartbeat",
+      occurredAt: "2026-09-12T12:05:00.000Z",
+    });
     await endExecution(f.db, spec.run_execution_id, "2026-09-12T12:06:00.000Z");
 
-    const measured = await getRunMeasurements(f.db, FIX.workspace, spec.run_id, "2026-09-12T12:10:00.000Z");
+    const measured = await getRunMeasurements(
+      f.db,
+      FIX.workspace,
+      spec.run_id,
+      "2026-09-12T12:10:00.000Z",
+    );
     expect(measured.times.process_elapsed_ms).toBe(360_000);
     // The 12:00:10 to 12:05:00 gap contributes 245s beyond the 45s
     // threshold, and the silent minute before verified end contributes 15s.
@@ -498,11 +603,24 @@ describe("run derivations", () => {
     const f = await launchFixture();
     const { spec } = await attachedRun(f);
     const base = { runId: spec.run_id, executionId: spec.run_execution_id, taskId: spec.task_id };
-    await insertLedger(f.db, { ...base, kind: "execution_attached", occurredAt: "2026-09-12T12:00:00.000Z" });
-    await insertLedger(f.db, { ...base, kind: "turn_started", occurredAt: "2026-09-12T12:00:10.000Z" });
+    await insertLedger(f.db, {
+      ...base,
+      kind: "execution_attached",
+      occurredAt: "2026-09-12T12:00:00.000Z",
+    });
+    await insertLedger(f.db, {
+      ...base,
+      kind: "turn_started",
+      occurredAt: "2026-09-12T12:00:10.000Z",
+    });
     await endExecution(f.db, spec.run_execution_id, "2026-09-12T12:02:00.000Z");
 
-    const measured = await getRunMeasurements(f.db, FIX.workspace, spec.run_id, "2026-09-12T12:05:00.000Z");
+    const measured = await getRunMeasurements(
+      f.db,
+      FIX.workspace,
+      spec.run_id,
+      "2026-09-12T12:05:00.000Z",
+    );
     expect(measured.times.open_intervals).toBe(1);
     expect(measured.times.active_ms).toBe(0);
   });
@@ -511,7 +629,11 @@ describe("run derivations", () => {
     const f = await launchFixture();
     const { spec } = await attachedRun(f);
     const base = { runId: spec.run_id, executionId: spec.run_execution_id, taskId: spec.task_id };
-    await insertLedger(f.db, { ...base, kind: "execution_attached", occurredAt: "2026-09-12T12:00:00.000Z" });
+    await insertLedger(f.db, {
+      ...base,
+      kind: "execution_attached",
+      occurredAt: "2026-09-12T12:00:00.000Z",
+    });
     await endExecution(f.db, spec.run_execution_id, "2026-09-12T12:10:00.000Z");
     const blockingOne = randomUlid();
     const blockingTwo = randomUlid();
@@ -523,11 +645,61 @@ describe("run derivations", () => {
         answer, answered_by_human_id, requested_at, first_response_at, answered_at, resolved_at, resource_version)
        VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, NULL, NULL, 'Synthetic blocker', ?, ?, NULL, NULL, ?, ?, ?, ?, 1)`,
     );
-    await insertAttention.run(FIX.workspace, blockingOne, FIX.projectA, spec.task_id, spec.run_id, spec.run_execution_id, "blocker", "member", 1, "open", "2026-09-12T12:01:00.000Z", null, null, null);
-    await insertAttention.run(FIX.workspace, blockingTwo, FIX.projectA, spec.task_id, spec.run_id, spec.run_execution_id, "blocker", "member", 1, "answered", "2026-09-12T12:02:00.000Z", "2026-09-12T12:02:30.000Z", "2026-09-12T12:04:00.000Z", null);
-    await insertAttention.run(FIX.workspace, casual, FIX.projectA, spec.task_id, spec.run_id, spec.run_execution_id, "clarification", "reviewer", 0, "open", "2026-09-12T12:00:00.000Z", null, null, null);
+    await insertAttention.run(
+      FIX.workspace,
+      blockingOne,
+      FIX.projectA,
+      spec.task_id,
+      spec.run_id,
+      spec.run_execution_id,
+      "blocker",
+      "member",
+      1,
+      "open",
+      "2026-09-12T12:01:00.000Z",
+      null,
+      null,
+      null,
+    );
+    await insertAttention.run(
+      FIX.workspace,
+      blockingTwo,
+      FIX.projectA,
+      spec.task_id,
+      spec.run_id,
+      spec.run_execution_id,
+      "blocker",
+      "member",
+      1,
+      "answered",
+      "2026-09-12T12:02:00.000Z",
+      "2026-09-12T12:02:30.000Z",
+      "2026-09-12T12:04:00.000Z",
+      null,
+    );
+    await insertAttention.run(
+      FIX.workspace,
+      casual,
+      FIX.projectA,
+      spec.task_id,
+      spec.run_id,
+      spec.run_execution_id,
+      "clarification",
+      "reviewer",
+      0,
+      "open",
+      "2026-09-12T12:00:00.000Z",
+      null,
+      null,
+      null,
+    );
 
-    const measured = await getRunMeasurements(f.db, FIX.workspace, spec.run_id, "2026-09-12T12:10:00.000Z");
+    const measured = await getRunMeasurements(
+      f.db,
+      FIX.workspace,
+      spec.run_id,
+      "2026-09-12T12:10:00.000Z",
+    );
     // Blocking spans [12:01, 12:10] and [12:02, 12:04] union to 9 minutes.
     expect(measured.times.attention_wait_ms).toBe(540_000);
     expect(measured.times.attention_open).toBe(true);
@@ -640,7 +812,12 @@ describe("review timers", () => {
     expect(stopped.state).toBe("stopped");
     expect(await listReviewTimers(f.db, FIX.workspace, f.task.id)).toHaveLength(1);
     expect(await listReviewTimerObservations(f.db, FIX.workspace, timer.id)).toHaveLength(2);
-    const measured = await getTaskMeasurements(f.db, FIX.workspace, f.task.id, "2026-09-12T12:10:00.000Z");
+    const measured = await getTaskMeasurements(
+      f.db,
+      FIX.workspace,
+      f.task.id,
+      "2026-09-12T12:10:00.000Z",
+    );
     expect(measured.review.stopped_total_ms).toBe(240_000);
     expect(measured.review.open_ms).toBe(0);
   });
@@ -666,7 +843,10 @@ describe("review timers", () => {
     const stale = await f.human(stopReviewTimerCommand, { timerId: timer.id, expectedVersion: 7 });
     expect(stale).toMatchObject({ ok: false });
     success(await f.human(stopReviewTimerCommand, { timerId: timer.id, expectedVersion: 1 }));
-    const repeated = await f.human(stopReviewTimerCommand, { timerId: timer.id, expectedVersion: 2 });
+    const repeated = await f.human(stopReviewTimerCommand, {
+      timerId: timer.id,
+      expectedVersion: 2,
+    });
     expect(repeated).toMatchObject({ ok: false });
     if (!repeated.ok) {
       expect(repeated.error.code).toBe("invalid_transition");
@@ -729,9 +909,21 @@ describe("task measurements and aggregation", () => {
     const { claimed } = await f.claim();
     const spec = claimed.specification;
     const base = { runId: spec.run_id, executionId: spec.run_execution_id, taskId: spec.task_id };
-    await insertLedger(f.db, { ...base, kind: "execution_attached", occurredAt: "2026-09-12T12:00:00.000Z" });
-    await insertLedger(f.db, { ...base, kind: "turn_started", occurredAt: "2026-09-12T12:00:10.000Z" });
-    await insertLedger(f.db, { ...base, kind: "turn_stopped", occurredAt: "2026-09-12T12:01:10.000Z" });
+    await insertLedger(f.db, {
+      ...base,
+      kind: "execution_attached",
+      occurredAt: "2026-09-12T12:00:00.000Z",
+    });
+    await insertLedger(f.db, {
+      ...base,
+      kind: "turn_started",
+      occurredAt: "2026-09-12T12:00:10.000Z",
+    });
+    await insertLedger(f.db, {
+      ...base,
+      kind: "turn_stopped",
+      occurredAt: "2026-09-12T12:01:10.000Z",
+    });
     await endExecution(f.db, spec.run_execution_id, "2026-09-12T12:02:00.000Z");
     success(
       await f.native(reportTokensCommand, {
@@ -745,7 +937,12 @@ describe("task measurements and aggregation", () => {
       }),
     );
 
-    const measured = await getTaskMeasurements(f.db, FIX.workspace, spec.task_id, "2026-09-12T12:10:00.000Z");
+    const measured = await getTaskMeasurements(
+      f.db,
+      FIX.workspace,
+      spec.task_id,
+      "2026-09-12T12:10:00.000Z",
+    );
     expect(measured.runs).toHaveLength(1);
     expect(measured.totals.active_ms).toBe(60_000);
     expect(measured.totals.process_elapsed_ms).toBe(120_000);
@@ -791,10 +988,14 @@ describe("task measurements and aggregation", () => {
 
   it("reports unknown runs and tasks as not_found", async () => {
     const f = await launchFixture();
-    await expect(getRunMeasurements(f.db, FIX.workspace, randomUlid(), LAUNCH_NOW)).rejects.toMatchObject({
+    await expect(
+      getRunMeasurements(f.db, FIX.workspace, randomUlid(), LAUNCH_NOW),
+    ).rejects.toMatchObject({
       code: "not_found",
     });
-    await expect(getTaskMeasurements(f.db, FIX.workspace, randomUlid(), LAUNCH_NOW)).rejects.toMatchObject({
+    await expect(
+      getTaskMeasurements(f.db, FIX.workspace, randomUlid(), LAUNCH_NOW),
+    ).rejects.toMatchObject({
       code: "not_found",
     });
   });

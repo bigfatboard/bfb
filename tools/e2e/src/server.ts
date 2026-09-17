@@ -332,19 +332,55 @@ async function seedMeasurementSurface(db: SqlDatabase): Promise<void> {
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   await insertToken.run(
-    FIX.workspace, tokenA, FIX.runDelegable, executionB, "codex", "codex-fixture-model",
-    1200, 34, 100, null, 5, "provider_reported", "hook_inbox",
-    "2026-08-07T11:00:00Z", "2026-08-07T11:00:00Z",
+    FIX.workspace,
+    tokenA,
+    FIX.runDelegable,
+    executionB,
+    "codex",
+    "codex-fixture-model",
+    1200,
+    34,
+    100,
+    null,
+    5,
+    "provider_reported",
+    "hook_inbox",
+    "2026-08-07T11:00:00Z",
+    "2026-08-07T11:00:00Z",
   );
   await insertToken.run(
-    FIX.workspace, tokenB, FIX.runDelegable, executionB, "codex", "codex-fixture-model",
-    100, 50, null, null, null, "estimated", "agent_reported",
-    "2026-08-07T11:05:00Z", "2026-08-07T11:05:00Z",
+    FIX.workspace,
+    tokenB,
+    FIX.runDelegable,
+    executionB,
+    "codex",
+    "codex-fixture-model",
+    100,
+    50,
+    null,
+    null,
+    null,
+    "estimated",
+    "agent_reported",
+    "2026-08-07T11:05:00Z",
+    "2026-08-07T11:05:00Z",
   );
   await insertToken.run(
-    FIX.workspace, tokenC, FIX.runDelegable, executionB, "grok", null,
-    null, null, null, null, null, "unavailable", "runner_observed",
-    "2026-08-07T11:06:00Z", "2026-08-07T11:06:00Z",
+    FIX.workspace,
+    tokenC,
+    FIX.runDelegable,
+    executionB,
+    "grok",
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    "unavailable",
+    "runner_observed",
+    "2026-08-07T11:06:00Z",
+    "2026-08-07T11:06:00Z",
   );
   await db
     .prepare(
@@ -354,9 +390,14 @@ async function seedMeasurementSurface(db: SqlDatabase): Promise<void> {
        VALUES (?, ?, ?, ?, 'external_wait', ?, ?, 'runner_observed', ?, ?)`,
     )
     .run(
-      FIX.workspace, waitId, FIX.runDelegable, executionB,
-      "2026-08-07T11:00:00Z", "2026-08-07T11:02:00Z",
-      "2026-08-07T11:02:00Z", "2026-08-07T11:02:00Z",
+      FIX.workspace,
+      waitId,
+      FIX.runDelegable,
+      executionB,
+      "2026-08-07T11:00:00Z",
+      "2026-08-07T11:02:00Z",
+      "2026-08-07T11:02:00Z",
+      "2026-08-07T11:02:00Z",
     );
   await db
     .prepare(
@@ -366,8 +407,12 @@ async function seedMeasurementSurface(db: SqlDatabase): Promise<void> {
        VALUES (?, ?, ?, NULL, ?, ?, ?, 'stopped', 2)`,
     )
     .run(
-      FIX.workspace, timerId, FIX.taskDelegable, FIX.owner,
-      "2026-08-07T10:00:00Z", "2026-08-07T10:04:00Z",
+      FIX.workspace,
+      timerId,
+      FIX.taskDelegable,
+      FIX.owner,
+      "2026-08-07T10:00:00Z",
+      "2026-08-07T10:04:00Z",
     );
   const insertTimerObservation = db.prepare(
     `INSERT INTO review_timer_observations
@@ -375,12 +420,20 @@ async function seedMeasurementSurface(db: SqlDatabase): Promise<void> {
      VALUES (?, ?, ?, ?, 'human', ?, ?)`,
   );
   await insertTimerObservation.run(
-    FIX.workspace, `${FIX.taskDelegable.slice(0, 24)}O1`, timerId, "started",
-    FIX.owner, "2026-08-07T10:00:00Z",
+    FIX.workspace,
+    `${FIX.taskDelegable.slice(0, 24)}O1`,
+    timerId,
+    "started",
+    FIX.owner,
+    "2026-08-07T10:00:00Z",
   );
   await insertTimerObservation.run(
-    FIX.workspace, `${FIX.taskDelegable.slice(0, 24)}O2`, timerId, "stopped",
-    FIX.owner, "2026-08-07T10:04:00Z",
+    FIX.workspace,
+    `${FIX.taskDelegable.slice(0, 24)}O2`,
+    timerId,
+    "stopped",
+    FIX.owner,
+    "2026-08-07T10:04:00Z",
   );
   await db
     .prepare(
@@ -390,8 +443,13 @@ async function seedMeasurementSurface(db: SqlDatabase): Promise<void> {
        VALUES (?, ?, ?, ?, ?, ?, 1, 'human_observed', ?)`,
     )
     .run(
-      FIX.workspace, browserId, FIX.owner, FIX.taskDelegable,
-      "2026-08-07T09:00:00Z", "2026-08-07T09:05:00Z", "2026-08-07T09:05:00Z",
+      FIX.workspace,
+      browserId,
+      FIX.owner,
+      FIX.taskDelegable,
+      "2026-08-07T09:00:00Z",
+      "2026-08-07T09:05:00Z",
+      "2026-08-07T09:05:00Z",
     );
 }
 

@@ -381,7 +381,9 @@ describe("A04 browser measurements API", () => {
       currentBindings,
     );
     expect(recorded.status, await recorded.clone().text()).toBe(200);
-    const recordedBody = (await recorded.json()) as { result: { capped: boolean; ended_at: string } };
+    const recordedBody = (await recorded.json()) as {
+      result: { capped: boolean; ended_at: string };
+    };
     expect(recordedBody.result.capped).toBe(true);
     expect(recordedBody.result.ended_at).toBe("2026-08-12T07:05:00.000Z");
 
@@ -393,11 +395,20 @@ describe("A04 browser measurements API", () => {
     expect(reread.status).toBe(200);
     const rereadBody = (await reread.json()) as {
       measurements: {
-        browser_activity: Array<{ observed_ms: number; quality: string; capped_observations: number }>;
+        browser_activity: Array<{
+          observed_ms: number;
+          quality: string;
+          capped_observations: number;
+        }>;
       };
     };
     expect(rereadBody.measurements.browser_activity).toEqual([
-      { human_id: expect.any(String), observed_ms: 300_000, capped_observations: 1, quality: "estimated" },
+      {
+        human_id: expect.any(String),
+        observed_ms: 300_000,
+        capped_observations: 1,
+        quality: "estimated",
+      },
     ]);
 
     const inverted = await app.request(

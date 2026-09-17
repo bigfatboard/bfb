@@ -368,7 +368,9 @@ try {
   });
   const claimed = await native<{
     state: string;
-    claim: { specification: { run_id: string; run_execution_id: string; assignment_generation: number } };
+    claim: {
+      specification: { run_id: string; run_execution_id: string; assignment_generation: number };
+    };
   }>(claimLaunchCommand.name, {
     principal,
     claim: {
@@ -407,18 +409,30 @@ try {
     tokens: { input_tokens: 1_000_000, output_tokens: 500_000 },
     quality: "provider_reported",
   };
-  const firstTokens = await native<{ observation_id: string }>(reportTokensCommand.name, tokenInput);
+  const firstTokens = await native<{ observation_id: string }>(
+    reportTokensCommand.name,
+    tokenInput,
+  );
   assert.equal(firstTokens.observation_id, usageObservationId);
-  const replayedTokens = await native<{ observation_id: string }>(reportTokensCommand.name, tokenInput);
+  const replayedTokens = await native<{ observation_id: string }>(
+    reportTokensCommand.name,
+    tokenInput,
+  );
   assert.equal(replayedTokens.observation_id, usageObservationId);
   const tokenRows = (await db
-    .prepare(`SELECT COUNT(*) AS total FROM token_observations WHERE workspace_id = ? AND run_id = ?`)
+    .prepare(
+      `SELECT COUNT(*) AS total FROM token_observations WHERE workspace_id = ? AND run_id = ?`,
+    )
     .get(FIX.workspace, spec.run_id)) as { total: number };
   assert.equal(tokenRows.total, 1);
-  const confused = await execute(reportTokensCommand.name, {
-    ...tokenInput,
-    tokens: { input_tokens: 2, output_tokens: 1 },
-  }, { actorRunnerId: runner });
+  const confused = await execute(
+    reportTokensCommand.name,
+    {
+      ...tokenInput,
+      tokens: { input_tokens: 2, output_tokens: 1 },
+    },
+    { actorRunnerId: runner },
+  );
   assert.equal(confused.ok, false);
   assert.equal(confused.ok ? "" : confused.error.code, "conflict");
   await native(reportTokensCommand.name, {
@@ -468,7 +482,9 @@ try {
     endedAt: "2026-09-12T12:03:00.000Z",
   });
   const intervalRows = (await db
-    .prepare(`SELECT COUNT(*) AS total FROM measurement_intervals WHERE workspace_id = ? AND run_id = ?`)
+    .prepare(
+      `SELECT COUNT(*) AS total FROM measurement_intervals WHERE workspace_id = ? AND run_id = ?`,
+    )
     .get(FIX.workspace, spec.run_id)) as { total: number };
   assert.equal(intervalRows.total, 2);
   const reportedUnion = unionIntervalsMs([
@@ -480,10 +496,18 @@ try {
 
   // Ledger-derived activity, offline gaps, launch latency, and attention wait.
   const base = { runId: spec.run_id, executionId: spec.run_execution_id, taskId: task.id };
-  await insertLedger(db, { ...base, kind: "execution_attached", occurredAt: "2026-09-12T12:00:30.000Z" });
+  await insertLedger(db, {
+    ...base,
+    kind: "execution_attached",
+    occurredAt: "2026-09-12T12:00:30.000Z",
+  });
   await insertLedger(db, { ...base, kind: "turn_started", occurredAt: "2026-09-12T12:00:40.000Z" });
   await insertLedger(db, { ...base, kind: "tool_started", occurredAt: "2026-09-12T12:00:50.000Z" });
-  await insertLedger(db, { ...base, kind: "tool_finished", occurredAt: "2026-09-12T12:01:10.000Z" });
+  await insertLedger(db, {
+    ...base,
+    kind: "tool_finished",
+    occurredAt: "2026-09-12T12:01:10.000Z",
+  });
   await insertLedger(db, { ...base, kind: "turn_stopped", occurredAt: "2026-09-12T12:01:30.000Z" });
   await insertLedger(db, { ...base, kind: "heartbeat", occurredAt: "2026-09-12T12:00:40.000Z" });
   await insertLedger(db, { ...base, kind: "heartbeat", occurredAt: "2026-09-12T12:05:00.000Z" });
@@ -511,7 +535,12 @@ try {
     },
     "2026-09-12T12:02:00.000Z",
   );
-  const measured = await getRunMeasurements(db, FIX.workspace, spec.run_id, "2026-09-12T12:10:00.000Z");
+  const measured = await getRunMeasurements(
+    db,
+    FIX.workspace,
+    spec.run_id,
+    "2026-09-12T12:10:00.000Z",
+  );
   assert.equal(measured.times.launch_latency_ms, 30_000);
   assert.equal(measured.times.active_ms, 50_000);
   assert.equal(measured.times.process_elapsed_ms, 330_000);
@@ -575,9 +604,12 @@ try {
   });
 
   // Review-timer races across workers: one open timer, starter-only stop.
-  const timer = await human<{ id: string; resource_version: number }>(startReviewTimerCommand.name, {
-    taskId: task.id,
-  });
+  const timer = await human<{ id: string; resource_version: number }>(
+    startReviewTimerCommand.name,
+    {
+      taskId: task.id,
+    },
+  );
   const doubleStart = await execute(
     startReviewTimerCommand.name,
     { taskId: task.id },
@@ -600,7 +632,12 @@ try {
     timerObservations.map((entry) => entry.observed_kind),
     ["started", "stopped"],
   );
-  const taskMeasured = await getTaskMeasurements(db, FIX.workspace, task.id, "2026-09-12T12:10:00.000Z");
+  const taskMeasured = await getTaskMeasurements(
+    db,
+    FIX.workspace,
+    task.id,
+    "2026-09-12T12:10:00.000Z",
+  );
   assert.equal(taskMeasured.review.stopped_total_ms, 240_000);
   assert.notEqual(taskMeasured.review.stopped_total_ms, taskMeasured.totals.active_ms);
   snapshot("review_timer", {
@@ -647,7 +684,11 @@ try {
   const exactStored = storedTokens.filter((row) => row.quality === "provider_reported");
   assert.equal(exactStored.length, 1);
   assert.deepEqual(
-    { provider: exactStored[0]?.provider, input: exactStored[0]?.input_tokens, output: exactStored[0]?.output_tokens },
+    {
+      provider: exactStored[0]?.provider,
+      input: exactStored[0]?.input_tokens,
+      output: exactStored[0]?.output_tokens,
+    },
     { provider: "codex", input: 1_000_000, output: 500_000 },
   );
   snapshot("token_facts", { rows: storedTokens.length, exact_input: exactStored[0]?.input_tokens });

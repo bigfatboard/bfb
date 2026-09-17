@@ -18,7 +18,13 @@ const MEASUREMENTS: TaskMeasurementsView = {
     process_elapsed_ms: 120_000,
     attention_wait_ms: 540_000,
     exact_tokens: { input: 1200, output: 34, cache_read: 100, cache_write: null, reasoning: 5 },
-    estimated_tokens: { input: 100, output: null, cache_read: null, cache_write: null, reasoning: null },
+    estimated_tokens: {
+      input: 100,
+      output: null,
+      cache_read: null,
+      cache_write: null,
+      reasoning: null,
+    },
     unavailable_token_reports: 1,
   },
   review: {
@@ -47,7 +53,12 @@ const MEASUREMENTS: TaskMeasurementsView = {
     },
   ],
   browser_activity: [
-    { human_id: "01SYNTHETICOWNER00000000001", observed_ms: 300_000, capped_observations: 1, quality: "estimated" },
+    {
+      human_id: "01SYNTHETICOWNER00000000001",
+      observed_ms: 300_000,
+      capped_observations: 1,
+      quality: "estimated",
+    },
   ],
   interventions: { runs: 1, restarts: 0, submission_versions: 2 },
 };
@@ -90,8 +101,20 @@ describe("A04 measurements view", () => {
         browser_activity: [],
         totals: {
           ...MEASUREMENTS.totals,
-          exact_tokens: { input: null, output: null, cache_read: null, cache_write: null, reasoning: null },
-          estimated_tokens: { input: null, output: null, cache_read: null, cache_write: null, reasoning: null },
+          exact_tokens: {
+            input: null,
+            output: null,
+            cache_read: null,
+            cache_write: null,
+            reasoning: null,
+          },
+          estimated_tokens: {
+            input: null,
+            output: null,
+            cache_read: null,
+            cache_write: null,
+            reasoning: null,
+          },
           unavailable_token_reports: 0,
         },
       },
