@@ -13,6 +13,7 @@ import {
   consumeAbuseBudget,
   createCloudWakeIdentifier,
   createRunControlCommand,
+  DomainError,
   issueLaunchWakeCommand,
   LAUNCH_BODY_LIMIT,
   loadPrincipal,
@@ -46,6 +47,7 @@ import {
 } from "@bfb/protocol";
 
 import type { BrowserPrincipal } from "../auth/session.js";
+import { launchStatusById, launchStatusForTask } from "./launch-status.js";
 import { readBoundedBytes } from "./request.js";
 import {
   executeRunnerCommand,
@@ -120,8 +122,38 @@ export async function handleLaunchBrowserApi(
     const url = new URL(request.url),
       workspaceId = runnerId(deps.workspaceId);
     await browserBudget(request, deps, deps.principal.humanId);
-    if (url.search || request.method !== "POST") rejectRunnerRequest();
     const prefix = `/api/v1/workspaces/${workspaceId}`;
+    const human = await loadPrincipal(deps.db, workspaceId, deps.principal.humanId);
+    if (request.method === "GET") {
+      try {
+        if (url.pathname === `${prefix}/launches`) {
+          const taskId = url.searchParams.get("task_id") ?? "";
+          const limit = Number(url.searchParams.get("limit") ?? "20");
+          if (!taskId) rejectRunnerRequest();
+          return response(
+            await launchStatusForTask(
+              deps.db,
+              human,
+              runnerId(taskId),
+              Number.isFinite(limit) ? limit : 20,
+            ),
+          );
+        }
+        const single = new RegExp(`^${prefix}/launches/([^/]+)$`).exec(url.pathname);
+        if (single?.[1] && !url.search) {
+          return response(await launchStatusById(deps.db, human, runnerId(single[1])));
+        }
+      } catch (error) {
+        if (
+          error instanceof DomainError &&
+          (error.code === "not_found" || error.code === "forbidden")
+        ) {
+          return response({ error: "not_found", message: "launch is not available" }, 404);
+        }
+      }
+      return rejected();
+    }
+    if (url.search || request.method !== "POST") rejectRunnerRequest();
     if (
       ![`${prefix}/launches`, `${prefix}/launches/wake`, `${prefix}/run-controls`].includes(
         url.pathname,
@@ -129,7 +161,6 @@ export async function handleLaunchBrowserApi(
     )
       rejectRunnerRequest();
     const bytes = await readBoundedBytes(request, LAUNCH_BODY_LIMIT);
-    const human = await loadPrincipal(deps.db, workspaceId, deps.principal.humanId);
     const run = <I, R>(command: HubCommand<I, R>, input: I) =>
       executeRunnerCommand(deps, command, {
         workspaceId,

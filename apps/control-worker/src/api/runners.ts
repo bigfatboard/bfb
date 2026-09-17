@@ -33,6 +33,7 @@ import {
 
 import type { BrowserPrincipal } from "../auth/session.js";
 import { executeWorkspaceCommand } from "../hub-client.js";
+import { checkoutStatusForRunner } from "./launch-status.js";
 import { readBoundedBytes, readBoundedJson } from "./request.js";
 
 export interface RunnerApiDeps {
@@ -148,6 +149,21 @@ export async function handleRunnerBrowserApi(
     const principal = await loadPrincipal(deps.db, workspaceId, deps.principal.humanId);
     if (request.method === "GET" && path === prefix)
       return response({ runners: await listRunners(deps.db, principal) });
+    if (request.method === "GET") {
+      const checkouts = new RegExp(`^${prefix}/([^/]+)/checkouts$`).exec(path);
+      if (checkouts?.[1]) {
+        const status = await checkoutStatusForRunner(
+          deps.db,
+          principal,
+          runnerId(checkouts[1]),
+        );
+        if (!status) {
+          return rejected();
+        }
+        return response(status);
+      }
+      return rejected();
+    }
     if (request.method !== "POST") return rejected();
     const body = await readBoundedJson(request, RUNNER_BODY_LIMIT);
     const common = {
