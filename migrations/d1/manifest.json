@@ -1,5 +1,5 @@
 {
-  "migration_head": "0018_cli_credentials",
+  "migration_head": "0020_artifact_storage",
   "migrations": [
     {
       "id": "0001_workspace_registry",
@@ -72,6 +72,10 @@
     {
       "id": "0018_cli_credentials",
       "file": "0018_cli_credentials.sql"
+    },
+    {
+      "id": "0020_artifact_storage",
+      "file": "0020_artifact_storage.sql"
     }
   ]
 }
