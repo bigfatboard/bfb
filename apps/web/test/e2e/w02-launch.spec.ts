@@ -100,7 +100,7 @@ test("owner double submit records one durable launch", async ({ page }) => {
     created!.body,
   );
   expect(replayed.status).toBe(201);
-  expect(((replayed.body as { launch_id: string }).launch_id)).toBe(listed.launches[0]!.launch_id);
+  expect((replayed.body as { launch_id: string }).launch_id).toBe(listed.launches[0]!.launch_id);
   trace.startPosts = posts.map((post) => ({
     status: post.status,
     key: post.body["idempotency_key"] as string,
@@ -173,7 +173,9 @@ test("owner wakes the pending launch through C09's link only", async ({ page }) 
   const anchor = page.locator('[data-testid^="wake-link-"] a');
   await expect(anchor).toBeVisible();
   const href = (await anchor.getAttribute("href"))!;
-  expect(href).toMatch(new RegExp(`^${LAUNCH_ORIGIN.replaceAll(".", "\\.")}/l/[0-7][0-9A-HJKMNP-TV-Z]{25}$`));
+  expect(href).toMatch(
+    new RegExp(`^${LAUNCH_ORIGIN.replaceAll(".", "\\.")}/l/[0-7][0-9A-HJKMNP-TV-Z]{25}$`),
+  );
   const opened = await page.evaluate(
     () => (window as unknown as { __w02Opened: string[] }).__w02Opened,
   );
@@ -188,17 +190,12 @@ test("owner wakes the pending launch through C09's link only", async ({ page }) 
     },
     { workspace: FIX.workspace, taskId: FIX.taskLaunch },
   );
-  const again = await apiFetch(
-    page,
-    "POST",
-    `/api/v1/workspaces/${FIX.workspace}/launches/wake`,
-    { schema_version: 1, launch_id: launchId },
-  );
+  const again = await apiFetch(page, "POST", `/api/v1/workspaces/${FIX.workspace}/launches/wake`, {
+    schema_version: 1,
+    launch_id: launchId,
+  });
   expect(again.status).toBe(201);
-  trace.wakeLaunches = [
-    launchId,
-    ((again.body as { launch_id: string }).launch_id),
-  ];
+  trace.wakeLaunches = [launchId, (again.body as { launch_id: string }).launch_id];
   expect(trace.wakeLaunches[0]).toBe(trace.wakeLaunches[1]);
   await page.screenshot({ path: path.join(W02_EVIDENCE_DIR, "wake-link.png") });
 });
@@ -222,9 +219,7 @@ test("duplicate cancel shares one disposition and settles the launch", async ({ 
   const first = await page.locator('[data-testid^="control-result-"]').innerText();
   expect(first).toMatch(/applied/);
   await expect(page.getByText("Launch rejected")).toBeVisible();
-  await expect
-    .poll(() => controls.length, { timeout: 15_000 })
-    .toEqual(1);
+  await expect.poll(() => controls.length, { timeout: 15_000 }).toEqual(1);
   const repeated = await apiFetch(
     page,
     "POST",
@@ -233,7 +228,7 @@ test("duplicate cancel shares one disposition and settles the launch", async ({ 
   );
   expect(repeated.status).toBe(201);
   const firstId = first.match(/Control ([0-9A-HJKMNP-TV-Z]{26})/)?.[1];
-  expect(((repeated.body as { control_id: string }).control_id)).toBe(firstId);
+  expect((repeated.body as { control_id: string }).control_id).toBe(firstId);
   await expect(page.locator('[data-testid^="control-result-"]')).toHaveCount(1);
   trace.controlIds = [first];
   await writeW02Report(

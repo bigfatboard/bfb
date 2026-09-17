@@ -2,12 +2,7 @@
 // ABOUTME: Sanitized projections only; command authority stays with C09 and L05.
 
 import type { SqlDatabase } from "@bfb/db";
-import {
-  assertProjectAccess,
-  DomainError,
-  listRunners,
-  type AuthzPrincipal,
-} from "@bfb/domain";
+import { assertProjectAccess, DomainError, listRunners, type AuthzPrincipal } from "@bfb/domain";
 import { decodeWireDocument, type RunnerInventory } from "@bfb/protocol";
 
 export interface CheckoutStatus {
@@ -38,12 +33,7 @@ export interface LaunchStatus {
   end_reason: "launch_blocked" | "launch_expired" | "terminated" | null;
   execution_state: "queued" | "launching" | "attached" | "detached" | "ended";
   execution_end_reason:
-    | "launch_blocked"
-    | "launch_expired"
-    | "process_exit"
-    | "terminated"
-    | "lost"
-    | null;
+    "launch_blocked" | "launch_expired" | "process_exit" | "terminated" | "lost" | null;
   result_state: "open" | "submitted" | "changes_requested" | "accepted" | "failed" | "cancelled";
   activity:
     | "working"
@@ -55,11 +45,7 @@ export interface LaunchStatus {
     | "unknown";
   lease_state: "reserved" | "live" | "containment_unknown" | "released" | null;
   containment_reason:
-    | "escaped_descendant"
-    | "identity_ambiguous"
-    | "evidence_missing"
-    | "recovery_incomplete"
-    | null;
+    "escaped_descendant" | "identity_ambiguous" | "evidence_missing" | "recovery_incomplete" | null;
   agent_profile_id: string | null;
   provider: "claude" | "codex" | "grok" | "fake" | null;
   model: string | null;
@@ -83,8 +69,7 @@ export async function checkoutStatusForRunner(
        WHERE workspace_id = ? AND runner_id = ?`,
     )
     .get(principal.workspaceId, runnerId)) as
-    | { inventory_json: string; revision: number; received_at: string }
-    | undefined;
+    { inventory_json: string; revision: number; received_at: string } | undefined;
   if (!row) {
     return {
       runner_id: runner.runner_id,
@@ -107,7 +92,11 @@ export async function checkoutStatusForRunner(
   } catch {
     inventory = null;
   }
-  if (!inventory || inventory.runner_id !== runnerId || inventory.workspace_id !== principal.workspaceId) {
+  if (
+    !inventory ||
+    inventory.runner_id !== runnerId ||
+    inventory.workspace_id !== principal.workspaceId
+  ) {
     return {
       runner_id: runner.runner_id,
       device_label: runner.device_label,
@@ -175,7 +164,12 @@ function toStatus(row: StatusRow): LaunchStatus {
     }
     const config = snapshot.execution_config;
     if (config && typeof config === "object") {
-      if (config.provider === "claude" || config.provider === "codex" || config.provider === "grok" || config.provider === "fake") {
+      if (
+        config.provider === "claude" ||
+        config.provider === "codex" ||
+        config.provider === "grok" ||
+        config.provider === "fake"
+      ) {
         provider = config.provider;
       }
       if (typeof config.model === "string") {
@@ -235,11 +229,7 @@ const STATUS_SELECT = `SELECT launch.id AS launch_id, launch.run_id, launch.exec
     AND lease.physical_worktree_hash = assignment.physical_worktree_hash
   WHERE launch.workspace_id = ? AND run.purpose = 'work'`;
 
-async function taskProject(
-  db: SqlDatabase,
-  workspaceId: string,
-  taskId: string,
-): Promise<string> {
+async function taskProject(db: SqlDatabase, workspaceId: string, taskId: string): Promise<string> {
   const task = (await db
     .prepare(`SELECT project_id FROM tasks WHERE workspace_id = ? AND id = ?`)
     .get(workspaceId, taskId)) as { project_id: string } | undefined;

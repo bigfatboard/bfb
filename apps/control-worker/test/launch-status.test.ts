@@ -177,13 +177,13 @@ describe("w02 launch operations browser surface", () => {
     const noTask = await f.request(f.owner, "GET", `launches?task_id=${randomUlid()}`);
     expect(noTask.status).toBe(404);
     const projectBTask = success(
-      await f.human(createTaskCommand, { projectId: FIX.projectB, title: "Synthetic B", priority: "P2" }),
+      await f.human(createTaskCommand, {
+        projectId: FIX.projectB,
+        title: "Synthetic B",
+        priority: "P2",
+      }),
     );
-    const crossed = await f.request(
-      f.restricted,
-      "GET",
-      `launches?task_id=${projectBTask.id}`,
-    );
+    const crossed = await f.request(f.restricted, "GET", `launches?task_id=${projectBTask.id}`);
     expect(crossed.status).toBe(404);
   });
 
@@ -267,9 +267,10 @@ describe("w02 launch operations browser surface", () => {
 
   it("requires another explicit click after expiry and supports retry_run_id", async () => {
     const f = await fixture();
-    const started = (await (
-      await f.request(f.owner, "POST", "launches", f.start)
-    ).json()) as { launch_id: string; run_id: string };
+    const started = (await (await f.request(f.owner, "POST", "launches", f.start)).json()) as {
+      launch_id: string;
+      run_id: string;
+    };
     const expiredAt = new Date(Date.parse(LAUNCH_NOW) + 130_000).toISOString();
     const claim: LaunchClaim = {
       schema_version: 1,
@@ -353,15 +354,19 @@ describe("w02 launch operations browser surface", () => {
 
   it("keeps wake hints out of launch authority", async () => {
     const f = await fixture();
-    const started = (await (
-      await f.request(f.owner, "POST", "launches", f.start)
-    ).json()) as { launch_id: string };
+    const started = (await (await f.request(f.owner, "POST", "launches", f.start)).json()) as {
+      launch_id: string;
+    };
     const first = await f.request(f.owner, "POST", "launches/wake", {
       schema_version: 1,
       launch_id: started.launch_id,
     });
     expect(first.status, await first.clone().text()).toBe(201);
-    const hint = (await first.json()) as { intent_kind: string; intent_id: string; launch_id: string };
+    const hint = (await first.json()) as {
+      intent_kind: string;
+      intent_id: string;
+      launch_id: string;
+    };
     expect(hint.intent_kind).toBe("cloud_wake");
     const second = (await (
       await f.request(f.owner, "POST", "launches/wake", {
@@ -404,9 +409,9 @@ describe("w02 launch operations browser surface", () => {
     expect(first.status, await first.clone().text()).toBe(201);
     const created = (await first.json()) as { control_id: string; state: string };
     expect(created.state).toBe("pending");
-    const second = (await (
-      await f.request(f.owner, "POST", "run-controls", control)
-    ).json()) as { control_id: string };
+    const second = (await (await f.request(f.owner, "POST", "run-controls", control)).json()) as {
+      control_id: string;
+    };
     expect(second.control_id).toBe(created.control_id);
     const interruptReserved = await f.request(f.owner, "POST", "run-controls", {
       ...control,
@@ -457,8 +462,9 @@ describe("w02 launch operations browser surface", () => {
       recovery_local: false,
     };
     expect(
-      success(await f.native(observeCheckoutLeaseCommand, { principal: f.principal, observation: renew }))
-        .state,
+      success(
+        await f.native(observeCheckoutLeaseCommand, { principal: f.principal, observation: renew }),
+      ).state,
     ).toBe("live");
     const release: CheckoutLeaseObservation = {
       ...renew,
@@ -471,7 +477,10 @@ describe("w02 launch operations browser surface", () => {
     };
     expect(
       success(
-        await f.native(observeCheckoutLeaseCommand, { principal: f.principal, observation: release }),
+        await f.native(observeCheckoutLeaseCommand, {
+          principal: f.principal,
+          observation: release,
+        }),
       ).state,
     ).toBe("released");
     const status = (await (

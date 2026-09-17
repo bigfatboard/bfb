@@ -370,21 +370,21 @@ export function RunnerOperations(props: RunnerOperationsProps) {
                   <fieldset>
                     <legend>Projects</legend>
                     {projects.map((project) => (
-                        <label className="check-row" key={project.id}>
-                          <input
-                            type="checkbox"
-                            checked={form.projects.includes(project.id)}
-                            onChange={(event) =>
-                              setForm(runner.runner_id, {
-                                projects: event.target.checked
-                                  ? [...form.projects, project.id]
-                                  : form.projects.filter((id) => id !== project.id),
-                              })
-                            }
-                          />
-                          {project.name}
-                        </label>
-                      ))}
+                      <label className="check-row" key={project.id}>
+                        <input
+                          type="checkbox"
+                          checked={form.projects.includes(project.id)}
+                          onChange={(event) =>
+                            setForm(runner.runner_id, {
+                              projects: event.target.checked
+                                ? [...form.projects, project.id]
+                                : form.projects.filter((id) => id !== project.id),
+                            })
+                          }
+                        />
+                        {project.name}
+                      </label>
+                    ))}
                   </fieldset>
                   <fieldset>
                     <legend>Named launchers (members and owners only)</legend>
@@ -608,7 +608,9 @@ export function LaunchSection(props: LaunchSectionProps) {
     checkoutId || runnerStatus?.checkouts.find((item) => item.is_default)?.checkout_id || "";
   const usableProfiles = useMemo(() => profiles.filter((item) => item.model), [profiles]);
   const effectiveProfileId = profileId || usableProfiles[0]?.id || "";
-  const selectedCheckout = selectableCheckouts.find((item) => item.checkout_id === effectiveCheckoutId);
+  const selectedCheckout = selectableCheckouts.find(
+    (item) => item.checkout_id === effectiveCheckoutId,
+  );
   const checkoutBlocked = selectedCheckout && selectedCheckout.status !== "validated";
 
   async function readVersions() {
@@ -621,18 +623,16 @@ export function LaunchSection(props: LaunchSectionProps) {
     }
     const [workspacePolicy, projectPolicy, repositoryConfig] = await Promise.all([
       (
-        (await fetchFn(`/api/v1/workspaces/${props.workspaceId}/workspace-policy`)).json()
-      ) as Promise<{ policy: { resourceVersion: number } }>,
+        await fetchFn(`/api/v1/workspaces/${props.workspaceId}/workspace-policy`)
+      ).json() as Promise<{ policy: { resourceVersion: number } }>,
       (
-        (await fetchFn(
-          `/api/v1/workspaces/${props.workspaceId}/projects/${task.project_id}/policy`,
-        )).json()
-      ) as Promise<{ policy: { resourceVersion: number } }>,
+        await fetchFn(`/api/v1/workspaces/${props.workspaceId}/projects/${task.project_id}/policy`)
+      ).json() as Promise<{ policy: { resourceVersion: number } }>,
       (
-        (await fetchFn(
+        await fetchFn(
           `/api/v1/workspaces/${props.workspaceId}/projects/${task.project_id}/repository-config`,
-        )).json()
-      ) as Promise<{ config: { resource_version: number } }>,
+        )
+      ).json() as Promise<{ config: { resource_version: number } }>,
     ]);
     return {
       profile,
@@ -845,8 +845,7 @@ export function LaunchSection(props: LaunchSectionProps) {
         </form>
       ) : (
         <p className="section-help" data-testid="launch-readonly">
-          Reviewers watch launch state here. Starting and run controls need an owner or member
-          role.
+          Reviewers watch launch state here. Starting and run controls need an owner or member role.
         </p>
       )}
       <div className="launch-list" data-testid="launch-list">
@@ -909,18 +908,21 @@ export function LaunchSection(props: LaunchSectionProps) {
                 </button>
               ) : null}
               {canManage &&
-                (["interrupt", "terminate", "cancel", "focus_existing", "resume"] as const).map((action) =>
-                  presentation.actions.includes(action) ? (
-                    <button
-                      key={action}
-                      type="button"
-                      className="button-secondary"
-                      data-testid={`${action}-${launch.launch_id}`}
-                      onClick={() => void sendControl(launch, action)}
-                    >
-                      {action === "focus_existing" ? "Return to existing session" : `Send ${action}`}
-                    </button>
-                  ) : null,
+                (["interrupt", "terminate", "cancel", "focus_existing", "resume"] as const).map(
+                  (action) =>
+                    presentation.actions.includes(action) ? (
+                      <button
+                        key={action}
+                        type="button"
+                        className="button-secondary"
+                        data-testid={`${action}-${launch.launch_id}`}
+                        onClick={() => void sendControl(launch, action)}
+                      >
+                        {action === "focus_existing"
+                          ? "Return to existing session"
+                          : `Send ${action}`}
+                      </button>
+                    ) : null,
                 )}
               {Object.entries(controlResults)
                 .filter(([scope]) => scope.startsWith(`${launch.run_execution_id}:`))

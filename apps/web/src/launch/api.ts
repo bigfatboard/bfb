@@ -89,21 +89,12 @@ export interface LaunchStatus {
   end_reason: "launch_blocked" | "launch_expired" | "terminated" | null;
   execution_state: "queued" | "launching" | "attached" | "detached" | "ended";
   execution_end_reason:
-    | "launch_blocked"
-    | "launch_expired"
-    | "process_exit"
-    | "terminated"
-    | "lost"
-    | null;
+    "launch_blocked" | "launch_expired" | "process_exit" | "terminated" | "lost" | null;
   result_state: "open" | "submitted" | "changes_requested" | "accepted" | "failed" | "cancelled";
   activity: string;
   lease_state: "reserved" | "live" | "containment_unknown" | "released" | null;
   containment_reason:
-    | "escaped_descendant"
-    | "identity_ambiguous"
-    | "evidence_missing"
-    | "recovery_incomplete"
-    | null;
+    "escaped_descendant" | "identity_ambiguous" | "evidence_missing" | "recovery_incomplete" | null;
   agent_profile_id: string | null;
   provider: string | null;
   model: string | null;
@@ -142,8 +133,7 @@ export function createLaunchClient(
   return {
     listRunners: () => get(`${base}/runners`),
     checkoutStatus: (runnerId) => get(`${base}/runners/${runnerId}/checkouts`),
-    launchesForTask: (taskId) =>
-      get(`${base}/launches?task_id=${encodeURIComponent(taskId)}`),
+    launchesForTask: (taskId) => get(`${base}/launches?task_id=${encodeURIComponent(taskId)}`),
     launch: (launchId) => get(`${base}/launches/${launchId}`),
     start: (body) =>
       fetchFn(`${base}/launches`, {
@@ -262,7 +252,9 @@ export interface LaunchPresentation {
   detail: string;
   tone: LaunchTone;
   nextAction: string;
-  actions: Array<"wake" | "retry" | "cancel" | "interrupt" | "terminate" | "focus_existing" | "resume">;
+  actions: Array<
+    "wake" | "retry" | "cancel" | "interrupt" | "terminate" | "focus_existing" | "resume"
+  >;
   needsLocalRecovery: boolean;
 }
 
@@ -276,7 +268,8 @@ export function describeLaunchStatus(launch: LaunchStatus): LaunchPresentation {
       headline: "Containment unknown",
       detail: `The Mac reported ${launch.containment_reason?.replaceAll("_", " ") ?? "an unclear"} process state. Launches stay blocked until the Mac inspects and recovers locally.`,
       tone: "blocked",
-      nextAction: "Open the BFB app on the Mac and run explicit local recovery. This page cannot clear containment.",
+      nextAction:
+        "Open the BFB app on the Mac and run explicit local recovery. This page cannot clear containment.",
       actions: [],
       needsLocalRecovery: true,
     };
@@ -308,7 +301,8 @@ export function describeLaunchStatus(launch: LaunchStatus): LaunchPresentation {
   if (launch.cancelled) {
     return {
       headline: "Launch cancelled",
-      detail: "Cancellation stops further authorization. The Mac still proves the checkout is free.",
+      detail:
+        "Cancellation stops further authorization. The Mac still proves the checkout is free.",
       tone: "settled",
       nextAction: "Wait for the Mac to confirm release, or start again explicitly.",
       actions: ["retry"],
@@ -344,7 +338,8 @@ export function describeLaunchStatus(launch: LaunchStatus): LaunchPresentation {
   if (launch.state === "pending") {
     return {
       headline: "Pending Mac claim",
-      detail: "The durable command waits for the selected Mac. Expiry needs another explicit Start.",
+      detail:
+        "The durable command waits for the selected Mac. Expiry needs another explicit Start.",
       tone: "waiting",
       nextAction: "Optionally wake the Mac. The wake signal never starts or claims the launch.",
       actions: ["wake", "cancel"],
@@ -356,7 +351,8 @@ export function describeLaunchStatus(launch: LaunchStatus): LaunchPresentation {
       headline: "Execution detached",
       detail: "Process presence was lost while the Mac holds the checkout fence.",
       tone: "blocked",
-      nextAction: "Interrupt, terminate, or cancel the exact execution. Check the Mac before retrying.",
+      nextAction:
+        "Interrupt, terminate, or cancel the exact execution. Check the Mac before retrying.",
       actions: ["interrupt", "terminate", "cancel"],
       needsLocalRecovery: false,
     };

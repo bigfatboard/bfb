@@ -48,7 +48,9 @@ interface ParsedRoute {
 }
 
 function parseRoute(pathname: string): ParsedRoute {
-  const match = pathname.match(/^\/w\/([^/]+)(?:\/(work|attention|latest|load|runners|settings))?\/?$/);
+  const match = pathname.match(
+    /^\/w\/([^/]+)(?:\/(work|attention|latest|load|runners|settings))?\/?$/,
+  );
   return {
     workspaceSlug: match?.[1] ?? null,
     view: (match?.[2] as AppView | undefined) ?? "work",

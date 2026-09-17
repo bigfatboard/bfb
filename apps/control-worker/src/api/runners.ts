@@ -152,11 +152,7 @@ export async function handleRunnerBrowserApi(
     if (request.method === "GET") {
       const checkouts = new RegExp(`^${prefix}/([^/]+)/checkouts$`).exec(path);
       if (checkouts?.[1]) {
-        const status = await checkoutStatusForRunner(
-          deps.db,
-          principal,
-          runnerId(checkouts[1]),
-        );
+        const status = await checkoutStatusForRunner(deps.db, principal, runnerId(checkouts[1]));
         if (!status) {
           return rejected();
         }
