@@ -130,19 +130,17 @@ export function artifactObjectKey(input: {
 }
 
 export type SniffedKind =
-  | "png"
-  | "jpeg"
-  | "svg"
-  | "html"
-  | "json"
-  | "text"
-  | "zstd"
-  | "gzip"
-  | "unknown";
+  "png" | "jpeg" | "svg" | "html" | "json" | "text" | "zstd" | "gzip" | "unknown";
 
 /** Detects the byte kind from magic numbers and bounded text probes. Never trusts extensions. */
 export function sniffArtifactKind(bytes: Uint8Array): SniffedKind {
-  if (bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
+  if (
+    bytes.length >= 8 &&
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47
+  ) {
     return "png";
   }
   if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
@@ -239,7 +237,11 @@ function artifactRole(value: unknown): ArtifactRole {
 }
 
 function artifactSize(value: unknown, role: ArtifactRole): number {
-  if (!Number.isSafeInteger(value) || (value as number) < 1 || (value as number) > roleMaxBytes(role)) {
+  if (
+    !Number.isSafeInteger(value) ||
+    (value as number) < 1 ||
+    (value as number) > roleMaxBytes(role)
+  ) {
     rejectArtifactRequest();
   }
   return value as number;
@@ -297,7 +299,11 @@ interface VersionRow {
   available_at: string | null;
 }
 
-async function versionRow(db: SqlDatabase, workspaceId: string, versionId: string): Promise<VersionRow> {
+async function versionRow(
+  db: SqlDatabase,
+  workspaceId: string,
+  versionId: string,
+): Promise<VersionRow> {
   const row = (await db
     .prepare(`SELECT * FROM artifact_versions WHERE workspace_id = ? AND id = ?`)
     .get(workspaceId, versionId)) as VersionRow | undefined;
@@ -479,8 +485,7 @@ export const createArtifactCommand: HubCommand<CreateArtifactInput, CreateArtifa
       const existing = (await ctx.db
         .prepare(`SELECT id, run_id, format, role FROM artifacts WHERE workspace_id = ? AND id = ?`)
         .get(ctx.workspaceId, artifactId)) as
-        | { id: string; run_id: string | null; format: string; role: string }
-        | undefined;
+        { id: string; run_id: string | null; format: string; role: string } | undefined;
       if (!existing) rejectArtifactRequest();
       if (existing.format !== format || existing.role !== role) rejectArtifactRequest();
       if ((existing.run_id ?? null) !== runId) rejectArtifactRequest();
@@ -567,8 +572,7 @@ export const issueArtifactGrantCommand: HubCommand<IssueArtifactGrantInput, Arti
     const artifact = (await ctx.db
       .prepare(`SELECT run_id, role FROM artifacts WHERE workspace_id = ? AND id = ?`)
       .get(ctx.workspaceId, version.artifact_id)) as
-      | { run_id: string | null; role: string }
-      | undefined;
+      { run_id: string | null; role: string } | undefined;
     if (!artifact) rejectArtifactRequest();
     const { row, grant } = mintGrant({
       workspaceId: ctx.workspaceId,
@@ -775,9 +779,7 @@ export async function recordVerifiedUpload(
       `SELECT content_hash, size FROM artifact_upload_receipts
        WHERE workspace_id = ? AND version_id = ?`,
     )
-    .get(input.workspaceId, input.versionId)) as
-    | { content_hash: string; size: number }
-    | undefined;
+    .get(input.workspaceId, input.versionId)) as { content_hash: string; size: number } | undefined;
   if (existing) {
     if (existing.content_hash !== input.contentHash || existing.size !== input.size) {
       rejectArtifactRequest();
@@ -864,9 +866,7 @@ export const finalizeArtifactCommand: HubCommand<FinalizeArtifactInput, Finalize
         `SELECT content_hash, size FROM artifact_upload_receipts
          WHERE workspace_id = ? AND version_id = ?`,
       )
-      .get(ctx.workspaceId, input.versionId)) as
-      | { content_hash: string; size: number }
-      | undefined;
+      .get(ctx.workspaceId, input.versionId)) as { content_hash: string; size: number } | undefined;
     if (!receipt || receipt.content_hash !== contentHash || receipt.size !== input.size) {
       rejectArtifactRequest();
     }
@@ -931,7 +931,10 @@ export interface MarkArtifactFailedResult {
  * explicit recovery; the recovery Cron uses the system actor. Terminal rows
  * are rejected so history can never be rewritten.
  */
-export const markArtifactFailedCommand: HubCommand<MarkArtifactFailedInput, MarkArtifactFailedResult> = {
+export const markArtifactFailedCommand: HubCommand<
+  MarkArtifactFailedInput,
+  MarkArtifactFailedResult
+> = {
   name: "artifact.mark_failed",
   replay: "reject",
   auditInput: () => ({ action: "artifact.mark_failed" }),

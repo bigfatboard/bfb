@@ -277,7 +277,14 @@ try {
 
   await seedSyntheticWorkspace(db, T0, "global");
   await seedHuman(db, "v01-user", SESSION, SESSION_TOKEN, FIX.owner, "owner@synthetic.test");
-  await seedHuman(db, "v01-member-user", MEMBER_SESSION, MEMBER_TOKEN, FIX.member, "member@synthetic.test");
+  await seedHuman(
+    db,
+    "v01-member-user",
+    MEMBER_SESSION,
+    MEMBER_TOKEN,
+    FIX.member,
+    "member@synthetic.test",
+  );
   await seedHuman(
     db,
     "v01-reviewer-user",
@@ -365,7 +372,13 @@ try {
   const revoked = await create(0, reviewBody(TEXT), OWNER, "192.0.2.91", T1);
   await bumpMemberEpoch(db, FIX.workspace, FIX.owner);
   await rejected(
-    await upload(revoked.upload_grant.grant_id, revoked.upload_grant.secret, TEXT, "192.0.2.91", T1),
+    await upload(
+      revoked.upload_grant.grant_id,
+      revoked.upload_grant.secret,
+      TEXT,
+      "192.0.2.91",
+      T1,
+    ),
   );
   note("revoked_upload_rejected");
   const revokedFinalize = await browser(
@@ -660,10 +673,13 @@ try {
   for (const secret of secrets) {
     assert(!dump.includes(secret), "secret retained outside its hashed grant");
   }
-  assert(!dump.includes("/tmp/") && !dump.includes("/Users/"), "local path retained in diagnostics");
-  const buckets = (await db
-    .prepare(`SELECT bucket_key FROM rate_limit_buckets`)
-    .all()) as Array<{ bucket_key: string }>;
+  assert(
+    !dump.includes("/tmp/") && !dump.includes("/Users/"),
+    "local path retained in diagnostics",
+  );
+  const buckets = (await db.prepare(`SELECT bucket_key FROM rate_limit_buckets`).all()) as Array<{
+    bucket_key: string;
+  }>;
   assert(buckets.length > 0, "abuse budgets never persisted");
   for (const bucket of buckets) assert.match(bucket.bucket_key, /^[0-9a-f]{64}$/);
   const keys = (await db.prepare(`SELECT r2_key FROM artifact_objects`).all()) as Array<{
@@ -671,14 +687,13 @@ try {
   }>;
   assert(keys.length > 0, "no R2 keys registered");
   for (const key of keys) {
-    assert.match(
-      key.r2_key,
-      new RegExp(`^workspaces/${FIX.workspace}/(artifacts/sha256/|runs/)`),
-    );
+    assert.match(key.r2_key, new RegExp(`^workspaces/${FIX.workspace}/(artifacts/sha256/|runs/)`));
   }
   note("scan_clean");
 
-  console.log(JSON.stringify({ ...outcomes, r2Objects: keys.length, abuseBuckets: buckets.length }));
+  console.log(
+    JSON.stringify({ ...outcomes, r2Objects: keys.length, abuseBuckets: buckets.length }),
+  );
   console.log("V01_D1_OK");
 } finally {
   await server.close();

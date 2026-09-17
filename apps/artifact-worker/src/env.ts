@@ -67,8 +67,7 @@ export function validateArtifactEnv(env: Partial<ArtifactBindings>): ValidatedAr
     environment: ENVIRONMENT,
     // Staging/production set this with `wrangler secret put UPLOAD_ABUSE_SECRET`.
     // Uploads fail closed while it is missing or short.
-    uploadAbuseSecret:
-      typeof env.UPLOAD_ABUSE_SECRET === "string" ? env.UPLOAD_ABUSE_SECRET : "",
+    uploadAbuseSecret: typeof env.UPLOAD_ABUSE_SECRET === "string" ? env.UPLOAD_ABUSE_SECRET : "",
   };
 }
 

@@ -173,7 +173,10 @@ describe("artifact state machine", () => {
     expect(second.version_id).not.toBe(first.version_id);
     expect(
       await failure(
-        human(createArtifactCommand, createInput({ artifactId: first.artifact_id, format: "html" })),
+        human(
+          createArtifactCommand,
+          createInput({ artifactId: first.artifact_id, format: "html" }),
+        ),
       ),
     ).toBe("request_rejected");
     expect(
@@ -582,9 +585,9 @@ describe("artifact state machine", () => {
         now: NOW,
       }),
     ).toBe(true);
-    const buckets = (await db
-      .prepare(`SELECT bucket_key FROM rate_limit_buckets`)
-      .all()) as Array<{ bucket_key: string }>;
+    const buckets = (await db.prepare(`SELECT bucket_key FROM rate_limit_buckets`).all()) as Array<{
+      bucket_key: string;
+    }>;
     expect(buckets.length).toBeGreaterThan(0);
     for (const bucket of buckets) expect(bucket.bucket_key).toMatch(/^[0-9a-f]{64}$/);
     expect(mintUploadGrantSecret().secret).not.toBe(mintUploadGrantSecret().secret);

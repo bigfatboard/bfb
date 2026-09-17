@@ -122,10 +122,16 @@ export async function handleArtifactBrowserApi(
         !body ||
         typeof body !== "object" ||
         Array.isArray(body) ||
-        Object.keys(body).some((key) =>
-          !["artifact_id", "run_id", "format", "role", "declared_size", "expected_digest"].includes(
-            key,
-          ),
+        Object.keys(body).some(
+          (key) =>
+            ![
+              "artifact_id",
+              "run_id",
+              "format",
+              "role",
+              "declared_size",
+              "expected_digest",
+            ].includes(key),
         )
       ) {
         return rejected();

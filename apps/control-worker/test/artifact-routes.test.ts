@@ -5,12 +5,7 @@ import { createHash } from "node:crypto";
 
 import { describe, expect, it } from "vitest";
 
-import {
-  artifactObjectKey,
-  FIX,
-  recordVerifiedUpload,
-  seedSyntheticWorkspace,
-} from "@bfb/domain";
+import { artifactObjectKey, FIX, recordVerifiedUpload, seedSyntheticWorkspace } from "@bfb/domain";
 import type { SqlDatabase } from "@bfb/db";
 import { runArtifactSweep } from "../src/api/artifacts.js";
 
@@ -99,10 +94,14 @@ async function fixture() {
     };
   }
   const prefix = `/api/v1/workspaces/${FIX.workspace}/artifacts`;
-  async function post(path: string, body: unknown, session: { cookie: string; csrf: string } = {
-    cookie: owner.cookie,
-    csrf,
-  }) {
+  async function post(
+    path: string,
+    body: unknown,
+    session: { cookie: string; csrf: string } = {
+      cookie: owner.cookie,
+      csrf,
+    },
+  ) {
     return app().request(
       new Request(ORIGIN + path, {
         method: "POST",
@@ -160,9 +159,20 @@ describe("artifact browser routes", () => {
     const { post, prefix } = await fixture();
     for (const body of [
       { format: "exe", role: "review", declared_size: 3, expected_digest: digest(TEXT) },
-      { format: "markdown", role: "review", declared_size: 6 * 1024 * 1024, expected_digest: digest(TEXT) },
+      {
+        format: "markdown",
+        role: "review",
+        declared_size: 6 * 1024 * 1024,
+        expected_digest: digest(TEXT),
+      },
       { format: "markdown", role: "review", declared_size: 3, expected_digest: "nope" },
-      { format: "markdown", role: "review", declared_size: 3, expected_digest: digest(TEXT), extra: 1 },
+      {
+        format: "markdown",
+        role: "review",
+        declared_size: 3,
+        expected_digest: digest(TEXT),
+        extra: 1,
+      },
       {},
     ]) {
       const response = await post(prefix, body);
@@ -298,9 +308,9 @@ describe("artifact browser routes", () => {
     await create();
     const { marked } = await runArtifactSweep(db, "2026-09-17T12:40:00.000Z");
     expect(marked.length).toBeGreaterThan(0);
-    const rows = (await db
-      .prepare(`SELECT state FROM artifact_versions`)
-      .all()) as Array<{ state: string }>;
+    const rows = (await db.prepare(`SELECT state FROM artifact_versions`).all()) as Array<{
+      state: string;
+    }>;
     expect(rows.every((row) => row.state === "failed")).toBe(true);
   });
 });

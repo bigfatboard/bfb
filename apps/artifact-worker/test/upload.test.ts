@@ -7,11 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-import {
-  adaptBetterSqlite3,
-  applyMigrationsForVerification,
-  type SqlDatabase,
-} from "@bfb/db";
+import { adaptBetterSqlite3, applyMigrationsForVerification, type SqlDatabase } from "@bfb/db";
 import {
   artifactObjectKey,
   createArtifactCommand,
@@ -51,11 +47,15 @@ function fakeR2() {
     calls,
     objects,
     bucket: {
-      async put(key: string, value: Uint8Array, options?: {
-        sha256?: string;
-        onlyIf?: { etagDoesNotMatch?: string };
-        customMetadata?: Record<string, string>;
-      }) {
+      async put(
+        key: string,
+        value: Uint8Array,
+        options?: {
+          sha256?: string;
+          onlyIf?: { etagDoesNotMatch?: string };
+          customMetadata?: Record<string, string>;
+        },
+      ) {
         calls.push({ op: "put", key });
         if (options?.onlyIf?.etagDoesNotMatch === "*" && objects.has(key)) {
           throw new Error("precondition failed: object exists");
@@ -159,7 +159,11 @@ describe("artifact upload", () => {
     const db = await openDb();
     const r2 = fakeR2();
     const { created, secret, bytes } = await grant(db);
-    const response = await upload(db, r2.bucket, uploadRequest(created.upload_grant.grant_id, secret, bytes));
+    const response = await upload(
+      db,
+      r2.bucket,
+      uploadRequest(created.upload_grant.grant_id, secret, bytes),
+    );
     expect(response.status).toBe(200);
     const payload = (await response.json()) as Record<string, unknown>;
     const key = artifactObjectKey({
@@ -188,7 +192,11 @@ describe("artifact upload", () => {
     const db = await openDb();
     const r2 = fakeR2();
     const { created, secret, bytes } = await grant(db);
-    const first = await upload(db, r2.bucket, uploadRequest(created.upload_grant.grant_id, secret, bytes));
+    const first = await upload(
+      db,
+      r2.bucket,
+      uploadRequest(created.upload_grant.grant_id, secret, bytes),
+    );
     expect(first.status).toBe(200);
     for (const request of [
       uploadRequest(created.upload_grant.grant_id, secret, bytes),
@@ -387,12 +395,18 @@ describe("artifact upload", () => {
     const closed = await upload(
       db,
       r2.bucket,
-      uploadRequest(closedGrant.created.upload_grant.grant_id, closedGrant.secret, closedGrant.bytes),
+      uploadRequest(
+        closedGrant.created.upload_grant.grant_id,
+        closedGrant.secret,
+        closedGrant.bytes,
+      ),
       "short",
     );
     expect(closed.status).toBe(403);
     const audit = (await db
-      .prepare(`SELECT COUNT(*) AS count FROM artifact_audit_outbox WHERE action = 'artifact.grant_consumed'`)
+      .prepare(
+        `SELECT COUNT(*) AS count FROM artifact_audit_outbox WHERE action = 'artifact.grant_consumed'`,
+      )
       .get()) as { count: number };
     expect(audit.count).toBe(0);
     const { created, secret } = await grant(db);
@@ -416,7 +430,11 @@ describe("artifact upload", () => {
       },
     };
     const { created, secret, bytes } = await grant(db);
-    const d1Fault = await upload(broken, r2.bucket, uploadRequest(created.upload_grant.grant_id, secret, bytes));
+    const d1Fault = await upload(
+      broken,
+      r2.bucket,
+      uploadRequest(created.upload_grant.grant_id, secret, bytes),
+    );
     expect(d1Fault.status).toBe(403);
     expect(r2.objects.size).toBe(0);
 
@@ -497,9 +515,7 @@ describe("artifact upload", () => {
     );
     expect(retry.status).toBe(200);
     const receipts = (await db
-      .prepare(
-        `SELECT content_hash, size FROM artifact_upload_receipts WHERE version_id = ?`,
-      )
+      .prepare(`SELECT content_hash, size FROM artifact_upload_receipts WHERE version_id = ?`)
       .get(first.created.version_id)) as { content_hash: string; size: number };
     expect(receipts).toEqual({ content_hash: digest(first.bytes), size: first.bytes.byteLength });
   });

@@ -185,11 +185,7 @@ export async function handleUpload(
       });
     } catch {
       const head = await deps.artifacts.head(r2Key);
-      if (
-        !head ||
-        head.size !== bytes.byteLength ||
-        head.customMetadata?.sha256 !== contentHash
-      ) {
+      if (!head || head.size !== bytes.byteLength || head.customMetadata?.sha256 !== contentHash) {
         return new Response(JSON.stringify({ error: "upload_failed" }), {
           status: 500,
           headers,
@@ -221,9 +217,12 @@ export async function handleUpload(
            WHERE workspace_id = ? AND version_id = ?`,
         )
         .get(redeemed.workspaceId, redeemed.versionId)) as
-        | { content_hash: string; size: number }
-        | undefined;
-      if (!existing || existing.content_hash !== contentHash || existing.size !== bytes.byteLength) {
+        { content_hash: string; size: number } | undefined;
+      if (
+        !existing ||
+        existing.content_hash !== contentHash ||
+        existing.size !== bytes.byteLength
+      ) {
         return new Response(JSON.stringify({ error: "upload_conflict" }), {
           status: 409,
           headers,
