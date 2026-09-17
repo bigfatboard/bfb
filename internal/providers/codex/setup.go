@@ -247,7 +247,7 @@ func (editor HooksEditor) Prepare(before []byte) ([]byte, provider.OwnedDiff, er
 	}
 	beforeOwned, _ := json.Marshal(previous)
 	afterOwned, _ := json.Marshal(next)
-	return after, provider.OwnedDiff{Namespace: "codex-hooks", Before: beforeOwned, After: afterOwned}, nil
+	return after, provider.OwnedDiff{Namespace: "codex.hooks", Before: beforeOwned, After: afterOwned}, nil
 }
 
 func filterOwned(event string, groups []hookGroup, command string) []hookGroup {
@@ -337,6 +337,9 @@ type MCPServerEditor struct {
 }
 
 func (editor MCPServerEditor) block() ([]string, error) {
+	if !filepath.IsAbs(editor.Command) {
+		return nil, provider.Failure("provider_setup_denied")
+	}
 	command, err := tomlString(editor.Command)
 	if err != nil {
 		return nil, err

@@ -159,16 +159,16 @@ type execMessage struct {
 // 0.153.4 stream does not repeat on every line stay optional; Stream fills
 // the session from the observed thread start.
 type execLine struct {
-	Type      string       `json:"type"`
-	ThreadID  string       `json:"thread_id"`
-	SessionID string       `json:"session_id"`
-	TurnID    string       `json:"turn_id"`
-	ID        string       `json:"id"`
-	Usage     *execUsage   `json:"usage"`
-	Item      *execItem    `json:"item"`
-	Message   *execMessage `json:"message"`
-	Result    *string      `json:"result"`
-	IsError   *bool        `json:"is_error"`
+	Type      string          `json:"type"`
+	ThreadID  string          `json:"thread_id"`
+	SessionID string          `json:"session_id"`
+	TurnID    string          `json:"turn_id"`
+	ID        string          `json:"id"`
+	Usage     *execUsage      `json:"usage"`
+	Item      *execItem       `json:"item"`
+	Message   json.RawMessage `json:"message"`
+	Result    *string         `json:"result"`
+	IsError   *bool           `json:"is_error"`
 }
 
 // Stream feeds exec JSONL lines of one execution in order. It remembers the
@@ -213,9 +213,13 @@ func messageText(line execLine) string {
 	if line.Item != nil && line.Item.Type == "agent_message" {
 		return line.Item.Text
 	}
-	if line.Message != nil {
+	if len(line.Message) != 0 {
+		var message execMessage
+		if provider.DecodeJSON(line.Message, &message) != nil {
+			return ""
+		}
 		parts := []string{}
-		for _, part := range line.Message.Content {
+		for _, part := range message.Content {
 			if part.Type == "text" {
 				parts = append(parts, part.Text)
 			}
@@ -279,7 +283,7 @@ func (stream *Stream) Parse(raw []byte) (*provider.TurnEvent, *provider.Candidat
 		}
 		return event, nil, nil
 	case "item.completed", "assistant", "result":
-		if line.Item == nil && line.Message == nil && line.Result == nil {
+		if line.Item == nil && len(line.Message) == 0 && line.Result == nil {
 			return nil, nil, nil
 		}
 		if line.Item != nil && line.Item.Type != "agent_message" {
