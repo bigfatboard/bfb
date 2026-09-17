@@ -124,14 +124,14 @@ func TestStdoutPurityAndSessionFlow(t *testing.T) {
 		responses = append(responses, value)
 	}
 	// responses[0] initialize, [1] tools/list, [2] get_task ok, [3] parse error,
-	// [4] provisional rejection, [5] unknown method, [6] absent-tool rejection.
+	// [4] provisional rejection, [5] unknown method, [6] attention validation.
 	if responses[2]["error"] != nil {
 		t.Fatalf("provisional get_task failed: %v", responses[2])
 	}
 	assertBFBCode(t, responses[3], "parse_error")
 	assertBFBCode(t, responses[4], "session_not_bound")
 	assertBFBCode(t, responses[5], "method_not_found")
-	assertBFBCode(t, responses[6], "not_implemented")
+	assertBFBCode(t, responses[6], "invalid_params")
 	if harness.stderr.String() == "" {
 		t.Fatalf("expected stderr diagnostics")
 	}

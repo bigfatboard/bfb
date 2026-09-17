@@ -35,6 +35,9 @@ func ToolDescriptors() []ToolDescriptor {
 		{Name: "bfb_add_comment", Description: "Add a discussion comment attributed to the agent run.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{"task_id": optionalTask, "body": stringSchema("Comment body.", 1, maxBodyLen), "request_id": requestID}, "required": []string{"body", "request_id"}, "additionalProperties": false}},
 		{Name: "bfb_report_progress", Description: "Publish a bounded progress checkpoint.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{"task_id": optionalTask, "summary": stringSchema("Progress summary.", 1, maxBodyLen), "percent": map[string]any{"type": "number", "minimum": 0, "maximum": 100}, "confidence": map[string]any{"type": "number", "minimum": 0, "maximum": 1}, "request_id": requestID}, "required": []string{"summary", "request_id"}, "additionalProperties": false}},
 		{Name: "bfb_propose_task", Description: "Propose a root task or a policy-bounded child task.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{"project_id": map[string]any{"type": "string", "description": "Optional project ID; must equal the run boundary.", "maxLength": maxIDLen}, "parent_task_id": map[string]any{"type": "string", "description": "Optional parent task ID; must equal the run boundary task.", "maxLength": maxIDLen}, "title": stringSchema("Proposed title.", 1, maxTitleLen), "priority": map[string]any{"type": "string", "enum": []string{"P0", "P1", "P2", "P3"}}, "request_id": requestID}, "required": []string{"title", "request_id"}, "additionalProperties": false}},
+		{Name: "bfb_request_human", Description: "Request a typed human decision from the run's attention queue.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{"kind": map[string]any{"type": "string", "description": "Attention kind.", "enum": []string{"clarification", "review", "credential", "capability", "destructive_action", "blocker"}}, "question": stringSchema("Bounded question for the human.", 1, maxBodyLen), "reference_kind": map[string]any{"type": "string", "description": "Optional immutable-object kind; travels with reference_id.", "maxLength": 64}, "reference_id": map[string]any{"type": "string", "description": "Optional immutable-object ID; travels with reference_kind.", "maxLength": maxIDLen}, "blocking": map[string]any{"type": "boolean", "description": "Whether the run is blocked on the answer."}, "request_id": requestID}, "required": []string{"kind", "question", "blocking", "request_id"}, "additionalProperties": false}},
+		{Name: "bfb_get_attention", Description: "Read the committed metadata for one of the run's attention requests.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{"attention_id": map[string]any{"type": "string", "description": "Attention request ID; must belong to the run.", "maxLength": maxIDLen}, "request_id": requestID}, "required": []string{"attention_id", "request_id"}, "additionalProperties": false}},
+		{Name: "bfb_wait_for_attention", Description: "Poll committed attention state for up to 30 seconds, then report pending.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{"attention_id": map[string]any{"type": "string", "description": "Attention request ID; must belong to the run.", "maxLength": maxIDLen}, "request_id": requestID}, "required": []string{"attention_id", "request_id"}, "additionalProperties": false}},
 	}
 }
 
@@ -115,8 +118,8 @@ func (host *Host) CallTool(ctx context.Context, name string, params map[string]a
 		}
 	}
 	if !known {
-		if name == "bfb_request_human" || name == "bfb_submit_result" || name == "bfb_publish_artifact" ||
-			name == "bfb_wait_for_attention" || name == "bfb_get_attention" || name == "bfb_list_projects" || name == "bfb_list_tasks" {
+		if name == "bfb_submit_result" || name == "bfb_publish_artifact" ||
+			name == "bfb_list_projects" || name == "bfb_list_tasks" {
 			return nil, fail("not_implemented")
 		}
 		return nil, fail("method_not_found")
@@ -152,6 +155,12 @@ func (host *Host) CallTool(ctx context.Context, name string, params map[string]a
 		}
 		host.remember(rawRequestID, result)
 		return result, nil
+	case "bfb_request_human":
+		return host.requestAttention(ctx, params, rawRequestID)
+	case "bfb_get_attention":
+		return host.getAttention(ctx, params, rawRequestID)
+	case "bfb_wait_for_attention":
+		return host.waitForAttention(ctx, params)
 	default:
 		result, err := host.write(ctx, name, params, rawRequestID, boundary)
 		if err != nil {
@@ -173,6 +182,10 @@ func allowedParams(name string) map[string]bool {
 		return map[string]bool{"task_id": true, "request_id": true, "summary": true, "percent": true, "confidence": true}
 	case "bfb_propose_task":
 		return map[string]bool{"request_id": true, "project_id": true, "parent_task_id": true, "title": true, "priority": true}
+	case "bfb_request_human":
+		return map[string]bool{"request_id": true, "kind": true, "question": true, "reference_kind": true, "reference_id": true, "blocking": true}
+	case "bfb_get_attention", "bfb_wait_for_attention":
+		return map[string]bool{"request_id": true, "attention_id": true}
 	default:
 		return common
 	}

@@ -70,6 +70,8 @@ func jsonRPCCode(code string) (int, string) {
 		return -32015, "The request exceeds a local bound."
 	case "not_implemented":
 		return -32016, "This tool belongs to a later package on the same server."
+	case "already_answered":
+		return -32017, "The attention request already has a committed answer."
 	default:
 		return -32603, "The local operation failed."
 	}

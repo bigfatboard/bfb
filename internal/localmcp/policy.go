@@ -36,8 +36,11 @@ type OfflinePolicy interface {
 }
 
 // DefaultOfflinePolicy journals the four write tools and rejects the rest.
-// Project policy may prohibit pending-sync entirely at merge; that switch
-// lives behind this interface so L08/E01 policy can replace it.
+// Attention requests and reads need a live channel: a question is only
+// useful inside a live waiter loop, so they fail visibly offline instead of
+// queueing a stale question. Project policy may prohibit pending-sync
+// entirely at merge; that switch lives behind this interface so L08/E01
+// policy can replace it.
 type DefaultOfflinePolicy struct{ AllowPending bool }
 
 func (policy DefaultOfflinePolicy) Decide(tool string) OfflineDecision {
