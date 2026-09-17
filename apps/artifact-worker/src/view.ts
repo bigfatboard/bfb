@@ -93,14 +93,16 @@ export function viewBootstrapCsp(appOrigin: string): string {
 }
 
 /**
- * Fixed bootstrap script. It accepts exactly one message carrying exactly one
- * transferred port and a strict `{type, secret, nonce}` shape, then submits
- * the secret in a same-origin form POST that navigates the iframe to the
- * redeemed document. The view ID is read from the bootstrap location, so the
- * served document is byte-identical for every view and never contains
- * artifact bytes or secrets. Origin is intentionally not checked: possession
- * of the transferred port plus the server-verified secret and nonce is the
- * authority, and only the holder of the MessageChannel can supply the port.
+ * Fixed bootstrap script. A sandboxed frame without `allow-same-origin` has
+ * the opaque origin `null`, so the viewer cannot address it with a targeted
+ * `postMessage`. Instead the bootstrap offers a fresh `MessageChannel` port
+ * to its parent and accepts the grant exactly once over that port, then
+ * submits the secret in a same-origin form POST that navigates the iframe to
+ * the redeemed document. The parent post carries no authority — only a
+ * ready signal and the port — so its wildcard target cannot leak a secret;
+ * the secret crosses exactly one port whose peer the bootstrap created. The
+ * view ID is read from the bootstrap location, so the served document is
+ * byte-identical for every view and never contains artifact bytes or secrets.
  */
 export const VIEW_BOOTSTRAP_SCRIPT = `(function () {
   "use strict";
@@ -124,9 +126,9 @@ export const VIEW_BOOTSTRAP_SCRIPT = `(function () {
     var match = /^\\/view\\/([0-9A-HJKMNP-TV-Z]{26})\\/?$/.exec(location.pathname);
     return match ? match[1] : null;
   }
-  window.addEventListener("message", function (event) {
+  var channel = new MessageChannel();
+  channel.port1.onmessage = function (event) {
     if (consumed) return;
-    if (!event.ports || event.ports.length !== 1) return;
     var data = event.data;
     if (!data || typeof data !== "object" || Array.isArray(data)) return;
     var keys = Object.keys(data);
@@ -140,7 +142,7 @@ export const VIEW_BOOTSTRAP_SCRIPT = `(function () {
     }
     consumed = true;
     try {
-      event.ports[0].close();
+      channel.port1.close();
     } catch (ignored) {}
     var form = document.createElement("form");
     form.method = "POST";
@@ -157,7 +159,12 @@ export const VIEW_BOOTSTRAP_SCRIPT = `(function () {
     form.appendChild(nonce);
     document.body.appendChild(form);
     form.submit();
-  });
+  };
+  try {
+    window.parent.postMessage({ type: "bfb-view-ready" }, "*", [channel.port2]);
+  } catch (ignored) {
+    showHint("Preview unavailable. Reload the preview to request a new grant.");
+  }
   window.setTimeout(function () {
     if (!consumed) {
       showHint("Waiting for the viewer grant. Reload the preview to request a new grant.");

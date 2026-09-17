@@ -52,24 +52,32 @@ export function ArtifactViewer(props: ArtifactViewerProps) {
   const host = useMemo(
     () => ({
       requestGrant: () => requestViewGrant(props),
-      createFrame: (viewId: string, onLoad: () => void) => {
+      createFrame: (viewId: string) => {
         const element = document.createElement("iframe");
         element.title = "Artifact preview";
         element.setAttribute("sandbox", VIEWER_IFRAME_SANDBOX);
         element.setAttribute("referrerpolicy", "no-referrer");
         element.src = `${props.artifactOrigin}/view/${viewId}`;
-        element.addEventListener("load", onLoad, { once: true });
         containerRef.current?.appendChild(element);
         return {
-          postGrant: (
-            message: { type: "bfb-view-grant"; secret: string; nonce: string },
-            port: unknown,
-          ) => {
-            element.contentWindow?.postMessage(message, props.artifactOrigin, [port as MessagePort]);
-          },
+          source: () => element.contentWindow,
           dispose: () => {
             element.remove();
           },
+        };
+      },
+      listenMessages: (handler: (event: {
+        origin: string;
+        source: unknown;
+        data: unknown;
+        ports: unknown[];
+      }) => void) => {
+        const listener = (event: MessageEvent) => {
+          handler({ origin: event.origin, source: event.source, data: event.data, ports: [...event.ports] });
+        };
+        window.addEventListener("message", listener);
+        return () => {
+          window.removeEventListener("message", listener);
         };
       },
     }),

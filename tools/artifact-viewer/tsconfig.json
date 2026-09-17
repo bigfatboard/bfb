@@ -4,9 +4,9 @@
     "outDir": "dist",
     "rootDir": ".",
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo",
-    "types": ["node"]
+    "types": ["@cloudflare/workers-types", "node"]
   },
-  "include": ["run.ts", "control.ts", "artifact.ts"],
+  "include": ["run.ts", "control.ts", "artifact.ts", "e2e-fixture.ts"],
   "references": [
     {
       "path": "../../packages/domain"

@@ -5,7 +5,7 @@ import Database from "better-sqlite3";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { adaptBetterSqlite3, applyMigrationsForVerification, type SqlDatabase } from "@bfb/db";
 import {
@@ -513,10 +513,21 @@ describe("artifact view redemption", () => {
 });
 
 describe("view bootstrap channel", () => {
-  function drive(message: Record<string, unknown> | null, ports: unknown[], pathname: string) {
+  function drive(pathname: string, parentThrows = false) {
     const submitted: Array<{ action: string; method: string; fields: Record<string, string> }> = [];
-    const closed: unknown[] = [];
+    const parentPosts: Array<{ message: unknown; transfer: unknown[] }> = [];
     const hints: string[] = [];
+    let portHandler: ((event: { data: unknown }) => void) | null = null;
+    const port1 = {
+      closed: 0,
+      close() {
+        this.closed += 1;
+      },
+      set onmessage(handler: (event: { data: unknown }) => void) {
+        portHandler = handler;
+      },
+    };
+    const fakeChannel = { port1, port2: { kind: "port2" } };
     const fakeDocument = {
       createElement(tag: string) {
         if (tag === "form") {
@@ -558,13 +569,15 @@ describe("view bootstrap channel", () => {
         };
       },
     };
-    const listeners = new Map<string, (event: unknown) => void>();
     const fakeWindow = {
-      addEventListener(type: string, listener: (event: unknown) => void) {
-        listeners.set(type, listener);
-      },
       setTimeout() {
         return 0;
+      },
+      parent: {
+        postMessage(message: unknown, _target: string, transfer: unknown[]) {
+          if (parentThrows) throw new Error("denied");
+          parentPosts.push({ message, transfer });
+        },
       },
     };
     const runner = new Function(
@@ -572,58 +585,75 @@ describe("view bootstrap channel", () => {
       "document",
       "location",
       "setTimeout",
+      "MessageChannel",
       `${VIEW_BOOTSTRAP_SCRIPT}\nreturn ${"null"};`,
     );
-    runner(fakeWindow, fakeDocument, { pathname }, () => 0);
-    const dispatch = (data: unknown, eventPorts: unknown[]) =>
-      listeners.get("message")?.({ ports: eventPorts, data });
-    dispatch(message, ports);
-    return { submitted, closed, hints, dispatch, fakeDocument };
+    runner(
+      fakeWindow,
+      fakeDocument,
+      { pathname },
+      () => 0,
+      function FakeMessageChannel(this: unknown) {
+        return fakeChannel;
+      },
+    );
+    return {
+      submitted,
+      parentPosts,
+      hints,
+      deliver: (data: unknown) => portHandler?.({ data }),
+    };
   }
 
-  it("accepts only the exact transferred channel with a strict grant shape", () => {
+  it("offers a fresh port to the parent and redeems exactly once over it", () => {
     const viewId = randomUlid();
     const secret = mintViewGrantSecret().secret;
     const nonce = mintViewNonce();
-    const port = { close: vi.fn() };
-    // Missing port, extra ports, and malformed shapes are ignored.
-    for (const attempt of [
-      { message: { type: "bfb-view-grant", secret, nonce }, ports: [] },
-      { message: { type: "bfb-view-grant", secret, nonce }, ports: [port, port] },
-      { message: null, ports: [port] },
-      { message: { type: "other", secret, nonce }, ports: [port] },
-      { message: { type: "bfb-view-grant", secret, nonce, extra: 1 }, ports: [port] },
-      { message: { type: "bfb-view-grant", secret: "short", nonce }, ports: [port] },
-      { message: { type: "bfb-view-grant", secret, nonce: "bad" }, ports: [port] },
+    const driven = drive(`/view/${viewId}`);
+    // The ready signal carries no authority: a type tag plus the port only.
+    expect(driven.parentPosts.length).toBe(1);
+    expect(driven.parentPosts[0]!.message).toEqual({ type: "bfb-view-ready" });
+    expect(driven.parentPosts[0]!.transfer.length).toBe(1);
+    // Malformed grants over the port are ignored.
+    for (const malformed of [
+      null,
+      "string",
+      { type: "other", secret, nonce },
+      { type: "bfb-view-grant", secret, nonce, extra: 1 },
+      { type: "bfb-view-grant", secret: "short", nonce },
+      { type: "bfb-view-grant", secret, nonce: "bad" },
     ]) {
-      const driven = drive(
-        attempt.message as Record<string, unknown> | null,
-        attempt.ports,
-        `/view/${viewId}`,
-      );
-      expect(driven.submitted, JSON.stringify(attempt.message)).toEqual([]);
+      driven.deliver(malformed);
+      expect(driven.submitted, JSON.stringify(malformed)).toEqual([]);
     }
-    const accepted = drive({ type: "bfb-view-grant", secret, nonce }, [port], `/view/${viewId}`);
-    expect(accepted.submitted).toEqual([
+    driven.deliver({ type: "bfb-view-grant", secret, nonce });
+    expect(driven.submitted).toEqual([
       {
         action: `/view/${viewId}/redeem`,
         method: "POST",
         fields: { view_secret: secret, view_nonce: nonce },
       },
     ]);
-    expect(port.close).toHaveBeenCalledTimes(1);
-    // A second message on any channel is ignored after the single redemption.
-    accepted.dispatch({ type: "bfb-view-grant", secret, nonce }, [port]);
-    expect(accepted.submitted.length).toBe(1);
+    // A second grant over the same port is ignored after the single redemption.
+    driven.deliver({ type: "bfb-view-grant", secret, nonce });
+    expect(driven.submitted.length).toBe(1);
   });
 
   it("shows a reload hint when the bootstrap path carries no view", () => {
-    const driven = drive(
-      { type: "bfb-view-grant", secret: mintViewGrantSecret().secret, nonce: mintViewNonce() },
-      [{ close() {} }],
-      "/view/not-a-view",
-    );
+    const driven = drive("/view/not-a-view");
+    expect(driven.parentPosts.length).toBe(1);
+    driven.deliver({
+      type: "bfb-view-grant",
+      secret: mintViewGrantSecret().secret,
+      nonce: mintViewNonce(),
+    });
     expect(driven.submitted).toEqual([]);
+    expect(driven.hints.length).toBeGreaterThan(0);
+  });
+
+  it("shows a reload hint when the parent post is refused", () => {
+    const driven = drive(`/view/${randomUlid()}`, true);
+    expect(driven.parentPosts).toEqual([]);
     expect(driven.hints.length).toBeGreaterThan(0);
   });
 
