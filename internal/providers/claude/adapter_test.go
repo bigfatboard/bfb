@@ -106,7 +106,7 @@ func TestDescriptorManifest(t *testing.T) {
 			continue
 		}
 		found = true
-		if descriptor.Manifest.Version != "1.0.0" || !slices.Equal(descriptor.Manifest.TestedVersions, []string{"2.1.274"}) {
+		if descriptor.Manifest.Version != "1.0.0" || !slices.Equal(descriptor.Manifest.TestedVersions, []string{"2.1.274", "2.1.275"}) {
 			t.Fatalf("unexpected manifest %+v", descriptor.Manifest)
 		}
 		if descriptor.Adapter == nil {
@@ -184,6 +184,22 @@ func TestProbeHealthyWithAndWithoutHooks(t *testing.T) {
 	}
 	if invocation.Stdin != nil {
 		t.Fatal("interactive launch must not carry stdin")
+	}
+
+	want := slices.Clone(probe.Capabilities)
+	for _, version := range []string{"2.1.274", "2.1.275"} {
+		home := t.TempDir()
+		writeSettings(t, home, launcher)
+		versioned := mustProbe(t, registry, installation(t, stubBinary(t, version), home, launcher))
+		if versioned.Status != "healthy" || versioned.Version != version {
+			t.Fatalf("version %s: unexpected probe %+v", version, versioned)
+		}
+		if !slices.Equal(versioned.Capabilities, want) {
+			t.Fatalf("version %s: capabilities diverged: %v", version, versioned.Capabilities)
+		}
+		if _, err := registry.PlanLaunch(versioned, launchInput(workdir), provider.Policy{AllowedCapabilities: claude.Capabilities()}, time.Now()); err != nil {
+			t.Fatalf("version %s: tracked launch refused: %v", version, err)
+		}
 	}
 }
 

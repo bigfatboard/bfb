@@ -35,10 +35,17 @@ func TestDiagnoseHealthy(t *testing.T) {
 	home, launcher := testHome(t)
 	applyProposal(t, filepath.Join(home, ".claude", "settings.json"), claude.SettingsEditor{Launcher: launcher}, okDoctor)
 	applyProposal(t, filepath.Join(home, ".claude.json"), claude.MCPServerEditor{Launcher: launcher}, okDoctor)
-	report := diagnose(t, home, launcher, "2.1.274")
-	if report.Version != "2.1.274" {
-		t.Fatalf("unexpected version %s", report.Version)
+	for _, version := range []string{"2.1.274", "2.1.275"} {
+		report := diagnose(t, home, launcher, version)
+		if report.Version != version {
+			t.Fatalf("unexpected version %s", report.Version)
+		}
+		diagnoseHealthy(t, report)
 	}
+}
+
+func diagnoseHealthy(t *testing.T, report claude.Report) {
+	t.Helper()
 	for _, name := range []string{"binary", "version", "hooks_enabled", "hooks", "mcp", "launcher", "integration"} {
 		if status := checkStatus(t, report, name); status != claude.CheckPassed {
 			t.Fatalf("%s: %s", name, status)
