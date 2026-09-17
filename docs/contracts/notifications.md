@@ -48,9 +48,11 @@ stable `delivery_id`:
 
 `notification_macos_inbox` keeps one row per `(workspace, runner,
 delivery_id)` with `acked_at` set by the owning runner's pull/ack. The
-inbox write is the durable macOS handoff; the daemon offers each row once
-through the existing app bridge (`NotifyAttention`) and the signed app
-shows its fixed copy. A row never carries task text, paths, tokens,
+inbox write is the durable macOS handoff; the daemon offers each unacked
+row through the existing app bridge (`NotifyAttention`) on its poll
+cadence and the signed app shows its fixed copy. Delivered and
+permission-denied intents are acked; transient bridge failures stay
+unacked for the next poll. A row never carries task text, paths, tokens,
 commands, or arguments: the daemon receives the opaque delivery ULID only.
 
 `notification_dispatch_state` keeps one `(workspace, last_cursor)` row per

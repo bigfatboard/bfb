@@ -13,6 +13,7 @@ import (
 
 	"github.com/qdis/bfb/internal/auth"
 	"github.com/qdis/bfb/internal/daemon"
+	"github.com/qdis/bfb/internal/notify"
 )
 
 type enrollmentWorker struct {
@@ -32,15 +33,19 @@ type Manager struct {
 	consumers   map[string]CommandConsumer
 	inventory   InventorySource
 	heartbeat   time.Duration
+	notify      *notify.Service
 }
 
 // Credentials and HTTPClient are dependency boundaries for native integration
 // tests. Production has no RPC/configuration path for supplying either.
+// Notifier enables macOS notification polling through the app bridge; nil
+// keeps the manager exactly as before.
 type ManagerOptions struct {
 	Credentials Credentials
 	HTTPClient  *http.Client
 	Inventory   InventorySource
 	Consumers   map[string]CommandConsumer
+	Notifier    notify.Notifier
 }
 
 func NewManager(options ManagerOptions) *Manager {
@@ -51,7 +56,33 @@ func NewManager(options ManagerOptions) *Manager {
 	for kind, accept := range options.Consumers {
 		consumers[kind] = accept
 	}
-	return &Manager{credentials: options.Credentials, client: options.HTTPClient, inventory: options.Inventory, consumers: consumers, workers: map[string]*enrollmentWorker{}, heartbeat: 20 * time.Second}
+	manager := &Manager{credentials: options.Credentials, client: options.HTTPClient, inventory: options.Inventory, consumers: consumers, workers: map[string]*enrollmentWorker{}, heartbeat: 20 * time.Second}
+	if options.Notifier != nil {
+		manager.notify = &notify.Service{
+			Connections: func(runnerID string) (notify.Connection, error) {
+				return manager.Connection(runnerID)
+			},
+			Enrollments: func(ctx context.Context) ([]notify.Enrollment, error) {
+				manager.mu.Lock()
+				store := manager.store
+				manager.mu.Unlock()
+				if store == nil {
+					return nil, nil
+				}
+				list, err := store.List(ctx)
+				if err != nil {
+					return nil, err
+				}
+				enrollments := make([]notify.Enrollment, 0, len(list))
+				for _, enrollment := range list {
+					enrollments = append(enrollments, notify.Enrollment{RunnerID: enrollment.RunnerID})
+				}
+				return enrollments, nil
+			},
+			Notifier: options.Notifier,
+		}
+	}
+	return manager
 }
 
 func (manager *Manager) Start(ctx context.Context, local *daemon.Store) (func(), error) {
@@ -74,6 +105,11 @@ func (manager *Manager) Start(ctx context.Context, local *daemon.Store) (func(),
 	manager.ctx, manager.cancel = context.WithCancel(ctx)
 	for _, enrollment := range enrollments {
 		manager.startWorker(enrollment)
+	}
+	if manager.notify != nil {
+		// The poll loop is scoped to the manager context and exits on Close;
+		// Close must not join it while holding the manager mutex.
+		manager.notify.Start(manager.ctx)
 	}
 	return manager.Close, nil
 }

@@ -38,7 +38,7 @@ func main() {
 	accept := func(ctx context.Context, enrollment runner.Enrollment, command runner.CommandReference) error {
 		return executions.Accept(ctx, enrollment, command)
 	}
-	manager := runner.NewManager(runner.ManagerOptions{Consumers: map[string]runner.CommandConsumer{"launch": accept, "run_control": accept}})
+	manager := runner.NewManager(runner.ManagerOptions{Consumers: map[string]runner.CommandConsumer{"launch": accept, "run_control": accept}, Notifier: bridge})
 	executions = supervisor.NewService(supervisor.ServiceOptions{
 		Providers: providerRegistry, Connection: manager.Connection, WakeRunner: manager.Wake,
 		OpenTerminal: bridge.OpenTerminal, FocusTerminal: bridge.FocusTerminal,
