@@ -26,6 +26,7 @@ import {
 import type { HumanAuth } from "../auth/better-auth.js";
 import type { BrowserPrincipal } from "../auth/session.js";
 import { executeWorkspaceCommand } from "../hub-client.js";
+import { handleArtifactViewGrantApi } from "./artifact-views.js";
 import { readBoundedJson } from "./request.js";
 
 export interface ArtifactApiDeps {
@@ -108,6 +109,9 @@ export async function handleArtifactBrowserApi(
     const path = new URL(request.url).pathname;
     const prefix = `/api/v1/workspaces/${deps.workspaceId}/artifacts`;
     if (!path.startsWith(prefix)) return rejected();
+    if (/^\/api\/v1\/workspaces\/[^/]+\/artifacts\/[^/]+\/views$/.test(path)) {
+      return handleArtifactViewGrantApi(request, deps);
+    }
     const principal = await loadPrincipal(deps.db, deps.workspaceId, deps.principal.humanId);
     const common = {
       workspaceId: deps.workspaceId,

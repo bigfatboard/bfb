@@ -27,6 +27,13 @@ export interface UploadDeps {
 
 const BEARER_PATTERN = /^Bearer ([A-Za-z0-9_-]{16,256})$/;
 
+export function artifactAbuseSeeds(
+  abuseSecret: string,
+  request: Request,
+): { ipSeed: string; subjectSeed: string } | null {
+  return uploadSeeds(abuseSecret, request);
+}
+
 function uploadSeeds(
   abuseSecret: string,
   request: Request,
