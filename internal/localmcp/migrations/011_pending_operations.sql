@@ -3,7 +3,7 @@
 
 CREATE TABLE IF NOT EXISTS pending_operations (
     request_id TEXT PRIMARY KEY,
-    tool TEXT NOT NULL CHECK (tool IN ('bfb_update_task', 'bfb_add_comment', 'bfb_report_progress', 'bfb_propose_task')),
+    tool TEXT NOT NULL CHECK (tool IN ('bfb_update_task', 'bfb_add_comment', 'bfb_report_progress', 'bfb_propose_task', 'bfb_submit_result')),
     workspace_id TEXT NOT NULL,
     project_id TEXT NOT NULL,
     task_id TEXT NOT NULL,

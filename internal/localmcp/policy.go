@@ -35,14 +35,15 @@ type OfflinePolicy interface {
 	Decide(tool string) OfflineDecision
 }
 
-// DefaultOfflinePolicy journals the four write tools and rejects the rest.
-// Project policy may prohibit pending-sync entirely at merge; that switch
-// lives behind this interface so L08/E01 policy can replace it.
+// DefaultOfflinePolicy journals the five write tools and rejects the rest.
+// Project policy may prohibit pending-sync entirely, including result
+// actions, at merge; that switch lives behind this interface so L08/E01
+// policy can replace it.
 type DefaultOfflinePolicy struct{ AllowPending bool }
 
 func (policy DefaultOfflinePolicy) Decide(tool string) OfflineDecision {
 	switch tool {
-	case "bfb_update_task", "bfb_add_comment", "bfb_report_progress", "bfb_propose_task":
+	case "bfb_update_task", "bfb_add_comment", "bfb_report_progress", "bfb_propose_task", "bfb_submit_result":
 		if policy.AllowPending {
 			return OfflinePending
 		}

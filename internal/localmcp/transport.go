@@ -82,4 +82,6 @@ type WorkTransport interface {
 	ReportProgress(ctx context.Context, boundary Boundary, summary string, percent *float64, confidence *float64, requestID string) (CommentResult, error)
 	// ProposeTask creates a proposed root or policy-bounded child task.
 	ProposeTask(ctx context.Context, boundary Boundary, input ProposeTaskInput, requestID string) (ProposeTaskResult, error)
+	// SubmitResult submits an immutable result for human review.
+	SubmitResult(ctx context.Context, boundary Boundary, input SubmitResultInput, requestID string) (SubmitResultResult, error)
 }

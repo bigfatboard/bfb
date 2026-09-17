@@ -57,6 +57,7 @@ func main() {
 	cli.RegisterMCP(registry)
 	cli.RegisterCheckout(registry)
 	cli.RegisterRunner(registry)
+	cli.RegisterRun(registry)
 	cli.RegisterExecution(registry,
 		func(ctx context.Context, paths daemon.Paths, intent string) error {
 			return supervisor.RunHelper(ctx, paths, intent, providerRegistry)
