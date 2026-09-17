@@ -56,7 +56,7 @@ export async function apiFetch(
       const response = await fetch(path, {
         method,
         headers: { "content-type": "application/json", "x-bfb-csrf": csrfToken },
-        body: body === undefined ? undefined : JSON.stringify(body),
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
       let parsed: unknown = null;
       try {
