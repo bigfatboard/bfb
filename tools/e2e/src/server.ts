@@ -556,7 +556,6 @@ async function seedE02Chains(db: SqlDatabase): Promise<E02State> {
       title,
       priority: "P2",
     });
-    const snapshot = await currentPolicyVersions(db);
     const launch = await human(startLaunchCommand, {
       schema_version: 1,
       idempotency_key: randomUlid(),
@@ -848,6 +847,7 @@ async function seedLaunchOperations(db: SqlDatabase): Promise<void> {
     projectIds: [FIX.projectA],
   };
   async function start(taskId: string, checkoutId: string) {
+    const snapshot = await currentPolicyVersions(db);
     return human(startLaunchCommand, {
       schema_version: 1,
       idempotency_key: randomUlid(),
