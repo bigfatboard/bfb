@@ -1,0 +1,47 @@
+{
+  "package": "A01",
+  "tested_commit": "b990ab91edc4fa6a694543f26ed1956d90792b76",
+  "environment": "detached clean checkout and implementation worktree on macOS 26.2 (arm64)",
+  "outcome": "passed",
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "result": "clean-checkout install at the tested commit"
+    },
+    {
+      "command": "pnpm build",
+      "outcome": "passed",
+      "result": "TypeScript project references build"
+    },
+    {
+      "command": "pnpm test:a01",
+      "outcome": "passed",
+      "result": "21 Go test functions (93 cases with subtests) under -race in internal/localmcp, plus internal/cli and cmd/bfb suites; tools/local-mcp stdio harness against the real binary (unknown-assignment visibility, stdout purity, env/bearer refusal, journal creation)"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "result": "full repository verification on the implementation tree: format, lint, typecheck, protocol, provider, TypeScript suites, headers, docs, roadmap, Go (all packages including supervisor), Swift/Xcode"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "result": "recorded after the final commit; see manifest commands"
+    },
+    {
+      "command": "GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./...",
+      "outcome": "passed",
+      "result": "Linux cross-compile of the whole module"
+    }
+  ],
+  "migration_head": "0018_cli_credentials",
+  "local_journal_migration": "011_pending_operations",
+  "redaction": "passed",
+  "notes": [
+    "The exact gate (install, build, test:a01) passed from the detached clean checkout /tmp/bfb-a01-clean at the tested commit; the worktree was removed afterwards.",
+    "Evidence files are docs-only additions after the tested commit; pnpm test:a01, pnpm verify, pnpm worktree:check, and the Linux cross-build were re-run on the final tree.",
+    "Status stays planned: E01, L05, and L06 are not done, so roadmap:check rejects anything beyond planned.",
+    "All identities in tests, fixtures, transcripts, and this report are synthetic; no secrets, task bodies, environment values, or local absolute paths are retained."
+  ]
+}
