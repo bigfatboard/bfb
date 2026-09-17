@@ -1,0 +1,33 @@
+{
+  "package": "L06",
+  "fake": "F02 FakeControlPlane",
+  "submitted": 6,
+  "accepted": 4,
+  "rejected": 2,
+  "checks": [
+    {
+      "check": "session_started accepted",
+      "disposition": "accepted"
+    },
+    {
+      "check": "heartbeat accepted",
+      "disposition": "accepted"
+    },
+    {
+      "check": "duplicate replay accepted",
+      "disposition": "accepted"
+    },
+    {
+      "check": "attribution mismatch rejected",
+      "disposition": "permanently_rejected"
+    },
+    {
+      "check": "later event accepted after reject",
+      "disposition": "accepted"
+    },
+    {
+      "check": "unknown assignment rejected",
+      "disposition": "permanently_rejected"
+    }
+  ]
+}

@@ -36,6 +36,8 @@
     "test:l07": "pnpm test:l03 && go test -race -count=1 ./internal/providers/claude/...",
     "test:l04": "node tools/macos/fixtures.mjs --check && pnpm test:protocol && go test -race -count=1 ./internal/appbridge/... ./internal/daemon/... && pnpm swift:check && node tools/macos/acceptance.mjs --require-managed",
     "test:l08": "node tools/runners/fixtures.mjs --check && pnpm build && pnpm test:protocol && vitest run packages/domain/test/runners.test.ts apps/control-worker/test/runner-routes.test.ts apps/control-worker/test/runner-channels.test.ts apps/web/test/runner-enrollment.test.ts && go test -race -count=1 ./internal/auth/... ./internal/runner/... ./internal/daemon/... ./internal/cli/... ./cmd/bfb/... && tsx tools/runner-channel/run.ts && pnpm build:web && pnpm test:l08:browser",
+    "test:l06": "node tools/journal/fixtures.mjs --check && pnpm build && pnpm test:protocol && go test -race -count=1 ./internal/journal/... ./internal/daemon/... ./internal/cli/... ./internal/supervisor/... ./cmd/bfb/... && tsx tools/journal/run.ts",
+    "journal:fixtures": "node tools/journal/fixtures.mjs",
     "test:l08:browser": "playwright test apps/web/test/e2e/l08-enrollment.spec.ts --config tools/e2e/playwright.config.ts",
     "test:p01": "pnpm test:l03 && go test -race -count=1 ./internal/providers/codex/...",
     "typecheck": "tsc -b --pretty false",

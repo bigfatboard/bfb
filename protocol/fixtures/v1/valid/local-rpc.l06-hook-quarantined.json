@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "request_id": "01JBFB06H00KRECE1PT0000000",
+  "direction": "response",
+  "method": "hook.ingest",
+  "payload": {
+    "hook_status": "quarantined",
+    "hook_code": "session_conflict"
+  }
+}

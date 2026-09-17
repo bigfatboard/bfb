@@ -4,6 +4,10 @@ Status: `planned`
 
 Risk: Very high
 
+Test target: `pnpm test:l06`
+
+Evidence manifest: `docs/work-packages/evidence/WP-L06/manifest.json`
+
 ## Outcome
 
 Provider hooks return quickly while every accepted provider or daemon observation survives daemon/network failure and receives an explicit server disposition or local quarantine.
@@ -31,6 +35,24 @@ Provider hooks return quickly while every accepted provider or daemon observatio
 
 - Provider raw-schema ownership, attention/result/artifact business mutations, terminal transcript upload, guessing a current run, or treating correlation as objective truth.
 
+## Contracts
+
+### Consumes
+
+- F02 `runner-event-submission`, `event-disposition` and `event-envelope` v1 wire contracts with the TypeScript/Go/Swift codecs and the `FakeControlPlane` ingest double.
+- L01 daemon SQLite WAL store, private state paths, bounded local RPC envelope and `local-rpc` v1 (extended additively with `hook_status`, `hook_event_id`, `hook_sequence`, `hook_code`, `hook_pending`, `hook_quarantined`, `telemetry_degraded`, `degraded_reason`).
+- L03 provider-owned hook parser (`provider.Registry.NormalizeHook`, `provider.Candidate`); currently only the fake adapter normalizes hooks, so real-provider parsing stays with L07/P01.
+- L05 immutable execution assignment, correlation capability, creation time and final-hook grace window through the read-only `supervisor.JournalBackend` adapter; L05 semantics unchanged.
+- L08 `RunnerConnection.Request` transport boundary for the `events/submit` upload action; L08 owns credentials, renewal and sockets.
+
+### Produces
+
+- `internal/journal` owning the hook journal, offline inbox, uploader and observed-session binding behind `SessionReader`, `Assignments` and `Observers` interfaces.
+- [Observed-session and upload contract](../contracts/observed-session.md) consumed by A01 for run-scoped context and by E01 for the real ingest endpoint.
+- Local SQLite migrations `009_hook_journal.sql` and `010_hook_inbox.sql` (storage head 10).
+- Deterministic `local-rpc` hook fixtures owned by `pnpm journal:fixtures`; generated codecs via `pnpm protocol:generate`.
+- Exact target `pnpm test:l06`; evidence manifest `docs/work-packages/evidence/WP-L06/manifest.json`.
+
 ## Work plan
 
 1. Implement the common event sink/journal/source sequencing and bounded parsed-hook path.
@@ -50,11 +72,27 @@ Provider hooks return quickly while every accepted provider or daemon observatio
 - Daemon-observed start/heartbeat/end events survive the same restart/upload boundaries as hooks and cannot be asserted through the provider hook path.
 - Hooks captured inside the final grace period remain replayable after the creation window closes; later hooks are rejected without invalidating earlier envelopes.
 
-## Evidence and handoff
+## Evidence
 
-- Commit fault-injection matrix, session-binding race and heartbeat traces, latency results, SQLite/inbox fixtures, and disposition traces.
-- E01 supplies the real ingest endpoint without changing journal deletion semantics.
+- `docs/work-packages/evidence/WP-L06/manifest.json` indexing the tested commit, protocol/schema versions, migration head, toolchains, commands and redaction status per the evidence manifest schema.
+- `docs/work-packages/evidence/WP-L06/fault-matrix.md`: the fault-injection matrix with owning test and observed result per boundary.
+- `docs/work-packages/evidence/WP-L06/fake-ingest.json`: F02 fake-server disposition report produced by `tools/journal/run.ts`.
+- `docs/work-packages/evidence/WP-L06/command-result.json`: bounded aggregate command outcomes.
+- `internal/journal` race-tested suites, `internal/supervisor/journal_test.go` backend proof, `internal/cli/hook_test.go` CLI proof and the deterministic `local-rpc.l06-*` fixture corpus.
 
 ## Risks and decisions
 
 - Hooks may execute concurrently and more than once. No code may rely on provider hook serialization.
+- The first session-scoped hook binds the observed session (a turn may win the race against its own SessionStart); a competing session still quarantines and never rebinds. This keeps benign races out of quarantine while preserving exactly-one-binding.
+- Hook ingest commits directly to SQLite instead of proxying through the daemon socket, so a dead daemon cannot lose or delay a capture; the socket was never needed for capture authority.
+- Journal failure codes stay local raw strings because the daemon CLI diagnostic table collapses unknown codes; only listed daemon codes cross the CLI boundary.
+- Disk-full coverage injects a write fault of the same class (read-only connection) rather than filling the CI volume; the journal reacts identically to every failed SQLite write.
+
+## Handoff
+
+- Implementation, gate and evidence are complete on this branch, but L05 is not `done`, so this package stays `planned` per the roadmap status rule and no later package may consume it yet.
+- Commands: `pnpm test:l06`, `pnpm journal:fixtures`, `pnpm journal:fixtures --check` via `pnpm protocol:generate` for codec drift, `bfb hook ingest --provider <provider>`, `bfb hook status`.
+- Upload action `events/submit` is served today only by the F02 fake and the journal test double; E01 supplies the real ingest endpoint without changing journal deletion semantics.
+- The real Terminal acceptance that blocks L05 is orthogonal: the journal consumed only L05's SQLite assignment and observation state, which the backend proof exercises directly.
+- Known limitations: only the fake provider adapter normalizes hooks (real-provider hook shapes belong to L07/P01); no browser or macOS app surface was added; degraded state clears only after a clean inbox drain.
+- E01 supplies the real ingest endpoint without changing journal deletion semantics.

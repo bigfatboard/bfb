@@ -273,6 +273,12 @@ importers:
         specifier: 4.120.1
         version: 4.120.1(@cloudflare/workers-types@5.20260810.1)
 
+  tools/journal:
+    dependencies:
+      '@bfb/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol-ts
+
   tools/kernel:
     dependencies:
       '@bfb/db':

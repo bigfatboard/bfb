@@ -78,9 +78,4 @@ func RegisterDaemon(registry *Registry, methods *daemon.Registry) {
 		}
 		return map[string]any{"status": "installed"}, nil
 	}})
-	for _, item := range []struct{ path, method string }{{"hook ingest", "hook.ingest"}} {
-		register(Command{Path: item.path, Method: item.method, Summary: "Reserved; capability not implemented yet", Run: func(_ context.Context, _ Invocation) (map[string]any, error) {
-			return nil, &daemon.Failure{Code: "not_implemented"}
-		}})
-	}
 }
