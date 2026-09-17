@@ -545,6 +545,7 @@ async function seedE02Chains(db: SqlDatabase): Promise<E02State> {
     ],
   };
   await native(replaceRunnerInventoryCommand, { principal, inventory });
+  const snapshot = await currentPolicyVersions(db);
   const chains: Record<string, E02Chain> = {};
   for (const [key, checkoutId, title] of [
     ["live", checkoutLive, "Synthetic E02 live run"],
@@ -564,9 +565,9 @@ async function seedE02Chains(db: SqlDatabase): Promise<E02State> {
       checkout_id: checkoutId,
       agent_profile_id: profile.id,
       agent_profile_version: 1,
-      workspace_policy_version: 2,
-      project_policy_version: 2,
-      repository_config_version: 2,
+      workspace_policy_version: snapshot.workspace,
+      project_policy_version: snapshot.project,
+      repository_config_version: snapshot.config,
     });
     const claimed = await native(claimLaunchCommand, {
       principal,
