@@ -560,34 +560,38 @@ export const installGitHubCommand: HubCommand<InstallGitHubInput, GitHubInstalla
           JSON.stringify(permissions), JSON.stringify(events), ctx.actorHumanId, ctx.now,
           installationId,
         );
-    } else {
-      await ctx.db
-        .prepare(
-          `INSERT INTO github_app_installations
-           (installation_id, workspace_id, app_id, app_slug, account_id, account_login,
-            account_type, status, permissions_json, events_json, installed_by_human_id,
-            created_at, updated_at, revoked_at, resource_version)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, NULL, 1)`,
-        )
-        .run(
-          installationId, ctx.workspaceId, appId, appSlug, accountId, accountLogin,
-          input.accountType, JSON.stringify(permissions), JSON.stringify(events),
-          ctx.actorHumanId, ctx.now, ctx.now,
-        );
+      // No post-write re-read: D1 batches forbid reads after a queued write.
+      return {
+        installation_id: installationId,
+        workspace_id: ctx.workspaceId,
+        app_id: appId,
+        app_slug: appSlug,
+        account_login: accountLogin,
+        status: "pending" as GitHubInstallationStatus,
+        resource_version: existing.resource_version + 1,
+      };
     }
-    const row = (await ctx.db
+    await ctx.db
       .prepare(
-        `SELECT status, resource_version FROM github_app_installations WHERE installation_id = ?`,
+        `INSERT INTO github_app_installations
+         (installation_id, workspace_id, app_id, app_slug, account_id, account_login,
+          account_type, status, permissions_json, events_json, installed_by_human_id,
+          created_at, updated_at, revoked_at, resource_version)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, NULL, 1)`,
       )
-      .get(installationId)) as { status: GitHubInstallationStatus; resource_version: number };
+      .run(
+        installationId, ctx.workspaceId, appId, appSlug, accountId, accountLogin,
+        input.accountType, JSON.stringify(permissions), JSON.stringify(events),
+        ctx.actorHumanId, ctx.now, ctx.now,
+      );
     return {
       installation_id: installationId,
       workspace_id: ctx.workspaceId,
       app_id: appId,
       app_slug: appSlug,
       account_login: accountLogin,
-      status: row.status,
-      resource_version: row.resource_version,
+      status: "pending" as GitHubInstallationStatus,
+      resource_version: 1,
     };
   },
 };
@@ -608,10 +612,18 @@ export const removeGitHubCommand: HubCommand<RemoveGitHubInput, GitHubInstallati
     // All reads precede the step-up consume: D1 batches forbid reads after a queued write.
     const row = (await ctx.db
       .prepare(
-        `SELECT workspace_id, status, resource_version FROM github_app_installations WHERE installation_id = ?`,
+        `SELECT workspace_id, status, resource_version, app_id, app_slug, account_login
+         FROM github_app_installations WHERE installation_id = ?`,
       )
       .get(installationId)) as
-      | { workspace_id: string; status: GitHubInstallationStatus; resource_version: number }
+      | {
+          workspace_id: string;
+          status: GitHubInstallationStatus;
+          resource_version: number;
+          app_id: string;
+          app_slug: string;
+          account_login: string;
+        }
       | undefined;
     if (!row || row.workspace_id !== ctx.workspaceId) {
       fail("not_found", "github installation not found");
@@ -645,25 +657,15 @@ export const removeGitHubCommand: HubCommand<RemoveGitHubInput, GitHubInstallati
          WHERE installation_id = ? AND link_state = 'active'`,
       )
       .run(ctx.now, installationId);
-    const after = (await ctx.db
-      .prepare(
-        `SELECT app_id, app_slug, account_login, status, resource_version FROM github_app_installations WHERE installation_id = ?`,
-      )
-      .get(installationId)) as {
-      app_id: string;
-      app_slug: string;
-      account_login: string;
-      status: GitHubInstallationStatus;
-      resource_version: number;
-    };
+    // No post-write re-read: D1 batches forbid reads after a queued write.
     return {
       installation_id: installationId,
       workspace_id: ctx.workspaceId,
-      app_id: after.app_id,
-      app_slug: after.app_slug,
-      account_login: after.account_login,
-      status: after.status,
-      resource_version: after.resource_version,
+      app_id: row.app_id,
+      app_slug: row.app_slug,
+      account_login: row.account_login,
+      status: "revoked" as GitHubInstallationStatus,
+      resource_version: row.resource_version + 1,
     };
   },
 };
@@ -935,8 +937,11 @@ export const receiveGitHubWebhookCommand: HubCommand<ReceiveGitHubWebhookInput, 
         state: "ignored",
       };
     }
-    if (installation.status === "suspended") {
-      // Temporary: no state is committed so GitHub redelivery converges later.
+    // Lifecycle recovery flows through suspension: unsuspend clears it and
+    // deleted revokes it. Everything else waits for GitHub redelivery.
+    const lifecycleRecovery =
+      effect.event === "installation" && (effect.action === "unsuspend" || effect.action === "deleted");
+    if (installation.status === "suspended" && !lifecycleRecovery) {
       fail("installation_suspended", "github installation is suspended");
     }
     // Duplicate deliveries converge here: the pre-read keeps every read
@@ -1000,7 +1005,8 @@ export interface ReconcileGitHubObserved {
 export interface ReconcileGitHubInput {
   outboxId: string;
   deliveryId: string;
-  observed: ReconcileGitHubObserved;
+  /** Required for repository events; installation lifecycle events ignore it. */
+  observed?: ReconcileGitHubObserved | undefined;
 }
 
 export interface ReconcileGitHubResult {
@@ -1037,6 +1043,26 @@ async function finishOutbox(
       `UPDATE github_webhook_deliveries SET state = ?, processed_at = ?, error_code = ? WHERE workspace_id = ? AND delivery_id = ?`,
     )
     .run(deliveryState, now, errorCode, workspaceId, deliveryId);
+}
+
+function streamForEvent(event: string): string | null {
+  switch (event) {
+    case "push":
+      return "code";
+    case "pull_request":
+      return "pull";
+    case "check_run":
+    case "check_suite":
+    case "status":
+      return "check";
+    case "issues":
+      return "issue";
+    case "deployment":
+    case "deployment_status":
+      return "release";
+    default:
+      return null;
+  }
 }
 
 function evidenceKindForEvent(event: string): GitHubEvidenceKind | null {
@@ -1076,7 +1102,9 @@ export const reconcileGitHubCommand: HubCommand<ReconcileGitHubInput, ReconcileG
     if (typeof input.deliveryId !== "string" || !DELIVERY_ID_PATTERN.test(input.deliveryId)) {
       fail("invalid_argument", "delivery id is invalid");
     }
-    const observed = observedState(input.observed);
+    if (input.observed !== undefined) {
+      observedState(input.observed);
+    }
     const outbox = (await ctx.db
       .prepare(
         `SELECT delivery_id, state, attempts FROM github_integration_outbox WHERE workspace_id = ? AND outbox_id = ?`,
@@ -1143,6 +1171,10 @@ export const reconcileGitHubCommand: HubCommand<ReconcileGitHubInput, ReconcileG
     if (!effect.repositoryId) {
       fail("delivery_missing", "github delivery names no repository");
     }
+    if (input.observed === undefined) {
+      fail("invalid_argument", "repository reconcile requires a github observation");
+    }
+    const observed = observedState(input.observed);
     const link = (await ctx.db
       .prepare(
         `SELECT project_id, default_branch FROM github_repository_links
@@ -1153,11 +1185,15 @@ export const reconcileGitHubCommand: HubCommand<ReconcileGitHubInput, ReconcileG
       await finishOutbox(ctx.db, ctx.workspaceId, input.outboxId, "done", input.deliveryId, "ignored", "repository_unmapped", ctx.now);
       return { effect: "ignored", reason: "repository is not mapped" };
     }
+    const stream = streamForEvent(effect.event);
+    if (!stream) {
+      fail("delivery_missing", "github delivery names no reconcile stream");
+    }
     const guard = (await ctx.db
       .prepare(
-        `SELECT last_event_time, last_delivery_id FROM github_reconcile_state WHERE workspace_id = ? AND repository_id = ?`,
+        `SELECT last_event_time, last_delivery_id FROM github_reconcile_state WHERE workspace_id = ? AND repository_id = ? AND stream = ?`,
       )
-      .get(ctx.workspaceId, effect.repositoryId)) as
+      .get(ctx.workspaceId, effect.repositoryId, stream)) as
       | { last_event_time: string; last_delivery_id: string }
       | undefined;
     if (
@@ -1214,14 +1250,14 @@ export const reconcileGitHubCommand: HubCommand<ReconcileGitHubInput, ReconcileG
     }
     await ctx.db
       .prepare(
-        `INSERT INTO github_reconcile_state (workspace_id, repository_id, last_event_time, last_delivery_id, updated_at)
-         VALUES (?, ?, ?, ?, ?)
-         ON CONFLICT (workspace_id, repository_id) DO UPDATE SET
+        `INSERT INTO github_reconcile_state (workspace_id, repository_id, stream, last_event_time, last_delivery_id, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT (workspace_id, repository_id, stream) DO UPDATE SET
            last_event_time = excluded.last_event_time,
            last_delivery_id = excluded.last_delivery_id,
            updated_at = excluded.updated_at`,
       )
-      .run(ctx.workspaceId, effect.repositoryId, effect.occurredAt, input.deliveryId, ctx.now);
+      .run(ctx.workspaceId, effect.repositoryId, stream, effect.occurredAt, input.deliveryId, ctx.now);
     await finishOutbox(ctx.db, ctx.workspaceId, input.outboxId, "done", input.deliveryId, "applied", null, ctx.now);
     return { effect: "applied", reason: "converged to current github state" };
   },
@@ -1906,6 +1942,37 @@ export async function writeGitHubDlqRow(
        WHERE workspace_id = ? AND delivery_id = ? AND state IN ('received', 'queued')`,
     )
     .run(now, workspaceId, deliveryId);
+}
+
+/**
+ * Marks an installation revoked when GitHub itself rejects it (deleted app,
+ * revoked token). Active links close; later deliveries are recorded ignored.
+ */
+export async function markGitHubInstallationRevoked(
+  db: SqlDatabase,
+  installationId: string,
+  now: string,
+): Promise<boolean> {
+  numericId(installationId, "installation id");
+  utcTime(now, "revocation time");
+  await db
+    .prepare(
+      `UPDATE github_app_installations
+       SET status = 'revoked', revoked_at = ?, updated_at = ?, resource_version = resource_version + 1
+       WHERE installation_id = ? AND status != 'revoked'`,
+    )
+    .run(now, now, installationId);
+  await db
+    .prepare(
+      `UPDATE github_repository_links
+       SET link_state = 'closed', closed_at = ?, resource_version = resource_version + 1
+       WHERE installation_id = ? AND link_state = 'active'`,
+    )
+    .run(now, installationId);
+  const row = (await db
+    .prepare(`SELECT status FROM github_app_installations WHERE installation_id = ?`)
+    .get(installationId)) as { status: GitHubInstallationStatus } | undefined;
+  return row?.status === "revoked";
 }
 
 /** Consumer bookkeeping: one more processing attempt with backoff. */

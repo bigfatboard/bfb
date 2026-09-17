@@ -1,0 +1,25 @@
+{
+  "event": "installation_repositories",
+  "delivery_id": "x04-delivery-install-repos",
+  "payload": {
+    "action": "added",
+    "installation": {
+      "id": 12345678,
+      "account": {
+        "id": 555666,
+        "login": "synthetic-org",
+        "type": "Organization"
+      }
+    },
+    "repositories_added": [
+      {
+        "id": 87654321,
+        "full_name": "synthetic-org/synthetic-repo"
+      }
+    ],
+    "repositories_removed": [],
+    "sender": {
+      "login": "synthetic-org"
+    }
+  }
+}

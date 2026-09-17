@@ -120,11 +120,14 @@ CREATE INDEX github_evidence_by_task
   ON github_evidence (workspace_id, task_id) WHERE task_id IS NOT NULL;
 
 -- Latest-wins guard so duplicate and out-of-order deliveries converge.
+-- The cursor is per event stream so a stale push never drops newer
+-- pull-request, check, issue, or deployment evidence (or vice versa).
 CREATE TABLE github_reconcile_state (
   workspace_id TEXT NOT NULL REFERENCES workspaces (id),
   repository_id TEXT NOT NULL CHECK (length(repository_id) BETWEEN 1 AND 64),
+  stream TEXT NOT NULL CHECK (stream IN ('code', 'pull', 'check', 'issue', 'release')),
   last_event_time TEXT NOT NULL,
   last_delivery_id TEXT NOT NULL CHECK (length(last_delivery_id) BETWEEN 8 AND 128),
   updated_at TEXT NOT NULL,
-  PRIMARY KEY (workspace_id, repository_id)
+  PRIMARY KEY (workspace_id, repository_id, stream)
 );

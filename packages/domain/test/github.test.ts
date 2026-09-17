@@ -790,6 +790,63 @@ describe("github webhook receive and reconcile", () => {
     expect(dlq.attempts).toBe(5);
   });
 
+  it("parks suspended installations except for lifecycle recovery", async () => {
+    const db = await openDomainDb();
+    await install(db);
+    await activate(db);
+    await db
+      .prepare(`UPDATE github_app_installations SET status = 'suspended' WHERE installation_id = ?`)
+      .run(INSTALLATION);
+    const hubLane = new WorkspaceHub(db);
+    const parked = await hubLane.execute(receiveGitHubWebhookCommand, {
+      workspaceId: FIX.workspace,
+      idempotencyKey: randomUlid(),
+      actorSystemId: GITHUB_WEBHOOK_SYSTEM_ID,
+      authorizationEpoch: 1,
+      now: NOW,
+      input: {
+        deliveryId: randomUlid(),
+        event: "push",
+        supported: true,
+        effect: {
+          event: "push",
+          action: null,
+          installationId: INSTALLATION,
+          repositoryId: REPOSITORY,
+          occurredAt: NOW,
+          ref: "main",
+          version: "a".repeat(40),
+          detail: {},
+        },
+      },
+    });
+    expect(parked.ok).toBe(false);
+    const recoveryId = randomUlid();
+    const recovery = await hubLane.execute(receiveGitHubWebhookCommand, {
+      workspaceId: FIX.workspace,
+      idempotencyKey: `github-delivery.${recoveryId}`,
+      actorSystemId: GITHUB_WEBHOOK_SYSTEM_ID,
+      authorizationEpoch: 1,
+      now: NOW,
+      input: {
+        deliveryId: recoveryId,
+        event: "installation",
+        supported: true,
+        effect: {
+          event: "installation",
+          action: "unsuspend",
+          installationId: INSTALLATION,
+          repositoryId: null,
+          occurredAt: NOW,
+          ref: null,
+          version: null,
+          detail: {},
+        },
+      },
+    });
+    expect(recovery.ok).toBe(true);
+  });
+
   it("ignores deliveries for unmapped repositories without task effects", async () => {
     const db = await openDomainDb();
     await install(db);

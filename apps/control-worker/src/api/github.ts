@@ -332,8 +332,10 @@ export async function handleGitHubWebhook(
       // outbox row and GitHub redelivery converges on the duplicate path.
       return json({ error: "github_enqueue_failed", message: "delivery committed, enqueue failed" }, 500);
     }
+    // A hub replay is itself a duplicate: the stored outcome committed once.
+    const duplicate = outcome.replayed || outcome.result.duplicate;
     return json(
-      { received: true, duplicate: outcome.result.duplicate, outbox_id: outcome.result.outbox_id },
+      { received: true, duplicate, outbox_id: outcome.result.outbox_id },
       202,
     );
   } catch (error) {

@@ -1,0 +1,21 @@
+{
+  "event": "installation",
+  "delivery_id": "x04-delivery-install-deleted",
+  "payload": {
+    "action": "deleted",
+    "installation": {
+      "id": 12345678,
+      "account": {
+        "id": 555666,
+        "login": "synthetic-org",
+        "type": "Organization"
+      },
+      "app_id": 999000,
+      "app_slug": "synthetic-app",
+      "updated_at": "2026-09-18T12:00:00.000Z"
+    },
+    "sender": {
+      "login": "synthetic-org"
+    }
+  }
+}
