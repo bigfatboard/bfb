@@ -8,10 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const root = process.cwd();
-const binary = join(
-  mkdtempSync(join(tmpdir(), "bfb-a01-harness-")),
-  "bfb",
-);
+const binary = join(mkdtempSync(join(tmpdir(), "bfb-a01-harness-")), "bfb");
 
 function build(): void {
   const result = spawnSync("go", ["build", "-o", binary, "./cmd/bfb"], {
@@ -88,14 +85,15 @@ build();
 // Unknown execution: every request fails visibly as assignment_unknown on pure stdout.
 {
   const dataDir = mkdtempSync(join(tmpdir(), "bfb-a01-data-"));
-  const stdin = [
-    sessionLine(1, "initialize", {}),
-    sessionLine(2, "tools/list", {}),
-    sessionLine(3, "tools/call", {
-      name: "bfb_get_task",
-      arguments: { request_id: "harness-001" },
-    }),
-  ].join("\n") + "\n";
+  const stdin =
+    [
+      sessionLine(1, "initialize", {}),
+      sessionLine(2, "tools/list", {}),
+      sessionLine(3, "tools/call", {
+        name: "bfb_get_task",
+        arguments: { request_id: "harness-001" },
+      }),
+    ].join("\n") + "\n";
   const run = serve(["--data-dir", dataDir, "mcp", "stdio"], stdin, scopedEnv());
   assert.equal(run.status, 0, `exit: ${run.stderr}`);
   assertPureJsonRpc(run.stdout, 3, [
@@ -105,10 +103,7 @@ build();
   ]);
   assertNoLeak(run.stdout);
   assertNoLeak(run.stderr);
-  assert.ok(
-    existsSync(join(dataDir, "local-mcp-journal.sqlite")),
-    "journal file was not created",
-  );
+  assert.ok(existsSync(join(dataDir, "local-mcp-journal.sqlite")), "journal file was not created");
 }
 
 // Missing environment: refusal with empty stdout.
@@ -142,11 +137,7 @@ build();
 // Unexpected arguments: usage refusal with empty stdout.
 {
   const dataDir = mkdtempSync(join(tmpdir(), "bfb-a01-data-"));
-  const run = serve(
-    ["--data-dir", dataDir, "mcp", "stdio", "--verbose"],
-    "",
-    scopedEnv(),
-  );
+  const run = serve(["--data-dir", dataDir, "mcp", "stdio", "--verbose"], "", scopedEnv());
   assert.equal(run.status, 2, `exit: ${run.stderr}`);
   assert.equal(run.stdout, "", `stdout not empty: ${run.stdout}`);
 }
@@ -161,4 +152,6 @@ build();
   assert.ok(header.startsWith("SQLite format 3"), `not a SQLite file: ${header}`);
 }
 
-console.log("local MCP stdio harness: passed (unknown-assignment visibility, stdout purity, env refusal, journal creation)");
+console.log(
+  "local MCP stdio harness: passed (unknown-assignment visibility, stdout purity, env refusal, journal creation)",
+);

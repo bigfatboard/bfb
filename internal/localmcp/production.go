@@ -1,5 +1,5 @@
 // ABOUTME: Adapts daemon-local assignment and liveness state to the narrow A01 interfaces.
-// ABOUTME: Fails closed on schema drift; L05/L08 merge steps replace these adapters, not the core.
+// ABOUTME: Reads only stable L05 columns with mirrored identity structs; drift fails closed.
 
 package localmcp
 
@@ -7,14 +7,31 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-
-	"github.com/qdis/bfb/internal/supervisor"
 )
 
+// nativeProcess mirrors the PID/group/start-identity subset of L05's process
+// record. Only these three fields are read; every other L05 field is ignored,
+// and absent or malformed values fail closed to zero values.
+type nativeProcess struct {
+	PID           int    `json:"pid"`
+	GroupID       int    `json:"group_id"`
+	StartIdentity string `json:"start_identity"`
+}
+
+type nativeGroup struct {
+	Leader  nativeProcess `json:"leader"`
+	Unknown bool          `json:"unknown"`
+}
+
+type nativeSupervisor struct {
+	Process nativeProcess `json:"process"`
+}
+
 // DaemonAssignments resolves assignments from the daemon SQLite database. It
-// parses owned-group and supervisor identity with L05's own structs so no
-// parallel schema knowledge drifts. At merge, L05 may replace this adapter
-// with an exported assignment reader; the Lookup signature already matches.
+// reads only the stable identity columns and parses the PID/group/start
+// subset of L05's owned-group and supervisor documents with mirrored structs;
+// anything else fails closed. At merge, L05 may replace this adapter with an
+// exported assignment reader; the Lookup signature already matches.
 type DaemonAssignments struct{ DB *sql.DB }
 
 // Lookup returns the assignment for an execution, or an unknown record when
@@ -53,16 +70,18 @@ FROM local_execution_assignments WHERE execution_id = ? AND assignment_generatio
 		record.Active = false
 	}
 	if groupJSON.Valid && groupJSON.String != "" {
-		var group supervisor.Group
-		if json.Unmarshal([]byte(groupJSON.String), &group) == nil && !group.Unknown {
+		var group nativeGroup
+		if json.Unmarshal([]byte(groupJSON.String), &group) == nil && !group.Unknown &&
+			group.Leader.PID > 0 && group.Leader.GroupID > 0 && group.Leader.StartIdentity != "" {
 			record.OwnedGroupID = group.Leader.GroupID
 			record.ProviderPID = group.Leader.PID
 			record.ProviderStart = group.Leader.StartIdentity
 		}
 	}
 	if record.OwnedGroupID == 0 && supervisorJSON.Valid && supervisorJSON.String != "" {
-		var identity supervisor.SupervisorIdentity
-		if json.Unmarshal([]byte(supervisorJSON.String), &identity) == nil {
+		var identity nativeSupervisor
+		if json.Unmarshal([]byte(supervisorJSON.String), &identity) == nil &&
+			identity.Process.PID > 0 && identity.Process.StartIdentity != "" {
 			record.ProviderPID = identity.Process.PID
 			record.ProviderStart = identity.Process.StartIdentity
 		}

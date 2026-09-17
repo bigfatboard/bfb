@@ -5,9 +5,6 @@ package localmcp
 
 import (
 	"crypto/subtle"
-	"os"
-
-	"github.com/qdis/bfb/internal/supervisor"
 )
 
 // PeerFacts describes the connecting MCP client process as observed by the OS.
@@ -29,25 +26,12 @@ type Inspector interface {
 }
 
 // osInspector collects facts about our parent process using native inspection.
+// The per-OS inspectors live in inspect_linux.go and inspect_darwin.go and
+// mirror L05's start-identity formats; localmcp stays a leaf package so L05
+// test binaries never form an import cycle through the CLI.
 type osInspector struct{}
 
-func (osInspector) Inspect() (PeerFacts, error) {
-	parent := os.Getppid()
-	table, err := supervisor.InspectProcesses()
-	if err != nil {
-		return PeerFacts{}, fail("peer_denied")
-	}
-	record, ok := table[parent]
-	if !ok || record.Zombie {
-		return PeerFacts{}, fail("peer_denied")
-	}
-	return PeerFacts{
-		UID:           record.UID,
-		PID:           record.PID,
-		StartIdentity: record.StartIdentity,
-		GroupID:       record.GroupID,
-	}, nil
-}
+func (osInspector) Inspect() (PeerFacts, error) { return inspectParent() }
 
 // OSInspector is the production peer inspector. It reports our parent process
 // (the provider CLI that spawned this stdio server) from native OS state.
