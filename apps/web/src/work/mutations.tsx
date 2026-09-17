@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { AgentProfileSummary } from "./board.js";
+import { RunTimeline } from "../realtime/RunTimeline.js";
 
 type WorkspaceRole = "owner" | "member" | "reviewer";
 
@@ -395,6 +396,12 @@ export function WorkMutations(props: WorkMutationsProps) {
             </div>
             <p className="unavailable-copy">Time and token measurements are unavailable.</p>
           </section>
+
+          <RunTimeline
+            workspaceId={props.workspaceId}
+            taskId={task.id}
+            fetchImpl={props.fetchImpl}
+          />
 
           {canManage ? (
             <section aria-labelledby="edit-task-heading">
