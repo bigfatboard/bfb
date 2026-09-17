@@ -309,6 +309,92 @@ async function seedAttentionSurface(db: SqlDatabase): Promise<void> {
   }
 }
 
+/**
+ * Seeds A04 measurement observations for the delegable task/run without
+ * touching attention truth: token reports, one reported wait interval, a
+ * stopped review timer with observations, and one capped browser interval.
+ * The open blocking destructive-action request from the attention seed
+ * supplies the visible attention wait.
+ */
+async function seedMeasurementSurface(db: SqlDatabase): Promise<void> {
+  const executionB = "01SYNTHETICATNEXECB0000001";
+  const tokenA = `${FIX.runDelegable.slice(0, 24)}M1`;
+  const tokenB = `${FIX.runDelegable.slice(0, 24)}M2`;
+  const tokenC = `${FIX.runDelegable.slice(0, 24)}M3`;
+  const waitId = `${FIX.runDelegable.slice(0, 24)}W1`;
+  const timerId = `${FIX.taskDelegable.slice(0, 24)}T1`;
+  const browserId = `${FIX.taskDelegable.slice(0, 24)}B1`;
+  const insertToken = db.prepare(
+    `INSERT INTO token_observations
+     (workspace_id, observation_id, run_id, run_execution_id, provider, model,
+      input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, reasoning_tokens,
+      quality, provenance, occurred_at, committed_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  );
+  await insertToken.run(
+    FIX.workspace, tokenA, FIX.runDelegable, executionB, "codex", "codex-fixture-model",
+    1200, 34, 100, null, 5, "provider_reported", "hook_inbox",
+    "2026-08-07T11:00:00Z", "2026-08-07T11:00:00Z",
+  );
+  await insertToken.run(
+    FIX.workspace, tokenB, FIX.runDelegable, executionB, "codex", "codex-fixture-model",
+    100, 50, null, null, null, "estimated", "agent_reported",
+    "2026-08-07T11:05:00Z", "2026-08-07T11:05:00Z",
+  );
+  await insertToken.run(
+    FIX.workspace, tokenC, FIX.runDelegable, executionB, "grok", null,
+    null, null, null, null, null, "unavailable", "runner_observed",
+    "2026-08-07T11:06:00Z", "2026-08-07T11:06:00Z",
+  );
+  await db
+    .prepare(
+      `INSERT INTO measurement_intervals
+       (workspace_id, observation_id, run_id, run_execution_id, interval_kind,
+        started_at, ended_at, provenance, occurred_at, committed_at)
+       VALUES (?, ?, ?, ?, 'external_wait', ?, ?, 'runner_observed', ?, ?)`,
+    )
+    .run(
+      FIX.workspace, waitId, FIX.runDelegable, executionB,
+      "2026-08-07T11:00:00Z", "2026-08-07T11:02:00Z",
+      "2026-08-07T11:02:00Z", "2026-08-07T11:02:00Z",
+    );
+  await db
+    .prepare(
+      `INSERT INTO review_timers
+       (workspace_id, id, task_id, run_id, started_by_human_id, started_at,
+        stopped_at, state, resource_version)
+       VALUES (?, ?, ?, NULL, ?, ?, ?, 'stopped', 2)`,
+    )
+    .run(
+      FIX.workspace, timerId, FIX.taskDelegable, FIX.owner,
+      "2026-08-07T10:00:00Z", "2026-08-07T10:04:00Z",
+    );
+  const insertTimerObservation = db.prepare(
+    `INSERT INTO review_timer_observations
+     (workspace_id, observation_id, timer_id, observed_kind, actor_type, actor_id, occurred_at)
+     VALUES (?, ?, ?, ?, 'human', ?, ?)`,
+  );
+  await insertTimerObservation.run(
+    FIX.workspace, `${FIX.taskDelegable.slice(0, 24)}O1`, timerId, "started",
+    FIX.owner, "2026-08-07T10:00:00Z",
+  );
+  await insertTimerObservation.run(
+    FIX.workspace, `${FIX.taskDelegable.slice(0, 24)}O2`, timerId, "stopped",
+    FIX.owner, "2026-08-07T10:04:00Z",
+  );
+  await db
+    .prepare(
+      `INSERT INTO browser_activity_observations
+       (workspace_id, observation_id, human_id, task_id, started_at, ended_at,
+        capped, provenance, occurred_at)
+       VALUES (?, ?, ?, ?, ?, ?, 1, 'human_observed', ?)`,
+    )
+    .run(
+      FIX.workspace, browserId, FIX.owner, FIX.taskDelegable,
+      "2026-08-07T09:00:00Z", "2026-08-07T09:05:00Z", "2026-08-07T09:05:00Z",
+    );
+}
+
 function fakeBinding<T extends object>(label: string): T {
   return { __synthetic: label } as unknown as T;
 }
@@ -884,6 +970,7 @@ async function main(): Promise<void> {
   await seedSyntheticWorkspace(authContext.db, NOW);
   await seedWorkSurface(authContext.db);
   await seedLaunchOperations(authContext.db);
+  await seedMeasurementSurface(authContext.db);
   const db = authContext.db;
   const authEnv: AuthEnv = { ...AUTH_TEST_ENV, APP_ORIGIN: ORIGIN };
   const auth = createHumanAuth(authContext.raw, authEnv, { db, now: NOW });
