@@ -751,6 +751,7 @@ export async function recordVerifiedUpload(
   },
 ): Promise<VerifiedUpload> {
   if (!HEX64.test(input.contentHash)) rejectArtifactRequest();
+  // All reads precede the queued writes: D1 batches cannot read after a write.
   const version = await versionRow(db, input.workspaceId, input.versionId);
   if (version.state !== "uploading") rejectArtifactRequest();
   if (version.expected_digest !== input.contentHash) rejectArtifactRequest();
@@ -763,17 +764,10 @@ export async function recordVerifiedUpload(
     contentHash: input.contentHash,
   });
   if (input.r2Key !== expectedKey) rejectArtifactRequest();
-  await db
-    .prepare(
-      `INSERT INTO artifact_objects (content_hash, r2_key, size, created_at)
-       VALUES (?, ?, ?, ?)
-       ON CONFLICT(content_hash) DO NOTHING`,
-    )
-    .run(input.contentHash, input.r2Key, input.size, input.now);
   const stored = (await db
     .prepare(`SELECT r2_key, size FROM artifact_objects WHERE content_hash = ?`)
     .get(input.contentHash)) as { r2_key: string; size: number } | undefined;
-  if (!stored || stored.r2_key !== input.r2Key || stored.size !== input.size) {
+  if (stored && (stored.r2_key !== input.r2Key || stored.size !== input.size)) {
     rejectArtifactRequest();
   }
   const existing = (await db
@@ -797,6 +791,13 @@ export async function recordVerifiedUpload(
       deduplicated: true,
     };
   }
+  await db
+    .prepare(
+      `INSERT INTO artifact_objects (content_hash, r2_key, size, created_at)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(content_hash) DO NOTHING`,
+    )
+    .run(input.contentHash, input.r2Key, input.size, input.now);
   await db
     .prepare(
       `INSERT INTO artifact_upload_receipts
