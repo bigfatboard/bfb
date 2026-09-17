@@ -26,5 +26,6 @@ export * from "./work-commands.js";
 export * from "./work-records.js";
 export * from "./workspace-authorization.js";
 export * from "./discussions.js";
+export * from "./events.js";
 export * from "./discussion-turns.js";
 export * from "./discussion-views.js";

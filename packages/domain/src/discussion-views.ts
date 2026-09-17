@@ -214,6 +214,7 @@ export async function readHumanDiscussion(
     now,
     actorHumanId: fresh.humanId,
     authorizationEpoch: fresh.authorizationEpoch,
+    cursorBase: 0,
   });
 }
 

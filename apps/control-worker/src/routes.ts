@@ -6,6 +6,7 @@ import { Hono } from "hono";
 import type { SqlDatabase } from "@bfb/db";
 import { DomainError } from "@bfb/domain";
 
+import { handleEventBrowserApi, handleRunnerEventApi, isRunnerEventPath } from "./api/events.js";
 import { handleWorkApi } from "./api/work.js";
 import { handleCliBrowserApi, handleCliPublicApi } from "./api/cli-credentials.js";
 import { handleDiscussionApi } from "./api/discussions.js";
@@ -140,9 +141,11 @@ export function createControlApp(
     const envBindings = (c.env ?? {}) as { WORKSPACE_HUB?: DurableObjectNamespace };
     const handler = isRunnerLaunchPath(c.req.path)
       ? handleLaunchNativeApi
-      : isRunnerChannelPath(c.req.path)
-        ? handleRunnerChannelApi
-        : handleRunnerNativeApi;
+      : isRunnerEventPath(c.req.path)
+        ? handleRunnerEventApi
+        : isRunnerChannelPath(c.req.path)
+          ? handleRunnerChannelApi
+          : handleRunnerNativeApi;
     return handler(c.req.raw, {
       db,
       now: c.get("now") ?? now,
@@ -492,6 +495,16 @@ export function createControlApp(
         c.req.path.startsWith(`${projectPrefix}/runners/`)
       ) {
         return await handleRunnerBrowserApi(c.req.raw, {
+          ...apiDeps,
+          appOrigin: current.origins.appOrigin,
+          abuseSecret: runtime.abuseSecret,
+        });
+      }
+      if (
+        c.req.path === `${projectPrefix}/events` ||
+        c.req.path === `${projectPrefix}/events/high-water`
+      ) {
+        return await handleEventBrowserApi(c.req.raw, {
           ...apiDeps,
           appOrigin: current.origins.appOrigin,
           abuseSecret: runtime.abuseSecret,

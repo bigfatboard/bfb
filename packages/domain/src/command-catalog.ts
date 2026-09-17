@@ -7,6 +7,7 @@ import {
   changeDiscussionCommand,
   concludeDiscussionCommand,
 } from "./discussions.js";
+import { ingestRunnerEventsCommand } from "./events.js";
 import { changeDiscussionTurnCommand } from "./discussion-turns.js";
 import {
   startLaunchCommand,
@@ -72,6 +73,7 @@ import {
 } from "./workspace-authorization.js";
 
 const commands = new Map<string, HubCommand<unknown, unknown>>([
+  [ingestRunnerEventsCommand.name, ingestRunnerEventsCommand as HubCommand<unknown, unknown>],
   [createDiscussionCommand.name, createDiscussionCommand as HubCommand<unknown, unknown>],
   [changeDiscussionCommand.name, changeDiscussionCommand as HubCommand<unknown, unknown>],
   [concludeDiscussionCommand.name, concludeDiscussionCommand as HubCommand<unknown, unknown>],

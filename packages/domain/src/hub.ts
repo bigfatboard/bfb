@@ -19,6 +19,13 @@ export interface HubCommand<TInput, TResult> {
   auditInput?: (input: TInput) => unknown;
   /** One-use security exchanges must not replay a cached success. */
   replay?: "reject";
+  /**
+   * Extra workspace cursors reserved for commands that commit several
+   * cursor-ordered rows (for example an event batch). The command assigns
+   * cursors ctx.cursorBase .. ctx.cursorBase + extra - 1 to its own rows in
+   * batch order; the hub audit row consumes ctx.cursorBase + extra.
+   */
+  extraCursors?: (input: TInput) => number;
 }
 
 export interface HubContext {
@@ -30,6 +37,13 @@ export interface HubContext {
   actorSystemId?: string | undefined;
   actorRunnerId?: string | undefined;
   authorizationEpoch: number;
+  /**
+   * First workspace cursor reserved for this command. Single-row commands use
+   * exactly this cursor for their audit row; batch commands may assign
+   * cursorBase .. cursorBase + extra - 1 to their own rows. Gaps are allowed;
+   * the cursor stays monotonic per workspace.
+   */
+  cursorBase: number;
 }
 
 export interface CommandRequest<TInput> {
@@ -130,7 +144,12 @@ export class WorkspaceHub {
           }
 
           const now = request.now ?? new Date().toISOString();
-          const cursor = await this.readNextCursor(tx, request.workspaceId);
+          const base = await this.readNextCursor(tx, request.workspaceId);
+          const extra = command.extraCursors ? command.extraCursors(request.input) : 0;
+          if (!Number.isSafeInteger(extra) || extra < 0 || extra > MAX_EXTRA_CURSORS) {
+            throw new DomainError("invalid_command_request", "invalid cursor reservation");
+          }
+          const cursor = base + extra;
           const ctx: HubContext = {
             workspaceId: request.workspaceId,
             db: tx,
@@ -140,8 +159,11 @@ export class WorkspaceHub {
             actorSystemId: request.actorSystemId,
             actorRunnerId: request.actorRunnerId,
             authorizationEpoch: request.authorizationEpoch,
+            cursorBase: base,
           };
           const result = await command.run(request.input, ctx);
+          // Queued after the command's own staged writes: D1 batch transactions
+          // forbid reads after a queued write, so the reservation lands last.
           await this.writeCursor(tx, request.workspaceId, cursor);
           const eventId = randomUlid();
           const auditId = randomUlid();
@@ -328,6 +350,8 @@ async function assertEventReadScope(
     );
   }
 }
+
+const MAX_EXTRA_CURSORS = 256;
 
 const IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9._:~-]{8,128}$/;
 const COMMAND_NAME_PATTERN = /^[a-z][a-z0-9._-]{0,63}$/;
