@@ -10,7 +10,7 @@ CREATE TABLE artifact_view_grants (
   id TEXT NOT NULL,
   version_id TEXT NOT NULL,
   grant_hash TEXT NOT NULL CHECK (length(grant_hash) = 64),
-  view_nonce TEXT NOT NULL CHECK (length(view_nonce) = 32),
+  view_nonce_hash TEXT NOT NULL CHECK (length(view_nonce_hash) = 64),
   human_id TEXT REFERENCES humans (id) ON DELETE RESTRICT,
   session_hash TEXT NOT NULL CHECK (length(session_hash) = 64),
   authorization_epoch INTEGER NOT NULL CHECK (authorization_epoch >= 1),
@@ -38,7 +38,7 @@ WHEN NOT (
   AND NEW.id IS OLD.id
   AND NEW.version_id IS OLD.version_id
   AND NEW.grant_hash IS OLD.grant_hash
-  AND NEW.view_nonce IS OLD.view_nonce
+  AND NEW.view_nonce_hash IS OLD.view_nonce_hash
   AND NEW.human_id IS OLD.human_id
   AND NEW.session_hash IS OLD.session_hash
   AND NEW.authorization_epoch IS OLD.authorization_epoch

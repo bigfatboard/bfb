@@ -84,13 +84,18 @@ async function viewAuditOutbox(
     );
 }
 
+/**
+ * Hub command result. The channel nonce is intentionally absent: the route
+ * layer mints it, passes only its hash into the command, and returns it over
+ * the authenticated session. Hub results persist in idempotency records, so
+ * a nonce inside the result would be stored retrievably; it must never be.
+ */
 export interface ViewGrant {
   schema_version: 1;
   view_id: string;
   version_id: string;
   content_hash: string;
   format: string;
-  nonce: string;
   grant_hash: string;
   expires_at: string;
 }
@@ -103,12 +108,18 @@ export interface ViewGrant {
  */
 export interface IssuedViewGrant extends ViewGrant {
   secret: string;
+  nonce: string;
 }
 
-export function issueViewGrantResponse(grant: ViewGrant, secret: string): IssuedViewGrant {
+export function issueViewGrantResponse(
+  grant: ViewGrant,
+  secret: string,
+  nonce: string,
+): IssuedViewGrant {
   assertViewSecret(secret);
+  assertViewNonce(nonce);
   if (artifactHash(secret) !== grant.grant_hash) rejectViewRequest();
-  return { ...grant, secret };
+  return { ...grant, secret, nonce };
 }
 
 export interface CreateViewGrantInput {
@@ -167,7 +178,7 @@ export const createViewGrantCommand: HubCommand<CreateViewGrantInput, ViewGrant>
     await ctx.db
       .prepare(
         `INSERT INTO artifact_view_grants
-         (workspace_id, id, version_id, grant_hash, view_nonce, human_id, session_hash,
+         (workspace_id, id, version_id, grant_hash, view_nonce_hash, human_id, session_hash,
           authorization_epoch, content_hash, expires_at, consumed_at, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)`,
       )
@@ -176,7 +187,7 @@ export const createViewGrantCommand: HubCommand<CreateViewGrantInput, ViewGrant>
         viewId,
         version.id,
         input.grantSecretHash,
-        nonce,
+        artifactHash(nonce),
         principal.humanId,
         input.sessionHash,
         principal.authorizationEpoch,
@@ -197,7 +208,6 @@ export const createViewGrantCommand: HubCommand<CreateViewGrantInput, ViewGrant>
       version_id: version.id,
       content_hash: version.content_hash,
       format: version.format,
-      nonce,
       grant_hash: input.grantSecretHash,
       expires_at: expiresAt,
     };
@@ -242,7 +252,7 @@ export async function redeemViewGrant(
   const candidate = (await db
     .prepare(
       `SELECT g.workspace_id, g.version_id, g.human_id, g.authorization_epoch,
-              g.view_nonce, g.content_hash AS grant_content_hash, g.expires_at, g.consumed_at,
+              g.view_nonce_hash, g.content_hash AS grant_content_hash, g.expires_at, g.consumed_at,
               v.artifact_id, v.state, v.format, v.content_hash, v.r2_key
        FROM artifact_view_grants AS g
        JOIN artifact_versions AS v
@@ -255,7 +265,7 @@ export async function redeemViewGrant(
         version_id: string;
         human_id: string;
         authorization_epoch: number;
-        view_nonce: string;
+        view_nonce_hash: string;
         grant_content_hash: string;
         expires_at: string;
         consumed_at: string | null;
@@ -270,7 +280,7 @@ export async function redeemViewGrant(
     !candidate ||
     candidate.consumed_at !== null ||
     Date.parse(candidate.expires_at) <= nowMs ||
-    !nonceEqual(candidate.view_nonce, nonce) ||
+    !nonceEqual(candidate.view_nonce_hash, artifactHash(nonce)) ||
     candidate.state !== "available" ||
     !candidate.content_hash ||
     !candidate.r2_key ||
@@ -288,7 +298,7 @@ export async function redeemViewGrant(
   await db
     .prepare(
       `UPDATE artifact_view_grants SET consumed_at = ?
-       WHERE id = ? AND grant_hash = ? AND view_nonce = ?
+       WHERE id = ? AND grant_hash = ? AND view_nonce_hash = ?
          AND consumed_at IS NULL AND expires_at > ?
          AND EXISTS (
            SELECT 1 FROM artifact_versions AS v
@@ -308,7 +318,7 @@ export async function redeemViewGrant(
              AND e.authorization_epoch = artifact_view_grants.authorization_epoch
          )`,
     )
-    .run(input.now, input.viewId, secretHash, nonce, input.now);
+    .run(input.now, input.viewId, secretHash, artifactHash(nonce), input.now);
   // D1 batches cannot read after a queued write, so the single-consume check
   // is a guard row: D1 evaluates the predicate at commit time and aborts the
   // entire batch when a racing redemption consumed the grant first.

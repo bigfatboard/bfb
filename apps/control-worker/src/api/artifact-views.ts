@@ -17,6 +17,7 @@ import {
   mintViewNonce,
   randomUlid,
   type HubCommand,
+  type ViewGrant,
 } from "@bfb/domain";
 
 import type { HumanAuth } from "../auth/better-auth.js";
@@ -105,8 +106,9 @@ export async function handleArtifactViewGrantApi(
     );
     if (!outcome.ok || outcome.replayed) throw new DomainError("request_rejected", "rejected");
     const grant = issueViewGrantResponse(
-      outcome.result as Parameters<typeof issueViewGrantResponse>[0],
+      outcome.result as ViewGrant,
       minted.secret,
+      nonce,
     );
     // The grant hash never leaves the server; the response carries the
     // one-time secret and channel nonce over the authenticated session only.
