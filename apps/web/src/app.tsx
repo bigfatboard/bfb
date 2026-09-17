@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { AttentionDeckItem, ProjectLane } from "@bfb/domain";
 
+import { AttentionHome } from "./attention/home.js";
 import { WorkBoard, type AgentProfileSummary } from "./work/board.js";
 import { TaskComposer, WorkMutations } from "./work/mutations.js";
 import { RunnerOperations } from "./launch/operations.js";
@@ -455,6 +456,24 @@ export function AppShell(props: AppShellProps = {}) {
           csrfToken={csrfToken}
           fetchImpl={fetchFn}
         />
+      ) : board && route.view === "attention" ? (
+        <div className="work-surface">
+          <div className="work-titlebar">
+            <div>
+              <p className="section-label">{workspace.slug.toUpperCase()} / ATTENTION</p>
+              <h1>What needs a person now</h1>
+              <p>
+                Ranked agent requests with committed answers. Newest truth is polled, never pushed.
+              </p>
+            </div>
+          </div>
+          <AttentionHome
+            workspaceId={workspace.id}
+            role={board.role}
+            fetchImpl={fetchFn}
+            csrfToken={csrfToken}
+          />
+        </div>
       ) : board ? (
         <section className="placeholder-route" data-testid={`${route.view}-placeholder`}>
           <p className="section-label">{route.view.toUpperCase()}</p>

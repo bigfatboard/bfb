@@ -28,6 +28,11 @@ export const FIX = {
   taskLaunchExpired: syntheticUlid("TASKW02X"),
   taskLaunchContained: syntheticUlid("TASKW02C"),
   taskLaunchEnded: syntheticUlid("TASKW02E"),
+  attentionTask: syntheticUlid("TASKATN2"),
+  attentionBlocker: syntheticUlid("ATTNB1CK"),
+  attentionCredential: syntheticUlid("ATTNCRED"),
+  attentionReview: syntheticUlid("ATTNRVW"),
+  attentionDestructive: syntheticUlid("ATTNDESTR"),
   client: "bfb-mcp-synthetic-client",
 };
 

@@ -6,6 +6,7 @@ import { Hono } from "hono";
 import type { SqlDatabase } from "@bfb/db";
 import { DomainError } from "@bfb/domain";
 
+import { handleAttentionApi } from "./api/attention.js";
 import { handleEventBrowserApi, handleRunnerEventApi, isRunnerEventPath } from "./api/events.js";
 import { handleWorkApi } from "./api/work.js";
 import { handleArtifactBrowserApi } from "./api/artifacts.js";
@@ -530,6 +531,12 @@ export function createControlApp(
         c.req.path.startsWith(`${projectPrefix}/workspace-policy`)
       ) {
         return await handleProjectApi(c.req.raw, apiDeps);
+      }
+      if (
+        c.req.path === `${projectPrefix}/attention` ||
+        c.req.path.startsWith(`${projectPrefix}/attention/`)
+      ) {
+        return await handleAttentionApi(c.req.raw, apiDeps);
       }
       return await handleWorkApi(c.req.raw, apiDeps);
     } catch (error) {

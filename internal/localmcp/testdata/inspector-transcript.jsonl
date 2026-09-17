@@ -12,3 +12,5 @@
 {"direction":"client","payload":{"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":"bfb_get_task","arguments":{"request_id":"transcript-009"}}}}
 {"direction":"client","payload":{"jsonrpc":"2.0","id":12,"method":"resources/read","params":{}}}
 {"direction":"client","payload":{"jsonrpc":"2.0","id":13,"method":"tools/call","params":{"name":"bfb_submit_result","arguments":{"request_id":"transcript-010"}}}}
+{"direction":"client","payload":{"jsonrpc":"2.0","id":14,"method":"tools/call","params":{"name":"bfb_request_human","arguments":{"kind":"clarification","question":"Transcript question","blocking":true,"request_id":"transcript-011"}}}}
+{"direction":"client","payload":{"jsonrpc":"2.0","id":15,"method":"tools/call","params":{"name":"bfb_get_attention","arguments":{"attention_id":"attention-1","request_id":"transcript-012"}}}}

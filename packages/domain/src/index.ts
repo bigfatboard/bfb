@@ -3,6 +3,7 @@
 
 export * from "./abuse.js";
 export * from "./artifacts.js";
+export * from "./attention.js";
 export * from "./authorization.js";
 export * from "./fixtures.js";
 export * from "./command-catalog.js";

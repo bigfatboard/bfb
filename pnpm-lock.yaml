@@ -187,6 +187,22 @@ importers:
         specifier: 4.120.1
         version: 4.120.1(@cloudflare/workers-types@5.20260810.1)
 
+  tools/attention:
+    dependencies:
+      '@bfb/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@bfb/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+      '@bfb/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol-ts
+    devDependencies:
+      wrangler:
+        specifier: 4.120.1
+        version: 4.120.1(@cloudflare/workers-types@5.20260810.1)
+
   tools/cli-credentials:
     dependencies:
       '@bfb/control-worker':

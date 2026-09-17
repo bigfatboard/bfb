@@ -21,6 +21,7 @@
     { "path": "tools/cli-credentials" },
     { "path": "tools/runner-channel" },
     { "path": "tools/launches" },
-    { "path": "tools/discussions" }
+    { "path": "tools/discussions" },
+    { "path": "tools/attention" }
   ]
 }

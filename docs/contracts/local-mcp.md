@@ -56,9 +56,9 @@ workspace/project/task/run boundary. It is never reconstructed from
 caller-supplied IDs.
 
 - `provisional`: permits `initialize`, `tools/list`, `bfb_get_context`,
-  and `bfb_get_task`. Every mutation returns `session_not_bound`. This state
-  exists so startup can load context before L06 commits the trusted
-  observed-session binding.
+  `bfb_get_task`, and `bfb_get_attention`. Every mutation returns
+  `session_not_bound`. This state exists so startup can load context before
+  L06 commits the trusted observed-session binding.
 - `activated`: permits the full v1 tool set. Activation is atomic: the
   connection observes, through its `SessionBindingSource`, a trusted binding
   whose observed session ID, execution ID, and assignment generation equal
@@ -75,9 +75,11 @@ just the state observed at activation.
 
 ## Tool map
 
-All six tools require `request_id` (8-128 characters). A repeated
+All nine tools require `request_id` (8-128 characters). A repeated
 `request_id` on one connection returns the stored outcome without
-re-executing. Bounds mirror C08 so local and remote behavior agree.
+re-executing, except `bfb_wait_for_attention`, whose pending outcomes are
+never memoized so a repeated wait always re-reads committed state. Bounds
+mirror C08 so local and remote behavior agree.
 
 | Tool | Provisional | Input | Effect |
 | --- | --- | --- | --- |
@@ -87,6 +89,9 @@ re-executing. Bounds mirror C08 so local and remote behavior agree.
 | `bfb_add_comment` | `session_not_bound` | `task_id?`, `body` 1-2048 chars, `request_id` | Adds a discussion comment attributed to the agent run. |
 | `bfb_report_progress` | `session_not_bound` | `task_id?`, `summary` 1-2048 chars, `percent` 0-100 optional, `confidence` 0-1 optional, `request_id` | Publishes a bounded progress checkpoint attributed to the agent run. |
 | `bfb_propose_task` | `session_not_bound` | `project_id?`, `parent_task_id?`, `title` 1-512 chars, `priority` P0-P3 optional, `request_id` | Creates a root `proposed` task only when effective policy allows agent root proposals, else `forbidden`; creates a policy-bounded child task (at most 20 active children per parent). Never promotes, never launches a run. |
+| `bfb_request_human` | `session_not_bound` | `kind` clarification/review/credential/capability/destructive_action/blocker, `question` 1-2048 chars, `reference_kind?`/`reference_id?` as a pair, `blocking`, `request_id` | Commits a typed attention request for the run. Fails visibly offline; attention questions are never journaled. |
+| `bfb_get_attention` | allowed | `attention_id`, `request_id` | Returns the committed resolution metadata for one of the run's own requests; foreign records report `not_found`. Reads fail visibly offline. |
+| `bfb_wait_for_attention` | allowed | `attention_id`, `request_id` | Polls committed state until answered/resolved, then returns the same metadata a later retrieval returns, or `pending` at the 30-second bound. Safe to repeat. |
 
 `task_id`, `project_id`, and `parent_task_id` are optional conveniences.
 When present they must equal the capability boundary exactly; any other
@@ -94,17 +99,19 @@ value returns `boundary_escape`. Omitted IDs are derived from the
 capability. No tool accepts workspace, run, execution, session, or
 assignment IDs from the caller.
 
-Explicitly absent in v1: attention tools, result submission, artifact
-bytes, workspace administration, self-approval, enumeration beyond the
-bound task, and any cloud bearer credential in the provider environment.
+Explicitly absent in v1: result submission, artifact bytes, workspace
+administration, self-approval, enumeration beyond the bound task, and any
+cloud bearer credential in the provider environment. Attention tools are
+owned by A02 above; A03/V01 extend this same server and must not add a
+credential, endpoint, or journal.
 
 ## Pending-operation journal
 
 When the cloud channel is unreachable, policy-permitted mutations
 (`bfb_update_task`, `bfb_add_comment`, `bfb_report_progress`,
 `bfb_propose_task`) either persist a durable `pending_sync` operation or
-fail visibly as offline, exactly by project policy. Reads fail visibly
-offline; they are never journaled.
+fail visibly as offline, exactly by project policy. Reads and attention
+tools fail visibly offline; they are never journaled.
 
 Each record carries the originating agent-run principal and grant, the
 immutable assignment and session binding, `request_id` plus idempotency
@@ -144,6 +151,7 @@ session ID.
 `peer_denied`, `assignment_unknown`, `assignment_ended`,
 `correlation_rejected`, `session_not_bound`, `session_conflict`,
 `boundary_escape`, `capability_closed`, `revoked`, `stale_version`,
+`already_answered`,
 `forbidden`, `policy_rejected`, `offline_pending`, `offline_rejected`,
 `request_rejected`, `invalid_request`, `method_not_found`. Failures carry a
 bounded code and message only; they never echo tokens, environment values,

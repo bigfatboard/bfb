@@ -82,4 +82,9 @@ type WorkTransport interface {
 	ReportProgress(ctx context.Context, boundary Boundary, summary string, percent *float64, confidence *float64, requestID string) (CommentResult, error)
 	// ProposeTask creates a proposed root or policy-bounded child task.
 	ProposeTask(ctx context.Context, boundary Boundary, input ProposeTaskInput, requestID string) (ProposeTaskResult, error)
+	// RequestAttention commits a typed human-decision request for the run.
+	RequestAttention(ctx context.Context, boundary Boundary, input AttentionRequest, requestID string) (AttentionRecord, error)
+	// GetAttention returns the committed metadata for one of the run's own
+	// requests. Records outside the run boundary report not_found.
+	GetAttention(ctx context.Context, boundary Boundary, attentionID string) (AttentionRecord, error)
 }

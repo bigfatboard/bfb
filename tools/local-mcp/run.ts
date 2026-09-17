@@ -93,10 +93,25 @@ build();
         name: "bfb_get_task",
         arguments: { request_id: "harness-001" },
       }),
+      sessionLine(4, "tools/call", {
+        name: "bfb_request_human",
+        arguments: {
+          kind: "clarification",
+          question: "Synthetic harness question",
+          blocking: true,
+          request_id: "harness-002",
+        },
+      }),
+      sessionLine(5, "tools/call", {
+        name: "bfb_wait_for_attention",
+        arguments: { attention_id: "synthetic-attention-1", request_id: "harness-003" },
+      }),
     ].join("\n") + "\n";
   const run = serve(["--data-dir", dataDir, "mcp", "stdio"], stdin, scopedEnv());
   assert.equal(run.status, 0, `exit: ${run.stderr}`);
-  assertPureJsonRpc(run.stdout, 3, [
+  assertPureJsonRpc(run.stdout, 5, [
+    "assignment_unknown",
+    "assignment_unknown",
     "assignment_unknown",
     "assignment_unknown",
     "assignment_unknown",

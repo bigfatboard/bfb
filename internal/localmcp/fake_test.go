@@ -105,9 +105,23 @@ type fakeTransport struct {
 	commented []string
 	progress  []string
 	proposed  []ProposeTaskInput
+	attention map[string]*AttentionRecord
+	attnRun   map[string]string
+	attnSeq   int
 	seen      map[string]any
 	calls     map[string]int
 	failCode  string
+}
+
+func attentionRole(kind string) string {
+	switch kind {
+	case "clarification", "review":
+		return "reviewer"
+	case "blocker":
+		return "member"
+	default:
+		return "owner"
+	}
 }
 
 func syntheticTransport() *fakeTransport {
@@ -122,8 +136,10 @@ func syntheticTransport() *fakeTransport {
 			{ID: "01SYNTHETICCT00000000000001", Kind: "brief", Body: "Synthetic brief", Version: 1, Audience: "agent", ContentHash: "sha256:synthetic-brief", CreatedAt: "2026-09-17T11:00:00Z"},
 			{ID: "01SYNTHETICCT00000000000002", Kind: "acceptance", Body: "Synthetic acceptance", Version: 2, Audience: "both", ContentHash: "sha256:synthetic-acceptance", CreatedAt: "2026-09-17T11:05:00Z"},
 		},
-		seen:  make(map[string]any),
-		calls: make(map[string]int),
+		seen:      make(map[string]any),
+		calls:     make(map[string]int),
+		attention: make(map[string]*AttentionRecord),
+		attnRun:   make(map[string]string),
 	}
 }
 
@@ -202,6 +218,52 @@ func (fake *fakeTransport) ReportProgress(_ context.Context, _ Boundary, summary
 		return CommentResult{}, err
 	}
 	return result.(CommentResult), nil
+}
+
+func (fake *fakeTransport) RequestAttention(_ context.Context, boundary Boundary, input AttentionRequest, requestID string) (AttentionRecord, error) {
+	result, err := fake.dedupe(requestID, func() any {
+		fake.attnSeq++
+		record := &AttentionRecord{
+			ID: fmt.Sprintf("attention-%d", fake.attnSeq), Kind: input.Kind,
+			State: "open", Question: input.Question, RequiredRole: attentionRole(input.Kind),
+			Blocking: input.Blocking, ResourceVersion: 1,
+			RequestedAt: syntheticTime.Format(time.RFC3339Nano),
+		}
+		fake.attention[record.ID] = record
+		fake.attnRun[record.ID] = boundary.RunID
+		return *record
+	})
+	if err != nil {
+		return AttentionRecord{}, err
+	}
+	return result.(AttentionRecord), nil
+}
+
+func (fake *fakeTransport) GetAttention(_ context.Context, boundary Boundary, attentionID string) (AttentionRecord, error) {
+	fake.mutex.Lock()
+	defer fake.mutex.Unlock()
+	if !fake.online {
+		return AttentionRecord{}, fail("offline_rejected")
+	}
+	record, ok := fake.attention[attentionID]
+	if !ok || fake.attnRun[attentionID] != boundary.RunID {
+		return AttentionRecord{}, fail("not_found")
+	}
+	return *record, nil
+}
+
+// answerAttention commits a human answer inside the double. Tests drive the
+// answering side through this hook; the host under test only ever reads.
+func (fake *fakeTransport) answerAttention(id, answer string) {
+	fake.mutex.Lock()
+	defer fake.mutex.Unlock()
+	if record, ok := fake.attention[id]; ok && record.State == "open" {
+		record.State = "answered"
+		record.Answer = answer
+		record.ResourceVersion++
+		record.AnsweredAt = syntheticTime.Format(time.RFC3339Nano)
+		record.FirstResponseAt = record.AnsweredAt
+	}
 }
 
 func (fake *fakeTransport) ProposeTask(_ context.Context, boundary Boundary, input ProposeTaskInput, requestID string) (ProposeTaskResult, error) {

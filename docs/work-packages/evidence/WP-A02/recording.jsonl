@@ -1,0 +1,16 @@
+{"step":"migration_ok","preserved_task":"0124WSRY75WN4EW8EV9NF1FBSM"}
+{"step":"launch_claimed","run":"018Q2MRK641EH9VVS33VWS085C","execution":"01489ZNPKZ761FS9MPVTC8RH3K","generation":1}
+{"step":"requested","id":"017WC81Y2S5CR6ER55H50KPNXY","kind":"clarification","version":1,"elapsed_ms":7}
+{"step":"idempotent_replay","id":"019TA297FK7FHQAAJNTZA5QBDY"}
+{"step":"waiter_pending_polls","polls":[{"index":0,"elapsed_ms":10,"state":"open"},{"index":1,"elapsed_ms":20,"state":"open"},{"index":2,"elapsed_ms":30,"state":"open"}]}
+{"step":"answered","id":"017WC81Y2S5CR6ER55H50KPNXY","version":2,"by":"owner","elapsed_ms":4}
+{"step":"waiter_returned_identical","id":"017WC81Y2S5CR6ER55H50KPNXY","version":2}
+{"step":"duplicate_rejected","code":"already_answered","kept_version":2}
+{"step":"permission_matrix","reviewer_review":"answered","reviewer_credential":"forbidden","member_credential":"forbidden","owner_credential":"answered"}
+{"step":"resolved","id":"012131A8JCNTM6A9KTB4YK9J0H","version":3}
+{"step":"timeout_retry","pending_polls":5,"repeat_reads":["answered","answered","answered"]}
+{"step":"request_guards","foreign_execution":"request_rejected","terminal_run":"invalid_transition"}
+{"step":"revocation","old_epoch_answer":"stale_authorization"}
+{"step":"reconnect_reread","id":"01PZAKBSPYMFX2V4HK01XPASF9","state":"answered","ranked":5}
+{"step":"audit_redaction","input_echo":"metadata-only","result_binds_record":true}
+{"step":"observations","first_request":[{"kind":"requested","actor":"agent_run"},{"kind":"answered","actor":"human"}],"trail":["attention.request","attention.answer","attention.resolve"]}
