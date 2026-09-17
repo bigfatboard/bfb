@@ -1,0 +1,75 @@
+{
+  "$schema": "../manifest.schema.json",
+  "package": "A03",
+  "tested_commit": "ea7b0e6091d99786ae0421b2669ee3177e1b024d",
+  "protocol_version": "bfb-wire/1",
+  "schema_version": "1",
+  "migration_head": "0024_result_submissions",
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "better-sqlite3": "12.6.2",
+    "wrangler": "4.125.0"
+  },
+  "environment": {
+    "kind": "local",
+    "os": "macOS 26.2 (25C56)",
+    "architecture": "arm64"
+  },
+  "commands": [
+    {
+      "command": "pnpm test:a03",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-A03/command-result.json"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-A03/command-result.json"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-A03/command-result.json"
+    },
+    {
+      "command": "GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./...",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-A03/command-result.json"
+    }
+  ],
+  "outcome": "passed",
+  "artifacts": [
+    "docs/work-packages/evidence/WP-A03/manifest.json",
+    "docs/work-packages/evidence/WP-A03/command-result.json",
+    "docs/work-packages/evidence/WP-A03/transition-matrix.md",
+    "docs/work-packages/evidence/WP-A03/acceptance-matrix.md",
+    "docs/work-packages/evidence/WP-A03/revocation-trace.md",
+    "docs/work-packages/evidence/WP-A03/fixtures/duplicate-evidence.json",
+    "docs/work-packages/evidence/WP-A03/fixtures/stale-review.json",
+    "docs/work-packages/evidence/WP-A03/browser/review-owner.png",
+    "docs/work-packages/evidence/WP-A03/browser/review-reviewer.png",
+    "docs/work-packages/evidence/WP-A03/browser/review-superseded.png",
+    "docs/work-packages/evidence/WP-A03/browser/review-accepted.png",
+    "docs/work-packages/evidence/WP-A03/browser/review-flow.md",
+    "docs/contracts/results.md",
+    "packages/domain/src/results.ts",
+    "packages/domain/test/results.test.ts",
+    "apps/control-worker/src/api/work.ts",
+    "apps/control-worker/test/result-routes.test.ts",
+    "internal/localmcp/results.go",
+    "internal/localmcp/results_test.go",
+    "internal/cli/run.go",
+    "internal/cli/run_test.go",
+    "apps/web/src/work/result.tsx",
+    "apps/web/test/result.test.ts",
+    "apps/web/test/e2e/a03-results.spec.ts",
+    "tools/results/run.ts",
+    "tools/results/cli.ts"
+  ],
+  "redaction": {
+    "status": "passed",
+    "prohibited_content": ["secrets", "local absolute paths", "raw terminal output"]
+  }
+}

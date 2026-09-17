@@ -1,0 +1,41 @@
+{
+  "gate": "pnpm test:a03",
+  "tested_tree": "ea7b0e6091d99786ae0421b2669ee3177e1b024d",
+  "outcome": "passed",
+  "steps": [
+    {
+      "command": "pnpm build",
+      "outcome": "passed"
+    },
+    {
+      "command": "vitest run packages/domain/test/results.test.ts apps/control-worker/test/result-routes.test.ts apps/web/test/result.test.ts",
+      "outcome": "passed",
+      "detail": "3 files, 24 tests (17 domain, 2 routes, 5 view)"
+    },
+    {
+      "command": "go test -race -count=1 ./internal/localmcp/... ./internal/cli/... ./cmd/bfb/...",
+      "outcome": "passed",
+      "detail": "localmcp, cli, bfb packages ok with race detector"
+    },
+    {
+      "command": "pnpm exec tsc -b tools/results --pretty false",
+      "outcome": "passed"
+    },
+    {
+      "command": "tsx tools/results/run.ts",
+      "outcome": "passed",
+      "detail": "A03 worker results: passed (10 checks) over real Workers and D1"
+    },
+    {
+      "command": "tsx tools/results/cli.ts",
+      "outcome": "passed",
+      "detail": "A03 CLI submit harness: passed over the real binary"
+    },
+    {
+      "command": "BFB_E2E_PORT=4183 playwright test apps/web/test/e2e/a03-results.spec.ts",
+      "outcome": "passed",
+      "detail": "1 browser test: submit, change-request, supersede, accept, reviewer 403"
+    }
+  ],
+  "redaction": "summary only; no terminal output, secrets, or local paths retained"
+}
