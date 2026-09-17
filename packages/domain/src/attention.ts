@@ -365,10 +365,30 @@ export const requestAttentionCommand: HubCommand<RequestAttentionInput, Attentio
       runId,
       ctx.now,
     );
-    const row = (await ctx.db
-      .prepare(`SELECT * FROM attention_requests WHERE workspace_id = ? AND id = ?`)
-      .get(ctx.workspaceId, id)) as Record<string, unknown>;
-    return rowToRecord(row);
+    // D1 batch transactions forbid reads after a queued write, so the
+    // committed record is constructed here instead of re-selected.
+    return {
+      id,
+      project_id: binding.project_id,
+      task_id: binding.task_id,
+      run_id: runId,
+      run_execution_id: executionId,
+      assignment_generation: Number(generation),
+      kind: kind as AttentionKind,
+      required_role: requiredRole,
+      reference_kind: referenceKind,
+      reference_id: referenceId,
+      question: question!,
+      blocking: body.blocking === true,
+      state: "open" as AttentionState,
+      answer: null,
+      answered_by_human_id: null,
+      requested_at: ctx.now,
+      first_response_at: null,
+      answered_at: null,
+      resolved_at: null,
+      resource_version: 1,
+    };
   },
 };
 
@@ -403,15 +423,17 @@ export const answerAttentionCommand: HubCommand<AnswerAttentionInput, AttentionR
     }
     const answer = boundedText(input.answer, "attention answer", 2048);
     const next = expected + 1;
-    const updated = (await ctx.db
+    // The hub FIFO serializes workspace commands, so the version pre-check
+    // above is the conflict guard; the conditional UPDATE is the backstop.
+    // Queued D1 writes report no change counts, so the result is constructed.
+    await ctx.db
       .prepare(
         `UPDATE attention_requests
          SET state = 'answered', answer = ?, answered_by_human_id = ?,
              answered_at = ?, first_response_at = ?, resource_version = ?
-         WHERE workspace_id = ? AND id = ? AND resource_version = ?
-         RETURNING *`,
+         WHERE workspace_id = ? AND id = ? AND resource_version = ?`,
       )
-      .get(
+      .run(
         answer,
         principal.humanId,
         ctx.now,
@@ -420,10 +442,7 @@ export const answerAttentionCommand: HubCommand<AnswerAttentionInput, AttentionR
         ctx.workspaceId,
         record.id,
         expected,
-      )) as Record<string, unknown> | undefined;
-    if (!updated) {
-      throw new DomainError("stale_version", "attention version conflict");
-    }
+      );
     await insertObservation(
       ctx.db,
       ctx.workspaceId,
@@ -433,7 +452,15 @@ export const answerAttentionCommand: HubCommand<AnswerAttentionInput, AttentionR
       principal.humanId,
       ctx.now,
     );
-    return rowToRecord(updated);
+    return {
+      ...record,
+      state: "answered" as AttentionState,
+      answer,
+      answered_by_human_id: principal.humanId,
+      first_response_at: ctx.now,
+      answered_at: ctx.now,
+      resource_version: next,
+    };
   },
 };
 
@@ -464,19 +491,13 @@ export const resolveAttentionCommand: HubCommand<ResolveAttentionInput, Attentio
       );
     }
     const next = expected + 1;
-    const updated = (await ctx.db
+    await ctx.db
       .prepare(
         `UPDATE attention_requests
          SET state = 'resolved', resolved_at = ?, resource_version = ?
-         WHERE workspace_id = ? AND id = ? AND resource_version = ?
-         RETURNING *`,
+         WHERE workspace_id = ? AND id = ? AND resource_version = ?`,
       )
-      .get(ctx.now, next, ctx.workspaceId, record.id, expected)) as
-      | Record<string, unknown>
-      | undefined;
-    if (!updated) {
-      throw new DomainError("stale_version", "attention version conflict");
-    }
+      .run(ctx.now, next, ctx.workspaceId, record.id, expected);
     await insertObservation(
       ctx.db,
       ctx.workspaceId,
@@ -486,7 +507,12 @@ export const resolveAttentionCommand: HubCommand<ResolveAttentionInput, Attentio
       principal.humanId,
       ctx.now,
     );
-    return rowToRecord(updated);
+    return {
+      ...record,
+      state: "resolved" as AttentionState,
+      resolved_at: ctx.now,
+      resource_version: next,
+    };
   },
 };
 
