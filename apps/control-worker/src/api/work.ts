@@ -5,6 +5,7 @@ import { createAuthorizationContext, type SqlDatabase } from "@bfb/db";
 import {
   acceptResultCommand,
   addCommentCommand,
+  artifactEvidenceVersionMap,
   addContextCommand,
   addTaskDependencyCommand,
   addTaskLinkCommand,
@@ -641,8 +642,11 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
       );
     }
     if (rest === "/results" && request.method === "GET") {
+      // V03 supplies current artifact versions so submissions bound to an
+      // older artifact version read outdated without mutating history.
+      const evidenceVersions = await artifactEvidenceVersionMap(deps.db, deps.workspaceId);
       return json({
-        submissions: await listResultSubmissions(deps.db, deps.workspaceId, runId),
+        submissions: await listResultSubmissions(deps.db, deps.workspaceId, runId, evidenceVersions),
       });
     }
     if (rest === "/results" && request.method === "POST") {

@@ -188,6 +188,8 @@ async function requireAvailableVersion(
   return row;
 }
 
+// Publication order is insert order: version ids are random, so rowid breaks
+// same-millisecond timestamp ties deterministically.
 async function latestAvailableVersion(
   db: SqlDatabase,
   workspaceId: string,
@@ -198,7 +200,7 @@ async function latestAvailableVersion(
       `SELECT id, artifact_id, state, content_hash, r2_key
        FROM artifact_versions
        WHERE workspace_id = ? AND artifact_id = ? AND state = 'available'
-       ORDER BY created_at ASC, id ASC`,
+       ORDER BY created_at ASC, rowid ASC`,
     )
     .all(workspaceId, artifactId)) as VersionRow[];
   return rows[rows.length - 1];
@@ -459,7 +461,7 @@ async function readVersions(
                WHERE r.workspace_id = v.workspace_id AND r.version_id = v.id AND r.decision = 'request_changes') AS changes_requested
        FROM artifact_versions AS v
        WHERE v.workspace_id = ? AND v.artifact_id = ?
-       ORDER BY v.created_at ASC, v.id ASC`,
+       ORDER BY v.created_at ASC, v.rowid ASC`,
     )
     .all(workspaceId, artifactId)) as Array<{
     id: string;
@@ -545,7 +547,7 @@ export async function listArtifactReviews(
     .prepare(
       `SELECT id FROM artifact_versions
        WHERE workspace_id = ? AND artifact_id = ? AND state = 'available'
-       ORDER BY created_at ASC, id ASC`,
+       ORDER BY created_at ASC, rowid ASC`,
     )
     .all(workspaceId, artifactId)) as Array<{ id: string }>;
   const latestVersionId = versions[versions.length - 1]?.id ?? null;
@@ -678,6 +680,142 @@ export async function getArtifactReviewStatus(
   };
 }
 
+export interface ArtifactSummary {
+  artifact_id: string;
+  run_id: string | null;
+  format: string;
+  role: string;
+  created_at: string;
+  version_count: number;
+  latest_version: ReviewVersionView | null;
+  approved: boolean;
+  changes_requested: boolean;
+  review_count: number;
+}
+
+/**
+ * Lists artifacts (optionally for one run) with each latest available
+ * version and its approval state. Newer versions without their own approve
+ * review always read unapproved, no matter the history behind them.
+ */
+export async function listArtifactsWithReviewState(
+  db: ReviewDb,
+  workspaceId: string,
+  runId?: string,
+): Promise<ArtifactSummary[]> {
+  const artifacts = (await db
+    .prepare(
+      runId === undefined
+        ? `SELECT id, run_id, format, role, created_at FROM artifacts
+           WHERE workspace_id = ? ORDER BY created_at ASC, id ASC`
+        : `SELECT id, run_id, format, role, created_at FROM artifacts
+           WHERE workspace_id = ? AND run_id = ? ORDER BY created_at ASC, id ASC`,
+      )
+    .all(...(runId === undefined ? [workspaceId] : [workspaceId, runId]))) as Array<{
+    id: string;
+    run_id: string | null;
+    format: string;
+    role: string;
+    created_at: string;
+  }>;
+  const summaries: ArtifactSummary[] = [];
+  for (const artifact of artifacts) {
+    const versions = await readVersions(db, workspaceId, artifact.id);
+    const available = versions.filter((version) => version.state === "available");
+    const latest = available[available.length - 1] ?? null;
+    const reviewCount = (await db
+      .prepare(
+        `SELECT COUNT(*) AS total FROM artifact_reviews
+         WHERE workspace_id = ? AND artifact_id = ?`,
+      )
+      .get(workspaceId, artifact.id)) as { total: number };
+    summaries.push({
+      artifact_id: artifact.id,
+      run_id: artifact.run_id,
+      format: artifact.format,
+      role: artifact.role,
+      created_at: artifact.created_at,
+      version_count: versions.length,
+      latest_version: latest
+        ? {
+            id: latest.id,
+            state: latest.state,
+            format: latest.format,
+            content_hash: latest.content_hash,
+            created_at: latest.created_at,
+            available_at: latest.available_at,
+            approvals: Number(latest.approvals),
+            changes_requested: Number(latest.changes_requested),
+          }
+        : null,
+      approved: latest !== null && Number(latest.approvals) > 0,
+      changes_requested: latest !== null && Number(latest.changes_requested) > 0,
+      review_count: Number(reviewCount.total),
+    });
+  }
+  return summaries;
+}
+
+export interface ReviewTimerContext {
+  observation: {
+    observation_id: string;
+    timer_id: string;
+    observed_kind: "started" | "stopped";
+    actor_type: string;
+    actor_id: string;
+    occurred_at: string;
+  };
+  timer: {
+    id: string;
+    task_id: string;
+    run_id: string | null;
+    started_by_human_id: string;
+    started_at: string;
+    stopped_at: string | null;
+    state: "open" | "stopped";
+    resource_version: number;
+  } | null;
+}
+
+/**
+ * Reads the A04 timer observation a review references, plus its parent
+ * timer row. Raw rows only: review durations always come from A04's own
+ * reads and derivations, never from a V03 calculation.
+ */
+export async function readReviewTimerContext(
+  db: ReviewDb,
+  workspaceId: string,
+  observationId: string | null,
+): Promise<ReviewTimerContext | null> {
+  if (!observationId) return null;
+  const observation = (await db
+    .prepare(
+      `SELECT observation_id, timer_id, observed_kind, actor_type, actor_id, occurred_at
+       FROM review_timer_observations
+       WHERE workspace_id = ? AND observation_id = ?`,
+    )
+    .get(workspaceId, observationId)) as ReviewTimerContext["observation"] | undefined;
+  if (!observation) return null;
+  const timer = (await db
+    .prepare(`SELECT * FROM review_timers WHERE workspace_id = ? AND id = ?`)
+    .get(workspaceId, observation.timer_id)) as Record<string, unknown> | undefined;
+  return {
+    observation,
+    timer: timer
+      ? {
+          id: String(timer.id),
+          task_id: String(timer.task_id),
+          run_id: (timer.run_id as string | null) ?? null,
+          started_by_human_id: String(timer.started_by_human_id),
+          started_at: String(timer.started_at),
+          stopped_at: (timer.stopped_at as string | null) ?? null,
+          state: timer.state as "open" | "stopped",
+          resource_version: Number(timer.resource_version),
+        }
+      : null,
+  };
+}
+
 /**
  * Current artifact evidence versions for A03's computed `evidence_changed`
  * flag: `artifact_version\n<artifactId>` maps to the latest available
@@ -693,7 +831,7 @@ export async function artifactEvidenceVersionMap(
     .prepare(
       `SELECT artifact_id, id FROM artifact_versions
        WHERE workspace_id = ? AND state = 'available'
-       ORDER BY created_at ASC, id ASC`,
+       ORDER BY created_at ASC, rowid ASC`,
     )
     .all(workspaceId)) as Array<{ artifact_id: string; id: string }>;
   const map = new Map<string, string>();
