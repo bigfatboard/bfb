@@ -11,6 +11,13 @@ import (
 
 func failure(code string) error { return &daemon.Failure{Code: code} }
 
+// Code returns the raw local failure code without collapsing journal-specific
+// codes through the daemon's CLI diagnostic table. Consumers match on these
+// codes to distinguish visible rejections from retryable storage faults.
+func Code(err error) string {
+	return asCode(err)
+}
+
 // asCode returns the raw local failure code without collapsing journal-specific
 // codes through the daemon's CLI diagnostic table.
 func asCode(err error) string {
