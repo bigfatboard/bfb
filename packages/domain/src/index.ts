@@ -22,6 +22,7 @@ export * from "./checkout-leases.js";
 export * from "./cli-credentials.js";
 export * from "./run-controls.js";
 export * from "./step-up.js";
+export * from "./results.js";
 export * from "./work-commands.js";
 export * from "./work-records.js";
 export * from "./workspace-authorization.js";
