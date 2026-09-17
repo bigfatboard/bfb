@@ -1,0 +1,138 @@
+{
+  "package": "P01",
+  "tested_commit": "2cc3d6ebd432e13622f36f26b1347fb1253efbf1",
+  "recorded_on": "2026-09-17",
+  "provider": "codex",
+  "version": "0.153.4",
+  "model": "gpt-5.6-sol",
+  "scope": "Adapter contract certification against the frozen L03 kit with an owned stub executable and synthetic fixtures. Live model runs were not repeated here; the WP-L03 live experiment on this exact version plus bounded offline probes below ground the argv and parsing shapes.",
+  "capabilities": [
+    {
+      "capability": "launch.interactive",
+      "status": "supported",
+      "evidence": "p01-test:TestInteractiveLaunchExactCheckout",
+      "notes": "codex --cd <verified-dir> --sandbox <read-only|workspace-write> --ask-for-approval <never|on-request> --model <tested> -c model_reasoning_effort=<effort>, plus the constant instruction only for provider_prompt."
+    },
+    {
+      "capability": "launch.headless",
+      "status": "supported",
+      "evidence": "p01-test:TestHeadlessLaunchRetainsJSONLProvenance",
+      "notes": "codex exec with the same policy mapping plus -c approval_policy, --json --color never, prompt on stdin via -."
+    },
+    {
+      "capability": "filesystem.read_only",
+      "status": "supported",
+      "evidence": "p01-test argv assertions",
+      "notes": "Maps to --sandbox read-only on every fresh plan."
+    },
+    {
+      "capability": "filesystem.workspace_write",
+      "status": "supported",
+      "evidence": "p01-test argv assertions",
+      "notes": "Maps to --sandbox workspace-write. danger-full-access is never emitted."
+    },
+    {
+      "capability": "approval.never",
+      "status": "supported",
+      "evidence": "p01-test argv assertions; bounded offline probe accepted approval_policy=never and -a never",
+      "notes": "TUI uses --ask-for-approval never; exec uses -c approval_policy=never."
+    },
+    {
+      "capability": "approval.on_request",
+      "status": "supported",
+      "evidence": "p01-test argv assertions; bounded offline probe accepted approval_policy=on-request",
+      "notes": "BFB on_request maps to the documented on-request spelling on both surfaces."
+    },
+    {
+      "capability": "context.session_start",
+      "status": "supported",
+      "evidence": "p01-test:TestSessionStartBindsOnlyFreshAndResumed; hook-fixtures.json",
+      "notes": "SessionStart startup|resume binds the documented session ID; bootstrap context is the constant instruction only."
+    },
+    {
+      "capability": "prompt.initial_constant",
+      "status": "supported",
+      "evidence": "p01-test argv and stdin assertions",
+      "notes": "Only provider.InitialInstruction ever enters the prompt transport."
+    },
+    {
+      "capability": "session.resume",
+      "status": "supported",
+      "evidence": "p01-test:TestResumeContinuesExactSession; bounded offline probe rejected an unknown session with exit 1 and no identity",
+      "notes": "codex resume <exact-id>; never --last or picker. Unknown targets fail at runtime without a fresh-session fallback."
+    },
+    {
+      "capability": "session.resume.interactive",
+      "status": "supported",
+      "evidence": "p01-test:TestResumeContinuesExactSession via PlanResume",
+      "notes": "Exact owned binding with run/execution/generation identities; kit and adapter both reject malformed bindings."
+    },
+    {
+      "capability": "session.fork",
+      "status": "supported",
+      "evidence": "p01-test:TestTurnPlansKeepPeerContentOutOfArgv; bounded offline probe rejected an unknown fork source with exit 1",
+      "notes": "codex exec fork <exact-id> for headless discussion turns only."
+    },
+    {
+      "capability": "discussion.read_only",
+      "status": "supported",
+      "evidence": "p01-test turn argv assertions (read-only sandbox, never approvals, stdin envelope owned by kit)",
+      "notes": "Adapter emits the documented enforcement flags. Full inherited-tool boundary certification waits on the live integration checkpoint."
+    },
+    {
+      "capability": "turn.structured",
+      "status": "supported",
+      "evidence": "p01-test exec parsing; exec-fixtures.json",
+      "notes": "Single-line exec --json events normalize to bounded turn events; usage parses only from provider usage objects."
+    },
+    {
+      "capability": "hooks.session_start",
+      "status": "supported",
+      "evidence": "p01-test setup/doctor; hook-fixtures.json",
+      "notes": "User-level hooks.json installs the BFB binder through the approved transaction; doctor verifies it."
+    },
+    {
+      "capability": "mcp.stdio",
+      "status": "supported",
+      "evidence": "p01-test MCP setup/doctor; bounded offline probe round-tripped the TOML block through codex mcp get",
+      "notes": "config.toml carries [mcp_servers.bfb] with the stable launcher and mcp stdio args; writes go through the CAS transaction."
+    },
+    {
+      "capability": "control.interrupt",
+      "status": "supported",
+      "evidence": "p01-test:TestInterruptTerminateMapping",
+      "notes": "Semantic interrupt request; L05 verifies process identity and signals."
+    },
+    {
+      "capability": "control.terminate",
+      "status": "supported",
+      "evidence": "p01-test:TestInterruptTerminateMapping",
+      "notes": "Semantic terminate request; L05 owns TERM/KILL escalation."
+    }
+  ],
+  "withheld_by_policy": [
+    {
+      "capability": "session.requested_id",
+      "reason": "No documented TUI flag accepts a predetermined session; requested IDs fail closed with provider_capability_denied."
+    },
+    {
+      "capability": "approval.always",
+      "reason": "0.153.4 accepts only untrusted (removed), on-failure, on-request, granular, never; there is no always-prompt policy, so always fails closed with provider_capability_denied."
+    }
+  ],
+  "live_observations": {
+    "method": "Bounded offline probes against codex-cli 0.153.4 in an isolated temporary home and scratch git checkout; no repository paths, no personal configuration, no model calls.",
+    "wrong_session_resume": "exit 1, stderr names the unknown thread id, no session identity observed, no fallback",
+    "wrong_session_fork": "exit 1 with the same unknown-thread rejection",
+    "approval_policy_values": "never and on-request pass config load; always, on_request and unknown variants are rejected before execution",
+    "doctor_json": "machine-readable report with config.load, auth.credentials, mcp.config and related checks; usable offline",
+    "mcp_toml_round_trip": "hand-written [mcp_servers.bfb] block with command and args is accepted; codex mcp get --json returns the same command and args"
+  },
+  "limitations": [
+    "Live model runs were not repeated; fresh/resume/fork identity evidence is inherited from the WP-L03 experiment on this exact version.",
+    "Medium/high reasoning effort pass through to -c model_reasoning_effort unvalidated at config load; invalid values fail visibly at runtime.",
+    "Resumed headless turns inherit the bound session's working root because exec resume/fork accept no --cd/--sandbox; only sessions launched in the same verified checkout are resumed.",
+    "Read-only enforcement relies on Codex honoring --sandbox read-only with never approvals; inherited-tool canary certification waits on the live checkpoint.",
+    "Per-machine binary identity is bound at probe time by L05; no binary hash is recorded here."
+  ]
+}
