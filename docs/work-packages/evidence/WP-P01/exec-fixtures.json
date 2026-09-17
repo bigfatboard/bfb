@@ -19,7 +19,11 @@
     {
       "name": "agent-message-keeps-text",
       "line": "{\"type\":\"item.completed\",\"item\":{\"type\":\"agent_message\",\"text\":\"synthetic reply\"}}",
-      "event": { "kind": "message", "session_id": "0199a213-81c0-7000-8aa1-bbab2a035a53", "text": "synthetic reply" },
+      "event": {
+        "kind": "message",
+        "session_id": "0199a213-81c0-7000-8aa1-bbab2a035a53",
+        "text": "synthetic reply"
+      },
       "usage": null,
       "notes": "Non-message items are ignored; only model-visible text becomes a message."
     },
@@ -27,7 +31,13 @@
       "name": "turn-completed-carries-provider-usage",
       "line": "{\"type\":\"turn.completed\",\"usage\":{\"input_tokens\":120,\"cached_input_tokens\":100,\"output_tokens\":34,\"reasoning_output_tokens\":5}}",
       "event": { "kind": "turn_completed", "session_id": "0199a213-81c0-7000-8aa1-bbab2a035a53" },
-      "usage": { "kind": "usage", "session_id": "0199a213-81c0-7000-8aa1-bbab2a035a53", "input_tokens": 120, "output_tokens": 34, "provenance": "provider_reported" },
+      "usage": {
+        "kind": "usage",
+        "session_id": "0199a213-81c0-7000-8aa1-bbab2a035a53",
+        "input_tokens": 120,
+        "output_tokens": 34,
+        "provenance": "provider_reported"
+      },
       "notes": "Usage exists only when the provider reports it; completion never submits a result."
     },
     {

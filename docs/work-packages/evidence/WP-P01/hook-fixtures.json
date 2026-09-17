@@ -50,7 +50,11 @@
         "stop_hook_active": false,
         "last_assistant_message": "synthetic text (not forwarded)"
       },
-      "candidate": { "kind": "turn_completed", "session_id": "thr_synthetic0199a21381c0", "turn_id": "trk_synthetic07ab44" },
+      "candidate": {
+        "kind": "turn_completed",
+        "session_id": "thr_synthetic0199a21381c0",
+        "turn_id": "trk_synthetic07ab44"
+      },
       "notes": "Stop is turn telemetry only; no candidate kind can submit or accept a result."
     },
     {
@@ -75,7 +79,13 @@
         "tool_use_id": "call_synthetic01",
         "tool_input": "<never-forwarded>"
       },
-      "candidate": { "kind": "tool_started", "session_id": "thr_synthetic0199a21381c0", "turn_id": "trk_synthetic07ab44", "tool": "Bash", "source_event_id": "call_synthetic01" },
+      "candidate": {
+        "kind": "tool_started",
+        "session_id": "thr_synthetic0199a21381c0",
+        "turn_id": "trk_synthetic07ab44",
+        "tool": "Bash",
+        "source_event_id": "call_synthetic01"
+      },
       "notes": "Tool input is never forwarded; only name and call identity cross the boundary."
     },
     {
@@ -88,7 +98,13 @@
         "tool_use_id": "call_synthetic02",
         "tool_response": "<never-forwarded>"
       },
-      "candidate": { "kind": "tool_completed", "session_id": "thr_synthetic0199a21381c0", "turn_id": "trk_synthetic07ab44", "tool": "mcp__bfb__bfb_get_context", "source_event_id": "call_synthetic02" },
+      "candidate": {
+        "kind": "tool_completed",
+        "session_id": "thr_synthetic0199a21381c0",
+        "turn_id": "trk_synthetic07ab44",
+        "tool": "mcp__bfb__bfb_get_context",
+        "source_event_id": "call_synthetic02"
+      },
       "notes": "No outcome is inferred from untyped tool output."
     },
     {
@@ -99,7 +115,11 @@
         "turn_id": "trk_synthetic07ab44",
         "permission_mode": "default"
       },
-      "candidate": { "kind": "interrupted", "session_id": "thr_synthetic0199a21381c0", "turn_id": "trk_synthetic07ab44" },
+      "candidate": {
+        "kind": "interrupted",
+        "session_id": "thr_synthetic0199a21381c0",
+        "turn_id": "trk_synthetic07ab44"
+      },
       "notes": "Interruption is telemetry; hook output cannot restart the turn."
     },
     {
@@ -110,7 +130,11 @@
         "turn_id": "trk_synthetic07ab44",
         "prompt": "<never-forwarded>"
       },
-      "candidate": { "kind": "turn_started", "session_id": "thr_synthetic0199a21381c0", "turn_id": "trk_synthetic07ab44" },
+      "candidate": {
+        "kind": "turn_started",
+        "session_id": "thr_synthetic0199a21381c0",
+        "turn_id": "trk_synthetic07ab44"
+      },
       "notes": "A submitted prompt is an honestly observed turn start."
     },
     {
