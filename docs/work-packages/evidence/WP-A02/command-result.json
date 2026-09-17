@@ -1,0 +1,46 @@
+{
+  "package": "A02",
+  "tested_commit": "03436af65957d76ab1f3910f5b0be06682ef987c",
+  "environment": "implementation worktree on macOS (arm64); browser step on BFB_E2E_PORT=4184",
+  "outcome": "passed",
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "result": "lockfile in sync after the attention harness workspace was added"
+    },
+    {
+      "command": "pnpm build",
+      "outcome": "passed",
+      "result": "TypeScript project references build including tools/attention"
+    },
+    {
+      "command": "pnpm test:a02",
+      "outcome": "passed",
+      "result": "Go suites under -race in internal/localmcp, internal/cli, cmd/bfb; 28 vitest cases across attention domain, attention routes, web attention, and db migrations; tools/attention real-Worker/D1 fault harness (11 A02 lines); tools/local-mcp stdio harness against the real binary; production web build; ranked-view browser spec (3 Playwright cases, green on 4184 because 4182 was held by a sibling agent's live e2e server)"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "result": "full repository verification: format, lint, typecheck, protocol, provider, TypeScript suites, headers, docs, roadmap, Go, Swift/Xcode"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "result": "clean worktree at the tested commit"
+    },
+    {
+      "command": "GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./...",
+      "outcome": "passed",
+      "result": "Linux cross-compile of the whole module"
+    }
+  ],
+  "migration_head": "0023_attention",
+  "redaction": "passed",
+  "notes": [
+    "The exact gate (install, build, test:a02) passed from the detached clean checkout /tmp/bfb-a02-clean at the final commit; the worktree was removed afterwards.",
+    "Evidence manifest and command results are docs-only additions after the tested commit; pnpm test:a02, pnpm verify, pnpm worktree:check, and the Linux cross-build were re-run on the final tree.",
+    "Status stays planned: A01 and E02 are not done, so roadmap:check rejects anything beyond planned.",
+    "All identities in tests, fixtures, recordings, and this report are synthetic; no secrets, task bodies, environment values, or local absolute paths are retained."
+  ]
+}
