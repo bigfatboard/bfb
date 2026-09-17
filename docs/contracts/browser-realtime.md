@@ -116,8 +116,10 @@ actor/source/provenance, session/execution identity, and commit time:
 - Actor: `runner` (daemon-observed fact) or `agent_run` (agent-reported or
   hook telemetry), with the bound ID.
 - Source: the owning runner plus the run profile provider when known.
-- Provenance: `capture_origin` rendered as `daemon-observed` or
-  `agent-reported`; never reworded into a completion claim.
+- Provenance: derived from the actor type, because the replay envelope
+  carries no capture-origin field. A `runner` actor renders as
+  `daemon-observed`; an `agent_run` actor renders as `agent-reported`.
+  Provenance is never reworded into a completion claim.
 - Session/execution identity: `run_execution_id`, `assignment_generation`,
   and `provider_session_id` when present.
 
