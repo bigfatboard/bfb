@@ -1,7 +1,20 @@
 // ABOUTME: Typed W02 browser client for runner, checkout, launch, and control reads.
 // ABOUTME: Request builders use exact field allowlists; wake values never enter launch input.
 
-import { randomUlid } from "@bfb/domain";
+const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+
+function browserUlid(): string {
+  const bytes = new Uint8Array(24);
+  crypto.getRandomValues(bytes);
+  let out = "01";
+  for (const byte of bytes) {
+    out += CROCKFORD[byte % 32];
+    if (out.length >= 26) {
+      break;
+    }
+  }
+  return out.slice(0, 26);
+}
 
 export interface RunnerSummary {
   schema_version: 1;
@@ -175,7 +188,7 @@ export function createLaunchClient(
 }
 
 export function newIdempotencyKey(): string {
-  return randomUlid();
+  return browserUlid();
 }
 
 export interface StartInput {

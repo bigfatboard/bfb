@@ -369,9 +369,7 @@ export function RunnerOperations(props: RunnerOperationsProps) {
                   <h3>Share this Mac</h3>
                   <fieldset>
                     <legend>Projects</legend>
-                    {projects
-                      .filter((project) => runner.granted_project_ids.includes(project.id))
-                      .map((project) => (
+                    {projects.map((project) => (
                         <label className="check-row" key={project.id}>
                           <input
                             type="checkbox"
@@ -608,7 +606,8 @@ export function LaunchSection(props: LaunchSectionProps) {
   }, [runnerStatus, task]);
   const effectiveCheckoutId =
     checkoutId || runnerStatus?.checkouts.find((item) => item.is_default)?.checkout_id || "";
-  const effectiveProfileId = profileId || profiles[0]?.id || "";
+  const usableProfiles = useMemo(() => profiles.filter((item) => item.model), [profiles]);
+  const effectiveProfileId = profileId || usableProfiles[0]?.id || "";
   const selectedCheckout = selectableCheckouts.find((item) => item.checkout_id === effectiveCheckoutId);
   const checkoutBlocked = selectedCheckout && selectedCheckout.status !== "validated";
 
@@ -766,8 +765,8 @@ export function LaunchSection(props: LaunchSectionProps) {
               required
             >
               {profiles.map((profile) => (
-                <option key={profile.id} value={profile.id}>
-                  {`${profile.name} · ${profile.provider}${profile.model ? ` · ${profile.model}` : ""}`}
+                <option key={profile.id} value={profile.id} disabled={!profile.model}>
+                  {`${profile.name} · ${profile.provider}${profile.model ? ` · ${profile.model}` : " · no model set"}`}
                 </option>
               ))}
             </select>
@@ -812,6 +811,11 @@ export function LaunchSection(props: LaunchSectionProps) {
               ))}
             </select>
           </label>
+          {usableProfiles.length === 0 ? (
+            <p role="note">
+              No agent profile pins a model. Ask an owner to set one before starting.
+            </p>
+          ) : null}
           {checkoutBlocked ? (
             <p role="alert" data-testid="checkout-blocked">
               {`This checkout is ${selectedCheckout?.status}${
@@ -825,7 +829,13 @@ export function LaunchSection(props: LaunchSectionProps) {
             type="submit"
             className="button-primary"
             data-testid="start-button"
-            disabled={busy || !effectiveRunnerId || !effectiveCheckoutId || Boolean(checkoutBlocked)}
+            disabled={
+              busy ||
+              !effectiveRunnerId ||
+              !effectiveCheckoutId ||
+              !effectiveProfileId ||
+              Boolean(checkoutBlocked)
+            }
           >
             {busy ? "Starting…" : "Start on selected Mac"}
           </button>

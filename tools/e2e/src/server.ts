@@ -378,6 +378,7 @@ async function seedLaunchOperations(db: SqlDatabase): Promise<void> {
 
   for (const [taskId, title] of [
     [FIX.taskLaunch, "Synthetic launch card"],
+    [FIX.taskLaunchStart, "Synthetic member launch card"],
     [FIX.taskLaunchExpired, "Synthetic expired launch"],
     [FIX.taskLaunchContained, "Synthetic contained launch"],
     [FIX.taskLaunchEnded, "Synthetic ended launch"],

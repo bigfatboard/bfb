@@ -24,6 +24,7 @@ export const FIX = {
   runDelegable: syntheticUlid("RUNDELG"),
   eventAttention: syntheticUlid("EVTATTN"),
   taskLaunch: syntheticUlid("TASKW02L"),
+  taskLaunchStart: syntheticUlid("TASKW02S"),
   taskLaunchExpired: syntheticUlid("TASKW02X"),
   taskLaunchContained: syntheticUlid("TASKW02C"),
   taskLaunchEnded: syntheticUlid("TASKW02E"),
