@@ -182,7 +182,7 @@ func runSetup(ctx context.Context, invocation cli.Invocation) (map[string]any, e
 		}
 		proposals = append(proposals, proposal)
 	}
-	lines := []string{"provider: claude", "scope: user-level claude config", "version: " + TestedVersion}
+	lines := []string{"provider: claude", "scope: user-level claude config", "version: " + strings.Join(TestedVersions, ",")}
 	if len(approvals) == 0 {
 		pending := false
 		for index, file := range files {

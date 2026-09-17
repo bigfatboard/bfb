@@ -372,11 +372,11 @@ func IntegrationHash(home, launcher string) (string, error) {
 		return "", err
 	}
 	record := map[string]any{
-		"manifest":       ManifestVersion,
-		"tested_version": TestedVersion,
-		"launcher":       launcher,
-		"hooks":          hooks,
-		"mcp_server":     server,
+		"manifest":        ManifestVersion,
+		"tested_versions": append([]string{}, TestedVersions...),
+		"launcher":        launcher,
+		"hooks":           hooks,
+		"mcp_server":      server,
 	}
 	return provider.Hash(canonical(record)), nil
 }

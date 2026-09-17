@@ -1,5 +1,5 @@
 // ABOUTME: Owns the Claude Code reference adapter on the frozen L03 provider kit.
-// ABOUTME: Certifies only the probed 2.1.274 behavior; everything else fails closed.
+// ABOUTME: Certifies only the probed 2.1.274 and 2.1.275 behavior; everything else fails closed.
 
 package claude
 
@@ -18,10 +18,10 @@ import (
 // ManifestVersion identifies the packaged Claude capability manifest.
 const ManifestVersion = "1.0.0"
 
-// TestedVersion is the exact Claude Code version this adapter certifies.
-// Capability evidence never transfers between versions; a newer auto-updated
+// TestedVersions lists the exact Claude Code versions this adapter certifies.
+// Capability evidence never transfers between versions; any other auto-updated
 // binary probes as unknown_version until its fixtures pass.
-const TestedVersion = "2.1.274"
+var TestedVersions = []string{"2.1.274", "2.1.275"}
 
 // HookEvents are the Claude hook events BFB subscribes. Unmapped documented
 // events (Notification, PreCompact, permission dialogs) intentionally produce
@@ -45,7 +45,7 @@ func Descriptor() provider.Descriptor {
 		Name:             "claude",
 		VersionArguments: []string{"--version"},
 		ParseVersion:     provider.ParseVersion("", " (Claude Code)"),
-		Manifest:         provider.Manifest{Provider: "claude", Version: ManifestVersion, TestedVersions: []string{TestedVersion}, Capabilities: Capabilities(), Models: Models()},
+		Manifest:         provider.Manifest{Provider: "claude", Version: ManifestVersion, TestedVersions: append([]string{}, TestedVersions...), Capabilities: Capabilities(), Models: Models()},
 		Adapter:          Adapter{},
 	}
 }

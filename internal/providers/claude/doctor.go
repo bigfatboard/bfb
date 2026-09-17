@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"reflect"
+	"slices"
 	"strings"
 	"time"
 )
@@ -83,7 +84,7 @@ func Diagnose(home, launcher, binary string) Report {
 		return report
 	}
 	report.Version = version
-	if version != TestedVersion {
+	if !slices.Contains(TestedVersions, version) {
 		add("version", CheckFailed, "unknown_version", "version is not certified for tracked launch")
 		return report
 	}
