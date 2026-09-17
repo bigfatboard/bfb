@@ -114,9 +114,13 @@ enum TerminalObjects {
   static func all(_ kind: OSType, in container: NSAppleEventDescriptor = .null()) throws
     -> NSAppleEventDescriptor
   {
+    // The absolute-ordinal key is built directly: coercing a type descriptor
+    // to an absolute ordinal is not handled on current macOS releases.
+    var code = OSType(kAEAll).bigEndian
+    let ordinalData = withUnsafeBytes(of: &code) { Data($0) }
     guard
-      let ordinal = NSAppleEventDescriptor(typeCode: OSType(kAEAll)).coerce(
-        toDescriptorType: DescType(typeAbsoluteOrdinal))
+      let ordinal = NSAppleEventDescriptor(
+        descriptorType: DescType(typeAbsoluteOrdinal), data: ordinalData)
     else {
       throw NativeFailure(code: "app_delivery_unknown")
     }
