@@ -26,8 +26,7 @@ import {
   type RunnerApiDeps,
 } from "./runners.js";
 
-const nativePattern =
-  /^\/runner\/workspaces\/([^/]+)\/runners\/([^/]+)\/events\/ingest$/;
+const nativePattern = /^\/runner\/workspaces\/([^/]+)\/runners\/([^/]+)\/events\/ingest$/;
 
 export function isRunnerEventPath(path: string): boolean {
   return nativePattern.test(path);

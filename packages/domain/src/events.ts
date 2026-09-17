@@ -93,11 +93,7 @@ export interface LedgerReplayOptions {
   limit?: number;
 }
 
-function diagnostic(
-  category: TypedError["category"],
-  code: string,
-  message: string,
-): TypedError {
+function diagnostic(category: TypedError["category"], code: string, message: string): TypedError {
   return { schema_version: 1, category, code, message };
 }
 
@@ -350,16 +346,17 @@ export const ingestRunnerEventsCommand: HubCommand<
       const { triple, submission } = entry;
       const duplicate = seenIds.get(triple.eventId);
       if (duplicate) {
-        if (
-          duplicate.streamId === triple.streamId &&
-          duplicate.sequence === triple.sequence
-        ) {
+        if (duplicate.streamId === triple.streamId && duplicate.sequence === triple.sequence) {
           dispositions.push(alreadyCommittedDisposition(triple));
         } else {
           dispositions.push(
             rejectedDisposition(
               triple,
-              diagnostic("conflict", "event_id_confusion", "event id is bound to another stream row"),
+              diagnostic(
+                "conflict",
+                "event_id_confusion",
+                "event id is bound to another stream row",
+              ),
             ),
           );
         }
@@ -394,7 +391,10 @@ export const ingestRunnerEventsCommand: HubCommand<
         continue;
       }
 
-      const binding = await bindingFor(submission.run_execution_id, submission.assignment_generation);
+      const binding = await bindingFor(
+        submission.run_execution_id,
+        submission.assignment_generation,
+      );
       if (!binding) {
         if (!(await executionExists(submission.run_execution_id))) {
           dispositions.push(
@@ -463,8 +463,7 @@ export const ingestRunnerEventsCommand: HubCommand<
            FROM event_ledger WHERE workspace_id = ? AND event_id = ?`,
         )
         .get(ctx.workspaceId, triple.eventId)) as
-        | { event_id: string; source_stream_id: string; source_sequence: number }
-        | undefined;
+        { event_id: string; source_stream_id: string; source_sequence: number } | undefined;
       if (committed) {
         if (
           committed.source_stream_id === triple.streamId &&
@@ -475,7 +474,11 @@ export const ingestRunnerEventsCommand: HubCommand<
           dispositions.push(
             rejectedDisposition(
               triple,
-              diagnostic("conflict", "event_id_confusion", "event id is bound to another stream row"),
+              diagnostic(
+                "conflict",
+                "event_id_confusion",
+                "event id is bound to another stream row",
+              ),
             ),
           );
         }
@@ -487,8 +490,7 @@ export const ingestRunnerEventsCommand: HubCommand<
            WHERE workspace_id = ? AND source_stream_id = ? AND source_sequence = ?`,
         )
         .get(ctx.workspaceId, triple.streamId, triple.sequence)) as
-        | { event_id: string }
-        | undefined;
+        { event_id: string } | undefined;
       if (streamRow) {
         dispositions.push(
           rejectedDisposition(
@@ -526,7 +528,9 @@ export const ingestRunnerEventsCommand: HubCommand<
       const runIds = [...new Set(prepared.map((event) => event.binding.run_id))];
       for (const runId of runIds) {
         const row = (await ctx.db
-          .prepare(`SELECT COUNT(*) AS total FROM event_ledger WHERE workspace_id = ? AND run_id = ?`)
+          .prepare(
+            `SELECT COUNT(*) AS total FROM event_ledger WHERE workspace_id = ? AND run_id = ?`,
+          )
           .get(ctx.workspaceId, runId)) as { total: number };
         runBase.set(runId, row.total);
       }
@@ -543,7 +547,9 @@ export const ingestRunnerEventsCommand: HubCommand<
         executionHeartbeats.set(executionId, row.heartbeats);
       }
       const kindKeys = [
-        ...new Set(prepared.map((event) => `${event.submission.run_execution_id}:${event.submission.kind}`)),
+        ...new Set(
+          prepared.map((event) => `${event.submission.run_execution_id}:${event.submission.kind}`),
+        ),
       ];
       for (const key of kindKeys) {
         const [executionId, kind] = key.split(":") as [string, string];
@@ -772,7 +778,10 @@ export const ingestRunnerEventsCommand: HubCommand<
     return {
       schema_version: 1 as const,
       workspace_id: ctx.workspaceId,
-      high_water_cursor: prepared.length > 0 ? prepared[prepared.length - 1]?.cursor as number : ctx.cursorBase - 1,
+      high_water_cursor:
+        prepared.length > 0
+          ? (prepared[prepared.length - 1]?.cursor as number)
+          : ctx.cursorBase - 1,
       dispositions,
     };
   },
@@ -812,7 +821,10 @@ function envelopeOf(
     run_id: binding.run_id,
     run_execution_id: submission.run_execution_id,
     assignment_generation: submission.assignment_generation,
-    actor: { type: actorType, id: actorType === "runner" ? runnerIdValue : submission.run_execution_id },
+    actor: {
+      type: actorType,
+      id: actorType === "runner" ? runnerIdValue : submission.run_execution_id,
+    },
     source: {
       type: "runner",
       id: runnerIdValue,
@@ -859,7 +871,9 @@ export async function readLedgerHighWater(
 ): Promise<number> {
   await assertLedgerReadScope(db, authorization);
   const row = (await db
-    .prepare(`SELECT COALESCE(MAX(workspace_cursor), 0) AS high_water FROM event_ledger WHERE workspace_id = ?`)
+    .prepare(
+      `SELECT COALESCE(MAX(workspace_cursor), 0) AS high_water FROM event_ledger WHERE workspace_id = ?`,
+    )
     .get(authorization.workspaceId)) as { high_water: number };
   if (!Number.isSafeInteger(row.high_water) || row.high_water < 0) {
     throw new DomainError("event_history_corrupt", "ledger high-water is invalid");
@@ -922,7 +936,12 @@ export async function listLedgerEvents(
        ORDER BY workspace_cursor ASC
        LIMIT ?`,
     )
-    .all(authorization.workspaceId, options.afterCursor, options.throughCursor, limit)) as LedgerRow[];
+    .all(
+      authorization.workspaceId,
+      options.afterCursor,
+      options.throughCursor,
+      limit,
+    )) as LedgerRow[];
   return rows.map((row) => {
     if (!Number.isSafeInteger(row.workspace_cursor) || row.workspace_cursor < 1) {
       throw new DomainError("event_history_corrupt", "ledger cursor is invalid");
