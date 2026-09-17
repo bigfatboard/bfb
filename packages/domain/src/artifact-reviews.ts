@@ -553,13 +553,15 @@ export async function listArtifactReviews(
   const latestVersionId = versions[versions.length - 1]?.id ?? null;
   const latestConfigHash = await readLatestConfigHash(db, workspaceId, artifact.run_id);
   const latestSubmissionGit = await readLatestSubmissionGit(db, workspaceId, artifact.run_id);
+  // Decision order is insert order: review ids are random, so rowid breaks
+  // same-millisecond timestamp ties deterministically.
   const rows = (await db
     .prepare(
       `SELECT id, artifact_id, version_id, content_hash, reviewer_human_id, decision,
               comment, git_commit, config_hash, review_timer_observation_id, created_at
        FROM artifact_reviews
        WHERE workspace_id = ? AND artifact_id = ?
-       ORDER BY created_at ASC, id ASC`,
+       ORDER BY created_at ASC, rowid ASC`,
     )
     .all(workspaceId, artifactId)) as ReviewRow[];
   return rows.map((row) =>
