@@ -74,12 +74,17 @@ test("human narrows a Claude OAuth request before provider consent", async ({ pa
       };
       expect(toolsBody.result?.tools?.map((tool) => tool.name).sort()).toEqual([
         "bfb_add_comment",
+        "bfb_finalize_artifact",
+        "bfb_get_attention",
         "bfb_get_context",
         "bfb_get_task",
         "bfb_list_projects",
         "bfb_list_tasks",
         "bfb_propose_task",
+        "bfb_publish_artifact",
         "bfb_report_progress",
+        "bfb_request_human",
+        "bfb_submit_result",
       ]);
       const revoked = await api.post("/oauth/revoke", {
         form: {

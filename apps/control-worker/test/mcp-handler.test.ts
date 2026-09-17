@@ -36,7 +36,7 @@ describe("mcp handler", () => {
     expect(await cookie.json()).toEqual({ error: "credential_confusion" });
   });
 
-  it("lists exactly seven tools for an active delegation", async () => {
+  it("lists exactly twelve tools for an active delegation", async () => {
     const db = await openDomainDb();
     const { accessToken } = await issueSyntheticMcpAccess(db);
     const response = await request(db, "tools/list", undefined, {}, accessToken);
@@ -52,6 +52,11 @@ describe("mcp handler", () => {
       "bfb_add_comment",
       "bfb_report_progress",
       "bfb_propose_task",
+      "bfb_request_human",
+      "bfb_get_attention",
+      "bfb_submit_result",
+      "bfb_publish_artifact",
+      "bfb_finalize_artifact",
     ]);
   });
 
