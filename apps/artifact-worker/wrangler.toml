@@ -1,5 +1,5 @@
 # ABOUTME: Local Artifact Worker wrangler configuration for the cookie-less origin.
-# ABOUTME: Holds private R2 only; no session cookie or trusted-origin features.
+# ABOUTME: Holds private R2 and the shared D1 for verified upload metadata; no session cookie or trusted-origin features.
 
 name = "bfb-artifact-local"
 main = "src/index.ts"

@@ -105,7 +105,11 @@ describe("wrangler substrate configs", () => {
     for (const name of artifactConfigs) {
       const body = readFileSync(path.join(artifactRoot, name), "utf8");
       expect(body).toMatch(/binding = "ARTIFACTS"/);
-      expect(body).not.toMatch(/binding = "DB"|binding = "WORKSPACE_HUB"/);
+      // V01: the Artifact Worker rechecks grants and records verified upload
+      // metadata with conditional D1 batches, so it binds the shared D1 but
+      // never dispatches through WORKSPACE_HUB (finalization owns the hub).
+      expect(body).toMatch(/binding = "DB"/);
+      expect(body).not.toMatch(/binding = "WORKSPACE_HUB"/);
     }
   });
 

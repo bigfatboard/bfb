@@ -170,14 +170,16 @@ END;
 -- Durable audit outbox for grant issuance, consumption, upload verification,
 -- finalization, and abandonment. Payloads carry hashes and IDs only.
 CREATE TABLE artifact_audit_outbox (
-  id TEXT NOT NULL PRIMARY KEY,
   workspace_id TEXT NOT NULL,
+  id TEXT NOT NULL,
   version_id TEXT,
   grant_id TEXT,
   action TEXT NOT NULL,
   payload_json TEXT NOT NULL CHECK (json_valid(payload_json)),
   created_at TEXT NOT NULL,
   dispatched_at TEXT,
+  PRIMARY KEY (workspace_id, id),
+  UNIQUE (id),
   FOREIGN KEY (workspace_id) REFERENCES workspaces (id)
 );
 
