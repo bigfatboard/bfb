@@ -6,6 +6,7 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import type { SqlDatabase } from "@bfb/db";
 
 import { assertEpoch, assertRole, loadPrincipal, type AuthzPrincipal } from "./authorization.js";
+import { abuseBucketKey, consumeAbuseBudget } from "./abuse.js";
 import { DomainError } from "./hub.js";
 import type { HubCommand, HubContext } from "./hub.js";
 import { isUlid, randomUlid } from "./ids.js";
@@ -26,6 +27,53 @@ export const CLI_EXCHANGE_ISSUER_ID = "01K00000000000000000000005";
 const KEY_SECRET_BYTES = 32;
 const KEY_PATTERN = /^bfb_cli_[A-Za-z0-9_-]{43}$/;
 const HEX_PATTERN = /^[0-9a-f]{64}$/;
+
+/** Durable abuse policy shared by device issuance, approval, polling, and exchange. */
+export const CLI_ABUSE_POLICY = {
+  attemptLimit: 20,
+  pollLimit: 60,
+  windowSeconds: 60,
+  maxBodyBytes: CLI_BODY_LIMIT,
+} as const;
+
+/**
+ * Consumes a durable abuse budget for a CLI device surface. Subjects carry only
+ * hashes of bootstrap codes; raw user codes, device codes, IPs, and keys never
+ * become rate keys or diagnostics.
+ */
+export async function consumeCliBudget(
+  db: SqlDatabase,
+  options: {
+    ipSeed: string;
+    subjectSeed: string;
+    surface: string;
+    subject: string;
+    activity: "attempt" | "poll";
+    now: string;
+  },
+): Promise<boolean> {
+  const now = Date.parse(options.now);
+  if (!Number.isFinite(now)) return false;
+  const expiresAt = new Date(now + CLI_ABUSE_POLICY.windowSeconds * 1000).toISOString();
+  for (const [subject, seed] of [
+    ["all", options.ipSeed],
+    [options.subject, options.subjectSeed],
+  ] as const) {
+    const decision = await consumeAbuseBudget(
+      db,
+      {
+        bucketKey: abuseBucketKey({ ipHashSeed: seed, subject, surface: options.surface }),
+        activity: options.activity,
+        bodyBytes: 0,
+        now: options.now,
+        expiresAt,
+      },
+      CLI_ABUSE_POLICY,
+    );
+    if (!decision.allowed) return false;
+  }
+  return true;
+}
 
 export function rejectCliRequest(): never {
   throw new DomainError("request_rejected", "request rejected");
@@ -257,15 +305,18 @@ export const authorizeDeviceCommand: HubCommand<AuthorizeDeviceInput, CliBinding
     )
       rejectCliRequest();
     if (record.user_id !== (await authUserId(ctx.db, principal.humanId))) rejectCliRequest();
-    const existing = (await ctx.db
+    // One bootstrap credential yields one pending binding globally: the exchange
+    // lookup is by device hash, so a second approval anywhere must fail here.
+    const codeHash = cliHash(String(record.device_code));
+    const clash = (await ctx.db
       .prepare(
         `SELECT id FROM api_key_bindings
-         WHERE workspace_id = ? AND device_code_hash = ? AND revoked_at IS NULL`,
+         WHERE device_code_hash = ?
+           AND (workspace_id = ? OR auth_user_id = ?)
+           AND revoked_at IS NULL`,
       )
-      .get(ctx.workspaceId, cliHash(String(record.device_code)))) as
-      | { id: string }
-      | undefined;
-    if (existing) rejectCliRequest();
+      .get(codeHash, ctx.workspaceId, String(record.user_id))) as { id: string } | undefined;
+    if (clash) rejectCliRequest();
     const nowMs = Date.parse(ctx.now);
     const created: BindingRow = {
       workspace_id: ctx.workspaceId,
@@ -387,9 +438,7 @@ export const exchangeCredentialCommand: HubCommand<
       .prepare(`SELECT key_hash FROM api_key_bindings WHERE workspace_id = ? AND id = ?`)
       .get(ctx.workspaceId, binding.id)) as { key_hash: string | null } | undefined;
     if (!guard || !cliHashEqual(guard.key_hash ?? "", String(input.keyHash))) rejectCliRequest();
-    await ctx.db
-      .prepare(`DELETE FROM better_auth_device_codes WHERE id = ?`)
-      .run(record.id);
+    await ctx.db.prepare(`DELETE FROM better_auth_device_codes WHERE id = ?`).run(record.id);
     return {
       schema_version: 1,
       binding_id: binding.id,
@@ -456,9 +505,7 @@ export async function resolveCliPrincipal(
     throw new DomainError("unauthenticated", "CLI credential required");
   }
   const binding = (await db
-    .prepare(
-      `SELECT * FROM api_key_bindings WHERE key_hash = ? AND key_hash IS NOT NULL`,
-    )
+    .prepare(`SELECT * FROM api_key_bindings WHERE key_hash = ? AND key_hash IS NOT NULL`)
     .get(cliHash(bearerToken))) as BindingRow | undefined;
   if (
     !binding ||
@@ -483,7 +530,9 @@ export async function resolveCliPrincipal(
   const bound = binding.project_ids_json
     ? (JSON.parse(binding.project_ids_json) as string[])
     : null;
-  const effective = bound ? bound.filter((id) => principal.projectIds.includes(id)) : principal.projectIds;
+  const effective = bound
+    ? bound.filter((id) => principal.projectIds.includes(id))
+    : principal.projectIds;
   if (effective.length === 0) {
     throw new DomainError("forbidden", "CLI credential has no accessible project");
   }

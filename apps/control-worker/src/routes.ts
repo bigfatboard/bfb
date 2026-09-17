@@ -7,6 +7,7 @@ import type { SqlDatabase } from "@bfb/db";
 import { DomainError } from "@bfb/domain";
 
 import { handleWorkApi } from "./api/work.js";
+import { handleCliBrowserApi, handleCliPublicApi } from "./api/cli-credentials.js";
 import { handleDiscussionApi } from "./api/discussions.js";
 import { handleProjectApi } from "./api/projects.js";
 import { handleRunnerBrowserApi, handleRunnerNativeApi } from "./api/runners.js";
@@ -458,6 +459,18 @@ export function createControlApp(
       };
       const projectPrefix = `/api/v1/workspaces/${workspaceId}`;
       if (
+        c.req.path === `${projectPrefix}/cli/authorize` ||
+        c.req.path.startsWith(`${projectPrefix}/cli/bindings/`)
+      ) {
+        return await handleCliBrowserApi(c.req.raw, {
+          ...apiDeps,
+          db,
+          auth: runtime.auth,
+          appOrigin: current.origins.appOrigin,
+          abuseSecret: runtime.abuseSecret,
+        });
+      }
+      if (
         /^\/api\/v1\/workspaces\/[^/]+\/(?:discussions(?:\/|$)|tasks\/[^/]+\/discussions(?:\/|$))/.test(
           c.req.path,
         )
@@ -510,6 +523,32 @@ export function createControlApp(
         return c.json({ error: error.code, message: error.message }, status);
       }
       return c.json({ error: "request_failed", message: "request failed" }, 500);
+    }
+  });
+
+  app.all("/api/v1/cli/*", async (c) => {
+    const db = c.get("db") ?? options.db;
+    const current = c.get("validated");
+    if (!db || !current) {
+      return c.json({ error: "api_misconfigured" }, 500);
+    }
+    try {
+      const runtime = options.humanAuth?.();
+      if (!runtime) {
+        return c.json({ error: "api_misconfigured" }, 500);
+      }
+      const envBindings = (c.env ?? {}) as { WORKSPACE_HUB?: DurableObjectNamespace };
+      return await handleCliPublicApi(c.req.raw, {
+        db,
+        auth: runtime.auth,
+        now: c.get("now") ?? now,
+        jurisdiction: current.jurisdiction,
+        appOrigin: current.origins.appOrigin,
+        abuseSecret: runtime.abuseSecret,
+        workspaceHubNs: envBindings.WORKSPACE_HUB,
+      });
+    } catch {
+      return c.json({ error: "request_rejected", message: "request rejected" }, 403);
     }
   });
 

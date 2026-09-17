@@ -6,7 +6,14 @@ import { createHmac } from "node:crypto";
 import type { Context } from "hono";
 
 import type { SqlDatabase } from "@bfb/db";
-import { abuseBucketKey, consumeAbuseBudget } from "@bfb/domain";
+import {
+  abuseBucketKey,
+  CLI_CLIENT_ID,
+  CLI_SCOPES,
+  cliHash,
+  consumeAbuseBudget,
+  consumeCliBudget,
+} from "@bfb/domain";
 
 import type { AuthKey, HumanAuth } from "./better-auth.js";
 import {
@@ -82,6 +89,89 @@ function clientHash(request: Request, secret: string): string {
   return createHmac("sha256", secret)
     .update(`bfb-auth-ip:${ip.slice(0, 64)}`)
     .digest("hex");
+}
+
+function cliSubjectSeed(secret: string): string {
+  return createHmac("sha256", secret).update("cli-subject").digest("hex");
+}
+
+async function consumeDeviceBudget(
+  deps: AuthRouteDeps,
+  request: Request,
+  surface: string,
+  subject: string,
+  activity: "attempt" | "poll",
+): Promise<boolean> {
+  return consumeCliBudget(deps.db, {
+    ipSeed: clientHash(request, deps.authAbuseSecret),
+    subjectSeed: cliSubjectSeed(deps.authAbuseSecret),
+    surface,
+    subject,
+    activity,
+    now: deps.now,
+  });
+}
+
+function noStore(upstream: Response): Response {
+  const headers = new Headers(upstream.headers);
+  headers.set("cache-control", "no-store");
+  headers.set("pragma", "no-cache");
+  return new Response(upstream.body, { status: upstream.status, headers });
+}
+
+function deviceForward(request: Request, appOrigin: string, path: string, body?: string): Request {
+  const headers = new Headers();
+  const cookie = request.headers.get("cookie");
+  if (cookie) headers.set("cookie", cookie);
+  if (body !== undefined) headers.set("content-type", "application/json");
+  const init: RequestInit = {
+    method: body === undefined && request.method === "GET" ? "GET" : "POST",
+    headers,
+    redirect: "manual",
+  };
+  if (body !== undefined) init.body = body;
+  return new Request(new URL(path, appOrigin), init);
+}
+
+function validDeviceScope(scope: string): boolean {
+  if (scope.length > 256) return false;
+  const tokens = scope.split(" ").filter(Boolean);
+  return tokens.every((token) => (CLI_SCOPES as readonly string[]).includes(token));
+}
+
+async function deviceBrowserPost(
+  deps: AuthRouteDeps,
+  request: Request,
+  surface: string,
+): Promise<{ request: Request; userCode: string } | null> {
+  const bounded = await boundedRequest(request);
+  if (!bounded) return null;
+  let userCode: unknown;
+  try {
+    const body = (await bounded.request.clone().json()) as { userCode?: unknown };
+    userCode = body.userCode;
+  } catch {
+    return null;
+  }
+  if (typeof userCode !== "string" || userCode.length < 1 || userCode.length > 64) return null;
+  if (
+    !(await consumeDeviceBudget(
+      deps,
+      bounded.request,
+      surface,
+      `${surface}:${cliHash(userCode)}`,
+      "attempt",
+    ))
+  ) {
+    return null;
+  }
+  const principal = await resolvePrincipal(deps, bounded.request);
+  if (!principal) throw new Error("device session required");
+  assertBrowserMutation(bounded.request, deps.appOrigin, {
+    sessionId: principal.sessionId,
+    authKeys: deps.authKeys,
+  });
+  return { request: bounded.request, userCode };
 }
 
 async function consumePublicAuthBudget(
@@ -516,6 +606,114 @@ export async function handleAuthRoute(c: Context, deps: AuthRouteDeps): Promise<
       if (!attempt || !["step_up_replayed", "passkey_not_found"].includes(failure.code)) {
         await recordPasskeyFailure(deps, path, attempt?.principal.humanId);
       }
+      return rejected(403);
+    }
+  }
+
+  if (path === "/auth/device/token") {
+    return c.json({ error: "not_found" }, 404);
+  }
+
+  if (path === "/auth/device/code" && c.req.method === "POST") {
+    const bounded = await boundedRequest(c.req.raw);
+    if (
+      !bounded ||
+      !(await consumeDeviceBudget(
+        deps,
+        c.req.raw,
+        "cli:device-code",
+        "device-code:issue",
+        "attempt",
+      ))
+    ) {
+      return rejected(429);
+    }
+    let body: { client_id?: unknown; scope?: unknown; user_id?: unknown };
+    try {
+      body = (await bounded.request.clone().json()) as typeof body;
+    } catch {
+      return rejected();
+    }
+    if (
+      !body ||
+      typeof body !== "object" ||
+      body.client_id !== CLI_CLIENT_ID ||
+      body.user_id !== undefined ||
+      (body.scope !== undefined &&
+        (typeof body.scope !== "string" || !validDeviceScope(body.scope)))
+    ) {
+      return rejected();
+    }
+    try {
+      const upstream = await deps.auth.handler(
+        deviceForward(
+          bounded.request,
+          deps.appOrigin,
+          "/auth/device/code",
+          await bounded.request.text(),
+        ),
+      );
+      return noStore(upstream);
+    } catch {
+      return rejected();
+    }
+  }
+
+  if (path === "/auth/device" && c.req.method === "GET") {
+    const userCode = new URL(c.req.url).searchParams.get("user_code") ?? "";
+    if (userCode.length < 1 || userCode.length > 64) {
+      return rejected();
+    }
+    try {
+      const principal = await resolvePrincipal(deps, c.req.raw);
+      if (!principal) {
+        return rejected(401);
+      }
+      if (
+        !(await consumeDeviceBudget(
+          deps,
+          c.req.raw,
+          "cli:device-status",
+          `status:${cliHash(userCode)}`,
+          "poll",
+        ))
+      ) {
+        return rejected(429);
+      }
+      const upstream = await deps.auth.handler(
+        deviceForward(
+          c.req.raw,
+          deps.appOrigin,
+          `/auth/device?user_code=${encodeURIComponent(userCode)}`,
+        ),
+      );
+      return noStore(upstream);
+    } catch {
+      return rejected();
+    }
+  }
+
+  if (
+    (path === "/auth/device/approve" || path === "/auth/device/deny") &&
+    c.req.method === "POST"
+  ) {
+    const surface = path.endsWith("/deny") ? "cli:device-deny" : "cli:device-approve";
+    let attempt: Awaited<ReturnType<typeof deviceBrowserPost>> = null;
+    try {
+      attempt = await deviceBrowserPost(deps, c.req.raw, surface);
+      if (!attempt) {
+        return rejected(429);
+      }
+      const upstream = await deps.auth.handler(
+        deviceForward(
+          attempt.request,
+          deps.appOrigin,
+          path === "/auth/device/deny" ? "/auth/device/deny" : "/auth/device/approve",
+          JSON.stringify({ userCode: attempt.userCode }),
+        ),
+      );
+      return noStore(upstream);
+    } catch {
       return rejected(403);
     }
   }
