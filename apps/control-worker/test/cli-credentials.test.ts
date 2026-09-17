@@ -137,15 +137,13 @@ describe("CLI device credentials", () => {
     expect(typeof codes.device_code).toBe("string");
     expect(typeof codes.user_code).toBe("string");
 
-    const statusAnon = await f
-      .app()
-      .request(
-        new Request(ORIGIN + `/auth/device?user_code=${encodeURIComponent(codes.user_code)}`, {
-          headers: { "cf-connecting-ip": "192.0.2.101" },
-        }),
-        undefined,
-        f.env,
-      );
+    const statusAnon = await f.app().request(
+      new Request(ORIGIN + `/auth/device?user_code=${encodeURIComponent(codes.user_code)}`, {
+        headers: { "cf-connecting-ip": "192.0.2.101" },
+      }),
+      undefined,
+      f.env,
+    );
     expect(statusAnon.status).toBe(401);
 
     const authorized = await f.authorize(codes.user_code);
@@ -192,20 +190,18 @@ describe("CLI device credentials", () => {
       .get()) as { count: number };
     expect(sessions.count).toBe(1);
 
-    const revoked = await f
-      .app()
-      .request(
-        new Request(
-          ORIGIN + `/api/v1/workspaces/${FIX.workspace}/cli/bindings/${binding.binding_id}/revoke`,
-          {
-            method: "POST",
-            headers: { ...f.browserHeaders(), "cf-connecting-ip": "192.0.2.101" },
-            body: "{}",
-          },
-        ),
-        undefined,
-        f.env,
-      );
+    const revoked = await f.app().request(
+      new Request(
+        ORIGIN + `/api/v1/workspaces/${FIX.workspace}/cli/bindings/${binding.binding_id}/revoke`,
+        {
+          method: "POST",
+          headers: { ...f.browserHeaders(), "cf-connecting-ip": "192.0.2.101" },
+          body: "{}",
+        },
+      ),
+      undefined,
+      f.env,
+    );
     expect(revoked.status).toBe(200);
     expect((await f.cliSession(credential)).status).toBe(401);
   });
