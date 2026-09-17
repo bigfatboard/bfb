@@ -1,0 +1,77 @@
+{
+  "$schema": "../manifest.schema.json",
+  "package": "L07",
+  "tested_commit": "dfbf93e13ef2904696a391e3598cd91ede6962bc",
+  "protocol_version": "bfb-wire/1",
+  "schema_version": "1",
+  "migration_head": "local:008_run_control_delivery.sql",
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "xcode": "26.0.1",
+    "claude": "2.1.274"
+  },
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56)",
+    "architecture": "arm64"
+  },
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-L07/command-result.json"
+    },
+    {
+      "command": "pnpm build",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-L07/command-result.json"
+    },
+    {
+      "command": "pnpm test:l07",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-L07/command-result.json"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-L07/command-result.json"
+    },
+    {
+      "command": "CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build ./...",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-L07/command-result.json"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-L07/command-result.json"
+    }
+  ],
+  "outcome": "passed",
+  "artifacts": [
+    "docs/work-packages/evidence/WP-L07/command-result.json",
+    "docs/work-packages/evidence/WP-L07/capture-report.md",
+    "docs/work-packages/evidence/WP-L07/version-matrix.json",
+    "docs/work-packages/WP-L07-claude-adapter.md",
+    "internal/providers/claude/adapter.go",
+    "internal/providers/claude/hooks.go",
+    "internal/providers/claude/setup.go",
+    "internal/providers/claude/doctor.go",
+    "internal/providers/claude/cli.go",
+    "internal/providers/claude/adapter_test.go",
+    "internal/providers/claude/hooks_test.go",
+    "internal/providers/claude/setup_test.go",
+    "internal/providers/claude/doctor_test.go",
+    "internal/providers/claude/cli_test.go",
+    "internal/providers/claude/testdata/hook-sessionstart-startup.json",
+    "internal/providers/claude/testdata/hook-userpromptsubmit.json",
+    "internal/providers/claude/testdata/hook-sessionend-other.json",
+    "internal/provider/kit_test.go"
+  ],
+  "redaction": {
+    "status": "passed",
+    "prohibited_content": []
+  }
+}
