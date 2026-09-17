@@ -386,16 +386,16 @@ export const submitResultCommand: HubCommand<SubmitResultInput, SubmitResultResu
       throw new DomainError("not_found", "task not found");
     }
     const submitter = await resolveSubmitter(ctx, run);
-    assertRunResultTransition(run.result_state as "open", "submitted");
-    if (task.state !== "active") {
-      throw new DomainError("invalid_transition", "submission requires an active task");
-    }
     const summary = boundedText(input.summary, "result summary", 1, MAX_RESULT_SUMMARY_CHARS);
     const limitations =
       optionalBoundedText(input.limitations, "result limitations", MAX_RESULT_LIMITATIONS_CHARS) ??
       "";
     const refs = evidenceRefs(input.evidenceRefs);
     const git = gitFacts(input);
+    assertRunResultTransition(run.result_state as "open", "submitted");
+    if (task.state !== "active") {
+      throw new DomainError("invalid_transition", "submission requires an active task");
+    }
     const snapshot = await readLatestSnapshot(ctx, run.id);
     const current = (await ctx.db
       .prepare(
