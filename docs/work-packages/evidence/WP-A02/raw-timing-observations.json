@@ -1,6 +1,6 @@
 {
-  "request_ms": 6,
-  "answer_ms": 5,
+  "request_ms": 7,
+  "answer_ms": 4,
   "pending_polls": [
     {
       "index": 0,
