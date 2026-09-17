@@ -547,7 +547,7 @@ export async function listDeliveries(
 }
 
 interface EligibleHuman {
-  humanId: string;
+  human_id: string;
   role: string;
 }
 
@@ -751,14 +751,14 @@ export async function fanoutNotificationEvent(
   let push = 0;
   let macos = 0;
   for (const human of humans) {
-    const overrides = await getPreferenceOverrides(db, input.workspaceId, human.humanId);
+    const overrides = await getPreferenceOverrides(db, input.workspaceId, human.human_id);
     if (resolvePreference(overrides, subject.projectId, "browser_push", selected.category)) {
       const endpoints = (await db
         .prepare(
           `SELECT endpoint_hash FROM notification_push_endpoints
            WHERE workspace_id = ? AND human_id = ?`,
         )
-        .all(input.workspaceId, human.humanId)) as Array<{ endpoint_hash: string }>;
+        .all(input.workspaceId, human.human_id)) as Array<{ endpoint_hash: string }>;
       if (endpoints.length > 0) {
         const created = await insertDelivery(db, {
           workspaceId: input.workspaceId,
@@ -766,10 +766,10 @@ export async function fanoutNotificationEvent(
             input.workspaceId,
             input.eventCursor,
             "browser_push",
-            human.humanId,
+            human.human_id,
           ),
           channel: "browser_push",
-          humanId: human.humanId,
+          humanId: human.human_id,
           runnerId: null,
           eventCursor: input.eventCursor,
           eventKind: stored.kind,
@@ -790,7 +790,7 @@ export async function fanoutNotificationEvent(
              AND grant.project_id = ? AND runner.revoked_at IS NULL
            ORDER BY runner.id ASC LIMIT ${NOTIFICATION_MAX_RUNNERS_PER_HUMAN}`,
         )
-        .all(input.workspaceId, human.humanId, subject.projectId)) as Array<{
+        .all(input.workspaceId, human.human_id, subject.projectId)) as Array<{
         runner_id: string;
       }>;
       for (const runner of runners) {
@@ -804,7 +804,7 @@ export async function fanoutNotificationEvent(
           workspaceId: input.workspaceId,
           deliveryId,
           channel: "macos",
-          humanId: human.humanId,
+          humanId: human.human_id,
           runnerId: runner.runner_id,
           eventCursor: input.eventCursor,
           eventKind: stored.kind,
