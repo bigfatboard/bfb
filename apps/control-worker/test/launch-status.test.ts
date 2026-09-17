@@ -187,6 +187,21 @@ describe("w02 launch operations browser surface", () => {
     expect(crossed.status).toBe(404);
   });
 
+  it("charges status reads as polls, not command attempts", async () => {
+    const f = await fixture();
+    const started = await f.request(f.owner, "POST", "launches", f.start);
+    expect(started.status).toBe(201);
+    const created = (await started.json()) as { launch_id: string };
+    for (let index = 0; index < 25; index += 1) {
+      const read = await f.request(f.owner, "GET", `launches/${created.launch_id}`);
+      expect(read.status).toBe(200);
+    }
+    const listed = await f.request(f.owner, "GET", `launches?task_id=${f.start.task_id}`);
+    expect(listed.status).toBe(200);
+    const checkouts = await f.request(f.owner, "GET", `runners/${f.runner}/checkouts`);
+    expect(checkouts.status).toBe(200);
+  });
+
   it("rejects reviewer and ungranted starts while the owner starts once", async () => {
     const f = await fixture();
     expect((await f.request(f.restricted, "POST", "launches", f.start)).status).toBe(403);

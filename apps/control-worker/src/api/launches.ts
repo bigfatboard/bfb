@@ -102,7 +102,7 @@ async function browserBudget(
           subject: subject!,
           surface: "launch-browser",
         }),
-        activity: "attempt",
+        activity: request.method === "GET" ? "poll" : "attempt",
         bodyBytes: 0,
         now: deps.now,
         expiresAt: new Date(Date.parse(deps.now) + 60_000).toISOString(),
