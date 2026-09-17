@@ -3,10 +3,11 @@
 
 import { betterAuth, type BetterAuthOptions } from "better-auth";
 import { passkey, type PasskeyOptions } from "@better-auth/passkey";
+import { deviceAuthorization } from "better-auth/plugins/device-authorization";
 import { oauthProvider } from "@better-auth/oauth-provider";
 import { getOAuthProviderState } from "@better-auth/oauth-provider";
 import type { SqlDatabase } from "@bfb/db";
-import { delegationGrantForState } from "@bfb/domain";
+import { CLI_CLIENT_ID, delegationGrantForState } from "@bfb/domain";
 
 export interface AuthEnv {
   APP_ORIGIN: string;
@@ -38,6 +39,7 @@ const DISABLED_AUTH_PATHS = [
   "/change-password",
   "/delete-user",
   "/delete-user/callback",
+  "/device/token",
   "/get-access-token",
   "/link-social",
   "/list-accounts",
@@ -244,6 +246,28 @@ export function humanAuthOptions(
     disabledPaths: [...DISABLED_AUTH_PATHS],
     plugins: [
       passkey(humanPasskeyOptions(origin)),
+      deviceAuthorization({
+        verificationUri: "/device",
+        expiresIn: "10m",
+        interval: "5s",
+        validateClient: (clientId) => clientId === CLI_CLIENT_ID,
+        schema: {
+          deviceCode: {
+            modelName: "better_auth_device_codes",
+            fields: {
+              deviceCode: "device_code",
+              userCode: "user_code",
+              userId: "user_id",
+              expiresAt: "expires_at",
+              status: "status",
+              lastPolledAt: "last_polled_at",
+              pollingInterval: "polling_interval",
+              clientId: "client_id",
+              scope: "scope",
+            },
+          },
+        },
+      }),
       oauthProvider({
         loginPage: "/",
         consentPage: "/oauth/consent",

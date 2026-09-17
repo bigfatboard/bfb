@@ -19,6 +19,7 @@ export * from "./launches.js";
 export * from "./launch-state.js";
 export * from "./launch-wake.js";
 export * from "./checkout-leases.js";
+export * from "./cli-credentials.js";
 export * from "./run-controls.js";
 export * from "./step-up.js";
 export * from "./work-commands.js";

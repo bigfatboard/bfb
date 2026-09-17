@@ -25,6 +25,11 @@ import {
 } from "./run-controls.js";
 import { touchRunnerConnectionCommand, replaceRunnerInventoryCommand } from "./runner-channel.js";
 import {
+  authorizeDeviceCommand,
+  exchangeCredentialCommand,
+  revokeBindingCommand,
+} from "./cli-credentials.js";
+import {
   authenticateRunnerRequestCommand,
   enrollRunnerCommand,
   exchangeRunnerTokenCommand,
@@ -88,6 +93,9 @@ const commands = new Map<string, HubCommand<unknown, unknown>>([
     replaceRunnerInventoryCommand.name,
     replaceRunnerInventoryCommand as HubCommand<unknown, unknown>,
   ],
+  [authorizeDeviceCommand.name, authorizeDeviceCommand as HubCommand<unknown, unknown>],
+  [exchangeCredentialCommand.name, exchangeCredentialCommand as HubCommand<unknown, unknown>],
+  [revokeBindingCommand.name, revokeBindingCommand as HubCommand<unknown, unknown>],
   [enrollRunnerCommand.name, enrollRunnerCommand as HubCommand<unknown, unknown>],
   [replaceRunnerGrantsCommand.name, replaceRunnerGrantsCommand as HubCommand<unknown, unknown>],
   [revokeRunnerCommand.name, revokeRunnerCommand as HubCommand<unknown, unknown>],

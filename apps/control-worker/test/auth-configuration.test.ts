@@ -71,7 +71,25 @@ describe("Better Auth configuration", () => {
         "/update-user",
       ]),
     );
-    expect(options.plugins?.map((plugin) => plugin.id)).toEqual(["passkey", "oauth-provider"]);
+    expect(options.plugins?.map((plugin) => plugin.id)).toEqual([
+      "passkey",
+      "device-authorization",
+      "oauth-provider",
+    ]);
+    expect(options.disabledPaths).toEqual(expect.arrayContaining(["/device/token"]));
+  });
+
+  it("configures device authorization for CLI bootstrap without session issuance", () => {
+    const context = openAuthTestContext();
+    const options = humanAuthOptions(context.raw, AUTH_TEST_ENV);
+    const device = options.plugins?.find((plugin) => plugin.id === "device-authorization");
+    expect(device?.options).toMatchObject({
+      verificationUri: "/device",
+      expiresIn: "10m",
+      interval: "5s",
+    });
+    expect(typeof device?.options?.validateClient).toBe("function");
+    expect(device?.schema?.deviceCode).toMatchObject({ modelName: "better_auth_device_codes" });
   });
 
   it("requires user verification at the exact app RP and origin", () => {
