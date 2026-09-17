@@ -1,7 +1,7 @@
 {
   "$schema": "../manifest.schema.json",
   "package": "P01",
-  "tested_commit": "c811c93d671a56e8fbfaca0a91e9f30a4bfe5d85",
+  "tested_commit": "672a5823c28bda315aa1251b2eca8eb371a97f8f",
   "protocol_version": "bfb-wire/1",
   "schema_version": "1",
   "migration_head": "local:008_run_control_delivery.sql",
