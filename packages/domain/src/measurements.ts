@@ -441,6 +441,7 @@ export const reportTokensCommand: HubCommand<ReportTokensInput, TokenObservation
   async run(raw, ctx) {
     const body = runnerObject(raw as unknown, [
       "principal",
+      "observationId",
       "runId",
       "executionId",
       "assignmentGeneration",
@@ -589,6 +590,7 @@ export const reportIntervalCommand: HubCommand<ReportIntervalInput, ReportedInte
   async run(raw, ctx) {
     const body = runnerObject(raw as unknown, [
       "principal",
+      "observationId",
       "runId",
       "executionId",
       "assignmentGeneration",
@@ -845,7 +847,7 @@ export const stopReviewTimerCommand: HubCommand<StopReviewTimerInput, ReviewTime
          SET state = 'stopped', stopped_at = ?, resource_version = ?
          WHERE workspace_id = ? AND id = ? AND state = 'open' AND resource_version = ?`,
       )
-      .run(ctx.workspaceId, ctx.now, next, ctx.workspaceId, record.id, record.resource_version);
+      .run(ctx.now, next, ctx.workspaceId, record.id, record.resource_version);
     await ctx.db
       .prepare(
         `INSERT INTO review_timer_observations
