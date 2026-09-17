@@ -60,8 +60,7 @@ async function selectW02RunnerAndCheckout(page: Page): Promise<void> {
           })),
         );
         providerValue =
-          options.find((option) => option.text.includes("Synthetic launch provider"))?.value ??
-          "";
+          options.find((option) => option.text.includes("Synthetic launch provider"))?.value ?? "";
         return providerValue;
       },
       { timeout: 15_000 },
