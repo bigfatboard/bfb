@@ -54,6 +54,7 @@ func main() {
 	}
 	registry := cli.NewRegistry()
 	cli.RegisterDaemon(registry, methods)
+	cli.RegisterMCP(registry)
 	cli.RegisterCheckout(registry)
 	cli.RegisterRunner(registry)
 	cli.RegisterExecution(registry,

@@ -1,0 +1,14 @@
+{"direction":"client","payload":{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}}
+{"direction":"client","payload":{"jsonrpc":"2.0","method":"notifications/initialized"}}
+{"direction":"client","payload":{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}}
+{"direction":"client","payload":{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"bfb_get_task","arguments":{"request_id":"transcript-001"}}}}
+{"direction":"client","payload":{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"bfb_get_context","arguments":{"request_id":"transcript-002"}}}}
+{"direction":"client","payload":{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"bfb_add_comment","arguments":{"body":"Provisional attempt","request_id":"transcript-003"}}}}
+{"direction":"client","bind":true,"payload":{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"bfb_add_comment","arguments":{"body":"Bound comment","request_id":"transcript-004"}}}}
+{"direction":"client","payload":{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"bfb_update_task","arguments":{"expected_version":3,"title":"Transcript title","request_id":"transcript-005"}}}}
+{"direction":"client","payload":{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"bfb_report_progress","arguments":{"summary":"Transcript progress","percent":25,"request_id":"transcript-006"}}}}
+{"direction":"client","payload":{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"bfb_propose_task","arguments":{"parent_task_id":"01SYNTHETICTA00000000000001","title":"Transcript child","request_id":"transcript-007"}}}}
+{"direction":"client","payload":{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"bfb_propose_task","arguments":{"title":"Transcript root","request_id":"transcript-008"}}}}
+{"direction":"client","payload":{"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":"bfb_get_task","arguments":{"request_id":"transcript-009"}}}}
+{"direction":"client","payload":{"jsonrpc":"2.0","id":12,"method":"resources/read","params":{}}}
+{"direction":"client","payload":{"jsonrpc":"2.0","id":13,"method":"tools/call","params":{"name":"bfb_submit_result","arguments":{"request_id":"transcript-010"}}}}

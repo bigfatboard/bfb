@@ -23,7 +23,6 @@ func TestBuiltinDispatchAndExitCodes(t *testing.T) {
 	}{
 		{[]string{"--json"}, 0, ""},
 		{[]string{"--json", "hook", "ingest"}, 4, "not_implemented"},
-		{[]string{"--json", "mcp", "stdio"}, 4, "not_implemented"},
 		{[]string{"--json", "__launch", "synthetic-token"}, 2, "unknown_method"},
 		{[]string{"--json", "unknown", "synthetic-private"}, 2, "unknown_method"},
 		{[]string{"--json", "daemon", "status", "unexpected"}, 2, "invalid_request"},
@@ -45,6 +44,21 @@ func TestBuiltinDispatchAndExitCodes(t *testing.T) {
 		if strings.Contains(output.String(), "synthetic") {
 			t.Fatal("private argument leaked")
 		}
+	}
+}
+
+func TestMCPStdioKeepsStdoutPureWithoutEnv(t *testing.T) {
+	registry := NewRegistry()
+	RegisterDaemon(registry, nil)
+	RegisterMCP(registry)
+	var output bytes.Buffer
+	// No BFB_* environment: startup refuses before serving, stdout stays empty.
+	exit := registry.Execute(context.Background(), []string{"mcp", "stdio"}, strings.NewReader(""), &output)
+	if exit != 2 {
+		t.Fatalf("exit %d, output %q", exit, output.String())
+	}
+	if output.Len() != 0 {
+		t.Fatalf("raw stdio wrote to stdout: %q", output.String())
 	}
 }
 

@@ -16,9 +16,10 @@ import (
 )
 
 type Invocation struct {
-	Paths daemon.Paths
-	Args  []string
-	Input io.Reader
+	Paths  daemon.Paths
+	Args   []string
+	Input  io.Reader
+	Output io.Writer
 }
 
 type Handler func(context.Context, Invocation) (map[string]any, error)
@@ -26,6 +27,9 @@ type Handler func(context.Context, Invocation) (map[string]any, error)
 type Command struct {
 	Path, Method, Summary string
 	Run                   Handler
+	// RawStdio skips response rendering so the handler owns standard output
+	// framing. Only bfb mcp stdio uses it; every other command renders.
+	RawStdio bool
 }
 
 type Registry struct{ commands map[string]Command }
@@ -93,7 +97,12 @@ func (r *Registry) Execute(ctx context.Context, args []string, input io.Reader, 
 	}
 	for length := len(words); length > 0; length-- {
 		if command, ok := r.commands[strings.Join(words[:length], " ")]; ok {
-			payload, runErr := command.Run(ctx, Invocation{Paths: paths, Args: words[length:], Input: input})
+			invocation := Invocation{Paths: paths, Args: words[length:], Input: input, Output: output}
+			if command.RawStdio {
+				_, runErr := command.Run(ctx, invocation)
+				return daemon.ExitCode(runErr)
+			}
+			payload, runErr := command.Run(ctx, invocation)
 			return render(output, jsonOutput, daemon.Response(command.Method, daemon.NewRequestID(), payload, runErr))
 		}
 	}
