@@ -129,7 +129,6 @@ export interface MeasurementsViewProps {
 
 export function MeasurementsView(props: MeasurementsViewProps) {
   const measurements = props.measurements;
-  const openMine = props.timers.filter((timer) => timer.state === "open");
   return (
     <section aria-labelledby="measurements-heading" data-testid="measurements-panel">
       <h3 id="measurements-heading">Time and token measurements</h3>
