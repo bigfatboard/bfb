@@ -181,6 +181,115 @@ export function newIdempotencyKey(): string {
   return browserUlid();
 }
 
+export function isLaunchableRunner(runner: RunnerSummary, humanId: string): boolean {
+  return (
+    runner.status === "enrolled" &&
+    (runner.owner_human_id === humanId || runner.launcher_human_ids.includes(humanId))
+  );
+}
+
+export function selectLaunchableRunners(
+  runners: RunnerSummary[],
+  humanId: string,
+): RunnerSummary[] {
+  return runners.filter((runner) => isLaunchableRunner(runner, humanId));
+}
+
+export type CheckoutDisplay = "ready" | "empty" | "invalid" | "unavailable";
+
+/**
+ * Classifies one runner's checkout read. A missing read (rejected, failed, or
+ * never attempted for a Mac the human cannot launch on) is unavailable, never
+ * empty: only a successful read with no checkouts means nothing was reported.
+ */
+export function describeCheckoutDisplay(
+  checkout: CheckoutStatus | undefined,
+  readFailed: boolean,
+): CheckoutDisplay {
+  if (!checkout) {
+    return "unavailable";
+  }
+  if (checkout.checkouts.length > 0) {
+    return "ready";
+  }
+  if (!checkout.inventory_valid && checkout.inventory_received_at) {
+    return "invalid";
+  }
+  return readFailed ? "unavailable" : "empty";
+}
+
+/** Copy for the linked-checkouts block. Null when checkouts render as a list. */
+export function linkedCheckoutsMessage(
+  checkout: CheckoutStatus | undefined,
+  readFailed: boolean,
+): string | null {
+  switch (describeCheckoutDisplay(checkout, readFailed)) {
+    case "ready":
+      return null;
+    case "invalid":
+      return "The last Mac report failed validation; no checkout is shown.";
+    case "empty":
+      return "The Mac has not reported a checkout yet. Connection alone never means the Mac is ready.";
+    case "unavailable":
+      return "Checkout status is unavailable. The read failed, was rejected, or was skipped for a Mac that cannot be launched here; this does not mean the Mac reported nothing.";
+  }
+}
+
+/** Copy for the provider-capability block. Null when providers render as a list. */
+export function providerStatusMessage(
+  checkout: CheckoutStatus | undefined,
+  readFailed: boolean,
+): string | null {
+  if (checkout && checkout.providers.length > 0) {
+    return null;
+  }
+  if (checkout) {
+    return "No provider report. Launches stay unavailable until the Mac reports one.";
+  }
+  return readFailed
+    ? "Provider status is unavailable because the checkout read failed or was rejected."
+    : "Provider status is unavailable because the checkout read was skipped for a Mac that cannot be launched here.";
+}
+
+/**
+ * Reads checkout status only for runners the human can launch on. Failures are
+ * returned separately so the UI never mistakes a rejected read for an empty
+ * inventory. The caller already holds the runner list, so no list read happens
+ * here.
+ */
+export async function loadLaunchableCheckoutStatuses(
+  client: Pick<LaunchClient, "checkoutStatus">,
+  runners: RunnerSummary[],
+  humanId: string,
+): Promise<{ statuses: Record<string, CheckoutStatus>; failures: Record<string, string> }> {
+  const statuses: Record<string, CheckoutStatus> = {};
+  const failures: Record<string, string> = {};
+  await Promise.all(
+    selectLaunchableRunners(runners, humanId).map(async (runner) => {
+      try {
+        statuses[runner.runner_id] = await client.checkoutStatus(runner.runner_id);
+      } catch (error) {
+        failures[runner.runner_id] =
+          error instanceof Error ? error.message : "Checkout status read failed.";
+      }
+    }),
+  );
+  return { statuses, failures };
+}
+
+/**
+ * Refreshes only the task's launches. Start and control commands change launch
+ * state, never runner inventory, so post-command refreshes must not spend the
+ * runner poll budget. The narrowed client type makes a runner refetch a type
+ * error.
+ */
+export async function refreshTaskLaunches(
+  client: Pick<LaunchClient, "launchesForTask">,
+  taskId: string,
+): Promise<{ launches: LaunchStatus[] }> {
+  return client.launchesForTask(taskId);
+}
+
 export interface StartInput {
   taskId: string;
   expectedTaskVersion: number;

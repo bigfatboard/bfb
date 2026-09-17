@@ -10,8 +10,13 @@ import {
   buildStartRequest,
   buildWakeLink,
   createLaunchClient,
+  describeCheckoutDisplay,
   describeLaunchStatus,
+  linkedCheckoutsMessage,
+  loadLaunchableCheckoutStatuses,
   newIdempotencyKey,
+  providerStatusMessage,
+  refreshTaskLaunches,
   resultLabel,
   type CheckoutStatus,
   type ControlAction,
@@ -60,6 +65,7 @@ export function RunnerOperations(props: RunnerOperationsProps) {
   );
   const [runners, setRunners] = useState<RunnerSummary[]>([]);
   const [statuses, setStatuses] = useState<Record<string, CheckoutStatus>>({});
+  const [statusFailures, setStatusFailures] = useState<Record<string, string>>({});
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [members, setMembers] = useState<MemberRecord[]>([]);
   const [forms, setForms] = useState<
@@ -75,27 +81,9 @@ export function RunnerOperations(props: RunnerOperationsProps) {
     try {
       const listed = await client.listRunners();
       setRunners(listed.runners);
-      const nextStatuses: Record<string, CheckoutStatus> = {};
-      await Promise.all(
-        listed.runners.map(async (runner) => {
-          try {
-            nextStatuses[runner.runner_id] = await client.checkoutStatus(runner.runner_id);
-          } catch {
-            nextStatuses[runner.runner_id] = {
-              runner_id: runner.runner_id,
-              device_label: runner.device_label,
-              owner_human_id: runner.owner_human_id,
-              status: runner.status,
-              inventory_revision: null,
-              inventory_received_at: null,
-              inventory_valid: false,
-              checkouts: [],
-              providers: [],
-            };
-          }
-        }),
-      );
-      setStatuses(nextStatuses);
+      const next = await loadLaunchableCheckoutStatuses(client, listed.runners, props.humanId);
+      setStatuses(next.statuses);
+      setStatusFailures(next.failures);
       const projectResponse = await fetchFn(
         `/api/v1/workspaces/${props.workspaceId}/projects?limit=100`,
       );
@@ -120,7 +108,19 @@ export function RunnerOperations(props: RunnerOperationsProps) {
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Runner operations failed to load.");
     }
-  }, [client, fetchFn, props.workspaceId]);
+  }, [client, fetchFn, props.humanId, props.workspaceId]);
+
+  const refreshRunners = useCallback(async () => {
+    const listed = await client.listRunners();
+    const kept = new Set(listed.runners.map((runner) => runner.runner_id));
+    setRunners(listed.runners);
+    setStatuses((previous) =>
+      Object.fromEntries(Object.entries(previous).filter(([id]) => kept.has(id))),
+    );
+    setStatusFailures((previous) =>
+      Object.fromEntries(Object.entries(previous).filter(([id]) => kept.has(id))),
+    );
+  }, [client]);
 
   useEffect(() => {
     void load();
@@ -196,7 +196,7 @@ export function RunnerOperations(props: RunnerOperationsProps) {
         delete next[runner.runner_id];
         return next;
       });
-      await load();
+      await refreshRunners();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Sharing update failed.");
     } finally {
@@ -231,7 +231,7 @@ export function RunnerOperations(props: RunnerOperationsProps) {
         throw new Error(await responseError(response));
       }
       setStatus(`${runner.device_label} revoked. Pending launches cancel; live channels close.`);
-      await load();
+      await refreshRunners();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Revocation failed.");
     } finally {
@@ -279,6 +279,8 @@ export function RunnerOperations(props: RunnerOperationsProps) {
       <div className="settings-grid">
         {runners.map((runner) => {
           const checkout = statuses[runner.runner_id];
+          const checkoutReadFailed = statusFailures[runner.runner_id] !== undefined;
+          const checkoutDisplay = describeCheckoutDisplay(checkout, checkoutReadFailed);
           const owns = runner.owner_human_id === props.humanId;
           const form = formFor(runner);
           const canShare = owns && runner.status === "enrolled" && props.role !== "reviewer";
@@ -317,10 +319,14 @@ export function RunnerOperations(props: RunnerOperationsProps) {
               </dl>
               <h3>Linked checkouts</h3>
               {!checkout || checkout.checkouts.length === 0 ? (
-                <p>
-                  {checkout && !checkout.inventory_valid && checkout.inventory_received_at
-                    ? "The last Mac report failed validation; no checkout is shown."
-                    : "The Mac has not reported a checkout yet. Connection alone never means the Mac is ready."}
+                <p
+                  data-testid={
+                    checkoutDisplay === "unavailable"
+                      ? `checkouts-unavailable-${runner.runner_id}`
+                      : undefined
+                  }
+                >
+                  {linkedCheckoutsMessage(checkout, checkoutReadFailed)}
                 </p>
               ) : (
                 <ul className="admin-list" data-testid={`checkouts-${runner.runner_id}`}>
@@ -343,7 +349,7 @@ export function RunnerOperations(props: RunnerOperationsProps) {
               )}
               <h3>Provider capability</h3>
               {!checkout || checkout.providers.length === 0 ? (
-                <p>No provider report. Launches stay unavailable until the Mac reports one.</p>
+                <p>{providerStatusMessage(checkout, checkoutReadFailed)}</p>
               ) : (
                 <ul className="admin-list">
                   {checkout.providers.map((provider) => (
@@ -499,6 +505,7 @@ export function LaunchSection(props: LaunchSectionProps) {
   const [profiles, setProfiles] = useState<ProfileRecord[]>([]);
   const [runners, setRunners] = useState<RunnerSummary[]>([]);
   const [statuses, setStatuses] = useState<Record<string, CheckoutStatus>>({});
+  const [statusFailures, setStatusFailures] = useState<Record<string, string>>({});
   const [launches, setLaunches] = useState<LaunchStatus[]>([]);
   const [profileId, setProfileId] = useState("");
   const [runnerId, setRunnerId] = useState("");
@@ -529,29 +536,16 @@ export function LaunchSection(props: LaunchSectionProps) {
     ]);
     setProfiles((profileBody as { profiles: ProfileRecord[] }).profiles);
     setRunners(runnerBody.runners);
-    const nextStatuses: Record<string, CheckoutStatus> = {};
-    await Promise.all(
-      runnerBody.runners.map(async (runner) => {
-        try {
-          nextStatuses[runner.runner_id] = await client.checkoutStatus(runner.runner_id);
-        } catch {
-          nextStatuses[runner.runner_id] = {
-            runner_id: runner.runner_id,
-            device_label: runner.device_label,
-            owner_human_id: runner.owner_human_id,
-            status: runner.status,
-            inventory_revision: null,
-            inventory_received_at: null,
-            inventory_valid: false,
-            checkouts: [],
-            providers: [],
-          };
-        }
-      }),
-    );
-    setStatuses(nextStatuses);
+    const next = await loadLaunchableCheckoutStatuses(client, runnerBody.runners, props.humanId);
+    setStatuses(next.statuses);
+    setStatusFailures(next.failures);
     setLaunches(launchBody.launches);
-  }, [client, fetchFn, props.taskId, props.workspaceId]);
+  }, [client, fetchFn, props.humanId, props.taskId, props.workspaceId]);
+
+  const refreshLaunches = useCallback(async () => {
+    const body = await refreshTaskLaunches(client, props.taskId);
+    setLaunches(body.launches);
+  }, [client, props.taskId]);
 
   useEffect(() => {
     let active = true;
@@ -679,7 +673,7 @@ export function LaunchSection(props: LaunchSectionProps) {
           `${await responseError(response)}. The list below shows the current typed state.`,
         );
       }
-      await reload();
+      await refreshLaunches();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Start failed.");
     } finally {
@@ -725,7 +719,7 @@ export function LaunchSection(props: LaunchSectionProps) {
       }
       const result = (await response.json()) as ControlResult;
       setControlResults((previous) => ({ ...previous, [scope]: result }));
-      await reload();
+      await refreshLaunches();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Control failed.");
     }
@@ -811,6 +805,11 @@ export function LaunchSection(props: LaunchSectionProps) {
               ))}
             </select>
           </label>
+          {effectiveRunnerId && !runnerStatus ? (
+            <p role="note" data-testid="checkout-unavailable">
+              {linkedCheckoutsMessage(undefined, statusFailures[effectiveRunnerId] !== undefined)}
+            </p>
+          ) : null}
           {usableProfiles.length === 0 ? (
             <p role="note">
               No agent profile pins a model. Ask an owner to set one before starting.
