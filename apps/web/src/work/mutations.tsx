@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { LaunchSection } from "../launch/operations.js";
 import type { AgentProfileSummary } from "./board.js";
 
 type WorkspaceRole = "owner" | "member" | "reviewer";
@@ -235,6 +236,7 @@ export function TaskComposer(props: TaskComposerProps) {
 export interface WorkMutationsProps {
   workspaceId: string;
   selectedTaskId: string | null;
+  humanId: string;
   role: WorkspaceRole;
   agentProfiles: readonly AgentProfileSummary[];
   fetchImpl?: typeof fetch;
@@ -478,6 +480,15 @@ export function WorkMutations(props: WorkMutationsProps) {
               ) : null}
             </section>
           ) : null}
+
+          <LaunchSection
+            workspaceId={props.workspaceId}
+            taskId={task.id}
+            humanId={props.humanId}
+            role={props.role}
+            csrfToken={props.csrfToken ?? ""}
+            fetchImpl={fetchFn}
+          />
 
           {canManage ? (
             <section aria-labelledby="handoff-heading">
