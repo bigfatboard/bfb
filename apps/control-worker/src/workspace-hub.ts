@@ -5,6 +5,7 @@ import { adaptD1 } from "@bfb/db";
 import { DurableObject } from "cloudflare:workers";
 import {
   type CommandRequest,
+  randomUlid,
   resolveCommand,
   WorkspaceHub as DomainWorkspaceHub,
   runnerObject,
@@ -53,7 +54,7 @@ export class WorkspaceHub extends DurableObject<ControlBindings> {
     this.channels = new RunnerChannels(ctx, env.DB, () => this.lane());
     this.browsers = new BrowserSockets(
       (tag) => [...ctx.getWebSockets(tag)].map(wrapSocket),
-      { db: adaptD1(env.DB) },
+      { db: adaptD1(env.DB), newConnectionId: () => randomUlid() },
     );
   }
 
