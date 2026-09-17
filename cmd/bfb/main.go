@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"os"
 	"os/signal"
 	"syscall"
@@ -13,6 +14,7 @@ import (
 	"github.com/qdis/bfb/internal/checkout"
 	"github.com/qdis/bfb/internal/cli"
 	"github.com/qdis/bfb/internal/daemon"
+	"github.com/qdis/bfb/internal/journal"
 	"github.com/qdis/bfb/internal/provider"
 	"github.com/qdis/bfb/internal/providers"
 	"github.com/qdis/bfb/internal/runner"
@@ -52,8 +54,23 @@ func main() {
 	if err := supervisor.RegisterRPC(methods, executions); err != nil {
 		panic("duplicate built-in execution operation")
 	}
+	journalBackend := func(db *sql.DB) (journal.Assignments, journal.Observers) {
+		backend := supervisor.JournalBackend{Intents: supervisor.NewIntentStore(db)}
+		return backend, backend
+	}
+	journalService := journal.NewService(journal.ServiceOptions{
+		Providers: providerRegistry,
+		Backend:   journalBackend,
+		Connection: func(runnerID string) (journal.Connection, error) {
+			return manager.Connection(runnerID)
+		},
+	})
+	if err := journal.RegisterService(methods, journalService); err != nil {
+		panic("duplicate built-in journal operation")
+	}
 	registry := cli.NewRegistry()
 	cli.RegisterDaemon(registry, methods)
+	cli.RegisterHook(registry, providerRegistry, journalBackend)
 	cli.RegisterCheckout(registry)
 	cli.RegisterRunner(registry)
 	cli.RegisterExecution(registry,
