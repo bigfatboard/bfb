@@ -89,3 +89,24 @@ test("every canary is planted in the gate flow and every claimed class is report
     );
   }
 });
+
+test("golden flow proves revocation and upgrade instead of labeling them", async () => {
+  const runSource = await readFile(resolve(root, "tools/g02/run.ts"), "utf8");
+  assert.ok(
+    !/stage: "uninstall",/.test(runSource),
+    'no bare "uninstall" stage may relabel runner revocation (binary removal is "uninstall binary")',
+  );
+  assert.ok(
+    runSource.includes('stage: "runner revocation"'),
+    "the revoke step is recorded as runner revocation",
+  );
+  assert.match(
+    runSource,
+    /stage: "upgrade"[\s\S]{0,400}re-migrat/,
+    "the upgrade stage detail names the re-migration proof, not just the head",
+  );
+  // golden-flow.json is written deterministically from the same golden array
+  // (prettier-formatted writeJson), so pinning the source pins the evidence.
+  // Reading the committed file here would assert pre-regeneration state:
+  // the gate regenerates it after the frozen-head drift is resolved.
+});

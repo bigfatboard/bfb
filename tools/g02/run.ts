@@ -667,7 +667,8 @@ golden.push({
 });
 console.log("G02_GOLDEN first-owner bootstrap consumes once");
 
-// G-CHAIN: enrollment, launch, realtime, attention, result, review, revoke on one local database.
+// G-CHAIN: enrollment, launch, realtime, attention, result, review, revoke,
+// plus upgrade re-migration with state preservation, on one local database.
 const chainRaw = openMigrationDb();
 applyMigrationsForVerification(asMigrationDb(chainRaw), migrationsDir);
 const db = adaptBetterSqlite3(chainRaw);
@@ -1113,17 +1114,60 @@ const revoked = ok(
   await human(revokeRunnerCommand, { runnerId: G02_RUNNER, stepUpProofId: revokeProof }),
 );
 assert.equal(revoked.signal.reason, "revoked", "revocation closes the channel");
+// Runner revocation fences authority; it is not an uninstall. Binary
+// removal is proven separately by the "uninstall binary" stage below.
 golden.push({
-  stage: "uninstall",
+  stage: "runner revocation",
   outcome: "passed",
   detail: "runner revoke fences authority and closes the channel",
 });
+// Upgrade re-migration: the live golden chain database re-runs the
+// migration entry point the way a version upgrade would, then proves the
+// schema is unchanged and the golden rows survived.
+const preUpgradeSchema = schemaSnapshot(asMigrationDb(chainRaw));
+const preUpgradeTasks = chainRaw
+  .prepare("SELECT id, state, priority FROM tasks WHERE workspace_id = ? ORDER BY id")
+  .all(FIX.workspace);
+const preUpgradeRuns = chainRaw
+  .prepare("SELECT id, resource_version FROM runs WHERE workspace_id = ? ORDER BY id")
+  .all(FIX.workspace);
+assert.ok(
+  preUpgradeTasks.length >= 1 && preUpgradeRuns.length >= 1,
+  "golden rows exist before re-migration",
+);
+const reMigration = applyMigrationsForVerification(asMigrationDb(chainRaw), migrationsDir);
+assert.equal(reMigration.head, FROZEN_MIGRATION_HEAD, "re-migration stays on the frozen head");
+assert.deepEqual(reMigration.applied, [], "re-migration at head applies nothing new");
+assert.deepEqual(
+  schemaSnapshot(asMigrationDb(chainRaw)),
+  preUpgradeSchema,
+  "re-migration leaves the schema unchanged",
+);
+assert.deepEqual(
+  chainRaw.prepare("PRAGMA foreign_key_check").all(),
+  [],
+  "re-migrated chain has clean keys",
+);
+assert.deepEqual(
+  chainRaw
+    .prepare("SELECT id, state, priority FROM tasks WHERE workspace_id = ? ORDER BY id")
+    .all(FIX.workspace),
+  preUpgradeTasks,
+  "golden tasks survive re-migration",
+);
+assert.deepEqual(
+  chainRaw
+    .prepare("SELECT id, resource_version FROM runs WHERE workspace_id = ? ORDER BY id")
+    .all(FIX.workspace),
+  preUpgradeRuns,
+  "golden runs survive re-migration",
+);
 golden.push({
   stage: "upgrade",
   outcome: "passed",
-  detail: `chain runs on migration head ${migrationManifest.migration_head}`,
+  detail: `chain re-migrates to ${reMigration.head} with schema unchanged and ${preUpgradeTasks.length + preUpgradeRuns.length} golden rows preserved; cross-release upgrade waits on rollout`,
 });
-console.log("G02_GOLDEN domain chain revokes and closes");
+console.log("G02_GOLDEN domain chain revokes, re-migrates, and preserves state");
 
 // G-BINARY: the real bfb binary installs, serves, links, verifies, and cleans up on isolated state.
 const scratch = mkdtempSync(join(tmpdir(), "bfb-g02-"));

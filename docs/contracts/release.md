@@ -172,7 +172,13 @@ locally with the development profile and does not notarize.
 The release golden flow, in order, is: clean install, first-owner
 bootstrap (consumes once; never promotes the first ordinary signer-in),
 runner enrollment, checkout link, provider setup, launch, realtime,
-attention, result, artifact review, then uninstall or upgrade behavior.
+attention, result, artifact review, then runner revocation (authority
+fenced, channel closed), upgrade re-migration (the live chain database
+re-runs migrations at head with schema unchanged and golden rows
+preserved), and binary uninstall (launchd service and plist removed from
+isolated state). Runner revocation is not an uninstall claim. The
+cross-release upgrade between tagged versions is OG-02 and stays `not_run`
+until rollout.
 `pnpm test:g02` drives every stage on local fixtures (real worker bundle,
 local D1, isolated daemon state, synthetic identities) and the browser spec
 on `BFB_E2E_PORT=4198` proves the board, attention, and review surfaces
