@@ -265,9 +265,10 @@ async function readLatestSnapshot(
  * Resolves the submitting principal. Human submission requires a direct
  * owner/member (delegated remote clients cannot submit: their provider
  * label is reported metadata, not a verified agent process). Agent
- * submission requires a live runner holding the run's execution assignment
- * and project grant plus a non-ended execution; possession proof stays at
- * the runner transport, this rechecks grants, assignment, and run state.
+ * submission requires a live runner holding the run's current (latest
+ * generation) execution assignment and project grant plus a non-ended
+ * execution bound to that assignment's execution; possession proof stays
+ * at the runner transport, this rechecks grants, assignment, and run state.
  */
 async function resolveSubmitter(ctx: HubContext, run: RunRow): Promise<ResultSubmitter> {
   if (ctx.actorDelegationId || ctx.actorSystemId) {
@@ -288,14 +289,15 @@ async function resolveSubmitter(ctx: HubContext, run: RunRow): Promise<ResultSub
     if (!runner || runner.revoked_at !== null) {
       throw new DomainError("forbidden", "runner cannot submit for this run");
     }
-    const assignment = await ctx.db
+    const current = (await ctx.db
       .prepare(
-        `SELECT 1 AS found FROM execution_assignments
-         WHERE workspace_id = ? AND run_id = ? AND runner_id = ?`,
+        `SELECT execution_id, runner_id FROM execution_assignments
+         WHERE workspace_id = ? AND run_id = ?
+         ORDER BY assignment_generation DESC LIMIT 1`,
       )
-      .get(ctx.workspaceId, run.id, ctx.actorRunnerId);
-    if (!assignment) {
-      throw new DomainError("forbidden", "runner holds no assignment for this run");
+      .get(ctx.workspaceId, run.id)) as { execution_id: string; runner_id: string } | undefined;
+    if (!current || current.runner_id !== ctx.actorRunnerId) {
+      throw new DomainError("forbidden", "runner holds no current assignment for this run");
     }
     const grant = await ctx.db
       .prepare(
@@ -309,9 +311,9 @@ async function resolveSubmitter(ctx: HubContext, run: RunRow): Promise<ResultSub
     const live = await ctx.db
       .prepare(
         `SELECT 1 AS found FROM run_executions
-         WHERE workspace_id = ? AND run_id = ? AND state != 'ended'`,
+         WHERE workspace_id = ? AND id = ? AND run_id = ? AND state != 'ended'`,
       )
-      .get(ctx.workspaceId, run.id);
+      .get(ctx.workspaceId, current.execution_id, run.id);
     if (!live) {
       throw new DomainError("invalid_transition", "no live execution accepts a submission");
     }

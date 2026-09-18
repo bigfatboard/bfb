@@ -102,11 +102,15 @@ A later repository change between two submissions marks the prior version
 An agent can never accept, request changes on, fail, or cancel a result, not
 even its own. A reviewer can review (comment, request changes) but cannot
 submit or accept: acceptance moves the task to `done`, which reviewers
-cannot do. Agent submission requires a current runner-authenticated
-execution assignment for the run plus a non-ended execution; human
-submission requires owner/member role plus project access and needs no live
-execution. Every mutation carries an idempotency key: a retried key returns
-the stored submission without creating a version.
+cannot do. Agent submission requires the run's current runner-authenticated
+execution assignment plus a non-ended execution bound to that
+assignment's execution. Current means the highest assignment generation
+for the run: once a retry creates a newer generation on another runner,
+the older generation's runner loses submit authority even while its old
+assignment row still exists. Human submission requires owner/member role
+plus project access and needs no live execution. Every mutation carries
+an idempotency key: a retried key returns the stored submission without
+creating a version.
 
 ## Headless-success rule
 
