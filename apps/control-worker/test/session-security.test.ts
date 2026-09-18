@@ -6,11 +6,13 @@ import { describe, expect, it } from "vitest";
 import { humanAuthOptions, parseAuthKeys } from "../src/auth/better-auth.js";
 import {
   SESSION_COOKIE,
+  SESSION_COOKIE_ATTRIBUTES,
   assertBrowserMutation,
   csrfTokenForSession,
   hasBrowserSessionCookie,
   readSessionCookie,
   resolveBrowserPrincipal,
+  serializeSessionSetCookie,
 } from "../src/auth/session.js";
 import { AUTH_TEST_ENV, openAuthTestContext, seedAuthSession } from "./auth-helpers.js";
 
@@ -30,6 +32,41 @@ describe("human browser session security", () => {
     });
     expect(cookie?.attributes).not.toHaveProperty("domain");
     expect(options.session?.cookieCache?.enabled).toBe(false);
+  });
+
+  it("serializes the configured production attributes onto the fixture Set-Cookie", () => {
+    const context = openAuthTestContext();
+    const options = humanAuthOptions(context.raw, AUTH_TEST_ENV);
+    const configured = options.advanced?.cookies?.session_token;
+    expect(configured?.name).toBe(SESSION_COOKIE);
+    expect(configured?.attributes).toMatchObject(SESSION_COOKIE_ATTRIBUTES);
+    expect(
+      serializeSessionSetCookie(`${SESSION_COOKIE}=synthetic`, {
+        path: configured?.attributes?.path ?? "",
+        httpOnly: configured?.attributes?.httpOnly ?? false,
+        secure: configured?.attributes?.secure ?? false,
+        sameSite: "lax",
+      }),
+    ).toBe(`${SESSION_COOKIE}=synthetic; Path=/; HttpOnly; Secure; SameSite=Lax`);
+  });
+
+  it("renders weakened attributes faithfully instead of hardcoded secure flags", () => {
+    expect(
+      serializeSessionSetCookie("session=synthetic", {
+        path: "/",
+        httpOnly: false,
+        secure: false,
+        sameSite: "none",
+      }),
+    ).toBe("session=synthetic; Path=/; SameSite=None");
+    expect(
+      serializeSessionSetCookie("session=synthetic", {
+        path: "/",
+        httpOnly: true,
+        secure: true,
+        sameSite: "strict",
+      }),
+    ).toBe("session=synthetic; Path=/; HttpOnly; Secure; SameSite=Strict");
   });
 
   it("reads only the host-prefixed browser cookie", () => {

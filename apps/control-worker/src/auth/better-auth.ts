@@ -9,6 +9,8 @@ import { getOAuthProviderState } from "@better-auth/oauth-provider";
 import type { SqlDatabase } from "@bfb/db";
 import { CLI_CLIENT_ID, delegationGrantForState } from "@bfb/domain";
 
+import { SESSION_COOKIE_ATTRIBUTES } from "./session.js";
+
 export interface AuthEnv {
   APP_ORIGIN: string;
   BETTER_AUTH_SECRETS: string;
@@ -393,21 +395,11 @@ export function humanAuthOptions(
       trustedProxyHeaders: false,
       useSecureCookies: false,
       cookiePrefix: "__Host-bfb",
-      defaultCookieAttributes: {
-        path: "/",
-        httpOnly: true,
-        secure: true,
-        sameSite: "lax",
-      },
+      defaultCookieAttributes: { ...SESSION_COOKIE_ATTRIBUTES },
       cookies: {
         session_token: {
           name: "__Host-bfb_session",
-          attributes: {
-            path: "/",
-            httpOnly: true,
-            secure: true,
-            sameSite: "lax",
-          },
+          attributes: { ...SESSION_COOKIE_ATTRIBUTES },
         },
       },
     },
