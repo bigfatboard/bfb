@@ -1,1 +1,26 @@
-{"$schema":"../manifest.schema.json","artifacts":["docs/work-packages/evidence/WP-L06/manifest.json","docs/work-packages/evidence/WP-L06/command-result.json","docs/work-packages/evidence/WP-L06/fake-ingest.json","docs/work-packages/evidence/WP-L06/fault-matrix.md","docs/contracts/observed-session.md","protocol/fixtures/v1/valid/local-rpc.l06-hook-accepted.json","protocol/fixtures/v1/valid/local-rpc.l06-hook-status.json"],"commands":[{"command":"pnpm install --frozen-lockfile","outcome":"passed"},{"command":"pnpm build","outcome":"passed"},{"command":"pnpm test:l06","outcome":"passed"}],"environment":{"architecture":"arm64","kind":"clean_checkout","os":"macOS 26.2"},"migration_head":"local:010_hook_inbox.sql","outcome":"passed","package":"L06","protocol_version":"bfb-wire/1","redaction":{"prohibited_content":[],"status":"passed"},"schema_version":"1","tested_commit":"9372c0f569d7f7fb97376ce2cbea5ff931c637e9","toolchains":{"go":"1.26.5","node":"24.19.0","pnpm":"11.21.0"}}
+{
+  "$schema": "../manifest.schema.json",
+  "artifacts": [
+    "docs/work-packages/evidence/WP-L06/manifest.json",
+    "docs/work-packages/evidence/WP-L06/command-result.json",
+    "docs/work-packages/evidence/WP-L06/fake-ingest.json",
+    "docs/work-packages/evidence/WP-L06/fault-matrix.md",
+    "docs/contracts/observed-session.md",
+    "protocol/fixtures/v1/valid/local-rpc.l06-hook-accepted.json",
+    "protocol/fixtures/v1/valid/local-rpc.l06-hook-status.json"
+  ],
+  "commands": [
+    { "command": "pnpm install --frozen-lockfile", "outcome": "passed" },
+    { "command": "pnpm build", "outcome": "passed" },
+    { "command": "pnpm test:l06", "outcome": "passed" }
+  ],
+  "environment": { "architecture": "arm64", "kind": "clean_checkout", "os": "macOS 26.2" },
+  "migration_head": "local:010_hook_inbox.sql",
+  "outcome": "passed",
+  "package": "L06",
+  "protocol_version": "bfb-wire/1",
+  "redaction": { "prohibited_content": [], "status": "passed" },
+  "schema_version": "1",
+  "tested_commit": "9372c0f569d7f7fb97376ce2cbea5ff931c637e9",
+  "toolchains": { "go": "1.26.5", "node": "24.19.0", "pnpm": "11.21.0" }
+}
