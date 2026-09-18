@@ -1,5 +1,5 @@
 // ABOUTME: Runs the G01 integrated adversarial hardening gate on real Workers and D1.
-// ABOUTME: Fixed seed, fixed synthetic IDs, and fixed timestamps keep evidence byte-identical.
+// ABOUTME: Fixed seed, fixed synthetic IDs, and fixed timestamps keep evidence byte-identical apart from perf-baseline.json measured timings.
 
 import assert from "node:assert/strict";
 import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
@@ -130,6 +130,7 @@ import {
   g01Id,
   g01StableIds,
 } from "./fixture.js";
+import { burstWriteDelta, summarizeBurstLatencies } from "./perf.js";
 
 /** Evidence JSON must match the repository Prettier style so regeneration stays byte-identical. */
 async function writeJson(path: string, value: unknown): Promise<void> {
@@ -2638,31 +2639,62 @@ try {
   }
   verdict("SG-03", "passed", "artifact failure boundaries without a delete path");
 
-  // G-PERF: bounded envelope baseline. Only counts and bound verdicts are
-  // recorded; raw timings vary between machines and never enter evidence.
+  // G-PERF: bounded envelope baseline. Per-command latencies, wall-clock
+  // elapsed, throughput, and hub write amplification are measured here and
+  // recorded in perf-baseline.json; the bound verdict is computed from the
+  // measured elapsed, so a hub slowdown changes the baseline instead of
+  // leaving a constant record behind.
   {
+    const burstBoundMs = 120_000;
+    async function perfCounters(workspaceId: string): Promise<{
+      tasks: number;
+      ledger_events: number;
+      semantic_events: number;
+    }> {
+      const tasks = (await db
+        .prepare(`SELECT COUNT(*) AS count FROM tasks WHERE workspace_id = ?`)
+        .get(workspaceId)) as { count: number };
+      const ledger = (await db
+        .prepare(`SELECT COUNT(*) AS count FROM event_ledger WHERE workspace_id = ?`)
+        .get(workspaceId)) as { count: number };
+      const semantic = (await db
+        .prepare(`SELECT COUNT(*) AS count FROM semantic_events WHERE workspace_id = ?`)
+        .get(workspaceId)) as { count: number };
+      return {
+        tasks: tasks.count,
+        ledger_events: ledger.count,
+        semantic_events: semantic.count,
+      };
+    }
+    const before = await perfCounters(FIX.workspace);
     const started = Date.now();
+    const latencies: number[] = [];
     const burst = await Promise.all(
-      Array.from({ length: 50 }, (_, index) =>
-        human<TaskRecord>(createTaskCommand.name, {
-          projectId: FIX.projectA,
-          title: `Synthetic G01 perf ${index}`,
-          priority: "P3",
-        }),
-      ),
+      Array.from({ length: 50 }, async (_, index) => {
+        const commandStarted = Date.now();
+        try {
+          return await human<TaskRecord>(createTaskCommand.name, {
+            projectId: FIX.projectA,
+            title: `Synthetic G01 perf ${index}`,
+            priority: "P3",
+          });
+        } finally {
+          latencies.push(Date.now() - commandStarted);
+        }
+      }),
     );
     assert.equal(burst.length, 50, "perf burst commits every command");
+    assert.equal(latencies.length, 50, "perf burst times every command");
     const elapsed = Date.now() - started;
-    assert(elapsed < 120_000, `perf burst exceeds its bound: ${elapsed}ms`);
-    const totals = (await db
-      .prepare(`SELECT COUNT(*) AS count FROM tasks WHERE workspace_id = ?`)
-      .get(FIX.workspace)) as { count: number };
-    const ledgerTotals = (await db
-      .prepare(`SELECT COUNT(*) AS count FROM event_ledger WHERE workspace_id = ?`)
-      .get(FIX.workspace)) as { count: number };
-    const semanticTotals = (await db
-      .prepare(`SELECT COUNT(*) AS count FROM semantic_events WHERE workspace_id = ?`)
-      .get(FIX.workspace)) as { count: number };
+    const summary = summarizeBurstLatencies(latencies, elapsed, burstBoundMs);
+    const after = await perfCounters(FIX.workspace);
+    const writes = burstWriteDelta(before, after);
+    assert.equal(
+      writes.tasks_written,
+      burst.length,
+      "every burst command persists exactly one task row",
+    );
+    const totals = after;
     // The primary-workspace totals above exclude the second tenant's single
     // probe task, which fixture.json records separately; count it live so the
     // baseline reconciles instead of implying it.
@@ -2686,19 +2718,37 @@ try {
         concurrent_runs: envelopeRuns.started,
       },
       measured: {
-        hub_burst_commands: 50,
+        hub_burst_commands: summary.commands,
         hub_burst_committed: burst.length,
-        hub_burst_bound_ms: 120_000,
-        hub_burst_within_bound: true,
+        hub_burst_bound_ms: summary.bound_ms,
+        hub_burst_elapsed_ms: summary.elapsed_ms,
+        hub_burst_within_bound: summary.within_bound,
+        hub_burst_latency_ms: {
+          min: summary.latency_min_ms,
+          p50: summary.latency_p50_ms,
+          mean: summary.latency_mean_ms,
+          p95: summary.latency_p95_ms,
+          max: summary.latency_max_ms,
+        },
+        hub_burst_throughput_per_s: summary.throughput_per_s,
+        hub_burst_writes: {
+          tasks_written: writes.tasks_written,
+          ledger_events_written: writes.ledger_events_written,
+          semantic_events_written: writes.semantic_events_written,
+        },
         concurrent_runs_claimed: envelopeRuns.claimed,
         second_tenant_tasks: secondTenantTotals.count,
-        tasks_total: totals.count,
-        ledger_events_total: ledgerTotals.count,
-        semantic_events_total: semanticTotals.count,
+        tasks_total: totals.tasks,
+        ledger_events_total: totals.ledger_events,
+        semantic_events_total: totals.semantic_events,
       },
-      outcome: "passed",
+      outcome: summary.within_bound ? "passed" : "failed",
     });
-    note("perf", `50-command burst within bound; ${totals.count} tasks committed`);
+    assert(
+      summary.within_bound,
+      `perf burst exceeds its bound: ${summary.elapsed_ms}ms >= ${summary.bound_ms}ms`,
+    );
+    note("perf", `50-command burst within bound; ${totals.tasks} tasks committed`);
   }
   verdict("G-PERF", "passed", "3/10/5 envelope operates within bounds");
 

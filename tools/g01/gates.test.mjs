@@ -14,6 +14,7 @@ import {
   flakyProofDefect,
   waiverDefect,
 } from "./gates.ts";
+import { burstWriteDelta, summarizeBurstLatencies } from "./perf.ts";
 
 const toolDir = dirname(fileURLToPath(import.meta.url));
 const root = resolve(toolDir, "../..");
@@ -205,6 +206,117 @@ test("performance baseline records launched concurrent runs, not unlaunched task
     baseline.measured.concurrent_runs_claimed,
     baseline.envelope.concurrent_runs,
     "every concurrently started run must reach claimed",
+  );
+});
+
+test("burst summary derives its verdict from the measured elapsed, not a literal", () => {
+  const fast = summarizeBurstLatencies(Array(50).fill(12), 900, 120_000);
+  assert.equal(fast.elapsed_ms, 900, "summary records the measured elapsed");
+  assert.equal(fast.within_bound, true, "a fast burst stays within its bound");
+  assert.equal(fast.latency_max_ms, 12, "summary reflects the sampled latencies");
+  assert.equal(fast.throughput_per_s, 55.56, "throughput derives from commands over elapsed");
+  // The finding's failure mode: a 100x slowdown must change the record.
+  const slow = summarizeBurstLatencies(Array(50).fill(2400), 125_000, 120_000);
+  assert.equal(slow.within_bound, false, "a slowed burst flips the computed verdict");
+  assert.equal(slow.latency_p50_ms, 2400, "the slowdown is visible in the latency figures");
+  assert.ok(
+    slow.elapsed_ms !== fast.elapsed_ms,
+    "slow and fast bursts never share one constant record",
+  );
+});
+
+test("burst summary reports honest latency distribution figures", () => {
+  const summary = summarizeBurstLatencies([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 500, 120_000);
+  assert.equal(summary.latency_min_ms, 1, "min is the fastest sample");
+  assert.equal(summary.latency_p50_ms, 5, "p50 is the nearest-rank median");
+  assert.equal(summary.latency_mean_ms, 5.5, "mean covers every sample");
+  assert.equal(summary.latency_p95_ms, 10, "p95 exposes the slowest commands");
+  assert.equal(summary.latency_max_ms, 10, "max is the slowest sample");
+  assert.throws(
+    () => summarizeBurstLatencies([], 500, 120_000),
+    /at least one measured command latency/,
+    "an unmeasured burst cannot produce a baseline",
+  );
+});
+
+test("burst write delta measures the rows one burst wrote", () => {
+  const writes = burstWriteDelta(
+    { tasks: 33, ledger_events: 8, semantic_events: 100 },
+    { tasks: 83, ledger_events: 8, semantic_events: 158 },
+  );
+  assert.deepEqual(
+    writes,
+    { tasks_written: 50, ledger_events_written: 0, semantic_events_written: 58 },
+    "deltas measure rows written between the two counter reads",
+  );
+  assert.throws(
+    () =>
+      burstWriteDelta(
+        { tasks: 83, ledger_events: 8, semantic_events: 158 },
+        { tasks: 33, ledger_events: 8, semantic_events: 158 },
+      ),
+    /non-negative row delta/,
+    "vanishing rows fail closed instead of recording a negative resource figure",
+  );
+});
+
+test("performance baseline records measured figures with a computed bound verdict", async () => {
+  const baseline = JSON.parse(
+    await readFile(resolve(root, "docs/work-packages/evidence/WP-G01/perf-baseline.json"), "utf8"),
+  );
+  const measured = baseline.measured;
+  assert.ok(
+    Number.isInteger(measured.hub_burst_elapsed_ms) && measured.hub_burst_elapsed_ms > 0,
+    "baseline must record the measured burst elapsed",
+  );
+  assert.ok(
+    measured.hub_burst_elapsed_ms < measured.hub_burst_bound_ms,
+    "recorded elapsed must clear the recorded bound on a passing baseline",
+  );
+  assert.equal(
+    measured.hub_burst_within_bound,
+    measured.hub_burst_elapsed_ms < measured.hub_burst_bound_ms,
+    "the bound verdict must be computed from the measured elapsed, never a literal",
+  );
+  const latency = measured.hub_burst_latency_ms;
+  for (const key of ["min", "p50", "mean", "p95", "max"]) {
+    assert.ok(
+      typeof latency[key] === "number" && latency[key] >= 0,
+      `latency ${key} must be a measured non-negative figure`,
+    );
+  }
+  assert.ok(
+    latency.min <= latency.p50 && latency.p50 <= latency.p95 && latency.p95 <= latency.max,
+    "latency figures must order min <= p50 <= p95 <= max",
+  );
+  assert.ok(
+    latency.max <= measured.hub_burst_elapsed_ms,
+    "no single command outlasts the burst that contains it",
+  );
+  assert.ok(
+    latency.mean >= latency.min && latency.mean <= latency.max,
+    "mean must lie within the sampled range",
+  );
+  const expectedThroughput = (measured.hub_burst_commands / measured.hub_burst_elapsed_ms) * 1000;
+  assert.ok(
+    Math.abs(measured.hub_burst_throughput_per_s - expectedThroughput) < 0.05,
+    "throughput must derive from commands over measured elapsed",
+  );
+  assert.equal(
+    measured.hub_burst_writes.tasks_written,
+    measured.hub_burst_committed,
+    "every committed burst command must account for one written task row",
+  );
+  for (const key of ["tasks_written", "ledger_events_written", "semantic_events_written"]) {
+    assert.ok(
+      Number.isInteger(measured.hub_burst_writes[key]) && measured.hub_burst_writes[key] >= 0,
+      `write amplification ${key} must be a measured non-negative row count`,
+    );
+  }
+  assert.equal(
+    baseline.outcome,
+    measured.hub_burst_within_bound ? "passed" : "failed",
+    "baseline outcome must follow the computed bound verdict",
   );
 });
 
