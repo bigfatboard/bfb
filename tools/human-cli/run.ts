@@ -67,13 +67,11 @@ function cliGet(index: number, path: string, credential: string, ip = "192.0.2.3
 }
 
 function cliPost(index: number, path: string, credential: string, body: unknown) {
-  return server
-    .getWorker(index % 2 === 0 ? "bfb-human-a" : "bfb-human-b")
-    .fetch(ORIGIN + path, {
-      method: "POST",
-      headers: { authorization: `Bearer ${credential}`, "content-type": "application/json" },
-      body: JSON.stringify(body),
-    });
+  return server.getWorker(index % 2 === 0 ? "bfb-human-a" : "bfb-human-b").fetch(ORIGIN + path, {
+    method: "POST",
+    headers: { authorization: `Bearer ${credential}`, "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
 }
 
 interface Fetched {
@@ -119,7 +117,9 @@ async function main() {
         `INSERT INTO better_auth_users (id, name, email, email_verified, created_at, updated_at) VALUES ('x02-user', 'Synthetic CLI Owner', 'owner@synthetic.test', 1, ?, ?)`,
       )
       .run(NOW, NOW);
-    await db.prepare(`UPDATE humans SET better_auth_user_id = 'x02-user' WHERE id = ?`).run(FIX.owner);
+    await db
+      .prepare(`UPDATE humans SET better_auth_user_id = 'x02-user' WHERE id = ?`)
+      .run(FIX.owner);
     await db
       .prepare(
         `INSERT INTO better_auth_sessions (id, expires_at, token, created_at, updated_at, user_id) VALUES (?, '2027-08-18T12:00:00.000Z', ?, ?, ?, 'x02-user')`,
@@ -145,7 +145,13 @@ async function main() {
     const credential = ((await exchange.json()) as { credential: string }).credential;
     rawSecrets = [credential, codes.device_code, codes.user_code];
 
-    const scopedIssue = await post(0, "/auth/device/code", { client_id: "bfb-cli" }, false, "192.0.2.32");
+    const scopedIssue = await post(
+      0,
+      "/auth/device/code",
+      { client_id: "bfb-cli" },
+      false,
+      "192.0.2.32",
+    );
     const scopedCodes = (await scopedIssue.json()) as { device_code: string; user_code: string };
     const scopedApproval = await post(
       1,
@@ -187,18 +193,39 @@ async function main() {
     {
       const b = await get(1, `${base}/projects`, { cookie });
       const c = await cliGet(0, "/api/v1/cli/projects", credential);
-      const bodies = await record("projects list", b, c, "equal", "same human, same authority", 200);
+      const bodies = await record(
+        "projects list",
+        b,
+        c,
+        "equal",
+        "same human, same authority",
+        200,
+      );
       assert.deepEqual(bodies.cli, bodies.browser);
       const bOne = await get(1, `${base}/projects/${FIX.projectA}`, { cookie });
       const cOne = await cliGet(0, `/api/v1/cli/projects/${FIX.projectA}`, credential);
-      const one = await record("project get", bOne, cOne, "equal", "same record both surfaces", 200);
+      const one = await record(
+        "project get",
+        bOne,
+        cOne,
+        "equal",
+        "same record both surfaces",
+        200,
+      );
       assert.deepEqual(one.cli, one.browser);
       const scopedDenied = await cliGet(
         0,
         `/api/v1/cli/projects/${FIX.projectB}`,
         scopedCredential,
       );
-      await record("scoped project hidden", null, scopedDenied, "narrowed", "binding subset hides Beta", 404);
+      await record(
+        "scoped project hidden",
+        null,
+        scopedDenied,
+        "narrowed",
+        "binding subset hides Beta",
+        404,
+      );
     }
 
     // Tasks: CLI create, identical reads, scoped write hidden.
@@ -228,7 +255,14 @@ async function main() {
         title: "Synthetic X02 out-of-scope task",
         request_id: randomUUID(),
       });
-      await record("scoped task write hidden", null, scopedWrite, "narrowed", "binding subset enforced pre-dispatch", 404);
+      await record(
+        "scoped task write hidden",
+        null,
+        scopedWrite,
+        "narrowed",
+        "binding subset enforced pre-dispatch",
+        404,
+      );
     }
 
     // Runs and attention: seeded rows, identical reads, guarded writes.
@@ -317,12 +351,24 @@ async function main() {
         answer: "Synthetic X02 harness answer",
         request_id: randomUUID(),
       });
-      await record("attention answer", null, answered, "gated", "explicit answer and version required", 200);
-      const duplicate = await cliPost(0, `/api/v1/cli/attention/${attentionId}/answer`, credential, {
-        expected_version: 2,
-        answer: "Synthetic X02 second answer",
-        request_id: randomUUID(),
-      });
+      await record(
+        "attention answer",
+        null,
+        answered,
+        "gated",
+        "explicit answer and version required",
+        200,
+      );
+      const duplicate = await cliPost(
+        0,
+        `/api/v1/cli/attention/${attentionId}/answer`,
+        credential,
+        {
+          expected_version: 2,
+          answer: "Synthetic X02 second answer",
+          request_id: randomUUID(),
+        },
+      );
       assert.equal(duplicate.status, 409);
       parity.push({
         check: "attention duplicate answer",
@@ -331,10 +377,15 @@ async function main() {
         parity: "gated",
         note: "committed answer wins, never overwritten",
       });
-      const resolved = await cliPost(0, `/api/v1/cli/attention/${attentionId}/resolve`, credential, {
-        expected_version: 2,
-        request_id: randomUUID(),
-      });
+      const resolved = await cliPost(
+        0,
+        `/api/v1/cli/attention/${attentionId}/resolve`,
+        credential,
+        {
+          expected_version: 2,
+          request_id: randomUUID(),
+        },
+      );
       await record("attention resolve", null, resolved, "gated", "explicit version required", 200);
     }
 
@@ -349,7 +400,14 @@ async function main() {
         step_up_proof_id: "synthetic-unknown-proof",
         request_id: randomUUID(),
       });
-      await record("cancel without confirm", null, noConfirm, "gated", "explicit confirm required", 400);
+      await record(
+        "cancel without confirm",
+        null,
+        noConfirm,
+        "gated",
+        "explicit confirm required",
+        400,
+      );
       const noProof = await cliPost(0, cancelPath, credential, {
         expected_run_version: 1,
         confirm: `run:${runId}`,
@@ -385,10 +443,17 @@ async function main() {
         step_up_proof_id: proofId,
         request_id: randomUUID(),
       });
-      await record("cancel with proof", null, cancelled, "gated", "confirm plus fresh proof cancels", 200);
-      const after = (await (
-        await get(1, `${base}/runs/${runId}`, { cookie })
-      ).json()) as { run: { result_state: string } };
+      await record(
+        "cancel with proof",
+        null,
+        cancelled,
+        "gated",
+        "confirm plus fresh proof cancels",
+        200,
+      );
+      const after = (await (await get(1, `${base}/runs/${runId}`, { cookie })).json()) as {
+        run: { result_state: string };
+      };
       assert.equal(after.run.result_state, "cancelled");
     }
 

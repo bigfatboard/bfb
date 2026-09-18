@@ -283,7 +283,11 @@ async function seed(): Promise<Seed> {
     allowRunOverrides: true,
   };
   await human(updateWorkspacePolicyCommand, { ...policy, expectedVersion: 1 });
-  await human(updateProjectPolicyCommand, { ...policy, projectId: FIX.projectA, expectedVersion: 1 });
+  await human(updateProjectPolicyCommand, {
+    ...policy,
+    projectId: FIX.projectA,
+    expectedVersion: 1,
+  });
   await human(reportRepositoryConfigCommand, {
     projectId: FIX.projectA,
     expectedVersion: 1,
@@ -364,7 +368,9 @@ async function seed(): Promise<Seed> {
   });
   const claimed = await native<{
     state: string;
-    claim: { specification: { run_execution_id: string; assignment_generation: number; run_id: string } };
+    claim: {
+      specification: { run_execution_id: string; assignment_generation: number; run_id: string };
+    };
   }>(claimLaunchCommand, {
     principal,
     claim: {
@@ -458,7 +464,11 @@ describe("X02 human CLI surface", () => {
       error: "unauthenticated",
       message: "CLI credential required",
     });
-    const garbage = await app.request(cliGet("not-a-credential", "/api/v1/cli/projects"), undefined, current);
+    const garbage = await app.request(
+      cliGet("not-a-credential", "/api/v1/cli/projects"),
+      undefined,
+      current,
+    );
     expect(garbage.status).toBe(401);
     const mixed = await app.request(
       new Request(`${ORIGIN}/api/v1/cli/projects`, {
@@ -473,9 +483,16 @@ describe("X02 human CLI surface", () => {
       message: "CLI routes accept bearer CLI credentials only",
     });
     // Unknown CLI paths are uniformly rejected without an existence oracle.
-    const unknown = await app.request(cliGet(s.credential, "/api/v1/cli/unknown"), undefined, current);
+    const unknown = await app.request(
+      cliGet(s.credential, "/api/v1/cli/unknown"),
+      undefined,
+      current,
+    );
     expect(unknown.status).toBe(403);
-    expect(await unknown.json()).toEqual({ error: "request_rejected", message: "request rejected" });
+    expect(await unknown.json()).toEqual({
+      error: "request_rejected",
+      message: "request rejected",
+    });
   });
 
   it("keeps CLI credentials off browser, runner, and MCP routes", async () => {
@@ -525,13 +542,29 @@ describe("X02 human CLI surface", () => {
     const app = appFor(s.context);
     const current = bindings(s.context);
     const base = `/api/v1/workspaces/${FIX.workspace}`;
-    const viaBrowser = await app.request(browserGet(s.session, `${base}/projects`), undefined, current);
-    const viaCli = await app.request(cliGet(s.credential, "/api/v1/cli/projects"), undefined, current);
+    const viaBrowser = await app.request(
+      browserGet(s.session, `${base}/projects`),
+      undefined,
+      current,
+    );
+    const viaCli = await app.request(
+      cliGet(s.credential, "/api/v1/cli/projects"),
+      undefined,
+      current,
+    );
     expect(viaCli.status).toBe(200);
     expect(await viaCli.json()).toEqual(await viaBrowser.json());
     for (const projectId of [FIX.projectA, FIX.projectB]) {
-      const b = await app.request(browserGet(s.session, `${base}/projects/${projectId}`), undefined, current);
-      const c = await app.request(cliGet(s.credential, `/api/v1/cli/projects/${projectId}`), undefined, current);
+      const b = await app.request(
+        browserGet(s.session, `${base}/projects/${projectId}`),
+        undefined,
+        current,
+      );
+      const c = await app.request(
+        cliGet(s.credential, `/api/v1/cli/projects/${projectId}`),
+        undefined,
+        current,
+      );
       expect(c.status).toBe(b.status);
       expect(await c.json()).toEqual(await b.json());
     }
@@ -541,7 +574,11 @@ describe("X02 human CLI surface", () => {
       current,
     );
     expect(scopedDenied.status).toBe(404);
-    const scopedList = await app.request(cliGet(s.scopedCredential, "/api/v1/cli/projects"), undefined, current);
+    const scopedList = await app.request(
+      cliGet(s.scopedCredential, "/api/v1/cli/projects"),
+      undefined,
+      current,
+    );
     expect(((await scopedList.json()) as { projects: unknown[] }).projects).toHaveLength(1);
   });
 
@@ -562,7 +599,11 @@ describe("X02 human CLI surface", () => {
     expect(created.status, await created.clone().text()).toBe(200);
     const outcome = (await created.json()) as { ok: boolean; result: { id: string } };
     expect(outcome.ok).toBe(true);
-    const viaCli = await app.request(cliGet(s.credential, `/api/v1/cli/tasks/${outcome.result.id}`), undefined, current);
+    const viaCli = await app.request(
+      cliGet(s.credential, `/api/v1/cli/tasks/${outcome.result.id}`),
+      undefined,
+      current,
+    );
     const viaBrowser = await app.request(
       browserGet(s.session, `${base}/tasks/${outcome.result.id}`),
       undefined,
@@ -570,12 +611,19 @@ describe("X02 human CLI surface", () => {
     );
     expect(viaCli.status).toBe(200);
     expect(await viaCli.json()).toEqual(await viaBrowser.json());
-    const listed = await app.request(cliGet(s.credential, "/api/v1/cli/tasks?limit=50"), undefined, current);
-    expect(((await listed.json()) as { tasks: Array<{ id: string }> }).tasks.map((entry) => entry.id)).toContain(
-      outcome.result.id,
+    const listed = await app.request(
+      cliGet(s.credential, "/api/v1/cli/tasks?limit=50"),
+      undefined,
+      current,
     );
+    expect(
+      ((await listed.json()) as { tasks: Array<{ id: string }> }).tasks.map((entry) => entry.id),
+    ).toContain(outcome.result.id);
     const missing = await app.request(
-      cliPost(s.credential, "/api/v1/cli/tasks", { project_id: FIX.projectA, request_id: randomUlid() }),
+      cliPost(s.credential, "/api/v1/cli/tasks", {
+        project_id: FIX.projectA,
+        request_id: randomUlid(),
+      }),
       undefined,
       current,
     );
@@ -604,8 +652,14 @@ describe("X02 human CLI surface", () => {
       current,
     );
     expect(listed.status).toBe(200);
-    expect(((await listed.json()) as { runs: Array<{ id: string }> }).runs.map((entry) => entry.id)).toContain(s.runId);
-    const read = await app.request(cliGet(s.credential, `/api/v1/cli/runs/${s.runId}`), undefined, current);
+    expect(
+      ((await listed.json()) as { runs: Array<{ id: string }> }).runs.map((entry) => entry.id),
+    ).toContain(s.runId);
+    const read = await app.request(
+      cliGet(s.credential, `/api/v1/cli/runs/${s.runId}`),
+      undefined,
+      current,
+    );
     expect(read.status).toBe(200);
     const scopedRead = await app.request(
       cliGet(s.scopedCredential, `/api/v1/cli/runs/${s.runId}`),
@@ -666,7 +720,11 @@ describe("X02 human CLI surface", () => {
       current,
     );
     expect(cancelled.status, await cancelled.clone().text()).toBe(200);
-    const cliRun = await app.request(cliGet(s.credential, `/api/v1/cli/runs/${s.runId}`), undefined, current);
+    const cliRun = await app.request(
+      cliGet(s.credential, `/api/v1/cli/runs/${s.runId}`),
+      undefined,
+      current,
+    );
     const browserRun = await app.request(
       browserGet(s.session, `${base}/runs/${s.runId}`),
       undefined,
@@ -684,12 +742,22 @@ describe("X02 human CLI surface", () => {
     const app = appFor(s.context);
     const current = bindings(s.context);
     const base = `/api/v1/workspaces/${FIX.workspace}`;
-    const listed = await app.request(cliGet(s.credential, "/api/v1/cli/attention?state=open"), undefined, current);
+    const listed = await app.request(
+      cliGet(s.credential, "/api/v1/cli/attention?state=open"),
+      undefined,
+      current,
+    );
     expect(listed.status).toBe(200);
     expect(
-      ((await listed.json()) as { attention: Array<{ id: string }> }).attention.map((entry) => entry.id),
+      ((await listed.json()) as { attention: Array<{ id: string }> }).attention.map(
+        (entry) => entry.id,
+      ),
     ).toContain(s.attentionId);
-    const viaCli = await app.request(cliGet(s.credential, `/api/v1/cli/attention/${s.attentionId}`), undefined, current);
+    const viaCli = await app.request(
+      cliGet(s.credential, `/api/v1/cli/attention/${s.attentionId}`),
+      undefined,
+      current,
+    );
     const viaBrowser = await app.request(
       browserGet(s.session, `${base}/attention/${s.attentionId}`),
       undefined,
@@ -718,7 +786,9 @@ describe("X02 human CLI surface", () => {
       current,
     );
     expect(duplicate.status).toBe(409);
-    expect(((await duplicate.json()) as { error: { code: string } }).error.code).toBe("already_answered");
+    expect(((await duplicate.json()) as { error: { code: string } }).error.code).toBe(
+      "already_answered",
+    );
     const resolved = await app.request(
       cliPost(s.credential, `/api/v1/cli/attention/${s.attentionId}/resolve`, {
         expected_version: 2,
@@ -739,7 +809,9 @@ describe("X02 human CLI surface", () => {
       current,
     );
     expect(cliFinal.status).toBe(200);
-    const cliFinalBody = (await cliFinal.json()) as { attention: { state: string; answer: string } };
+    const cliFinalBody = (await cliFinal.json()) as {
+      attention: { state: string; answer: string };
+    };
     const browserFinalBody = (await browserFinal.json()) as {
       attention: { state: string; answer: string };
     };
@@ -794,7 +866,11 @@ describe("X02 human CLI surface", () => {
       expect(version).not.toHaveProperty("secret");
       expect(version).not.toHaveProperty("grant");
     }
-    const read = await app.request(cliGet(s.credential, `/api/v1/cli/artifacts/${artifactId}`), undefined, current);
+    const read = await app.request(
+      cliGet(s.credential, `/api/v1/cli/artifacts/${artifactId}`),
+      undefined,
+      current,
+    );
     expect(read.status).toBe(200);
     const orphanId = randomUlid();
     await s.context.db
@@ -803,7 +879,11 @@ describe("X02 human CLI surface", () => {
          VALUES (?, ?, NULL, 'markdown', 'review', ?, ?)`,
       )
       .run(FIX.workspace, orphanId, FIX.owner, NOW);
-    const orphan = await app.request(cliGet(s.credential, `/api/v1/cli/artifacts/${orphanId}`), undefined, current);
+    const orphan = await app.request(
+      cliGet(s.credential, `/api/v1/cli/artifacts/${orphanId}`),
+      undefined,
+      current,
+    );
     expect(orphan.status).toBe(404);
     const missingRun = await app.request(
       cliGet(s.credential, `/api/v1/cli/artifacts?run_id=${FIX.runDelegable}`),
@@ -823,7 +903,11 @@ describe("X02 human CLI surface", () => {
       current,
     );
     expect(revoked.status, await revoked.clone().text()).toBe(200);
-    const after = await app.request(cliGet(s.credential, "/api/v1/cli/projects"), undefined, current);
+    const after = await app.request(
+      cliGet(s.credential, "/api/v1/cli/projects"),
+      undefined,
+      current,
+    );
     expect(after.status).toBe(401);
     const again = await app.request(
       cliPost(s.credential, "/api/v1/cli/session/revoke", {}),
@@ -852,4 +936,3 @@ describe("X02 human CLI surface", () => {
     }
   });
 });
-

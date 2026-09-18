@@ -44,7 +44,9 @@ func CheckArgv(args []string) *Failure {
 }
 
 // Redact replaces credential-shaped values with a fixed placeholder.
-func Redact(text string) string { return credentialPattern.ReplaceAllString(text, "[redacted-credential]") }
+func Redact(text string) string {
+	return credentialPattern.ReplaceAllString(text, "[redacted-credential]")
+}
 
 // ContainsCredential reports whether text carries a credential-shaped value.
 func ContainsCredential(text string) bool { return credentialPattern.MatchString(text) }

@@ -190,10 +190,7 @@ export function cliRunCancelTarget(runId: string, expectedRunVersion: number): s
   return `cli:run:cancel:${runId}:${expectedRunVersion}`;
 }
 
-export async function handleCliHumanApi(
-  request: Request,
-  deps: CliHumanDeps,
-): Promise<Response> {
+export async function handleCliHumanApi(request: Request, deps: CliHumanDeps): Promise<Response> {
   const url = new URL(request.url);
   const path = url.pathname;
   try {
@@ -347,8 +344,7 @@ export async function handleCliHumanApi(
            FROM runs WHERE workspace_id = ? AND id = ? AND purpose = 'work'`,
         )
         .get(workspaceId, runId)) as
-        | { id: string; task_id: string; project_id: string }
-        | undefined;
+        { id: string; task_id: string; project_id: string } | undefined;
       if (!run || !principal.projectIds.includes(run.project_id)) {
         return json({ error: "not_found" }, 404);
       }
@@ -506,10 +502,12 @@ export async function handleCliHumanApi(
              ON run.workspace_id = artifact.workspace_id AND run.id = artifact.run_id
            WHERE artifact.workspace_id = ? AND artifact.id = ?`,
         )
-        .get(workspaceId, artifactId)) as
-        | { project_id: string | null }
-        | undefined;
-      if (!artifact || !artifact.project_id || !principal.projectIds.includes(artifact.project_id)) {
+        .get(workspaceId, artifactId)) as { project_id: string | null } | undefined;
+      if (
+        !artifact ||
+        !artifact.project_id ||
+        !principal.projectIds.includes(artifact.project_id)
+      ) {
         return json({ error: "not_found" }, 404);
       }
       const versions = (await deps.db

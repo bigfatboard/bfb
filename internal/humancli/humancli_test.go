@@ -19,10 +19,10 @@ import (
 	"github.com/qdis/bfb/internal/cli"
 	"github.com/qdis/bfb/internal/daemon"
 	"github.com/qdis/bfb/internal/journal"
+	"github.com/qdis/bfb/internal/protocol/generated"
 	"github.com/qdis/bfb/internal/provider"
 	"github.com/qdis/bfb/internal/providers"
 	"github.com/qdis/bfb/internal/providers/claude"
-	"github.com/qdis/bfb/internal/protocol/generated"
 )
 
 const syntheticCredential = "bfb_cli_syntheticX02credential00000000000001"

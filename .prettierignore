@@ -19,6 +19,7 @@ protocol/fixtures/v1/invalid/local-rpc.l04-exponent-version.json
 protocol/fixtures/v1/invalid/local-rpc.l04-lone-surrogate.json
 protocol/fixtures/v1/valid/local-rpc.l04-exact-integer.json
 protocol/fixtures/v1/valid/local-rpc.l04-long-integer.json
+internal/humancli/testdata/goldens/
 dist/
 coverage/
 node_modules/
