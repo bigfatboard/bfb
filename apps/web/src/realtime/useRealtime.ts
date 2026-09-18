@@ -267,7 +267,7 @@ export function useRunRealtime(options: {
       }
     };
     next.onclose = ({ code }) => {
-      if (!mounted.current) return;
+      if (!mounted.current || channel.current !== next) return;
       setSocketOpen(false);
       connectionId.current = null;
       if (code === 4401) {
