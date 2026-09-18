@@ -1,6 +1,6 @@
 {
   "package": "G01",
-  "tested_commit": "c451e754f5377b05732398164dd28ae798f9057a",
+  "tested_commit": "9ee7059d2403b88c77a0e06cf4cdc618b9c17535",
   "environment": "implementation worktree on macOS (arm64); local workerd D1, real Chromium on BFB_E2E_PORT=4197",
   "outcome": "failed",
   "commands": [
@@ -37,6 +37,7 @@
     "Evidence manifest and command results are docs-only additions after the tested commit; pnpm test:g01, pnpm verify, pnpm worktree:check, and the Linux cross-build were re-run on the final tree.",
     "Status stays planned: A04, E02, L07, P01, P02, V03, W02, X01, X02, X03, X04, and X05 are not done, so roadmap:check rejects anything beyond planned; AG-04 failing on unproven live provider turns additionally blocks the release-candidate freeze.",
     "AG-02 is passed on the completed L05 Terminal certification with the G01 cloud-plane halves. AG-04 is failed: live provider turns need credentials and consent that are unavailable, and no ADR with Timo's explicit decision authorizes a waiver, so no waiver is recorded.",
-    "All identities in tests, fixtures, recordings, and this report are synthetic; no secrets, task bodies, prompts, paths, hook payloads, artifact bytes, terminal output, cookies, Bearer [REDACTED] secrets, or local absolute paths are retained."
+    "All identities in tests, fixtures, recordings, and this report are synthetic; no secrets, task bodies, prompts, paths, hook payloads, artifact bytes, terminal output, cookies, Bearer [REDACTED] secrets, or local absolute paths are retained.",
+    "Finding 17: the fixture session endpoint now renders Set-Cookie attributes from the production Better Auth options instead of a hardcoded header, and the cookie-hygiene scenario additionally asserts Secure. Weakening the production session cookie (httpOnly false) fails the scenario at the attribute assertion while the pre-fix harness still passes; the full g01-hardening Chromium spec passes 4/4 and browser-security.json regenerates byte-identically."
   ]
 }
