@@ -1111,11 +1111,10 @@ try {
   const local = localServer.getWorker("bfb-g02");
   await local.applyD1Migrations("DB");
   const origin = "http://bfb.localhost:8787";
-  const smokeFetch = (path: string, init: RequestInit = {}): Promise<Response> =>
+  const smokeFetch = (path: string, headers: Record<string, string> = {}): Promise<Response> =>
     local.fetch(`${origin}${path}`, {
-      ...init,
-      headers: { "cf-connecting-ip": "192.0.2.31", ...(init.headers ?? {}) },
-    });
+      headers: { "cf-connecting-ip": "192.0.2.31", ...headers },
+    }) as unknown as Promise<Response>;
   const health = await smokeFetch("/healthz");
   assert.equal(health.status, 200, "healthz answers");
   const healthBody = (await health.json()) as Record<string, unknown>;
@@ -1134,7 +1133,7 @@ try {
   assert.equal(anonymous.status, 401, "cli session without a credential is rejected");
   smoke.push({ check: "cli/session anonymous", status: 401, outcome: "passed" });
   const forged = await smokeFetch("/api/v1/cli/session", {
-    headers: { authorization: "Bearer bfb_cli_synthetic-forged-credential" },
+    authorization: "Bearer bfb_cli_synthetic-forged-credential",
   });
   assert.equal(forged.status, 401, "cli session with a bad credential is rejected");
   smoke.push({ check: "cli/session forged", status: 401, outcome: "passed" });
