@@ -9,15 +9,14 @@ import {
   buildControlRequest,
   buildStartRequest,
   buildWakeLink,
+  createLaunchClient,
   describeCheckoutDisplay,
   describeLaunchStatus,
-  isLaunchableRunner,
   linkedCheckoutsMessage,
-  loadLaunchableCheckoutStatuses,
   newIdempotencyKey,
   providerStatusMessage,
   refreshTaskLaunches,
-  selectLaunchableRunners,
+  splitRunnerStatuses,
   type CheckoutStatus,
   type LaunchStatus,
   type RunnerSummary,
@@ -315,6 +314,7 @@ function baseRunner(overrides: Partial<RunnerSummary> = {}): RunnerSummary {
     enrolled_at: "2026-08-07T12:00:00.000Z",
     granted_project_ids: [],
     launcher_human_ids: [owner],
+    checkout_status: baseCheckoutStatus(),
     ...overrides,
   };
 }
@@ -335,76 +335,35 @@ function baseCheckoutStatus(overrides: Partial<CheckoutStatus> = {}): CheckoutSt
 }
 
 describe("w02 runner inventory reads", () => {
-  it("treats only enrolled launchers as launchable", () => {
-    const human = randomUlid();
-    const owned = baseRunner({ owner_human_id: human, launcher_human_ids: [human] });
-    const shared = baseRunner({
-      owner_human_id: randomUlid(),
-      launcher_human_ids: [randomUlid(), human],
-    });
-    const ungranted = baseRunner({
-      owner_human_id: randomUlid(),
-      launcher_human_ids: [randomUlid()],
-    });
-    const revoked = baseRunner({
-      owner_human_id: human,
-      launcher_human_ids: [human],
-      status: "revoked",
-    });
-    expect(isLaunchableRunner(owned, human)).toBe(true);
-    expect(isLaunchableRunner(shared, human)).toBe(true);
-    expect(isLaunchableRunner(ungranted, human)).toBe(false);
-    expect(isLaunchableRunner(revoked, human)).toBe(false);
-    expect(selectLaunchableRunners([ungranted, owned, revoked, shared], human)).toEqual([
-      owned,
-      shared,
-    ]);
+  it("splits embedded statuses without an extra read per runner", () => {
+    const first = baseRunner();
+    const second = baseRunner({ checkout_status: null });
+    const { statuses, failures } = splitRunnerStatuses([first, second]);
+    expect(statuses[first.runner_id]).toBe(first.checkout_status);
+    expect(statuses[second.runner_id]).toBeUndefined();
+    expect(failures[second.runner_id]).toMatch(/unavailable/);
+    expect(failures[first.runner_id]).toBeUndefined();
   });
 
-  it("loads checkout status only for launchable runners", async () => {
-    const human = randomUlid();
-    const launchable = baseRunner({ owner_human_id: human, launcher_human_ids: [human] });
-    const ungranted = baseRunner({
-      owner_human_id: randomUlid(),
-      launcher_human_ids: [randomUlid()],
-    });
-    const revoked = baseRunner({
-      owner_human_id: human,
-      launcher_human_ids: [human],
-      status: "revoked",
-    });
-    const seen: string[] = [];
-    const client = {
-      checkoutStatus: async (runnerId: string) => {
-        seen.push(runnerId);
-        return baseCheckoutStatus({ runner_id: runnerId });
-      },
-    };
-    const { statuses, failures } = await loadLaunchableCheckoutStatuses(
-      client,
-      [ungranted, launchable, revoked],
-      human,
-    );
-    expect(seen).toEqual([launchable.runner_id]);
-    expect(Object.keys(statuses)).toEqual([launchable.runner_id]);
-    expect(failures).toEqual({});
+  it("coalesces concurrent identical reads into one request", async () => {
+    let calls = 0;
+    const fetchImpl = (async () => {
+      calls += 1;
+      await Promise.resolve();
+      return new Response(JSON.stringify({ runners: [] }), { status: 200 });
+    }) as typeof fetch;
+    const client = createLaunchClient(fetchImpl, randomUlid(), "csrf");
+    const [first, second] = await Promise.all([client.listRunners(), client.listRunners()]);
+    expect(first).toEqual({ runners: [] });
+    expect(second).toEqual({ runners: [] });
+    expect(calls).toBe(1);
   });
 
-  it("records a rejected checkout read instead of an empty inventory", async () => {
-    const human = randomUlid();
-    const launchable = baseRunner({ owner_human_id: human, launcher_human_ids: [human] });
-    const client = {
-      checkoutStatus: async () => {
-        throw new Error("Launch read failed (403)");
-      },
-    };
-    const { statuses, failures } = await loadLaunchableCheckoutStatuses(
-      client,
-      [launchable],
-      human,
-    );
-    expect(statuses[launchable.runner_id]).toBeUndefined();
-    expect(failures[launchable.runner_id]).toMatch(/403/);
+  it("records a missing embedded status instead of an empty inventory", () => {
+    const missing = baseRunner({ checkout_status: null });
+    const { statuses, failures } = splitRunnerStatuses([missing]);
+    expect(statuses[missing.runner_id]).toBeUndefined();
+    expect(failures[missing.runner_id]).toMatch(/unavailable/);
     expect(describeCheckoutDisplay(undefined, true)).toBe("unavailable");
     expect(linkedCheckoutsMessage(undefined, true)).not.toMatch(/has not reported a checkout yet/);
     expect(providerStatusMessage(undefined, true)).toMatch(/unavailable/);
