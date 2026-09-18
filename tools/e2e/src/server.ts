@@ -549,6 +549,7 @@ async function seedE02Chains(db: SqlDatabase): Promise<E02State> {
     ],
   };
   await native(replaceRunnerInventoryCommand, { principal, inventory });
+  const snapshot = await currentPolicyVersions(db);
   const chains: Record<string, E02Chain> = {};
   for (const [key, checkoutId, title] of [
     ["live", checkoutLive, "Synthetic E02 live run"],
