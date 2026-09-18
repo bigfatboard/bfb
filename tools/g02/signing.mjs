@@ -2,7 +2,7 @@
 // ABOUTME: Writes deterministic signing-result.json; notarization stays a rollout step.
 
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, rmSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -24,22 +24,16 @@ try {
   execFileSync("codesign", ["--verify", "--deep", "--strict", "--verbose=2", signed.app], {
     stdio: "pipe",
   });
-  const helperInfo = execFileSync("codesign", ["-d", "--verbose=4", signed.helper], {
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  assert.match(String(helperInfo), /Identifier=com\.tenira\.bfb\.daemon/, "helper carries its identifier");
-  const appInfo = execFileSync("codesign", ["-d", "--verbose=4", signed.app], {
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  assert.match(String(appInfo), /Identifier=com\.qdis\.bfb/, "app carries its identifier");
-  const entitlements = execFileSync("codesign", ["-d", "--entitlements", "-", signed.app], {
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-  });
+  const helperInfo = spawnSync("codesign", ["-d", "--verbose=4", signed.helper], { encoding: "utf8" });
+  assert.equal(helperInfo.status, 0, "helper display succeeds");
+  assert.match(String(helperInfo.stderr), /Identifier=com\.tenira\.bfb\.daemon/, "helper carries its identifier");
+  const appInfo = spawnSync("codesign", ["-d", "--verbose=4", signed.app], { encoding: "utf8" });
+  assert.equal(appInfo.status, 0, "app display succeeds");
+  assert.match(String(appInfo.stderr), /Identifier=com\.qdis\.bfb/, "app carries its identifier");
+  const entitlements = spawnSync("codesign", ["-d", "--entitlements", "-", signed.app], { encoding: "utf8" });
+  assert.equal(entitlements.status, 0, "entitlement display succeeds");
   assert.match(
-    String(entitlements),
+    String(entitlements.stdout),
     /applinks:launch\.bfb\.example\?mode=developer/,
     "managed entitlement authorizes the dev link",
   );
