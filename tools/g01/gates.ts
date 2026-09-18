@@ -19,6 +19,57 @@ export const G01_GATE_EVIDENCE = "docs/work-packages/evidence/WP-G01/gate-report
 // the gate and records Timo's explicit decision, per docs/work-packages/ACCEPTANCE.md.
 export const WAIVER_ADR_PATTERN = /docs\/adr\/(\d{4})-[A-Za-z0-9-]+\.md/;
 
+// A passed release gate cannot cite proof that records a failed run: per
+// docs/work-packages/ACCEPTANCE.md a flaky check is not a release gate.
+// linkedDocuments are the parsed JSON artifacts the owning manifest links
+// from its commands.
+export function flakyProofDefect(row: GateRow, linkedDocuments: unknown[]): string | null {
+  if (row.status !== "passed" || row.owner === "G01") {
+    return null;
+  }
+  if (!linkedDocuments.some(hasFailedRun)) {
+    return null;
+  }
+  return (
+    `${row.gate} cites ${row.evidence}, which records a failed run: ` +
+    `a flaky check is not a release gate`
+  );
+}
+
+function hasFailedRun(document: unknown): boolean {
+  let failed = false;
+  const visit = (value: unknown, insideGateRuns: boolean): void => {
+    if (failed) {
+      return;
+    }
+    if (typeof value === "string") {
+      if (value === "failed" && insideGateRuns) {
+        failed = true;
+      }
+      return;
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        visit(item, insideGateRuns);
+      }
+      return;
+    }
+    if (typeof value !== "object" || value === null) {
+      return;
+    }
+    const record = value as Record<string, unknown>;
+    if (record["outcome"] === "failed" && typeof record["command"] === "string") {
+      failed = true;
+      return;
+    }
+    for (const [key, entry] of Object.entries(record)) {
+      visit(entry, insideGateRuns || key === "gate_runs");
+    }
+  };
+  visit(document, false);
+  return failed;
+}
+
 export function waiverDefect(row: GateRow, adrIndex: Map<string, string>): string | null {
   if (row.status !== "waived") return null;
   if (!row.waiver) return `${row.gate} is waived without a recorded waiver`;
@@ -45,12 +96,12 @@ export const GATE_ROWS: GateRow[] = [
   },
   {
     gate: "AG-02",
-    status: "passed",
+    status: "failed",
     owner: "L05",
     command: "pnpm test:l05",
     evidence: "docs/work-packages/evidence/WP-L05/manifest.json",
     detail:
-      "Native exact-checkout launch trace with the moved/replaced/occupied, locked, consent-denial, pre-exec-swap, and containment matrix proven in L05 Terminal certification; cloud-plane contention, expiry, and cleanup receipts pass in G01.",
+      "Native Terminal proof is not a deterministic release gate: WP-L05 certification records one fail-closed clean-checkout failure in five full gates (exactly one SIGINT with a verified whole-group end, yet a same-instant ownership uncertainty wedged the release leg past its wait with the lock retained), and the retained evidence is the bounded redacted matrix plus command-result assertions with no separate raw launch trace committed. Cloud-plane contention, expiry, and cleanup receipts pass in G01. No ADR and no explicit decision authorizes a waiver, so the gate fails instead of passing.",
   },
   {
     gate: "AG-03",

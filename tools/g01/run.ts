@@ -114,7 +114,7 @@ import {
 } from "@bfb/domain";
 import { createTestHarness } from "wrangler";
 
-import { GATE_ROWS, G01_COMMAND, waiverDefect } from "./gates.js";
+import { GATE_ROWS, G01_COMMAND, flakyProofDefect, waiverDefect } from "./gates.js";
 import {
   G01_EXTRA_PROFILES,
   G01_EXTRA_PROJECTS,
@@ -2415,15 +2415,34 @@ try {
     "local workerd D1 plus real Chromium on macOS (arm64); Node 24.19.0, pnpm 11.21.0, Go 1.26.5";
   const gateCommand = G01_COMMAND;
   // Composition check: a row owned elsewhere certifies proof that must exist and pass.
+  // A passed row must also cite proof with no failed runs recorded: per
+  // docs/work-packages/ACCEPTANCE.md a flaky check is not a release gate.
   for (const row of GATE_ROWS) {
     if (row.owner === "G01") continue;
     const manifest = JSON.parse(await readFile(resolve(root, row.evidence), "utf8")) as {
       outcome?: unknown;
+      commands?: { artifact?: unknown }[];
     };
     assert.equal(
       manifest.outcome,
       "passed",
       `${row.gate} cites ${row.evidence}, which must record a passed run`,
+    );
+    const linked: unknown[] = [];
+    for (const entry of manifest.commands ?? []) {
+      if (typeof entry.artifact !== "string" || !entry.artifact.endsWith(".json")) {
+        continue;
+      }
+      try {
+        linked.push(JSON.parse(await readFile(resolve(root, entry.artifact), "utf8")) as unknown);
+      } catch {
+        continue;
+      }
+    }
+    assert.equal(
+      flakyProofDefect(row, linked),
+      null,
+      `${row.gate} cites proof with a failed run on record`,
     );
   }
   // Waiver check: a waived row is stamped only with an ADR recording Timo's

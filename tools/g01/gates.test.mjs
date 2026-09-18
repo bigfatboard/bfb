@@ -1,5 +1,5 @@
 // ABOUTME: Locks each G01 gate row to the owning package proof it certifies.
-// ABOUTME: Fails when a passed row cites the wrong proof or a waived row lacks an ADR decision.
+// ABOUTME: Fails when a passed row cites the wrong proof, cites flaky proof, or a waived row lacks an ADR decision.
 
 import assert from "node:assert/strict";
 import { readdir, readFile, stat } from "node:fs/promises";
@@ -7,7 +7,13 @@ import { dirname, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { GATE_ROWS, G01_COMMAND, G01_GATE_EVIDENCE, waiverDefect } from "./gates.ts";
+import {
+  GATE_ROWS,
+  G01_COMMAND,
+  G01_GATE_EVIDENCE,
+  flakyProofDefect,
+  waiverDefect,
+} from "./gates.ts";
 
 const toolDir = dirname(fileURLToPath(import.meta.url));
 const root = resolve(toolDir, "../..");
@@ -100,6 +106,70 @@ test("waiverDefect rejects self-issued waivers and accepts authorized ones", () 
     waiverDefect({ ...base, status: "not_run", waiver: "G02 owns this gate." }, authorized),
     null,
   );
+});
+
+test("flakyProofDefect rejects passed rows citing proof with a failed run", () => {
+  const row = {
+    gate: "AG-02",
+    owner: "L05",
+    status: "passed",
+    command: "pnpm test:l05",
+    evidence: "docs/work-packages/evidence/WP-L05/manifest.json",
+    detail: "detail",
+  };
+  const flakyRuns = [
+    {
+      gate_runs: {
+        implementation_checkout: ["passed", "passed", "passed"],
+        clean_checkout: ["failed", "passed"],
+      },
+    },
+  ];
+  assert.match(flakyProofDefect(row, flakyRuns) ?? "", /records a failed run/);
+  assert.match(
+    flakyProofDefect(row, [{ runs: [{ command: "pnpm test:x", outcome: "failed" }] }]) ?? "",
+    /records a failed run/,
+  );
+  assert.equal(
+    flakyProofDefect(row, [{ gate_runs: { clean_checkout: ["passed", "passed"] } }]),
+    null,
+  );
+  assert.equal(
+    flakyProofDefect(row, [{ runs: [{ command: "pnpm test:x", outcome: "passed" }] }]),
+    null,
+  );
+  assert.equal(flakyProofDefect(row, [{ notes: ["one failed attempt retried"] }]), null);
+  assert.equal(flakyProofDefect({ ...row, status: "failed" }, flakyRuns), null);
+  assert.equal(flakyProofDefect({ ...row, status: "not_run" }, flakyRuns), null);
+  assert.equal(
+    flakyProofDefect(
+      {
+        ...row,
+        owner: "G01",
+        command: "pnpm test:g01",
+        evidence: "docs/work-packages/evidence/WP-G01/gate-report.json",
+      },
+      flakyRuns,
+    ),
+    null,
+  );
+});
+
+test("passed rows cite proof with no failed runs recorded", async () => {
+  for (const row of GATE_ROWS) {
+    if (row.status !== "passed" || row.owner === "G01") {
+      continue;
+    }
+    const manifest = JSON.parse(await readFile(resolve(root, row.evidence), "utf8"));
+    const linked = [];
+    for (const entry of manifest.commands ?? []) {
+      if (typeof entry.artifact !== "string" || !entry.artifact.endsWith(".json")) {
+        continue;
+      }
+      linked.push(JSON.parse(await readFile(resolve(root, entry.artifact), "utf8")));
+    }
+    assert.equal(flakyProofDefect(row, linked), null, `${row.gate} cites flaky proof`);
+  }
 });
 
 for (const row of GATE_ROWS) {
