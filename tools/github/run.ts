@@ -7,6 +7,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { format, resolveConfig } from "prettier";
 
 import { adaptD1, loadMigrationManifest, type D1Like, type SqlDatabase } from "@bfb/db";
 import {
@@ -23,6 +24,15 @@ import {
 import { createTestHarness } from "wrangler";
 
 import { GitHubDouble } from "./double.js";
+
+/** Evidence JSON must match the repository Prettier style so regeneration stays byte-identical. */
+async function writeJson(path: string, value: unknown): Promise<void> {
+  const options = (await resolveConfig(path)) ?? {};
+  await writeFile(
+    path,
+    await format(JSON.stringify(value, null, 2), { ...options, parser: "json" }),
+  );
+}
 
 const toolDir = dirname(fileURLToPath(import.meta.url));
 const root = resolve(toolDir, "../..");
@@ -1006,10 +1016,11 @@ async function main(): Promise<void> {
       );
       assert.deepEqual(hits, []);
       await mkdir(evidenceDir, { recursive: true });
-      await writeFile(
-        resolve(evidenceDir, "canary-scan.json"),
-        `${JSON.stringify({ scanned: Object.keys(haystacks), hits: 0, outcome: "passed" }, null, 2)}\n`,
-      );
+      await writeJson(resolve(evidenceDir, "canary-scan.json"), {
+        scanned: Object.keys(haystacks),
+        hits: 0,
+        outcome: "passed",
+      });
       note("F13", `canary scan passed over ${Object.keys(haystacks).join(", ")}`);
       pass("F13-canary");
     }
@@ -1045,10 +1056,11 @@ async function main(): Promise<void> {
         );
       }
     }
-    await writeFile(
-      resolve(evidenceDir, "permission-inventory.json"),
-      `${JSON.stringify({ allowlist: GITHUB_PERMISSIONS_ALLOWLIST, events: GITHUB_WEBHOOK_EVENTS_ALLOWLIST, recorded }, null, 2)}\n`,
-    );
+    await writeJson(resolve(evidenceDir, "permission-inventory.json"), {
+      allowlist: GITHUB_PERMISSIONS_ALLOWLIST,
+      events: GITHUB_WEBHOOK_EVENTS_ALLOWLIST,
+      recorded,
+    });
     const faultMatrix = [
       "| Fault | Expected | Observed |",
       "| --- | --- | --- |",
@@ -1066,19 +1078,17 @@ async function main(): Promise<void> {
       "| Issue closed | evidence only, task unchanged | F12 |",
     ].join("\n");
     await writeFile(resolve(evidenceDir, "fault-matrix.md"), `${faultMatrix}\n`);
-    await writeFile(
-      resolve(evidenceDir, "command-result.json"),
-      `${JSON.stringify({ command: "pnpm test:x04", scenarios: scenarioResults, outcome: "passed" }, null, 2)}\n`,
-    );
+    await writeJson(resolve(evidenceDir, "command-result.json"), {
+      command: "pnpm test:x04",
+      scenarios: scenarioResults,
+      outcome: "passed",
+    });
     const effects = (await db
       .prepare(
         `SELECT delivery_id, event, action, installation_id, repository_id, state FROM github_webhook_deliveries WHERE workspace_id = ? ORDER BY received_at, delivery_id`,
       )
       .all(FIX.workspace)) as unknown[];
-    await writeFile(
-      resolve(evidenceDir, "delivery-effects.json"),
-      `${JSON.stringify(effects, null, 2)}\n`,
-    );
+    await writeJson(resolve(evidenceDir, "delivery-effects.json"), effects);
     console.log("X04_E2E_OK all scenarios passed");
   } catch (error) {
     for (const entry of server.getLogs().slice(-15)) {

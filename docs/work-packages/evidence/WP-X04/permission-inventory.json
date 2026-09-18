@@ -1,23 +1,11 @@
 {
   "allowlist": {
-    "metadata": [
-      "read"
-    ],
-    "pull_requests": [
-      "read"
-    ],
-    "checks": [
-      "read"
-    ],
-    "commit_statuses": [
-      "read"
-    ],
-    "issues": [
-      "read"
-    ],
-    "deployments": [
-      "read"
-    ]
+    "metadata": ["read"],
+    "pull_requests": ["read"],
+    "checks": ["read"],
+    "commit_statuses": ["read"],
+    "issues": ["read"],
+    "deployments": ["read"]
   },
   "events": [
     "installation",
@@ -40,9 +28,7 @@
       "permissions": {
         "metadata": "read"
       },
-      "events": [
-        "push"
-      ],
+      "events": ["push"],
       "resource_version": 6
     },
     {
@@ -54,10 +40,7 @@
         "metadata": "read",
         "issues": "read"
       },
-      "events": [
-        "installation",
-        "issues"
-      ],
+      "events": ["installation", "issues"],
       "resource_version": 2
     }
   ]
