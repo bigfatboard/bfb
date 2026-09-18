@@ -548,11 +548,23 @@ export async function handleGitHubBrowserApi(
       if (!Array.isArray(body.refs)) {
         throw new DomainError("invalid_argument", "refs must be an array");
       }
+      const rawProjectId = body.project_id;
+      if (rawProjectId !== undefined && typeof rawProjectId !== "string") {
+        throw new DomainError("invalid_argument", "project id is invalid");
+      }
+      const projectId = rawProjectId as string | undefined;
+      if (principal.role === "reviewer" && !projectId) {
+        return json({ error: "forbidden", message: "reviewers verify evidence per project" }, 403);
+      }
       assertRole(principal, ["owner", "member", "reviewer"]);
+      if (projectId) {
+        assertProjectAccess(principal, projectId);
+      }
       const statuses = await getEvidenceVerificationStatus(
         deps.db,
         workspaceId,
         body.refs as Array<{ kind: string; ref: string; version?: string }>,
+        { projectId },
       );
       return json({ ok: true, statuses });
     }

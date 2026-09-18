@@ -1430,6 +1430,71 @@ describe("github evidence linking and provenance", () => {
       ]),
     ).toEqual([{ kind: "artifact_version", ref: "x", provenance: "opaque" }]);
   });
+
+  it("scopes verification answers to one project", async () => {
+    const db = await openDomainDb();
+    await install(db);
+    await activate(db);
+    // The reviewer fixture holds a grant only to projectA; the member links
+    // one runner-observed commit per project.
+    const shaA = "a".repeat(40);
+    const shaB = "b".repeat(40);
+    for (const [projectId, sha] of [
+      [FIX.projectA, shaA],
+      [FIX.projectB, shaB],
+    ] as const) {
+      const linked = await hub(db).execute(linkGitHubEvidenceCommand, {
+        workspaceId: FIX.workspace,
+        idempotencyKey: randomUlid(),
+        actorHumanId: FIX.member,
+        authorizationEpoch: 1,
+        now: NOW,
+        input: {
+          projectId,
+          repositoryId: REPOSITORY,
+          kind: "commit",
+          ref: sha,
+          versionToken: sha,
+          observedBy: "runner",
+        },
+      });
+      expect(linked.ok).toBe(true);
+    }
+    const refA = `github:${REPOSITORY}:commit:${shaA}`;
+    const refB = `github:${REPOSITORY}:commit:${shaB}`;
+    // Unscoped reads keep owner/member behavior: both rows are visible.
+    expect(
+      await getEvidenceVerificationStatus(db, FIX.workspace, [
+        { kind: "github", ref: refA },
+        { kind: "github", ref: refB },
+      ]),
+    ).toEqual([
+      { kind: "github", ref: refA, provenance: "runner_observed" },
+      { kind: "github", ref: refB, provenance: "runner_observed" },
+    ]);
+    // Scoped to projectA, the other project's row stays unverified instead
+    // of leaking its existence through the provenance oracle.
+    expect(
+      await getEvidenceVerificationStatus(
+        db,
+        FIX.workspace,
+        [
+          { kind: "github", ref: refA },
+          { kind: "github", ref: refB },
+        ],
+        { projectId: FIX.projectA },
+      ),
+    ).toEqual([
+      { kind: "github", ref: refA, provenance: "runner_observed" },
+      { kind: "github", ref: refB, provenance: "unverified" },
+    ]);
+    // A malformed scope fails closed instead of answering unscoped.
+    await expect(
+      getEvidenceVerificationStatus(db, FIX.workspace, [{ kind: "github", ref: refA }], {
+        projectId: "not-a-ulid",
+      }),
+    ).rejects.toThrow(DomainError);
+  });
 });
 
 describe("github queue envelope and outbox recovery", () => {

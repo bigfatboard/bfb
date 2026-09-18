@@ -179,7 +179,8 @@ confusion rejected by the shared router):
   Owner-only mutations with per-request idempotency keys and fresh step-up
   proofs, forwarded into the hub commands above.
 - `POST /evidence/links` (owner/member), `POST /evidence/verification`
-  (owner/member/reviewer), `GET /status` (owner/member),
+  (owner/member; reviewers must pass `project_id` for a granted project and
+  answers are filtered to that project), `GET /status` (owner/member),
   `GET /evidence?project_id=&task_id=&repository_id=&limit=` (reviewers
   project-scoped).
 

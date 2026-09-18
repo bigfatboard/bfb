@@ -566,3 +566,82 @@ describe("X04 github management routes", () => {
     expect(removedAgain.status).toBe(409);
   });
 });
+
+describe("X04 github verification project scoping", () => {
+  it("requires reviewers to scope verification to a granted project", async () => {
+    const { context, member, reviewer } = await contextWithSessions();
+    const queue = capturingQueue();
+    const { app, currentBindings } = appFor(context, queue);
+    const send = (request: Request) => app.request(request, undefined, currentBindings);
+    const base = `/api/v1/workspaces/${FIX.workspace}/github`;
+    const memberCsrf = await csrf(app, currentBindings, member.cookie);
+    const reviewerCsrf = await csrf(app, currentBindings, reviewer.cookie);
+    const post = (path: string, cookie: string, csrfToken: string, value: unknown) =>
+      send(mutation(`${base}${path}`, cookie, csrfToken, value));
+
+    // The reviewer fixture holds a grant only to projectA; the member links
+    // one runner-observed commit per project.
+    const shaA = "a".repeat(40);
+    const shaB = "b".repeat(40);
+    const links: Array<[number, string, string]> = [
+      [1, FIX.projectA, shaA],
+      [2, FIX.projectB, shaB],
+    ];
+    for (const [index, projectId, sha] of links) {
+      const linked = await post("/evidence/links", member.cookie, memberCsrf, {
+        request_id: `github-verify-scope-link-${index}`,
+        project_id: projectId,
+        repository_id: REPOSITORY,
+        kind: "commit",
+        ref: sha,
+        version_token: sha,
+        observed_by: "runner",
+      });
+      expect(linked.status, await linked.clone().text()).toBe(200);
+    }
+    const refs = [
+      { kind: "github", ref: `github:${REPOSITORY}:commit:${shaA}` },
+      { kind: "github", ref: `github:${REPOSITORY}:commit:${shaB}` },
+    ];
+
+    // Reviewers verify per project, like GET /evidence: unscoped reads fail.
+    const unscoped = await post("/evidence/verification", reviewer.cookie, reviewerCsrf, {
+      refs,
+    });
+    expect(unscoped.status).toBe(403);
+
+    // A project without a grant is rejected before any oracle answers.
+    const foreign = await post("/evidence/verification", reviewer.cookie, reviewerCsrf, {
+      project_id: FIX.projectB,
+      refs,
+    });
+    expect(foreign.status).toBe(403);
+
+    // Scoped to the granted project, the foreign ref stays unverified.
+    const scoped = await post("/evidence/verification", reviewer.cookie, reviewerCsrf, {
+      project_id: FIX.projectA,
+      refs,
+    });
+    expect(scoped.status, await scoped.clone().text()).toBe(200);
+    expect(await scoped.json()).toEqual({
+      ok: true,
+      statuses: [
+        { kind: "github", ref: refs[0]?.ref, provenance: "runner_observed" },
+        { kind: "github", ref: refs[1]?.ref, provenance: "unverified" },
+      ],
+    });
+
+    // Owner/member reads without a scope keep working.
+    const memberRead = await post("/evidence/verification", member.cookie, memberCsrf, {
+      refs,
+    });
+    expect(memberRead.status, await memberRead.clone().text()).toBe(200);
+    expect(await memberRead.json()).toEqual({
+      ok: true,
+      statuses: [
+        { kind: "github", ref: refs[0]?.ref, provenance: "runner_observed" },
+        { kind: "github", ref: refs[1]?.ref, provenance: "runner_observed" },
+      ],
+    });
+  });
+});

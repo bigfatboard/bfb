@@ -1946,14 +1946,21 @@ function parseGitHubRef(ref: string): { repositoryId: string; kind: string; name
  * Resolves A03-style generic evidence refs against GitHub observations.
  * A runner claim is never upgraded to GitHub verification without a matching
  * github-observed row; unknown kinds stay opaque per the results contract.
+ * A project scope narrows the lookup so callers answer only for evidence in
+ * projects the reader may see; reviewers always pass one.
  */
 export async function getEvidenceVerificationStatus(
   db: SqlDatabase,
   workspaceId: string,
   refs: EvidenceRefInput[],
+  options: { projectId?: string | undefined } = {},
 ): Promise<EvidenceVerification[]> {
   if (!Array.isArray(refs) || refs.length > 20) {
     fail("invalid_argument", "evidence refs must be a bounded list");
+  }
+  const projectId = options.projectId;
+  if (projectId !== undefined && !isUlid(projectId)) {
+    fail("invalid_argument", "project id is invalid");
   }
   const out: EvidenceVerification[] = [];
   for (const item of refs) {
@@ -1972,9 +1979,15 @@ export async function getEvidenceVerificationStatus(
     const rows = (await db
       .prepare(
         `SELECT observed_by, version_token FROM github_evidence
-         WHERE workspace_id = ? AND repository_id = ? AND kind = ? AND ref = ?`,
+         WHERE workspace_id = ? AND repository_id = ? AND kind = ? AND ref = ?${
+           projectId === undefined ? "" : " AND project_id = ?"
+         }`,
       )
-      .all(workspaceId, parsed.repositoryId, parsed.kind, parsed.name)) as Array<{
+      .all(
+        ...(projectId === undefined
+          ? [workspaceId, parsed.repositoryId, parsed.kind, parsed.name]
+          : [workspaceId, parsed.repositoryId, parsed.kind, parsed.name, projectId]),
+      )) as Array<{
       observed_by: GitHubObserver;
       version_token: string;
     }>;
