@@ -6,7 +6,7 @@
   "type": "module",
   "exports": "./dist/index.js",
   "dependencies": {
-    "hono": "4.13.1"
+    "hono": "4.13.8"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20260810.1",

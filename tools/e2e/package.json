@@ -14,7 +14,7 @@
     "@types/better-sqlite3": "7.6.13",
     "@vitejs/plugin-react": "5.1.4",
     "better-sqlite3": "12.6.2",
-    "hono": "4.13.1",
+    "hono": "4.13.8",
     "vite": "8.2.1"
   },
   "devDependencies": {
