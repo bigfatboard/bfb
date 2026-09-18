@@ -11,6 +11,7 @@ import {
 } from "./auth/better-auth.js";
 import { createControlApp } from "./routes.js";
 import { validateControlEnv, type ControlBindings } from "./env.js";
+import { consumeGitHubQueueBatch, createGitHubRestClient, runGitHubSweep } from "./api/github.js";
 export { WorkspaceHub } from "./workspace-hub.js";
 
 /** Optional test/injection hook: supply a SqlDatabase when D1 is not the runtime binding. */
@@ -66,6 +67,48 @@ export function createFetchHandler(options: ControlFetchOptions = {}) {
 
 export default {
   fetch: createFetchHandler(),
+  async queue(batch: MessageBatch, env: ControlBindings): Promise<void> {
+    const validated = validateControlEnv(env);
+    const db = adaptD1(env.DB);
+    const now = new Date().toISOString();
+    const client = createGitHubRestClient({
+      githubApiBase: env.GITHUB_API_BASE,
+      githubAppId: env.GITHUB_APP_ID,
+      githubAppPrivateKey: env.GITHUB_APP_PRIVATE_KEY,
+    });
+    const handles = [];
+    for (const message of batch.messages) {
+      const body = message.body;
+      if (
+        !!body &&
+        typeof body === "object" &&
+        (body as { kind?: unknown }).kind === "github.outbox.dispatch"
+      ) {
+        handles.push({
+          body,
+          ack: () => message.ack(),
+          retry: (options?: { delaySeconds?: number }) => message.retry(options),
+        });
+      } else {
+        // Unknown producer payload: retry into the platform DLQ for triage.
+        message.retry();
+      }
+    }
+    await consumeGitHubQueueBatch(handles, {
+      db,
+      now,
+      jurisdiction: validated.jurisdiction,
+      appOrigin: validated.origins.appOrigin,
+      abuseSecret: env.AUTH_ABUSE_SECRET ?? "",
+      workspaceHubNs: env.WORKSPACE_HUB,
+      jobs: env.JOBS,
+      githubWebhookSecret: env.GITHUB_WEBHOOK_SECRET,
+      githubApiBase: env.GITHUB_API_BASE,
+      githubAppId: env.GITHUB_APP_ID,
+      githubAppPrivateKey: env.GITHUB_APP_PRIVATE_KEY,
+      client,
+    });
+  },
   async scheduled(
     _controller: ScheduledController,
     env: ControlBindings,
@@ -75,6 +118,11 @@ export default {
     try {
       const { runArtifactSweep } = await import("./api/artifacts.js");
       await runArtifactSweep(adaptD1(env.DB), new Date().toISOString());
+    } catch {
+      // The sweep is idempotent and retried on the next Cron tick.
+    }
+    try {
+      await runGitHubSweep(adaptD1(env.DB), env.JOBS, new Date().toISOString());
     } catch {
       // The sweep is idempotent and retried on the next Cron tick.
     }

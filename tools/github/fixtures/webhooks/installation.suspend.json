@@ -1,0 +1,19 @@
+{
+  "event": "installation",
+  "delivery_id": "x04-delivery-install-suspend",
+  "payload": {
+    "action": "suspend",
+    "installation": {
+      "id": 12345678,
+      "account": {
+        "id": 555666,
+        "login": "synthetic-org",
+        "type": "Organization"
+      },
+      "updated_at": "2026-09-18T12:00:00.000Z"
+    },
+    "sender": {
+      "login": "synthetic-org"
+    }
+  }
+}

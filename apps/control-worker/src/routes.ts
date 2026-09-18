@@ -9,6 +9,7 @@ import { DomainError } from "@bfb/domain";
 import { handleAttentionApi } from "./api/attention.js";
 import { handleEventBrowserApi, handleRunnerEventApi, isRunnerEventPath } from "./api/events.js";
 import { handleBrowserRealtimeApi, isBrowserRealtimePath } from "./api/realtime.js";
+import { handleGitHubBrowserApi, handleGitHubWebhook } from "./api/github.js";
 import { handleWorkApi } from "./api/work.js";
 import { handleArtifactBrowserApi } from "./api/artifacts.js";
 import { handleCliBrowserApi, handleCliPublicApi } from "./api/cli-credentials.js";
@@ -539,6 +540,16 @@ export function createControlApp(
       ) {
         return await handleAttentionApi(c.req.raw, apiDeps);
       }
+      if (
+        c.req.path === `${projectPrefix}/github` ||
+        c.req.path.startsWith(`${projectPrefix}/github/`)
+      ) {
+        return await handleGitHubBrowserApi(c.req.raw, {
+          ...apiDeps,
+          appOrigin: current.origins.appOrigin,
+          abuseSecret: runtime.abuseSecret,
+        });
+      }
       return await handleWorkApi(c.req.raw, apiDeps);
     } catch (error) {
       if (error instanceof DomainError) {
@@ -665,18 +676,46 @@ export function createControlApp(
     );
   });
 
-  app.all("/webhooks/*", (c) => {
+  app.all("/webhooks/*", async (c) => {
     if (hasBrowserSessionCookie(c.req.raw)) {
       return c.json(
         { error: "credential_confusion", message: "browser cookie cannot auth webhook routes" },
         401,
       );
     }
+    if (new URL(c.req.url).pathname === "/webhooks/github") {
+      const db = c.get("db") ?? options.db;
+      const current = c.get("validated");
+      if (!db || !current) {
+        return c.json({ error: "api_misconfigured" }, 500);
+      }
+      const envBindings = (c.env ?? {}) as {
+        WORKSPACE_HUB?: DurableObjectNamespace;
+        JOBS?: Queue;
+        GITHUB_WEBHOOK_SECRET?: string;
+        GITHUB_API_BASE?: string;
+        GITHUB_APP_ID?: string;
+        GITHUB_APP_PRIVATE_KEY?: string;
+      };
+      return handleGitHubWebhook(c.req.raw, {
+        db,
+        now: c.get("now") ?? now,
+        jurisdiction: current.jurisdiction,
+        appOrigin: current.origins.appOrigin,
+        abuseSecret: options.abuseSecret ?? "",
+        workspaceHubNs: envBindings.WORKSPACE_HUB,
+        jobs: envBindings.JOBS,
+        githubWebhookSecret: envBindings.GITHUB_WEBHOOK_SECRET,
+        githubApiBase: envBindings.GITHUB_API_BASE,
+        githubAppId: envBindings.GITHUB_APP_ID,
+        githubAppPrivateKey: envBindings.GITHUB_APP_PRIVATE_KEY,
+      });
+    }
     return c.json(
       {
         ok: false,
         error: "webhooks_not_implemented",
-        message: "Webhooks are owned by X04",
+        message: "Only /webhooks/github is implemented",
       },
       501,
     );

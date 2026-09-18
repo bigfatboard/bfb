@@ -1,0 +1,27 @@
+{
+  "event": "deployment",
+  "delivery_id": "x04-delivery-deployment",
+  "payload": {
+    "deployment": {
+      "id": 6060,
+      "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "environment": "synthetic-staging",
+      "created_at": "2026-09-18T12:00:00.000Z"
+    },
+    "repository": {
+      "id": 87654321,
+      "full_name": "synthetic-org/synthetic-repo"
+    },
+    "installation": {
+      "id": 12345678,
+      "account": {
+        "id": 555666,
+        "login": "synthetic-org",
+        "type": "Organization"
+      }
+    },
+    "sender": {
+      "login": "synthetic-org"
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "event": "push",
+  "delivery_id": "x04-delivery-push-old",
+  "payload": {
+    "ref": "refs/heads/main",
+    "head_commit": {
+      "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "timestamp": "2026-09-18T11:55:00.000Z"
+    },
+    "repository": {
+      "id": 87654321,
+      "full_name": "synthetic-org/synthetic-repo"
+    },
+    "installation": {
+      "id": 12345678,
+      "account": {
+        "id": 555666,
+        "login": "synthetic-org",
+        "type": "Organization"
+      }
+    },
+    "sender": {
+      "login": "synthetic-org"
+    }
+  }
+}

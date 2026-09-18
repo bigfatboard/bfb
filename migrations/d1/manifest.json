@@ -1,5 +1,5 @@
 {
-  "migration_head": "0027_measurements",
+  "migration_head": "0028_github_integration",
   "migrations": [
     {
       "id": "0001_workspace_registry",
@@ -100,6 +100,10 @@
     {
       "id": "0027_measurements",
       "file": "0027_measurements.sql"
+    },
+    {
+      "id": "0028_github_integration",
+      "file": "0028_github_integration.sql"
     }
   ]
 }

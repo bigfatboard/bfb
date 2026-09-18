@@ -82,6 +82,15 @@ import {
   submitResultCommand,
 } from "./results.js";
 import {
+  installGitHubCommand,
+  linkGitHubEvidenceCommand,
+  mapGitHubRepositoryCommand,
+  receiveGitHubWebhookCommand,
+  reconcileGitHubCommand,
+  removeGitHubCommand,
+  updateGitHubPermissionsCommand,
+} from "./github.js";
+import {
   createExecutionCommand,
   createProviderSessionCommand,
   createRunCommand,
@@ -172,6 +181,16 @@ const commands = new Map<string, HubCommand<unknown, unknown>>([
   [createExecutionCommand.name, createExecutionCommand as HubCommand<unknown, unknown>],
   [transitionExecutionCommand.name, transitionExecutionCommand as HubCommand<unknown, unknown>],
   [createProviderSessionCommand.name, createProviderSessionCommand as HubCommand<unknown, unknown>],
+  [installGitHubCommand.name, installGitHubCommand as HubCommand<unknown, unknown>],
+  [removeGitHubCommand.name, removeGitHubCommand as HubCommand<unknown, unknown>],
+  [mapGitHubRepositoryCommand.name, mapGitHubRepositoryCommand as HubCommand<unknown, unknown>],
+  [
+    updateGitHubPermissionsCommand.name,
+    updateGitHubPermissionsCommand as HubCommand<unknown, unknown>,
+  ],
+  [receiveGitHubWebhookCommand.name, receiveGitHubWebhookCommand as HubCommand<unknown, unknown>],
+  [reconcileGitHubCommand.name, reconcileGitHubCommand as HubCommand<unknown, unknown>],
+  [linkGitHubEvidenceCommand.name, linkGitHubEvidenceCommand as HubCommand<unknown, unknown>],
   [submitResultCommand.name, submitResultCommand as HubCommand<unknown, unknown>],
   [submitDelegatedResultCommand.name, submitDelegatedResultCommand as HubCommand<unknown, unknown>],
   [

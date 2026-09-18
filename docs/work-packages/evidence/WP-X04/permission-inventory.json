@@ -1,0 +1,64 @@
+{
+  "allowlist": {
+    "metadata": [
+      "read"
+    ],
+    "pull_requests": [
+      "read"
+    ],
+    "checks": [
+      "read"
+    ],
+    "commit_statuses": [
+      "read"
+    ],
+    "issues": [
+      "read"
+    ],
+    "deployments": [
+      "read"
+    ]
+  },
+  "events": [
+    "installation",
+    "installation_repositories",
+    "push",
+    "pull_request",
+    "check_run",
+    "check_suite",
+    "status",
+    "issues",
+    "deployment",
+    "deployment_status"
+  ],
+  "recorded": [
+    {
+      "installation_id": "12345678",
+      "app_slug": "synthetic-app",
+      "account_login": "synthetic-org",
+      "status": "revoked",
+      "permissions": {
+        "metadata": "read"
+      },
+      "events": [
+        "push"
+      ],
+      "resource_version": 6
+    },
+    {
+      "installation_id": "12345679",
+      "app_slug": "synthetic-app",
+      "account_login": "synthetic-org",
+      "status": "active",
+      "permissions": {
+        "metadata": "read",
+        "issues": "read"
+      },
+      "events": [
+        "installation",
+        "issues"
+      ],
+      "resource_version": 2
+    }
+  ]
+}

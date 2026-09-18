@@ -1,0 +1,10 @@
+{
+  "scanned": [
+    "d1",
+    "worker_logs",
+    "double_log",
+    "traces"
+  ],
+  "hits": 0,
+  "outcome": "passed"
+}

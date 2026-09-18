@@ -1,0 +1,30 @@
+{
+  "event": "check_suite",
+  "delivery_id": "x04-delivery-check-suite",
+  "payload": {
+    "action": "completed",
+    "check_suite": {
+      "id": 5150,
+      "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-09-18T11:55:00.000Z",
+      "updated_at": "2026-09-18T12:00:00.000Z"
+    },
+    "repository": {
+      "id": 87654321,
+      "full_name": "synthetic-org/synthetic-repo"
+    },
+    "installation": {
+      "id": 12345678,
+      "account": {
+        "id": 555666,
+        "login": "synthetic-org",
+        "type": "Organization"
+      }
+    },
+    "sender": {
+      "login": "synthetic-org"
+    }
+  }
+}

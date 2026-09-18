@@ -36,6 +36,14 @@ queue = "bfb-jobs-local"
 binding = "JOBS_DLQ"
 queue = "bfb-jobs-dlq-local"
 
+[[queues.consumers]]
+queue = "bfb-jobs-local"
+max_batch_size = 10
+max_batch_timeout = 5
+max_retries = 5
+dead_letter_queue = "bfb-jobs-dlq-local"
+retry_delay = 60
+
 [assets]
 directory = "../web/dist"
 binding = "ASSETS"

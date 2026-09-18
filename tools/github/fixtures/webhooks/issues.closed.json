@@ -1,0 +1,28 @@
+{
+  "event": "issues",
+  "delivery_id": "x04-delivery-issue-closed",
+  "payload": {
+    "action": "closed",
+    "issue": {
+      "number": 9,
+      "state": "closed",
+      "title": "Synthetic X04 linked issue",
+      "updated_at": "2026-09-18T12:00:00.000Z"
+    },
+    "repository": {
+      "id": 87654321,
+      "full_name": "synthetic-org/synthetic-repo"
+    },
+    "installation": {
+      "id": 12345678,
+      "account": {
+        "id": 555666,
+        "login": "synthetic-org",
+        "type": "Organization"
+      }
+    },
+    "sender": {
+      "login": "synthetic-org"
+    }
+  }
+}
