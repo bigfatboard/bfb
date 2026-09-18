@@ -1,0 +1,42 @@
+{
+  "package": "G01",
+  "tested_commit": "d6130621bbc6eaafdca46d952c3ee80d5841f5b1",
+  "environment": "implementation worktree on macOS (arm64); local workerd D1, real Chromium on BFB_E2E_PORT=4197",
+  "outcome": "passed",
+  "commands": [
+    {
+      "command": "pnpm build",
+      "outcome": "passed",
+      "result": "TypeScript project references build including tools/g01"
+    },
+    {
+      "command": "pnpm test:g01",
+      "outcome": "passed",
+      "result": "build plus tools/g01 typecheck; workerd D1 harness (G01_OK 13 passed, 2 waived, 2 not_run: golden fixture with 3 humans, 10 projects, 5 profiles, 2 runners, 4 checkouts; SG-01 credential confusion with live delegation revocation; SG-04 step-up matrix; AG-09 injection corpus plus launch-spec surface; OG-01 duplicate/out-of-order/concurrent ingest; SG-02 hub FIFO plus eviction; AG-02 expiry plus never_acquired cleanup; AG-05 attention round trip; A03 submit/changes/accept without self-review; AG-04 Stop/exit matrix plus capability ceilings; AG-07 measurement derivation; AG-06 hostile artifact state machine plus single-use view grants; SG-05 canary scan; GitHub webhook dedupe plus outbox/DLQ recovery; X05 retention plus diagnostics; AG-01 permission matrix; SG-03 delete-path absence; bounded perf burst) and 4 Chromium scenarios on BFB_E2E_PORT=4197 (bearer/CSRF separation, cookie hygiene, hostile inertness)"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "result": "full repository verification: format, lint, typecheck, protocol, provider, TypeScript suites, headers, docs, roadmap, Go, Swift/Xcode"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "result": "clean worktree at the final commit"
+    },
+    {
+      "command": "GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./...",
+      "outcome": "passed",
+      "result": "Linux cross-compile of the whole module"
+    }
+  ],
+  "migration_head": "0034_operations",
+  "redaction": "passed",
+  "notes": [
+    "The exact gate (build, test:g01) passed from the implementation checkout at the tested commit; the harness and browser evidence regenerate byte-identically because they embed no commit hash, timestamp, or generated id.",
+    "Evidence manifest and command results are docs-only additions after the tested commit; pnpm test:g01, pnpm verify, pnpm worktree:check, and the Linux cross-build were re-run on the final tree.",
+    "Status stays planned: A04, E02, L07, P01, P02, V03, W02, X01, X02, X03, X04, and X05 are not done, so roadmap:check rejects anything beyond planned.",
+    "AG-10 and OG-02 are not_run for G02; AG-02 and AG-04 carry scoped waivers for the L05-owned native Terminal trace and live provider turns, with the cloud-plane proof passed in G01.",
+    "All identities in tests, fixtures, recordings, and this report are synthetic; no secrets, task bodies, prompts, paths, hook payloads, artifact bytes, terminal output, cookies, bearer grant secrets, or local absolute paths are retained."
+  ]
+}

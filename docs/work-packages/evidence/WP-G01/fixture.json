@@ -1,0 +1,59 @@
+{
+  "$schema": "../manifest.schema.json",
+  "seed": "bfb-g01/v1",
+  "fixture_version": 1,
+  "now": "2026-09-18T12:00:00.000Z",
+  "humans": ["owner", "member", "reviewer"],
+  "projects": [
+    "alpha",
+    "beta",
+    "gamma",
+    "delta",
+    "epsilon",
+    "zeta",
+    "eta",
+    "theta",
+    "iota",
+    "kappa"
+  ],
+  "profiles": [
+    {
+      "name": "Codex Refactor",
+      "provider": "codex",
+      "execution_mode": "interactive"
+    },
+    {
+      "name": "Grok Explore",
+      "provider": "grok",
+      "execution_mode": "interactive"
+    },
+    {
+      "name": "G01 Claude Build",
+      "provider": "claude",
+      "execution_mode": "interactive"
+    },
+    {
+      "name": "G01 Fake Interactive",
+      "provider": "fake",
+      "execution_mode": "interactive"
+    },
+    {
+      "name": "G01 Fake Headless",
+      "provider": "fake",
+      "execution_mode": "headless"
+    }
+  ],
+  "runners": [
+    {
+      "alias": "mac-a",
+      "label": "Synthetic G01 Mac A",
+      "checkouts": ["G01CKA1", "G01CKA2"]
+    },
+    {
+      "alias": "mac-b",
+      "label": "Synthetic G01 Mac B",
+      "checkouts": ["G01CKB1", "G01CKB2"]
+    }
+  ],
+  "envelope_tasks": 10
+}
