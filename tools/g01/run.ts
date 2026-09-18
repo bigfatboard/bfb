@@ -151,7 +151,10 @@ const split = manifest.migrations.findIndex((entry) => entry.id === "0034_operat
 assert(split >= 0, "G01 migration split is required");
 const migrationDir = await mkdtemp(resolve(tmpdir(), "bfb-g01-migrations-"));
 for (const migration of manifest.migrations.slice(0, split))
-  await copyFile(resolve(root, "migrations/d1", migration.file), resolve(migrationDir, migration.file));
+  await copyFile(
+    resolve(root, "migrations/d1", migration.file),
+    resolve(migrationDir, migration.file),
+  );
 
 const base = { compatibility_date: "2026-08-08", compatibility_flags: ["nodejs_compat"] };
 const client = {
@@ -292,7 +295,11 @@ function success<T>(outcome: CommandOutcome<T>): T {
   assert(outcome.ok, JSON.stringify(outcome));
   return outcome.result;
 }
-async function human<T>(name: string, input: unknown, extra: Record<string, unknown> = {}): Promise<T> {
+async function human<T>(
+  name: string,
+  input: unknown,
+  extra: Record<string, unknown> = {},
+): Promise<T> {
   return success(await execute<T>(name, input, { actorHumanId: FIX.owner, ...extra }));
 }
 function scanClean(label: string, values: unknown[]): void {
@@ -363,7 +370,10 @@ try {
     .prepare(`SELECT id, state, resource_version FROM tasks WHERE workspace_id = ? ORDER BY id`)
     .all(FIX.workspace);
   for (const migration of manifest.migrations.slice(split))
-    await copyFile(resolve(root, "migrations/d1", migration.file), resolve(migrationDir, migration.file));
+    await copyFile(
+      resolve(root, "migrations/d1", migration.file),
+      resolve(migrationDir, migration.file),
+    );
   await hub.applyD1Migrations("DB");
   assert.deepEqual(
     await db
@@ -547,7 +557,11 @@ try {
   }
   assert.equal(taskIds.length, 10, "ten envelope tasks are required");
   note("fixture", "10 envelope tasks open across all projects");
-  verdict("G-FIXTURE", "passed", "3 humans, 10 projects, 5 profiles, 2 runners, 4 checkouts, 10 tasks");
+  verdict(
+    "G-FIXTURE",
+    "passed",
+    "3 humans, 10 projects, 5 profiles, 2 runners, 4 checkouts, 10 tasks",
+  );
 
   function runnerPrincipal(alias: "mac-a" | "mac-b", runnerId?: string): RunnerPrincipal {
     const runner = runnerId ?? need(runnerIds[alias], `runner ${alias}`);
@@ -600,8 +614,12 @@ try {
         code = (error as { code?: string }).code ?? "thrown";
       }
       assert(
-        code === "credential_confusion" || code === "invalid_token" || code === "foreign_token" ||
-          code === "token_expired" || code === "token_revoked" || code === "unknown_delegation",
+        code === "credential_confusion" ||
+          code === "invalid_token" ||
+          code === "foreign_token" ||
+          code === "token_expired" ||
+          code === "token_revoked" ||
+          code === "unknown_delegation",
         `mcp resolves foreign credential as ${code || "accepted"}`,
       );
     }
@@ -619,7 +637,10 @@ try {
       } catch (error) {
         code = (error as { code?: string }).code ?? "thrown";
       }
-      assert(code === "unauthenticated", `cli resolves foreign credential as ${code || "accepted"}`);
+      assert(
+        code === "unauthenticated",
+        `cli resolves foreign credential as ${code || "accepted"}`,
+      );
     }
     note("sg01", "cli principal resolution rejects mcp/runner/session/malformed credentials");
 
@@ -639,18 +660,25 @@ try {
          VALUES (?, ?, ?, ?, ?, NULL, NULL, ?)`,
       )
       .run(sessionId, "2027-09-18T12:00:00.000Z", `session-${sessionId}`, now, now, authUserId);
-    await db.prepare(`UPDATE humans SET better_auth_user_id = ? WHERE id = ?`).run(authUserId, FIX.owner);
+    await db
+      .prepare(`UPDATE humans SET better_auth_user_id = ? WHERE id = ?`)
+      .run(authUserId, FIX.owner);
     const scopes = ["bfb:read", "bfb:task:write", "offline_access"];
-    const delegationProof = await issueStepUpProof(db, FIX.owner, {
-      action: "oauth.delegation.create",
-      clientId: FIX.client,
-      resource,
-      workspaceId: FIX.workspace,
-      projectId: FIX.projectA,
-      scopes,
-      authorizationEpoch: 1,
-      expiresAt: launchDeadline(now, 600_000),
-    }, now);
+    const delegationProof = await issueStepUpProof(
+      db,
+      FIX.owner,
+      {
+        action: "oauth.delegation.create",
+        clientId: FIX.client,
+        resource,
+        workspaceId: FIX.workspace,
+        projectId: FIX.projectA,
+        scopes,
+        authorizationEpoch: 1,
+        expiresAt: launchDeadline(now, 600_000),
+      },
+      now,
+    );
     const grantId = await prepareDelegationGrant(db, {
       humanId: FIX.owner,
       authUserId,
@@ -670,7 +698,13 @@ try {
     await decideDelegationGrant(db, { grantId, authUserId, sessionId, decision: "accepted", now });
     let decided = "";
     try {
-      await decideDelegationGrant(db, { grantId, authUserId, sessionId, decision: "accepted", now });
+      await decideDelegationGrant(db, {
+        grantId,
+        authUserId,
+        sessionId,
+        decision: "accepted",
+        now,
+      });
     } catch (error) {
       decided = (error as { code?: string }).code ?? "thrown";
     }
@@ -734,16 +768,21 @@ try {
       { scopes: ["bfb:read"], state: "g01-state-002" },
       { scopes, state: `x`.repeat(513) },
     ]) {
-      const proof = await issueStepUpProof(db, FIX.owner, {
-        action: "oauth.delegation.create",
-        clientId: FIX.client,
-        resource,
-        workspaceId: FIX.workspace,
-        projectId: FIX.projectA,
-        scopes: bad.scopes,
-        authorizationEpoch: 1,
-        expiresAt: launchDeadline(now, 600_000),
-      }, now);
+      const proof = await issueStepUpProof(
+        db,
+        FIX.owner,
+        {
+          action: "oauth.delegation.create",
+          clientId: FIX.client,
+          resource,
+          workspaceId: FIX.workspace,
+          projectId: FIX.projectA,
+          scopes: bad.scopes,
+          authorizationEpoch: 1,
+          expiresAt: launchDeadline(now, 600_000),
+        },
+        now,
+      );
       let code = "";
       try {
         await prepareDelegationGrant(db, {
@@ -763,7 +802,10 @@ try {
       } catch (error) {
         code = (error as { code?: string }).code ?? "thrown";
       }
-      assert(code === "invalid_scope" || code === "invalid_request", `bad grant rejected as ${code}`);
+      assert(
+        code === "invalid_scope" || code === "invalid_request",
+        `bad grant rejected as ${code}`,
+      );
     }
     note("sg01", "scope-less and oversized delegation requests create no grant");
   }
@@ -840,7 +882,14 @@ try {
   // G-AG09: malicious identifiers, text, and config cannot alter commands or reach trusted APIs.
   {
     const HOSTILE = `</script><script>alert(document.cookie)</script><img src=x onerror=alert(1)>`;
-    for (const badId of ["../escape", "../../etc/passwd", "'; DROP TABLE tasks; --", "", "not a ulid", "01JBFB0SHORT"]) {
+    for (const badId of [
+      "../escape",
+      "../../etc/passwd",
+      "'; DROP TABLE tasks; --",
+      "",
+      "not a ulid",
+      "01JBFB0SHORT",
+    ]) {
       const outcome = await execute(createTaskCommand.name, {
         projectId: badId,
         title: "Synthetic G01 hostile id probe",
@@ -857,7 +906,11 @@ try {
     const stored = (await db
       .prepare(`SELECT title FROM tasks WHERE workspace_id = ? AND id = ?`)
       .get(FIX.workspace, hostileTask.id)) as { title: string };
-    assert.equal(stored.title, hostileTask.title, "hostile text stores verbatim without interpretation");
+    assert.equal(
+      stored.title,
+      hostileTask.title,
+      "hostile text stores verbatim without interpretation",
+    );
     const oversized = await execute(createTaskCommand.name, {
       projectId: FIX.projectA,
       title: `x`.repeat(513),
@@ -882,7 +935,11 @@ try {
       contentHash: emptyConfig,
     });
     assert.equal(bigConfig.status, 413, "oversized command bodies are rejected at the transport");
-    assert.equal((bigConfig.body as { error: string }).error, "body_too_large", "oversized bodies report their bound");
+    assert.equal(
+      (bigConfig.body as { error: string }).error,
+      "body_too_large",
+      "oversized bodies report their bound",
+    );
     // A mismatched config hash never validates.
     const hashMismatch = await execute(reportRepositoryConfigCommand.name, {
       projectId: FIX.projectA,
@@ -924,16 +981,20 @@ try {
         fencing_generation: number;
       };
     }>(
-      await execute(claimLaunchCommand.name, {
-        principal: macA,
-        claim: {
-          schema_version: 1,
-          launch_id: started.launch_id,
-          runner_id: idMacA,
-          idempotency_key: nextKey("launch"),
-          claimed_at: now,
+      await execute(
+        claimLaunchCommand.name,
+        {
+          principal: macA,
+          claim: {
+            schema_version: 1,
+            launch_id: started.launch_id,
+            runner_id: idMacA,
+            idempotency_key: nextKey("launch"),
+            claimed_at: now,
+          },
         },
-      }, { actorRunnerId: idMacA }),
+        { actorRunnerId: idMacA },
+      ),
     );
     assert.equal(claimed.state, "claimed", "mac-a claim must succeed");
     const specText = JSON.stringify(claimed.claim.specification);
@@ -960,7 +1021,12 @@ try {
     const streamA = g01Id("G01STRMA");
     const streamB = g01Id("G01STRMB");
     let eventSequence = 0;
-    function item(order: number, stream: string, kind = "heartbeat", extra: Record<string, unknown> = {}) {
+    function item(
+      order: number,
+      stream: string,
+      kind = "heartbeat",
+      extra: Record<string, unknown> = {},
+    ) {
       eventSequence += 1;
       return {
         schema_version: 1,
@@ -1026,7 +1092,9 @@ try {
     const ledgerCursors = ledger.map((row) => row.workspace_cursor);
     assert.equal(new Set(ledgerCursors).size, ledgerCursors.length, "ledger cursors never collide");
     assert(
-      ledgerCursors.every((cursor, index) => index === 0 || cursor > (ledgerCursors[index - 1] ?? 0)),
+      ledgerCursors.every(
+        (cursor, index) => index === 0 || cursor > (ledgerCursors[index - 1] ?? 0),
+      ),
       "ledger cursors stay strictly ordered",
     );
     // Replay from a cursor re-reads committed events without inventing state.
@@ -1053,8 +1121,16 @@ try {
     const sharedKey = nextKey("shared");
     const actor = { actorHumanId: FIX.owner, idempotencyKey: sharedKey };
     const raced = await Promise.all([
-      execute(createTaskCommand.name, { projectId: FIX.projectA, title: "Synthetic G01 race", priority: "P2" }, actor),
-      execute(createTaskCommand.name, { projectId: FIX.projectA, title: "Synthetic G01 race", priority: "P2" }, actor),
+      execute(
+        createTaskCommand.name,
+        { projectId: FIX.projectA, title: "Synthetic G01 race", priority: "P2" },
+        actor,
+      ),
+      execute(
+        createTaskCommand.name,
+        { projectId: FIX.projectA, title: "Synthetic G01 race", priority: "P2" },
+        actor,
+      ),
     ]);
     assert(raced[0]?.ok && raced[1]?.ok, "raced identical commands both resolve");
     assert.deepEqual(
@@ -1090,7 +1166,11 @@ try {
       )
       .all(FIX.workspace)) as Array<{ workspace_cursor: number }>;
     assert.equal(cursors.length, 12, "every mutation appends its cursor");
-    assert.equal(new Set(cursors.map((row) => row.workspace_cursor)).size, 12, "cursors never collide");
+    assert.equal(
+      new Set(cursors.map((row) => row.workspace_cursor)).size,
+      12,
+      "cursors never collide",
+    );
     note("sg02", "hub FIFO: one stored result, no cursor collision under concurrency");
     // Socket eviction loses no authority: the DO recovers from D1 and continues monotonically.
     const beforeEvict = (await db
@@ -1135,29 +1215,65 @@ try {
     });
     const expiredNow = launchDeadline(now, 242_000);
     const expired = success<{ state: string }>(
-      await execute(claimLaunchCommand.name, {
-        principal: macA,
-        claim: {
-          schema_version: 1,
-          launch_id: expiring.launch_id,
-          runner_id: idMacA,
-          idempotency_key: nextKey("launch"),
-          claimed_at: expiredNow,
+      await execute(
+        claimLaunchCommand.name,
+        {
+          principal: macA,
+          claim: {
+            schema_version: 1,
+            launch_id: expiring.launch_id,
+            runner_id: idMacA,
+            idempotency_key: nextKey("launch"),
+            claimed_at: expiredNow,
+          },
         },
-      }, { actorRunnerId: macA.runnerId, now: expiredNow }),
+        { actorRunnerId: macA.runnerId, now: expiredNow },
+      ),
     );
     assert.equal(expired.state, "expired", "late claim settles as expired");
     const execution = (await db
-      .prepare(`SELECT state, end_reason FROM run_executions WHERE workspace_id = ? AND run_id = (SELECT run_id FROM launch_commands WHERE workspace_id = ? AND id = ?)`)
+      .prepare(
+        `SELECT state, end_reason FROM run_executions WHERE workspace_id = ? AND run_id = (SELECT run_id FROM launch_commands WHERE workspace_id = ? AND id = ?)`,
+      )
       .get(FIX.workspace, FIX.workspace, expiring.launch_id)) as {
       state: string;
       end_reason: string;
     };
-    assert.deepEqual(execution, { state: "ended", end_reason: "launch_expired" }, "expired launch ends its execution");
+    assert.deepEqual(
+      execution,
+      { state: "ended", end_reason: "launch_expired" },
+      "expired launch ends its execution",
+    );
     // Cleanup-only reconciliation for a never-claimed terminal command.
     const reconciled = success<Record<string, unknown>>(
-      await execute(reconcileLaunchCommand.name, {
-        principal: macA,
+      await execute(
+        reconcileLaunchCommand.name,
+        {
+          principal: macA,
+          claim: {
+            schema_version: 1,
+            launch_id: expiring.launch_id,
+            runner_id: idMacA,
+            idempotency_key: nextKey("launch"),
+            claimed_at: expiredNow,
+          },
+        },
+        { actorRunnerId: macA.runnerId, now: expiredNow },
+      ),
+    );
+    assert.equal(
+      reconciled["reservation_state"],
+      "never_acquired",
+      "cleanup receipt acquires nothing",
+    );
+    for (const forbidden of ["specification", "fencing_generation", "config_snapshot", "fence"]) {
+      assert(!(forbidden in reconciled), `cleanup receipt must not carry ${forbidden}`);
+    }
+    // Another runner cannot reconcile this execution.
+    const foreign = await execute(
+      reconcileLaunchCommand.name,
+      {
+        principal: runnerPrincipal("mac-b"),
         claim: {
           schema_version: 1,
           launch_id: expiring.launch_id,
@@ -1165,23 +1281,9 @@ try {
           idempotency_key: nextKey("launch"),
           claimed_at: expiredNow,
         },
-      }, { actorRunnerId: macA.runnerId, now: expiredNow }),
-    );
-    assert.equal(reconciled["reservation_state"], "never_acquired", "cleanup receipt acquires nothing");
-    for (const forbidden of ["specification", "fencing_generation", "config_snapshot", "fence"]) {
-      assert(!(forbidden in reconciled), `cleanup receipt must not carry ${forbidden}`);
-    }
-    // Another runner cannot reconcile this execution.
-    const foreign = await execute(reconcileLaunchCommand.name, {
-      principal: runnerPrincipal("mac-b"),
-      claim: {
-        schema_version: 1,
-        launch_id: expiring.launch_id,
-        runner_id: idMacA,
-        idempotency_key: nextKey("launch"),
-        claimed_at: expiredNow,
       },
-    }, { actorRunnerId: idMacB, now: expiredNow });
+      { actorRunnerId: idMacB, now: expiredNow },
+    );
     assert(!foreign.ok, "foreign runner cannot reconcile another execution");
     note("ag02", "expiry ends executions; cleanup receipts carry no launch authority");
   }
@@ -1191,15 +1293,19 @@ try {
   {
     const macA = runnerPrincipal("mac-a");
     const requested = success<AttentionRecord>(
-      await execute(requestAttentionCommand.name, {
-        principal: macA,
-        runId: shared.runId,
-        executionId: shared.executionId,
-        assignmentGeneration: shared.generation,
-        kind: "clarification",
-        question: `SYNTHETIC-G01-ATTENTION canary ${CANARIES.taskBody}`,
-        blocking: true,
-      }, { actorRunnerId: macA.runnerId }),
+      await execute(
+        requestAttentionCommand.name,
+        {
+          principal: macA,
+          runId: shared.runId,
+          executionId: shared.executionId,
+          assignmentGeneration: shared.generation,
+          kind: "clarification",
+          question: `SYNTHETIC-G01-ATTENTION canary ${CANARIES.taskBody}`,
+          blocking: true,
+        },
+        { actorRunnerId: macA.runnerId },
+      ),
     );
     assert.equal(requested.state, "open", "attention opens waiting for a human");
     // A stale answer version conflicts instead of overwriting.
@@ -1223,8 +1329,14 @@ try {
     // Reviewers see only their project scope. The question body legitimately
     // lives in its own record; derived outputs (links, payloads) are scanned in SG-05.
     const visible = await listAttention(db, FIX.workspace, [FIX.projectA]);
-    assert(visible.every((entry) => entry.project_id === FIX.projectA), "attention reads stay project-scoped");
-    assert(visible.some((entry) => entry.kind === "clarification"), "the open request is listed");
+    assert(
+      visible.every((entry) => entry.project_id === FIX.projectA),
+      "attention reads stay project-scoped",
+    );
+    assert(
+      visible.some((entry) => entry.kind === "clarification"),
+      "the open request is listed",
+    );
     scanClean("ag05-outputs", [resolved.state, resolved.kind, visible.map((entry) => entry.state)]);
     note("ag05", "attention request/answer/resolve round-trips with version guards");
   }
@@ -1234,35 +1346,49 @@ try {
   {
     const macA = runnerPrincipal("mac-a");
     const submitted = success<{ submission: { id: string; version: number } }>(
-      await execute(submitResultCommand.name, {
-        runId: shared.runId,
-        summary: "Synthetic G01 explicit result",
-        limitations: "Synthetic G01 limitation",
-        gitBranch: "main",
-        gitCommit: "a".repeat(40),
-        gitDirty: false,
-      }, { actorRunnerId: macA.runnerId }),
+      await execute(
+        submitResultCommand.name,
+        {
+          runId: shared.runId,
+          summary: "Synthetic G01 explicit result",
+          limitations: "Synthetic G01 limitation",
+          gitBranch: "main",
+          gitCommit: "a".repeat(40),
+          gitDirty: false,
+        },
+        { actorRunnerId: macA.runnerId },
+      ),
     );
     assert.equal(submitted.submission.version, 1, "first explicit submission is version 1");
     // A second submission while in review is rejected: no silent overwrite.
-    const resubmit = await execute(submitResultCommand.name, {
-      runId: shared.runId,
-      summary: "Synthetic G01 duplicate result",
-    }, { actorRunnerId: macA.runnerId });
+    const resubmit = await execute(
+      submitResultCommand.name,
+      {
+        runId: shared.runId,
+        summary: "Synthetic G01 duplicate result",
+      },
+      { actorRunnerId: macA.runnerId },
+    );
     assert(!resubmit.ok, "duplicate submission while in review must fail");
     // The runner cannot accept its own result.
     const versions = (await db
       .prepare(`SELECT resource_version FROM runs WHERE workspace_id = ? AND id = ?`)
       .get(FIX.workspace, shared.runId)) as { resource_version: number };
     const taskVersion = (await db
-      .prepare(`SELECT resource_version FROM tasks WHERE workspace_id = ? AND id = (SELECT task_id FROM runs WHERE workspace_id = ? AND id = ?)`)
+      .prepare(
+        `SELECT resource_version FROM tasks WHERE workspace_id = ? AND id = (SELECT task_id FROM runs WHERE workspace_id = ? AND id = ?)`,
+      )
       .get(FIX.workspace, FIX.workspace, shared.runId)) as { resource_version: number };
-    const selfAccept = await execute("result.accept", {
-      runId: shared.runId,
-      submissionId: submitted.submission.id,
-      expectedRunVersion: versions.resource_version,
-      expectedTaskVersion: taskVersion.resource_version,
-    }, { actorRunnerId: macA.runnerId });
+    const selfAccept = await execute(
+      "result.accept",
+      {
+        runId: shared.runId,
+        submissionId: submitted.submission.id,
+        expectedRunVersion: versions.resource_version,
+        expectedTaskVersion: taskVersion.resource_version,
+      },
+      { actorRunnerId: macA.runnerId },
+    );
     assert(!selfAccept.ok, "agent self-accept must fail");
     // Human requests changes, the run reopens, and a new submission supersedes.
     const changes = success(
@@ -1276,17 +1402,23 @@ try {
     );
     void changes;
     const second = success<{ submission: { id: string; version: number } }>(
-      await execute(submitResultCommand.name, {
-        runId: shared.runId,
-        summary: "Synthetic G01 revised result",
-      }, { actorRunnerId: macA.runnerId }),
+      await execute(
+        submitResultCommand.name,
+        {
+          runId: shared.runId,
+          summary: "Synthetic G01 revised result",
+        },
+        { actorRunnerId: macA.runnerId },
+      ),
     );
     assert.equal(second.submission.version, 2, "reopened run produces submission version 2");
     const versions2 = (await db
       .prepare(`SELECT resource_version FROM runs WHERE workspace_id = ? AND id = ?`)
       .get(FIX.workspace, shared.runId)) as { resource_version: number };
     const taskVersion2 = (await db
-      .prepare(`SELECT resource_version FROM tasks WHERE workspace_id = ? AND id = (SELECT task_id FROM runs WHERE workspace_id = ? AND id = ?)`)
+      .prepare(
+        `SELECT resource_version FROM tasks WHERE workspace_id = ? AND id = (SELECT task_id FROM runs WHERE workspace_id = ? AND id = ?)`,
+      )
       .get(FIX.workspace, FIX.workspace, shared.runId)) as { resource_version: number };
     const accepted = success(
       await execute(acceptResultCommand.name, {
@@ -1299,7 +1431,10 @@ try {
     void accepted;
     const submissions = await listResultSubmissions(db, FIX.workspace, shared.runId);
     assert.equal(submissions.length, 2, "both submissions stay in history");
-    assert(submissions.every((entry) => entry.summary.startsWith("Synthetic G01")), "history keeps summaries");
+    assert(
+      submissions.every((entry) => entry.summary.startsWith("Synthetic G01")),
+      "history keeps summaries",
+    );
     scanClean("a03-outputs", [submissions.map((entry) => entry.version)]);
     note("a03", "submit/review/changes/accept lifecycle keeps immutable history");
   }
@@ -1308,18 +1443,32 @@ try {
   // G-AG04: providers share lifecycle semantics; Stop and exit never submit results.
   {
     assert.equal(
-      isUnambiguousHeadlessSuccess({ executionMode: "headless", endReason: "process_exit", exitCode: 0, successAttested: true }),
+      isUnambiguousHeadlessSuccess({
+        executionMode: "headless",
+        endReason: "process_exit",
+        exitCode: 0,
+        successAttested: true,
+      }),
       true,
       "only attested headless exit-zero qualifies",
     );
     for (const facts of [
-      { executionMode: "interactive", endReason: "process_exit", exitCode: 0, successAttested: true },
+      {
+        executionMode: "interactive",
+        endReason: "process_exit",
+        exitCode: 0,
+        successAttested: true,
+      },
       { executionMode: "headless", endReason: "terminated", exitCode: 0, successAttested: true },
       { executionMode: "headless", endReason: "process_exit", exitCode: 1, successAttested: true },
       { executionMode: "headless", endReason: "process_exit", exitCode: 0, successAttested: false },
       { executionMode: "headless", endReason: "lost", exitCode: null, successAttested: false },
     ] as const) {
-      assert.equal(isUnambiguousHeadlessSuccess({ ...facts }), false, `no auto-submit for ${facts.endReason}/${facts.exitCode}`);
+      assert.equal(
+        isUnambiguousHeadlessSuccess({ ...facts }),
+        false,
+        `no auto-submit for ${facts.endReason}/${facts.exitCode}`,
+      );
     }
     note("ag04", "Stop/exit/session-end matrix never qualifies as a submission");
     // Capability ceilings hold per provider: mac-b reports fake only, so a codex
@@ -1345,7 +1494,11 @@ try {
     });
     assert(!codexStart.ok, "codex launch on a fake-only runner must fail its ceiling");
     if (!codexStart.ok) {
-      assert.equal(codexStart.error.code, "request_rejected", "runner capability ceiling rejects with request_rejected");
+      assert.equal(
+        codexStart.error.code,
+        "request_rejected",
+        "runner capability ceiling rejects with request_rejected",
+      );
       note("ag04", "fake-only runner rejects codex launch as request_rejected");
     }
     // Unknown providers cannot be registered at all.
@@ -1392,7 +1545,11 @@ try {
     });
     assert(!tightStart.ok, "project policy denying fake must block fake launches");
     if (!tightStart.ok) {
-      assert.equal(tightStart.error.code, "provider_forbidden", "project ceiling rejects with provider_forbidden");
+      assert.equal(
+        tightStart.error.code,
+        "provider_forbidden",
+        "project ceiling rejects with provider_forbidden",
+      );
       note("ag04", "tightened project ceiling rejects fake launch as provider_forbidden");
     }
     // Restore the envelope ceiling so later suites run under the pinned policy.
@@ -1416,7 +1573,26 @@ try {
     const observationId = g01Id("G01OBS01");
     const tokens = { input_tokens: 120, output_tokens: 45, cached_input_tokens: 30 };
     const first = success<{ observation_id: string }>(
-      await execute(reportTokensCommand.name, {
+      await execute(
+        reportTokensCommand.name,
+        {
+          principal: macA,
+          observationId,
+          runId: shared.runId,
+          executionId: shared.executionId,
+          assignmentGeneration: shared.generation,
+          provider: "fake",
+          model: "synthetic",
+          tokens,
+          quality: "provider_reported",
+        },
+        { actorRunnerId: macA.runnerId },
+      ),
+    );
+    // Replayed observations never double-count: one row per observation identity.
+    const replayed = await execute(
+      reportTokensCommand.name,
+      {
         principal: macA,
         observationId,
         runId: shared.runId,
@@ -1426,22 +1602,13 @@ try {
         model: "synthetic",
         tokens,
         quality: "provider_reported",
-      }, { actorRunnerId: macA.runnerId }),
+      },
+      { actorRunnerId: macA.runnerId },
     );
-    // Replayed observations never double-count: one row per observation identity.
-    const replayed = await execute(reportTokensCommand.name, {
-      principal: macA,
-      observationId,
-      runId: shared.runId,
-      executionId: shared.executionId,
-      assignmentGeneration: shared.generation,
-      provider: "fake",
-      model: "synthetic",
-      tokens,
-      quality: "provider_reported",
-    }, { actorRunnerId: macA.runnerId });
     const tokenRows = (await db
-      .prepare(`SELECT COUNT(*) AS count FROM token_observations WHERE workspace_id = ? AND observation_id = ?`)
+      .prepare(
+        `SELECT COUNT(*) AS count FROM token_observations WHERE workspace_id = ? AND observation_id = ?`,
+      )
       .get(FIX.workspace, observationId)) as { count: number };
     assert.equal(tokenRows.count, 1, "duplicate token observations insert exactly one row");
     if (replayed.ok) {
@@ -1449,33 +1616,49 @@ try {
       assert.equal(replayedId, first.observation_id, "replayed observation returns the stored row");
     }
     // Estimated and unavailable provider usage stays separated from exact counts.
-    await execute(reportTokensCommand.name, {
-      principal: macA,
-      observationId: g01Id("G01OBS02"),
-      runId: shared.runId,
-      executionId: shared.executionId,
-      assignmentGeneration: shared.generation,
-      provider: "codex",
-      model: "synthetic",
-      tokens: { input_tokens: 10 },
-      quality: "estimated",
-    }, { actorRunnerId: macA.runnerId });
-    await execute(reportTokensCommand.name, {
-      principal: macA,
-      observationId: g01Id("G01OBS03"),
-      runId: shared.runId,
-      executionId: shared.executionId,
-      assignmentGeneration: shared.generation,
-      provider: "grok",
-      tokens: {},
-      quality: "unavailable",
-    }, { actorRunnerId: macA.runnerId });
+    await execute(
+      reportTokensCommand.name,
+      {
+        principal: macA,
+        observationId: g01Id("G01OBS02"),
+        runId: shared.runId,
+        executionId: shared.executionId,
+        assignmentGeneration: shared.generation,
+        provider: "codex",
+        model: "synthetic",
+        tokens: { input_tokens: 10 },
+        quality: "estimated",
+      },
+      { actorRunnerId: macA.runnerId },
+    );
+    await execute(
+      reportTokensCommand.name,
+      {
+        principal: macA,
+        observationId: g01Id("G01OBS03"),
+        runId: shared.runId,
+        executionId: shared.executionId,
+        assignmentGeneration: shared.generation,
+        provider: "grok",
+        tokens: {},
+        quality: "unavailable",
+      },
+      { actorRunnerId: macA.runnerId },
+    );
     const derived = await getRunMeasurements(db, FIX.workspace, shared.runId, now);
     assert.equal(derived.tokens.exact.input, 120, "exact input total keeps provider counts");
     assert.equal(derived.tokens.exact.output, 45, "exact output total keeps provider counts");
     assert.equal(derived.tokens.estimated.input, 10, "estimated usage stays in its own bucket");
-    assert.equal(derived.tokens.unavailable_count, 1, "unavailable usage is counted, never invented");
-    assert.deepEqual(derived.tokens.exact_observation_ids, [observationId], "exact provenance lists its observation");
+    assert.equal(
+      derived.tokens.unavailable_count,
+      1,
+      "unavailable usage is counted, never invented",
+    );
+    assert.deepEqual(
+      derived.tokens.exact_observation_ids,
+      [observationId],
+      "exact provenance lists its observation",
+    );
     assert.equal(derived.provenance.token_observations, 3, "provenance counts every observation");
     // Provider usage shapes normalize without invention; hostile counters are rejected.
     assert.deepEqual(normalizeTokenFields({ input_tokens: 3, cache_read_input_tokens: 4 }), {
@@ -1492,27 +1675,54 @@ try {
       hostileCounter = (error as { code?: string }).code ?? "thrown";
     }
     assert.equal(hostileCounter, "invalid_argument", "negative token counters are rejected");
-    assert.deepEqual(sumTokenFields([{ input: 1, output: 2, cache_read: null, cache_write: null, reasoning: null }]), {
-      input: 1,
-      output: 2,
-      cache_read: null,
-      cache_write: null,
-      reasoning: null,
-    });
+    assert.deepEqual(
+      sumTokenFields([
+        { input: 1, output: 2, cache_read: null, cache_write: null, reasoning: null },
+      ]),
+      {
+        input: 1,
+        output: 2,
+        cache_read: null,
+        cache_write: null,
+        reasoning: null,
+      },
+    );
     // Process intervals are observed facts, never inferred from transport presence.
-    await execute(reportIntervalCommand.name, {
-      principal: macA,
-      runId: shared.runId,
-      executionId: shared.executionId,
-      assignmentGeneration: shared.generation,
-      intervalKind: "active",
-      startedAt: now,
-      endedAt: launchDeadline(now, 60_000),
-    }, { actorRunnerId: macA.runnerId });
+    await execute(
+      reportIntervalCommand.name,
+      {
+        principal: macA,
+        runId: shared.runId,
+        executionId: shared.executionId,
+        assignmentGeneration: shared.generation,
+        intervalKind: "active",
+        startedAt: now,
+        endedAt: launchDeadline(now, 60_000),
+      },
+      { actorRunnerId: macA.runnerId },
+    );
     const intervals = await listMeasurementIntervals(db, FIX.workspace, shared.runId);
     assert.equal(intervals.length, 1, "one observed interval is stored");
-    assert(tokenFieldsPresent({ input: 1, output: null, cache_read: null, cache_write: null, reasoning: null }), "presence helper is exact");
-    assert(!tokenFieldsPresent({ input: null, output: null, cache_read: null, cache_write: null, reasoning: null }), "empty fields report absent");
+    assert(
+      tokenFieldsPresent({
+        input: 1,
+        output: null,
+        cache_read: null,
+        cache_write: null,
+        reasoning: null,
+      }),
+      "presence helper is exact",
+    );
+    assert(
+      !tokenFieldsPresent({
+        input: null,
+        output: null,
+        cache_read: null,
+        cache_write: null,
+        reasoning: null,
+      }),
+      "empty fields report absent",
+    );
     note("ag07", "token observations dedupe; derivations union exact/estimated/unavailable");
   }
   verdict("AG-07", "passed", "measurements deduplicate, derive exactly, and separate provenance");
@@ -1530,18 +1740,27 @@ try {
       logKind = (error as { code?: string }).code ?? "thrown";
     }
     assert(logKind !== "", "log role rejects uncompressed hostile bytes");
-    assert(formatAllowsKind("html", sniffArtifactKind(hostileBytes)), "html format accepts html bytes");
-    assert(!formatAllowsKind("markdown", sniffArtifactKind(hostileBytes)), "markdown format rejects html bytes");
+    assert(
+      formatAllowsKind("html", sniffArtifactKind(hostileBytes)),
+      "html format accepts html bytes",
+    );
+    assert(
+      !formatAllowsKind("markdown", sniffArtifactKind(hostileBytes)),
+      "markdown format rejects html bytes",
+    );
     const contentHash = artifactHash(hostileBytes);
     const upload = mintUploadGrantSecret();
-    const created = await human<{ artifact_id: string; version_id: string }>(createArtifactCommand.name, {
-      runId: shared.runId,
-      format: "html",
-      role: "review",
-      declaredSize: hostileBytes.byteLength,
-      expectedDigest: contentHash,
-      grantSecretHash: artifactHash(upload.secret),
-    });
+    const created = await human<{ artifact_id: string; version_id: string }>(
+      createArtifactCommand.name,
+      {
+        runId: shared.runId,
+        format: "html",
+        role: "review",
+        declaredSize: hostileBytes.byteLength,
+        expectedDigest: contentHash,
+        grantSecretHash: artifactHash(upload.secret),
+      },
+    );
     // Re-issuing under the same hash collides by design: one live grant per hash.
     const sameHash = await execute(issueArtifactGrantCommand.name, {
       versionId: created.version_id,
@@ -1563,7 +1782,11 @@ try {
       }
       assert(code !== "", "wrong upload secret must fail");
     }
-    const redeemed = await redeemUploadGrant(db, { grantId: grant.grant_id, secret: uploadB.secret, now });
+    const redeemed = await redeemUploadGrant(db, {
+      grantId: grant.grant_id,
+      secret: uploadB.secret,
+      now,
+    });
     assert.equal(redeemed.grantId, grant.grant_id, "exact secret redeems exactly once");
     let replayCode = "";
     try {
@@ -1625,14 +1848,24 @@ try {
     });
     assert.equal(redeemedView.viewId, viewGrant.view_id, "exact view secret redeems once");
     try {
-      await redeemViewGrant(db, { viewId: viewGrant.view_id, secret: view.secret, nonce: viewNonce, now });
+      await redeemViewGrant(db, {
+        viewId: viewGrant.view_id,
+        secret: view.secret,
+        nonce: viewNonce,
+        now,
+      });
     } catch (error) {
       viewReplay = (error as { code?: string }).code ?? "thrown";
     }
     assert(viewReplay !== "", "consumed view grant cannot replay");
     let viewWrong = "";
     try {
-      await redeemViewGrant(db, { viewId: viewGrant.view_id, secret: "wrong-view-secret-0000", nonce: viewNonce, now });
+      await redeemViewGrant(db, {
+        viewId: viewGrant.view_id,
+        secret: "wrong-view-secret-0000",
+        nonce: viewNonce,
+        now,
+      });
     } catch (error) {
       viewWrong = (error as { code?: string }).code ?? "thrown";
     }
@@ -1675,15 +1908,25 @@ try {
       }
     }
     assert(selected >= 2, "attention and submission events select notification subjects");
-    assert.equal(selectNotificationEvent("task.unknown_kind", { result: {} }), null, "unknown kinds select nothing");
     assert.equal(
-      selectNotificationEvent("attention.request", { result: { state: "resolved", id: g01Id("G01ATT01") } }),
+      selectNotificationEvent("task.unknown_kind", { result: {} }),
+      null,
+      "unknown kinds select nothing",
+    );
+    assert.equal(
+      selectNotificationEvent("attention.request", {
+        result: { state: "resolved", id: g01Id("G01ATT01") },
+      }),
       null,
       "resolved attention selects nothing",
     );
     // Delivery identity is stable: queue redelivery converges on one logical effect.
     const first = deriveDeliveryId(FIX.workspace, 41, "browser_push", FIX.owner);
-    assert.equal(deriveDeliveryId(FIX.workspace, 41, "browser_push", FIX.owner), first, "delivery ids are deterministic");
+    assert.equal(
+      deriveDeliveryId(FIX.workspace, 41, "browser_push", FIX.owner),
+      first,
+      "delivery ids are deterministic",
+    );
     assert.notEqual(
       deriveDeliveryId(FIX.workspace, 41, "browser_push", FIX.owner),
       deriveDeliveryId(FIX.workspace, 42, "browser_push", FIX.owner),
@@ -1693,11 +1936,16 @@ try {
     assert.equal(notificationJobId(FIX.workspace, 41), jobA, "queue job ids are deterministic");
     // Deep links and push payloads carry IDs, never bodies: the planted canary
     // in the attention question must not surface.
-    const link = notificationDeepLink(origin, FIX.workspace, {
-      projectId: FIX.projectA,
-      taskId: taskIds[0] ?? FIX.taskAttention,
-      attentionId: g01Id("G01ATT01"),
-    }, "attention");
+    const link = notificationDeepLink(
+      origin,
+      FIX.workspace,
+      {
+        projectId: FIX.projectA,
+        taskId: taskIds[0] ?? FIX.taskAttention,
+        attentionId: g01Id("G01ATT01"),
+      },
+      "attention",
+    );
     assert(link.startsWith(`${origin}/w/`), "deep link stays on the app origin");
     const payload = buildPushPayload({
       appOrigin: origin,
@@ -1711,7 +1959,10 @@ try {
     // Audit and activity stay separated: audit is Owner-only structured records,
     // activity is project-scoped without private payloads.
     const audit = await readSecurityAudit(db, FIX.workspace, { limit: 50 });
-    const activity = await readActivityFeed(db, FIX.workspace, { limit: 50, projectIds: [FIX.projectA] });
+    const activity = await readActivityFeed(db, FIX.workspace, {
+      limit: 50,
+      projectIds: [FIX.projectA],
+    });
     assert(audit.entries.length > 0, "audit records security effects");
     assert(activity.entries.length > 0, "activity projects committed events");
     scanClean("sg05-feeds", [audit, activity]);
@@ -1744,7 +1995,11 @@ try {
     assert.equal(unsigned, "webhook_signature_invalid", "unsigned webhooks are rejected");
     const extracted = extractWebhookEffect(fixture.event, fixture.payload, now);
     assert.equal(extracted.supported, true, "push fixtures extract a delivery effect");
-    assert.deepEqual(extractWebhookEffect("unknown_g01_event", {}, now), { supported: false }, "unknown events stay unsupported");
+    assert.deepEqual(
+      extractWebhookEffect("unknown_g01_event", {}, now),
+      { supported: false },
+      "unknown events stay unsupported",
+    );
     // Seed the installation row directly: install authorization is X04-owned proof.
     await db
       .prepare(
@@ -1757,38 +2012,54 @@ try {
       .run(FIX.workspace, FIX.owner, now, now);
     assert(extracted.effect !== undefined, "push effect is present");
     const delivery = success(
-      await execute(receiveGitHubWebhookCommand.name, {
-        deliveryId: "g01-delivery-push-001",
-        event: fixture.event,
-        supported: true,
-        effect: extracted.effect,
-      }, { actorSystemId: GITHUB_WEBHOOK_SYSTEM_ID }),
+      await execute(
+        receiveGitHubWebhookCommand.name,
+        {
+          deliveryId: "g01-delivery-push-001",
+          event: fixture.event,
+          supported: true,
+          effect: extracted.effect,
+        },
+        { actorSystemId: GITHUB_WEBHOOK_SYSTEM_ID },
+      ),
     );
     void delivery;
     const duplicate = success<{ duplicate: boolean }>(
-      await execute(receiveGitHubWebhookCommand.name, {
-        deliveryId: "g01-delivery-push-001",
-        event: fixture.event,
-        supported: true,
-        effect: extracted.effect,
-      }, { actorSystemId: GITHUB_WEBHOOK_SYSTEM_ID }),
+      await execute(
+        receiveGitHubWebhookCommand.name,
+        {
+          deliveryId: "g01-delivery-push-001",
+          event: fixture.event,
+          supported: true,
+          effect: extracted.effect,
+        },
+        { actorSystemId: GITHUB_WEBHOOK_SYSTEM_ID },
+      ),
     );
     assert.equal(duplicate.duplicate, true, "duplicate delivery reports its stored result");
     const deliveries = (await db
-      .prepare(`SELECT COUNT(*) AS count FROM github_webhook_deliveries WHERE workspace_id = ? AND delivery_id = ?`)
+      .prepare(
+        `SELECT COUNT(*) AS count FROM github_webhook_deliveries WHERE workspace_id = ? AND delivery_id = ?`,
+      )
       .get(FIX.workspace, "g01-delivery-push-001")) as { count: number };
     assert.equal(deliveries.count, 1, "duplicate webhook deliveries converge on one row");
     // Revoked installations are ignored, never applied.
     await db
-      .prepare(`UPDATE github_app_installations SET status = 'revoked', revoked_at = ? WHERE workspace_id = ? AND installation_id = '12345678'`)
+      .prepare(
+        `UPDATE github_app_installations SET status = 'revoked', revoked_at = ? WHERE workspace_id = ? AND installation_id = '12345678'`,
+      )
       .run(now, FIX.workspace);
     const ignored = success<{ state: string }>(
-      await execute(receiveGitHubWebhookCommand.name, {
-        deliveryId: "g01-delivery-push-002",
-        event: fixture.event,
-        supported: true,
-        effect: extracted.effect,
-      }, { actorSystemId: GITHUB_WEBHOOK_SYSTEM_ID }),
+      await execute(
+        receiveGitHubWebhookCommand.name,
+        {
+          deliveryId: "g01-delivery-push-002",
+          event: fixture.event,
+          supported: true,
+          effect: extracted.effect,
+        },
+        { actorSystemId: GITHUB_WEBHOOK_SYSTEM_ID },
+      ),
     );
     assert.equal(ignored.state, "ignored", "revoked installations are ignored");
     // Outbox recovery: the accepted delivery is claimable, stale claims are
@@ -1801,13 +2072,24 @@ try {
     }
     const reclaimed = await reclaimStaleGitHubOutbox(db, launchDeadline(now, 3_600_000), 10);
     assert(reclaimed.length >= 1, "stale outbox claims are reclaimed by the sweep");
-    await writeGitHubDlqRow(db, FIX.workspace, "g01-outbox-poison", "g01-delivery-poison", "poison_message", 4, now);
+    await writeGitHubDlqRow(
+      db,
+      FIX.workspace,
+      "g01-outbox-poison",
+      "g01-delivery-poison",
+      "poison_message",
+      4,
+      now,
+    );
     const dlq = (await db
       .prepare(`SELECT error FROM github_dlq WHERE workspace_id = ? AND outbox_id = ?`)
       .get(FIX.workspace, "g01-outbox-poison")) as { error: string };
     assert.equal(dlq.error, "poison_message", "DLQ rows keep their poison error");
     // Queue backoff grows monotonically; poison messages fail parsing for DLQ routing.
-    assert(githubOutboxBackoffSeconds(3) >= githubOutboxBackoffSeconds(1), "outbox backoff is monotonic");
+    assert(
+      githubOutboxBackoffSeconds(3) >= githubOutboxBackoffSeconds(1),
+      "outbox backoff is monotonic",
+    );
     let poisonCode = "";
     try {
       parseGitHubQueueMessage({ garbage: true });
@@ -1832,14 +2114,19 @@ try {
   {
     const tables = await checkOperationsTables(db);
     assert(tables.ok, `operations tables missing: ${tables.missing.join(",")}`);
-    const retentionProof = await issueStepUpProof(db, FIX.owner, {
-      action: "ops.retention",
-      workspaceId: FIX.workspace,
-      targetId: `ops-retention:${FIX.workspace}`,
-      scopes: [],
-      authorizationEpoch: 1,
-      expiresAt: launchDeadline(now, 600_000),
-    }, now);
+    const retentionProof = await issueStepUpProof(
+      db,
+      FIX.owner,
+      {
+        action: "ops.retention",
+        workspaceId: FIX.workspace,
+        targetId: `ops-retention:${FIX.workspace}`,
+        scopes: [],
+        authorizationEpoch: 1,
+        expiresAt: launchDeadline(now, 600_000),
+      },
+      now,
+    );
     const retention = await human<{ raw_log_retention_days: number }>("ops.retention.set", {
       rawLogRetentionDays: 30,
       stepUpProofId: retentionProof,
@@ -1866,7 +2153,10 @@ try {
     assert(hits.length > 0, "diagnostic scan flags planted secrets");
     const clean = scanDiagnosticText("synthetic diagnostic line with counts only", NEEDLES);
     assert.deepEqual(clean, [], "clean diagnostics scan without hits");
-    const redacted = sanitizeDiagnosticValue({ cookie: CANARIES.cookie, nested: { token: CANARIES.bearer } });
+    const redacted = sanitizeDiagnosticValue({
+      cookie: CANARIES.cookie,
+      nested: { token: CANARIES.bearer },
+    });
     scanClean("ops-sanitizer", [redacted]);
     const inventory = await buildDiagnosticInventory(db, FIX.workspace, FIX.owner, now);
     scanClean("ops-inventory", [inventory]);
@@ -1899,7 +2189,10 @@ try {
     assertProjectAccess(owner, idProjGamma);
     assertProjectAccess(member, idProjGamma);
     assertProjectAccess(reviewer, idProjGamma);
-    assert(member.authorizationEpoch === 1, "member epoch starts at 1 before the AG08 revocation probe");
+    assert(
+      member.authorizationEpoch === 1,
+      "member epoch starts at 1 before the AG08 revocation probe",
+    );
     note("ag01", "owner/member/reviewer matrix holds across all ten projects");
   }
   verdict("AG-01", "passed", "permission matrix on the golden fixture");
@@ -1910,17 +2203,24 @@ try {
     async function sources(dir: string, out: string[]): Promise<void> {
       for (const entry of await readdir(resolve(root, dir), { withFileTypes: true })) {
         if (entry.isDirectory()) await sources(`${dir}/${entry.name}`, out);
-        else if (entry.name.endsWith(".ts") || entry.name.endsWith(".go")) out.push(`${dir}/${entry.name}`);
+        else if (entry.name.endsWith(".ts") || entry.name.endsWith(".go"))
+          out.push(`${dir}/${entry.name}`);
       }
     }
     const files: string[] = [];
-    for (const dir of ["packages/domain/src", "apps/control-worker/src", "apps/artifact-worker/src"]) {
+    for (const dir of [
+      "packages/domain/src",
+      "apps/control-worker/src",
+      "apps/artifact-worker/src",
+    ]) {
       await sources(dir, files);
     }
     const hits: string[] = [];
     for (const file of files) {
       const text = await readFile(resolve(root, file), "utf8");
-      for (const match of text.matchAll(/DELETE\s+FROM\s+(artifact_versions|artifact_objects|artifact_view_grants|artifact_upload_grants)\b/gi)) {
+      for (const match of text.matchAll(
+        /DELETE\s+FROM\s+(artifact_versions|artifact_objects|artifact_view_grants|artifact_upload_grants)\b/gi,
+      )) {
         hits.push(`${file}:${match[0]}`);
       }
     }
@@ -1992,19 +2292,27 @@ try {
   {
     // The member acts, loses membership standing via an epoch bump, then replays the old epoch.
     const memberTask = success<TaskRecord>(
-      await execute(createTaskCommand.name, {
-        projectId: FIX.projectA,
-        title: "Synthetic G01 pre-revocation member task",
-        priority: "P2",
-      }, { actorHumanId: FIX.member, authorizationEpoch: 1 }),
+      await execute(
+        createTaskCommand.name,
+        {
+          projectId: FIX.projectA,
+          title: "Synthetic G01 pre-revocation member task",
+          priority: "P2",
+        },
+        { actorHumanId: FIX.member, authorizationEpoch: 1 },
+      ),
     );
     void memberTask;
     await bumpMemberEpoch(db, FIX.workspace, FIX.member);
-    const staleMember = await execute(createTaskCommand.name, {
-      projectId: FIX.projectA,
-      title: "Synthetic G01 stale-epoch member task",
-      priority: "P2",
-    }, { actorHumanId: FIX.member, authorizationEpoch: 1 });
+    const staleMember = await execute(
+      createTaskCommand.name,
+      {
+        projectId: FIX.projectA,
+        title: "Synthetic G01 stale-epoch member task",
+        priority: "P2",
+      },
+      { actorHumanId: FIX.member, authorizationEpoch: 1 },
+    );
     assert(!staleMember.ok, "stale member epoch must stop authorizing");
     note("ag08", "member epoch bump fences subsequent stale-epoch commands");
     // Runner grant revocation fences launch authority: drop mac-b grants and retry.
@@ -2057,11 +2365,7 @@ try {
     fixture_version: G01_FIXTURE_VERSION,
     now: G01_NOW,
     humans: ["owner", "member", "reviewer"],
-    projects: [
-      "alpha",
-      "beta",
-      ...G01_EXTRA_PROJECTS.map((spec) => spec.slug),
-    ],
+    projects: ["alpha", "beta", ...G01_EXTRA_PROJECTS.map((spec) => spec.slug)],
     profiles: [
       { name: "Codex Refactor", provider: "codex", execution_mode: "interactive" },
       { name: "Grok Explore", provider: "grok", execution_mode: "interactive" },
@@ -2110,23 +2414,113 @@ try {
     "local workerd D1 plus real Chromium on macOS (arm64); Node 24.19.0, pnpm 11.21.0, Go 1.26.5";
   const gateCommand = "pnpm test:g01";
   const gateRows = [
-    { gate: "AG-01", status: "passed", detail: "Owner/member/reviewer matrix holds across all ten fixture projects; owning evidence WP-C04/WP-C06/WP-W01/WP-X03A." },
-    { gate: "AG-02", status: "waived", detail: "Cloud-plane contention, expiry, and cleanup receipts pass in G01; owning evidence WP-C09/WP-W02.", waiver: "Native Terminal launch trace is L05-owned and blocked on L05 Terminal acceptance; this machine cannot drive Terminal from G01 while the L05 agent owns it." },
-    { gate: "AG-03", status: "passed", detail: "Duplicate/out-of-order/concurrent ingest has one effect with exact replay; owning evidence WP-E01/WP-E02/WP-L06." },
-    { gate: "AG-04", status: "waived", detail: "Shared Stop/exit lifecycle predicate matrix and provider capability ceilings pass in G01; owning evidence WP-L03/WP-L07/WP-P01/WP-P02.", waiver: "Live Claude/Codex/Grok turns need L05 supervision plus provider credentials and consent, unavailable to G01." },
-    { gate: "AG-05", status: "passed", detail: "Attention request/answer/resolve round-trips with version guards; owning evidence WP-A02/WP-E02/WP-X01." },
-    { gate: "AG-06", status: "passed", detail: "Hostile bytes publish inertly; single-use grants; sweep spares live versions; owning evidence WP-V01/WP-V02/WP-V03." },
-    { gate: "AG-07", status: "passed", detail: "Token observations dedupe; derivations union exact/estimated/unavailable; owning evidence WP-A04/WP-E01." },
-    { gate: "AG-08", status: "passed", detail: "Epoch, grant, token, and delegation revocation fence authority before cleanup; owning evidence WP-C04/WP-C05/WP-C06." },
-    { gate: "AG-09", status: "passed", detail: "Injection corpus rejected; launch specs carry no executable surface; hostile browser isolation in the G01 browser report; owning evidence WP-V02/WP-V03." },
-    { gate: "AG-10", status: "not_run", detail: "G02 owns clean-install proof.", waiver: "G02 owns AG-10; the G01 procedure and frozen release candidate are recorded for G02." },
-    { gate: "SG-01", status: "passed", detail: "Credential-type confusion matrix with live delegation revocation; owning evidence WP-C02/WP-C03/WP-C05/WP-C06/WP-X03A." },
-    { gate: "SG-02", status: "passed", detail: "Hub FIFO with idempotent results and eviction recovery; owning evidence WP-C01." },
-    { gate: "SG-03", status: "passed", detail: "No v0.1 artifact delete path; uploads converge on content hash; owning evidence WP-V01/WP-X05." },
-    { gate: "SG-04", status: "passed", detail: "Step-up mismatch/stale/replay matrix rejects bypasses; owning evidence WP-C02/WP-C03/WP-X03A." },
-    { gate: "SG-05", status: "passed", detail: "Selection extracts IDs; links, payloads, audit, activity, and diagnostics carry no canaries; browser URL scan in the G01 browser report; owning evidence WP-X01/WP-X04/WP-X05." },
-    { gate: "OG-01", status: "passed", detail: "Hub idempotency, ledger redelivery, and GitHub webhook dedupe converge on one effect; Queue/DLQ/Cron delivery owning evidence WP-X04/WP-X05." },
-    { gate: "OG-02", status: "not_run", detail: "G02 owns migration/rotation/rollback proof.", waiver: "G02 owns OG-02; the G01 migration matrix (empty plus populated upgrade) is recorded for G02." },
+    {
+      gate: "AG-01",
+      status: "passed",
+      detail:
+        "Owner/member/reviewer matrix holds across all ten fixture projects; owning evidence WP-C04/WP-C06/WP-W01/WP-X03A.",
+    },
+    {
+      gate: "AG-02",
+      status: "waived",
+      detail:
+        "Cloud-plane contention, expiry, and cleanup receipts pass in G01; owning evidence WP-C09/WP-W02.",
+      waiver:
+        "Native Terminal launch trace is L05-owned and blocked on L05 Terminal acceptance; this machine cannot drive Terminal from G01 while the L05 agent owns it.",
+    },
+    {
+      gate: "AG-03",
+      status: "passed",
+      detail:
+        "Duplicate/out-of-order/concurrent ingest has one effect with exact replay; owning evidence WP-E01/WP-E02/WP-L06.",
+    },
+    {
+      gate: "AG-04",
+      status: "waived",
+      detail:
+        "Shared Stop/exit lifecycle predicate matrix and provider capability ceilings pass in G01; owning evidence WP-L03/WP-L07/WP-P01/WP-P02.",
+      waiver:
+        "Live Claude/Codex/Grok turns need L05 supervision plus provider credentials and consent, unavailable to G01.",
+    },
+    {
+      gate: "AG-05",
+      status: "passed",
+      detail:
+        "Attention request/answer/resolve round-trips with version guards; owning evidence WP-A02/WP-E02/WP-X01.",
+    },
+    {
+      gate: "AG-06",
+      status: "passed",
+      detail:
+        "Hostile bytes publish inertly; single-use grants; sweep spares live versions; owning evidence WP-V01/WP-V02/WP-V03.",
+    },
+    {
+      gate: "AG-07",
+      status: "passed",
+      detail:
+        "Token observations dedupe; derivations union exact/estimated/unavailable; owning evidence WP-A04/WP-E01.",
+    },
+    {
+      gate: "AG-08",
+      status: "passed",
+      detail:
+        "Epoch, grant, token, and delegation revocation fence authority before cleanup; owning evidence WP-C04/WP-C05/WP-C06.",
+    },
+    {
+      gate: "AG-09",
+      status: "passed",
+      detail:
+        "Injection corpus rejected; launch specs carry no executable surface; hostile browser isolation in the G01 browser report; owning evidence WP-V02/WP-V03.",
+    },
+    {
+      gate: "AG-10",
+      status: "not_run",
+      detail: "G02 owns clean-install proof.",
+      waiver:
+        "G02 owns AG-10; the G01 procedure and frozen release candidate are recorded for G02.",
+    },
+    {
+      gate: "SG-01",
+      status: "passed",
+      detail:
+        "Credential-type confusion matrix with live delegation revocation; owning evidence WP-C02/WP-C03/WP-C05/WP-C06/WP-X03A.",
+    },
+    {
+      gate: "SG-02",
+      status: "passed",
+      detail: "Hub FIFO with idempotent results and eviction recovery; owning evidence WP-C01.",
+    },
+    {
+      gate: "SG-03",
+      status: "passed",
+      detail:
+        "No v0.1 artifact delete path; uploads converge on content hash; owning evidence WP-V01/WP-X05.",
+    },
+    {
+      gate: "SG-04",
+      status: "passed",
+      detail:
+        "Step-up mismatch/stale/replay matrix rejects bypasses; owning evidence WP-C02/WP-C03/WP-X03A.",
+    },
+    {
+      gate: "SG-05",
+      status: "passed",
+      detail:
+        "Selection extracts IDs; links, payloads, audit, activity, and diagnostics carry no canaries; browser URL scan in the G01 browser report; owning evidence WP-X01/WP-X04/WP-X05.",
+    },
+    {
+      gate: "OG-01",
+      status: "passed",
+      detail:
+        "Hub idempotency, ledger redelivery, and GitHub webhook dedupe converge on one effect; Queue/DLQ/Cron delivery owning evidence WP-X04/WP-X05.",
+    },
+    {
+      gate: "OG-02",
+      status: "not_run",
+      detail: "G02 owns migration/rotation/rollback proof.",
+      waiver:
+        "G02 owns OG-02; the G01 migration matrix (empty plus populated upgrade) is recorded for G02.",
+    },
   ];
   await writeJson(resolve(evidenceDir, "gate-report.json"), {
     $schema: "../manifest.schema.json",
@@ -2149,7 +2543,9 @@ try {
     })),
     outcome: "passed",
   });
-  console.log(`G01_OK ${gateRows.filter((row) => row.status === "passed").length} passed, ${gateRows.filter((row) => row.status === "waived").length} waived, ${gateRows.filter((row) => row.status === "not_run").length} not_run`);
+  console.log(
+    `G01_OK ${gateRows.filter((row) => row.status === "passed").length} passed, ${gateRows.filter((row) => row.status === "waived").length} waived, ${gateRows.filter((row) => row.status === "not_run").length} not_run`,
+  );
 } catch (error) {
   console.error(`G01_FAILED ${error instanceof Error ? error.message : String(error)}`);
   throw error;
@@ -2157,4 +2553,3 @@ try {
   await server.close().catch(() => undefined);
   await rm(migrationDir, { recursive: true, force: true });
 }
-

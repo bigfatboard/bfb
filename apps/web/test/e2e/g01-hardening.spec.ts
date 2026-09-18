@@ -31,7 +31,10 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  await writeFile(path.join(evidenceDir, "browser-security.json"), `${JSON.stringify(recording, null, 2)}\n`);
+  await writeFile(
+    path.join(evidenceDir, "browser-security.json"),
+    `${JSON.stringify(recording, null, 2)}\n`,
+  );
 });
 
 async function csrfToken(page: Page): Promise<string> {
@@ -68,7 +71,13 @@ async function api(
 }
 
 async function taskCount(page: Page): Promise<number> {
-  const listed = await api(page, "GET", `${BASE}/tasks?limit=100`, undefined, await csrfToken(page));
+  const listed = await api(
+    page,
+    "GET",
+    `${BASE}/tasks?limit=100`,
+    undefined,
+    await csrfToken(page),
+  );
   expect(listed.status).toBe(200);
   const tasks = (listed.json.tasks ?? listed.json.items ?? []) as Array<unknown>;
   return tasks.length;
@@ -98,11 +107,17 @@ test("mutations without a valid CSRF token fail closed without state change", as
   });
   expect(missing.status).toBe(403);
   expect(missing.json).toMatchObject({ error: expect.any(String) });
-  const forged = await api(page, "POST", `${BASE}/tasks`, {
-    project_id: FIX.projectA,
-    title: "Synthetic G01 CSRF probe",
-    priority: "P2",
-  }, "0.deadbeef");
+  const forged = await api(
+    page,
+    "POST",
+    `${BASE}/tasks`,
+    {
+      project_id: FIX.projectA,
+      title: "Synthetic G01 CSRF probe",
+      priority: "P2",
+    },
+    "0.deadbeef",
+  );
   expect(forged.status).toBe(403);
   expect(await taskCount(page)).toBe(before);
   note("csrf", { missingCsrf: 403, forgedCsrf: 403, taskCountStable: before });
@@ -123,7 +138,9 @@ test("session cookies are http-only and same-site scoped", async ({ page, contex
     urls.push(request.url());
   });
   await signInAndOpenBoard(page, "member");
-  const leaked = urls.filter((url) => values.some((value) => value.length > 8 && url.includes(value)));
+  const leaked = urls.filter((url) =>
+    values.some((value) => value.length > 8 && url.includes(value)),
+  );
   expect(leaked).toEqual([]);
   note("cookie-hygiene", { sessionCookies: session.length, urlsScanned: urls.length, leaks: 0 });
 });
@@ -131,12 +148,18 @@ test("session cookies are http-only and same-site scoped", async ({ page, contex
 test("hostile task text renders inertly on the board", async ({ page }) => {
   await signInAndOpenBoard(page, "owner");
   const csrf = await csrfToken(page);
-  const created = await api(page, "POST", `${BASE}/tasks`, {
-    project_id: FIX.projectA,
-    title: `Synthetic G01 ${HOSTILE}`,
-    priority: "P2",
-    request_id: "g01-hostile-001",
-  }, csrf);
+  const created = await api(
+    page,
+    "POST",
+    `${BASE}/tasks`,
+    {
+      project_id: FIX.projectA,
+      title: `Synthetic G01 ${HOSTILE}`,
+      priority: "P2",
+      request_id: "g01-hostile-001",
+    },
+    csrf,
+  );
   expect(created.status).toBe(200);
   await page.reload();
   await expect(page.getByTestId("work-board")).toBeVisible();
