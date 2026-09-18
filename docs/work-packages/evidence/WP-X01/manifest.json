@@ -1,0 +1,80 @@
+{
+  "$schema": "../manifest.schema.json",
+  "package": "X01",
+  "tested_commit": "2331daad655d370b8a8de028d183ae7a81eda4b0",
+  "protocol_version": "bfb-wire/1",
+  "schema_version": "1",
+  "migration_head": "d1:0030_notifications.sql",
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "xcode": "26.0.1",
+    "wrangler": "4.120.1"
+  },
+  "environment": {
+    "kind": "local",
+    "os": "macOS, local Wrangler D1 and Workerd with a local Queue and DLQ",
+    "architecture": "arm64"
+  },
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-X01/command-result.json"
+    },
+    {
+      "command": "pnpm build",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-X01/command-result.json"
+    },
+    {
+      "command": "pnpm test:x01",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-X01/command-result.json"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-X01/command-result.json"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-X01/command-result.json"
+    },
+    {
+      "command": "GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./...",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-X01/command-result.json"
+    }
+  ],
+  "outcome": "passed",
+  "artifacts": [
+    "docs/work-packages/evidence/WP-X01/manifest.json",
+    "docs/work-packages/evidence/WP-X01/command-result.json",
+    "docs/work-packages/evidence/WP-X01/recording.jsonl",
+    "docs/contracts/notifications.md",
+    "migrations/d1/0030_notifications.sql",
+    "packages/domain/src/notifications.ts",
+    "packages/domain/test/notifications.test.ts",
+    "apps/control-worker/src/notifications/push.ts",
+    "apps/control-worker/src/notifications/queue.ts",
+    "apps/control-worker/src/notifications/dispatch.ts",
+    "apps/control-worker/src/notifications/sweep.ts",
+    "apps/control-worker/src/api/notifications.ts",
+    "apps/control-worker/src/api/notification-runner.ts",
+    "apps/control-worker/test/notification-push.test.ts",
+    "apps/control-worker/test/notification-queue.test.ts",
+    "apps/control-worker/test/notification-routes.test.ts",
+    "internal/notify/notify.go",
+    "internal/notify/notify_test.go",
+    "internal/appbridge/notify_x01_test.go",
+    "tools/notifications/run.ts",
+    "tools/notifications/dlq-worker.ts"
+  ],
+  "redaction": {
+    "status": "passed",
+    "prohibited_content": []
+  }
+}
