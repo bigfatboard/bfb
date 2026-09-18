@@ -147,8 +147,20 @@ export async function handleRunnerBrowserApi(
     const prefix = `/api/v1/workspaces/${workspaceId}/runners`;
     await budget(request, deps, `${workspaceId}:${deps.principal.humanId}`, "approval");
     const principal = await loadPrincipal(deps.db, workspaceId, deps.principal.humanId);
-    if (request.method === "GET" && path === prefix)
-      return response({ runners: await listRunners(deps.db, principal) });
+    if (request.method === "GET" && path === prefix) {
+      const runners = await listRunners(deps.db, principal);
+      const checkouts = await Promise.all(
+        runners.map((runner) =>
+          checkoutStatusForRunner(deps.db, principal, runnerId(runner.runner_id)),
+        ),
+      );
+      return response({
+        runners: runners.map((runner, index) => ({
+          ...runner,
+          checkout_status: checkouts[index] ?? null,
+        })),
+      });
+    }
     if (request.method === "GET") {
       const checkouts = new RegExp(`^${prefix}/([^/]+)/checkouts$`).exec(path);
       if (checkouts?.[1]) {
