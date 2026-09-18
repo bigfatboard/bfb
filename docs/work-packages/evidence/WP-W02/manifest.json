@@ -46,6 +46,6 @@
   "protocol_version": "bfb-wire/1",
   "redaction": { "prohibited_content": [], "status": "passed" },
   "schema_version": "1",
-  "tested_commit": "8164b436b360c4ced316e52a6c460319de5f5d1b",
+  "tested_commit": "00990f2e4949de3d2007f87f90890405f25dc8e9",
   "toolchains": { "go": "1.26.5", "node": "24.19.0", "playwright": "1.55.1", "pnpm": "11.21.0" }
 }

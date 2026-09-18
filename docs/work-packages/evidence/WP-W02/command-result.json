@@ -1,6 +1,6 @@
 {
   "package": "W02",
-  "tested_commit": "8164b436b360c4ced316e52a6c460319de5f5d1b",
+  "tested_commit": "00990f2e4949de3d2007f87f90890405f25dc8e9",
   "environment": "detached clean checkout on macOS (arm64) with the synthetic C09 launch drive and real Chromium",
   "outcome": "passed",
   "commands": [
