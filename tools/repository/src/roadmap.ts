@@ -458,16 +458,41 @@ async function validateEvidence(root: string, packages: WorkPackage[]): Promise<
       if (manifest === undefined) {
         throw new Error("manifest does not satisfy the repository evidence contract");
       }
-      if (
-        workPackage.status === "done" &&
-        (manifest.environmentKind !== "clean_checkout" ||
+      if (workPackage.status === "done") {
+        if (
+          manifest.environmentKind !== "clean_checkout" ||
           manifest.outcome !== "passed" ||
           manifest.redaction.status !== "passed" ||
           manifest.commands.some((command) => command.outcome !== "passed") ||
           !manifest.commands.some((command) => command.command === workPackage.testTarget) ||
-          (manifest.ci !== undefined && manifest.ci.status !== "passed"))
-      ) {
-        throw new Error("done packages require passing evidence");
+          (manifest.ci !== undefined && manifest.ci.status !== "passed")
+        ) {
+          throw new Error("done packages require passing evidence");
+        }
+        if (manifest.commands.some((command) => command.artifact === undefined)) {
+          throw new Error("done packages require every command to link its evidence artifact");
+        }
+        const recordedCommits = new Set<string>();
+        for (const command of manifest.commands) {
+          if (command.artifact === undefined || !command.artifact.endsWith(".json")) {
+            continue;
+          }
+          const artifactPath = await resolveExistingRepositoryPath(root, command.artifact);
+          if (artifactPath === undefined) {
+            continue;
+          }
+          try {
+            collectRecordedCommits(
+              JSON.parse(await readFile(artifactPath, "utf8")) as unknown,
+              recordedCommits,
+            );
+          } catch {
+            continue;
+          }
+        }
+        if (recordedCommits.size > 0 && !recordedCommits.has(manifest.testedCommit)) {
+          throw new Error("done packages require linked artifacts to record the tested commit");
+        }
       }
       const referencedArtifacts = new Set([
         ...manifest.artifacts,
@@ -504,9 +529,32 @@ interface EvidenceManifest {
   commands: EvidenceCommand[];
   outcome: string;
   environmentKind: string;
+  testedCommit: string;
   artifacts: string[];
   redaction: { status: string; prohibited_content: string[] };
   ci?: { status: string; run_url?: string };
+}
+
+function collectRecordedCommits(value: unknown, into: Set<string>): void {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectRecordedCommits(item, into);
+    }
+    return;
+  }
+  const candidate = record(value);
+  if (candidate === undefined) {
+    return;
+  }
+  for (const key of ["tested_commit", "tested_tree"] as const) {
+    const commit = candidate[key];
+    if (typeof commit === "string" && /^[0-9a-f]{40}$/u.test(commit)) {
+      into.add(commit);
+    }
+  }
+  for (const item of Object.values(candidate)) {
+    collectRecordedCommits(item, into);
+  }
 }
 
 function record(value: unknown): Record<string, unknown> | undefined {
@@ -646,6 +694,7 @@ function evidenceManifest(
     commands,
     outcome: manifest.outcome,
     environmentKind: environment.kind,
+    testedCommit: manifest.tested_commit,
     artifacts: manifest.artifacts,
     redaction: {
       status: redaction.status,

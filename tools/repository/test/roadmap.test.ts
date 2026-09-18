@@ -112,6 +112,8 @@ interface EvidenceOptions {
   redactionStatus?: "passed" | "failed" | "not_run";
   artifact?: string;
   writeArtifact?: boolean;
+  omitCommandArtifact?: boolean;
+  artifactCommit?: string;
   ciStatus?: "passed" | "failed" | "pending" | "not_run";
 }
 
@@ -125,7 +127,12 @@ async function writeEvidence(
     options.artifact ?? "docs/work-packages/evidence/WP-" + packageId + "/result.json";
   await mkdir(directory, { recursive: true });
   if (options.writeArtifact !== false) {
-    await writeFile(path.join(root, artifact), "{}\n");
+    await writeFile(
+      path.join(root, artifact),
+      JSON.stringify(
+        options.artifactCommit === undefined ? {} : { tested_commit: options.artifactCommit },
+      ) + "\n",
+    );
   }
   await writeFile(
     path.join(directory, "manifest.json"),
@@ -146,7 +153,7 @@ async function writeEvidence(
           {
             command: options.command ?? "pnpm test",
             outcome: options.commandOutcome ?? "passed",
-            artifact,
+            ...(options.omitCommandArtifact === true ? {} : { artifact }),
           },
         ],
         outcome: options.outcome ?? "passed",
@@ -332,6 +339,28 @@ describe("work-package roadmap", () => {
 
       expect(issueCodes(await inspectRoadmap(root))).toContain("evidence");
     }
+  });
+
+  test("rejects a done package whose manifest command links no artifact", async () => {
+    const root = await fixtureRoot([{ id: "F01", status: "done", readyMetadata: true }]);
+    await writeEvidence(root, "F01", { omitCommandArtifact: true });
+
+    expect(issueCodes(await inspectRoadmap(root))).toContain("evidence");
+  });
+
+  test("rejects a done package whose linked artifact records another commit", async () => {
+    const root = await fixtureRoot([{ id: "F01", status: "done", readyMetadata: true }]);
+    await writeEvidence(root, "F01", { artifactCommit: "b".repeat(40) });
+
+    expect(issueCodes(await inspectRoadmap(root))).toContain("evidence");
+  });
+
+  test("accepts a done package whose linked artifact records the tested commit", async () => {
+    const root = await fixtureRoot([{ id: "F01", status: "done", readyMetadata: true }]);
+    await writeEvidence(root, "F01", { artifactCommit: "a".repeat(40) });
+    await writeGeneratedRoadmap(root);
+
+    await expect(inspectRoadmap(root)).resolves.toMatchObject({ issues: [] });
   });
 
   test("allows local evidence while a package remains in review", async () => {
