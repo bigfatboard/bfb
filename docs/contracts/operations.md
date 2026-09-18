@@ -59,7 +59,9 @@ interprets provider-specific capability fields.
     own idempotent dispatch redelivers. Replays return the stored outcome.
   - `requeue_github_outbox` `{outbox_ids: string[1..50]}` — only rows in
     `dlq` or `dispatched` return to `pending` with attempts reset; the X04
-    reconciler converges them. Done/pending rows are rejected.
+    reconciler converges them. Done/pending rows are rejected. Every id is
+    validated before the first write, so a rejected target leaves all rows
+    untouched and writes no ledger row.
   - `resolve_stuck_upload` `{version_ids: ULID[1..50]}` — only versions in
     `uploading` with no live grant past TTL plus grace move to `failed`,
     with an `artifact.abandoned` audit-outbox row (the exact V01

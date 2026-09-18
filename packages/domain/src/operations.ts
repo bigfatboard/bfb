@@ -1175,8 +1175,8 @@ async function runRecoveryEffect(
           fail("invalid_argument", "outbox ids must be bounded strings");
         }
       }
-      let requeued = 0;
-      for (const id of ids as string[]) {
+      const queues = ids as string[];
+      for (const id of queues) {
         const row = (await db
           .prepare(
             `SELECT state FROM github_integration_outbox WHERE workspace_id = ? AND outbox_id = ?`,
@@ -1191,6 +1191,9 @@ async function runRecoveryEffect(
             `github outbox row ${id} in state ${row.state} needs no requeue`,
           );
         }
+      }
+      let requeued = 0;
+      for (const id of queues) {
         await db
           .prepare(
             `UPDATE github_integration_outbox

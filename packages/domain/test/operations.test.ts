@@ -634,6 +634,62 @@ describe("privileged recovery", () => {
     ).rejects.toBeInstanceOf(DomainError);
   });
 
+  it("rejects a mixed github requeue target without touching any row", async () => {
+    const db = await openDomainDb();
+    const delivery = randomUlid();
+    await db
+      .prepare(
+        `INSERT INTO github_webhook_deliveries (workspace_id, delivery_id, event, effect_json, state, received_at)
+         VALUES (?, ?, 'push', '{}', 'received', ?)`,
+      )
+      .run(FIX.workspace, delivery, NOW);
+    await db
+      .prepare(
+        `INSERT INTO github_integration_outbox (workspace_id, outbox_id, delivery_id, kind, state, attempts, next_attempt_at, created_at, updated_at)
+         VALUES (?, 'outbox-mixed-dlq', ?, 'github.reconcile', 'dlq', 5, ?, ?, ?), (?, 'outbox-mixed-pending', ?, 'github.reconcile', 'pending', 0, ?, ?, ?)`,
+      )
+      .run(FIX.workspace, delivery, NOW, NOW, NOW, FIX.workspace, delivery, NOW, NOW, NOW);
+    await expect(
+      applyOpsRecovery({
+        db,
+        workspaceId: FIX.workspace,
+        kind: "requeue_github_outbox",
+        target: { outbox_ids: ["outbox-mixed-dlq", "outbox-mixed-pending"] },
+        actorHumanId: FIX.owner,
+        now: NOW,
+      }),
+    ).rejects.toBeInstanceOf(DomainError);
+    await expect(
+      applyOpsRecovery({
+        db,
+        workspaceId: FIX.workspace,
+        kind: "requeue_github_outbox",
+        target: { outbox_ids: ["outbox-mixed-pending", "outbox-mixed-dlq"] },
+        actorHumanId: FIX.owner,
+        now: NOW,
+      }),
+    ).rejects.toBeInstanceOf(DomainError);
+    const dlq = (await db
+      .prepare(
+        `SELECT state, attempts FROM github_integration_outbox WHERE workspace_id = ? AND outbox_id = ?`,
+      )
+      .get(FIX.workspace, "outbox-mixed-dlq")) as { state: string; attempts: number };
+    expect(dlq).toEqual({ state: "dlq", attempts: 5 });
+    const ledger = (await db
+      .prepare(`SELECT COUNT(*) AS n FROM ops_recovery_ledger WHERE workspace_id = ?`)
+      .get(FIX.workspace)) as { n: number };
+    expect(ledger.n).toBe(0);
+    const done = await applyOpsRecovery({
+      db,
+      workspaceId: FIX.workspace,
+      kind: "requeue_github_outbox",
+      target: { outbox_ids: ["outbox-mixed-dlq"] },
+      actorHumanId: FIX.owner,
+      now: LATER,
+    });
+    expect(done.detail).toEqual({ requeued: 1 });
+  });
+
   it("resolves only genuinely stuck uploads and clears ledger state", async () => {
     const db = await openDomainDb();
     const artifact = randomUlid();
