@@ -3,11 +3,13 @@
 
 import { describe, expect, it } from "vitest";
 
+import { createAuthorizationContext } from "@bfb/db";
 import {
   bumpMemberEpoch,
   FIX,
   ingestRunnerEventsCommand,
   randomUlid,
+  readLedgerHighWater,
   type RunnerPrincipal,
 } from "@bfb/domain";
 
@@ -19,6 +21,7 @@ import {
 } from "../src/realtime/browser-sockets.js";
 import { openAuthTestContext } from "./auth-helpers.js";
 import { launchFixture } from "../../../packages/domain/test/launch-fixture.js";
+import { discussionFixture } from "../../../packages/domain/test/discussion-fixture.js";
 
 const NOW = "2026-09-12T12:00:00.000Z";
 const LATER = "2026-09-12T12:00:20.000Z";
@@ -248,16 +251,27 @@ describe("browser realtime sockets", () => {
     expect(socket.closed.map((entry) => entry.code)).toEqual([1008]);
   });
 
-  it("broadcasts compact cursor invalidations only when the ledger advances", async () => {
+  it("broadcasts a cursor invalidation after every committed command", async () => {
     const f = await fixture();
-    await f.commit(["heartbeat"]);
+    const first = await f.commit(["heartbeat"]);
     const owner = fakeSocket();
     const member = fakeSocket();
     const sockets = manager(f.db, [owner, member]);
     await sockets.admit(owner, handshake(FIX.owner, "session-owner-e02"));
     await sockets.admit(member, handshake(FIX.member, "session-member-e02", { role: "member" }));
     await sockets.afterCommand();
-    expect(owner.sent).toHaveLength(1);
+    for (const socket of [owner, member]) {
+      const last = JSON.parse(socket.sent[socket.sent.length - 1] as string) as Record<
+        string,
+        unknown
+      >;
+      expect(last).toEqual({
+        schema_version: 1,
+        kind: "event.committed",
+        workspace_id: FIX.workspace,
+        high_water_cursor: first,
+      });
+    }
     const water = await f.commit(["turn_started"]);
     await sockets.afterCommand();
     for (const socket of [owner, member]) {
@@ -272,8 +286,64 @@ describe("browser realtime sockets", () => {
         high_water_cursor: water,
       });
     }
+  });
+
+  it("broadcasts after a discussion commit that leaves the ledger cursor unchanged", async () => {
+    const d = await discussionFixture();
+    for (const [humanId, userId, sessionId] of [
+      [FIX.owner, "auth-owner-e02", "session-owner-e02"],
+      [FIX.member, "auth-member-e02", "session-member-e02"],
+    ] as const) {
+      await d.db
+        .prepare(
+          `INSERT INTO better_auth_users (id, name, email, email_verified, image, created_at, updated_at)
+           VALUES (?, ?, ?, 1, NULL, ?, ?)`,
+        )
+        .run(userId, `E02 ${humanId}`, `${userId}@synthetic.test`, NOW, NOW);
+      await d.db
+        .prepare(
+          `INSERT INTO better_auth_sessions
+           (id, expires_at, token, created_at, updated_at, ip_address, user_agent, user_id)
+           VALUES (?, ?, ?, ?, ?, NULL, NULL, ?)`,
+        )
+        .run(sessionId, SESSION_EXPIRY, `token-${sessionId}`, NOW, NOW, userId);
+      await d.db
+        .prepare(`UPDATE humans SET better_auth_user_id = ? WHERE id = ?`)
+        .run(userId, humanId);
+    }
+    const created = await d.create();
+    expect(created.discussion_id).toMatch(/^01/);
+    // A discussion commit writes discussion tables only: the E01 ledger cursor
+    // is unchanged, so the old high-water gate broadcast nothing here.
+    expect(
+      await readLedgerHighWater(
+        d.db,
+        createAuthorizationContext({
+          workspaceId: FIX.workspace,
+          principalId: FIX.owner,
+          authorizationEpoch: 1,
+          jurisdiction: "eu",
+        }),
+      ),
+    ).toBe(0);
+    const owner = fakeSocket();
+    const member = fakeSocket();
+    const sockets = manager(d.db, [owner, member]);
+    await sockets.admit(owner, handshake(FIX.owner, "session-owner-e02"));
+    await sockets.admit(member, handshake(FIX.member, "session-member-e02", { role: "member" }));
     await sockets.afterCommand();
-    expect(owner.sent.filter((raw) => raw.includes("event.committed"))).toHaveLength(1);
+    for (const socket of [owner, member]) {
+      const last = JSON.parse(socket.sent[socket.sent.length - 1] as string) as Record<
+        string,
+        unknown
+      >;
+      expect(last).toEqual({
+        schema_version: 1,
+        kind: "event.committed",
+        workspace_id: FIX.workspace,
+        high_water_cursor: 0,
+      });
+    }
   });
 
   it("closes only the expired socket and keeps the survivor subscribed", async () => {

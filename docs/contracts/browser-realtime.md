@@ -63,7 +63,14 @@ Server to client:
   at subscribe time.
 - `event.committed`: `{workspace_id, high_water_cursor}`. Compact
   invalidation only: a cursor hint, never event data. Keys are exactly
-  `schema_version`, `kind`, `workspace_id`, `high_water_cursor`.
+  `schema_version`, `kind`, `workspace_id`, `high_water_cursor`. The
+  server sends one after every committed workspace command, including
+  commands that commit no ledger rows (discussion interventions,
+  cancellations, decisions, task comments, and the like); in that case
+  the cursor repeats the current high-water. Ledger-replay clients treat
+  a cursor at or below their applied mark as a no-op per the
+  resynchronization rule below, while discussion views refetch on any
+  invalidation.
 - `browser.realtime.alive`: `{workspace_id, connection_id, server_time}`.
   Heartbeat acknowledgement.
 - `browser.realtime.close`: `{workspace_id, reason}` with
@@ -79,7 +86,9 @@ Client to server:
 ## Lifecycle and close policy
 
 - The server rechecks every browser socket after each committed workspace
-  command and on its persistent expiry alarm.
+  command and on its persistent expiry alarm. After a committed command
+  it broadcasts the current high-water cursor to every surviving socket,
+  even when the ledger cursor did not advance.
 - Expired sessions close with `4401` (`session_expired`). Deleted sessions,
   membership epoch changes (including removal, role loss, and rejoin under
   a new epoch), and grant revocation close with `4403`
