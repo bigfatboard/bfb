@@ -1,7 +1,7 @@
 # Local execution supervision v1
 
 Owner: [L05](../work-packages/WP-L05-terminal-supervisor.md). Gate: `pnpm test:l05`.
-Implementation and acceptance are in progress; this contract is not completion evidence.
+Certified 18 September; bounded evidence is committed under `../work-packages/evidence/WP-L05/`.
 
 ## Native acceptance harness
 
@@ -23,9 +23,16 @@ force the operating system to recycle a PID.
 
 `--pty-diagnostic` runs the signed chain through a native PTY without opening the
 app or controlling Terminal. It explicitly cannot satisfy Terminal acceptance.
-The real Terminal mode requires an available GUI session; its native
-open/focus/control delivery remains unverified. Actual Terminal Ctrl-C/close coverage and the complete
-clean-checkout `test:l05` gate are still pending. Private synthetic execution files
+The real Terminal mode requires an available GUI session. Its native
+open/focus/control delivery passed the complete clean-checkout `test:l05`
+gate: real `focus_existing`, human-like Ctrl-C with exactly one SIGINT, and
+provider-only window close with verified whole-group release. Honest limits:
+a same-group survivor cannot outlive a real close (retention stays covered
+by the child and escape scenarios); the synthetic `--require-focus` routing
+section is not invoked by any gate; a cold start beyond the scripting-readiness
+poll fails safe; one shutdown-observation race in five full gates captured
+same-instant uncertainty and wedged its release past the release wait,
+failing closed with the lock retained. Private synthetic execution files
 and complete command logs stay local; committed evidence must contain bounded
 redacted assertions, not environment values, correlation capabilities or paths.
 
