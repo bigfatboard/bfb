@@ -1,0 +1,45 @@
+{
+  "gate": "pnpm test:v03",
+  "outcome": "passed",
+  "steps": [
+    {
+      "command": "pnpm build",
+      "outcome": "passed"
+    },
+    {
+      "command": "pnpm test:protocol",
+      "outcome": "passed",
+      "detail": "protocol drift passed; 4 protocol files, 438 tests plus Go checks"
+    },
+    {
+      "command": "vitest run packages/domain/test/artifact-reviews.test.ts apps/control-worker/test/artifact-review-routes.test.ts apps/control-worker/test/result-routes.test.ts apps/control-worker/test/measurement-routes.test.ts packages/db/test/migrations.test.ts apps/web/test/artifact-review.test.ts",
+      "outcome": "passed",
+      "detail": "6 files, 38 tests (12 review domain, 6 review routes, 7 review view; A03 result-route, A04 measurement-route, and D1 migration regressions included)"
+    },
+    {
+      "command": "pnpm build:web",
+      "outcome": "passed"
+    },
+    {
+      "command": "pnpm exec tsc -b tools/artifact-review --pretty false",
+      "outcome": "passed"
+    },
+    {
+      "command": "tsx tools/artifact-review/run.ts",
+      "outcome": "passed",
+      "detail": "V03_D1_OK, 11 checks across two control isolates and real D1: migration registered/applied, exact binding, hash/runner negatives, cross-isolate stale race, unapproved-new-version status, run/task/result identity, evidence-map outdated, A04 duration read, presence separation, secret-free audit"
+    },
+    {
+      "command": "BFB_E2E_PORT=4194 pnpm exec playwright test apps/web/test/e2e/v03-review.spec.ts --config tools/e2e/playwright.config.ts",
+      "outcome": "passed",
+      "detail": "4 Chromium scenarios: history plus exact-version approval with run/task identity, live-publish conflict with reload recovery, hostile-note isolation with sandbox wiring, presence separation"
+    }
+  ],
+  "not_claimed": [
+    "Artifact byte rendering outside the V02 frame (V02 owns and proves it)",
+    "Reviewer management UI and CLI parity (X02 reads only)",
+    "Approval inheritance, automatic result acceptance, merge/deploy permission",
+    "Running local MVP or deployed behavior"
+  ],
+  "retention": "Bounded assertions, counts, status snapshots, and synthetic fixture rows only. No secrets, digests in rate keys, IP addresses, local absolute paths, artifact bytes, or raw terminal output are retained."
+}

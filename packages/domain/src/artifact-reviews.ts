@@ -712,7 +712,7 @@ export async function listArtifactsWithReviewState(
            WHERE workspace_id = ? ORDER BY created_at ASC, id ASC`
         : `SELECT id, run_id, format, role, created_at FROM artifacts
            WHERE workspace_id = ? AND run_id = ? ORDER BY created_at ASC, id ASC`,
-      )
+    )
     .all(...(runId === undefined ? [workspaceId] : [workspaceId, runId]))) as Array<{
     id: string;
     run_id: string | null;

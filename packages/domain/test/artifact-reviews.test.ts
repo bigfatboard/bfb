@@ -29,11 +29,7 @@ import {
   listReviewTimers,
   startReviewTimerCommand,
 } from "../src/measurements.js";
-import {
-  acceptResultCommand,
-  listResultSubmissions,
-  submitResultCommand,
-} from "../src/results.js";
+import { acceptResultCommand, listResultSubmissions, submitResultCommand } from "../src/results.js";
 import { createTaskCommand } from "../src/work-commands.js";
 import { createRunCommand } from "../src/work-records.js";
 import { openDomainDb } from "./helpers.js";
@@ -78,7 +74,8 @@ async function fixture() {
   ) {
     return hub.execute(command, {
       workspaceId: FIX.workspace,
-      actorHumanId: overrides.runnerId || overrides.systemId ? undefined : (overrides.humanId ?? FIX.owner),
+      actorHumanId:
+        overrides.runnerId || overrides.systemId ? undefined : (overrides.humanId ?? FIX.owner),
       actorRunnerId: overrides.runnerId,
       actorSystemId: overrides.systemId,
       actorDelegationId: overrides.delegationId,
@@ -496,12 +493,10 @@ describe("artifact reviews", () => {
     };
     expect(await failure(f.review(input, { humanId: FIX.restricted }))).toBe("forbidden");
     expect(await failure(f.review(input, { runnerId: randomUlid() }))).toBe("forbidden");
-    expect(
-      await failure(f.review(input, { humanId: FIX.owner, delegationId: randomUlid() })),
-    ).toBe("forbidden");
-    expect(await failure(f.review(input, { systemId: syntheticUlid("SYSSYN") }))).toBe(
+    expect(await failure(f.review(input, { humanId: FIX.owner, delegationId: randomUlid() }))).toBe(
       "forbidden",
     );
+    expect(await failure(f.review(input, { systemId: syntheticUlid("SYSSYN") }))).toBe("forbidden");
     // Epoch mismatch fails closed as well.
     expect(await failure(f.review(input, { epoch: 2 }))).toBe("stale_authorization");
   });
@@ -629,12 +624,22 @@ describe("artifact reviews", () => {
         ],
       }),
     );
-    let linked = await listLinkedSubmissions(f.db, FIX.workspace, version.artifact_id, version.version_id);
+    let linked = await listLinkedSubmissions(
+      f.db,
+      FIX.workspace,
+      version.artifact_id,
+      version.version_id,
+    );
     expect(linked).toHaveLength(1);
     expect(linked[0]?.references_current_version).toBe(true);
     expect(linked[0]?.result_state).toBe("submitted");
     const second = await f.publishNewVersion(version.artifact_id, "v03-link-v2", runId);
-    linked = await listLinkedSubmissions(f.db, FIX.workspace, version.artifact_id, second.version_id);
+    linked = await listLinkedSubmissions(
+      f.db,
+      FIX.workspace,
+      version.artifact_id,
+      second.version_id,
+    );
     expect(linked).toHaveLength(1);
     expect(linked[0]?.references_current_version).toBe(false);
     // The A03 evidence map marks the bound submission outdated on read.
@@ -694,14 +699,15 @@ describe("artifact reviews", () => {
     );
     await expect(
       f.db
-        .prepare(`UPDATE artifact_reviews SET decision = 'comment' WHERE workspace_id = ? AND id = ?`)
+        .prepare(
+          `UPDATE artifact_reviews SET decision = 'comment' WHERE workspace_id = ? AND id = ?`,
+        )
         .run(FIX.workspace, record.id),
     ).rejects.toThrow();
     await expect(
-      f.db.prepare(`DELETE FROM artifact_reviews WHERE workspace_id = ? AND id = ?`).run(
-        FIX.workspace,
-        record.id,
-      ),
+      f.db
+        .prepare(`DELETE FROM artifact_reviews WHERE workspace_id = ? AND id = ?`)
+        .run(FIX.workspace, record.id),
     ).rejects.toThrow();
   });
 
@@ -724,19 +730,17 @@ describe("artifact reviews", () => {
     expect(await failure(f.review({ ...base, decision: "approve", gitCommit: "abc" }))).toBe(
       "invalid_argument",
     );
+    expect(await failure(f.review({ ...base, decision: "approve", configHash: "nope" }))).toBe(
+      "invalid_argument",
+    );
     expect(
-      await failure(f.review({ ...base, decision: "approve", configHash: "nope" })),
-    ).toBe("invalid_argument");
-    expect(
-      await failure(
-        f.review({ ...base, decision: "approve", reviewTimerObservationId: "nope" }),
-      ),
+      await failure(f.review({ ...base, decision: "approve", reviewTimerObservationId: "nope" })),
     ).toBe("invalid_argument");
     expect(
       await failure(f.review({ ...base, decision: "approve", expectedContentHash: "zz" })),
     ).toBe("invalid_argument");
-    expect(
-      await failure(f.review({ ...base, decision: "approve", unexpected: true })),
-    ).toBe("invalid_argument");
+    expect(await failure(f.review({ ...base, decision: "approve", unexpected: true }))).toBe(
+      "invalid_argument",
+    );
   });
 });

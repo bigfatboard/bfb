@@ -94,7 +94,11 @@ describe("V03 review view", () => {
   });
 
   it("shows approval with exact version and hash provenance", () => {
-    const html = view({ artifacts: ARTIFACTS, selectedArtifactId: ARTIFACTS[0]?.artifact_id, status: STATUS });
+    const html = view({
+      artifacts: ARTIFACTS,
+      selectedArtifactId: ARTIFACTS[0]?.artifact_id,
+      status: STATUS,
+    });
     expect(html).toContain("Approved");
     expect(html).toContain(VERSION.id.slice(0, 8));
     expect(html).toContain(VERSION.content_hash.slice(0, 12));

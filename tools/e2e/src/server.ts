@@ -1733,14 +1733,7 @@ async function main(): Promise<void> {
         if (await handleE02Commit(req, res)) {
           return;
         }
-        if (
-          await handleV03Publish(
-            req,
-            res,
-            db,
-            fixtureSessions.owner.split(";", 1)[0]!,
-          )
-        ) {
+        if (await handleV03Publish(req, res, db, fixtureSessions.owner.split(";", 1)[0]!)) {
           return;
         }
         if (

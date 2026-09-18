@@ -7,12 +7,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import {
-  adaptD1,
-  loadMigrationManifest,
-  type D1Like,
-  type SqlDatabase,
-} from "@bfb/db";
+import { adaptD1, loadMigrationManifest, type D1Like, type SqlDatabase } from "@bfb/db";
 import {
   artifactEvidenceVersionMap,
   getArtifactReviewStatus,
@@ -194,9 +189,7 @@ async function publish(
     "artifact.create_version",
   );
   await redeemUploadGrant(db, {
-    grantId: (
-      created as unknown as { upload_grant: { grant_id: string } }
-    ).upload_grant.grant_id,
+    grantId: (created as unknown as { upload_grant: { grant_id: string } }).upload_grant.grant_id,
     secret: minted.secret,
     now: at,
   });
@@ -225,7 +218,11 @@ async function publish(
     ),
     "artifact.finalize_version",
   );
-  return { artifact_id: created.artifact_id, version_id: created.version_id, content_hash: contentHash };
+  return {
+    artifact_id: created.artifact_id,
+    version_id: created.version_id,
+    content_hash: contentHash,
+  };
 }
 
 async function main(): Promise<void> {

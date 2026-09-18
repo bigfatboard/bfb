@@ -324,16 +324,13 @@ describe("artifact review routes", () => {
       },
     });
     if (!created.ok) throw new Error(JSON.stringify(created));
-    const review = await f.request(
-      `${f.prefix}/${created.result.artifact_id}/reviews`,
-      {
-        version_id: created.result.version_id,
-        expected_content_hash: digest(TEXT),
-        expected_latest_version_id: created.result.version_id,
-        decision: "approve",
-        request_id: `route-${randomUlid()}`,
-      },
-    );
+    const review = await f.request(`${f.prefix}/${created.result.artifact_id}/reviews`, {
+      version_id: created.result.version_id,
+      expected_content_hash: digest(TEXT),
+      expected_latest_version_id: created.result.version_id,
+      decision: "approve",
+      request_id: `route-${randomUlid()}`,
+    });
     expect(review.status).toBe(404);
   });
 

@@ -223,9 +223,7 @@ export function ReviewView(props: ReviewViewProps) {
               <span>Bindings</span>
               <code data-testid="review-bindings">
                 {review.git_commit ? review.git_commit.slice(0, 12) : "no commit"} ·{" "}
-                {shortHash(
-                  review.config_hash ? review.config_hash.replace(/^sha256:/, "") : null,
-                )}
+                {shortHash(review.config_hash ? review.config_hash.replace(/^sha256:/, "") : null)}
               </code>
             </div>
           ) : null}
@@ -427,7 +425,9 @@ export function ReviewPanel(props: ReviewPanelProps) {
       const message = cause instanceof Error ? cause.message : "Request failed";
       setError(message);
       const coded = cause as { code?: unknown; status?: unknown };
-      setConflict(coded.code === "stale_version" || coded.code === "version_mismatch" || coded.status === 409);
+      setConflict(
+        coded.code === "stale_version" || coded.code === "version_mismatch" || coded.status === 409,
+      );
     } finally {
       setPending(false);
     }

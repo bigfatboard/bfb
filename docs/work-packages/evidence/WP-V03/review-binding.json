@@ -1,0 +1,41 @@
+{
+  "snapshots": {
+    "status_after_republish": {
+      "approved": false,
+      "changes_requested": true,
+      "review_count": 2,
+      "historical_count": 1,
+      "first_review_reasons": [
+        "newer_version"
+      ]
+    },
+    "review_timer": {
+      "stopped_total_ms": 3600000,
+      "observation_kinds": [
+        "started",
+        "stopped"
+      ]
+    },
+    "audit_payload_keys": [
+      "artifact_id",
+      "decision",
+      "review_id",
+      "reviewer_human_id",
+      "version_id"
+    ],
+    "review_count": 3
+  },
+  "checks": [
+    "0032_artifact_review is registered and applied without claiming newest head",
+    "task and run seed through independent isolates",
+    "approve binds the exact version and hash without mutating the version",
+    "hash mismatch and runner authority fail across isolates",
+    "concurrent publication resolves through explicit version conflict",
+    "new version reads unapproved while history stays intact",
+    "reviews never move run, task, or result state",
+    "artifact-bound submissions read outdated through the V03 evidence map",
+    "review duration reads from A04 observations; V03 computes nothing",
+    "presence observations stay out of review records and reads",
+    "audit facts carry identities without comment text or secrets"
+  ]
+}
