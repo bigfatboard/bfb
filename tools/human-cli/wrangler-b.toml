@@ -1,0 +1,45 @@
+# ABOUTME: Runs a second X02 human CLI control isolate over disposable D1.
+# ABOUTME: Synthetic identities and local-only bindings exercise the shipped CLI credential routes.
+
+name = "bfb-human-b"
+main = "worker.ts"
+compatibility_date = "2026-08-08"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+ENVIRONMENT = "local"
+JURISDICTION = "global"
+APP_ORIGIN = "https://bfb.human.test"
+ARTIFACT_ORIGIN = "https://artifacts.human.test"
+LAUNCH_ORIGIN = "https://launch.human.test"
+BETTER_AUTH_SECRETS = "2:x02-runtime-current-signing-key-73c2e9,1:x02-runtime-previous-signing-key-18bd44"
+GITHUB_CLIENT_ID = "x02-runtime-github-client"
+GITHUB_CLIENT_SECRET = "x02-runtime-github-secret"
+AUTH_ABUSE_SECRET = "x02-runtime-abuse-key-9f44d1ccyy-long"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "bfb-human-test"
+database_id = "00000000-0000-4000-8000-000000000031"
+migrations_dir = "../../migrations/d1"
+
+[[r2_buckets]]
+binding = "ARTIFACTS"
+bucket_name = "bfb-human-brtifacts"
+
+[[queues.producers]]
+binding = "JOBS"
+queue = "bfb-human-jobs"
+
+[[queues.producers]]
+binding = "JOBS_DLQ"
+queue = "bfb-human-jobs-dlq"
+
+[assets]
+directory = "../../apps/web/dist"
+binding = "ASSETS"
+
+[[durable_objects.bindings]]
+name = "WORKSPACE_HUB"
+class_name = "WorkspaceHub"
+script_name = "bfb-human-hub"
