@@ -1491,6 +1491,14 @@ assert.ok(
   "clean install names the signing identity",
 );
 assert.ok(selfHostGuide.includes("BFB_MACOS_PROFILE"), "self-host names the development profile");
+// The worker mints GitHub installation tokens only from the App pair, so
+// the self-host secret step must name both bindings.
+for (const secret of ["GITHUB_APP_ID", "GITHUB_APP_PRIVATE_KEY"]) {
+  assert.ok(
+    selfHostGuide.includes(`wrangler secret put ${secret}`),
+    `self-host names the ${secret} secret`,
+  );
+}
 pass(
   "RELEASE",
   "prepared pipeline is executable; approval setup and gate prerequisites documented",

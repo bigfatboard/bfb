@@ -74,11 +74,21 @@ pnpm exec wrangler secret put AUTH_ABUSE_SECRET --config apps/control-worker/wra
 pnpm exec wrangler secret put GITHUB_WEBHOOK_SECRET --config apps/control-worker/wrangler.operator.toml
 pnpm exec wrangler secret put GITHUB_CLIENT_ID --config apps/control-worker/wrangler.operator.toml
 pnpm exec wrangler secret put GITHUB_CLIENT_SECRET --config apps/control-worker/wrangler.operator.toml
+pnpm exec wrangler secret put GITHUB_APP_ID --config apps/control-worker/wrangler.operator.toml
+pnpm exec wrangler secret put GITHUB_APP_PRIVATE_KEY --config apps/control-worker/wrangler.operator.toml
 pnpm exec wrangler secret put VAPID_PUBLIC_KEY --config apps/control-worker/wrangler.operator.toml
 pnpm exec wrangler secret put VAPID_PRIVATE_KEY --config apps/control-worker/wrangler.operator.toml
 pnpm exec wrangler secret put VAPID_SUBJECT --config apps/control-worker/wrangler.operator.toml
 pnpm exec wrangler secret put UPLOAD_ABUSE_SECRET --config apps/artifact-worker/wrangler.operator.toml
 ```
+
+GitHub integration additionally needs a GitHub App whose read-side
+permissions and subscribed events match
+[docs/contracts/github.md](contracts/github.md); point its webhook secret
+at `GITHUB_WEBHOOK_SECRET` and use its numeric id and PEM private key for
+`GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY`. Without the App pair the
+worker mints no installation tokens (`github_not_configured`) and the
+GitHub evidence paths stay unconfigured.
 
 Rotation afterwards follows [docs/runbooks/key-rotation.md](runbooks/key-rotation.md).
 
