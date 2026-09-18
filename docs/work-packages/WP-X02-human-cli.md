@@ -8,12 +8,6 @@ Test target: `pnpm test:x02`
 
 Evidence manifest: `docs/work-packages/evidence/WP-X02/manifest.json`
 
-> Status note: implementation, gate, and evidence are complete on this
-> branch, but `Status` stays `planned` because `pnpm roadmap:check`
-> rejects any status beyond `planned` while L07 is `review` and P01/P02
-> are `planned`. A02, A03, L05, L06, V01, and V02 are `done` since
-> 18 September. See Handoff.
-
 ## Outcome
 
 Humans and approved scripts receive one parity-checked CLI assembled from
@@ -112,8 +106,7 @@ behavior.
 
 - State: implementation, `pnpm test:x02` gate, and evidence are complete on
   this branch at the committed hash recorded in the evidence manifest.
-  `Status` is intentionally left at `planned`: `pnpm roadmap:check`
-  rejects anything beyond `planned` while L07 is `review` and P01/P02
+  `Status` stays `planned`: L07 is `review` and P01/P02
   are `planned`. A02, A03, L05, L06, V01, and V02 are `done` since
   18 September.
 - Consume: `docs/contracts/human-cli.md` (v1), `GET/POST /api/v1/cli/*`

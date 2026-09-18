@@ -8,9 +8,6 @@ Test target: `pnpm test:a03`
 
 Evidence manifest: `docs/work-packages/evidence/WP-A03/manifest.json`
 
-> Settled 18 September: `done` — `pnpm test:a03` passed in a detached clean
-> checkout at `1c9ae54`; see Handoff.
-
 ## Outcome
 
 A run-scoped agent submits an immutable result with evidence for human review,

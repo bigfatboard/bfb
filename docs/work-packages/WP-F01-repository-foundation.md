@@ -63,12 +63,14 @@ A clean checkout has one documented command surface for building, formatting, te
 - A clean checkout contains no required machine-local configuration or secret.
 - Duplicate/missing package IDs, broken links, asymmetric dependencies, dependency cycles, or README graph/index drift fail the root verification command; a package cannot enter `ready` with missing consumed/produced contracts or placeholder test/evidence paths; generated roadmap output is deterministic.
 
-## Evidence and handoff
+## Evidence
 
 - Commit the clean-checkout CI run, tool versions, command matrix, roadmap validation fixture/report, and an empty-project build log.
-- F02 and F03 receive stable directory ownership and root commands; they do not replace the toolchain.
-
 ## Risks and decisions
 
 - Keep root tooling deliberately small. If a proposed orchestrator only wraps three commands, do not add it.
 - Swift signing is not required for this package; unsigned CI builds must remain possible.
+
+## Handoff
+
+- F02 and F03 receive stable directory ownership and root commands; they do not replace the toolchain.

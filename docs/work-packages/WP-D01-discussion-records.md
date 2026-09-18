@@ -55,11 +55,15 @@ A human can create a task-linked discussion with two authorized participants and
 - Agent recommendation cannot become human acceptance or launch authority; only current authorized humans can decide.
 - Exact target passes from a clean checkout, including D1 migration and hub contention cases.
 
-## Evidence and handoff
+## Evidence
 
-- Commit schema/migration head, permission/state-transition matrix, replay/concurrency results, and bounded synthetic contract fixtures indexed by the manifest. D02 consumes these frozen commands rather than duplicating business logic.
+- Commit schema/migration head, permission/state-transition matrix, replay/concurrency results, and bounded synthetic contract fixtures indexed by the manifest.
 - Clean certification passed at `5856a935319156e4ea60143bc4b94505efe86b7b`: exact D01, full repository verification, exact C08/C09 regressions, Linux cross-build and clean-worktree check. The committed manifest indexes bounded synthetic evidence; no provider or native Terminal execution is claimed.
 
 ## Risks and decisions
 
 - Discussion-purpose runs require auditing every normal result transition; purpose enforcement belongs in shared domain commands, not only in UI routes.
+
+## Handoff
+
+- D02 consumes these frozen commands rather than duplicating business logic.

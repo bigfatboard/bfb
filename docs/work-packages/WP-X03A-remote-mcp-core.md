@@ -73,11 +73,13 @@ An approved remote MCP client can use a small delegated BFB task loop through st
 - No log or evidence contains authorization codes, tokens, request bodies, or private context.
 - UI/audit copy may say “Provider client via the current human's grant · MCP activity 18s ago”; it cannot claim the provider is working, agent time, token use, completion, review, or verified agent identity from MCP traffic.
 
-## Evidence and handoff
+## Evidence
 
 - Commit protocol/routing fixtures, OAuth metadata and client-policy matrices, Host/Origin/CORS and abuse tests, step-up/token rotation/revocation traces, credential-confusion tests, and tool parity results at the declared manifest.
-- X03 receives the stable transport/delegation boundary and adds later tools without changing the core authority model.
-
 ## Risks and decisions
 
 - This public auth surface is intentionally early but narrow. X03A proves a delegated board-client loop, not autonomous agent execution or live process tracking.
+
+## Handoff
+
+- X03 receives the stable transport/delegation boundary and adds later tools without changing the core authority model.

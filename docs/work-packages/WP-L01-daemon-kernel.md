@@ -65,15 +65,17 @@ One unprivileged `bfb` binary runs a reliable per-user daemon and exposes stable
 - Redaction fixtures containing tokens, paths, task bodies, hook payloads, and environment values leak none of them.
 - `bfb daemon install/status/logs` works with empty private BFB state under the current unprivileged macOS GUI account. The genuinely fresh-account test is deferred to G02 under [ADR 0003](../adr/0003-local-mvp-account-test-scope.md), not claimed as passed.
 
-## Evidence and handoff
+## Evidence
 
 - Commit Local RPC fixtures, migration/fault results, redaction report, and daemon lifecycle log.
-- Feature packages add leaf handlers through the designated registration boundary.
 - Approved-scope commit `f19d18804384c48e9b6180cd8260c66a95f789fd` passed the exact target, uncached native race tests, `pnpm verify`, IC-1 and `pnpm worktree:check` in a clean detached checkout on macOS. [Evidence](evidence/WP-L01/manifest.json) records those results.
-- Timo approved the account-test scope change in ADR 0003. The genuinely fresh-account release test remains explicitly unverified in G02; no signed Keychain or full running MVP claim follows from this kernel gate.
-
 ## Risks and decisions
 
 - Prove Swift-to-UDS and background Keychain access with a small fixture before app work expands.
 - L01 proves Swift-to-UDS with a synthetic client. L08/L04 must prove the signed-component Keychain boundary before accepting enrollment; an unsigned interface test cannot certify that boundary.
 - Exact pinned pure-Go SQLite driver avoids introducing a C toolchain into the distributable runner. Tests use isolated empty BFB user state, never a pre-existing personal BFB database; Darwin launchd tests report their actual account environment.
+
+## Handoff
+
+- Feature packages add leaf handlers through the designated registration boundary.
+- Timo approved the account-test scope change in ADR 0003. The genuinely fresh-account release test remains explicitly unverified in G02; no signed Keychain or full running MVP claim follows from this kernel gate.

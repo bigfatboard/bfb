@@ -15,9 +15,6 @@ JSON, or self-contained HTML in a fully isolated origin that cannot touch
 control-plane sessions, cookies, or APIs, so teams can trust previews of
 agent-produced files.
 
-Settled 18 September: `done` — V01 is `done` and `pnpm test:v02` passed in
-a detached clean checkout at `9372c0f`; see Handoff.
-
 ## Dependencies
 
 - **Requires:** V01, C01, F03, W01.

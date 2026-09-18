@@ -65,15 +65,18 @@ The control plane can enroll one Mac separately into multiple workspaces and iss
 - An ungranted teammate cannot receive launch authority for another human's runner.
 - Challenge/proof abuse limits survive Worker-isolate changes and no raw IP, nonce, proof, private key, local path, or provider credential enters D1 or logs.
 
-## Evidence and handoff
+## Evidence
 
 - Exact gate: `pnpm test:c06`.
 - Evidence manifest: `docs/work-packages/evidence/WP-C06/manifest.json`.
 - Contracts: `packages/domain/src/runners.ts`, `packages/domain/src/runner-crypto.ts`, and `docs/contracts/runner-enrollment.md`.
 
 - Commit enrollment transcript, passkey-bound negative matrix, token fixtures, multi-workspace isolation tests, revocation-signal contract, and abuse-control evidence.
-- L08 owns the runner-side key, socket, renewal, reconnect, heartbeat, pull, and capability-sync client. C09/E01 consume authenticated runner identity but reauthorize every command/event.
 
 ## Risks and decisions
 
 - Challenge transcripts must bind challenge ID, server nonce, workspace, runner, audience, and key thumbprint. Client/socket risks are deliberately deferred to L08 rather than hidden in this server package.
+
+## Handoff
+
+- L08 owns the runner-side key, socket, renewal, reconnect, heartbeat, pull, and capability-sync client. C09/E01 consume authenticated runner identity but reauthorize every command/event.

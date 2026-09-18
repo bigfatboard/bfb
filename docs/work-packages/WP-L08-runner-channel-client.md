@@ -66,10 +66,9 @@ The unprivileged daemon enrolls one Mac separately into each selected workspace 
 - Capability/checkout synchronization contains no absolute path, provider credential, or provider configuration body.
 - A same-user unsigned test process cannot read the runner private key/token, while the signed background daemon can sign and renew without the app running; G02 repeats this gate with notarized release identities and through upgrade.
 
-## Evidence and handoff
+## Evidence
 
 - Commit enrollment/channel transcripts, multi-workspace isolation and renewal traces, sleep/wake/lost-nudge results, sanitized sync fixtures, signed-component ACL report, and the `RunnerConnection` contract.
-- L05 consumes durable command delivery but performs claim/final authorization and execution; L06 consumes authenticated event upload but retains explicit disposition authority.
 - Clean certification at `18b7e20` passed the exact L08 target, repository verification, C06, IC-1, real hub and D1 migration regressions, Linux cross-build and final worktree assertion. See the [committed manifest](evidence/WP-L08/manifest.json) and [bounded channel/ACL report](evidence/WP-L08/channel-matrix.md).
 
 ## Risks and decisions
@@ -77,3 +76,7 @@ The unprivileged daemon enrolls one Mac separately into each selected workspace 
 - Keychain ACL behavior changes with signing identity, and macOS sleep can collapse several expiry/reconnect boundaries. Both require real signed macOS tests rather than mocks alone.
 - The local gate uses an available Apple development identity and isolated synthetic Keychain items. G02 must repeat the boundary with notarized release identities and upgrades; local development signing is not release certification.
 - L08 owns transport recovery and bounded durable command references. C09 owns command creation/claim/final authorization and terminal resolution; E01 owns event dispositions. Neither socket nudges nor a connection cursor deletes durable work.
+
+## Handoff
+
+- L05 consumes durable command delivery but performs claim/final authorization and execution; L06 consumes authenticated event upload but retains explicit disposition authority.

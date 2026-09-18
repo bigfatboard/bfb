@@ -2,9 +2,6 @@
 
 Status: `done`
 
-> Settled 18 September: `done` — A01 is `done` and `pnpm test:v01` passed in
-> a detached clean checkout at `9372c0f`; see Handoff.
-
 Risk: High
 
 Test target: `pnpm test:v01`

@@ -64,13 +64,15 @@ Every BFB workspace mutation can execute through one deterministic command lane 
 - Concurrent requests across fresh Worker isolates observe the same D1-backed abuse budget; raw IPs, codes, client secrets, and capability values are not stored in rate-limit keys or logs.
 - Abuse decisions enforce bounded bodies, attempt/poll caps, expiry, and uniform public failures without making isolate memory the source of truth.
 
-## Evidence and handoff
+## Evidence
 
 - Commit kernel migration diagrams, contention/fault-injection results, abuse-control fixtures, and command/replay contracts.
-- Later packages add domain tables and typed commands through F04's migration/repository foundation, consume the abuse-control service for their public capability endpoints, and never mutate repositories directly from public handlers.
-
 ## Risks and decisions
 
 - Durable Object requests can interleave across D1 awaits; the explicit FIFO is mandatory.
 - D1 constraints remain authoritative even with a serialized hub.
 - Rate limiting is a shared security primitive, but capability consumption still belongs in the owning package's conditional D1 batch.
+
+## Handoff
+
+- Later packages add domain tables and typed commands through F04's migration/repository foundation, consume the abuse-control service for their public capability endpoints, and never mutate repositories directly from public handlers.

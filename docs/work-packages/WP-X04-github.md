@@ -8,9 +8,6 @@ Test target: `pnpm test:x04`
 
 Evidence manifest: `docs/work-packages/evidence/WP-X04/manifest.json`
 
-> Settled 18 September: `done` — A03 and E01 are `done` and `pnpm test:x04`
-> passed in a detached clean checkout at `9372c0f`; see Handoff.
-
 ## Outcome
 
 A workspace links one GitHub App installation and repository to one BFB

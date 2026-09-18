@@ -76,12 +76,14 @@ A claimed launch starts only the locally allowlisted fake provider in the exact 
 - Duplicate run controls have one effective local action; stale/expired controls and controls for another assignment cannot focus, signal, resume, or terminate a process.
 - Captured shell command contains no cloud/task/profile/checkout data and never contains a cloud wake-intent value.
 
-## Evidence and handoff
+## Evidence
 
 - Commit PTY traces, process tree/lock/lease-renewal tests, correlation/environment and heartbeat traces, run-control matrix, crash/local-recovery record, pre-exec swap tests, and malicious-input capture.
-- Real provider adapters supply only a validated local `LaunchPlan`.
-
 ## Risks and decisions
 
 - This is the highest-risk macOS component. Do not debug provider behavior until the fake-provider supervisor suite is clean.
 - Certified 18 September at `d0b286d`: three consecutive `pnpm test:l05` passes in the implementation checkout plus one clean-checkout pass, `pnpm verify`, and bounded evidence at `docs/work-packages/evidence/WP-L05/`. The certification is not deterministic: the first clean-checkout run failed its interactive scenario fail-closed (exactly one SIGINT delivered with a provably ended group, yet a same-instant ownership uncertainty wedged the release leg past its wait with the lock retained), one failure in five full gates as recorded in `command-result.json` `gate_runs` and `native_observations`. Per `ACCEPTANCE.md` a flaky check is not a release gate, so this certification keeps the package `done` on its clean-checkout pass but cannot settle AG-02, which stays `failed` until the Terminal proof passes deterministically. The retained launch trace is the bounded redacted matrix (`native-matrix.md`) plus the `command-result.json` assertions; no separate raw launch trace is committed, and the evidence rules forbid retaining terminal transcripts. Real Terminal `focus_existing`, human-like Ctrl-C, and provider-only window close with verified whole-group release all pass in the signed integration. The Ctrl-C/close signal-counting assertions committed after that certification (counting provider: exactly one SIGINT with a duplicate-free settle; close: kernel SIGHUP plus at most the helper-shutdown SIGTERM, never a third signal) await their first signed Terminal run; the certified run proved the weaker exit-on-first-signal form whose `command-result.json` assertion names stay true under the stronger gate. Known limits: a same-group survivor cannot outlive a real close (survivor retention stays covered by the child and escape scenarios); the synthetic `--require-focus` routing section is not invoked by any gate; a cold start beyond the scripting-readiness poll fails safe; one shutdown-observation race wedged a release past the release wait and failed closed with the lock retained. No alternate input path bypasses the owned-tab checks.
+
+## Handoff
+
+- Real provider adapters supply only a validated local `LaunchPlan`.

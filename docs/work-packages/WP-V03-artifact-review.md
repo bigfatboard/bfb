@@ -8,9 +8,6 @@ Test target: `pnpm test:v03`
 
 Evidence manifest: `docs/work-packages/evidence/WP-V03/manifest.json`
 
-> Settled 18 September: `done` — `pnpm test:v03` passed in a detached clean
-> checkout at `1c9ae54`; see Handoff.
-
 ## Outcome
 
 A human reviews an exact artifact version and records approval, changes requested, or comment without that decision leaking to later bytes or elevating unrelated permissions.

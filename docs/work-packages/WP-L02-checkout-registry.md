@@ -68,10 +68,9 @@ No network request, Git repair, provider launch or automatic worktree creation i
 - A config hash change cannot widen policy and forces replacement/final authorization later.
 - No failure falls back to another checkout or the home directory.
 
-## Evidence and handoff
+## Evidence
 
 - Commit filesystem fixture matrix, zero-mutation Git proof, sanitized snapshots, and typed failures.
-- L05 receives `Revalidate(checkout_id)` and one canonical lock identity.
 - Clean certification at `0c436be` passed the exact target, full `pnpm verify`
   (356 TypeScript tests plus Go/Swift), Linux cross-build and worktree check.
   The committed evidence manifest records real APFS and bounded redaction proof.
@@ -79,3 +78,7 @@ No network request, Git repair, provider launch or automatic worktree creation i
 ## Risks and decisions
 
 - APFS case behavior, removable volumes, inode reuse, and Git worktree semantics require real filesystem tests, not mocks alone.
+
+## Handoff
+
+- L05 receives `Revalidate(checkout_id)` and one canonical lock identity.

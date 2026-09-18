@@ -8,10 +8,6 @@ Test target: `pnpm test:a02`
 
 Evidence manifest: `docs/work-packages/evidence/WP-A02/manifest.json`
 
-> Settled 18 September: `done` — `pnpm test:a02` passed in a detached clean
-> checkout at `9372c0f` and was re-proven in-worktree at `b3b1391` after the
-> evidence-determinism fix; see Handoff.
-
 ## Outcome
 
 An agent can request a typed human decision, a permitted human can answer it from the cross-project Attention view, and the agent can wait briefly or retrieve the durable answer later.

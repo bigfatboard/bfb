@@ -8,9 +8,6 @@ Test target: `pnpm test:a01`
 
 Evidence manifest: `docs/work-packages/evidence/WP-A01/manifest.json`
 
-> Settled 18 September: `done` — `pnpm test:a01` passed in a detached clean
-> checkout at `9372c0f`; see Handoff.
-
 ## Outcome
 
 An active local provider process can use stdio MCP to read exactly its run context and perform permitted task/comment/progress/proposal actions without receiving a human, runner, or reusable cloud credential.
