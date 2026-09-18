@@ -16,7 +16,11 @@ import {
   type RunnerTokenClaims,
 } from "@bfb/domain";
 
-import { launchFixture, LAUNCH_NOW, success } from "../../../packages/domain/test/launch-fixture.js";
+import {
+  launchFixture,
+  LAUNCH_NOW,
+  success,
+} from "../../../packages/domain/test/launch-fixture.js";
 import { parseAuthKeys } from "../src/auth/better-auth.js";
 import { validateControlEnv, type ControlBindings } from "../src/env.js";
 import { createTestWorkspaceHubNamespace } from "../src/hub-client.js";
@@ -30,7 +34,10 @@ const NOW = LAUNCH_NOW;
 async function fixture() {
   const context = openAuthTestContext(NOW),
     f = await launchFixture(context.db);
-  const session = await seedAuthSession(context, { humanId: FIX.owner, email: "owner@synthetic.test" });
+  const session = await seedAuthSession(context, {
+    humanId: FIX.owner,
+    email: "owner@synthetic.test",
+  });
   const reviewer = await seedAuthSession(context, {
     userId: "auth-user-x01-reviewer",
     sessionId: "auth-session-x01-reviewer",
@@ -114,7 +121,8 @@ async function fixture() {
       env,
     );
     expect(challengeResponse.status, await challengeResponse.clone().text()).toBe(200);
-    const challenge = ((await challengeResponse.json()) as { challenge: RunnerChallenge }).challenge;
+    const challenge = ((await challengeResponse.json()) as { challenge: RunnerChallenge })
+      .challenge;
     const signature = await crypto.subtle.sign(
       { name: "ECDSA", hash: "SHA-256" },
       key.privateKey,
@@ -141,7 +149,13 @@ async function fixture() {
       env,
     );
   }
-  function browserWrite(path: string, body: unknown, method = "POST", cookie = session.cookie, csrfToken = csrf) {
+  function browserWrite(
+    path: string,
+    body: unknown,
+    method = "POST",
+    cookie = session.cookie,
+    csrfToken = csrf,
+  ) {
     return app().request(
       new Request(`${ORIGIN}/api/v1/workspaces/${FIX.workspace}${path}`, {
         method,
@@ -158,7 +172,19 @@ async function fixture() {
       env,
     );
   }
-  return { context, f, app, env, session, reviewer, csrf, reviewerCsrf, signed, browserGet, browserWrite };
+  return {
+    context,
+    f,
+    app,
+    env,
+    session,
+    reviewer,
+    csrf,
+    reviewerCsrf,
+    signed,
+    browserGet,
+    browserWrite,
+  };
 }
 
 describe("notification browser routes", () => {
@@ -181,38 +207,57 @@ describe("notification browser routes", () => {
 
   it("stores preferences and validates scope", async () => {
     const { browserGet, browserWrite, reviewer, reviewerCsrf } = await fixture();
-    const stored = await browserWrite("/notifications/preferences", {
-      request_id: "x01-route-pref-1",
-      preferences: [
-        { channel: "macos", category: "run_cancelled", enabled: true },
-        { project_id: FIX.projectA, channel: "browser_push", category: "attention", enabled: false },
-      ],
-    }, "PUT");
+    const stored = await browserWrite(
+      "/notifications/preferences",
+      {
+        request_id: "x01-route-pref-1",
+        preferences: [
+          { channel: "macos", category: "run_cancelled", enabled: true },
+          {
+            project_id: FIX.projectA,
+            channel: "browser_push",
+            category: "attention",
+            enabled: false,
+          },
+        ],
+      },
+      "PUT",
+    );
     expect(stored.status, await stored.clone().text()).toBe(200);
     const reread = (await (await browserGet("/notifications/preferences")).json()) as {
       overrides: Array<{ project_id: string; channel: string; category: string; enabled: boolean }>;
     };
     expect(reread.overrides).toHaveLength(2);
-    const bad = await browserWrite("/notifications/preferences", {
-      request_id: "x01-route-pref-2",
-      preferences: [{ channel: "carrier_pigeon", category: "attention", enabled: true }],
-    }, "PUT");
+    const bad = await browserWrite(
+      "/notifications/preferences",
+      {
+        request_id: "x01-route-pref-2",
+        preferences: [{ channel: "carrier_pigeon", category: "attention", enabled: true }],
+      },
+      "PUT",
+    );
     expect(bad.status).toBe(200);
-    const badBody = (await bad.json()) as { results: Array<{ ok: boolean; error?: { code: string } }> };
+    const badBody = (await bad.json()) as {
+      results: Array<{ ok: boolean; error?: { code: string } }>;
+    };
     expect(badBody.results[0]?.ok).toBe(false);
     expect(badBody.results[0]?.error?.code).toBe("invalid_argument");
     const foreign = await browserWrite(
       "/notifications/preferences",
       {
         request_id: "x01-route-pref-3",
-        preferences: [{ project_id: FIX.projectB, channel: "macos", category: "attention", enabled: true }],
+        preferences: [
+          { project_id: FIX.projectB, channel: "macos", category: "attention", enabled: true },
+        ],
       },
       "PUT",
       reviewer.cookie,
       reviewerCsrf,
     );
     expect(foreign.status).toBe(200);
-    const foreignBody = (await foreign.json()) as { results: Array<{ ok: boolean; error?: { code: string } }> };
+    const foreignBody = (await foreign.json()) as {
+      results: Array<{ ok: boolean; error?: { code: string } }>;
+    };
     expect(foreignBody.results[0]?.ok).toBe(false);
     expect(foreignBody.results[0]?.error?.code).toBe("not_found");
   });
@@ -226,7 +271,8 @@ describe("notification browser routes", () => {
       auth: "A".repeat(22),
     });
     expect(created.status, await created.clone().text()).toBe(200);
-    const hash = ((await created.json()) as { result: { endpoint_hash: string } }).result.endpoint_hash;
+    const hash = ((await created.json()) as { result: { endpoint_hash: string } }).result
+      .endpoint_hash;
     expect(hash).toMatch(/^[0-9a-f]{64}$/);
     const listed = (await (await browserGet("/notifications/preferences")).json()) as {
       endpoints: Array<{ endpoint_hash: string }>;
@@ -239,14 +285,22 @@ describe("notification browser routes", () => {
       auth: "A".repeat(22),
     });
     expect(invalid.status).toBe(400);
-    const removed = await browserWrite(`/notifications/push-endpoints/${hash}`, {
-      request_id: "x01-route-endpoint-3",
-    }, "DELETE");
+    const removed = await browserWrite(
+      `/notifications/push-endpoints/${hash}`,
+      {
+        request_id: "x01-route-endpoint-3",
+      },
+      "DELETE",
+    );
     expect(removed.status).toBe(200);
     expect(((await removed.json()) as { result: { removed: boolean } }).result.removed).toBe(true);
-    const again = await browserWrite(`/notifications/push-endpoints/${hash}`, {
-      request_id: "x01-route-endpoint-4",
-    }, "DELETE");
+    const again = await browserWrite(
+      `/notifications/push-endpoints/${hash}`,
+      {
+        request_id: "x01-route-endpoint-4",
+      },
+      "DELETE",
+    );
     expect(((await again.json()) as { result: { removed: boolean } }).result.removed).toBe(false);
     const deliveries = await browserGet("/notifications/deliveries?limit=10");
     expect(deliveries.status).toBe(200);
@@ -295,7 +349,8 @@ describe("notification runner routes", () => {
     expect(fanout.status).toBe("notified");
     const pulled = await app().request(await signed("notifications/pull", {}), undefined, env);
     expect(pulled.status, await pulled.clone().text()).toBe(200);
-    const items = ((await pulled.json()) as { deliveries: Array<{ delivery_id: string }> }).deliveries;
+    const items = ((await pulled.json()) as { deliveries: Array<{ delivery_id: string }> })
+      .deliveries;
     expect(items).toHaveLength(1);
     expect(items[0]?.delivery_id).toMatch(/^[0-7][0-9A-HJKMNP-TV-Z]{25}$/);
     const acked = await app().request(
@@ -306,7 +361,7 @@ describe("notification runner routes", () => {
     expect(acked.status).toBe(200);
     expect(((await acked.json()) as { acked: number }).acked).toBe(1);
     const empty = await app().request(await signed("notifications/pull", {}), undefined, env);
-    expect((((await empty.json()) as { deliveries: unknown[] }).deliveries)).toEqual([]);
+    expect(((await empty.json()) as { deliveries: unknown[] }).deliveries).toEqual([]);
     const bad = await app().request(
       await signed("notifications/ack", { delivery_ids: ["short"] }),
       undefined,

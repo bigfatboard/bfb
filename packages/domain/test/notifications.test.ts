@@ -47,19 +47,32 @@ describe("notification event selection", () => {
   });
 
   it("ignores answered attention and malformed payloads", () => {
-    expect(selectNotificationEvent("attention.request", payload({ id: ATTENTION_ID, state: "answered" }))).toBeNull();
+    expect(
+      selectNotificationEvent(
+        "attention.request",
+        payload({ id: ATTENTION_ID, state: "answered" }),
+      ),
+    ).toBeNull();
     expect(selectNotificationEvent("attention.request", payload({ state: "open" }))).toBeNull();
-    expect(selectNotificationEvent("attention.request", payload({ id: "nope", state: "open" }))).toBeNull();
+    expect(
+      selectNotificationEvent("attention.request", payload({ id: "nope", state: "open" })),
+    ).toBeNull();
     expect(selectNotificationEvent("attention.request", null)).toBeNull();
     expect(selectNotificationEvent("attention.request", { nope: true })).toBeNull();
   });
 
   it("selects launch blocked and expired outcomes only", () => {
     expect(
-      selectNotificationEvent("launch.reject", payload({ state: "rejected" }, { launchId: LAUNCH_ID })),
+      selectNotificationEvent(
+        "launch.reject",
+        payload({ state: "rejected" }, { launchId: LAUNCH_ID }),
+      ),
     ).toEqual({ category: "launch_blocked", launchId: LAUNCH_ID });
     expect(
-      selectNotificationEvent("launch.reject", payload({ state: "expired" }, { launchId: LAUNCH_ID })),
+      selectNotificationEvent(
+        "launch.reject",
+        payload({ state: "expired" }, { launchId: LAUNCH_ID }),
+      ),
     ).toEqual({ category: "launch_blocked", launchId: LAUNCH_ID });
     expect(
       selectNotificationEvent(
@@ -128,7 +141,10 @@ describe("notification event selection", () => {
       ),
     ).toEqual({ category: "result_accepted", runId: RUN_ID });
     expect(
-      selectNotificationEvent("result.fail", payload({ runResultState: "failed" }, { runId: RUN_ID })),
+      selectNotificationEvent(
+        "result.fail",
+        payload({ runResultState: "failed" }, { runId: RUN_ID }),
+      ),
     ).toEqual({ category: "run_failed", runId: RUN_ID });
     expect(
       selectNotificationEvent(
@@ -150,7 +166,10 @@ describe("notification event selection", () => {
       selectNotificationEvent("result.accept", payload({ runResultState: "accepted" }, {})),
     ).toBeNull();
     expect(
-      selectNotificationEvent("result.fail", payload({ runResultState: "submitted" }, { runId: RUN_ID })),
+      selectNotificationEvent(
+        "result.fail",
+        payload({ runResultState: "submitted" }, { runId: RUN_ID }),
+      ),
     ).toBeNull();
   });
 
@@ -332,9 +351,8 @@ describe("notification preference and endpoint commands", () => {
     expect(stored.project_id).toBe(FIX.projectA);
     const overrides = await getPreferenceOverrides(f.db, FIX.workspace, FIX.owner);
     expect(
-      overrides.find(
-        (entry) => entry.channel === "macos" && entry.category === "run_cancelled",
-      )?.enabled,
+      overrides.find((entry) => entry.channel === "macos" && entry.category === "run_cancelled")
+        ?.enabled,
     ).toBe(true);
     const foreign = await f.human(
       setNotificationPreferenceCommand,
@@ -451,7 +469,8 @@ describe("notification fan-out guards", () => {
       deliveryId: pushRow!.delivery_id,
     });
     expect(optedOut.ok).toBe(false);
-    if (!optedOut.ok) expect(optedOut.outcome).toMatchObject({ terminal: true, state: "suppressed" });
+    if (!optedOut.ok)
+      expect(optedOut.outcome).toMatchObject({ terminal: true, state: "suppressed" });
 
     await recordDeliveryOutcome(f.db, {
       workspaceId: FIX.workspace,

@@ -66,11 +66,7 @@ export function createFetchHandler(options: ControlFetchOptions = {}) {
 
 export default {
   fetch: createFetchHandler(),
-  async queue(
-    batch: MessageBatch,
-    env: ControlBindings,
-    _ctx?: ExecutionContext,
-  ): Promise<void> {
+  async queue(batch: MessageBatch, env: ControlBindings, _ctx?: ExecutionContext): Promise<void> {
     const validated = validateControlEnv(env);
     if (!validated.bindings.NOTIFY_JOBS || !validated.bindings.NOTIFY_DLQ) {
       throw new Error("notification queue bindings are not configured");

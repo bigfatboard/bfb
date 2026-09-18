@@ -45,9 +45,13 @@ function textBytes(value: string): Uint8Array {
 }
 
 async function hmacSha256(key: Uint8Array, data: Uint8Array): Promise<Uint8Array> {
-  const imported = await crypto.subtle.importKey("raw", key, { name: "HMAC", hash: "SHA-256" }, false, [
-    "sign",
-  ]);
+  const imported = await crypto.subtle.importKey(
+    "raw",
+    key,
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
   return new Uint8Array(await crypto.subtle.sign("HMAC", imported, data));
 }
 
@@ -165,11 +169,9 @@ export async function encryptPushBody(input: {
     const receiver = await importReceiverPublicKey(input.receiverPublic);
     secret = await sharedSecret(input.senderKeys.privateKey, receiver);
   } else {
-    const pair = (await crypto.subtle.generateKey(
-      { name: "ECDH", namedCurve: "P-256" },
-      true,
-      ["deriveBits"],
-    )) as CryptoKeyPair;
+    const pair = (await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, [
+      "deriveBits",
+    ])) as CryptoKeyPair;
     const raw = new Uint8Array(
       (await crypto.subtle.exportKey("raw", pair.publicKey)) as ArrayBuffer,
     );
@@ -186,13 +188,18 @@ export async function encryptPushBody(input: {
   });
   const key = await crypto.subtle.importKey("raw", cek, { name: "AES-GCM" }, false, ["encrypt"]);
   const padded = concat(input.plaintext, new Uint8Array([0x02]));
-  const ciphertext = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce }, key, padded));
+  const ciphertext = new Uint8Array(
+    await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce }, key, padded),
+  );
   const rs = new Uint8Array(4);
   new DataView(rs.buffer).setUint32(0, PUSH_RECORD_SIZE, false);
   return concat(salt, rs, new Uint8Array([senderPublic.length]), senderPublic, ciphertext);
 }
 
-function parseVapidSecrets(vapid: VapidSecrets): { publicPoint: Uint8Array; privateScalar: Uint8Array } {
+function parseVapidSecrets(vapid: VapidSecrets): {
+  publicPoint: Uint8Array;
+  privateScalar: Uint8Array;
+} {
   let publicPoint: Uint8Array;
   let privateScalar: Uint8Array;
   try {

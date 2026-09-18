@@ -76,7 +76,9 @@ describe("rfc8291 vectors", () => {
   });
 
   it("round-trips a fresh message through receiver-side decryption", async () => {
-    const plaintext = new TextEncoder().encode(JSON.stringify({ title: "BFB needs your attention" }));
+    const plaintext = new TextEncoder().encode(
+      JSON.stringify({ title: "BFB needs your attention" }),
+    );
     const receiverKeys = await importKeyPair({ privateScalar: UA_PRIVATE, publicPoint: UA_PUBLIC });
     void receiverKeys;
     const body = await encryptPushBody({

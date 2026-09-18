@@ -8,7 +8,10 @@ import { DomainError } from "@bfb/domain";
 
 import { handleAttentionApi } from "./api/attention.js";
 import { handleNotificationApi } from "./api/notifications.js";
-import { handleNotificationRunnerApi, isNotificationRunnerPath } from "./api/notification-runner.js";
+import {
+  handleNotificationRunnerApi,
+  isNotificationRunnerPath,
+} from "./api/notification-runner.js";
 import { handleEventBrowserApi, handleRunnerEventApi, isRunnerEventPath } from "./api/events.js";
 import { handleBrowserRealtimeApi, isBrowserRealtimePath } from "./api/realtime.js";
 import { handleWorkApi } from "./api/work.js";

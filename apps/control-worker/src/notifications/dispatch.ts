@@ -19,7 +19,8 @@ export async function dispatchNotificationOutbox(
   now: string,
   limit = DISPATCH_BATCH_LIMIT,
 ): Promise<{ workspaces: number; scanned: number; sent: number }> {
-  const bounded = Number.isSafeInteger(limit) && limit >= 1 && limit <= 500 ? limit : DISPATCH_BATCH_LIMIT;
+  const bounded =
+    Number.isSafeInteger(limit) && limit >= 1 && limit <= 500 ? limit : DISPATCH_BATCH_LIMIT;
   const workspaces = (await db
     .prepare(`SELECT id FROM workspaces ORDER BY id ASC LIMIT 1000`)
     .all()) as Array<{ id: string }>;
@@ -33,9 +34,7 @@ export async function dispatchNotificationOutbox(
       )
       .run(workspace.id, now);
     const state = (await db
-      .prepare(
-        `SELECT last_cursor FROM notification_dispatch_state WHERE workspace_id = ?`,
-      )
+      .prepare(`SELECT last_cursor FROM notification_dispatch_state WHERE workspace_id = ?`)
       .get(workspace.id)) as { last_cursor: number };
     const rows = (await db
       .prepare(

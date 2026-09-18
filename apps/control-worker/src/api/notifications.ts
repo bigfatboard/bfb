@@ -118,7 +118,10 @@ function outcomeResponse(outcome: { ok: boolean; error?: { code: string } }): Re
 }
 
 /** The mounted browser router has already checked the human session, origin and CSRF token. */
-export async function handleNotificationApi(request: Request, deps: NotificationApiDeps): Promise<Response> {
+export async function handleNotificationApi(
+  request: Request,
+  deps: NotificationApiDeps,
+): Promise<Response> {
   const url = new URL(request.url);
   const base = `/api/v1/workspaces/${deps.workspaceId}`;
   await browserBudget(request, deps);
@@ -175,7 +178,10 @@ export async function handleNotificationApi(request: Request, deps: Notification
   }
 
   if (request.method === "PUT" && url.pathname === `${base}/notifications/preferences`) {
-    const body = objectBody(await readBoundedJson(request, BODY_LIMIT), ["request_id", "preferences"]);
+    const body = objectBody(await readBoundedJson(request, BODY_LIMIT), [
+      "request_id",
+      "preferences",
+    ]);
     const key = requestId(body);
     if (!Array.isArray(body.preferences) || body.preferences.length > 100) {
       throw new DomainError("invalid_argument", "preferences batch is invalid");
@@ -229,9 +235,9 @@ export async function handleNotificationApi(request: Request, deps: Notification
     );
   }
 
-  const removeMatch = new RegExp(
-    `^${base}/notifications/push-endpoints/([0-9a-f]{64})$`,
-  ).exec(url.pathname);
+  const removeMatch = new RegExp(`^${base}/notifications/push-endpoints/([0-9a-f]{64})$`).exec(
+    url.pathname,
+  );
   if (request.method === "DELETE" && removeMatch?.[1]) {
     const body = objectBody(await readBoundedJson(request, BODY_LIMIT), ["request_id"]);
     const key = requestId(body);

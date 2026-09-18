@@ -118,11 +118,10 @@ const harnessPort = (server.address() as import("node:net").AddressInfo).port;
 const harnessUrl = `http://127.0.0.1:${harnessPort}`;
 
 // VAPID application-server keys (ephemeral, test-only; production uses Worker secrets).
-const vapidPair = (await crypto.subtle.generateKey(
-  { name: "ECDSA", namedCurve: "P-256" },
-  true,
-  ["sign", "verify"],
-)) as CryptoKeyPair;
+const vapidPair = (await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, [
+  "sign",
+  "verify",
+])) as CryptoKeyPair;
 const vapidRaw = new Uint8Array(
   (await crypto.subtle.exportKey("raw", vapidPair.publicKey)) as ArrayBuffer,
 );
@@ -139,11 +138,9 @@ interface Receiver {
 }
 
 async function makeReceiver(tag: string): Promise<Receiver> {
-  const pair = (await crypto.subtle.generateKey(
-    { name: "ECDH", namedCurve: "P-256" },
-    true,
-    ["deriveBits"],
-  )) as CryptoKeyPair;
+  const pair = (await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, [
+    "deriveBits",
+  ])) as CryptoKeyPair;
   const raw = new Uint8Array((await crypto.subtle.exportKey("raw", pair.publicKey)) as ArrayBuffer);
   const jwk = (await crypto.subtle.exportKey("jwk", pair.privateKey)) as JsonWebKey;
   assert(jwk.d, "receiver export failed");
@@ -483,11 +480,10 @@ const checkoutId = randomUlid();
 const tokenId = randomUlid();
 const tokenExpiresAt = new Date(Math.floor(Date.parse(now) / 1000) * 1000 + 300_000).toISOString();
 
-const signingKey = (await crypto.subtle.generateKey(
-  { name: "ECDSA", namedCurve: "P-256" },
-  true,
-  ["sign", "verify"],
-)) as CryptoKeyPair;
+const signingKey = (await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, [
+  "sign",
+  "verify",
+])) as CryptoKeyPair;
 const signingJwk = (await crypto.subtle.exportKey("jwk", signingKey.publicKey)) as JsonWebKey;
 const runnerPublicKey = await canonicalRunnerKey({
   crv: signingJwk.crv,
@@ -645,16 +641,23 @@ async function registerEndpoint(humanId: string, tag: string): Promise<Receiver>
   const receiver = await makeReceiver(tag);
   receivers.set(tag, receiver);
   const { DB } = await hubEnv();
-  const hash = createHash("sha256")
-    .update(`${harnessUrl}/push/${tag}`, "utf8")
-    .digest("hex");
+  const hash = createHash("sha256").update(`${harnessUrl}/push/${tag}`, "utf8").digest("hex");
   await adaptD1(DB)
     .prepare(
       `INSERT INTO notification_push_endpoints
        (workspace_id, human_id, endpoint_hash, endpoint, p256dh, auth, created_at, last_seen_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run(FIX.workspace, humanId, hash, `${harnessUrl}/push/${tag}`, receiver.p256dh, receiver.auth, now, now);
+    .run(
+      FIX.workspace,
+      humanId,
+      hash,
+      `${harnessUrl}/push/${tag}`,
+      receiver.p256dh,
+      receiver.auth,
+      now,
+      now,
+    );
   record("endpoint_registered", { human: humanId.slice(0, 8), tag });
   return receiver;
 }
@@ -736,7 +739,9 @@ async function newClaimedRun(title: string): Promise<ClaimedRun> {
   });
   const claimed = await native<{
     state: string;
-    claim: { specification: { run_id: string; run_execution_id: string; assignment_generation: number } };
+    claim: {
+      specification: { run_id: string; run_execution_id: string; assignment_generation: number };
+    };
   }>(
     "launch.claim",
     {
@@ -944,7 +949,8 @@ try {
     assert.equal(naked.status, 403);
     const pulled = await signedRunner("notifications/pull", {});
     assert.equal(pulled.status, 200, await pulled.clone().text());
-    const items = ((await pulled.json()) as { deliveries: Array<{ delivery_id: string }> }).deliveries;
+    const items = ((await pulled.json()) as { deliveries: Array<{ delivery_id: string }> })
+      .deliveries;
     assert.equal(items.length, 1);
     assert.match(items[0]?.delivery_id ?? "", /^[0-7][0-9A-HJKMNP-TV-Z]{25}$/);
     const acked = await signedRunner("notifications/ack", {
@@ -991,9 +997,7 @@ try {
   {
     const rows = await deliveryRows(submitted[0]?.cursor ?? 0);
     assert(rows.every((row) => row.category === "result_submitted"));
-    const memberPost = pushPosts
-      .slice(submitBefore)
-      .find((post) => post.path === "/push/member");
+    const memberPost = pushPosts.slice(submitBefore).find((post) => post.path === "/push/member");
     assert(memberPost, "member endpoint must receive the review request");
     const payload = (await decryptPush(memberReceiver, memberPost.body)) as { deep_link: string };
     assert.match(
@@ -1029,7 +1033,11 @@ try {
   await waitDeliveries(failed[0]?.cursor ?? 0, "browser_push", "delivered", 2);
   record("run_failed", { cursor: failed[0]?.cursor });
   const runD = await newClaimedRun("Synthetic X01 changes flow");
-  await native("result.submit", { runId: runD.runId, summary: "Synthetic X01 changes summary" }, runnerId);
+  await native(
+    "result.submit",
+    { runId: runD.runId, summary: "Synthetic X01 changes summary" },
+    runnerId,
+  );
   await dispatchNew();
   {
     const current = await versions(runD.runId, runD.taskId);
@@ -1160,11 +1168,11 @@ try {
   await waitDeliveries(revoked[0]?.cursor ?? 0, "browser_push", "delivered", 1);
   {
     const rows = await deliveryRows(revoked[0]?.cursor ?? 0);
-    assert(rows.every((row) => row.human_id !== FIX.member), "revoked member must have no rows");
-    const purged = await purgeRevokedNotificationState(
-      adaptD1((await hubEnv()).DB),
-      FIX.workspace,
+    assert(
+      rows.every((row) => row.human_id !== FIX.member),
+      "revoked member must have no rows",
     );
+    const purged = await purgeRevokedNotificationState(adaptD1((await hubEnv()).DB), FIX.workspace);
     assert(purged.endpoints >= 1 && purged.preferences >= 1);
     assert.equal(await tableCount("notification_push_endpoints"), 1, "owner endpoint survives");
     record("revocation_ok", { purged });
@@ -1255,7 +1263,10 @@ try {
       .prepare(`SELECT delivery_id FROM notification_deliveries WHERE workspace_id = ?`)
       .all(FIX.workspace)) as Array<{ delivery_id: string }>;
     scanClean("all_push_bodies", decrypted);
-    scanClean("all_dlq_copies", dlqCopies.map((copy) => JSON.stringify(copy)));
+    scanClean(
+      "all_dlq_copies",
+      dlqCopies.map((copy) => JSON.stringify(copy)),
+    );
     scanClean("recording", recording);
     assert(links.length > 10, "evidence must cover a meaningful delivery population");
     record("redaction_ok", { deliveries: links.length, push_posts: decrypted.length });
@@ -1287,4 +1298,3 @@ try {
   server.close();
   await testServer.close();
 }
-

@@ -54,11 +54,10 @@ function b64decode(input: string): Uint8Array {
 }
 
 async function vapidSecrets(): Promise<VapidSecrets> {
-  const pair = (await crypto.subtle.generateKey(
-    { name: "ECDSA", namedCurve: "P-256" },
-    true,
-    ["sign", "verify"],
-  )) as CryptoKeyPair;
+  const pair = (await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, [
+    "sign",
+    "verify",
+  ])) as CryptoKeyPair;
   const raw = new Uint8Array((await crypto.subtle.exportKey("raw", pair.publicKey)) as ArrayBuffer);
   const jwk = (await crypto.subtle.exportKey("jwk", pair.privateKey)) as JsonWebKey;
   if (!jwk.d) throw new Error("vapid key export failed");
@@ -66,11 +65,9 @@ async function vapidSecrets(): Promise<VapidSecrets> {
 }
 
 async function receiverKeys(): Promise<{ p256dh: string; auth: string }> {
-  const pair = (await crypto.subtle.generateKey(
-    { name: "ECDH", namedCurve: "P-256" },
-    true,
-    ["deriveBits"],
-  )) as CryptoKeyPair;
+  const pair = (await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, [
+    "deriveBits",
+  ])) as CryptoKeyPair;
   const raw = new Uint8Array((await crypto.subtle.exportKey("raw", pair.publicKey)) as ArrayBuffer);
   return {
     p256dh: b64encode(raw),
@@ -132,7 +129,10 @@ interface QueueWorld {
   cursor: number;
 }
 
-async function seedQueueWorld(question: string, ownerHuman: string = FIX.owner): Promise<QueueWorld> {
+async function seedQueueWorld(
+  question: string,
+  ownerHuman: string = FIX.owner,
+): Promise<QueueWorld> {
   const context = openAuthTestContext();
   await seedSyntheticWorkspace(context.db, NOW);
   const db = context.db;
@@ -225,7 +225,11 @@ async function seedQueueWorld(question: string, ownerHuman: string = FIX.owner):
     allowRunOverrides: true,
   };
   await human(updateWorkspacePolicyCommand, { ...policy, expectedVersion: 1 });
-  await human(updateProjectPolicyCommand, { ...policy, projectId: FIX.projectA, expectedVersion: 1 });
+  await human(updateProjectPolicyCommand, {
+    ...policy,
+    projectId: FIX.projectA,
+    expectedVersion: 1,
+  });
   await human(reportRepositoryConfigCommand, {
     projectId: FIX.projectA,
     expectedVersion: 1,
@@ -306,7 +310,9 @@ async function seedQueueWorld(question: string, ownerHuman: string = FIX.owner):
   });
   const claimed = await native<{
     state: string;
-    claim: { specification: { run_execution_id: string; assignment_generation: number; run_id: string } };
+    claim: {
+      specification: { run_execution_id: string; assignment_generation: number; run_id: string };
+    };
   }>(claimLaunchCommand, {
     principal,
     claim: {
@@ -519,14 +525,19 @@ describe("notification queue consumer", () => {
     const dlq: DlqCopy[] = [];
     const fetchImpl = scriptedFetch(201, calls);
     const deps = depsFor(world, { fetchImpl, vapid: null, dlq, calls });
-    const mixed = batch([{ body: { nope: true }, attempts: 1 }, { body: messageFor(world.cursor), attempts: 1 }]);
+    const mixed = batch([
+      { body: { nope: true }, attempts: 1 },
+      { body: messageFor(world.cursor), attempts: 1 },
+    ]);
     await handleNotifyQueue(mixed.batch as never, deps, NOW, fetchImpl);
     expect(mixed.fakes[0]?.acked).toBe(true);
     expect(mixed.fakes[1]?.acked).toBe(true);
     expect(calls.length).toBe(0);
     const rows = await deliveries(world, world.cursor);
     expect(rows.find((row) => row.channel === "browser_push")?.state).toBe("failed");
-    expect(rows.find((row) => row.channel === "browser_push")?.last_error).toContain("push_unconfigured");
+    expect(rows.find((row) => row.channel === "browser_push")?.last_error).toContain(
+      "push_unconfigured",
+    );
   });
 
   it("acks non-actionable events and suppresses revoked readers", async () => {
@@ -552,7 +563,9 @@ describe("notification queue consumer", () => {
     const dlq: DlqCopy[] = [];
     const fetchImpl = scriptedFetch(201, calls);
     const deps = depsFor(world, { fetchImpl, vapid: await vapidSecrets(), dlq, calls });
-    const silent = batch([{ body: messageFor(silentCursor.workspace_cursor, "task.create"), attempts: 1 }]);
+    const silent = batch([
+      { body: messageFor(silentCursor.workspace_cursor, "task.create"), attempts: 1 },
+    ]);
     await handleNotifyQueue(silent.batch as never, deps, NOW, fetchImpl);
     expect(silent.fakes[0]?.acked).toBe(true);
     expect(calls.length).toBe(0);

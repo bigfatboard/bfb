@@ -60,12 +60,7 @@ export async function handleNotificationRunnerApi(
     );
     if (!Array.isArray(input.delivery_ids)) rejectRunnerRequest();
     return response(
-      await ackMacosNotifications(
-        deps.db,
-        principal,
-        input.delivery_ids as string[],
-        deps.now,
-      ),
+      await ackMacosNotifications(deps.db, principal, input.delivery_ids as string[], deps.now),
     );
   } catch {
     // Uniform rejection: possession, binding, and body failures are

@@ -47,15 +47,12 @@ export function defaultPreference(category: NotificationCategory): boolean {
 }
 
 function isChannel(value: unknown): value is NotificationChannel {
-  return (
-    value === "browser_push" || value === "macos"
-  );
+  return value === "browser_push" || value === "macos";
 }
 
 function isCategory(value: unknown): value is NotificationCategory {
   return (
-    typeof value === "string" &&
-    (NOTIFICATION_CATEGORIES as readonly string[]).includes(value)
+    typeof value === "string" && (NOTIFICATION_CATEGORIES as readonly string[]).includes(value)
   );
 }
 
@@ -156,8 +153,7 @@ export function selectNotificationEvent(
     case "result.accept":
     case "result.fail":
     case "result.cancel": {
-      const runId =
-        ulidField(result, "run_id") ?? (input ? ulidField(input, "runId") : null);
+      const runId = ulidField(result, "run_id") ?? (input ? ulidField(input, "runId") : null);
       if (!runId) return null;
       if (kind === "result.request_changes") {
         if (result.runResultState !== "changes_requested") return null;
@@ -218,7 +214,10 @@ export const NOTIFICATION_COPY: Record<NotificationCategory, { title: string; bo
   attention: { title: "BFB needs your attention", body: "Open BFB to review the next step." },
   launch_blocked: { title: "BFB launch blocked", body: "Open BFB to review the next step." },
   run_failed: { title: "BFB run failed", body: "Open BFB to review the next step." },
-  result_submitted: { title: "BFB result ready for review", body: "Open BFB to review the next step." },
+  result_submitted: {
+    title: "BFB result ready for review",
+    body: "Open BFB to review the next step.",
+  },
   result_accepted: { title: "BFB result accepted", body: "Open BFB to review the next step." },
   result_changes_requested: {
     title: "BFB changes requested",
@@ -273,7 +272,12 @@ export function buildPushPayload(input: {
   return {
     title: copy.title,
     body: copy.body,
-    deep_link: notificationDeepLink(input.appOrigin, input.workspaceId, input.subject, input.category),
+    deep_link: notificationDeepLink(
+      input.appOrigin,
+      input.workspaceId,
+      input.subject,
+      input.category,
+    ),
     delivery_id: input.deliveryId,
     event_cursor: input.eventCursor,
   };
@@ -314,52 +318,56 @@ export interface SetPreferenceInput {
   enabled: boolean;
 }
 
-export const setNotificationPreferenceCommand: HubCommand<
-  SetPreferenceInput,
-  PreferenceOverride
-> = {
-  name: "notification.preference.set",
-  auditInput: (input) => ({
-    projectId: input.projectId ?? NOTIFICATION_WORKSPACE_SCOPE,
-    channel: input.channel,
-    category: input.category,
-    enabled: input.enabled,
-  }),
-  async run(input, ctx) {
-    if (!ctx.actorHumanId) {
-      throw new DomainError("forbidden", "notification preferences need a human actor");
-    }
-    if (!isChannel(input.channel) || !isCategory(input.category)) {
-      throw new DomainError("invalid_argument", "notification channel or category is invalid");
-    }
-    if (typeof input.enabled !== "boolean") {
-      throw new DomainError("invalid_argument", "notification enabled flag is invalid");
-    }
-    const scope = input.projectId === undefined ? NOTIFICATION_WORKSPACE_SCOPE : assertScope(input.projectId);
-    const principal = await loadPrincipal(ctx.db, ctx.workspaceId, ctx.actorHumanId);
-    if (scope !== NOTIFICATION_WORKSPACE_SCOPE && !principal.projectIds.includes(scope)) {
-      throw new DomainError("not_found", "project not found");
-    }
-    await ctx.db
-      .prepare(
-        `INSERT INTO notification_preferences
+export const setNotificationPreferenceCommand: HubCommand<SetPreferenceInput, PreferenceOverride> =
+  {
+    name: "notification.preference.set",
+    auditInput: (input) => ({
+      projectId: input.projectId ?? NOTIFICATION_WORKSPACE_SCOPE,
+      channel: input.channel,
+      category: input.category,
+      enabled: input.enabled,
+    }),
+    async run(input, ctx) {
+      if (!ctx.actorHumanId) {
+        throw new DomainError("forbidden", "notification preferences need a human actor");
+      }
+      if (!isChannel(input.channel) || !isCategory(input.category)) {
+        throw new DomainError("invalid_argument", "notification channel or category is invalid");
+      }
+      if (typeof input.enabled !== "boolean") {
+        throw new DomainError("invalid_argument", "notification enabled flag is invalid");
+      }
+      const scope =
+        input.projectId === undefined ? NOTIFICATION_WORKSPACE_SCOPE : assertScope(input.projectId);
+      const principal = await loadPrincipal(ctx.db, ctx.workspaceId, ctx.actorHumanId);
+      if (scope !== NOTIFICATION_WORKSPACE_SCOPE && !principal.projectIds.includes(scope)) {
+        throw new DomainError("not_found", "project not found");
+      }
+      await ctx.db
+        .prepare(
+          `INSERT INTO notification_preferences
          (workspace_id, human_id, project_id, channel, category, enabled, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT (workspace_id, human_id, project_id, channel, category)
          DO UPDATE SET enabled = excluded.enabled, updated_at = excluded.updated_at`,
-      )
-      .run(
-        ctx.workspaceId,
-        ctx.actorHumanId,
-        scope,
-        input.channel,
-        input.category,
-        input.enabled ? 1 : 0,
-        ctx.now,
-      );
-    return { project_id: scope, channel: input.channel, category: input.category, enabled: input.enabled };
-  },
-};
+        )
+        .run(
+          ctx.workspaceId,
+          ctx.actorHumanId,
+          scope,
+          input.channel,
+          input.category,
+          input.enabled ? 1 : 0,
+          ctx.now,
+        );
+      return {
+        project_id: scope,
+        channel: input.channel,
+        category: input.category,
+        enabled: input.enabled,
+      };
+    },
+  };
 
 export const MAX_PUSH_ENDPOINT_CHARS = 2048;
 
@@ -373,7 +381,11 @@ function assertPushEndpoint(input: { endpoint: unknown; p256dh: unknown; auth: u
   auth: string;
 } {
   const { endpoint, p256dh, auth } = input;
-  if (typeof endpoint !== "string" || endpoint.length < 9 || endpoint.length > MAX_PUSH_ENDPOINT_CHARS) {
+  if (
+    typeof endpoint !== "string" ||
+    endpoint.length < 9 ||
+    endpoint.length > MAX_PUSH_ENDPOINT_CHARS
+  ) {
     throw new DomainError("invalid_argument", "push endpoint is invalid");
   }
   let url: URL;
@@ -437,37 +449,37 @@ export const registerPushEndpointCommand: HubCommand<
   },
 };
 
-export const removePushEndpointCommand: HubCommand<{ endpointHash: string }, { removed: boolean }> = {
-  name: "notification.push_endpoint.remove",
-  auditInput: (input) => ({ hasEndpointHash: typeof input.endpointHash === "string" }),
-  async run(input, ctx) {
-    if (!ctx.actorHumanId) {
-      throw new DomainError("forbidden", "push endpoints need a human actor");
-    }
-    if (typeof input.endpointHash !== "string" || !/^[0-9a-f]{64}$/.test(input.endpointHash)) {
-      throw new DomainError("invalid_argument", "push endpoint hash is invalid");
-    }
-    await loadPrincipal(ctx.db, ctx.workspaceId, ctx.actorHumanId);
-    const existing = (await ctx.db
-      .prepare(
-        `SELECT endpoint_hash FROM notification_push_endpoints
+export const removePushEndpointCommand: HubCommand<{ endpointHash: string }, { removed: boolean }> =
+  {
+    name: "notification.push_endpoint.remove",
+    auditInput: (input) => ({ hasEndpointHash: typeof input.endpointHash === "string" }),
+    async run(input, ctx) {
+      if (!ctx.actorHumanId) {
+        throw new DomainError("forbidden", "push endpoints need a human actor");
+      }
+      if (typeof input.endpointHash !== "string" || !/^[0-9a-f]{64}$/.test(input.endpointHash)) {
+        throw new DomainError("invalid_argument", "push endpoint hash is invalid");
+      }
+      await loadPrincipal(ctx.db, ctx.workspaceId, ctx.actorHumanId);
+      const existing = (await ctx.db
+        .prepare(
+          `SELECT endpoint_hash FROM notification_push_endpoints
          WHERE workspace_id = ? AND human_id = ? AND endpoint_hash = ?`,
-      )
-      .get(ctx.workspaceId, ctx.actorHumanId, input.endpointHash)) as
-      | { endpoint_hash: string }
-      | undefined;
-    if (!existing) {
-      return { removed: false };
-    }
-    await ctx.db
-      .prepare(
-        `DELETE FROM notification_push_endpoints
+        )
+        .get(ctx.workspaceId, ctx.actorHumanId, input.endpointHash)) as
+        { endpoint_hash: string } | undefined;
+      if (!existing) {
+        return { removed: false };
+      }
+      await ctx.db
+        .prepare(
+          `DELETE FROM notification_push_endpoints
          WHERE workspace_id = ? AND human_id = ? AND endpoint_hash = ?`,
-      )
-      .run(ctx.workspaceId, ctx.actorHumanId, input.endpointHash);
-    return { removed: true };
-  },
-};
+        )
+        .run(ctx.workspaceId, ctx.actorHumanId, input.endpointHash);
+      return { removed: true };
+    },
+  };
 
 export async function getPreferenceOverrides(
   db: SqlDatabase,
@@ -487,7 +499,14 @@ export async function getPreferenceOverrides(
   }>;
   return rows.flatMap((row) =>
     isChannel(row.channel) && isCategory(row.category)
-      ? [{ project_id: row.project_id, channel: row.channel, category: row.category, enabled: row.enabled === 1 }]
+      ? [
+          {
+            project_id: row.project_id,
+            channel: row.channel,
+            category: row.category,
+            enabled: row.enabled === 1,
+          },
+        ]
       : [],
   );
 }
@@ -605,8 +624,7 @@ async function resolveSubject(
          WHERE workspace_id = ? AND id = ? AND state = 'open'`,
       )
       .get(workspaceId, selected.attentionId)) as
-      | { id: string; project_id: string; task_id: string; run_id: string }
-      | undefined;
+      { id: string; project_id: string; task_id: string; run_id: string } | undefined;
     if (!row) return null;
     return {
       projectId: row.project_id,
@@ -624,8 +642,7 @@ async function resolveSubject(
          WHERE command.workspace_id = ? AND command.id = ?`,
       )
       .get(workspaceId, selected.launchId)) as
-      | { run_id: string; project_id: string; task_id: string }
-      | undefined;
+      { run_id: string; project_id: string; task_id: string } | undefined;
     if (!row) return null;
     return {
       projectId: row.project_id,
@@ -636,12 +653,9 @@ async function resolveSubject(
   }
   if (selected.runId) {
     const row = (await db
-      .prepare(
-        `SELECT id, project_id, task_id FROM runs WHERE workspace_id = ? AND id = ?`,
-      )
+      .prepare(`SELECT id, project_id, task_id FROM runs WHERE workspace_id = ? AND id = ?`)
       .get(workspaceId, selected.runId)) as
-      | { id: string; project_id: string; task_id: string }
-      | undefined;
+      { id: string; project_id: string; task_id: string } | undefined;
     if (!row) return null;
     const subject: ResolvedSubject = {
       projectId: row.project_id,
@@ -651,8 +665,7 @@ async function resolveSubject(
     };
     if (
       subject.submissionVersion === undefined &&
-      (selected.category === "result_changes_requested" ||
-        selected.category === "result_accepted")
+      (selected.category === "result_changes_requested" || selected.category === "result_accepted")
     ) {
       const latest = (await db
         .prepare(
@@ -691,9 +704,7 @@ async function insertDelivery(
   },
 ): Promise<boolean> {
   const existing = (await db
-    .prepare(
-      `SELECT state FROM notification_deliveries WHERE workspace_id = ? AND delivery_id = ?`,
-    )
+    .prepare(`SELECT state FROM notification_deliveries WHERE workspace_id = ? AND delivery_id = ?`)
     .get(input.workspaceId, input.deliveryId)) as { state: string } | undefined;
   if (existing) return false;
   await db
@@ -733,8 +744,7 @@ export async function fanoutNotificationEvent(
        WHERE workspace_id = ? AND workspace_cursor = ?`,
     )
     .get(input.workspaceId, input.eventCursor)) as
-    | { kind: string; payload_json: string }
-    | undefined;
+    { kind: string; payload_json: string } | undefined;
   if (!stored) return { status: "unknown_event" };
   if (stored.kind !== input.eventKind) return { status: "unknown_event" };
   let payload: unknown;
@@ -847,7 +857,14 @@ export async function loadPushAttempt(
   db: SqlDatabase,
   input: { workspaceId: string; deliveryId: string },
 ): Promise<
-  | { ok: true; delivery: DeliveryRecord; endpoint: string; p256dh: string; auth: string; subject: ResolvedSubject }
+  | {
+      ok: true;
+      delivery: DeliveryRecord;
+      endpoint: string;
+      p256dh: string;
+      auth: string;
+      subject: ResolvedSubject;
+    }
   | { ok: false; outcome: DeliveryOutcome }
 > {
   const delivery = (await db
@@ -873,8 +890,7 @@ export async function loadPushAttempt(
        WHERE workspace_id = ? AND workspace_cursor = ?`,
     )
     .get(input.workspaceId, delivery.event_cursor)) as
-    | { kind: string; payload_json: string }
-    | undefined;
+    { kind: string; payload_json: string } | undefined;
   if (!stored || stored.kind !== delivery.event_kind) {
     return { ok: false, outcome: { terminal: true, state: "failed", code: "event_gone" } };
   }
@@ -902,8 +918,7 @@ export async function loadPushAttempt(
        WHERE workspace_id = ? AND human_id = ? ORDER BY created_at ASC LIMIT 1`,
     )
     .get(input.workspaceId, delivery.human_id)) as
-    | { endpoint: string; p256dh: string; auth: string }
-    | undefined;
+    { endpoint: string; p256dh: string; auth: string } | undefined;
   if (!endpoint) {
     return { ok: false, outcome: { terminal: true, state: "failed", code: "endpoint_gone" } };
   }
@@ -952,7 +967,12 @@ export async function recordDeliveryOutcome(
        SET attempt_count = attempt_count + 1, last_error = ?, updated_at = ?
        WHERE workspace_id = ? AND delivery_id = ?`,
     )
-    .run(`retryable:${input.outcome.code}`.slice(0, 256), input.now, input.workspaceId, input.deliveryId);
+    .run(
+      `retryable:${input.outcome.code}`.slice(0, 256),
+      input.now,
+      input.workspaceId,
+      input.deliveryId,
+    );
 }
 
 export async function deletePushEndpoint(
@@ -961,9 +981,7 @@ export async function deletePushEndpoint(
   humanId: string,
 ): Promise<void> {
   await db
-    .prepare(
-      `DELETE FROM notification_push_endpoints WHERE workspace_id = ? AND human_id = ?`,
-    )
+    .prepare(`DELETE FROM notification_push_endpoints WHERE workspace_id = ? AND human_id = ?`)
     .run(workspaceId, humanId);
 }
 
@@ -976,7 +994,12 @@ export async function pullMacosNotifications(
   principal: RunnerPrincipal,
   now: string,
   limit = 25,
-): Promise<{ schema_version: 1; workspace_id: string; runner_id: string; deliveries: MacosPullItem[] }> {
+): Promise<{
+  schema_version: 1;
+  workspace_id: string;
+  runner_id: string;
+  deliveries: MacosPullItem[];
+}> {
   const active = await assertCurrentRunnerPrincipal(db, principal, now);
   const bounded = Number.isSafeInteger(limit) && limit >= 1 && limit <= 25 ? limit : 25;
   const rows = (await db
@@ -1055,14 +1078,10 @@ export async function purgeRevokedNotificationState(
   let preferences = 0;
   for (const row of stale) {
     const deletedEndpoints = await db
-      .prepare(
-        `DELETE FROM notification_push_endpoints WHERE workspace_id = ? AND human_id = ?`,
-      )
+      .prepare(`DELETE FROM notification_push_endpoints WHERE workspace_id = ? AND human_id = ?`)
       .run(workspaceId, row.human_id);
     const deletedPreferences = await db
-      .prepare(
-        `DELETE FROM notification_preferences WHERE workspace_id = ? AND human_id = ?`,
-      )
+      .prepare(`DELETE FROM notification_preferences WHERE workspace_id = ? AND human_id = ?`)
       .run(workspaceId, row.human_id);
     endpoints += deletedEndpoints.changes ?? 0;
     preferences += deletedPreferences.changes ?? 0;
@@ -1089,4 +1108,3 @@ export async function purgeAckedMacosInbox(
     .run(workspaceId, cutoff)) as unknown as { changes?: number };
   return typeof deleted?.changes === "number" ? deleted.changes : 0;
 }
-
