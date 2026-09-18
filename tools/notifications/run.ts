@@ -804,7 +804,7 @@ try {
       assert(row?.name === table, `EMPTY_DB lacks ${table}; 0030 is not applied`);
     }
     assert.deepEqual(await empty.prepare("PRAGMA foreign_key_check").all(), []);
-    record("migration_ok", { head: manifest.migration_head });
+    record("migration_ok", { migration: "0030_notifications" });
     console.log("X01_MIGRATION_OK 0030 registered and applied on a fresh database");
   }
 
@@ -833,7 +833,7 @@ try {
       .all()) as Array<{ name: string }>;
     assert(tables.length === 5, `0030 must create five tables, saw ${tables.length}`);
     assert.deepEqual(await again.prepare("PRAGMA foreign_key_check").all(), []);
-    record("migration_upgrade_ok", { preserved_task: preserved.id });
+    record("migration_upgrade_ok", { preserved_task: row?.id === preserved.id });
     console.log("X01_MIGRATION_UPGRADE_OK populated state upgrades to 0030 intact");
   }
 

@@ -234,7 +234,10 @@ try {
     beforeUpgrade,
   );
   assert.deepEqual(await db.prepare("PRAGMA foreign_key_check").all(), []);
-  snapshot("migration", { preserved_task: preserved.id, tables: 5 });
+  snapshot("migration", {
+    preserved_task: beforeUpgrade.some((row) => (row as { id: string }).id === preserved.id),
+    tables: 5,
+  });
 
   const policy = {
     allowedProviders: ["fake"],
@@ -383,7 +386,7 @@ try {
   });
   assert.equal(claimed.state, "claimed");
   const spec = claimed.claim.specification;
-  snapshot("claim", { run: spec.run_id, execution: spec.run_execution_id });
+  snapshot("claim", { state: claimed.state, execution_assigned: spec.run_execution_id.length > 0 });
 
   // Provider-usage fixtures normalize without invention; missing usage stays unavailable.
   for (const fixture of ["codex-usage.json", "claude-usage.json", "missing-usage.json"]) {

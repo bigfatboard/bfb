@@ -1,5 +1,5 @@
-{"event":"migration_ok","head":"0030_notifications"}
-{"event":"migration_upgrade_ok","preserved_task":"018XQ3574CT9X1155HF8RAD34N"}
+{"event":"migration_ok","migration":"0030_notifications"}
+{"event":"migration_upgrade_ok","preserved_task":true}
 {"event":"runner_seeded"}
 {"event":"endpoint_registered","human":"01JBFB00","tag":"owner"}
 {"event":"endpoint_registered","human":"01JBFB0M","tag":"member"}

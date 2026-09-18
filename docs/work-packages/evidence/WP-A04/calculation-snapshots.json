@@ -1,12 +1,12 @@
 {
   "snapshots": {
     "migration": {
-      "preserved_task": "015F7G01MQHNE45HDE0RY389PC",
+      "preserved_task": true,
       "tables": 5
     },
     "claim": {
-      "run": "01PD66P21SDPM7TPD50FD2EN0G",
-      "execution": "010VP9Z4FR8N74MPMG9NZKND40"
+      "state": "claimed",
+      "execution_assigned": true
     },
     "fixtures": {
       "normalized": 3
