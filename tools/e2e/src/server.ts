@@ -1235,7 +1235,7 @@ async function seedD03Discussions(db: SqlDatabase): Promise<D03State> {
 
   const taskSix = await discussionTask("Synthetic discussion exchange card");
   const taskIntervene = await discussionTask("Synthetic discussion intervention card");
-  const taskCancel = await discussionTask("Synthetic discussion cancel card");
+  const taskCancel = await discussionTask("Synthetic discussion stopped card");
   const taskEmpty = await discussionTask("Synthetic discussion empty card");
 
   function createInput(taskId: string, rounds: number, checkoutA: string, checkoutB: string): DiscussionCreateRequest {
