@@ -85,6 +85,7 @@
     "test:x03a:browser": "playwright test apps/web/test/e2e/x03a-oauth.spec.ts --config tools/e2e/playwright.config.ts",
     "test:x03a:providers": "pnpm build && node tools/provider-compat/run-attempts.mjs",
     "test:x03a:providers:evidence": "BFB_PROVIDER_COMPAT_OUTPUT=docs/work-packages/evidence/WP-X03A pnpm test:x03a:providers",
+    "test:x01": "pnpm build && go test -race -count=1 ./internal/notify/... ./internal/appbridge/... ./internal/runner/... && vitest run packages/domain/test/notifications.test.ts apps/control-worker/test/notification-push.test.ts apps/control-worker/test/notification-queue.test.ts apps/control-worker/test/notification-routes.test.ts packages/db/test/migrations.test.ts && pnpm exec tsc -b tools/notifications --pretty false && pnpm exec tsx tools/notifications/run.ts",
     "test:ic1": "pnpm build && pnpm test:domain && pnpm test:w01 && pnpm test:x03a"
   },
   "devDependencies": {
