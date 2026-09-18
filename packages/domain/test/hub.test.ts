@@ -225,6 +225,60 @@ describe("workspace hub", () => {
     expect(idem.c).toBe(0);
   });
 
+  it("replaces non-domain failure detail with a uniform command failure", async () => {
+    const db = await openDomainDb();
+    const hub = new WorkspaceHub(db);
+    const request = {
+      workspaceId: FIX.workspace,
+      authorizationEpoch: 1,
+      actorHumanId: FIX.owner,
+      input: { n: 1 },
+    };
+    const driverFailure: HubCommand<{ n: number }, { n: number }> = {
+      name: "test.driver-failure",
+      async run() {
+        throw new Error("UNIQUE constraint failed: tenant_fixture_items.id");
+      },
+    };
+    const driverOutcome = await hub.execute(driverFailure, {
+      ...request,
+      idempotencyKey: "driver-failure-key-1",
+    });
+    expect(driverOutcome).toEqual({
+      ok: false,
+      error: { code: "command_failed", message: "command failed" },
+    });
+    const codedFailure: HubCommand<{ n: number }, { n: number }> = {
+      name: "test.coded-failure",
+      async run() {
+        throw Object.assign(new Error("D1_ERROR: no such table: missing"), {
+          code: "SQLITE_ERROR",
+        });
+      },
+    };
+    const codedOutcome = await hub.execute(codedFailure, {
+      ...request,
+      idempotencyKey: "coded-failure-key-1",
+    });
+    expect(codedOutcome).toEqual({
+      ok: false,
+      error: { code: "command_failed", message: "command failed" },
+    });
+    const domainOutcome = await hub.execute(
+      {
+        name: "test.domain-failure",
+        async run() {
+          throw new DomainError("injected_failure", "force failure after partial write");
+        },
+      },
+      { ...request, idempotencyKey: "domain-failure-key-1" },
+    );
+    expect(domainOutcome).toEqual({
+      ok: false,
+      error: { code: "injected_failure", message: "force failure after partial write" },
+    });
+  });
+
   it("rejects a stale version without advancing any command-kernel effect", async () => {
     const db = await openDomainDb();
     const hub = new WorkspaceHub(db);

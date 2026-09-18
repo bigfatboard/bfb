@@ -231,7 +231,13 @@ describe("workspace hub durable object client", () => {
         input: { projectId: FIX.projectA, title: "must not run", priority: "P2" },
       },
     );
-    expect(outcome).toMatchObject({ ok: false, error: { code: "hub_rpc_failed" } });
+    expect(outcome).toMatchObject({
+      ok: false,
+      error: { code: "hub_rpc_failed", message: "hub DO call failed" },
+    });
+    if (!outcome.ok) {
+      expect(outcome.error.message).not.toContain("synthetic DO failure");
+    }
     const tasks = (await db.prepare(`SELECT COUNT(*) AS count FROM tasks`).get()) as {
       count: number;
     };

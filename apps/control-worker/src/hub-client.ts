@@ -132,12 +132,12 @@ export async function executeWorkspaceCommand<TInput, TResult>(
         };
       }
       return body as CommandOutcome<TResult>;
-    } catch (error) {
+    } catch {
       return {
         ok: false,
         error: {
           code: "hub_rpc_failed",
-          message: error instanceof Error ? error.message : "hub DO call failed",
+          message: "hub DO call failed",
         },
       };
     }
