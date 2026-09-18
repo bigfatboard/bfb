@@ -339,6 +339,22 @@ importers:
         specifier: 4.120.1
         version: 4.120.1(@cloudflare/workers-types@5.20260810.1)
 
+  tools/human-cli:
+    dependencies:
+      '@bfb/control-worker':
+        specifier: workspace:*
+        version: link:../../apps/control-worker
+      '@bfb/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@bfb/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+    devDependencies:
+      wrangler:
+        specifier: 4.120.1
+        version: 4.120.1(@cloudflare/workers-types@5.20260810.1)
+
   tools/identity:
     dependencies:
       '@bfb/control-worker':

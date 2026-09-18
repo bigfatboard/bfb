@@ -13,6 +13,7 @@ import { handleGitHubBrowserApi, handleGitHubWebhook } from "./api/github.js";
 import { handleWorkApi } from "./api/work.js";
 import { handleArtifactBrowserApi } from "./api/artifacts.js";
 import { handleCliBrowserApi, handleCliPublicApi } from "./api/cli-credentials.js";
+import { handleCliHumanApi, isCliHumanPath } from "./api/cli-human.js";
 import { handleDiscussionApi } from "./api/discussions.js";
 import { handleProjectApi } from "./api/projects.js";
 import { handleRunnerBrowserApi, handleRunnerNativeApi } from "./api/runners.js";
@@ -583,6 +584,14 @@ export function createControlApp(
         return c.json({ error: "api_misconfigured" }, 500);
       }
       const envBindings = (c.env ?? {}) as { WORKSPACE_HUB?: DurableObjectNamespace };
+      if (isCliHumanPath(new URL(c.req.raw.url).pathname)) {
+        return await handleCliHumanApi(c.req.raw, {
+          db,
+          now: c.get("now") ?? now,
+          jurisdiction: current.jurisdiction,
+          workspaceHubNs: envBindings.WORKSPACE_HUB,
+        });
+      }
       return await handleCliPublicApi(c.req.raw, {
         db,
         auth: runtime.auth,
