@@ -1,6 +1,6 @@
 {
   "package": "W02",
-  "tested_commit": "00990f2e4949de3d2007f87f90890405f25dc8e9",
+  "tested_commit": "8a9bc98c8c59f602dee8af7b63687e38816901b9",
   "environment": "detached clean checkout on macOS (arm64) with the synthetic C09 launch drive and real Chromium",
   "outcome": "passed",
   "commands": [
@@ -12,7 +12,7 @@
     {
       "command": "pnpm test:w02",
       "outcome": "passed",
-      "result": "C09 fixture check, build, protocol checks, launch domain suites, W02 unit suites (unsettled-launch matrix plus launch-refresh card cases: post-claim interval re-read, invalidation refetch, settled quiet), web build, synthetic C09 launch drive (C09_D1_MIGRATION_OK, C09_D1_CLAIM_OK, C09_D1_CONTAINMENT_OK, C09_D1_RESUME_OK, C09_D1_RECONCILE_OK, C09_D1_OK), and 10 Chromium scenarios, all passing"
+      "result": "C09 fixture check, build, protocol checks, launch domain suites, W02 unit suites (unsettled-launch matrix plus launch-refresh card cases: post-claim interval re-read, invalidation refetch, settled quiet; plus non-owner checkout grant-intersection cases on both checkout reads and the embedded runners-list status), web build, synthetic C09 launch drive (C09_D1_MIGRATION_OK, C09_D1_CLAIM_OK, C09_D1_CONTAINMENT_OK, C09_D1_RESUME_OK, C09_D1_RECONCILE_OK, C09_D1_OK), and 10 Chromium scenarios, all passing"
     },
     {
       "command": "pnpm verify",
