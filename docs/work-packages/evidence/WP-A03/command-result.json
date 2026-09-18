@@ -1,6 +1,6 @@
 {
   "gate": "pnpm test:a03",
-  "tested_tree": "1c9ae5499ff25a33b8da4c2ed24982c538612f02",
+  "tested_tree": "1d0046b5ca9e6e21ffaf53e9341f1ecf8623af9c",
   "outcome": "passed",
   "steps": [
     {
@@ -10,7 +10,7 @@
     {
       "command": "vitest run packages/domain/test/results.test.ts apps/control-worker/test/result-routes.test.ts apps/web/test/result.test.ts",
       "outcome": "passed",
-      "detail": "3 files, 24 tests"
+      "detail": "3 files, 25 tests (18 domain cases including the superseded-runner generation binding; 7 worker route and web presentation cases)"
     },
     {
       "command": "go test -race -count=1 ./internal/localmcp/... ./internal/cli/... ./cmd/bfb/...",

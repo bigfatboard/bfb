@@ -152,7 +152,7 @@ an explicit call; every interactive ending never submits or accepts.
 ## Handoff
 
 - Settled 18 September: `done`. A01 and E01 are `done`, and `pnpm test:a03`
-  passed in a detached clean checkout at `1c9ae54` (install, build, exact
+  passed in a detached clean checkout at `1d0046b` (install, build, exact
   target with the real-Worker/D1 harness, real-binary CLI harness, and
   browser submit/change/supersede/accept cycle). The evidence manifest is
   re-based on that rerun; the implementation evidence stays listed as
