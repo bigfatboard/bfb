@@ -15,7 +15,7 @@
       "environment": "local workerd D1 plus real Chromium on macOS (arm64); Node 24.19.0, pnpm 11.21.0, Go 1.26.5",
       "command": "pnpm test:c04",
       "evidence": "docs/work-packages/evidence/WP-C04/manifest.json",
-      "detail": "Owner/member/reviewer matrix holds across all ten fixture projects; owning evidence WP-C04/WP-C06/WP-W01/WP-X03A."
+      "detail": "Role/project matrix and cross-workspace rejection owned by WP-C04/WP-C06/WP-W01/WP-X03A; G01 holds the matrix across all ten fixture projects and refuses cross-tenant hub-route commands in both directions on its two-workspace fixture."
     },
     {
       "gate": "AG-02",

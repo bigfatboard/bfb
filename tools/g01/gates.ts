@@ -92,7 +92,7 @@ export const GATE_ROWS: GateRow[] = [
     command: "pnpm test:c04",
     evidence: "docs/work-packages/evidence/WP-C04/manifest.json",
     detail:
-      "Owner/member/reviewer matrix holds across all ten fixture projects; owning evidence WP-C04/WP-C06/WP-W01/WP-X03A.",
+      "Role/project matrix and cross-workspace rejection owned by WP-C04/WP-C06/WP-W01/WP-X03A; G01 holds the matrix across all ten fixture projects and refuses cross-tenant hub-route commands in both directions on its two-workspace fixture.",
   },
   {
     gate: "AG-02",

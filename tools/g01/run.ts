@@ -121,6 +121,7 @@ import {
   G01_FIXTURE_VERSION,
   G01_NOW,
   G01_RUNNERS,
+  G01_SECOND_TENANT,
   G01_SEED,
   g01Id,
   g01StableIds,
@@ -546,6 +547,63 @@ try {
   }
   note("fixture", "2 runners enrolled with 4 validated checkouts and launch grants");
 
+  // Second tenant workspace with its own owner, project, and task. The AG-01
+  // probes below act across the tenant boundary through the hub route, so a
+  // route that drops its workspace predicate is observed instead of passing
+  // a single-tenant fixture.
+  const wsB = g01Id(G01_SECOND_TENANT.workspace);
+  const ownerB = g01Id(G01_SECOND_TENANT.owner);
+  await db
+    .prepare(
+      `INSERT INTO workspaces (id, slug, jurisdiction, created_at, resource_version)
+       VALUES (?, 'synthetic-g01-b', ?, ?, 1)`,
+    )
+    .run(wsB, "eu", now);
+  await db
+    .prepare(`INSERT INTO humans (id, email, display_name, created_at) VALUES (?, ?, ?, ?)`)
+    .run(ownerB, "second-owner@g01.test", "Synthetic G01 Second Owner", now);
+  await db
+    .prepare(
+      `INSERT INTO workspace_members (workspace_id, human_id, role, authorization_epoch, created_at)
+       VALUES (?, ?, 'owner', 1, ?)`,
+    )
+    .run(wsB, ownerB, now);
+  await db
+    .prepare(
+      `INSERT INTO workspace_authorization_epochs
+       (workspace_id, human_id, authorization_epoch, revoked_at, updated_at)
+       VALUES (?, ?, 1, NULL, ?)`,
+    )
+    .run(wsB, ownerB, now);
+  const secondProject = success<{ id: string }>(
+    await execute<{ id: string }>(
+      createProjectCommand.name,
+      {
+        name: "G01 Second",
+        slug: "g01-second",
+        tint: "#0EA5E9",
+        accessMode: "workspace",
+        repositoryHost: "github.com",
+        hostedRepositoryId: "g01-host-id-second",
+        repositorySubpath: ".",
+      },
+      { actorHumanId: ownerB, workspaceId: wsB },
+    ),
+  );
+  const secondTask = success<TaskRecord>(
+    await execute<TaskRecord>(
+      createTaskCommand.name,
+      {
+        projectId: secondProject.id,
+        title: "Synthetic G01 second-tenant task",
+        priority: "P2",
+      },
+      { actorHumanId: ownerB, workspaceId: wsB },
+    ),
+  );
+  void secondTask;
+  note("fixture", "second tenant workspace holds one owner, one project, one task");
+
   // One task per project: the ten-project operating envelope.
   const taskIds: string[] = [];
   for (const [slug, projectId] of Object.entries(projectIds)) {
@@ -561,7 +619,7 @@ try {
   verdict(
     "G-FIXTURE",
     "passed",
-    "3 humans, 10 projects, 5 profiles, 2 runners, 4 checkouts, 10 tasks",
+    "3 humans, 10 projects, 5 profiles, 2 runners, 4 checkouts, 10 tasks, plus a second tenant (1 owner, 1 project, 1 task)",
   );
 
   function runnerPrincipal(alias: "mac-a" | "mac-b", runnerId?: string): RunnerPrincipal {
@@ -586,6 +644,7 @@ try {
     generation: 0,
     runId: "",
   };
+  const envelopeRuns = { started: 0, claimed: 0 };
   const idMacA = need(runnerIds["mac-a"], "runner mac-a");
   const idMacB = need(runnerIds["mac-b"], "runner mac-b");
   const idCkA1 = need(checkoutIds["G01CKA1"], "checkout A1");
@@ -2194,9 +2253,171 @@ try {
       member.authorizationEpoch === 1,
       "member epoch starts at 1 before the AG08 revocation probe",
     );
-    note("ag01", "owner/member/reviewer matrix holds across all ten projects");
+    // Cross-tenant boundary through the hub route: neither owner may act in
+    // the other workspace, in either direction.
+    const intoSecond = await execute(
+      createTaskCommand.name,
+      {
+        projectId: secondProject.id,
+        title: "Synthetic G01 cross-tenant probe",
+        priority: "P2",
+      },
+      { actorHumanId: FIX.owner, workspaceId: wsB },
+    );
+    assert(!intoSecond.ok, "primary owner cannot create tasks in the second workspace");
+    if (!intoSecond.ok) {
+      assert.equal(
+        intoSecond.error.code,
+        "forbidden",
+        `cross-tenant write rejected as ${intoSecond.error.code}`,
+      );
+    }
+    const intoPrimary = await execute(
+      createTaskCommand.name,
+      {
+        projectId: FIX.projectA,
+        title: "Synthetic G01 cross-tenant probe",
+        priority: "P2",
+      },
+      { actorHumanId: ownerB },
+    );
+    assert(!intoPrimary.ok, "second owner cannot create tasks in the primary workspace");
+    if (!intoPrimary.ok) {
+      assert.equal(
+        intoPrimary.error.code,
+        "forbidden",
+        `cross-tenant write rejected as ${intoPrimary.error.code}`,
+      );
+    }
+    // Principals load in no workspace but their own.
+    for (const [workspaceId, humanId] of [
+      [wsB, FIX.owner],
+      [FIX.workspace, ownerB],
+    ] as const) {
+      let code = "";
+      try {
+        await loadPrincipal(db, workspaceId, humanId);
+      } catch (error) {
+        code = (error as { code?: string }).code ?? "thrown";
+      }
+      assert.equal(code, "forbidden", "foreign principal must not load cross-workspace");
+    }
+    // Runner credentials are workspace-bound: mac-a re-authentication under
+    // the second workspace fails, and a mac-a claim presented to the second
+    // workspace route is refused before any launch row is read.
+    let runnerCode = "";
+    try {
+      await assertCurrentRunnerPrincipal(
+        db,
+        { ...runnerPrincipal("mac-a"), workspaceId: wsB },
+        now,
+      );
+    } catch (error) {
+      runnerCode = (error as { code?: string }).code ?? "thrown";
+    }
+    assert(runnerCode !== "", "runner principal cannot re-authenticate cross-workspace");
+    const runnerIntoSecond = await execute(
+      claimLaunchCommand.name,
+      {
+        principal: runnerPrincipal("mac-a"),
+        claim: {
+          schema_version: 1,
+          launch_id: g01Id("G01XWS"),
+          runner_id: need(runnerIds["mac-a"], "runner mac-a"),
+          idempotency_key: nextKey("launch"),
+          claimed_at: now,
+        },
+      },
+      { actorRunnerId: need(runnerIds["mac-a"], "runner mac-a"), workspaceId: wsB },
+    );
+    assert(!runnerIntoSecond.ok, "runner principal presented cross-workspace must be refused");
+    note(
+      "ag01",
+      "owner/member/reviewer matrix holds across all ten projects; hub route refuses cross-tenant commands both directions",
+    );
   }
-  verdict("AG-01", "passed", "permission matrix on the golden fixture");
+  verdict("AG-01", "passed", "permission matrix plus two-workspace route boundary");
+
+  // G-RUNS: concurrent runs across both Macs. Three launches start together
+  // and all three claims land, each on a free (runner, checkout) lease, so
+  // three distinct runs are live at once. The envelope records these launched
+  // runs; the ten envelope tasks stay open.
+  {
+    const specs = [
+      { runner: idMacA, checkout: idCkA2, alias: "mac-a" as const },
+      { runner: idMacB, checkout: idCkB1, alias: "mac-b" as const },
+      { runner: idMacB, checkout: idCkB2, alias: "mac-b" as const },
+    ];
+    const runTaskIds: string[] = [];
+    for (const [index] of specs.entries()) {
+      const task = await human<TaskRecord>(createTaskCommand.name, {
+        projectId: FIX.projectA,
+        title: `Synthetic G01 concurrent run ${index + 1}`,
+        priority: "P2",
+      });
+      runTaskIds.push(task.id);
+    }
+    const runVersions = await launchEnv(db, FIX.projectA, idProfFake);
+    const started = await Promise.all(
+      specs.map((spec, index) =>
+        execute<{ launch_id: string }>(startLaunchCommand.name, {
+          schema_version: 1,
+          idempotency_key: nextKey("launch"),
+          task_id: need(runTaskIds[index], `concurrent run task ${index}`),
+          expected_task_version: 1,
+          runner_id: spec.runner,
+          checkout_id: spec.checkout,
+          agent_profile_id: idProfFake,
+          agent_profile_version: runVersions.agentProfileVersion,
+          workspace_policy_version: runVersions.workspacePolicyVersion,
+          project_policy_version: runVersions.projectPolicyVersion,
+          repository_config_version: runVersions.repositoryConfigVersion,
+        }),
+      ),
+    );
+    const launchIds: string[] = [];
+    for (const [index, outcome] of started.entries()) {
+      assert(outcome.ok, `concurrent launch ${index} must start: ${JSON.stringify(outcome)}`);
+      if (outcome.ok) launchIds.push(outcome.result.launch_id);
+    }
+    assert.equal(launchIds.length, specs.length, "every concurrent launch must start");
+    const claimed = await Promise.all(
+      specs.map((spec, index) =>
+        execute<{
+          state: string;
+          claim: { specification: { run_id: string } };
+        }>(
+          claimLaunchCommand.name,
+          {
+            principal: runnerPrincipal(spec.alias),
+            claim: {
+              schema_version: 1,
+              launch_id: need(launchIds[index], `concurrent launch ${index}`),
+              runner_id: spec.runner,
+              idempotency_key: nextKey("launch"),
+              claimed_at: now,
+            },
+          },
+          { actorRunnerId: spec.runner },
+        ),
+      ),
+    );
+    const runIds = new Set<string>();
+    for (const [index, outcome] of claimed.entries()) {
+      assert(outcome.ok, `concurrent claim ${index} must land: ${JSON.stringify(outcome)}`);
+      const result = success<{
+        state: string;
+        claim: { specification: { run_id: string } };
+      }>(outcome);
+      assert.equal(result.state, "claimed", `concurrent claim ${index} must claim`);
+      runIds.add(result.claim.specification.run_id);
+    }
+    assert.equal(runIds.size, specs.length, "concurrent claims open distinct live runs");
+    envelopeRuns.started = launchIds.length;
+    envelopeRuns.claimed = runIds.size;
+    note("runs", "3 launches start together; 3 claims land on free leases across both Macs");
+  }
+  verdict("G-RUNS", "passed", "concurrent runs live across both runners");
 
   // G-SG03: D1/R2 partial failure cannot expose incomplete artifacts; same-hash
   // publication cannot race deletion because no v0.1 artifact delete path exists.
@@ -2261,6 +2482,13 @@ try {
     const semanticTotals = (await db
       .prepare(`SELECT COUNT(*) AS count FROM semantic_events WHERE workspace_id = ?`)
       .get(FIX.workspace)) as { count: number };
+    // The primary-workspace totals above exclude the second tenant's single
+    // probe task, which fixture.json records separately; count it live so the
+    // baseline reconciles instead of implying it.
+    const secondTenantTotals = (await db
+      .prepare(`SELECT COUNT(*) AS count FROM tasks WHERE workspace_id = ?`)
+      .get(wsB)) as { count: number };
+    assert.equal(secondTenantTotals.count, 1, "second tenant holds exactly its probe task");
     await mkdir(evidenceDir, { recursive: true });
     await writeJson(resolve(evidenceDir, "perf-baseline.json"), {
       $schema: "../manifest.schema.json",
@@ -2272,13 +2500,17 @@ try {
         profiles: 5,
         runners: 2,
         checkouts: 4,
-        concurrent_envelope_tasks: 10,
+        workspaces: 2,
+        envelope_tasks: 10,
+        concurrent_runs: envelopeRuns.started,
       },
       measured: {
         hub_burst_commands: 50,
         hub_burst_committed: burst.length,
         hub_burst_bound_ms: 120_000,
         hub_burst_within_bound: true,
+        concurrent_runs_claimed: envelopeRuns.claimed,
+        second_tenant_tasks: secondTenantTotals.count,
         tasks_total: totals.count,
         ledger_events_total: ledgerTotals.count,
         semantic_events_total: semanticTotals.count,
@@ -2366,6 +2598,8 @@ try {
     fixture_version: G01_FIXTURE_VERSION,
     now: G01_NOW,
     humans: ["owner", "member", "reviewer"],
+    workspaces: ["primary", "second-tenant"],
+    second_tenant: { humans: ["owner"], projects: ["second"], tasks: 1 },
     projects: ["alpha", "beta", ...G01_EXTRA_PROJECTS.map((spec) => spec.slug)],
     profiles: [
       { name: "Codex Refactor", provider: "codex", execution_mode: "interactive" },

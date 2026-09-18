@@ -1,9 +1,10 @@
-[fixture] seed bfb-g01/v1 v1 with 14 stable ids
+[fixture] seed bfb-g01/v1 v1 with 16 stable ids
 [fixture] pre-0034 state upgrades to 0034_operations preserving tasks
 [fixture] 10 projects present with distinct repository identities
 [fixture] 5 profiles across claude/codex/grok/fake with documented modes
 [fixture] workspace and 10 project policies pinned with empty repository configs
 [fixture] 2 runners enrolled with 4 validated checkouts and launch grants
+[fixture] second tenant workspace holds one owner, one project, one task
 [fixture] 10 envelope tasks open across all projects
 [sg01] mcp rejects cookie/cli/runner/agent/integration/unknown credentials
 [sg01] cli principal resolution rejects mcp/runner/session/malformed credentials
@@ -28,9 +29,10 @@
 [sg05] selection extracts IDs; links, payloads, audit, activity carry no canaries
 [og01-github] webhooks verify, dedupe, and ignore revoked installations
 [ops] retention under step-up; diagnostics scan and sanitize
-[ag01] owner/member/reviewer matrix holds across all ten projects
+[ag01] owner/member/reviewer matrix holds across all ten projects; hub route refuses cross-tenant commands both directions
+[runs] 3 launches start together; 3 claims land on free leases across both Macs
 [sg03] no artifact delete path; uploads converge on content hash
-[perf] 50-command burst within bound; 80 tasks committed
+[perf] 50-command burst within bound; 83 tasks committed
 [ag08] member epoch bump fences subsequent stale-epoch commands
 [ag08] runner launch-grant revocation blocks launch start
 [ag08] runner token removal fences principal re-authentication before cleanup

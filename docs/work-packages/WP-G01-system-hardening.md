@@ -20,7 +20,7 @@ The complete retained v0.1 feature set passes every pre-release tenant, launch, 
 
 ## Scope
 
-- Build a deterministic golden system fixture: three humans, ten projects, five profiles, multiple Macs/workspaces, and concurrent runs.
+- Build a deterministic golden system fixture: three humans plus a second-tenant owner, ten projects, five profiles, two Macs, two workspaces, and concurrent runs.
 - Execute every pre-release architecture/security/operations gate end to end. AG-10 and OG-02 remain explicitly `not_run` because G02 owns clean-install and release/rollback proof.
 - Add tenant/project/runner credential confusion, malicious IDs/text/config, CSRF/OAuth, stale epoch, duplicate/out-of-order, socket eviction, network/disk/daemon/Mac crash, and PID reuse suites.
 - Run cross-provider lifecycle parity while preserving documented capability differences.
@@ -69,15 +69,16 @@ The complete retained v0.1 feature set passes every pre-release tenant, launch, 
 
 - `docs/work-packages/evidence/WP-G01/manifest.json` (conforms to `docs/work-packages/evidence/manifest.schema.json`): gate runs, commit, schema heads, environment, commands, outcomes, redaction status.
 - Pre-release gate report (`gate-report.json`): one row per architecture/security/operations gate with status, command, evidence, waiver, and detail; AG-10 and OG-02 are `not_run` for G02. Each `passed` row cites the owning package's test target and evidence manifest as its command and evidence (G01-owned gates cite `pnpm test:g01` and the G01 report); `tools/g01/run.ts` refuses to stamp a row whose cited manifest is missing or not `passed`, refuses any `passed` row whose cited proof records a failed run, refuses any `waived` row that does not cite an ADR recording Timo's explicit decision, and fails the run while any gate is `failed`.
-- Golden fixture (`fixture.json`): seed `bfb-g01/v1`, three humans, ten projects, five profiles, two runners with four checkouts, ten envelope tasks.
+- Golden fixture (`fixture.json`): seed `bfb-g01/v1`, three humans plus a second-tenant owner, two workspaces, ten projects, five profiles, two runners with four checkouts, ten envelope tasks, three concurrent runs.
 - Failure-injection traces (`traces.jsonl`): stable per-suite lines without generated ids or timestamps.
 - Browser security report (`browser-security.json`): bearer/CSRF/cookie/hostile-inert Chromium scenarios on `BFB_E2E_PORT=4197`.
-- Performance baseline (`perf-baseline.json`): envelope counts plus the bounded hub-burst verdict (no raw timings).
+- Performance baseline (`perf-baseline.json`): envelope counts (including the concurrently claimed run count, never unlaunched tasks) plus the bounded hub-burst verdict (no raw timings).
 - Redaction scan (`redaction-scan.json`): planted canary classes across every output channel with zero hits.
 
 ## Risks and decisions
 
 - Integrated testing will expose ownership gaps. Fix the owning package and its tests rather than centralizing behavior in the harness.
+- Tenant isolation beyond the hub route stays with the owning suites: cross-tenant MCP-delegation matrices with X03A and browser-UI matrices with W01. G01 proves the hub-route, role, project-grant, and runner boundary on its two-workspace fixture.
 - Native Terminal, live provider turns, and supervisor crash/PID-reuse proofs stay L05-owned. AG-02 is `failed`: the L05 Terminal certification records one fail-closed clean-checkout failure in five full gates and retains only the bounded redacted matrix, so the native launch trace is not a deterministic release gate; the G01 cloud-plane halves (contention, expiry, cleanup) pass. AG-04 is `failed` because live Claude/Codex/Grok turns need provider credentials and consent that are unavailable, and no ADR with Timo's explicit decision authorizes a waiver, so no waiver is recorded.
 - Evidence files embed no commit hash, timestamp, or generated id, so `pnpm test:g01` regenerates them byte-identically; the tested commit is bound once in the manifest and command result.
 

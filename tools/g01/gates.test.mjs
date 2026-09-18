@@ -172,6 +172,42 @@ test("passed rows cite proof with no failed runs recorded", async () => {
   }
 });
 
+test("golden fixture evidence advertises the two-workspace envelope the harness builds", async () => {
+  const fixture = JSON.parse(
+    await readFile(resolve(root, "docs/work-packages/evidence/WP-G01/fixture.json"), "utf8"),
+  );
+  assert.deepEqual(
+    fixture.workspaces,
+    ["primary", "second-tenant"],
+    "fixture.json must record the primary workspace and the second tenant",
+  );
+  assert.deepEqual(
+    fixture.second_tenant,
+    { humans: ["owner"], projects: ["second"], tasks: 1 },
+    "fixture.json must record the second tenant the cross-workspace probes run against",
+  );
+});
+
+test("performance baseline records launched concurrent runs, not unlaunched tasks", async () => {
+  const baseline = JSON.parse(
+    await readFile(resolve(root, "docs/work-packages/evidence/WP-G01/perf-baseline.json"), "utf8"),
+  );
+  assert.ok(
+    !("concurrent_envelope_tasks" in (baseline.envelope ?? {})),
+    "envelope must not count tasks that never run as concurrent",
+  );
+  assert.equal(baseline.envelope.envelope_tasks, 10, "ten envelope tasks stay open");
+  assert.ok(
+    Number.isInteger(baseline.envelope.concurrent_runs) && baseline.envelope.concurrent_runs >= 2,
+    "envelope must record the concurrently claimed runs across both runners",
+  );
+  assert.equal(
+    baseline.measured.concurrent_runs_claimed,
+    baseline.envelope.concurrent_runs,
+    "every concurrently started run must reach claimed",
+  );
+});
+
 for (const row of GATE_ROWS) {
   test(`${row.gate} cites a reproducible command that locates its proof`, async () => {
     for (const part of row.command.split("&&").map((chunk) => chunk.trim())) {
