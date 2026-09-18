@@ -646,7 +646,12 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
       // older artifact version read outdated without mutating history.
       const evidenceVersions = await artifactEvidenceVersionMap(deps.db, deps.workspaceId);
       return json({
-        submissions: await listResultSubmissions(deps.db, deps.workspaceId, runId, evidenceVersions),
+        submissions: await listResultSubmissions(
+          deps.db,
+          deps.workspaceId,
+          runId,
+          evidenceVersions,
+        ),
       });
     }
     if (rest === "/results" && request.method === "POST") {

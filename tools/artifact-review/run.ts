@@ -22,6 +22,7 @@ import {
   redeemUploadGrant,
   type CommandOutcome,
 } from "@bfb/domain";
+import { format as formatJson } from "prettier";
 import { createTestHarness } from "wrangler";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -613,10 +614,12 @@ async function main(): Promise<void> {
     snapshots.review_count = presenceStatus?.review_count;
     const evidenceDir = resolve(repoRoot, "docs/work-packages/evidence/WP-V03");
     mkdirSync(evidenceDir, { recursive: true });
-    writeFileSync(
-      resolve(evidenceDir, "review-binding.json"),
-      `${JSON.stringify({ snapshots, checks }, null, 2)}\n`,
-    );
+    // Evidence stays in the repository's canonical format so format:check
+    // passes on the exact bytes this harness produces.
+    const binding = await formatJson(JSON.stringify({ snapshots, checks }), {
+      parser: "json",
+    });
+    writeFileSync(resolve(evidenceDir, "review-binding.json"), binding);
     console.log(`V03_D1_OK (${checks.length} checks)`);
     for (const check of checks) {
       console.log(`- ${check}`);

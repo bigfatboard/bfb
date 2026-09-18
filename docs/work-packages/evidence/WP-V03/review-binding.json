@@ -5,16 +5,11 @@
       "changes_requested": true,
       "review_count": 2,
       "historical_count": 1,
-      "first_review_reasons": [
-        "newer_version"
-      ]
+      "first_review_reasons": ["newer_version"]
     },
     "review_timer": {
       "stopped_total_ms": 3600000,
-      "observation_kinds": [
-        "started",
-        "stopped"
-      ]
+      "observation_kinds": ["started", "stopped"]
     },
     "audit_payload_keys": [
       "artifact_id",
