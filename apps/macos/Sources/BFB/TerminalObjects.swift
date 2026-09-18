@@ -317,22 +317,28 @@ enum TerminalObjects {
   }
 
   static func open(command: String, intent: TerminalIntentID) throws {
-    // Terminal may still be launching after a quit or a cold start: wait
-    // briefly for its single running instance instead of failing a launch
-    // that only needs a moment to attach.
-    let deadline = Date().addingTimeInterval(3)
+    // Terminal may still be launching after a quit or a cold start, and a
+    // running process does not yet answer Apple events: wait briefly for its
+    // scripting interface instead of failing a launch that only needs a
+    // moment to attach. Consent and session failures throw at once.
+    let deadline = Date().addingTimeInterval(4)
     var endpoint: TerminalEndpoint
+    var existing: [Int32] = []
     while true {
       do {
         endpoint = try TerminalEndpoint.current()
+        existing = try windowIDs(endpoint)
         break
+      } catch let failure as NativeFailure
+        where failure.code == "consent_denied" || failure.code == "session_locked"
+      {
+        throw failure
       } catch {
         if Date() >= deadline { throw error }
         try Task.checkCancellation()
         Thread.sleep(forTimeInterval: 0.05)
       }
     }
-    let existing = try windowIDs(endpoint)
     let created = try send(
       endpoint, eventID: 0x646F_7363, direct: NSAppleEventDescriptor(string: command))
     do {
