@@ -191,9 +191,7 @@ describe("launch card refresh after claim", () => {
       const channel = card.opened[0];
       if (!channel) throw new Error("launch realtime socket did not open");
 
-      state.launches = [
-        { ...attachedLaunch(), execution_state: "detached", lease_state: "live" },
-      ];
+      state.launches = [{ ...attachedLaunch(), execution_state: "detached", lease_state: "live" }];
       const readsBefore = state.launchReads;
       await act(async () => {
         channel.onmessage?.(invalidationFrame("ws-1"));
