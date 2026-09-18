@@ -4,6 +4,7 @@
 | --- | --- | --- |
 | 1 | 2026-09-18 | Freeze link, webhook, Queue, token, and evidence rules. |
 | 2 | 2026-09-18 | Rate-limit 403/429/5xx on repository reads retry; only 401/404 revoke. |
+| 3 | 2026-09-18 | Latest-wins guard is per object within each stream, not per stream. |
 
 Consumers: X05 (audit/retention), G01 (redelivery/revocation hardening).
 
@@ -74,9 +75,14 @@ to D1.
   no outbox row. Duplicate delivery ids return the stored outcome with no
   new effect.
 - `github.reconcile` (system actor `github-queue`): converges one delivery
-  to current GitHub state. The per-repository, per-stream latest-wins guard
-  (`code`, `pull`, `check`, `issue`, `release`) marks stale deliveries
-  `superseded` without writes; unmapped repositories are `ignored`;
+  to current GitHub state. The per-repository, per-stream, per-object
+  latest-wins guard (`code`, `pull`, `check`, `issue`, `release` streams,
+  keyed by branch, pull-request number, check-run id, issue number,
+  deployment id, or status context) marks stale deliveries for the same
+  object `superseded` without writes; out-of-order deliveries for a different
+  object still apply on their own cursor, because payload timestamps (such as
+  a head commit's author time) order updates to one object only and never
+  compare across objects. Unmapped repositories are `ignored`;
   exhausted attempts move to visible `github_dlq` state. Link resolution is
   scoped to the delivery's workspace, so one workspace's mapping can neither
   evict nor receive evidence for another workspace's link.
@@ -126,7 +132,8 @@ to D1.
   D1-commit-before-enqueue crash gap, including lost Queue messages via
   stale `dispatched` rows) and re-sends them, bounded to 25 rows per tick.
 - Queue delivery is at least once and out of order: reconcile is idempotent
-  and the latest-wins guard gives one domain effect per delivery set.
+  and the latest-wins guard gives one domain effect per delivery set per
+  object.
 
 ## Installation tokens
 

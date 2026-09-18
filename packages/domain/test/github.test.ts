@@ -925,17 +925,49 @@ describe("github webhook receive and reconcile", () => {
     return outcome;
   }
 
-  function pushEffect(sha: string, at: string): GitHubDeliveryEffect {
+  function pushEffect(sha: string, at: string, branch = "main"): GitHubDeliveryEffect {
     return {
       event: "push",
       action: null,
       installationId: INSTALLATION,
       repositoryId: REPOSITORY,
       occurredAt: at,
-      ref: "main",
+      ref: branch,
       version: sha,
       detail: {},
     };
+  }
+
+  function pullRequestEffect(number: string, sha: string, at: string): GitHubDeliveryEffect {
+    return {
+      event: "pull_request",
+      action: "synchronize",
+      installationId: INSTALLATION,
+      repositoryId: REPOSITORY,
+      occurredAt: at,
+      ref: number,
+      version: sha,
+      detail: {},
+    };
+  }
+
+  function checkRunEffect(id: string, sha: string, at: string): GitHubDeliveryEffect {
+    return {
+      event: "check_run",
+      action: "completed",
+      installationId: INSTALLATION,
+      repositoryId: REPOSITORY,
+      occurredAt: at,
+      ref: id,
+      version: `completed:success:${sha}`,
+      detail: {},
+    };
+  }
+
+  async function outboxFor(db: SqlDatabase, deliveryId: string): Promise<{ outbox_id: string }> {
+    return (await db
+      .prepare(`SELECT outbox_id FROM github_integration_outbox WHERE delivery_id = ?`)
+      .get(deliveryId)) as { outbox_id: string };
   }
 
   it("rejects unknown installations and commits nothing", async () => {
@@ -1026,6 +1058,74 @@ describe("github webhook receive and reconcile", () => {
       .all()) as Array<{ ref: string; version_token: string }>;
     expect(commits).toHaveLength(1);
     expect(commits[0]?.version_token).toBe("b".repeat(40));
+  });
+
+  it("applies out-of-order pushes to different branches independently", async () => {
+    const { db } = await setup();
+    const mainId = randomUlid();
+    const featureId = randomUlid();
+    // main's head commit is newer; feature's head commit is older (a rebase
+    // or cherry-pick), but it is a different object and must still apply.
+    await receive(db, mainId, pushEffect("b".repeat(40), LATER, "main"));
+    await receive(db, featureId, pushEffect("c".repeat(40), NOW, "feature"));
+    const main = await reconcile(db, (await outboxFor(db, mainId)).outbox_id, mainId, LATER);
+    expect(main.result.effect).toBe("applied");
+    const feature = await reconcile(
+      db,
+      (await outboxFor(db, featureId)).outbox_id,
+      featureId,
+      LATER,
+    );
+    expect(feature.result.effect).toBe("applied");
+    const branches = (await db
+      .prepare(
+        `SELECT ref, version_token FROM github_evidence WHERE kind = 'branch' AND observed_by = 'github' ORDER BY ref`,
+      )
+      .all()) as Array<{ ref: string; version_token: string }>;
+    expect(branches).toHaveLength(2);
+    expect(branches.map((row) => row.ref)).toEqual(["feature", "main"]);
+    const commits = (await db
+      .prepare(
+        `SELECT version_token FROM github_evidence WHERE kind = 'commit' AND observed_by = 'github' ORDER BY version_token`,
+      )
+      .all()) as Array<{ version_token: string }>;
+    expect(commits.map((row) => row.version_token)).toEqual(["b".repeat(40), "c".repeat(40)]);
+  });
+
+  it("applies out-of-order pull requests for different numbers independently", async () => {
+    const { db } = await setup();
+    const newerId = randomUlid();
+    const olderId = randomUlid();
+    await receive(db, newerId, pullRequestEffect("7", "b".repeat(40), LATER));
+    await receive(db, olderId, pullRequestEffect("9", "c".repeat(40), NOW));
+    const newer = await reconcile(db, (await outboxFor(db, newerId)).outbox_id, newerId, LATER);
+    expect(newer.result.effect).toBe("applied");
+    const older = await reconcile(db, (await outboxFor(db, olderId)).outbox_id, olderId, LATER);
+    expect(older.result.effect).toBe("applied");
+    const pulls = (await db
+      .prepare(
+        `SELECT ref FROM github_evidence WHERE kind = 'pull_request' AND observed_by = 'github' ORDER BY ref`,
+      )
+      .all()) as Array<{ ref: string }>;
+    expect(pulls.map((row) => row.ref)).toEqual(["7", "9"]);
+  });
+
+  it("applies out-of-order check runs for different ids independently", async () => {
+    const { db } = await setup();
+    const newerId = randomUlid();
+    const olderId = randomUlid();
+    await receive(db, newerId, checkRunEffect("101", "b".repeat(40), LATER));
+    await receive(db, olderId, checkRunEffect("102", "c".repeat(40), NOW));
+    const newer = await reconcile(db, (await outboxFor(db, newerId)).outbox_id, newerId, LATER);
+    expect(newer.result.effect).toBe("applied");
+    const older = await reconcile(db, (await outboxFor(db, olderId)).outbox_id, olderId, LATER);
+    expect(older.result.effect).toBe("applied");
+    const checks = (await db
+      .prepare(
+        `SELECT ref FROM github_evidence WHERE kind = 'check' AND observed_by = 'github' ORDER BY ref`,
+      )
+      .all()) as Array<{ ref: string }>;
+    expect(checks.map((row) => row.ref)).toEqual(["101", "102"]);
   });
 
   it("replays reconcile idempotently and isolates poison outbox rows", async () => {

@@ -1,5 +1,5 @@
 {
-  "migration_head": "0035_artifact_objects_per_key",
+  "migration_head": "0036_github_reconcile_per_object",
   "migrations": [
     {
       "id": "0001_workspace_registry",
@@ -120,6 +120,10 @@
     {
       "id": "0035_artifact_objects_per_key",
       "file": "0035_artifact_objects_per_key.sql"
+    },
+    {
+      "id": "0036_github_reconcile_per_object",
+      "file": "0036_github_reconcile_per_object.sql"
     }
   ]
 }

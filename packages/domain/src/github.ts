@@ -1,5 +1,5 @@
 // ABOUTME: Owns GitHub App installation, repository link, delivery, outbox, and evidence records.
-// ABOUTME: Owner step-up gates management; reconcile converges duplicates with latest-wins guards.
+// ABOUTME: Owner step-up gates management; reconcile converges duplicates with per-object latest-wins guards.
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 
@@ -1220,8 +1220,10 @@ function evidenceKindForEvent(event: string): GitHubEvidenceKind | null {
 
 /**
  * Idempotently converges one delivery to current GitHub state. Duplicate and
- * out-of-order deliveries share one domain effect through the per-repository
- * latest-wins guard; stale deliveries are marked superseded without writes.
+ * out-of-order deliveries for the same object share one domain effect
+ * through the per-object latest-wins guard; stale deliveries are marked
+ * superseded without writes, while deliveries for another object in the same
+ * stream still apply on their own cursor.
  */
 export const reconcileGitHubCommand: HubCommand<ReconcileGitHubInput, ReconcileGitHubResult> = {
   name: "github.reconcile",
@@ -1374,11 +1376,20 @@ export const reconcileGitHubCommand: HubCommand<ReconcileGitHubInput, ReconcileG
     if (!stream) {
       fail("delivery_missing", "github delivery names no reconcile stream");
     }
+    // The guard is per object, not per stream: pushes to one branch, updates
+    // to one pull request, and events for one check run converge on their own
+    // cursor, so an out-of-order delivery for another object in the same
+    // stream still applies. Payload timestamps order updates to the same
+    // object only; commit author time never compares across branches.
+    const objectRef = effect.ref;
+    if (!objectRef) {
+      fail("delivery_missing", "github delivery names no reconcile object");
+    }
     const guard = (await ctx.db
       .prepare(
-        `SELECT last_event_time, last_delivery_id FROM github_reconcile_state WHERE workspace_id = ? AND repository_id = ? AND stream = ?`,
+        `SELECT last_event_time, last_delivery_id FROM github_reconcile_state WHERE workspace_id = ? AND repository_id = ? AND stream = ? AND ref = ?`,
       )
-      .get(ctx.workspaceId, effect.repositoryId, stream)) as
+      .get(ctx.workspaceId, effect.repositoryId, stream, objectRef)) as
       { last_event_time: string; last_delivery_id: string } | undefined;
     if (
       guard &&
@@ -1447,9 +1458,9 @@ export const reconcileGitHubCommand: HubCommand<ReconcileGitHubInput, ReconcileG
     }
     await ctx.db
       .prepare(
-        `INSERT INTO github_reconcile_state (workspace_id, repository_id, stream, last_event_time, last_delivery_id, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?)
-         ON CONFLICT (workspace_id, repository_id, stream) DO UPDATE SET
+        `INSERT INTO github_reconcile_state (workspace_id, repository_id, stream, ref, last_event_time, last_delivery_id, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT (workspace_id, repository_id, stream, ref) DO UPDATE SET
            last_event_time = excluded.last_event_time,
            last_delivery_id = excluded.last_delivery_id,
            updated_at = excluded.updated_at`,
@@ -1458,6 +1469,7 @@ export const reconcileGitHubCommand: HubCommand<ReconcileGitHubInput, ReconcileG
         ctx.workspaceId,
         effect.repositoryId,
         stream,
+        objectRef,
         effect.occurredAt,
         input.deliveryId,
         ctx.now,
