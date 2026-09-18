@@ -76,7 +76,7 @@ The enrolled Mac conducts a bounded read-only Claude/Codex exchange using owned 
 
 ## Handoff
 
-- Implementation, gate, and evidence are complete on this branch, but A01, L05, L06, L07, and P01 are not `done`, so this package stays `planned` per the roadmap status rule and D03 must not consume it yet.
+- Implementation, gate, and evidence are complete on this branch, but L07 is `review` and P01 is `planned`, so this package stays `planned` per the roadmap status rule and D03 must not consume it yet. A01, L05, and L06 are `done` since 18 September.
 - State: `internal/discussion` (delivery store at local migration 012, ownership/fencing, scheduler, dispatch, bounded outputs, recovery, L03 kit planner) with `go test -race ./internal/discussion/...` passing; D1 migration `0025_discussion_delivery` (covering indexes only; D01 records unchanged); contract `docs/contracts/discussion-delivery.md`.
 - Commands: `pnpm test:d02`; `GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./...`; `pnpm verify`; `pnpm worktree:check`.
 - D03 consumes committed discussion messages and conclusions through D01 reads plus the delivery states named in the contract; it never interprets provider prose.

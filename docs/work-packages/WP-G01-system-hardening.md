@@ -83,6 +83,6 @@ The complete retained v0.1 feature set passes every pre-release tenant, launch, 
 
 ## Handoff
 
-- Implementation, gate (`pnpm test:g01`, `pnpm verify`, `pnpm worktree:check`, clean-checkout gate), and evidence are complete on branch `muse/g01`. Status is left at `planned` (note recorded here and in `mvp.progress.md`) because `pnpm roadmap:check` rejects anything beyond `planned` while A04, E02, L07, P01, P02, V03, W02, X01, X02, X03, X04, and X05 are not `done` (per `docs/work-packages/README.md`).
+- Implementation, gate (`pnpm test:g01`, `pnpm verify`, `pnpm worktree:check`, clean-checkout gate), and evidence are complete on branch `muse/g01`. Status is left at `planned` (note recorded here and in `mvp.progress.md`) because `pnpm roadmap:check` rejects anything beyond `planned` while L07 is `review` and P01, P02, and X02 are `planned` (A04, E02, V03, W02, X01, X03, X04, and X05 are `done` since 18 September; per `docs/work-packages/README.md`).
 - G02 receives one tagged release candidate with frozen contracts (`docs/contracts/release-candidate.md`), AG-10/OG-02 marked `not_run`, their executable procedures prepared, and no undocumented manual repair.
 - Known limitations: the native Terminal launch trace, live provider turns, and supervisor crash/PID-reuse proofs wait on L05 Terminal acceptance; real-network partition behavior beyond workerd eviction is covered by owning-package evidence; performance figures are bounded-verdict counts for the 3/10/5 envelope, not enterprise load figures.

@@ -83,7 +83,7 @@ Codex satisfies the frozen provider lifecycle using documented stable CLI, hook,
 
 ## Handoff
 
-State: adapter, parsers, setup editors, and doctor are implemented in `internal/providers/codex` with `pnpm test:p01` passing from a clean checkout; status stays `planned` because A01, A03, E01, L05, L06, and L07 are not done.
+State: adapter, parsers, setup editors, and doctor are implemented in `internal/providers/codex` with `pnpm test:p01` passing from a clean checkout; status stays `planned` because L07 is `review` (live Claude chain pending credentials and consent). A01, A03, E01, L05, and L06 are `done` since 18 September.
 
 Proven now (each by an automated test in `internal/providers/codex` plus committed fixtures):
 
@@ -95,7 +95,7 @@ Proven now (each by an automated test in `internal/providers/codex` plus committ
 - Stop, turn completion, session end, and process exit map only to telemetry kinds; no candidate kind can submit or accept a result.
 - No argv, hook, or doctor path uses app-server WebSockets, deep links, `--last`, picker flows, or hook-trust/approval bypass flags.
 
-Explicitly pending on unfinished dependencies:
+Explicitly pending (A01, A03, E01, L05, and L06 are `done`; live proofs still need provider credentials and consent):
 
 - A01: live `bfb mcp stdio` context loading through the registered server (registration shape is written and doctor-verified; no live context load is claimed).
 - E01/L06: ledger envelopes, correlation validation, duplicate suppression, and upload of normalized candidates (candidates are bounded and correlation-free by design).
