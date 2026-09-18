@@ -1,0 +1,22 @@
+{
+  "spec": "x05-operations",
+  "scenarios": [
+    {
+      "scenario": "owner-sections",
+      "visible": 6,
+      "queueCounts": "Notifications pending 0, dead-lettered 0; GitHub outbox pending 0, DLQ 0."
+    },
+    {
+      "scenario": "member-sections",
+      "auditHidden": true
+    },
+    {
+      "scenario": "reviewer-sections",
+      "navHidden": true
+    },
+    {
+      "scenario": "redaction",
+      "forbiddenClassesAbsent": 5
+    }
+  ]
+}

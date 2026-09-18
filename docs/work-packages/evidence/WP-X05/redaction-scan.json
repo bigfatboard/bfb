@@ -1,0 +1,27 @@
+{
+  "scanned": [
+    "security-audit",
+    "activity",
+    "queues",
+    "diagnostic-inventory",
+    "diagnostic-upload",
+    "dlq-copy",
+    "dlq-copies",
+    "drill-log"
+  ],
+  "needle_classes": [
+    "task body",
+    "cookie",
+    "bearer grant",
+    "local path",
+    "hook payload",
+    "artifact bytes",
+    "terminal output",
+    "private key",
+    "webhook secret",
+    "abuse secret",
+    "session signing key"
+  ],
+  "hits": 0,
+  "outcome": "passed"
+}
