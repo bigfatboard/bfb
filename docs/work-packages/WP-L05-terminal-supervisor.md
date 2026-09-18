@@ -1,6 +1,6 @@
 # WP-L05 — Terminal execution supervisor
 
-Status: `blocked`
+Status: `done`
 
 Risk: Very high
 
@@ -84,4 +84,4 @@ A claimed launch starts only the locally allowlisted fake provider in the exact 
 ## Risks and decisions
 
 - This is the highest-risk macOS component. Do not debug provider behavior until the fake-provider supervisor suite is clean.
-- Native implementation and signed PTY diagnostics pass, but real Terminal focus, Ctrl-C and close acceptance is unfinished. The resumed 13 September native check reports an available GUI session; the computer-control tool still explicitly denies Terminal access for safety reasons. This is separate from BFB's macOS Automation consent, and unlocking alone does not resolve it. Completing this gate requires permitted Terminal test access, completion of the remaining interaction harness, and the exact clean-checkout target; no alternate input path may bypass that denial. Independent packages with already-done prerequisites may proceed, but none may consume L05 as done.
+- Certified 18 September at `d0b286d`: three consecutive `pnpm test:l05` passes in the implementation checkout plus a clean-checkout pass (after one fail-closed clean failure, one in five full gates), `pnpm verify`, and bounded evidence at `docs/work-packages/evidence/WP-L05/`. Real Terminal `focus_existing`, human-like Ctrl-C with exactly one SIGINT, and provider-only window close with verified whole-group release all pass in the signed integration. Known limits: a same-group survivor cannot outlive a real close (survivor retention stays covered by the child and escape scenarios); the synthetic `--require-focus` routing section is not invoked by any gate; a cold start beyond the scripting-readiness poll fails safe; one shutdown-observation race wedged a release past the release wait and failed closed with the lock retained. No alternate input path bypasses the owned-tab checks.

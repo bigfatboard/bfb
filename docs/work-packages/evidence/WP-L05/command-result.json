@@ -1,0 +1,81 @@
+{
+  "package": "L05",
+  "tested_commit": "d0b286d4f65f8f38ee55ab52098c6d7b797713b0",
+  "recorded_on": "2026-09-18",
+  "automated_gate": "passed",
+  "package_acceptance": "passed",
+  "test_configuration": {
+    "console_session": "available",
+    "terminal_automation": "Terminal was already running before every gate run; no cold start occurred during certification.",
+    "terminal_consent": "Automation consent for Terminal held by the BFB app bundle; System Events and Accessibility consent held by the operator process tree.",
+    "self_hosted_override": false
+  },
+  "checkout": {
+    "detached": true,
+    "clean_before_install": true,
+    "clean_after_verification": true,
+    "frozen_install": "passed"
+  },
+  "checks": {
+    "l05_owned_fixture_drift_count": 101,
+    "protocol_typescript_tests": 438,
+    "protocol_go_differential_fixtures": "passed",
+    "go_race_packages": [
+      "internal/supervisor",
+      "internal/appbridge",
+      "internal/daemon",
+      "internal/cli",
+      "cmd/bfb"
+    ],
+    "go_race_tests": "passed",
+    "swift_native_tests": 16,
+    "swift_format_and_xcode_build": "passed",
+    "signed_terminal_scenarios": {
+      "interactive": "passed",
+      "child": "passed",
+      "escape": "passed",
+      "ctrl_c": "passed",
+      "close": "passed"
+    },
+    "managed_terminal_acceptance": "passed",
+    "repository_typescript_tests": 1254,
+    "repository_typescript_files": 103,
+    "repository_verification": "passed"
+  },
+  "gate_runs": {
+    "implementation_checkout": ["passed", "passed", "passed"],
+    "clean_checkout": ["failed", "passed"]
+  },
+  "native_assertions": {
+    "exact_checkout_and_git_facts": "passed",
+    "unsafe_starts_blocked": "passed",
+    "aliased_concurrent_starts_yield_one_execution": "passed",
+    "pre_exec_swaps_block_before_exec": "passed",
+    "scoped_provider_environment_only": "passed",
+    "parent_exit_retains_lock_for_live_child": "passed",
+    "pid_reuse_never_signals_another_process": "passed",
+    "escape_enters_sticky_containment_unknown": "passed",
+    "heartbeat_while_group_alive_only": "passed",
+    "duplicate_controls_have_one_effect": "passed",
+    "captured_command_has_no_cloud_data": "passed",
+    "focus_existing_applies_before_ctrl_c_and_close": "passed",
+    "ctrl_c_delivers_exactly_one_sigint": "passed",
+    "provider_only_close_releases_whole_group": "passed",
+    "test_app_and_terminal_cleanup": "passed"
+  },
+  "native_observations": {
+    "historical_ctrl_c_stall": "One earlier run stalled safely when an extra group member with an unrooted identity appeared under the provider about a second after start; the supervisor correctly refused uncertain ownership instead of signalling.",
+    "clean_checkout_first_run": "The first clean-checkout run failed its interactive scenario in the release wait: exactly one SIGINT was delivered and the group provably ended, but the same inspection also captured containment uncertainty, which wedged the cloud release leg and left the launch command waiting past the release wait. The retained native history shows the extra same-group provider child fully rooted (group-level unknown stayed false), so the uncertainty came from the owner/record check in that single inspection, not from the extra member. Nothing unsafe happened: no ambiguous signal was sent and the lock was retained. Frequency across this certification: one such failure in five full gates.",
+    "close_confirmation": "A close confirmation sheet can block the provider-only close until answered; the harness answers it once while the provider has not yet observed the close, and sends no further key once the close signal lands.",
+    "terminal_readiness": "Opening Terminal waits briefly for its scripting interface; a cold start beyond that poll fails safe instead of bypassing the owned-tab checks."
+  },
+  "not_claimed": [
+    "A same-group survivor outliving a real window close; survivor retention is covered by the child and escape scenarios, and the confirmation terminates stragglers",
+    "The synthetic --require-focus routing section of the macOS acceptance harness, which no gate invokes; real focus_existing is covered by the signed ctrl_c and close scenarios",
+    "Terminal cold starts beyond the scripting-readiness poll",
+    "Live provider turns or real-provider session binding (L07/P01)",
+    "Whole-machine sleep, cross-device reachability or a running complete local MVP",
+    "Release signing/notarization or genuinely fresh macOS account certification (G02)"
+  ],
+  "retention": "Bounded synthetic assertions and public protocol fixtures only. No raw logs, Terminal transcripts, credentials, correlation capabilities, hardware identifiers, personal task data or local absolute paths are retained."
+}
