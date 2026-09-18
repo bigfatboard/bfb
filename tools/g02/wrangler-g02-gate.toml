@@ -1,0 +1,56 @@
+# ABOUTME: Proves the self-host jurisdiction sentinel fails closed on the real Worker.
+# ABOUTME: Same shape as wrangler-g02.toml with JURISDICTION left at "choose".
+
+name = "bfb-g02-gate"
+main = "worker.ts"
+compatibility_date = "2026-08-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+ENVIRONMENT = "local"
+JURISDICTION = "choose"
+APP_ORIGIN = "http://bfb.localhost:8787"
+ARTIFACT_ORIGIN = "http://artifacts.bfb.localhost:8788"
+LAUNCH_ORIGIN = "http://launch.bfb.localhost:8789"
+BETTER_AUTH_SECRETS = "2:g02-synthetic-current-signing-key-9f27c4aa41,1:g02-synthetic-previous-signing-key-3b81d9c720"
+GITHUB_CLIENT_ID = "g02-synthetic-github-client"
+GITHUB_CLIENT_SECRET = "g02-synthetic-github-secret-9f44d1ccyy-long"
+AUTH_ABUSE_SECRET = "g02-synthetic-abuse-key-9f44d1ccyy-long"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "bfb-g02-gate"
+database_id = "00000000-0000-4000-8000-000000000042"
+migrations_dir = "../../migrations/d1"
+
+[[r2_buckets]]
+binding = "ARTIFACTS"
+bucket_name = "bfb-g02-gate-artifacts"
+
+[[queues.producers]]
+binding = "JOBS"
+queue = "bfb-g02-gate-jobs"
+
+[[queues.producers]]
+binding = "JOBS_DLQ"
+queue = "bfb-g02-gate-jobs-dlq"
+
+[[queues.consumers]]
+queue = "bfb-g02-gate-jobs"
+max_batch_size = 10
+max_batch_timeout = 5
+max_retries = 5
+dead_letter_queue = "bfb-g02-gate-jobs-dlq"
+retry_delay = 60
+
+[assets]
+directory = "../../apps/web/dist"
+binding = "ASSETS"
+
+[[durable_objects.bindings]]
+name = "WORKSPACE_HUB"
+class_name = "WorkspaceHub"
+
+[exports.WorkspaceHub]
+type = "durable-object"
+storage = "sqlite"

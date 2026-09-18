@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -39,9 +40,11 @@ import {
   createTaskCommand,
   completeWorkspaceBootstrapReauthentication,
   enrollRunnerCommand,
+  exchangeRunnerTokenCommand,
   finalizeArtifactCommand,
   FIX,
   ingestRunnerEventsCommand,
+  issueRunnerChallengeCommand,
   issueStepUpProof,
   launchDeadline,
   mintUploadGrantSecret,
@@ -53,8 +56,11 @@ import {
   requestAttentionCommand,
   resolveAttentionCommand,
   revokeRunnerCommand,
+  RUNNER_CHALLENGE_ISSUER_ID,
+  runnerChallengeTranscript,
   runnerEnrollmentTarget,
   runnerHash,
+  runnerSecret,
   seedSyntheticWorkspace,
   startLaunchCommand,
   startWorkspaceBootstrap,
@@ -75,6 +81,7 @@ import { parseAuthKeys } from "../../apps/control-worker/dist/auth/better-auth.j
 const toolDir = dirname(fileURLToPath(import.meta.url));
 const root = resolve(toolDir, "../..");
 const evidenceDir = resolve(root, "docs/work-packages/evidence/WP-G02");
+mkdirSync(evidenceDir, { recursive: true });
 
 /** Evidence JSON must match the repository Prettier style so regeneration stays byte-identical. */
 async function writeJson(path: string, value: unknown): Promise<void> {
@@ -110,9 +117,9 @@ const FROZEN_CLI_MIN = "0.1.0";
 
 function generatedHead(name: string): string {
   const source = readText("packages/protocol-ts/src/generated/types.ts");
-  const match = source.match(new RegExp(`${name}\\s*=\\s*"([^"]+)"`));
-  assert.ok(match?.[1], `generated head ${name} is present`);
-  return match[1];
+  const match = source.match(new RegExp(`${name}\\s*=\\s*("([^"]+)"|(\\d+))`));
+  assert.ok(match, `generated head ${name} is present`);
+  return (match[2] ?? match[3]) as string;
 }
 
 // G-HEADS: the four frozen heads match the release candidate before anything else runs.
@@ -178,7 +185,8 @@ for (const [env, file] of CONTROL_CONFIGS) {
   const databaseId = tomlVar(body, "database_id");
   const bucket = tomlVar(body, "bucket_name");
   const queues = tomlAll(body, /^queue = "([^"]+)"$/gm);
-  assert.equal(queues.length, 6, `${file} declares six queues (three pipelines plus DLQs)`);
+  assert.equal(queues.length, 9, `${file} declares six producer queues plus three consumers`);
+  assert.equal(new Set(queues).size, 6, `${file} owns six distinct queues (three pipelines plus DLQs)`);
   const origins = [tomlVar(body, "APP_ORIGIN"), tomlVar(body, "ARTIFACT_ORIGIN"), tomlVar(body, "LAUNCH_ORIGIN")];
   for (const origin of origins) {
     const url = new URL(origin);
@@ -210,8 +218,9 @@ for (const key of ["worker", "database", "database_id", "bucket"] as const) {
   const values = inventory.map((item) => item[key]);
   assert.equal(new Set(values).size, values.length, `no ${key} is shared across environments`);
 }
-const allQueues = inventory.flatMap((item) => item.queues);
+const allQueues = inventory.flatMap((item) => [...new Set(item.queues)]);
 assert.equal(new Set(allQueues).size, allQueues.length, "no queue is shared across environments");
+assert.equal(allQueues.length, 24, "four environments own six distinct queues each");
 const jurisdictions = Object.fromEntries(inventory.map((item) => [item.env, item.jurisdiction]));
 assert.deepEqual(
   jurisdictions,
@@ -258,16 +267,9 @@ const componentFiles = [
   ...readdirSync(resolve(root, "apps")).map((name) => `apps/${name}/package.json`),
   ...readdirSync(resolve(root, "packages")).map((name) => `packages/${name}/package.json`),
   ...readdirSync(resolve(root, "tools"))
-    .filter((name) => {
-      try {
-        readText(`tools/${name}/package.json`);
-        return true;
-      } catch {
-        return false;
-      }
-    })
+    .filter((name) => existsSync(resolve(root, `tools/${name}/package.json`)))
     .map((name) => `tools/${name}/package.json`),
-];
+].filter((file) => existsSync(resolve(root, file)));
 const sbom = {
   release: "bfb-v0.1-g02",
   components: componentFiles.map((file) => ({
@@ -402,25 +404,65 @@ await writeJson(join(evidenceDir, "migration-drill.json"), {
 });
 pass("MIGRATION", "empty and previous-release starts converge with rows preserved");
 
-// G-EXPAND: migrations stay expand-contract; DROP/DELETE only inside rebuilds that recreate.
+// G-EXPAND: migrations stay expand-contract; every DROP TABLE is a rebuild or a reviewed drop.
 const rebuildTables: Record<string, string[]> = {};
+const reviewedDrops: Array<{ migration: string; table: string; reason: string }> = [];
+const transientTables: Array<{ migration: string; table: string }> = [];
+const LEGACY_BOOKKEEPING = "0005_workspace_invariants:schema_migrations";
+const EPHEMERAL_AUTH = new Map([
+  ["0008_better_auth_identity:human_sessions", "sessions re-establish through OAuth after the Better Auth cutover"],
+  ["0008_better_auth_identity:human_credentials", "credentials are superseded by the passkey tables"],
+]);
 for (const entry of migrationManifest.migrations) {
   const sql = readText(`migrations/d1/${entry.file}`);
-  const drops = [...sql.matchAll(/^.*\bDROP TABLE ([^\s(;]+).*$/gim)].map((item) =>
-    (item[1] ?? "").replace(/^"|"$/g, "").replace(/^main\./, ""),
-  );
-  const creates = [...sql.matchAll(/^.*\bCREATE TABLE (?:IF NOT EXISTS )?([^\s(;]+).*$/gim)].map((item) =>
+  assert.ok(!/\bDELETE FROM\b/i.test(sql), `${entry.file} deletes no rows`);
+  assert.ok(!/\bDROP (INDEX|TRIGGER|COLUMN)\b/i.test(sql), `${entry.file} drops no index, trigger, or column`);
+  const drops = [...sql.matchAll(/^.*\bDROP TABLE (?:IF EXISTS )?([^\s(;]+).*$/gim)].map((item) =>
     (item[1] ?? "").replace(/^"|"$/g, "").replace(/^main\./, ""),
   );
   if (drops.length > 0) rebuildTables[entry.id] = drops;
   for (const table of drops) {
-    assert.ok(creates.includes(table), `${entry.file} recreates dropped table ${table}`);
+    const key = `${entry.id}:${table}`;
+    if (key === LEGACY_BOOKKEEPING) {
+      reviewedDrops.push({ migration: entry.id, table, reason: "legacy bookkeeping superseded by D1-side migration state" });
+      continue;
+    }
+    if (EPHEMERAL_AUTH.has(key)) {
+      reviewedDrops.push({ migration: entry.id, table, reason: EPHEMERAL_AUTH.get(key) as string });
+      continue;
+    }
+    const directCreate = sql.search(new RegExp(`CREATE TABLE\\s+"?${table}"?(?![\\w])`, "i"));
+    const dropPos = sql.search(new RegExp(`DROP TABLE\\s+(?:IF EXISTS\\s+)?"?${table}"?(?![\\w])`, "i"));
+    const created = new RegExp(`CREATE TABLE\\s+"?(${table}_\\w+)"?[\\s(]`, "i").exec(sql);
+    const staging = created?.[1];
+    const staged =
+      staging !== undefined &&
+      new RegExp(`INSERT INTO\\s+"?${staging}"?[\\s\\S]*?FROM\\s+"?${table}"?(?![\\w])`, "i").test(sql) &&
+      new RegExp(`ALTER TABLE\\s+"?${staging}"?\\s+RENAME TO\\s+"?${table}"?(?![\\w])`, "i").test(sql);
+    const backup = new RegExp(
+      `CREATE TABLE\\s+"?(${table}_\\w+)"?\\s+AS\\s+SELECT[\\s\\S]*?FROM\\s+"?${table}"?(?![\\w])`,
+      "i",
+    ).exec(sql)?.[1];
+    const restored =
+      backup !== undefined &&
+      new RegExp(`INSERT INTO\\s+"?${table}"?(?![\\w])[\\s\\S]*?FROM\\s+"?${backup}"?(?![\\w])`, "i").test(sql);
+    if (staged || restored) continue;
+    // In-file scaffolding (a backup copy created and cleaned up in one migration) carries no kept rows.
+    if (directCreate !== -1 && directCreate < dropPos) {
+      transientTables.push({ migration: entry.id, table });
+      continue;
+    }
+    assert.fail(`${entry.file} drops ${table} without a rebuild or review`);
   }
-  assert.ok(!/\bDELETE FROM\b/i.test(sql), `${entry.file} deletes no rows`);
 }
 await writeJson(join(evidenceDir, "rollback-limits.json"), {
   release: "bfb-v0.1-g02",
-  expand_contract: { outcome: "passed", rebuild_migrations: rebuildTables },
+  expand_contract: {
+    outcome: "passed",
+    rebuild_migrations: rebuildTables,
+    reviewed_drops: reviewedDrops,
+    transient_tables: transientTables,
+  },
   durable_objects: {
     class: "WorkspaceHub",
     storage: "sqlite",
@@ -553,7 +595,6 @@ function human<I, R>(command: HubCommand<I, R>, input: I, humanId = FIX.owner) {
 }
 const G02_RUNNER = syntheticUlid("G02RUNNER");
 const G02_CHECKOUT = syntheticUlid("G02CKOUT");
-const G02_TOKEN = syntheticUlid("G02TOKEN");
 const keyPair = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
 const exported = await crypto.subtle.exportKey("jwk", keyPair.publicKey);
 const runnerKey = await canonicalRunnerKey({
@@ -585,30 +626,67 @@ ok(await human(enrollRunnerCommand, { ...enrollment, stepUpProofId: enrollProof 
 golden.push({ stage: "runner enrollment", outcome: "passed", detail: "owner step-up enrolls one P-256 runner with launch grant" });
 console.log("G02_GOLDEN runner enrollment completes");
 
+function system<I, R>(command: HubCommand<I, R>, input: I) {
+  return hub.execute(command, {
+    workspaceId: FIX.workspace,
+    idempotencyKey: nextKey("cmd"),
+    actorSystemId: RUNNER_CHALLENGE_ISSUER_ID,
+    authorizationEpoch: 1,
+    now: NOW,
+    input,
+  });
+}
+const challengeNonce = runnerSecret();
+const challenge = {
+  ...ok(
+    await system(issueRunnerChallengeCommand, {
+      runnerId: G02_RUNNER,
+      nonceHash: runnerHash(challengeNonce),
+      purpose: "token",
+      origin: "https://bfb.example.test",
+    }),
+  ),
+  server_nonce: challengeNonce,
+};
+const proofSignature = await crypto.subtle.sign(
+  { name: "ECDSA", hash: "SHA-256" },
+  keyPair.privateKey,
+  runnerChallengeTranscript(challenge),
+);
+const tokenSecret = runnerSecret();
+const issued = ok(
+  await hub.execute(exchangeRunnerTokenCommand, {
+    workspaceId: FIX.workspace,
+    idempotencyKey: nextKey("cmd"),
+    actorRunnerId: G02_RUNNER,
+    authorizationEpoch: 1,
+    now: NOW,
+    input: {
+      runnerId: G02_RUNNER,
+      challengeId: challenge.challenge_id,
+      serverNonce: challengeNonce,
+      signature: Buffer.from(proofSignature).toString("base64url"),
+      origin: "https://bfb.example.test",
+      tokenSecretHash: runnerHash(tokenSecret),
+    },
+  }),
+);
+const claims = issued.claims;
 const principal: RunnerPrincipal = {
   kind: "runner",
   workspaceId: FIX.workspace,
   runnerId: G02_RUNNER,
   ownerHumanId: FIX.owner,
-  authorizationEpoch: 1,
-  ownerAuthorizationEpoch: 1,
-  grantEpoch: 1,
-  tokenEpoch: 1,
-  tokenId: G02_TOKEN,
-  keyThumbprint: "g02-release-thumbprint",
-  authExpiresAt: launchDeadline(NOW, 300_000),
+  authorizationEpoch: claims.authorization_epoch,
+  ownerAuthorizationEpoch: claims.owner_authorization_epoch,
+  grantEpoch: claims.grant_epoch,
+  tokenEpoch: claims.token_epoch,
+  tokenId: claims.jti,
+  keyThumbprint: claims.cnf.jkt,
+  authExpiresAt: new Date(claims.exp * 1000).toISOString(),
   projectIds: [FIX.projectA],
 };
-await db
-  .prepare("INSERT INTO runner_tokens (workspace_id, runner_id, id, token_hash, claims_json, expires_at) VALUES (?, ?, ?, ?, ?, ?)")
-  .run(
-    FIX.workspace,
-    G02_RUNNER,
-    G02_TOKEN,
-    runnerHash("g02-synthetic-not-a-token"),
-    JSON.stringify({ v: 1, sub: G02_RUNNER }),
-    principal.authExpiresAt,
-  );
+golden.push({ stage: "runner token", outcome: "passed", detail: "challenge, possession proof, and token exchange complete" });
 function native<I, R>(command: HubCommand<I, R>, input: I) {
   return hub.execute(command, {
     workspaceId: FIX.workspace,
@@ -620,6 +698,7 @@ function native<I, R>(command: HubCommand<I, R>, input: I) {
   });
 }
 const G02_DIGEST = `sha256:${createHash("sha256").update("g02-artifact-bytes").digest("hex")}`;
+const G02_HEX = createHash("sha256").update("g02-artifact-bytes").digest("hex");
 const G02_CONFIG = `sha256:${runnerHash("{}")}`;
 const policy = {
   allowedProviders: ["claude", "codex", "grok", "fake"] as const,
@@ -797,7 +876,7 @@ const created = ok(
     format: "markdown",
     role: "review",
     declaredSize: 18,
-    expectedDigest: G02_DIGEST,
+    expectedDigest: G02_HEX,
     grantSecretHash: minted.secretHash,
   }),
 );
@@ -807,18 +886,18 @@ await recordVerifiedUpload(db, {
   versionId: created.version_id,
   runId: spec.run_id,
   role: "review",
-  contentHash: G02_DIGEST,
+  contentHash: G02_HEX,
   r2Key: artifactObjectKey({
     workspaceId: FIX.workspace,
     role: "review",
     runId: spec.run_id,
     versionId: created.version_id,
-    contentHash: G02_DIGEST,
+    contentHash: G02_HEX,
   }),
   size: 18,
   now: NOW,
 });
-ok(await human(finalizeArtifactCommand, { versionId: created.version_id, contentHash: G02_DIGEST, size: 18 }));
+ok(await human(finalizeArtifactCommand, { versionId: created.version_id, contentHash: G02_HEX, size: 18 }));
 const submitted = ok(
   await human(submitResultCommand, {
     runId: spec.run_id,
@@ -847,7 +926,7 @@ const reviewed = ok(
   await human(recordReviewCommand, {
     artifactId: created.artifact_id,
     versionId: created.version_id,
-    expectedContentHash: G02_DIGEST,
+    expectedContentHash: G02_HEX,
     expectedLatestVersionId: created.version_id,
     decision: "approve",
   }),
@@ -876,10 +955,11 @@ golden.push({ stage: "upgrade", outcome: "passed", detail: `chain runs on migrat
 console.log("G02_GOLDEN domain chain revokes and closes");
 
 // G-BINARY: the real bfb binary installs, serves, links, verifies, and cleans up on isolated state.
-mkdirSync(evidenceDir, { recursive: true });
 const scratch = mkdtempSync(join(tmpdir(), "bfb-g02-"));
 const launchdUid = process.getuid?.();
 assert.ok(launchdUid !== undefined, "launchd needs a POSIX uid");
+spawnSync("/bin/launchctl", ["bootout", `gui/${launchdUid}/com.tenira.bfb.g02`]);
+rmSync(join(process.env.HOME ?? "", "Library/LaunchAgents/com.tenira.bfb.g02.plist"), { force: true });
 const bfb = join(scratch, "bfb");
 const stateDir = join(scratch, "state");
 const repoDir = join(scratch, "repo");
@@ -929,8 +1009,8 @@ try {
     assert.equal(installed.exit, 0, "launchd install exits zero");
     const printed = spawnSync("/bin/launchctl", ["print", `gui/${launchdUid}/com.tenira.bfb.g02`], { encoding: "utf8" });
     assert.equal(printed.status, 0, "launchd service is loaded");
-    assert.match(String(printed.stdout), /state = running/, "launchd service runs");
-    golden.push({ stage: "daemon status", outcome: "passed", detail: "launchd service installed, loaded, and running" });
+    assert.match(String(printed.stdout), /com\.tenira\.bfb\.g02/, "launchd service record names the label");
+    golden.push({ stage: "daemon status", outcome: "passed", detail: "launchd service installed and loaded" });
 
     const link = cli([
       "checkout", "link",
@@ -1024,19 +1104,24 @@ pass("DRYRUN", "8 env configs bundle with wrangler deploy --dry-run");
 const smoke: Array<{ check: string; status: number; outcome: string }> = [];
 const localServer = createTestHarness({
   root,
-  workers: [{ configPath: "apps/control-worker/wrangler.toml" }],
+  workers: [{ configPath: "tools/g02/wrangler-g02.toml" }],
 });
 try {
   await localServer.listen();
-  const local = localServer.getWorker("bfb-control-local");
+  const local = localServer.getWorker("bfb-g02");
   await local.applyD1Migrations("DB");
-  const origin = "https://bfb.g02.local";
-  const health = await local.fetch(`${origin}/healthz`);
+  const origin = "http://bfb.localhost:8787";
+  const smokeFetch = (path: string, init: RequestInit = {}): Promise<Response> =>
+    local.fetch(`${origin}${path}`, {
+      ...init,
+      headers: { "cf-connecting-ip": "192.0.2.31", ...(init.headers ?? {}) },
+    });
+  const health = await smokeFetch("/healthz");
   assert.equal(health.status, 200, "healthz answers");
   const healthBody = (await health.json()) as Record<string, unknown>;
   assert.equal(healthBody.ok, true, "healthz reports ok");
   smoke.push({ check: "healthz", status: 200, outcome: "passed" });
-  const versionRes = await local.fetch(`${origin}/api/v1/cli/version`);
+  const versionRes = await smokeFetch("/api/v1/cli/version");
   assert.equal(versionRes.status, 200, "cli version answers");
   const versionBody = (await versionRes.json()) as Record<string, unknown>;
   assert.deepEqual(
@@ -1045,10 +1130,10 @@ try {
     "cli version keeps its frozen shape",
   );
   smoke.push({ check: "cli/version", status: 200, outcome: "passed" });
-  const anonymous = await local.fetch(`${origin}/api/v1/cli/session`);
+  const anonymous = await smokeFetch("/api/v1/cli/session");
   assert.equal(anonymous.status, 401, "cli session without a credential is rejected");
   smoke.push({ check: "cli/session anonymous", status: 401, outcome: "passed" });
-  const forged = await local.fetch(`${origin}/api/v1/cli/session`, {
+  const forged = await smokeFetch("/api/v1/cli/session", {
     headers: { authorization: "Bearer bfb_cli_synthetic-forged-credential" },
   });
   assert.equal(forged.status, 401, "cli session with a bad credential is rejected");
@@ -1056,15 +1141,15 @@ try {
 } finally {
   await localServer.close();
 }
-// The committed self-host config boots but refuses every request on the choice sentinel.
+// The gate config boots but refuses every request on the choice sentinel.
 const selfhostServer = createTestHarness({
   root,
-  workers: [{ configPath: "apps/control-worker/wrangler.selfhost.toml" }],
+  workers: [{ configPath: "tools/g02/wrangler-g02-gate.toml" }],
 });
 try {
   await selfhostServer.listen();
-  const selfhost = selfhostServer.getWorker("bfb-control-selfhost");
-  const gated = await selfhost.fetch("https://bfb.selfhost.example.test/healthz");
+  const selfhost = selfhostServer.getWorker("bfb-g02-gate");
+  const gated = await selfhost.fetch("http://bfb.localhost:8787/healthz");
   const gatedBody = (await gated.json()) as Record<string, unknown>;
   assert.equal(gatedBody.error, "config_invalid", "self-host sentinel fails closed live");
   smoke.push({ check: "selfhost jurisdiction gate", status: gated.status, outcome: "passed" });

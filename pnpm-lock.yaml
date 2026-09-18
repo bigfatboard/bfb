@@ -354,6 +354,9 @@ importers:
 
   tools/g02:
     dependencies:
+      '@bfb/control-worker':
+        specifier: workspace:*
+        version: link:../../apps/control-worker
       '@bfb/db':
         specifier: workspace:*
         version: link:../../packages/db

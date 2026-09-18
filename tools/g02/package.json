@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@bfb/control-worker": "workspace:*",
     "@bfb/db": "workspace:*",
     "@bfb/domain": "workspace:*",
     "better-sqlite3": "12.6.2"
