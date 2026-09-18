@@ -6,6 +6,7 @@ package appbridge
 import (
 	"context"
 	"os"
+	"os/exec"
 	"sync"
 	"testing"
 	"time"
@@ -214,6 +215,173 @@ func TestDroppedLaunchWithoutAppStaysUnavailable(t *testing.T) {
 	b.mu.Unlock()
 	if pending != 0 {
 		t.Fatal("abandoned delivery retained for blind replay")
+	}
+}
+
+// reapedPID returns a process ID that names no live process: the short-lived
+// child is reaped before returning, so kernel liveness fails for it.
+func reapedPID(t *testing.T) int {
+	t.Helper()
+	child := exec.Command("/bin/sleep", "0.01")
+	if err := child.Start(); err != nil {
+		t.Fatal(err)
+	}
+	pid := child.Process.Pid
+	if err := child.Wait(); err != nil {
+		t.Fatal(err)
+	}
+	return pid
+}
+
+func TestOfferReclaimedAfterOfferedAppDeath(t *testing.T) {
+	b := syntheticBridge(t, Options{})
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- b.OpenTerminal(ctx, terminalID) }()
+	// A terminating app's in-flight poll takes the offer, then the app dies
+	// without completing: its quit raced the wake exactly like a relaunch.
+	dying := daemon.Peer{UID: os.Getuid(), PID: reapedPID(t)}
+	stolen, err := b.poll(ctx, dying, "available")
+	if err != nil || stolen["app_action"] != "open_terminal" {
+		t.Fatalf("dying poll did not take the offer: %#v %v", stolen, err)
+	}
+	id, _ := stolen["app_delivery_id"].(string)
+	if id == "" {
+		t.Fatal("offered delivery has no acknowledgement identity")
+	}
+	// The live relaunched app polls next and must receive the same delivery
+	// instead of idling until the handoff times out.
+	live := daemon.Peer{UID: os.Getuid(), PID: os.Getpid()}
+	fresh, err := b.poll(ctx, live, "available")
+	if err != nil || fresh["app_delivery_id"] != id || fresh["app_action"] != "open_terminal" {
+		t.Fatalf("dead owner's offer was not reclaimed: %#v %v", fresh, err)
+	}
+	if err := b.complete(live, id, "terminal_opened"); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-done; err != nil {
+		t.Fatal("reclaimed delivery did not complete", err)
+	}
+	if failureCode(b.complete(dying, id, "terminal_opened")) != "invalid_request" {
+		t.Fatal("reclaimed receipt lost its process binding")
+	}
+}
+
+func TestOfferNeverStolenFromLiveOwner(t *testing.T) {
+	b := syntheticBridge(t, Options{})
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- b.OpenTerminal(ctx, terminalID) }()
+	owner := daemon.Peer{UID: os.Getuid(), PID: os.Getpid()}
+	offered, err := b.poll(ctx, owner, "available")
+	if err != nil || offered["app_action"] != "open_terminal" {
+		t.Fatalf("owner did not take the offer: %#v %v", offered, err)
+	}
+	// Another live app polling while the owner works must wait, never take
+	// the in-flight offer.
+	waiter := daemon.Peer{UID: os.Getuid(), PID: os.Getppid()}
+	short, cancelShort := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancelShort()
+	if again, err := b.poll(short, waiter, "available"); err != nil || len(again) != 0 {
+		t.Fatalf("live owner's offer was stolen: %#v %v", again, err)
+	}
+	if err := b.complete(owner, offered["app_delivery_id"].(string), "terminal_opened"); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestWakeRetriesTransientLaunchFailure(t *testing.T) {
+	var mu sync.Mutex
+	wakes := 0
+	b := syntheticBridge(t, Options{
+		WakeApp: func(context.Context) error {
+			mu.Lock()
+			defer mu.Unlock()
+			wakes++
+			if wakes < 3 {
+				return &daemon.Failure{Code: "app_unavailable"}
+			}
+			return nil
+		},
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- b.OpenTerminal(ctx, terminalID) }()
+	peer := daemon.Peer{UID: os.Getuid(), PID: os.Getpid()}
+	payload, err := b.poll(ctx, peer, "available")
+	if err != nil || payload["app_action"] != "open_terminal" {
+		t.Fatalf("retried wake never delivered: %#v %v", payload, err)
+	}
+	if err := b.complete(peer, payload["app_delivery_id"].(string), "terminal_opened"); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if wakes != 3 {
+		t.Fatalf("transient launch failure woke the app %d times instead of 3", wakes)
+	}
+}
+
+func TestWakeStopsAtDeadlineOnPersistentFailure(t *testing.T) {
+	var mu sync.Mutex
+	wakes := 0
+	b := syntheticBridge(t, Options{
+		WakeApp: func(context.Context) error {
+			mu.Lock()
+			defer mu.Unlock()
+			wakes++
+			return &daemon.Failure{Code: "app_unavailable"}
+		},
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 1200*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	if code := failureCode(b.OpenTerminal(ctx, terminalID)); code != "app_unavailable" {
+		t.Fatalf("persistent launch failure reported %s", code)
+	}
+	if elapsed := time.Since(start); elapsed > 3*time.Second {
+		t.Fatalf("wake retry extended the delivery deadline: %v", elapsed)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if wakes < 2 {
+		t.Fatalf("persistent launch failure was never retried: %d wake", wakes)
+	}
+}
+
+func TestWakeReturnsSessionLockAtOnce(t *testing.T) {
+	var mu sync.Mutex
+	wakes := 0
+	b := syntheticBridge(t, Options{
+		WakeApp: func(context.Context) error {
+			mu.Lock()
+			defer mu.Unlock()
+			wakes++
+			return &daemon.Failure{Code: "session_locked"}
+		},
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	start := time.Now()
+	if code := failureCode(b.OpenTerminal(ctx, terminalID)); code != "session_locked" {
+		t.Fatalf("session lock reported %s", code)
+	}
+	if elapsed := time.Since(start); elapsed > 2*time.Second {
+		t.Fatalf("definitive session lock was retried: %v", elapsed)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if wakes != 1 {
+		t.Fatalf("session lock woke the app %d times instead of once", wakes)
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"regexp"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/qdis/bfb/internal/daemon"
@@ -80,6 +81,17 @@ func New(options Options) *Bridge {
 
 func (b *Bridge) signal() { close(b.changed); b.changed = make(chan struct{}) }
 
+// peerAlive reports whether pid names a live process. A non-positive pid
+// never names one; a permission error still proves existence, so only a
+// missing process (or an invalid pid) counts as dead.
+func peerAlive(pid int) bool {
+	if pid <= 0 {
+		return false
+	}
+	err := syscall.Kill(pid, 0)
+	return err == nil || err == syscall.EPERM
+}
+
 func (b *Bridge) Start(_ context.Context, _ *daemon.Store) (func(), error) {
 	b.mu.Lock()
 	b.running = true
@@ -131,7 +143,7 @@ func (b *Bridge) deliver(ctx context.Context, d *delivery) error {
 		return &daemon.Failure{Code: "session_locked"}
 	}
 	b.mu.Unlock()
-	if err := b.options.WakeApp(ctx); err != nil {
+	if err := b.wakeApp(ctx); err != nil {
 		return err
 	}
 	d.id, d.ctx, d.result = daemon.NewRequestID(), ctx, make(chan string, 1)
@@ -150,7 +162,7 @@ func (b *Bridge) deliver(ctx context.Context, d *delivery) error {
 	// readiness poll and wake once more instead of timing out on a launch
 	// that never happened. A polling app skips this wait entirely.
 	if time.Since(mark) > 4*time.Second && !awaitAppPoll(ctx, b, mark, 2*time.Second) {
-		if err := b.options.WakeApp(ctx); err != nil {
+		if err := b.wakeApp(ctx); err != nil {
 			return err
 		}
 	}
@@ -184,6 +196,29 @@ func (b *Bridge) deliver(ctx context.Context, d *delivery) error {
 			return outcome(result)
 		case <-ctx.Done():
 		case <-changed:
+		}
+	}
+}
+
+// wakeApp issues one wake and retries the identical wake while LaunchServices
+// still resolves the just-quit instance instead of launching (a transient
+// not-found launch error that clears on its own). Every attempt runs the same
+// consent, session and bundle gates, and retries never extend the delivery
+// deadline: they stop at the caller's context. A definitive session lock
+// returns at once.
+func (b *Bridge) wakeApp(ctx context.Context) error {
+	for {
+		err := b.options.WakeApp(ctx)
+		if err == nil {
+			return nil
+		}
+		if daemon.AsFailure(err).Code == "session_locked" {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return err
+		case <-time.After(500 * time.Millisecond):
 		}
 	}
 }
@@ -233,7 +268,16 @@ func (b *Bridge) poll(ctx context.Context, peer daemon.Peer, state string) (map[
 		b.state, b.lastPoll, b.appPID = state, time.Now(), peer.PID
 		for _, d := range b.pending {
 			if d.offered {
-				continue
+				// An offer is exclusive to the process that received it, but a
+				// dead process can never complete: when a newer poll arrives
+				// from another live app after the offered one died, release
+				// the offer so the live app receives it instead of idling
+				// until the delivery times out. An offer to a live owner is
+				// never taken, and a late completion keeps its PID binding.
+				if d.pid == peer.PID || peerAlive(d.pid) {
+					continue
+				}
+				d.offered, d.pid = false, 0
 			}
 			if state != "available" {
 				result := "app_unavailable"
