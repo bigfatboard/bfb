@@ -19,12 +19,12 @@
     },
     {
       "gate": "AG-02",
-      "status": "passed",
+      "status": "failed",
       "schema": "protocol bfb-wire/1, schema 1, D1 0034_operations",
       "environment": "local workerd D1 plus real Chromium on macOS (arm64); Node 24.19.0, pnpm 11.21.0, Go 1.26.5",
       "command": "pnpm test:l05",
       "evidence": "docs/work-packages/evidence/WP-L05/manifest.json",
-      "detail": "Native exact-checkout launch trace with the moved/replaced/occupied, locked, consent-denial, pre-exec-swap, and containment matrix proven in L05 Terminal certification; cloud-plane contention, expiry, and cleanup receipts pass in G01."
+      "detail": "Native Terminal proof is not a deterministic release gate: WP-L05 certification records one fail-closed clean-checkout failure in five full gates (exactly one SIGINT with a verified whole-group end, yet a same-instant ownership uncertainty wedged the release leg past its wait with the lock retained), and the retained evidence is the bounded redacted matrix plus command-result assertions with no separate raw launch trace committed. Cloud-plane contention, expiry, and cleanup receipts pass in G01. No ADR and no explicit decision authorizes a waiver, so the gate fails instead of passing."
     },
     {
       "gate": "AG-03",

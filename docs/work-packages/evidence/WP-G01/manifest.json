@@ -1,7 +1,7 @@
 {
   "$schema": "../manifest.schema.json",
   "package": "G01",
-  "tested_commit": "9ee7059d2403b88c77a0e06cf4cdc618b9c17535",
+  "tested_commit": "38aa8d77b7bd7ebc60c435ca3aecc0c3e4aac04e",
   "protocol_version": "bfb-wire/1",
   "schema_version": "1",
   "migration_head": "0035_artifact_objects_per_key",
