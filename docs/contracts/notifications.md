@@ -229,7 +229,9 @@ mints wake intents.
 
 Preference/endpoint mutations run as hub commands with the caller's
 idempotency key and the C01 durable per-address/per-principal budgets of
-their routes. Push endpoint registration bounds URL and key lengths and
+their routes. Exhausting the browser poll/attempt budget answers the
+uniform `403 {error: request_rejected}`, matching the GitHub browser
+surface. Push endpoint registration bounds URL and key lengths and
 accepts `https:` endpoints only. Fan-out bounds recipients per event (500
 humans, 25 runners per human) and never pages without a limit. Cron
 purges acked inbox rows older than 7 days and dead endpoint-less

@@ -309,6 +309,20 @@ describe("notification browser routes", () => {
     expect(deliveries.status).toBe(200);
     expect(((await deliveries.json()) as { deliveries: unknown[] }).deliveries).toEqual([]);
   });
+
+  it("answers poll-budget exhaustion with the uniform 403 rejection", async () => {
+    const { browserGet } = await fixture();
+    for (let i = 0; i < 60; i += 1) {
+      const response = await browserGet("/notifications/preferences");
+      expect(response.status).toBe(200);
+    }
+    const throttled = await browserGet("/notifications/preferences");
+    expect(throttled.status).toBe(403);
+    expect(await throttled.json()).toEqual({
+      error: "request_rejected",
+      message: "request rejected",
+    });
+  });
 });
 
 describe("notification runner routes", () => {
