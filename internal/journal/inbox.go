@@ -260,31 +260,21 @@ func (store *Store) importFile(ctx context.Context, assignments Assignments, reg
 	if err != nil {
 		return store.quarantineFile(ctx, root, name, data, "inbox_corrupt", now)
 	}
-	tx, err := store.db.BeginTx(ctx, nil)
-	if err != nil {
-		return "", failure("storage_failed")
-	}
-	defer tx.Rollback()
+	// Resolve the assignment and validate the capture before opening the
+	// import transaction. The daemon pool holds a single connection, so any
+	// pool query made while a transaction is open waits for a free
+	// connection until the context expires; Ingest follows the same order.
 	assignment, err := assignments.ByExecution(ctx, capture.ExecutionID, capture.AssignmentGeneration)
 	if err != nil {
-		if commitErr := tx.Commit(); commitErr != nil {
-			return "", failure("storage_failed")
-		}
 		return store.quarantineFile(ctx, root, name, data, "unknown_assignment", now)
 	}
 	key, err := decodeToken(assignment.Token)
 	if err != nil {
-		if commitErr := tx.Commit(); commitErr != nil {
-			return "", failure("storage_failed")
-		}
 		return store.quarantineFile(ctx, root, name, data, "unknown_assignment", now)
 	}
 	expected := captureMAC(key, capture.ExecutionID, capture.AssignmentGeneration, capture.Provider, capture.CapturedAt, capture.Payload)
 	presented, err := base64.RawURLEncoding.DecodeString(capture.HMAC)
 	if err != nil || !hmac.Equal(presented, expected) {
-		if commitErr := tx.Commit(); commitErr != nil {
-			return "", failure("storage_failed")
-		}
 		return store.quarantineFile(ctx, root, name, data, "inbox_auth_failed", now)
 	}
 	validated, code, err := validateHookData(assignments, registry, capture, raw, capturedAt, ctx)
@@ -292,15 +282,9 @@ func (store *Store) importFile(ctx context.Context, assignments Assignments, reg
 		if asCode(err) == "storage_failed" {
 			return "", err
 		}
-		if commitErr := tx.Commit(); commitErr != nil {
-			return "", failure("storage_failed")
-		}
 		return store.quarantineFile(ctx, root, name, data, "hook_provider_event_invalid", now)
 	}
 	if validated.stamp == "" {
-		if commitErr := tx.Commit(); commitErr != nil {
-			return "", failure("storage_failed")
-		}
 		return store.quarantineFile(ctx, root, name, data, "hook_"+code, now)
 	}
 	input := HookInput{
@@ -308,6 +292,11 @@ func (store *Store) importFile(ctx context.Context, assignments Assignments, reg
 		Token: assignment.Token, WorkspaceID: assignment.WorkspaceID, ProjectID: assignment.ProjectID,
 		TaskID: assignment.TaskID, RunID: assignment.RunID, CapturedAt: capturedAt,
 	}
+	tx, err := store.db.BeginTx(ctx, nil)
+	if err != nil {
+		return "", failure("storage_failed")
+	}
+	defer tx.Rollback()
 	receipt, err := journalTx(ctx, store, tx, validated, input, now)
 	if err != nil {
 		return "", err

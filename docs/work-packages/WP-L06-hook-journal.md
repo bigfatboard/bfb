@@ -43,7 +43,7 @@ Provider hooks return quickly while every accepted provider or daemon observatio
 - L01 daemon SQLite WAL store, private state paths, bounded local RPC envelope and `local-rpc` v1 (extended additively with `hook_status`, `hook_event_id`, `hook_sequence`, `hook_code`, `hook_pending`, `hook_quarantined`, `telemetry_degraded`, `degraded_reason`).
 - L03 provider-owned hook parser (`provider.Registry.NormalizeHook`, `provider.Candidate`); currently only the fake adapter normalizes hooks, so real-provider parsing stays with L07/P01.
 - L05 immutable execution assignment, correlation capability, creation time and final-hook grace window through the read-only `supervisor.JournalBackend` adapter; L05 semantics unchanged.
-- L08 `RunnerConnection.Request` transport boundary for the `events/submit` upload action; L08 owns credentials, renewal and sockets.
+- L08 `RunnerConnection.Request` transport boundary for the `events/ingest` upload action; L08 owns credentials, renewal and sockets.
 
 ### Produces
 
@@ -92,7 +92,7 @@ Provider hooks return quickly while every accepted provider or daemon observatio
 
 - Settled 18 September: `done`. L05 is `done`, and `pnpm test:l06` passed in a detached clean checkout at `9372c0f` (install, build, exact target with Go race suites and the fake-ingest harness). The evidence manifest is re-based on that rerun; the implementation evidence stays listed as manifest artifacts.
 - Commands: `pnpm test:l06`, `pnpm journal:fixtures`, `pnpm journal:fixtures --check` via `pnpm protocol:generate` for codec drift, `bfb hook ingest --provider <provider>`, `bfb hook status`.
-- Upload action `events/submit` is served today only by the F02 fake and the journal test double; E01 supplies the real ingest endpoint without changing journal deletion semantics.
+- Upload action `events/ingest` names the E01 ingest route; batches hold at most 25 items in at most 65,536 bytes (the E01 transport bounds) and shrink to fit, and inbox import resolves the assignment before opening its transaction.
 - The real Terminal acceptance that blocks L05 is orthogonal: the journal consumed only L05's SQLite assignment and observation state, which the backend proof exercises directly.
 - Known limitations: only the fake provider adapter normalizes hooks (real-provider hook shapes belong to L07/P01); no browser or macOS app surface was added; degraded state clears only after a clean inbox drain.
 - E01 supplies the real ingest endpoint without changing journal deletion semantics.

@@ -36,7 +36,7 @@ hook ingest or inbox import.
 ## Upload contract
 
 The uploader batches journaled `runner-event-submission` documents through
-`RunnerConnection.Request(ctx, "POST", "events/submit", body)` with
+`RunnerConnection.Request(ctx, "POST", "events/ingest", body)` with
 `{"schema_version":1,"events":[...]}` and applies the returned
 `{"schema_version":1,"dispositions":[...]}` per event: `accepted` and
 `already_committed` delete the row, `permanently_rejected` quarantines it, and
@@ -45,4 +45,6 @@ explicit disposition deletes or quarantines a row. The submission carries the
 immutable assignment reference and the runner credential proof; it never
 carries the correlation secret, so delayed final-hook replay needs no expired
 capability. E01 owns the real ingest endpoint and must preserve
-disposition-only deletion.
+disposition-only deletion. Batches hold at most 25 items in at most 65,536
+bytes (the E01 transport bounds); the uploader shrinks each batch to fit, so
+every drain makes progress.
