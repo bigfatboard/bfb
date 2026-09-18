@@ -122,12 +122,16 @@ async function prepareStepUp(
         `UPDATE passkey_step_up_proofs SET consumed_at = ? WHERE proof_id = ? AND consumed_at IS NULL AND expires_at > ?`,
       )
       .run(stamp, proofId, ctx.now);
-    const check = (await ctx.db
-      .prepare(`SELECT COUNT(*) AS count FROM passkey_step_up_proofs WHERE proof_id = ? AND consumed_at = ?`)
-      .get(proofId, stamp)) as { count: number };
-    if (check.count !== 1) {
-      fail("step_up_replayed", "step-up proof lost the consume race");
-    }
+    // Write-only single-winner check: D1 batches forbid reads after a queued
+    // write, so the predicate aborts the batch instead of returning a count.
+    const guardId = randomUlid();
+    await ctx.db
+      .prepare(
+        `INSERT INTO runner_mutation_guards (id, valid)
+         VALUES (?, ((SELECT COUNT(*) FROM passkey_step_up_proofs WHERE proof_id = ? AND consumed_at = ?) = 1))`,
+      )
+      .run(guardId, proofId, stamp);
+    await ctx.db.prepare(`DELETE FROM runner_mutation_guards WHERE id = ?`).run(guardId);
   };
 }
 
@@ -169,9 +173,10 @@ export const setRetentionPolicyCommand: HubCommand<SetRetentionPolicyInput, Rete
       fail("invalid_argument", `retention window must be ${RETENTION_MIN_DAYS} to ${RETENTION_MAX_DAYS} days`);
     }
     const principal = await requireOwner(ctx);
+    // All reads precede the step-up consume: D1 batches forbid reads after a queued write.
+    const existing = await getRetentionPolicy(ctx.db, ctx.workspaceId);
     const consume = await prepareStepUp(ctx, input.stepUpProofId, OPS_STEP_UP_ACTIONS.retention, `ops-retention:${ctx.workspaceId}`);
     await consume();
-    const existing = await getRetentionPolicy(ctx.db, ctx.workspaceId);
     const version = (existing?.version ?? 0) + 1;
     await ctx.db
       .prepare(
@@ -274,6 +279,16 @@ const PROHIBITED_PATTERNS: Array<{ name: string; pattern: RegExp }> = [
 const SENSITIVE_KEY_PATTERN =
   /(secret|token|bearer|cookie|password|credential|private_key|grant_secret|view_secret|prompt|task_body|hook_payload|terminal|artifact_bytes|path|cwd|executable|argv)/i;
 
+/**
+ * Free-text content keys never survive into audit/diagnostic display, even
+ * when an older audit row stored a full command input. Identifiers
+ * (*_hash, *_id, *_at, *_cursor, *_count, *_version, *_epoch) are kept.
+ */
+const CONTENT_KEY_PATTERN =
+  /(title|body|text|question|answer|comment|description|summary|punchline|prompt|instruction|brief|transcript|output|payload|message|label)/i;
+
+const CONTENT_KEY_KEEP_SUFFIX = /(_hash|_id|_ids|_at|_cursor|_count|_version|_epoch)$/i;
+
 /** Reports prohibited content in a rendered string. Empty means clean. */
 export function scanDiagnosticText(rendered: string, canaries: string[] = []): string[] {
   const hits: string[] = [];
@@ -300,7 +315,11 @@ export function sanitizeDiagnosticValue(value: unknown, depth = 0): unknown {
     return value;
   }
   if (typeof value === "string") {
-    if (value.length > 256 || SENSITIVE_KEY_PATTERN.test(value)) {
+    if (
+      value.length > 256 ||
+      SENSITIVE_KEY_PATTERN.test(value) ||
+      PROHIBITED_PATTERNS.some(({ pattern }) => pattern.test(value))
+    ) {
       return "[redacted]";
     }
     return value;
@@ -322,6 +341,9 @@ export function sanitizeDiagnosticValue(value: unknown, depth = 0): unknown {
   const clean: Record<string, unknown> = {};
   for (const key of keys) {
     if (SENSITIVE_KEY_PATTERN.test(key)) {
+      continue;
+    }
+    if (CONTENT_KEY_PATTERN.test(key) && !CONTENT_KEY_KEEP_SUFFIX.test(key)) {
       continue;
     }
     clean[key] = sanitizeDiagnosticValue(record[key], depth + 1);
@@ -1101,13 +1123,15 @@ async function runRecoveryEffect(
   }
 }
 
-export interface OpsQueueMessage {
-  schema_version: 1;
-  kind: "diagnostic.upload";
-  workspace_id: string;
-  bundle_id: string;
-  attempt: number;
-}
+export type OpsQueueMessage =
+  | {
+      schema_version: 1;
+      kind: "diagnostic.upload";
+      workspace_id: string;
+      bundle_id: string;
+      attempt: number;
+    }
+  | { schema_version: 1; kind: "retention.sweep"; workspace_id: string; attempt: number };
 
 /** Stable job identity so consented-upload redelivery converges. */
 export function opsJobId(workspaceId: string, bundleId: string): string {

@@ -206,12 +206,24 @@ describe("redaction", () => {
       bearer: "should-drop",
       nested: { hook_payload: "drop me", count: 3 },
       long: "x".repeat(300),
+      title: "task body must not survive",
+      body: "prompt text must not survive",
+      content_hash: "a".repeat(64),
+      task_id: "01JAAAAAAAAAAAAAAAAAAAAAAAAA",
+      cookie: "session=secret",
+      path: "/Users/someone/secret",
     }) as Record<string, unknown>;
     expect(clean.action).toBe("runner.enrolled");
     expect(clean).not.toHaveProperty("bearer");
     expect((clean.nested as Record<string, unknown>).count).toBe(3);
     expect((clean.nested as Record<string, unknown>)).not.toHaveProperty("hook_payload");
     expect(clean.long).toBe("[redacted]");
+    expect(clean).not.toHaveProperty("title");
+    expect(clean).not.toHaveProperty("body");
+    expect(clean.content_hash).toBe("a".repeat(64));
+    expect(clean.task_id).toBe("01JAAAAAAAAAAAAAAAAAAAAAAAAA");
+    expect(clean).not.toHaveProperty("cookie");
+    expect(clean).not.toHaveProperty("path");
   });
 
   it("builds an inventory that passes the secret scan", async () => {

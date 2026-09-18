@@ -28,7 +28,7 @@ function dlqCopy(message: OpsQueueMessage, error: string): Record<string, unknow
     schema_version: 1,
     kind: message.kind,
     workspace_id: message.workspace_id,
-    bundle_id: message.bundle_id,
+    ...("bundle_id" in message ? { bundle_id: message.bundle_id } : {}),
     attempt: message.attempt,
     error,
   };
@@ -73,14 +73,29 @@ export async function consumeOpsQueueMessage(
   if (
     !body ||
     body.schema_version !== 1 ||
-    body.kind !== "diagnostic.upload" ||
+    (body.kind !== "diagnostic.upload" && body.kind !== "retention.sweep") ||
     typeof body.workspace_id !== "string" ||
-    typeof body.bundle_id !== "string"
+    (body.kind === "diagnostic.upload" && typeof body.bundle_id !== "string")
   ) {
     handle.retry();
     return;
   }
   const message = body as OpsQueueMessage;
+  if (message.kind === "retention.sweep") {
+    const { runRetentionSweep } = await import("./sweep.js");
+    try {
+      await runRetentionSweep(deps.db, deps.r2, now);
+      handle.ack();
+    } catch {
+      if (handle.attempts + 1 >= maxAttempts) {
+        await deps.sendDlq(dlqCopy(message, "retention_exhausted"));
+        handle.ack();
+        return;
+      }
+      handle.retry();
+    }
+    return;
+  }
   const bundle = (await deps.db
     .prepare(`SELECT * FROM diagnostic_bundles WHERE workspace_id = ? AND id = ?`)
     .get(message.workspace_id, message.bundle_id)) as DiagnosticBundleRecord | undefined;
