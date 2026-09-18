@@ -21,6 +21,7 @@ import {
   listStuckUploads,
   loadPrincipal,
   OPS_RECOVERY_KINDS,
+  randomUlid,
   readActivityFeed,
   readQueueState,
   readSecurityAudit,
@@ -382,6 +383,9 @@ export async function handleOperationsApi(
         actorHumanId: principal.humanId,
         now: deps.now,
       });
+      // Audit ids are server-generated: a replayed recovery shares the
+      // caller's request_id, so the id must be unique per call.
+      requestId(body);
       await deps.db
         .prepare(
           `INSERT INTO audit_events (workspace_id, audit_id, actor_principal_id, action, payload_json, created_at)
@@ -389,7 +393,7 @@ export async function handleOperationsApi(
         )
         .run(
           workspaceId,
-          `audit-${requestId(body)}-${result.action_id}`.slice(0, 64),
+          randomUlid(),
           principal.humanId,
           JSON.stringify(
             sanitizeDiagnosticValue({
