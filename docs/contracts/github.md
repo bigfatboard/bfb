@@ -11,8 +11,13 @@ BFB links immutable GitHub repository identity and branch/commit/PR/check
 evidence to work; GitHub Issues are never the task system and BFB task state
 never follows issue state. No real GitHub App exists yet: the REST shapes
 below follow GitHub's documented App, installation-token, and webhook
-semantics and are proven against recorded fixtures plus a local double. D1
+semantics and are proven against synthetic deterministic fixtures
+(shaped like GitHub's documented webhook payloads, including keys BFB
+never reads) plus a local double. D1
 migration head after this package is `0028_github_integration`.
+Webhook extraction uses a tolerant reader: unknown top-level and nested
+payload keys are ignored, and only the installation id, repository id,
+action, and per-event ref/version fields are validated.
 
 ## Permission inventory (least privilege, frozen)
 

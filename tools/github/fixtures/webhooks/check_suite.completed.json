@@ -9,7 +9,12 @@
       "status": "completed",
       "conclusion": "success",
       "created_at": "2026-09-18T11:55:00.000Z",
-      "updated_at": "2026-09-18T12:00:00.000Z"
+      "updated_at": "2026-09-18T12:00:00.000Z",
+      "pull_requests": [],
+      "app": {
+        "id": 999000,
+        "slug": "synthetic-app"
+      }
     },
     "repository": {
       "id": 87654321,

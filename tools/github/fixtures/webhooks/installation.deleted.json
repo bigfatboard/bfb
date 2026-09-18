@@ -14,6 +14,12 @@
       "app_slug": "synthetic-app",
       "updated_at": "2026-09-18T12:00:00.000Z"
     },
+    "repositories": [
+      {
+        "id": 87654321,
+        "full_name": "synthetic-org/synthetic-repo"
+      }
+    ],
     "sender": {
       "login": "synthetic-org"
     }

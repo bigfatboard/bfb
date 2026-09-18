@@ -7,7 +7,11 @@
       "number": 9,
       "state": "open",
       "title": "Synthetic X04 linked issue",
-      "updated_at": "2026-09-18T11:55:00.000Z"
+      "updated_at": "2026-09-18T11:55:00.000Z",
+      "id": 444555666,
+      "user": {
+        "login": "synthetic-org"
+      }
     },
     "repository": {
       "id": 87654321,

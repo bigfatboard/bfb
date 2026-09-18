@@ -48,7 +48,8 @@ keep their own provenance.
 - Idempotent reconcile through typed hub commands; link issue, branch,
   commit, PR, check, and deployment evidence while keeping the BFB task
   canonical; preserve runner-observed vs GitHub/CI-verified provenance.
-- Frozen contract `docs/contracts/github.md`, recorded fixtures, a local
+- Frozen contract `docs/contracts/github.md`, synthetic deterministic
+  fixtures (shaped like GitHub's documented webhook payloads), a local
   GitHub double, and an automated gate across real Workers and D1 with a
   local Queue.
 
@@ -90,7 +91,7 @@ keep their own provenance.
    unit tests — verify with `vitest run packages/domain/test/github.test.ts`.
 2. Control Worker webhook, management, Queue, Cron, and token paths plus
    route/queue tests — verify with the worker test files.
-3. Contract, recorded fixtures, local double, and the E2E harness —
+3. Contract, synthetic deterministic fixtures, local double, and the E2E harness —
    verify with `pnpm test:x04` from a clean checkout.
 
 ## Acceptance
@@ -125,8 +126,8 @@ keep their own provenance.
 
 ## Risks and decisions
 
-- No real GitHub App exists, so REST behavior is proven against recorded
-  fixtures and a local double instead of GitHub; the Handoff lists exactly
+- No real GitHub App exists, so REST behavior is proven against synthetic
+  deterministic fixtures and a local double instead of GitHub; the Handoff lists exactly
   what a real installation needs.
 - Queue delivery is at least once and out of order, so reconcile is
   idempotent with a per-stream latest-wins guard rather than relying on

@@ -305,6 +305,248 @@ describe("github effect extraction", () => {
     expect(() => extractWebhookEffect("push", { repository }, NOW)).toThrow(DomainError);
     expect(() => extractWebhookEffect("push", "nope", NOW)).toThrow(DomainError);
   });
+
+  it("accepts documented GitHub shapes with keys BFB never reads", () => {
+    const sender = { login: ACCOUNT };
+    // Documented push keys (before/after/commits/pusher) plus head_commit
+    // keys (tree_id/committer) ride along and must not reject the delivery.
+    const push = extractWebhookEffect(
+      "push",
+      {
+        ref: "refs/heads/main",
+        before: "a".repeat(40),
+        after: "b".repeat(40),
+        created: false,
+        deleted: false,
+        forced: false,
+        base_ref: null,
+        compare: "https://github.com/synthetic-org/synthetic-repo/compare/aaa...bbb",
+        commits: [{ id: "b".repeat(40), message: "Synthetic" }],
+        head_commit: {
+          id: "b".repeat(40),
+          tree_id: "c".repeat(40),
+          timestamp: NOW,
+          message: "Synthetic",
+          author: { name: "Synthetic" },
+          committer: { name: "Synthetic" },
+        },
+        repository,
+        pusher: { name: ACCOUNT },
+        installation,
+        sender,
+      },
+      LATER,
+    );
+    expect(push.supported).toBe(true);
+    expect(push.effect?.ref).toBe("main");
+    expect(push.effect?.version).toBe("b".repeat(40));
+
+    // installation.created carries repositories/requester plus installation
+    // metadata BFB never reads; it must still activate the installation.
+    const created = extractWebhookEffect(
+      "installation",
+      {
+        action: "created",
+        installation: {
+          ...installation,
+          app_id: 999000,
+          app_slug: "synthetic-app",
+          repository_selection: "all",
+          permissions: { metadata: "read" },
+          events: ["push"],
+          created_at: NOW,
+          updated_at: NOW,
+        },
+        repositories: [{ id: Number(REPOSITORY), full_name: "synthetic-org/synthetic-repo" }],
+        requester: null,
+        sender,
+      },
+      LATER,
+    );
+    expect(created.supported).toBe(true);
+    expect(created.effect?.action).toBe("created");
+
+    // pull_request.opened repeats the number at the top level and the nested
+    // pull request carries dozens of documented keys beyond the extracted few.
+    const pull = extractWebhookEffect(
+      "pull_request",
+      {
+        action: "opened",
+        number: 7,
+        pull_request: {
+          number: 7,
+          id: 111222333,
+          url: "https://api.github.com/repos/synthetic-org/synthetic-repo/pulls/7",
+          head: { sha: "b".repeat(40), ref: "feature-x04", label: "synthetic-org:feature-x04" },
+          base: { ref: "main" },
+          state: "open",
+          merged: false,
+          title: "Synthetic",
+          updated_at: NOW,
+        },
+        repository,
+        installation,
+        sender,
+      },
+      LATER,
+    );
+    expect(pull.effect?.ref).toBe("7");
+    expect(pull.effect?.version).toBe("b".repeat(40));
+
+    // deployment.created carries a top-level action BFB records, not rejects.
+    const deployment = extractWebhookEffect(
+      "deployment",
+      {
+        action: "created",
+        deployment: {
+          id: 6060,
+          sha: "b".repeat(40),
+          environment: "synthetic-staging",
+          created_at: NOW,
+          creator: { login: ACCOUNT },
+        },
+        repository,
+        installation,
+        sender,
+      },
+      LATER,
+    );
+    expect(deployment.supported).toBe(true);
+    expect(deployment.effect?.ref).toBe("6060");
+
+    // check_run/check_suite/status/issues/deployment_status tolerate extras too.
+    const check = extractWebhookEffect(
+      "check_run",
+      {
+        action: "completed",
+        check_run: {
+          id: 4242,
+          name: "ci",
+          head_sha: "c".repeat(40),
+          status: "completed",
+          conclusion: "success",
+          started_at: NOW,
+          completed_at: NOW,
+          pull_requests: [{ number: 7 }],
+          app: { id: 999000, slug: "synthetic-app" },
+        },
+        repository,
+        installation,
+        sender,
+      },
+      LATER,
+    );
+    expect(check.effect?.ref).toBe("4242");
+
+    const suite = extractWebhookEffect(
+      "check_suite",
+      {
+        action: "completed",
+        check_suite: {
+          id: 5150,
+          head_sha: "c".repeat(40),
+          status: "completed",
+          conclusion: "success",
+          created_at: NOW,
+          updated_at: NOW,
+          pull_requests: [],
+          app: { id: 999000 },
+        },
+        repository,
+        installation,
+        sender,
+      },
+      LATER,
+    );
+    expect(suite.effect?.ref).toBe("5150");
+
+    const status = extractWebhookEffect(
+      "status",
+      {
+        state: "success",
+        sha: "c".repeat(40),
+        context: "synthetic-ci/status",
+        name: "synthetic-ci/status",
+        target_url: "https://example.test/run/1",
+        description: "Synthetic",
+        updated_at: NOW,
+        repository,
+        installation,
+        sender,
+      },
+      LATER,
+    );
+    expect(status.supported).toBe(true);
+
+    const issue = extractWebhookEffect(
+      "issues",
+      {
+        action: "opened",
+        issue: {
+          number: 9,
+          state: "open",
+          title: "Synthetic",
+          updated_at: NOW,
+          id: 444555666,
+          user: { login: ACCOUNT },
+        },
+        repository,
+        installation,
+        sender,
+      },
+      LATER,
+    );
+    expect(issue.effect?.ref).toBe("9");
+
+    const deployStatus = extractWebhookEffect(
+      "deployment_status",
+      {
+        action: "created",
+        deployment_status: {
+          id: 7070,
+          state: "success",
+          deployment: { id: 6060 },
+          created_at: NOW,
+          updated_at: NOW,
+          creator: { login: ACCOUNT },
+        },
+        deployment: { id: 6060 },
+        repository,
+        installation,
+        sender,
+      },
+      LATER,
+    );
+    expect(deployStatus.effect?.ref).toBe("6060");
+  });
+
+  it("still rejects structurally invalid documented-shape payloads", () => {
+    // Missing installation can never reconcile.
+    expect(() => extractWebhookEffect("push", { ref: "refs/heads/main", repository }, NOW)).toThrow(
+      DomainError,
+    );
+    // Non-object nested payloads are malformed, not merely unknown keys.
+    expect(() =>
+      extractWebhookEffect(
+        "pull_request",
+        { action: "opened", pull_request: "nope", repository, installation },
+        NOW,
+      ),
+    ).toThrow(DomainError);
+    // Fields reconcile reads are still validated: a bad sha fails closed.
+    expect(() =>
+      extractWebhookEffect(
+        "push",
+        {
+          ref: "refs/heads/main",
+          head_commit: { id: "not-a-sha", timestamp: NOW },
+          repository,
+          installation,
+        },
+        NOW,
+      ),
+    ).toThrow(DomainError);
+  });
 });
 
 describe("github installation management", () => {

@@ -2,6 +2,7 @@
   "event": "deployment_status",
   "delivery_id": "x04-delivery-deploy-status",
   "payload": {
+    "action": "created",
     "deployment_status": {
       "id": 7070,
       "state": "success",
@@ -9,7 +10,10 @@
         "id": 6060
       },
       "created_at": "2026-09-18T11:55:00.000Z",
-      "updated_at": "2026-09-18T12:00:00.000Z"
+      "updated_at": "2026-09-18T12:00:00.000Z",
+      "creator": {
+        "login": "synthetic-org"
+      }
     },
     "deployment": {
       "id": 6060

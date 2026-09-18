@@ -136,7 +136,7 @@ async function main(): Promise<void> {
   const now = new Date().toISOString();
   const double = new GitHubDouble(fixturesDir, canary);
   const apiBase = await double.start();
-  note("setup", `github double serves recorded fixtures`);
+  note("setup", `github double serves synthetic fixtures`);
 
   const assetsDir = resolve(tmpdir(), `bfb-x04-assets-${randomBytes(6).toString("hex")}`);
   await mkdir(assetsDir, { recursive: true });

@@ -1,4 +1,4 @@
-// ABOUTME: Local GitHub App and REST double serving recorded X04 fixtures.
+// ABOUTME: Local GitHub App and REST double serving synthetic X04 fixtures.
 // ABOUTME: Records sanitized request classes only; tokens and keys never persist.
 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";

@@ -102,6 +102,20 @@ function closedObject(
   return value as Record<string, unknown>;
 }
 
+/**
+ * Requires a webhook payload (or nested payload object) to be an object.
+ * Unlike {@link closedObject} — which guards BFB's own command inputs —
+ * GitHub deliveries carry dozens of documented keys BFB never reads, so
+ * unknown fields are ignored and only the fields reconcile needs are
+ * validated by their own readers below.
+ */
+function webhookObject(value: unknown, what: string): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    fail("invalid_argument", `${what} must be an object`);
+  }
+  return value as Record<string, unknown>;
+}
+
 function numericId(value: unknown, field: string): string {
   // GitHub encodes ids as JSON numbers on the wire; fixtures may use strings.
   if (typeof value === "number") {
@@ -230,7 +244,10 @@ function payloadTime(value: unknown): string | null {
 /**
  * Extracts the bounded reconcile effect from a verified webhook payload.
  * Returns `{supported: false}` for events outside the subscribed set; throws
- * only for malformed payloads that can never reconcile.
+ * only for malformed payloads that can never reconcile. Payloads are read
+ * with a tolerant reader: unknown top-level and nested keys are ignored so
+ * real GitHub deliveries (which always carry more keys than BFB needs)
+ * reconcile instead of being rejected.
  */
 export function extractWebhookEffect(
   event: string,
@@ -240,7 +257,7 @@ export function extractWebhookEffect(
   if (!(GITHUB_WEBHOOK_EVENTS_ALLOWLIST as readonly string[]).includes(event)) {
     return { supported: false };
   }
-  const body = closedObject(payload, knownPayloadKeys(event), "webhook payload");
+  const body = webhookObject(payload, "webhook payload");
   const installation = installationOf(body);
   const installationId = numericId(installation.id, "installation id");
   const repository = repositoryOf(body);
@@ -280,7 +297,9 @@ export function extractWebhookEffect(
           fail("webhook_payload_invalid", "webhook repository list is invalid");
         }
         detail[key] = entries
-          .map((entry) => numericId((entry as Record<string, unknown>).id, "repository id"))
+          .map((entry) =>
+            numericId(webhookObject(entry, "webhook repository entry").id, "repository id"),
+          )
           .join(",");
       }
       occurredAt = receivedAt;
@@ -296,22 +315,14 @@ export function extractWebhookEffect(
         occurredAt = receivedAt;
         break;
       }
-      const head = closedObject(
-        body.head_commit,
-        ["id", "timestamp", "message", "author", "url", "distinct", "added", "removed", "modified"],
-        "push head commit",
-      );
+      const head = webhookObject(body.head_commit, "push head commit");
       const sha = boundedText(head.id, "push sha", 64, SHA_PATTERN);
       version = sha;
       occurredAt = payloadTime(head.timestamp) ?? receivedAt;
       break;
     }
     case "pull_request": {
-      const pull = closedObject(
-        body.pull_request ?? {},
-        ["number", "head", "base", "state", "merged", "updated_at", "title"],
-        "pull request",
-      );
+      const pull = webhookObject(body.pull_request ?? {}, "pull request");
       const number = countText(pull.number, "pull request number");
       const head = (pull.head ?? {}) as Record<string, unknown>;
       ref = number;
@@ -322,11 +333,7 @@ export function extractWebhookEffect(
       break;
     }
     case "check_run": {
-      const check = closedObject(
-        body.check_run ?? {},
-        ["id", "name", "head_sha", "status", "conclusion", "started_at", "completed_at"],
-        "check run",
-      );
+      const check = webhookObject(body.check_run ?? {}, "check run");
       ref = countText(check.id, "check run id");
       take("check_name", check.name, 256);
       take("check_status", check.status, 32);
@@ -339,11 +346,7 @@ export function extractWebhookEffect(
       break;
     }
     case "check_suite": {
-      const suite = closedObject(
-        body.check_suite ?? {},
-        ["id", "head_sha", "status", "conclusion", "updated_at", "created_at"],
-        "check suite",
-      );
+      const suite = webhookObject(body.check_suite ?? {}, "check suite");
       ref = countText(suite.id, "check suite id");
       take("check_status", suite.status, 32);
       take("check_conclusion", suite.conclusion, 32);
@@ -363,11 +366,7 @@ export function extractWebhookEffect(
       break;
     }
     case "issues": {
-      const issue = closedObject(
-        body.issue ?? {},
-        ["number", "state", "title", "updated_at"],
-        "issue",
-      );
+      const issue = webhookObject(body.issue ?? {}, "issue");
       ref = countText(issue.number, "issue number");
       version = boundedText(issue.state, "issue state", 32);
       take("issue_title", issue.title, 256);
@@ -375,11 +374,7 @@ export function extractWebhookEffect(
       break;
     }
     case "deployment": {
-      const deployment = closedObject(
-        body.deployment ?? {},
-        ["id", "sha", "environment", "created_at"],
-        "deployment",
-      );
+      const deployment = webhookObject(body.deployment ?? {}, "deployment");
       ref = countText(deployment.id, "deployment id");
       take("deployment_environment", deployment.environment, 128);
       take("head_sha", deployment.sha, 64, SHA_PATTERN);
@@ -388,11 +383,7 @@ export function extractWebhookEffect(
       break;
     }
     case "deployment_status": {
-      const status = closedObject(
-        body.deployment_status ?? {},
-        ["id", "state", "deployment", "updated_at", "created_at"],
-        "deployment status",
-      );
+      const status = webhookObject(body.deployment_status ?? {}, "deployment status");
       const deployment = (status.deployment ?? {}) as Record<string, unknown>;
       ref = countText(deployment.id ?? status.id, "deployment id");
       version = boundedText(status.state, "deployment state", 32);
@@ -1737,42 +1728,6 @@ export const linkGitHubEvidenceCommand: HubCommand<LinkGitHubEvidenceInput, GitH
       };
     },
   };
-
-function knownPayloadKeys(event: string): readonly string[] {
-  switch (event) {
-    case "installation":
-      return ["action", "installation", "sender"];
-    case "installation_repositories":
-      return ["action", "installation", "repositories_added", "repositories_removed", "sender"];
-    case "push":
-      return ["ref", "head_commit", "repository", "installation", "sender"];
-    case "pull_request":
-      return ["action", "pull_request", "repository", "installation", "sender"];
-    case "check_run":
-      return ["action", "check_run", "repository", "installation", "sender"];
-    case "check_suite":
-      return ["action", "check_suite", "repository", "installation", "sender"];
-    case "status":
-      return [
-        "state",
-        "sha",
-        "context",
-        "name",
-        "updated_at",
-        "repository",
-        "installation",
-        "sender",
-      ];
-    case "issues":
-      return ["action", "issue", "repository", "installation", "sender"];
-    case "deployment":
-      return ["deployment", "repository", "installation", "sender"];
-    case "deployment_status":
-      return ["deployment_status", "deployment", "repository", "installation", "sender"];
-    default:
-      return [];
-  }
-}
 
 export interface GitHubStatusView {
   installations: Array<{
