@@ -136,6 +136,17 @@ consumed server-side before dispatch. Attention answers and resolutions need
 explicit `--answer`/`--expected-version` flags but no step-up: answering
 grants no authority. Task creation needs explicit `--project`/`--title`.
 
+## Login device flow
+
+`bfb login` runs the device flow to completion in both modes: it prints the
+verification URI and user code (standard output in human mode, standard
+error in JSON mode so machine output stays one document), polls
+`POST /api/v1/cli/exchange` until the browser approval lands, stores the
+credential, and reports the authorized workspace. JSON success carries the
+same `workspace_id`, `key_prefix`, and `expires_at` data as the human
+confirmation. `bfb logout` revokes and forgets in both modes with the same
+`revoked`/`local_forgotten` report.
+
 ## Help, completion, version, offline
 
 - `bfb help` lists the registered tree; per-command `--help` is usage text.

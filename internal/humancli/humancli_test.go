@@ -404,6 +404,187 @@ func TestHelpAndCompletionFromLiveTree(t *testing.T) {
 	}
 }
 
+const loginCredential = "bfb_cli_loginTestCredential00000000000001"
+const loginWorkspace = "01LOGINTESTWS00000000000001"
+
+// stubDeviceFlow serves the device bootstrap plus an exchange endpoint that
+// answers pending until approved, then mints one credential. It reports how
+// many exchange attempts the CLI made.
+func stubDeviceFlow(t *testing.T, pendingBeforeSuccess int) (*httptest.Server, *int) {
+	t.Helper()
+	attempts := 0
+	server := stubControl(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/auth/device/code":
+			_, _ = w.Write([]byte(`{"device_code":"test-device-code-01","user_code":"ABCD-1234",` +
+				`"verification_uri":"https://example.test/activate",` +
+				`"verification_uri_complete":"https://example.test/activate?code=ABCD-1234",` +
+				`"expires_in":600,"interval":1}`))
+		case "/api/v1/cli/exchange":
+			attempts++
+			var body map[string]any
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			if body["device_code"] != "test-device-code-01" {
+				w.WriteHeader(http.StatusForbidden)
+				_, _ = w.Write([]byte(`{"error":"request_rejected"}`))
+				return
+			}
+			if attempts <= pendingBeforeSuccess {
+				w.WriteHeader(http.StatusForbidden)
+				_, _ = w.Write([]byte(`{"error":"request_rejected"}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"credential":"` + loginCredential + `","binding_id":"binding01",` +
+				`"workspace_id":"` + loginWorkspace + `","key_prefix":"logintest01",` +
+				`"scopes":["bfb:read"],"expires_at":"2027-01-01T00:00:00Z"}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"error":"not_found"}`))
+		}
+	})
+	return server, &attempts
+}
+
+func storedCredential(t *testing.T, dir string) Credential {
+	t.Helper()
+	stored, failure := Store{Dir: dir}.Read()
+	if failure != nil {
+		t.Fatalf("stored credential missing: %s", failure.Code)
+	}
+	return stored
+}
+
+func TestLoginJSONPollsExchangeAndStores(t *testing.T) {
+	registry := assemble(t)
+	server, attempts := stubDeviceFlow(t, 1)
+	dir := stateDir(t)
+	t.Setenv("BFB_CLI_CREDENTIAL", "")
+	exit, stdout, stderr := run(t, registry,
+		[]string{"--json", "--data-dir", dir, "login", "--control-url", server.URL}, nil)
+	if exit != 0 {
+		t.Fatalf("login exit %d stdout %q stderr %q", exit, stdout, stderr)
+	}
+	var envelope map[string]any
+	decoder := json.NewDecoder(strings.NewReader(stdout))
+	if err := decoder.Decode(&envelope); err != nil {
+		t.Fatalf("stdout is not one JSON document: %v %q", err, stdout)
+	}
+	if decoder.More() {
+		t.Fatalf("stdout carries trailing prose: %q", stdout)
+	}
+	if envelope["command"] != "login" || envelope["error"] != nil {
+		t.Fatalf("login envelope wrong: %v", envelope)
+	}
+	data, _ := envelope["data"].(map[string]any)
+	if data["workspace_id"] != loginWorkspace || data["key_prefix"] != "logintest01" {
+		t.Fatalf("login data missing stored envelope: %v", envelope)
+	}
+	if *attempts < 2 {
+		t.Fatalf("json login never polled the exchange endpoint: %d attempt(s)", *attempts)
+	}
+	if !strings.Contains(stderr, "ABCD-1234") || !strings.Contains(stderr, "https://example.test/activate") {
+		t.Fatalf("approval instructions missing from stderr diagnostics: %q", stderr)
+	}
+	if ContainsCredential(stdout) || ContainsCredential(stderr) {
+		t.Fatalf("credential leaked to login output")
+	}
+	stored := storedCredential(t, dir)
+	if stored.Credential != loginCredential || stored.WorkspaceID != loginWorkspace {
+		t.Fatalf("stored credential wrong: %+v", stored)
+	}
+}
+
+func TestLoginHumanPollsExchangeAndStores(t *testing.T) {
+	registry := assemble(t)
+	server, attempts := stubDeviceFlow(t, 0)
+	dir := stateDir(t)
+	t.Setenv("BFB_CLI_CREDENTIAL", "")
+	exit, stdout, stderr := run(t, registry,
+		[]string{"--data-dir", dir, "login", "--control-url", server.URL}, nil)
+	if exit != 0 {
+		t.Fatalf("login exit %d stdout %q stderr %q", exit, stdout, stderr)
+	}
+	if *attempts < 1 {
+		t.Fatalf("human login never reached the exchange endpoint")
+	}
+	if !strings.Contains(stdout, "authorized workspace "+loginWorkspace) {
+		t.Fatalf("human confirmation missing: %q", stdout)
+	}
+	if ContainsCredential(stdout) || ContainsCredential(stderr) {
+		t.Fatalf("credential leaked to login output")
+	}
+	stored := storedCredential(t, dir)
+	if stored.Credential != loginCredential || stored.WorkspaceID != loginWorkspace {
+		t.Fatalf("stored credential wrong: %+v", stored)
+	}
+}
+
+func TestLogoutJSONRevokesAndForgets(t *testing.T) {
+	registry := assemble(t)
+	var authorized string
+	server := stubControl(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/cli/session/revoke" {
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"error":"not_found"}`))
+			return
+		}
+		authorized = r.Header.Get("Authorization")
+		_, _ = w.Write([]byte(`{}`))
+	})
+	dir := stateDir(t)
+	t.Setenv("BFB_CLI_CREDENTIAL", "")
+	if failure := (Store{Dir: dir}).Write(Credential{
+		WorkspaceID: loginWorkspace, Credential: loginCredential,
+		KeyPrefix: "logintest01", ExpiresAt: "2027-01-01T00:00:00Z",
+	}); failure != nil {
+		t.Fatal(failure)
+	}
+	exit, stdout, stderr := run(t, registry,
+		[]string{"--json", "--data-dir", dir, "logout", "--control-url", server.URL}, nil)
+	if exit != 0 {
+		t.Fatalf("logout exit %d stdout %q stderr %q", exit, stdout, stderr)
+	}
+	var envelope map[string]any
+	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
+		t.Fatalf("logout stdout is not JSON: %q", stdout)
+	}
+	data, _ := envelope["data"].(map[string]any)
+	if data["revoked"] != true || data["local_forgotten"] != true {
+		t.Fatalf("logout data wrong: %v", envelope)
+	}
+	if authorized != "Bearer "+loginCredential {
+		t.Fatalf("revoke did not present the stored credential: %q", authorized)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "cli-credential.json")); !os.IsNotExist(err) {
+		t.Fatalf("logout left the credential file behind")
+	}
+	if ContainsCredential(stdout) || ContainsCredential(stderr) {
+		t.Fatalf("credential leaked to logout output")
+	}
+}
+
+func TestLogoutOfflineStillForgetsLocalCopy(t *testing.T) {
+	registry := assemble(t)
+	dir := stateDir(t)
+	t.Setenv("BFB_CLI_CREDENTIAL", "")
+	if failure := (Store{Dir: dir}).Write(Credential{
+		WorkspaceID: loginWorkspace, Credential: loginCredential,
+	}); failure != nil {
+		t.Fatal(failure)
+	}
+	exit, stdout, stderr := run(t, registry,
+		[]string{"--data-dir", dir, "logout", "--control-url", "http://127.0.0.1:1"}, nil)
+	if exit != 0 {
+		t.Fatalf("offline logout exit %d stdout %q stderr %q", exit, stdout, stderr)
+	}
+	if !strings.Contains(stdout, "logged out locally") {
+		t.Fatalf("offline confirmation missing: %q", stdout)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "cli-credential.json")); !os.IsNotExist(err) {
+		t.Fatalf("offline logout left the credential file behind")
+	}
+}
+
 func TestVersionDiagnosticsAndOfflineMatrix(t *testing.T) {
 	registry := assemble(t)
 	dir := stateDir(t)
