@@ -108,7 +108,9 @@ and survive Worker-isolate changes through shared D1 counters. Subjects are
 hashes of principals, versions, or grants. Uploads fail closed while
 `UPLOAD_ABUSE_SECRET` (Artifact Worker) or `AUTH_ABUSE_SECRET` (control) is
 missing or short; staging/production set the former with `wrangler secret
-put UPLOAD_ABUSE_SECRET`.
+put UPLOAD_ABUSE_SECRET`, and local `wrangler dev` reads it from the
+gitignored `apps/artifact-worker/.dev.vars`. No committed `wrangler.toml`
+may inline a secret value.
 
 ## Go publish client (`internal/artifact`)
 

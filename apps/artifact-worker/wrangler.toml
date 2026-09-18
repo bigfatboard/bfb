@@ -10,7 +10,9 @@ compatibility_flags = ["nodejs_compat"]
 ENVIRONMENT = "local"
 ARTIFACT_ORIGIN = "http://artifacts.bfb.localhost:8788"
 APP_ORIGIN = "http://bfb.localhost:8787"
-UPLOAD_ABUSE_SECRET = "v01-local-upload-abuse-secret-9f27c4axx-long"
+# No secrets inline: local `wrangler dev` reads UPLOAD_ABUSE_SECRET from the
+# gitignored `apps/artifact-worker/.dev.vars`; staging/production use
+# `wrangler secret put UPLOAD_ABUSE_SECRET`.
 
 [[d1_databases]]
 binding = "DB"
