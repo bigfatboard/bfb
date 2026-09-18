@@ -1,23 +1,23 @@
 {
   "$schema": "../manifest.schema.json",
   "artifacts": [
-    "browser/cancel.png",
-    "browser/decision.png",
-    "browser/eligibility.png",
-    "browser/intervention.png",
-    "browser/narrow.png",
-    "browser/negative-matrix.md",
-    "browser/reconnect-trace.md",
-    "browser/reconnect.png",
-    "browser/start.png",
-    "browser/timeline.png",
-    "command-result.json",
-    "local-runtime.md",
-    "manifest.json"
+    "docs/work-packages/evidence/WP-D03/browser/cancel.png",
+    "docs/work-packages/evidence/WP-D03/browser/decision.png",
+    "docs/work-packages/evidence/WP-D03/browser/eligibility.png",
+    "docs/work-packages/evidence/WP-D03/browser/intervention.png",
+    "docs/work-packages/evidence/WP-D03/browser/narrow.png",
+    "docs/work-packages/evidence/WP-D03/browser/negative-matrix.md",
+    "docs/work-packages/evidence/WP-D03/browser/reconnect-trace.md",
+    "docs/work-packages/evidence/WP-D03/browser/reconnect.png",
+    "docs/work-packages/evidence/WP-D03/browser/start.png",
+    "docs/work-packages/evidence/WP-D03/browser/timeline.png",
+    "docs/work-packages/evidence/WP-D03/command-result.json",
+    "docs/work-packages/evidence/WP-D03/local-runtime.md",
+    "docs/work-packages/evidence/WP-D03/manifest.json"
   ],
   "commands": [
     {
-      "artifact": "command-result.json",
+      "artifact": "docs/work-packages/evidence/WP-D03/command-result.json",
       "command": "pnpm test:mvp-discussion",
       "outcome": "passed"
     },
