@@ -24,6 +24,7 @@ A clean checkout has one documented command surface for building, formatting, te
 - Use a pinned `pnpm` workspace for TypeScript, a Go module for `bfb`, and an Xcode project for the menu-bar app.
 - Define strict TypeScript, formatting/linting, unit-test, Go formatting/vet/test, Swift build/test, and documentation-link commands.
 - Add CI for Linux-compatible checks plus a macOS job for Go process tests and Swift.
+- Run every done package's declared gate through `pnpm packages:verify`; the macOS-only gates (`test:l04`, `test:l05`) run solely on darwin and are reported as skipped elsewhere, with their proof in their own macOS clean-checkout manifests.
 - Add AGPL-3.0 licensing and direct contribution/security instructions.
 - Enforce the repository’s two-line `ABOUTME:` header rule for code files.
 - Define version pinning and dependency-update policy; lockfiles are committed.
