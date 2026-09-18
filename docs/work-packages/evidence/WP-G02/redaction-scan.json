@@ -1,0 +1,14 @@
+{
+  "release": "bfb-v0.1-g02",
+  "scanned_files": 13,
+  "prohibited_classes": [
+    "task bodies",
+    "cookies",
+    "bearer secrets",
+    "local paths",
+    "private keys",
+    "terminal output"
+  ],
+  "findings": [],
+  "status": "passed"
+}

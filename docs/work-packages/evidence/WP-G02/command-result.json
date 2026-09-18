@@ -1,0 +1,38 @@
+{
+  "package": "G02",
+  "tested_commit": "478a85335d9a230fe369b82a491d3dd08208b25c",
+  "environment": "implementation worktree on macOS (arm64); local workerd D1, real Chromium on BFB_E2E_PORT=4198",
+  "outcome": "passed",
+  "commands": [
+    {
+      "command": "pnpm test:g02",
+      "outcome": "passed",
+      "result": "build plus web build plus tools/g02 typecheck; local signing proof (managed-link app builds, deep-strict verifies); harness G02_OK 14 stages and 18 golden steps (frozen heads, separate-resource inventory, manifest/SBOM/provenance, empty plus previous-release migration convergence, expand-contract audit, real kid overlap, bootstrap consume-once, enroll plus challenge plus token exchange, launch claim, heartbeat ingest, attention round trip, artifact publish plus review, member submit plus owner accept, revoke, real bfb install plus status plus checkout cycle plus logs plus launchd cleanup, provider probe check, 8 dry-runs, authenticated-handler smoke with sentinel failing closed, redaction scan, inherited gate report) and 3 Chromium scenarios on BFB_E2E_PORT=4198 (board, attention, review read-only)"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "result": "full repository verification: format, lint, typecheck, protocol, provider, TypeScript suites, headers, docs, roadmap, Go, Swift/Xcode"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "result": "clean worktree at the final commit"
+    },
+    {
+      "command": "GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./...",
+      "outcome": "passed",
+      "result": "Linux cross-compile of the whole module"
+    }
+  ],
+  "migration_head": "0034_operations",
+  "redaction": "passed",
+  "notes": [
+    "The exact gate (build, web build, signing, test:g02) passed from the implementation checkout at the tested commit; the harness and browser evidence regenerate byte-identically because they embed no commit hash, timestamp, or generated id.",
+    "Evidence manifest and command results are docs-only additions after the tested commit; pnpm test:g02, pnpm verify, pnpm worktree:check, and the Linux cross-build were re-run on the final tree.",
+    "Status stays planned: F03, F04, G01, L04, L08, X02, and X05 are not done, so roadmap:check rejects anything beyond planned.",
+    "AG-10 and OG-02 are not_run for lack of clean environments (no second Cloudflare account, macOS user account, or spare Mac); their executable procedures are committed and their local halves pass in pnpm test:g02.",
+    "Notarization, blank-account install, blank-Mac install and upgrade, the fresh-account daemon check, Time Travel restore, and cross-release upgrade are prepared but not_run; nothing remote was created and no credential was used.",
+    "All identities in tests, fixtures, and this report are synthetic; no secrets, task bodies, prompts, paths, hook payloads, artifact bytes, terminal output, cookies, bearer secrets, or local absolute paths are retained."
+  ]
+}

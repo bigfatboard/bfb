@@ -1,0 +1,136 @@
+{
+  "release": "bfb-v0.1-g02",
+  "protocol_version": "bfb-wire/1",
+  "schema_version": "1",
+  "migration_head": "0034_operations",
+  "cli": {
+    "api_version": "1",
+    "wire_protocol": "bfb-wire/1",
+    "cli_min_version": "0.1.0"
+  },
+  "providers": {
+    "claude": "2.1.275",
+    "codex": "0.153.4",
+    "grok": "1.0.34",
+    "human_auth": "Better Auth 1.6.26"
+  },
+  "environments": [
+    {
+      "env": "local",
+      "worker": "bfb-control-local",
+      "database": "bfb-local",
+      "database_id": "00000000-0000-4000-8000-000000000001",
+      "bucket": "bfb-artifacts-local",
+      "queues": [
+        "bfb-jobs-dlq-local",
+        "bfb-jobs-local",
+        "bfb-jobs-local",
+        "bfb-notify-dlq-local",
+        "bfb-notify-local",
+        "bfb-notify-local",
+        "bfb-ops-dlq-local",
+        "bfb-ops-local",
+        "bfb-ops-local"
+      ],
+      "origins": [
+        "http://artifacts.bfb.localhost:8788",
+        "http://bfb.localhost:8787",
+        "http://launch.bfb.localhost:8789"
+      ],
+      "jurisdiction": "eu",
+      "environment": "local"
+    },
+    {
+      "env": "staging",
+      "worker": "bfb-control-staging",
+      "database": "bfb-staging",
+      "database_id": "00000000-0000-4000-8000-000000000002",
+      "bucket": "bfb-artifacts-staging",
+      "queues": [
+        "bfb-jobs-dlq-staging",
+        "bfb-jobs-staging",
+        "bfb-jobs-staging",
+        "bfb-notify-dlq-staging",
+        "bfb-notify-staging",
+        "bfb-notify-staging",
+        "bfb-ops-dlq-staging",
+        "bfb-ops-staging",
+        "bfb-ops-staging"
+      ],
+      "origins": [
+        "https://artifacts.bfb.staging.example.test",
+        "https://bfb.staging.example.test",
+        "https://launch.bfb.staging.example.test"
+      ],
+      "jurisdiction": "eu",
+      "environment": "staging"
+    },
+    {
+      "env": "production",
+      "worker": "bfb-control",
+      "database": "bfb",
+      "database_id": "00000000-0000-4000-8000-000000000003",
+      "bucket": "bfb-artifacts",
+      "queues": [
+        "bfb-jobs",
+        "bfb-jobs",
+        "bfb-jobs-dlq",
+        "bfb-notify",
+        "bfb-notify",
+        "bfb-notify-dlq",
+        "bfb-ops",
+        "bfb-ops",
+        "bfb-ops-dlq"
+      ],
+      "origins": [
+        "https://artifacts.bfb.example.test",
+        "https://bfb.example.test",
+        "https://launch.bfb.example.test"
+      ],
+      "jurisdiction": "eu",
+      "environment": "production"
+    },
+    {
+      "env": "selfhost",
+      "worker": "bfb-control-selfhost",
+      "database": "bfb-selfhost",
+      "database_id": "00000000-0000-4000-8000-000000000004",
+      "bucket": "bfb-artifacts-selfhost",
+      "queues": [
+        "bfb-jobs-dlq-selfhost",
+        "bfb-jobs-selfhost",
+        "bfb-jobs-selfhost",
+        "bfb-notify-dlq-selfhost",
+        "bfb-notify-selfhost",
+        "bfb-notify-selfhost",
+        "bfb-ops-dlq-selfhost",
+        "bfb-ops-selfhost",
+        "bfb-ops-selfhost"
+      ],
+      "origins": [
+        "https://artifacts.bfb.selfhost.example.test",
+        "https://bfb.selfhost.example.test",
+        "https://launch.bfb.selfhost.example.test"
+      ],
+      "jurisdiction": "choose",
+      "environment": "production"
+    }
+  ],
+  "jurisdiction": {
+    "managed_production": "eu",
+    "selfhost_choice": ["eu", "us", "global"]
+  },
+  "inputs": {
+    "apps/control-worker/wrangler.toml": "ea8cf006c9234fc5541b398086d4dc1fda05523cfde2a34dbfa0ab83a8334a45",
+    "apps/control-worker/wrangler.staging.toml": "ce8dd28db90de44d5469e900320b75edad863373fca73db0fac17c3fdca15932",
+    "apps/control-worker/wrangler.production.toml": "e0a8338446693f32c7fc3de767d6118d0ba1dc8ae815850f0945f0125cb54189",
+    "apps/control-worker/wrangler.selfhost.toml": "1a45b1e9120e76a8a693eb96239fe62b33e11d419fa4a43d21225577f55bd6ab",
+    "apps/artifact-worker/wrangler.toml": "38d59e33387b1f29fa81f33baf245f9d8da15c6033ad875963e73ec65d5e6280",
+    "apps/artifact-worker/wrangler.staging.toml": "cdb4578e510ba3ca339953866ff5388cd6d6acefff63c65d0ae03b648a6a6ec0",
+    "apps/artifact-worker/wrangler.production.toml": "e4592b108538b9df6b9761f35190a2ab3a4763c14f9523e55e8cd01f83a55de7",
+    "apps/artifact-worker/wrangler.selfhost.toml": "28168b6829e48acd3195bf4600eb9cc68cee28c6dd2ee059da00a8039f432ba3",
+    "migrations/d1/manifest.json": "58af2a5f55041ec976c5df081fe0f278cca9d87c592725c1d7d611da7ceb764b",
+    "docs/contracts/release.md": "c3dd4463582dd7a3a81455144b08ab5a8067e7f5017533ad06fc4fd176bad0be",
+    ".github/workflows/release.yml": "0f710e28093ad6b1998c912a31ee7084ce9a4bd8527870980adef8d02355b42e"
+  }
+}

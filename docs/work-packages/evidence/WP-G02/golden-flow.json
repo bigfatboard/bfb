@@ -1,0 +1,96 @@
+{
+  "release": "bfb-v0.1-g02",
+  "migration_head": "0034_operations",
+  "stages": [
+    {
+      "stage": "first-owner bootstrap",
+      "outcome": "passed",
+      "detail": "consumed once; replay rejected; second bootstrap unavailable"
+    },
+    {
+      "stage": "runner enrollment",
+      "outcome": "passed",
+      "detail": "owner step-up enrolls one P-256 runner with launch grant"
+    },
+    {
+      "stage": "runner token",
+      "outcome": "passed",
+      "detail": "challenge, possession proof, and token exchange complete"
+    },
+    {
+      "stage": "checkout link",
+      "outcome": "passed",
+      "detail": "runner inventory carries one validated checkout"
+    },
+    {
+      "stage": "launch",
+      "outcome": "passed",
+      "detail": "task launch starts and the runner claims it"
+    },
+    {
+      "stage": "realtime",
+      "outcome": "passed",
+      "detail": "runner heartbeat ingests with an explicit disposition"
+    },
+    {
+      "stage": "attention",
+      "outcome": "passed",
+      "detail": "request, answer, and resolve round-trip"
+    },
+    {
+      "stage": "result",
+      "outcome": "passed",
+      "detail": "member submits, owner accepts"
+    },
+    {
+      "stage": "artifact review",
+      "outcome": "passed",
+      "detail": "publish, finalize, and immutable approval bind"
+    },
+    {
+      "stage": "uninstall",
+      "outcome": "passed",
+      "detail": "runner revoke fences authority and closes the channel"
+    },
+    {
+      "stage": "upgrade",
+      "outcome": "passed",
+      "detail": "chain runs on migration head 0034_operations"
+    },
+    {
+      "stage": "binary version",
+      "outcome": "passed",
+      "detail": "bfb reports 0.1.0 on bfb-wire/1"
+    },
+    {
+      "stage": "daemon install",
+      "outcome": "passed",
+      "detail": "isolated daemon runs; status reports running"
+    },
+    {
+      "stage": "daemon status",
+      "outcome": "passed",
+      "detail": "launchd service installed and loaded"
+    },
+    {
+      "stage": "enrollment link",
+      "outcome": "passed",
+      "detail": "checkout links, verifies, rejects duplicates, unlinks"
+    },
+    {
+      "stage": "provider setup",
+      "outcome": "passed",
+      "detail": "pinned provider manifests validate offline"
+    },
+    {
+      "stage": "daemon logs",
+      "outcome": "passed",
+      "detail": "bounded entries with no local paths"
+    },
+    {
+      "stage": "uninstall binary",
+      "outcome": "passed",
+      "detail": "launchd service and plist removed; state stays isolated"
+    }
+  ]
+}
