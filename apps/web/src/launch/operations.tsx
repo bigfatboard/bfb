@@ -607,17 +607,35 @@ export function LaunchSection(props: LaunchSectionProps) {
   const effectiveCheckoutId =
     checkoutId || runnerStatus?.checkouts.find((item) => item.is_default)?.checkout_id || "";
   const usableProfiles = useMemo(() => profiles.filter((item) => item.model), [profiles]);
-  const effectiveProfileId = profileId || usableProfiles[0]?.id || "";
+  // Prefer a profile the selected runner reports healthy. Headless discussion
+  // profiles stay manually selectable, but they never become the launch default.
+  const compatibleProfiles = useMemo(() => {
+    const healthy = new Set(
+      (runnerStatus?.providers ?? [])
+        .filter((report) => report.status === "healthy")
+        .map((report) => report.provider),
+    );
+    const matching = usableProfiles.filter((item) => healthy.has(item.provider));
+    return matching.length > 0 ? matching : usableProfiles;
+  }, [usableProfiles, runnerStatus]);
+  const effectiveProfileId = profileId || compatibleProfiles[0]?.id || "";
   const selectedCheckout = selectableCheckouts.find(
     (item) => item.checkout_id === effectiveCheckoutId,
   );
   const checkoutBlocked = selectedCheckout && selectedCheckout.status !== "validated";
 
-  async function readVersions() {
+  async function readVersions(retryRunId?: string) {
     if (!task) {
       throw new Error("Task is not available.");
     }
-    const profile = profiles.find((item) => item.id === effectiveProfileId);
+    // A retry continues its original run, so it reuses that run's profile.
+    // The domain rejects a retry that switches profiles.
+    const retryProfileId = retryRunId
+      ? launches.find((launch) => launch.run_id === retryRunId)?.agent_profile_id
+      : undefined;
+    const profile = profiles.find(
+      (item) => item.id === (retryProfileId ?? effectiveProfileId),
+    );
     if (!profile) {
       throw new Error("Select an agent profile.");
     }
@@ -649,7 +667,7 @@ export function LaunchSection(props: LaunchSectionProps) {
     setBusy(true);
     setError(null);
     try {
-      const versions = await readVersions();
+      const versions = await readVersions(retryRunId);
       const taskResponse = await fetchFn(
         `/api/v1/workspaces/${props.workspaceId}/tasks/${props.taskId}`,
       );

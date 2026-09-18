@@ -1,7 +1,7 @@
 // ABOUTME: Task-sheet initiation form for a two-agent discussion with eligibility.
 // ABOUTME: Unavailable runners, checkouts, and profiles stay actionable, never silently hidden.
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { CheckoutStatus, RunnerSummary } from "../launch/api.js";
 import { createLaunchClient } from "../launch/api.js";
@@ -106,30 +106,6 @@ export function DiscussionStart(props: DiscussionStartProps) {
         }
         setProfiles(profileBody.profiles);
         setRunners(runnerBody.runners);
-        const next: Record<string, CheckoutStatus> = {};
-        await Promise.all(
-          runnerBody.runners.map(async (runner) => {
-            try {
-              next[runner.runner_id] = await launchClient.checkoutStatus(runner.runner_id);
-            } catch {
-              next[runner.runner_id] = {
-                runner_id: runner.runner_id,
-                device_label: runner.device_label,
-                owner_human_id: runner.owner_human_id,
-                status: runner.status,
-                inventory_revision: null,
-                inventory_received_at: null,
-                inventory_valid: false,
-                checkouts: [],
-                providers: [],
-              };
-            }
-          }),
-        );
-        if (!active) {
-          return;
-        }
-        setStatuses(next);
         const taskBody = (await (
           await fetchFn(`/api/v1/workspaces/${props.workspaceId}/tasks/${props.taskId}`)
         ).json()) as { task: { project_id: string } };
@@ -171,13 +147,70 @@ export function DiscussionStart(props: DiscussionStartProps) {
     [profiles],
   );
 
-  function slotEligibility(slot: SlotSelection): EligibilityResult {
+  const knownStatuses = useRef(new Set<string>());
+  const ensureStatus = useCallback(
+    async (runnerId: string, runner: RunnerSummary | undefined) => {
+      if (!runnerId || knownStatuses.current.has(runnerId)) {
+        return;
+      }
+      knownStatuses.current.add(runnerId);
+      try {
+        const status = await launchClient.checkoutStatus(runnerId);
+        setStatuses((current) => ({ ...current, [runnerId]: status }));
+      } catch {
+        setStatuses((current) => ({
+          ...current,
+          [runnerId]: {
+            runner_id: runnerId,
+            device_label: runner?.device_label ?? runnerId,
+            owner_human_id: runner?.owner_human_id ?? "",
+            status: runner?.status ?? "enrolled",
+            inventory_revision: null,
+            inventory_received_at: null,
+            inventory_valid: false,
+            checkouts: [],
+            providers: [],
+          },
+        }));
+      }
+    },
+    [launchClient],
+  );
+
+  const launchable = useMemo(
+    () =>
+      runners.filter(
+        (runner) =>
+          runner.status === "enrolled" &&
+          (runner.owner_human_id === props.humanId ||
+            runner.launcher_human_ids.includes(props.humanId)),
+      ),
+    [runners, props.humanId],
+  );
+  const defaultRunnerId = launchable[0]?.runner_id ?? runners[0]?.runner_id ?? "";
+
+  function resolvedRunnerId(slot: SlotSelection): string {
+    return slot.runnerId || defaultRunnerId;
+  }
+
+  useEffect(() => {
+    if (!loaded) {
+      return;
+    }
+    for (const slot of [first, second]) {
+      const runnerId = resolvedRunnerId(slot);
+      if (runnerId) {
+        void ensureStatus(
+          runnerId,
+          runners.find((entry) => entry.runner_id === runnerId),
+        );
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, runners, first.runnerId, second.runnerId, defaultRunnerId, ensureStatus]);
+
+  function slotEligibility(slot: SlotSelection): EligibilityResult | null {
     const profile = profiles.find((entry) => entry.id === slot.profileId);
-    const runner = runners.find((entry) => entry.runner_id === (slot.runnerId || runners[0]?.runner_id));
-    const status = runner ? statuses[runner.runner_id] : undefined;
-    const checkout = status?.checkouts.find(
-      (entry) => entry.checkout_id === (slot.checkoutId || entry.checkout_id),
-    );
     if (!profile) {
       return {
         status: "unsupported",
@@ -185,6 +218,14 @@ export function DiscussionStart(props: DiscussionStartProps) {
         nextAction: "Pick a restricted headless Claude or Codex profile for this slot.",
       };
     }
+    const runner = runners.find((entry) => entry.runner_id === resolvedRunnerId(slot));
+    const status = runner ? statuses[runner.runner_id] : undefined;
+    if (!runner || !status) {
+      return null;
+    }
+    const checkout = slot.checkoutId
+      ? status.checkouts.find((entry) => entry.checkout_id === slot.checkoutId)
+      : status.checkouts[0];
     const checkoutOccupied =
       first.checkoutId !== "" &&
       second.checkoutId !== "" &&
@@ -192,10 +233,8 @@ export function DiscussionStart(props: DiscussionStartProps) {
       slot.checkoutId !== "";
     return describeSlotEligibility({
       profile,
-      runner: runner ? toRunnerInput(runner) : undefined,
-      checkout: checkout
-        ? toCheckoutInput(checkout, status?.inventory_valid ?? false)
-        : undefined,
+      runner: toRunnerInput(runner),
+      checkout: checkout ? toCheckoutInput(checkout, status.inventory_valid) : undefined,
       checkoutOccupied,
       humanId: props.humanId,
     });
@@ -203,7 +242,10 @@ export function DiscussionStart(props: DiscussionStartProps) {
 
   const firstEligibility = slotEligibility(first);
   const secondEligibility = slotEligibility(second);
-  const ready = canStartDiscussion(firstEligibility, secondEligibility);
+  const ready =
+    firstEligibility !== null &&
+    secondEligibility !== null &&
+    canStartDiscussion(firstEligibility, secondEligibility);
 
   if (!canManage) {
     return null;
@@ -224,8 +266,12 @@ export function DiscussionStart(props: DiscussionStartProps) {
     slot: SlotSelection,
     setSlot: (next: SlotSelection) => void,
     testPrefix: string,
-    eligibility: EligibilityResult
+    eligibility: EligibilityResult | null,
   ) {
+    const runnerCheckouts = (
+      statuses[resolvedRunnerId(slot)]?.checkouts ??
+      runners.flatMap((runner) => statuses[runner.runner_id]?.checkouts ?? [])
+    ).filter((checkout) => checkout.project_id === props.projectId);
     return (
       <fieldset data-testid={`${testPrefix}-slot`}>
         <legend>{legend}</legend>
@@ -268,21 +314,24 @@ export function DiscussionStart(props: DiscussionStartProps) {
             onChange={(event) => setSlot({ ...slot, checkoutId: event.target.value })}
           >
             <option value="">Automatic</option>
-            {runners.flatMap((runner) =>
-              (statuses[runner.runner_id]?.checkouts ?? [])
-                .filter((checkout) => checkout.project_id === props.projectId)
-                .map((checkout) => (
-                  <option key={checkout.checkout_id} value={checkout.checkout_id}>
-                    {`${checkout.label} · ${checkout.status}`}
-                  </option>
-                )),
-            )}
+            {runnerCheckouts.map((checkout) => (
+              <option key={checkout.checkout_id} value={checkout.checkout_id}>
+                {`${checkout.label} · ${checkout.status}`}
+              </option>
+            ))}
           </select>
         </label>
-        <p data-testid={`${testPrefix}-eligibility`} data-eligibility={eligibility.status}>
-          <strong>{eligibility.headline}</strong>
-          <span>{eligibility.nextAction}</span>
-        </p>
+        {eligibility ? (
+          <p data-testid={`${testPrefix}-eligibility`} data-eligibility={eligibility.status}>
+            <strong>{eligibility.headline}</strong>
+            <span>{eligibility.nextAction}</span>
+          </p>
+        ) : (
+          <p data-testid={`${testPrefix}-eligibility`} data-eligibility="checking">
+            <strong>Checking runner state…</strong>
+            <span>Checkout availability loads with the selected runner.</span>
+          </p>
+        )}
       </fieldset>
     );
   }
@@ -309,10 +358,10 @@ export function DiscussionStart(props: DiscussionStartProps) {
           }
           const resolve = (slot: SlotSelection): SlotSelection => ({
             profileId: slot.profileId,
-            runnerId: slot.runnerId || runners[0]?.runner_id || "",
+            runnerId: slot.runnerId || defaultRunnerId || "",
             checkoutId:
               slot.checkoutId ||
-              statuses[slot.runnerId || runners[0]?.runner_id || ""]?.checkouts.find(
+              statuses[slot.runnerId || defaultRunnerId || ""]?.checkouts.find(
                 (entry) => entry.project_id === props.projectId,
               )?.checkout_id ||
               "",
