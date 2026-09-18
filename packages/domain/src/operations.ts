@@ -637,9 +637,7 @@ export async function readSecurityAudit(
         `SELECT created_at, rowid AS anchor_rowid FROM audit_events
          WHERE workspace_id = ? AND audit_id = ?`,
       )
-      .get(workspaceId, options.after)) as
-      | { created_at: string; anchor_rowid: number }
-      | undefined;
+      .get(workspaceId, options.after)) as { created_at: string; anchor_rowid: number } | undefined;
     if (!anchor) {
       fail("invalid_argument", "unknown audit cursor");
     }

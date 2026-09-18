@@ -378,7 +378,13 @@ describe("security audit ordering", () => {
              (workspace_id, audit_id, actor_principal_id, action, payload_json, created_at)
            VALUES (?, ?, ?, 'ops.audit.order.probe', ?, ?)`,
         )
-        .run(FIX.workspace, row.audit_id, FIX.owner, JSON.stringify({ action: "probe" }), row.created_at);
+        .run(
+          FIX.workspace,
+          row.audit_id,
+          FIX.owner,
+          JSON.stringify({ action: "probe" }),
+          row.created_at,
+        );
     }
     return rows.map((row) => row.audit_id);
   }
