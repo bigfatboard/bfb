@@ -148,13 +148,15 @@ func (Adapter) Resume(input provider.ResumeInput) (provider.Invocation, error) {
 // Turn plans a headless read-only discussion turn. Peer content never reaches
 // argv; the kit encodes it as attributed stdin after this returns. Exec
 // resume and fork inherit the bound session's working root, so they carry no
-// --cd or --sandbox flags, which those subcommands do not accept.
+// --cd or --sandbox flags, which those subcommands do not accept. They pin
+// the read-only sandbox through -c sandbox_mode instead, so a writable user
+// config.toml cannot widen a discussion turn.
 func (Adapter) Turn(input provider.TurnInput) (provider.Invocation, error) {
 	config := input.Config
 	if config.Mode != "headless" || config.FilesystemPolicy != "read_only" || config.ApprovalPolicy != "never" {
 		return provider.Invocation{}, provider.Failure("provider_discussion_unsafe")
 	}
-	base := []string{"--model", config.Model, "-c", "approval_policy=\"never\""}
+	base := []string{"--model", config.Model, "-c", "approval_policy=\"never\"", "-c", "sandbox_mode=\"read-only\""}
 	base = append(base, effortFlag(config.Effort)...)
 	base = append(base, "--json")
 	switch {

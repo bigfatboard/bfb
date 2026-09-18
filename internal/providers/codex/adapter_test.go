@@ -270,7 +270,7 @@ func TestTurnPlansKeepPeerContentOutOfArgv(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantResume := []string{"exec", "resume", "thr_synthetic0199a21381c0", "--model", "gpt-5.6-sol", "-c", "approval_policy=\"never\"", "-c", "model_reasoning_effort=\"high\"", "--json", "-"}
+	wantResume := []string{"exec", "resume", "thr_synthetic0199a21381c0", "--model", "gpt-5.6-sol", "-c", "approval_policy=\"never\"", "-c", "sandbox_mode=\"read-only\"", "-c", "model_reasoning_effort=\"high\"", "--json", "-"}
 	if !slices.Equal(resumed.Invocation().Arguments, wantResume) {
 		t.Fatalf("unexpected resume turn argv: %q", resumed.Invocation().Arguments)
 	}
@@ -280,7 +280,7 @@ func TestTurnPlansKeepPeerContentOutOfArgv(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantFork := []string{"exec", "fork", "thr_synthetic0199a21381c0", "--model", "gpt-5.6-sol", "-c", "approval_policy=\"never\"", "-c", "model_reasoning_effort=\"high\"", "--json", "-"}
+	wantFork := []string{"exec", "fork", "thr_synthetic0199a21381c0", "--model", "gpt-5.6-sol", "-c", "approval_policy=\"never\"", "-c", "sandbox_mode=\"read-only\"", "-c", "model_reasoning_effort=\"high\"", "--json", "-"}
 	if !slices.Equal(forked.Invocation().Arguments, wantFork) {
 		t.Fatalf("unexpected fork argv: %q", forked.Invocation().Arguments)
 	}
