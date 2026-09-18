@@ -1,6 +1,6 @@
 # WP-A03 — Result submission and acceptance
 
-Status: `planned`
+Status: `done`
 
 Risk: High
 
@@ -8,9 +8,8 @@ Test target: `pnpm test:a03`
 
 Evidence manifest: `docs/work-packages/evidence/WP-A03/manifest.json`
 
-> Status note: implementation, gate, and evidence are complete on this branch,
-> but `Status` stays `planned` because `pnpm roadmap:check` rejects any status
-> beyond `planned` while dependencies A01 and E01 are not `done`. See Handoff.
+> Settled 18 September: `done` — `pnpm test:a03` passed in a detached clean
+> checkout at `9372c0f`; see Handoff.
 
 ## Outcome
 
@@ -155,10 +154,12 @@ an explicit call; every interactive ending never submits or accepts.
 
 ## Handoff
 
-- State: implementation, `pnpm test:a03` gate, and evidence are complete on
-  this branch at the committed hash recorded in the evidence manifest.
-  `Status` is intentionally left at `planned`: `pnpm roadmap:check`
-  rejects anything beyond `planned` while A01 and E01 are not `done`.
+- Settled 18 September: `done`. A01 and E01 are `done`, and `pnpm test:a03`
+  passed in a detached clean checkout at `9372c0f` (install, build, exact
+  target with the real-Worker/D1 harness, real-binary CLI harness, and
+  browser submit/change/supersede/accept cycle). The evidence manifest is
+  re-based on that rerun; the implementation evidence stays listed as
+  manifest artifacts.
 - Consume: `docs/contracts/results.md` (v1), domain commands
   `result.submit`, `result.request_changes`, `result.accept`,
   `result.fail`, `result.cancel` in `packages/domain/src/results.ts`,

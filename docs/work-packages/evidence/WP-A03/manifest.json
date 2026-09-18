@@ -1,7 +1,7 @@
 {
   "$schema": "../manifest.schema.json",
   "package": "A03",
-  "tested_commit": "88a3d33418932b9d022b966c3550682b0fe4cc3e",
+  "tested_commit": "9372c0f569d7f7fb97376ce2cbea5ff931c637e9",
   "protocol_version": "bfb-wire/1",
   "schema_version": "1",
   "migration_head": "0024_result_submissions",
@@ -13,30 +13,22 @@
     "wrangler": "4.125.0"
   },
   "environment": {
-    "kind": "local",
+    "kind": "clean_checkout",
     "os": "macOS 26.2 (25C56)",
     "architecture": "arm64"
   },
   "commands": [
     {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed"
+    },
+    {
+      "command": "pnpm build",
+      "outcome": "passed"
+    },
+    {
       "command": "pnpm test:a03",
-      "outcome": "passed",
-      "artifact": "docs/work-packages/evidence/WP-A03/command-result.json"
-    },
-    {
-      "command": "pnpm verify",
-      "outcome": "passed",
-      "artifact": "docs/work-packages/evidence/WP-A03/command-result.json"
-    },
-    {
-      "command": "pnpm worktree:check",
-      "outcome": "passed",
-      "artifact": "docs/work-packages/evidence/WP-A03/command-result.json"
-    },
-    {
-      "command": "GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./...",
-      "outcome": "passed",
-      "artifact": "docs/work-packages/evidence/WP-A03/command-result.json"
+      "outcome": "passed"
     }
   ],
   "outcome": "passed",

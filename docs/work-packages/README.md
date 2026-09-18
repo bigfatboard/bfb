@@ -404,8 +404,8 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 | ID | Package | Status | Risk |
 | --- | --- | --- | --- |
 | A01 | [Run-scoped local MCP and context](WP-A01-local-mcp-context.md) | `done` | Very high |
-| A02 | [Human attention workflow](WP-A02-attention.md) | `planned` | High |
-| A03 | [Result submission and acceptance](WP-A03-results.md) | `planned` | High |
+| A02 | [Human attention workflow](WP-A02-attention.md) | `done` | High |
+| A03 | [Result submission and acceptance](WP-A03-results.md) | `done` | High |
 | A04 | [Measurements and provenance](WP-A04-measurements.md) | `planned` | High |
 
 ### Agent discussion
@@ -420,7 +420,7 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 
 | ID | Package | Status | Risk |
 | --- | --- | --- | --- |
-| V01 | [Artifact storage state machine](WP-V01-artifact-storage.md) | `planned` | High |
+| V01 | [Artifact storage state machine](WP-V01-artifact-storage.md) | `done` | High |
 | V02 | [Isolated artifact viewer](WP-V02-artifact-viewer.md) | `planned` | Very high |
 | V03 | [Immutable artifact review](WP-V03-artifact-review.md) | `planned` | High |
 
@@ -439,7 +439,7 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 | X02 | [Human CLI parity](WP-X02-human-cli.md) | `planned` | High |
 | X03 | [Remote MCP parity extensions](WP-X03-remote-mcp.md) | `planned` | Very high |
 | X03A | [Remote OAuth MCP core](WP-X03A-remote-mcp-core.md) | `done` | Very high |
-| X04 | [GitHub evidence integration](WP-X04-github.md) | `planned` | High |
+| X04 | [GitHub evidence integration](WP-X04-github.md) | `done` | High |
 | X05 | [Operations, audit and retention](WP-X05-operations.md) | `planned` | High |
 
 ### Go-live
