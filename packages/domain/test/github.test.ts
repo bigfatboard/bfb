@@ -1416,3 +1416,327 @@ describe("github queue envelope and outbox recovery", () => {
     expect(await claimGitHubOutboxBatch(db, "2026-09-18T12:30:00.000Z")).toHaveLength(0);
   });
 });
+
+describe("github cross-workspace isolation", () => {
+  const INSTALLATION_B = "22334455";
+
+  async function secondWorkspace(db: SqlDatabase): Promise<string> {
+    const workspace = randomUlid();
+    await db
+      .prepare(
+        `INSERT INTO workspaces (id, slug, jurisdiction, created_at, resource_version) VALUES (?, 'second-github-workspace', 'eu', ?, 1)`,
+      )
+      .run(workspace, NOW);
+    await db
+      .prepare(
+        `INSERT INTO workspace_members (workspace_id, human_id, role, authorization_epoch, created_at) VALUES (?, ?, 'owner', 1, ?)`,
+      )
+      .run(workspace, FIX.owner, NOW);
+    await db
+      .prepare(
+        `INSERT INTO workspace_authorization_epochs (workspace_id, human_id, authorization_epoch, updated_at) VALUES (?, ?, 1, ?)`,
+      )
+      .run(workspace, FIX.owner, NOW);
+    return workspace;
+  }
+
+  function stepUpFor(
+    db: SqlDatabase,
+    workspaceId: string,
+    action: string,
+    targetId: string,
+    now: string = NOW,
+  ): Promise<string> {
+    return issueStepUpProof(
+      db,
+      FIX.owner,
+      {
+        action,
+        workspaceId,
+        targetId,
+        scopes: [],
+        authorizationEpoch: 1,
+        expiresAt: new Date(Date.parse(now) + 5 * 60 * 1000).toISOString(),
+      },
+      now,
+    );
+  }
+
+  async function installFor(
+    db: SqlDatabase,
+    workspaceId: string,
+    installationId: string,
+  ): Promise<{ ok: boolean; code?: string }> {
+    const proof = await stepUpFor(
+      db,
+      workspaceId,
+      "github.install",
+      `github-installation:${installationId}`,
+    );
+    const outcome = await hub(db).execute(installGitHubCommand, {
+      workspaceId,
+      idempotencyKey: randomUlid(),
+      actorHumanId: FIX.owner,
+      authorizationEpoch: 1,
+      now: NOW,
+      input: {
+        installationId,
+        appId: APP_ID,
+        appSlug: "synthetic-app",
+        accountId: "555666",
+        accountLogin: ACCOUNT,
+        accountType: "Organization",
+        permissions: PERMISSIONS,
+        events: EVENTS,
+        stepUpProofId: proof,
+      },
+    });
+    return outcome.ok
+      ? { ok: true }
+      : { ok: false, code: (outcome as { ok: false; error: { code: string } }).error.code };
+  }
+
+  async function activateFor(
+    db: SqlDatabase,
+    workspaceId: string,
+    installationId: string,
+  ): Promise<void> {
+    const received = await hub(db).execute(receiveGitHubWebhookCommand, {
+      workspaceId,
+      idempotencyKey: `github-delivery.${randomUlid()}`,
+      actorSystemId: GITHUB_WEBHOOK_SYSTEM_ID,
+      authorizationEpoch: 1,
+      now: NOW,
+      input: {
+        deliveryId: randomUlid(),
+        event: "installation",
+        supported: true,
+        effect: {
+          event: "installation",
+          action: "created",
+          installationId,
+          repositoryId: null,
+          occurredAt: NOW,
+          ref: null,
+          version: null,
+          detail: {},
+        },
+      },
+    });
+    if (!received.ok) {
+      throw new Error(`receive failed: ${JSON.stringify(received)}`);
+    }
+    const result = (received as { ok: true; result: ReceiveGitHubWebhookResult }).result;
+    const reconciled = await hub(db).execute(reconcileGitHubCommand, {
+      workspaceId,
+      idempotencyKey: `github-reconcile.${result.outbox_id}`,
+      actorSystemId: GITHUB_QUEUE_SYSTEM_ID,
+      authorizationEpoch: 1,
+      now: NOW,
+      input: {
+        outboxId: result.outbox_id as string,
+        deliveryId: result.delivery_id,
+        observed: {
+          repositoryFullName: "synthetic-org/synthetic-repo",
+          defaultBranch: "main",
+          fetchedAt: NOW,
+        },
+      },
+    });
+    if (!reconciled.ok) {
+      throw new Error(`reconcile failed: ${JSON.stringify(reconciled)}`);
+    }
+  }
+
+  async function projectFor(
+    db: SqlDatabase,
+    workspaceId: string,
+    slug: string,
+    repositoryId: string,
+  ): Promise<string> {
+    const outcome = await hub(db).execute(createProjectCommand, {
+      workspaceId,
+      idempotencyKey: randomUlid(),
+      actorHumanId: FIX.owner,
+      authorizationEpoch: 1,
+      now: NOW,
+      input: {
+        name: `Synthetic ${slug}`,
+        slug,
+        tint: "#3B82F6",
+        accessMode: "workspace",
+        repositoryHost: "github.com",
+        hostedRepositoryId: repositoryId,
+        repositorySubpath: ".",
+      },
+    });
+    if (!outcome.ok) {
+      throw new Error(`project failed: ${JSON.stringify(outcome)}`);
+    }
+    return (outcome as { ok: true; result: { id: string } }).result.id;
+  }
+
+  async function mapFor(
+    db: SqlDatabase,
+    workspaceId: string,
+    installationId: string,
+    repositoryId: string,
+    projectId: string,
+  ): Promise<{ ok: boolean; code?: string }> {
+    const proof = await stepUpFor(
+      db,
+      workspaceId,
+      "github.repository.map",
+      `github-link:${repositoryId}`,
+    );
+    const outcome = await hub(db).execute(mapGitHubRepositoryCommand, {
+      workspaceId,
+      idempotencyKey: randomUlid(),
+      actorHumanId: FIX.owner,
+      authorizationEpoch: 1,
+      now: NOW,
+      input: {
+        installationId,
+        repositoryId,
+        projectId,
+        fullName: "synthetic-org/synthetic-repo",
+        defaultBranch: "main",
+        stepUpProofId: proof,
+      },
+    });
+    return outcome.ok
+      ? { ok: true }
+      : { ok: false, code: (outcome as { ok: false; error: { code: string } }).error.code };
+  }
+
+  it("refuses to claim another workspace's installation id", async () => {
+    const db = await openDomainDb();
+    const other = await secondWorkspace(db);
+    expect((await installFor(db, FIX.workspace, INSTALLATION)).ok).toBe(true);
+    const squat = await installFor(db, other, INSTALLATION);
+    expect(squat.ok).toBe(false);
+    expect(squat.code).toBe("already_exists");
+    const row = (await db
+      .prepare(
+        `SELECT workspace_id, status FROM github_app_installations WHERE installation_id = ?`,
+      )
+      .get(INSTALLATION)) as { workspace_id: string; status: string };
+    expect(row.workspace_id).toBe(FIX.workspace);
+    expect(row.status).toBe("pending");
+  });
+
+  it("refuses to reassign a revoked installation to another workspace", async () => {
+    const db = await openDomainDb();
+    const other = await secondWorkspace(db);
+    expect((await installFor(db, FIX.workspace, INSTALLATION)).ok).toBe(true);
+    await activateFor(db, FIX.workspace, INSTALLATION);
+    const removeProof = await stepUpFor(
+      db,
+      FIX.workspace,
+      "github.remove",
+      `github-installation:${INSTALLATION}`,
+      LATER,
+    );
+    const removed = await hub(db).execute(removeGitHubCommand, {
+      workspaceId: FIX.workspace,
+      idempotencyKey: randomUlid(),
+      actorHumanId: FIX.owner,
+      authorizationEpoch: 1,
+      now: LATER,
+      input: { installationId: INSTALLATION, stepUpProofId: removeProof },
+    });
+    expect(removed.ok).toBe(true);
+    const squat = await installFor(db, other, INSTALLATION);
+    expect(squat.ok).toBe(false);
+    expect(squat.code).toBe("already_exists");
+    const row = (await db
+      .prepare(
+        `SELECT workspace_id, status FROM github_app_installations WHERE installation_id = ?`,
+      )
+      .get(INSTALLATION)) as { workspace_id: string; status: string };
+    expect(row.workspace_id).toBe(FIX.workspace);
+    expect(row.status).toBe("revoked");
+    // The owning workspace can still re-register its own revoked installation.
+    expect((await installFor(db, FIX.workspace, INSTALLATION)).ok).toBe(true);
+  });
+
+  it("keeps each workspace's repository link and reconcile pipeline independent", async () => {
+    const db = await openDomainDb();
+    const other = await secondWorkspace(db);
+    expect((await installFor(db, FIX.workspace, INSTALLATION)).ok).toBe(true);
+    await activateFor(db, FIX.workspace, INSTALLATION);
+    const projectA = await projectFor(db, FIX.workspace, "github-a", REPOSITORY);
+    expect((await mapFor(db, FIX.workspace, INSTALLATION, REPOSITORY, projectA)).ok).toBe(true);
+
+    expect((await installFor(db, other, INSTALLATION_B)).ok).toBe(true);
+    await activateFor(db, other, INSTALLATION_B);
+    const projectB = await projectFor(db, other, "github-b", REPOSITORY);
+    const evict = await mapFor(db, other, INSTALLATION_B, REPOSITORY, projectB);
+    expect(evict.ok).toBe(false);
+    expect(evict.code).toBe("repository_already_mapped");
+
+    // Workspace A's link survives the foreign map attempt untouched.
+    const links = (await db
+      .prepare(
+        `SELECT workspace_id, project_id FROM github_repository_links WHERE repository_id = ? AND link_state = 'active' ORDER BY workspace_id`,
+      )
+      .all(REPOSITORY)) as Array<{ workspace_id: string; project_id: string }>;
+    expect(links).toHaveLength(1);
+    expect(links[0]?.workspace_id).toBe(FIX.workspace);
+    expect(links[0]?.project_id).toBe(projectA);
+
+    // Workspace A's next delivery still reconciles into A's own project.
+    const deliveryId = randomUlid();
+    const received = await hub(db).execute(receiveGitHubWebhookCommand, {
+      workspaceId: FIX.workspace,
+      idempotencyKey: `github-delivery.${deliveryId}`,
+      actorSystemId: GITHUB_WEBHOOK_SYSTEM_ID,
+      authorizationEpoch: 1,
+      now: NOW,
+      input: {
+        deliveryId,
+        event: "push",
+        supported: true,
+        effect: {
+          event: "push",
+          action: null,
+          installationId: INSTALLATION,
+          repositoryId: REPOSITORY,
+          occurredAt: NOW,
+          ref: "main",
+          version: "a".repeat(40),
+          detail: {},
+        },
+      },
+    });
+    expect(received.ok).toBe(true);
+    const accepted = (received as { ok: true; result: ReceiveGitHubWebhookResult }).result;
+    const reconciled = await hub(db).execute(reconcileGitHubCommand, {
+      workspaceId: FIX.workspace,
+      idempotencyKey: `github-reconcile.${accepted.outbox_id}`,
+      actorSystemId: GITHUB_QUEUE_SYSTEM_ID,
+      authorizationEpoch: 1,
+      now: NOW,
+      input: {
+        outboxId: accepted.outbox_id as string,
+        deliveryId,
+        observed: {
+          repositoryFullName: "synthetic-org/synthetic-repo",
+          defaultBranch: "main",
+          fetchedAt: NOW,
+        },
+      },
+    });
+    expect(reconciled.ok).toBe(true);
+    expect((reconciled as { ok: true; result: ReconcileGitHubResult }).result.effect).toBe(
+      "applied",
+    );
+    const evidence = (await db
+      .prepare(
+        `SELECT workspace_id, project_id FROM github_evidence WHERE workspace_id = ? AND repository_id = ? AND kind = 'commit'`,
+      )
+      .all(FIX.workspace, REPOSITORY)) as Array<{ workspace_id: string; project_id: string }>;
+    expect(evidence).toHaveLength(1);
+    expect(evidence[0]?.project_id).toBe(projectA);
+  });
+});

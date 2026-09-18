@@ -906,9 +906,10 @@ export async function consumeGitHubQueueMessage(
     const link = context.repositoryId
       ? ((await deps.db
           .prepare(
-            `SELECT full_name, default_branch FROM github_repository_links WHERE repository_id = ? AND link_state = 'active'`,
+            `SELECT full_name, default_branch FROM github_repository_links WHERE workspace_id = ? AND repository_id = ? AND link_state = 'active'`,
           )
-          .get(context.repositoryId)) as { full_name: string; default_branch: string } | undefined)
+          .get(context.workspaceId, context.repositoryId)) as
+          { full_name: string; default_branch: string } | undefined)
       : undefined;
     await reconcileThroughHub(
       deps,

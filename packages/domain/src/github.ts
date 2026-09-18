@@ -567,12 +567,22 @@ export const installGitHubCommand: HubCommand<InstallGitHubInput, GitHubInstalla
     const permissions = assertPermissionsSubset(input.permissions);
     const events = assertEventsSubset(input.events);
     // All reads precede the step-up consume: D1 batches forbid reads after a queued write.
+    // An installation id belongs to exactly one workspace: a row owned by any
+    // other workspace (active or revoked) is never reassigned here.
     const existing = (await ctx.db
       .prepare(
-        `SELECT status, resource_version FROM github_app_installations WHERE installation_id = ?`,
+        `SELECT workspace_id, status, resource_version FROM github_app_installations WHERE installation_id = ?`,
       )
       .get(installationId)) as
-      { status: GitHubInstallationStatus; resource_version: number } | undefined;
+      | {
+          workspace_id: string;
+          status: GitHubInstallationStatus;
+          resource_version: number;
+        }
+      | undefined;
+    if (existing && existing.workspace_id !== ctx.workspaceId) {
+      fail("already_exists", "github installation is already registered");
+    }
     if (existing && existing.status !== "revoked") {
       fail("already_exists", "github installation is already registered");
     }
@@ -587,14 +597,13 @@ export const installGitHubCommand: HubCommand<InstallGitHubInput, GitHubInstalla
       await ctx.db
         .prepare(
           `UPDATE github_app_installations
-           SET workspace_id = ?, app_id = ?, app_slug = ?, account_id = ?, account_login = ?,
+           SET app_id = ?, app_slug = ?, account_id = ?, account_login = ?,
                account_type = ?, status = 'pending', permissions_json = ?, events_json = ?,
                installed_by_human_id = ?, updated_at = ?, revoked_at = NULL,
                resource_version = resource_version + 1
-           WHERE installation_id = ?`,
+           WHERE installation_id = ? AND workspace_id = ?`,
         )
         .run(
-          ctx.workspaceId,
           appId,
           appSlug,
           accountId,
@@ -605,6 +614,7 @@ export const installGitHubCommand: HubCommand<InstallGitHubInput, GitHubInstalla
           ctx.actorHumanId,
           ctx.now,
           installationId,
+          ctx.workspaceId,
         );
       // No post-write re-read: D1 batches forbid reads after a queued write.
       return {
@@ -695,23 +705,23 @@ export const removeGitHubCommand: HubCommand<RemoveGitHubInput, GitHubInstallati
     await consume();
     await guard(
       ctx.db,
-      `SELECT COUNT(*) = 1 FROM github_app_installations WHERE installation_id = ? AND resource_version = ? AND status != 'revoked'`,
-      [installationId, row.resource_version],
+      `SELECT COUNT(*) = 1 FROM github_app_installations WHERE installation_id = ? AND workspace_id = ? AND resource_version = ? AND status != 'revoked'`,
+      [installationId, ctx.workspaceId, row.resource_version],
     );
     await ctx.db
       .prepare(
         `UPDATE github_app_installations
          SET status = 'revoked', revoked_at = ?, updated_at = ?, resource_version = resource_version + 1
-         WHERE installation_id = ?`,
+         WHERE installation_id = ? AND workspace_id = ?`,
       )
-      .run(ctx.now, ctx.now, installationId);
+      .run(ctx.now, ctx.now, installationId, ctx.workspaceId);
     await ctx.db
       .prepare(
         `UPDATE github_repository_links
          SET link_state = 'closed', closed_at = ?, resource_version = resource_version + 1
-         WHERE installation_id = ? AND link_state = 'active'`,
+         WHERE workspace_id = ? AND installation_id = ? AND link_state = 'active'`,
       )
-      .run(ctx.now, installationId);
+      .run(ctx.now, ctx.workspaceId, installationId);
     // No post-write re-read: D1 batches forbid reads after a queued write.
     return {
       installation_id: installationId,
@@ -794,6 +804,17 @@ export const mapGitHubRepositoryCommand: HubCommand<
     if (project.repository_host !== "github.com" || project.hosted_repository_id !== repositoryId) {
       fail("repository_identity_mismatch", "project does not declare this GitHub repository");
     }
+    // A repository already linked by another workspace stays theirs: mapping
+    // here must fail instead of evicting the foreign link.
+    const foreign = (await ctx.db
+      .prepare(
+        `SELECT workspace_id FROM github_repository_links
+         WHERE repository_id = ? AND link_state = 'active' AND workspace_id != ? LIMIT 1`,
+      )
+      .get(repositoryId, ctx.workspaceId)) as { workspace_id: string } | undefined;
+    if (foreign) {
+      fail("repository_already_mapped", "github repository is already linked by another workspace");
+    }
     const consume = await prepareStepUp(
       ctx,
       input.stepUpProofId,
@@ -801,14 +822,15 @@ export const mapGitHubRepositoryCommand: HubCommand<
       stepUpTarget("link", repositoryId),
     );
     await consume();
-    // Remap: close any active link for this repository or this project first.
+    // Remap: close only this workspace's active link for this repository or
+    // this project first.
     await ctx.db
       .prepare(
         `UPDATE github_repository_links
          SET link_state = 'closed', closed_at = ?, resource_version = resource_version + 1
-         WHERE link_state = 'active' AND (repository_id = ? OR (workspace_id = ? AND project_id = ?))`,
+         WHERE workspace_id = ? AND link_state = 'active' AND (repository_id = ? OR project_id = ?)`,
       )
-      .run(ctx.now, repositoryId, ctx.workspaceId, input.projectId);
+      .run(ctx.now, ctx.workspaceId, repositoryId, input.projectId);
     const linkId = randomUlid();
     await ctx.db
       .prepare(
@@ -902,16 +924,22 @@ export const updateGitHubPermissionsCommand: HubCommand<
     await consume();
     await guard(
       ctx.db,
-      `SELECT COUNT(*) = 1 FROM github_app_installations WHERE installation_id = ? AND resource_version = ?`,
-      [installationId, input.expectedVersion],
+      `SELECT COUNT(*) = 1 FROM github_app_installations WHERE installation_id = ? AND workspace_id = ? AND resource_version = ?`,
+      [installationId, ctx.workspaceId, input.expectedVersion],
     );
     await ctx.db
       .prepare(
         `UPDATE github_app_installations
          SET permissions_json = ?, events_json = ?, updated_at = ?, resource_version = resource_version + 1
-         WHERE installation_id = ?`,
+         WHERE installation_id = ? AND workspace_id = ?`,
       )
-      .run(JSON.stringify(permissions), JSON.stringify(events), ctx.now, installationId);
+      .run(
+        JSON.stringify(permissions),
+        JSON.stringify(events),
+        ctx.now,
+        installationId,
+        ctx.workspaceId,
+      );
     return {
       installation_id: installationId,
       workspace_id: ctx.workspaceId,
@@ -1272,8 +1300,11 @@ export const reconcileGitHubCommand: HubCommand<ReconcileGitHubInput, ReconcileG
     }
     const effect = JSON.parse(delivery.effect_json) as GitHubDeliveryEffect;
     const installation = (await ctx.db
-      .prepare(`SELECT status FROM github_app_installations WHERE installation_id = ?`)
-      .get(effect.installationId)) as { status: GitHubInstallationStatus } | undefined;
+      .prepare(
+        `SELECT workspace_id, status FROM github_app_installations WHERE installation_id = ?`,
+      )
+      .get(effect.installationId)) as
+      { workspace_id: string; status: GitHubInstallationStatus } | undefined;
     if (!installation || installation.status === "revoked") {
       await finishOutbox(
         ctx.db,
@@ -1286,6 +1317,9 @@ export const reconcileGitHubCommand: HubCommand<ReconcileGitHubInput, ReconcileG
         ctx.now,
       );
       return { effect: "ignored", reason: "installation revoked" };
+    }
+    if (installation.workspace_id !== ctx.workspaceId) {
+      fail("workspace_mismatch", "github installation belongs to another workspace");
     }
     if (effect.event === "installation") {
       // Lifecycle events carry their own state guards (pending can activate;
@@ -1319,9 +1353,10 @@ export const reconcileGitHubCommand: HubCommand<ReconcileGitHubInput, ReconcileG
     const link = (await ctx.db
       .prepare(
         `SELECT project_id, default_branch FROM github_repository_links
-         WHERE repository_id = ? AND link_state = 'active'`,
+         WHERE workspace_id = ? AND repository_id = ? AND link_state = 'active'`,
       )
-      .get(effect.repositoryId)) as { project_id: string; default_branch: string } | undefined;
+      .get(ctx.workspaceId, effect.repositoryId)) as
+      { project_id: string; default_branch: string } | undefined;
     if (!link) {
       await finishOutbox(
         ctx.db,
@@ -1366,9 +1401,9 @@ export const reconcileGitHubCommand: HubCommand<ReconcileGitHubInput, ReconcileG
       await ctx.db
         .prepare(
           `UPDATE github_repository_links SET default_branch = ?, resource_version = resource_version + 1
-           WHERE repository_id = ? AND link_state = 'active'`,
+           WHERE workspace_id = ? AND repository_id = ? AND link_state = 'active'`,
         )
-        .run(observed.defaultBranch, effect.repositoryId);
+        .run(observed.defaultBranch, ctx.workspaceId, effect.repositoryId);
     }
     if (effect.event === "push" && effect.ref && effect.version) {
       await upsertEvidence(ctx.db, ctx.workspaceId, {
@@ -1451,38 +1486,38 @@ async function applyInstallationEvent(
     await ctx.db
       .prepare(
         `UPDATE github_app_installations SET status = 'active', updated_at = ?, resource_version = resource_version + 1
-         WHERE installation_id = ? AND status = 'pending'`,
+         WHERE installation_id = ? AND workspace_id = ? AND status = 'pending'`,
       )
-      .run(ctx.now, effect.installationId);
+      .run(ctx.now, effect.installationId, ctx.workspaceId);
   } else if (action === "deleted") {
     await ctx.db
       .prepare(
         `UPDATE github_app_installations
          SET status = 'revoked', revoked_at = ?, updated_at = ?, resource_version = resource_version + 1
-         WHERE installation_id = ? AND status != 'revoked'`,
+         WHERE installation_id = ? AND workspace_id = ? AND status != 'revoked'`,
       )
-      .run(ctx.now, ctx.now, effect.installationId);
+      .run(ctx.now, ctx.now, effect.installationId, ctx.workspaceId);
     await ctx.db
       .prepare(
         `UPDATE github_repository_links
          SET link_state = 'closed', closed_at = ?, resource_version = resource_version + 1
-         WHERE installation_id = ? AND link_state = 'active'`,
+         WHERE workspace_id = ? AND installation_id = ? AND link_state = 'active'`,
       )
-      .run(ctx.now, effect.installationId);
+      .run(ctx.now, ctx.workspaceId, effect.installationId);
   } else if (action === "suspend") {
     await ctx.db
       .prepare(
         `UPDATE github_app_installations SET status = 'suspended', updated_at = ?, resource_version = resource_version + 1
-         WHERE installation_id = ? AND status = 'active'`,
+         WHERE installation_id = ? AND workspace_id = ? AND status = 'active'`,
       )
-      .run(ctx.now, effect.installationId);
+      .run(ctx.now, effect.installationId, ctx.workspaceId);
   } else if (action === "unsuspend") {
     await ctx.db
       .prepare(
         `UPDATE github_app_installations SET status = 'active', updated_at = ?, resource_version = resource_version + 1
-         WHERE installation_id = ? AND status = 'suspended'`,
+         WHERE installation_id = ? AND workspace_id = ? AND status = 'suspended'`,
       )
-      .run(ctx.now, effect.installationId);
+      .run(ctx.now, effect.installationId, ctx.workspaceId);
   }
   await finishOutbox(
     ctx.db,

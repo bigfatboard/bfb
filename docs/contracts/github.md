@@ -45,17 +45,23 @@ to D1.
 
 - `github.install` (Owner + fresh `github.install` step-up bound to
   `github-installation:<installation_id>`): registers one installation as
-  `pending`. Rejects permissions/events outside the inventory above.
+  `pending`. Rejects permissions/events outside the inventory above. An
+  installation id belongs to exactly one workspace: a row registered in any
+  other workspace is rejected with `already_exists` (even when revoked, so a
+  revoked row is never reassigned), while the owning workspace may
+  re-register its own revoked row back to `pending`.
 - `github.remove` (Owner + fresh `github.remove` step-up): flips the
   installation to `revoked` and closes its repository links atomically.
 - `github.repository.map` (Owner + fresh `github.repository.map` step-up
   bound to `github-link:<repository_id>`): links one repository to one
   project. Requires an `active` installation and requires the project to
   already declare `repository_host: github.com` with the identical immutable
-  `hosted_repository_id`; otherwise `repository_identity_mismatch`. Remap
-  closes the previous active link for the repository or the project first, so
-  exactly one active link exists per repository and per project (partial
-  unique indexes backstop the command).
+  `hosted_repository_id`; otherwise `repository_identity_mismatch`. A
+  repository already linked by another workspace is rejected with
+  `repository_already_mapped` instead of evicting the foreign link. Remap
+  closes only the caller's own previous active link for the repository or
+  the project first, so exactly one active link exists per repository and
+  per project (partial unique indexes backstop the command).
 - `github.permissions.update` (Owner + fresh `github.permissions.update`
   step-up, version-guarded): replaces the recorded permission/event set
   within the inventory.
@@ -70,7 +76,9 @@ to D1.
   to current GitHub state. The per-repository, per-stream latest-wins guard
   (`code`, `pull`, `check`, `issue`, `release`) marks stale deliveries
   `superseded` without writes; unmapped repositories are `ignored`;
-  exhausted attempts move to visible `github_dlq` state.
+  exhausted attempts move to visible `github_dlq` state. Link resolution is
+  scoped to the delivery's workspace, so one workspace's mapping can neither
+  evict nor receive evidence for another workspace's link.
   `installation.created` flips `pending` to `active`, `deleted` revokes and
   closes links, `suspend`/`unsuspend` move between `active` and `suspended`.
   `installation_repositories` is recorded only: repository mapping stays
