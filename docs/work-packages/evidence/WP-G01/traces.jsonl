@@ -1,0 +1,36 @@
+[fixture] seed bfb-g01/v1 v1 with 14 stable ids
+[fixture] pre-0034 state upgrades to 0034_operations preserving tasks
+[fixture] 10 projects present with distinct repository identities
+[fixture] 5 profiles across claude/codex/grok/fake with documented modes
+[fixture] workspace and 10 project policies pinned with empty repository configs
+[fixture] 2 runners enrolled with 4 validated checkouts and launch grants
+[fixture] 10 envelope tasks open across all projects
+[sg01] mcp rejects cookie/cli/runner/agent/integration/unknown credentials
+[sg01] cli principal resolution rejects mcp/runner/session/malformed credentials
+[sg01] delegation binds one scope set; revocation stops resolution before cleanup
+[sg01] scope-less and oversized delegation requests create no grant
+[sg04] step-up mismatch/stale/replay/unknown matrix rejects every bypass
+[ag09] 6 hostile project identifiers rejected at task creation
+[ag09] hostile text stored inert; oversized and hash-mismatched config rejected
+[ag09] claimed launch spec carries no executable surface
+[og01] duplicates dedupe, out-of-order commits ordered, replay is exact
+[sg02] hub FIFO: one stored result, no cursor collision under concurrency
+[sg02] hub eviction recovers from D1 with monotonic cursors
+[ag02] expiry ends executions; cleanup receipts carry no launch authority
+[ag05] attention request/answer/resolve round-trips with version guards
+[a03] submit/review/changes/accept lifecycle keeps immutable history
+[ag04] Stop/exit/session-end matrix never qualifies as a submission
+[ag04] fake-only runner rejects codex launch as request_rejected
+[ag04] tightened project ceiling rejects fake launch as provider_forbidden
+[ag04] provider ceilings reject mismatched launches and unknown providers
+[ag07] token observations dedupe; derivations union exact/estimated/unavailable
+[ag06] hostile bytes publish inertly; grants redeem once; sweep spares live versions
+[sg05] selection extracts IDs; links, payloads, audit, activity carry no canaries
+[og01-github] webhooks verify, dedupe, and ignore revoked installations
+[ops] retention under step-up; diagnostics scan and sanitize
+[ag01] owner/member/reviewer matrix holds across all ten projects
+[sg03] no artifact delete path; uploads converge on content hash
+[perf] 50-command burst within bound; 80 tasks committed
+[ag08] member epoch bump fences subsequent stale-epoch commands
+[ag08] runner launch-grant revocation blocks launch start
+[ag08] runner token removal fences principal re-authentication before cleanup

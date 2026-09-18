@@ -1,0 +1,27 @@
+{
+  "spec": "g01-hardening",
+  "scenarios": [
+    {
+      "scenario": "credential-separation",
+      "bearerRejected": 401,
+      "anonymousRejected": 401
+    },
+    {
+      "scenario": "csrf",
+      "missingCsrf": 403,
+      "forgedCsrf": 403,
+      "taskCountStable": 17
+    },
+    {
+      "scenario": "cookie-hygiene",
+      "sessionCookies": 1,
+      "urlsScanned": 44,
+      "leaks": 0
+    },
+    {
+      "scenario": "hostile-inert",
+      "scriptElements": 0,
+      "hostileTextVisible": true
+    }
+  ]
+}

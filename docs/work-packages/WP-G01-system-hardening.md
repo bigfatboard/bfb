@@ -4,6 +4,10 @@ Status: `planned`
 
 Risk: Very high
 
+Test target: `pnpm test:g01`
+
+Evidence manifest: `docs/work-packages/evidence/WP-G01/manifest.json`
+
 ## Outcome
 
 The complete retained v0.1 feature set passes every pre-release tenant, launch, replay, provider, attention, artifact, revocation, injection, and operations gate as one system, leaving only G02-owned clean-release proofs outstanding.
@@ -30,6 +34,19 @@ The complete retained v0.1 feature set passes every pre-release tenant, launch, 
 
 - Deferring feature-package safety tests here, expanding scope, load testing for enterprise scale, or weakening invariants to make the suite green.
 
+## Contracts
+
+### Consumes
+
+- Every frozen domain contract in `docs/contracts/`: `artifact-review.md`, `artifact-viewer.md`, `artifacts.md`, `attention.md`, `browser-realtime.md`, `cli-credentials.md`, `discussion-delivery.md`, `discussions.md`, `event-ledger.md`, `execution-supervisor.md`, `github.md`, `human-cli.md`, `launch-orchestration.md`, `local-mcp.md`, `macos-app.md`, `measurements.md`, `notifications.md`, `observed-session.md`, `operations.md`, `remote-mcp-extensions.md`, `results.md`, `runner-channel.md`, `runner-enrollment.md`.
+- The versioned wire protocol (`bfb-wire/1`, schema `1`) and the D1 migration head `0034_operations`.
+- Committed fixtures from the owning packages, including the X04 GitHub webhook corpus (`tools/github/fixtures/webhooks/`).
+
+### Produces
+
+- `docs/contracts/release-candidate.md` (frozen): the release-candidate schema/protocol heads, pinned providers, pre-release gate state, and the G02 entry procedure.
+- Stable test target `pnpm test:g01` and evidence manifest `docs/work-packages/evidence/WP-G01/manifest.json` consumed by checkpoint/release automation.
+
 ## Work plan
 
 1. Assemble reproducible local/staging system fixture and seeded identities/projects/runners/providers.
@@ -48,11 +65,24 @@ The complete retained v0.1 feature set passes every pre-release tenant, launch, 
 - Clean rerun is deterministic from committed fixtures.
 - Every retained result follows `ACCEPTANCE.md` evidence/redaction fields and records exact commit, schema/protocol heads, environment, command, and repository evidence path.
 
-## Evidence and handoff
+## Evidence
 
-- Commit the pre-release gate report, fixture seed/version, failure-injection traces, browser security report, and performance/resource baseline.
-- G02 receives one tagged release candidate with frozen contracts, AG-10/OG-02 marked `not_run`, their executable procedures prepared, and no undocumented manual repair.
+- `docs/work-packages/evidence/WP-G01/manifest.json` (conforms to `docs/work-packages/evidence/manifest.schema.json`): gate runs, commit, schema heads, environment, commands, outcomes, redaction status.
+- Pre-release gate report (`gate-report.json`): one row per architecture/security/operations gate with status, command, evidence, waiver, and detail; AG-10 and OG-02 are `not_run` for G02.
+- Golden fixture (`fixture.json`): seed `bfb-g01/v1`, three humans, ten projects, five profiles, two runners with four checkouts, ten envelope tasks.
+- Failure-injection traces (`traces.jsonl`): stable per-suite lines without generated ids or timestamps.
+- Browser security report (`browser-security.json`): bearer/CSRF/cookie/hostile-inert Chromium scenarios on `BFB_E2E_PORT=4197`.
+- Performance baseline (`perf-baseline.json`): envelope counts plus the bounded hub-burst verdict (no raw timings).
+- Redaction scan (`redaction-scan.json`): planted canary classes across every output channel with zero hits.
 
 ## Risks and decisions
 
 - Integrated testing will expose ownership gaps. Fix the owning package and its tests rather than centralizing behavior in the harness.
+- Native Terminal, live provider turns, and supervisor crash/PID-reuse proofs stay L05-owned: this machine cannot drive Terminal from G01 while the L05 certification agent owns it, so AG-02 and AG-04 carry a scoped waiver with the cloud-plane proof passed in G01.
+- Evidence files embed no commit hash, timestamp, or generated id, so `pnpm test:g01` regenerates them byte-identically; the tested commit is bound once in the manifest and command result.
+
+## Handoff
+
+- Implementation, gate (`pnpm test:g01`, `pnpm verify`, `pnpm worktree:check`, clean-checkout gate), and evidence are complete on branch `muse/g01`. Status is left at `planned` (note recorded here and in `mvp.progress.md`) because `pnpm roadmap:check` rejects anything beyond `planned` while A04, E02, L07, P01, P02, V03, W02, X01, X02, X03, X04, and X05 are not `done` (per `docs/work-packages/README.md`).
+- G02 receives one tagged release candidate with frozen contracts (`docs/contracts/release-candidate.md`), AG-10/OG-02 marked `not_run`, their executable procedures prepared, and no undocumented manual repair.
+- Known limitations: the native Terminal launch trace, live provider turns, and supervisor crash/PID-reuse proofs wait on L05 Terminal acceptance; real-network partition behavior beyond workerd eviction is covered by owning-package evidence; performance figures are bounded-verdict counts for the 3/10/5 envelope, not enterprise load figures.

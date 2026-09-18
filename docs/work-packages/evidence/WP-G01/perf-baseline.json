@@ -1,0 +1,23 @@
+{
+  "$schema": "../manifest.schema.json",
+  "seed": "bfb-g01/v1",
+  "fixture_version": 1,
+  "envelope": {
+    "humans": 3,
+    "projects": 10,
+    "profiles": 5,
+    "runners": 2,
+    "checkouts": 4,
+    "concurrent_envelope_tasks": 10
+  },
+  "measured": {
+    "hub_burst_commands": 50,
+    "hub_burst_committed": 50,
+    "hub_burst_bound_ms": 120000,
+    "hub_burst_within_bound": true,
+    "tasks_total": 80,
+    "ledger_events_total": 8,
+    "semantic_events_total": 147
+  },
+  "outcome": "passed"
+}
