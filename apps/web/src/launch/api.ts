@@ -29,6 +29,7 @@ export interface RunnerSummary {
   enrolled_at: string;
   granted_project_ids: string[];
   launcher_human_ids: string[];
+  checkout_status: CheckoutStatus | null;
 }
 
 export interface CheckoutSummary {
@@ -123,12 +124,25 @@ export function createLaunchClient(
   csrfToken: string,
 ): LaunchClient {
   const base = `/api/v1/workspaces/${workspaceId}`;
+  const inflight = new Map<string, Promise<unknown>>();
   async function get<T>(path: string): Promise<T> {
-    const response = await fetchFn(path);
-    if (!response.ok) {
-      throw new Error(`Launch read failed (${response.status})`);
+    const pending = inflight.get(path);
+    if (pending) {
+      return pending as Promise<T>;
     }
-    return (await response.json()) as T;
+    const task = (async () => {
+      const response = await fetchFn(path);
+      if (!response.ok) {
+        throw new Error(`Launch read failed (${response.status})`);
+      }
+      return (await response.json()) as T;
+    })();
+    inflight.set(path, task);
+    try {
+      return await task;
+    } finally {
+      inflight.delete(path);
+    }
   }
   return {
     listRunners: () => get(`${base}/runners`),
@@ -179,20 +193,6 @@ export function createLaunchClient(
 
 export function newIdempotencyKey(): string {
   return browserUlid();
-}
-
-export function isLaunchableRunner(runner: RunnerSummary, humanId: string): boolean {
-  return (
-    runner.status === "enrolled" &&
-    (runner.owner_human_id === humanId || runner.launcher_human_ids.includes(humanId))
-  );
-}
-
-export function selectLaunchableRunners(
-  runners: RunnerSummary[],
-  humanId: string,
-): RunnerSummary[] {
-  return runners.filter((runner) => isLaunchableRunner(runner, humanId));
 }
 
 export type CheckoutDisplay = "ready" | "empty" | "invalid" | "unavailable";
@@ -252,28 +252,24 @@ export function providerStatusMessage(
 }
 
 /**
- * Reads checkout status only for runners the human can launch on. Failures are
- * returned separately so the UI never mistakes a rejected read for an empty
- * inventory. The caller already holds the runner list, so no list read happens
- * here.
+ * Splits the checkout statuses embedded in one runners list read. A missing
+ * status is a failure entry, never an empty inventory: only an embedded read
+ * with no checkouts means nothing was reported. No additional read happens
+ * here: one list poll carries every runner's status.
  */
-export async function loadLaunchableCheckoutStatuses(
-  client: Pick<LaunchClient, "checkoutStatus">,
-  runners: RunnerSummary[],
-  humanId: string,
-): Promise<{ statuses: Record<string, CheckoutStatus>; failures: Record<string, string> }> {
+export function splitRunnerStatuses(runners: RunnerSummary[]): {
+  statuses: Record<string, CheckoutStatus>;
+  failures: Record<string, string>;
+} {
   const statuses: Record<string, CheckoutStatus> = {};
   const failures: Record<string, string> = {};
-  await Promise.all(
-    selectLaunchableRunners(runners, humanId).map(async (runner) => {
-      try {
-        statuses[runner.runner_id] = await client.checkoutStatus(runner.runner_id);
-      } catch (error) {
-        failures[runner.runner_id] =
-          error instanceof Error ? error.message : "Checkout status read failed.";
-      }
-    }),
-  );
+  for (const runner of runners) {
+    if (runner.checkout_status) {
+      statuses[runner.runner_id] = runner.checkout_status;
+    } else {
+      failures[runner.runner_id] = "Checkout status is unavailable.";
+    }
+  }
   return { statuses, failures };
 }
 

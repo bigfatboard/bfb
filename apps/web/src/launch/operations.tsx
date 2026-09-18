@@ -13,10 +13,10 @@ import {
   describeCheckoutDisplay,
   describeLaunchStatus,
   linkedCheckoutsMessage,
-  loadLaunchableCheckoutStatuses,
   newIdempotencyKey,
   providerStatusMessage,
   refreshTaskLaunches,
+  splitRunnerStatuses,
   resultLabel,
   type CheckoutStatus,
   type ControlAction,
@@ -81,7 +81,7 @@ export function RunnerOperations(props: RunnerOperationsProps) {
     try {
       const listed = await client.listRunners();
       setRunners(listed.runners);
-      const next = await loadLaunchableCheckoutStatuses(client, listed.runners, props.humanId);
+      const next = splitRunnerStatuses(listed.runners);
       setStatuses(next.statuses);
       setStatusFailures(next.failures);
       const projectResponse = await fetchFn(
@@ -108,18 +108,14 @@ export function RunnerOperations(props: RunnerOperationsProps) {
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Runner operations failed to load.");
     }
-  }, [client, fetchFn, props.humanId, props.workspaceId]);
+  }, [client, fetchFn, props.workspaceId]);
 
   const refreshRunners = useCallback(async () => {
     const listed = await client.listRunners();
-    const kept = new Set(listed.runners.map((runner) => runner.runner_id));
     setRunners(listed.runners);
-    setStatuses((previous) =>
-      Object.fromEntries(Object.entries(previous).filter(([id]) => kept.has(id))),
-    );
-    setStatusFailures((previous) =>
-      Object.fromEntries(Object.entries(previous).filter(([id]) => kept.has(id))),
-    );
+    const next = splitRunnerStatuses(listed.runners);
+    setStatuses(next.statuses);
+    setStatusFailures(next.failures);
   }, [client]);
 
   useEffect(() => {
@@ -536,11 +532,11 @@ export function LaunchSection(props: LaunchSectionProps) {
     ]);
     setProfiles((profileBody as { profiles: ProfileRecord[] }).profiles);
     setRunners(runnerBody.runners);
-    const next = await loadLaunchableCheckoutStatuses(client, runnerBody.runners, props.humanId);
+    const next = splitRunnerStatuses(runnerBody.runners);
     setStatuses(next.statuses);
     setStatusFailures(next.failures);
     setLaunches(launchBody.launches);
-  }, [client, fetchFn, props.humanId, props.taskId, props.workspaceId]);
+  }, [client, fetchFn, props.taskId, props.workspaceId]);
 
   const refreshLaunches = useCallback(async () => {
     const body = await refreshTaskLaunches(client, props.taskId);
