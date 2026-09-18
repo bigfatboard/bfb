@@ -32,6 +32,7 @@ import {
   type DlqCopy,
   type NotifyQueueDeps,
 } from "../src/notifications/queue.js";
+import { dispatchNotificationOutbox } from "../src/notifications/dispatch.js";
 import type { VapidSecrets } from "../src/notifications/push.js";
 import { openAuthTestContext, type AuthTestContext } from "./auth-helpers.js";
 
@@ -391,6 +392,46 @@ function depsFor(
     vapid: input.vapid,
   };
 }
+
+describe("notification outbox dispatch", () => {
+  it("sends one message per actionable event and advances the watermark", async () => {
+    const world = await seedQueueWorld("Synthetic X01 dispatch");
+    const sent: Array<{ workspace_id: string; event_cursor: number; event_kind: string }> = [];
+    const first = await dispatchNotificationOutbox(
+      world.context.db,
+      async (message) => {
+        sent.push(message);
+      },
+      NOW,
+    );
+    expect(first.workspaces).toBe(1);
+    expect(first.sent).toBe(1);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({ workspace_id: FIX.workspace, event_kind: "attention.request" });
+    const state = (await world.context.db
+      .prepare(`SELECT last_cursor FROM notification_dispatch_state WHERE workspace_id = ?`)
+      .get(FIX.workspace)) as { last_cursor: number };
+    expect(state.last_cursor).toBe(sent[0]?.event_cursor);
+    const task = await new WorkspaceHub(world.context.db).execute(createTaskCommand, {
+      workspaceId: FIX.workspace,
+      idempotencyKey: randomUlid(),
+      actorHumanId: FIX.owner,
+      authorizationEpoch: 1,
+      now: NOW,
+      input: { projectId: FIX.projectA, title: "Synthetic X01 telemetry task", priority: "P2" },
+    });
+    if (!task.ok) throw new Error(task.error.code);
+    const second = await dispatchNotificationOutbox(
+      world.context.db,
+      async (message) => {
+        sent.push(message);
+      },
+      NOW,
+    );
+    expect(second.sent).toBe(0);
+    expect(sent).toHaveLength(1);
+  });
+});
 
 describe("notification queue consumer", () => {
   it("delivers once despite duplicate redelivery", async () => {
