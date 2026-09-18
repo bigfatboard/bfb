@@ -416,6 +416,9 @@ function take2(value: unknown): string {
 }
 
 async function requireOwner(ctx: HubContext) {
+  if (ctx.actorDelegationId) {
+    fail("forbidden", "direct authorized human required");
+  }
   if (!ctx.actorHumanId) {
     fail("unauthenticated", "human actor required");
   }
@@ -1641,6 +1644,9 @@ export const linkGitHubEvidenceCommand: HubCommand<LinkGitHubEvidenceInput, GitH
         ],
         "github evidence link",
       );
+      if (ctx.actorDelegationId) {
+        fail("forbidden", "direct authorized human required");
+      }
       if (!ctx.actorHumanId) {
         fail("unauthenticated", "human actor required");
       }

@@ -328,7 +328,7 @@ export const setNotificationPreferenceCommand: HubCommand<SetPreferenceInput, Pr
       enabled: input.enabled,
     }),
     async run(input, ctx) {
-      if (!ctx.actorHumanId) {
+      if (!ctx.actorHumanId || ctx.actorDelegationId) {
         throw new DomainError("forbidden", "notification preferences need a human actor");
       }
       if (!isChannel(input.channel) || !isCategory(input.category)) {
@@ -421,7 +421,7 @@ export const registerPushEndpointCommand: HubCommand<
     hasEndpoint: typeof input.endpoint === "string" && input.endpoint.length > 0,
   }),
   async run(input, ctx) {
-    if (!ctx.actorHumanId) {
+    if (!ctx.actorHumanId || ctx.actorDelegationId) {
       throw new DomainError("forbidden", "push endpoints need a human actor");
     }
     const checked = assertPushEndpoint(input);
@@ -454,7 +454,7 @@ export const removePushEndpointCommand: HubCommand<{ endpointHash: string }, { r
     name: "notification.push_endpoint.remove",
     auditInput: (input) => ({ hasEndpointHash: typeof input.endpointHash === "string" }),
     async run(input, ctx) {
-      if (!ctx.actorHumanId) {
+      if (!ctx.actorHumanId || ctx.actorDelegationId) {
         throw new DomainError("forbidden", "push endpoints need a human actor");
       }
       if (typeof input.endpointHash !== "string" || !/^[0-9a-f]{64}$/.test(input.endpointHash)) {

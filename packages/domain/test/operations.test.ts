@@ -157,6 +157,30 @@ describe("retention policy", () => {
     );
     expect((await setRetention(db, 400, badWindow)).ok).toBe(false);
   });
+
+  it("rejects delegated envelopes before step-up without changing the policy", async () => {
+    const db = await openDomainDb();
+    const proof = await stepUp(
+      db,
+      FIX.owner,
+      OPS_STEP_UP_ACTIONS.retention,
+      `ops-retention:${FIX.workspace}`,
+    );
+    const delegated = await hub(db).execute(setRetentionPolicyCommand, {
+      workspaceId: FIX.workspace,
+      idempotencyKey: randomUlid(),
+      actorHumanId: FIX.owner,
+      actorDelegationId: randomUlid(),
+      authorizationEpoch: 1,
+      now: NOW,
+      input: { rawLogRetentionDays: 7, stepUpProofId: proof },
+    });
+    expect(delegated).toMatchObject({ ok: false, error: { code: "forbidden" } });
+    const policies = (await db
+      .prepare(`SELECT COUNT(*) AS count FROM retention_policies WHERE workspace_id = ?`)
+      .get(FIX.workspace)) as { count: number };
+    expect(policies).toEqual({ count: 0 });
+  });
 });
 
 describe("retention eligibility", () => {

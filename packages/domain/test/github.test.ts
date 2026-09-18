@@ -614,6 +614,18 @@ describe("github installation management", () => {
     const proof = await stepUp(db, FIX.owner, "github.install", target);
     expect((await attempt(FIX.owner, proof)).ok).toBe(true);
     expect((await attempt(FIX.owner, proof)).ok).toBe(false);
+    // A delegated envelope is rejected before step-up, even with a fresh Owner proof.
+    const delegatedProof = await stepUp(db, FIX.owner, "github.install", target);
+    const delegated = await hub(db).execute(installGitHubCommand, {
+      workspaceId: FIX.workspace,
+      idempotencyKey: randomUlid(),
+      actorHumanId: FIX.owner,
+      actorDelegationId: randomUlid(),
+      authorizationEpoch: 1,
+      now: NOW,
+      input: { ...base, stepUpProofId: delegatedProof },
+    });
+    expect(delegated).toMatchObject({ ok: false, error: { code: "forbidden" } });
   });
 
   it("removes with step-up, closes links, and refuses a second remove", async () => {
@@ -1383,6 +1395,32 @@ describe("github evidence linking and provenance", () => {
     const listed = await listGitHubEvidence(db, FIX.workspace, { taskId });
     expect(listed).toHaveLength(1);
     expect(listed[0]?.observed_by).toBe("runner");
+  });
+
+  it("rejects delegated envelopes without writing evidence", async () => {
+    const db = await openDomainDb();
+    await install(db);
+    await activate(db);
+    const projectId = await createGitHubProject(db);
+    await mapRepo(db, projectId);
+    const delegated = await hub(db).execute(linkGitHubEvidenceCommand, {
+      workspaceId: FIX.workspace,
+      idempotencyKey: randomUlid(),
+      actorHumanId: FIX.member,
+      actorDelegationId: randomUlid(),
+      authorizationEpoch: 1,
+      now: NOW,
+      input: {
+        projectId,
+        repositoryId: REPOSITORY,
+        kind: "commit",
+        ref: "f".repeat(40),
+        versionToken: "f".repeat(40),
+        observedBy: "human",
+      },
+    });
+    expect(delegated).toMatchObject({ ok: false, error: { code: "forbidden" } });
+    expect(await listGitHubEvidence(db, FIX.workspace, { projectId })).toHaveLength(0);
   });
 
   it("never upgrades runner claims without matching github evidence", async () => {

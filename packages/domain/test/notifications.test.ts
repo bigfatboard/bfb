@@ -387,6 +387,40 @@ describe("notification preference and endpoint commands", () => {
     );
     expect(missing.removed).toBe(false);
   });
+
+  it("rejects delegated envelopes without touching preferences or endpoints", async () => {
+    const f = await launchFixture();
+    const delegated = {
+      workspaceId: FIX.workspace,
+      actorHumanId: FIX.owner,
+      actorDelegationId: randomUlid(),
+      authorizationEpoch: 1,
+      now: LAUNCH_NOW,
+    };
+    const preference = await f.hub.execute(setNotificationPreferenceCommand, {
+      ...delegated,
+      idempotencyKey: randomUlid(),
+      input: { projectId: FIX.projectA, channel: "macos", category: "attention", enabled: true },
+    });
+    expect(preference).toMatchObject({ ok: false, error: { code: "forbidden" } });
+    const registered = await f.hub.execute(registerPushEndpointCommand, {
+      ...delegated,
+      idempotencyKey: randomUlid(),
+      input: {
+        endpoint: "https://push.synthetic.test/x01-delegated",
+        p256dh: "B".repeat(87),
+        auth: "A".repeat(22),
+      },
+    });
+    expect(registered).toMatchObject({ ok: false, error: { code: "forbidden" } });
+    const removed = await f.hub.execute(removePushEndpointCommand, {
+      ...delegated,
+      idempotencyKey: randomUlid(),
+      input: { endpointHash: "a".repeat(64) },
+    });
+    expect(removed).toMatchObject({ ok: false, error: { code: "forbidden" } });
+    expect(await getPreferenceOverrides(f.db, FIX.workspace, FIX.owner)).toHaveLength(0);
+  });
 });
 
 describe("notification fan-out guards", () => {

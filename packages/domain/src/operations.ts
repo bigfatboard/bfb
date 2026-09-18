@@ -82,6 +82,9 @@ function ulidList(value: unknown, field: string): string[] {
 }
 
 async function requireOwner(ctx: HubContext) {
+  if (ctx.actorDelegationId) {
+    fail("forbidden", "direct authorized human required");
+  }
   if (!ctx.actorHumanId) {
     fail("unauthenticated", "human actor required");
   }
