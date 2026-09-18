@@ -24,7 +24,10 @@ import { createTestHarness } from "wrangler";
 /** Evidence JSON must match the repository Prettier style so regeneration stays byte-identical. */
 async function writeJson(path: string, value: unknown): Promise<void> {
   const options = (await resolveConfig(path)) ?? {};
-  await writeFile(path, await format(JSON.stringify(value, null, 2), { ...options, parser: "json" }));
+  await writeFile(
+    path,
+    await format(JSON.stringify(value, null, 2), { ...options, parser: "json" }),
+  );
 }
 
 const toolDir = dirname(fileURLToPath(import.meta.url));
@@ -256,7 +259,10 @@ async function main(): Promise<void> {
   const pick = (): string => (workerIndex++ % 2 === 0 ? "bfb-x05-a" : "bfb-x05-b");
   const fetchWorker = (name: string, url: string, init?: RequestInit): Promise<Response> =>
     (
-      server.getWorker(name).fetch as unknown as (url: string, init?: RequestInit) => Promise<Response>
+      server.getWorker(name).fetch as unknown as (
+        url: string,
+        init?: RequestInit,
+      ) => Promise<Response>
     )(url, init);
 
   async function browser(
@@ -283,10 +289,12 @@ async function main(): Promise<void> {
   }
 
   const get = (path: string, session: { cookie: string; csrf: string }) =>
-    fetchWorker(pick(), ORIGIN + path, { headers: { cookie: session.cookie } }).then(async (response) => ({
-      status: response.status,
-      body: (await response.json()) as unknown,
-    }));
+    fetchWorker(pick(), ORIGIN + path, { headers: { cookie: session.cookie } }).then(
+      async (response) => ({
+        status: response.status,
+        body: (await response.json()) as unknown,
+      }),
+    );
 
   try {
     await server.listen();
@@ -306,8 +314,24 @@ async function main(): Promise<void> {
     pass("D1-migration");
 
     await seedSyntheticWorkspace(db, now, "global");
-    await seedHuman(db, "x05-user", "x05-owner-session", "x05-owner-token", FIX.owner, "owner@synthetic.test", now);
-    await seedHuman(db, "x05-member-user", "x05-member-session", "x05-member-token", FIX.member, "member@synthetic.test", now);
+    await seedHuman(
+      db,
+      "x05-user",
+      "x05-owner-session",
+      "x05-owner-token",
+      FIX.owner,
+      "owner@synthetic.test",
+      now,
+    );
+    await seedHuman(
+      db,
+      "x05-member-user",
+      "x05-member-session",
+      "x05-member-token",
+      FIX.member,
+      "member@synthetic.test",
+      now,
+    );
     await seedHuman(
       db,
       "x05-reviewer-user",
@@ -340,7 +364,10 @@ async function main(): Promise<void> {
       assert.equal(reviewerActivity.status, 200);
       harvest("security-audit", ownerAudit.body);
       harvest("activity", ownerActivity.body);
-      assert.ok(!harvested["activity"]!.includes("payload_json"), "activity carries no ledger payloads");
+      assert.ok(
+        !harvested["activity"]!.includes("payload_json"),
+        "activity carries no ledger payloads",
+      );
       note("D2", "security audit Owner-only; activity role-scoped without payloads");
       pass("D2-roles");
     }
@@ -400,7 +427,10 @@ async function main(): Promise<void> {
         step_up_proof_id: staleIssue,
       });
       assert.equal(stale.status, 403);
-      note("D3", "member/missing/replayed/mismatched/stale proofs rejected; fresh Owner proof sets v1");
+      note(
+        "D3",
+        "member/missing/replayed/mismatched/stale proofs rejected; fresh Owner proof sets v1",
+      );
       pass("D3-step-up");
     }
 
@@ -437,7 +467,11 @@ async function main(): Promise<void> {
         authExpiresAt: new Date(Date.parse(T0) + 300_000).toISOString(),
         projectIds: [FIX.projectA],
       } as const;
-      const human = async <T>(command: { name: string }, input: unknown, at: string): Promise<T> => {
+      const human = async <T>(
+        command: { name: string },
+        input: unknown,
+        at: string,
+      ): Promise<T> => {
         const outcome = await hub.execute(command as never, {
           workspaceId: FIX.workspace,
           idempotencyKey: randomUlid(),
@@ -449,7 +483,11 @@ async function main(): Promise<void> {
         assert.equal(outcome.ok, true, `seed ${command.name}: ${JSON.stringify(outcome)}`);
         return (outcome as { result: T }).result;
       };
-      const native = async <T>(command: { name: string }, input: unknown, at: string): Promise<T> => {
+      const native = async <T>(
+        command: { name: string },
+        input: unknown,
+        at: string,
+      ): Promise<T> => {
         const outcome = await hub.execute(command as never, {
           workspaceId: FIX.workspace,
           idempotencyKey: randomUlid(),
@@ -467,9 +505,13 @@ async function main(): Promise<void> {
            VALUES (?, ?, ?, 'X05 drill Mac', '{}', ?, 1, ?)`,
         )
         .run(FIX.workspace, runner, FIX.owner, principal.keyThumbprint, T0);
-      await db.prepare(`INSERT INTO runner_project_grants VALUES (?, ?, ?)`).run(FIX.workspace, runner, FIX.projectA);
       await db
-        .prepare(`INSERT INTO runner_launch_grants (workspace_id, runner_id, human_id, granted_at) VALUES (?, ?, ?, ?)`)
+        .prepare(`INSERT INTO runner_project_grants VALUES (?, ?, ?)`)
+        .run(FIX.workspace, runner, FIX.projectA);
+      await db
+        .prepare(
+          `INSERT INTO runner_launch_grants (workspace_id, runner_id, human_id, granted_at) VALUES (?, ?, ?, ?)`,
+        )
         .run(FIX.workspace, runner, FIX.owner, T0);
       await db
         .prepare(
@@ -504,31 +546,55 @@ async function main(): Promise<void> {
         allowRunOverrides: true,
       };
       await human(updateWorkspacePolicyCommand, { ...policy, expectedVersion: 1 }, T0);
-      await human(updateProjectPolicyCommand, { ...policy, expectedVersion: 1, projectId: FIX.projectA }, T0);
+      await human(
+        updateProjectPolicyCommand,
+        { ...policy, expectedVersion: 1, projectId: FIX.projectA },
+        T0,
+      );
       const configHash = `sha256:${runnerHash("{}")}`;
       await human(
         reportRepositoryConfigCommand,
         { projectId: FIX.projectA, expectedVersion: 1, document: {}, contentHash: configHash },
         T0,
       );
-      const profile = await human(createAgentProfileCommand, {
-        name: "X05 drill provider",
-        provider: "fake",
-        model: "synthetic",
-        executionMode: "interactive",
-        harnessMode: "restricted",
-      }, T0) as { id: string };
-      const task = await human(createTaskCommand, {
-        projectId: FIX.projectA,
-        title: `Drill task ${CANARIES.taskBody}`,
-        priority: "P2",
-      }, T0) as { id: string };
-      await human(addContextCommand, {
-        taskId: task.id,
-        kind: "brief",
-        audience: "agent",
-        body: [CANARIES.taskBody, CANARIES.cookie, CANARIES.bearer, CANARIES.path, CANARIES.hook, CANARIES.artifact, CANARIES.terminal].join(" | "),
-      }, T0);
+      const profile = (await human(
+        createAgentProfileCommand,
+        {
+          name: "X05 drill provider",
+          provider: "fake",
+          model: "synthetic",
+          executionMode: "interactive",
+          harnessMode: "restricted",
+        },
+        T0,
+      )) as { id: string };
+      const task = (await human(
+        createTaskCommand,
+        {
+          projectId: FIX.projectA,
+          title: `Drill task ${CANARIES.taskBody}`,
+          priority: "P2",
+        },
+        T0,
+      )) as { id: string };
+      await human(
+        addContextCommand,
+        {
+          taskId: task.id,
+          kind: "brief",
+          audience: "agent",
+          body: [
+            CANARIES.taskBody,
+            CANARIES.cookie,
+            CANARIES.bearer,
+            CANARIES.path,
+            CANARIES.hook,
+            CANARIES.artifact,
+            CANARIES.terminal,
+          ].join(" | "),
+        },
+        T0,
+      );
       await native(
         replaceRunnerInventoryCommand,
         {
@@ -565,17 +631,17 @@ async function main(): Promise<void> {
                 observed_at: T0,
                 expires_at: new Date(Date.parse(T0) + 30_000).toISOString(),
                 capabilities: [
-                "launch.interactive",
-                "filesystem.read_only",
-                "approval.never",
-                "context.session_start",
-                "prompt.initial_constant",
-                "hooks.session_start",
-                "mcp.stdio",
-                "control.interrupt",
-                "control.terminate",
-                "session.resume",
-              ],
+                  "launch.interactive",
+                  "filesystem.read_only",
+                  "approval.never",
+                  "context.session_start",
+                  "prompt.initial_constant",
+                  "hooks.session_start",
+                  "mcp.stdio",
+                  "control.interrupt",
+                  "control.terminate",
+                  "session.resume",
+                ],
               },
             ],
           },
@@ -583,29 +649,56 @@ async function main(): Promise<void> {
         T0,
       );
       const versions = {
-        workspace: ((await db.prepare(`SELECT resource_version FROM workspace_policies WHERE workspace_id = ?`).get(FIX.workspace)) as { resource_version: number }).resource_version,
-        project: ((await db.prepare(`SELECT resource_version FROM project_policies WHERE workspace_id = ? AND project_id = ?`).get(FIX.workspace, FIX.projectA)) as { resource_version: number }).resource_version,
-        config: ((await db.prepare(`SELECT resource_version FROM repository_configs WHERE workspace_id = ? AND project_id = ?`).get(FIX.workspace, FIX.projectA)) as { resource_version: number }).resource_version,
+        workspace: (
+          (await db
+            .prepare(`SELECT resource_version FROM workspace_policies WHERE workspace_id = ?`)
+            .get(FIX.workspace)) as { resource_version: number }
+        ).resource_version,
+        project: (
+          (await db
+            .prepare(
+              `SELECT resource_version FROM project_policies WHERE workspace_id = ? AND project_id = ?`,
+            )
+            .get(FIX.workspace, FIX.projectA)) as { resource_version: number }
+        ).resource_version,
+        config: (
+          (await db
+            .prepare(
+              `SELECT resource_version FROM repository_configs WHERE workspace_id = ? AND project_id = ?`,
+            )
+            .get(FIX.workspace, FIX.projectA)) as { resource_version: number }
+        ).resource_version,
       };
-      const launch = await human(startLaunchCommand, {
-        schema_version: 1,
-        idempotency_key: randomUlid(),
-        task_id: task.id,
-        expected_task_version: 1,
-        runner_id: runner,
-        checkout_id: checkout,
-        agent_profile_id: profile.id,
-        agent_profile_version: 1,
-        workspace_policy_version: versions.workspace,
-        project_policy_version: versions.project,
-        repository_config_version: versions.config,
-      }, T0) as { launch_id: string };
+      const launch = (await human(
+        startLaunchCommand,
+        {
+          schema_version: 1,
+          idempotency_key: randomUlid(),
+          task_id: task.id,
+          expected_task_version: 1,
+          runner_id: runner,
+          checkout_id: checkout,
+          agent_profile_id: profile.id,
+          agent_profile_version: 1,
+          workspace_policy_version: versions.workspace,
+          project_policy_version: versions.project,
+          repository_config_version: versions.config,
+        },
+        T0,
+      )) as { launch_id: string };
       const queues = await get(`${base}/queues`, OWNER);
       assert.equal(queues.status, 200);
-      const stuck = (queues.body as { stuck_launches: Array<{ command_id: string }> }).stuck_launches;
-      assert.ok(stuck.some((entry) => entry.command_id === launch.launch_id), "expired launch is stuck-visible");
+      const stuck = (queues.body as { stuck_launches: Array<{ command_id: string }> })
+        .stuck_launches;
+      assert.ok(
+        stuck.some((entry) => entry.command_id === launch.launch_id),
+        "expired launch is stuck-visible",
+      );
       harvest("queues", queues.body);
-      note("D4", `expired launch ${launch.launch_id.slice(0, 8)}… visible as stuck; live claims untouched`);
+      note(
+        "D4",
+        `expired launch ${launch.launch_id.slice(0, 8)}… visible as stuck; live claims untouched`,
+      );
       pass("D4-stuck-launch");
     }
 
@@ -629,13 +722,19 @@ async function main(): Promise<void> {
       const before = await get(`${base}/queues`, OWNER);
       assert.equal(before.status, 200);
       assert.ok(
-        ((before.body as { stuck_uploads: Array<{ version_id: string }> }).stuck_uploads ?? []).some(
-          (entry) => entry.version_id === version,
-        ),
+        (
+          (before.body as { stuck_uploads: Array<{ version_id: string }> }).stuck_uploads ?? []
+        ).some((entry) => entry.version_id === version),
         "stuck upload is visible",
       );
       const recoverTarget = `ops-recover:resolve_stuck_upload:${FIX.workspace}`;
-      const firstProof = await stepUp(db, FIX.owner, OPS_STEP_UP_ACTIONS.recover, recoverTarget, now);
+      const firstProof = await stepUp(
+        db,
+        FIX.owner,
+        OPS_STEP_UP_ACTIONS.recover,
+        recoverTarget,
+        now,
+      );
       const first = await browser("POST", `${base}/recovery`, OWNER, {
         request_id: "x05-d5-first",
         kind: "resolve_stuck_upload",
@@ -648,7 +747,13 @@ async function main(): Promise<void> {
         .prepare(`SELECT state FROM artifact_versions WHERE workspace_id = ? AND id = ?`)
         .get(FIX.workspace, version)) as { state: string };
       assert.equal(state.state, "failed");
-      const secondProof = await stepUp(db, FIX.owner, OPS_STEP_UP_ACTIONS.recover, recoverTarget, now);
+      const secondProof = await stepUp(
+        db,
+        FIX.owner,
+        OPS_STEP_UP_ACTIONS.recover,
+        recoverTarget,
+        now,
+      );
       const second = await browser("POST", `${base}/recovery`, OWNER, {
         request_id: "x05-d5-second",
         kind: "resolve_stuck_upload",
@@ -657,7 +762,13 @@ async function main(): Promise<void> {
       });
       assert.equal(second.status, 200);
       assert.equal((second.body as { result: { replayed: boolean } }).result.replayed, true);
-      const liveProof = await stepUp(db, FIX.owner, OPS_STEP_UP_ACTIONS.recover, recoverTarget, now);
+      const liveProof = await stepUp(
+        db,
+        FIX.owner,
+        OPS_STEP_UP_ACTIONS.recover,
+        recoverTarget,
+        now,
+      );
       const liveDenied = await browser("POST", `${base}/recovery`, OWNER, {
         request_id: "x05-d5-live",
         kind: "resolve_stuck_upload",
@@ -694,7 +805,9 @@ async function main(): Promise<void> {
       });
       assert.equal(requeued.status, 200);
       const row = (await db
-        .prepare(`SELECT state, attempts FROM github_integration_outbox WHERE workspace_id = ? AND outbox_id = ?`)
+        .prepare(
+          `SELECT state, attempts FROM github_integration_outbox WHERE workspace_id = ? AND outbox_id = ?`,
+        )
         .get(FIX.workspace, "x05-outbox-dlq-1")) as { state: string; attempts: number };
       assert.deepEqual(row, { state: "pending", attempts: 0 });
       note("D6", "github DLQ row requeued to pending with reset attempts");
@@ -792,15 +905,28 @@ async function main(): Promise<void> {
       };
       await queueEnv.ARTIFACTS.put(chunks[0]!.key, "old-log-bytes");
       await queueEnv.ARTIFACTS.put(chunks[1]!.key, "fresh-log-bytes");
-      await queueEnv.ARTIFACTS.put(`workspaces/${FIX.workspace}/artifacts/sha256/${"f".repeat(64)}`, "review-bytes");
-      await queueEnv.OPS_JOBS.send({ schema_version: 1, kind: "retention.sweep", workspace_id: FIX.workspace, attempt: 1 });
+      await queueEnv.ARTIFACTS.put(
+        `workspaces/${FIX.workspace}/artifacts/sha256/${"f".repeat(64)}`,
+        "review-bytes",
+      );
+      await queueEnv.OPS_JOBS.send({
+        schema_version: 1,
+        kind: "retention.sweep",
+        workspace_id: FIX.workspace,
+        attempt: 1,
+      });
       const run = await poll("retention run recorded", async () => {
         const row = (await db
           .prepare(
             `SELECT examined, deleted_objects, deleted_bytes, error FROM retention_runs WHERE workspace_id = ? ORDER BY started_at DESC, id DESC`,
           )
           .get(FIX.workspace)) as
-          | { examined: number; deleted_objects: number; deleted_bytes: number; error: string | null }
+          | {
+              examined: number;
+              deleted_objects: number;
+              deleted_bytes: number;
+              error: string | null;
+            }
           | undefined;
         return row && row.deleted_objects === 1 ? row : null;
       });
@@ -808,7 +934,11 @@ async function main(): Promise<void> {
       assert.equal((await queueEnv.ARTIFACTS.get(chunks[0]!.key)) === null, true);
       assert.equal(await (await queueEnv.ARTIFACTS.get(chunks[1]!.key))?.text(), "fresh-log-bytes");
       assert.equal(
-        await (await queueEnv.ARTIFACTS.get(`workspaces/${FIX.workspace}/artifacts/sha256/${"f".repeat(64)}`))?.text(),
+        await (
+          await queueEnv.ARTIFACTS.get(
+            `workspaces/${FIX.workspace}/artifacts/sha256/${"f".repeat(64)}`,
+          )
+        )?.text(),
         "review-bytes",
       );
       const kept = (await db
@@ -822,19 +952,30 @@ async function main(): Promise<void> {
         kept_d1_rows: kept.count,
         review_object_intact: true,
       });
-      note("D8", `retention via queue deleted 1 eligible object; ${kept.count} D1 rows and review bytes intact`);
+      note(
+        "D8",
+        `retention via queue deleted 1 eligible object; ${kept.count} D1 rows and review bytes intact`,
+      );
       pass("D8-retention");
     }
 
     // D9: diagnostic generate, inventory review, consent, and queued upload.
     {
-      const generateProof = await stepUp(db, FIX.owner, OPS_STEP_UP_ACTIONS.diagnosticGenerate, `diagnostic:generate:${FIX.workspace}`, now);
+      const generateProof = await stepUp(
+        db,
+        FIX.owner,
+        OPS_STEP_UP_ACTIONS.diagnosticGenerate,
+        `diagnostic:generate:${FIX.workspace}`,
+        now,
+      );
       const generated = await browser("POST", `${base}/diagnostics`, OWNER, {
         request_id: "x05-d9-generate",
         step_up_proof_id: generateProof,
       });
       assert.equal(generated.status, 200);
-      const bundle = (generated.body as { result: { id: string; state: string; inventory_json: string } }).result;
+      const bundle = (
+        generated.body as { result: { id: string; state: string; inventory_json: string } }
+      ).result;
       assert.equal(bundle.state, "pending_consent");
       const inventory = JSON.parse(bundle.inventory_json) as { sections: Array<{ name: string }> };
       assert.deepEqual(
@@ -844,7 +985,13 @@ async function main(): Promise<void> {
       harvest("diagnostic-inventory", JSON.parse(bundle.inventory_json) as unknown);
       const review = await get(`${base}/diagnostics/${bundle.id}`, OWNER);
       assert.equal(review.status, 200);
-      const consentProof = await stepUp(db, FIX.owner, OPS_STEP_UP_ACTIONS.diagnosticUpload, `diagnostic:${bundle.id}`, now);
+      const consentProof = await stepUp(
+        db,
+        FIX.owner,
+        OPS_STEP_UP_ACTIONS.diagnosticUpload,
+        `diagnostic:${bundle.id}`,
+        now,
+      );
       const consented = await browser("POST", `${base}/diagnostics/${bundle.id}/consent`, OWNER, {
         request_id: "x05-d9-consent",
         step_up_proof_id: consentProof,
@@ -878,7 +1025,12 @@ async function main(): Promise<void> {
       };
       const before = dlqCopies.length;
       await queueEnv.OPS_JOBS.send({ kind: "diagnostic.upload", workspace_id: FIX.workspace });
-      await queueEnv.OPS_JOBS.send({ schema_version: 1, kind: "retention.sweep", workspace_id: FIX.workspace, attempt: 1 });
+      await queueEnv.OPS_JOBS.send({
+        schema_version: 1,
+        kind: "retention.sweep",
+        workspace_id: FIX.workspace,
+        attempt: 1,
+      });
       await poll("poison copy reaches the DLQ collector", async () =>
         dlqCopies.length > before ? dlqCopies : null,
       );
@@ -973,5 +1125,3 @@ await main().catch((error) => {
   console.error(error);
   process.exit(1);
 });
-
-

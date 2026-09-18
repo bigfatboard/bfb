@@ -97,7 +97,12 @@ describe("x05 operations migration", () => {
 describe("retention policy", () => {
   it("sets the window for an Owner with a fresh bound proof", async () => {
     const db = await openDomainDb();
-    const proof = await stepUp(db, FIX.owner, OPS_STEP_UP_ACTIONS.retention, `ops-retention:${FIX.workspace}`);
+    const proof = await stepUp(
+      db,
+      FIX.owner,
+      OPS_STEP_UP_ACTIONS.retention,
+      `ops-retention:${FIX.workspace}`,
+    );
     const outcome = await setRetention(db, 7, proof);
     expect(outcome.ok).toBe(true);
     expect(success(outcome)).toMatchObject({ raw_log_retention_days: 7, version: 1 });
@@ -105,23 +110,50 @@ describe("retention policy", () => {
 
   it("rejects members, missing, stale, replayed, and action-mismatched proofs", async () => {
     const db = await openDomainDb();
-    const memberProof = await stepUp(db, FIX.member, OPS_STEP_UP_ACTIONS.retention, `ops-retention:${FIX.workspace}`);
+    const memberProof = await stepUp(
+      db,
+      FIX.member,
+      OPS_STEP_UP_ACTIONS.retention,
+      `ops-retention:${FIX.workspace}`,
+    );
     expect((await setRetention(db, 7, memberProof, FIX.member)).ok).toBe(false);
 
-    const ownerProof = await stepUp(db, FIX.owner, OPS_STEP_UP_ACTIONS.retention, `ops-retention:${FIX.workspace}`);
-    expect((await setRetention(db, 7, ownerProof, FIX.owner, "2026-09-18T13:00:00.000Z")).ok).toBe(false);
+    const ownerProof = await stepUp(
+      db,
+      FIX.owner,
+      OPS_STEP_UP_ACTIONS.retention,
+      `ops-retention:${FIX.workspace}`,
+    );
+    expect((await setRetention(db, 7, ownerProof, FIX.owner, "2026-09-18T13:00:00.000Z")).ok).toBe(
+      false,
+    );
 
-    const replay = await stepUp(db, FIX.owner, OPS_STEP_UP_ACTIONS.retention, `ops-retention:${FIX.workspace}`);
+    const replay = await stepUp(
+      db,
+      FIX.owner,
+      OPS_STEP_UP_ACTIONS.retention,
+      `ops-retention:${FIX.workspace}`,
+    );
     expect((await setRetention(db, 7, replay)).ok).toBe(true);
     expect((await setRetention(db, 9, replay)).ok).toBe(false);
 
-    const wrong = await stepUp(db, FIX.owner, OPS_STEP_UP_ACTIONS.recover, `ops-retention:${FIX.workspace}`);
+    const wrong = await stepUp(
+      db,
+      FIX.owner,
+      OPS_STEP_UP_ACTIONS.recover,
+      `ops-retention:${FIX.workspace}`,
+    );
     expect((await setRetention(db, 11, wrong)).ok).toBe(false);
 
     const missing = await setRetention(db, 7, "01JAAAAAAAAAAAAAAAAAAAAAAAAA");
     expect(missing.ok).toBe(false);
 
-    const badWindow = await stepUp(db, FIX.owner, OPS_STEP_UP_ACTIONS.retention, `ops-retention:${FIX.workspace}`);
+    const badWindow = await stepUp(
+      db,
+      FIX.owner,
+      OPS_STEP_UP_ACTIONS.retention,
+      `ops-retention:${FIX.workspace}`,
+    );
     expect((await setRetention(db, 400, badWindow)).ok).toBe(false);
   });
 });
@@ -131,10 +163,38 @@ describe("retention eligibility", () => {
     const old = "2026-07-01T12:00:00.000Z";
     const fresh = "2026-09-17T12:00:00.000Z";
     const rows = [
-      { id: randomUlid(), role: "log", format: "log", key: `workspaces/${FIX.workspace}/runs/01JRUN00000000000000000001/logs/v1.jsonl.zst`, at: old, eligible: true },
-      { id: randomUlid(), role: "log", format: "log", key: `workspaces/${FIX.workspace}/runs/01JRUN00000000000000000001/logs/v2.jsonl.zst`, at: fresh, eligible: false },
-      { id: randomUlid(), role: "review", format: "markdown", key: `workspaces/${FIX.workspace}/artifacts/sha256/${"b".repeat(64)}`, at: old, eligible: false },
-      { id: randomUlid(), role: "log", format: "log", key: `workspaces/${FIX.workspace}/artifacts/sha256/${"c".repeat(64)}`, at: old, eligible: false },
+      {
+        id: randomUlid(),
+        role: "log",
+        format: "log",
+        key: `workspaces/${FIX.workspace}/runs/01JRUN00000000000000000001/logs/v1.jsonl.zst`,
+        at: old,
+        eligible: true,
+      },
+      {
+        id: randomUlid(),
+        role: "log",
+        format: "log",
+        key: `workspaces/${FIX.workspace}/runs/01JRUN00000000000000000001/logs/v2.jsonl.zst`,
+        at: fresh,
+        eligible: false,
+      },
+      {
+        id: randomUlid(),
+        role: "review",
+        format: "markdown",
+        key: `workspaces/${FIX.workspace}/artifacts/sha256/${"b".repeat(64)}`,
+        at: old,
+        eligible: false,
+      },
+      {
+        id: randomUlid(),
+        role: "log",
+        format: "log",
+        key: `workspaces/${FIX.workspace}/artifacts/sha256/${"c".repeat(64)}`,
+        at: old,
+        eligible: false,
+      },
     ];
     for (const row of rows) {
       const artifact = randomUlid();
@@ -167,7 +227,12 @@ describe("retention eligibility", () => {
   it("selects only eligible raw log chunks and never shared hashes", async () => {
     const db = await openDomainDb();
     const rows = await seedArtifacts(db);
-    const proof = await stepUp(db, FIX.owner, OPS_STEP_UP_ACTIONS.retention, `ops-retention:${FIX.workspace}`);
+    const proof = await stepUp(
+      db,
+      FIX.owner,
+      OPS_STEP_UP_ACTIONS.retention,
+      `ops-retention:${FIX.workspace}`,
+    );
     expect((await setRetention(db, 30, proof)).ok).toBe(true);
     const found = await listRetentionEligibleChunks(db, FIX.workspace, NOW);
     expect(found.days).toBe(30);
@@ -182,7 +247,9 @@ describe("retention eligibility", () => {
     await seedArtifacts(db);
     const found = await listRetentionEligibleChunks(db, FIX.workspace, NOW);
     expect(found.eligible.length).toBe(1);
-    const versions = (await db.prepare(`SELECT COUNT(*) AS count FROM artifact_versions`).get()) as {
+    const versions = (await db
+      .prepare(`SELECT COUNT(*) AS count FROM artifact_versions`)
+      .get()) as {
       count: number;
     };
     expect(versions.count).toBe(4);
@@ -197,7 +264,9 @@ describe("redaction", () => {
     expect(scanDiagnosticText("path /Users/timo/secret")).toContain("local_path");
     expect(scanDiagnosticText("run bfb __launch abc")).toContain("launch_command");
     expect(scanDiagnosticText("clean counts only", ["CANARY-TASK-BODY-1"])).toEqual([]);
-    expect(scanDiagnosticText("leaked CANARY-TASK-BODY-1 here", ["CANARY-TASK-BODY-1"]).length).toBe(1);
+    expect(
+      scanDiagnosticText("leaked CANARY-TASK-BODY-1 here", ["CANARY-TASK-BODY-1"]).length,
+    ).toBe(1);
   });
 
   it("sanitizes unknown audit payloads without leaking secrets or paths", () => {
@@ -216,7 +285,7 @@ describe("redaction", () => {
     expect(clean.action).toBe("runner.enrolled");
     expect(clean).not.toHaveProperty("bearer");
     expect((clean.nested as Record<string, unknown>).count).toBe(3);
-    expect((clean.nested as Record<string, unknown>)).not.toHaveProperty("hook_payload");
+    expect(clean.nested as Record<string, unknown>).not.toHaveProperty("hook_payload");
     expect(clean.long).toBe("[redacted]");
     expect(clean).not.toHaveProperty("title");
     expect(clean).not.toHaveProperty("body");
@@ -243,7 +312,12 @@ describe("redaction", () => {
 describe("audit versus activity", () => {
   it("keeps security audit and activity distinct and attributable", async () => {
     const db = await openDomainDb();
-    const proof = await stepUp(db, FIX.owner, OPS_STEP_UP_ACTIONS.retention, `ops-retention:${FIX.workspace}`);
+    const proof = await stepUp(
+      db,
+      FIX.owner,
+      OPS_STEP_UP_ACTIONS.retention,
+      `ops-retention:${FIX.workspace}`,
+    );
     expect((await setRetention(db, 14, proof)).ok).toBe(true);
     const audit = await readSecurityAudit(db, FIX.workspace);
     const retentionRows = audit.entries.filter((entry) => entry.action === "ops.retention.set");
@@ -278,7 +352,12 @@ describe("diagnostic bundles", () => {
     const created = success(await generate(db));
     expect(created.state).toBe("pending_consent");
     expect(created.redaction_status).toBe("passed");
-    const consentProof = await stepUp(db, FIX.owner, OPS_STEP_UP_ACTIONS.diagnosticUpload, `diagnostic:${created.id}`);
+    const consentProof = await stepUp(
+      db,
+      FIX.owner,
+      OPS_STEP_UP_ACTIONS.diagnosticUpload,
+      `diagnostic:${created.id}`,
+    );
     const consented = await hub(db).execute(consentDiagnosticUploadCommand, {
       workspaceId: FIX.workspace,
       idempotencyKey: randomUlid(),
@@ -297,7 +376,12 @@ describe("diagnostic bundles", () => {
       input: { bundleId: created.id, stepUpProofId: consentProof },
     });
     expect(consumed.ok).toBe(false);
-    const freshProof = await stepUp(db, FIX.owner, OPS_STEP_UP_ACTIONS.diagnosticUpload, `diagnostic:${created.id}`);
+    const freshProof = await stepUp(
+      db,
+      FIX.owner,
+      OPS_STEP_UP_ACTIONS.diagnosticUpload,
+      `diagnostic:${created.id}`,
+    );
     const idempotent = await hub(db).execute(consentDiagnosticUploadCommand, {
       workspaceId: FIX.workspace,
       idempotencyKey: randomUlid(),
@@ -432,7 +516,9 @@ describe("privileged recovery", () => {
     });
     expect(first.detail).toEqual({ requeued: 1 });
     const row = (await db
-      .prepare(`SELECT state, attempts FROM github_integration_outbox WHERE workspace_id = ? AND outbox_id = ?`)
+      .prepare(
+        `SELECT state, attempts FROM github_integration_outbox WHERE workspace_id = ? AND outbox_id = ?`,
+      )
       .get(FIX.workspace, "outbox-dlq-1")) as { state: string; attempts: number };
     expect(row).toEqual({ state: "pending", attempts: 0 });
     const replay = await applyOpsRecovery({

@@ -570,7 +570,10 @@ export function createControlApp(
           abuseSecret: runtime.abuseSecret,
         });
       }
-      if (c.req.path === `${projectPrefix}/operations` || c.req.path.startsWith(`${projectPrefix}/operations/`)) {
+      if (
+        c.req.path === `${projectPrefix}/operations` ||
+        c.req.path.startsWith(`${projectPrefix}/operations/`)
+      ) {
         const opsBindings = (c.env ?? {}) as { OPS_JOBS?: Queue | undefined };
         return await handleOperationsApi(c.req.raw, {
           ...apiDeps,

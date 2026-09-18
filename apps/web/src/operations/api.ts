@@ -14,7 +14,14 @@ export const OPS_SECTION_LABELS = {
 
 export type OpsSection = keyof typeof OPS_SECTION_LABELS;
 
-const OWNER_SECTIONS: OpsSection[] = ["health", "queues", "activity", "securityAudit", "retention", "diagnostics"];
+const OWNER_SECTIONS: OpsSection[] = [
+  "health",
+  "queues",
+  "activity",
+  "securityAudit",
+  "retention",
+  "diagnostics",
+];
 const MEMBER_SECTIONS: OpsSection[] = ["health", "queues", "activity", "retention", "diagnostics"];
 const REVIEWER_SECTIONS: OpsSection[] = ["activity"];
 
@@ -40,11 +47,18 @@ export function newIdempotencyKey(): string {
 }
 
 export interface RecoveryTarget {
-  kind: "retry_notification_dispatch" | "requeue_github_outbox" | "resolve_stuck_upload" | "clear_recovery_state";
+  kind:
+    | "retry_notification_dispatch"
+    | "requeue_github_outbox"
+    | "resolve_stuck_upload"
+    | "clear_recovery_state";
   target: Record<string, unknown>;
 }
 
-export function buildRecoveryBody(kind: RecoveryTarget["kind"], target: Record<string, unknown>): {
+export function buildRecoveryBody(
+  kind: RecoveryTarget["kind"],
+  target: Record<string, unknown>,
+): {
   kind: string;
   target: Record<string, unknown>;
   request_id: string;
@@ -53,7 +67,11 @@ export function buildRecoveryBody(kind: RecoveryTarget["kind"], target: Record<s
 }
 
 /** Recovery target IDs shown in the UI are opaque identifiers only, never content. */
-export function describeStuckItem(item: { command_id?: string; version_id?: string; age_ms: number }): string {
+export function describeStuckItem(item: {
+  command_id?: string;
+  version_id?: string;
+  age_ms: number;
+}): string {
   const id = item.command_id ?? item.version_id ?? "unknown";
   const seconds = Math.max(0, Math.round(item.age_ms / 1000));
   return `${id.slice(0, 8)}… stuck ${seconds}s`;

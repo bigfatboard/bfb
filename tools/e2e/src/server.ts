@@ -1156,7 +1156,6 @@ async function seedLaunchOperations(db: SqlDatabase): Promise<void> {
     projectIds: [FIX.projectA],
   };
   async function start(taskId: string, checkoutId: string) {
-    const snapshot = await currentPolicyVersions(db);
     return human(startLaunchCommand, {
       schema_version: 1,
       idempotency_key: randomUlid(),

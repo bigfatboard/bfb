@@ -457,7 +457,9 @@ export function AppShell(props: AppShellProps = {}) {
           fetchImpl={fetchFn}
           onChanged={() => void reloadBoard()}
         />
-      ) : board && route.view === "operations" && (board.role === "owner" || board.role === "member") ? (
+      ) : board &&
+        route.view === "operations" &&
+        (board.role === "owner" || board.role === "member") ? (
         <OperationsPage
           workspaceId={workspace.id}
           role={board.role}

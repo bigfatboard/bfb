@@ -13,7 +13,10 @@ test.describe.configure({ mode: "serial" });
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const evidenceDir = path.join(rootDir, "docs/work-packages/evidence/WP-X05");
-const recording: Record<string, unknown> = { spec: "x05-operations", scenarios: [] as Array<Record<string, unknown>> };
+const recording: Record<string, unknown> = {
+  spec: "x05-operations",
+  scenarios: [] as Array<Record<string, unknown>>,
+};
 
 function note(scenario: string, fields: Record<string, unknown> = {}): void {
   (recording.scenarios as Array<Record<string, unknown>>).push({ scenario, ...fields });
@@ -24,7 +27,10 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  await writeFile(path.join(evidenceDir, "operations-ui.json"), `${JSON.stringify(recording, null, 2)}\n`);
+  await writeFile(
+    path.join(evidenceDir, "operations-ui.json"),
+    `${JSON.stringify(recording, null, 2)}\n`,
+  );
 });
 
 async function openOperations(page: Parameters<typeof signInAndOpenBoard>[0]): Promise<void> {

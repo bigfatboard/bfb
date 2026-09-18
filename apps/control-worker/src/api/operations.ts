@@ -106,7 +106,11 @@ async function budget(
     const decision = await consumeAbuseBudget(
       deps.db,
       {
-        bucketKey: abuseBucketKey({ ipHashSeed: seed, subject: bucketSubject, surface: `ops:${surface}` }),
+        bucketKey: abuseBucketKey({
+          ipHashSeed: seed,
+          subject: bucketSubject,
+          surface: `ops:${surface}`,
+        }),
         activity: "attempt",
         bodyBytes: 0,
         now: deps.now,
@@ -251,7 +255,10 @@ function publicBundle(row: DiagnosticBundleRecord): Record<string, unknown> {
  * health, retention reads, and bundle inventory are owner/member, with
  * reviewers scoped to their projects on activity.
  */
-export async function handleOperationsApi(request: Request, deps: OpsBrowserDeps): Promise<Response> {
+export async function handleOperationsApi(
+  request: Request,
+  deps: OpsBrowserDeps,
+): Promise<Response> {
   try {
     const url = new URL(request.url);
     const workspaceId = deps.workspaceId;
@@ -318,7 +325,8 @@ export async function handleOperationsApi(request: Request, deps: OpsBrowserDeps
       assertRole(principal, ["owner", "member"]);
       const row = (await deps.db
         .prepare(`SELECT * FROM diagnostic_bundles WHERE workspace_id = ? AND id = ?`)
-        .get(workspaceId, decodeURIComponent(bundleMatch[1]))) as DiagnosticBundleRecord | undefined;
+        .get(workspaceId, decodeURIComponent(bundleMatch[1]))) as
+        DiagnosticBundleRecord | undefined;
       if (!row) {
         return json({ error: "not_found" }, 404);
       }
@@ -383,7 +391,13 @@ export async function handleOperationsApi(request: Request, deps: OpsBrowserDeps
           workspaceId,
           `audit-${requestId(body)}-${result.action_id}`.slice(0, 64),
           principal.humanId,
-          JSON.stringify(sanitizeDiagnosticValue({ kind, action_id: result.action_id, replayed: result.replayed })),
+          JSON.stringify(
+            sanitizeDiagnosticValue({
+              kind,
+              action_id: result.action_id,
+              replayed: result.replayed,
+            }),
+          ),
           deps.now,
         );
       return json({ ok: true, result });

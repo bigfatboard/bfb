@@ -151,10 +151,15 @@ export function retentionCutoff(nowIso: string, days: number): string {
   return new Date(now - days * 24 * 60 * 60_000).toISOString();
 }
 
-export async function getRetentionPolicy(db: SqlDatabase, workspaceId: string): Promise<RetentionPolicy | null> {
-  return (await db
-    .prepare(`SELECT * FROM retention_policies WHERE workspace_id = ?`)
-    .get(workspaceId)) as RetentionPolicy | null | undefined ?? null;
+export async function getRetentionPolicy(
+  db: SqlDatabase,
+  workspaceId: string,
+): Promise<RetentionPolicy | null> {
+  return (
+    ((await db
+      .prepare(`SELECT * FROM retention_policies WHERE workspace_id = ?`)
+      .get(workspaceId)) as RetentionPolicy | null | undefined) ?? null
+  );
 }
 
 export interface SetRetentionPolicyInput {
@@ -170,12 +175,20 @@ export const setRetentionPolicyCommand: HubCommand<SetRetentionPolicyInput, Rete
     closedObject(input, ["rawLogRetentionDays", "stepUpProofId"], "ops retention");
     const days = input.rawLogRetentionDays;
     if (!Number.isInteger(days) || days < RETENTION_MIN_DAYS || days > RETENTION_MAX_DAYS) {
-      fail("invalid_argument", `retention window must be ${RETENTION_MIN_DAYS} to ${RETENTION_MAX_DAYS} days`);
+      fail(
+        "invalid_argument",
+        `retention window must be ${RETENTION_MIN_DAYS} to ${RETENTION_MAX_DAYS} days`,
+      );
     }
     const principal = await requireOwner(ctx);
     // All reads precede the step-up consume: D1 batches forbid reads after a queued write.
     const existing = await getRetentionPolicy(ctx.db, ctx.workspaceId);
-    const consume = await prepareStepUp(ctx, input.stepUpProofId, OPS_STEP_UP_ACTIONS.retention, `ops-retention:${ctx.workspaceId}`);
+    const consume = await prepareStepUp(
+      ctx,
+      input.stepUpProofId,
+      OPS_STEP_UP_ACTIONS.retention,
+      `ops-retention:${ctx.workspaceId}`,
+    );
     await consume();
     const version = (existing?.version ?? 0) + 1;
     await ctx.db
@@ -429,7 +442,13 @@ export async function buildDiagnosticInventory(
       },
     },
   ];
-  return { schema_version: 1, workspace_id: workspaceId, generated_at: nowIso, generated_by: humanId, sections };
+  return {
+    schema_version: 1,
+    workspace_id: workspaceId,
+    generated_at: nowIso,
+    generated_by: humanId,
+    sections,
+  };
 }
 
 export function renderDiagnosticInventory(inventory: DiagnosticInventory): string {
@@ -456,7 +475,10 @@ function bundleHash(inventoryJson: string): string {
   return createHash("sha256").update(inventoryJson).digest("hex");
 }
 
-export const createDiagnosticBundleCommand: HubCommand<{ stepUpProofId: string }, DiagnosticBundleRecord> = {
+export const createDiagnosticBundleCommand: HubCommand<
+  { stepUpProofId: string },
+  DiagnosticBundleRecord
+> = {
   name: "diagnostic.generate",
   replay: "reject",
   auditInput: () => ({ action: "diagnostic.generate" }),
@@ -470,7 +492,12 @@ export const createDiagnosticBundleCommand: HubCommand<{ stepUpProofId: string }
       OPS_STEP_UP_ACTIONS.diagnosticGenerate,
       `diagnostic:generate:${ctx.workspaceId}`,
     );
-    const inventory = await buildDiagnosticInventory(ctx.db, ctx.workspaceId, principal.humanId, ctx.now);
+    const inventory = await buildDiagnosticInventory(
+      ctx.db,
+      ctx.workspaceId,
+      principal.humanId,
+      ctx.now,
+    );
     const inventoryJson = renderDiagnosticInventory(inventory);
     const hits = scanDiagnosticText(inventoryJson);
     if (hits.length > 0) {
@@ -526,7 +553,10 @@ export const consentDiagnosticUploadCommand: HubCommand<
     if (bundle.state !== "pending_consent" && bundle.state !== "consented") {
       fail("invalid_argument", `bundle in state ${bundle.state} cannot be consented`);
     }
-    if (bundle.state === "pending_consent" && Date.parse(bundle.expires_at) <= Date.parse(ctx.now)) {
+    if (
+      bundle.state === "pending_consent" &&
+      Date.parse(bundle.expires_at) <= Date.parse(ctx.now)
+    ) {
       fail("invalid_argument", "bundle consent expired");
     }
     const consume = await prepareStepUp(
@@ -685,7 +715,11 @@ export async function listStuckUploads(
          )
        ORDER BY v.created_at ASC`,
     )
-    .all(workspaceId, nowIso, nowIso)) as Array<{ version_id: string; artifact_id: string; created_at: string }>;
+    .all(workspaceId, nowIso, nowIso)) as Array<{
+    version_id: string;
+    artifact_id: string;
+    created_at: string;
+  }>;
   return rows.map((row) => ({
     version_id: row.version_id,
     artifact_id: row.artifact_id,
@@ -749,7 +783,11 @@ export interface QueueState {
   ops_recovery: { applied: number; failed: number };
 }
 
-export async function readQueueState(db: SqlDatabase, workspaceId: string, nowIso: string): Promise<QueueState> {
+export async function readQueueState(
+  db: SqlDatabase,
+  workspaceId: string,
+  nowIso: string,
+): Promise<QueueState> {
   async function count(table: string, extra: string, ...params: unknown[]): Promise<number> {
     const row = (await db
       .prepare(`SELECT COUNT(*) AS count FROM ${table} WHERE workspace_id = ? ${extra}`)
@@ -843,19 +881,34 @@ export async function collectWorkspaceHealth(
          WHERE workspace_id = ? AND runner_id = ?`,
       )
       .get(workspaceId, runner.id)) as
-      | { revision: number; inventory_json: string; received_at: string }
-      | undefined;
+      { revision: number; inventory_json: string; received_at: string } | undefined;
     if (!row) {
-      providers.push({ runner_id: runner.id, present: false, received_age_ms: null, stale: true, providers: [] });
+      providers.push({
+        runner_id: runner.id,
+        present: false,
+        received_age_ms: null,
+        stale: true,
+        providers: [],
+      });
       continue;
     }
-    let parsed: { providers?: Array<{ provider: string; status: string; version?: string; observed_at: string; expires_at: string }> } = {};
+    let parsed: {
+      providers?: Array<{
+        provider: string;
+        status: string;
+        version?: string;
+        observed_at: string;
+        expires_at: string;
+      }>;
+    } = {};
     try {
       parsed = JSON.parse(row.inventory_json) as typeof parsed;
     } catch {
       parsed = {};
     }
-    const receivedAge = Number.isFinite(nowMs) ? Math.max(0, nowMs - Date.parse(row.received_at)) : null;
+    const receivedAge = Number.isFinite(nowMs)
+      ? Math.max(0, nowMs - Date.parse(row.received_at))
+      : null;
     providers.push({
       runner_id: runner.id,
       present: true,
@@ -863,7 +916,9 @@ export async function collectWorkspaceHealth(
       stale: receivedAge === null || receivedAge > PROVIDER_RECORD_STALE_MS,
       providers: (parsed.providers ?? []).map((entry) => {
         const observedAge =
-          Number.isFinite(nowMs) && entry.observed_at ? Math.max(0, nowMs - Date.parse(entry.observed_at)) : null;
+          Number.isFinite(nowMs) && entry.observed_at
+            ? Math.max(0, nowMs - Date.parse(entry.observed_at))
+            : null;
         return {
           provider: String(entry.provider),
           status: String(entry.status),
@@ -915,7 +970,9 @@ export const OPS_REQUIRED_TABLES = [
   "ops_recovery_ledger",
 ] as const;
 
-export async function checkOperationsTables(db: SqlDatabase): Promise<{ ok: boolean; missing: string[] }> {
+export async function checkOperationsTables(
+  db: SqlDatabase,
+): Promise<{ ok: boolean; missing: string[] }> {
   const rows = (await db
     .prepare(`SELECT name FROM sqlite_master WHERE type = 'table'`)
     .all()) as Array<{ name: string }>;
@@ -967,10 +1024,11 @@ export async function applyOpsRecovery(input: {
   }
   const actionId = recoveryActionId(input.kind, input.target);
   const stored = (await db
-    .prepare(`SELECT state, result_json, target_json FROM ops_recovery_ledger WHERE workspace_id = ? AND action_id = ?`)
+    .prepare(
+      `SELECT state, result_json, target_json FROM ops_recovery_ledger WHERE workspace_id = ? AND action_id = ?`,
+    )
     .get(input.workspaceId, actionId)) as
-    | { state: string; result_json: string; target_json: string }
-    | undefined;
+    { state: string; result_json: string; target_json: string } | undefined;
   if (stored && stored.state === "applied" && stored.target_json === JSON.stringify(input.target)) {
     return {
       action_id: actionId,
@@ -979,7 +1037,13 @@ export async function applyOpsRecovery(input: {
       detail: JSON.parse(stored.result_json) as Record<string, number | string>,
     };
   }
-  const detail = await runRecoveryEffect(db, input.workspaceId, input.kind, input.target, input.now);
+  const detail = await runRecoveryEffect(
+    db,
+    input.workspaceId,
+    input.kind,
+    input.target,
+    input.now,
+  );
   await db
     .prepare(
       `INSERT INTO ops_recovery_ledger
@@ -1015,7 +1079,11 @@ async function runRecoveryEffect(
   switch (kind) {
     case "retry_notification_dispatch": {
       const body = closedObject(target, ["cursors"], "notification redispatch");
-      if (!Array.isArray(body.cursors) || body.cursors.length < 1 || body.cursors.length > OPS_MAX_TARGETS) {
+      if (
+        !Array.isArray(body.cursors) ||
+        body.cursors.length < 1 ||
+        body.cursors.length > OPS_MAX_TARGETS
+      ) {
         fail("invalid_argument", "cursors must list 1 to 50 event cursors");
       }
       const cursors = (body.cursors as unknown[]).map((cursor) => {
@@ -1026,7 +1094,9 @@ async function runRecoveryEffect(
       });
       for (const cursor of cursors) {
         const found = (await db
-          .prepare(`SELECT workspace_cursor FROM semantic_events WHERE workspace_id = ? AND workspace_cursor = ?`)
+          .prepare(
+            `SELECT workspace_cursor FROM semantic_events WHERE workspace_id = ? AND workspace_cursor = ?`,
+          )
           .get(workspaceId, cursor)) as { workspace_cursor: number } | undefined;
         if (!found) {
           fail("invalid_argument", `event cursor ${cursor} does not exist`);
@@ -1046,7 +1116,11 @@ async function runRecoveryEffect(
     }
     case "requeue_github_outbox": {
       const body = closedObject(target, ["outbox_ids"], "github requeue");
-      if (!Array.isArray(body.outbox_ids) || body.outbox_ids.length < 1 || body.outbox_ids.length > OPS_MAX_TARGETS) {
+      if (
+        !Array.isArray(body.outbox_ids) ||
+        body.outbox_ids.length < 1 ||
+        body.outbox_ids.length > OPS_MAX_TARGETS
+      ) {
         fail("invalid_argument", "outbox_ids must list 1 to 50 ids");
       }
       const ids = body.outbox_ids as unknown[];
@@ -1058,13 +1132,18 @@ async function runRecoveryEffect(
       let requeued = 0;
       for (const id of ids as string[]) {
         const row = (await db
-          .prepare(`SELECT state FROM github_integration_outbox WHERE workspace_id = ? AND outbox_id = ?`)
+          .prepare(
+            `SELECT state FROM github_integration_outbox WHERE workspace_id = ? AND outbox_id = ?`,
+          )
           .get(workspaceId, id)) as { state: string } | undefined;
         if (!row) {
           fail("invalid_argument", `github outbox row ${id} does not exist`);
         }
         if (row.state !== "dlq" && row.state !== "dispatched") {
-          fail("invalid_argument", `github outbox row ${id} in state ${row.state} needs no requeue`);
+          fail(
+            "invalid_argument",
+            `github outbox row ${id} in state ${row.state} needs no requeue`,
+          );
         }
         await db
           .prepare(
@@ -1105,7 +1184,11 @@ async function runRecoveryEffect(
     }
     case "clear_recovery_state": {
       const body = closedObject(target, ["action_ids"], "recovery clearing");
-      if (!Array.isArray(body.action_ids) || body.action_ids.length < 1 || body.action_ids.length > OPS_MAX_TARGETS) {
+      if (
+        !Array.isArray(body.action_ids) ||
+        body.action_ids.length < 1 ||
+        body.action_ids.length > OPS_MAX_TARGETS
+      ) {
         fail("invalid_argument", "action_ids must list 1 to 50 ids");
       }
       let cleared = 0;

@@ -12,7 +12,11 @@ import { fileURLToPath } from "node:url";
 
 import { adaptBetterSqlite3, applyMigrationsForVerification, type SqlDatabase } from "@bfb/db";
 
-import { consumeOpsQueueBatch, type OpsQueueDeps, type OpsQueueHandle } from "../src/operations/queue.js";
+import {
+  consumeOpsQueueBatch,
+  type OpsQueueDeps,
+  type OpsQueueHandle,
+} from "../src/operations/queue.js";
 import { runRetentionSweep } from "../src/operations/sweep.js";
 
 const migrationsDir = path.resolve(
@@ -92,7 +96,16 @@ async function seedBundle(db: SqlDatabase, state = "consented"): Promise<string>
         redaction_status, r2_key, created_at, consented_at, uploaded_at, expires_at, last_error)
        VALUES (?, ?, ?, ?, '{}', ?, 'passed', NULL, ?, ?, NULL, ?, NULL)`,
     )
-    .run(FIX.workspace, id, FIX.owner, state, "a".repeat(64), NOW, state === "consented" ? NOW : null, "2026-09-19T12:00:00.000Z");
+    .run(
+      FIX.workspace,
+      id,
+      FIX.owner,
+      state,
+      "a".repeat(64),
+      NOW,
+      state === "consented" ? NOW : null,
+      "2026-09-19T12:00:00.000Z",
+    );
   return id;
 }
 
@@ -104,7 +117,19 @@ describe("ops queue consumer", () => {
     const events: string[] = [];
     const bundle = await seedBundle(db);
     await consumeOpsQueueBatch(
-      [handle({ schema_version: 1, kind: "diagnostic.upload", workspace_id: FIX.workspace, bundle_id: bundle, attempt: 1 }, events, "good")],
+      [
+        handle(
+          {
+            schema_version: 1,
+            kind: "diagnostic.upload",
+            workspace_id: FIX.workspace,
+            bundle_id: bundle,
+            attempt: 1,
+          },
+          events,
+          "good",
+        ),
+      ],
       depsFor(r2, db, dlq),
       NOW,
     );
@@ -126,10 +151,27 @@ describe("ops queue consumer", () => {
     const bundle = await seedBundle(db);
     await consumeOpsQueueBatch(
       [
-        handle({ schema_version: 1, kind: "diagnostic.upload", workspace_id: FIX.workspace, bundle_id: bundle, attempt: 1 }, events, "flaky", 0),
+        handle(
+          {
+            schema_version: 1,
+            kind: "diagnostic.upload",
+            workspace_id: FIX.workspace,
+            bundle_id: bundle,
+            attempt: 1,
+          },
+          events,
+          "flaky",
+          0,
+        ),
         handle({ nope: true }, events, "poison", 0),
         handle(
-          { schema_version: 1, kind: "diagnostic.upload", workspace_id: FIX.workspace, bundle_id: bundle, attempt: 1 },
+          {
+            schema_version: 1,
+            kind: "diagnostic.upload",
+            workspace_id: FIX.workspace,
+            bundle_id: bundle,
+            attempt: 1,
+          },
           events,
           "exhausted",
           7,
@@ -155,8 +197,28 @@ describe("ops queue consumer", () => {
     const pending = await seedBundle(db, "pending_consent");
     await consumeOpsQueueBatch(
       [
-        handle({ schema_version: 1, kind: "diagnostic.upload", workspace_id: FIX.workspace, bundle_id: randomUlid(), attempt: 1 }, events, "unknown"),
-        handle({ schema_version: 1, kind: "diagnostic.upload", workspace_id: FIX.workspace, bundle_id: pending, attempt: 1 }, events, "unconsented"),
+        handle(
+          {
+            schema_version: 1,
+            kind: "diagnostic.upload",
+            workspace_id: FIX.workspace,
+            bundle_id: randomUlid(),
+            attempt: 1,
+          },
+          events,
+          "unknown",
+        ),
+        handle(
+          {
+            schema_version: 1,
+            kind: "diagnostic.upload",
+            workspace_id: FIX.workspace,
+            bundle_id: pending,
+            attempt: 1,
+          },
+          events,
+          "unconsented",
+        ),
       ],
       depsFor(r2, db, dlq),
       NOW,
@@ -168,7 +230,10 @@ describe("ops queue consumer", () => {
 });
 
 describe("retention sweep", () => {
-  async function seedLogChunk(db: SqlDatabase, at: string): Promise<{ version: string; key: string; hash: string }> {
+  async function seedLogChunk(
+    db: SqlDatabase,
+    at: string,
+  ): Promise<{ version: string; key: string; hash: string }> {
     const artifact = randomUlid();
     const version = randomUlid();
     const hash = "e".repeat(64);
@@ -206,13 +271,19 @@ describe("retention sweep", () => {
     expect(result.deleted_bytes).toBe(512);
     expect(r2.deleted).toEqual([old.key]);
     expect(r2.objects.get(fresh.key)).toBe("fresh-bytes");
-    const versions = (await db.prepare(`SELECT COUNT(*) AS count FROM artifact_versions`).get()) as { count: number };
+    const versions = (await db
+      .prepare(`SELECT COUNT(*) AS count FROM artifact_versions`)
+      .get()) as { count: number };
     expect(versions.count).toBe(2);
     const kept = (await db
-      .prepare(`SELECT content_hash, r2_key FROM artifact_versions WHERE workspace_id = ? AND id = ?`)
+      .prepare(
+        `SELECT content_hash, r2_key FROM artifact_versions WHERE workspace_id = ? AND id = ?`,
+      )
       .get(FIX.workspace, old.version)) as { content_hash: string; r2_key: string };
     expect(kept).toEqual({ content_hash: old.hash, r2_key: old.key });
-    const runs = (await db.prepare(`SELECT COUNT(*) AS count FROM retention_runs`).get()) as { count: number };
+    const runs = (await db.prepare(`SELECT COUNT(*) AS count FROM retention_runs`).get()) as {
+      count: number;
+    };
     expect(runs.count).toBe(1);
   });
 
@@ -220,7 +291,9 @@ describe("retention sweep", () => {
     const db = await openDomainDb();
     const result = await runRetentionSweep(db, fakeR2(), NOW);
     expect(result.deleted_objects).toBe(0);
-    const runs = (await db.prepare(`SELECT COUNT(*) AS count FROM retention_runs`).get()) as { count: number };
+    const runs = (await db.prepare(`SELECT COUNT(*) AS count FROM retention_runs`).get()) as {
+      count: number;
+    };
     expect(runs.count).toBe(0);
   });
 });

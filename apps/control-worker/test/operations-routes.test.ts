@@ -6,7 +6,6 @@ import { describe, expect, it } from "vitest";
 import { FIX, issueStepUpProof, OPS_STEP_UP_ACTIONS, seedSyntheticWorkspace } from "@bfb/domain";
 
 import { parseAuthKeys } from "../src/auth/better-auth.js";
-import { handleOperationsApi, type OpsBrowserDeps } from "../src/api/operations.js";
 import { validateControlEnv, type ControlBindings } from "../src/env.js";
 import { createTestWorkspaceHubNamespace } from "../src/hub-client.js";
 import { createControlApp } from "../src/routes.js";
@@ -104,7 +103,13 @@ function get(path: string, cookie: string): Request {
   return new Request(`${AUTH_TEST_ENV.APP_ORIGIN}${path}`, { headers: { cookie } });
 }
 
-function mutation(path: string, cookie: string, csrfToken: string, value: unknown, method = "POST"): Request {
+function mutation(
+  path: string,
+  cookie: string,
+  csrfToken: string,
+  value: unknown,
+  method: "POST" | "PUT" = "POST",
+): Request {
   return new Request(`${AUTH_TEST_ENV.APP_ORIGIN}${path}`, {
     method,
     headers: {
@@ -145,12 +150,24 @@ describe("operations browser routes", () => {
   it("keeps security audit Owner-only while activity stays role-scoped", async () => {
     const { context, owner, member, reviewer } = await contextWithSessions();
     const { app, currentBindings } = appFor(context);
-    const ownerAudit = await app.request(get(`${OPS}/security-audit`, owner.cookie), undefined, currentBindings);
+    const ownerAudit = await app.request(
+      get(`${OPS}/security-audit`, owner.cookie),
+      undefined,
+      currentBindings,
+    );
     expect(ownerAudit.status).toBe(200);
-    const memberAudit = await app.request(get(`${OPS}/security-audit`, member.cookie), undefined, currentBindings);
+    const memberAudit = await app.request(
+      get(`${OPS}/security-audit`, member.cookie),
+      undefined,
+      currentBindings,
+    );
     expect(memberAudit.status).toBe(403);
     for (const session of [owner, member, reviewer]) {
-      const activity = await app.request(get(`${OPS}/activity`, session.cookie), undefined, currentBindings);
+      const activity = await app.request(
+        get(`${OPS}/activity`, session.cookie),
+        undefined,
+        currentBindings,
+      );
       expect(activity.status).toBe(200);
       const body = (await activity.json()) as { entries: unknown[] };
       expect(Array.isArray(body.entries)).toBe(true);
@@ -161,13 +178,22 @@ describe("operations browser routes", () => {
     const { context, owner, member, reviewer } = await contextWithSessions();
     const { app, currentBindings } = appFor(context);
     for (const path of [`${OPS}/queues`, `${OPS}/health`, `${OPS}/retention`]) {
-      expect((await app.request(get(path, owner.cookie), undefined, currentBindings)).status).toBe(200);
-      expect((await app.request(get(path, member.cookie), undefined, currentBindings)).status).toBe(200);
-      expect((await app.request(get(path, reviewer.cookie), undefined, currentBindings)).status).toBe(403);
+      expect((await app.request(get(path, owner.cookie), undefined, currentBindings)).status).toBe(
+        200,
+      );
+      expect((await app.request(get(path, member.cookie), undefined, currentBindings)).status).toBe(
+        200,
+      );
+      expect(
+        (await app.request(get(path, reviewer.cookie), undefined, currentBindings)).status,
+      ).toBe(403);
     }
     const health = (await (
       await app.request(get(`${OPS}/health`, owner.cookie), undefined, currentBindings)
-    ).json()) as { health: { schema_version: number; retention: unknown; providers: unknown[] }; migrations: { ok: boolean } };
+    ).json()) as {
+      health: { schema_version: number; retention: unknown; providers: unknown[] };
+      migrations: { ok: boolean };
+    };
     expect(health.health.schema_version).toBe(1);
     expect(health.migrations.ok).toBe(true);
   });
@@ -177,45 +203,84 @@ describe("operations browser routes", () => {
     const { app, currentBindings } = appFor(context);
     const ownerCsrf = await csrf(app, currentBindings, owner.cookie);
     const memberCsrf = await csrf(app, currentBindings, member.cookie);
-    const memberProof = await proofFor(context, FIX.member, OPS_STEP_UP_ACTIONS.retention, `ops-retention:${FIX.workspace}`);
+    const memberProof = await proofFor(
+      context,
+      FIX.member,
+      OPS_STEP_UP_ACTIONS.retention,
+      `ops-retention:${FIX.workspace}`,
+    );
     const memberDenied = await app.request(
-      mutation(`${OPS}/retention`, member.cookie, memberCsrf, {
-        request_id: "ops-retention-member-1",
-        raw_log_retention_days: 7,
-        step_up_proof_id: memberProof,
-      }, "PUT"),
+      mutation(
+        `${OPS}/retention`,
+        member.cookie,
+        memberCsrf,
+        {
+          request_id: "ops-retention-member-1",
+          raw_log_retention_days: 7,
+          step_up_proof_id: memberProof,
+        },
+        "PUT",
+      ),
       undefined,
       currentBindings,
     );
     expect(memberDenied.status).toBe(403);
-    const ownerProof = await proofFor(context, FIX.owner, OPS_STEP_UP_ACTIONS.retention, `ops-retention:${FIX.workspace}`);
+    const ownerProof = await proofFor(
+      context,
+      FIX.owner,
+      OPS_STEP_UP_ACTIONS.retention,
+      `ops-retention:${FIX.workspace}`,
+    );
     const changed = await app.request(
-      mutation(`${OPS}/retention`, owner.cookie, ownerCsrf, {
-        request_id: "ops-retention-owner-1",
-        raw_log_retention_days: 7,
-        step_up_proof_id: ownerProof,
-      }, "PUT"),
+      mutation(
+        `${OPS}/retention`,
+        owner.cookie,
+        ownerCsrf,
+        {
+          request_id: "ops-retention-owner-1",
+          raw_log_retention_days: 7,
+          step_up_proof_id: ownerProof,
+        },
+        "PUT",
+      ),
       undefined,
       currentBindings,
     );
     expect(changed.status).toBe(200);
     const replayed = await app.request(
-      mutation(`${OPS}/retention`, owner.cookie, ownerCsrf, {
-        request_id: "ops-retention-owner-2",
-        raw_log_retention_days: 9,
-        step_up_proof_id: ownerProof,
-      }, "PUT"),
+      mutation(
+        `${OPS}/retention`,
+        owner.cookie,
+        ownerCsrf,
+        {
+          request_id: "ops-retention-owner-2",
+          raw_log_retention_days: 9,
+          step_up_proof_id: ownerProof,
+        },
+        "PUT",
+      ),
       undefined,
       currentBindings,
     );
     expect(replayed.status).toBe(403);
-    const wrong = await proofFor(context, FIX.owner, OPS_STEP_UP_ACTIONS.recover, `ops-retention:${FIX.workspace}`);
+    const wrong = await proofFor(
+      context,
+      FIX.owner,
+      OPS_STEP_UP_ACTIONS.recover,
+      `ops-retention:${FIX.workspace}`,
+    );
     const mismatched = await app.request(
-      mutation(`${OPS}/retention`, owner.cookie, ownerCsrf, {
-        request_id: "ops-retention-owner-3",
-        raw_log_retention_days: 9,
-        step_up_proof_id: wrong,
-      }, "PUT"),
+      mutation(
+        `${OPS}/retention`,
+        owner.cookie,
+        ownerCsrf,
+        {
+          request_id: "ops-retention-owner-3",
+          raw_log_retention_days: 9,
+          step_up_proof_id: wrong,
+        },
+        "PUT",
+      ),
       undefined,
       currentBindings,
     );
@@ -232,7 +297,12 @@ describe("operations browser routes", () => {
       )
       .run(FIX.workspace, NOW);
     const memberCsrf = await csrf(app, currentBindings, member.cookie);
-    const memberProof = await proofFor(context, FIX.member, OPS_STEP_UP_ACTIONS.recover, `ops-recover:retry_notification_dispatch:${FIX.workspace}`);
+    const memberProof = await proofFor(
+      context,
+      FIX.member,
+      OPS_STEP_UP_ACTIONS.recover,
+      `ops-recover:retry_notification_dispatch:${FIX.workspace}`,
+    );
     const memberDenied = await app.request(
       mutation(`${OPS}/recovery`, member.cookie, memberCsrf, {
         request_id: "ops-recovery-member-1",
@@ -245,7 +315,12 @@ describe("operations browser routes", () => {
     );
     expect(memberDenied.status).toBe(403);
     const ownerCsrf = await csrf(app, currentBindings, owner.cookie);
-    const firstProof = await proofFor(context, FIX.owner, OPS_STEP_UP_ACTIONS.recover, `ops-recover:retry_notification_dispatch:${FIX.workspace}`);
+    const firstProof = await proofFor(
+      context,
+      FIX.owner,
+      OPS_STEP_UP_ACTIONS.recover,
+      `ops-recover:retry_notification_dispatch:${FIX.workspace}`,
+    );
     const first = await app.request(
       mutation(`${OPS}/recovery`, owner.cookie, ownerCsrf, {
         request_id: "ops-recovery-owner-1",
@@ -259,7 +334,12 @@ describe("operations browser routes", () => {
     expect(first.status).toBe(200);
     const firstBody = (await first.json()) as { result: { replayed: boolean } };
     expect(firstBody.result.replayed).toBe(false);
-    const secondProof = await proofFor(context, FIX.owner, OPS_STEP_UP_ACTIONS.recover, `ops-recover:retry_notification_dispatch:${FIX.workspace}`);
+    const secondProof = await proofFor(
+      context,
+      FIX.owner,
+      OPS_STEP_UP_ACTIONS.recover,
+      `ops-recover:retry_notification_dispatch:${FIX.workspace}`,
+    );
     const second = await app.request(
       mutation(`${OPS}/recovery`, owner.cookie, ownerCsrf, {
         request_id: "ops-recovery-owner-2",
@@ -275,9 +355,11 @@ describe("operations browser routes", () => {
     const audit = (await (
       await app.request(get(`${OPS}/security-audit`, owner.cookie), undefined, currentBindings)
     ).json()) as { entries: Array<{ action: string; actor_principal_id: string }> };
-    expect(audit.entries.some((entry) => entry.action === "ops.recover" && entry.actor_principal_id === FIX.owner)).toBe(
-      true,
-    );
+    expect(
+      audit.entries.some(
+        (entry) => entry.action === "ops.recover" && entry.actor_principal_id === FIX.owner,
+      ),
+    ).toBe(true);
   });
 
   it("generates and consents diagnostic bundles through explicit inventory review", async () => {
@@ -300,9 +382,18 @@ describe("operations browser routes", () => {
     );
     expect(generated.status).toBe(200);
     const created = ((await generated.json()) as { result: { id: string } }).result;
-    const inventory = await app.request(get(`${OPS}/diagnostics/${created.id}`, member.cookie), undefined, currentBindings);
+    const inventory = await app.request(
+      get(`${OPS}/diagnostics/${created.id}`, member.cookie),
+      undefined,
+      currentBindings,
+    );
     expect(inventory.status).toBe(200);
-    const consentProof = await proofFor(context, FIX.owner, OPS_STEP_UP_ACTIONS.diagnosticUpload, `diagnostic:${created.id}`);
+    const consentProof = await proofFor(
+      context,
+      FIX.owner,
+      OPS_STEP_UP_ACTIONS.diagnosticUpload,
+      `diagnostic:${created.id}`,
+    );
     const consented = await app.request(
       mutation(`${OPS}/diagnostics/${created.id}/consent`, owner.cookie, ownerCsrf, {
         request_id: "ops-diagnostic-consent-1",
@@ -312,6 +403,8 @@ describe("operations browser routes", () => {
       currentBindings,
     );
     expect(consented.status).toBe(200);
-    expect(((await consented.json()) as { bundle: { state: string } }).bundle.state).toBe("consented");
+    expect(((await consented.json()) as { bundle: { state: string } }).bundle.state).toBe(
+      "consented",
+    );
   });
 });

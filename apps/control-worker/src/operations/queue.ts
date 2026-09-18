@@ -114,7 +114,10 @@ export async function consumeOpsQueueMessage(
     return;
   }
   if (scanDiagnosticText(bundle.inventory_json).length > 0) {
-    await markBundle(deps.db, message.workspace_id, message.bundle_id, "failed", { error: "redaction_failed", now });
+    await markBundle(deps.db, message.workspace_id, message.bundle_id, "failed", {
+      error: "redaction_failed",
+      now,
+    });
     await deps.sendDlq(dlqCopy(message, "redaction_failed"));
     handle.ack();
     return;
@@ -122,11 +125,17 @@ export async function consumeOpsQueueMessage(
   try {
     const key = diagnosticR2Key(message.workspace_id, message.bundle_id);
     await deps.r2.put(key, bundle.inventory_json);
-    await markBundle(deps.db, message.workspace_id, message.bundle_id, "uploaded", { r2Key: key, now });
+    await markBundle(deps.db, message.workspace_id, message.bundle_id, "uploaded", {
+      r2Key: key,
+      now,
+    });
     handle.ack();
   } catch {
     if (handle.attempts + 1 >= maxAttempts) {
-      await markBundle(deps.db, message.workspace_id, message.bundle_id, "failed", { error: "upload_exhausted", now });
+      await markBundle(deps.db, message.workspace_id, message.bundle_id, "failed", {
+        error: "upload_exhausted",
+        now,
+      });
       await deps.sendDlq(dlqCopy(message, "upload_exhausted"));
       handle.ack();
       return;

@@ -46,10 +46,13 @@ export function OperationsPage(props: OperationsPageProps) {
   const sections = visibleSections(props.role);
   const [health, setHealth] = useState<SectionState<Record<string, unknown>>>(initialSection);
   const [queues, setQueues] = useState<SectionState<Record<string, unknown>>>(initialSection);
-  const [activity, setActivity] = useState<SectionState<{ entries: Array<Record<string, unknown>> }>>(initialSection);
-  const [audit, setAudit] = useState<SectionState<{ entries: Array<Record<string, unknown>> }>>(initialSection);
+  const [activity, setActivity] =
+    useState<SectionState<{ entries: Array<Record<string, unknown>> }>>(initialSection);
+  const [audit, setAudit] =
+    useState<SectionState<{ entries: Array<Record<string, unknown>> }>>(initialSection);
   const [retention, setRetention] = useState<SectionState<Record<string, unknown>>>(initialSection);
-  const [bundles, setBundles] = useState<SectionState<{ bundles: Array<Record<string, unknown>> }>>(initialSection);
+  const [bundles, setBundles] =
+    useState<SectionState<{ bundles: Array<Record<string, unknown>> }>>(initialSection);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -61,7 +64,11 @@ export function OperationsPage(props: OperationsPageProps) {
       try {
         setHealth({ loading: false, error: null, data: await getJson(fetchFn, base("/health")) });
       } catch (caught) {
-        setHealth({ loading: false, error: caught instanceof Error ? caught.message : "Health failed.", data: null });
+        setHealth({
+          loading: false,
+          error: caught instanceof Error ? caught.message : "Health failed.",
+          data: null,
+        });
       }
     } else {
       setHealth({ loading: false, error: null, data: null });
@@ -70,48 +77,92 @@ export function OperationsPage(props: OperationsPageProps) {
       try {
         setQueues({ loading: false, error: null, data: await getJson(fetchFn, base("/queues")) });
       } catch (caught) {
-        setQueues({ loading: false, error: caught instanceof Error ? caught.message : "Queues failed.", data: null });
+        setQueues({
+          loading: false,
+          error: caught instanceof Error ? caught.message : "Queues failed.",
+          data: null,
+        });
       }
     } else {
       setQueues({ loading: false, error: null, data: null });
     }
     try {
-      const feed = (await getJson(fetchFn, base("/activity"))) as { entries: Array<Record<string, unknown>> };
+      const feed = (await getJson(fetchFn, base("/activity"))) as {
+        entries: Array<Record<string, unknown>>;
+      };
       setActivity({ loading: false, error: null, data: feed });
     } catch (caught) {
-      setActivity({ loading: false, error: caught instanceof Error ? caught.message : "Activity failed.", data: null });
+      setActivity({
+        loading: false,
+        error: caught instanceof Error ? caught.message : "Activity failed.",
+        data: null,
+      });
     }
     if (props.role === "owner") {
       try {
-        const rows = (await getJson(fetchFn, base("/security-audit"))) as { entries: Array<Record<string, unknown>> };
+        const rows = (await getJson(fetchFn, base("/security-audit"))) as {
+          entries: Array<Record<string, unknown>>;
+        };
         setAudit({ loading: false, error: null, data: rows });
       } catch (caught) {
-        setAudit({ loading: false, error: caught instanceof Error ? caught.message : "Audit failed.", data: null });
+        setAudit({
+          loading: false,
+          error: caught instanceof Error ? caught.message : "Audit failed.",
+          data: null,
+        });
       }
       try {
-        setRetention({ loading: false, error: null, data: await getJson(fetchFn, base("/retention")) });
+        setRetention({
+          loading: false,
+          error: null,
+          data: await getJson(fetchFn, base("/retention")),
+        });
       } catch (caught) {
-        setRetention({ loading: false, error: caught instanceof Error ? caught.message : "Retention failed.", data: null });
+        setRetention({
+          loading: false,
+          error: caught instanceof Error ? caught.message : "Retention failed.",
+          data: null,
+        });
       }
       try {
-        const list = (await getJson(fetchFn, base("/diagnostics"))) as { bundles: Array<Record<string, unknown>> };
+        const list = (await getJson(fetchFn, base("/diagnostics"))) as {
+          bundles: Array<Record<string, unknown>>;
+        };
         setBundles({ loading: false, error: null, data: list });
       } catch (caught) {
-        setBundles({ loading: false, error: caught instanceof Error ? caught.message : "Diagnostics failed.", data: null });
+        setBundles({
+          loading: false,
+          error: caught instanceof Error ? caught.message : "Diagnostics failed.",
+          data: null,
+        });
       }
     } else {
       setAudit({ loading: false, error: null, data: null });
       if (props.role === "member") {
         try {
-          setRetention({ loading: false, error: null, data: await getJson(fetchFn, base("/retention")) });
+          setRetention({
+            loading: false,
+            error: null,
+            data: await getJson(fetchFn, base("/retention")),
+          });
         } catch (caught) {
-          setRetention({ loading: false, error: caught instanceof Error ? caught.message : "Retention failed.", data: null });
+          setRetention({
+            loading: false,
+            error: caught instanceof Error ? caught.message : "Retention failed.",
+            data: null,
+          });
         }
         try {
-          const list = (await getJson(fetchFn, base("/diagnostics"))) as { bundles: Array<Record<string, unknown>> };
+          const list = (await getJson(fetchFn, base("/diagnostics"))) as {
+            bundles: Array<Record<string, unknown>>;
+          };
           setBundles({ loading: false, error: null, data: list });
         } catch (caught) {
-          setBundles({ loading: false, error: caught instanceof Error ? caught.message : "Diagnostics failed.", data: null });
+          setBundles({
+            loading: false,
+            error: caught instanceof Error ? caught.message : "Diagnostics failed.",
+            data: null,
+          });
         }
       } else {
         setRetention({ loading: false, error: null, data: null });
@@ -142,7 +193,10 @@ export function OperationsPage(props: OperationsPageProps) {
       const response = await fetchFn(operationsPath(props.workspaceId, "/recovery"), {
         method: "POST",
         headers: { "content-type": "application/json", "x-bfb-csrf": props.csrfToken },
-        body: JSON.stringify({ ...buildRecoveryBody(recovery.kind, recovery.target), step_up_proof_id: proof }),
+        body: JSON.stringify({
+          ...buildRecoveryBody(recovery.kind, recovery.target),
+          step_up_proof_id: proof,
+        }),
       });
       if (!response.ok) {
         throw new Error(`Recovery failed (${response.status}).`);
@@ -244,11 +298,17 @@ export function OperationsPage(props: OperationsPageProps) {
         scopes: [],
         authorizationEpoch: props.authorizationEpoch,
       });
-      const response = await fetchFn(operationsPath(props.workspaceId, `/diagnostics/${bundleId}/consent`), {
-        method: "POST",
-        headers: { "content-type": "application/json", "x-bfb-csrf": props.csrfToken },
-        body: JSON.stringify({ request_id: `ops-${newIdempotencyKey()}`, step_up_proof_id: proof }),
-      });
+      const response = await fetchFn(
+        operationsPath(props.workspaceId, `/diagnostics/${bundleId}/consent`),
+        {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-bfb-csrf": props.csrfToken },
+          body: JSON.stringify({
+            request_id: `ops-${newIdempotencyKey()}`,
+            step_up_proof_id: proof,
+          }),
+        },
+      );
       if (!response.ok) {
         throw new Error(`Upload consent failed (${response.status}).`);
       }
@@ -273,7 +333,9 @@ export function OperationsPage(props: OperationsPageProps) {
         <div>
           <p className="section-label">OPERATIONS</p>
           <h1>Operations, audit, and retention</h1>
-          <p>Committed counts and cursors only. No task text, paths, or secrets leave this surface.</p>
+          <p>
+            Committed counts and cursors only. No task text, paths, or secrets leave this surface.
+          </p>
         </div>
       </div>
       {status ? (
@@ -295,13 +357,24 @@ export function OperationsPage(props: OperationsPageProps) {
           {health.data ? (
             <ul>
               <li data-testid="health-retention">
-                Retention: {formatCount((health.data.health as Record<string, Record<string, unknown>>)?.retention?.eligible_chunks)} eligible chunks
+                Retention:{" "}
+                {formatCount(
+                  (health.data.health as Record<string, Record<string, unknown>>)?.retention
+                    ?.eligible_chunks,
+                )}{" "}
+                eligible chunks
               </li>
               <li data-testid="health-tokens">
-                Tokens: {formatCount((health.data.health as Record<string, Record<string, number>>)?.tokens?.expiring_runner_tokens)} expiring
+                Tokens:{" "}
+                {formatCount(
+                  (health.data.health as Record<string, Record<string, number>>)?.tokens
+                    ?.expiring_runner_tokens,
+                )}{" "}
+                expiring
               </li>
               <li data-testid="health-migrations">
-                Migrations: {(health.data.migrations as { ok?: boolean })?.ok ? "complete" : "incomplete"}
+                Migrations:{" "}
+                {(health.data.migrations as { ok?: boolean })?.ok ? "complete" : "incomplete"}
               </li>
             </ul>
           ) : null}
@@ -316,9 +389,10 @@ export function OperationsPage(props: OperationsPageProps) {
           {queueData ? (
             <>
               <p data-testid="queue-counts">
-                Notifications pending {formatCount(queueData.queues?.notifications?.pending)}, dead-lettered{" "}
-                {formatCount(queueData.queues?.notifications?.dead_lettered)}; GitHub outbox pending{" "}
-                {formatCount(queueData.queues?.github_outbox?.pending)}, DLQ {formatCount(queueData.queues?.github_outbox?.dlq)}.
+                Notifications pending {formatCount(queueData.queues?.notifications?.pending)},
+                dead-lettered {formatCount(queueData.queues?.notifications?.dead_lettered)}; GitHub
+                outbox pending {formatCount(queueData.queues?.github_outbox?.pending)}, DLQ{" "}
+                {formatCount(queueData.queues?.github_outbox?.dlq)}.
               </p>
               <ul>
                 {(queueData.stuck_uploads ?? []).map((item) => (
@@ -328,7 +402,12 @@ export function OperationsPage(props: OperationsPageProps) {
                       <button
                         type="button"
                         disabled={busy}
-                        onClick={() => void postRecovery({ kind: "resolve_stuck_upload", target: { version_ids: [item.version_id] } })}
+                        onClick={() =>
+                          void postRecovery({
+                            kind: "resolve_stuck_upload",
+                            target: { version_ids: [item.version_id] },
+                          })
+                        }
                       >
                         Resolve stuck upload
                       </button>
@@ -352,8 +431,12 @@ export function OperationsPage(props: OperationsPageProps) {
         {activity.error ? <p className="inline-error">{activity.error}</p> : null}
         <ul>
           {(activity.data?.entries ?? []).slice(0, 20).map((entry) => (
-            <li key={String(entry.workspace_cursor)} data-testid={`activity-${String(entry.workspace_cursor)}`}>
-              {String(entry.kind)} · {String(entry.actor_type)} · cursor {String(entry.workspace_cursor)}
+            <li
+              key={String(entry.workspace_cursor)}
+              data-testid={`activity-${String(entry.workspace_cursor)}`}
+            >
+              {String(entry.kind)} · {String(entry.actor_type)} · cursor{" "}
+              {String(entry.workspace_cursor)}
             </li>
           ))}
         </ul>
@@ -379,9 +462,11 @@ export function OperationsPage(props: OperationsPageProps) {
           <h2>Retention</h2>
           {retention.data ? (
             <p data-testid="retention-policy">
-              Raw logs: {(retention.data.policy as { raw_log_retention_days?: number } | null)?.raw_log_retention_days ?? 30} days ·{" "}
-              {(retention.data.eligible as { eligible?: unknown[] })?.eligible?.length ?? 0} eligible chunks. Hashes,
-              metadata, and blobs are never deleted.
+              Raw logs:{" "}
+              {(retention.data.policy as { raw_log_retention_days?: number } | null)
+                ?.raw_log_retention_days ?? 30}{" "}
+              days · {(retention.data.eligible as { eligible?: unknown[] })?.eligible?.length ?? 0}{" "}
+              eligible chunks. Hashes, metadata, and blobs are never deleted.
             </p>
           ) : null}
           {props.role === "owner" ? (
@@ -414,9 +499,14 @@ export function OperationsPage(props: OperationsPageProps) {
           <ul>
             {(bundles.data?.bundles ?? []).map((bundle) => (
               <li key={String(bundle.bundle_id)} data-testid={`bundle-${String(bundle.bundle_id)}`}>
-                {String(bundle.bundle_id).slice(0, 8)}… · {String(bundle.state)} · redaction {String(bundle.redaction_status)}
+                {String(bundle.bundle_id).slice(0, 8)}… · {String(bundle.state)} · redaction{" "}
+                {String(bundle.redaction_status)}
                 {props.role === "owner" && bundle.state === "pending_consent" ? (
-                  <button type="button" disabled={busy} onClick={() => void consentBundle(String(bundle.bundle_id))}>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void consentBundle(String(bundle.bundle_id))}
+                  >
                     Review inventory &amp; consent upload
                   </button>
                 ) : null}
