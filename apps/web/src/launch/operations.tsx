@@ -1,9 +1,16 @@
 // ABOUTME: W02 runner administration and card-level launch operations.
 // ABOUTME: Grant changes use action-bound passkey step-up; containment recovery stays local-only.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { requestStepUpProof } from "../auth/webauthn.js";
+import {
+  HEARTBEAT_INTERVAL_MS,
+  REALTIME_PATH,
+  REALTIME_PROTOCOL,
+  heartbeatFrame,
+  parseServerFrame,
+} from "../realtime/protocol.js";
 import { hashPublicValue } from "../runner-enrollment.js";
 import {
   buildControlRequest,
@@ -15,6 +22,7 @@ import {
   linkedCheckoutsMessage,
   newIdempotencyKey,
   isSettledControlState,
+  isUnsettledLaunch,
   providerStatusMessage,
   refreshTaskLaunches,
   resolveEffectiveCheckoutId,
@@ -491,6 +499,45 @@ export interface LaunchSectionProps {
   role: "owner" | "member" | "reviewer";
   csrfToken: string;
   fetchImpl?: typeof fetch;
+  transport?: LaunchRealtimeTransport | undefined;
+}
+
+export interface LaunchRealtimeChannel {
+  onmessage: ((data: string) => void) | null;
+  onclose: ((event: { code: number; reason: string }) => void) | null;
+  send(data: string): void;
+  close(): void;
+}
+
+export interface LaunchRealtimeTransport {
+  open(url: string, protocol: string): LaunchRealtimeChannel;
+}
+
+function browserLaunchTransport(): LaunchRealtimeTransport {
+  return {
+    open(url: string, protocol: string): LaunchRealtimeChannel {
+      const socket = new WebSocket(url, protocol);
+      const channel: LaunchRealtimeChannel = {
+        onmessage: null,
+        onclose: null,
+        send: (data: string) => socket.send(data),
+        close: () => socket.close(),
+      };
+      socket.addEventListener("message", (event: MessageEvent) => {
+        if (typeof event.data === "string") channel.onmessage?.(event.data);
+      });
+      socket.addEventListener("close", (event: CloseEvent) => {
+        channel.onclose?.({ code: event.code, reason: event.reason });
+      });
+      return channel;
+    },
+  };
+}
+
+function launchSocketUrl(workspaceId: string): string | null {
+  if (typeof window === "undefined" || typeof window.location === "undefined") return null;
+  const scheme = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${scheme}//${window.location.host}${REALTIME_PATH(workspaceId)}`;
 }
 
 export function LaunchSection(props: LaunchSectionProps) {
@@ -563,11 +610,12 @@ export function LaunchSection(props: LaunchSectionProps) {
     };
   }, [reload]);
 
-  const awaitingClaim = launches.some(
-    (launch) => launch.state === "pending" || launch.state === "claimed",
-  );
+  // Any launch that can still move without a new explicit command keeps
+  // the card refreshing: attached, detached, ended, and containment
+  // transitions all arrive through the same launches read.
+  const needsRefresh = launches.some(isUnsettledLaunch);
   useEffect(() => {
-    if (!awaitingClaim) {
+    if (!needsRefresh) {
       return;
     }
     const timer = setInterval(() => {
@@ -577,7 +625,60 @@ export function LaunchSection(props: LaunchSectionProps) {
         .catch(() => null);
     }, 5000);
     return () => clearInterval(timer);
-  }, [awaitingClaim, client, props.taskId]);
+  }, [needsRefresh, client, props.taskId]);
+
+  // Live invalidation from the workspace realtime socket. The socket carries
+  // cursor hints only; every visible row comes from the authoritative
+  // launches read. The interval above stays the durable fallback, so a dead
+  // socket degrades to 5s polling instead of a stale card.
+  const launchConnectionId = useRef<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    const url = launchSocketUrl(props.workspaceId);
+    if (!url) {
+      return;
+    }
+    const channel = (props.transport ?? browserLaunchTransport()).open(url, REALTIME_PROTOCOL);
+    channel.onmessage = (data: string) => {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(data) as unknown;
+      } catch {
+        return;
+      }
+      const frame = parseServerFrame(parsed);
+      if (!frame || frame.workspaceId !== props.workspaceId) {
+        return;
+      }
+      if (frame.kind === "ready") {
+        launchConnectionId.current = frame.connectionId;
+      } else if (frame.kind === "invalidation") {
+        if (active) {
+          void refreshLaunches().catch(() => null);
+        }
+      } else if (frame.kind === "close") {
+        launchConnectionId.current = null;
+      }
+    };
+    channel.onclose = () => {
+      launchConnectionId.current = null;
+    };
+    const heartbeat = setInterval(() => {
+      const id = launchConnectionId.current;
+      if (id) {
+        try {
+          channel.send(heartbeatFrame(props.workspaceId, id));
+        } catch {
+          /* A failed heartbeat surfaces as a socket close. */
+        }
+      }
+    }, HEARTBEAT_INTERVAL_MS);
+    return () => {
+      active = false;
+      clearInterval(heartbeat);
+      channel.close();
+    };
+  }, [props.workspaceId, props.transport, refreshLaunches]);
 
   const launchable = useMemo(
     () =>

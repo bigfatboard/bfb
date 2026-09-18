@@ -540,3 +540,21 @@ export function describeLaunchStatus(launch: LaunchStatus): LaunchPresentation {
 export function resultLabel(resultState: string): string {
   return `Result: ${resultState.replaceAll("_", " ")} (recorded separately)`;
 }
+
+/**
+ * Whether a launch can still change presentation without a new explicit
+ * command, so the card must keep refreshing it. Only expired, rejected,
+ * cancelled, and ended launches render a final state: attached, detached,
+ * and containment-unknown launches still move (the daemon reports attach,
+ * loss, exit, and local recovery through the same read), as do launches
+ * still awaiting claim.
+ */
+export function isUnsettledLaunch(launch: LaunchStatus): boolean {
+  if (launch.state === "expired" || launch.state === "rejected" || launch.cancelled) {
+    return false;
+  }
+  if (launch.execution_state === "ended") {
+    return false;
+  }
+  return true;
+}

@@ -13,6 +13,7 @@ import {
   describeCheckoutDisplay,
   describeLaunchStatus,
   isSettledControlState,
+  isUnsettledLaunch,
   linkedCheckoutsMessage,
   newIdempotencyKey,
   providerStatusMessage,
@@ -321,6 +322,67 @@ describe("w02 launch presentation", () => {
       const shown = describeLaunchStatus(baseLaunch({ result_state: resultState }));
       expect(shown.headline).not.toContain(resultState);
     }
+  });
+
+  it("keeps refreshing every launch that can still move", () => {
+    // Pending and claimed launches await the Mac; started launches still
+    // move through attach, detach, exit, and local containment recovery, so
+    // the card must keep reading them. Only a final presentation settles.
+    expect(isUnsettledLaunch(baseLaunch())).toBe(true);
+    expect(
+      isUnsettledLaunch(
+        baseLaunch({ state: "claimed", execution_state: "launching", lease_state: "reserved" }),
+      ),
+    ).toBe(true);
+    expect(
+      isUnsettledLaunch(
+        baseLaunch({ state: "started", execution_state: "attached", lease_state: "live" }),
+      ),
+    ).toBe(true);
+    expect(
+      isUnsettledLaunch(
+        baseLaunch({ state: "started", execution_state: "detached", lease_state: "live" }),
+      ),
+    ).toBe(true);
+    expect(
+      isUnsettledLaunch(
+        baseLaunch({
+          state: "claimed",
+          execution_state: "launching",
+          lease_state: "containment_unknown",
+          containment_reason: "escaped_descendant",
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it("settles only launches with a final presentation", () => {
+    expect(
+      isUnsettledLaunch(
+        baseLaunch({
+          state: "started",
+          execution_state: "ended",
+          execution_end_reason: "process_exit",
+          lease_state: "released",
+        }),
+      ),
+    ).toBe(false);
+    expect(
+      isUnsettledLaunch(
+        baseLaunch({
+          state: "expired",
+          end_reason: "launch_expired",
+          execution_state: "ended",
+          execution_end_reason: "launch_expired",
+        }),
+      ),
+    ).toBe(false);
+    expect(
+      isUnsettledLaunch(
+        baseLaunch({ state: "rejected", end_reason: "launch_blocked", execution_state: "ended" }),
+      ),
+    ).toBe(false);
+    expect(isUnsettledLaunch(baseLaunch({ cancelled: true }))).toBe(false);
   });
 });
 
