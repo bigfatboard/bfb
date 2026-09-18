@@ -31,15 +31,21 @@ auto-submit contract.
 
 ## Pre-release gate state handed to G02
 
-- Every gate except AG-10 and OG-02 is `passed` or `waived` in
+- Every gate except AG-04, AG-10, and OG-02 is `passed` in
   `docs/work-packages/evidence/WP-G01/gate-report.json`. AG-10 and OG-02
   are `not_run`: G02 owns clean-install and release/rollback proof.
-- AG-02 stays partially `waived`: the cloud-plane launch contention,
-  expiry, and cleanup receipts pass in G01, but the native Terminal
-  launch trace is L05-owned and blocked on L05 Terminal acceptance.
-- AG-04 stays partially `waived`: shared Stop/exit lifecycle semantics
-  and capability ceilings pass in G01, but live provider turns need L05
-  supervision plus provider credentials and consent.
+- AG-02 is `passed`: the native exact-checkout launch trace and the
+  moved/replaced/occupied, locked, consent-denial, pre-exec-swap, and
+  containment matrix are proven by WP-L05 Terminal certification
+  (`done`), and the cloud-plane launch contention, expiry, and cleanup
+  receipts pass in G01.
+- AG-04 is `failed`, with no waiver in force: shared Stop/exit lifecycle
+  semantics and capability ceilings pass in G01, but live
+  Claude/Codex/Grok turns need provider credentials and consent that are
+  unavailable, L07 is `review` pending live Claude credentials, and P01
+  and P02 are `planned`. No ADR and no explicit decision authorizes a
+  waiver, so the gate fails and this release candidate is not settled
+  until AG-04 passes.
 
 ## G02 entry procedure
 

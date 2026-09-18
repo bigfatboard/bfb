@@ -1,13 +1,13 @@
 // ABOUTME: Locks each G01 gate row to the owning package proof it certifies.
-// ABOUTME: Fails when a passed row cites pnpm test:g01 instead of its proof owner.
+// ABOUTME: Fails when a passed row cites the wrong proof or a waived row lacks an ADR decision.
 
 import assert from "node:assert/strict";
-import { readFile, stat } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { GATE_ROWS, G01_COMMAND, G01_GATE_EVIDENCE } from "./gates.ts";
+import { GATE_ROWS, G01_COMMAND, G01_GATE_EVIDENCE, waiverDefect } from "./gates.ts";
 
 const toolDir = dirname(fileURLToPath(import.meta.url));
 const root = resolve(toolDir, "../..");
@@ -36,6 +36,83 @@ test("gate table covers every release gate exactly once", () => {
     "OG-02",
   ];
   assert.deepEqual(GATE_ROWS.map((row) => row.gate).sort(), [...expected].sort());
+});
+
+test("waived gates cite an ADR recording Timo's explicit decision", async () => {
+  const adrIndex = new Map();
+  for (const entry of await readdir(resolve(root, "docs/adr"))) {
+    if (!entry.endsWith(".md")) continue;
+    adrIndex.set(
+      `docs/adr/${entry}`,
+      await readFile(resolve(root, "docs/adr", entry), "utf8"),
+    );
+  }
+  for (const row of GATE_ROWS) {
+    assert.equal(
+      waiverDefect(row, adrIndex),
+      null,
+      `${row.gate} carries an unauthorized waiver`,
+    );
+  }
+});
+
+test("waiverDefect rejects self-issued waivers and accepts authorized ones", () => {
+  const authorized = new Map([
+    [
+      "docs/adr/0004-provider-turn-waiver.md",
+      "# ADR 0004\nGate AG-04 is deferred.\nTimo's decision: waive pending credentials.",
+    ],
+  ]);
+  const base = {
+    gate: "AG-04",
+    owner: "G01",
+    command: "pnpm test:g01",
+    evidence: "docs/work-packages/evidence/WP-G01/gate-report.json",
+    detail: "detail",
+  };
+  assert.match(
+    waiverDefect(
+      { ...base, status: "waived", waiver: "blocked on credentials" },
+      authorized,
+    ) ?? "",
+    /no docs\/adr decision record/,
+  );
+  assert.match(
+    waiverDefect(
+      { ...base, status: "waived", waiver: "see docs/adr/0099-missing.md" },
+      authorized,
+    ) ?? "",
+    /not a recorded ADR/,
+  );
+  assert.match(
+    waiverDefect(
+      { ...base, status: "waived", waiver: "see docs/adr/0004-provider-turn-waiver.md" },
+      new Map([["docs/adr/0004-provider-turn-waiver.md", "# ADR 0004\nNo gate named."]]),
+    ) ?? "",
+    /does not decide AG-04/,
+  );
+  assert.match(
+    waiverDefect(
+      { ...base, status: "waived", waiver: "see docs/adr/0004-provider-turn-waiver.md" },
+      new Map([["docs/adr/0004-provider-turn-waiver.md", "# ADR 0004\nGate AG-04 deferred."]]),
+    ) ?? "",
+    /no explicit Timo decision/,
+  );
+  assert.equal(
+    waiverDefect(
+      { ...base, status: "waived", waiver: "see docs/adr/0004-provider-turn-waiver.md" },
+      authorized,
+    ),
+    null,
+  );
+  assert.equal(waiverDefect({ ...base, status: "passed" }, authorized), null);
+  assert.equal(
+    waiverDefect(
+      { ...base, status: "not_run", waiver: "G02 owns this gate." },
+      authorized,
+    ),
+    null,
+  );
 });
 
 for (const row of GATE_ROWS) {

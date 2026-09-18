@@ -68,7 +68,7 @@ The complete retained v0.1 feature set passes every pre-release tenant, launch, 
 ## Evidence
 
 - `docs/work-packages/evidence/WP-G01/manifest.json` (conforms to `docs/work-packages/evidence/manifest.schema.json`): gate runs, commit, schema heads, environment, commands, outcomes, redaction status.
-- Pre-release gate report (`gate-report.json`): one row per architecture/security/operations gate with status, command, evidence, waiver, and detail; AG-10 and OG-02 are `not_run` for G02. Each `passed` row cites the owning package's test target and evidence manifest as its command and evidence (G01-owned gates cite `pnpm test:g01` and the G01 report); `tools/g01/run.ts` refuses to stamp a row whose cited manifest is missing or not `passed`.
+- Pre-release gate report (`gate-report.json`): one row per architecture/security/operations gate with status, command, evidence, waiver, and detail; AG-10 and OG-02 are `not_run` for G02. Each `passed` row cites the owning package's test target and evidence manifest as its command and evidence (G01-owned gates cite `pnpm test:g01` and the G01 report); `tools/g01/run.ts` refuses to stamp a row whose cited manifest is missing or not `passed`, refuses any `waived` row that does not cite an ADR recording Timo's explicit decision, and fails the run while any gate is `failed`.
 - Golden fixture (`fixture.json`): seed `bfb-g01/v1`, three humans, ten projects, five profiles, two runners with four checkouts, ten envelope tasks.
 - Failure-injection traces (`traces.jsonl`): stable per-suite lines without generated ids or timestamps.
 - Browser security report (`browser-security.json`): bearer/CSRF/cookie/hostile-inert Chromium scenarios on `BFB_E2E_PORT=4197`.
@@ -78,11 +78,11 @@ The complete retained v0.1 feature set passes every pre-release tenant, launch, 
 ## Risks and decisions
 
 - Integrated testing will expose ownership gaps. Fix the owning package and its tests rather than centralizing behavior in the harness.
-- Native Terminal, live provider turns, and supervisor crash/PID-reuse proofs stay L05-owned: this machine cannot drive Terminal from G01 while the L05 certification agent owns it, so AG-02 and AG-04 carry a scoped waiver with the cloud-plane proof passed in G01.
+- Native Terminal, live provider turns, and supervisor crash/PID-reuse proofs stay L05-owned. AG-02 is `passed` on the completed L05 Terminal certification with the G01 cloud-plane halves; AG-04 is `failed` because live Claude/Codex/Grok turns need provider credentials and consent that are unavailable, and no ADR with Timo's explicit decision authorizes a waiver, so no waiver is recorded.
 - Evidence files embed no commit hash, timestamp, or generated id, so `pnpm test:g01` regenerates them byte-identically; the tested commit is bound once in the manifest and command result.
 
 ## Handoff
 
 - Implementation, gate (`pnpm test:g01`, `pnpm verify`, `pnpm worktree:check`, clean-checkout gate), and evidence are complete on branch `muse/g01`. Status is left at `planned` (note recorded here and in `mvp.progress.md`) because `pnpm roadmap:check` rejects anything beyond `planned` while L07 is `review` and P01, P02, and X02 are `planned` (A04, E02, V03, W02, X01, X03, X04, and X05 are `done` since 18 September; per `docs/work-packages/README.md`).
 - G02 receives one tagged release candidate with frozen contracts (`docs/contracts/release-candidate.md`), AG-10/OG-02 marked `not_run`, their executable procedures prepared, and no undocumented manual repair.
-- Known limitations: the native Terminal launch trace, live provider turns, and supervisor crash/PID-reuse proofs wait on L05 Terminal acceptance; real-network partition behavior beyond workerd eviction is covered by owning-package evidence; performance figures are bounded-verdict counts for the 3/10/5 envelope, not enterprise load figures.
+- Known limitations: L05 Terminal acceptance is complete and AG-02 is re-proven on it; live provider turns still wait on provider credentials and consent, so AG-04 is `failed` and the release candidate is not settled until it passes; real-network partition behavior beyond workerd eviction is covered by owning-package evidence; performance figures are bounded-verdict counts for the 3/10/5 envelope, not enterprise load figures.

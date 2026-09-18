@@ -114,7 +114,7 @@ import {
 } from "@bfb/domain";
 import { createTestHarness } from "wrangler";
 
-import { GATE_ROWS, G01_COMMAND } from "./gates.js";
+import { GATE_ROWS, G01_COMMAND, waiverDefect } from "./gates.js";
 import {
   G01_EXTRA_PROFILES,
   G01_EXTRA_PROJECTS,
@@ -2426,7 +2426,21 @@ try {
       `${row.gate} cites ${row.evidence}, which must record a passed run`,
     );
   }
+  // Waiver check: a waived row is stamped only with an ADR recording Timo's
+  // explicit decision, per docs/work-packages/ACCEPTANCE.md.
+  const adrIndex = new Map<string, string>();
+  for (const entry of await readdir(resolve(root, "docs/adr"))) {
+    if (!entry.endsWith(".md")) continue;
+    adrIndex.set(
+      `docs/adr/${entry}`,
+      await readFile(resolve(root, "docs/adr", entry), "utf8"),
+    );
+  }
+  for (const row of GATE_ROWS) {
+    assert.equal(waiverDefect(row, adrIndex), null, `${row.gate} carries an unauthorized waiver`);
+  }
   const gateRows = GATE_ROWS;
+  const failedGates = gateRows.filter((row) => row.status === "failed").map((row) => row.gate);
   await writeJson(resolve(evidenceDir, "gate-report.json"), {
     $schema: "../manifest.schema.json",
     seed: G01_SEED,
@@ -2446,8 +2460,13 @@ try {
       ...(row.waiver ? { waiver: row.waiver } : {}),
       detail: row.detail,
     })),
-    outcome: "passed",
+    outcome: failedGates.length > 0 ? "failed" : "passed",
   });
+  if (failedGates.length > 0) {
+    throw new Error(
+      `release gates failed: ${failedGates.join(", ")}; see docs/work-packages/evidence/WP-G01/gate-report.json`,
+    );
+  }
   console.log(
     `G01_OK ${gateRows.filter((row) => row.status === "passed").length} passed, ${gateRows.filter((row) => row.status === "waived").length} waived, ${gateRows.filter((row) => row.status === "not_run").length} not_run`,
   );

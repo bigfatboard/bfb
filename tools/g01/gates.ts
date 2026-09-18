@@ -3,7 +3,7 @@
 
 export interface GateRow {
   gate: string;
-  status: "passed" | "waived" | "not_run";
+  status: "passed" | "waived" | "failed" | "not_run";
   /** "G01" for gates G01 proves itself; otherwise the owning WP id (e.g. "C04"). */
   owner: string;
   command: string;
@@ -14,6 +14,24 @@ export interface GateRow {
 
 export const G01_COMMAND = "pnpm test:g01";
 export const G01_GATE_EVIDENCE = "docs/work-packages/evidence/WP-G01/gate-report.json";
+
+// A waiver is only authorized by an architecture decision record that names
+// the gate and records Timo's explicit decision, per docs/work-packages/ACCEPTANCE.md.
+export const WAIVER_ADR_PATTERN = /docs\/adr\/(\d{4})-[A-Za-z0-9-]+\.md/;
+
+export function waiverDefect(row: GateRow, adrIndex: Map<string, string>): string | null {
+  if (row.status !== "waived") return null;
+  if (!row.waiver) return `${row.gate} is waived without a recorded waiver`;
+  const cited = WAIVER_ADR_PATTERN.exec(row.waiver)?.[0];
+  if (!cited) return `${row.gate} waiver cites no docs/adr decision record`;
+  const adr = adrIndex.get(cited);
+  if (!adr) return `${row.gate} waiver cites ${cited}, which is not a recorded ADR`;
+  if (!adr.includes(row.gate)) return `${cited} does not decide ${row.gate}`;
+  if (!/timo/i.test(adr) || !/decision/i.test(adr)) {
+    return `${cited} records no explicit Timo decision for ${row.gate}`;
+  }
+  return null;
+}
 
 export const GATE_ROWS: GateRow[] = [
   {
@@ -27,14 +45,12 @@ export const GATE_ROWS: GateRow[] = [
   },
   {
     gate: "AG-02",
-    status: "waived",
-    owner: "G01",
-    command: "pnpm test:g01",
-    evidence: "docs/work-packages/evidence/WP-G01/gate-report.json",
+    status: "passed",
+    owner: "L05",
+    command: "pnpm test:l05",
+    evidence: "docs/work-packages/evidence/WP-L05/manifest.json",
     detail:
-      "Cloud-plane contention, expiry, and cleanup receipts pass in G01; owning evidence WP-C09/WP-W02.",
-    waiver:
-      "Native Terminal launch trace is L05-owned and blocked on L05 Terminal acceptance; this machine cannot drive Terminal from G01 while the L05 agent owns it.",
+      "Native exact-checkout launch trace with the moved/replaced/occupied, locked, consent-denial, pre-exec-swap, and containment matrix proven in L05 Terminal certification; cloud-plane contention, expiry, and cleanup receipts pass in G01.",
   },
   {
     gate: "AG-03",
@@ -47,14 +63,12 @@ export const GATE_ROWS: GateRow[] = [
   },
   {
     gate: "AG-04",
-    status: "waived",
+    status: "failed",
     owner: "G01",
     command: "pnpm test:g01",
     evidence: "docs/work-packages/evidence/WP-G01/gate-report.json",
     detail:
-      "Shared Stop/exit lifecycle predicate matrix and provider capability ceilings pass in G01; owning evidence WP-L03/WP-L07/WP-P01/WP-P02.",
-    waiver:
-      "Live Claude/Codex/Grok turns need L05 supervision plus provider credentials and consent, unavailable to G01.",
+      "Shared Stop/exit lifecycle predicate matrix and provider capability ceilings pass in G01, but live Claude/Codex/Grok turns are unproven: provider credentials and consent are unavailable, L07 is review pending live Claude credentials, and P01/P02 are planned. No ADR and no explicit decision authorizes a waiver, so the gate fails instead of waiving.",
   },
   {
     gate: "AG-05",
