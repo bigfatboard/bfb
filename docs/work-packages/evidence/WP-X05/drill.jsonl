@@ -1,0 +1,11 @@
+[D1] 0034_operations registered and applied; operations tables present
+[D2] security audit Owner-only; activity role-scoped without payloads
+[D3] member/missing/replayed/mismatched/stale proofs rejected; fresh Owner proof sets v1
+[D4] expired launch 019379H4… visible as stuck; live claims untouched
+[D5] stuck upload resolved once, replayed on retry, live versions rejected
+[D6] github DLQ row requeued to pending with reset attempts
+[D7] notification watermark rewound to 20 for redelivery
+[D8] retention via queue deleted 1 eligible object; 4 D1 rows and review bytes intact
+[D9] bundle generated, inventory reviewed, consented, and uploaded redacted
+[D10] poison retried into the DLQ with IDs only; sibling sweep converged
+[D11] secret scan passed over 8 outputs

@@ -69,7 +69,33 @@ export default {
   fetch: createFetchHandler(),
   async queue(batch: MessageBatch, env: ControlBindings): Promise<void> {
     const validated = validateControlEnv(env);
-    // X01 owns the bfb-notify* queues; every other consumer batch is X04's JOBS queue.
+    // X01 owns the bfb-notify* queues, X05 the bfb-ops* queues;
+    // every other consumer batch is X04's JOBS queue.
+    if (/^bfb-ops(-staging|-local)?$/.test(batch.queue)) {
+      if (!validated.bindings.OPS_JOBS || !validated.bindings.OPS_DLQ) {
+        throw new Error("operations queue bindings are not configured");
+      }
+      const { consumeOpsQueueBatch } = await import("./operations/queue.js");
+      const dlq = validated.bindings.OPS_DLQ;
+      const r2 = validated.bindings.ARTIFACTS;
+      const handles = batch.messages.map((message) => ({
+        body: message.body,
+        attempts: (message as { attempts?: number }).attempts ?? 0,
+        ack: () => message.ack(),
+        retry: (options?: { delaySeconds?: number }) => message.retry(options),
+      }));
+      await consumeOpsQueueBatch(handles, {
+        db: adaptD1(validated.bindings.DB),
+        r2: {
+          put: (key: string, value: string) => r2.put(key, value),
+          delete: (key: string) => r2.delete(key),
+        },
+        sendDlq: async (copy) => {
+          await dlq.send(copy, { contentType: "json" });
+        },
+      });
+      return;
+    }
     if (/^bfb-notify(-staging|-local)?$/.test(batch.queue)) {
       if (!validated.bindings.NOTIFY_JOBS || !validated.bindings.NOTIFY_DLQ) {
         throw new Error("notification queue bindings are not configured");
@@ -161,6 +187,13 @@ export default {
       await runNotificationSweep(env);
     } catch {
       // Notification dispatch is idempotent and retried on the next Cron tick.
+    }
+    try {
+      const { runRetentionSweep } = await import("./operations/sweep.js");
+      await runRetentionSweep(adaptD1(env.DB), env.ARTIFACTS, new Date().toISOString());
+    } catch {
+      // Retention deletes only explicitly eligible log objects and records
+      // its run; a tick failure retries on the next Cron tick.
     }
   },
 };

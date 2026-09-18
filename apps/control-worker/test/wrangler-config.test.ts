@@ -79,14 +79,14 @@ describe("wrangler substrate configs", () => {
       expect(body).toMatch(/migrations_dir = "\.\.\/\.\.\/migrations\/d1"/);
       expect(body).toMatch(/\[triggers\]/);
       expect(body).toMatch(/crons\s*=\s*\["\*\/5 \* \* \* \*"\]/);
-      // X04 consumes the JOBS queue and X01 the notification queue; each has
-      // its own DLQ and bounded batches on every env.
+      // X04 consumes the JOBS queue, X01 the notification queue, and X05 the
+      // operations queue; each has its own DLQ and bounded batches on every env.
       const consumers = [
         ...body.matchAll(
           /\[\[queues\.consumers\]\]\s*\nqueue = "([^"]+)"\s*\nmax_batch_size = 10\s*\nmax_batch_timeout = 5\s*\nmax_retries = 5\s*\ndead_letter_queue = "([^"]+)"/g,
         ),
       ].map((match) => [match[1], match[2]]);
-      expect(consumers).toHaveLength(2);
+      expect(consumers).toHaveLength(3);
       expect(consumers).toContainEqual([
         expect.stringMatching(/^bfb-jobs(-staging|-local)?$/),
         expect.stringMatching(/^bfb-jobs-dlq(-staging|-local)?$/),
@@ -95,8 +95,14 @@ describe("wrangler substrate configs", () => {
         expect.stringMatching(/^bfb-notify(-staging|-local)?$/),
         expect.stringMatching(/^bfb-notify-dlq(-staging|-local)?$/),
       ]);
+      expect(consumers).toContainEqual([
+        expect.stringMatching(/^bfb-ops(-staging|-local)?$/),
+        expect.stringMatching(/^bfb-ops-dlq(-staging|-local)?$/),
+      ]);
       expect(body).toMatch(/binding = "NOTIFY_JOBS"/);
       expect(body).toMatch(/binding = "NOTIFY_DLQ"/);
+      expect(body).toMatch(/binding = "OPS_JOBS"/);
+      expect(body).toMatch(/binding = "OPS_DLQ"/);
     }
   });
 

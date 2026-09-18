@@ -1,0 +1,46 @@
+{
+  "package": "X05",
+  "tested_commit": "b304fb5a2904baf36ce79d0a7732d773f92eca77",
+  "environment": "implementation worktree on macOS (arm64); local Wrangler D1, Workerd Queues/R2 and real Chromium",
+  "outcome": "passed",
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "result": "lockfile in sync after the operations harness workspace was added"
+    },
+    {
+      "command": "pnpm build",
+      "outcome": "passed",
+      "result": "TypeScript project references build including tools/operations"
+    },
+    {
+      "command": "pnpm test:x05",
+      "outcome": "passed",
+      "result": "build plus production web bundle; 16 domain cases (migration, retention, redaction, audit versus activity, diagnostics, recovery, stuck launches); 5 worker route cases (Owner-only audit, role reads, retention step-up matrix, idempotent recovery, diagnostic consent); 5 consumer and sweep cases (upload, poison isolation, wrong-state diversion, retention boundaries); web presentation contract; db migration matrix; tools/operations real-Worker/D1/Queue/R2 drill (X05_D1 through X05_D11: migration, Owner-only audit, full step-up matrix, real expired launch stuck-visible, idempotent stuck-upload recovery, GitHub DLQ requeue, notification watermark rewind, queue-driven retention deleting only the eligible object, consented diagnostic upload, poison-to-DLQ with sibling convergence, 11-needle canary scan); 4 Chromium scenarios on BFB_E2E_PORT=4196 (owner/member/reviewer gating, no private payload content)"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "result": "full repository verification: format, lint, typecheck, protocol, provider, TypeScript suites, headers, docs, roadmap, Go, Swift/Xcode"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "result": "clean worktree at the final commit"
+    },
+    {
+      "command": "GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./...",
+      "outcome": "passed",
+      "result": "Linux cross-compile of the whole module"
+    }
+  ],
+  "migration_head": "0034_operations",
+  "redaction": "passed",
+  "notes": [
+    "The exact gate (install, build, test:x05) passed from a detached clean checkout at the final commit; that checkout was removed afterwards.",
+    "Evidence manifest and command results are docs-only additions after the tested commit; pnpm test:x05, pnpm verify, pnpm worktree:check, and the Linux cross-build were re-run on the final tree.",
+    "Status stays planned: E01, V01, X01, and X04 are not done, so roadmap:check rejects anything beyond planned.",
+    "All identities in tests, fixtures, recordings, and this report are synthetic; no secrets, task bodies, prompts, paths, hook payloads, artifact bytes, terminal output, cookies, bearer or grant secrets, or local absolute paths are retained."
+  ]
+}

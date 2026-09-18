@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AttentionDeckItem, ProjectLane } from "@bfb/domain";
 
 import { AttentionHome } from "./attention/home.js";
+import { OperationsPage } from "./operations/page.js";
 import { WorkBoard, type AgentProfileSummary } from "./work/board.js";
 import { TaskComposer, WorkMutations } from "./work/mutations.js";
 import { RunnerOperations } from "./launch/operations.js";
@@ -41,7 +42,7 @@ interface BoardResponse {
   agent_work_available: boolean;
 }
 
-type AppView = "work" | "attention" | "latest" | "load" | "runners" | "settings";
+type AppView = "work" | "attention" | "latest" | "load" | "runners" | "settings" | "operations";
 
 interface ParsedRoute {
   workspaceSlug: string | null;
@@ -50,7 +51,7 @@ interface ParsedRoute {
 
 function parseRoute(pathname: string): ParsedRoute {
   const match = pathname.match(
-    /^\/w\/([^/]+)(?:\/(work|attention|latest|load|runners|settings))?\/?$/,
+    /^\/w\/([^/]+)(?:\/(work|attention|latest|load|runners|settings|operations))?\/?$/,
   );
   return {
     workspaceSlug: match?.[1] ?? null,
@@ -361,6 +362,15 @@ export function AppShell(props: AppShellProps = {}) {
             Projects &amp; policy
           </button>
         ) : null}
+        {board?.role === "owner" || board?.role === "member" ? (
+          <button
+            type="button"
+            aria-current={route.view === "operations" ? "page" : undefined}
+            onClick={() => navigateToView("operations")}
+          >
+            Operations
+          </button>
+        ) : null}
       </nav>
 
       {!workspace ? (
@@ -446,6 +456,16 @@ export function AppShell(props: AppShellProps = {}) {
           csrfToken={csrfToken}
           fetchImpl={fetchFn}
           onChanged={() => void reloadBoard()}
+        />
+      ) : board &&
+        route.view === "operations" &&
+        (board.role === "owner" || board.role === "member") ? (
+        <OperationsPage
+          workspaceId={workspace.id}
+          role={board.role}
+          authorizationEpoch={board.authorization_epoch}
+          csrfToken={csrfToken}
+          fetchImpl={fetchFn}
         />
       ) : board && route.view === "runners" ? (
         <RunnerOperations

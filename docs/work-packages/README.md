@@ -116,7 +116,7 @@ flowchart TD
         X03["X03 Remote MCP parity extensions"]
         X03A["X03A Remote OAuth MCP core"]
         X04["X04 GitHub evidence integration"]
-        X05["X05 Operations, audit, and retention"]
+        X05["X05 Operations, audit and retention"]
     end
     subgraph Golive["Go-live"]
         G01["G01 Integrated adversarial hardening"]
@@ -440,7 +440,7 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 | X03 | [Remote MCP parity extensions](WP-X03-remote-mcp.md) | `planned` | Very high |
 | X03A | [Remote OAuth MCP core](WP-X03A-remote-mcp-core.md) | `done` | Very high |
 | X04 | [GitHub evidence integration](WP-X04-github.md) | `planned` | High |
-| X05 | [Operations, audit, and retention](WP-X05-operations.md) | `planned` | High |
+| X05 | [Operations, audit and retention](WP-X05-operations.md) | `planned` | High |
 
 ### Go-live
 
