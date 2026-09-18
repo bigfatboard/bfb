@@ -190,21 +190,45 @@ final class NativeActionTests: XCTestCase {
     let selection = TerminalSelection(
       endpoint: TerminalEndpoint(pid: 42, launchedAt: date), windowID: 99,
       focus: try TerminalFocus(wire))
-    for descriptor in [
-      try TerminalObjects.tab(selection), try TerminalObjects.selectedWindow(selection),
+    // Tabs are filtered by their kernel device with one comparison: a
+    // compound logical filter gets no reply from Terminal.
+    let tab = try TerminalObjects.tab(selection)
+    XCTAssertEqual(tab.descriptorType, DescType(typeObjectSpecifier))
+    XCTAssertEqual(tab.forKeyword(AEKeyword(keyAEKeyForm))?.enumCodeValue, OSType(formTest))
+    let predicate = try XCTUnwrap(tab.forKeyword(AEKeyword(keyAEKeyData)))
+    XCTAssertEqual(predicate.descriptorType, DescType(typeCompDescriptor))
+    XCTAssertEqual(
+      predicate.forKeyword(AEKeyword(keyAEObject2))?.stringValue, wire.tty)
+    // The intent tag is matched against the tab's title and running
+    // processes: either names the owned `__launch <intent>` command.
+    for (descriptor, property) in [
+      (try TerminalObjects.tabTitle(selection), TerminalObjects.titleProperty),
+      (try TerminalObjects.tabProcesses(selection), TerminalObjects.processesProperty),
     ] {
-      XCTAssertEqual(descriptor.descriptorType, DescType(typeObjectSpecifier))
       XCTAssertEqual(
-        descriptor.forKeyword(AEKeyword(keyAEKeyForm))?.enumCodeValue, OSType(formTest))
-      let predicate = try XCTUnwrap(descriptor.forKeyword(AEKeyword(keyAEKeyData)))
-      XCTAssertEqual(predicate.descriptorType, DescType(typeLogicalDescriptor))
-      let terms = try XCTUnwrap(predicate.forKeyword(AEKeyword(keyAELogicalTerms)))
-      XCTAssertTrue(terms.numberOfItems == 2 || terms.numberOfItems == 3)
-      let values = try (1...terms.numberOfItems).map {
-        try XCTUnwrap(terms.atIndex($0)?.forKeyword(AEKeyword(keyAEObject2)))
-      }
-      XCTAssertTrue(values.contains { $0.stringValue == local })
-      XCTAssertTrue(values.contains { $0.stringValue == wire.tty })
+        descriptor.forKeyword(AEKeyword(keyAEKeyForm))?.enumCodeValue, OSType(formPropertyID))
+      XCTAssertEqual(descriptor.forKeyword(AEKeyword(keyAEKeyData))?.typeCodeValue, property)
+    }
+    // Window mutations name the found window ID directly and verify the
+    // selected tab with plain property reads: no filtered window reference.
+    for (descriptor, property) in [
+      (try TerminalObjects.selectedTTY(selection), TerminalObjects.ttyProperty),
+      (try TerminalObjects.selectedTitle(selection), TerminalObjects.titleProperty),
+      (try TerminalObjects.selectedProcesses(selection), TerminalObjects.processesProperty),
+    ] {
+      XCTAssertEqual(
+        descriptor.forKeyword(AEKeyword(keyAEKeyForm))?.enumCodeValue, OSType(formPropertyID))
+      XCTAssertEqual(descriptor.forKeyword(AEKeyword(keyAEKeyData))?.typeCodeValue, property)
+      let selected = try XCTUnwrap(descriptor.forKeyword(AEKeyword(keyAEContainer)))
+      XCTAssertEqual(
+        selected.forKeyword(AEKeyword(keyAEKeyForm))?.enumCodeValue, OSType(formPropertyID))
+      XCTAssertEqual(
+        selected.forKeyword(AEKeyword(keyAEKeyData))?.typeCodeValue,
+        TerminalObjects.selectedTab)
+      let window = try XCTUnwrap(selected.forKeyword(AEKeyword(keyAEContainer)))
+      XCTAssertEqual(
+        window.forKeyword(AEKeyword(keyAEKeyForm))?.enumCodeValue, OSType(formUniqueID))
+      XCTAssertEqual(window.forKeyword(AEKeyword(keyAEKeyData))?.int32Value, selection.windowID)
     }
   }
 
@@ -218,16 +242,10 @@ final class NativeActionTests: XCTestCase {
     let selection = TerminalSelection(
       endpoint: TerminalEndpoint(pid: 42, launchedAt: date), windowID: 99,
       focus: try TerminalFocus(focusWire(at: date)))
-    let scoped = try TerminalObjects.selectedWindow(selection)
-    let container = try XCTUnwrap(scoped.forKeyword(AEKeyword(keyAEContainer)))
-    XCTAssertEqual(container.descriptorType, DescType(typeObjectSpecifier))
+    let scoped = try TerminalObjects.window(selection.windowID)
     XCTAssertEqual(
-      container.forKeyword(AEKeyword(keyAEKeyForm))?.enumCodeValue, OSType(formUniqueID))
-    XCTAssertEqual(
-      container.forKeyword(AEKeyword(keyAEKeyData))?.int32Value, selection.windowID)
-    let predicate = try XCTUnwrap(scoped.forKeyword(AEKeyword(keyAEKeyData)))
-    let terms = try XCTUnwrap(predicate.forKeyword(AEKeyword(keyAELogicalTerms)))
-    XCTAssertEqual(terms.numberOfItems, 2)
+      scoped.forKeyword(AEKeyword(keyAEKeyForm))?.enumCodeValue, OSType(formUniqueID))
+    XCTAssertEqual(scoped.forKeyword(AEKeyword(keyAEKeyData))?.int32Value, selection.windowID)
   }
 
   func testWakeSourcesPreserveIdentityAndOnlyForwardWakeRPC() async throws {
