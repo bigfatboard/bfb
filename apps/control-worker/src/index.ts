@@ -69,6 +69,36 @@ export default {
   fetch: createFetchHandler(),
   async queue(batch: MessageBatch, env: ControlBindings): Promise<void> {
     const validated = validateControlEnv(env);
+    // X01 owns the bfb-notify* queues; every other consumer batch is X04's JOBS queue.
+    if (/^bfb-notify(-staging|-local)?$/.test(batch.queue)) {
+      if (!validated.bindings.NOTIFY_JOBS || !validated.bindings.NOTIFY_DLQ) {
+        throw new Error("notification queue bindings are not configured");
+      }
+      const { handleNotifyQueue } = await import("./notifications/queue.js");
+      const dlq = validated.bindings.NOTIFY_DLQ;
+      const vapid =
+        validated.bindings.VAPID_PUBLIC_KEY &&
+        validated.bindings.VAPID_PRIVATE_KEY &&
+        validated.bindings.VAPID_SUBJECT
+          ? {
+              publicKey: validated.bindings.VAPID_PUBLIC_KEY,
+              privateKey: validated.bindings.VAPID_PRIVATE_KEY,
+              subject: validated.bindings.VAPID_SUBJECT,
+            }
+          : null;
+      await handleNotifyQueue(
+        batch as MessageBatch<import("./notifications/queue.js").NotifyMessage>,
+        {
+          db: adaptD1(validated.bindings.DB),
+          sendDlq: async (copy) => {
+            await dlq.send(copy, { contentType: "json" });
+          },
+          appOrigin: validated.origins.appOrigin,
+          vapid,
+        },
+      );
+      return;
+    }
     const db = adaptD1(env.DB);
     const now = new Date().toISOString();
     const client = createGitHubRestClient({
@@ -125,6 +155,12 @@ export default {
       await runGitHubSweep(adaptD1(env.DB), env.JOBS, new Date().toISOString());
     } catch {
       // The sweep is idempotent and retried on the next Cron tick.
+    }
+    try {
+      const { runNotificationSweep } = await import("./notifications/sweep.js");
+      await runNotificationSweep(env);
+    } catch {
+      // Notification dispatch is idempotent and retried on the next Cron tick.
     }
   },
 };

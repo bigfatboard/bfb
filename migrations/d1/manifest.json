@@ -106,6 +106,10 @@
       "file": "0028_github_integration.sql"
     },
     {
+      "id": "0030_notifications",
+      "file": "0030_notifications.sql"
+    },
+    {
       "id": "0032_artifact_review",
       "file": "0032_artifact_review.sql"
     }

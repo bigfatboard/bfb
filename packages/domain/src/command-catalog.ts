@@ -113,6 +113,11 @@ import {
   createInvitationCommand,
   removeMemberCommand,
 } from "./workspace-authorization.js";
+import {
+  registerPushEndpointCommand,
+  removePushEndpointCommand,
+  setNotificationPreferenceCommand,
+} from "./notifications.js";
 
 const commands = new Map<string, HubCommand<unknown, unknown>>([
   [ingestRunnerEventsCommand.name, ingestRunnerEventsCommand as HubCommand<unknown, unknown>],
@@ -225,6 +230,12 @@ const commands = new Map<string, HubCommand<unknown, unknown>>([
   ],
   [createAgentProfileCommand.name, createAgentProfileCommand as HubCommand<unknown, unknown>],
   [updateAgentProfileCommand.name, updateAgentProfileCommand as HubCommand<unknown, unknown>],
+  [
+    setNotificationPreferenceCommand.name,
+    setNotificationPreferenceCommand as HubCommand<unknown, unknown>,
+  ],
+  [registerPushEndpointCommand.name, registerPushEndpointCommand as HubCommand<unknown, unknown>],
+  [removePushEndpointCommand.name, removePushEndpointCommand as HubCommand<unknown, unknown>],
 ]);
 
 /** Returns a registered hub command by stable name, or undefined when unknown. */

@@ -1,0 +1,46 @@
+{
+  "package": "X01",
+  "tested_commit": "2331daad655d370b8a8de028d183ae7a81eda4b0",
+  "environment": "implementation worktree on macOS (arm64); local Wrangler D1, Workerd Queues and a fake WebPush origin",
+  "outcome": "passed",
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "result": "lockfile in sync after the notification harness workspace was added"
+    },
+    {
+      "command": "pnpm build",
+      "outcome": "passed",
+      "result": "TypeScript project references build including tools/notifications"
+    },
+    {
+      "command": "pnpm test:x01",
+      "outcome": "passed",
+      "result": "Go suites under -race in internal/notify, internal/appbridge and internal/runner; vitest domain selection/identity/link/preference/fan-out cases, worker push/queue/route suites and the db migration matrix; tools/notifications real-Worker/D1/Queue harness (X01_MIGRATION_OK through X01_HARNESS_OK: attention push plus macOS pull/ack with duplicate convergence, submit/accept/fail/changes/cancelled-defaults, launch-blocked, telemetry silence, revocation purge, poison-to-DLQ, expired-endpoint delete, canary redaction scan)"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "result": "full repository verification: format, lint, typecheck, protocol, provider, TypeScript suites (1020 tests), headers, docs, roadmap, Go, Swift/Xcode"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "result": "clean worktree at the tested commit"
+    },
+    {
+      "command": "GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./...",
+      "outcome": "passed",
+      "result": "Linux cross-compile of the whole module"
+    }
+  ],
+  "migration_head": "0030_notifications",
+  "redaction": "passed",
+  "notes": [
+    "The exact gate (install, build, test:x01) passed from a detached clean checkout at the final commit; that checkout was removed afterwards.",
+    "Evidence manifest and command results are docs-only additions after the tested commit; pnpm test:x01, pnpm verify, pnpm worktree:check, and the Linux cross-build were re-run on the final tree.",
+    "Status stays planned: A02, A03, and E02 are not done, so roadmap:check rejects anything beyond planned.",
+    "All identities in tests, fixtures, recordings, and this report are synthetic; no secrets, VAPID private keys, push endpoints, task bodies, environment values, or local absolute paths are retained."
+  ]
+}

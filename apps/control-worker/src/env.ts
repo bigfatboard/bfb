@@ -18,6 +18,11 @@ export interface ControlBindings {
   ASSETS: Fetcher;
   JOBS: Queue;
   JOBS_DLQ: Queue;
+  NOTIFY_JOBS?: Queue | undefined;
+  NOTIFY_DLQ?: Queue | undefined;
+  VAPID_PUBLIC_KEY?: string | undefined;
+  VAPID_PRIVATE_KEY?: string | undefined;
+  VAPID_SUBJECT?: string | undefined;
   WORKSPACE_HUB: DurableObjectNamespace;
   APP_ORIGIN: string;
   ARTIFACT_ORIGIN: string;
@@ -175,6 +180,11 @@ export function validateControlEnv(env: Partial<ControlBindings>): ValidatedCont
       ASSETS,
       JOBS,
       JOBS_DLQ,
+      NOTIFY_JOBS: env.NOTIFY_JOBS,
+      NOTIFY_DLQ: env.NOTIFY_DLQ,
+      VAPID_PUBLIC_KEY: env.VAPID_PUBLIC_KEY,
+      VAPID_PRIVATE_KEY: env.VAPID_PRIVATE_KEY,
+      VAPID_SUBJECT: env.VAPID_SUBJECT,
       WORKSPACE_HUB,
       APP_ORIGIN: app.origin,
       ARTIFACT_ORIGIN: artifact.origin,

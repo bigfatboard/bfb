@@ -79,11 +79,24 @@ describe("wrangler substrate configs", () => {
       expect(body).toMatch(/migrations_dir = "\.\.\/\.\.\/migrations\/d1"/);
       expect(body).toMatch(/\[triggers\]/);
       expect(body).toMatch(/crons\s*=\s*\["\*\/5 \* \* \* \*"\]/);
-      // X04 is the first Queue consumer: the control worker consumes the JOBS
-      // queue with bounded batches and a DLQ backstop on every env.
-      expect(body).toMatch(/\[\[queues\.consumers\]\]/);
-      expect(body).toMatch(/dead_letter_queue = "bfb-jobs-dlq[^"]*"/);
-      expect(body).toMatch(/max_retries = 5/);
+      // X04 consumes the JOBS queue and X01 the notification queue; each has
+      // its own DLQ and bounded batches on every env.
+      const consumers = [
+        ...body.matchAll(
+          /\[\[queues\.consumers\]\]\s*\nqueue = "([^"]+)"\s*\nmax_batch_size = 10\s*\nmax_batch_timeout = 5\s*\nmax_retries = 5\s*\ndead_letter_queue = "([^"]+)"/g,
+        ),
+      ].map((match) => [match[1], match[2]]);
+      expect(consumers).toHaveLength(2);
+      expect(consumers).toContainEqual([
+        expect.stringMatching(/^bfb-jobs(-staging|-local)?$/),
+        expect.stringMatching(/^bfb-jobs-dlq(-staging|-local)?$/),
+      ]);
+      expect(consumers).toContainEqual([
+        expect.stringMatching(/^bfb-notify(-staging|-local)?$/),
+        expect.stringMatching(/^bfb-notify-dlq(-staging|-local)?$/),
+      ]);
+      expect(body).toMatch(/binding = "NOTIFY_JOBS"/);
+      expect(body).toMatch(/binding = "NOTIFY_DLQ"/);
     }
   });
 

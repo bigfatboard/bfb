@@ -4,9 +4,29 @@ Status: `planned`
 
 Risk: Medium
 
+Test target: `pnpm test:x01`
+
+Evidence manifest: `docs/work-packages/evidence/WP-X01/manifest.json`
+
+> Status note: implementation, the exact gate, and the evidence below are
+> complete on this branch, but A02, A03, and E02 are not `done`, so
+> `pnpm roadmap:check` rejects any status beyond `planned`. This package
+> stays `planned` until those dependencies complete; nothing downstream may
+> consume it yet.
+
 ## Outcome
 
 Humans receive deduplicated browser/macOS notifications for actionable committed events without turning normal agent telemetry into noise.
+
+## Produces
+
+- Actionable notification selection and delivery, frozen in `docs/contracts/notifications.md`: `0030_notifications` records, `selectNotificationEvent` over retained A02 attention and A03 result/review transitions, stable ULID-shaped delivery identity, per-user/workspace/project/channel preferences, and revocation purge.
+- Stable test target `pnpm test:x01` and evidence manifest `docs/work-packages/evidence/WP-X01/manifest.json`.
+- `packages/domain/src/notifications.ts`: event selection, delivery identity, deep links, preference resolution, fan-out with `INSERT OR IGNORE`, and access rechecks consumed by dispatch, routes, and the harness.
+- `apps/control-worker/src/notifications/`: WebPush delivery with VAPID, the `bfb-notify-*` Queue/DLQ consumer with per-message isolation and explicit ack/retry, outbox dispatch with watermark, and the expired/revoked/suppressed sweep.
+- `apps/control-worker/src/api/notifications.ts` and `notification-runner.ts`: subscription/preference/delivery routes and the signed macOS pull/ack transport.
+- `internal/notify/notify.go`: the macOS poller; `internal/appbridge/notify_x01_test.go`: the bridge proof; the runner manager hook for wake intents.
+- `tools/notifications/run.ts`: the real-Worker/D1/Queue harness writing `recording.jsonl`, with a fake push origin and a DLQ collector observing every delivery.
 
 ## Dependencies
 
@@ -47,9 +67,21 @@ Humans receive deduplicated browser/macOS notifications for actionable committed
 
 ## Evidence and handoff
 
-- Commit delivery fixture matrix, duplicate/revocation traces, and browser/macOS captures.
+- `docs/work-packages/evidence/WP-X01/manifest.json` indexes the tested commit, migration head, toolchains, commands, and redaction status per the evidence manifest schema.
+- `recording.jsonl` traces one end-to-end run across real Workers, D1, and a local Queue with DLQ (migration fresh and upgrade, seed, attention push plus macOS pull/ack with duplicate convergence, submit/accept/fail/changes/cancelled-defaults, launch-blocked, telemetry silence, revocation purge, poison-to-DLQ, expired-endpoint delete, canary redaction scan) with cursors, counts, and link shapes only.
+- `command-result.json` records the `pnpm test:x01`, `pnpm verify`, `pnpm worktree:check`, Linux cross-build, and clean-checkout gate outcomes.
+- Evidence contains synthetic identities only: no secret, VAPID private key, push endpoint, task body, local absolute path, environment value, or raw terminal output.
 - G01 verifies notifications remain non-authoritative and non-blocking.
+
+## Handoff
+
+- State: implementation, `pnpm test:x01`, `pnpm verify`, `pnpm worktree:check`, `GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./...`, and the clean-checkout gate pass at the evidence commit. Status stays `planned` pending A02, A03, and E02.
+- Commands: `pnpm test:x01`; `pnpm verify`; `pnpm worktree:check`. The Worker/D1/Queue flow is `tools/notifications/run.ts`; the macOS poller cases are `internal/notify/notify_test.go` and the bridge proof is `internal/appbridge/notify_x01_test.go`.
+- X04 shares the Queue/DLQ machinery with distinct additive `bfb-notify-*` names and consumer registrations; X01 consumes committed `attention.request` and A03 result events and never notification state as domain truth.
+- X05 consumes the delivery records and DLQ visibility; notification content stays redacted and preference-gated.
 
 ## Risks and decisions
 
 - Notification usefulness depends more on filtering than delivery volume. Defaults stay sparse.
+- The `bfb-notify-*` queues and consumers are additive and distinct from X04's GitHub queues, so parallel Queue work does not collide.
+- Unconfigured VAPID is terminal per endpoint, expired endpoints delete without retry, and revoked or suppressed recipients recheck at send time, so access loss converges without blocking product commands.
