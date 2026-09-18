@@ -39,7 +39,7 @@
   "local_journal_migration": "011_pending_operations",
   "redaction": "passed",
   "notes": [
-    "The exact gate (install, build, test:a01) passed from the detached clean checkout /tmp/bfb-a01-clean at the tested commit; the worktree was removed afterwards.",
+    "The exact gate (install, build, test:a01) passed from a detached clean checkout at the tested commit; that checkout was removed afterwards.",
     "pnpm verify, pnpm worktree:check, and the Linux cross-build were re-run on the implementation tree at the tested commit; evidence files are docs-only additions after it.",
     "Status stays done: the L06 merge step for the session binding landed in the tested commit (finding 13); L05/L08 merges remain pending per the WP-A01 Handoff.",
     "All identities in tests, fixtures, transcripts, and this report are synthetic; no secrets, task bodies, environment values, or local absolute paths are retained."
