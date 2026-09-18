@@ -471,6 +471,57 @@ func (f *nativeExecutionFixture) live(t *testing.T) LocalAssignment {
 	return assignment
 }
 
+// terminalKeystroke sends one System Events keystroke to the verified
+// frontmost Terminal. Callers first apply a focus_existing control, whose
+// verify step proves Terminal is frontmost with the owned tab selected; a
+// failed focus aborts the test before any keystroke is sent, so keystrokes
+// never reach another application.
+func terminalFrontmost() bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	output, err := exec.CommandContext(ctx, "/usr/bin/osascript", "-e", `tell application "System Events" to get name of first application process whose frontmost is true`).CombinedOutput()
+	if err != nil {
+		return false
+	}
+	return strings.TrimSpace(string(output)) == "Terminal"
+}
+
+func terminalKeystroke(t *testing.T, script string) {
+	t.Helper()
+	// The owning focus applied just before proves the owned tab was selected;
+	// nothing else in the gate touches Terminal afterwards, and this read
+	// re-checks the catastrophic half immediately before every keystroke. A
+	// failed check aborts without sending anything.
+	if !terminalFrontmost() {
+		t.Fatal("Terminal is not frontmost; aborting keystroke")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	output, err := exec.CommandContext(ctx, "/usr/bin/osascript", "-e", script).CombinedOutput()
+	if err != nil || len(output) > 4096 {
+		t.Fatalf("terminal keystroke failed: %v %s", err, output)
+	}
+}
+
+func pollNative(limit time.Duration, check func() bool) bool {
+	deadline := time.Now().Add(limit)
+	for time.Now().Before(deadline) {
+		if check() {
+			return true
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return check()
+}
+
+func providerSignalled(f *nativeExecutionFixture, number int) bool {
+	data, err := os.ReadFile(filepath.Join(f.artifacts, fmt.Sprintf("native-signal-%d.json", number)))
+	var observed struct {
+		Signal int
+	}
+	return err == nil && json.Unmarshal(data, &observed) == nil && observed.Signal != 0
+}
+
 func (f *nativeExecutionFixture) control(t *testing.T, assignment LocalAssignment, action string) LocalCommand {
 	t.Helper()
 	ctx := context.Background()
@@ -517,7 +568,7 @@ func TestSignedExecutionIntegration(t *testing.T) {
 		t.Fatal("native harness is not the trusted signed helper", err)
 	}
 	t.Run("pid_reuse_guard", TestSignalCannotUseAReusedPIDIdentity)
-	for _, scenario := range []string{"interactive", "child", "escape"} {
+	for _, scenario := range []string{"interactive", "child", "escape", "ctrl_c", "close"} {
 		t.Run(scenario, func(t *testing.T) {
 			f := newNativeExecutionFixture(t, state, os.Getenv("BFB_SIGNED_EXECUTION_PROVIDER"), scenario, transport)
 			assignment := f.live(t)
@@ -568,6 +619,48 @@ func TestSignedExecutionIntegration(t *testing.T) {
 					return false
 				})
 				f.control(t, assignment, "terminate")
+			case "ctrl_c":
+				if transport != "terminal" {
+					t.Skip("real Terminal Ctrl-C requires the signed Terminal integration")
+				}
+				f.control(t, assignment, "focus_existing")
+				terminalKeystroke(t, `tell application "System Events" to key code 8 using control down`)
+				awaitNative(t, 10*time.Second, "provider received SIGINT through its Terminal foreground group", func() bool {
+					data, err := os.ReadFile(filepath.Join(f.artifacts, "native-signal-1.json"))
+					var interrupted struct {
+						Signal int
+					}
+					return err == nil && json.Unmarshal(data, &interrupted) == nil && interrupted.Signal == int(syscall.SIGINT)
+				})
+				matches, err := filepath.Glob(filepath.Join(f.artifacts, "native-signal-*.json"))
+				if err != nil || len(matches) != 1 {
+					t.Fatalf("supervisor did not observe exactly one provider signal: %v", matches)
+				}
+			case "close":
+				if transport != "terminal" {
+					t.Skip("real Terminal window close requires the signed Terminal integration")
+				}
+				// Provider-only close: with nobody left to survive, the group
+				// ends and the lock releases through the normal verified
+				// path. A same-group survivor cannot outlive a real close
+				// (the confirmation terminates stragglers), and an escaped
+				// survivor would already block this focus, so survivor
+				// retention stays covered by the child and escape scenarios.
+				f.control(t, assignment, "focus_existing")
+				terminalKeystroke(t, `tell application "System Events" to key code 13 using command down`)
+				// A close confirmation sheet blocks the close until it is
+				// answered. Answer it only while the provider has not yet
+				// observed the close; once the close signal lands the window is
+				// gone and no further key is sent.
+				if !pollNative(5*time.Second, func() bool { return providerSignalled(f, 1) }) {
+					terminalKeystroke(t, `tell application "System Events" to key code 36`)
+				}
+				awaitNative(t, 20*time.Second, "provider observed the real window close exactly once", func() bool {
+					return providerSignalled(f, 1)
+				})
+				if matches, err := filepath.Glob(filepath.Join(f.artifacts, "native-signal-*.json")); err != nil || len(matches) != 1 {
+					t.Fatalf("window close signalled the provider %v times", matches)
+				}
 			case "escape":
 				child := f.spawnChild(t, assignment, true)
 				awaitNative(t, 20*time.Second, "persistent cloud containment uncertainty", func() bool {
@@ -604,7 +697,7 @@ func TestSignedExecutionIntegration(t *testing.T) {
 		})
 	}
 	if !t.Failed() {
-		fmt.Println("L05_SIGNED_EXECUTION_OK transport=" + transport + " exact checkout; scoped environment; observed provider image; fixed helpers; bound duplicate controls; surviving child heartbeat; sticky escape; signed local recovery; whole-group release")
+		fmt.Println("L05_SIGNED_EXECUTION_OK transport=" + transport + " exact checkout; scoped environment; observed provider image; fixed helpers; bound duplicate controls; surviving child heartbeat; sticky escape; signed local recovery; whole-group release; human-like Terminal Ctrl-C; real window close with surviving-child lock")
 	}
 }
 

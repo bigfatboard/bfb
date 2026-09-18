@@ -139,6 +139,84 @@ func TestUnavailableAndAmbiguousDeliveryNeverBlindlyRetry(t *testing.T) {
 	}
 }
 
+func TestRelaunchWakeRetriesADroppedLaunchOnce(t *testing.T) {
+	var mu sync.Mutex
+	wakes := 0
+	b := syntheticBridge(t, Options{
+		WakeApp: func(context.Context) error {
+			mu.Lock()
+			defer mu.Unlock()
+			wakes++
+			return nil
+		},
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- b.OpenTerminal(ctx, terminalID) }()
+	deadline := time.Now().Add(4 * time.Second)
+	for {
+		mu.Lock()
+		started := wakes >= 2
+		mu.Unlock()
+		if started || time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	mu.Lock()
+	retried := wakes
+	mu.Unlock()
+	if retried < 2 {
+		t.Fatal("dropped launch was never re-issued while no app polled")
+	}
+	peer := daemon.Peer{UID: os.Getuid(), PID: os.Getpid()}
+	payload, err := b.poll(ctx, peer, "available")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := b.complete(peer, payload["app_delivery_id"].(string), "terminal_opened"); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-done; err != nil {
+		t.Fatal("re-issued launch did not deliver", err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if wakes != 2 {
+		t.Fatalf("re-issued launch woke the app %d times, not twice", wakes)
+	}
+}
+
+func TestDroppedLaunchWithoutAppStaysUnavailable(t *testing.T) {
+	var mu sync.Mutex
+	wakes := 0
+	b := syntheticBridge(t, Options{
+		WakeApp: func(context.Context) error {
+			mu.Lock()
+			defer mu.Unlock()
+			wakes++
+			return nil
+		},
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if code := failureCode(b.OpenTerminal(ctx, terminalID)); code != "app_unavailable" {
+		t.Fatalf("dropped launch reported %s instead of app_unavailable", code)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if wakes != 2 {
+		t.Fatalf("dropped launch woke the app %d times instead of exactly twice", wakes)
+	}
+	b.mu.Lock()
+	pending := len(b.pending)
+	b.mu.Unlock()
+	if pending != 0 {
+		t.Fatal("abandoned delivery retained for blind replay")
+	}
+}
+
 func TestWakeAndTerminalHaveDisjointInputs(t *testing.T) {
 	var mu sync.Mutex
 	var wakes []string

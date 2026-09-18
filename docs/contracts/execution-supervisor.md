@@ -526,11 +526,17 @@ native ownership, held-lock/history, exact device, command state and expiry.
 Closing the command, stopping the group, losing the lock, changing the app peer
 or timing out invalidates this route before the next effect.
 
-The app matches its opaque hidden tab tag plus that device, using fixed
-Terminal Apple-event properties. It selects only the unique matching tab and
-raises only the window whose selected tab still matches. All mutations recheck
-the GUI session and fresh daemon authorization. Success requires native
-selection/frontmost verification. Partial UI effects or lost replies remain
+The app matches its opaque tab tag plus that device, using fixed Terminal
+Apple-event properties. Tabs are filtered by one device comparison, because
+Terminal leaves compound filtered references unanswered while a single
+comparison answers promptly; the tag then matches when the foreground command
+line still names `__launch <intent>` or the owned helper still runs in the tab,
+and an exited session matches neither and fails closed. Windows are addressed
+by unique ID with the selected tab rechecked locally before each mutation. It
+selects only the unique matching tab and raises only the window whose selected
+tab still matches; raising also activates Terminal, since ordering a window
+frontmost does not. All mutations recheck the GUI session and fresh daemon
+authorization. Success requires native selection/frontmost verification. Partial UI effects or lost replies remain
 unknown and are not repeated after restart; no fallback opens another Terminal,
 resumes a provider or selects an unrelated frontmost window.
 

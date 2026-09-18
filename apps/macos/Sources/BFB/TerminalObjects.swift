@@ -82,6 +82,7 @@ enum TerminalObjects {
   static let tabClass: OSType = 0x7474_6162  // ttab
   static let ttyProperty: OSType = 0x7474_7479  // ttty
   static let titleProperty: OSType = 0x7469_746C  // titl
+  static let processesProperty: OSType = 0x7072_6373  // prcs
   static let customTitleVisible: OSType = 0x7464_6374  // tdct
   static let selectedProperty: OSType = 0x7462_736C  // tbsl
   static let selectedTab: OSType = 0x7463_6E74  // tcnt
@@ -143,19 +144,6 @@ enum TerminalObjects {
     return result
   }
 
-  static func and(_ terms: [NSAppleEventDescriptor]) throws -> NSAppleEventDescriptor {
-    let list = NSAppleEventDescriptor.list()
-    for term in terms { list.insert(term, at: 0) }
-    let record = NSAppleEventDescriptor.record()
-    record.setDescriptor(
-      NSAppleEventDescriptor(enumCode: OSType(kAEAND)), forKeyword: AEKeyword(keyAELogicalOperator))
-    record.setDescriptor(list, forKeyword: AEKeyword(keyAELogicalTerms))
-    guard let result = record.coerce(toDescriptorType: DescType(typeLogicalDescriptor)) else {
-      throw NativeFailure(code: "app_delivery_unknown")
-    }
-    return result
-  }
-
   static func examined() throws -> NSAppleEventDescriptor {
     guard
       let result = NSAppleEventDescriptor(
@@ -172,36 +160,97 @@ enum TerminalObjects {
       OSType(cWindow), form: OSType(formUniqueID), key: NSAppleEventDescriptor(int32: id))
   }
 
+  // Tabs are addressed by their kernel device alone: it is unique among live
+  // tabs, and Terminal answers this single-comparison filter while a compound
+  // logical filter gets no reply. The intent tag is matched against the
+  // tab's title and running processes: either the foreground command line
+  // still names `__launch <intent>`, or the owned helper still runs there.
+  // Shell prompts rewrite idle titles, so an exited session matches neither
+  // and fails closed. Only the unique tab carrying the device and the tag is
+  // ever selected.
   static func tab(_ selection: TerminalSelection) throws -> NSAppleEventDescriptor {
-    let candidate = try examined()
-    return try object(
+    try object(
       tabClass, in: window(selection.windowID), form: OSType(formTest),
-      key: and([
-        equal(
-          property(ttyProperty, of: candidate), NSAppleEventDescriptor(string: selection.focus.tty)),
-        equal(
-          property(titleProperty, of: candidate),
-          NSAppleEventDescriptor(string: selection.focus.intent.value)),
-      ]))
+      key: equal(
+        property(ttyProperty, of: examined()),
+        NSAppleEventDescriptor(string: selection.focus.tty)))
   }
 
-  // The selected-tab predicate is resolved by Terminal in the same event as
-  // each window mutation. Closing or moving the tab cannot target its replacement.
-  // The test is scoped to the addressed window: Terminal evaluates a test
-  // against one concrete container and leaves tests over a null or
-  // every-element container unevaluated.
-  static func selectedWindow(_ selection: TerminalSelection) throws -> NSAppleEventDescriptor {
-    let candidate = try examined()
-    let selected = try property(selectedTab, of: candidate)
-    return try object(
-      OSType(cWindow), in: window(selection.windowID), form: OSType(formTest),
-      key: and([
-        equal(
-          property(ttyProperty, of: selected), NSAppleEventDescriptor(string: selection.focus.tty)),
-        equal(
-          property(titleProperty, of: selected),
-          NSAppleEventDescriptor(string: selection.focus.intent.value)),
-      ]))
+  static func tabTitle(_ selection: TerminalSelection) throws -> NSAppleEventDescriptor {
+    try property(titleProperty, of: tab(selection))
+  }
+
+  static func tabProcesses(_ selection: TerminalSelection) throws -> NSAppleEventDescriptor {
+    try property(processesProperty, of: tab(selection))
+  }
+
+  static func ownsSession(names: [String], title: String?, intent: TerminalIntentID) -> Bool {
+    if let title, title.contains(intent.value) { return true }
+    return names.contains { $0 == "bfb" || ($0 as NSString).lastPathComponent == "bfb" }
+  }
+
+  // The processes answer nests one list per matched tab; a flat answer is
+  // accepted the same way. Either form must name the owned command line.
+  static func processNames(_ reply: NSAppleEventDescriptor) throws -> [String] {
+    let outer =
+      reply.descriptorType == DescType(typeAEList) ? try items(reply, limit: 32) : [reply]
+    var names: [String] = []
+    for entry in outer {
+      if entry.descriptorType == DescType(typeAEList) {
+        names += try items(entry, limit: 32).compactMap { $0.stringValue }
+      } else if let name = entry.stringValue {
+        names.append(name)
+      }
+    }
+    return names
+  }
+
+  static func tabMatches(_ selection: TerminalSelection) throws -> Bool {
+    guard try items(get(selection.endpoint, tab(selection)), limit: 1).count == 1 else {
+      return false
+    }
+    let titles = try items(get(selection.endpoint, tabTitle(selection)), limit: 1)
+    let names = try processNames(get(selection.endpoint, tabProcesses(selection)))
+    return ownsSession(
+      names: names, title: titles.first?.stringValue, intent: selection.focus.intent)
+  }
+
+  // A direct property read answers with the bare value instead of the
+  // single-item list a filtered read returns. Both forms carry one value.
+  static func single(_ reply: NSAppleEventDescriptor) throws -> NSAppleEventDescriptor {
+    if reply.descriptorType == DescType(typeAEList) {
+      let found = try items(reply, limit: 1)
+      guard found.count == 1 else { throw NativeFailure(code: "app_unavailable") }
+      return found[0]
+    }
+    return reply
+  }
+
+  // Window mutations address the found window ID directly and recheck the
+  // selected tab locally first: a filtered window reference gets no reply
+  // from Terminal, so the selected-tab match is verified with plain property
+  // reads in the same step, immediately before each mutation. Closing or
+  // moving the tab cannot target its replacement: the read and the mutation
+  // both name the found window, and the final verify still requires the
+  // selected tab to match before reporting success.
+  static func selectedTTY(_ selection: TerminalSelection) throws -> NSAppleEventDescriptor {
+    try property(ttyProperty, of: property(selectedTab, of: window(selection.windowID)))
+  }
+
+  static func selectedTitle(_ selection: TerminalSelection) throws -> NSAppleEventDescriptor {
+    try property(titleProperty, of: property(selectedTab, of: window(selection.windowID)))
+  }
+
+  static func selectedProcesses(_ selection: TerminalSelection) throws -> NSAppleEventDescriptor {
+    try property(processesProperty, of: property(selectedTab, of: window(selection.windowID)))
+  }
+
+  static func selectedMatches(_ selection: TerminalSelection) throws -> Bool {
+    let tty = try single(get(selection.endpoint, selectedTTY(selection)))
+    guard tty.stringValue == selection.focus.tty else { return false }
+    let title = try single(get(selection.endpoint, selectedTitle(selection)))
+    let names = try processNames(get(selection.endpoint, selectedProcesses(selection)))
+    return ownsSession(names: names, title: title.stringValue, intent: selection.focus.intent)
   }
 
   static func send(
@@ -268,8 +317,28 @@ enum TerminalObjects {
   }
 
   static func open(command: String, intent: TerminalIntentID) throws {
-    let endpoint = try TerminalEndpoint.current()
-    let existing = try windowIDs(endpoint)
+    // Terminal may still be launching after a quit or a cold start, and a
+    // running process does not yet answer Apple events: wait briefly for its
+    // scripting interface instead of failing a launch that only needs a
+    // moment to attach. Consent and session failures throw at once.
+    let deadline = Date().addingTimeInterval(4)
+    var endpoint: TerminalEndpoint
+    var existing: [Int32] = []
+    while true {
+      do {
+        endpoint = try TerminalEndpoint.current()
+        existing = try windowIDs(endpoint)
+        break
+      } catch let failure as NativeFailure
+        where failure.code == "consent_denied" || failure.code == "session_locked"
+      {
+        throw failure
+      } catch {
+        if Date() >= deadline { throw error }
+        try Task.checkCancellation()
+        Thread.sleep(forTimeInterval: 0.05)
+      }
+    }
     let created = try send(
       endpoint, eventID: 0x646F_7363, direct: NSAppleEventDescriptor(string: command))
     do {
@@ -302,9 +371,13 @@ enum TerminalObjects {
       tabClass, in: window(id), form: OSType(formTest),
       key:
         equal(property(ttyProperty, of: examined()), NSAppleEventDescriptor(string: tty)))
+    // The tag is written once at creation, when the fresh window proves the
+    // tab is ours, and its readback is verified below. Later reads cannot be
+    // trusted (the shell rewrites titles), so focus matches the device plus
+    // the tab's running processes instead.
     try set(
       endpoint, property(customTitleVisible, of: onlyThisTTY),
-      NSAppleEventDescriptor(boolean: false))
+      NSAppleEventDescriptor(boolean: true))
     try set(
       endpoint, property(titleProperty, of: onlyThisTTY),
       NSAppleEventDescriptor(string: intent.value))
@@ -321,8 +394,7 @@ enum TerminalObjects {
       try focus.check(at: Date())
       try Task.checkCancellation()
       let selection = TerminalSelection(endpoint: endpoint, windowID: id, focus: focus)
-      let matches = try items(get(endpoint, tab(selection)), limit: 1)
-      if matches.isEmpty { continue }
+      if try !tabMatches(selection) { continue }
       guard found == nil else { throw NativeFailure(code: "app_unavailable") }
       found = selection
     }
@@ -331,30 +403,35 @@ enum TerminalObjects {
   }
 
   static func select(_ selection: TerminalSelection) throws {
-    guard try items(get(selection.endpoint, tab(selection)), limit: 1).count == 1 else {
-      throw NativeFailure(code: "app_unavailable")
-    }
+    guard try tabMatches(selection) else { throw NativeFailure(code: "app_unavailable") }
     try set(
       selection.endpoint, property(selectedProperty, of: tab(selection)),
       NSAppleEventDescriptor(boolean: true))
   }
 
   static func unminimize(_ selection: TerminalSelection) throws {
+    guard try selectedMatches(selection) else { throw NativeFailure(code: "app_unavailable") }
     try set(
-      selection.endpoint, property(0x706D_6E64, of: selectedWindow(selection)),
+      selection.endpoint, property(0x706D_6E64, of: window(selection.windowID)),
       NSAppleEventDescriptor(boolean: false))  // pmnd
   }
 
   static func raise(_ selection: TerminalSelection) throws {
+    guard try selectedMatches(selection) else { throw NativeFailure(code: "app_unavailable") }
     try set(
-      selection.endpoint, property(0x7069_7366, of: selectedWindow(selection)),
+      selection.endpoint, property(0x7069_7366, of: window(selection.windowID)),
       NSAppleEventDescriptor(boolean: true))  // pisf
+    // Ordering a window frontmost does not activate its application, and the
+    // exact-tab contract requires Terminal itself to come forward.
+    guard NSRunningApplication(processIdentifier: selection.endpoint.pid)?.activate() == true
+    else { throw NativeFailure(code: "app_delivery_unknown") }
   }
 
   static func verify(_ selection: TerminalSelection) throws {
-    let flags = try items(
-      get(selection.endpoint, property(0x7069_7366, of: selectedWindow(selection))), limit: 1)
-    guard flags.count == 1, flags[0].booleanValue,
+    guard try selectedMatches(selection) else { throw NativeFailure(code: "app_unavailable") }
+    let frontmost = try single(
+      get(selection.endpoint, property(0x7069_7366, of: window(selection.windowID))))
+    guard frontmost.booleanValue,
       NSRunningApplication(processIdentifier: selection.endpoint.pid)?.isActive == true
     else { throw NativeFailure(code: "app_delivery_unknown") }
   }
