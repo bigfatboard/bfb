@@ -87,7 +87,7 @@ A permitted human selects a named profile, enrolled Mac, and linked checkout on 
 
 ## Handoff
 
-- Settled 18 September: `done`. L05 is `done`, and `pnpm test:w02` passed in a detached clean checkout at `1c9ae54` (install, build, exact target with the synthetic C09 launch drive and 9 Chromium scenarios against the fake provider). The legacy evidence manifest is re-based on that rerun in the schema-conformant shape; the implementation evidence stays listed as manifest artifacts.
+- Settled 18 September: `done`. L05 is `done`, and `pnpm test:w02` passed in a detached clean checkout at `8164b43` (install, build, exact target with the synthetic C09 launch drive and 10 Chromium scenarios against the fake provider, plus the unsettled-launch and launch-refresh unit cases). The legacy evidence manifest is re-based on that rerun in the schema-conformant shape; the implementation evidence stays listed as manifest artifacts.
 - Commit provider-neutral fake-launch recording, all blocked/local-recovery screenshots, run-control and wake-intent idempotency traces, step-up trace, and permission test report (all under `docs/work-packages/evidence/WP-W02/`).
 - E02 live invalidation is consumed: the card refetches the authoritative launches read on every workspace invalidation without replacing durable launch reads.
 - Run `pnpm test:w02` (browser tests use `BFB_E2E_PORT=4174`) or `pnpm test:w02:browser` for the UI suite alone; `BFB_CAPTURE_W02_EVIDENCE=1 pnpm test:w02` regenerates the evidence.
