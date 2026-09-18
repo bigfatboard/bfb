@@ -41,13 +41,27 @@ async function openRunners(page: Parameters<typeof openTaskCard>[0]): Promise<vo
 }
 
 /**
- * Pins the Start form to W02's profile, runner, and checkout. The shared
- * fixture also enrols the E02 Mac and its timeline profile, whose list
+ * Pins the Start form to W02's profile, runner, and checkout before waiting
+ * for Start readiness. The shared fixture also enrols the E02 Mac, its
+ * timeline profile, and inventory-less runners from other suites, whose list
  * positions differ from the pre-E02 suite, so order-dependent defaults must
- * never decide where a W02 launch posts. Retries additionally require the
- * original run's agent profile, so the profile pin is load-bearing there.
+ * never decide where a W02 launch posts - and an inventory-less default would
+ * never become ready at all. Retries additionally require the original run's
+ * agent profile, so the profile pin is load-bearing there.
  */
 async function selectW02RunnerAndCheckout(page: Page): Promise<void> {
+  const runner = page.getByTestId("start-runner");
+  await expect
+    .poll(
+      async () =>
+        runner
+          .locator("option")
+          .evaluateAll((nodes) => nodes.map((node) => (node as HTMLOptionElement).value)),
+      { timeout: 15_000 },
+    )
+    .toContain(W02_RUNNER_ID);
+  await runner.selectOption(W02_RUNNER_ID);
+  await expect(page.getByTestId("start-runner")).toHaveValue(W02_RUNNER_ID);
   const profile = page.getByTestId("start-profile");
   let providerValue = "";
   await expect
@@ -67,8 +81,6 @@ async function selectW02RunnerAndCheckout(page: Page): Promise<void> {
     )
     .not.toBe("");
   await profile.selectOption(providerValue);
-  await page.getByTestId("start-runner").selectOption(W02_RUNNER_ID);
-  await expect(page.getByTestId("start-runner")).toHaveValue(W02_RUNNER_ID);
   const checkout = page.getByTestId("start-checkout");
   let alphaValue = "";
   await expect
@@ -93,8 +105,8 @@ async function selectW02RunnerAndCheckout(page: Page): Promise<void> {
 test("granted member starts the shared Mac on the member card", async ({ page }) => {
   await signInAndOpenBoard(page, "member");
   await openTaskCard(page, FIX.taskLaunchStart, "Synthetic member launch card");
-  await waitForStartReady(page);
   await selectW02RunnerAndCheckout(page);
+  await waitForStartReady(page);
   const runnerOptions = await page
     .getByTestId("start-runner")
     .locator("option")
@@ -114,8 +126,8 @@ test("granted member starts the shared Mac on the member card", async ({ page })
 test("owner double submit records one durable launch", async ({ page }) => {
   await signInAndOpenBoard(page, "owner");
   await openTaskCard(page, FIX.taskLaunch, "Synthetic launch card");
-  await waitForStartReady(page);
   await selectW02RunnerAndCheckout(page);
+  await waitForStartReady(page);
   const posts: { status: number; body: Record<string, unknown> }[] = [];
   page.on("response", (response) => {
     const request = response.request();
@@ -301,8 +313,8 @@ test("duplicate cancel shares one disposition and settles the launch", async ({ 
 test("expired launch waits for another explicit click", async ({ page }) => {
   await signInAndOpenBoard(page, "owner");
   await openTaskCard(page, FIX.taskLaunchExpired, "Synthetic expired launch");
-  await waitForStartReady(page);
   await selectW02RunnerAndCheckout(page);
+  await waitForStartReady(page);
   await expect(page.getByText("Launch expired")).toBeVisible();
   const expiredId = await page.evaluate(
     async ({ workspace, taskId }) => {
