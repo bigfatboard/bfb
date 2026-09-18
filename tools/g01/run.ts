@@ -77,9 +77,12 @@ import {
   claimGitHubOutboxBatch,
   checkOperationsTables,
   claimLaunchCommand,
+  cliHash,
   collectWorkspaceHealth,
   createProjectCommand,
+  decodeRunnerToken,
   deriveDeliveryId,
+  encodeRunnerToken,
   getRunMeasurements,
   githubOutboxBackoffSeconds,
   listResultSubmissions,
@@ -110,6 +113,7 @@ import {
   type CommandOutcome,
   type IngestRunnerEventsResult,
   type RunnerPrincipal,
+  type RunnerTokenClaims,
   type TaskRecord,
 } from "@bfb/domain";
 import { createTestHarness } from "wrangler";
@@ -656,53 +660,11 @@ try {
   const idProjGamma = need(projectIds["gamma"], "gamma project");
 
   // G-SG01: credential classes cannot substitute for one another.
+  // Synthetic reserved-format negatives stay with IC-1/X03A; this block owns
+  // the live cross-credential matrix further below: every credential is
+  // proven live on its home surface, then refused on each foreign resolver.
   {
     const resource = `${origin}/mcp`;
-    for (const presented of [
-      "bfb_session_cookie-value",
-      "session-cookie-includes-cookie",
-      "bfb_cli_0123456789abcdef",
-      "bfb_runner_0123456789abcdef",
-      "bfb_agent_0123456789abcdef",
-      "bfb_integration_0123456789abcdef",
-      "mcp_unknown-token",
-    ]) {
-      let code = "";
-      try {
-        await resolveAccessToken(db, presented, now, resource);
-      } catch (error) {
-        code = (error as { code?: string }).code ?? "thrown";
-      }
-      assert(
-        code === "credential_confusion" ||
-          code === "invalid_token" ||
-          code === "foreign_token" ||
-          code === "token_expired" ||
-          code === "token_revoked" ||
-          code === "unknown_delegation",
-        `mcp resolves foreign credential as ${code || "accepted"}`,
-      );
-    }
-    note("sg01", "mcp rejects cookie/cli/runner/agent/integration/unknown credentials");
-    for (const presented of [
-      "mcp_G01SYNTHETICACCESSTOKEN",
-      "bfb_runner_G01SYNTHETIC",
-      "bfb_session_G01SYNTHETIC=cookie",
-      "not-a-key",
-      "",
-    ]) {
-      let code = "";
-      try {
-        await resolveCliPrincipal(db, presented, now);
-      } catch (error) {
-        code = (error as { code?: string }).code ?? "thrown";
-      }
-      assert(
-        code === "unauthenticated",
-        `cli resolves foreign credential as ${code || "accepted"}`,
-      );
-    }
-    note("sg01", "cli principal resolution rejects mcp/runner/session/malformed credentials");
 
     // A live delegation: bound, scope-checked, then revoked before any cleanup runs.
     const authUserId = "g01-auth-user-owner";
@@ -793,6 +755,161 @@ try {
     const delegation = await resolveAccessToken(db, accessToken, now, resource);
     assert.equal(delegation.delegationId, delegationId, "mcp resolves the live delegation");
     assertScope(delegation, "bfb:task:write");
+    // Live cross-credential matrix: each credential authenticates on its home
+    // surface, then must fail on every foreign resolver. Key material is
+    // derived deterministically so reruns stay byte-identical.
+    const liveCliKey = `bfb_cli_${createHash("sha256").update("g01-sg01-live-cli-key").digest("base64url")}`;
+    await db
+      .prepare(
+        `INSERT INTO api_key_bindings
+         (workspace_id, id, principal_type, human_id, auth_user_id, device_row_id,
+          device_code_hash, key_hash, key_prefix, scopes_json, project_ids_json,
+          authorization_epoch, expires_at, exchanged_at, revoked_at, created_at)
+         VALUES (?, ?, 'human', ?, ?, NULL, ?, ?, ?, ?, NULL, 1, ?, ?, NULL, ?)`,
+      )
+      .run(
+        FIX.workspace,
+        g01Id("G01CLISG01"),
+        FIX.owner,
+        authUserId,
+        createHash("sha256").update("g01-sg01-device-code").digest("hex"),
+        cliHash(liveCliKey),
+        liveCliKey.slice(0, 12),
+        JSON.stringify(["bfb:read", "bfb:task:write"]),
+        "2027-09-18T12:00:00.000Z",
+        now,
+        now,
+      );
+    const liveCli = await resolveCliPrincipal(db, liveCliKey, now);
+    assert.equal(liveCli.humanId, FIX.owner, "live CLI key resolves its binding");
+    note("sg01", "live CLI key resolves its binding");
+    // The fixture runner rows hash arbitrary strings, so the matrix mints its
+    // own grant for mac-a and removes it afterwards.
+    const runnerTokenSecret = createHash("sha256")
+      .update("g01-sg01-runner-secret/mac-a")
+      .digest("base64url");
+    const runnerTokenId = g01Id("G01TOKC");
+    const runnerTokenClaims: RunnerTokenClaims = {
+      v: 1,
+      sub: idMacA,
+      workspace_id: FIX.workspace,
+      aud: "bfb-runner",
+      iss: origin,
+      jti: runnerTokenId,
+      iat: Date.parse(now) / 1000,
+      exp: Date.parse(launchDeadline(now, 300_000)) / 1000,
+      authorization_epoch: 1,
+      owner_authorization_epoch: 1,
+      grant_epoch: 1,
+      token_epoch: 1,
+      cnf: { jkt: "synthetic-g01-harness-key-a" },
+    };
+    const liveRunnerToken = encodeRunnerToken(runnerTokenClaims, runnerTokenSecret);
+    await db
+      .prepare(
+        `INSERT INTO runner_tokens (workspace_id, runner_id, id, token_hash, claims_json, expires_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        FIX.workspace,
+        idMacA,
+        runnerTokenId,
+        runnerHash(runnerTokenSecret),
+        JSON.stringify(runnerTokenClaims),
+        launchDeadline(now, 300_000),
+      );
+    const decodedRunner = decodeRunnerToken(liveRunnerToken);
+    const storedRunner = (await db
+      .prepare(
+        `SELECT token_hash, claims_json FROM runner_tokens WHERE workspace_id = ? AND id = ?`,
+      )
+      .get(FIX.workspace, runnerTokenId)) as { token_hash: string; claims_json: string };
+    assert.equal(
+      storedRunner.token_hash,
+      runnerHash(runnerTokenSecret),
+      "live runner token matches its stored grant",
+    );
+    assert.equal(
+      storedRunner.claims_json,
+      decodedRunner.claimsJson,
+      "live runner token carries its stored claims",
+    );
+    note("sg01", "live runner token decodes to its stored grant");
+    // The browser session backing the live delegation above is the live
+    // cookie credential material: the delegation resolves only through it.
+    const liveSessionToken = `session-${sessionId}`;
+    async function foreignCode(present: () => Promise<unknown>): Promise<string> {
+      try {
+        await present();
+      } catch (error) {
+        return (error as { code?: string }).code ?? "thrown";
+      }
+      return "accepted";
+    }
+    assert.equal(
+      await foreignCode(() => resolveAccessToken(db, liveCliKey, now, resource)),
+      "credential_confusion",
+      "live CLI key must not authenticate mcp",
+    );
+    assert.equal(
+      await foreignCode(() => resolveCliPrincipal(db, accessToken, now)),
+      "unauthenticated",
+      "live MCP token must not authenticate cli",
+    );
+    assert.equal(
+      await foreignCode(() => resolveCliPrincipal(db, liveRunnerToken, now)),
+      "unauthenticated",
+      "live runner token must not authenticate cli",
+    );
+    assert.equal(
+      await foreignCode(() => resolveAccessToken(db, liveRunnerToken, now, resource)),
+      "credential_confusion",
+      "live runner token must not authenticate mcp",
+    );
+    assert.equal(
+      await foreignCode(() => resolveCliPrincipal(db, liveSessionToken, now)),
+      "unauthenticated",
+      "live session token must not authenticate cli",
+    );
+    assert.equal(
+      await foreignCode(() => resolveAccessToken(db, liveSessionToken, now, resource)),
+      "invalid_token",
+      "live session token must not authenticate mcp",
+    );
+    note("sg01", "live cli/mcp/runner/session credentials refuse every foreign resolver");
+    await db
+      .prepare(`DELETE FROM runner_tokens WHERE workspace_id = ? AND id = ?`)
+      .run(FIX.workspace, runnerTokenId);
+    // Route-level confusion proof lives in the owning suites: SG-01 passes
+    // only while their manifests record passed runs, and X02 parity still
+    // refuses a live CLI key on browser and MCP routes.
+    for (const owner of ["C02", "C03", "C05", "C06", "X02", "X03A"]) {
+      const manifest = JSON.parse(
+        await readFile(
+          resolve(root, `docs/work-packages/evidence/WP-${owner}/manifest.json`),
+          "utf8",
+        ),
+      ) as { outcome?: unknown };
+      assert.equal(
+        manifest.outcome,
+        "passed",
+        `SG-01 cites WP-${owner}, which must record a passed run`,
+      );
+    }
+    const parity = JSON.parse(
+      await readFile(
+        resolve(root, "docs/work-packages/evidence/WP-X02/parity-report.json"),
+        "utf8",
+      ),
+    ) as { rows: Array<{ check: string; browser_status: number | null }> };
+    for (const check of ["CLI credential on browser routes", "CLI credential on MCP"]) {
+      assert.equal(
+        parity.rows.find((entry) => entry.check === check)?.browser_status,
+        401,
+        `X02 parity must still refuse ${check}`,
+      );
+    }
+    note("sg01", "owning route suites pass; X02 parity refuses CLI keys on browser and MCP");
     let scopeCode = "";
     try {
       assertScope(delegation, "bfb:admin");
@@ -869,7 +986,11 @@ try {
     }
     note("sg01", "scope-less and oversized delegation requests create no grant");
   }
-  verdict("SG-01", "passed", "credential-type confusion matrix with live delegation revocation");
+  verdict(
+    "SG-01",
+    "passed",
+    "live cross-credential matrix with delegation revocation and composed route proof",
+  );
 
   // G-SG04: step-up defaults admit no bypass route or flow.
   {

@@ -182,7 +182,7 @@ export const GATE_ROWS: GateRow[] = [
     command: "pnpm test:g01",
     evidence: "docs/work-packages/evidence/WP-G01/gate-report.json",
     detail:
-      "Credential-type confusion matrix with live delegation revocation; owning evidence WP-C02/WP-C03/WP-C05/WP-C06/WP-X03A.",
+      "Live CLI/MCP/runner/session cross-credential matrix with delegation revocation; route proof composed from WP-C02/WP-C03/WP-C05/WP-C06/WP-X02/WP-X03A.",
   },
   {
     gate: "SG-02",

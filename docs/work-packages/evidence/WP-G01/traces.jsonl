@@ -6,8 +6,10 @@
 [fixture] 2 runners enrolled with 4 validated checkouts and launch grants
 [fixture] second tenant workspace holds one owner, one project, one task
 [fixture] 10 envelope tasks open across all projects
-[sg01] mcp rejects cookie/cli/runner/agent/integration/unknown credentials
-[sg01] cli principal resolution rejects mcp/runner/session/malformed credentials
+[sg01] live CLI key resolves its binding
+[sg01] live runner token decodes to its stored grant
+[sg01] live cli/mcp/runner/session credentials refuse every foreign resolver
+[sg01] owning route suites pass; X02 parity refuses CLI keys on browser and MCP
 [sg01] delegation binds one scope set; revocation stops resolution before cleanup
 [sg01] scope-less and oversized delegation requests create no grant
 [sg04] step-up mismatch/stale/replay/unknown matrix rejects every bypass
