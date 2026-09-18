@@ -1,0 +1,57 @@
+{
+  "gate": "pnpm test:x02",
+  "tested_tree": "2028423da96d4dc85d1b1b23d2607f811856d3a2",
+  "outcome": "passed",
+  "steps": [
+    {
+      "command": "pnpm build",
+      "outcome": "passed"
+    },
+    {
+      "command": "pnpm test:protocol",
+      "outcome": "passed"
+    },
+    {
+      "command": "vitest run apps/control-worker/test/cli-human.test.ts apps/control-worker/test/cli-credentials.test.ts",
+      "outcome": "passed",
+      "detail": "2 files, 17 tests (10 human CLI mirror and parity, 7 device credentials)"
+    },
+    {
+      "command": "pnpm build:web",
+      "outcome": "passed"
+    },
+    {
+      "command": "pnpm exec tsc -b tools/human-cli --pretty false",
+      "outcome": "passed"
+    },
+    {
+      "command": "tsx tools/human-cli/run.ts",
+      "outcome": "passed",
+      "detail": "X02 worker parity: 20 checks, 0 secret findings over real Workers and D1"
+    },
+    {
+      "command": "go test -race -count=1 ./internal/humancli/... ./internal/cli/... ./cmd/bfb/...",
+      "outcome": "passed",
+      "detail": "humancli, cli, bfb packages ok with race detector"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "detail": "full repository verification including Swift/Xcode checks"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed"
+    },
+    {
+      "command": "GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./...",
+      "outcome": "passed"
+    },
+    {
+      "command": "clean detached checkout gate (install, build, test:x02)",
+      "outcome": "passed",
+      "detail": "detached worktree at the tested tree, removed afterwards"
+    }
+  ],
+  "redaction": "summary only; no terminal output, secrets, or local paths retained"
+}
