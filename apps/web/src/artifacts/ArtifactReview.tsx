@@ -120,7 +120,7 @@ export interface ReviewViewProps {
 export function ReviewView(props: ReviewViewProps) {
   const latest = props.status?.latest_version ?? null;
   return (
-    <section aria-labelledby="artifact-review-heading" data-testid="review-panel">
+    <section aria-labelledby="artifact-review-heading">
       <h3 id="artifact-review-heading">Artifact review</h3>
       {props.artifacts.length === 0 ? (
         <p data-testid="review-empty">No review artifacts yet.</p>
@@ -189,6 +189,7 @@ export function ReviewView(props: ReviewViewProps) {
       ) : null}
       {props.status && latest && props.artifactOrigin ? (
         <ArtifactViewer
+          key={latest.id}
           workspaceId={props.workspaceId}
           versionId={latest.id}
           format={latest.format}
@@ -258,7 +259,7 @@ export function ReviewView(props: ReviewViewProps) {
           <label>
             Review note
             <textarea
-              data-testid="review-comment"
+              data-testid="review-note"
               value={props.comment}
               onChange={(event) => props.onCommentChange?.(event.target.value)}
               maxLength={2048}
@@ -433,7 +434,7 @@ export function ReviewPanel(props: ReviewPanelProps) {
   }
 
   return (
-    <>
+    <div data-testid="review-panel">
       <ReviewView
         artifacts={artifacts}
         selectedArtifactId={selectedArtifactId}
@@ -452,13 +453,15 @@ export function ReviewPanel(props: ReviewPanelProps) {
         onDecide={(decision) => void decide(decision)}
         onReload={() => void reload()}
       />
-      <MeasurementsPanel
-        key={`review-timers-${props.taskId}`}
-        workspaceId={props.workspaceId}
-        taskId={props.taskId}
-        fetchImpl={fetchFn}
-        csrfToken={props.csrfToken ?? ""}
-      />
-    </>
+      {artifacts.length > 0 ? (
+        <MeasurementsPanel
+          key={`review-timers-${props.taskId}`}
+          workspaceId={props.workspaceId}
+          taskId={props.taskId}
+          fetchImpl={fetchFn}
+          csrfToken={props.csrfToken ?? ""}
+        />
+      ) : null}
+    </div>
   );
 }

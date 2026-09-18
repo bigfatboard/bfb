@@ -56,6 +56,7 @@ import {
   openAuthTestContext,
   seedAuthSession,
 } from "../../../apps/control-worker/test/auth-helpers.js";
+import { V03_ARTIFACT, V03_HOSTILE_ARTIFACT, V03_RUN, V03_TASK } from "./v03-fixture.js";
 
 const PORT = Number(process.env.BFB_E2E_PORT ?? "4173");
 const HOST = process.env.BFB_E2E_HOST ?? "127.0.0.1";
@@ -737,6 +738,166 @@ async function seedMeasurementSurface(db: SqlDatabase): Promise<void> {
     );
 }
 
+/**
+ * Seeds the V03 review surface: one ready task with a run, a markdown
+ * artifact carrying a historical approval plus an unapproved newer version,
+ * and a hostile HTML artifact. The browser spec drives fresh reviews, timer
+ * state, conflicts, and isolation against these rows. The spec recomputes
+ * the same synthetic ULIDs, so no fixture file changes.
+ */
+async function seedReviewSurface(db: SqlDatabase): Promise<void> {
+  // The seeded v2 keeps a distinct id prefix so browser assertions can tell
+  // apart the exact version the surface loaded from a live publication.
+  const V03_V1 = `${V03_ARTIFACT.slice(0, 24)}V1`;
+  const V03_V2 = "01JBFBC0V03REVMDAART0000W9";
+  const mdV1 = createHash("sha256").update("synthetic v03 review v1\n", "utf8").digest("hex");
+  const mdV2 = createHash("sha256").update("synthetic v03 review v2\n", "utf8").digest("hex");
+  const hostile = createHash("sha256")
+    .update("synthetic v03 hostile review\n", "utf8")
+    .digest("hex");
+  await db
+    .prepare(
+      `INSERT INTO tasks (
+         workspace_id, id, project_id, parent_task_id, title, state, priority, due_at,
+         next_owner_type, next_owner_id, next_action_reason, punchline,
+         resource_version, created_by_human_id, created_by_delegation_id, created_at
+       ) VALUES (?, ?, ?, NULL, 'Review the release preview', 'ready', 'P2', NULL,
+          'unassigned', NULL, 'A reviewer must approve the exact preview bytes.',
+          'Two preview artifacts wait for immutable review.', 1, ?, NULL, ?)`,
+    )
+    .run(FIX.workspace, V03_TASK, FIX.projectA, FIX.owner, NOW);
+  await db
+    .prepare(
+      `INSERT INTO runs
+       (workspace_id, id, project_id, task_id, requested_by_human_id, agent_profile_id,
+        result_state, activity, resource_version, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'open', 'unknown', 1, ?)`,
+    )
+    .run(FIX.workspace, V03_RUN, FIX.projectA, V03_TASK, FIX.owner, FIX.profileCodex, NOW);
+  await db
+    .prepare(
+      `INSERT INTO artifacts
+       (workspace_id, id, run_id, format, role, created_by_human_id, created_at)
+       VALUES (?, ?, ?, 'markdown', 'review', ?, ?),
+              (?, ?, ?, 'html', 'review', ?, ?)`,
+    )
+    .run(
+      FIX.workspace,
+      V03_ARTIFACT,
+      V03_RUN,
+      FIX.owner,
+      NOW,
+      FIX.workspace,
+      V03_HOSTILE_ARTIFACT,
+      V03_RUN,
+      FIX.owner,
+      NOW,
+    );
+  await db
+    .prepare(
+      `INSERT INTO artifact_versions
+       (workspace_id, id, artifact_id, state, format, declared_size, expected_digest,
+        content_hash, r2_key, created_at, available_at)
+       VALUES (?, ?, ?, 'available', 'markdown', 24, ?, ?, ?, ?, ?),
+              (?, ?, ?, 'available', 'markdown', 24, ?, ?, ?, ?, ?),
+              (?, ?, ?, 'available', 'html', 27, ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      FIX.workspace,
+      V03_V1,
+      V03_ARTIFACT,
+      mdV1,
+      mdV1,
+      `workspaces/${FIX.workspace}/artifacts/sha256/${mdV1}`,
+      NOW,
+      "2026-08-07T12:00:01Z",
+      FIX.workspace,
+      V03_V2,
+      V03_ARTIFACT,
+      mdV2,
+      mdV2,
+      `workspaces/${FIX.workspace}/artifacts/sha256/${mdV2}`,
+      "2026-08-07T12:05:00Z",
+      "2026-08-07T12:05:01Z",
+      FIX.workspace,
+      `${V03_HOSTILE_ARTIFACT.slice(0, 24)}V1`,
+      V03_HOSTILE_ARTIFACT,
+      hostile,
+      hostile,
+      `workspaces/${FIX.workspace}/artifacts/sha256/${hostile}`,
+      NOW,
+      "2026-08-07T12:00:01Z",
+    );
+  await db
+    .prepare(
+      `INSERT INTO artifact_reviews
+       (workspace_id, id, artifact_id, version_id, content_hash, reviewer_human_id,
+        authorization_epoch, decision, comment, git_commit, config_hash,
+        review_timer_observation_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, 1, 'approve', 'Synthetic seed approval of v1.', NULL, NULL, NULL, ?)`,
+    )
+    .run(
+      FIX.workspace,
+      `${V03_ARTIFACT.slice(0, 24)}R1`,
+      V03_ARTIFACT,
+      V03_V1,
+      mdV1,
+      FIX.owner,
+      "2026-08-07T12:01:00Z",
+    );
+}
+
+/**
+ * Test-only hook that publishes one more available markdown version for the
+ * V03 review artifact, so the browser spec can drive a genuine concurrent
+ * publication between page load and review submit. Direct SQL like the seed;
+ * the real publish path is proven by V01 and the V03 worker harness.
+ */
+let v03PublishCount = 0;
+async function handleV03Publish(
+  req: IncomingMessage,
+  res: ServerResponse,
+  db: SqlDatabase,
+  ownerCookie: string,
+): Promise<boolean> {
+  if ((req.url ?? "").split("?")[0] !== "/__test/v03-publish") {
+    return false;
+  }
+  if (req.method !== "POST" || !req.headers.cookie?.includes(ownerCookie)) {
+    res.statusCode = 401;
+    res.end();
+    return true;
+  }
+  v03PublishCount += 1;
+  const versionId = randomUlid();
+  const contentHash = createHash("sha256")
+    .update(`synthetic v03 review live v${v03PublishCount}\n`, "utf8")
+    .digest("hex");
+  // Live versions sort after the seeded 12:05 v2 by timestamp and rowid.
+  const createdAt = `2026-08-07T12:10:${String(v03PublishCount).padStart(2, "0")}Z`;
+  await db
+    .prepare(
+      `INSERT INTO artifact_versions
+       (workspace_id, id, artifact_id, state, format, declared_size, expected_digest,
+        content_hash, r2_key, created_at, available_at)
+       VALUES (?, ?, ?, 'available', 'markdown', 27, ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      FIX.workspace,
+      versionId,
+      V03_ARTIFACT,
+      contentHash,
+      contentHash,
+      `workspaces/${FIX.workspace}/artifacts/sha256/${contentHash}`,
+      createdAt,
+      createdAt,
+    );
+  res.statusCode = 201;
+  res.setHeader("content-type", "application/json");
+  res.end(JSON.stringify({ version_id: versionId, content_hash: contentHash }));
+  return true;
+}
+
 function fakeBinding<T extends object>(label: string): T {
   return { __synthetic: label } as unknown as T;
 }
@@ -1333,6 +1494,7 @@ async function main(): Promise<void> {
   await seedWorkSurface(authContext.db);
   await seedLaunchOperations(authContext.db);
   await seedMeasurementSurface(authContext.db);
+  await seedReviewSurface(authContext.db);
   const db = authContext.db;
   const e02 = await seedE02Chains(db);
   const authEnv: AuthEnv = { ...AUTH_TEST_ENV, APP_ORIGIN: ORIGIN };
@@ -1569,6 +1731,16 @@ async function main(): Promise<void> {
           return;
         }
         if (await handleE02Commit(req, res)) {
+          return;
+        }
+        if (
+          await handleV03Publish(
+            req,
+            res,
+            db,
+            fixtureSessions.owner.split(";", 1)[0]!,
+          )
+        ) {
           return;
         }
         if (
