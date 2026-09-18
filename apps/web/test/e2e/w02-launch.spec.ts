@@ -3,7 +3,7 @@
 
 import path from "node:path";
 
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 import { runnerGrantsTarget } from "@bfb/domain";
 
@@ -35,6 +35,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 const RUNNER_LABEL = "Synthetic Launch Mac";
+const W02_RUNNER_ID = "01JBFB0TASKW021000000000R1";
 const LAUNCH_ORIGIN = "https://launch.bfb.example.test";
 const trace: {
   startPosts?: { status: number; key: string; launch: string }[];
@@ -47,9 +48,72 @@ async function openRunners(page: Parameters<typeof openTaskCard>[0]): Promise<vo
   await expect(page.getByTestId("runner-operations")).toBeVisible();
 }
 
+/**
+ * Pins the Start form to W02's profile, runner, and checkout before waiting
+ * for Start readiness. The shared fixture also enrols the E02 Mac, its
+ * timeline profile, and inventory-less runners from other suites, whose list
+ * positions differ from the pre-E02 suite, so order-dependent defaults must
+ * never decide where a W02 launch posts - and an inventory-less default would
+ * never become ready at all. Retries additionally require the original run's
+ * agent profile, so the profile pin is load-bearing there.
+ */
+async function selectW02RunnerAndCheckout(page: Page): Promise<void> {
+  const runner = page.getByTestId("start-runner");
+  await expect
+    .poll(
+      async () =>
+        runner
+          .locator("option")
+          .evaluateAll((nodes) => nodes.map((node) => (node as HTMLOptionElement).value)),
+      { timeout: 15_000 },
+    )
+    .toContain(W02_RUNNER_ID);
+  await runner.selectOption(W02_RUNNER_ID);
+  await expect(page.getByTestId("start-runner")).toHaveValue(W02_RUNNER_ID);
+  const profile = page.getByTestId("start-profile");
+  let providerValue = "";
+  await expect
+    .poll(
+      async () => {
+        const options = await profile.locator("option").evaluateAll((nodes) =>
+          nodes.map((node) => ({
+            value: (node as HTMLOptionElement).value,
+            text: node.textContent ?? "",
+          })),
+        );
+        providerValue =
+          options.find((option) => option.text.includes("Synthetic launch provider"))?.value ?? "";
+        return providerValue;
+      },
+      { timeout: 15_000 },
+    )
+    .not.toBe("");
+  await profile.selectOption(providerValue);
+  const checkout = page.getByTestId("start-checkout");
+  let alphaValue = "";
+  await expect
+    .poll(
+      async () => {
+        const options = await checkout.locator("option").evaluateAll((nodes) =>
+          nodes.map((node) => ({
+            value: (node as HTMLOptionElement).value,
+            text: node.textContent ?? "",
+          })),
+        );
+        alphaValue =
+          options.find((option) => option.text.includes("Synthetic Alpha Checkout"))?.value ?? "";
+        return alphaValue;
+      },
+      { timeout: 15_000 },
+    )
+    .not.toBe("");
+  await checkout.selectOption(alphaValue);
+}
+
 test("granted member starts the shared Mac on the member card", async ({ page }) => {
   await signInAndOpenBoard(page, "member");
   await openTaskCard(page, FIX.taskLaunchStart, "Synthetic member launch card");
+  await selectW02RunnerAndCheckout(page);
   await waitForStartReady(page);
   const runnerOptions = await page
     .getByTestId("start-runner")
@@ -70,6 +134,7 @@ test("granted member starts the shared Mac on the member card", async ({ page })
 test("owner double submit records one durable launch", async ({ page }) => {
   await signInAndOpenBoard(page, "owner");
   await openTaskCard(page, FIX.taskLaunch, "Synthetic launch card");
+  await selectW02RunnerAndCheckout(page);
   await waitForStartReady(page);
   // Pin the runner and checkout explicitly: the default runner follows id
   // order and a sibling seed's runner (with a live lease on its checkout)
@@ -263,6 +328,8 @@ test("duplicate cancel shares one disposition and settles the launch", async ({ 
 test("expired launch waits for another explicit click", async ({ page }) => {
   await signInAndOpenBoard(page, "owner");
   await openTaskCard(page, FIX.taskLaunchExpired, "Synthetic expired launch");
+  await selectW02RunnerAndCheckout(page);
+  await waitForStartReady(page);
   await expect(page.getByText("Launch expired")).toBeVisible();
   const expiredId = await page.evaluate(
     async ({ workspace, taskId }) => {
@@ -352,20 +419,28 @@ test("runner operations show checkouts, capability, and step-up sharing", async 
 }) => {
   await signInAndOpenBoard(page, "owner");
   await openRunners(page);
-  await expect(page.getByText(RUNNER_LABEL)).toBeVisible();
-  await expect(page.getByText("Synthetic Alpha Checkout")).toBeVisible();
-  await expect(page.getByText("Synthetic Beta Checkout")).toBeVisible();
-  await expect(page.getByText("Synthetic Gamma Checkout")).toBeVisible();
-  await expect(page.getByText(/launch.interactive/).first()).toBeVisible();
+  const w02Card = page.getByTestId(`runner-${W02_RUNNER_ID}`);
+  await expect(w02Card.getByText(RUNNER_LABEL)).toBeVisible();
+  await expect(w02Card.getByText("Synthetic Alpha Checkout")).toBeVisible();
+  await expect(w02Card.getByText("Synthetic Beta Checkout")).toBeVisible();
+  await expect(w02Card.getByText("Synthetic Gamma Checkout")).toBeVisible();
+  await expect(w02Card.getByText(/launch.interactive/)).toBeVisible();
   await page.screenshot({ path: path.join(W02_EVIDENCE_DIR, "runners.png") });
 
-  const runnerId = await page.evaluate(async (workspace) => {
-    const response = await fetch(`/api/v1/workspaces/${workspace}/runners`);
-    const body = (await response.json()) as {
-      runners: { runner_id: string; grant_epoch: number }[];
-    };
-    return body.runners[0]!;
-  }, FIX.workspace);
+  const runnerId = await page.evaluate(
+    async ({ workspace, w02RunnerId }) => {
+      const response = await fetch(`/api/v1/workspaces/${workspace}/runners`);
+      const body = (await response.json()) as {
+        runners: { runner_id: string; grant_epoch: number }[];
+      };
+      const found = body.runners.find((runner) => runner.runner_id === w02RunnerId);
+      if (!found) {
+        throw new Error(`W02 runner ${w02RunnerId} is not visible to the owner`);
+      }
+      return found;
+    },
+    { workspace: FIX.workspace, w02RunnerId: W02_RUNNER_ID },
+  );
   const memberPage = await browser.newPage();
   const restrictedPage = await browser.newPage();
   const authenticator = await enrollVirtualPasskey(page);

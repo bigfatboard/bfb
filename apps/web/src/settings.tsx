@@ -30,12 +30,14 @@ interface AgentProfileRecord {
 }
 
 interface WorkspacePolicy {
-  allowedProviders: Provider[];
+  allowedProviders: string[];
   allowAgentRootPropose: boolean;
   allowPassToAgent: boolean;
   allowRunOverrides: boolean;
   resourceVersion: number;
 }
+
+const KNOWN_PROVIDERS = ["claude", "codex", "grok"] as const;
 
 export interface WorkspaceSettingsProps {
   workspaceId: string;
@@ -75,6 +77,9 @@ export function WorkspaceSettings(props: WorkspaceSettingsProps) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  const providerOptions: string[] = policy
+    ? [...new Set([...KNOWN_PROVIDERS, ...policy.allowedProviders])]
+    : [...KNOWN_PROVIDERS];
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -334,7 +339,7 @@ export function WorkspaceSettings(props: WorkspaceSettingsProps) {
               onSubmit={(event) => {
                 event.preventDefault();
                 const form = new FormData(event.currentTarget);
-                const allowedProviders = (["claude", "codex", "grok"] as const).filter(
+                const allowedProviders = providerOptions.filter(
                   (provider) => form.get(provider) === "on",
                 );
                 const settings = {
@@ -378,7 +383,7 @@ export function WorkspaceSettings(props: WorkspaceSettingsProps) {
             >
               <fieldset>
                 <legend>Allowed providers</legend>
-                {(["claude", "codex", "grok"] as const).map((provider) => (
+                {providerOptions.map((provider) => (
                   <label className="check-row" key={provider}>
                     <input
                       type="checkbox"

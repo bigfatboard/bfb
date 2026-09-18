@@ -253,6 +253,13 @@ test("owner policy update completes through action-bound passkey UI", async ({ p
     await expect(status).toBeVisible();
 
     await page.screenshot({ path: path.join(EVIDENCE_DIR, "step-up.png"), fullPage: true });
+    const versionBadge = page.locator("section.policy-panel .panel-title-row > span");
+    const narrowedVersion = await versionBadge.innerText();
+    await page.getByLabel("Run overrides allowed").check();
+    await page.getByTestId("save-workspace-policy").click();
+    await expect
+      .poll(async () => versionBadge.innerText(), { timeout: 15_000 })
+      .not.toBe(narrowedVersion);
     await writeReport(
       "step-up.md",
       [
@@ -260,6 +267,7 @@ test("owner policy update completes through action-bound passkey UI", async ({ p
         "",
         "- Surface: owner Projects & policy",
         "- Mutation: workspace policy version 1, run overrides true to false",
+        "- Restore: run overrides set back to true, so the shared fixture keeps a clean policy for later suites.",
         "- Browser: Chromium virtual CTAP2 platform authenticator",
         "- User verification: required",
         "- Action: `workspace.policy.update`",

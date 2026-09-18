@@ -9,9 +9,17 @@ import {
   buildControlRequest,
   buildStartRequest,
   buildWakeLink,
+  createLaunchClient,
+  describeCheckoutDisplay,
   describeLaunchStatus,
+  linkedCheckoutsMessage,
   newIdempotencyKey,
+  providerStatusMessage,
+  refreshTaskLaunches,
+  splitRunnerStatuses,
+  type CheckoutStatus,
   type LaunchStatus,
+  type RunnerSummary,
 } from "../src/launch/api.js";
 
 const START_KEYS = [
@@ -288,5 +296,131 @@ describe("w02 launch presentation", () => {
       const shown = describeLaunchStatus(baseLaunch({ result_state: resultState }));
       expect(shown.headline).not.toContain(resultState);
     }
+  });
+});
+
+function baseRunner(overrides: Partial<RunnerSummary> = {}): RunnerSummary {
+  const owner = randomUlid();
+  return {
+    schema_version: 1,
+    runner_id: randomUlid(),
+    workspace_id: randomUlid(),
+    owner_human_id: owner,
+    device_label: "Synthetic Mac",
+    public_key_thumbprint: "synthetic-thumbprint",
+    authorization_epoch: 1,
+    grant_epoch: 1,
+    status: "enrolled",
+    enrolled_at: "2026-08-07T12:00:00.000Z",
+    granted_project_ids: [],
+    launcher_human_ids: [owner],
+    checkout_status: baseCheckoutStatus(),
+    ...overrides,
+  };
+}
+
+function baseCheckoutStatus(overrides: Partial<CheckoutStatus> = {}): CheckoutStatus {
+  return {
+    runner_id: randomUlid(),
+    device_label: "Synthetic Mac",
+    owner_human_id: randomUlid(),
+    status: "enrolled",
+    inventory_revision: 1,
+    inventory_received_at: "2026-08-07T12:00:00.000Z",
+    inventory_valid: true,
+    checkouts: [],
+    providers: [],
+    ...overrides,
+  };
+}
+
+describe("w02 runner inventory reads", () => {
+  it("splits embedded statuses without an extra read per runner", () => {
+    const first = baseRunner();
+    const second = baseRunner({ checkout_status: null });
+    const { statuses, failures } = splitRunnerStatuses([first, second]);
+    expect(statuses[first.runner_id]).toBe(first.checkout_status);
+    expect(statuses[second.runner_id]).toBeUndefined();
+    expect(failures[second.runner_id]).toMatch(/unavailable/);
+    expect(failures[first.runner_id]).toBeUndefined();
+  });
+
+  it("coalesces concurrent identical reads into one request", async () => {
+    let calls = 0;
+    const fetchImpl = (async () => {
+      calls += 1;
+      await Promise.resolve();
+      return new Response(JSON.stringify({ runners: [] }), { status: 200 });
+    }) as typeof fetch;
+    const client = createLaunchClient(fetchImpl, randomUlid(), "csrf");
+    const [first, second] = await Promise.all([client.listRunners(), client.listRunners()]);
+    expect(first).toEqual({ runners: [] });
+    expect(second).toEqual({ runners: [] });
+    expect(calls).toBe(1);
+  });
+
+  it("records a missing embedded status instead of an empty inventory", () => {
+    const missing = baseRunner({ checkout_status: null });
+    const { statuses, failures } = splitRunnerStatuses([missing]);
+    expect(statuses[missing.runner_id]).toBeUndefined();
+    expect(failures[missing.runner_id]).toMatch(/unavailable/);
+    expect(describeCheckoutDisplay(undefined, true)).toBe("unavailable");
+    expect(linkedCheckoutsMessage(undefined, true)).not.toMatch(/has not reported a checkout yet/);
+    expect(providerStatusMessage(undefined, true)).toMatch(/unavailable/);
+  });
+
+  it("keeps empty and invalid inventories distinct from unavailable reads", () => {
+    const empty = baseCheckoutStatus({
+      inventory_valid: false,
+      inventory_received_at: null,
+    });
+    const invalid = baseCheckoutStatus({
+      inventory_valid: false,
+      inventory_received_at: "2026-08-07T12:00:00.000Z",
+    });
+    const ready = baseCheckoutStatus({
+      checkouts: [
+        {
+          schema_version: 1,
+          checkout_id: randomUlid(),
+          workspace_id: randomUlid(),
+          runner_id: randomUlid(),
+          project_id: randomUlid(),
+          label: "Synthetic Alpha Checkout",
+          repository_identity: "synthetic/alpha",
+          workspace_subpath: ".",
+          physical_worktree_hash: `sha256:${"a".repeat(64)}`,
+          repository_config_hash: `sha256:${"b".repeat(64)}`,
+          is_default: true,
+          dirty: false,
+          status: "validated",
+          validated_at: "2026-08-07T12:00:00.000Z",
+        },
+      ],
+    });
+    expect(describeCheckoutDisplay(ready, false)).toBe("ready");
+    expect(linkedCheckoutsMessage(ready, false)).toBeNull();
+    expect(describeCheckoutDisplay(empty, false)).toBe("empty");
+    expect(describeCheckoutDisplay(invalid, false)).toBe("invalid");
+    expect(describeCheckoutDisplay(undefined, false)).toBe("unavailable");
+    expect(linkedCheckoutsMessage(empty, false)).toMatch(/has not reported a checkout yet/);
+    expect(linkedCheckoutsMessage(invalid, false)).toMatch(/failed validation/);
+    expect(providerStatusMessage(empty, false)).toMatch(/No provider report/);
+  });
+
+  it("refreshes only launches after a command, never runner inventories", async () => {
+    const calls: string[] = [];
+    const launches = [baseLaunch(), baseLaunch()];
+    const client = {
+      launchesForTask: async (taskId: string) => {
+        calls.push(taskId);
+        return { launches };
+      },
+    };
+    const body = await refreshTaskLaunches(client, "task-id");
+    expect(body.launches).toEqual(launches);
+    expect(calls).toEqual(["task-id"]);
+    expect("listRunners" in client).toBe(false);
+    expect("checkoutStatus" in client).toBe(false);
   });
 });

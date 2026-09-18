@@ -29,6 +29,7 @@ export interface RunnerSummary {
   enrolled_at: string;
   granted_project_ids: string[];
   launcher_human_ids: string[];
+  checkout_status: CheckoutStatus | null;
 }
 
 export interface CheckoutSummary {
@@ -123,12 +124,25 @@ export function createLaunchClient(
   csrfToken: string,
 ): LaunchClient {
   const base = `/api/v1/workspaces/${workspaceId}`;
+  const inflight = new Map<string, Promise<unknown>>();
   async function get<T>(path: string): Promise<T> {
-    const response = await fetchFn(path);
-    if (!response.ok) {
-      throw new Error(`Launch read failed (${response.status})`);
+    const pending = inflight.get(path);
+    if (pending) {
+      return pending as Promise<T>;
     }
-    return (await response.json()) as T;
+    const task = (async () => {
+      const response = await fetchFn(path);
+      if (!response.ok) {
+        throw new Error(`Launch read failed (${response.status})`);
+      }
+      return (await response.json()) as T;
+    })();
+    inflight.set(path, task);
+    try {
+      return await task;
+    } finally {
+      inflight.delete(path);
+    }
   }
   return {
     listRunners: () => get(`${base}/runners`),
@@ -179,6 +193,97 @@ export function createLaunchClient(
 
 export function newIdempotencyKey(): string {
   return browserUlid();
+}
+
+export type CheckoutDisplay = "ready" | "empty" | "invalid" | "unavailable";
+
+/**
+ * Classifies one runner's checkout read. A missing read (rejected, failed, or
+ * never attempted for a Mac the human cannot launch on) is unavailable, never
+ * empty: only a successful read with no checkouts means nothing was reported.
+ */
+export function describeCheckoutDisplay(
+  checkout: CheckoutStatus | undefined,
+  readFailed: boolean,
+): CheckoutDisplay {
+  if (!checkout) {
+    return "unavailable";
+  }
+  if (checkout.checkouts.length > 0) {
+    return "ready";
+  }
+  if (!checkout.inventory_valid && checkout.inventory_received_at) {
+    return "invalid";
+  }
+  return readFailed ? "unavailable" : "empty";
+}
+
+/** Copy for the linked-checkouts block. Null when checkouts render as a list. */
+export function linkedCheckoutsMessage(
+  checkout: CheckoutStatus | undefined,
+  readFailed: boolean,
+): string | null {
+  switch (describeCheckoutDisplay(checkout, readFailed)) {
+    case "ready":
+      return null;
+    case "invalid":
+      return "The last Mac report failed validation; no checkout is shown.";
+    case "empty":
+      return "The Mac has not reported a checkout yet. Connection alone never means the Mac is ready.";
+    case "unavailable":
+      return "Checkout status is unavailable. The read failed, was rejected, or was skipped for a Mac that cannot be launched here; this does not mean the Mac reported nothing.";
+  }
+}
+
+/** Copy for the provider-capability block. Null when providers render as a list. */
+export function providerStatusMessage(
+  checkout: CheckoutStatus | undefined,
+  readFailed: boolean,
+): string | null {
+  if (checkout && checkout.providers.length > 0) {
+    return null;
+  }
+  if (checkout) {
+    return "No provider report. Launches stay unavailable until the Mac reports one.";
+  }
+  return readFailed
+    ? "Provider status is unavailable because the checkout read failed or was rejected."
+    : "Provider status is unavailable because the checkout read was skipped for a Mac that cannot be launched here.";
+}
+
+/**
+ * Splits the checkout statuses embedded in one runners list read. A missing
+ * status is a failure entry, never an empty inventory: only an embedded read
+ * with no checkouts means nothing was reported. No additional read happens
+ * here: one list poll carries every runner's status.
+ */
+export function splitRunnerStatuses(runners: RunnerSummary[]): {
+  statuses: Record<string, CheckoutStatus>;
+  failures: Record<string, string>;
+} {
+  const statuses: Record<string, CheckoutStatus> = {};
+  const failures: Record<string, string> = {};
+  for (const runner of runners) {
+    if (runner.checkout_status) {
+      statuses[runner.runner_id] = runner.checkout_status;
+    } else {
+      failures[runner.runner_id] = "Checkout status is unavailable.";
+    }
+  }
+  return { statuses, failures };
+}
+
+/**
+ * Refreshes only the task's launches. Start and control commands change launch
+ * state, never runner inventory, so post-command refreshes must not spend the
+ * runner poll budget. The narrowed client type makes a runner refetch a type
+ * error.
+ */
+export async function refreshTaskLaunches(
+  client: Pick<LaunchClient, "launchesForTask">,
+  taskId: string,
+): Promise<{ launches: LaunchStatus[] }> {
+  return client.launchesForTask(taskId);
 }
 
 export interface StartInput {
