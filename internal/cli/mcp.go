@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 
 	"github.com/qdis/bfb/internal/daemon"
+	"github.com/qdis/bfb/internal/journal"
 	"github.com/qdis/bfb/internal/localmcp"
 	_ "modernc.org/sqlite"
 )
@@ -44,7 +45,8 @@ func runMCPStdio(ctx context.Context, invocation Invocation) error {
 		_, _ = os.Stderr.Write([]byte("bfb mcp stdio: invalid_request\n"))
 		return &daemon.Failure{Code: "invalid_request"}
 	}
-	assignments := localmcp.DaemonAssignments{DB: openAssignmentsReadOnly(invocation)}
+	assignmentsDB := openAssignmentsReadOnly(invocation)
+	assignments := localmcp.DaemonAssignments{DB: assignmentsDB}
 	authority := localmcp.DaemonAuthority{Assignments: assignments}
 	journal, err := localmcp.OpenJournal(filepath.Join(invocation.Paths.Root, "local-mcp-journal.sqlite"))
 	if err != nil {
@@ -56,7 +58,7 @@ func runMCPStdio(ctx context.Context, invocation Invocation) error {
 		Env:         env,
 		Inspector:   localmcp.OSInspector(),
 		Assignments: assignments,
-		Bindings:    localmcp.ProvisionalBindings{},
+		Bindings:    sessionBindings(assignmentsDB),
 		Authority:   authority,
 		Transport:   localmcp.OfflineTransport{},
 		Journal:     journal,
@@ -68,6 +70,18 @@ func runMCPStdio(ctx context.Context, invocation Invocation) error {
 		return &daemon.Failure{Code: "internal_error"}
 	}
 	return nil
+}
+
+// sessionBindings adapts the daemon database's L06 hook-journal binding rows
+// to the MCP capability. The bindings read shares the read-only assignment
+// handle: BoundSession only selects. A missing database keeps the fail-closed
+// behavior, since startup verification already rejects the assignment before
+// any capability consults the source.
+func sessionBindings(db *sql.DB) localmcp.SessionBindingSource {
+	if db == nil {
+		return localmcp.JournalBindings{}
+	}
+	return localmcp.JournalBindings{Sessions: journal.NewStore(db)}
 }
 
 // openAssignmentsReadOnly opens the daemon database without migrations or

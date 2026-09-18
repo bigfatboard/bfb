@@ -140,11 +140,16 @@ type SessionBindingSource interface {
 
 `AssignmentRef` carries execution ID, assignment generation, and run ID.
 `SessionBinding` carries the observed provider session ID plus the same
-three fields and the observation time. The fake in
-`internal/localmcp/fake_test.go` (test double) stands in until L06 exposes
-its hook-journal reader; the Handoff in WP-A01 names the exact merge step.
-L06 owns the binding truth; A01 only compares equality and never invents a
-session ID.
+three fields and the observation time. Production implements the source as
+`JournalBindings` in `internal/localmcp/production.go` over
+`journal.SessionReader` (the L06 hook journal, read through the same
+read-only daemon database handle as the assignment lookup); `bfb mcp stdio`
+wires it in `internal/cli/mcp.go`. The hook table keys rows by execution ID
+plus assignment generation only, so the adapter echoes the run ID from the
+startup-verified assignment boundary that key functionally determines. The
+fake in `internal/localmcp/fake_test.go` (test double) stands in only inside
+the test suite. L06 owns the binding truth; A01 only compares equality and
+never invents a session ID.
 
 ## Error codes
 

@@ -10,7 +10,10 @@ binding, err := store.BoundSession(ctx, executionID, generation)
 
 `internal/journal.SessionReader` is the only trusted read path for the
 provider session observed behind a run. It returns `ObservedSession` with the
-bound provider, session ID, run/execution IDs, generation and bind time. An
+bound provider, session ID, execution ID, generation and bind time; `RunID`
+is empty because the binding table keys rows by execution ID plus assignment
+generation only. Consumers take the run from the assignment that key
+functionally determines (A01 echoes its startup-verified boundary run). An
 unbound execution fails with `session_unbound`; the reader never guesses a
 current run and never exposes the correlation capability, paths, credentials
 or provider payloads.
