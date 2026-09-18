@@ -1,6 +1,6 @@
 {
   "package": "X05",
-  "tested_commit": "7cb3bce3e6db790da888288951737917aef1a7d0",
+  "tested_commit": "38412e2cda627cf38af74b8dc3328ce1aaad7f46",
   "environment": "detached clean checkout on macOS (arm64); local Wrangler D1, Workerd Queues/R2 and real Chromium",
   "outcome": "passed",
   "commands": [
@@ -12,7 +12,7 @@
     {
       "command": "pnpm test:x05",
       "outcome": "passed",
-      "result": "build plus production web bundle; vitest 6 files and 50 tests (20 domain cases on migration, retention, redaction, chronological audit ordering, audit versus activity, diagnostics, recovery and stuck launches; 5 worker route cases on Owner-only audit, role reads, retention step-up matrix, idempotent recovery and diagnostic consent; 7 consumer and sweep cases on upload, poison isolation, wrong-state diversion and retention boundaries; web presentation contract; db migration matrix); tools/operations real-Worker/D1/Queue/R2 drill (X05_D1 through X05_D11: migration, Owner-only audit, full step-up matrix, real expired launch stuck-visible, idempotent stuck-upload recovery, GitHub DLQ requeue, notification watermark rewind, queue-driven retention deleting only the eligible object, consented diagnostic upload, poison-to-DLQ with sibling convergence, 11-needle canary scan); 4 Chromium scenarios on BFB_E2E_PORT=4196 (owner/member/reviewer gating, no private payload content)"
+      "result": "build plus production web bundle; vitest 6 files and 51 tests (21 domain cases on migration, retention, redaction, chronological audit ordering, audit versus activity, diagnostics, mixed-target requeue atomicity, recovery and stuck launches; 5 worker route cases on Owner-only audit, role reads, retention step-up matrix, idempotent recovery and diagnostic consent; 7 consumer and sweep cases on upload, poison isolation, wrong-state diversion and retention boundaries; web presentation contract; db migration matrix); tools/operations real-Worker/D1/Queue/R2 drill (X05_D1 through X05_D11: migration, Owner-only audit, full step-up matrix, real expired launch stuck-visible, idempotent stuck-upload recovery, GitHub DLQ requeue, notification watermark rewind, queue-driven retention deleting only the eligible object, consented diagnostic upload, poison-to-DLQ with sibling convergence, 11-needle canary scan); 4 Chromium scenarios on BFB_E2E_PORT=4196 (owner/member/reviewer gating, no private payload content)"
     },
     {
       "command": "GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./...",
