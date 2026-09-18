@@ -96,8 +96,12 @@ EU runner; that was wrong about reality and is corrected here.
    against the target configs. Runs on Ubuntu; Cloudflare credentials
    come from secrets.
 4. `smoke` — the post-deploy smoke in `docs/release/rollout.md`, which
-   exercises authenticated handlers (`/healthz`, `/api/v1/cli/version`,
-   credential-rejected routes), never just CI or deploy success.
+   proves authenticated handlers serve: `/healthz` and
+   `/api/v1/cli/version` answer publicly, anonymous and forged credentials
+   are rejected with `401`, and a valid owner-minted CLI credential from
+   `BFB_SMOKE_CREDENTIAL` gets `200` from `/api/v1/cli/session` and
+   `/api/v1/cli/projects`. The smoke fails closed without that credential,
+   never just CI or deploy success.
 
 Runner geography is not pinned: jobs run on GitHub-hosted macOS and
 Ubuntu runners. EU residency comes from the deployment target
@@ -107,7 +111,12 @@ the workflow job executes.
 G02 validates the same configs and the same worker entry points without
 touching a remote account: `wrangler deploy --dry-run --outdir` for every
 staging, production, and self-host config, plus the authenticated-handler
-smoke against the real worker bundle on local fixtures. Preparation creates
+smoke against the real worker bundle on local fixtures: a seeded binding
+gets `200` from `/api/v1/cli/session` and `/api/v1/cli/projects` on the
+shipped eu config, and a device-flow credential gets `200` from session,
+projects, and a hub-backed task create on the global smoke worker
+(`tools/g02/wrangler-g02-smoke.toml`), which exists only because workerd
+cannot serve the eu DO jurisdiction slice. Preparation creates
 no managed-production resource and performs no production deployment.
 
 ## Migration and data safety

@@ -220,4 +220,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Run the rollout smoke commands
+        env:
+          BFB_SMOKE_CREDENTIAL: ${{ secrets.BFB_SMOKE_CREDENTIAL }}
         run: node tools/g02/smoke-commands.mjs --origin ${{ inputs.origin }}

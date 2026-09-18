@@ -25,6 +25,10 @@ not be targeted.
   certificate) with `BFB_MACOS_SIGNING_P12_PASSWORD` (its import
   password). The gate jobs materialize the profile and import the
   certificate into a throwaway keychain at run time.
+- Smoke: `BFB_SMOKE_CREDENTIAL` (a CLI credential minted by an owner on
+  the target workspace, via the approved device flow). The post-deploy
+  smoke presents it to prove authenticated handlers serve; without it the
+  smoke fails closed instead of downgrading to rejection checks.
 
 ## Rollout options
 
@@ -64,13 +68,19 @@ After publish, against the deployed origin (substitute the real
 control-worker host; the pipeline takes it as its `origin` input):
 
 ```sh
-node tools/g02/smoke-commands.mjs --origin https://bfb.<operator-host>
+BFB_SMOKE_CREDENTIAL=<owner-minted-cli-credential> \
+  node tools/g02/smoke-commands.mjs --origin https://bfb.<operator-host>
 ```
 
 The smoke asserts `/healthz` reports `ok` with worker-first routing,
-`/api/v1/cli/version` keeps its frozen shape, and CLI session routes
-reject missing and bad credentials with `401`. Green CI or a successful
-deploy never substitutes for this smoke.
+`/api/v1/cli/version` keeps its frozen shape, CLI session routes
+reject missing and bad credentials with `401`, and the credential from
+`BFB_SMOKE_CREDENTIAL` gets `200` from `/api/v1/cli/session` (with its
+workspace, binding, and scopes) and `/api/v1/cli/projects`. A deployment
+whose authenticated routes fail passes the rejection checks and fails on
+the authenticated ones. The smoke only reads; hub-backed writes are proven
+by the local gate (`pnpm test:g02`), never against a deployment. Green CI
+or a successful deploy never substitutes for this smoke.
 
 ## Notarization (prepared step)
 
