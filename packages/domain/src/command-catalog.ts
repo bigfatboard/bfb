@@ -118,6 +118,11 @@ import {
   removePushEndpointCommand,
   setNotificationPreferenceCommand,
 } from "./notifications.js";
+import {
+  consentDiagnosticUploadCommand,
+  createDiagnosticBundleCommand,
+  setRetentionPolicyCommand,
+} from "./operations.js";
 
 const commands = new Map<string, HubCommand<unknown, unknown>>([
   [ingestRunnerEventsCommand.name, ingestRunnerEventsCommand as HubCommand<unknown, unknown>],
@@ -236,6 +241,9 @@ const commands = new Map<string, HubCommand<unknown, unknown>>([
   ],
   [registerPushEndpointCommand.name, registerPushEndpointCommand as HubCommand<unknown, unknown>],
   [removePushEndpointCommand.name, removePushEndpointCommand as HubCommand<unknown, unknown>],
+  [setRetentionPolicyCommand.name, setRetentionPolicyCommand as HubCommand<unknown, unknown>],
+  [createDiagnosticBundleCommand.name, createDiagnosticBundleCommand as HubCommand<unknown, unknown>],
+  [consentDiagnosticUploadCommand.name, consentDiagnosticUploadCommand as HubCommand<unknown, unknown>],
 ]);
 
 /** Returns a registered hub command by stable name, or undefined when unknown. */

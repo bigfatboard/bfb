@@ -56,8 +56,11 @@ CREATE TABLE diagnostic_bundles (
   last_error TEXT CHECK (last_error IS NULL OR length(last_error) BETWEEN 1 AND 128),
   PRIMARY KEY (workspace_id, id),
   FOREIGN KEY (workspace_id) REFERENCES workspaces (id),
-  CHECK ((state = 'consented' AND consented_at IS NOT NULL) OR (state != 'consented' AND (consented_at IS NULL OR state = 'uploaded'))),
-  CHECK ((state = 'uploaded' AND uploaded_at IS NOT NULL AND r2_key IS NOT NULL) OR (state != 'uploaded'))
+  CHECK ((state = 'pending_consent' AND consented_at IS NULL AND uploaded_at IS NULL AND r2_key IS NULL)
+    OR (state = 'consented' AND consented_at IS NOT NULL AND uploaded_at IS NULL AND r2_key IS NULL)
+    OR (state = 'uploaded' AND consented_at IS NOT NULL AND uploaded_at IS NOT NULL AND r2_key IS NOT NULL)
+    OR (state = 'expired' AND uploaded_at IS NULL AND r2_key IS NULL)
+    OR (state = 'failed' AND uploaded_at IS NULL AND r2_key IS NULL))
 );
 
 CREATE INDEX diagnostic_bundles_state

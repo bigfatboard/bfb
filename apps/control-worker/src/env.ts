@@ -20,6 +20,8 @@ export interface ControlBindings {
   JOBS_DLQ: Queue;
   NOTIFY_JOBS?: Queue | undefined;
   NOTIFY_DLQ?: Queue | undefined;
+  OPS_JOBS?: Queue | undefined;
+  OPS_DLQ?: Queue | undefined;
   VAPID_PUBLIC_KEY?: string | undefined;
   VAPID_PRIVATE_KEY?: string | undefined;
   VAPID_SUBJECT?: string | undefined;
@@ -182,6 +184,8 @@ export function validateControlEnv(env: Partial<ControlBindings>): ValidatedCont
       JOBS_DLQ,
       NOTIFY_JOBS: env.NOTIFY_JOBS,
       NOTIFY_DLQ: env.NOTIFY_DLQ,
+      OPS_JOBS: env.OPS_JOBS,
+      OPS_DLQ: env.OPS_DLQ,
       VAPID_PUBLIC_KEY: env.VAPID_PUBLIC_KEY,
       VAPID_PRIVATE_KEY: env.VAPID_PRIVATE_KEY,
       VAPID_SUBJECT: env.VAPID_SUBJECT,

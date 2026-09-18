@@ -55,6 +55,24 @@ max_batch_timeout = 5
 max_retries = 5
 dead_letter_queue = "bfb-notify-dlq"
 
+# X05 owns these operations queue names and this consumer registration.
+# Other packages (X01 notifications, X04 GitHub) keep their own distinct
+# queues, DLQs and consumers; nothing shares the OPS_* bindings.
+[[queues.producers]]
+binding = "OPS_JOBS"
+queue = "bfb-ops"
+
+[[queues.producers]]
+binding = "OPS_DLQ"
+queue = "bfb-ops-dlq"
+
+[[queues.consumers]]
+queue = "bfb-ops"
+max_batch_size = 10
+max_batch_timeout = 5
+max_retries = 5
+dead_letter_queue = "bfb-ops-dlq"
+
 [assets]
 directory = "../web/dist"
 binding = "ASSETS"

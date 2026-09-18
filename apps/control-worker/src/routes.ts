@@ -15,6 +15,7 @@ import {
 import { handleEventBrowserApi, handleRunnerEventApi, isRunnerEventPath } from "./api/events.js";
 import { handleBrowserRealtimeApi, isBrowserRealtimePath } from "./api/realtime.js";
 import { handleGitHubBrowserApi, handleGitHubWebhook } from "./api/github.js";
+import { handleOperationsApi } from "./api/operations.js";
 import { handleWorkApi } from "./api/work.js";
 import { handleArtifactBrowserApi } from "./api/artifacts.js";
 import { handleCliBrowserApi, handleCliPublicApi } from "./api/cli-credentials.js";
@@ -567,6 +568,14 @@ export function createControlApp(
         return await handleNotificationApi(c.req.raw, {
           ...apiDeps,
           abuseSecret: runtime.abuseSecret,
+        });
+      }
+      if (c.req.path === `${projectPrefix}/operations` || c.req.path.startsWith(`${projectPrefix}/operations/`)) {
+        const opsBindings = (c.env ?? {}) as { OPS_JOBS?: Queue | undefined };
+        return await handleOperationsApi(c.req.raw, {
+          ...apiDeps,
+          abuseSecret: runtime.abuseSecret,
+          opsJobs: opsBindings.OPS_JOBS,
         });
       }
       return await handleWorkApi(c.req.raw, apiDeps);
