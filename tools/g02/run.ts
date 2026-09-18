@@ -78,6 +78,8 @@ import {
 } from "@bfb/domain";
 import { parseAuthKeys } from "../../apps/control-worker/dist/auth/better-auth.js";
 
+import { G02_CANARIES, scanEvidenceText } from "./scan.js";
+
 const toolDir = dirname(fileURLToPath(import.meta.url));
 const root = resolve(toolDir, "../..");
 const evidenceDir = resolve(root, "docs/work-packages/evidence/WP-G02");
@@ -806,7 +808,11 @@ function native<I, R>(command: HubCommand<I, R>, input: I) {
   });
 }
 const G02_DIGEST = `sha256:${createHash("sha256").update("g02-artifact-bytes").digest("hex")}`;
-const G02_HEX = createHash("sha256").update("g02-artifact-bytes").digest("hex");
+// The published artifact bytes carry the artifact canary: only their hash may
+// ever reach evidence, and the scan below proves it.
+const G02_ARTIFACT_CONTENT = G02_CANARIES.artifact;
+const G02_ARTIFACT_SIZE = Buffer.byteLength(G02_ARTIFACT_CONTENT);
+const G02_HEX = createHash("sha256").update(G02_ARTIFACT_CONTENT).digest("hex");
 const G02_CONFIG = `sha256:${runnerHash("{}")}`;
 const policy = {
   allowedProviders: ["claude", "codex", "grok", "fake"] as const,
@@ -978,7 +984,8 @@ const attention = ok(
     executionId: spec.run_execution_id,
     assignmentGeneration: spec.assignment_generation,
     kind: "clarification",
-    question: "G02 synthetic clarification",
+    // Attention text carries the task-body canary; evidence must carry only IDs.
+    question: `G02 synthetic clarification ${G02_CANARIES.taskBody}`,
     blocking: true,
   }),
 );
@@ -1005,7 +1012,7 @@ const created = ok(
     runId: spec.run_id,
     format: "markdown",
     role: "review",
-    declaredSize: 18,
+    declaredSize: G02_ARTIFACT_SIZE,
     expectedDigest: G02_HEX,
     grantSecretHash: minted.secretHash,
   }),
@@ -1028,14 +1035,14 @@ await recordVerifiedUpload(db, {
     versionId: created.version_id,
     contentHash: G02_HEX,
   }),
-  size: 18,
+  size: G02_ARTIFACT_SIZE,
   now: NOW,
 });
 ok(
   await human(finalizeArtifactCommand, {
     versionId: created.version_id,
     contentHash: G02_HEX,
-    size: 18,
+    size: G02_ARTIFACT_SIZE,
   }),
 );
 const submitted = ok(
@@ -1043,8 +1050,10 @@ const submitted = ok(
     submitResultCommand,
     {
       runId: spec.run_id,
-      summary: "G02 synthetic result",
-      limitations: "G02 synthetic limitation",
+      // Agent result text carries the terminal-output and hook-payload
+      // canaries; evidence must carry only the submission outcome.
+      summary: `G02 synthetic result ${G02_CANARIES.terminal}`,
+      limitations: `G02 synthetic limitation ${G02_CANARIES.hook}`,
       evidenceRefs: [{ kind: "comment", ref: "g02-synthetic-comment" }],
       gitBranch: "main",
       gitCommit: "0".repeat(40),
@@ -1373,8 +1382,11 @@ try {
   const anonymous = await smokeFetch("/api/v1/cli/session");
   assert.equal(anonymous.status, 401, "cli session without a credential is rejected");
   smoke.push({ check: "cli/session anonymous", status: 401, outcome: "passed" });
+  // Forged probes present canary credentials; the smoke evidence
+  // below records only check/status/outcome, never the presented secrets.
   const forged = await smokeFetch("/api/v1/cli/session", {
-    authorization: "Bearer bfb_cli_synthetic-forged-credential",
+    authorization: G02_CANARIES.bearer,
+    cookie: `g02_smoke=${G02_CANARIES.cookie}`,
   });
   assert.equal(forged.status, 401, "cli session with a bad credential is rejected");
   smoke.push({ check: "cli/session forged", status: 401, outcome: "passed" });
@@ -1543,13 +1555,12 @@ try {
     (name) => name.endsWith(".json") || name.endsWith(".jsonl"),
   );
 }
-const needles = ["/Users/", "BEGIN PRIVATE KEY", "AKIA", "ghp_", "gho_", "xox"];
+// Every prohibited class has a needle: planted canaries for the content
+// classes, format patterns for paths, keys, presented secrets, and tokens.
 const findings: string[] = [];
 for (const name of scanFiles) {
   const text = readText(`docs/work-packages/evidence/WP-G02/${name}`);
-  for (const needle of needles) {
-    if (text.includes(needle)) findings.push(`${name}: ${needle}`);
-  }
+  for (const hit of scanEvidenceText(text)) findings.push(`${name}: ${hit}`);
 }
 assert.deepEqual(findings, [], "evidence stays bounded and redacted");
 await writeJson(join(evidenceDir, "redaction-scan.json"), {
@@ -1561,8 +1572,10 @@ await writeJson(join(evidenceDir, "redaction-scan.json"), {
     "cookies",
     "bearer secrets",
     "local paths",
-    "private keys",
+    "hook payloads",
+    "artifact bytes",
     "terminal output",
+    "private keys",
   ],
   findings: [],
   status: "passed",

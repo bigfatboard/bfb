@@ -189,6 +189,36 @@ test("golden fixture evidence advertises the two-workspace envelope the harness 
   );
 });
 
+test("every declared redaction canary is planted in a scenario, not only listed", async () => {
+  const runSource = await readFile(resolve(root, "tools/g01/run.ts"), "utf8");
+  const block = runSource.match(/const CANARIES = \{([^}]*)\}/s)?.[1];
+  assert.ok(block, "run.ts declares its planted CANARIES block");
+  const keys = [...block.matchAll(/^\s*(\w+):/gm)].map((match) => match[1]);
+  assert.ok(keys.length >= 8, "the canary block covers every prohibited class");
+  // The scanner derives its needles from the same block, so a planted class
+  // is always a scanned class.
+  assert.match(
+    runSource,
+    /const NEEDLES = Object\.values\(CANARIES\)/,
+    "NEEDLES derives from CANARIES",
+  );
+  for (const key of keys) {
+    const uses = runSource.match(new RegExp(`CANARIES\\.${key}\\b`, "g")) ?? [];
+    assert.ok(
+      uses.length >= 1,
+      `CANARIES.${key} must be planted in a scenario (found only in its declaration)`,
+    );
+  }
+  const report = JSON.parse(
+    await readFile(resolve(root, "docs/work-packages/evidence/WP-G01/redaction-scan.json"), "utf8"),
+  );
+  assert.equal(report.hits, 0, "the committed scan records zero hits");
+  assert.ok(
+    Array.isArray(report.needle_classes) && report.needle_classes.length >= keys.length,
+    "the committed scan lists every planted canary class",
+  );
+});
+
 test("performance baseline records launched concurrent runs, not unlaunched tasks", async () => {
   const baseline = JSON.parse(
     await readFile(resolve(root, "docs/work-packages/evidence/WP-G01/perf-baseline.json"), "utf8"),

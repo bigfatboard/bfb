@@ -16,16 +16,16 @@
     "hub_burst_commands": 50,
     "hub_burst_committed": 50,
     "hub_burst_bound_ms": 120000,
-    "hub_burst_elapsed_ms": 138,
+    "hub_burst_elapsed_ms": 140,
     "hub_burst_within_bound": true,
     "hub_burst_latency_ms": {
-      "min": 8,
-      "p50": 69,
-      "mean": 73.1,
-      "p95": 131,
-      "max": 137
+      "min": 9,
+      "p50": 74,
+      "mean": 76.7,
+      "p95": 135,
+      "max": 139
     },
-    "hub_burst_throughput_per_s": 362.32,
+    "hub_burst_throughput_per_s": 357.14,
     "hub_burst_writes": {
       "tasks_written": 50,
       "ledger_events_written": 0,

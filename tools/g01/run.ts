@@ -1483,7 +1483,11 @@ try {
           executionId: shared.executionId,
           assignmentGeneration: shared.generation,
           kind: "clarification",
-          question: `SYNTHETIC-G01-ATTENTION canary ${CANARIES.taskBody}`,
+          // The question is the free-text plant site: it carries the
+          // task-body canary and the hook-payload canary into the stored
+          // record. Derived outputs (subjects, links, payloads, audit,
+          // activity) must carry neither.
+          question: `SYNTHETIC-G01-ATTENTION canary ${CANARIES.taskBody} ${CANARIES.hook}`,
           blocking: true,
         },
         { actorRunnerId: macA.runnerId },
@@ -1532,7 +1536,9 @@ try {
         submitResultCommand.name,
         {
           runId: shared.runId,
-          summary: "Synthetic G01 explicit result",
+          // Agent result text carries the terminal-output canary into the
+          // stored submission; selection subjects and history must not.
+          summary: `Synthetic G01 explicit result ${CANARIES.terminal}`,
           limitations: "Synthetic G01 limitation",
           gitBranch: "main",
           gitCommit: "a".repeat(40),
@@ -2322,7 +2328,8 @@ try {
     const health = await collectWorkspaceHealth(db, FIX.workspace, now);
     assert.equal(health.retention.days, 30, "health reflects the committed retention policy");
     assert(health.workspace_id === FIX.workspace, "health is workspace-scoped");
-    // Diagnostics sanitize before review: prohibited patterns and canaries surface as hits.
+    // Diagnostics sanitize before review: every planted canary class surfaces
+    // as a hit, so the zero-hit report below is proven non-vacuous.
     const rendered = renderDiagnosticInventory({
       schema_version: 1,
       workspace_id: FIX.workspace,
@@ -2331,12 +2338,32 @@ try {
       sections: [],
     });
     assert(rendered.includes(FIX.workspace), "rendered inventory names its workspace");
-    const hits = scanDiagnosticText(`cookie ${CANARIES.cookie} path ${CANARIES.path}`, NEEDLES);
-    assert(hits.length > 0, "diagnostic scan flags planted secrets");
+    const hits = scanDiagnosticText(
+      [
+        `cookie ${CANARIES.cookie}`,
+        `path ${CANARIES.path}`,
+        `hook ${CANARIES.hook}`,
+        `terminal ${CANARIES.terminal}`,
+        `key ${CANARIES.privateKey}`,
+        `bearer ${CANARIES.bearer}`,
+        `task ${CANARIES.taskBody}`,
+        `artifact ${CANARIES.artifact}`,
+      ].join(" "),
+      NEEDLES,
+    );
+    for (const needle of NEEDLES) {
+      assert(
+        hits.includes(`canary:${needle.slice(0, 24)}`),
+        `diagnostic scan flags the planted ${needle.slice(0, 24)}`,
+      );
+    }
     const clean = scanDiagnosticText("synthetic diagnostic line with counts only", NEEDLES);
     assert.deepEqual(clean, [], "clean diagnostics scan without hits");
     const redacted = sanitizeDiagnosticValue({
       cookie: CANARIES.cookie,
+      hook_payload: CANARIES.hook,
+      terminal_output: CANARIES.terminal,
+      private_key: CANARIES.privateKey,
       nested: { token: CANARIES.bearer },
     });
     scanClean("ops-sanitizer", [redacted]);
