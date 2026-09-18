@@ -13,7 +13,12 @@ the D1 trigger `artifact_versions_state_guarded` aborts anything else, and
 `available` additionally requires a verified content hash and R2 key. Only
 `available` versions may be viewed or reviewed. `uploading` rows hold no
 trusted bytes. `failed` rows are terminal. Distinct logical versions may share
-one content hash; v0.1 has no blob delete path by design.
+one content hash; v0.1 has no blob delete path by design. Identical bytes
+published for another workspace, or for another log version, are stored as
+separate objects under their own server-derived keys and finalize
+independently — a repeat publication never conflicts and reveals nothing
+about bytes held by another tenant. Only same-workspace review re-uploads of
+identical bytes converge on one stored object.
 
 ## Roles, formats, limits
 
@@ -54,10 +59,12 @@ bytes the worker consumes the grant in one conditional D1 batch that rechecks
 expiry, `uploading` state, and the current authorization epoch; a racing or
 replayed redemption aborts with no effect. Then it enforces exact size,
 SHA-256, format/MIME, and role/kind, and writes R2 with a conditional create
-(`onlyIf: etagDoesNotMatch: *`, verified `sha256`): an existing object is
-verified by size and stored checksum, never overwritten. The verified receipt
-is recorded before the `200 {version_id, artifact_id, content_hash, size,
-r2_key, deduplicated}` response.
+(`onlyIf: etagDoesNotMatch: *`, verified `sha256`) against the version's own
+server-derived key: an existing object under that same key is verified by
+size and stored checksum, never overwritten, while a different version or
+workspace holds a different key and uploads its own object. The verified
+receipt is recorded before the `200 {version_id, artifact_id, content_hash,
+size, r2_key, deduplicated}` response.
 
 Content errors after redemption are `422 {error: upload_rejected, message:
 size_mismatch | digest_mismatch | mime_mismatch | role_mismatch}`; the
@@ -69,13 +76,19 @@ past the global bound are `413 body_too_large`.
 - Review: `workspaces/<workspace>/artifacts/sha256/<content-hash>`
 - Log chunk: `workspaces/<workspace>/runs/<run>/logs/<version>.jsonl.zst`
 
+The D1 object registry (`artifact_objects`) is keyed by `(workspace_id,
+r2_key)`, not by content hash: the stored object identity is the
+server-derived key inside its workspace. Finalization binds each version to
+its own expected key, so a version can never finalize against another
+version's or another workspace's bytes.
+
 ## Recovery
 
 `artifact.mark_failed` (human member, or the system actor for Cron) moves an
 `uploading` version to `failed` with an audit row. The control Cron (every 5
 minutes) runs the same sweep the harness calls `runArtifactSweep` for:
 versions whose every grant expired past a 5-minute grace become `failed`.
-Shared content-addressed bytes are never deleted. Retry always converges
+Stored bytes are never deleted. Retry always converges
 through re-grant or a new version, never through overwriting.
 
 ## Abuse budgets

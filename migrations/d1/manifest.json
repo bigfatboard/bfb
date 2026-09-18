@@ -1,5 +1,5 @@
 {
-  "migration_head": "0034_operations",
+  "migration_head": "0035_artifact_objects_per_key",
   "migrations": [
     {
       "id": "0001_workspace_registry",
@@ -116,6 +116,10 @@
     {
       "id": "0034_operations",
       "file": "0034_operations.sql"
+    },
+    {
+      "id": "0035_artifact_objects_per_key",
+      "file": "0035_artifact_objects_per_key.sql"
     }
   ]
 }

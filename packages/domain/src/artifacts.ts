@@ -738,8 +738,10 @@ export interface VerifiedUpload {
 
 /**
  * Records a verified upload after the Artifact Worker validated size, digest,
- * and MIME and confirmed the R2 object. Inserts the shared content-addressed
- * object row first so same-hash races converge instead of overwriting.
+ * and MIME and confirmed the R2 object. Inserts the workspace-scoped object
+ * row first: review re-uploads of identical bytes in one workspace converge
+ * on their shared key, while another workspace or another log version stores
+ * a separate row under its own key instead of conflicting.
  */
 export async function recordVerifiedUpload(
   db: SqlDatabase,
@@ -769,9 +771,12 @@ export async function recordVerifiedUpload(
   });
   if (input.r2Key !== expectedKey) rejectArtifactRequest();
   const stored = (await db
-    .prepare(`SELECT r2_key, size FROM artifact_objects WHERE content_hash = ?`)
-    .get(input.contentHash)) as { r2_key: string; size: number } | undefined;
-  if (stored && (stored.r2_key !== input.r2Key || stored.size !== input.size)) {
+    .prepare(
+      `SELECT content_hash, size FROM artifact_objects
+       WHERE workspace_id = ? AND r2_key = ?`,
+    )
+    .get(input.workspaceId, input.r2Key)) as { content_hash: string; size: number } | undefined;
+  if (stored && (stored.content_hash !== input.contentHash || stored.size !== input.size)) {
     rejectArtifactRequest();
   }
   const existing = (await db
@@ -795,11 +800,11 @@ export async function recordVerifiedUpload(
   }
   await db
     .prepare(
-      `INSERT INTO artifact_objects (content_hash, r2_key, size, created_at)
-       VALUES (?, ?, ?, ?)
-       ON CONFLICT(content_hash) DO NOTHING`,
+      `INSERT INTO artifact_objects (workspace_id, r2_key, content_hash, size, created_at)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(workspace_id, r2_key) DO NOTHING`,
     )
-    .run(input.contentHash, input.r2Key, input.size, input.now);
+    .run(input.workspaceId, input.r2Key, input.contentHash, input.size, input.now);
   await db
     .prepare(
       `INSERT INTO artifact_upload_receipts
@@ -861,6 +866,18 @@ export const finalizeArtifactCommand: HubCommand<FinalizeArtifactInput, Finalize
     if (version.expected_digest !== contentHash || version.declared_size !== input.size) {
       rejectArtifactRequest();
     }
+    const artifact = (await ctx.db
+      .prepare(`SELECT role, run_id FROM artifacts WHERE workspace_id = ? AND id = ?`)
+      .get(ctx.workspaceId, version.artifact_id)) as
+      { role: string; run_id: string | null } | undefined;
+    if (!artifact) rejectArtifactRequest();
+    const expectedKey = artifactObjectKey({
+      workspaceId: ctx.workspaceId,
+      role: artifactRole(artifact.role),
+      runId: artifact.run_id,
+      versionId: input.versionId,
+      contentHash,
+    });
     const receipt = (await ctx.db
       .prepare(
         `SELECT content_hash, size FROM artifact_upload_receipts
@@ -871,16 +888,21 @@ export const finalizeArtifactCommand: HubCommand<FinalizeArtifactInput, Finalize
       rejectArtifactRequest();
     }
     const object = (await ctx.db
-      .prepare(`SELECT r2_key, size FROM artifact_objects WHERE content_hash = ?`)
-      .get(contentHash)) as { r2_key: string; size: number } | undefined;
-    if (!object || object.size !== input.size) rejectArtifactRequest();
+      .prepare(
+        `SELECT content_hash, size FROM artifact_objects
+         WHERE workspace_id = ? AND r2_key = ?`,
+      )
+      .get(ctx.workspaceId, expectedKey)) as { content_hash: string; size: number } | undefined;
+    if (!object || object.content_hash !== contentHash || object.size !== input.size) {
+      rejectArtifactRequest();
+    }
     await ctx.db
       .prepare(
         `UPDATE artifact_versions
          SET state = 'available', content_hash = ?, r2_key = ?, available_at = ?
          WHERE workspace_id = ? AND id = ? AND state = 'uploading'`,
       )
-      .run(contentHash, object.r2_key, ctx.now, ctx.workspaceId, input.versionId);
+      .run(contentHash, expectedKey, ctx.now, ctx.workspaceId, input.versionId);
     const guardId = randomUlid();
     await ctx.db
       .prepare(
@@ -889,7 +911,7 @@ export const finalizeArtifactCommand: HubCommand<FinalizeArtifactInput, Finalize
           WHERE workspace_id = ? AND id = ? AND state = 'available'
             AND content_hash = ? AND r2_key = ?))`,
       )
-      .run(guardId, ctx.workspaceId, input.versionId, contentHash, object.r2_key);
+      .run(guardId, ctx.workspaceId, input.versionId, contentHash, expectedKey);
     await ctx.db.prepare(`DELETE FROM artifact_mutation_guards WHERE id = ?`).run(guardId);
     await auditOutbox(ctx.db, {
       workspaceId: ctx.workspaceId,
@@ -899,7 +921,7 @@ export const finalizeArtifactCommand: HubCommand<FinalizeArtifactInput, Finalize
       payload: {
         version_id: input.versionId,
         content_hash: contentHash,
-        r2_key: object.r2_key,
+        r2_key: expectedKey,
         size: input.size,
       },
       now: ctx.now,
@@ -910,7 +932,7 @@ export const finalizeArtifactCommand: HubCommand<FinalizeArtifactInput, Finalize
       artifact_id: version.artifact_id,
       state: "available",
       content_hash: contentHash,
-      r2_key: object.r2_key,
+      r2_key: expectedKey,
       available_at: ctx.now,
     };
   },
