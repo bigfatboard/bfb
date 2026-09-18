@@ -26,6 +26,14 @@ test.beforeAll(async () => {
   await ensureEvidenceDir();
 });
 
+test.beforeEach(async ({ page }) => {
+  // The harness freezes domain time, so abuse windows cannot slide between
+  // scenarios. Reset for per-scenario isolation (production windows slide by
+  // wall clock; no browser suite asserts a rate-limit rejection).
+  const reset = await page.request.post("/__test/ratelimit/reset");
+  expect(reset.ok()).toBe(true);
+});
+
 const RUNNER_LABEL = "Synthetic Launch Mac";
 const LAUNCH_ORIGIN = "https://launch.bfb.example.test";
 const trace: {
@@ -63,6 +71,13 @@ test("owner double submit records one durable launch", async ({ page }) => {
   await signInAndOpenBoard(page, "owner");
   await openTaskCard(page, FIX.taskLaunch, "Synthetic launch card");
   await waitForStartReady(page);
+  // Pin the runner and checkout explicitly: the default runner follows id
+  // order and a sibling seed's runner (with a live lease on its checkout)
+  // may sort first for the owner.
+  await page.getByTestId("start-runner").selectOption({ label: "Synthetic Launch Mac (your Mac)" });
+  await page
+    .getByTestId("start-checkout")
+    .selectOption({ label: "Synthetic Alpha Checkout · main · clean · validated" });
   const posts: { status: number; body: Record<string, unknown> }[] = [];
   page.on("response", (response) => {
     const request = response.request();
@@ -341,7 +356,7 @@ test("runner operations show checkouts, capability, and step-up sharing", async 
   await expect(page.getByText("Synthetic Alpha Checkout")).toBeVisible();
   await expect(page.getByText("Synthetic Beta Checkout")).toBeVisible();
   await expect(page.getByText("Synthetic Gamma Checkout")).toBeVisible();
-  await expect(page.getByText(/launch.interactive/)).toBeVisible();
+  await expect(page.getByText(/launch.interactive/).first()).toBeVisible();
   await page.screenshot({ path: path.join(W02_EVIDENCE_DIR, "runners.png") });
 
   const runnerId = await page.evaluate(async (workspace) => {

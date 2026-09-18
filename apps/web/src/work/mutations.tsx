@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { DiscussionSection } from "../discussion/DiscussionSection.js";
 import { LaunchSection } from "../launch/operations.js";
 import type { AgentProfileSummary } from "./board.js";
 import { MeasurementsPanel } from "./measurements.js";
@@ -240,6 +241,7 @@ export interface WorkMutationsProps {
   workspaceId: string;
   selectedTaskId: string | null;
   humanId: string;
+  humanDisplayName?: string;
   role: WorkspaceRole;
   agentProfiles: readonly AgentProfileSummary[];
   fetchImpl?: typeof fetch;
@@ -521,6 +523,18 @@ export function WorkMutations(props: WorkMutationsProps) {
             role={props.role}
             csrfToken={props.csrfToken ?? ""}
             fetchImpl={fetchFn}
+          />
+
+          <DiscussionSection
+            workspaceId={props.workspaceId}
+            taskId={task.id}
+            taskVersion={task.resource_version}
+            projectId={task.project_id}
+            humanId={props.humanId}
+            humanDisplayName={props.humanDisplayName ?? "the signed-in human"}
+            role={props.role}
+            fetchImpl={props.fetchImpl}
+            csrfToken={props.csrfToken}
           />
 
           {canManage ? (
