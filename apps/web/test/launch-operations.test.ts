@@ -17,9 +17,11 @@ import {
   newIdempotencyKey,
   providerStatusMessage,
   refreshTaskLaunches,
+  resolveEffectiveCheckoutId,
   splitRunnerStatuses,
   startAttemptSettlesKey,
   type CheckoutStatus,
+  type CheckoutSummary,
   type LaunchStatus,
   type RunnerSummary,
 } from "../src/launch/api.js";
@@ -445,5 +447,57 @@ describe("w02 runner inventory reads", () => {
     expect(calls).toEqual(["task-id"]);
     expect("listRunners" in client).toBe(false);
     expect("checkoutStatus" in client).toBe(false);
+  });
+});
+
+function baseCheckout(overrides: Partial<CheckoutSummary> = {}): CheckoutSummary {
+  const runnerId = randomUlid();
+  return {
+    schema_version: 1,
+    checkout_id: randomUlid(),
+    workspace_id: randomUlid(),
+    runner_id: runnerId,
+    project_id: randomUlid(),
+    label: "Synthetic checkout",
+    repository_identity: "synthetic/checkout",
+    workspace_subpath: ".",
+    physical_worktree_hash: `sha256:${"a".repeat(64)}`,
+    repository_config_hash: `sha256:${"b".repeat(64)}`,
+    is_default: false,
+    dirty: false,
+    status: "validated",
+    validated_at: "2026-08-07T12:00:00.000Z",
+    ...overrides,
+  };
+}
+
+describe("w02 start checkout selection", () => {
+  it("defaults to the task project default, not the first default in inventory order", () => {
+    const projectA = randomUlid();
+    const projectB = randomUlid();
+    const otherDefault = baseCheckout({ project_id: projectA, is_default: true });
+    const taskDefault = baseCheckout({ project_id: projectB, is_default: true });
+    const inventory = [otherDefault, taskDefault];
+    expect(resolveEffectiveCheckoutId("", inventory, projectB)).toBe(taskDefault.checkout_id);
+    expect(resolveEffectiveCheckoutId("", inventory, projectA)).toBe(otherDefault.checkout_id);
+  });
+
+  it("never falls back to another project's checkout when the task project has none", () => {
+    const other = baseCheckout({ project_id: randomUlid(), is_default: true });
+    expect(resolveEffectiveCheckoutId("", [other], randomUlid())).toBe("");
+  });
+
+  it("keeps an explicit selection only when it belongs to the task project", () => {
+    const projectB = randomUlid();
+    const other = baseCheckout({ project_id: randomUlid(), is_default: true });
+    const selected = baseCheckout({ project_id: projectB });
+    const taskDefault = baseCheckout({ project_id: projectB, is_default: true });
+    const inventory = [other, selected, taskDefault];
+    expect(resolveEffectiveCheckoutId(selected.checkout_id, inventory, projectB)).toBe(
+      selected.checkout_id,
+    );
+    expect(resolveEffectiveCheckoutId(other.checkout_id, inventory, projectB)).toBe(
+      taskDefault.checkout_id,
+    );
   });
 });

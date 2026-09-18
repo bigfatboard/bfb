@@ -4,7 +4,7 @@
 import type { AgentProfileRecord, DiscussionMessageSummary, DiscussionView } from "./api.js";
 
 export type Eligibility =
-  "eligible" | "busy" | "offline" | "revoked" | "unsupported" | "checkout_conflict";
+  "eligible" | "busy" | "offline" | "revoked" | "unsupported" | "checkout_conflict" | "unavailable";
 
 export interface EligibilityResult {
   status: Eligibility;
@@ -36,12 +36,34 @@ export interface ProfileEligibilityInput {
   checkout: CheckoutInput | undefined;
   checkoutOccupied: boolean;
   humanId: string;
+  /**
+   * True when the runner's checkout read failed or was rejected, so a missing
+   * checkout must not render as a Mac that never reported inventory.
+   */
+  checkoutReadFailed?: boolean;
+}
+
+/**
+ * Automatic slot resolution shared by eligibility and submit: an explicit
+ * checkout wins, otherwise the first checkout for the task's project. Both
+ * call sites must evaluate the same entry.
+ */
+export function resolveSlotCheckout<Entry extends { checkout_id: string; project_id: string }>(
+  checkouts: Entry[],
+  checkoutId: string,
+  projectId: string,
+): Entry | undefined {
+  if (checkoutId) {
+    return checkouts.find((entry) => entry.checkout_id === checkoutId);
+  }
+  return checkouts.find((entry) => entry.project_id === projectId);
 }
 
 /**
  * Eligibility for one discussion participant slot. The ordering is deliberate:
  * revoked authority first, then reachability, then provider support, then
- * checkout conflicts. An eligible slot is never a claim that delivery will succeed.
+ * checkout conflicts. A failed read is unavailable, never offline. An eligible
+ * slot is never a claim that delivery will succeed.
  */
 export function describeSlotEligibility(input: ProfileEligibilityInput): EligibilityResult {
   if (!input.runner || input.runner.status === "revoked") {
@@ -62,6 +84,14 @@ export function describeSlotEligibility(input: ProfileEligibilityInput): Eligibi
     };
   }
   if (!input.checkout || !input.checkout.inventory_valid) {
+    if (input.checkoutReadFailed) {
+      return {
+        status: "unavailable",
+        headline: "Checkout status unavailable",
+        nextAction:
+          "The checkout read failed or was rejected, so this slot cannot be evaluated. This does not mean the Mac reported nothing.",
+      };
+    }
     return {
       status: "offline",
       headline: "Runner offline",

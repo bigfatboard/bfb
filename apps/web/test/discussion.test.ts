@@ -22,6 +22,7 @@ import {
   humanQuestions,
   independentPositions,
   openDisagreements,
+  resolveSlotCheckout,
   totalRounds,
   type CheckoutInput,
   type EligibilityResult,
@@ -356,6 +357,25 @@ describe("d03 participant eligibility", () => {
   it("requires two eligible slots before starting", () => {
     expect(canStartDiscussion(slot(), slot())).toBe(true);
     expect(canStartDiscussion(slot(), slot({ checkoutOccupied: true }))).toBe(false);
+  });
+
+  it("reports a failed checkout read as unavailable, never as an offline Mac", () => {
+    const result = slot({ checkout: undefined, checkoutReadFailed: true });
+    expect(result.status).toBe("unavailable");
+    expect(`${result.headline} ${result.nextAction}`).not.toMatch(/has not reported/i);
+    expect(result.nextAction).toMatch(/failed or was rejected/);
+    expect(canStartDiscussion(result, slot())).toBe(false);
+  });
+
+  it("resolves the automatic slot to the task project checkout, not the first inventory entry", () => {
+    const projectA = randomUlid();
+    const projectB = randomUlid();
+    const other = { checkout_id: randomUlid(), project_id: projectA };
+    const taskCheckout = { checkout_id: randomUlid(), project_id: projectB };
+    expect(resolveSlotCheckout([other, taskCheckout], "", projectB)).toEqual(taskCheckout);
+    expect(resolveSlotCheckout([other, taskCheckout], "", projectA)).toEqual(other);
+    expect(resolveSlotCheckout([other, taskCheckout], other.checkout_id, projectB)).toEqual(other);
+    expect(resolveSlotCheckout([other], "", projectB)).toBeUndefined();
   });
 });
 

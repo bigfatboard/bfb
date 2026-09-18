@@ -17,6 +17,7 @@ import {
   isSettledControlState,
   providerStatusMessage,
   refreshTaskLaunches,
+  resolveEffectiveCheckoutId,
   splitRunnerStatuses,
   startAttemptSettlesKey,
   resultLabel,
@@ -596,8 +597,11 @@ export function LaunchSection(props: LaunchSectionProps) {
     }
     return runnerStatus.checkouts.filter((checkout) => checkout.project_id === task.project_id);
   }, [runnerStatus, task]);
-  const effectiveCheckoutId =
-    checkoutId || runnerStatus?.checkouts.find((item) => item.is_default)?.checkout_id || "";
+  const effectiveCheckoutId = resolveEffectiveCheckoutId(
+    checkoutId,
+    runnerStatus?.checkouts ?? [],
+    task?.project_id ?? "",
+  );
   const usableProfiles = useMemo(() => profiles.filter((item) => item.model), [profiles]);
   // Prefer a profile the selected runner reports healthy. Headless discussion
   // profiles stay manually selectable, but they never become the launch default.

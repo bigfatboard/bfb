@@ -14,6 +14,7 @@ import {
 import {
   canStartDiscussion,
   describeSlotEligibility,
+  resolveSlotCheckout,
   type CheckoutInput,
   type EligibilityResult,
   type RunnerInput,
@@ -76,6 +77,7 @@ export function DiscussionStart(props: DiscussionStartProps) {
   const [profiles, setProfiles] = useState<AgentProfileRecord[]>([]);
   const [runners, setRunners] = useState<RunnerSummary[]>([]);
   const [statuses, setStatuses] = useState<Record<string, CheckoutStatus>>({});
+  const [statusFailures, setStatusFailures] = useState<Record<string, string>>({});
   const [question, setQuestion] = useState("");
   const [rounds, setRounds] = useState(3);
   const [duration, setDuration] = useState(900);
@@ -166,7 +168,7 @@ export function DiscussionStart(props: DiscussionStartProps) {
 
   const knownStatuses = useRef(new Set<string>());
   const ensureStatus = useCallback(
-    async (runnerId: string, runner: RunnerSummary | undefined) => {
+    async (runnerId: string) => {
       if (!runnerId || knownStatuses.current.has(runnerId)) {
         return;
       }
@@ -174,20 +176,20 @@ export function DiscussionStart(props: DiscussionStartProps) {
       try {
         const status = await launchClient.checkoutStatus(runnerId);
         setStatuses((current) => ({ ...current, [runnerId]: status }));
+        setStatusFailures((current) => {
+          if (!(runnerId in current)) {
+            return current;
+          }
+          const next = { ...current };
+          delete next[runnerId];
+          return next;
+        });
       } catch {
-        setStatuses((current) => ({
+        // A rejected or failed read is recorded as a failure, never as an
+        // empty inventory: only a successful read proves what the Mac reported.
+        setStatusFailures((current) => ({
           ...current,
-          [runnerId]: {
-            runner_id: runnerId,
-            device_label: runner?.device_label ?? runnerId,
-            owner_human_id: runner?.owner_human_id ?? "",
-            status: runner?.status ?? "enrolled",
-            inventory_revision: null,
-            inventory_received_at: null,
-            inventory_valid: false,
-            checkouts: [],
-            providers: [],
-          },
+          [runnerId]: "Checkout status is unavailable.",
         }));
       }
     },
@@ -217,10 +219,7 @@ export function DiscussionStart(props: DiscussionStartProps) {
     for (const slot of [first, second]) {
       const runnerId = resolvedRunnerId(slot);
       if (runnerId) {
-        void ensureStatus(
-          runnerId,
-          runners.find((entry) => entry.runner_id === runnerId),
-        );
+        void ensureStatus(runnerId);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -237,12 +236,12 @@ export function DiscussionStart(props: DiscussionStartProps) {
     }
     const runner = runners.find((entry) => entry.runner_id === resolvedRunnerId(slot));
     const status = runner ? statuses[runner.runner_id] : undefined;
-    if (!runner || !status) {
+    if (!runner || (!status && statusFailures[runner.runner_id] === undefined)) {
       return null;
     }
-    const checkout = slot.checkoutId
-      ? status.checkouts.find((entry) => entry.checkout_id === slot.checkoutId)
-      : status.checkouts[0];
+    const checkout = status
+      ? resolveSlotCheckout(status.checkouts, slot.checkoutId, props.projectId)
+      : undefined;
     const checkoutOccupied =
       first.checkoutId !== "" &&
       second.checkoutId !== "" &&
@@ -251,8 +250,9 @@ export function DiscussionStart(props: DiscussionStartProps) {
     return describeSlotEligibility({
       profile,
       runner: toRunnerInput(runner),
-      checkout: checkout ? toCheckoutInput(checkout, status.inventory_valid) : undefined,
+      checkout: checkout && status ? toCheckoutInput(checkout, status.inventory_valid) : undefined,
       checkoutOccupied,
+      checkoutReadFailed: status === undefined,
       humanId: props.humanId,
     });
   }
@@ -373,16 +373,17 @@ export function DiscussionStart(props: DiscussionStartProps) {
           if (!ready || !policy || busy) {
             return;
           }
-          const resolve = (slot: SlotSelection): SlotSelection => ({
-            profileId: slot.profileId,
-            runnerId: slot.runnerId || defaultRunnerId || "",
-            checkoutId:
-              slot.checkoutId ||
-              statuses[slot.runnerId || defaultRunnerId || ""]?.checkouts.find(
-                (entry) => entry.project_id === props.projectId,
-              )?.checkout_id ||
-              "",
-          });
+          const resolve = (slot: SlotSelection): SlotSelection => {
+            const runnerId = slot.runnerId || defaultRunnerId || "";
+            const status = runnerId ? statuses[runnerId] : undefined;
+            return {
+              profileId: slot.profileId,
+              runnerId,
+              checkoutId:
+                resolveSlotCheckout(status?.checkouts ?? [], slot.checkoutId, props.projectId)
+                  ?.checkout_id ?? "",
+            };
+          };
           const resolvedFirst = resolve(first);
           const resolvedSecond = resolve(second);
           const profileOf = (id: string): AgentProfileRecord | undefined =>

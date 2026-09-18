@@ -242,6 +242,27 @@ export function describeCheckoutDisplay(
   return readFailed ? "unavailable" : "empty";
 }
 
+/**
+ * Resolves the Start form's checkout against the task's project only. Defaults
+ * are per (runner, project), so the unfiltered inventory can carry another
+ * project's default first: resolving from the unfiltered list would post a
+ * checkout the select never offered. A stale explicit selection from another
+ * project falls back to this project's default, and a project with no
+ * checkout resolves to empty so Start stays disabled instead of posting a
+ * foreign checkout.
+ */
+export function resolveEffectiveCheckoutId(
+  selectedId: string,
+  checkouts: CheckoutSummary[],
+  projectId: string,
+): string {
+  const scoped = checkouts.filter((checkout) => checkout.project_id === projectId);
+  if (selectedId && scoped.some((checkout) => checkout.checkout_id === selectedId)) {
+    return selectedId;
+  }
+  return scoped.find((checkout) => checkout.is_default)?.checkout_id ?? "";
+}
+
 /** Copy for the linked-checkouts block. Null when checkouts render as a list. */
 export function linkedCheckoutsMessage(
   checkout: CheckoutStatus | undefined,
