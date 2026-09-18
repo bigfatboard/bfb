@@ -1,6 +1,6 @@
 # WP-V02 — Isolated artifact viewer
 
-Status: `planned`
+Status: `done`
 
 Risk: Very high
 
@@ -15,10 +15,8 @@ JSON, or self-contained HTML in a fully isolated origin that cannot touch
 control-plane sessions, cookies, or APIs, so teams can trust previews of
 agent-produced files.
 
-Implementation, gate, and evidence are complete on this branch and waiting on
-V01: this package stays `planned` because `pnpm roadmap:check` rejects any
-status beyond `planned` while dependency V01 is not `done` (V01 itself waits
-on A01). The Handoff records the exact state.
+Settled 18 September: `done` — V01 is `done` and `pnpm test:v02` passed in
+a detached clean checkout at `9372c0f`; see Handoff.
 
 ## Dependencies
 
@@ -150,9 +148,7 @@ sandbox and CSP claims and live in `apps/web/test/e2e/v02-viewer.spec.ts`.
 
 ## Handoff
 
-- Implementation, gate, and evidence are complete on branch `muse/v02` at the
-  committed hash recorded in the evidence manifest; status stays `planned`
-  pending V01 (`planned` pending A01). No push performed.
+- Settled 18 September: `done`. V01 is `done`, and `pnpm test:v02` passed in a detached clean checkout at `9372c0f` (install, build, exact target with the D1 harness and 11 real-Chromium sandbox/CSP tests).
 - Commands: `pnpm test:v02` (build, protocol, vitest suites, harness with
   `V02_D1_OK`, browser suite on `BFB_E2E_PORT=4185`), `pnpm verify`,
   `pnpm worktree:check`, and the clean-checkout gate

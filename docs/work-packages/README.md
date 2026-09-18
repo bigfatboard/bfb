@@ -406,7 +406,7 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 | A01 | [Run-scoped local MCP and context](WP-A01-local-mcp-context.md) | `done` | Very high |
 | A02 | [Human attention workflow](WP-A02-attention.md) | `done` | High |
 | A03 | [Result submission and acceptance](WP-A03-results.md) | `done` | High |
-| A04 | [Measurements and provenance](WP-A04-measurements.md) | `planned` | High |
+| A04 | [Measurements and provenance](WP-A04-measurements.md) | `done` | High |
 
 ### Agent discussion
 
@@ -421,8 +421,8 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 | ID | Package | Status | Risk |
 | --- | --- | --- | --- |
 | V01 | [Artifact storage state machine](WP-V01-artifact-storage.md) | `done` | High |
-| V02 | [Isolated artifact viewer](WP-V02-artifact-viewer.md) | `planned` | Very high |
-| V03 | [Immutable artifact review](WP-V03-artifact-review.md) | `planned` | High |
+| V02 | [Isolated artifact viewer](WP-V02-artifact-viewer.md) | `done` | Very high |
+| V03 | [Immutable artifact review](WP-V03-artifact-review.md) | `done` | High |
 
 ### Provider parity
 
@@ -435,12 +435,12 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 
 | ID | Package | Status | Risk |
 | --- | --- | --- | --- |
-| X01 | [Actionable notifications](WP-X01-notifications.md) | `planned` | Medium |
+| X01 | [Actionable notifications](WP-X01-notifications.md) | `done` | Medium |
 | X02 | [Human CLI parity](WP-X02-human-cli.md) | `planned` | High |
-| X03 | [Remote MCP parity extensions](WP-X03-remote-mcp.md) | `planned` | Very high |
+| X03 | [Remote MCP parity extensions](WP-X03-remote-mcp.md) | `done` | Very high |
 | X03A | [Remote OAuth MCP core](WP-X03A-remote-mcp-core.md) | `done` | Very high |
 | X04 | [GitHub evidence integration](WP-X04-github.md) | `done` | High |
-| X05 | [Operations, audit and retention](WP-X05-operations.md) | `planned` | High |
+| X05 | [Operations, audit and retention](WP-X05-operations.md) | `done` | High |
 
 ### Go-live
 

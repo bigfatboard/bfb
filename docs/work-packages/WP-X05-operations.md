@@ -1,6 +1,6 @@
 # WP-X05 — Operations, audit and retention
 
-Status: `planned`
+Status: `done`
 
 Risk: High
 
@@ -115,10 +115,12 @@ surface in the W01 product shell.
 - Implementation, gate (`pnpm test:x05`, `pnpm verify`,
   `pnpm worktree:check`, `GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build
   ./...`, clean-checkout gate), and evidence are complete on branch
-  `muse/x05`. Status is left at `planned` (note recorded here and in
-  `mvp.progress.md`) because `pnpm roadmap:check` rejects anything beyond
-  `planned` while E01, V01, X01, and X04 are not `done` (per
-  `docs/work-packages/README.md`).
+  `muse/x05`. Settled 18 September: `done`. E01, V01, X01, and X04 are
+  `done`, and `pnpm test:x05` passed in a detached clean checkout at
+  `9372c0f` (install, build, exact target with the real-Worker/D1/Queue
+  drill and 4 Chromium scenarios). The evidence manifest is re-based on
+  that rerun; the implementation evidence stays listed as manifest
+  artifacts.
 - G01 and G02 unlock when this package flips to `done` after those four
   dependencies land; no code changes are expected for the flip.
 - Known limitations: the e2e fixture server needed a one-line fix

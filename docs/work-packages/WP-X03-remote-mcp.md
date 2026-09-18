@@ -1,6 +1,6 @@
 # WP-X03 — Remote MCP parity extensions
 
-Status: `planned`
+Status: `done`
 
 Risk: Very high
 
@@ -68,7 +68,7 @@ The remote MCP surface can use later attention, result, and artifact commands th
 
 ## Handoff
 
-- Implementation, gate, and evidence are complete on this branch, but status stays `planned`: dependencies A01, A02, A03, and V01 are not `done`, so `pnpm roadmap:check` rejects any status beyond `planned`.
+- Settled 18 September: `done`. A01, A02, A03, and V01 are `done`, and `pnpm test:x03` passed in a detached clean checkout at `9372c0f` (install, build, exact target with the OAuth browser flow).
 - Commands: `pnpm test:x03` (build, seven vitest suites, OAuth browser flow on `BFB_E2E_PORT=4193`), plus `pnpm test:x03a`, `pnpm verify`, `pnpm worktree:check`.
 - X03A's transport, OAuth model, scopes, and seven tools are untouched; only the tool map grows. No service-account automation was added.
 - G01 treats this public auth surface as a separate adversarial target.

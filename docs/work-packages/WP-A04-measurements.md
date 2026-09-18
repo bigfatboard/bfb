@@ -1,6 +1,6 @@
 # WP-A04 — Measurements and provenance
 
-Status: `planned`
+Status: `done`
 
 Risk: High
 
@@ -8,9 +8,8 @@ Test target: `pnpm test:a04`
 
 Evidence manifest: `docs/work-packages/evidence/WP-A04/manifest.json`
 
-> Status note: implementation, gate, and evidence are complete on this branch,
-> but `Status` stays `planned` because `pnpm roadmap:check` rejects any status
-> beyond `planned` while dependencies A02, A03, and E01 are not `done`. See Handoff.
+> Settled 18 September: `done` — `pnpm test:a04` passed in a detached clean
+> checkout at `9372c0f`; see Handoff.
 
 ## Outcome
 
@@ -94,7 +93,7 @@ BFB shows human attention, process elapsed time, active agent work, waiting, and
 
 ## Handoff
 
-- State: implementation, `pnpm test:a04` gate, and evidence are complete on this branch at the committed hash recorded in the evidence manifest. `Status` is intentionally left at `planned`: `pnpm roadmap:check` rejects anything beyond `planned` while A02, A03, and E01 are not `done`.
+- Settled 18 September: `done`. A02, A03, and E01 are `done`, and `pnpm test:a04` passed in a detached clean checkout at `9372c0f` (install, build, exact target with the real-Worker/D1 harness and browser spec). The evidence manifest is re-based on that rerun (the `ci: not_run` key is omitted: no CI run exists on this line, and CI status is not claimed); the implementation evidence stays listed as manifest artifacts.
 - Consume: `docs/contracts/measurements.md` (v1), domain commands `token.report`, `interval.report`, `review_timer.start`, `review_timer.stop`, `browser_activity.record` plus reads `getRunMeasurements`, `getTaskMeasurements`, `aggregateMeasurements` in `packages/domain/src/measurements.ts`, REST routes under `/runs/:runId/measurements`, `/tasks/:taskId/measurements`, `/tasks/:taskId/review-timers`, `/review-timers/:timerId/stop`, `/browser-activity`, `MeasurementsPanel`/`MeasurementsView` in `apps/web/src/work/measurements.tsx`.
 - V03: consume reviewed submission versions plus this review-timer service; never mutate submissions or create a second timer.
 - G01: use these metrics as release assertions; no exact product metric comes from sampled logs.
