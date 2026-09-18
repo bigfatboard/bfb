@@ -15,6 +15,7 @@ import (
 	"github.com/qdis/bfb/internal/checkout"
 	"github.com/qdis/bfb/internal/cli"
 	"github.com/qdis/bfb/internal/daemon"
+	"github.com/qdis/bfb/internal/humancli"
 	"github.com/qdis/bfb/internal/journal"
 	"github.com/qdis/bfb/internal/provider"
 	"github.com/qdis/bfb/internal/providers"
@@ -82,6 +83,7 @@ func main() {
 	cli.RegisterRunner(registry)
 	claude.RegisterCommands(registry)
 	cli.RegisterRun(registry)
+	humancli.RegisterHuman(registry, humancli.Deps{})
 	cli.RegisterExecution(registry,
 		func(ctx context.Context, paths daemon.Paths, intent string) error {
 			return supervisor.RunHelper(ctx, paths, intent, providerRegistry)
@@ -89,5 +91,5 @@ func main() {
 		func(ctx context.Context, paths daemon.Paths, intent string) error {
 			return supervisor.RunExecChild(ctx, paths, intent, providerRegistry)
 		}, supervisor.RecoverExecution)
-	os.Exit(registry.Execute(ctx, os.Args[1:], os.Stdin, os.Stdout))
+	os.Exit(registry.ExecuteWithStderr(ctx, os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
 }
