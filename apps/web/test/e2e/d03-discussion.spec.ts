@@ -279,8 +279,14 @@ test("keyboard, empty, loading, error, and narrow-layout cases pass", async ({ p
   });
   await page.reload();
   await expect(page.getByTestId("work-board")).toBeVisible();
+  const delayedRead = page.waitForResponse((response) =>
+    /\/api\/v1\/workspaces\/[^/]+\/tasks\/[^/]+\/discussions\?/.test(response.url()),
+  );
   await openTaskCard(page, tasks.taskCancel, "Synthetic discussion stopped card");
   await expect(page.getByTestId("discussion-section")).toBeVisible();
+  // The delayed read must settle before the route goes away, or its handler
+  // continues a request the next reload has already cancelled.
+  await delayedRead;
   await page.unroute("**/api/v1/workspaces/*/tasks/*/discussions?*");
 
   // Error renders a retry that recovers the committed read.
@@ -314,7 +320,7 @@ test("reconnect replays committed state through cursor invalidations", async ({ 
   const messagesBefore = await messageTexts(page);
 
   const commit = await page.request.post("/__test/events/commit", {
-    data: { key: "live", kinds: ["heartbeat"] },
+    data: { key: "discussion", kinds: ["heartbeat"] },
   });
   expect(commit.ok()).toBe(true);
   await expect(panel.getByTestId("discussion-refresh-count")).not.toHaveText(

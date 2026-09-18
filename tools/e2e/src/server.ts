@@ -486,6 +486,7 @@ async function seedE02Chains(db: SqlDatabase): Promise<E02State> {
     );
   const checkoutLive = randomUlid();
   const checkoutStale = randomUlid();
+  const checkoutDiscussion = randomUlid();
   const inventory: RunnerInventory = {
     schema_version: 1,
     workspace_id: FIX.workspace,
@@ -524,6 +525,22 @@ async function seedE02Chains(db: SqlDatabase): Promise<E02State> {
         status: "validated",
         validated_at: E02_NOW,
       },
+      {
+        schema_version: 1,
+        checkout_id: checkoutDiscussion,
+        workspace_id: FIX.workspace,
+        runner_id: runner,
+        project_id: FIX.projectA,
+        label: "Synthetic E02 discussion checkout",
+        repository_identity: "synthetic/e02-discussion",
+        workspace_subpath: ".",
+        physical_worktree_hash: `sha256:${"e04".padEnd(64, "0")}`,
+        repository_config_hash: E02_CONFIG,
+        is_default: false,
+        dirty: false,
+        status: "validated",
+        validated_at: E02_NOW,
+      },
     ],
     providers: [
       {
@@ -554,6 +571,8 @@ async function seedE02Chains(db: SqlDatabase): Promise<E02State> {
   for (const [key, checkoutId, title] of [
     ["live", checkoutLive, "Synthetic E02 live run"],
     ["stale", checkoutStale, "Synthetic E02 stale run"],
+    // D03's reconnect test commits into this chain so E02's live timeline stays untouched.
+    ["discussion", checkoutDiscussion, "Synthetic E02 discussion run"],
   ] as const) {
     const task = await human(createTaskCommand, {
       projectId: FIX.projectA,
