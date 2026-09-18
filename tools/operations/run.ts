@@ -695,10 +695,7 @@ async function main(): Promise<void> {
         "expired launch is stuck-visible",
       );
       harvest("queues", queues.body);
-      note(
-        "D4",
-        `expired launch ${launch.launch_id.slice(0, 8)}… visible as stuck; live claims untouched`,
-      );
+      note("D4", "expired pending launch visible as stuck; live claims untouched");
       pass("D4-stuck-launch");
     }
 
