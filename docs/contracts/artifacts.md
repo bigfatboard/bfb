@@ -37,7 +37,10 @@ identical bytes converge on one stored object.
   declared_size, expected_digest, upload_grant: {grant_id, version_id,
   secret, expires_at}}`. In one hub batch this creates the artifact (unless
   `artifact_id` names an existing one with identical format/role/run), an
-  `uploading` version, a one-time grant, and an audit row.
+  `uploading` version, a one-time grant, and an audit row. Creation requires
+  an owner/member at the current epoch; when `run_id` names a run, the author
+  must hold project access to that run's project, otherwise the uniform
+  rejection applies. Run-free artifacts need membership only.
 - `POST .../artifacts/:version/grants` → `201 {grant_id, version_id,
   secret, expires_at}`. Recovery path for a consumed or expired grant on an
   `uploading` version; terminal versions are rejected.

@@ -347,6 +347,40 @@ describe("artifact review routes", () => {
     expect(((await denied.json()) as { error: string }).error).toBe("forbidden");
   });
 
+  it("hides out-of-scope artifacts from review reads", async () => {
+    const f = await fixture();
+    const runA = await f.taskAndRun(FIX.projectA);
+    const runB = await f.taskAndRun(FIX.projectB);
+    const versionA = await f.available("route-scope-read-a", runA.runId);
+    const versionB = await f.available("route-scope-read-b", runB.runId);
+    const reviewer = { cookie: f.reviewer.cookie, csrf: f.reviewerCsrf };
+    const listed = await f.request(`${f.prefix}?run_id=${runB.runId}`, undefined, reviewer, "GET");
+    expect(listed.status).toBe(200);
+    const body = (await listed.json()) as { artifacts: Array<{ artifact_id: string }> };
+    expect(body.artifacts.map((entry) => entry.artifact_id)).not.toContain(versionB.artifact_id);
+    const scoped = await f.request(`${f.prefix}?run_id=${runA.runId}`, undefined, reviewer, "GET");
+    expect(scoped.status).toBe(200);
+    expect(
+      ((await scoped.json()) as { artifacts: Array<{ artifact_id: string }> }).artifacts.map(
+        (entry) => entry.artifact_id,
+      ),
+    ).toContain(versionA.artifact_id);
+    const status = await f.request(
+      `${f.prefix}/${versionB.artifact_id}/reviews`,
+      undefined,
+      reviewer,
+      "GET",
+    );
+    expect(status.status).toBe(404);
+    const visible = await f.request(
+      `${f.prefix}/${versionA.artifact_id}/reviews`,
+      undefined,
+      reviewer,
+      "GET",
+    );
+    expect(visible.status).toBe(200);
+  });
+
   it("links an A04 timer observation and never accepts the run result", async () => {
     const f = await fixture();
     const scoped = await f.taskAndRun(FIX.projectA);

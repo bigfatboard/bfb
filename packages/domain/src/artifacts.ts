@@ -276,12 +276,20 @@ async function artifactHuman(ctx: HubContext): Promise<{
   };
 }
 
-async function requireRun(ctx: HubContext, runId: string | null): Promise<string | null> {
+async function requireRun(
+  ctx: HubContext,
+  runId: string | null,
+  projectIds: readonly string[],
+): Promise<string | null> {
   if (!runId) return null;
   const row = (await ctx.db
-    .prepare(`SELECT id FROM runs WHERE workspace_id = ? AND id = ?`)
-    .get(ctx.workspaceId, runId)) as { id: string } | undefined;
+    .prepare(`SELECT id, project_id FROM runs WHERE workspace_id = ? AND id = ?`)
+    .get(ctx.workspaceId, runId)) as { id: string; project_id: string } | undefined;
   if (!row) rejectArtifactRequest();
+  // Attaching bytes to another project's run needs project access; run-free
+  // artifacts need membership only. The rejection stays uniform so the run's
+  // project boundary discloses no existence signal.
+  if (!projectIds.includes(row.project_id)) rejectArtifactRequest();
   return runId;
 }
 
@@ -476,7 +484,7 @@ export const createArtifactCommand: HubCommand<CreateArtifactInput, CreateArtifa
     if (typeof input.grantSecretHash !== "string" || !HEX64.test(input.grantSecretHash)) {
       rejectArtifactRequest();
     }
-    const runId = await requireRun(ctx, optionalUlid(input.runId));
+    const runId = await requireRun(ctx, optionalUlid(input.runId), author.projectIds);
     const nowMs = Date.parse(ctx.now);
     if (!Number.isFinite(nowMs)) rejectArtifactRequest();
 

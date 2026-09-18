@@ -237,6 +237,24 @@ async function requireRunProject(
   return run.project_id;
 }
 
+/**
+ * Project pinning a read artifact: the bound run's project, or null for
+ * run-free artifacts and dangling run references. Reads mirror the review
+ * write path, where a run-bound artifact needs project access and a
+ * run-free one needs membership only.
+ */
+async function readArtifactProject(
+  db: ReviewDb,
+  workspaceId: string,
+  runId: string | null,
+): Promise<string | null> {
+  if (!runId) return null;
+  const run = (await db
+    .prepare(`SELECT project_id FROM runs WHERE workspace_id = ? AND id = ?`)
+    .get(workspaceId, runId)) as { project_id: string } | undefined;
+  return run?.project_id ?? null;
+}
+
 async function requireTimerObservation(
   ctx: HubContext,
   observationId: string | null,
@@ -643,15 +661,20 @@ export async function listLinkedSubmissions(
  * Full review status for one artifact: every version with its decision
  * counts, every review with outdated flags, and linked result submissions.
  * The latest available version is unapproved until it carries its own
- * `approve` review; earlier approvals stay historical.
+ * `approve` review; earlier approvals stay historical. Artifacts bound to
+ * a run outside `projectIds` read as missing, so the project boundary
+ * discloses no existence signal.
  */
 export async function getArtifactReviewStatus(
   db: ReviewDb,
   workspaceId: string,
   artifactId: string,
+  projectIds: readonly string[],
 ): Promise<ArtifactReviewStatus | undefined> {
   const artifact = await readArtifact(db, workspaceId, artifactId);
   if (!artifact) return undefined;
+  const projectId = await readArtifactProject(db, workspaceId, artifact.run_id);
+  if (projectId && !projectIds.includes(projectId)) return undefined;
   const versions = await readVersions(db, workspaceId, artifactId);
   const available = versions.filter((version) => version.state === "available");
   const latest = available[available.length - 1] ?? null;
@@ -698,22 +721,35 @@ export interface ArtifactSummary {
 /**
  * Lists artifacts (optionally for one run) with each latest available
  * version and its approval state. Newer versions without their own approve
- * review always read unapproved, no matter the history behind them.
+ * review always read unapproved, no matter the history behind them. Only
+ * run-free artifacts and artifacts bound to a run in `projectIds` are
+ * listed, matching the review write path's project scoping.
  */
 export async function listArtifactsWithReviewState(
   db: ReviewDb,
   workspaceId: string,
+  projectIds: readonly string[],
   runId?: string,
 ): Promise<ArtifactSummary[]> {
+  const scope =
+    projectIds.length === 0 ? "" : ` OR r.project_id IN (${projectIds.map(() => "?").join(", ")})`;
+  // A dangling run reference reads as unscoped, mirroring readArtifactProject.
+  const visible = `(a.run_id IS NULL OR (a.run_id IS NOT NULL AND r.id IS NULL)${scope})`;
   const artifacts = (await db
     .prepare(
       runId === undefined
-        ? `SELECT id, run_id, format, role, created_at FROM artifacts
-           WHERE workspace_id = ? ORDER BY created_at ASC, id ASC`
-        : `SELECT id, run_id, format, role, created_at FROM artifacts
-           WHERE workspace_id = ? AND run_id = ? ORDER BY created_at ASC, id ASC`,
+        ? `SELECT a.id, a.run_id, a.format, a.role, a.created_at FROM artifacts AS a
+           LEFT JOIN runs AS r ON r.workspace_id = a.workspace_id AND r.id = a.run_id
+           WHERE a.workspace_id = ? AND ${visible}
+           ORDER BY a.created_at ASC, a.id ASC`
+        : `SELECT a.id, a.run_id, a.format, a.role, a.created_at FROM artifacts AS a
+           LEFT JOIN runs AS r ON r.workspace_id = a.workspace_id AND r.id = a.run_id
+           WHERE a.workspace_id = ? AND a.run_id = ? AND ${visible}
+           ORDER BY a.created_at ASC, a.id ASC`,
     )
-    .all(...(runId === undefined ? [workspaceId] : [workspaceId, runId]))) as Array<{
+    .all(
+      ...(runId === undefined ? [workspaceId, ...projectIds] : [workspaceId, runId, ...projectIds]),
+    )) as Array<{
     id: string;
     run_id: string | null;
     format: string;

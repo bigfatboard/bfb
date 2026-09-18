@@ -110,6 +110,12 @@ decision ids only — no comment text and no secrets (reviews mint none).
 `listArtifactsWithReviewState` lists artifacts (optionally for one run) with
 the same latest-version approval state for the Review surface.
 
+Reads enforce the same project boundary as recording (§2 rule 5):
+`listArtifactsWithReviewState` omits artifacts bound to runs outside the
+caller's projects, and `getArtifactReviewStatus` reads an out-of-scope
+artifact as missing — the same records the CLI shows that human. Run-free
+artifacts need membership only.
+
 ## 4. A03 integration
 
 Submitters bind reviewed bytes with a generic evidence reference:
@@ -140,9 +146,11 @@ or `browser_activity_observations` rows and computes no interval of its own.
 ## 6. Control routes (browser session + CSRF)
 
 - `GET /api/v1/workspaces/:ws/artifacts` (`?run_id=` optional) →
-  `200 {artifacts}` summaries for the Review surface.
+  `200 {artifacts}` summaries for the Review surface. Artifacts bound to
+  runs outside the caller's projects are omitted.
 - `GET /api/v1/workspaces/:ws/artifacts/:artifactId/reviews` →
-  `200` full review status with raw timer contexts.
+  `200` full review status with raw timer contexts. An out-of-scope
+  artifact reads `404`, like an unknown one.
 - `POST /api/v1/workspaces/:ws/artifacts/:artifactId/reviews`
   `{version_id, expected_content_hash, expected_latest_version_id, decision,
   comment?, git_commit?, config_hash?, review_timer_observation_id?,

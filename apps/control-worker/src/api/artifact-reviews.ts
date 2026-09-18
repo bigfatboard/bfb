@@ -108,9 +108,12 @@ export async function handleArtifactReviewApi(
       if (runId !== null && !isUlid(runId)) {
         return errorResponse("invalid_argument", "run id is invalid");
       }
+      // The list observes the caller's project boundary: run-bound artifacts
+      // outside it are omitted, matching the CLI artifact reads.
       const artifacts = await listArtifactsWithReviewState(
         deps.db,
         deps.workspaceId,
+        principal.projectIds,
         runId ?? undefined,
       );
       return response({ artifacts });
@@ -120,7 +123,13 @@ export async function handleArtifactReviewApi(
       return errorResponse("not_found", "artifact not found");
     }
     if (request.method === "GET") {
-      const status = await getArtifactReviewStatus(deps.db, deps.workspaceId, artifactId);
+      // Out-of-scope artifacts read as missing, matching the CLI boundary.
+      const status = await getArtifactReviewStatus(
+        deps.db,
+        deps.workspaceId,
+        artifactId,
+        principal.projectIds,
+      );
       if (!status) {
         return errorResponse("not_found", "artifact not found");
       }

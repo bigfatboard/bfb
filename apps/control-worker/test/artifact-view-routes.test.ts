@@ -9,6 +9,8 @@ import {
   artifactHash,
   artifactObjectKey,
   createArtifactCommand,
+  createRunCommand,
+  createTaskCommand,
   finalizeArtifactCommand,
   FIX,
   mintUploadGrantSecret,
@@ -133,7 +135,37 @@ async function fixture() {
       env,
     );
   }
-  async function available(format = "html"): Promise<string> {
+  async function taskAndRun(projectId: string): Promise<{ taskId: string; runId: string }> {
+    const hub = new WorkspaceHub(context.db);
+    const task = await hub.execute(createTaskCommand, {
+      workspaceId: FIX.workspace,
+      actorHumanId: FIX.owner,
+      authorizationEpoch: 1,
+      now: NOW,
+      idempotencyKey: randomUlid(),
+      input: { projectId, title: "Synthetic view route task", priority: "P1" as never },
+    });
+    if (!task.ok) throw new Error(JSON.stringify(task));
+    const run = await hub.execute(createRunCommand, {
+      workspaceId: FIX.workspace,
+      actorHumanId: FIX.owner,
+      authorizationEpoch: 1,
+      now: NOW,
+      idempotencyKey: randomUlid(),
+      input: {
+        taskId: task.result.id,
+        expectedTaskVersion: 1,
+        agentProfileId: FIX.profileCodex,
+        workspacePolicyVersion: 1,
+        projectPolicyVersion: 1,
+        repositoryConfigVersion: 1,
+        agentProfileVersion: 1,
+      },
+    });
+    if (!run.ok) throw new Error(JSON.stringify(run));
+    return { taskId: task.result.id, runId: run.result.run.id };
+  }
+  async function available(format = "html", runId: string | null = null): Promise<string> {
     const hub = new WorkspaceHub(context.db);
     const minted = mintUploadGrantSecret();
     const created = await hub.execute(createArtifactCommand, {
@@ -144,7 +176,7 @@ async function fixture() {
       idempotencyKey: randomUlid(),
       input: {
         artifactId: null,
-        runId: null,
+        runId,
         format: format as never,
         role: "review" as never,
         declaredSize: TEXT.byteLength,
@@ -161,14 +193,14 @@ async function fixture() {
     const key = artifactObjectKey({
       workspaceId: FIX.workspace,
       role: "review",
-      runId: null,
+      runId,
       versionId: created.result.version_id,
       contentHash: digest(TEXT),
     });
     await recordVerifiedUpload(context.db, {
       workspaceId: FIX.workspace,
       versionId: created.result.version_id,
-      runId: null,
+      runId,
       role: "review",
       contentHash: digest(TEXT),
       r2Key: key,
@@ -220,6 +252,7 @@ async function fixture() {
     post,
     raw,
     prefix,
+    taskAndRun,
     available,
     uploading,
     owner: { cookie: owner.cookie, csrf },
@@ -290,6 +323,20 @@ describe("artifact view grant routes", () => {
     );
     expect(getResponse.status).toBe(403);
     expect(await getResponse.json()).toEqual(uniform);
+  });
+
+  it("refuses view grants for run-bound artifacts outside the reviewer's projects", async () => {
+    const { post, prefix, taskAndRun, available, reviewer } = await fixture();
+    const runA = await taskAndRun(FIX.projectA);
+    const runB = await taskAndRun(FIX.projectB);
+    const versionA = await available("html", runA.runId);
+    const versionB = await available("html", runB.runId);
+    // Reviewer holds a projectA grant in fixtures: same-project previews stay allowed.
+    const scoped = await post(`${prefix}/${versionA}/views`, {}, reviewer);
+    expect(scoped.status).toBe(201);
+    const denied = await post(`${prefix}/${versionB}/views`, {}, reviewer);
+    expect(denied.status).toBe(403);
+    expect(await denied.json()).toEqual({ error: "request_rejected", message: "request rejected" });
   });
 
   it("keeps Bearer [REDACTED] and missing sessions off the view routes", async () => {
