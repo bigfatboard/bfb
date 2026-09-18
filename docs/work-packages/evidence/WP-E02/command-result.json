@@ -1,6 +1,6 @@
 {
   "package": "E02",
-  "tested_commit": "98cf0e110ddab20cb9fd403788d6d0f2e7f9c78f",
+  "tested_commit": "28446a77565a54ffd97b934e40c5169c7f5d0995",
   "results": [
     {
       "command": "pnpm install --frozen-lockfile",
@@ -15,7 +15,7 @@
     {
       "command": "pnpm test:e02",
       "outcome": "passed",
-      "detail": "build, 32 vitest cases (browser sockets, realtime routes, resync races, timeline, presence), tools/realtime typecheck, two-Worker D1 harness E02_REALTIME_OK (handshake, fan-out, reconnect, expiry, revocation, hostile cleanliness), e02-realtime Playwright suite 8 passed on BFB_E2E_PORT=4181"
+      "detail": "build, 37 vitest cases (browser sockets, realtime routes, resync races, timeline, presence, stale-close reconnect), tools/realtime typecheck, two-Worker D1 harness E02_REALTIME_OK (handshake, fan-out, reconnect, expiry, revocation, hostile cleanliness), e02-realtime Playwright suite 8 passed on BFB_E2E_PORT=4190"
     },
     {
       "command": "pnpm verify",

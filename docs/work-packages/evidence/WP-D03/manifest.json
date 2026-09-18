@@ -40,7 +40,7 @@
     "status": "passed"
   },
   "schema_version": "1",
-  "tested_commit": "be679d86b63f8e0baa8cef8e8cc631e603a1a1db",
+  "tested_commit": "28446a77565a54ffd97b934e40c5169c7f5d0995",
   "toolchains": {
     "go": "1.26.5",
     "node": "24.19.0",

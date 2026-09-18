@@ -2,8 +2,8 @@
   {
     "command": "pnpm test:mvp-discussion",
     "exit": 0,
-    "note": "D01 fixture check, build, 22 unit tests (D03 presentation plus D01 route regression), and 6 Chromium scenarios on BFB_E2E_PORT=4191 all pass.",
-    "time": "2026-09-18T00:11:00Z"
+    "note": "D01 fixture check, build, 28 unit tests (D03 presentation, stale-close reconnect, plus D01 route regression), and 6 Chromium scenarios on BFB_E2E_PORT=4191 all pass.",
+    "time": "2026-09-18T17:18:00Z"
   },
   {
     "command": "BFB_CAPTURE_D03_EVIDENCE=1 pnpm test:mvp-discussion:browser",
