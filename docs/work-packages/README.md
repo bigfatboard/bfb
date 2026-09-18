@@ -386,7 +386,7 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 | L03 | [Provider adapter kit](WP-L03-provider-kit.md) | `done` | High |
 | L04 | [SwiftUI macOS application](WP-L04-macos-app.md) | `done` | High |
 | L05 | [Terminal execution supervisor](WP-L05-terminal-supervisor.md) | `done` | Very high |
-| L06 | [Hook journal and offline inbox](WP-L06-hook-journal.md) | `planned` | Very high |
+| L06 | [Hook journal and offline inbox](WP-L06-hook-journal.md) | `done` | Very high |
 | L07 | [Claude Code reference adapter](WP-L07-claude-adapter.md) | `planned` | High |
 | L08 | [Runner enrollment and channel client](WP-L08-runner-channel-client.md) | `done` | Very high |
 
@@ -395,7 +395,7 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 | ID | Package | Status | Risk |
 | --- | --- | --- | --- |
 | W01 | [Authenticated app and Work surface](WP-W01-app-shell.md) | `done` | Medium |
-| W02 | [Runner and launch operations UI](WP-W02-launch-operations-ui.md) | `planned` | High |
+| W02 | [Runner and launch operations UI](WP-W02-launch-operations-ui.md) | `done` | High |
 | E01 | [Event ingestion, projection, and replay](WP-E01-event-ingest-replay.md) | `planned` | Very high |
 | E02 | [Browser realtime, timeline, and presence](WP-E02-browser-realtime.md) | `planned` | High |
 

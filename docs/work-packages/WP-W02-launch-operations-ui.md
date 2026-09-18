@@ -1,6 +1,6 @@
 # WP-W02 — Runner and launch operations UI
 
-Status: `planned`
+Status: `done`
 
 Risk: High
 
@@ -87,7 +87,7 @@ A permitted human selects a named profile, enrolled Mac, and linked checkout on 
 
 ## Handoff
 
-- Implementation, gate (`pnpm test:w02`), and evidence are complete on this branch, but this package stays `planned`: L05 is still `blocked` on its Terminal acceptance, and `pnpm roadmap:check` rejects any status beyond `planned` while a dependency is not `done`. Do not touch L05's status; the `done` transition waits for it.
+- Settled 18 September: `done`. L05 is `done`, and `pnpm test:w02` passed in a detached clean checkout at `9372c0f` (install, build, exact target with the synthetic C09 launch drive and 9 Chromium scenarios against the fake provider). The legacy evidence manifest is re-based on that rerun in the schema-conformant shape; the implementation evidence stays listed as manifest artifacts.
 - Commit provider-neutral fake-launch recording, all blocked/local-recovery screenshots, run-control and wake-intent idempotency traces, step-up trace, and permission test report (all under `docs/work-packages/evidence/WP-W02/`).
 - E02 later adds live invalidation without replacing durable launch reads.
 - Run `pnpm test:w02` (browser tests use `BFB_E2E_PORT=4174`) or `pnpm test:w02:browser` for the UI suite alone; `BFB_CAPTURE_W02_EVIDENCE=1 pnpm test:w02` regenerates the evidence.
