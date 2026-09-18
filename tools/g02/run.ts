@@ -1428,9 +1428,21 @@ assert.equal(
 pass("SIGN", "stable native surface plus the local signing proof");
 
 // G-SCAN: generated evidence carries no secrets, paths, or terminal output.
-const scanFiles = readdirSync(evidenceDir).filter(
-  (name) => name.endsWith(".json") || name.endsWith(".jsonl"),
-);
+let scanFiles: string[];
+try {
+  // The manifest artifact list (minus this report) keeps the scanned set stable
+  // no matter which step of test:g02 produced which file first.
+  const manifest = JSON.parse(readText("docs/work-packages/evidence/WP-G02/manifest.json")) as {
+    artifacts: string[];
+  };
+  scanFiles = manifest.artifacts
+    .map((artifact) => artifact.split("/").pop() as string)
+    .filter((name) => name !== "redaction-scan.json");
+} catch {
+  scanFiles = readdirSync(evidenceDir).filter(
+    (name) => name.endsWith(".json") || name.endsWith(".jsonl"),
+  );
+}
 const needles = ["/Users/", "BEGIN PRIVATE KEY", "AKIA", "ghp_", "gho_", "xox"];
 const findings: string[] = [];
 for (const name of scanFiles) {
@@ -1443,6 +1455,7 @@ assert.deepEqual(findings, [], "evidence stays bounded and redacted");
 await writeJson(join(evidenceDir, "redaction-scan.json"), {
   release: "bfb-v0.1-g02",
   scanned_files: scanFiles.length,
+  scanned: [...scanFiles].sort(),
   prohibited_classes: [
     "task bodies",
     "cookies",
