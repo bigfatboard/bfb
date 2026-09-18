@@ -396,14 +396,14 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 | --- | --- | --- | --- |
 | W01 | [Authenticated app and Work surface](WP-W01-app-shell.md) | `done` | Medium |
 | W02 | [Runner and launch operations UI](WP-W02-launch-operations-ui.md) | `done` | High |
-| E01 | [Event ingestion, projection, and replay](WP-E01-event-ingest-replay.md) | `planned` | Very high |
-| E02 | [Browser realtime, timeline, and presence](WP-E02-browser-realtime.md) | `planned` | High |
+| E01 | [Event ingestion, projection, and replay](WP-E01-event-ingest-replay.md) | `done` | Very high |
+| E02 | [Browser realtime, timeline, and presence](WP-E02-browser-realtime.md) | `done` | High |
 
 ### Agent and human loop
 
 | ID | Package | Status | Risk |
 | --- | --- | --- | --- |
-| A01 | [Run-scoped local MCP and context](WP-A01-local-mcp-context.md) | `planned` | Very high |
+| A01 | [Run-scoped local MCP and context](WP-A01-local-mcp-context.md) | `done` | Very high |
 | A02 | [Human attention workflow](WP-A02-attention.md) | `planned` | High |
 | A03 | [Result submission and acceptance](WP-A03-results.md) | `planned` | High |
 | A04 | [Measurements and provenance](WP-A04-measurements.md) | `planned` | High |

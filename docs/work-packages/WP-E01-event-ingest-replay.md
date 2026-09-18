@@ -1,6 +1,6 @@
 # WP-E01 — Event ingestion, projection, and replay
 
-Status: `planned`
+Status: `done`
 
 Risk: Very high
 
@@ -86,6 +86,6 @@ Authenticated runner batches commit each normalized observation at most once, ag
 ## Handoff
 
 - Implementation, gate (`pnpm test:e01`), `pnpm verify`, `pnpm worktree:check`, and the clean-checkout gate are complete at the committed hash; evidence is recorded in the manifest.
-- Status stays `planned`: `pnpm roadmap:check` rejects any status beyond `planned` while dependency L06 is not `done`. Nothing downstream may consume E01 as final until L06 completes and the status advances.
+- Settled 18 September: `done`. L06 is `done`, and `pnpm test:e01` passed in a detached clean checkout at `9372c0f` (install, build, exact target with the two-Worker D1 fault harness).
 - E02 consumes cursor invalidations and the replay/high-water routes; L06 retains explicit disposition authority (accepted/already-committed remove, retryable keeps queued, permanently-rejected quarantines bounded); A04 derives from `measurement_observations` by unique observation identity.
 - Known limitations: per-stream contiguous acknowledgement is not computed (dispositions are authoritative); runner event payloads are closed empty objects in v1, so observations carry identity and provenance but no measurement values yet.

@@ -1,6 +1,6 @@
 # WP-E02 — Browser realtime, timeline, and presence
 
-Status: `planned`
+Status: `done`
 
 Risk: High
 
@@ -80,7 +80,7 @@ A workspace member watching a running attempt sees one live Run timeline and hon
 
 ## Handoff
 
-- Implementation, gate, and evidence are complete; status stays `planned` because E01 is `planned` pending L06 and L05 (`pnpm roadmap:check` rejects a further status while a dependency is not `done`).
+- Settled 18 September: `done`. E01 is `done`, and `pnpm test:e02` passed in a detached clean checkout at `9372c0f` (install, build, exact target with the workerd harness and 8 browser tests).
 - Run `pnpm test:e02` (unit plus `tools/realtime` workerd harness plus the `e02-realtime` Playwright suite on `BFB_E2E_PORT=4181`).
 - Build on `docs/contracts/browser-realtime.md`; keep invalidations cursor-only and replay authoritative.
 - Known limits: single shared expiry alarm covers runner and browser sockets per workspace; the browser client retries transient closes three times, then requires manual reconnect; expired sessions require sign-in again.
