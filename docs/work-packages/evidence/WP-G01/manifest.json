@@ -1,10 +1,10 @@
 {
   "$schema": "../manifest.schema.json",
   "package": "G01",
-  "tested_commit": "d6130621bbc6eaafdca46d952c3ee80d5841f5b1",
+  "tested_commit": "c451e754f5377b05732398164dd28ae798f9057a",
   "protocol_version": "bfb-wire/1",
   "schema_version": "1",
-  "migration_head": "0034_operations",
+  "migration_head": "0035_artifact_objects_per_key",
   "toolchains": {
     "node": "24.19.0",
     "pnpm": "11.21.0",
@@ -19,7 +19,7 @@
   "commands": [
     {
       "command": "pnpm test:g01",
-      "outcome": "passed",
+      "outcome": "failed",
       "artifact": "docs/work-packages/evidence/WP-G01/command-result.json"
     },
     {
@@ -38,7 +38,7 @@
       "artifact": "docs/work-packages/evidence/WP-G01/command-result.json"
     }
   ],
-  "outcome": "passed",
+  "outcome": "failed",
   "artifacts": [
     "docs/work-packages/evidence/WP-G01/command-result.json",
     "docs/work-packages/evidence/WP-G01/gate-report.json",
