@@ -135,8 +135,9 @@ keep their own provenance.
 ## Handoff
 
 - Settled 18 September: `done`. A03 and E01 are `done`, and `pnpm test:x04`
-  passed in a detached clean checkout at `9372c0f` (install, build, exact
-  target with the real-Worker/D1/Queue fault harness). A real GitHub App
+  passed in a detached clean checkout at `5951fb5` (install, build, exact
+  target with the real-Worker/D1/Queue fault harness, plus the
+  delegation-envelope rejection on evidence link and Owner management). A real GitHub App
   installation still needs the secrets and Owner steps listed below; no
   live GitHub proof is claimed.
 - A real GitHub App installation needs: App permissions exactly the

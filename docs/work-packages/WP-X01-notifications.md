@@ -83,7 +83,7 @@ Humans receive deduplicated browser/macOS notifications for actionable committed
 
 ## Handoff
 
-- Settled 18 September: `done`. A02, A03, and E02 are `done`, and `pnpm test:x01` passed in a detached clean checkout at `bc891ca` (install, build, exact target with the real-Worker/D1/Queue harness, plus the uniform-403 budget-exhaustion case). The evidence manifest is re-based on that rerun; the implementation evidence stays listed as manifest artifacts.
+- Settled 18 September: `done`. A02, A03, and E02 are `done`, and `pnpm test:x01` passed in a detached clean checkout at `5951fb5` (install, build, exact target with the real-Worker/D1/Queue harness, plus the uniform-403 budget-exhaustion case and the delegation-envelope rejection on preference/endpoint commands). The evidence manifest is re-based on that rerun; the implementation evidence stays listed as manifest artifacts.
 - Commands: `pnpm test:x01`; `pnpm verify`; `pnpm worktree:check`. The Worker/D1/Queue flow is `tools/notifications/run.ts`; the macOS poller cases are `internal/notify/notify_test.go` and the bridge proof is `internal/appbridge/notify_x01_test.go`.
 - X04 shares the Queue/DLQ machinery with distinct additive `bfb-notify-*` names and consumer registrations; X01 consumes committed `attention.request` and A03 result events and never notification state as domain truth.
 - X05 consumes the delivery records and DLQ visibility; notification content stays redacted and preference-gated.

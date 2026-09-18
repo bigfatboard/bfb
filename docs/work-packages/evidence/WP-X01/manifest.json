@@ -1,7 +1,7 @@
 {
   "$schema": "../manifest.schema.json",
   "package": "X01",
-  "tested_commit": "bc891ca560e1ea2e0d5a1834634121b8bb518451",
+  "tested_commit": "5951fb56c603389ffe797018a6db61994ab6c182",
   "protocol_version": "bfb-wire/1",
   "schema_version": "1",
   "migration_head": "d1:0030_notifications.sql",
