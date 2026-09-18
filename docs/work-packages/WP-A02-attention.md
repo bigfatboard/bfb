@@ -1,6 +1,6 @@
 # WP-A02 — Human attention workflow
 
-Status: `planned`
+Status: `done`
 
 Risk: High
 
@@ -8,11 +8,8 @@ Test target: `pnpm test:a02`
 
 Evidence manifest: `docs/work-packages/evidence/WP-A02/manifest.json`
 
-> Status note: implementation, the exact gate, and the evidence below are
-> complete on this branch, but A01 and E02 are not `done`, so
-> `pnpm roadmap:check` rejects any status beyond `planned`. This package
-> stays `planned` until those dependencies complete; nothing downstream may
-> consume it yet.
+> Settled 18 September: `done` — `pnpm test:a02` passed in a detached clean
+> checkout at `9372c0f`; see Handoff.
 
 ## Outcome
 
@@ -93,7 +90,7 @@ An agent can request a typed human decision, a permitted human can answer it fro
 
 ## Handoff
 
-- State: implementation, `pnpm test:a02`, `pnpm verify`, `pnpm worktree:check`, `GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./...`, and the clean-checkout gate pass at the evidence commit. Status stays `planned` pending A01 and E02.
+- Settled 18 September: `done`. A01 and E02 are `done`, and `pnpm test:a02` passed in a detached clean checkout at `9372c0f` (install, build, exact target with the real-Worker/D1 fault harness, real-binary stdio purity, and browser spec).
 - Commands: `pnpm test:a02`; `pnpm verify`; `pnpm worktree:check`. The Worker/D1 fault flow is `tools/attention/run.ts`; the attention stdio cases are `internal/localmcp/attention_test.go` plus the golden transcript.
 - A04 consumes `attention_observations` (unique identity, actor provenance) and the raw `requested_at`/`first_response_at`/`resolved_at` timestamps plus `raw-timing-observations.json`; derivation and display belong to A04.
 - X01 consumes committed `attention.request`/`attention.answer`/`attention.resolve` semantic events; it does not own attention truth and owns all external delivery.

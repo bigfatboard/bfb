@@ -1,44 +1,26 @@
 {
+  "$schema": "../manifest.schema.json",
   "artifacts": [
-    { "kind": "test-report", "path": "docs/work-packages/evidence/WP-L06/command-result.json" },
-    { "kind": "test-report", "path": "docs/work-packages/evidence/WP-L06/fake-ingest.json" },
-    { "kind": "matrix", "path": "docs/work-packages/evidence/WP-L06/fault-matrix.md" },
-    { "kind": "contract", "path": "docs/contracts/observed-session.md" },
-    {
-      "kind": "protocol-fixtures",
-      "path": "protocol/fixtures/v1/valid/local-rpc.l06-hook-accepted.json"
-    },
-    {
-      "kind": "protocol-fixtures",
-      "path": "protocol/fixtures/v1/valid/local-rpc.l06-hook-status.json"
-    }
+    "docs/work-packages/evidence/WP-L06/manifest.json",
+    "docs/work-packages/evidence/WP-L06/command-result.json",
+    "docs/work-packages/evidence/WP-L06/fake-ingest.json",
+    "docs/work-packages/evidence/WP-L06/fault-matrix.md",
+    "docs/contracts/observed-session.md",
+    "protocol/fixtures/v1/valid/local-rpc.l06-hook-accepted.json",
+    "protocol/fixtures/v1/valid/local-rpc.l06-hook-status.json"
   ],
   "commands": [
-    { "command": "pnpm test:l06", "outcome": "passed" },
-    { "command": "pnpm verify", "outcome": "passed" },
-    { "command": "pnpm worktree:check", "outcome": "passed" },
-    { "command": "GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./...", "outcome": "passed" },
-    {
-      "command": "clean-checkout pnpm install --frozen-lockfile, pnpm build, pnpm test:l06",
-      "outcome": "passed"
-    }
+    { "command": "pnpm install --frozen-lockfile", "outcome": "passed" },
+    { "command": "pnpm build", "outcome": "passed" },
+    { "command": "pnpm test:l06", "outcome": "passed" }
   ],
-  "environment": {
-    "device": "synthetic-mac-mini",
-    "os": "macos",
-    "redacted": true,
-    "toolchain": { "go": "1.26.5", "node": "24.19.0", "pnpm": "11.21.0", "xcode": "26" }
-  },
-  "evidence": "WP-L06",
+  "environment": { "architecture": "arm64", "kind": "clean_checkout", "os": "macOS 26.2" },
+  "migration_head": "local:010_hook_inbox.sql",
+  "outcome": "passed",
   "package": "L06",
-  "protocol_versions": {
-    "fixture_matrix": "protocol/fixtures/v1/matrix.json",
-    "local_rpc": "protocol/schema/v1/local-rpc.json",
-    "schema_catalog": "packages/protocol-ts/src/generated/catalog.json"
-  },
-  "redacted": true,
-  "schema_head": "protocol",
-  "storage_head": 10,
-  "test_target": "pnpm test:l06",
-  "tested_commit": "b0a4f7d050efff87af57f20c3a18180b8e33b374"
+  "protocol_version": "bfb-wire/1",
+  "redaction": { "prohibited_content": [], "status": "passed" },
+  "schema_version": "1",
+  "tested_commit": "9372c0f569d7f7fb97376ce2cbea5ff931c637e9",
+  "toolchains": { "go": "1.26.5", "node": "24.19.0", "pnpm": "11.21.0" }
 }

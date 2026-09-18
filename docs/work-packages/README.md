@@ -386,8 +386,8 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 | L03 | [Provider adapter kit](WP-L03-provider-kit.md) | `done` | High |
 | L04 | [SwiftUI macOS application](WP-L04-macos-app.md) | `done` | High |
 | L05 | [Terminal execution supervisor](WP-L05-terminal-supervisor.md) | `done` | Very high |
-| L06 | [Hook journal and offline inbox](WP-L06-hook-journal.md) | `planned` | Very high |
-| L07 | [Claude Code reference adapter](WP-L07-claude-adapter.md) | `planned` | High |
+| L06 | [Hook journal and offline inbox](WP-L06-hook-journal.md) | `done` | Very high |
+| L07 | [Claude Code reference adapter](WP-L07-claude-adapter.md) | `review` | High |
 | L08 | [Runner enrollment and channel client](WP-L08-runner-channel-client.md) | `done` | Very high |
 
 ### Web and realtime
@@ -395,18 +395,18 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 | ID | Package | Status | Risk |
 | --- | --- | --- | --- |
 | W01 | [Authenticated app and Work surface](WP-W01-app-shell.md) | `done` | Medium |
-| W02 | [Runner and launch operations UI](WP-W02-launch-operations-ui.md) | `planned` | High |
-| E01 | [Event ingestion, projection, and replay](WP-E01-event-ingest-replay.md) | `planned` | Very high |
-| E02 | [Browser realtime, timeline, and presence](WP-E02-browser-realtime.md) | `planned` | High |
+| W02 | [Runner and launch operations UI](WP-W02-launch-operations-ui.md) | `done` | High |
+| E01 | [Event ingestion, projection, and replay](WP-E01-event-ingest-replay.md) | `done` | Very high |
+| E02 | [Browser realtime, timeline, and presence](WP-E02-browser-realtime.md) | `done` | High |
 
 ### Agent and human loop
 
 | ID | Package | Status | Risk |
 | --- | --- | --- | --- |
-| A01 | [Run-scoped local MCP and context](WP-A01-local-mcp-context.md) | `planned` | Very high |
-| A02 | [Human attention workflow](WP-A02-attention.md) | `planned` | High |
-| A03 | [Result submission and acceptance](WP-A03-results.md) | `planned` | High |
-| A04 | [Measurements and provenance](WP-A04-measurements.md) | `planned` | High |
+| A01 | [Run-scoped local MCP and context](WP-A01-local-mcp-context.md) | `done` | Very high |
+| A02 | [Human attention workflow](WP-A02-attention.md) | `done` | High |
+| A03 | [Result submission and acceptance](WP-A03-results.md) | `done` | High |
+| A04 | [Measurements and provenance](WP-A04-measurements.md) | `done` | High |
 
 ### Agent discussion
 
@@ -420,9 +420,9 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 
 | ID | Package | Status | Risk |
 | --- | --- | --- | --- |
-| V01 | [Artifact storage state machine](WP-V01-artifact-storage.md) | `planned` | High |
-| V02 | [Isolated artifact viewer](WP-V02-artifact-viewer.md) | `planned` | Very high |
-| V03 | [Immutable artifact review](WP-V03-artifact-review.md) | `planned` | High |
+| V01 | [Artifact storage state machine](WP-V01-artifact-storage.md) | `done` | High |
+| V02 | [Isolated artifact viewer](WP-V02-artifact-viewer.md) | `done` | Very high |
+| V03 | [Immutable artifact review](WP-V03-artifact-review.md) | `done` | High |
 
 ### Provider parity
 
@@ -435,12 +435,12 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 
 | ID | Package | Status | Risk |
 | --- | --- | --- | --- |
-| X01 | [Actionable notifications](WP-X01-notifications.md) | `planned` | Medium |
+| X01 | [Actionable notifications](WP-X01-notifications.md) | `done` | Medium |
 | X02 | [Human CLI parity](WP-X02-human-cli.md) | `planned` | High |
-| X03 | [Remote MCP parity extensions](WP-X03-remote-mcp.md) | `planned` | Very high |
+| X03 | [Remote MCP parity extensions](WP-X03-remote-mcp.md) | `done` | Very high |
 | X03A | [Remote OAuth MCP core](WP-X03A-remote-mcp-core.md) | `done` | Very high |
-| X04 | [GitHub evidence integration](WP-X04-github.md) | `planned` | High |
-| X05 | [Operations, audit and retention](WP-X05-operations.md) | `planned` | High |
+| X04 | [GitHub evidence integration](WP-X04-github.md) | `done` | High |
+| X05 | [Operations, audit and retention](WP-X05-operations.md) | `done` | High |
 
 ### Go-live
 

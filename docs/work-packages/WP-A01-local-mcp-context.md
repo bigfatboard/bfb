@@ -1,6 +1,6 @@
 # WP-A01 — Run-scoped local MCP and context
 
-Status: `planned`
+Status: `done`
 
 Risk: Very high
 
@@ -8,11 +8,8 @@ Test target: `pnpm test:a01`
 
 Evidence manifest: `docs/work-packages/evidence/WP-A01/manifest.json`
 
-> Status note: implementation, the exact gate, and the evidence below are
-> complete on this branch, but E01, L05, and L06 are not `done`, so
-> `pnpm roadmap:check` rejects any status beyond `planned`. This package
-> stays `planned` until those dependencies complete; nothing downstream may
-> consume it yet.
+> Settled 18 September: `done` — `pnpm test:a01` passed in a detached clean
+> checkout at `9372c0f`; see Handoff.
 
 ## Outcome
 
@@ -94,7 +91,7 @@ An active local provider process can use stdio MCP to read exactly its run conte
 
 ## Handoff
 
-- State: implementation, `pnpm test:a01`, `pnpm verify`, `pnpm worktree:check`, `GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./...`, and the clean-checkout gate pass at the evidence commit. Status stays `planned` pending E01, L05, L06.
+- Settled 18 September: `done`. E01, L05, and L06 are `done`, and `pnpm test:a01` passed in a detached clean checkout at `9372c0f` (install, build, exact target with race-tested Go suites and the real-binary stdio harness).
 - Commands: `pnpm test:a01`; `pnpm verify`; `pnpm worktree:check`. The inspector-style session replay is `TestGoldenInspectorTranscript` in `internal/localmcp`.
 - L06 merge step: implement `ObservedBinding(ctx, ref) (SessionBinding, error)` from the hook journal's trusted observed-session record (match on execution ID, assignment generation, run ID; return `ErrSessionNotBound` while unbound) and replace `ProvisionalBindings` in `internal/cli/mcp.go`. No other A01 change needed; the activation race, competing-session, and provisional tests already cover the real source.
 - L05 merge step: replace `DaemonAssignments` with an exported L05 assignment reader returning the same `AssignmentRecord` fields (identity, correlation, supervisor/owned-group evidence, active states). Until then the adapter reads only stable L05 columns and the mirrored PID/group/start-identity subset, and `inspect_linux.go`/`inspect_darwin.go` mirror L05's start-identity formats; localmcp stays a leaf package so L05 test binaries never form an import cycle through the CLI. The peer-verification order and malicious-process suite are unchanged.

@@ -1,6 +1,6 @@
 # WP-X04 — GitHub evidence integration
 
-Status: `planned`
+Status: `done`
 
 Risk: High
 
@@ -8,11 +8,8 @@ Test target: `pnpm test:x04`
 
 Evidence manifest: `docs/work-packages/evidence/WP-X04/manifest.json`
 
-> Status note: implementation, gate, and evidence are complete and green on
-> this branch, but `roadmap:check` rejects any status beyond `planned` while
-> a dependency is not `done`. A03 and E01 are merged in this worktree but
-> still report `planned`, so this package stays `planned` pending A03 and
-> E01. The same note is recorded in `mvp.progress.md` and the Handoff below.
+> Settled 18 September: `done` — A03 and E01 are `done` and `pnpm test:x04`
+> passed in a detached clean checkout at `9372c0f`; see Handoff.
 
 ## Outcome
 
@@ -139,9 +136,11 @@ keep their own provenance.
 
 ## Handoff
 
-- Implementation, gate (`pnpm test:x04`), and evidence are complete on this
-  branch; status stays `planned` pending A03 and E01 per the note at the top
-  (mirrored in `mvp.progress.md`).
+- Settled 18 September: `done`. A03 and E01 are `done`, and `pnpm test:x04`
+  passed in a detached clean checkout at `9372c0f` (install, build, exact
+  target with the real-Worker/D1/Queue fault harness). A real GitHub App
+  installation still needs the secrets and Owner steps listed below; no
+  live GitHub proof is claimed.
 - A real GitHub App installation needs: App permissions exactly the
   read-side inventory in `docs/contracts/github.md` (metadata, pull
   requests, checks, commit statuses, issues, deployments); webhook events

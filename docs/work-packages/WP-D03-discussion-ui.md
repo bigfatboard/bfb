@@ -85,21 +85,25 @@ from committed state with no terminal scraping and no inferred completion.
   authorizes implementation; unavailable runners, checkouts, and profiles
   are actionable failures, not dead ends. A human decision references stored
   recommendations and never completes the task. Proven synthetic and
-  localhost; live real-provider smoke waits on L05 and provider credentials.
+  localhost; live real-provider smoke waits on D02 plus provider credentials
+  and consent (L05 done 18 September).
 - DG-02 — The task sheet renders the discussion timeline with two
   attributed independent positions before any rebuttal, queued/ack/completed
   delivery, current speaker, round, deadline, cancellation, failures, and
   ambiguous recovery. Proven synthetic and localhost; live multi-device
-  proof waits on L05 and provider credentials.
+  proof waits on D02 plus provider credentials and consent (L05 done
+  18 September).
 - DG-03 — An authorized human observes a six-turn exchange between Claude
   and Codex, sees Claude's final recommendation preserved even though the
   Codex rebuttal disagrees, intervenes, cancels, and records a decision at
   every step. Proven synthetic and localhost with synthetic sessions; live
-  real-provider smoke waits on L05 and provider credentials.
+  real-provider smoke waits on D02 plus provider credentials and consent
+  (L05 done 18 September).
 - Reconnect and resync: close and reopen renders the same committed state;
   online and offline behavior follows the existing cursor and replay model;
   no terminal scraping. Proven synthetic and localhost (browser reconnect
-  trace); cross-device proof waits on L05 and live providers.
+  trace); cross-device proof waits on D02 plus provider credentials and
+  consent (L05 done 18 September).
 - Negative matrix: actionable busy, offline, revoked, unsupported, and
   checkout-conflict states are explicit (never silent stuck loading).
   Proven synthetic and localhost.
@@ -135,10 +139,10 @@ from committed state with no terminal scraping and no inferred completion.
 
 ## Risks and decisions
 
-- Live real-provider turns and cross-device proof wait on L05 (live
-  supervised launches on this Mac are not certified) and on provider
-  credentials and consent. The smoke script runs only then; nothing is
-  faked.
+- Live real-provider turns and cross-device proof wait on D02 (planned
+  pending L07 review and P01) and on provider credentials and consent;
+  L05 supervised launches are certified done since 18 September. The
+  smoke script runs only then; nothing is faked.
 - Frozen harness time makes abuse windows accumulate across scenarios, so
   the e2e server exposes `/__test/ratelimit/reset` for per-scenario
   isolation. Abuse protection itself stays proven by the unit/worker gates;
@@ -164,6 +168,6 @@ from committed state with no terminal scraping and no inferred completion.
 - Live smoke: `node tools/discussion-smoke/smoke.mjs` (exits 2 with the
   pending list until `BFB_LIVE_SMOKE=1` with L05, credentials, consent).
 - Proven: every acceptance bullet synthetic and localhost (see Evidence).
-  Pending: live real-provider smoke and cross-device proof (need L05 done
-  plus provider credentials and consent). Status stays `planned` until
-  then.
+  Pending: live real-provider smoke and cross-device proof (need D02 done
+  plus provider credentials and consent; L05 done 18 September). Status
+  stays `planned` until then.

@@ -1,7 +1,7 @@
 {
   "$schema": "../manifest.schema.json",
   "package": "X05",
-  "tested_commit": "b304fb5a2904baf36ce79d0a7732d773f92eca77",
+  "tested_commit": "9372c0f569d7f7fb97376ce2cbea5ff931c637e9",
   "protocol_version": "bfb-wire/1",
   "schema_version": "1",
   "migration_head": "0034_operations",
@@ -12,30 +12,22 @@
     "browser": "chromium (playwright)"
   },
   "environment": {
-    "kind": "local",
+    "kind": "clean_checkout",
     "os": "macOS",
     "architecture": "arm64"
   },
   "commands": [
     {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed"
+    },
+    {
+      "command": "pnpm build",
+      "outcome": "passed"
+    },
+    {
       "command": "pnpm test:x05",
-      "outcome": "passed",
-      "artifact": "docs/work-packages/evidence/WP-X05/command-result.json"
-    },
-    {
-      "command": "pnpm verify",
-      "outcome": "passed",
-      "artifact": "docs/work-packages/evidence/WP-X05/command-result.json"
-    },
-    {
-      "command": "pnpm worktree:check",
-      "outcome": "passed",
-      "artifact": "docs/work-packages/evidence/WP-X05/command-result.json"
-    },
-    {
-      "command": "GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./...",
-      "outcome": "passed",
-      "artifact": "docs/work-packages/evidence/WP-X05/command-result.json"
+      "outcome": "passed"
     }
   ],
   "outcome": "passed",

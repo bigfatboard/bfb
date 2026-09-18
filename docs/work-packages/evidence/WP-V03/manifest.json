@@ -1,16 +1,20 @@
 {
-  "package": "WP-V03",
-  "tested_commit": "0e1869dde60b135ffeac21bf46ef293f73d8d99f",
-  "protocol_version": "bfb/worktree-contracts@1",
-  "schema_version": "bfb/evidence-manifest@1",
+  "$schema": "../manifest.schema.json",
+  "package": "V03",
+  "tested_commit": "9372c0f569d7f7fb97376ce2cbea5ff931c637e9",
+  "protocol_version": "bfb-wire/1",
+  "schema_version": "1",
   "migration_head": "0032_artifact_review",
   "toolchains": {
-    "node": "v24.19.0",
+    "node": "24.19.0",
     "pnpm": "11.21.0",
-    "go": "1.26.5",
-    "e2e_port": 4194
+    "go": "1.26.5"
   },
-  "environment": "local",
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2",
+    "architecture": "arm64"
+  },
   "commands": [
     {
       "command": "pnpm install --frozen-lockfile",
@@ -23,71 +27,24 @@
     {
       "command": "pnpm test:v03",
       "outcome": "passed"
-    },
-    {
-      "command": "pnpm verify",
-      "outcome": "passed"
-    },
-    {
-      "command": "pnpm worktree:check",
-      "outcome": "passed"
     }
   ],
   "outcome": "passed",
   "redaction": {
-    "status": "complete",
-    "notes": "Synthetic identities and digests only. No humans, credentials, tokens, cookies, IP addresses, local absolute paths, artifact bytes, or raw terminal output are retained."
+    "status": "passed",
+    "prohibited_content": []
   },
   "artifacts": [
-    {
-      "path": "docs/work-packages/evidence/WP-V03/command-result.json",
-      "kind": "command-result",
-      "description": "Bounded per-step outcome of pnpm test:v03 with counts and explicit non-claims."
-    },
-    {
-      "path": "docs/work-packages/evidence/WP-V03/review-binding.json",
-      "kind": "worker-harness",
-      "description": "Real-Worker/D1 snapshots: unapproved-new-version status, A04 stopped timer total, audit payload keys, and the 11 V03_D1_OK checks."
-    },
-    {
-      "path": "docs/work-packages/evidence/WP-V03/acceptance-matrix.md",
-      "kind": "acceptance-matrix",
-      "description": "Every V03 Scope and Acceptance bullet mapped to its automated proof in pnpm test:v03."
-    },
-    {
-      "path": "docs/work-packages/evidence/WP-V03/permission-matrix.md",
-      "kind": "permission-tests",
-      "description": "Reviewer project scoping and the ordinary-versus-elevated authority boundary with test pointers."
-    },
-    {
-      "path": "docs/work-packages/evidence/WP-V03/review-timer.md",
-      "kind": "timer-evidence",
-      "description": "Human-controlled A04 timer consumption: observation linkage, no V03 timer state, presence separation."
-    },
-    {
-      "path": "docs/work-packages/evidence/WP-V03/hostile-review.md",
-      "kind": "hostile-review",
-      "description": "Hostile note and preview isolation on the Review surface reusing the unmodified V02 viewer."
-    },
-    {
-      "path": "docs/work-packages/evidence/WP-V03/browser/review-flow.md",
-      "kind": "browser-flow",
-      "description": "Observed Chromium flow rows for approval, live conflict, hostile isolation, and presence separation."
-    },
-    {
-      "path": "docs/work-packages/evidence/WP-V03/browser/review-approved.png",
-      "kind": "screenshot",
-      "description": "Review surface showing exact-version approval with historical review and timer controls."
-    },
-    {
-      "path": "docs/work-packages/evidence/WP-V03/browser/review-conflict.png",
-      "kind": "screenshot",
-      "description": "Explicit stale-version conflict with reload recovery after a live publication."
-    },
-    {
-      "path": "docs/work-packages/evidence/WP-V03/browser/review-hostile.png",
-      "kind": "screenshot",
-      "description": "Hostile review note rendered as inert text beside the sandboxed preview frame."
-    }
+    "docs/work-packages/evidence/WP-V03/manifest.json",
+    "docs/work-packages/evidence/WP-V03/command-result.json",
+    "docs/work-packages/evidence/WP-V03/review-binding.json",
+    "docs/work-packages/evidence/WP-V03/acceptance-matrix.md",
+    "docs/work-packages/evidence/WP-V03/permission-matrix.md",
+    "docs/work-packages/evidence/WP-V03/review-timer.md",
+    "docs/work-packages/evidence/WP-V03/hostile-review.md",
+    "docs/work-packages/evidence/WP-V03/browser/review-flow.md",
+    "docs/work-packages/evidence/WP-V03/browser/review-approved.png",
+    "docs/work-packages/evidence/WP-V03/browser/review-conflict.png",
+    "docs/work-packages/evidence/WP-V03/browser/review-hostile.png"
   ]
 }

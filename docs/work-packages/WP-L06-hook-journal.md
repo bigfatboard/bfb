@@ -1,6 +1,6 @@
 # WP-L06 — Hook journal and offline inbox
 
-Status: `planned`
+Status: `done`
 
 Risk: Very high
 
@@ -90,7 +90,7 @@ Provider hooks return quickly while every accepted provider or daemon observatio
 
 ## Handoff
 
-- Implementation, gate and evidence are complete on this branch, but L05 is not `done`, so this package stays `planned` per the roadmap status rule and no later package may consume it yet.
+- Settled 18 September: `done`. L05 is `done`, and `pnpm test:l06` passed in a detached clean checkout at `9372c0f` (install, build, exact target with Go race suites and the fake-ingest harness). The evidence manifest is re-based on that rerun; the implementation evidence stays listed as manifest artifacts.
 - Commands: `pnpm test:l06`, `pnpm journal:fixtures`, `pnpm journal:fixtures --check` via `pnpm protocol:generate` for codec drift, `bfb hook ingest --provider <provider>`, `bfb hook status`.
 - Upload action `events/submit` is served today only by the F02 fake and the journal test double; E01 supplies the real ingest endpoint without changing journal deletion semantics.
 - The real Terminal acceptance that blocks L05 is orthogonal: the journal consumed only L05's SQLite assignment and observation state, which the backend proof exercises directly.

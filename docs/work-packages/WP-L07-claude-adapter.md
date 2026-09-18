@@ -1,6 +1,6 @@
 # WP-L07 — Claude Code reference adapter
 
-Status: `planned`
+Status: `review`
 
 Risk: High
 
@@ -120,9 +120,14 @@ A card can open a supported Claude Code version in the exact checkout, bind the 
 
 ## Handoff
 
-- State: adapter, parser, setup/doctor CLI, fixtures, and evidence exist on
-  this branch; `Status` stays `planned` because A01, E01, L05, and L06 are not
-  `done`, so `pnpm roadmap:check` rejects anything beyond `planned`.
+- Settled 18 September: `review`. A01, E01, L05, and L06 are `done`, and
+  `pnpm test:l07` passed in a detached clean checkout at `9372c0f`
+  (install, build, exact target with the 2.1.274/2.1.275 fixture suites).
+  Acceptance 3–7 stay proven as recorded below. Acceptance 1 (live chain:
+  card Start, Claude opens, trusted `SessionStart` binds, MCP context loads,
+  semantic events commit) and Acceptance 2 (resume on the same run) still
+  need a live Claude session: provider credentials and consent, which only
+  Timo can provide. No live model turn has run; nothing live is claimed.
 - Acceptance 3 (unknown version blocks tracked mode): proven. Any version
   other than `2.1.274`/`2.1.275` probes as `unknown_version` with no tracked
   capabilities; plan and doctor fail closed.
