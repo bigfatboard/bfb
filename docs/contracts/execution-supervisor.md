@@ -25,8 +25,14 @@ force the operating system to recycle a PID.
 app or controlling Terminal. It explicitly cannot satisfy Terminal acceptance.
 The real Terminal mode requires an available GUI session. Its native
 open/focus/control delivery passed the complete clean-checkout `test:l05`
-gate: real `focus_existing`, human-like Ctrl-C with exactly one SIGINT, and
-provider-only window close with verified whole-group release. Honest limits:
+gate at `d0b286d` with an exit-on-first-signal provider: real
+`focus_existing`, one observed SIGINT on Ctrl-C, and a provider-only
+window close with verified whole-group release. The gate now uses a
+counting provider instead: human-like Ctrl-C must show exactly one SIGINT
+with a duplicate-free settle while the provider is kept alive, and a
+provider-only close must show the kernel SIGHUP plus at most the
+helper-shutdown SIGTERM, never a third signal. That stronger form awaits
+its first signed Terminal run. Honest limits:
 a same-group survivor cannot outlive a real close (retention stays covered
 by the child and escape scenarios); the synthetic `--require-focus` routing
 section is not invoked by any gate; a cold start beyond the scripting-readiness

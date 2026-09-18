@@ -166,13 +166,32 @@ func main() {
 	}
 	deadline := time.NewTimer(90 * time.Second)
 	defer deadline.Stop()
+	// The signed Ctrl-C and close scenarios keep recording after their first
+	// signal so the gate observes duplicates instead of exiting blind. The
+	// dwell stays bounded so a real Terminal run always ends on its own.
+	const signalDwell = 15 * time.Second
+	var dwell <-chan time.Time
 	for number := 1; ; number++ {
 		select {
 		case sig := <-signals:
 			write(fmt.Sprintf("native-signal-%d.json", number), map[string]any{"signal": int(sig.(syscall.Signal)), "observed_at": time.Now().UTC().Format(time.RFC3339Nano)})
-			if configuration.Scenario != "ignore_interrupt" || sig != syscall.SIGINT {
+			switch configuration.Scenario {
+			case "ignore_interrupt":
+				if sig == syscall.SIGINT {
+					continue
+				}
+				return
+			case "ctrl_c", "close":
+				if dwell == nil {
+					timer := time.NewTimer(signalDwell)
+					defer timer.Stop()
+					dwell = timer.C
+				}
+			default:
 				return
 			}
+		case <-dwell:
+			return
 		case <-deadline.C:
 			write("native-timeout.json", map[string]bool{"timed_out": true})
 			return

@@ -515,11 +515,37 @@ func pollNative(limit time.Duration, check func() bool) bool {
 }
 
 func providerSignalled(f *nativeExecutionFixture, number int) bool {
+	signal, ok := providerSignalNumber(f, number)
+	return ok && signal != 0
+}
+
+func providerSignalNumber(f *nativeExecutionFixture, number int) (int, bool) {
 	data, err := os.ReadFile(filepath.Join(f.artifacts, fmt.Sprintf("native-signal-%d.json", number)))
 	var observed struct {
 		Signal int
 	}
-	return err == nil && json.Unmarshal(data, &observed) == nil && observed.Signal != 0
+	if err != nil || json.Unmarshal(data, &observed) != nil {
+		return 0, false
+	}
+	return observed.Signal, true
+}
+
+// assertNoProviderSignal fails fast when the numbered signal file appears
+// within the settle window and passes when the counting provider stayed
+// silent for the whole window. Callers keep the window inside the
+// fixture's counting dwell so absence is observed, not assumed.
+func assertNoProviderSignal(t *testing.T, f *nativeExecutionFixture, number int, settle time.Duration, label string) {
+	t.Helper()
+	deadline := time.Now().Add(settle)
+	for time.Now().Before(deadline) {
+		if _, ok := providerSignalNumber(f, number); ok {
+			t.Fatal(label)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if _, ok := providerSignalNumber(f, number); ok {
+		t.Fatal(label)
+	}
 }
 
 func (f *nativeExecutionFixture) control(t *testing.T, assignment LocalAssignment, action string) LocalCommand {
@@ -625,17 +651,14 @@ func TestSignedExecutionIntegration(t *testing.T) {
 				}
 				f.control(t, assignment, "focus_existing")
 				terminalKeystroke(t, `tell application "System Events" to key code 8 using control down`)
-				awaitNative(t, 10*time.Second, "provider received SIGINT through its Terminal foreground group", func() bool {
-					data, err := os.ReadFile(filepath.Join(f.artifacts, "native-signal-1.json"))
-					var interrupted struct {
-						Signal int
-					}
-					return err == nil && json.Unmarshal(data, &interrupted) == nil && interrupted.Signal == int(syscall.SIGINT)
+				awaitNative(t, 10*time.Second, "counting provider received SIGINT through its Terminal foreground group", func() bool {
+					signal, ok := providerSignalNumber(f, 1)
+					return ok && signal == int(syscall.SIGINT)
 				})
-				matches, err := filepath.Glob(filepath.Join(f.artifacts, "native-signal-*.json"))
-				if err != nil || len(matches) != 1 {
-					t.Fatalf("supervisor did not observe exactly one provider signal: %v", matches)
-				}
+				// The counting provider stays alive past the first SIGINT, so a
+				// supervisor duplicate would land in native-signal-2.json.
+				// Settle inside the counting dwell, then require its absence.
+				assertNoProviderSignal(t, f, 2, 5*time.Second, "supervisor sent a duplicate SIGINT after the Terminal Ctrl-C")
 			case "close":
 				if transport != "terminal" {
 					t.Skip("real Terminal window close requires the signed Terminal integration")
@@ -655,11 +678,35 @@ func TestSignedExecutionIntegration(t *testing.T) {
 				if !pollNative(5*time.Second, func() bool { return providerSignalled(f, 1) }) {
 					terminalKeystroke(t, `tell application "System Events" to key code 36`)
 				}
-				awaitNative(t, 20*time.Second, "provider observed the real window close exactly once", func() bool {
-					return providerSignalled(f, 1)
+				// A real window close reaches the foreground group as the kernel
+				// SIGHUP. The helper shutdown that follows sends one SIGTERM
+				// when the closing shell forwards the hangup; a shell that
+				// does not forward it ends with the single SIGHUP instead.
+				// The counting provider records whichever sequence occurs, so
+				// a duplicate or foreign signal cannot hide behind its exit.
+				var first time.Time
+				awaitNative(t, 20*time.Second, "counting provider observed the kernel window-close SIGHUP", func() bool {
+					signal, ok := providerSignalNumber(f, 1)
+					if ok && signal == int(syscall.SIGHUP) {
+						if first.IsZero() {
+							first = time.Now()
+						}
+						return true
+					}
+					return false
 				})
-				if matches, err := filepath.Glob(filepath.Join(f.artifacts, "native-signal-*.json")); err != nil || len(matches) != 1 {
-					t.Fatalf("window close signalled the provider %v times", matches)
+				settle := first.Add(11 * time.Second)
+				for time.Now().Before(settle) {
+					if signal, ok := providerSignalNumber(f, 2); ok && signal != int(syscall.SIGTERM) {
+						t.Fatal("window close delivered a second signal that was not the helper shutdown SIGTERM")
+					}
+					if _, ok := providerSignalNumber(f, 3); ok {
+						t.Fatal("window close signalled the provider more than SIGHUP plus shutdown SIGTERM")
+					}
+					time.Sleep(100 * time.Millisecond)
+				}
+				if _, ok := providerSignalNumber(f, 3); ok {
+					t.Fatal("window close signalled the provider more than SIGHUP plus shutdown SIGTERM")
 				}
 			case "escape":
 				child := f.spawnChild(t, assignment, true)
