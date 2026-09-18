@@ -1,6 +1,6 @@
 {
   "package": "G02",
-  "tested_commit": "478a85335d9a230fe369b82a491d3dd08208b25c",
+  "tested_commit": "cda5fed88c06aa186c7f3afc25f287551f5e5b7d",
   "environment": "implementation worktree on macOS (arm64); local workerd D1, real Chromium on BFB_E2E_PORT=4198",
   "outcome": "passed",
   "commands": [
