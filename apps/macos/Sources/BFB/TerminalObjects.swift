@@ -317,7 +317,21 @@ enum TerminalObjects {
   }
 
   static func open(command: String, intent: TerminalIntentID) throws {
-    let endpoint = try TerminalEndpoint.current()
+    // Terminal may still be launching after a quit or a cold start: wait
+    // briefly for its single running instance instead of failing a launch
+    // that only needs a moment to attach.
+    let deadline = Date().addingTimeInterval(3)
+    var endpoint: TerminalEndpoint
+    while true {
+      do {
+        endpoint = try TerminalEndpoint.current()
+        break
+      } catch {
+        if Date() >= deadline { throw error }
+        try Task.checkCancellation()
+        Thread.sleep(forTimeInterval: 0.05)
+      }
+    }
     let existing = try windowIDs(endpoint)
     let created = try send(
       endpoint, eventID: 0x646F_7363, direct: NSAppleEventDescriptor(string: command))

@@ -75,7 +75,7 @@ console.log("Native execution app: " + build.app);
 try {
   await run(
     build.helper,
-    ["-test.run=^TestSignedExecutionIntegration$", "-test.v", "-test.timeout=180s"],
+    ["-test.run=^TestSignedExecutionIntegration$", "-test.v", "-test.timeout=240s"],
     {
       env: {
         ...build.env,
