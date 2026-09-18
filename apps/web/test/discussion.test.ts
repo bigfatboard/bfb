@@ -209,10 +209,13 @@ function discussionView(overrides: Partial<DiscussionView> = {}): DiscussionView
   };
 }
 
+// Fixed identifiers keep the no-authority regex independent of random ULID content.
+const fixed = (n: number): string => `01JBFBD03F${String(n).padStart(16, "0")}`;
+
 describe("d03 discussion request builders", () => {
   it("emits the exact D01 create fields and no execution authority", () => {
     const body = buildCreateRequest({
-      taskId: randomUlid(),
+      taskId: fixed(1),
       expectedTaskVersion: 3,
       question: "Which synthetic alternative holds?",
       gitRevision: "a".repeat(40),
@@ -221,21 +224,21 @@ describe("d03 discussion request builders", () => {
       repositoryConfigVersion: 2,
       participants: [
         {
-          agentProfileId: randomUlid(),
+          agentProfileId: fixed(2),
           agentProfileVersion: 1,
-          runnerId: randomUlid(),
-          checkoutId: randomUlid(),
+          runnerId: fixed(3),
+          checkoutId: fixed(4),
         },
         {
-          agentProfileId: randomUlid(),
+          agentProfileId: fixed(5),
           agentProfileVersion: 1,
-          runnerId: randomUlid(),
-          checkoutId: randomUlid(),
+          runnerId: fixed(6),
+          checkoutId: fixed(7),
         },
       ],
       rounds: 3,
       durationSeconds: 900,
-      idempotencyKey: randomUlid(),
+      idempotencyKey: fixed(8),
     });
     for (const key of CREATE_REQUIRED_KEYS) {
       expect(body).toHaveProperty(key);
