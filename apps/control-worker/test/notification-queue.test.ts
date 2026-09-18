@@ -346,7 +346,21 @@ function messageFor(cursor: number, kind = "attention.request"): NotifyMessage {
   };
 }
 
-async function registerEndpoint(world: QueueWorld, humanId: string, tag: string): Promise<void> {
+function routedFetch(routes: Record<string, number>, calls: PushCall[]): typeof fetch {
+  return (async (url: unknown, init?: RequestInit) => {
+    const headers: Record<string, string> = {};
+    for (const [key, value] of new Headers(init?.headers).entries()) headers[key] = value;
+    calls.push({ url: String(url), headers, body: (init?.body as Uint8Array) ?? new Uint8Array() });
+    return new Response(null, { status: routes[String(url)] ?? 500 });
+  }) as typeof fetch;
+}
+
+async function registerEndpoint(
+  world: QueueWorld,
+  humanId: string,
+  tag: string,
+  now: string = NOW,
+): Promise<void> {
   const receiver = await receiverKeys();
   const hub = new WorkspaceHub(world.context.db);
   const outcome = await hub.execute(registerPushEndpointCommand, {
@@ -354,7 +368,7 @@ async function registerEndpoint(world: QueueWorld, humanId: string, tag: string)
     idempotencyKey: randomUlid(),
     actorHumanId: humanId,
     authorizationEpoch: 1,
-    now: NOW,
+    now,
     input: {
       endpoint: `https://push.synthetic.test/${tag}`,
       p256dh: receiver.p256dh,
@@ -506,6 +520,66 @@ describe("notification queue consumer", () => {
     expect(calls.length).toBe(1);
     const rows = await deliveries(world, world.cursor);
     expect(rows.find((row) => row.channel === "browser_push")?.state).toBe("failed");
+    const remaining = (await world.context.db
+      .prepare(`SELECT COUNT(*) AS count FROM notification_push_endpoints WHERE workspace_id = ?`)
+      .get(FIX.workspace)) as { count: number };
+    expect(remaining.count).toBe(0);
+  });
+
+  it("fails over to the live endpoint when the oldest expired", async () => {
+    const world = await seedQueueWorld("Synthetic X01 queue failover");
+    await registerEndpoint(world, FIX.owner, "x01-old", "2026-09-12T11:59:00.000Z");
+    await registerEndpoint(world, FIX.owner, "x01-new", NOW);
+    const calls: PushCall[] = [];
+    const dlq: DlqCopy[] = [];
+    const fetchImpl = routedFetch(
+      {
+        "https://push.synthetic.test/x01-old": 410,
+        "https://push.synthetic.test/x01-new": 201,
+      },
+      calls,
+    );
+    const deps = depsFor(world, { fetchImpl, vapid: await vapidSecrets(), dlq, calls });
+    const redelivery = batch([{ body: messageFor(world.cursor), attempts: 1 }]);
+    await handleNotifyQueue(redelivery.batch as never, deps, NOW, fetchImpl);
+    expect(redelivery.fakes[0]?.acked).toBe(true);
+    expect(calls.map((call) => call.url)).toEqual([
+      "https://push.synthetic.test/x01-old",
+      "https://push.synthetic.test/x01-new",
+    ]);
+    const rows = await deliveries(world, world.cursor);
+    expect(rows.find((row) => row.channel === "browser_push")?.state).toBe("delivered");
+    expect(dlq).toHaveLength(0);
+    const remaining = (await world.context.db
+      .prepare(
+        `SELECT endpoint FROM notification_push_endpoints WHERE workspace_id = ? ORDER BY endpoint`,
+      )
+      .all(FIX.workspace)) as Array<{ endpoint: string }>;
+    expect(remaining.map((row) => row.endpoint)).toEqual(["https://push.synthetic.test/x01-new"]);
+  });
+
+  it("marks endpoint_expired only after every endpoint expired", async () => {
+    const world = await seedQueueWorld("Synthetic X01 queue all expired");
+    await registerEndpoint(world, FIX.owner, "x01-gone-a", "2026-09-12T11:59:00.000Z");
+    await registerEndpoint(world, FIX.owner, "x01-gone-b", NOW);
+    const calls: PushCall[] = [];
+    const dlq: DlqCopy[] = [];
+    const fetchImpl = routedFetch(
+      {
+        "https://push.synthetic.test/x01-gone-a": 410,
+        "https://push.synthetic.test/x01-gone-b": 404,
+      },
+      calls,
+    );
+    const deps = depsFor(world, { fetchImpl, vapid: await vapidSecrets(), dlq, calls });
+    const redelivery = batch([{ body: messageFor(world.cursor), attempts: 1 }]);
+    await handleNotifyQueue(redelivery.batch as never, deps, NOW, fetchImpl);
+    expect(redelivery.fakes[0]?.acked).toBe(true);
+    expect(calls.length).toBe(2);
+    const rows = await deliveries(world, world.cursor);
+    const push = rows.find((row) => row.channel === "browser_push");
+    expect(push?.state).toBe("failed");
+    expect(push?.last_error).toContain("endpoint_expired");
     const remaining = (await world.context.db
       .prepare(`SELECT COUNT(*) AS count FROM notification_push_endpoints WHERE workspace_id = ?`)
       .get(FIX.workspace)) as { count: number };

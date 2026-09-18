@@ -141,25 +141,52 @@ export async function handleNotifyMessage(
       deliveryId: row.delivery_id,
       eventCursor: body.event_cursor,
     });
-    let status: number;
-    try {
-      const sent = await sendPushMessage(
-        {
-          endpoint: loaded.endpoint,
-          p256dh: loaded.p256dh,
-          auth: loaded.auth,
-          plaintext: new TextEncoder().encode(JSON.stringify(payload)),
-          vapid: secrets,
-          ttlSeconds: PUSH_TTL_SECONDS,
-          nowMs: Date.parse(now),
-        },
-        fetchImpl,
-      );
-      status = sent.status;
-    } catch {
-      status = 0;
+    const plaintext = new TextEncoder().encode(JSON.stringify(payload));
+    let delivered = false;
+    let retryableCode: string | null = null;
+    for (const target of loaded.endpoints) {
+      let status: number;
+      try {
+        const sent = await sendPushMessage(
+          {
+            endpoint: target.endpoint,
+            p256dh: target.p256dh,
+            auth: target.auth,
+            plaintext,
+            vapid: secrets,
+            ttlSeconds: PUSH_TTL_SECONDS,
+            nowMs: Date.parse(now),
+          },
+          fetchImpl,
+        );
+        status = sent.status;
+      } catch {
+        status = 0;
+      }
+      if (status === 200 || status === 201) {
+        delivered = true;
+        break;
+      }
+      if (status === 404 || status === 410) {
+        await deletePushEndpoint(
+          db,
+          body.workspace_id,
+          loaded.delivery.human_id,
+          target.endpoint_hash,
+        );
+        continue;
+      }
+      retryableCode = status === 0 ? "network_error" : `push_status_${status}`;
+      if (!exhausted) {
+        await recordDeliveryOutcome(db, {
+          workspaceId: body.workspace_id,
+          deliveryId: row.delivery_id,
+          outcome: { terminal: false, code: retryableCode },
+          now,
+        });
+      }
     }
-    if (status === 200 || status === 201) {
+    if (delivered) {
       await recordDeliveryOutcome(db, {
         workspaceId: body.workspace_id,
         deliveryId: row.delivery_id,
@@ -168,45 +195,41 @@ export async function handleNotifyMessage(
       });
       continue;
     }
-    if (status === 404 || status === 410) {
-      await deletePushEndpoint(db, body.workspace_id, loaded.delivery.human_id);
-      await recordDeliveryOutcome(db, {
-        workspaceId: body.workspace_id,
-        deliveryId: row.delivery_id,
-        outcome: { terminal: true, state: "failed", code: "endpoint_expired" },
-        now,
-      });
-      continue;
-    }
-    const code = status === 0 ? "network_error" : `push_status_${status}`;
-    if (exhausted) {
-      const outcome: DeliveryOutcome = { terminal: true, state: "dead_lettered", code };
-      await recordDeliveryOutcome(db, {
-        workspaceId: body.workspace_id,
-        deliveryId: row.delivery_id,
-        outcome,
-        now,
-      });
-      await sendDlqCopy(deps, {
-        schema_version: 1,
-        job_id: body.job_id,
-        workspace_id: body.workspace_id,
-        event_cursor: body.event_cursor,
-        delivery_id: row.delivery_id,
-        channel: "browser_push",
-        category: loaded.delivery.category,
-        attempts: message.attempts,
-        code,
-      });
+    if (retryableCode !== null) {
+      if (exhausted) {
+        const outcome: DeliveryOutcome = {
+          terminal: true,
+          state: "dead_lettered",
+          code: retryableCode,
+        };
+        await recordDeliveryOutcome(db, {
+          workspaceId: body.workspace_id,
+          deliveryId: row.delivery_id,
+          outcome,
+          now,
+        });
+        await sendDlqCopy(deps, {
+          schema_version: 1,
+          job_id: body.job_id,
+          workspace_id: body.workspace_id,
+          event_cursor: body.event_cursor,
+          delivery_id: row.delivery_id,
+          channel: "browser_push",
+          category: loaded.delivery.category,
+          attempts: message.attempts,
+          code: retryableCode,
+        });
+        continue;
+      }
+      needsRetry = true;
       continue;
     }
     await recordDeliveryOutcome(db, {
       workspaceId: body.workspace_id,
       deliveryId: row.delivery_id,
-      outcome: { terminal: false, code },
+      outcome: { terminal: true, state: "failed", code: "endpoint_expired" },
       now,
     });
-    needsRetry = true;
   }
   if (needsRetry) {
     message.retry();
