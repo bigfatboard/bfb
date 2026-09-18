@@ -339,6 +339,19 @@ export async function handleCliPublicApi(request: Request, deps: CliApiDeps): Pr
       const authorization = request.headers.get("authorization") ?? "";
       const match = /^Bearer ([A-Za-z0-9._~-]{1,512})$/.exec(authorization);
       if (!match?.[1]) return rejectUnauthenticated();
+      // Budget the presented credential hash before resolution so failed
+      // probes consume the same per-IP and per-credential budgets as
+      // successful ones; exhaustion rejects uniformly without an oracle.
+      if (
+        !(await consumeBudget(
+          deps,
+          request,
+          "cli:credential-session",
+          `session:${cliHash(match[1])}`,
+          "poll",
+        ))
+      )
+        return rejected();
       let principal;
       try {
         principal = await resolveCliPrincipal(deps.db, match[1], deps.now);
@@ -346,16 +359,6 @@ export async function handleCliPublicApi(request: Request, deps: CliApiDeps): Pr
         if (error instanceof DomainError && error.code === "forbidden") return rejected();
         return rejectUnauthenticated();
       }
-      if (
-        !(await consumeBudget(
-          deps,
-          request,
-          "cli:credential-session",
-          `session:${principal.bindingId}`,
-          "poll",
-        ))
-      )
-        return rejected();
       return response({
         human_id: principal.humanId,
         workspace_id: principal.workspaceId,

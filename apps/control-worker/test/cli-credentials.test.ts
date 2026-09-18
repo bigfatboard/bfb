@@ -545,4 +545,27 @@ describe("CLI device credentials", () => {
     expect(dump.includes(issued.user_code)).toBe(false);
     expect(dump.includes("192.0.2.")).toBe(false);
   });
+
+  it("budgets failed session probes before credential resolution", async () => {
+    const f = await fixture();
+    const bogus = `bfb_cli_${"A".repeat(43)}`;
+    async function probe(ip: string) {
+      return f.app().request(
+        new Request(ORIGIN + "/api/v1/cli/session", {
+          headers: { authorization: `Bearer ${bogus}`, "cf-connecting-ip": ip },
+        }),
+        undefined,
+        f.env,
+      );
+    }
+    for (let index = 0; index < 60; index += 1) {
+      expect((await probe("192.0.2.210")).status).toBe(401);
+    }
+    const exhausted = await probe("192.0.2.210");
+    expect(exhausted.status).toBe(403);
+    expect(await exhausted.json()).toEqual({
+      error: "request_rejected",
+      message: "request rejected",
+    });
+  });
 });

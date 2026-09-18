@@ -104,6 +104,11 @@ convention (`bfb task get --control-url URL TASK_ID`).
 - The CLI presents the human device credential as an `Authorization` bearer
   on `/api/v1/cli/*` only. Cookies and browser origins are rejected there
   with `credential_confusion`.
+- Every authenticated human-mirror request consumes the `cli:bearer-auth`
+  abuse budget (hashed IP plus hashed credential, polling tier) before the
+  credential resolves, so failed probes are rate-limited exactly like
+  successful ones; exhaustion answers uniform `request_rejected` with no
+  oracle detail.
 - Browser routes reject bearer credentials, runner routes demand possession
   proofs, and MCP demands OAuth: a CLI credential substitutes for none of
   them, and no runner, provider, or browser credential authenticates a CLI

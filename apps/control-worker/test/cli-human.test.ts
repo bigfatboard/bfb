@@ -935,4 +935,35 @@ describe("X02 human CLI surface", () => {
       expect(source.includes(owned)).toBe(true);
     }
   });
+
+  it("budgets failed bearer probes before the human D1 lookup", async () => {
+    const context = openAuthTestContext(NOW);
+    await seedSyntheticWorkspace(context.db, NOW);
+    const app = appFor(context);
+    const current = bindings(context);
+    const bogus = `bfb_cli_${"B".repeat(43)}`;
+    async function probe(ip: string) {
+      return app.request(
+        new Request(`${ORIGIN}/api/v1/cli/projects`, {
+          headers: { authorization: `Bearer ${bogus}`, "cf-connecting-ip": ip },
+        }),
+        undefined,
+        current,
+      );
+    }
+    // Sixty probes spread over six IPs stay under the per-IP budget; the
+    // final probe from a fresh IP proves the hashed-credential budget is
+    // what rejects, not the IP bucket.
+    for (let ip = 0; ip < 6; ip += 1) {
+      for (let index = 0; index < 10; index += 1) {
+        expect((await probe(`192.0.2.${220 + ip}`)).status).toBe(401);
+      }
+    }
+    const exhausted = await probe("192.0.2.227");
+    expect(exhausted.status).toBe(403);
+    expect(await exhausted.json()).toEqual({
+      error: "request_rejected",
+      message: "request rejected",
+    });
+  });
 });
