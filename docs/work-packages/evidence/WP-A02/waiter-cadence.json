@@ -1,0 +1,7 @@
+{
+  "pending_polls": 3,
+  "poll_states": ["open", "open", "open"],
+  "timeout_pending_polls": 5,
+  "repeat_reads": ["answered", "answered", "answered"],
+  "total_steps": 16
+}

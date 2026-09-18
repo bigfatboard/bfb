@@ -6,7 +6,7 @@
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo",
     "types": ["node"]
   },
-  "include": ["run.ts"],
+  "include": ["evidence.ts", "run.ts"],
   "references": [
     { "path": "../../packages/domain" },
     { "path": "../../packages/db" },

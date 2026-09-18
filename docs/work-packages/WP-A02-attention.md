@@ -53,7 +53,7 @@ An agent can request a typed human decision, a permitted human can answer it fro
 - `apps/control-worker/src/api/attention.ts`: ranked list, scoped read with observations, answer (409 carries the committed record on duplicates), and resolve routes.
 - `apps/web/src/attention/home.tsx`: ranked Attention home with answer/resolve actions and the native-permission notice.
 - `internal/localmcp/attention.go`: the three tool implementations plus the bounded wait over `WorkTransport.GetAttention`.
-- `tools/attention/run.ts`: the real-Worker/D1 fault harness writing `recording.jsonl` and `raw-timing-observations.json`.
+- `tools/attention/run.ts`: the real-Worker/D1 fault harness writing deterministic `recording.jsonl` and `waiter-cadence.json` (step outcomes only, so reruns are byte-identical).
 
 ## Work plan
 
@@ -75,8 +75,8 @@ An agent can request a typed human decision, a permitted human can answer it fro
 ## Evidence
 
 - `docs/work-packages/evidence/WP-A02/manifest.json` indexes the tested commit, migration head, toolchains, commands, and redaction status per the evidence manifest schema.
-- `recording.jsonl` traces one end-to-end run across two Workers and real D1 (migration, claim, request, idempotent replay, pending polls, answer, duplicate rejection, permission matrix, timeout/retry, guards, revocation, reconnect re-read, observations) with IDs, states, versions, and timings only.
-- `raw-timing-observations.json` carries the measured request/answer latencies and waiter poll cadence consumed by A04.
+- `recording.jsonl` traces one end-to-end run across two Workers and real D1 (migration, claim, request, idempotent replay, pending polls, answer, duplicate rejection, permission matrix, timeout/retry, guards, revocation, reconnect re-read, observations) with step outcomes, kinds, states, versions, and counts only — no run ids or wall-clock timings, so reruns are byte-identical and package verification ends with a clean worktree.
+- `waiter-cadence.json` carries the deterministic waiter poll cadence (pending-poll counts and repeated-read states). A04 derives latencies from committed attention timestamps, never from harness wall-clock.
 - `permission-matrix.md` tabulates the role/kind answer matrix; `timeout-reconnect-trace.md` narrates the bounded wait, retry, and eviction traces; `acceptance-matrix.md` maps each Acceptance bullet to its proving test; `command-result.json` records the `pnpm test:a02`, `pnpm verify`, `pnpm worktree:check`, Linux cross-build, and clean-checkout gate outcomes.
 - Evidence contains synthetic identities only: no bearer/grant secret, task body, local absolute path, environment value, or raw terminal output.
 
@@ -92,7 +92,7 @@ An agent can request a typed human decision, a permitted human can answer it fro
 
 - Settled 18 September: `done`. A01 and E02 are `done`, and `pnpm test:a02` passed in a detached clean checkout at `9372c0f` (install, build, exact target with the real-Worker/D1 fault harness, real-binary stdio purity, and browser spec).
 - Commands: `pnpm test:a02`; `pnpm verify`; `pnpm worktree:check`. The Worker/D1 fault flow is `tools/attention/run.ts`; the attention stdio cases are `internal/localmcp/attention_test.go` plus the golden transcript.
-- A04 consumes `attention_observations` (unique identity, actor provenance) and the raw `requested_at`/`first_response_at`/`resolved_at` timestamps plus `raw-timing-observations.json`; derivation and display belong to A04.
+- A04 consumes `attention_observations` (unique identity, actor provenance) and the raw `requested_at`/`first_response_at`/`resolved_at` timestamps plus the `waiter-cadence.json` poll/retry counts as a structural cross-check; derivation and display belong to A04.
 - X01 consumes committed `attention.request`/`attention.answer`/`attention.resolve` semantic events; it does not own attention truth and owns all external delivery.
 - L08 merge step: implement `WorkTransport.RequestAttention`/`GetAttention` over the runner channel client (rechecking runner credential, epoch, run capability, and run-boundary ownership; foreign records report `not_found`), exactly like the other `WorkTransport` methods. No CLI wiring change needed beyond the transport swap.
 - Known limitations: waits poll on a 100 ms cadence rather than waking on commit (E02 may add wake-ups later without changing the bound); browser signaling polls every 15 seconds until E02 sockets land; offline agents cannot request attention until the channel returns.

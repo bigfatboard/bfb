@@ -41,7 +41,7 @@ BFB shows human attention, process elapsed time, active agent work, waiting, and
 ### Consumes
 
 - [Event ledger v1](../contracts/event-ledger.md) (uniquely identified raw observations, heartbeats, replay-safe derivation source; E01 computes no intervals).
-- [Human attention workflow v1](../contracts/attention.md) (raw `attention_observations` plus `requested_at`/`first_response_at`/`answered_at`/`resolved_at`; A02 timing evidence in `evidence/WP-A02/raw-timing-observations.json`).
+- [Human attention workflow v1](../contracts/attention.md) (raw `attention_observations` plus `requested_at`/`first_response_at`/`answered_at`/`resolved_at`; A02 waiter-cadence counts in `evidence/WP-A02/waiter-cadence.json` as a structural cross-check).
 - [Result submission and acceptance v1](../contracts/results.md) (submission/review timestamps for run age, review counts for interventions).
 - Provider usage fields in `internal/providers/codex` (`exec`/`turn.completed` usage) and `internal/providers/claude` (hook usage) as normalization sources.
 - W01 task and run surfaces in `apps/web` and `packages/ui` (task-sheet slot, component conventions; E02 sockets not consumed).
