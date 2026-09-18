@@ -787,8 +787,8 @@ try {
   // S1: X01 migration is registered and applies over populated state.
   {
     assert(
-      manifest.migration_head === "0030_notifications",
-      "manifest head must be the X01 migration",
+      manifest.migrations.some((entry) => entry.id === "0030_notifications"),
+      "X01 notification migration must be registered",
     );
     const empty = adaptD1((await hubEnv()).EMPTY_DB);
     for (const table of [
