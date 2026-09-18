@@ -1,0 +1,51 @@
+{
+  "$schema": "../manifest.schema.json",
+  "artifacts": [
+    "browser/cancel.png",
+    "browser/decision.png",
+    "browser/eligibility.png",
+    "browser/intervention.png",
+    "browser/narrow.png",
+    "browser/negative-matrix.md",
+    "browser/reconnect-trace.md",
+    "browser/reconnect.png",
+    "browser/start.png",
+    "browser/timeline.png",
+    "command-result.json",
+    "local-runtime.md",
+    "manifest.json"
+  ],
+  "commands": [
+    {
+      "artifact": "command-result.json",
+      "command": "pnpm test:mvp-discussion",
+      "outcome": "passed"
+    },
+    {
+      "command": "node tools/discussion-smoke/smoke.mjs",
+      "outcome": "not_run"
+    }
+  ],
+  "environment": {
+    "architecture": "arm64",
+    "kind": "local",
+    "os": "macOS"
+  },
+  "migration_head": "d1:0025_discussion_delivery.sql;local:012_discussion_delivery.sql",
+  "outcome": "passed",
+  "package": "D03",
+  "protocol_version": "bfb-wire/1",
+  "redaction": {
+    "prohibited_content": [],
+    "status": "passed"
+  },
+  "schema_version": "1",
+  "tested_commit": "be679d86b63f8e0baa8cef8e8cc631e603a1a1db",
+  "toolchains": {
+    "go": "1.26.5",
+    "node": "24.19.0",
+    "playwright": "1.55.1",
+    "pnpm": "11.21.0",
+    "xcode": "26.0.1"
+  }
+}
