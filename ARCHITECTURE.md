@@ -115,7 +115,7 @@ The managed public shape is `https://bfb.<tld>` for the app, API, auth, and MCP;
 | Local runtime | One Go `bfb` binary | A small, distributable daemon/CLI with reliable process, socket, SQLite, and macOS integration primitives |
 | macOS shell | A thin native SwiftUI menu-bar application | Native Universal Links, Keychain, notifications, and app lifecycle without duplicating daemon logic |
 | Wire contracts | Versioned JSON Schema with generated TypeScript and Go types | Language-neutral event, command, and MCP contracts with cross-language golden tests |
-| Repository | One AGPL-3.0 monorepo | The local runner and hosted coordination behavior remain inspectable and self-hostable |
+| Repository | One Apache-2.0 monorepo | The local runner and hosted coordination behavior remain inspectable and self-hostable |
 
 Workers Static Assets is preferred over Pages because the assets and Worker can be deployed and routed together. Only `/api/*`, `/auth/*`, `/mcp`, `/realtime/*`, `/runner/*`, `/webhooks/*`, and OAuth discovery paths run Worker code first; all other requests use asset-first SPA routing. See Cloudflare’s [Static Assets routing](https://developers.cloudflare.com/workers/static-assets/routing/worker-script/) and [SPA routing](https://developers.cloudflare.com/workers/static-assets/routing/single-page-application/) documentation.
 

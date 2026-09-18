@@ -2,7 +2,7 @@
 
 BFB is a provider-neutral control plane where small teams coordinate coding agents, launch them in exact local checkouts, follow work live, route human attention, and review immutable evidence.
 
-The repository is an AGPL-3.0 monorepo for the Cloudflare control plane, web application, Go runner and CLI, and native macOS shell. Work is delivered through independently verifiable work packages.
+The repository is an Apache-2.0 monorepo for the Cloudflare control plane, web application, Go runner and CLI, and native macOS shell. Work is delivered through independently verifiable work packages.
 
 ## Bootstrap
 
@@ -53,3 +53,7 @@ The repository intentionally has no required `.env` file, machine-local path, or
 - [Contributing](CONTRIBUTING.md)
 - [Dependency policy](DEPENDENCIES.md)
 - [Security policy](SECURITY.md)
+
+## License
+
+BFB is licensed under the [Apache License 2.0](LICENSE). See [NOTICE](NOTICE) for attribution.
