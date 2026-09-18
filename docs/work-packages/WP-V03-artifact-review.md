@@ -9,7 +9,7 @@ Test target: `pnpm test:v03`
 Evidence manifest: `docs/work-packages/evidence/WP-V03/manifest.json`
 
 > Settled 18 September: `done` — `pnpm test:v03` passed in a detached clean
-> checkout at `9372c0f`; see Handoff.
+> checkout at `1c9ae54`; see Handoff.
 
 ## Outcome
 
@@ -96,7 +96,7 @@ A human reviews an exact artifact version and records approval, changes requeste
 
 ## Handoff
 
-- Settled 18 September: `done`. A03, A04, and V02 are `done`, and `pnpm test:v03` passed in a detached clean checkout at `9372c0f` (install, build, exact target with the real-Worker/D1 harness and 4 Chromium scenarios). The legacy evidence manifest is re-based on that rerun in the schema-conformant shape; the implementation evidence stays listed as manifest artifacts.
+- Settled 18 September: `done`. A03, A04, and V02 are `done`, and `pnpm test:v03` passed in a detached clean checkout at `1c9ae54` (install, build, exact target with the real-Worker/D1 harness and 4 Chromium scenarios). The legacy evidence manifest is re-based on that rerun in the schema-conformant shape; the implementation evidence stays listed as manifest artifacts.
 - Consume: `docs/contracts/artifact-review.md` (v1), domain command `artifact.record_review` plus reads `getArtifactReviewStatus`, `listArtifactReviews`, `listLinkedSubmissions`, `listArtifactsWithReviewState`, `artifactEvidenceVersionMap` in `packages/domain/src/artifact-reviews.ts`, REST routes under `/artifacts` and `/artifacts/:artifactId/reviews`, `ReviewPanel`/`ReviewView` in `apps/web/src/artifacts/ArtifactReview.tsx`.
 - A03: the run results read now passes the V03 evidence map so artifact-bound submissions read `evidence_changed`; submission storage and transitions are untouched.
 - V03 creates no second timer: review durations come from A04 `review_timer` reads and the reused `MeasurementsPanel`.

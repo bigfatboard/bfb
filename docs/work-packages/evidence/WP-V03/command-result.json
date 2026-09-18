@@ -1,6 +1,6 @@
 {
   "gate": "pnpm test:v03",
-  "tested_commit": "0e1869dde60b135ffeac21bf46ef293f73d8d99f",
+  "tested_commit": "1c9ae5499ff25a33b8da4c2ed24982c538612f02",
   "outcome": "passed",
   "steps": [
     {
@@ -34,6 +34,15 @@
       "command": "BFB_E2E_PORT=4194 pnpm exec playwright test apps/web/test/e2e/v03-review.spec.ts --config tools/e2e/playwright.config.ts",
       "outcome": "passed",
       "detail": "4 Chromium scenarios: history plus exact-version approval with run/task identity, live-publish conflict with reload recovery, hostile-note isolation with sandbox wiring, presence separation"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "detail": "format, lint, typecheck, protocol, provider, TypeScript suites (1264 tests across 103 files), headers, docs, roadmap (45 packages), Go, Swift/Xcode"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed"
     }
   ],
   "not_claimed": [
@@ -42,5 +51,8 @@
     "Approval inheritance, automatic result acceptance, merge/deploy permission",
     "Running local MVP or deployed behavior"
   ],
-  "retention": "Bounded assertions, counts, status snapshots, and synthetic fixture rows only. No secrets, digests in rate keys, IP addresses, local absolute paths, artifact bytes, or raw terminal output are retained."
+  "retention": "Bounded assertions, counts, status snapshots, and synthetic fixture rows only. No secrets, digests in rate keys, IP addresses, local absolute paths, artifact bytes, or raw terminal output are retained.",
+  "notes": [
+    "The exact gate passed from a detached clean checkout at the tested commit; evidence manifest and command results are docs-only additions after it, and pnpm verify plus pnpm worktree:check were re-run on the evidence tree."
+  ]
 }

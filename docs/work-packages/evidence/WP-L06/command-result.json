@@ -1,11 +1,11 @@
 {
   "package": "L06",
-  "tested_commit": "b0a4f7d050efff87af57f20c3a18180b8e33b374",
-  "recorded_on": "2026-09-17",
+  "tested_commit": "1c9ae5499ff25a33b8da4c2ed24982c538612f02",
+  "recorded_on": "2026-09-18",
   "automated_gate": "passed",
   "package_acceptance": "passed",
-  "package_status": "planned",
-  "status_note": "Implementation, gate and evidence are complete; the package stays planned because L05 is not done, and no later package may consume it yet.",
+  "package_status": "done",
+  "status_note": "Gate re-proven in a detached clean checkout at the tested commit after L05 reached done; evidence manifest and command results are docs-only additions after it, and repository verification, Swift/Xcode checks and the worktree check were re-run on the evidence tree. No later package may consume L06 beyond the recorded dependency edges.",
   "checkout": {
     "detached": true,
     "clean_before_install": true,
@@ -14,17 +14,18 @@
   "checks": {
     "journal_fixture_generation": 13,
     "protocol_fixture_and_codegen_drift": "passed",
-    "protocol_typescript_tests": 434,
+    "protocol_typescript_tests": 438,
     "protocol_go_differential_fixtures": "passed",
-    "journal_go_race_tests": 25,
+    "journal_go_race_tests": "passed",
     "daemon_go_race_tests": "passed",
     "cli_go_race_tests": "passed",
     "supervisor_go_race_tests": "passed",
+    "bfb_binary_go_race_tests": "passed",
     "supervisor_backend_adapter": "passed",
     "fake_ingest_acceptance_checks": 6,
+    "linux_amd64_cross_build": "passed",
     "repository_verification": "passed",
     "repository_swift_xcode_checks": "passed",
-    "linux_amd64_cross_build": "passed",
     "worktree_check": "passed"
   },
   "fault_matrix_assertions": {

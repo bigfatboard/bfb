@@ -1,7 +1,7 @@
 {
   "$schema": "../manifest.schema.json",
   "package": "A03",
-  "tested_commit": "9372c0f569d7f7fb97376ce2cbea5ff931c637e9",
+  "tested_commit": "1c9ae5499ff25a33b8da4c2ed24982c538612f02",
   "protocol_version": "bfb-wire/1",
   "schema_version": "1",
   "migration_head": "0024_result_submissions",
@@ -20,15 +20,23 @@
   "commands": [
     {
       "command": "pnpm install --frozen-lockfile",
-      "outcome": "passed"
-    },
-    {
-      "command": "pnpm build",
-      "outcome": "passed"
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-A03/command-result.json"
     },
     {
       "command": "pnpm test:a03",
-      "outcome": "passed"
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-A03/command-result.json"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-A03/command-result.json"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-A03/command-result.json"
     }
   ],
   "outcome": "passed",

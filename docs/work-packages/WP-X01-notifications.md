@@ -9,7 +9,7 @@ Test target: `pnpm test:x01`
 Evidence manifest: `docs/work-packages/evidence/WP-X01/manifest.json`
 
 > Settled 18 September: `done` — `pnpm test:x01` passed in a detached clean
-> checkout at `9372c0f`; see Handoff.
+> checkout at `1c9ae54`; see Handoff.
 
 ## Outcome
 
@@ -80,7 +80,7 @@ Humans receive deduplicated browser/macOS notifications for actionable committed
 
 ## Handoff
 
-- Settled 18 September: `done`. A02, A03, and E02 are `done`, and `pnpm test:x01` passed in a detached clean checkout at `9372c0f` (install, build, exact target with the real-Worker/D1/Queue harness). The evidence manifest is re-based on that rerun; the implementation evidence stays listed as manifest artifacts. Structural repair in this flip: the package declared its contract under a `## Produces` heading with no `### Consumes`, which `pnpm roadmap:check` rejects for any status beyond `planned`. It now uses a `## Contracts` section with `### Consumes` (A02/A03 trigger sources and the L04 pull/ack boundary, all restated from the Scope and Handoff) and the unchanged `### Produces` content; no product claim was added.
+- Settled 18 September: `done`. A02, A03, and E02 are `done`, and `pnpm test:x01` passed in a detached clean checkout at `1c9ae54` (install, build, exact target with the real-Worker/D1/Queue harness). The evidence manifest is re-based on that rerun; the implementation evidence stays listed as manifest artifacts. Structural repair in this flip: the package declared its contract under a `## Produces` heading with no `### Consumes`, which `pnpm roadmap:check` rejects for any status beyond `planned`. It now uses a `## Contracts` section with `### Consumes` (A02/A03 trigger sources and the L04 pull/ack boundary, all restated from the Scope and Handoff) and the unchanged `### Produces` content; no product claim was added.
 - Commands: `pnpm test:x01`; `pnpm verify`; `pnpm worktree:check`. The Worker/D1/Queue flow is `tools/notifications/run.ts`; the macOS poller cases are `internal/notify/notify_test.go` and the bridge proof is `internal/appbridge/notify_x01_test.go`.
 - X04 shares the Queue/DLQ machinery with distinct additive `bfb-notify-*` names and consumer registrations; X01 consumes committed `attention.request` and A03 result events and never notification state as domain truth.
 - X05 consumes the delivery records and DLQ visibility; notification content stays redacted and preference-gated.
