@@ -25,6 +25,7 @@ interface FixturePackage {
   evidenceManifest?: string;
   consumes?: string;
   handoff?: string;
+  acceptance?: string;
 }
 
 function packageSource(fixture: FixturePackage): string {
@@ -69,6 +70,9 @@ function packageSource(fixture: FixturePackage): string {
     "- A frozen output contract.",
     "",
     fixture.handoff === undefined ? "" : ["## Handoff", "", fixture.handoff, ""].join("\n"),
+    fixture.acceptance === undefined
+      ? ""
+      : ["## Acceptance", "", fixture.acceptance, ""].join("\n"),
     fixture.extra ?? "",
   ].join("\n");
 }
@@ -542,6 +546,117 @@ describe("work-package roadmap", () => {
     ]);
     await writeEvidence(root, "F01");
     await writeEvidence(root, "F02");
+    await writeGeneratedRoadmap(root);
+
+    await expect(inspectRoadmap(root)).resolves.toMatchObject({ issues: [] });
+  });
+
+  test("rejects a settled package that describes a done dependency with until-lands prose", async () => {
+    const root = await fixtureRoot([
+      { id: "F01", status: "done", readyMetadata: true, unlocks: ["F02"] },
+      {
+        id: "F02",
+        status: "review",
+        readyMetadata: true,
+        requires: ["F01"],
+        handoff: "- Stays at `planned` until F01 lands (roadmap rule).",
+      },
+    ]);
+    await writeEvidence(root, "F01");
+    await writeEvidence(root, "F02");
+
+    const inspection = await inspectRoadmap(root);
+    expect(
+      inspection.issues.some((issue) =>
+        issue.message.includes("F02 describes done dependency F01 as still outstanding"),
+      ),
+    ).toBe(true);
+  });
+
+  test("accepts forward-looking when-lands prose about a done dependency", async () => {
+    const root = await fixtureRoot([
+      { id: "F01", status: "done", readyMetadata: true, unlocks: ["F02"] },
+      {
+        id: "F02",
+        status: "review",
+        readyMetadata: true,
+        requires: ["F01"],
+        handoff: "- Designate parity work there when F01 lands.",
+      },
+    ]);
+    await writeEvidence(root, "F01");
+    await writeEvidence(root, "F02");
+    await writeGeneratedRoadmap(root);
+
+    await expect(inspectRoadmap(root)).resolves.toMatchObject({ issues: [] });
+  });
+
+  test("rejects a done package with unchecked acceptance items", async () => {
+    const root = await fixtureRoot([
+      {
+        id: "F01",
+        status: "done",
+        readyMetadata: true,
+        acceptance: "- [ ] First claim proven.\n- [ ] Second claim proven.",
+      },
+    ]);
+    await writeEvidence(root, "F01");
+
+    const inspection = await inspectRoadmap(root);
+    expect(
+      inspection.issues.some((issue) =>
+        issue.message.includes("F01 has 2 unchecked Acceptance items but F01 is `done`"),
+      ),
+    ).toBe(true);
+  });
+
+  test("accepts a done package with checked acceptance items", async () => {
+    const root = await fixtureRoot([
+      {
+        id: "F01",
+        status: "done",
+        readyMetadata: true,
+        acceptance: "- [x] First claim proven.\n- [x] Second claim proven.",
+      },
+    ]);
+    await writeEvidence(root, "F01");
+    await writeGeneratedRoadmap(root);
+
+    await expect(inspectRoadmap(root)).resolves.toMatchObject({ issues: [] });
+  });
+
+  test("rejects a settled V01 whose acceptance drops the same-hash claim", async () => {
+    const root = await fixtureRoot([
+      {
+        id: "V01",
+        status: "done",
+        readyMetadata: true,
+        acceptance: "- Upload-grant state machine authorized end to end.",
+      },
+    ]);
+    await writeEvidence(root, "V01");
+
+    const inspection = await inspectRoadmap(root);
+    expect(
+      inspection.issues.some((issue) =>
+        issue.message.includes(
+          "V01 is the SG-03 primary but its Acceptance states no same-hash no-overwrite claim",
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  test("accepts a settled V01 whose acceptance keeps the same-hash claim", async () => {
+    const root = await fixtureRoot([
+      {
+        id: "V01",
+        status: "done",
+        readyMetadata: true,
+        acceptance:
+          "- Same-hash concurrent publication never overwrites bytes and may back distinct logical versions.",
+      },
+    ]);
+    await writeEvidence(root, "V01");
     await writeGeneratedRoadmap(root);
 
     await expect(inspectRoadmap(root)).resolves.toMatchObject({ issues: [] });

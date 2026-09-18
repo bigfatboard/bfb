@@ -514,7 +514,8 @@ function validateSettledProse(
     }
     for (const bullet of splitBullets(source)) {
       const waits = /\bwaits?\s+on\b/u.test(bullet);
-      if (!waits && !/\bpending\s+[A-Z]/u.test(bullet)) {
+      const untilLands = /\buntil\s+[A-Z][A-Z0-9]*\s+lands\b/u.test(bullet);
+      if (!waits && !/\bpending\s+[A-Z]/u.test(bullet) && !untilLands) {
         continue;
       }
       for (const requirement of workPackage.requires) {
@@ -523,7 +524,10 @@ function validateSettledProse(
         }
         const mentioned = new RegExp("\\b" + requirement + "\\b", "u").test(bullet);
         const pending = new RegExp("\\bpending\\s+" + requirement + "\\b", "u").test(bullet);
-        if (mentioned && (waits || pending)) {
+        const landsAfter = new RegExp("\\buntil\\s+" + requirement + "\\s+lands\\b", "u").test(
+          bullet,
+        );
+        if (mentioned && (waits || pending || landsAfter)) {
           issues.push({
             code: "metadata",
             message:
@@ -533,6 +537,37 @@ function validateSettledProse(
               " as still outstanding",
           });
         }
+      }
+    }
+    if (workPackage.status === "done") {
+      const unchecked = sectionBody(source, "Acceptance")
+        .split("\n")
+        .filter((line) => /^-\s+\[\s\]/u.test(line));
+      if (unchecked.length > 0) {
+        issues.push({
+          code: "metadata",
+          message:
+            workPackage.id +
+            " has " +
+            unchecked.length +
+            " unchecked Acceptance item" +
+            (unchecked.length === 1 ? "" : "s") +
+            " but " +
+            workPackage.id +
+            " is `done`",
+        });
+      }
+    }
+    if (workPackage.id === "V01") {
+      // V01 owns SG-03 (ACCEPTANCE.md): its Acceptance must keep stating the
+      // same-hash no-overwrite claim so readers find the primary proof.
+      const acceptance = sectionBody(source, "Acceptance");
+      if (!/same-hash/iu.test(acceptance) || !/overwrit/iu.test(acceptance)) {
+        issues.push({
+          code: "metadata",
+          message:
+            "V01 is the SG-03 primary but its Acceptance states no same-hash no-overwrite claim",
+        });
       }
     }
   }
