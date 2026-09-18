@@ -136,7 +136,8 @@ A card can open a supported Claude Code version in the exact checkout, bind the 
   transaction for both user-level files, including idempotent no-op runs.
 - Acceptance 5 (replaced binary/config detected before `exec`): proven at
   the adapter layer (probe identity, `Revalidate`, integration-hash drift);
-  L05's pre-exec consumption of that revalidation waits on L05.
+  L05's pre-exec consumption runs in the production daemon through its
+  launch installation, which fingerprints the same hook/MCP sources.
 - Acceptance 6 (duplicate hooks diagnosed, concurrent deliveries safe):
   proven. Identical deliveries share one content-derived suppression
   identity; duplicates, drift, and concurrent edits are diagnosed; the

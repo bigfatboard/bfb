@@ -103,6 +103,14 @@ and joins those workers before closing private assignment files. Registered
 executions remain owned by native lifecycle observation, not by the unstarted
 cleanup path. Missing provider adapters/installations fail closed; the fake provider
 is available only through a compiled synthetic-harness installation boundary.
+The production daemon resolves each real provider to its setup-published
+installation before probing: the `PATH` binary, the hook/MCP sources under the
+provider home (`BFB_CLAUDE_HOME` or the user home for Claude, `CODEX_HOME` or
+`~/.codex` for Codex, `GROK_HOME` or `~/.grok` for Grok), and the matching
+integration hash (content-derived for Claude, the packaged identity for
+Codex/Grok). Probe, plan, preparation and pre-exec revalidation therefore
+fingerprint the same files the launch depends on; replacing any of them
+between probe and exec blocks tracked launch.
 
 After that transaction, registration atomically publishes the strict assignment in
 the user-private `execution-records` directory, authenticated over both its bytes
