@@ -22,6 +22,7 @@ import {
   humanQuestions,
   independentPositions,
   openDisagreements,
+  resolveFrozenRevision,
   resolveSlotCheckout,
   totalRounds,
   type CheckoutInput,
@@ -365,6 +366,47 @@ describe("d03 participant eligibility", () => {
     expect(`${result.headline} ${result.nextAction}`).not.toMatch(/has not reported/i);
     expect(result.nextAction).toMatch(/failed or was rejected/);
     expect(canStartDiscussion(result, slot())).toBe(false);
+  });
+
+  it("freezes the shared observed head, never a fabricated placeholder", () => {
+    const head = "d".repeat(40);
+    const frozen = resolveFrozenRevision(head, head);
+    expect(frozen).toEqual({ ok: true, revision: head });
+    if (frozen.ok) {
+      expect(frozen.revision).not.toBe("0".repeat(40));
+    } else {
+      throw new Error("matching observed heads must freeze");
+    }
+    expect(resolveFrozenRevision("e".repeat(64), "e".repeat(64))).toEqual({
+      ok: true,
+      revision: "e".repeat(64),
+    });
+  });
+
+  it("blocks the start while a checkout head is unobserved or malformed", () => {
+    for (const [first, second] of [
+      [undefined, "d".repeat(40)],
+      ["d".repeat(40), undefined],
+      [undefined, undefined],
+      ["main", "d".repeat(40)],
+      ["d".repeat(40), "0".repeat(39)],
+    ] as const) {
+      const frozen = resolveFrozenRevision(first, second);
+      expect(frozen.ok).toBe(false);
+      if (!frozen.ok) {
+        expect(frozen.headline).toBe("Checkout head unavailable");
+        expect(frozen.nextAction).toMatch(/observed Git head/);
+      }
+    }
+  });
+
+  it("blocks the start when the checkouts disagree instead of favoring one side", () => {
+    const frozen = resolveFrozenRevision("d".repeat(40), "e".repeat(40));
+    expect(frozen.ok).toBe(false);
+    if (!frozen.ok) {
+      expect(frozen.headline).toBe("Checkouts disagree on the commit");
+      expect(frozen.nextAction).toMatch(/same observed Git head/);
+    }
   });
 
   it("resolves the automatic slot to the task project checkout, not the first inventory entry", () => {

@@ -14,6 +14,7 @@ import {
 import {
   canStartDiscussion,
   describeSlotEligibility,
+  resolveFrozenRevision,
   resolveSlotCheckout,
   type CheckoutInput,
   type EligibilityResult,
@@ -60,6 +61,7 @@ function toCheckoutInput(
     status: checkout.status,
     ...(checkout.block_reason ? { block_reason: checkout.block_reason } : {}),
     inventory_valid: valid,
+    ...(checkout.head === undefined ? {} : { head: checkout.head }),
   };
 }
 
@@ -259,10 +261,19 @@ export function DiscussionStart(props: DiscussionStartProps) {
 
   const firstEligibility = slotEligibility(first);
   const secondEligibility = slotEligibility(second);
-  const ready =
+  const slotsReady =
     firstEligibility !== null &&
     secondEligibility !== null &&
     canStartDiscussion(firstEligibility, secondEligibility);
+
+  function slotCheckoutHead(slot: SlotSelection): string | undefined {
+    const runnerId = slot.runnerId || defaultRunnerId;
+    const status = runnerId ? statuses[runnerId] : undefined;
+    return resolveSlotCheckout(status?.checkouts ?? [], slot.checkoutId, props.projectId)?.head;
+  }
+
+  const frozen = resolveFrozenRevision(slotCheckoutHead(first), slotCheckoutHead(second));
+  const ready = slotsReady && frozen.ok;
 
   if (!canManage) {
     return null;
@@ -370,7 +381,7 @@ export function DiscussionStart(props: DiscussionStartProps) {
         className="stacked-form"
         onSubmit={(event) => {
           event.preventDefault();
-          if (!ready || !policy || busy) {
+          if (!ready || !policy || busy || !frozen.ok) {
             return;
           }
           const resolve = (slot: SlotSelection): SlotSelection => {
@@ -404,7 +415,7 @@ export function DiscussionStart(props: DiscussionStartProps) {
             taskId: props.taskId,
             expectedTaskVersion: props.taskVersion,
             question: question.trim(),
-            gitRevision: "0".repeat(40),
+            gitRevision: frozen.revision,
             workspacePolicyVersion: policy.workspace,
             projectPolicyVersion: policy.project,
             repositoryConfigVersion: policy.config,
@@ -501,7 +512,9 @@ export function DiscussionStart(props: DiscussionStartProps) {
         </button>
         {!ready ? (
           <p className="section-help" data-testid="discussion-start-blocked">
-            Both slots must be eligible before the discussion can start.
+            {slotsReady && !frozen.ok
+              ? `${frozen.headline}. ${frozen.nextAction}`
+              : "Both slots must be eligible before the discussion can start."}
           </p>
         ) : null}
       </form>

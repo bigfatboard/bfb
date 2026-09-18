@@ -28,6 +28,7 @@ export interface CheckoutInput {
   status: "registered" | "validated" | "stale" | "blocked";
   block_reason?: string;
   inventory_valid: boolean;
+  head?: string;
 }
 
 export interface ProfileEligibilityInput {
@@ -137,6 +138,48 @@ export function describeSlotEligibility(input: ProfileEligibilityInput): Eligibi
 
 export function canStartDiscussion(first: EligibilityResult, second: EligibilityResult): boolean {
   return first.status === "eligible" && second.status === "eligible";
+}
+
+const GIT_REVISION_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
+
+export type FrozenRevision =
+  { ok: true; revision: string } | { ok: false; headline: string; nextAction: string };
+
+/**
+ * Resolves the single Git revision the brief freezes from both slots'
+ * observed checkout heads. The heads are Mac-reported inventory, already
+ * scoped to the task's project by slot resolution. A missing or malformed
+ * head means the Mac has not proven its commit, and disagreeing heads mean
+ * no single revision is honest for both participants: both stay actionable
+ * blocks, never a fabricated placeholder. The frozen revision is still a
+ * request until delivery verifies it locally.
+ */
+export function resolveFrozenRevision(
+  firstHead: string | undefined,
+  secondHead: string | undefined,
+): FrozenRevision {
+  if (
+    !firstHead ||
+    !secondHead ||
+    !GIT_REVISION_PATTERN.test(firstHead) ||
+    !GIT_REVISION_PATTERN.test(secondHead)
+  ) {
+    return {
+      ok: false,
+      headline: "Checkout head unavailable",
+      nextAction:
+        "Both checkouts must report an observed Git head before the discussion can freeze a revision. Wake the Mac or wait for its next inventory report.",
+    };
+  }
+  if (firstHead !== secondHead) {
+    return {
+      ok: false,
+      headline: "Checkouts disagree on the commit",
+      nextAction:
+        "Both checkouts must report the same observed Git head so the brief freezes one revision. Sync the Macs to the same commit, then start again.",
+    };
+  }
+  return { ok: true, revision: firstHead };
 }
 
 export interface Speaker {
