@@ -26,7 +26,9 @@ are closed objects; unknown provider fields fail validation.
 `POST /runner/workspaces/:workspace/runners/:runner/events/ingest`
 
 - C06 request-bound possession authentication (`X-BFB-Runner-Proof`), the same
-  transport guard and durable abuse budgets as the launch/channel routes.
+  transport guard and the recurring-channel durable abuse budgets (120 attempts
+  per enrollment, 1,024 per IP per minute), not the bootstrap tier. Ingest is
+  recurring telemetry: one batch per enrollment per 5 s tick.
   Uniform `request_rejected` failures reveal nothing about workspace state.
 - Body (at most 65,536 bytes):
   `{"schema_version": 1, "events": [<runner-event-submission>, ...]}`,

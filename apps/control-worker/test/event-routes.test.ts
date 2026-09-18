@@ -90,7 +90,12 @@ async function fixture() {
     .run(JSON.stringify(claims), runnerHash(secret), f.principal.tokenId);
   const token = encodeRunnerToken(claims, secret);
   const nativePrefix = `/runner/workspaces/${FIX.workspace}/runners/${f.runner}`;
-  async function signed(action: string, body: unknown, raw?: string) {
+  async function signed(
+    action: string,
+    body: unknown,
+    raw?: string,
+    headers: Record<string, string> = {},
+  ) {
     const bytes = raw ?? JSON.stringify(body),
       path = `${nativePrefix}/${action}`;
     const challengeResponse = await app().request(
@@ -124,7 +129,7 @@ async function fixture() {
     ).toString("base64url");
     return new Request(ORIGIN + path, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-bfb-runner-proof": proof },
+      headers: { "content-type": "application/json", "x-bfb-runner-proof": proof, ...headers },
       body: bytes,
     });
   }
@@ -356,6 +361,29 @@ describe("event ingest and replay routes", () => {
       ).status,
     ).toBe(403);
     expect((await f.send(await f.signed("events/ingest", [1, 2, 3], "[1,2,3]"))).status).toBe(403);
+  });
+
+  it("budgets recurring event ingest at the channel tier, not the bootstrap tier", async () => {
+    const f = await fixture();
+    const { run_execution_id: executionId, assignment_generation: generation } =
+      await f.startAndClaim();
+    const stream = randomUlid();
+    // The daemon uploads one batch per enrollment per 5 s tick (up to 12/min),
+    // so two enrollments behind one NAT address exceed the 20/min bootstrap
+    // budget. Ingest shares the recurring-channel tier instead: 120 per
+    // enrollment and 1,024 per IP per minute.
+    const ip = { "cf-connecting-ip": "192.0.2.21" };
+    for (let index = 0; index < 25; index += 1) {
+      const response = await f.send(
+        await f.signed(
+          "events/ingest",
+          batch(executionId, generation, stream, 1 + index, ["heartbeat"]),
+          undefined,
+          ip,
+        ),
+      );
+      expect(response.status, await response.clone().text()).toBe(200);
+    }
   });
 
   it("keeps browser replay read-only and fenced to workspace members", async () => {

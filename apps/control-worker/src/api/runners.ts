@@ -53,7 +53,8 @@ const POLICY = {
 } as const;
 
 // Authenticated channel traffic includes a new request challenge for each page,
-// heartbeat recovery pull and inventory. Keep the unauthenticated token-bootstrap
+// heartbeat recovery pull and inventory, plus one recurring E01 event-ingest
+// batch per enrollment per 5 s tick. Keep the unauthenticated token-bootstrap
 // limit separate; one Mac may have sixteen active workspace enrollments.
 const CHANNEL_POLICY = { ...POLICY, attemptLimit: 120, pollLimit: 120 } as const;
 const CHANNEL_IP_POLICY = { ...POLICY, attemptLimit: 1024, pollLimit: 1024 } as const;
@@ -64,6 +65,7 @@ const CHANNEL_SURFACES = new Set([
   "commands/pull",
   "inventory",
   "leases/observe",
+  "events/ingest",
 ]);
 
 function response(body: unknown, status = 200): Response {
