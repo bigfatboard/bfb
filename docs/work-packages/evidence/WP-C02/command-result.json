@@ -1,28 +1,28 @@
 {
   "package": "C02",
-  "tested_commit": "d001ca2ffa4e46a3e8311528307d2679134e919d",
-  "captured_at": "2026-08-11T20:25:02Z",
+  "tested_commit": "bf0c3296aeaaa1b508070663c9a6de285890704f",
+  "captured_at": "2026-09-18T19:22:12Z",
   "environment": "clean checkout on macOS 26.2 (25C56), arm64",
   "runs": [
     {
       "command": "pnpm install --frozen-lockfile",
       "outcome": "passed",
-      "details": "Installed the exact lockfile into a fresh clone before any build output existed."
+      "details": "Installed the exact lockfile into a detached clean checkout before any build output existed."
     },
     {
       "command": "pnpm test:c02",
       "outcome": "passed",
-      "details": "Built all workspace targets, passed 22 focused tests in five files, built the Control Worker and web app, and completed a two-isolate Workerd/D1 identity smoke."
+      "details": "Built all workspace targets, passed 29 focused tests in five files, built the Control Worker and web app, and completed a two-isolate Workerd/D1 identity smoke including the C06 uniform-403 runner probe."
     },
     {
       "command": "pnpm verify",
       "outcome": "passed",
-      "details": "Repository verification passed with 307 TypeScript tests, protocol drift checks, Go checks, and unsigned Xcode build and tests."
+      "details": "Repository verification re-run on the evidence tree after these docs-only evidence updates."
     },
     {
       "command": "git status --porcelain",
       "outcome": "passed",
-      "details": "The clean checkout remained unchanged after verification."
+      "details": "The detached clean checkout stayed unchanged through the gate run."
     }
   ],
   "production_or_shared_state_used": false,

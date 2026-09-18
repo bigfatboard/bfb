@@ -1,7 +1,7 @@
 {
   "$schema": "../manifest.schema.json",
   "package": "C02",
-  "tested_commit": "d001ca2ffa4e46a3e8311528307d2679134e919d",
+  "tested_commit": "bf0c3296aeaaa1b508070663c9a6de285890704f",
   "protocol_version": "bfb-wire/1",
   "schema_version": "1",
   "migration_head": "0008_better_auth_identity",
