@@ -2431,10 +2431,7 @@ try {
   const adrIndex = new Map<string, string>();
   for (const entry of await readdir(resolve(root, "docs/adr"))) {
     if (!entry.endsWith(".md")) continue;
-    adrIndex.set(
-      `docs/adr/${entry}`,
-      await readFile(resolve(root, "docs/adr", entry), "utf8"),
-    );
+    adrIndex.set(`docs/adr/${entry}`, await readFile(resolve(root, "docs/adr", entry), "utf8"));
   }
   for (const row of GATE_ROWS) {
     assert.equal(waiverDefect(row, adrIndex), null, `${row.gate} carries an unauthorized waiver`);

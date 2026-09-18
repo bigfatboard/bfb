@@ -42,17 +42,10 @@ test("waived gates cite an ADR recording Timo's explicit decision", async () => 
   const adrIndex = new Map();
   for (const entry of await readdir(resolve(root, "docs/adr"))) {
     if (!entry.endsWith(".md")) continue;
-    adrIndex.set(
-      `docs/adr/${entry}`,
-      await readFile(resolve(root, "docs/adr", entry), "utf8"),
-    );
+    adrIndex.set(`docs/adr/${entry}`, await readFile(resolve(root, "docs/adr", entry), "utf8"));
   }
   for (const row of GATE_ROWS) {
-    assert.equal(
-      waiverDefect(row, adrIndex),
-      null,
-      `${row.gate} carries an unauthorized waiver`,
-    );
+    assert.equal(waiverDefect(row, adrIndex), null, `${row.gate} carries an unauthorized waiver`);
   }
 });
 
@@ -71,10 +64,7 @@ test("waiverDefect rejects self-issued waivers and accepts authorized ones", () 
     detail: "detail",
   };
   assert.match(
-    waiverDefect(
-      { ...base, status: "waived", waiver: "blocked on credentials" },
-      authorized,
-    ) ?? "",
+    waiverDefect({ ...base, status: "waived", waiver: "blocked on credentials" }, authorized) ?? "",
     /no docs\/adr decision record/,
   );
   assert.match(
@@ -107,10 +97,7 @@ test("waiverDefect rejects self-issued waivers and accepts authorized ones", () 
   );
   assert.equal(waiverDefect({ ...base, status: "passed" }, authorized), null);
   assert.equal(
-    waiverDefect(
-      { ...base, status: "not_run", waiver: "G02 owns this gate." },
-      authorized,
-    ),
+    waiverDefect({ ...base, status: "not_run", waiver: "G02 owns this gate." }, authorized),
     null,
   );
 });
