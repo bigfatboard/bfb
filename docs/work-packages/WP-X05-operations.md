@@ -117,7 +117,7 @@ surface in the W01 product shell.
   ./...`, clean-checkout gate), and evidence are complete on branch
   `muse/x05`. Settled 18 September: `done`. E01, V01, X01, and X04 are
   `done`, and `pnpm test:x05` passed in a detached clean checkout at
-  `1c9ae54` (install, build, exact target with the real-Worker/D1/Queue
+  `7cb3bce` (install, build, exact target with the real-Worker/D1/Queue
   drill and 4 Chromium scenarios). The evidence manifest is re-based on
   that rerun; the implementation evidence stays listed as manifest
   artifacts.
