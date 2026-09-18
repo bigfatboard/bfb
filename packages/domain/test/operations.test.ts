@@ -18,6 +18,7 @@ import {
   listRetentionEligibleChunks,
   listStuckLaunches,
   listStuckUploads,
+  markVersionRetained,
   OPS_MIGRATION_ID,
   OPS_STEP_UP_ACTIONS,
   readActivityFeed,
@@ -253,6 +254,32 @@ describe("retention eligibility", () => {
       count: number;
     };
     expect(versions.count).toBe(4);
+  });
+
+  it("stops listing purged chunks once they are retained", async () => {
+    const db = await openDomainDb();
+    const rows = await seedArtifacts(db);
+    const target = rows.find((row) => row.eligible)!.id;
+    expect(await markVersionRetained(db, { workspaceId: FIX.workspace, versionId: target })).toBe(
+      true,
+    );
+    expect(await markVersionRetained(db, { workspaceId: FIX.workspace, versionId: target })).toBe(
+      false,
+    );
+    expect(
+      await markVersionRetained(db, { workspaceId: FIX.workspace, versionId: randomUlid() }),
+    ).toBe(false);
+    const found = await listRetentionEligibleChunks(db, FIX.workspace, NOW);
+    expect(found.eligible).toEqual([]);
+    expect(found.examined).toBe(1);
+    const row = (await db
+      .prepare(
+        `SELECT state, content_hash, r2_key FROM artifact_versions WHERE workspace_id = ? AND id = ?`,
+      )
+      .get(FIX.workspace, target)) as { state: string; content_hash: string; r2_key: string };
+    expect(row.state).toBe("retained");
+    expect(row.content_hash).toBe("e".repeat(64));
+    expect(row.r2_key).toContain("/logs/");
   });
 });
 

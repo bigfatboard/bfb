@@ -69,7 +69,9 @@ also follow [`artifacts.md`](artifacts.md) for storage, roles, and kinds, and
   current authorization epoch, consumes the grant through the single-use
   trigger, and inserts the `artifact.view_redeemed` audit row. A racing or
   replayed redemption aborts the batch with no byte effect; reloads need fresh
-  grants.
+  grants. A version purged by retention (`retained`) is no longer `available`,
+  so its grants reject here with the uniform `403` instead of reaching byte
+  reads.
 - The worker re-verifies `SHA-256(R2 bytes) == content_hash` and the
   `workspaces/<workspace-id>/` key prefix before serving. Mismatch or absence
   fails `500 { error: "view_failed" }` without secret, nonce, digest, or byte

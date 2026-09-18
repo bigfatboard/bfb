@@ -81,12 +81,17 @@ interprets provider-specific capability fields.
   `available`, `available_at` older than the cutoff, key under
   `workspaces/<ws>/runs/*/logs/*`, never under `artifacts/sha256/`.
   Review artifacts, shared content-addressed bytes, D1 rows, hashes, and
-  metadata are never eligible.
+  metadata are never eligible. Already purged versions (state `retained`)
+  are never eligible again.
 - The Cron sweep (`runRetentionSweep`, also deliverable as an OPS queue
-  `retention.sweep` message) deletes only eligible R2 objects, records one
-  `retention_runs` row per configured workspace, and never deletes without
-  an explicit Owner-configured policy. A failed object delete is recorded
-  in the run row, never retried blindly.
+  `retention.sweep` message) deletes only eligible R2 objects, moves each
+  purged version to `retained` with its hash, key, and metadata preserved
+  as the purge record, records one `retention_runs` row per configured
+  workspace, and never deletes without an explicit Owner-configured
+  policy. Only the transition counts bytes, so a `retained` row is never
+  re-deleted or re-counted and its view grants stop redeeming. A failed
+  object delete keeps the version `available` for the next tick and is
+  recorded in the run row, never retried blindly.
 
 ## Diagnostic bundles
 

@@ -226,6 +226,8 @@ export interface RetentionCandidate {
  * deliberately narrow: role `log`, state `available`, older than the policy
  * cutoff, and keyed under the per-run logs prefix. Review artifacts, shared
  * content-addressed bytes, D1 rows, hashes, and metadata are never eligible.
+ * A purged chunk moves to `retained` (see `markVersionRetained`), so it
+ * never appears here again and its bytes are never counted twice.
  */
 export async function listRetentionEligibleChunks(
   db: SqlDatabase,
@@ -271,6 +273,29 @@ export async function listRetentionEligibleChunks(
       available_at: row.available_at as string,
     })),
   };
+}
+
+/**
+ * Records a retention purge on the version row. The guarded update moves an
+ * `available` version to `retained` with every other column unchanged, so a
+ * purged chunk is never re-listed as eligible and its view grants stop
+ * redeeming (issuance and redemption both require `available`), while the
+ * hash, key, and metadata stay intact as the purge record. Returns true when
+ * this call performed the transition; a concurrent sweep that already
+ * retained the row reports false so its bytes are never counted twice.
+ */
+export async function markVersionRetained(
+  db: SqlDatabase,
+  input: { workspaceId: string; versionId: string },
+): Promise<boolean> {
+  const updated = (await db
+    .prepare(
+      `UPDATE artifact_versions
+       SET state = 'retained'
+       WHERE workspace_id = ? AND id = ? AND state = 'available'`,
+    )
+    .run(input.workspaceId, input.versionId)) as { changes?: number } | undefined;
+  return (updated?.changes ?? 0) === 1;
 }
 
 /**

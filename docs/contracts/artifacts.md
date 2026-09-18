@@ -3,16 +3,22 @@
 | Version | Date | Change |
 | --- | --- | --- |
 | 1 | 2026-09-17 | Freeze V01 state machine, client, and MCP seam. |
+| 2 | 2026-09-18 | Retention purge records `retained` versions (finding 24). |
 
 Consumers: V02 (views), V03 (review), X02 (CLI parity), A01 (run-scoped MCP tool).
 
 ## State machine
 
-`uploading` → `available` | `uploading` → `failed`. No other transition exists;
-the D1 trigger `artifact_versions_state_guarded` aborts anything else, and
-`available` additionally requires a verified content hash and R2 key. Only
-`available` versions may be viewed or reviewed. `uploading` rows hold no
-trusted bytes. `failed` rows are terminal. Distinct logical versions may share
+`uploading` → `available` | `uploading` → `failed` | `available` →
+`retained`. No other transition exists; the D1 trigger
+`artifact_versions_state_guarded` aborts anything else, and `available`
+additionally requires a verified content hash and R2 key. Only `available`
+versions may be viewed or reviewed. `uploading` rows hold no trusted bytes.
+`failed` rows are terminal. `retained` rows are terminal purge records
+written only by the X05 retention sweep after it deletes a per-run raw log
+R2 object: the content hash, R2 key, and metadata stay intact while the
+bytes are gone, so grants for a `retained` version reject like unknown
+versions instead of reaching byte reads. Distinct logical versions may share
 one content hash; v0.1 has no blob delete path by design. Identical bytes
 published for another workspace, or for another log version, are stored as
 separate objects under their own server-derived keys and finalize

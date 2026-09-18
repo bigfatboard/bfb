@@ -14,6 +14,7 @@ import {
   redeemUploadGrant,
 } from "../src/artifacts.js";
 import { createTaskCommand } from "../src/work-commands.js";
+import { markVersionRetained } from "../src/operations.js";
 import { createRunCommand } from "../src/work-records.js";
 import {
   assertViewNonce,
@@ -316,6 +317,37 @@ describe("artifact view grants", () => {
         human(createViewGrantCommand, {
           versionId: created.version_id,
           grantSecretHash: viewMinted.secretHash,
+          viewNonce: mintViewNonce(),
+          sessionHash: SESSION_HASH,
+        }),
+      ),
+    ).toBe("request_rejected");
+  });
+
+  it("refuses issuance and redemption for retained versions", async () => {
+    const { db, human, available, issue } = await fixture();
+    const version = await available();
+    const grant = await issue(version.version_id);
+    expect(
+      await markVersionRetained(db, {
+        workspaceId: FIX.workspace,
+        versionId: version.version_id,
+      }),
+    ).toBe(true);
+    await expect(
+      redeemViewGrant(db, {
+        viewId: grant.view_id,
+        secret: grant.secret,
+        nonce: grant.nonce,
+        now: NOW,
+      }),
+    ).rejects.toThrow();
+    const minted = mintViewGrantSecret();
+    expect(
+      await failure(
+        human(createViewGrantCommand, {
+          versionId: version.version_id,
+          grantSecretHash: minted.secretHash,
           viewNonce: mintViewNonce(),
           sessionHash: SESSION_HASH,
         }),
