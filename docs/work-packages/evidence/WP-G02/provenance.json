@@ -20,7 +20,7 @@
     "apps/artifact-worker/wrangler.production.toml": "e4592b108538b9df6b9761f35190a2ab3a4763c14f9523e55e8cd01f83a55de7",
     "apps/artifact-worker/wrangler.selfhost.toml": "28168b6829e48acd3195bf4600eb9cc68cee28c6dd2ee059da00a8039f432ba3",
     "migrations/d1/manifest.json": "58af2a5f55041ec976c5df081fe0f278cca9d87c592725c1d7d611da7ceb764b",
-    "docs/contracts/release.md": "c3dd4463582dd7a3a81455144b08ab5a8067e7f5017533ad06fc4fd176bad0be",
-    ".github/workflows/release.yml": "0f710e28093ad6b1998c912a31ee7084ce9a4bd8527870980adef8d02355b42e"
+    "docs/contracts/release.md": "c0023cd9668755c8d41ee13b1f5efef5386f198db9a3f28546d56c9f927457e9",
+    ".github/workflows/release.yml": "d7411ec5e01a112f7f741dc14d6c93fca7246979bf9bf0d94080a18054205aa6"
   }
 }
