@@ -387,7 +387,7 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 | L04 | [SwiftUI macOS application](WP-L04-macos-app.md) | `done` | High |
 | L05 | [Terminal execution supervisor](WP-L05-terminal-supervisor.md) | `done` | Very high |
 | L06 | [Hook journal and offline inbox](WP-L06-hook-journal.md) | `done` | Very high |
-| L07 | [Claude Code reference adapter](WP-L07-claude-adapter.md) | `planned` | High |
+| L07 | [Claude Code reference adapter](WP-L07-claude-adapter.md) | `review` | High |
 | L08 | [Runner enrollment and channel client](WP-L08-runner-channel-client.md) | `done` | Very high |
 
 ### Web and realtime
