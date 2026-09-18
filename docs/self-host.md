@@ -19,6 +19,10 @@ rollback, and clean-install procedures are
   Xcode `26` (see `.node-version`, `.go-version`, `.xcode-version`).
 - A macOS Mac for the runner. Managed Universal Links additionally need a
   Mac provisioning profile for `com.qdis.bfb` with Associated Domains.
+- For step 1's `pnpm test:g02`: an Apple Development signing identity
+  in the keychain and `BFB_MACOS_PROFILE` pointing at that development
+  profile. The gate builds and signs the Mac app, so it cannot run
+  without them.
 - One jurisdiction choice for the whole deployment: `eu`, `us`, or
   `global`. Mixed per-workspace jurisdiction in one deployment is not
   supported.

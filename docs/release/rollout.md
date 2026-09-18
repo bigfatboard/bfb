@@ -5,19 +5,47 @@ and dry-runs everything here; nothing here runs without Timo's explicit
 rollout confirmation. The release contract is
 [../contracts/release.md](../contracts/release.md).
 
+## One-time repository setup
+
+The workflow file alone creates no approval gate: the `staging` and
+`managed-production` GitHub environments and every secret below are
+created once in the repository settings before the first rollout.
+Until this setup exists there is no approval step, so production must
+not be targeted.
+
+- Environments: create `staging` (no reviewers) and
+  `managed-production` with required reviewers (Timo plus the release
+  captain of the day). The workflow selects the environment from its
+  `target` input; reviewers enforce the human approval.
+- Secrets: `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` (the
+  Cloudflare account that owns the target resources),
+  `BFB_MACOS_PROFILE_B64` (base64 of the Mac development profile for
+  `com.qdis.bfb`, the file `BFB_MACOS_PROFILE` points to locally),
+  `BFB_MACOS_SIGNING_P12_B64` (base64 of the Apple Development signing
+  certificate) with `BFB_MACOS_SIGNING_P12_PASSWORD` (its import
+  password). The gate jobs materialize the profile and import the
+  certificate into a throwaway keychain at run time.
+
 ## Rollout options
 
 | Option | When | Command spine |
 | --- | --- | --- |
-| A. Staging first | Default. Prove the tagged release on staging, then promote the same tag to production. | `.github/workflows/release.yml` against staging, then `managed-production` |
+| A. Staging first | Default. Prove the tagged release on staging, then promote the same tag to production. | Dispatch `release.yml` with `target: staging`, then again with `target: production` and `confirm_tag` equal to the tag |
 | B. Self-host pilot | An operator-owned account goes first using [../self-host.md](../self-host.md). | Self-host guide, then option A |
-| C. Production direct | Only when staging and self-host already pass on the same tag. Requires explicit confirmation naming this option. | `release.yml` with `managed-production` approval |
+| C. Production direct | Only when staging and self-host already pass on the same tag. Requires explicit confirmation naming this option. | Dispatch `release.yml` with `target: production`, `confirm_tag` equal to the tag, and the `managed-production` approval from the setup above |
 
 Production stays on jurisdiction `eu`. The `JURISDICTION` var is passed
 explicitly at publish time; the self-host sentinel (`choose`) never
 reaches production configs.
 
 ## Pre-flight (local, offline)
+
+The gate needs its Mac signing prerequisites on the machine that runs
+it: the pinned Xcode (see `.xcode-version`), an Apple Development
+signing identity in the keychain, and `BFB_MACOS_PROFILE` pointing at
+the development profile for `com.qdis.bfb` (see
+[clean-install.md](clean-install.md)). Without them `pnpm test:g02`
+fails at the signing proof, not at the code under test.
 
 ```sh
 git checkout v0.1.<n>
@@ -32,10 +60,11 @@ Dry runs bundle locally and create nothing remotely.
 
 ## Smoke commands
 
-After publish, against the production origin:
+After publish, against the deployed origin (substitute the real
+control-worker host; the pipeline takes it as its `origin` input):
 
 ```sh
-node tools/g02/smoke-commands.mjs --origin https://bfb.example.test
+node tools/g02/smoke-commands.mjs --origin https://bfb.<operator-host>
 ```
 
 The smoke asserts `/healthz` reports `ok` with worker-first routing,

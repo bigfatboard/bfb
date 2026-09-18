@@ -1404,6 +1404,98 @@ await writeJson(join(evidenceDir, "smoke.json"), {
 });
 pass("SMOKE", "dry-runs plus authenticated-handler smoke pass; sentinel fails closed");
 
+// G-RELEASE: the prepared release pipeline runs as written, and the release
+// documents describe the real approval setup instead of a configured gate.
+const releaseWorkflow = readText(".github/workflows/release.yml");
+const releaseContract = readText("docs/contracts/release.md");
+const rolloutGuide = readText("docs/release/rollout.md");
+const cleanInstallGuide = readText("docs/release/clean-install.md");
+const selfHostGuide = readText("docs/self-host.md");
+// Every remote wrangler call authenticates from secrets mapped into the job.
+for (const secret of ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID"]) {
+  assert.ok(
+    releaseWorkflow.includes(`${secret}: \${{ secrets.${secret} }}`),
+    `release workflow maps ${secret} from secrets`,
+  );
+}
+// The pre-migration backstop outlives the job that captures it.
+assert.ok(
+  releaseWorkflow.includes("d1 export"),
+  "release workflow captures the pre-migration export",
+);
+assert.ok(
+  releaseWorkflow.includes("upload-artifact"),
+  "release backstop is uploaded, not left in $RUNNER_TEMP",
+);
+assert.ok(
+  releaseWorkflow.indexOf("d1 export") < releaseWorkflow.indexOf("upload-artifact"),
+  "the export is captured before the backstop upload",
+);
+// Jobs that run the Mac-only gate run on macOS with its toolchain.
+const releaseJobs = releaseWorkflow
+  .split(/\n(?=  [a-z-]+:\n)/u)
+  .filter((section) => section.includes("runs-on:"));
+assert.equal(releaseJobs.length, 4, "release pipeline keeps its four jobs");
+for (const job of releaseJobs) {
+  if (!job.includes("pnpm test:g02")) continue;
+  assert.match(job, /runs-on: macos-/u, "the release gate runs on macOS");
+  assert.ok(job.includes("playwright install"), "the gate installs Chromium first");
+  assert.ok(job.includes("setup-go"), "the gate installs Go first");
+  assert.ok(job.includes("DEVELOPER_DIR"), "the gate pins Xcode first");
+}
+// Staging is a real target, production needs a typed confirmation, and the
+// smoke runs against the deployed origin instead of a placeholder host.
+assert.ok(
+  releaseWorkflow.includes("inputs.target == 'production' && 'production' || 'staging'"),
+  "staging configs are selectable",
+);
+assert.ok(
+  releaseWorkflow.includes("inputs.target"),
+  "the rollout target is an input, not hard-coded production",
+);
+assert.ok(releaseWorkflow.includes("confirm_tag"), "production rollouts need a typed confirmation");
+assert.ok(
+  releaseWorkflow.includes("--origin ${{ inputs.origin }}"),
+  "smoke runs against the deployed origin",
+);
+assert.ok(
+  !releaseWorkflow.includes("bfb.example.test"),
+  "no placeholder host remains in the pipeline",
+);
+// The contract documents the GitHub setup that creates the approval instead
+// of claiming a protected environment already exists.
+assert.ok(
+  !releaseContract.includes("manual approval, EU runner"),
+  "the contract no longer claims a configured gate",
+);
+assert.ok(
+  releaseContract.includes("required reviewers"),
+  "the contract names the GitHub setup that creates the approval",
+);
+// The rollout names its secrets and staging path, and the install guides name
+// the Mac signing prerequisites of the gate itself.
+assert.ok(
+  !rolloutGuide.includes("https://bfb.example.test"),
+  "the rollout smoke names the operator host",
+);
+assert.ok(
+  rolloutGuide.includes("CLOUDFLARE_API_TOKEN"),
+  "rollout setup names the Cloudflare secrets",
+);
+assert.ok(
+  cleanInstallGuide.includes("BFB_MACOS_PROFILE"),
+  "clean install names the development profile",
+);
+assert.ok(
+  cleanInstallGuide.includes("Apple Development"),
+  "clean install names the signing identity",
+);
+assert.ok(selfHostGuide.includes("BFB_MACOS_PROFILE"), "self-host names the development profile");
+pass(
+  "RELEASE",
+  "prepared pipeline is executable; approval setup and gate prerequisites documented",
+);
+
 // G-SIGN: the managed-link signing proof runs in signing.mjs; this gate pins the stable surface.
 const nativeActions = readText("apps/macos/Sources/BFB/NativeActions.swift");
 assert.ok(nativeActions.includes("/Contents/Helpers/bfb"), "hook launcher path is stable");

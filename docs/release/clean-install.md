@@ -20,6 +20,14 @@ account; empty BFB state in an existing account is not this proof (see
 - Clean Mac: a fresh macOS user account (for the daemon install/status/logs
   check deferred from L01) or a clean Mac (for the full install/upgrade
   flow). Record the macOS version and Xcode version.
+- Gate prerequisites on the Mac that runs `pnpm test:g02`: the pinned
+  Xcode from `.xcode-version`, an Apple Development signing identity in
+  the keychain, `BFB_MACOS_PROFILE` pointing at the Mac development
+  profile for `com.qdis.bfb` with Associated Domains, plus Go and a
+  Playwright Chromium install (`pnpm exec playwright install
+  --with-deps chromium`). The signing proof is part of the gate, so a
+  Mac without the identity and the profile cannot run the package's own
+  test target.
 - Release inputs: tag `v0.1.<n>`, the release manifest at
   `docs/work-packages/evidence/WP-G02/release-manifest.json`, the SBOM and
   provenance beside it.

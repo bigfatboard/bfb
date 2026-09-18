@@ -65,16 +65,44 @@ closed and each of `eu`/`us`/`global` validates.
 
 ## Deployment jobs
 
-`.github/workflows/release.yml` defines four sequential jobs against a
-protected `managed-production` environment (manual approval, EU runner):
+`.github/workflows/release.yml` defines four sequential jobs. The
+`target` input selects the staging configs (`target: staging`, the
+default) or the production configs (`target: production`); the smoke
+`origin` input names the deployed control-worker host. Production jobs
+additionally require `confirm_tag` to equal `tag`, a typed confirmation
+that blocks accidental production dispatches inside the workflow file.
+
+The `migrate`, `publish`, and `smoke` jobs run under the GitHub
+environment named by the target (`staging`, or `managed-production`
+for production). Naming an environment in the workflow file does not
+create it and does not enforce reviewers: the `managed-production`
+environment with its required reviewers does not exist by default and
+is created once in the GitHub repository settings per
+`docs/release/rollout.md`. Until that setup exists there is no approval
+gate, so production must not be targeted. Earlier revisions of this
+contract described the environment as already protected with a pinned
+EU runner; that was wrong about reality and is corrected here.
 
 1. `build-test` — install, `pnpm verify`, `pnpm test:g02`.
-2. `migrate` — apply `migrations/d1` to the target D1 (empty or
-   previous-release start), then run the migration matrix check.
-3. `publish` — `wrangler deploy` for the control and artifact workers.
+   Runs on macOS because the gate builds and development-signs the Mac
+   app (Apple Development identity plus `BFB_MACOS_PROFILE`), drives
+   launchd, and runs the Chromium spec; the job installs Go, Chromium,
+   and the signing material from secrets first.
+2. `migrate` — capture the D1 export, preserve it as a run artifact,
+   apply `migrations/d1` to the target D1 (empty or previous-release
+   start), then run the migration matrix check. Runs on macOS for the
+   same gate reason; Cloudflare credentials come from secrets.
+3. `publish` — `wrangler deploy` for the control and artifact workers
+   against the target configs. Runs on Ubuntu; Cloudflare credentials
+   come from secrets.
 4. `smoke` — the post-deploy smoke in `docs/release/rollout.md`, which
    exercises authenticated handlers (`/healthz`, `/api/v1/cli/version`,
    credential-rejected routes), never just CI or deploy success.
+
+Runner geography is not pinned: jobs run on GitHub-hosted macOS and
+Ubuntu runners. EU residency comes from the deployment target
+(`JURISDICTION = "eu"` with EU Cloudflare resources), not from where
+the workflow job executes.
 
 G02 validates the same configs and the same worker entry points without
 touching a remote account: `wrangler deploy --dry-run --outdir` for every
