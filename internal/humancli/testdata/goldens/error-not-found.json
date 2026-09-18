@@ -1,0 +1,1 @@
+{"schema_version":1,"command":"task get","request_id":"STABLE","error":{"code":"not_found","message":"no such object is visible to this credential"}}

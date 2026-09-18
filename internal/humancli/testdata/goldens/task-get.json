@@ -1,0 +1,1 @@
+{"schema_version":1,"command":"task get","request_id":"STABLE","data":{"task":{"id":"task01","state":"ready","title":"Synthetic task"}}}

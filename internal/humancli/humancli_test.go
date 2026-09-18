@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -110,6 +111,32 @@ func withCredential(t *testing.T) {
 	t.Setenv("BFB_CLI_CREDENTIAL", syntheticWorkspace+":"+syntheticCredential)
 }
 
+// normalizeStamps replaces volatile envelope fields so goldens stay deterministic.
+func normalizeStamps(output string) string {
+	matched := regexp.MustCompile(`"request_id":"[^"]*"`).ReplaceAllString(output, `"request_id":"STABLE"`)
+	return matched
+}
+
+func checkGolden(t *testing.T, name, got string) {
+	t.Helper()
+	path := filepath.Join("testdata", "goldens", name)
+	if os.Getenv("BFB_UPDATE_GOLDENS") == "1" {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(normalizeStamps(got)), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("golden %s missing: %v", name, err)
+	}
+	if normalizeStamps(got) != string(want) {
+		t.Fatalf("golden %s drift:\n got: %q\nwant: %q", name, normalizeStamps(got), string(want))
+	}
+}
+
 func TestGoldenHumanAndJSONOutputs(t *testing.T) {
 	registry := assemble(t)
 	server := stubControl(t, func(w http.ResponseWriter, r *http.Request) {
@@ -141,6 +168,7 @@ func TestGoldenHumanAndJSONOutputs(t *testing.T) {
 	if ContainsCredential(stdout) || ContainsCredential(stderr) {
 		t.Fatalf("credential leaked to output: %q %q", stdout, stderr)
 	}
+	checkGolden(t, "whoami.txt", stdout)
 
 	jsonArgs := []string{"--json", "--data-dir", dir, "whoami", "--control-url", server.URL}
 	exit, stdout, stderr = run(t, registry, jsonArgs, nil)
@@ -164,6 +192,14 @@ func TestGoldenHumanAndJSONOutputs(t *testing.T) {
 	if ContainsCredential(stdout) {
 		t.Fatalf("credential leaked to JSON output")
 	}
+	checkGolden(t, "whoami.json", stdout)
+
+	taskArgs := []string{"--json", "--data-dir", dir, "task", "get", "--control-url", server.URL, "task01"}
+	exit, stdout, stderr = run(t, registry, taskArgs, nil)
+	if exit != 0 {
+		t.Fatalf("task get exit %d stdout %q stderr %q", exit, stdout, stderr)
+	}
+	checkGolden(t, "task-get.json", stdout)
 
 	missingArgs := []string{"--json", "--data-dir", dir, "task", "get", "--control-url", server.URL, "missing"}
 	exit, stdout, stderr = run(t, registry, missingArgs, nil)
@@ -177,6 +213,7 @@ func TestGoldenHumanAndJSONOutputs(t *testing.T) {
 	if _, ok := failure["error"]; !ok {
 		t.Fatalf("error envelope missing error: %q", stdout)
 	}
+	checkGolden(t, "error-not-found.json", stdout)
 	_ = daemon.NewRequestID
 }
 
@@ -318,6 +355,7 @@ func TestDestructiveGating(t *testing.T) {
 	if !strings.Contains(stderr, "cli:run:cancel") {
 		t.Fatalf("handoff missing action binding: %q", stderr)
 	}
+	checkGolden(t, "cancel-handoff.txt", stderr)
 	// Wrong confirm target fails locally.
 	exit, _, _ = run(t, registry, cancel("--confirm", "run:other", "--expected-version", "3", "--step-up-proof", "proof01"), nil)
 	if exit != 2 {
@@ -382,6 +420,7 @@ func TestVersionDiagnosticsAndOfflineMatrix(t *testing.T) {
 	if !strings.Contains(stderr, "warning") {
 		t.Fatalf("version mismatch warning missing: %q", stderr)
 	}
+	checkGolden(t, "version.json", stdout)
 	// Version stays exit 0 offline with the client version always reported.
 	exit, stdout, stderr = run(t, registry,
 		[]string{"--json", "--data-dir", dir, "version", "--control-url", "http://127.0.0.1:1"}, nil)
