@@ -156,18 +156,21 @@ async function fixture() {
     cookie = session.cookie,
     csrfToken = csrf,
   ) {
+    const init: RequestInit = {
+      method,
+      headers: {
+        cookie,
+        origin: ORIGIN,
+        "sec-fetch-site": "same-origin",
+        "x-bfb-csrf": csrfToken,
+        "content-type": "application/json",
+      },
+    };
+    if (method !== "GET") {
+      init.body = JSON.stringify(body);
+    }
     return app().request(
-      new Request(`${ORIGIN}/api/v1/workspaces/${FIX.workspace}${path}`, {
-        method,
-        headers: {
-          cookie,
-          origin: ORIGIN,
-          "sec-fetch-site": "same-origin",
-          "x-bfb-csrf": csrfToken,
-          "content-type": "application/json",
-        },
-        body: JSON.stringify(body),
-      }),
+      new Request(`${ORIGIN}/api/v1/workspaces/${FIX.workspace}${path}`, init),
       undefined,
       env,
     );

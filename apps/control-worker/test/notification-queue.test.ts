@@ -47,12 +47,6 @@ function b64encode(bytes: Uint8Array): string {
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-function b64decode(input: string): Uint8Array {
-  const padded = input.replace(/-/g, "+").replace(/_/g, "/");
-  const full = padded + "=".repeat((4 - (padded.length % 4)) % 4);
-  return Uint8Array.from(atob(full), (char) => char.charCodeAt(0));
-}
-
 async function vapidSecrets(): Promise<VapidSecrets> {
   const pair = (await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, [
     "sign",
