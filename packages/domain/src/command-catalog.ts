@@ -2,6 +2,7 @@
 // ABOUTME: Transports send command names; only registered commands may mutate workspace state.
 
 import type { HubCommand } from "./hub.js";
+import { recordReviewCommand } from "./artifact-reviews.js";
 import { createViewGrantCommand } from "./artifact-views.js";
 import {
   createArtifactCommand,
@@ -149,6 +150,7 @@ const commands = new Map<string, HubCommand<unknown, unknown>>([
   [finalizeArtifactCommand.name, finalizeArtifactCommand as HubCommand<unknown, unknown>],
   [markArtifactFailedCommand.name, markArtifactFailedCommand as HubCommand<unknown, unknown>],
   [createViewGrantCommand.name, createViewGrantCommand as HubCommand<unknown, unknown>],
+  [recordReviewCommand.name, recordReviewCommand as HubCommand<unknown, unknown>],
   [authorizeDeviceCommand.name, authorizeDeviceCommand as HubCommand<unknown, unknown>],
   [exchangeCredentialCommand.name, exchangeCredentialCommand as HubCommand<unknown, unknown>],
   [revokeBindingCommand.name, revokeBindingCommand as HubCommand<unknown, unknown>],

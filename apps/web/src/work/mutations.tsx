@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { DiscussionSection } from "../discussion/DiscussionSection.js";
+import { ReviewPanel } from "../artifacts/ArtifactReview.js";
 import { LaunchSection } from "../launch/operations.js";
 import type { AgentProfileSummary } from "./board.js";
 import { MeasurementsPanel } from "./measurements.js";
@@ -416,6 +417,20 @@ export function WorkMutations(props: WorkMutationsProps) {
               taskId={task.id}
               taskState={task.state}
               taskVersion={task.resource_version}
+              role={props.role}
+              fetchImpl={fetchFn}
+              csrfToken={props.csrfToken ?? ""}
+              onReviewed={() => {
+                void loadTask();
+                props.onChanged();
+              }}
+            />
+          ) : null}
+          {task ? (
+            <ReviewPanel
+              key={`review-${task.id}:${task.resource_version}`}
+              workspaceId={props.workspaceId}
+              taskId={task.id}
               role={props.role}
               fetchImpl={fetchFn}
               csrfToken={props.csrfToken ?? ""}

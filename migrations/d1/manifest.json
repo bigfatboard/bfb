@@ -1,5 +1,5 @@
 {
-  "migration_head": "0028_github_integration",
+  "migration_head": "0032_artifact_review",
   "migrations": [
     {
       "id": "0001_workspace_registry",
@@ -104,6 +104,10 @@
     {
       "id": "0028_github_integration",
       "file": "0028_github_integration.sql"
+    },
+    {
+      "id": "0032_artifact_review",
+      "file": "0032_artifact_review.sql"
     }
   ]
 }
