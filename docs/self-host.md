@@ -6,7 +6,7 @@ hidden dashboard or manual prerequisites beyond creating the account,
 installing the pinned toolchain, and choosing a jurisdiction.
 
 Coordinate system: the release contract is
-[docs/contracts/release.md](../contracts/release.md). The rollout,
+[docs/contracts/release.md](contracts/release.md). The rollout,
 rollback, and clean-install procedures are
 [docs/release/rollout.md](release/rollout.md),
 [docs/release/migration-rollback.md](release/migration-rollback.md), and
@@ -102,7 +102,7 @@ database rollback.
    the per-user label `com.tenira.bfb.daemon`.
 3. Enroll the runner in the browser, link the checkout, run provider setup
    and doctor, then complete the golden flow in
-   [docs/contracts/release.md](../contracts/release.md): launch, realtime,
+   [docs/contracts/release.md](contracts/release.md): launch, realtime,
    attention, result, artifact review.
 4. Upgrades replace only the bundle at its stable location; Keychain
    items, the daemon database, hooks, and recovery markers persist because
