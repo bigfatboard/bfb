@@ -9,7 +9,8 @@ Test target: `pnpm test:a02`
 Evidence manifest: `docs/work-packages/evidence/WP-A02/manifest.json`
 
 > Settled 18 September: `done` — `pnpm test:a02` passed in a detached clean
-> checkout at `9372c0f`; see Handoff.
+> checkout at `9372c0f` and was re-proven in-worktree at `b3b1391` after the
+> evidence-determinism fix; see Handoff.
 
 ## Outcome
 
@@ -90,7 +91,7 @@ An agent can request a typed human decision, a permitted human can answer it fro
 
 ## Handoff
 
-- Settled 18 September: `done`. A01 and E02 are `done`, and `pnpm test:a02` passed in a detached clean checkout at `9372c0f` (install, build, exact target with the real-Worker/D1 fault harness, real-binary stdio purity, and browser spec).
+- Settled 18 September: `done`. A01 and E02 are `done`, and `pnpm test:a02` passed in a detached clean checkout at `9372c0f` (install, build, exact target with the real-Worker/D1 fault harness, real-binary stdio purity, and browser spec). Re-proven in-worktree at `b3b1391` after the evidence-determinism fix (build, exact target with the deterministic-evidence harness plus its regression test, real-binary stdio purity, and browser spec).
 - Commands: `pnpm test:a02`; `pnpm verify`; `pnpm worktree:check`. The Worker/D1 fault flow is `tools/attention/run.ts`; the attention stdio cases are `internal/localmcp/attention_test.go` plus the golden transcript.
 - A04 consumes `attention_observations` (unique identity, actor provenance) and the raw `requested_at`/`first_response_at`/`resolved_at` timestamps plus the `waiter-cadence.json` poll/retry counts as a structural cross-check; derivation and display belong to A04.
 - X01 consumes committed `attention.request`/`attention.answer`/`attention.resolve` semantic events; it does not own attention truth and owns all external delivery.
