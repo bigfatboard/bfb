@@ -194,6 +194,15 @@ and [Apple's terminal foreground contract](https://developer.apple.com/library/a
 Process identity includes kernel PID/start time, user and group identity; executable
 identity is verified separately for the trusted helper/provider. The supervisor
 remembers observed descendants and checks their identity and group membership.
+A backgrounded child whose parent already exited is reparented (to PID 1 on
+Darwin) and keeps the owned process group with no visible ancestry. The
+supervisor adopts such an orphan as an observed descendant when its parent link
+is dead and the kernel proves it started strictly after the group leader; the
+adoption is tracked like any descendant, so it cannot hide a later escape and
+still blocks whole-group absence until it exits. A same-group member that
+started no later than the leader (a possible recycled group ID), keeps a live
+parent outside the group, or carries a malformed start identity stays
+`containment_unknown`.
 Remote signals and escalation require a fresh matching owned group; terminal Ctrl-C
 is a separate kernel job-control path. An ambiguous PID is never signalled.
 The supervisor retains its direct child unreaped until the owned group is gone;

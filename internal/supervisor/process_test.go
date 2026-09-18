@@ -48,6 +48,74 @@ func TestGroupTracksSurvivingChildren(t *testing.T) {
 	}
 }
 
+func TestGroupAdoptsNeverObservedOrphanStartedAfterLeader(t *testing.T) {
+	leader := fixtureProcess(1201, 1200, 1201)
+	group, err := NewGroup(leader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The intermediate parent backgrounded a child and exited before any
+	// inspection saw either of them. The orphan is reparented to PID 1, so
+	// the ancestry walk cannot root it; the kernel still proves descent
+	// because it shares the owned group and started after the leader.
+	orphan := fixtureProcess(1203, 1, 1201)
+	orphan.StartIdentity = "1000:43"
+	table := ProcessTable{1201: leader, 1203: orphan}
+	if result := group.Observe(table); result.State != "live" || group.Unknown || len(result.Live) != 2 {
+		t.Fatal("reparented descendant poisoned containment", result, group.Unknown)
+	}
+	if group.Observed[orphan.PID] != orphan {
+		t.Fatal("adopted orphan not retained for absence proof")
+	}
+	// A child of the adopted orphan roots through it in the same observation.
+	grandchild := fixtureProcess(1204, 1203, 1201)
+	grandchild.StartIdentity = "1000:44"
+	table[grandchild.PID] = grandchild
+	if result := group.Observe(table); result.State != "live" || group.Unknown || len(result.Live) != 3 {
+		t.Fatal("descendant of adopted orphan poisoned containment", result, group.Unknown)
+	}
+	delete(table, orphan.PID)
+	delete(table, grandchild.PID)
+	delete(table, leader.PID)
+	if result := group.Observe(table); result.State != "gone" || !group.ProveGone(table) {
+		t.Fatal("adopted orphans blocked whole-group absence", result)
+	}
+}
+
+func TestGroupKeepsUnprovableMembersUnknown(t *testing.T) {
+	for _, fault := range []string{"older_start", "malformed_start", "live_parent_elsewhere", "zombie_parent"} {
+		t.Run(fault, func(t *testing.T) {
+			leader := fixtureProcess(1201, 1200, 1201)
+			group, _ := NewGroup(leader)
+			table := ProcessTable{1201: leader}
+			member := fixtureProcess(1202, 1, 1201)
+			switch fault {
+			case "older_start":
+				// A recycled group ID whose member predates the leader.
+				member.StartIdentity = "999:99"
+			case "malformed_start":
+				member.StartIdentity = "not-a-start"
+			case "live_parent_elsewhere":
+				// A live process that joined the owned group: its parent
+				// is alive outside the group, so descent is unprovable.
+				member.ParentPID = 1209
+				member.StartIdentity = "1000:43"
+				table[1209] = fixtureProcess(1209, 1, 1209)
+			case "zombie_parent":
+				member.ParentPID = 1209
+				member.StartIdentity = "1000:43"
+				parent := fixtureProcess(1209, 1201, 1201)
+				parent.Zombie = true
+				table[1209] = parent
+			}
+			table[member.PID] = member
+			if result := group.Observe(table); result.State != "containment_unknown" || group.ProveGone(table) {
+				t.Fatal("unprovable member was adopted as owned", result)
+			}
+		})
+	}
+}
+
 func TestGroupUncertaintySurvivesOrdinaryAbsence(t *testing.T) {
 	for _, fault := range []string{"escape", "reuse", "unknown_group", "bound"} {
 		t.Run(fault, func(t *testing.T) {
