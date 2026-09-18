@@ -118,6 +118,72 @@ function failure(error: unknown): Response {
   return json({ error: "request_failed", message: "request failed" }, 500);
 }
 
+async function consumeBucket(
+  deps: GitHubApiDeps,
+  bucketSubject: string,
+  seed: string,
+  surface: string,
+  policy: typeof WEBHOOK_POLICY | typeof APPROVAL_POLICY,
+): Promise<void> {
+  const expiresAt = new Date(Date.parse(deps.now) + policy.windowSeconds * 1000).toISOString();
+  const decision = await consumeAbuseBudget(
+    deps.db,
+    {
+      bucketKey: abuseBucketKey({
+        ipHashSeed: seed,
+        subject: bucketSubject,
+        surface: `github:${surface}`,
+      }),
+      activity: "attempt",
+      bodyBytes: 0,
+      now: deps.now,
+      expiresAt,
+    },
+    policy,
+  );
+  if (!decision.allowed) {
+    throw new DomainError("request_rejected", "request rejected");
+  }
+}
+
+function requireAbuseSecret(deps: GitHubApiDeps): string {
+  if (typeof deps.abuseSecret !== "string" || deps.abuseSecret.length < 32) {
+    throw new DomainError("request_rejected", "request rejected");
+  }
+  return deps.abuseSecret;
+}
+
+function ipSeed(abuseSecret: string, request: Request): string {
+  const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
+  return createHmac("sha256", abuseSecret).update(`github-ip:${ip}`).digest("hex");
+}
+
+function subjectSeed(abuseSecret: string): string {
+  return createHmac("sha256", abuseSecret).update("github-subject").digest("hex");
+}
+
+/** Per-IP budget only: the one bucket charged before webhook signature verification. */
+async function budgetIp(
+  request: Request,
+  deps: GitHubApiDeps,
+  surface: string,
+  policy: typeof WEBHOOK_POLICY | typeof APPROVAL_POLICY,
+): Promise<void> {
+  const abuseSecret = requireAbuseSecret(deps);
+  await consumeBucket(deps, "all", ipSeed(abuseSecret, request), surface, policy);
+}
+
+/** Per-subject budget only: charged once the caller (installation, user) is known. */
+async function budgetSubject(
+  deps: GitHubApiDeps,
+  subject: string,
+  surface: string,
+  policy: typeof WEBHOOK_POLICY | typeof APPROVAL_POLICY,
+): Promise<void> {
+  const abuseSecret = requireAbuseSecret(deps);
+  await consumeBucket(deps, subject, subjectSeed(abuseSecret), surface, policy);
+}
+
 async function budget(
   request: Request,
   deps: GitHubApiDeps,
@@ -125,34 +191,9 @@ async function budget(
   surface: string,
   policy: typeof WEBHOOK_POLICY | typeof APPROVAL_POLICY,
 ): Promise<void> {
-  if (typeof deps.abuseSecret !== "string" || deps.abuseSecret.length < 32) {
-    throw new DomainError("request_rejected", "request rejected");
-  }
-  const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
-  const expiresAt = new Date(Date.parse(deps.now) + policy.windowSeconds * 1000).toISOString();
-  for (const [bucketSubject, seed] of [
-    ["all", createHmac("sha256", deps.abuseSecret).update(`github-ip:${ip}`).digest("hex")],
-    [subject, createHmac("sha256", deps.abuseSecret).update("github-subject").digest("hex")],
-  ] as const) {
-    const decision = await consumeAbuseBudget(
-      deps.db,
-      {
-        bucketKey: abuseBucketKey({
-          ipHashSeed: seed,
-          subject: bucketSubject,
-          surface: `github:${surface}`,
-        }),
-        activity: "attempt",
-        bodyBytes: 0,
-        now: deps.now,
-        expiresAt,
-      },
-      policy,
-    );
-    if (!decision.allowed) {
-      throw new DomainError("request_rejected", "request rejected");
-    }
-  }
+  requireAbuseSecret(deps);
+  await budgetIp(request, deps, surface, policy);
+  await budgetSubject(deps, subject, surface, policy);
 }
 
 function isHubNamespace(value: unknown): value is DurableObjectNamespace {
@@ -241,7 +282,7 @@ export async function handleGitHubWebhook(
     return json({ error: "method_not_allowed" }, 405);
   }
   try {
-    await budget(request, deps, "webhook", "webhook", WEBHOOK_POLICY);
+    await budgetIp(request, deps, "webhook", WEBHOOK_POLICY);
     const raw = await readBoundedBytes(request, GITHUB_WEBHOOK_BODY_LIMIT);
     verifyGitHubWebhookSignature(
       webhookSecret(deps),
@@ -279,7 +320,7 @@ export async function handleGitHubWebhook(
       return json({ received: true, ignored: "event_not_subscribed" }, 202);
     }
     const effect = extracted.effect;
-    await budget(request, deps, `installation:${effect.installationId}`, "webhook", WEBHOOK_POLICY);
+    await budgetSubject(deps, `installation:${effect.installationId}`, "webhook", WEBHOOK_POLICY);
     const workspaceId = await resolveWorkspaceForInstallation(deps, effect.installationId);
     if (!workspaceId) {
       return json(

@@ -84,11 +84,15 @@ to D1.
 
 `POST /webhooks/github` (no browser cookie; `credential_confusion` otherwise):
 
-1. Durable attempt budgets (IP plus installation dimensions), then the raw
-   body is read with a 262,144-byte bound.
+1. The per-IP attempt budget is charged first: unauthenticated callers
+   share no bucket, so one sender's flood cannot reject another sender.
+   Then the raw body is read with a 262,144-byte bound.
 2. `x-hub-signature-256` (`sha256=` HMAC over the exact raw bytes) is
    verified before any JSON parsing. Failures are `401`; oversized bodies
-   are `413`; the budget is a uniform `403`.
+   are `413`; the budget is a uniform `403`. Only after the signature
+   verifies and the installation id is extracted is the per-installation
+   attempt budget charged, so each valid delivery costs exactly one per-IP
+   unit plus one per-installation unit.
 3. `x-github-event` outside the subscribed set is acknowledged `202` with
    no state. Malformed JSON is `400`; unknown installations are `404` with
    no state.
