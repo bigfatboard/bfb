@@ -13,8 +13,8 @@
       "status": "passed",
       "schema": "protocol bfb-wire/1, schema 1, D1 0034_operations",
       "environment": "local workerd D1 plus real Chromium on macOS (arm64); Node 24.19.0, pnpm 11.21.0, Go 1.26.5",
-      "command": "pnpm test:g01",
-      "evidence": "docs/work-packages/evidence/WP-G01/gate-report.json",
+      "command": "pnpm test:c04",
+      "evidence": "docs/work-packages/evidence/WP-C04/manifest.json",
       "detail": "Owner/member/reviewer matrix holds across all ten fixture projects; owning evidence WP-C04/WP-C06/WP-W01/WP-X03A."
     },
     {
@@ -32,8 +32,8 @@
       "status": "passed",
       "schema": "protocol bfb-wire/1, schema 1, D1 0034_operations",
       "environment": "local workerd D1 plus real Chromium on macOS (arm64); Node 24.19.0, pnpm 11.21.0, Go 1.26.5",
-      "command": "pnpm test:g01",
-      "evidence": "docs/work-packages/evidence/WP-G01/gate-report.json",
+      "command": "pnpm test:e01",
+      "evidence": "docs/work-packages/evidence/WP-E01/manifest.json",
       "detail": "Duplicate/out-of-order/concurrent ingest has one effect with exact replay; owning evidence WP-E01/WP-E02/WP-L06."
     },
     {
@@ -51,8 +51,8 @@
       "status": "passed",
       "schema": "protocol bfb-wire/1, schema 1, D1 0034_operations",
       "environment": "local workerd D1 plus real Chromium on macOS (arm64); Node 24.19.0, pnpm 11.21.0, Go 1.26.5",
-      "command": "pnpm test:g01",
-      "evidence": "docs/work-packages/evidence/WP-G01/gate-report.json",
+      "command": "pnpm test:a02",
+      "evidence": "docs/work-packages/evidence/WP-A02/manifest.json",
       "detail": "Attention request/answer/resolve round-trips with version guards; owning evidence WP-A02/WP-E02/WP-X01."
     },
     {
@@ -60,8 +60,8 @@
       "status": "passed",
       "schema": "protocol bfb-wire/1, schema 1, D1 0034_operations",
       "environment": "local workerd D1 plus real Chromium on macOS (arm64); Node 24.19.0, pnpm 11.21.0, Go 1.26.5",
-      "command": "pnpm test:g01",
-      "evidence": "docs/work-packages/evidence/WP-G01/gate-report.json",
+      "command": "pnpm test:v03",
+      "evidence": "docs/work-packages/evidence/WP-V03/manifest.json",
       "detail": "Hostile bytes publish inertly; single-use grants; sweep spares live versions; owning evidence WP-V01/WP-V02/WP-V03."
     },
     {
@@ -69,8 +69,8 @@
       "status": "passed",
       "schema": "protocol bfb-wire/1, schema 1, D1 0034_operations",
       "environment": "local workerd D1 plus real Chromium on macOS (arm64); Node 24.19.0, pnpm 11.21.0, Go 1.26.5",
-      "command": "pnpm test:g01",
-      "evidence": "docs/work-packages/evidence/WP-G01/gate-report.json",
+      "command": "pnpm test:a04",
+      "evidence": "docs/work-packages/evidence/WP-A04/manifest.json",
       "detail": "Token observations dedupe; derivations union exact/estimated/unavailable; owning evidence WP-A04/WP-E01."
     },
     {
@@ -78,8 +78,8 @@
       "status": "passed",
       "schema": "protocol bfb-wire/1, schema 1, D1 0034_operations",
       "environment": "local workerd D1 plus real Chromium on macOS (arm64); Node 24.19.0, pnpm 11.21.0, Go 1.26.5",
-      "command": "pnpm test:g01",
-      "evidence": "docs/work-packages/evidence/WP-G01/gate-report.json",
+      "command": "pnpm test:c04",
+      "evidence": "docs/work-packages/evidence/WP-C04/manifest.json",
       "detail": "Epoch, grant, token, and delegation revocation fence authority before cleanup; owning evidence WP-C04/WP-C05/WP-C06."
     },
     {
@@ -115,8 +115,8 @@
       "status": "passed",
       "schema": "protocol bfb-wire/1, schema 1, D1 0034_operations",
       "environment": "local workerd D1 plus real Chromium on macOS (arm64); Node 24.19.0, pnpm 11.21.0, Go 1.26.5",
-      "command": "pnpm test:g01",
-      "evidence": "docs/work-packages/evidence/WP-G01/gate-report.json",
+      "command": "pnpm test:c01",
+      "evidence": "docs/work-packages/evidence/WP-C01/manifest.json",
       "detail": "Hub FIFO with idempotent results and eviction recovery; owning evidence WP-C01."
     },
     {
@@ -124,8 +124,8 @@
       "status": "passed",
       "schema": "protocol bfb-wire/1, schema 1, D1 0034_operations",
       "environment": "local workerd D1 plus real Chromium on macOS (arm64); Node 24.19.0, pnpm 11.21.0, Go 1.26.5",
-      "command": "pnpm test:g01",
-      "evidence": "docs/work-packages/evidence/WP-G01/gate-report.json",
+      "command": "pnpm test:v01",
+      "evidence": "docs/work-packages/evidence/WP-V01/manifest.json",
       "detail": "No v0.1 artifact delete path; uploads converge on content hash; owning evidence WP-V01/WP-X05."
     },
     {
@@ -151,8 +151,8 @@
       "status": "passed",
       "schema": "protocol bfb-wire/1, schema 1, D1 0034_operations",
       "environment": "local workerd D1 plus real Chromium on macOS (arm64); Node 24.19.0, pnpm 11.21.0, Go 1.26.5",
-      "command": "pnpm test:g01",
-      "evidence": "docs/work-packages/evidence/WP-G01/gate-report.json",
+      "command": "pnpm test:x04",
+      "evidence": "docs/work-packages/evidence/WP-X04/manifest.json",
       "detail": "Hub idempotency, ledger redelivery, and GitHub webhook dedupe converge on one effect; Queue/DLQ/Cron delivery owning evidence WP-X04/WP-X05."
     },
     {

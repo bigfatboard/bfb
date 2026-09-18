@@ -68,7 +68,7 @@ The complete retained v0.1 feature set passes every pre-release tenant, launch, 
 ## Evidence
 
 - `docs/work-packages/evidence/WP-G01/manifest.json` (conforms to `docs/work-packages/evidence/manifest.schema.json`): gate runs, commit, schema heads, environment, commands, outcomes, redaction status.
-- Pre-release gate report (`gate-report.json`): one row per architecture/security/operations gate with status, command, evidence, waiver, and detail; AG-10 and OG-02 are `not_run` for G02.
+- Pre-release gate report (`gate-report.json`): one row per architecture/security/operations gate with status, command, evidence, waiver, and detail; AG-10 and OG-02 are `not_run` for G02. Each `passed` row cites the owning package's test target and evidence manifest as its command and evidence (G01-owned gates cite `pnpm test:g01` and the G01 report); `tools/g01/run.ts` refuses to stamp a row whose cited manifest is missing or not `passed`.
 - Golden fixture (`fixture.json`): seed `bfb-g01/v1`, three humans, ten projects, five profiles, two runners with four checkouts, ten envelope tasks.
 - Failure-injection traces (`traces.jsonl`): stable per-suite lines without generated ids or timestamps.
 - Browser security report (`browser-security.json`): bearer/CSRF/cookie/hostile-inert Chromium scenarios on `BFB_E2E_PORT=4197`.
