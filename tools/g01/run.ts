@@ -2731,7 +2731,6 @@ try {
     assert.equal(secondTenantTotals.count, 1, "second tenant holds exactly its probe task");
     await mkdir(evidenceDir, { recursive: true });
     await writeJson(resolve(evidenceDir, "perf-baseline.json"), {
-      $schema: "../manifest.schema.json",
       seed: G01_SEED,
       fixture_version: G01_FIXTURE_VERSION,
       envelope: {
@@ -2851,7 +2850,6 @@ try {
   // Evidence: bounded, redacted, and free of generated ids or timestamps.
   await mkdir(evidenceDir, { recursive: true });
   await writeJson(resolve(evidenceDir, "fixture.json"), {
-    $schema: "../manifest.schema.json",
     seed: G01_SEED,
     fixture_version: G01_FIXTURE_VERSION,
     now: G01_NOW,
@@ -2950,7 +2948,6 @@ try {
   const gateRows = GATE_ROWS;
   const failedGates = gateRows.filter((row) => row.status === "failed").map((row) => row.gate);
   await writeJson(resolve(evidenceDir, "gate-report.json"), {
-    $schema: "../manifest.schema.json",
     seed: G01_SEED,
     fixture_version: G01_FIXTURE_VERSION,
     protocol_version: "bfb-wire/1",

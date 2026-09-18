@@ -1,5 +1,4 @@
 {
-  "$schema": "../manifest.schema.json",
   "seed": "bfb-g01/v1",
   "fixture_version": 1,
   "protocol_version": "bfb-wire/1",

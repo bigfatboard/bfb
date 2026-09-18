@@ -22,6 +22,35 @@ const root = resolve(toolDir, "../..");
 const packageJson = JSON.parse(await readFile(resolve(root, "package.json"), "utf8"));
 const scripts = new Set(Object.keys(packageJson.scripts ?? {}));
 
+test("supplementary G01 artifacts do not declare the evidence-manifest schema", async () => {
+  // gate-report.json, fixture.json, and perf-baseline.json are not evidence
+  // manifests: they carry seed/gates/envelope keys instead of the required
+  // package/tested_commit/commands keys, so declaring the manifest $schema
+  // makes schema-honouring tooling reject them.
+  const schema = JSON.parse(
+    await readFile(resolve(root, "docs/work-packages/evidence/manifest.schema.json"), "utf8"),
+  );
+  assert.equal(schema.additionalProperties, false, "manifest schema stays closed");
+  for (const file of ["gate-report.json", "fixture.json", "perf-baseline.json"]) {
+    const document = JSON.parse(
+      await readFile(resolve(root, `docs/work-packages/evidence/WP-G01/${file}`), "utf8"),
+    );
+    assert.ok(!("$schema" in document), `${file} must not declare a $schema it cannot satisfy`);
+  }
+  const runSource = await readFile(resolve(toolDir, "run.ts"), "utf8");
+  assert.ok(
+    !runSource.includes("$schema"),
+    "the G01 generator must not stamp the manifest $schema on supplementary artifacts",
+  );
+  const manifest = JSON.parse(
+    await readFile(resolve(root, "docs/work-packages/evidence/WP-G01/manifest.json"), "utf8"),
+  );
+  assert.equal(manifest.$schema, "../manifest.schema.json", "the manifest keeps its schema claim");
+  for (const key of schema.required) {
+    assert.ok(key in manifest, `the manifest must carry its required ${key} key`);
+  }
+});
+
 test("gate table covers every release gate exactly once", () => {
   const expected = [
     "AG-01",
