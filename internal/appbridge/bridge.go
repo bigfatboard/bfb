@@ -142,7 +142,18 @@ func (b *Bridge) deliver(ctx context.Context, d *delivery) error {
 	}
 	b.pending = append(b.pending, d)
 	b.signal()
+	mark := b.lastPoll
 	b.mu.Unlock()
+	// A quit racing the wake can drop the launch request before LaunchServices
+	// detaches the old instance, so no app ever polls for the queued delivery.
+	// When the last poll predates the wake, wait briefly for the app's
+	// readiness poll and wake once more instead of timing out on a launch
+	// that never happened. A polling app skips this wait entirely.
+	if time.Since(mark) > 4*time.Second && !awaitAppPoll(ctx, b, mark, 2*time.Second) {
+		if err := b.options.WakeApp(ctx); err != nil {
+			return err
+		}
+	}
 	defer func() {
 		b.mu.Lock()
 		defer b.mu.Unlock()
@@ -175,6 +186,26 @@ func (b *Bridge) deliver(ctx context.Context, d *delivery) error {
 		case <-changed:
 		}
 	}
+}
+
+// awaitAppPoll reports whether the app polled after mark within limit. It
+// never extends the delivery deadline; callers keep their own context.
+func awaitAppPoll(ctx context.Context, b *Bridge, mark time.Time, limit time.Duration) bool {
+	deadline := time.Now().Add(limit)
+	for time.Now().Before(deadline) {
+		b.mu.Lock()
+		fresh := b.lastPoll.After(mark)
+		b.mu.Unlock()
+		if fresh || ctx.Err() != nil {
+			return fresh
+		}
+		select {
+		case <-ctx.Done():
+			return false
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
+	return false
 }
 
 func outcome(result string) error {
