@@ -1,6 +1,6 @@
 # WP-A01 acceptance matrix
 
-Tested implementation: `e58f395016035ccc41ce858d4e067af5933bca80`.
+Tested implementation: `c21224916f5061aa2a03fa0b9eae764560516dae`.
 Every row below names the automated test that proves it; all run under
 `pnpm test:a01` (Go race detector plus the real-binary stdio harness).
 Synthetic identities only; no row uses a live provider, cloud state, or
@@ -13,7 +13,7 @@ another package's unfinished store.
 | Wrong UID/process group/run/task/workspace/assignment/session cannot acquire/use a capability | `TestVerifyPeerMaliciousMatrix`, `TestStartupRaceFailsVisibleAndPure` | `peer_denied`, `assignment_unknown`, `assignment_ended`, `correlation_rejected`; unknown assignment fails the handshake visibly on pure stdout |
 | Caller-supplied IDs cannot escape the derived boundary | `TestCallerSuppliedIDsCannotEscape` | Foreign task/project/parent IDs return `boundary_escape` with zero transport effects, in every capability state |
 | No human-only context, root promotion, policy admin, or second run | `TestWriteValidationRejects`, `TestGoldenInspectorTranscript` frames 10/13 | Workflow/routing fields rejected as `invalid_params`; root proposals rejected by policy; attention/result/artifact tools return `not_implemented`; task view carries agent-visible fields only |
-| Bootstrap reads before binding, mutations fail until the trusted binding lands, competitor never activates | `TestProvisionalReadOnlyThenActivation`, `TestCompetingSessionNeverActivates`, `TestConcurrentActivationHasOneWinner`, stdio purity session | Provisional `get_task`/`get_context` succeed; writes return `session_not_bound`; 16 concurrent writers activate once with 16 effects; a second session gets `session_conflict` |
+| Bootstrap reads before binding, mutations fail until the trusted binding lands, competitor never activates | `TestProvisionalReadOnlyThenActivation`, `TestCompetingSessionNeverActivates`, `TestConcurrentActivationHasOneWinner`, stdio purity session, `TestJournalBindingsRoundTrip`, `TestJournalBindingsRejectsMalformedRows`, `TestJournalBindingsActivatesCapability`, `TestMCPStdioActivatesBoundSession`, `TestMCPStdioRejectsMutationWhileUnbound` | Provisional `get_task`/`get_context` succeed; writes return `session_not_bound`; 16 concurrent writers activate once with 16 effects; a second session gets `session_conflict`; the production `JournalBindings` source activates from the L06 hook-journal row and the real `mcp stdio` binary path journals a bound mutation as `pending_sync` |
 | Offline returns durable `pending_sync` or visible failure exactly by policy | `TestOfflineJournalingAndPolicy`, harness unknown-assignment case | Reads fail `offline_rejected`; writes journal with full evidence fields; policy-off and journal-less hosts fail visibly; repeats return the same outcome without duplicating |
 | Restarted replay validates origin, proof, expiry, identity; fails visibly on revocation, end, expiry, terminal result, policy change, version conflict | `TestJournalSurvivesRestartAndReplays`, `TestReplayFailureMatrix` | Close/reopen preserves records; success applies once with transport-side idempotency; revocation/end/expiry/terminal/policy/version/tamper become terminal rejections; transient failures stay `retryable` and pending |
 

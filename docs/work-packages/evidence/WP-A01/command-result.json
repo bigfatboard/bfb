@@ -1,6 +1,6 @@
 {
   "package": "A01",
-  "tested_commit": "b990ab91edc4fa6a694543f26ed1956d90792b76",
+  "tested_commit": "c21224916f5061aa2a03fa0b9eae764560516dae",
   "environment": "detached clean checkout and implementation worktree on macOS 26.2 (arm64)",
   "outcome": "passed",
   "commands": [
@@ -17,7 +17,7 @@
     {
       "command": "pnpm test:a01",
       "outcome": "passed",
-      "result": "21 Go test functions (93 cases with subtests) under -race in internal/localmcp, plus internal/cli and cmd/bfb suites; tools/local-mcp stdio harness against the real binary (unknown-assignment visibility, stdout purity, env/bearer refusal, journal creation)"
+      "result": "Go test functions under -race in internal/localmcp (including TestJournalBindings round-trip/malformed/nil-reader/storage-fault/activation cases), plus internal/cli (including TestMCPStdioActivatesBoundSession and TestMCPStdioRejectsMutationWhileUnbound through the production wiring) and cmd/bfb suites; tools/local-mcp stdio harness against the real binary (unknown-assignment visibility, stdout purity, env/Bearer [REDACTED], journal creation)"
     },
     {
       "command": "pnpm verify",
@@ -40,8 +40,8 @@
   "redaction": "passed",
   "notes": [
     "The exact gate (install, build, test:a01) passed from the detached clean checkout /tmp/bfb-a01-clean at the tested commit; the worktree was removed afterwards.",
-    "Evidence files are docs-only additions after the tested commit; pnpm test:a01, pnpm verify, pnpm worktree:check, and the Linux cross-build were re-run on the final tree.",
-    "Status stays planned: E01, L05, and L06 are not done, so roadmap:check rejects anything beyond planned.",
+    "pnpm verify, pnpm worktree:check, and the Linux cross-build were re-run on the implementation tree at the tested commit; evidence files are docs-only additions after it.",
+    "Status stays done: the L06 merge step for the session binding landed in the tested commit (finding 13); L05/L08 merges remain pending per the WP-A01 Handoff.",
     "All identities in tests, fixtures, transcripts, and this report are synthetic; no secrets, task bodies, environment values, or local absolute paths are retained."
   ]
 }
