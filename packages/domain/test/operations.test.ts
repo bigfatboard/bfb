@@ -355,6 +355,65 @@ describe("audit versus activity", () => {
   });
 });
 
+describe("security audit ordering", () => {
+  const T1 = "2026-09-18T12:00:00.000Z";
+  const T2 = "2026-09-18T12:10:00.000Z";
+  const T3 = "2026-09-18T12:20:00.000Z";
+
+  async function seedChronology(db: SqlDatabase): Promise<string[]> {
+    await db.prepare(`DELETE FROM audit_events WHERE workspace_id = ?`).run(FIX.workspace);
+    // Inserted oldest-first, but the ids sort in the opposite order on
+    // purpose (including the non-ULID recovery-row shape), so an id-ordered
+    // read model returns them scrambled.
+    const rows = [
+      { audit_id: "01ZZZZZZZZZZZZZZZZZZZZZZZZ", created_at: T1 },
+      { audit_id: "audit-recovery-shape", created_at: T2 },
+      { audit_id: "01000000000000000000000000", created_at: T2 },
+      { audit_id: "01MMMMMMMMMMMMMMMMMMMMMMMM", created_at: T3 },
+    ];
+    for (const row of rows) {
+      await db
+        .prepare(
+          `INSERT INTO audit_events
+             (workspace_id, audit_id, actor_principal_id, action, payload_json, created_at)
+           VALUES (?, ?, ?, 'ops.audit.order.probe', ?, ?)`,
+        )
+        .run(FIX.workspace, row.audit_id, FIX.owner, JSON.stringify({ action: "probe" }), row.created_at);
+    }
+    return rows.map((row) => row.audit_id);
+  }
+
+  it("returns rows oldest-first regardless of id shape", async () => {
+    const db = await openDomainDb();
+    const ids = await seedChronology(db);
+    const audit = await readSecurityAudit(db, FIX.workspace);
+    expect(audit.entries.map((entry) => entry.audit_id)).toEqual(ids);
+    expect(audit.has_more).toBe(false);
+  });
+
+  it("pages forward in time through the after cursor", async () => {
+    const db = await openDomainDb();
+    const ids = await seedChronology(db);
+    const first = await readSecurityAudit(db, FIX.workspace, { limit: 2 });
+    expect(first.entries.map((entry) => entry.audit_id)).toEqual(ids.slice(0, 2));
+    expect(first.has_more).toBe(true);
+    const second = await readSecurityAudit(db, FIX.workspace, { limit: 2, after: ids[1] });
+    expect(second.entries.map((entry) => entry.audit_id)).toEqual(ids.slice(2));
+    expect(second.has_more).toBe(false);
+    const empty = await readSecurityAudit(db, FIX.workspace, { after: ids[3] });
+    expect(empty.entries).toEqual([]);
+    expect(empty.has_more).toBe(false);
+  });
+
+  it("rejects an unknown after cursor instead of skipping in id space", async () => {
+    const db = await openDomainDb();
+    await seedChronology(db);
+    await expect(
+      readSecurityAudit(db, FIX.workspace, { after: "01AAAAAAAAAAAAAAAAAAAAAAAAA" }),
+    ).rejects.toMatchObject({ code: "invalid_argument" });
+  });
+});
+
 describe("diagnostic bundles", () => {
   async function generate(db: SqlDatabase, now = NOW) {
     const proof = await stepUp(

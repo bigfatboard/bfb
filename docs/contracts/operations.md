@@ -17,10 +17,13 @@ interprets provider-specific capability fields.
 ## Security-audit read model
 
 - `GET /api/v1/workspaces/:ws/operations/security-audit` — Owner only.
-  Rows come from `audit_events`, ordered by `audit_id`, paginated with
-  `after`/`limit` (max 100). Each entry carries `audit_id`,
-  `actor_principal_id`, `action`, `created_at`, and a `payload` passed
-  through the sanitizer below.
+  Rows come from `audit_events`, ordered chronologically by `created_at`
+  (insertion order breaks ties: audit ids carry no time component, so id
+  order is not time order). Paginated with `after`/`limit` (max 100):
+  `after` is an `audit_id` cursor resolved to its row's timestamp, so pages
+  advance in time, not id space; an unknown cursor is rejected. Each entry
+  carries `audit_id`, `actor_principal_id`, `action`, `created_at`, and a
+  `payload` passed through the sanitizer below.
 - The sanitizer drops any key naming a secret, path, or private payload
   (secret, token, bearer, cookie, password, credential, grant secrets,
   prompts, task bodies, hook payloads, terminal output, artifact bytes,
