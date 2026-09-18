@@ -266,18 +266,32 @@ func (b *Bridge) poll(ctx context.Context, peer daemon.Peer, state string) (map[
 			return nil, &daemon.Failure{Code: "app_unavailable"}
 		}
 		b.state, b.lastPoll, b.appPID = state, time.Now(), peer.PID
-		for _, d := range b.pending {
+		for index := 0; index < len(b.pending); index++ {
+			d := b.pending[index]
 			if d.offered {
-				// An offer is exclusive to the process that received it, but a
-				// dead process can never complete: when a newer poll arrives
-				// from another live app after the offered one died, release
-				// the offer so the live app receives it instead of idling
-				// until the delivery times out. An offer to a live owner is
-				// never taken, and a late completion keeps its PID binding.
+				// An offer is exclusive to the process that received it and is
+				// never re-offered: a dead process can never complete, and the
+				// bridge cannot know whether it already acted before dying
+				// without acknowledging, so handing the same delivery to the
+				// next live app would repeat a possibly-executed native effect.
+				// Resolve the orphaned offer as unknown at once so the owner
+				// reconciles its single-use intent instead of idling until the
+				// delivery times out. A buffered acknowledgement still wins:
+				// the owner completed before dying, so that receipt stands.
 				if d.pid == peer.PID || peerAlive(d.pid) {
 					continue
 				}
-				d.offered, d.pid = false, 0
+				select {
+				case d.result <- "app_delivery_unknown":
+				default:
+					continue
+				}
+				// The removal shifts the slice left, so revisit this slot next:
+				// the delivery after the orphaned one must still be offered.
+				b.pending = append(b.pending[:index], b.pending[index+1:]...)
+				b.signal()
+				index--
+				continue
 			}
 			if state != "available" {
 				result := "app_unavailable"
