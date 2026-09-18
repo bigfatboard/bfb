@@ -1,5 +1,6 @@
 {
   "gate": "pnpm test:v03",
+  "tested_commit": "0e1869dde60b135ffeac21bf46ef293f73d8d99f",
   "outcome": "passed",
   "steps": [
     {
