@@ -14,7 +14,7 @@
     "@simplewebauthn/server": "13.3.2",
     "agents": "0.20.1",
     "better-auth": "1.6.26",
-    "hono": "4.13.1",
+    "hono": "4.13.8",
     "zod": "4.4.3"
   },
   "devDependencies": {
