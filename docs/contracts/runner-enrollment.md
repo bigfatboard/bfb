@@ -40,7 +40,10 @@ and regaining project access cannot resurrect that old grant; the runner owner
 must approve sharing again. C04's membership-removal event also remains the
 authority-revocation signal for commands attributed to that human.
 List results show only owned or explicitly granted runners; non-owners receive
-only their visible project IDs and their own launcher grant. Labels are at most
+only the intersection of their visible project IDs with the runner's current
+project grants, plus their own launcher grant. Per-runner checkout summaries
+apply the same intersection, so narrowing a runner's project grants immediately
+hides that project's checkouts from non-owner launchers. Labels are at most
 80 characters, using letters, numbers, spaces and limited display punctuation;
 slashes, control characters and paths are rejected.
 

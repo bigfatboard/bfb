@@ -169,6 +169,50 @@ describe("w02 launch operations browser surface", () => {
     expect(unknown.status).toBe(403);
   });
 
+  it("hides non-granted project checkouts from non-owner launchers", async () => {
+    const f = await fixture();
+    await f.context.db
+      .prepare(
+        `INSERT INTO runner_project_grants (workspace_id, runner_id, project_id) VALUES (?, ?, ?)`,
+      )
+      .run(FIX.workspace, f.runner, FIX.projectB);
+    const betaCheckout = {
+      ...f.inventory().checkouts[0]!,
+      checkout_id: randomUlid(),
+      project_id: FIX.projectB,
+      label: "Synthetic beta checkout",
+      is_default: false,
+    };
+    await f.refresh(LAUNCH_NOW, { checkouts: [...f.inventory().checkouts, betaCheckout] });
+    await f.context.db
+      .prepare(
+        `DELETE FROM runner_project_grants WHERE workspace_id = ? AND runner_id = ? AND project_id = ?`,
+      )
+      .run(FIX.workspace, f.runner, FIX.projectB);
+    await f.context.db
+      .prepare(
+        `INSERT INTO runner_launch_grants (workspace_id, runner_id, human_id, granted_at) VALUES (?, ?, ?, ?)`,
+      )
+      .run(FIX.workspace, f.runner, FIX.member, LAUNCH_NOW);
+    const response = await f.request(f.member, "GET", `runners/${f.runner}/checkouts`);
+    expect(response.status, await response.clone().text()).toBe(200);
+    const body = (await response.json()) as {
+      checkouts: { checkout_id: string; project_id: string }[];
+    };
+    expect(body.checkouts.map((checkout) => checkout.project_id)).toEqual([FIX.projectA]);
+    const listed = (await (await f.request(f.member, "GET", `runners`)).json()) as {
+      runners: {
+        granted_project_ids: string[];
+        checkout_status: { checkouts: { project_id: string }[] } | null;
+      }[];
+    };
+    expect(listed.runners).toHaveLength(1);
+    expect(listed.runners[0]!.granted_project_ids).toEqual([FIX.projectA]);
+    expect(
+      listed.runners[0]!.checkout_status?.checkouts.map((checkout) => checkout.project_id),
+    ).toEqual([FIX.projectA]);
+  });
+
   it("keeps launch reads inside project access", async () => {
     const f = await fixture();
     const missing = await f.request(f.owner, "GET", `launches/${randomUlid()}`);
