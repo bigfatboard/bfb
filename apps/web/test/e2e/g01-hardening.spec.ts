@@ -120,7 +120,7 @@ test("mutations without a valid CSRF token fail closed without state change", as
   );
   expect(forged.status).toBe(403);
   expect(await taskCount(page)).toBe(before);
-  note("csrf", { missingCsrf: 403, forgedCsrf: 403, taskCountStable: before });
+  note("csrf", { missingCsrf: 403, forgedCsrf: 403, taskCountStable: true });
 });
 
 test("session cookies are http-only and same-site scoped", async ({ page, context }) => {

@@ -10,7 +10,7 @@
       "scenario": "csrf",
       "missingCsrf": 403,
       "forgedCsrf": 403,
-      "taskCountStable": 17
+      "taskCountStable": true
     },
     {
       "scenario": "cookie-hygiene",
