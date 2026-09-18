@@ -556,3 +556,31 @@ test("runner operations show checkouts, capability, and step-up sharing", async 
     await restrictedPage.close();
   }
 });
+
+test("switching task sheets mints a fresh Start key", async ({ page }) => {
+  await signInAndOpenBoard(page, "owner");
+  const launchPost = () =>
+    page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        /\/api\/v1\/workspaces\/[^/]+\/launches$/.test(new URL(response.url()).pathname),
+      { timeout: 15_000 },
+    );
+  // The request keys matter, not the outcomes: earlier scenarios may have left
+  // either card started, so each Start can be server-rejected. Pre-fix both
+  // POSTs reuse the sheet's single key and the second is rejected as a
+  // key-hash mismatch instead of being evaluated as a fresh request.
+  await openTaskCard(page, FIX.taskLaunch, "Synthetic launch card");
+  await selectW02RunnerAndCheckout(page);
+  await waitForStartReady(page);
+  const [first] = await Promise.all([launchPost(), page.getByTestId("start-button").click()]);
+  await openTaskCard(page, FIX.taskLaunchStart, "Synthetic member launch card");
+  await selectW02RunnerAndCheckout(page);
+  await waitForStartReady(page);
+  const [second] = await Promise.all([launchPost(), page.getByTestId("start-button").click()]);
+  const firstBody = first.request().postDataJSON() as Record<string, unknown>;
+  const secondBody = second.request().postDataJSON() as Record<string, unknown>;
+  expect(firstBody["task_id"]).toBe(FIX.taskLaunch);
+  expect(secondBody["task_id"]).toBe(FIX.taskLaunchStart);
+  expect(secondBody["idempotency_key"]).not.toBe(firstBody["idempotency_key"]);
+});

@@ -195,6 +195,30 @@ export function newIdempotencyKey(): string {
   return browserUlid();
 }
 
+export type StartAttemptAnswer = "stored" | "rejected" | "unanswered";
+
+/**
+ * Whether a Start attempt settles its idempotency key so the next Start mints
+ * a fresh one. A stored launch owns the key, and a typed rejection stored
+ * nothing (the launch route answers only after the domain batch commits, and
+ * every rejection precedes the key write), so both settle it. Only a lost
+ * response keeps the key, so the next click replays the same request instead
+ * of recording a second launch.
+ */
+export function startAttemptSettlesKey(answer: StartAttemptAnswer): boolean {
+  return answer !== "unanswered";
+}
+
+/**
+ * Whether a received run-control result settles its scope's idempotency key.
+ * Settled controls (applied, rejected, expired) free the key so a later press
+ * issues a new control; live controls (pending, claimed) keep it so repeated
+ * presses replay the same control.
+ */
+export function isSettledControlState(state: string): boolean {
+  return state === "applied" || state === "rejected" || state === "expired";
+}
+
 export type CheckoutDisplay = "ready" | "empty" | "invalid" | "unavailable";
 
 /**

@@ -14,9 +14,11 @@ import {
   describeLaunchStatus,
   linkedCheckoutsMessage,
   newIdempotencyKey,
+  isSettledControlState,
   providerStatusMessage,
   refreshTaskLaunches,
   splitRunnerStatuses,
+  startAttemptSettlesKey,
   resultLabel,
   type CheckoutStatus,
   type ControlAction,
@@ -680,6 +682,13 @@ export function LaunchSection(props: LaunchSectionProps) {
           ...(retryRunId === undefined ? {} : { retryRunId }),
         }),
       );
+      if (startAttemptSettlesKey(response.ok ? "stored" : "rejected")) {
+        // The request was answered, so its key is spent: a stored launch owns
+        // it, and a typed rejection stored nothing. Mint a fresh key so the
+        // next Start is a new request. A lost response throws above and keeps
+        // the key for idempotent replay.
+        setStartKey(newIdempotencyKey());
+      }
       if (!response.ok) {
         throw new Error(
           `${await responseError(response)}. The list below shows the current typed state.`,
@@ -731,6 +740,19 @@ export function LaunchSection(props: LaunchSectionProps) {
       }
       const result = (await response.json()) as ControlResult;
       setControlResults((previous) => ({ ...previous, [scope]: result }));
+      if (isSettledControlState(result.state)) {
+        // The control settled, so its key is spent. Forget it so the next
+        // press for this scope mints a fresh key instead of replaying the
+        // settled control. Live controls keep their key for safe repeats.
+        setControlKeys((previous) => {
+          if (!(scope in previous)) {
+            return previous;
+          }
+          const next = { ...previous };
+          delete next[scope];
+          return next;
+        });
+      }
       await refreshLaunches();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Control failed.");
@@ -851,7 +873,8 @@ export function LaunchSection(props: LaunchSectionProps) {
             {busy ? "Starting…" : "Start on selected Mac"}
           </button>
           <p className="section-help">
-            One click records one durable command. Repeating the click reuses the same request.
+            One click records one durable command. A repeat while the request is still unanswered
+            reuses the same request; once answered, the next Start mints a fresh key.
           </p>
         </form>
       ) : (
@@ -910,9 +933,9 @@ export function LaunchSection(props: LaunchSectionProps) {
                   className="button-secondary"
                   data-testid={`retry-${launch.launch_id}`}
                   onClick={() => {
-                    const key = newIdempotencyKey();
-                    setStartKey(key);
-                    void startAttempt(launch.run_id, key);
+                    // startAttempt settles keys on any answer, so the retry
+                    // only mints its own without touching the Start form key.
+                    void startAttempt(launch.run_id, newIdempotencyKey());
                   }}
                 >
                   Start again explicitly

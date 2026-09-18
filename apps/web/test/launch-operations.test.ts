@@ -12,11 +12,13 @@ import {
   createLaunchClient,
   describeCheckoutDisplay,
   describeLaunchStatus,
+  isSettledControlState,
   linkedCheckoutsMessage,
   newIdempotencyKey,
   providerStatusMessage,
   refreshTaskLaunches,
   splitRunnerStatuses,
+  startAttemptSettlesKey,
   type CheckoutStatus,
   type LaunchStatus,
   type RunnerSummary,
@@ -157,6 +159,27 @@ describe("w02 launch request builders", () => {
 
   it("mints ULID idempotency keys", () => {
     expect(newIdempotencyKey()).toMatch(/^[0-7][0-9A-HJKMNP-TV-Z]{25}$/);
+  });
+
+  it("settles the Start key on any answered request, never on a lost one", () => {
+    // A stored launch owns its key, and a typed rejection stored nothing, so
+    // the next Start must mint a fresh key instead of reusing a spent one for
+    // another task or changed inputs. Only a lost response keeps the key so
+    // the next click replays the same request.
+    expect(startAttemptSettlesKey("stored")).toBe(true);
+    expect(startAttemptSettlesKey("rejected")).toBe(true);
+    expect(startAttemptSettlesKey("unanswered")).toBe(false);
+  });
+
+  it("keeps the run-control key while live and frees it once settled", () => {
+    // Repeated presses for a live control replay the same control; a settled
+    // one (applied, rejected, or expired unclaimed) must free its key so the
+    // next press issues a new control instead of returning the settled one.
+    expect(isSettledControlState("pending")).toBe(false);
+    expect(isSettledControlState("claimed")).toBe(false);
+    expect(isSettledControlState("applied")).toBe(true);
+    expect(isSettledControlState("rejected")).toBe(true);
+    expect(isSettledControlState("expired")).toBe(true);
   });
 
   it("matches the server grants step-up target without extra fields", async () => {
