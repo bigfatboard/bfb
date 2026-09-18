@@ -14,6 +14,7 @@ import {
   FIX,
   GITHUB_QUEUE_SYSTEM_ID,
   GITHUB_WEBHOOK_SYSTEM_ID,
+  githubOutboxBackoffSeconds,
   installGitHubCommand,
   issueStepUpProof,
   mapGitHubRepositoryCommand,
@@ -575,5 +576,119 @@ describe("X04 github queue consumer", () => {
     expect(failed.claimed).toBe(1);
     expect(failed.sendFailures).toBe(1);
     void received;
+  });
+
+  it("retries when reconcile fails after a revocation instead of acking", async () => {
+    const db = await openDomainDb();
+    await setupLinked(db);
+    const deliveryId = randomUlid();
+    const received = await receive(db, deliveryId, {
+      event: "push",
+      action: null,
+      installationId: INSTALLATION,
+      repositoryId: REPOSITORY,
+      occurredAt: NOW,
+      ref: "main",
+      version: "a".repeat(40),
+      detail: {},
+    });
+    const failingNs = {
+      ...createTestWorkspaceHubNamespace(db),
+      get() {
+        return {
+          async fetch() {
+            return new Response("hub unavailable", { status: 500 });
+          },
+        };
+      },
+    } as unknown as DurableObjectNamespace;
+    const deps: GitHubConsumerDeps = {
+      ...depsFor(db, fakeClient({ fetch: "revoked" })),
+      workspaceHubNs: failingNs,
+    };
+    const handle = spyHandle(pushMessage(deliveryId, received.outbox_id));
+    await consumeGitHubQueueMessage(handle, deps);
+    // The installation is still marked revoked, but the failed reconcile must
+    // retry with a counted attempt instead of acking a pending outbox row.
+    const installation = (await db
+      .prepare(`SELECT status FROM github_app_installations WHERE installation_id = ?`)
+      .get(INSTALLATION)) as { status: string };
+    expect(installation.status).toBe("revoked");
+    expect(handle.acked).toBe(0);
+    expect(handle.retried).toBe(1);
+    const outbox = (await db
+      .prepare(`SELECT attempts, state FROM github_integration_outbox WHERE outbox_id = ?`)
+      .get(received.outbox_id)) as { attempts: number; state: string };
+    expect(outbox.attempts).toBe(1);
+    expect(outbox.state).not.toBe("done");
+  });
+
+  it("retries a terminal delivery whose outbox never closed when reconcile fails", async () => {
+    const db = await openDomainDb();
+    await setupLinked(db);
+    const deliveryId = randomUlid();
+    const received = await receive(db, deliveryId, {
+      event: "push",
+      action: null,
+      installationId: INSTALLATION,
+      repositoryId: REPOSITORY,
+      occurredAt: NOW,
+      ref: "main",
+      version: "a".repeat(40),
+      detail: {},
+    });
+    // Crashed finisher: the delivery is terminal but its outbox never closed.
+    await db
+      .prepare(`UPDATE github_webhook_deliveries SET state = 'applied' WHERE delivery_id = ?`)
+      .run(deliveryId);
+    const failingNs = {
+      ...createTestWorkspaceHubNamespace(db),
+      get() {
+        return {
+          async fetch() {
+            return new Response("hub unavailable", { status: 500 });
+          },
+        };
+      },
+    } as unknown as DurableObjectNamespace;
+    const deps: GitHubConsumerDeps = {
+      ...depsFor(db, fakeClient()),
+      workspaceHubNs: failingNs,
+    };
+    const handle = spyHandle(pushMessage(deliveryId, received.outbox_id));
+    await consumeGitHubQueueMessage(handle, deps);
+    expect(handle.acked).toBe(0);
+    expect(handle.retried).toBe(1);
+    const outbox = (await db
+      .prepare(`SELECT attempts, state FROM github_integration_outbox WHERE outbox_id = ?`)
+      .get(received.outbox_id)) as { attempts: number; state: string };
+    expect(outbox.attempts).toBe(1);
+    expect(outbox.state).not.toBe("done");
+  });
+
+  it("redelivers retryable failures on the full 30-minute backoff curve", async () => {
+    const db = await openDomainDb();
+    await setupLinked(db);
+    const deliveryId = randomUlid();
+    const received = await receive(db, deliveryId, {
+      event: "push",
+      action: null,
+      installationId: INSTALLATION,
+      repositoryId: REPOSITORY,
+      occurredAt: NOW,
+      ref: "main",
+      version: "a".repeat(40),
+      detail: {},
+    });
+    await db
+      .prepare(`UPDATE github_integration_outbox SET attempts = 3 WHERE outbox_id = ?`)
+      .run(received.outbox_id);
+    const handle = spyHandle(pushMessage(deliveryId, received.outbox_id));
+    await consumeGitHubQueueMessage(handle, depsFor(db, fakeClient({ fetch: "throw" })));
+    expect(handle.retried).toBe(1);
+    expect(handle.acked).toBe(0);
+    // The fourth attempt backs off 960s; the queue delay must match the D1
+    // next_attempt_at curve instead of flattening at 5 minutes.
+    expect(handle.delays[0]).toBe(githubOutboxBackoffSeconds(4));
   });
 });

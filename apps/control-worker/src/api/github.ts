@@ -920,7 +920,7 @@ export async function consumeGitHubQueueMessage(
           .get(context.workspaceId, context.repositoryId)) as
           { full_name: string; default_branch: string } | undefined)
       : undefined;
-    await reconcileThroughHub(
+    const closed = await reconcileThroughHub(
       deps,
       context,
       link === undefined
@@ -931,6 +931,10 @@ export async function consumeGitHubQueueMessage(
             fetchedAt: deps.now,
           },
     );
+    if (!closed.ok) {
+      await failAttempt(deps, handle, context, closed.code);
+      return;
+    }
     handle.ack();
     return;
   }
@@ -964,7 +968,11 @@ export async function consumeGitHubQueueMessage(
     if (error instanceof DomainError && error.code === "installation_revoked") {
       await markGitHubInstallationRevoked(deps.db, context.installationId, deps.now);
       try {
-        await reconcileThroughHub(deps, context, undefined);
+        const revoked = await reconcileThroughHub(deps, context, undefined);
+        if (!revoked.ok) {
+          await failAttempt(deps, handle, context, revoked.code);
+          return;
+        }
         handle.ack();
       } catch {
         await failAttempt(deps, handle, context, "installation_revoked");
@@ -985,7 +993,11 @@ export async function consumeGitHubQueueMessage(
     if ("revoked" in repository) {
       await markGitHubInstallationRevoked(deps.db, context.installationId, deps.now);
       try {
-        await reconcileThroughHub(deps, context, undefined);
+        const revoked = await reconcileThroughHub(deps, context, undefined);
+        if (!revoked.ok) {
+          await failAttempt(deps, handle, context, revoked.code);
+          return;
+        }
         handle.ack();
       } catch {
         await failAttempt(deps, handle, context, "installation_revoked");
@@ -1003,9 +1015,9 @@ export async function consumeGitHubQueueMessage(
   }
   const result = await reconcileThroughHub(deps, context, observed);
   if (!result.ok) {
-    // Reconcile throws only on retryable installation state or poison-missing
-    // rows; the loads above rule out the poison cases, so every failure here
-    // is a bounded retryable attempt.
+    // Reconcile reports failure as a code, never a throw; the loads above
+    // rule out the poison cases, so every failure here is a bounded
+    // retryable attempt.
     await failAttempt(deps, handle, context, result.code);
     return;
   }
@@ -1038,7 +1050,9 @@ async function failAttempt(
     handle.ack();
     return;
   }
-  handle.retry({ delaySeconds: Math.min(githubOutboxBackoffSeconds(Math.max(attempts, 0)), 300) });
+  // The queue delay follows the same backoff curve as the D1 next_attempt_at
+  // so Cron reclaim and queue redelivery agree on timing.
+  handle.retry({ delaySeconds: githubOutboxBackoffSeconds(Math.max(attempts, 0)) });
 }
 
 /** Consumes one Queue batch with per-message try/catch and explicit dispositions. */

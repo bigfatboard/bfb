@@ -127,7 +127,10 @@ to D1.
   unprocessable messages are recorded in `github_dlq` and acked.
 - Retryable GitHub outages increment the outbox attempt counter with
   backoff (`60 * 2^attempts`, capped at 30 minutes); attempts past 5 park
-  the message in `github_dlq` with the delivery marked `failed`.
+  the message in `github_dlq` with the delivery marked `failed`. A failed
+  reconcile is never acked: after a revocation, or for a terminal delivery
+  whose outbox never closed, it retries with a counted attempt on the same
+  curve as the queue redelivery delay.
 - The 5-minute Cron trigger claims due `pending` rows (the
   D1-commit-before-enqueue crash gap, including lost Queue messages via
   stale `dispatched` rows) and re-sends them, bounded to 25 rows per tick.
