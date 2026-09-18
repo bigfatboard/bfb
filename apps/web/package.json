@@ -15,7 +15,7 @@
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "5.1.4",
     "vite": "8.2.1",
-    "wrangler": "4.120.1"
+    "wrangler": "4.131.2"
   },
   "scripts": {
     "build": "vite build",

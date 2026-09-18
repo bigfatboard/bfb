@@ -9,6 +9,6 @@
     "@bfb/domain": "workspace:*"
   },
   "devDependencies": {
-    "wrangler": "4.120.1"
+    "wrangler": "4.131.2"
   }
 }

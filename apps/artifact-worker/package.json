@@ -9,8 +9,8 @@
     "hono": "4.13.1"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "5.20260810.1",
-    "wrangler": "4.120.1"
+    "@cloudflare/workers-types": "5.20260915.1",
+    "wrangler": "4.131.2"
   },
   "scripts": {
     "build": "tsc -b --pretty false",
