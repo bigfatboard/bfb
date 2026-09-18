@@ -1,0 +1,47 @@
+{
+  "$schema": "../manifest.schema.json",
+  "artifacts": ["command-result.json", "manifest.json", "native-matrix.md"],
+  "commands": [
+    {
+      "artifact": "command-result.json",
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed"
+    },
+    {
+      "artifact": "command-result.json",
+      "command": "pnpm build",
+      "outcome": "passed"
+    },
+    {
+      "artifact": "command-result.json",
+      "command": "pnpm test:l05",
+      "outcome": "passed"
+    },
+    {
+      "artifact": "command-result.json",
+      "command": "pnpm verify",
+      "outcome": "passed"
+    }
+  ],
+  "environment": {
+    "architecture": "arm64",
+    "kind": "clean_checkout",
+    "os": "macOS 26.2"
+  },
+  "migration_head": "d1:0034_operations.sql;local:010_hook_inbox.sql",
+  "outcome": "passed",
+  "package": "L05",
+  "protocol_version": "bfb-wire/1",
+  "redaction": {
+    "prohibited_content": [],
+    "status": "passed"
+  },
+  "schema_version": "1",
+  "tested_commit": "d0b286d4f65f8f38ee55ab52098c6d7b797713b0",
+  "toolchains": {
+    "go": "1.26.5",
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "xcode": "26.0.1"
+  }
+}
