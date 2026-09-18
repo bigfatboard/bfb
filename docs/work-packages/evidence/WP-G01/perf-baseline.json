@@ -21,7 +21,7 @@
     "second_tenant_tasks": 1,
     "tasks_total": 83,
     "ledger_events_total": 8,
-    "semantic_events_total": 156
+    "semantic_events_total": 158
   },
   "outcome": "passed"
 }

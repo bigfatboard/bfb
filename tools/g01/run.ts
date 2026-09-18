@@ -2568,13 +2568,73 @@ try {
       }
     }
     assert.deepEqual(hits, [], "no v0.1 artifact delete path may exist");
-    // Conditional same-hash publication: recording the verified upload twice
-    // converges on one object row instead of racing.
-    const objects = (await db.prepare(`SELECT COUNT(*) AS count FROM artifact_objects`).get()) as {
-      count: number;
-    };
-    assert(objects.count >= 1, "verified uploads record content-addressed objects");
-    note("sg03", "no artifact delete path; uploads converge on content hash");
+    // Same-hash convergence: two review versions carrying identical bytes share
+    // one server-derived object key, so recording both verified uploads must
+    // converge on a single object row (one receipt per version, one object).
+    const sharedBytes = new TextEncoder().encode("synthetic-g01-sg03-shared-review-bytes");
+    const sharedHash = artifactHash(sharedBytes);
+    const firstSecret = mintUploadGrantSecret();
+    const first = await human<{ version_id: string }>(createArtifactCommand.name, {
+      runId: null,
+      format: "markdown",
+      role: "review",
+      declaredSize: sharedBytes.byteLength,
+      expectedDigest: sharedHash,
+      grantSecretHash: artifactHash(firstSecret.secret),
+    });
+    const sharedKey = artifactObjectKey({
+      workspaceId: FIX.workspace,
+      role: "review",
+      runId: null,
+      versionId: first.version_id,
+      contentHash: sharedHash,
+    });
+    const secondSecret = mintUploadGrantSecret();
+    const second = await human<{ version_id: string }>(createArtifactCommand.name, {
+      runId: null,
+      format: "markdown",
+      role: "review",
+      declaredSize: sharedBytes.byteLength,
+      expectedDigest: sharedHash,
+      grantSecretHash: artifactHash(secondSecret.secret),
+    });
+    assert.equal(
+      artifactObjectKey({
+        workspaceId: FIX.workspace,
+        role: "review",
+        runId: null,
+        versionId: second.version_id,
+        contentHash: sharedHash,
+      }),
+      sharedKey,
+      "same-hash review versions share one object key",
+    );
+    for (const versionId of [first.version_id, second.version_id]) {
+      const recorded = await recordVerifiedUpload(db, {
+        workspaceId: FIX.workspace,
+        versionId,
+        runId: null,
+        role: "review",
+        contentHash: sharedHash,
+        r2Key: sharedKey,
+        size: sharedBytes.byteLength,
+        now,
+      });
+      assert.equal(recorded.deduplicated, false, "each version records its own receipt");
+    }
+    const converged = (await db
+      .prepare(
+        `SELECT COUNT(*) AS count FROM artifact_objects WHERE workspace_id = ? AND content_hash = ?`,
+      )
+      .get(FIX.workspace, sharedHash)) as { count: number };
+    assert.equal(converged.count, 1, "same-hash review uploads converge on one object row");
+    const receipts = (await db
+      .prepare(
+        `SELECT COUNT(*) AS count FROM artifact_upload_receipts WHERE workspace_id = ? AND content_hash = ?`,
+      )
+      .get(FIX.workspace, sharedHash)) as { count: number };
+    assert.equal(receipts.count, 2, "each same-hash version keeps its own receipt");
+    note("sg03", "no artifact delete path; same-hash uploads converge on one object row");
   }
   verdict("SG-03", "passed", "artifact failure boundaries without a delete path");
 

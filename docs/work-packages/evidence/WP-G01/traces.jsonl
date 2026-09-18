@@ -33,7 +33,7 @@
 [ops] retention under step-up; diagnostics scan and sanitize
 [ag01] owner/member/reviewer matrix holds across all ten projects; hub route refuses cross-tenant commands both directions
 [runs] 3 launches start together; 3 claims land on free leases across both Macs
-[sg03] no artifact delete path; uploads converge on content hash
+[sg03] no artifact delete path; same-hash uploads converge on one object row
 [perf] 50-command burst within bound; 83 tasks committed
 [ag08] member epoch bump fences subsequent stale-epoch commands
 [ag08] runner launch-grant revocation blocks launch start
