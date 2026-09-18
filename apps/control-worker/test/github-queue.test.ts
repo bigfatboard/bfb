@@ -1,7 +1,7 @@
 // ABOUTME: Exercises X04 Queue per-message ack/retry, poison isolation, and DLQ state.
 // ABOUTME: Synthetic handles prove siblings ack once while poison retries or parks visibly.
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import Database from "better-sqlite3";
 import path from "node:path";
@@ -44,11 +44,16 @@ import { createTestWorkspaceHubNamespace } from "../src/hub-client.js";
 import {
   consumeGitHubQueueBatch,
   consumeGitHubQueueMessage,
+  createGitHubRestClient,
   runGitHubSweep,
   type GitHubConsumerDeps,
   type GitHubQueueHandle,
   type GitHubRestClient,
 } from "../src/api/github.js";
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 const NOW = "2026-09-18T12:00:00.000Z";
 const INSTALLATION = "12345678";
@@ -399,6 +404,122 @@ describe("X04 github queue consumer", () => {
       .get(deliveryId)) as { state: string };
     expect(delivery.state).toBe("ignored");
     expect(client.minted).toEqual([INSTALLATION]);
+  });
+
+  it("treats rate-limited repository reads as retryable, never revoked", async () => {
+    const client = createGitHubRestClient({ githubApiBase: "https://api.github.test" });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) => {
+        const url = input instanceof Request ? input.url : String(input);
+        const repositoryId = url.split("/repositories/")[1] ?? "";
+        if (repositoryId === "rate-limited") {
+          return new Response(JSON.stringify({ message: "API rate limit exceeded" }), {
+            status: 403,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (repositoryId === "abuse-limited") {
+          return new Response(
+            JSON.stringify({ message: "You have exceeded a secondary rate limit" }),
+            { status: 403, headers: { "content-type": "application/json" } },
+          );
+        }
+        if (repositoryId === "too-many") {
+          return new Response(JSON.stringify({ message: "Too Many Requests" }), {
+            status: 429,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (repositoryId === "rejected") {
+          return new Response(JSON.stringify({ message: "Bad credentials" }), {
+            status: 401,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (repositoryId === "missing") {
+          return new Response(JSON.stringify({ message: "Not Found" }), {
+            status: 404,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        return Response.json({ full_name: "synthetic-org/synthetic-repo", default_branch: "main" });
+      }),
+    );
+    await expect(client.fetchRepository("synthetic-token", "rate-limited")).rejects.toMatchObject({
+      code: "github_unreachable",
+    });
+    await expect(client.fetchRepository("synthetic-token", "abuse-limited")).rejects.toMatchObject({
+      code: "github_unreachable",
+    });
+    await expect(client.fetchRepository("synthetic-token", "too-many")).rejects.toMatchObject({
+      code: "github_unreachable",
+    });
+    await expect(client.fetchRepository("synthetic-token", "rejected")).resolves.toEqual({
+      revoked: true,
+    });
+    await expect(client.fetchRepository("synthetic-token", "missing")).resolves.toEqual({
+      revoked: true,
+    });
+    await expect(client.fetchRepository("synthetic-token", REPOSITORY)).resolves.toEqual({
+      fullName: "synthetic-org/synthetic-repo",
+      defaultBranch: "main",
+    });
+  });
+
+  it("retries a 403 repository read without revoking the installation or closing links", async () => {
+    const db = await openDomainDb();
+    await setupLinked(db);
+    const deliveryId = randomUlid();
+    const received = await receive(db, deliveryId, {
+      event: "push",
+      action: null,
+      installationId: INSTALLATION,
+      repositoryId: REPOSITORY,
+      occurredAt: NOW,
+      ref: "main",
+      version: "a".repeat(40),
+      detail: {},
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        return new Response(
+          JSON.stringify({ message: "You have exceeded a secondary rate limit" }),
+          { status: 403, headers: { "content-type": "application/json" } },
+        );
+      }),
+    );
+    const live = createGitHubRestClient({ githubApiBase: "https://api.github.test" });
+    const client: GitHubRestClient = {
+      ...live,
+      async mintInstallationToken() {
+        return { token: "synthetic-test-token", expiresAt: "2026-09-18T13:00:00.000Z" };
+      },
+    };
+    const deps = depsFor(db, client);
+    const handle = spyHandle(pushMessage(deliveryId, received.outbox_id));
+    await consumeGitHubQueueMessage(handle, deps);
+    expect(handle.retried).toBe(1);
+    expect(handle.acked).toBe(0);
+    const installation = (await db
+      .prepare(`SELECT status FROM github_app_installations WHERE installation_id = ?`)
+      .get(INSTALLATION)) as { status: string };
+    expect(installation.status).toBe("active");
+    const link = (await db
+      .prepare(
+        `SELECT link_state FROM github_repository_links WHERE workspace_id = ? AND repository_id = ?`,
+      )
+      .get(FIX.workspace, REPOSITORY)) as { link_state: string };
+    expect(link.link_state).toBe("active");
+    const delivery = (await db
+      .prepare(`SELECT state FROM github_webhook_deliveries WHERE delivery_id = ?`)
+      .get(deliveryId)) as { state: string };
+    expect(delivery.state).not.toBe("ignored");
+    const outbox = (await db
+      .prepare(`SELECT attempts FROM github_integration_outbox WHERE outbox_id = ?`)
+      .get(received.outbox_id)) as { attempts: number };
+    expect(outbox.attempts).toBe(1);
   });
 
   it("recovers the commit-before-enqueue gap through the sweep", async () => {

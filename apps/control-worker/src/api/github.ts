@@ -751,8 +751,17 @@ export function createGitHubRestClient(deps: {
           "user-agent": "bfb-github/v1",
         },
       });
-      if (response.status === 401 || response.status === 403 || response.status === 404) {
+      if (response.status === 401 || response.status === 404) {
         return { revoked: true as const };
+      }
+      if (response.status === 403 || response.status === 429 || response.status >= 500) {
+        // GitHub answers primary and secondary rate limits and abuse
+        // detection with 403 on repository reads, so a 403 never proves the
+        // installation is gone. Retry with backoff instead of revoking.
+        throw new DomainError(
+          "github_unreachable",
+          "github repository read is rate limited or unavailable",
+        );
       }
       if (!response.ok) {
         throw new DomainError("github_unreachable", "github repository read failed");

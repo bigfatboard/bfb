@@ -3,6 +3,7 @@
 | Version | Date | Change |
 | --- | --- | --- |
 | 1 | 2026-09-18 | Freeze link, webhook, Queue, token, and evidence rules. |
+| 2 | 2026-09-18 | Rate-limit 403/429/5xx on repository reads retry; only 401/404 revoke. |
 
 Consumers: X05 (audit/retention), G01 (redelivery/revocation hardening).
 
@@ -135,8 +136,13 @@ to D1.
   are never written to D1, Queue bodies, URLs, logs, or diagnostics. The App
   private key arrives only as a Worker secret and is used only to sign the
   short-lived App JWT for the token endpoint.
-- A `401`/`403`/`404` from GitHub marks the installation revoked, closes
-  its links, and records later deliveries ignored without minting again.
+- A `401`/`404` on a repository read, or a `404` from the token
+  endpoint, marks the installation revoked, closes its links, and records
+  later deliveries ignored without minting again.
+- A `403`/`429`/`5xx` from GitHub never revokes: repository reads answer
+  primary and secondary rate limits and abuse detection with `403`, so the
+  consumer retries with backoff and parks in `github_dlq` after 5 attempts.
+  This matches the token endpoint, which already treats `403` as retryable.
 
 ## Evidence and provenance
 
