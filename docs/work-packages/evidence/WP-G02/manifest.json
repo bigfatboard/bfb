@@ -1,0 +1,71 @@
+{
+  "$schema": "../manifest.schema.json",
+  "package": "G02",
+  "tested_commit": "cda5fed88c06aa186c7f3afc25f287551f5e5b7d",
+  "protocol_version": "bfb-wire/1",
+  "schema_version": "1",
+  "migration_head": "0034_operations",
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "xcode": "26.0.1",
+    "browser": "chromium (playwright)"
+  },
+  "environment": {
+    "kind": "local",
+    "os": "macOS",
+    "architecture": "arm64"
+  },
+  "commands": [
+    {
+      "command": "pnpm test:g02",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-G02/command-result.json"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-G02/command-result.json"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-G02/command-result.json"
+    },
+    {
+      "command": "GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./...",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-G02/command-result.json"
+    }
+  ],
+  "outcome": "passed",
+  "artifacts": [
+    "docs/work-packages/evidence/WP-G02/browser-smoke.json",
+    "docs/work-packages/evidence/WP-G02/command-result.json",
+    "docs/work-packages/evidence/WP-G02/gate-report.json",
+    "docs/work-packages/evidence/WP-G02/golden-flow.json",
+    "docs/work-packages/evidence/WP-G02/migration-drill.json",
+    "docs/work-packages/evidence/WP-G02/provenance.json",
+    "docs/work-packages/evidence/WP-G02/redaction-scan.json",
+    "docs/work-packages/evidence/WP-G02/release-manifest.json",
+    "docs/work-packages/evidence/WP-G02/rollback-limits.json",
+    "docs/work-packages/evidence/WP-G02/rotation-drill.json",
+    "docs/work-packages/evidence/WP-G02/sbom.json",
+    "docs/work-packages/evidence/WP-G02/signing-result.json",
+    "docs/work-packages/evidence/WP-G02/smoke.json"
+  ],
+  "redaction": {
+    "status": "passed",
+    "prohibited_content": [
+      "task bodies",
+      "cookies",
+      "bearer secrets",
+      "local paths",
+      "hook payloads",
+      "artifact bytes",
+      "terminal output",
+      "private keys"
+    ]
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "release": "bfb-v0.1-g02",
+  "scanned_files": 12,
+  "scanned": [
+    "browser-smoke.json",
+    "command-result.json",
+    "gate-report.json",
+    "golden-flow.json",
+    "migration-drill.json",
+    "provenance.json",
+    "release-manifest.json",
+    "rollback-limits.json",
+    "rotation-drill.json",
+    "sbom.json",
+    "signing-result.json",
+    "smoke.json"
+  ],
+  "prohibited_classes": [
+    "task bodies",
+    "cookies",
+    "bearer secrets",
+    "local paths",
+    "private keys",
+    "terminal output"
+  ],
+  "findings": [],
+  "status": "passed"
+}

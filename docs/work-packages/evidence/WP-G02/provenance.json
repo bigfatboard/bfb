@@ -1,0 +1,26 @@
+{
+  "release": "bfb-v0.1-g02",
+  "produced_by": [
+    "pnpm build",
+    "pnpm build:web",
+    "pnpm exec tsc -b tools/g02 --pretty false",
+    "node tools/g02/signing.mjs",
+    "tsx tools/g02/run.ts",
+    "BFB_E2E_PORT=4198 playwright test apps/web/test/e2e/g02-release.spec.ts"
+  ],
+  "frozen_contract": "docs/contracts/release.md",
+  "release_candidate": "docs/contracts/release-candidate.md",
+  "inputs": {
+    "apps/control-worker/wrangler.toml": "ea8cf006c9234fc5541b398086d4dc1fda05523cfde2a34dbfa0ab83a8334a45",
+    "apps/control-worker/wrangler.staging.toml": "ce8dd28db90de44d5469e900320b75edad863373fca73db0fac17c3fdca15932",
+    "apps/control-worker/wrangler.production.toml": "e0a8338446693f32c7fc3de767d6118d0ba1dc8ae815850f0945f0125cb54189",
+    "apps/control-worker/wrangler.selfhost.toml": "1a45b1e9120e76a8a693eb96239fe62b33e11d419fa4a43d21225577f55bd6ab",
+    "apps/artifact-worker/wrangler.toml": "38d59e33387b1f29fa81f33baf245f9d8da15c6033ad875963e73ec65d5e6280",
+    "apps/artifact-worker/wrangler.staging.toml": "cdb4578e510ba3ca339953866ff5388cd6d6acefff63c65d0ae03b648a6a6ec0",
+    "apps/artifact-worker/wrangler.production.toml": "e4592b108538b9df6b9761f35190a2ab3a4763c14f9523e55e8cd01f83a55de7",
+    "apps/artifact-worker/wrangler.selfhost.toml": "28168b6829e48acd3195bf4600eb9cc68cee28c6dd2ee059da00a8039f432ba3",
+    "migrations/d1/manifest.json": "58af2a5f55041ec976c5df081fe0f278cca9d87c592725c1d7d611da7ceb764b",
+    "docs/contracts/release.md": "c3dd4463582dd7a3a81455144b08ab5a8067e7f5017533ad06fc4fd176bad0be",
+    ".github/workflows/release.yml": "0f710e28093ad6b1998c912a31ee7084ce9a4bd8527870980adef8d02355b42e"
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "release": "bfb-v0.1-g02",
+  "dry_runs": [
+    {
+      "config": "apps/control-worker/wrangler.toml",
+      "worker": "control",
+      "outcome": "passed"
+    },
+    {
+      "config": "apps/control-worker/wrangler.staging.toml",
+      "worker": "control",
+      "outcome": "passed"
+    },
+    {
+      "config": "apps/control-worker/wrangler.production.toml",
+      "worker": "control",
+      "outcome": "passed"
+    },
+    {
+      "config": "apps/control-worker/wrangler.selfhost.toml",
+      "worker": "control",
+      "outcome": "passed"
+    },
+    {
+      "config": "apps/artifact-worker/wrangler.toml",
+      "worker": "artifact",
+      "outcome": "passed"
+    },
+    {
+      "config": "apps/artifact-worker/wrangler.staging.toml",
+      "worker": "artifact",
+      "outcome": "passed"
+    },
+    {
+      "config": "apps/artifact-worker/wrangler.production.toml",
+      "worker": "artifact",
+      "outcome": "passed"
+    },
+    {
+      "config": "apps/artifact-worker/wrangler.selfhost.toml",
+      "worker": "artifact",
+      "outcome": "passed"
+    }
+  ],
+  "authenticated_handlers": [
+    {
+      "check": "healthz",
+      "status": 200,
+      "outcome": "passed"
+    },
+    {
+      "check": "cli/version",
+      "status": 200,
+      "outcome": "passed"
+    },
+    {
+      "check": "cli/session anonymous",
+      "status": 401,
+      "outcome": "passed"
+    },
+    {
+      "check": "cli/session forged",
+      "status": 401,
+      "outcome": "passed"
+    },
+    {
+      "check": "selfhost jurisdiction gate",
+      "status": 500,
+      "outcome": "passed"
+    }
+  ],
+  "rollout_smoke": "node tools/g02/smoke-commands.mjs --origin <production-origin>"
+}

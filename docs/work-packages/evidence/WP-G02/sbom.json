@@ -1,0 +1,211 @@
+{
+  "release": "bfb-v0.1-g02",
+  "components": [
+    {
+      "name": "@bfb/artifact-worker",
+      "version": "0.0.0",
+      "path": "apps/artifact-worker/package.json"
+    },
+    {
+      "name": "@bfb/control-worker",
+      "version": "0.0.0",
+      "path": "apps/control-worker/package.json"
+    },
+    {
+      "name": "@bfb/web",
+      "version": "0.0.0",
+      "path": "apps/web/package.json"
+    },
+    {
+      "name": "@bfb/db",
+      "version": "0.0.0",
+      "path": "packages/db/package.json"
+    },
+    {
+      "name": "@bfb/domain",
+      "version": "0.0.0",
+      "path": "packages/domain/package.json"
+    },
+    {
+      "name": "@bfb/protocol",
+      "version": "0.0.0",
+      "path": "packages/protocol-ts/package.json"
+    },
+    {
+      "name": "@bfb/ui",
+      "version": "0.0.0",
+      "path": "packages/ui/package.json"
+    },
+    {
+      "name": "@bfb/artifact-review-tests",
+      "version": "0.0.0",
+      "path": "tools/artifact-review/package.json"
+    },
+    {
+      "name": "@bfb/artifact-viewer-tests",
+      "version": "0.0.0",
+      "path": "tools/artifact-viewer/package.json"
+    },
+    {
+      "name": "@bfb/artifact-tests",
+      "version": "0.0.0",
+      "path": "tools/artifacts/package.json"
+    },
+    {
+      "name": "@bfb/attention-tests",
+      "version": "0.0.0",
+      "path": "tools/attention/package.json"
+    },
+    {
+      "name": "@bfb/cli-credential-tests",
+      "version": "0.0.0",
+      "path": "tools/cli-credentials/package.json"
+    },
+    {
+      "name": "@bfb/discussion-delivery-tests",
+      "version": "0.0.0",
+      "path": "tools/discussion-delivery/package.json"
+    },
+    {
+      "name": "@bfb/discussion-tests",
+      "version": "0.0.0",
+      "path": "tools/discussions/package.json"
+    },
+    {
+      "name": "@bfb/e2e",
+      "version": "0.0.0",
+      "path": "tools/e2e/package.json"
+    },
+    {
+      "name": "@bfb/event-tests",
+      "version": "0.0.0",
+      "path": "tools/events/package.json"
+    },
+    {
+      "name": "@bfb/g01-tests",
+      "version": "0.0.0",
+      "path": "tools/g01/package.json"
+    },
+    {
+      "name": "@bfb/g02-tests",
+      "version": "0.0.0",
+      "path": "tools/g02/package.json"
+    },
+    {
+      "name": "@bfb/github-tests",
+      "version": "0.0.0",
+      "path": "tools/github/package.json"
+    },
+    {
+      "name": "@bfb/human-cli-tests",
+      "version": "0.0.0",
+      "path": "tools/human-cli/package.json"
+    },
+    {
+      "name": "@bfb/identity-tests",
+      "version": "0.0.0",
+      "path": "tools/identity/package.json"
+    },
+    {
+      "name": "@bfb/journal-tests",
+      "version": "0.0.0",
+      "path": "tools/journal/package.json"
+    },
+    {
+      "name": "@bfb/kernel-tests",
+      "version": "0.0.0",
+      "path": "tools/kernel/package.json"
+    },
+    {
+      "name": "@bfb/launch-tests",
+      "version": "0.0.0",
+      "path": "tools/launches/package.json"
+    },
+    {
+      "name": "@bfb/measurement-tests",
+      "version": "0.0.0",
+      "path": "tools/measurements/package.json"
+    },
+    {
+      "name": "@bfb/notification-tests",
+      "version": "0.0.0",
+      "path": "tools/notifications/package.json"
+    },
+    {
+      "name": "@bfb/operations-tests",
+      "version": "0.0.0",
+      "path": "tools/operations/package.json"
+    },
+    {
+      "name": "@bfb/passkey-tests",
+      "version": "0.0.0",
+      "path": "tools/passkeys/package.json"
+    },
+    {
+      "name": "@bfb/project-tests",
+      "version": "0.0.0",
+      "path": "tools/projects/package.json"
+    },
+    {
+      "name": "@bfb/protocol-tools",
+      "version": "0.0.0",
+      "path": "tools/protocol/package.json"
+    },
+    {
+      "name": "@bfb/realtime-tests",
+      "version": "0.0.0",
+      "path": "tools/realtime/package.json"
+    },
+    {
+      "name": "@bfb/repository-tools",
+      "version": "0.0.0",
+      "path": "tools/repository/package.json"
+    },
+    {
+      "name": "@bfb/result-tests",
+      "version": "0.0.0",
+      "path": "tools/results/package.json"
+    },
+    {
+      "name": "@bfb/runner-channel-tests",
+      "version": "0.0.0",
+      "path": "tools/runner-channel/package.json"
+    },
+    {
+      "name": "@bfb/runner-tests",
+      "version": "0.0.0",
+      "path": "tools/runners/package.json"
+    },
+    {
+      "name": "@bfb/work-record-tests",
+      "version": "0.0.0",
+      "path": "tools/work-records/package.json"
+    },
+    {
+      "name": "@bfb/workspace-authorization-tests",
+      "version": "0.0.0",
+      "path": "tools/workspace-authorization/package.json"
+    }
+  ],
+  "toolchain": {
+    "node": "24.19.0",
+    "go": "1.26.5",
+    "xcode": "26.0.1",
+    "pnpm": "pnpm@11.21.0+sha512.521705bce689924eac72f5a3587122f362689ef6571e55ba80076fd637c11132ecffada26fad4ea79c485bfddbfd3d5a2a5b05805a77e893de71ec8a6cca3bb1",
+    "wrangler": "4.120.1",
+    "playwright": "1.55.1"
+  },
+  "release_inputs": {
+    "apps/control-worker/wrangler.toml": "ea8cf006c9234fc5541b398086d4dc1fda05523cfde2a34dbfa0ab83a8334a45",
+    "apps/control-worker/wrangler.staging.toml": "ce8dd28db90de44d5469e900320b75edad863373fca73db0fac17c3fdca15932",
+    "apps/control-worker/wrangler.production.toml": "e0a8338446693f32c7fc3de767d6118d0ba1dc8ae815850f0945f0125cb54189",
+    "apps/control-worker/wrangler.selfhost.toml": "1a45b1e9120e76a8a693eb96239fe62b33e11d419fa4a43d21225577f55bd6ab",
+    "apps/artifact-worker/wrangler.toml": "38d59e33387b1f29fa81f33baf245f9d8da15c6033ad875963e73ec65d5e6280",
+    "apps/artifact-worker/wrangler.staging.toml": "cdb4578e510ba3ca339953866ff5388cd6d6acefff63c65d0ae03b648a6a6ec0",
+    "apps/artifact-worker/wrangler.production.toml": "e4592b108538b9df6b9761f35190a2ab3a4763c14f9523e55e8cd01f83a55de7",
+    "apps/artifact-worker/wrangler.selfhost.toml": "28168b6829e48acd3195bf4600eb9cc68cee28c6dd2ee059da00a8039f432ba3",
+    "migrations/d1/manifest.json": "58af2a5f55041ec976c5df081fe0f278cca9d87c592725c1d7d611da7ceb764b",
+    "docs/contracts/release.md": "c3dd4463582dd7a3a81455144b08ab5a8067e7f5017533ad06fc4fd176bad0be",
+    ".github/workflows/release.yml": "0f710e28093ad6b1998c912a31ee7084ce9a4bd8527870980adef8d02355b42e"
+  }
+}

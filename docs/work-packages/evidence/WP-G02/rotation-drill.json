@@ -1,0 +1,11 @@
+{
+  "release": "bfb-v0.1-g02",
+  "parser": "apps/control-worker/src/auth/better-auth.ts parseAuthKeys",
+  "overlap": {
+    "versions": [2, 1],
+    "outcome": "passed"
+  },
+  "rejections": ["third version", "duplicate version", "short secret", "missing version", "empty"],
+  "health_signal": "TOKEN_ROTATION_WARN_MS flags runner tokens expiring within 24h",
+  "procedure": "docs/runbooks/key-rotation.md"
+}

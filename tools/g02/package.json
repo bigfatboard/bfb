@@ -1,0 +1,16 @@
+{
+  "name": "@bfb/g02-tests",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@bfb/control-worker": "workspace:*",
+    "@bfb/db": "workspace:*",
+    "@bfb/domain": "workspace:*",
+    "better-sqlite3": "12.6.2"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "7.6.13",
+    "wrangler": "4.120.1"
+  }
+}

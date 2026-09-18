@@ -1,0 +1,11 @@
+{
+  "release": "bfb-v0.1-g02",
+  "app_identifier": "com.qdis.bfb",
+  "helper_identifier": "com.tenira.bfb.daemon",
+  "hook_launcher": "Contents/Helpers/bfb __launch <terminal-intent-uuid>",
+  "custom_scheme": "bfb://launch/<cloud-wake-ULID>",
+  "managed_link": "applinks:launch.bfb.example?mode=developer",
+  "deep_strict_verify": "passed",
+  "profile": "development",
+  "notarization": "prepared rollout step (docs/release/rollout.md), not run locally"
+}
