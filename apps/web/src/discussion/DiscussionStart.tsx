@@ -47,7 +47,10 @@ function toRunnerInput(runner: RunnerSummary): RunnerInput {
   };
 }
 
-function toCheckoutInput(checkout: CheckoutStatus["checkouts"][number], valid: boolean): CheckoutInput {
+function toCheckoutInput(
+  checkout: CheckoutStatus["checkouts"][number],
+  valid: boolean,
+): CheckoutInput {
   return {
     checkout_id: checkout.checkout_id,
     runner_id: checkout.runner_id,
@@ -76,8 +79,16 @@ export function DiscussionStart(props: DiscussionStartProps) {
   const [question, setQuestion] = useState("");
   const [rounds, setRounds] = useState(3);
   const [duration, setDuration] = useState(900);
-  const [first, setFirst] = useState<SlotSelection>({ profileId: "", runnerId: "", checkoutId: "" });
-  const [second, setSecond] = useState<SlotSelection>({ profileId: "", runnerId: "", checkoutId: "" });
+  const [first, setFirst] = useState<SlotSelection>({
+    profileId: "",
+    runnerId: "",
+    checkoutId: "",
+  });
+  const [second, setSecond] = useState<SlotSelection>({
+    profileId: "",
+    runnerId: "",
+    checkoutId: "",
+  });
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -96,9 +107,9 @@ export function DiscussionStart(props: DiscussionStartProps) {
     void (async () => {
       try {
         const [profileBody, runnerBody] = await Promise.all([
-          (await fetchFn(
-            `/api/v1/workspaces/${props.workspaceId}/agent-profiles?limit=100`,
-          )).json() as Promise<{ profiles: AgentProfileRecord[] }>,
+          (
+            await fetchFn(`/api/v1/workspaces/${props.workspaceId}/agent-profiles?limit=100`)
+          ).json() as Promise<{ profiles: AgentProfileRecord[] }>,
           launchClient.listRunners(),
         ]);
         if (!active) {
@@ -110,14 +121,19 @@ export function DiscussionStart(props: DiscussionStartProps) {
           await fetchFn(`/api/v1/workspaces/${props.workspaceId}/tasks/${props.taskId}`)
         ).json()) as { task: { project_id: string } };
         const [workspacePolicy, projectPolicy, repositoryConfig] = await Promise.all([
-          (await fetchFn(`/api/v1/workspaces/${props.workspaceId}/workspace-policy`))
-            .json() as Promise<{ policy: { resourceVersion: number } }>,
-          (await fetchFn(
-            `/api/v1/workspaces/${props.workspaceId}/projects/${taskBody.task.project_id}/policy`,
-          )).json() as Promise<{ policy: { resourceVersion: number } }>,
-          (await fetchFn(
-            `/api/v1/workspaces/${props.workspaceId}/projects/${taskBody.task.project_id}/repository-config`,
-          )).json() as Promise<{ config: { resource_version: number } }>,
+          (
+            await fetchFn(`/api/v1/workspaces/${props.workspaceId}/workspace-policy`)
+          ).json() as Promise<{ policy: { resourceVersion: number } }>,
+          (
+            await fetchFn(
+              `/api/v1/workspaces/${props.workspaceId}/projects/${taskBody.task.project_id}/policy`,
+            )
+          ).json() as Promise<{ policy: { resourceVersion: number } }>,
+          (
+            await fetchFn(
+              `/api/v1/workspaces/${props.workspaceId}/projects/${taskBody.task.project_id}/repository-config`,
+            )
+          ).json() as Promise<{ config: { resource_version: number } }>,
         ]);
         if (!active) {
           return;
@@ -143,7 +159,8 @@ export function DiscussionStart(props: DiscussionStartProps) {
   }, [canManage, fetchFn, launchClient, props.taskId, props.workspaceId]);
 
   const headless = useMemo(
-    () => profiles.filter((profile) => profile.provider === "claude" || profile.provider === "codex"),
+    () =>
+      profiles.filter((profile) => profile.provider === "claude" || profile.provider === "codex"),
     [profiles],
   );
 
@@ -340,8 +357,8 @@ export function DiscussionStart(props: DiscussionStartProps) {
     <section aria-label="Start discussion" data-testid="discussion-start">
       <h3>Start a discussion</h3>
       <p className="section-help">
-        Two restricted headless participants exchange bounded read-only turns. Starting a
-        discussion never starts work or completes the task.
+        Two restricted headless participants exchange bounded read-only turns. Starting a discussion
+        never starts work or completes the task.
       </p>
       {error ? (
         <p className="inline-error" role="alert" data-testid="discussion-start-error">

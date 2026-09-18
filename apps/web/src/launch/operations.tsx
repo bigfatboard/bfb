@@ -633,9 +633,7 @@ export function LaunchSection(props: LaunchSectionProps) {
     const retryProfileId = retryRunId
       ? launches.find((launch) => launch.run_id === retryRunId)?.agent_profile_id
       : undefined;
-    const profile = profiles.find(
-      (item) => item.id === (retryProfileId ?? effectiveProfileId),
-    );
+    const profile = profiles.find((item) => item.id === (retryProfileId ?? effectiveProfileId));
     if (!profile) {
       throw new Error("Select an agent profile.");
     }

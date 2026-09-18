@@ -63,8 +63,7 @@ export function DiscussionSection(props: DiscussionSectionProps) {
     <section aria-labelledby="discussions-heading" data-testid="discussion-section">
       <h3 id="discussions-heading">Discussions</h3>
       <p className="section-help">
-        Bounded read-only exchanges between two agents. Recommendations never complete this
-        task.
+        Bounded read-only exchanges between two agents. Recommendations never complete this task.
       </p>
       {loading ? (
         <div className="sheet-loading" role="status">

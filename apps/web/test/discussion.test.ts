@@ -298,7 +298,11 @@ describe("d03 discussion request builders", () => {
       discussionId,
       expectedVersion: 4,
       action: "decide",
-      decision: { kind: "record_recommendation", summary: "Take the bounded one.", recommendationIds: ["m1"] },
+      decision: {
+        kind: "record_recommendation",
+        summary: "Take the bounded one.",
+        recommendationIds: ["m1"],
+      },
       idempotencyKey: randomUlid(),
     });
     expect(decide).toMatchObject({

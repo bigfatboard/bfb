@@ -174,7 +174,8 @@ export function createDiscussionClient(
   return {
     list: (taskId) => get(`${base}/tasks/${encodeURIComponent(taskId)}/discussions?limit=50`),
     read: (discussionId) => get(`${base}/discussions/${encodeURIComponent(discussionId)}`),
-    create: (body) => post(`${base}/tasks/${encodeURIComponent(String(body.task_id))}/discussions`, body),
+    create: (body) =>
+      post(`${base}/tasks/${encodeURIComponent(String(body.task_id))}/discussions`, body),
     change: (discussionId, body) =>
       post(`${base}/discussions/${encodeURIComponent(discussionId)}`, body),
   };

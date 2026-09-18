@@ -157,9 +157,7 @@ test("intervention is attributed to the acting human and cancel stops dispatch",
 
   await panel.getByTestId("discussion-cancel").click();
   await expect(panel.getByTestId("discussion-stopped")).toContainText("Cancelled by the human");
-  await expect(panel.getByTestId("discussion-stopped")).toContainText(
-    "No later turn is accepted",
-  );
+  await expect(panel.getByTestId("discussion-stopped")).toContainText("No later turn is accepted");
   expect(await panel.getByTestId("intervene-form").count()).toBe(0);
   expect(await panel.getByTestId("discussion-cancel").count()).toBe(0);
   await page.screenshot({ path: path.join(EVIDENCE_DIR, "cancel.png"), fullPage: true });
@@ -182,8 +180,12 @@ test("busy, offline, revoked, unsupported, and checkout conflicts stay actionabl
   const firstProfile = start.getByTestId("discussion-first-profile");
   const secondProfile = start.getByTestId("discussion-second-profile");
 
-  await firstProfile.selectOption({ label: "Synthetic D03 interactive Claude · claude · interactive/standard" });
-  await secondProfile.selectOption({ label: "Synthetic D03 standard Codex · codex · headless/standard" });
+  await firstProfile.selectOption({
+    label: "Synthetic D03 interactive Claude · claude · interactive/standard",
+  });
+  await secondProfile.selectOption({
+    label: "Synthetic D03 standard Codex · codex · headless/standard",
+  });
   await start
     .getByTestId("discussion-first-runner")
     .selectOption({ label: "Synthetic D03 Mac · enrolled" });
@@ -252,7 +254,11 @@ test("busy, offline, revoked, unsupported, and checkout conflicts stay actionabl
     "shared checkout renders Checkout busy instead of stuck loading",
     "eligible slots enable Start read-only discussion",
   ].join("\n");
-  await writeFile(path.join(EVIDENCE_DIR, "negative-matrix.md"), `# D03 negative matrix (browser)\n\n${matrix}\n`, "utf8");
+  await writeFile(
+    path.join(EVIDENCE_DIR, "negative-matrix.md"),
+    `# D03 negative matrix (browser)\n\n${matrix}\n`,
+    "utf8",
+  );
 });
 
 test("keyboard, empty, loading, error, and narrow-layout cases pass", async ({ page }) => {

@@ -1112,7 +1112,15 @@ async function seedD03Discussions(db: SqlDatabase): Promise<D03State> {
         `INSERT INTO runners (workspace_id, id, owner_human_id, device_label, public_key_json, key_thumbprint, token_epoch, enrolled_at, revoked_at)
          VALUES (?, ?, ?, ?, '{}', ?, 1, ?, ?)`,
       )
-      .run(FIX.workspace, runner, FIX.owner, label, `synthetic-d03-${runner}`, D03_NOW, revoked ? D03_NOW : null);
+      .run(
+        FIX.workspace,
+        runner,
+        FIX.owner,
+        label,
+        `synthetic-d03-${runner}`,
+        D03_NOW,
+        revoked ? D03_NOW : null,
+      );
     await db
       .prepare(`INSERT INTO runner_project_grants VALUES (?, ?, ?)`)
       .run(FIX.workspace, runner, FIX.projectA);
@@ -1238,7 +1246,12 @@ async function seedD03Discussions(db: SqlDatabase): Promise<D03State> {
   const taskCancel = await discussionTask("Synthetic discussion stopped card");
   const taskEmpty = await discussionTask("Synthetic discussion empty card");
 
-  function createInput(taskId: string, rounds: number, checkoutA: string, checkoutB: string): DiscussionCreateRequest {
+  function createInput(
+    taskId: string,
+    rounds: number,
+    checkoutA: string,
+    checkoutB: string,
+  ): DiscussionCreateRequest {
     return {
       schema_version: 1,
       idempotency_key: randomUlid(),
@@ -1276,7 +1289,14 @@ async function seedD03Discussions(db: SqlDatabase): Promise<D03State> {
   }
 
   async function turnRows(discussionId: string): Promise<
-    { id: string; participant_id: string; ordinal: number; resource_version: number; run_id: string; slot: number }[]
+    {
+      id: string;
+      participant_id: string;
+      ordinal: number;
+      resource_version: number;
+      run_id: string;
+      slot: number;
+    }[]
   > {
     return (await db
       .prepare(
@@ -1326,7 +1346,9 @@ async function seedD03Discussions(db: SqlDatabase): Promise<D03State> {
 
   async function readDelivery(turnId: string): Promise<{ id: string; resource_version: number }> {
     const delivery = (await db
-      .prepare(`SELECT id, resource_version FROM discussion_deliveries WHERE workspace_id = ? AND turn_id = ?`)
+      .prepare(
+        `SELECT id, resource_version FROM discussion_deliveries WHERE workspace_id = ? AND turn_id = ?`,
+      )
       .get(FIX.workspace, turnId)) as { id: string; resource_version: number };
     return delivery;
   }
@@ -1427,7 +1449,10 @@ async function seedD03Discussions(db: SqlDatabase): Promise<D03State> {
     };
   }
 
-  const six = await human(createDiscussionCommand, createInput(taskSix, 3, D03_CHECKOUT_A, D03_CHECKOUT_B));
+  const six = await human(
+    createDiscussionCommand,
+    createInput(taskSix, 3, D03_CHECKOUT_A, D03_CHECKOUT_B),
+  );
   const m1 = await completeTurn(
     six.discussion_id,
     1,
@@ -1489,8 +1514,16 @@ async function seedD03Discussions(db: SqlDatabase): Promise<D03State> {
     createDiscussionCommand,
     createInput(taskIntervene, 1, D03_CHECKOUT_A, D03_CHECKOUT_B),
   );
-  await completeTurn(intervened.discussion_id, 1, output("First independent synthetic position.", { evidence: [] }));
-  await completeTurn(intervened.discussion_id, 2, output("Second independent synthetic position.", { evidence: [] }));
+  await completeTurn(
+    intervened.discussion_id,
+    1,
+    output("First independent synthetic position.", { evidence: [] }),
+  );
+  await completeTurn(
+    intervened.discussion_id,
+    2,
+    output("Second independent synthetic position.", { evidence: [] }),
+  );
   await human(changeDiscussionCommand, {
     schema_version: 1,
     idempotency_key: randomUlid(),
@@ -1504,7 +1537,11 @@ async function seedD03Discussions(db: SqlDatabase): Promise<D03State> {
     createDiscussionCommand,
     createInput(taskCancel, 1, D03_CHECKOUT_A, D03_CHECKOUT_B),
   );
-  await completeTurn(cancelled.discussion_id, 1, output("Only position before cancellation.", { evidence: [] }));
+  await completeTurn(
+    cancelled.discussion_id,
+    1,
+    output("Only position before cancellation.", { evidence: [] }),
+  );
   await human(changeDiscussionCommand, {
     schema_version: 1,
     idempotency_key: randomUlid(),
@@ -1892,10 +1929,7 @@ async function main(): Promise<void> {
   // domain time for deterministic seeds. Resetting between scenarios restores
   // per-scenario isolation; abuse protection itself is proven by the
   // unit/worker gates, and no browser suite asserts a rejection.
-  async function handleRateLimitReset(
-    req: IncomingMessage,
-    res: ServerResponse,
-  ): Promise<boolean> {
+  async function handleRateLimitReset(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
     if (req.url === undefined || !req.url.startsWith("/__test/ratelimit/reset")) return false;
     if (req.method !== "POST") {
       res.statusCode = 405;

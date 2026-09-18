@@ -1,19 +1,10 @@
 // ABOUTME: Pure D03 presentation rules for eligibility, speaker, delivery, and deadline.
 // ABOUTME: Every blocking condition maps to an actionable state; prose never implies completion.
 
-import type {
-  AgentProfileRecord,
-  DiscussionMessageSummary,
-  DiscussionView,
-} from "./api.js";
+import type { AgentProfileRecord, DiscussionMessageSummary, DiscussionView } from "./api.js";
 
 export type Eligibility =
-  | "eligible"
-  | "busy"
-  | "offline"
-  | "revoked"
-  | "unsupported"
-  | "checkout_conflict";
+  "eligible" | "busy" | "offline" | "revoked" | "unsupported" | "checkout_conflict";
 
 export interface EligibilityResult {
   status: Eligibility;
@@ -77,31 +68,27 @@ export function describeSlotEligibility(input: ProfileEligibilityInput): Eligibi
       nextAction: "The Mac has not reported inventory. Wake it or pick a reporting runner.",
     };
   }
-  if (
-    input.profile.provider !== "claude" &&
-    input.profile.provider !== "codex"
-  ) {
+  if (input.profile.provider !== "claude" && input.profile.provider !== "codex") {
     return {
       status: "unsupported",
       headline: "Unsupported provider",
       nextAction: "Discussions need a restricted headless Claude or Codex profile.",
     };
   }
-  if (
-    input.profile.execution_mode !== "headless" ||
-    input.profile.harness_mode !== "restricted"
-  ) {
+  if (input.profile.execution_mode !== "headless" || input.profile.harness_mode !== "restricted") {
     return {
       status: "unsupported",
       headline: "Profile cannot hold a read-only discussion",
-      nextAction: "Pick a restricted headless profile. Interactive or standard profiles are rejected.",
+      nextAction:
+        "Pick a restricted headless profile. Interactive or standard profiles are rejected.",
     };
   }
   if (!input.checkout || input.checkout.status !== "validated" || input.checkout.block_reason) {
     return {
       status: "checkout_conflict",
       headline: "Checkout unavailable",
-      nextAction: "Pick a validated checkout for this project. Stale, blocked, or mismatched checkouts are rejected.",
+      nextAction:
+        "Pick a validated checkout for this project. Stale, blocked, or mismatched checkouts are rejected.",
     };
   }
   if (input.checkoutOccupied) {
@@ -166,13 +153,7 @@ export interface DeliveryPresentation {
 
 /** Delivery states render from committed records only. Queued is not working. */
 export function describeDelivery(
-  state:
-    | "accepted"
-    | "dispatched"
-    | "acknowledged"
-    | "completed"
-    | "ambiguous"
-    | "failed",
+  state: "accepted" | "dispatched" | "acknowledged" | "completed" | "ambiguous" | "failed",
 ): DeliveryPresentation {
   switch (state) {
     case "accepted":
@@ -336,7 +317,10 @@ export function openDisagreements(view: DiscussionView): DisagreementSummary[] {
     if (message.kind === "intervention") {
       return "Human intervention";
     }
-    return view.participants.find((entry) => entry.id === message.participant_id)?.name ?? "Unknown participant";
+    return (
+      view.participants.find((entry) => entry.id === message.participant_id)?.name ??
+      "Unknown participant"
+    );
   };
   const out: DisagreementSummary[] = [];
   for (const message of view.messages) {
@@ -383,12 +367,11 @@ export function decisionSummary(view: DiscussionView): string | null {
   return `${kind}: ${view.decision.summary}`;
 }
 
-export function participantName(
-  view: DiscussionView,
-  participantId: string | undefined,
-): string {
+export function participantName(view: DiscussionView, participantId: string | undefined): string {
   if (!participantId) {
     return "Unknown participant";
   }
-  return view.participants.find((entry) => entry.id === participantId)?.name ?? "Unknown participant";
+  return (
+    view.participants.find((entry) => entry.id === participantId)?.name ?? "Unknown participant"
+  );
 }

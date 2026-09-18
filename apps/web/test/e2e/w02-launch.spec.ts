@@ -74,9 +74,7 @@ test("owner double submit records one durable launch", async ({ page }) => {
   // Pin the runner and checkout explicitly: the default runner follows id
   // order and a sibling seed's runner (with a live lease on its checkout)
   // may sort first for the owner.
-  await page
-    .getByTestId("start-runner")
-    .selectOption({ label: "Synthetic Launch Mac (your Mac)" });
+  await page.getByTestId("start-runner").selectOption({ label: "Synthetic Launch Mac (your Mac)" });
   await page
     .getByTestId("start-checkout")
     .selectOption({ label: "Synthetic Alpha Checkout · main · clean · validated" });

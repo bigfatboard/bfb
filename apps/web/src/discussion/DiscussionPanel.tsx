@@ -120,7 +120,9 @@ export function useDiscussionSync(options: SyncOptions): DiscussionSync {
   const connect = useCallback(() => {
     const url = socketUrl(options.workspaceId);
     if (!url) {
-      setNotice("Realtime unavailable in this browser. Committed history below stays authoritative.");
+      setNotice(
+        "Realtime unavailable in this browser. Committed history below stays authoritative.",
+      );
       return;
     }
     channel.current?.close();
@@ -227,7 +229,11 @@ function MessageCard(props: { view: DiscussionView; message: DiscussionMessageSu
     return (
       <li className="discussion-message is-intervention" data-kind="intervention">
         <p className="message-attribution">
-          <strong>{message.author_human_id === view.decision?.human_id ? "Deciding human" : "Human intervention"}</strong>
+          <strong>
+            {message.author_human_id === view.decision?.human_id
+              ? "Deciding human"
+              : "Human intervention"}
+          </strong>
           <span>{message.created_at}</span>
         </p>
         <p className="message-text">{message.text ?? ""}</p>
@@ -240,7 +246,9 @@ function MessageCard(props: { view: DiscussionView; message: DiscussionMessageSu
     <li className="discussion-message is-recommendation" data-kind="recommendation">
       <p className="message-attribution">
         <strong>{speaker}</strong>
-        <span>{message.session_id ? `Session ${message.session_id.slice(0, 8)}…` : "Session unbound"}</span>
+        <span>
+          {message.session_id ? `Session ${message.session_id.slice(0, 8)}…` : "Session unbound"}
+        </span>
         <span>{message.created_at}</span>
       </p>
       {output ? (
@@ -522,7 +530,9 @@ export function DiscussionPanel(props: DiscussionPanelProps) {
               <strong>{`Turn ${turn.ordinal} · ${owner?.name ?? "Unknown"} (${owner?.provider ?? "?"})`}</strong>
               <span>{`Turn ${turn.state}`}</span>
               {turn.delivery && delivery ? (
-                <span data-testid={`delivery-${turn.ordinal}`}>{`${delivery.headline} — ${delivery.detail}`}</span>
+                <span
+                  data-testid={`delivery-${turn.ordinal}`}
+                >{`${delivery.headline} — ${delivery.detail}`}</span>
               ) : (
                 <span>Not yet accepted for dispatch.</span>
               )}
@@ -642,7 +652,11 @@ export function DiscussionPanel(props: DiscussionPanelProps) {
               required
             />
           </label>
-          <button type="submit" className="button-secondary" disabled={busy || !intervention.trim()}>
+          <button
+            type="submit"
+            className="button-secondary"
+            disabled={busy || !intervention.trim()}
+          >
             Add intervention
           </button>
         </form>
@@ -708,8 +722,8 @@ export function DiscussionPanel(props: DiscussionPanelProps) {
         >
           <h4>Record a human decision</h4>
           <p className="section-help">
-            A decision references stored recommendations. It never completes the task or
-            authorizes implementation.
+            A decision references stored recommendations. It never completes the task or authorizes
+            implementation.
           </p>
           <label>
             Decision

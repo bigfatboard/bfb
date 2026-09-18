@@ -1,0 +1,32 @@
+[
+  {
+    "command": "pnpm test:mvp-discussion",
+    "exit": 0,
+    "note": "D01 fixture check, build, 22 unit tests (D03 presentation plus D01 route regression), and 6 Chromium scenarios on BFB_E2E_PORT=4191 all pass.",
+    "time": "2026-09-18T00:11:00Z"
+  },
+  {
+    "command": "BFB_CAPTURE_D03_EVIDENCE=1 pnpm test:mvp-discussion:browser",
+    "exit": 0,
+    "note": "6 Chromium scenarios pass; 8 screenshots, negative matrix, and reconnect trace captured to the manifest directory.",
+    "time": "2026-09-18T00:11:30Z"
+  },
+  {
+    "command": "pnpm test:w02:browser",
+    "exit": 0,
+    "note": "9 Chromium scenarios pass with the shared task sheet (launch defaults prefer runner-healthy providers; retry reuses its run profile).",
+    "time": "2026-09-18T00:05:00Z"
+  },
+  {
+    "command": "pnpm test:e02:browser, a02, a03, w01 browser suites",
+    "exit": 0,
+    "note": "E02 8/8, A02 3/3, A03 1/1, W01 11/11 Chromium scenarios pass with the shared task sheet.",
+    "time": "2026-09-18T00:08:00Z"
+  },
+  {
+    "command": "node tools/discussion-smoke/smoke.mjs",
+    "exit": 2,
+    "note": "Live smoke correctly refuses: pending L05, provider credentials, and consent. Not a failure.",
+    "time": "2026-09-18T00:10:00Z"
+  }
+]
