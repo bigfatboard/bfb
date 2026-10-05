@@ -118,10 +118,10 @@ The reads slice is not full A01 acceptance. These closure obligations remain:
    and expected resource version. Distinguish retryable connectivity failures
    from terminal stale-authority rejection; prove remote-commit/local-ack crash
    deduplication and durable applied/rejected acknowledgements.
-4. Specify the explicit checked command that binds an observed provider session
-   into canonical cloud session records, if needed for independent cloud session
-   fencing. A telemetry projection is not that command and bootstrap reads are
-   not permission to synthesize a binding. This lifecycle remains distinct from
+4. Implement the explicit checked canonical binding and per-execution session
+   association specified by [ADR 0005](0005-agent-work-session-and-attribution.md).
+   A telemetry projection is not that command and bootstrap reads are not
+   permission to synthesize a binding. This lifecycle remains distinct from
    local trusted session activation and run/result transitions.
 5. Pass full `pnpm test:a01`, affected earlier gates and `pnpm verify` from a clean
    checkout, and commit bounded evidence before claiming complete A01 runtime
