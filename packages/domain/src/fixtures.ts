@@ -8,6 +8,8 @@ import { deniedOfflineAgentWork, type OfflineAgentWorkPolicy } from "./offline-a
 import { policyUpdateTarget, type UpdatePolicyInput } from "./projects.js";
 import { issueStepUpProof } from "./step-up.js";
 
+export { prepareSyntheticAttentionClaim } from "./attention-fixture.js";
+
 /** Synthetic setup only: exercise the same bound policy proof as a verified browser assertion. */
 export async function authorizeSyntheticPolicyUpdate<
   T extends Omit<UpdatePolicyInput, "stepUpProofId" | "offlineAgentWork"> & {
