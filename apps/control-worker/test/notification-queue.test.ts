@@ -1,7 +1,7 @@
 // ABOUTME: Drives the X01 queue consumer against hub-seeded fixtures with scripted push endpoints.
 // ABOUTME: Proves dedupe, retry budgets, DLQ copies, suppression, and batch isolation.
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   authorizeSyntheticPolicyUpdate,
@@ -12,6 +12,8 @@ import {
   launchDeadline,
   notificationJobId,
   randomUlid,
+  prepareSyntheticAttentionClaim,
+  resolveCommand,
   registerPushEndpointCommand,
   removeMemberCommand,
   replaceRunnerInventoryCommand,
@@ -27,7 +29,7 @@ import {
   type PolicySettings,
   type RunnerPrincipal,
 } from "@bfb/domain";
-import type { RunnerInventory } from "@bfb/protocol";
+import type { LaunchClaimResult, RunnerInventory } from "@bfb/protocol";
 
 import {
   handleNotifyQueue,
@@ -316,9 +318,7 @@ async function seedQueueWorld(
   });
   const claimed = await native<{
     state: string;
-    claim: {
-      specification: { run_execution_id: string; assignment_generation: number; run_id: string };
-    };
+    claim: LaunchClaimResult;
   }>(claimLaunchCommand, {
     principal,
     claim: {
@@ -330,15 +330,26 @@ async function seedQueueWorld(
     },
   });
   if (claimed.state !== "claimed") throw new Error(claimed.state);
-  await native(requestAttentionCommand, {
-    principal,
-    runId: claimed.claim.specification.run_id,
-    executionId: claimed.claim.specification.run_execution_id,
-    assignmentGeneration: claimed.claim.specification.assignment_generation,
-    kind: "clarification",
-    question,
-    blocking: true,
-  });
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(NOW);
+  try {
+    const bound = await prepareSyntheticAttentionClaim(
+      (name, input) => {
+        const command = resolveCommand(name);
+        if (!command) throw new Error(`missing synthetic command ${name}`);
+        return native(command, input);
+      },
+      principal,
+      claimed.claim,
+      NOW,
+    );
+    await native(requestAttentionCommand, {
+      principal,
+      request: { ...bound, kind: "clarification", question, blocking: true },
+    });
+  } finally {
+    vi.useRealTimers();
+  }
   const cursor = (await db
     .prepare(
       `SELECT workspace_cursor FROM semantic_events

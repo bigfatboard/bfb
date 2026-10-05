@@ -2,7 +2,7 @@
 // ABOUTME: Delegation acceptance, boundary, revocation, and idempotency fail closed without new scopes.
 
 import type { SqlDatabase } from "@bfb/db";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { requestAttentionCommand } from "../src/attention.js";
 import { bumpMemberEpoch } from "../src/authorization.js";
@@ -31,6 +31,9 @@ import { createTaskCommand } from "../src/work-commands.js";
 import { createExecutionCommand, createRunCommand } from "../src/work-records.js";
 import { openDomainDb } from "./helpers.js";
 import { launchFixture, LAUNCH_NOW, success } from "./launch-fixture.js";
+import { prepareAttentionBinding } from "./attention-fixture.js";
+
+afterEach(() => vi.useRealTimers());
 
 const NOW = "2026-08-12T08:00:00Z";
 const LATER = "2026-08-12T09:00:00Z";
@@ -268,8 +271,12 @@ describe("delegated attention request", () => {
   });
 
   it("matches the runner command record shape on twin bound runs", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(LAUNCH_NOW);
     const f = await launchFixture();
-    const { claimed } = await f.claim();
+    const launch = await f.claim();
+    const { claimed } = launch;
+    const attentionBinding = await prepareAttentionBinding(f, launch);
     const bound = {
       runId: claimed.specification.run_id,
       executionId: claimed.specification.run_execution_id,
@@ -279,12 +286,12 @@ describe("delegated attention request", () => {
     const runnerRecord = success(
       await f.native(requestAttentionCommand, {
         principal: f.principal,
-        runId: bound.runId,
-        executionId: bound.executionId,
-        assignmentGeneration: bound.generation,
-        kind: "blocker",
-        question: "Synthetic twin question",
-        blocking: false,
+        request: {
+          ...attentionBinding,
+          kind: "blocker",
+          question: "Synthetic twin question",
+          blocking: false,
+        },
       }),
     );
     const delegationId = await seedDelegation(f.db, {

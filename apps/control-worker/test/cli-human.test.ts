@@ -4,7 +4,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   authorizeSyntheticPolicyUpdate,
@@ -15,6 +15,8 @@ import {
   issueStepUpProof,
   launchDeadline,
   randomUlid,
+  prepareSyntheticAttentionClaim,
+  resolveCommand,
   replaceRunnerInventoryCommand,
   reportRepositoryConfigCommand,
   requestAttentionCommand,
@@ -27,7 +29,7 @@ import {
   type PolicySettings,
   type RunnerPrincipal,
 } from "@bfb/domain";
-import type { RunnerInventory } from "@bfb/protocol";
+import type { LaunchClaimResult, RunnerInventory } from "@bfb/protocol";
 
 import { parseAuthKeys } from "../src/auth/better-auth.js";
 import { validateControlEnv, type ControlBindings } from "../src/env.js";
@@ -380,9 +382,7 @@ async function seed(): Promise<Seed> {
   });
   const claimed = await native<{
     state: string;
-    claim: {
-      specification: { run_execution_id: string; assignment_generation: number; run_id: string };
-    };
+    claim: LaunchClaimResult;
   }>(claimLaunchCommand, {
     principal,
     claim: {
@@ -394,15 +394,32 @@ async function seed(): Promise<Seed> {
     },
   });
   if (claimed.state !== "claimed") throw new Error(claimed.state);
-  const requested = await native<{ id: string; run_id: string }>(requestAttentionCommand, {
-    principal,
-    runId: claimed.claim.specification.run_id,
-    executionId: claimed.claim.specification.run_execution_id,
-    assignmentGeneration: claimed.claim.specification.assignment_generation,
-    kind: "clarification",
-    question: "Synthetic X02 route question",
-    blocking: true,
-  });
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(NOW);
+  let requested: { id: string; run_id: string };
+  try {
+    const bound = await prepareSyntheticAttentionClaim(
+      (name, input) => {
+        const command = resolveCommand(name);
+        if (!command) throw new Error(`missing synthetic command ${name}`);
+        return native(command, input);
+      },
+      principal,
+      claimed.claim,
+      NOW,
+    );
+    requested = await native(requestAttentionCommand, {
+      principal,
+      request: {
+        ...bound,
+        kind: "clarification",
+        question: "Synthetic X02 route question",
+        blocking: true,
+      },
+    });
+  } finally {
+    vi.useRealTimers();
+  }
   const run = (await db
     .prepare(`SELECT resource_version FROM runs WHERE workspace_id = ? AND id = ?`)
     .get(FIX.workspace, requested.run_id)) as { resource_version: number };

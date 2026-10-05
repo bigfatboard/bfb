@@ -21,6 +21,7 @@ import {
   listAttention,
   listAttentionObservations,
   randomUlid,
+  prepareSyntheticAttentionClaim,
   replaceRunnerInventoryCommand,
   reportRepositoryConfigCommand,
   requestAttentionCommand,
@@ -36,7 +37,7 @@ import {
   type RunnerPrincipal,
   type TaskRecord,
 } from "@bfb/domain";
-import type { RunnerInventory } from "@bfb/protocol";
+import type { LaunchClaimResult, RunnerInventory } from "@bfb/protocol";
 import { format, resolveConfig } from "prettier";
 import { createTestHarness } from "wrangler";
 
@@ -63,7 +64,7 @@ import {
 } from "./evidence.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-const now = "2026-09-12T12:00:00.000Z",
+const now = new Date(Math.floor(new Date().getTime() / 1000) * 1000).toISOString(),
   origin = "https://bfb.attention.test";
 const digest = `sha256:${"a".repeat(64)}`,
   emptyConfig = `sha256:${runnerHash("{}")}`;
@@ -384,9 +385,7 @@ try {
   });
   const claimed = await native<{
     state: string;
-    claim: {
-      specification: { run_execution_id: string; assignment_generation: number; run_id: string };
-    };
+    claim: LaunchClaimResult;
   }>(claimLaunchCommand.name, {
     principal,
     claim: {
@@ -398,20 +397,21 @@ try {
     },
   });
   assert.equal(claimed.state, "claimed");
-  const executionId = claimed.claim.specification.run_execution_id;
   const generation = claimed.claim.specification.assignment_generation;
   const runId = claimed.claim.specification.run_id;
   recording.push(launchClaimedEntry(generation));
+  const bound = await prepareSyntheticAttentionClaim(native, principal, claimed.claim, now);
 
   function requestBody(kind: string, tag: string, blocking: boolean) {
     return {
       principal,
-      runId,
-      executionId,
-      assignmentGeneration: generation,
-      kind,
-      question: question(tag),
-      blocking,
+      request: {
+        ...bound,
+        reference: { ...bound.reference, request_id: `attention-${tag}` },
+        kind,
+        question: question(tag),
+        blocking,
+      },
     };
   }
 
@@ -455,7 +455,7 @@ try {
             authorizationEpoch: 1,
             now,
             actorRunnerId: runner,
-            input: { ...replayInput, question: question("HARNESS-CHANGED") },
+            input: replayInput,
           },
         }),
       }),
@@ -467,6 +467,27 @@ try {
   assert(replayOutcome.every((outcome) => outcome.ok));
   const replayed = replayOutcome.map((outcome) => (outcome.ok ? outcome.result.id : null));
   assert.equal(replayed[0], replayed[1]);
+  const changedReply = await server
+    .getWorker("bfb-attention-b")
+    .fetch(`${origin}/workspaces/${FIX.workspace}/execute`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        commandName: requestAttentionCommand.name,
+        request: {
+          workspaceId: FIX.workspace,
+          idempotencyKey: replayKey,
+          authorizationEpoch: 1,
+          actorRunnerId: runner,
+          input: {
+            ...replayInput,
+            request: { ...replayInput.request, question: question("HARNESS-CHANGED") },
+          },
+        },
+      }),
+    });
+  const changedOutcome = (await changedReply.json()) as CommandOutcome<AttentionRecord>;
+  assert(!changedOutcome.ok && changedOutcome.error.code === "request_rejected");
   recording.push(idempotentReplayEntry(replayed[0] ?? null, replayed[1] ?? null));
   console.log("A02_REQUEST_OK open requests commit; duplicate keys replay one record");
 
@@ -484,7 +505,8 @@ try {
     answer: question("HARNESS-A1"),
   });
   assert.equal(answered.state, "answered");
-  assert.equal(answered.first_response_at, now);
+  assert.equal(answered.first_response_at, answered.answered_at);
+  assert(Date.parse(answered.first_response_at!) >= Date.parse(now));
   recording.push(answeredEntry(answered.resource_version, "owner"));
   const waiterSeen = await getAttention(db, FIX.workspace, [FIX.projectA], first.id);
   assert.deepEqual(waiterSeen, answered);
@@ -570,15 +592,19 @@ try {
   console.log("A02_TIMEOUT_OK five pending polls, then repeated reads return the answer");
 
   // Foreign execution and terminal runs cannot request attention.
+  const foreignBody = requestBody("clarification", "HARNESS-FOREIGN", false);
   const foreign = await execute<AttentionRecord>(
     requestAttentionCommand.name,
     {
-      ...requestBody("clarification", "HARNESS-FOREIGN", false),
-      executionId: randomUlid(),
+      ...foreignBody,
+      request: {
+        ...foreignBody.request,
+        reference: { ...foreignBody.request.reference, run_execution_id: randomUlid() },
+      },
     },
     { actorRunnerId: runner },
   );
-  assert(!foreign.ok && foreign.error.code === "request_rejected");
+  assert(!foreign.ok && foreign.error.code === "boundary_escape", JSON.stringify(foreign));
   await db
     .prepare(`UPDATE runs SET result_state = 'failed' WHERE workspace_id = ? AND id = ?`)
     .run(FIX.workspace, runId);
@@ -587,8 +613,8 @@ try {
     requestBody("clarification", "HARNESS-TERMINAL", false),
     { actorRunnerId: runner },
   );
-  assert(!terminal.ok && terminal.error.code === "invalid_transition");
-  recording.push(requestGuardsEntry());
+  assert(!terminal.ok && terminal.error.code === "capability_closed", JSON.stringify(terminal));
+  recording.push(requestGuardsEntry(foreign.error.code, terminal.error.code));
   console.log("A02_GUARDS_OK foreign executions and terminal runs cannot request");
 
   // Revocation: the old epoch fails; current authority still answers other requests.
@@ -645,6 +671,15 @@ try {
   assert.equal(auditPayload.input?.question, undefined);
   assert.equal(typeof auditPayload.input?.questionChars, "number");
   assert.equal(auditPayload.result?.id, first.id);
+  for (const table of ["audit_events", "semantic_events", "outbox_records"] as const) {
+    const payloads = await db
+      .prepare(`SELECT payload_json FROM ${table} WHERE workspace_id = ?`)
+      .all(FIX.workspace);
+    assert(
+      !JSON.stringify(payloads).includes("SYNTHETIC-A02-HARNESS"),
+      `${table} leaked attention content`,
+    );
+  }
   recording.push(auditRedactionEntry(auditPayload.result?.id === first.id));
   recording.push(
     observationsEntry(
@@ -655,9 +690,9 @@ try {
   console.log("A02_OBSERVATIONS_OK raw transitions carry unique identity and provenance");
 
   await mkdir(evidenceDir, { recursive: true });
-  await writeFile(resolve(evidenceDir, "recording.jsonl"), serializeRecording(recording));
+  await writeFile(resolve(evidenceDir, "runtime-recording.jsonl"), serializeRecording(recording));
   await writeJson(
-    resolve(evidenceDir, "waiter-cadence.json"),
+    resolve(evidenceDir, "runtime-waiter-cadence.json"),
     waiterCadenceEntry({
       pendingPolls: pollStates.length,
       pollStates,

@@ -1,7 +1,7 @@
 // ABOUTME: Proves X01 event selection, delivery identity, deep links, preferences, and fan-out guards.
 // ABOUTME: Fixtures are synthetic; every suppression kind below names a real registered hub command.
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { FIX } from "../src/fixtures.js";
 import { randomUlid, syntheticUlid, isUlid } from "../src/ids.js";
@@ -29,6 +29,9 @@ import {
 import { requestAttentionCommand } from "../src/attention.js";
 import { removeMemberCommand } from "../src/workspace-authorization.js";
 import { launchFixture, LAUNCH_NOW, success } from "./launch-fixture.js";
+import { prepareAttentionBinding } from "./attention-fixture.js";
+
+afterEach(() => vi.useRealTimers());
 
 const ATTENTION_ID = syntheticUlid("X01ATTN");
 const LAUNCH_ID = syntheticUlid("X01LAUNCH");
@@ -425,17 +428,19 @@ describe("notification preference and endpoint commands", () => {
 
 describe("notification fan-out guards", () => {
   it("fans out once, then suppresses opted-out and revoked readers", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(LAUNCH_NOW);
     const f = await launchFixture();
-    const { claimed } = await f.claim();
+    const bound = await prepareAttentionBinding(f, await f.claim());
     const requested = success(
       await f.native(requestAttentionCommand, {
         principal: f.principal,
-        runId: claimed.specification.run_id,
-        executionId: claimed.specification.run_execution_id,
-        assignmentGeneration: claimed.specification.assignment_generation,
-        kind: "clarification",
-        question: "Synthetic X01 fan-out question",
-        blocking: true,
+        request: {
+          ...bound,
+          kind: "clarification",
+          question: "Synthetic X01 fan-out question",
+          blocking: true,
+        },
       }),
     );
     expect(requested.state).toBe("open");
@@ -529,17 +534,19 @@ describe("notification fan-out guards", () => {
   });
 
   it("loads every endpoint oldest-first and deletes only the expired row", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(LAUNCH_NOW);
     const f = await launchFixture();
-    const { claimed } = await f.claim();
+    const bound = await prepareAttentionBinding(f, await f.claim());
     const requested = success(
       await f.native(requestAttentionCommand, {
         principal: f.principal,
-        runId: claimed.specification.run_id,
-        executionId: claimed.specification.run_execution_id,
-        assignmentGeneration: claimed.specification.assignment_generation,
-        kind: "clarification",
-        question: "Synthetic X01 multi-endpoint question",
-        blocking: true,
+        request: {
+          ...bound,
+          kind: "clarification",
+          question: "Synthetic X01 multi-endpoint question",
+          blocking: true,
+        },
       }),
     );
     expect(requested.state).toBe("open");

@@ -106,6 +106,32 @@ test("committed waiter cadence carries counts and states, not timings", async ()
   assertStableCadence(cadence);
 });
 
+test("runtime recording preserves current fences without rewriting historical evidence", async () => {
+  const text = await readFile(resolve(evidenceDir, "runtime-recording.jsonl"), "utf8");
+  const entries = text
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line));
+  assertStableRecording(entries);
+  assert.deepEqual(
+    entries.find((entry) => entry.step === "request_guards"),
+    {
+      step: "request_guards",
+      foreign_execution: "boundary_escape",
+      terminal_run: "capability_closed",
+    },
+  );
+  const historical = await readFile(resolve(evidenceDir, "recording.jsonl"), "utf8");
+  assert.ok(historical.includes('"terminal_run":"invalid_transition"'));
+});
+
+test("runtime waiter cadence retains only bounded poll counts and states", async () => {
+  const cadence = JSON.parse(
+    await readFile(resolve(evidenceDir, "runtime-waiter-cadence.json"), "utf8"),
+  );
+  assertStableCadence(cadence);
+});
+
 test("harness records no live ids or wall-clock timings", async () => {
   const source = await readFile(resolve(toolDir, "run.ts"), "utf8");
   for (const banned of ["elapsed_ms", "request_ms", "answer_ms", "Date.now()"]) {

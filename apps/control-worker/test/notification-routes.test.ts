@@ -1,7 +1,7 @@
 // ABOUTME: Exercises mounted X01 preference, endpoint, delivery, and runner pull/ack routes.
 // ABOUTME: Browser writes need session CSRF; runner pulls need request-bound possession proofs.
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   FIX,
   canonicalRunnerKey,
@@ -21,6 +21,7 @@ import {
   LAUNCH_NOW,
   success,
 } from "../../../packages/domain/test/launch-fixture.js";
+import { prepareAttentionBinding } from "../../../packages/domain/test/attention-fixture.js";
 import { parseAuthKeys } from "../src/auth/better-auth.js";
 import { validateControlEnv, type ControlBindings } from "../src/env.js";
 import { createTestWorkspaceHubNamespace } from "../src/hub-client.js";
@@ -30,6 +31,8 @@ import { AUTH_TEST_ENV, openAuthTestContext, seedAuthSession } from "./auth-help
 
 const ORIGIN = AUTH_TEST_ENV.APP_ORIGIN;
 const NOW = LAUNCH_NOW;
+
+afterEach(() => vi.useRealTimers());
 
 async function fixture() {
   const context = openAuthTestContext(NOW),
@@ -327,6 +330,8 @@ describe("notification browser routes", () => {
 
 describe("notification runner routes", () => {
   it("rejects unsigned pulls and serves opaque intents after fan-out", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(NOW);
     const { context, f, app, env, signed } = await fixture();
     const naked = await app().request(
       new Request(
@@ -337,16 +342,16 @@ describe("notification runner routes", () => {
       env,
     );
     expect(naked.status).toBe(403);
-    const { claimed } = await f.claim();
+    const bound = await prepareAttentionBinding(f, await f.claim());
     success(
       await f.native(requestAttentionCommand, {
         principal: f.principal,
-        runId: claimed.specification.run_id,
-        executionId: claimed.specification.run_execution_id,
-        assignmentGeneration: claimed.specification.assignment_generation,
-        kind: "blocker",
-        question: "Synthetic X01 runner pull question",
-        blocking: true,
+        request: {
+          ...bound,
+          kind: "blocker",
+          question: "Synthetic X01 runner pull question",
+          blocking: true,
+        },
       }),
     );
     const dispatched = await dispatchNotificationOutbox(context.db, async () => {}, NOW);

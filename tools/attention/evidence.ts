@@ -91,11 +91,11 @@ export function timeoutRetryEntry(
   return { step: "timeout_retry", pending_polls: pendingPolls, repeat_reads: [...repeatReads] };
 }
 
-export function requestGuardsEntry(): RecordingEntry {
+export function requestGuardsEntry(foreignCode: string, terminalCode: string): RecordingEntry {
   return {
     step: "request_guards",
-    foreign_execution: "request_rejected",
-    terminal_run: "invalid_transition",
+    foreign_execution: foreignCode,
+    terminal_run: terminalCode,
   };
 }
 
