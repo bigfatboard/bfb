@@ -2,6 +2,11 @@
 // ABOUTME: Transports send command names; only registered commands may mutate workspace state.
 
 import type { HubCommand } from "./hub.js";
+import {
+  agentRunAuthorityCommand,
+  agentRunContextCommand,
+  agentRunTaskCommand,
+} from "./agent-work.js";
 import { recordReviewCommand } from "./artifact-reviews.js";
 import { createViewGrantCommand } from "./artifact-views.js";
 import {
@@ -125,6 +130,9 @@ import {
 } from "./operations.js";
 
 const commands = new Map<string, HubCommand<unknown, unknown>>([
+  [agentRunAuthorityCommand.name, agentRunAuthorityCommand as HubCommand<unknown, unknown>],
+  [agentRunContextCommand.name, agentRunContextCommand as HubCommand<unknown, unknown>],
+  [agentRunTaskCommand.name, agentRunTaskCommand as HubCommand<unknown, unknown>],
   [ingestRunnerEventsCommand.name, ingestRunnerEventsCommand as HubCommand<unknown, unknown>],
   [requestAttentionCommand.name, requestAttentionCommand as HubCommand<unknown, unknown>],
   [answerAttentionCommand.name, answerAttentionCommand as HubCommand<unknown, unknown>],

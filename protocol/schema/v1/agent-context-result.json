@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/agent-context-result.json",
+  "title": "AgentContextResult",
+  "description": "local-mcp/2 item-aligned actual C08 delivery rows; no singular or aggregate delivery.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["context", "deliveries"],
+  "properties": {
+    "context": { "type": "array", "maxItems": 64, "items": { "$ref": "#/$defs/ContextItem" } },
+    "deliveries": { "type": "array", "maxItems": 64, "items": { "$ref": "#/$defs/Delivery" } }
+  },
+  "$defs": {
+    "ContextItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "body", "version", "audience", "content_hash", "created_at"],
+      "properties": {
+        "id": { "$ref": "primitives.json#/$defs/Ulid" },
+        "kind": {
+          "type": "string",
+          "enum": ["brief", "acceptance", "constraint", "plan", "decision", "link", "note"]
+        },
+        "body": { "type": "string", "minLength": 1, "maxLength": 16384 },
+        "version": { "$ref": "primitives.json#/$defs/ResourceVersion" },
+        "audience": { "type": "string", "enum": ["agent", "both"] },
+        "content_hash": { "$ref": "primitives.json#/$defs/Sha256Digest" },
+        "created_at": { "$ref": "primitives.json#/$defs/UtcTimestamp" }
+      }
+    },
+    "Delivery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "context_version", "content_hash", "delivered_at", "run_id"],
+      "properties": {
+        "id": { "$ref": "primitives.json#/$defs/Ulid" },
+        "context_version": { "$ref": "primitives.json#/$defs/ResourceVersion" },
+        "content_hash": { "$ref": "primitives.json#/$defs/Sha256Digest" },
+        "delivered_at": { "$ref": "primitives.json#/$defs/UtcTimestamp" },
+        "run_id": { "$ref": "primitives.json#/$defs/Ulid" }
+      }
+    }
+  }
+}

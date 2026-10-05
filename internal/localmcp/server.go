@@ -15,7 +15,7 @@ import (
 const (
 	protocolVersion = "2026-07-28"
 	serverName      = "bfb-local-mcp"
-	contractVersion = "local-mcp/1"
+	contractVersion = "local-mcp/2"
 	maxStdioLine    = 65536
 )
 
@@ -179,13 +179,17 @@ func NewServer(ctx context.Context, deps Deps) *Server {
 	if principal == "" {
 		principal = "agent_run:" + assignment.Boundary.RunID
 	}
+	grant := deps.Grant
+	if grant == "" {
+		grant = "runner:" + assignment.Boundary.RunnerID
+	}
 	server.host = NewHost(HostDeps{
 		Capability: server.capability,
 		Transport:  deps.Transport,
 		Journal:    deps.Journal,
 		Policy:     deps.Policy,
 		Principal:  principal,
-		Grant:      deps.Grant,
+		Grant:      grant,
 	})
 	return server
 }

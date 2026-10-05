@@ -28,7 +28,7 @@ The goal remains the fully working and verified local MVP described here, includ
 
 The integrated feature branch at `472f007` includes the reviewed fixes history and passes the full repository verification suite. The reconciliation reopened A01 for missing runtime integration and held its previously certified descendants; current package metadata records 26 done, one in progress, 11 blocked and seven planned. Historical component evidence remains intact. The current implementation/verification/running distinction and next closure sequence are maintained in [MVP progress](mvp.progress.md).
 
-The 5 October audit found production gaps in A01's online MCP/replay path and D02's discussion scheduling/provider execution, beyond missing live acceptance. Close those within their owning packages, then re-prove exact package targets and the real end-to-end pilot. The [current agent-to-agent research](docs/research/agent-to-agent.md) informs provider experiments without replacing BFB's authority or durable turn model.
+The 5 October audit found production gaps in A01's online MCP/replay path and D02's discussion scheduling/provider execution, beyond missing live acceptance. A01's first connected v2 read slice now passes its expanded target through the compiled stdio binary, signed daemon and real Worker/Hub/D1; writes, policy, canonical session binding and daemon replay remain open. Close those within their owning packages, then re-prove full package acceptance and the real end-to-end pilot. The [current agent-to-agent research](docs/research/agent-to-agent.md) informs provider experiments without replacing BFB's authority or durable turn model.
 
 ### Original planning baseline — 11 September
 

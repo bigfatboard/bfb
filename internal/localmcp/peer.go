@@ -14,6 +14,8 @@ type PeerFacts struct {
 	UID int
 	// PID is the peer process identifier (normally our parent: the provider CLI).
 	PID int
+	// ParentPID is obtained from kernel process state, never from an RPC argument.
+	ParentPID int
 	// StartIdentity is the kernel start identity of the peer process.
 	StartIdentity string
 	// GroupID is the peer's process group.

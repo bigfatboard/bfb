@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/qdis/bfb/internal/agentwork"
 	"github.com/qdis/bfb/internal/appbridge"
 	"github.com/qdis/bfb/internal/artifact"
 	"github.com/qdis/bfb/internal/checkout"
@@ -56,6 +57,9 @@ func main() {
 	}
 	if err := runner.RegisterRPC(methods, manager); err != nil {
 		panic("duplicate built-in runner operation")
+	}
+	if err := agentwork.RegisterRPC(methods, manager.Connection); err != nil {
+		panic("duplicate built-in agent read operation")
 	}
 	if err := supervisor.RegisterRPC(methods, executions); err != nil {
 		panic("duplicate built-in execution operation")

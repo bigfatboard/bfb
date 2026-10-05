@@ -1,0 +1,22 @@
+{
+  "context": [
+    {
+      "id": "01JBFB0C0NTEXT000000000000",
+      "kind": "brief",
+      "body": "Synthetic agent brief",
+      "version": 1,
+      "audience": "agent",
+      "content_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "created_at": "2026-08-07T12:00:00Z"
+    }
+  ],
+  "deliveries": [
+    {
+      "id": "01JBFB0DE11VER000000000000",
+      "context_version": 1,
+      "content_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "delivered_at": "2026-08-07T12:01:00Z",
+      "run_id": "01JBFB0RVNXXXXX00000000000"
+    }
+  ]
+}

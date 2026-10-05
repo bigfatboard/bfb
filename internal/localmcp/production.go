@@ -22,8 +22,10 @@ type nativeProcess struct {
 }
 
 type nativeGroup struct {
-	Leader  nativeProcess `json:"leader"`
-	Unknown bool          `json:"unknown"`
+	Leader     nativeProcess `json:"leader"`
+	Unknown    bool          `json:"unknown"`
+	HadEscape  bool          `json:"had_escape"`
+	Incomplete bool          `json:"incomplete"`
 }
 
 type nativeSupervisor struct {
@@ -74,7 +76,7 @@ FROM local_execution_assignments WHERE execution_id = ? AND assignment_generatio
 	}
 	if groupJSON.Valid && groupJSON.String != "" {
 		var group nativeGroup
-		if json.Unmarshal([]byte(groupJSON.String), &group) == nil && !group.Unknown &&
+		if json.Unmarshal([]byte(groupJSON.String), &group) == nil && !group.Unknown && !group.HadEscape && !group.Incomplete &&
 			group.Leader.PID > 0 && group.Leader.GroupID > 0 && group.Leader.StartIdentity != "" {
 			record.OwnedGroupID = group.Leader.GroupID
 			record.ProviderPID = group.Leader.PID
@@ -92,12 +94,8 @@ FROM local_execution_assignments WHERE execution_id = ? AND assignment_generatio
 	return record, nil
 }
 
-// DaemonAuthority rechecks local liveness on every call: an assignment row
-// that disappeared or left its active states closes the capability. Cloud
-// authority (revocation epochs, terminal run results) is rechecked by the
-// L08 channel transport on every call; until that transport plugs in, this
-// adapter reports only what the daemon database proves. See the WP-A01
-// Handoff for the exact merge step.
+// DaemonAuthority checks only locally recorded assignment liveness.
+// It cannot establish current cloud authority; production uses RPCTransport.
 type DaemonAuthority struct{ Assignments AssignmentSource }
 
 func (source DaemonAuthority) Current(ctx context.Context, boundary Boundary) (AuthorityState, error) {
@@ -111,19 +109,18 @@ func (source DaemonAuthority) Current(ctx context.Context, boundary Boundary) (A
 	return AuthorityState{}, nil
 }
 
-// OfflineTransport is the pre-L08 production transport: the cloud channel is
-// unreachable, so reads fail visibly and writes are journaled by the host.
-// It exists so `bfb mcp stdio` has honest offline behavior before the L08
-// channel client plugs in behind the WorkTransport interface.
+// OfflineTransport rejects operations that have no connected cloud implementation.
+// RPCTransport embeds it for unsupported mutations; queue permission is decided
+// separately by explicit offline policy and is denied by default in production.
 type OfflineTransport struct{}
 
 func (OfflineTransport) Online() bool { return false }
 
-func (OfflineTransport) GetContext(_ context.Context, _ Boundary) ([]ContextItem, ContextDelivery, error) {
-	return nil, ContextDelivery{}, fail("offline_rejected")
+func (OfflineTransport) GetContext(_ context.Context, _ Boundary, _ string) (ContextResult, error) {
+	return ContextResult{}, fail("offline_rejected")
 }
 
-func (OfflineTransport) GetTask(_ context.Context, _ Boundary) (TaskView, error) {
+func (OfflineTransport) GetTask(_ context.Context, _ Boundary, _ string) (TaskView, error) {
 	return TaskView{}, fail("offline_rejected")
 }
 

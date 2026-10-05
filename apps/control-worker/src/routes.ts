@@ -7,6 +7,7 @@ import type { SqlDatabase } from "@bfb/db";
 import { DomainError } from "@bfb/domain";
 
 import { handleAttentionApi } from "./api/attention.js";
+import { handleAgentWorkApi, isAgentWorkPath } from "./api/agent-work.js";
 import { handleNotificationApi } from "./api/notifications.js";
 import {
   handleNotificationRunnerApi,
@@ -150,15 +151,17 @@ export function createControlApp(
     if (!current || !db || !options.abuseSecret)
       return c.json({ error: "runner_misconfigured" }, 500);
     const envBindings = (c.env ?? {}) as { WORKSPACE_HUB?: DurableObjectNamespace };
-    const handler = isRunnerLaunchPath(c.req.path)
-      ? handleLaunchNativeApi
-      : isRunnerEventPath(c.req.path)
-        ? handleRunnerEventApi
-        : isRunnerChannelPath(c.req.path)
-          ? handleRunnerChannelApi
-          : isNotificationRunnerPath(c.req.path)
-            ? handleNotificationRunnerApi
-            : handleRunnerNativeApi;
+    const handler = isAgentWorkPath(c.req.path)
+      ? handleAgentWorkApi
+      : isRunnerLaunchPath(c.req.path)
+        ? handleLaunchNativeApi
+        : isRunnerEventPath(c.req.path)
+          ? handleRunnerEventApi
+          : isRunnerChannelPath(c.req.path)
+            ? handleRunnerChannelApi
+            : isNotificationRunnerPath(c.req.path)
+              ? handleNotificationRunnerApi
+              : handleRunnerNativeApi;
     return handler(c.req.raw, {
       db,
       now: c.get("now") ?? now,

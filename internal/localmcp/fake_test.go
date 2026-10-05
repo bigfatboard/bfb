@@ -161,16 +161,20 @@ func (fake *fakeTransport) dedupe(requestID string, build func() any) (any, erro
 
 func (fake *fakeTransport) Online() bool { return fake.online }
 
-func (fake *fakeTransport) GetContext(_ context.Context, boundary Boundary) ([]ContextItem, ContextDelivery, error) {
+func (fake *fakeTransport) GetContext(_ context.Context, boundary Boundary, _ string) (ContextResult, error) {
 	fake.mutex.Lock()
 	defer fake.mutex.Unlock()
 	if !fake.online {
-		return nil, ContextDelivery{}, fail("offline_rejected")
+		return ContextResult{}, fail("offline_rejected")
 	}
-	return fake.items, ContextDelivery{ContextVersion: 2, ContentHash: "sha256:synthetic-delivery", DeliveredAt: syntheticTime.Format(time.RFC3339Nano), RunID: boundary.RunID}, nil
+	deliveries := make([]ContextDelivery, 0, len(fake.items))
+	for _, item := range fake.items {
+		deliveries = append(deliveries, ContextDelivery{ID: "synthetic-delivery-" + item.ID, ContextVersion: item.Version, ContentHash: item.ContentHash, DeliveredAt: syntheticTime.Format(time.RFC3339Nano), RunID: boundary.RunID})
+	}
+	return ContextResult{Context: fake.items, Deliveries: deliveries}, nil
 }
 
-func (fake *fakeTransport) GetTask(_ context.Context, _ Boundary) (TaskView, error) {
+func (fake *fakeTransport) GetTask(_ context.Context, _ Boundary, _ string) (TaskView, error) {
 	fake.mutex.Lock()
 	defer fake.mutex.Unlock()
 	if !fake.online {

@@ -13,6 +13,36 @@ export const SCHEMA_VERSION = 1;
 
 export const DOCUMENTS: DocumentSpec[] = [
   {
+    name: "agent-work-request",
+    schemaFile: "agent-work-request.json",
+    goType: "AgentWorkRequest",
+    tsType: "AgentWorkRequest",
+  },
+  {
+    name: "agent-local-request",
+    schemaFile: "agent-local-request.json",
+    goType: "AgentLocalRequest",
+    tsType: "AgentLocalRequest",
+  },
+  {
+    name: "agent-authority-result",
+    schemaFile: "agent-authority-result.json",
+    goType: "AgentAuthorityResult",
+    tsType: "AgentAuthorityResult",
+  },
+  {
+    name: "agent-context-result",
+    schemaFile: "agent-context-result.json",
+    goType: "AgentContextResult",
+    tsType: "AgentContextResult",
+  },
+  {
+    name: "agent-task-result",
+    schemaFile: "agent-task-result.json",
+    goType: "AgentTaskResult",
+    tsType: "AgentTaskResult",
+  },
+  {
     name: "event-envelope",
     schemaFile: "event-envelope.json",
     goType: "EventEnvelope",

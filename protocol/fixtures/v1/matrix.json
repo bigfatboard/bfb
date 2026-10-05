@@ -3,6 +3,49 @@
   "schema_version": 1,
   "fixtures": [
     {
+      "path": "valid/agent-work-request.read.json",
+      "schema": "agent-work-request",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/agent-local-request.read.json",
+      "schema": "agent-local-request",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/agent-authority-result.live.json",
+      "schema": "agent-authority-result",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/agent-context-result.empty.json",
+      "schema": "agent-context-result",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/agent-context-result.delivered.json",
+      "schema": "agent-context-result",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/agent-task-result.read.json",
+      "schema": "agent-task-result",
+      "expect": "accept"
+    },
+    { "path": "valid/local-rpc.agent-request.json", "schema": "local-rpc", "expect": "accept" },
+    {
+      "path": "invalid/agent-work-request.principal.json",
+      "schema": "agent-work-request",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/agent-context-result.singular-alias.json",
+      "schema": "agent-context-result",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
       "path": "valid/local-rpc.checkout-link.json",
       "schema": "local-rpc",
       "expect": "accept"

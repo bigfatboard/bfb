@@ -8,6 +8,7 @@ import {
   abuseBucketKey,
   authenticateRunnerRequestCommand,
   consumeAbuseBudget,
+  DomainError,
   encodeRunnerToken,
   enrollRunnerCommand,
   exchangeRunnerTokenCommand,
@@ -134,6 +135,9 @@ export async function executeRunnerCommand<TInput, TResult>(
     command,
     request,
   );
+  if (!outcome.ok && ["command_failed", "hub_rpc_failed"].includes(outcome.error.code)) {
+    throw new DomainError(outcome.error.code, "runner command temporarily unavailable");
+  }
   if (!outcome.ok || outcome.replayed) rejectRunnerRequest();
   return outcome.result;
 }

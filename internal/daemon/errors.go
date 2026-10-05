@@ -75,6 +75,16 @@ var failures = map[string]struct {
 	"runner_credential_unavailable":  {"unavailable", "The signed daemon cannot access this runner's Keychain item. Unlock the login Keychain and verify the daemon signature.", 4},
 	"runner_authorization_required":  {"authorization_denied", "This runner requires current browser approval or a renewed workspace grant.", 3},
 	"runner_revoked":                 {"authorization_denied", "This workspace runner enrollment is revoked. It cannot reconnect.", 3},
+	"assignment_unknown":             {"authorization_denied", "No local execution assignment matches this request.", 3},
+	"assignment_ended":               {"authorization_denied", "The local execution has ended.", 3},
+	"correlation_rejected":           {"authorization_denied", "The request does not match the local assignment.", 3},
+	"boundary_escape":                {"authorization_denied", "The request is outside the execution boundary.", 3},
+	"capability_closed":              {"authorization_denied", "The run capability is closed.", 3},
+	"revoked":                        {"authorization_denied", "Current authority revoked this run capability.", 3},
+	"forbidden":                      {"authorization_denied", "The run capability cannot perform this action.", 3},
+	"not_found":                      {"unavailable", "The record is not visible to this run.", 4},
+	"request_rejected":               {"schema_invalid", "The agent request or response exceeds its contract.", 2},
+	"offline_rejected":               {"unavailable", "The online work action is temporarily unavailable; no operation was queued.", 4},
 }
 
 func (f *Failure) Error() string { return f.Diagnostic().Message }

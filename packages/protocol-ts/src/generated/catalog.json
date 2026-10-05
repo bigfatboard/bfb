@@ -1,8 +1,28 @@
 {
   "protocol": "bfb-wire/1",
   "schema_version": 1,
-  "schema_hash": "27739cbba47c02e208f7bc8f93f6b8f2ebc105a7323d233502f2631a15233a04",
+  "schema_hash": "de71d34784a726f980ed4242fc1817bbf926e71782d0c0ebb9dde964fa81aff6",
   "documents": [
+    {
+      "name": "agent-work-request",
+      "schema": "agent-work-request.json"
+    },
+    {
+      "name": "agent-local-request",
+      "schema": "agent-local-request.json"
+    },
+    {
+      "name": "agent-authority-result",
+      "schema": "agent-authority-result.json"
+    },
+    {
+      "name": "agent-context-result",
+      "schema": "agent-context-result.json"
+    },
+    {
+      "name": "agent-task-result",
+      "schema": "agent-task-result.json"
+    },
     {
       "name": "event-envelope",
       "schema": "event-envelope.json"

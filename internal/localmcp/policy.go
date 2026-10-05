@@ -4,6 +4,7 @@
 package localmcp
 
 import (
+	"regexp"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -55,11 +56,13 @@ func (policy DefaultOfflinePolicy) Decide(tool string) OfflineDecision {
 }
 
 func checkRequestID(value string) error {
-	if len(value) < minRequestIDLen || len(value) > maxRequestIDLen || !utf8.ValidString(value) {
+	if !requestIDPattern.MatchString(value) {
 		return fail("invalid_request")
 	}
 	return nil
 }
+
+var requestIDPattern = regexp.MustCompile(`^[A-Za-z0-9._:~-]{8,128}$`)
 
 func checkID(value, field string) error {
 	if value == "" || len(value) > maxIDLen || !utf8.ValidString(value) {

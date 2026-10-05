@@ -2,10 +2,11 @@
 
 Owner: [A01](../work-packages/WP-A01-local-mcp-context.md). Gate: `pnpm test:a01`.
 
-Status: Approved target `local-mcp/2` under [ADR 0004](../adr/0004-local-mcp-runtime-authority.md).
-The current implementation advertises `local-mcp/1` and still uses the offline
-production transport. This draft is not evidence of implemented v2 behavior or
-complete A01 runtime acceptance.
+Status: Current bootstrap implementation `local-mcp/2` under
+[ADR 0004](../adr/0004-local-mcp-runtime-authority.md). Context/task reads and current
+authority use typed daemon RPC and the possession-authenticated Worker/Hub/D1
+path. Online mutations, explicit offline policy and daemon-owned pending replay
+remain closure obligations; this reads slice is not complete A01 acceptance.
 
 This contract defines the tool and trust boundary for `bfb mcp stdio`.
 A02/A03/V01 extend this same server; they do not introduce another agent
@@ -23,8 +24,7 @@ credential or a second local tool endpoint.
   `tools/list`, `tools/call`. Every other method returns `method_not_found`.
   There are no prompts, resources, or subscriptions in v2.
 - Protocol version reported by `initialize` is `2026-07-28`; the server name
-  is `bfb-local-mcp`. The v2 implementation reports `local-mcp/2` only after
-  the corresponding runtime implementation and tests land.
+  is `bfb-local-mcp`. The bootstrap implementation reports `local-mcp/2`.
 
 ## Daemon and cloud bridge
 
@@ -56,7 +56,7 @@ identify the execution/generation; domain commands derive task/project/run
 from D1 and verify the authenticated runner owns that assignment.
 
 Wire schemas, method-specific payload validation and deterministic positive and
-negative fixtures must land before these operations ship. Canonical schemas
+negative fixtures cover these operations. Canonical schemas
 live in `protocol/schema/v1`; owning commands are `pnpm protocol:generate` and
 `pnpm protocol:check`. The local envelope remains schema version 1; the local
 tool-contract revision is independently `local-mcp/2`.
@@ -139,13 +139,33 @@ denials must never be downgraded to offline queue permission.
 
 ## Tool map
 
-All tools require `request_id` (8-128 characters). An authorized repeated
+All tools require `request_id` (8-128 ASCII characters matching
+`^[A-Za-z0-9._:~-]{8,128}$`, the wire `IdempotencyKey` primitive). An authorized repeated
 operation returns the stored outcome without re-executing, except
 `bfb_wait_for_attention`, whose pending outcomes are never memoized so a
 repeated wait always re-reads committed state. Reusing an operation identity
 with a different tool or payload is rejected, not interpreted as the original
 operation. This includes changed task/project/parent/attention arguments.
 Bounds mirror C08 so local and remote behavior agree.
+
+One stdio connection retains at most 256 completed request identities with
+their input fingerprints and outcomes. Once full, every unseen identity returns
+`request_rejected` before any tool effect; no outcome is executed without room
+for its binding. Existing identical identities remain usable after current
+authority validation. Failed operations do not consume cache slots, and pending
+attention waits remain uncached. A fresh stdio connection starts a new local
+cache; the cloud keeps the scoped operation identity for committed reads.
+
+New context/task command receipts in audit, semantic events and outbox records
+contain bounded IDs, versions, hashes, delivery references, state and priority,
+not private bodies, titles or punchlines. The full authorized response remains
+in canonical idempotency storage. Infrastructure failures are sanitized,
+retryable errors, not terminal authority or permission to queue. Fresh polling
+currently creates bounded command receipts per request; durable poll growth
+needs measurement and a bounded follow-up.
+
+The stdio inspector fixture is owned by
+`BFB_UPDATE_MCP_TRANSCRIPT=1 go test ./internal/localmcp -run TestGoldenInspectorTranscript`.
 
 The original request ID is forwarded through IPC to the cloud, including for
 context retrieval. Cloud idempotency keys are bounded deterministic identities
@@ -156,7 +176,7 @@ original committed outcome and delivery IDs, without duplicating deliveries.
 | Tool | Provisional | Input | Effect |
 | --- | --- | --- | --- |
 | `bfb_get_context` | allowed | `task_id?`, `request_id` | Returns `ContextResult {context, deliveries}` with one actual committed delivery row per returned immutable context item, bound to the run. |
-| `bfb_get_task` | allowed | `task_id?`, `request_id` | Returns one task view: id, project, state, priority, title, punchline, routing, resource version. Never human-only context. |
+| `bfb_get_task` | allowed | `task_id?`, `request_id` | Returns one task view: id, project, state, priority, title, punchline, resource version. Never human-only context. |
 | `bfb_update_task` | `session_not_bound` | `task_id?`, `expected_version`, `title?`, `punchline?`, `request_id` | Updates permitted fields only (title 1-512 chars, punchline 1-512 chars) with an optimistic version check. State, priority, due, owner, and promotion are rejected with `forbidden`, exactly as for delegated agents. |
 | `bfb_add_comment` | `session_not_bound` | `task_id?`, `body` 1-2048 chars, `request_id` | Adds a discussion comment attributed to the agent run. |
 | `bfb_report_progress` | `session_not_bound` | `task_id?`, `summary` 1-2048 chars, `percent` 0-100 optional, `confidence` 0-1 optional, `request_id` | Publishes a bounded progress checkpoint attributed to the agent run. |
@@ -206,6 +226,12 @@ requires an explicit versioned request/result contract and cannot pretend a
 partial page is the complete context.
 
 ## Pending-operation journal
+
+This section specifies required closure behavior, not a connected production
+replay service. The bootstrap CLI installs deny-by-default offline policy and
+does not queue unsupported mutations; its current daemon bridge exposes only
+authority, context and task reads. The existing journal and injected replay
+tests alone do not establish daemon-owned replay or durable online writes.
 
 When the cloud channel is unreachable, policy-permitted mutations
 (`bfb_update_task`, `bfb_add_comment`, `bfb_report_progress`,
@@ -268,12 +294,12 @@ Event-ledger/session projections do not implicitly create that business record.
 
 ## Outstanding runtime closure
 
-This proposed contract does not make the current A01 implementation complete.
-The initial vertical gate must exercise the compiled stdio host, production
+The current v2 reads slice does not make A01 complete. Its owning `pnpm test:a01`
+target exercises the compiled stdio host, production
 daemon RPC, real possession-authenticated L08 connection, local Control Worker,
 WorkspaceHub and D1. It proves agent/both bootstrap reads and real per-item
 delivery, request deduplication, denied unbound mutation, malicious boundary and
-process rejection, oversized retrieval and revocation/end/result rejection even
+process rejection, oversized retrieval and revocation/end/result/lease rejection even
 for cached IDs. An injected transport or stdout-only fixture is not a substitute.
 
 Remaining A01 closure includes the permitted online task/comment/progress/

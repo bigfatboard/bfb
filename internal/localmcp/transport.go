@@ -20,10 +20,17 @@ type ContextItem struct {
 
 // ContextDelivery records the immutable version/hash/time/run of a retrieval.
 type ContextDelivery struct {
+	ID             string `json:"id"`
 	ContextVersion int64  `json:"context_version"`
 	ContentHash    string `json:"content_hash"`
 	DeliveredAt    string `json:"delivered_at"`
 	RunID          string `json:"run_id"`
+}
+
+// ContextResult preserves the per-item C08 delivery records without an aggregate alias.
+type ContextResult struct {
+	Context    []ContextItem     `json:"context"`
+	Deliveries []ContextDelivery `json:"deliveries"`
 }
 
 // TaskView is the agent-visible subset of a task. Human-only context is never
@@ -68,12 +75,12 @@ type ProposeTaskResult struct {
 // goes through the L08 channel client; tests inject fakes. Every method
 // rechecks current authorization and returns bounded *Error failures.
 type WorkTransport interface {
-	// Online reports whether the cloud channel is currently reachable.
+	// Online selects the live path; each operation reports current connectivity failure.
 	Online() bool
 	// GetContext returns scoped agent context and records its delivery.
-	GetContext(ctx context.Context, boundary Boundary) ([]ContextItem, ContextDelivery, error)
+	GetContext(ctx context.Context, boundary Boundary, requestID string) (ContextResult, error)
 	// GetTask returns the agent-visible task view.
-	GetTask(ctx context.Context, boundary Boundary) (TaskView, error)
+	GetTask(ctx context.Context, boundary Boundary, requestID string) (TaskView, error)
 	// UpdateTask applies permitted fields with an optimistic version check.
 	UpdateTask(ctx context.Context, boundary Boundary, input UpdateTaskInput, requestID string) (TaskView, error)
 	// AddComment appends a discussion comment attributed to the agent run.

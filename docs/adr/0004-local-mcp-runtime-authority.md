@@ -7,10 +7,10 @@ authority, not personal approval of this text or completed acceptance proof.
 ## Context
 
 A01's stdio server, local process checks, trusted L06 session-binding adapter,
-and pending-operation journal exist, but production still installs
-`OfflineTransport`. L08's daemon-owned authenticated connection is not wired to
-local work tools, and the Control Worker exposes no runner-scoped work route.
-The existing A01 tests do not prove a compiled stdio client reaching
+and pending-operation journal existed before this decision, but production installed
+`OfflineTransport`. L08's daemon-owned authenticated connection was not wired to
+local work tools, and the Control Worker exposed no runner-scoped work route.
+The earlier A01 tests did not prove a compiled stdio client reaching
 WorkspaceHub and D1. Previous package evidence remains historical evidence;
 this decision does not make runtime closure complete.
 
@@ -26,7 +26,7 @@ not preserve authority after an execution ends or a grant is revoked.
 
 ## Decision
 
-- Define `local-mcp/2` as the proposed local tool contract. It keeps the same
+- Define `local-mcp/2` as the local tool contract revision. It keeps the same
   stdio endpoint and MCP protocol version. `bfb_get_context` returns
   `ContextResult { context, deliveries }`, with one actual committed delivery
   row per returned item, in the same order, and empty arrays when there is no
@@ -65,6 +65,16 @@ not preserve authority after an execution ends or a grant is revoked.
   inserting duplicates; changed tool/arguments under an existing local request
   identity or changed input under a cloud operation identity are rejected.
   Cached success never bypasses current authorization.
+  A stdio connection retains at most 256 completed identities together with
+  their fingerprints and outcomes. Once full, unseen identities are rejected
+  before effects rather than executed without a stored binding. Existing
+  identical identities still recheck authority; failed operations and pending
+  attention waits are not memoized.
+- Keep full authorized context/task responses in canonical idempotency storage,
+  but project safe result receipts for audit, semantic events and outbox records.
+  Context receipts contain bounded item IDs, versions, hashes and delivery
+  references; task receipts contain IDs, state, priority and version. Private
+  bodies, titles and punchlines do not enter these new command receipts (SG05).
 - Bound the complete context result before committing its delivery records so
   it fits the existing fixed IPC envelope limit. Reject an oversized retrieval
   atomically; never silently truncate items or deliveries. Any later pagination
@@ -76,6 +86,10 @@ not preserve authority after an execution ends or a grant is revoked.
 - Keep permission, policy, validation and stale-authority failures distinct from
   connectivity failure. Neither CLI nor daemon may convert a cloud denial into
   offline queue permission.
+  Infrastructure failures remain sanitized retryable failures and do not close
+  valid capabilities. Fresh authority/task polling currently uses the command
+  lane and creates bounded receipts per request; measuring and limiting durable
+  poll growth remains a follow-up, not evidence of full A01 closure.
 
 ## Staged proof and remaining obligations
 
@@ -83,7 +97,7 @@ The first runtime slice proves the compiled `bfb mcp stdio` binary through
 production typed daemon RPC, the real L08 possession connection, a local Control
 Worker, WorkspaceHub and D1. It covers agent/both-only context, truthful per-item
 delivery, duplicate delivery, denied unbound mutation, boundary/process attacks,
-oversized retrieval and revocation/end/result rejection even for cached request
+oversized retrieval and revocation/end/result/lease rejection even for cached request
 IDs. It uses synthetic execution fixtures, not live provider turns or Terminal
 UI automation. Injected `WorkTransport` tests remain useful unit tests but
 cannot substitute for this vertical proof.
@@ -116,11 +130,12 @@ The reads slice is not full A01 acceptance. These closure obligations remain:
 
 ## Consequences
 
-The proposed context response is an intentional local contract revision.
-Implementations advertise `local-mcp/1` until the v2 runtime slice and its tests
-land; this ADR and contract draft alone do not change the running server.
-Generated request/response schemas and deterministic fixtures are required
-before the new wire methods ship. No dependency, provider capability, release,
+The context response is an intentional local contract revision. The bootstrap
+implementation advertises `local-mcp/2` and connects authority/context/task reads
+through the daemon and Worker. Generated request/response schemas and
+deterministic fixtures cover those methods. Production offline policy remains
+deny-by-default and unsupported mutations cannot become pending operations.
+The connected reads slice is not full A01 acceptance. No provider capability, release,
 deployment, or arbitrary-shell boundary changes are authorized by this ADR.
 
 D1 remains canonical, workspace mutations stay serialized through WorkspaceHub,

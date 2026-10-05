@@ -200,6 +200,12 @@ func TestGoldenInspectorTranscript(t *testing.T) {
 		harness.server.serveLine(context.Background(), writer, append(frame.Payload, '\n'))
 	}
 	writer.Flush()
+	// Owning command: BFB_UPDATE_MCP_TRANSCRIPT=1 go test ./internal/localmcp -run TestGoldenInspectorTranscript.
+	if os.Getenv("BFB_UPDATE_MCP_TRANSCRIPT") == "1" {
+		if err := os.WriteFile(filepath.Join("testdata", "inspector-transcript.expected.jsonl"), output.Bytes(), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
 	expected, err := os.ReadFile(filepath.Join("testdata", "inspector-transcript.expected.jsonl"))
 	if err != nil {
 		t.Fatal(err)

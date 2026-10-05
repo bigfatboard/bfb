@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/qdis/bfb/internal/daemon"
 	"github.com/qdis/bfb/internal/localmcp"
 	_ "modernc.org/sqlite"
 )
@@ -75,6 +76,28 @@ func executeMCP(t *testing.T, dataDir, stdin string) (int, string) {
 	return code, output.String()
 }
 
+func schemaValidMCPAssignment(t *testing.T, path string) {
+	t.Helper()
+	db, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	for _, field := range []string{"workspace_id", "project_id", "task_id", "run_id", "runner_id", "checkout_id", "execution_id"} {
+		id := daemon.NewRequestID()
+		if _, err := db.Exec(`UPDATE local_execution_assignments SET `+field+` = ?`, id); err != nil {
+			t.Fatal(err)
+		}
+		key := "BFB_" + strings.ToUpper(field)
+		if field == "execution_id" {
+			key = "BFB_RUN_EXECUTION_ID"
+			// This test table has no binding FK; keep its synthetic row on the same assignment.
+			_, _ = db.Exec(`UPDATE hook_observed_sessions SET execution_id = ?`, id)
+		}
+		t.Setenv(key, id)
+	}
+}
+
 // mcpResultLine splits stdout into JSON-RPC envelopes, one per line.
 func mcpResultLine(t *testing.T, output string, count int) []map[string]any {
 	t.Helper()
@@ -119,10 +142,11 @@ func mcpToolText(t *testing.T, value map[string]any) map[string]any {
 	return decoded
 }
 
-func TestMCPStdioActivatesBoundSession(t *testing.T) {
+func TestMCPStdioBoundSessionCannotInventOfflinePolicy(t *testing.T) {
 	submitEnv(t, nil)
 	dataDir := shortDataDir(t)
 	seedBoundAssignment(t, dataDir+"/state.sqlite")
+	schemaValidMCPAssignment(t, dataDir+"/state.sqlite")
 	stdin := "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}\n" +
 		"{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"bfb_add_comment\",\"arguments\":{\"body\":\"Synthetic comment\",\"request_id\":\"mcp-bind-0001\"}}}\n"
 	code, output := executeMCP(t, dataDir, stdin)
@@ -133,10 +157,8 @@ func TestMCPStdioActivatesBoundSession(t *testing.T) {
 	if _, ok := values[0]["result"]; !ok {
 		t.Fatalf("handshake failed: %s", output)
 	}
-	receipt := mcpToolText(t, values[1])
-	if receipt["status"] != "pending_sync" || receipt["request_id"] != "mcp-bind-0001" ||
-		receipt["tool"] != "bfb_add_comment" || receipt["expires_at"] == nil {
-		t.Fatalf("bound mutation was not journaled: %s", output)
+	if mcpErrorCode(values[1]) != "offline_rejected" {
+		t.Fatalf("missing daemon must reject without offline queue permission: %s", output)
 	}
 	if strings.Contains(output, testToken) || strings.Contains(output, "Synthetic comment") {
 		t.Fatalf("receipt leaks request material: %s", output)
@@ -168,6 +190,7 @@ func TestMCPStdioRejectsMutationWhileUnbound(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = db.Close()
+	schemaValidMCPAssignment(t, dataDir+"/state.sqlite")
 	stdin := "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}\n" +
 		"{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"bfb_add_comment\",\"arguments\":{\"body\":\"Synthetic comment\",\"request_id\":\"mcp-bind-0002\"}}}\n"
 	code, output := executeMCP(t, dataDir, stdin)
@@ -175,7 +198,7 @@ func TestMCPStdioRejectsMutationWhileUnbound(t *testing.T) {
 		t.Fatalf("mcp stdio failed: %d %s", code, output)
 	}
 	values := mcpResultLine(t, output, 2)
-	if mcpErrorCode(values[1]) != "session_not_bound" {
-		t.Fatalf("unbound mutation must fail closed: %s", output)
+	if mcpErrorCode(values[1]) != "offline_rejected" {
+		t.Fatalf("unreachable authority must fail closed before binding: %s", output)
 	}
 }

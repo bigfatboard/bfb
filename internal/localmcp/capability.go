@@ -22,11 +22,11 @@ const (
 // on every call. Any set flag closes the capability before the call runs.
 type AuthorityState struct {
 	// Revoked reports an authorization or grant epoch change.
-	Revoked bool
+	Revoked bool `json:"revoked"`
 	// ExecutionEnded reports the execution reached ended.
-	ExecutionEnded bool
+	ExecutionEnded bool `json:"execution_ended"`
 	// ResultTerminal reports a terminal run result (accepted/failed/cancelled).
-	ResultTerminal bool
+	ResultTerminal bool `json:"result_terminal"`
 }
 
 // AuthoritySource reports current authority for a boundary. Production
@@ -88,6 +88,13 @@ func (capability *Capability) authorize(ctx context.Context) error {
 	capability.mutex.Unlock()
 	state, err := capability.authority.Current(ctx, capability.boundary)
 	if err != nil {
+		switch CodeOf(err) {
+		case "revoked", "assignment_ended", "capability_closed":
+			capability.Close()
+			return err
+		case "offline_rejected", "peer_denied", "assignment_unknown", "correlation_rejected", "boundary_escape", "storage_failed", "request_rejected", "forbidden", "not_found":
+			return err
+		}
 		return fail("internal_error")
 	}
 	switch {
@@ -117,6 +124,10 @@ func (capability *Capability) allowWrite(ctx context.Context) error {
 		return err
 	}
 	capability.mutex.Lock()
+	if capability.state == StateClosed {
+		capability.mutex.Unlock()
+		return fail("capability_closed")
+	}
 	if capability.state == StateActivated {
 		capability.mutex.Unlock()
 		return nil

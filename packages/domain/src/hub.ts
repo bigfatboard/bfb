@@ -15,8 +15,14 @@ import { randomUlid } from "./ids.js";
 export interface HubCommand<TInput, TResult> {
   name: string;
   run: (input: TInput, ctx: HubContext) => Promise<TResult>;
-  /** Security commands explicitly project safe audit fields; results must remain non-secret. */
+  /** Read-only current-authority check, inside the FIFO transaction before cached replies. */
+  authorize?: (input: TInput, ctx: HubContext) => Promise<void>;
+  /** Binds retry identity to the operation input without persisting private input. */
+  inputFingerprint?: (input: TInput) => string;
+  /** Security commands explicitly project safe audit input fields. */
   auditInput?: (input: TInput) => unknown;
+  /** Safe receipts for audit/semantic/outbox only; response and idempotency retain the full result. */
+  auditResult?: (result: TResult) => unknown;
   /** One-use security exchanges must not replay a cached success. */
   replay?: "reject";
   /**
@@ -79,6 +85,7 @@ interface StoredIdempotency<TResult> {
   actorDelegationId?: string | undefined;
   actorSystemId?: string | undefined;
   actorRunnerId?: string | undefined;
+  inputFingerprint?: string | undefined;
 }
 
 export class WorkspaceHub {
@@ -98,6 +105,24 @@ export class WorkspaceHub {
     const run = async (): Promise<CommandOutcome<TResult>> => {
       try {
         return await this.db.withTransaction(async (tx) => {
+          // Authority-sensitive commands use time observed inside the queued
+          // transaction, not a caller's timestamp or the request's queue time.
+          const now = command.authorize
+            ? new Date().toISOString()
+            : (request.now ?? new Date().toISOString());
+          const authorityContext: HubContext = {
+            workspaceId: request.workspaceId,
+            db: tx,
+            now,
+            actorHumanId: request.actorHumanId,
+            actorDelegationId: request.actorDelegationId,
+            actorSystemId: request.actorSystemId,
+            actorRunnerId: request.actorRunnerId,
+            authorizationEpoch: request.authorizationEpoch,
+            cursorBase: 0,
+          };
+          if (command.authorize) await command.authorize(request.input, authorityContext);
+          const inputFingerprint = command.inputFingerprint?.(request.input);
           const existing = (await tx
             .prepare(
               `SELECT command_name, result_json FROM idempotency_records
@@ -119,6 +144,12 @@ export class WorkspaceHub {
               };
             }
             const parsed = JSON.parse(existing.result_json) as StoredIdempotency<TResult>;
+            if (inputFingerprint !== undefined && parsed.inputFingerprint !== inputFingerprint) {
+              throw new DomainError(
+                "request_rejected",
+                "operation input differs from its original request",
+              );
+            }
             if (
               parsed.authorizationEpoch !== request.authorizationEpoch ||
               (parsed.actorHumanId ?? undefined) !== (request.actorHumanId ?? undefined) ||
@@ -143,7 +174,6 @@ export class WorkspaceHub {
             };
           }
 
-          const now = request.now ?? new Date().toISOString();
           const base = await this.readNextCursor(tx, request.workspaceId);
           const extra = command.extraCursors ? command.extraCursors(request.input) : 0;
           if (!Number.isSafeInteger(extra) || extra < 0 || extra > MAX_EXTRA_CURSORS) {
@@ -177,7 +207,7 @@ export class WorkspaceHub {
               authorizationEpoch: request.authorizationEpoch,
             },
             input: command.auditInput ? command.auditInput(request.input) : request.input,
-            result,
+            result: command.auditResult ? command.auditResult(result) : result,
           });
 
           await tx
@@ -222,6 +252,7 @@ export class WorkspaceHub {
             actorDelegationId: request.actorDelegationId,
             actorSystemId: request.actorSystemId,
             actorRunnerId: request.actorRunnerId,
+            inputFingerprint,
           };
           await tx
             .prepare(

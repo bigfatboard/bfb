@@ -46,8 +46,11 @@ func runMCPStdio(ctx context.Context, invocation Invocation) error {
 		return &daemon.Failure{Code: "invalid_request"}
 	}
 	assignmentsDB := openAssignmentsReadOnly(invocation)
+	if assignmentsDB != nil {
+		defer assignmentsDB.Close()
+	}
 	assignments := localmcp.DaemonAssignments{DB: assignmentsDB}
-	authority := localmcp.DaemonAuthority{Assignments: assignments}
+	transport := localmcp.RPCTransport{Paths: invocation.Paths, Correlation: env.Correlation}
 	journal, err := localmcp.OpenJournal(filepath.Join(invocation.Paths.Root, "local-mcp-journal.sqlite"))
 	if err != nil {
 		_, _ = os.Stderr.Write([]byte("bfb mcp stdio: storage_failed\n"))
@@ -59,11 +62,10 @@ func runMCPStdio(ctx context.Context, invocation Invocation) error {
 		Inspector:   localmcp.OSInspector(),
 		Assignments: assignments,
 		Bindings:    sessionBindings(assignmentsDB),
-		Authority:   authority,
-		Transport:   localmcp.OfflineTransport{},
+		Authority:   transport,
+		Transport:   transport,
 		Journal:     journal,
-		Policy:      localmcp.DefaultOfflinePolicy{AllowPending: true},
-		Grant:       "runner:" + env.RunnerID,
+		Policy:      localmcp.DefaultOfflinePolicy{},
 		Stderr:      os.Stderr,
 	})
 	if code := server.Serve(ctx, invocation.Input, output); code != 0 {

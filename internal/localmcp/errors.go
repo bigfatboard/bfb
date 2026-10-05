@@ -35,7 +35,7 @@ func jsonRPCCode(code string) (int, string) {
 	case "invalid_request":
 		return -32600, "The JSON-RPC request is invalid."
 	case "method_not_found":
-		return -32601, "This MCP method is not part of local-mcp/1."
+		return -32601, "This MCP method is not part of local-mcp/2."
 	case "invalid_params":
 		return -32602, "The tool arguments are invalid."
 	case "peer_denied":

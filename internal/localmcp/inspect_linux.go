@@ -1,4 +1,4 @@
-// ABOUTME: Reads Linux procfs identity for the MCP server's parent process only.
+// ABOUTME: Reads Linux procfs identity for stdio peers and private RPC callers.
 // ABOUTME: Mirrors L05 start-identity formatting so assignment comparisons stay exact.
 
 package localmcp
@@ -13,8 +13,11 @@ import (
 )
 
 func inspectParent() (PeerFacts, error) {
-	parent := os.Getppid()
-	path := filepath.Join("/proc", strconv.Itoa(parent))
+	return inspectProcess(os.Getppid())
+}
+
+func inspectProcess(pid int) (PeerFacts, error) {
+	path := filepath.Join("/proc", strconv.Itoa(pid))
 	info, err := os.Stat(path)
 	if err != nil {
 		return PeerFacts{}, fail("peer_denied")
@@ -39,6 +42,10 @@ func inspectParent() (PeerFacts, error) {
 	if err != nil {
 		return PeerFacts{}, fail("peer_denied")
 	}
+	parent, err := strconv.Atoi(fields[1])
+	if err != nil {
+		return PeerFacts{}, fail("peer_denied")
+	}
 	start, err := strconv.ParseUint(fields[19], 10, 64)
 	if err != nil || start == 0 {
 		return PeerFacts{}, fail("peer_denied")
@@ -48,7 +55,8 @@ func inspectParent() (PeerFacts, error) {
 	}
 	return PeerFacts{
 		UID:           int(stat.Uid),
-		PID:           parent,
+		PID:           pid,
+		ParentPID:     parent,
 		StartIdentity: fmt.Sprintf("%d:0", start),
 		GroupID:       group,
 	}, nil

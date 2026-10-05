@@ -980,13 +980,27 @@ type AgentContextAuthority =
       authorizationEpoch: number;
     };
 
-async function deliverAgentContext(
+export interface AgentContextDelivery {
+  id: string;
+  context_version: number;
+  content_hash: string;
+  delivered_at: string;
+  run_id: string;
+}
+
+export interface RunContextResult {
+  context: AgentContextItem[];
+  deliveries: AgentContextDelivery[];
+}
+
+export async function deliverAgentContext(
   db: SqlDatabase,
   workspaceId: string,
   taskId: string,
   authority: AgentContextAuthority,
   now: string,
-): Promise<AgentContextItem[]> {
+  maximumResultBytes?: number,
+): Promise<RunContextResult> {
   const task = await getTask(db, workspaceId, taskId);
   if (!task) {
     throw new DomainError("not_found", "task not found");
@@ -1026,7 +1040,26 @@ async function deliverAgentContext(
     await assertDelegationBoundary(db, workspaceId, delegation, task.project_id, task.id);
   }
   const items = await getAgentContext(db, workspaceId, taskId);
-  for (const item of items) {
+  const rows = items.map((item) => ({
+    id: randomUlid(),
+    context_version: item.version,
+    content_hash: item.content_hash,
+    delivered_at: now,
+    run_id: authority.kind === "run" ? authority.runId : "",
+  }));
+  const result = { context: items, deliveries: authority.kind === "run" ? rows : [] };
+  if (maximumResultBytes !== undefined) {
+    // Go's RPC encoder escapes these characters; bound its actual byte shape
+    // before any delivery writes are staged, leaving room for the envelope.
+    const encoded = JSON.stringify(result).replace(
+      /[<>&\u2028\u2029]/gu,
+      (character) => `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`,
+    );
+    if (Buffer.byteLength(encoded) > maximumResultBytes) {
+      throw new DomainError("request_rejected", "context exceeds local response bound");
+    }
+  }
+  for (const row of rows) {
     await db
       .prepare(
         `INSERT INTO task_context_deliveries
@@ -1036,17 +1069,17 @@ async function deliverAgentContext(
       )
       .run(
         workspaceId,
-        randomUlid(),
+        row.id,
         taskId,
-        item.version,
-        item.content_hash,
+        row.context_version,
+        row.content_hash,
         authority.kind === "run" ? authority.runId : null,
         authority.kind === "delegation" ? authority.delegationId : null,
         authority.kind === "delegation" ? authority.clientId : null,
         now,
       );
   }
-  return items;
+  return result;
 }
 
 export const deliverDelegatedAgentContextCommand: HubCommand<
@@ -1072,19 +1105,21 @@ export const deliverDelegatedAgentContextCommand: HubCommand<
       task.project_id,
       task.id,
     );
-    return deliverAgentContext(
-      ctx.db,
-      ctx.workspaceId,
-      task.id,
-      {
-        kind: "delegation",
-        delegationId: authority.delegation.id,
-        clientId: authority.delegation.client_id,
-        humanId: authority.delegation.human_id,
-        authorizationEpoch: authority.delegation.authorization_epoch,
-      },
-      ctx.now,
-    );
+    return (
+      await deliverAgentContext(
+        ctx.db,
+        ctx.workspaceId,
+        task.id,
+        {
+          kind: "delegation",
+          delegationId: authority.delegation.id,
+          clientId: authority.delegation.client_id,
+          humanId: authority.delegation.human_id,
+          authorizationEpoch: authority.delegation.authorization_epoch,
+        },
+        ctx.now,
+      )
+    ).context;
   },
 };
 
@@ -1094,12 +1129,14 @@ export const deliverRunAgentContextCommand: HubCommand<{ taskId: string }, Agent
     if (!ctx.actorSystemId || ctx.actorHumanId || ctx.actorDelegationId) {
       throw new DomainError("forbidden", "run-scoped authority required");
     }
-    return deliverAgentContext(
-      ctx.db,
-      ctx.workspaceId,
-      input.taskId,
-      { kind: "run", runId: ctx.actorSystemId },
-      ctx.now,
-    );
+    return (
+      await deliverAgentContext(
+        ctx.db,
+        ctx.workspaceId,
+        input.taskId,
+        { kind: "run", runId: ctx.actorSystemId },
+        ctx.now,
+      )
+    ).context;
   },
 };

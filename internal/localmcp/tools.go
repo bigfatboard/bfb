@@ -1,4 +1,4 @@
-// ABOUTME: Dispatches the six v1 tools over an activated capability with strict argument bounds.
+// ABOUTME: Dispatches bounded local run tools with strict argument and capability checks.
 // ABOUTME: Derives every identifier from the capability; caller-supplied IDs can only narrow, never widen.
 
 package localmcp
@@ -24,9 +24,10 @@ func stringSchema(description string, min, max int) map[string]any {
 	return map[string]any{"type": "string", "description": description, "minLength": min, "maxLength": max}
 }
 
-// ToolDescriptors is the frozen v1 tool surface from docs/contracts/local-mcp.md.
+// ToolDescriptors advertises the tool surface from docs/contracts/local-mcp.md.
 func ToolDescriptors() []ToolDescriptor {
-	requestID := stringSchema("Idempotency key, 8-128 characters.", minRequestIDLen, maxRequestIDLen)
+	requestID := stringSchema("Idempotency key, 8-128 bounded ASCII characters.", minRequestIDLen, maxRequestIDLen)
+	requestID["pattern"] = "^[A-Za-z0-9._:~-]{8,128}$"
 	optionalTask := map[string]any{"type": "string", "description": "Optional task ID; must equal the run boundary.", "maxLength": maxIDLen}
 	return []ToolDescriptor{
 		{Name: "bfb_get_context", Description: "Read the run's scoped agent context with a delivery record.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{"task_id": optionalTask, "request_id": requestID}, "required": []string{"request_id"}, "additionalProperties": false}},
@@ -46,16 +47,25 @@ func ToolDescriptors() []ToolDescriptor {
 // idempotency map; the capability owns trust state; the journal owns offline
 // durability. Host is safe for concurrent tools/call handling.
 type Host struct {
-	mutex      sync.Mutex
-	capability *Capability
-	transport  WorkTransport
-	journal    Journal
-	policy     OfflinePolicy
-	principal  string
-	grant      string
-	now        func() time.Time
-	seen       map[string]any
+	callMutex   sync.Mutex
+	mutex       sync.Mutex
+	capability  *Capability
+	transport   WorkTransport
+	journal     Journal
+	policy      OfflinePolicy
+	principal   string
+	grant       string
+	now         func() time.Time
+	seen        map[string]cachedOutcome
+	fingerprint string
 }
+
+type cachedOutcome struct {
+	result      any
+	fingerprint string
+}
+
+const maxCachedRequests = 256
 
 // HostDeps wires one connection's host. Principal names the originating
 // agent-run principal (agent_run:<run_id>) and grant its runner grant.
@@ -88,7 +98,7 @@ func NewHost(deps HostDeps) *Host {
 		principal:  deps.Principal,
 		grant:      deps.Grant,
 		now:        now,
-		seen:       make(map[string]any),
+		seen:       make(map[string]cachedOutcome),
 	}
 }
 
@@ -96,22 +106,23 @@ func (host *Host) cached(requestID string) (any, bool) {
 	host.mutex.Lock()
 	defer host.mutex.Unlock()
 	result, ok := host.seen[requestID]
-	return result, ok
+	return result.result, ok
 }
 
 func (host *Host) remember(requestID string, result any) {
 	host.mutex.Lock()
 	defer host.mutex.Unlock()
-	if len(host.seen) >= 256 {
-		return
-	}
-	host.seen[requestID] = result
+	// CallTool admits new identities under callMutex before executing any effect.
+	host.seen[requestID] = cachedOutcome{result: result, fingerprint: host.fingerprint}
 }
 
 // CallTool validates, authorizes, executes, and memoizes one tools/call.
 // Params arrive decoded from JSON-RPC; unknown fields are rejected so a
 // caller cannot smuggle workflow, routing, or identity fields.
 func (host *Host) CallTool(ctx context.Context, name string, params map[string]any) (any, error) {
+	// Serialize the bounded connection cache and effects, including identical concurrent calls.
+	host.callMutex.Lock()
+	defer host.callMutex.Unlock()
 	known := false
 	for _, descriptor := range ToolDescriptors() {
 		if descriptor.Name == name {
@@ -138,9 +149,6 @@ func (host *Host) CallTool(ctx context.Context, name string, params map[string]a
 	if err := checkRequestID(rawRequestID); err != nil {
 		return nil, err
 	}
-	if result, ok := host.cached(rawRequestID); ok {
-		return result, nil
-	}
 	boundary := host.capability.Boundary()
 	if value, present := params["task_id"]; present {
 		id, ok := value.(string)
@@ -148,9 +156,47 @@ func (host *Host) CallTool(ctx context.Context, name string, params map[string]a
 			return nil, fail("boundary_escape")
 		}
 	}
+	for field, check := range map[string]func(string) error{"project_id": boundary.checkProject, "parent_task_id": boundary.checkParent} {
+		if value, present := params[field]; present {
+			id, ok := value.(string)
+			if !ok || checkID(id, field) != nil || check(id) != nil {
+				return nil, fail("boundary_escape")
+			}
+		}
+	}
+	encoded, err := json.Marshal(struct {
+		Name   string
+		Params map[string]any
+	}{name, params})
+	if err != nil {
+		return nil, fail("invalid_params")
+	}
+	digest := sha256.Sum256(encoded)
+	fingerprint := hex.EncodeToString(digest[:])
+	host.mutex.Lock()
+	prior, reused := host.seen[rawRequestID]
+	full := len(host.seen) >= maxCachedRequests
+	host.fingerprint = fingerprint
+	host.mutex.Unlock()
+	if reused && prior.fingerprint != fingerprint {
+		return nil, fail("request_rejected")
+	}
+	if !reused && full {
+		// Never execute an operation whose identity and input cannot remain bound.
+		if err := host.capability.authorize(ctx); err != nil {
+			return nil, err
+		}
+		return nil, fail("request_rejected")
+	}
+	if result, ok := host.cached(rawRequestID); ok {
+		if err := host.capability.authorize(ctx); err != nil {
+			return nil, err
+		}
+		return result, nil
+	}
 	switch name {
 	case "bfb_get_context", "bfb_get_task":
-		result, err := host.read(ctx, name)
+		result, err := host.read(ctx, name, rawRequestID)
 		if err != nil {
 			return nil, err
 		}
@@ -194,7 +240,7 @@ func allowedParams(name string) map[string]bool {
 	}
 }
 
-func (host *Host) read(ctx context.Context, name string) (any, error) {
+func (host *Host) read(ctx context.Context, name string, requestID string) (any, error) {
 	if err := host.capability.allowRead(ctx); err != nil {
 		return nil, err
 	}
@@ -204,13 +250,13 @@ func (host *Host) read(ctx context.Context, name string) (any, error) {
 	boundary := host.capability.Boundary()
 	switch name {
 	case "bfb_get_context":
-		items, delivery, err := host.transport.GetContext(ctx, boundary)
+		result, err := host.transport.GetContext(ctx, boundary, requestID)
 		if err != nil {
 			return nil, err
 		}
-		return map[string]any{"context": items, "delivery": delivery}, nil
+		return result, nil
 	default:
-		task, err := host.transport.GetTask(ctx, boundary)
+		task, err := host.transport.GetTask(ctx, boundary, requestID)
 		if err != nil {
 			return nil, err
 		}

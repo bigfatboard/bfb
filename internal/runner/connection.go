@@ -260,7 +260,13 @@ func (connection *Connection) send(ctx context.Context, method, path string, bod
 	}
 	defer response.Body.Close()
 	if response.StatusCode == http.StatusForbidden {
-		return nil, ErrAuthorization
+		// Keep bounded typed domain denials available to fixed daemon-owned actions.
+		// Existing callers still receive ErrAuthorization and cannot treat denial as offline.
+		data, err := io.ReadAll(io.LimitReader(response.Body, maxResponseBytes+1))
+		if err != nil || len(data) > maxResponseBytes {
+			return nil, ErrAuthorization
+		}
+		return data, ErrAuthorization
 	}
 	if response.StatusCode >= 500 {
 		return nil, ErrOffline
