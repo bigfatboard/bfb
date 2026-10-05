@@ -100,11 +100,13 @@ or change to global provider configuration is introduced by the experiment.
 - Discussion permissions do not widen through inherited hooks, MCP servers, tools, resume/fork defaults, or peer text. An unsupported read-only boundary fails closed.
 - Capability evidence distinguishes supported, unsupported, and unverified fresh/resume/fork/idle-delivery/active-delivery/interrupt behavior; unknown versions never inherit certification.
 
-## Evidence and handoff
+## Evidence
 
 - Commit adapter contract, fake provider, provider-local registration contract, configuration-transaction fixtures, capability matrix, injection corpus, and version-policy fixtures.
-- Provider packages own only their provider-local adapter, descriptor, manifest, setup logic, raw-hook parser, and fixtures after this freezes.
-
 ## Risks and decisions
 
 - Provider auto-updates require a short-lived probe and immediate pre-exec version check.
+
+## Handoff
+
+- Provider packages own only their provider-local adapter, descriptor, manifest, setup logic, raw-hook parser, and fixtures after this freezes.

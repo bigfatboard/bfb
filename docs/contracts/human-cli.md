@@ -104,6 +104,11 @@ convention (`bfb task get --control-url URL TASK_ID`).
 - The CLI presents the human device credential as an `Authorization` bearer
   on `/api/v1/cli/*` only. Cookies and browser origins are rejected there
   with `credential_confusion`.
+- Every authenticated human-mirror request consumes the `cli:bearer-auth`
+  abuse budget (hashed IP plus hashed credential, polling tier) before the
+  credential resolves, so failed probes are rate-limited exactly like
+  successful ones; exhaustion answers uniform `request_rejected` with no
+  oracle detail.
 - Browser routes reject bearer credentials, runner routes demand possession
   proofs, and MCP demands OAuth: a CLI credential substitutes for none of
   them, and no runner, provider, or browser credential authenticates a CLI
@@ -135,6 +140,17 @@ flow; proofs are single-use, 15-minute bound, human-bound, epoch-fenced, and
 consumed server-side before dispatch. Attention answers and resolutions need
 explicit `--answer`/`--expected-version` flags but no step-up: answering
 grants no authority. Task creation needs explicit `--project`/`--title`.
+
+## Login device flow
+
+`bfb login` runs the device flow to completion in both modes: it prints the
+verification URI and user code (standard output in human mode, standard
+error in JSON mode so machine output stays one document), polls
+`POST /api/v1/cli/exchange` until the browser approval lands, stores the
+credential, and reports the authorized workspace. JSON success carries the
+same `workspace_id`, `key_prefix`, and `expires_at` data as the human
+confirmation. `bfb logout` revokes and forgets in both modes with the same
+`revoked`/`local_forgotten` report.
 
 ## Help, completion, version, offline
 

@@ -54,7 +54,7 @@
     "docs/work-packages/evidence/WP-A02/manifest.json",
     "docs/work-packages/evidence/WP-A02/command-result.json",
     "docs/work-packages/evidence/WP-A02/recording.jsonl",
-    "docs/work-packages/evidence/WP-A02/raw-timing-observations.json",
+    "docs/work-packages/evidence/WP-A02/waiter-cadence.json",
     "docs/work-packages/evidence/WP-A02/acceptance-matrix.md",
     "docs/work-packages/evidence/WP-A02/permission-matrix.md",
     "docs/work-packages/evidence/WP-A02/timeout-reconnect-trace.md",

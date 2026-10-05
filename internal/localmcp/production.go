@@ -7,6 +7,9 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"time"
+
+	"github.com/qdis/bfb/internal/journal"
 )
 
 // nativeProcess mirrors the PID/group/start-identity subset of L05's process
@@ -152,11 +155,44 @@ func (OfflineTransport) SubmitResult(_ context.Context, _ Boundary, _ SubmitResu
 	return SubmitResultResult{}, fail("offline_rejected")
 }
 
-// ProvisionalBindings reports no trusted binding yet. L06 plugs its
-// hook-journal reader in here at merge; until then every mutation returns
-// session_not_bound while bootstrap reads stay available.
-type ProvisionalBindings struct{}
+// JournalBindings adapts L06's hook-journal session reader to the narrow
+// SessionBindingSource. The trusted observed-session row supplies the
+// session ID and bind time, keyed by the immutable (execution ID,
+// assignment generation) identity. The run ID echoes the verified
+// capability boundary: that pair is the immutable assignment key, so the
+// row for the key can only belong to the assignment the capability was
+// verified against; the adapter never invents identity beyond that echo.
+type JournalBindings struct {
+	Sessions journal.SessionReader
+}
 
-func (ProvisionalBindings) ObservedBinding(_ context.Context, _ AssignmentRef) (SessionBinding, error) {
-	return SessionBinding{}, ErrSessionNotBound
+// ObservedBinding returns the trusted binding for a verified assignment,
+// or ErrSessionNotBound while L06 has committed no well-formed row. A
+// storage fault propagates instead of masquerading as an unbound session;
+// the capability still fails closed, but the cause stays visible.
+func (bindings JournalBindings) ObservedBinding(ctx context.Context, ref AssignmentRef) (SessionBinding, error) {
+	if bindings.Sessions == nil {
+		return SessionBinding{}, ErrSessionNotBound
+	}
+	observed, err := bindings.Sessions.BoundSession(ctx, ref.ExecutionID, ref.AssignmentGeneration)
+	if err != nil {
+		if journal.Code(err) == "session_unbound" {
+			return SessionBinding{}, ErrSessionNotBound
+		}
+		return SessionBinding{}, err
+	}
+	if observed.SessionID == "" {
+		return SessionBinding{}, ErrSessionNotBound
+	}
+	boundAt, err := time.Parse(time.RFC3339Nano, observed.BoundAt)
+	if err != nil {
+		return SessionBinding{}, ErrSessionNotBound
+	}
+	return SessionBinding{
+		ExecutionID:          ref.ExecutionID,
+		AssignmentGeneration: ref.AssignmentGeneration,
+		RunID:                ref.RunID,
+		ObservedSessionID:    observed.SessionID,
+		ObservedAt:           boundAt,
+	}, nil
 }

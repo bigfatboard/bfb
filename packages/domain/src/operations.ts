@@ -82,6 +82,9 @@ function ulidList(value: unknown, field: string): string[] {
 }
 
 async function requireOwner(ctx: HubContext) {
+  if (ctx.actorDelegationId) {
+    fail("forbidden", "direct authorized human required");
+  }
   if (!ctx.actorHumanId) {
     fail("unauthenticated", "human actor required");
   }
@@ -226,6 +229,8 @@ export interface RetentionCandidate {
  * deliberately narrow: role `log`, state `available`, older than the policy
  * cutoff, and keyed under the per-run logs prefix. Review artifacts, shared
  * content-addressed bytes, D1 rows, hashes, and metadata are never eligible.
+ * A purged chunk moves to `retained` (see `markVersionRetained`), so it
+ * never appears here again and its bytes are never counted twice.
  */
 export async function listRetentionEligibleChunks(
   db: SqlDatabase,
@@ -271,6 +276,29 @@ export async function listRetentionEligibleChunks(
       available_at: row.available_at as string,
     })),
   };
+}
+
+/**
+ * Records a retention purge on the version row. The guarded update moves an
+ * `available` version to `retained` with every other column unchanged, so a
+ * purged chunk is never re-listed as eligible and its view grants stop
+ * redeeming (issuance and redemption both require `available`), while the
+ * hash, key, and metadata stay intact as the purge record. Returns true when
+ * this call performed the transition; a concurrent sweep that already
+ * retained the row reports false so its bytes are never counted twice.
+ */
+export async function markVersionRetained(
+  db: SqlDatabase,
+  input: { workspaceId: string; versionId: string },
+): Promise<boolean> {
+  const updated = (await db
+    .prepare(
+      `UPDATE artifact_versions
+       SET state = 'retained'
+       WHERE workspace_id = ? AND id = ? AND state = 'available'`,
+    )
+    .run(input.workspaceId, input.versionId)) as { changes?: number } | undefined;
+  return (updated?.changes ?? 0) === 1;
 }
 
 /**
@@ -591,6 +619,12 @@ export interface SecurityAuditEntry {
  * Owner-only security audit read model. Payloads pass through the sanitizer
  * so older rows written before strict auditInput projection cannot leak
  * secrets, paths, or private payloads into the Operations surface.
+ *
+ * Rows are ordered chronologically by `created_at`, with insertion order
+ * (`rowid`) breaking ties: audit ids carry no time component (hub ids are
+ * random, recovery rows use an `audit-` prefix), so id order is not time
+ * order. `after` stays an `audit_id` cursor but resolves to its row's
+ * timestamp first, so pages advance in time, not id space.
  */
 export async function readSecurityAudit(
   db: SqlDatabase,
@@ -598,15 +632,30 @@ export async function readSecurityAudit(
   options: { limit?: number; after?: string } = {},
 ): Promise<{ entries: SecurityAuditEntry[]; has_more: boolean }> {
   const limit = Math.min(Math.max(options.limit ?? 50, 1), OPS_MAX_PAGE);
+  const params: unknown[] = [workspaceId];
+  let cursorFilter = "";
+  if (options.after) {
+    const anchor = (await db
+      .prepare(
+        `SELECT created_at, rowid AS anchor_rowid FROM audit_events
+         WHERE workspace_id = ? AND audit_id = ?`,
+      )
+      .get(workspaceId, options.after)) as { created_at: string; anchor_rowid: number } | undefined;
+    if (!anchor) {
+      fail("invalid_argument", "unknown audit cursor");
+    }
+    cursorFilter = "AND (created_at > ? OR (created_at = ? AND rowid > ?))";
+    params.push(anchor.created_at, anchor.created_at, anchor.anchor_rowid);
+  }
   const rows = (await db
     .prepare(
       `SELECT audit_id, actor_principal_id, action, payload_json, created_at
        FROM audit_events
-       WHERE workspace_id = ? ${options.after ? "AND audit_id > ?" : ""}
-       ORDER BY audit_id ASC
+       WHERE workspace_id = ? ${cursorFilter}
+       ORDER BY created_at ASC, rowid ASC
        LIMIT ?`,
     )
-    .all(...(options.after ? [workspaceId, options.after] : [workspaceId]), limit + 1)) as Array<{
+    .all(...params, limit + 1)) as Array<{
     audit_id: string;
     actor_principal_id: string;
     action: string;
@@ -1129,8 +1178,8 @@ async function runRecoveryEffect(
           fail("invalid_argument", "outbox ids must be bounded strings");
         }
       }
-      let requeued = 0;
-      for (const id of ids as string[]) {
+      const queues = ids as string[];
+      for (const id of queues) {
         const row = (await db
           .prepare(
             `SELECT state FROM github_integration_outbox WHERE workspace_id = ? AND outbox_id = ?`,
@@ -1145,6 +1194,9 @@ async function runRecoveryEffect(
             `github outbox row ${id} in state ${row.state} needs no requeue`,
           );
         }
+      }
+      let requeued = 0;
+      for (const id of queues) {
         await db
           .prepare(
             `UPDATE github_integration_outbox

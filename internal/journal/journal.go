@@ -13,7 +13,16 @@ import (
 
 const maxJournalRows = 16384
 const maxQuarantineRows = 4096
-const maxUploadBatch = 64
+
+// maxUploadBatch mirrors the E01 ingest bound (EVENT_BATCH_LIMIT in
+// packages/domain/src/events.ts). A larger batch is rejected as a whole by
+// the server and would stall the journal, so the client never sends more.
+const maxUploadBatch = 25
+
+// uploadBodyLimit mirrors the E01 ingest body bound (EVENT_BODY_LIMIT).
+// uploadRunner shrinks each batch to fit instead of sending an oversized
+// batch the server must reject whole.
+const uploadBodyLimit = 65_536
 
 // Store persists journaled events in the daemon SQLite database. The database
 // connection must serialize writers; the daemon opens it with MaxOpenConns(1)

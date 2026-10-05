@@ -128,7 +128,6 @@ export class BrowserSockets {
   private readonly db: SqlDatabase;
   private readonly clock: () => string;
   private readonly ids: () => string;
-  private lastBroadcast: number | null = null;
 
   constructor(
     private readonly sockets: (tag: string) => Iterable<RealtimeSocket>,
@@ -288,7 +287,6 @@ export class BrowserSockets {
         server_time: now,
       }),
     );
-    if (this.lastBroadcast === null) this.lastBroadcast = highWater;
     return { connectionId: attachment.connectionId };
   }
 
@@ -346,9 +344,14 @@ export class BrowserSockets {
 
   /**
    * Rechecks every browser socket after a committed workspace command and
-   * broadcasts the new high-water cursor when the ledger advanced. Called in
-   * the same transport FIFO as the command commit. One hub instance serves
-   * one workspace, so one high-water read fans out to every survivor.
+   * broadcasts the current high-water cursor. Called in the same transport
+   * FIFO as the command commit. The broadcast fires even when the ledger
+   * cursor is unchanged, because workspace commands such as discussion
+   * interventions, cancellations, and decisions commit state outside the
+   * event ledger that browsers must refetch. The frame stays a cursor hint:
+   * ledger-replay clients ignore a cursor at or below their applied mark,
+   * while discussion views refetch on any invalidation. One hub instance
+   * serves one workspace, so one high-water read fans out to every survivor.
    */
   async afterCommand(): Promise<void> {
     const survivors: Array<{ socket: RealtimeSocket; attachment: BrowserAttachment }> = [];
@@ -375,20 +378,15 @@ export class BrowserSockets {
         first.attachment.humanId,
         first.attachment.authorizationEpoch,
       );
-      if (this.lastBroadcast === null) {
-        this.lastBroadcast = highWater;
-      } else if (highWater > this.lastBroadcast) {
-        this.lastBroadcast = highWater;
-        for (const { socket, attachment } of survivors) {
-          socket.send(
-            JSON.stringify({
-              schema_version: 1,
-              kind: "event.committed",
-              workspace_id: attachment.workspaceId,
-              high_water_cursor: highWater,
-            }),
-          );
-        }
+      for (const { socket, attachment } of survivors) {
+        socket.send(
+          JSON.stringify({
+            schema_version: 1,
+            kind: "event.committed",
+            workspace_id: attachment.workspaceId,
+            high_water_cursor: highWater,
+          }),
+        );
       }
     } catch {
       // The business command already committed; fail the ephemeral channel,

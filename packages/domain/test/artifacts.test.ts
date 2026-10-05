@@ -413,6 +413,201 @@ describe("artifact state machine", () => {
     expect(available.count).toBe(2);
   });
 
+  it("publishes identical log bytes under distinct version keys", async () => {
+    const { db, hub, human } = await fixture();
+    const taskId = randomUlid();
+    await db
+      .prepare(
+        `INSERT INTO tasks
+         (workspace_id, id, project_id, parent_task_id, title, state, priority,
+          next_owner_type, punchline, resource_version, created_by_human_id,
+          created_by_delegation_id, created_at)
+         VALUES (?, ?, ?, NULL, ?, 'ready', 'P2', 'unassigned', ?, 1, ?, NULL, ?)`,
+      )
+      .run(FIX.workspace, taskId, FIX.projectA, "Synthetic task", "Synthetic task", FIX.owner, NOW);
+    const runIds = [randomUlid(), randomUlid()];
+    for (const runId of runIds) {
+      await db
+        .prepare(
+          `INSERT INTO runs
+           (workspace_id, id, project_id, task_id, requested_by_human_id,
+            agent_profile_id, result_state, activity, resource_version, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, 'open', 'unknown', 1, ?)`,
+        )
+        .run(FIX.workspace, runId, FIX.projectA, taskId, FIX.owner, FIX.profileCodex, NOW);
+    }
+    const keys: string[] = [];
+    for (const runId of runIds) {
+      const minted = mintUploadGrantSecret();
+      const created = result(
+        await hub.execute(createArtifactCommand, {
+          workspaceId: FIX.workspace,
+          actorHumanId: FIX.owner,
+          authorizationEpoch: 1,
+          now: NOW,
+          idempotencyKey: randomUlid(),
+          input: {
+            artifactId: null,
+            runId,
+            format: "log",
+            role: "log",
+            declaredSize: 18,
+            expectedDigest: DIGEST,
+            grantSecretHash: minted.secretHash,
+          },
+        }),
+      );
+      await redeemUploadGrant(db, {
+        grantId: created.upload_grant.grant_id,
+        secret: minted.secret,
+        now: NOW,
+      });
+      const key = artifactObjectKey({
+        workspaceId: FIX.workspace,
+        role: "log",
+        runId,
+        versionId: created.version_id,
+        contentHash: DIGEST,
+      });
+      keys.push(key);
+      await recordVerifiedUpload(db, {
+        workspaceId: FIX.workspace,
+        versionId: created.version_id,
+        runId,
+        role: "log",
+        contentHash: DIGEST,
+        r2Key: key,
+        size: 18,
+        now: NOW,
+      });
+      const finalized = result(
+        await human(finalizeArtifactCommand, {
+          versionId: created.version_id,
+          contentHash: DIGEST,
+          size: 18,
+        }),
+      );
+      expect(finalized.state).toBe("available");
+      expect(finalized.r2_key).toBe(key);
+    }
+    expect(keys[0]).not.toBe(keys[1]);
+    const objects = (await db
+      .prepare(`SELECT COUNT(*) AS count FROM artifact_objects WHERE content_hash = ?`)
+      .get(DIGEST)) as { count: number };
+    expect(objects.count).toBe(2);
+  });
+
+  it("lets another workspace publish identical review bytes without conflict", async () => {
+    const { db, hub, human, create } = await fixture();
+    const other = randomUlid();
+    await db
+      .prepare(
+        `INSERT INTO workspaces (id, slug, jurisdiction, created_at, resource_version) VALUES (?, 'second-artifact-workspace', 'eu', ?, 1)`,
+      )
+      .run(other, NOW);
+    await db
+      .prepare(
+        `INSERT INTO workspace_members (workspace_id, human_id, role, authorization_epoch, created_at) VALUES (?, ?, 'owner', 1, ?)`,
+      )
+      .run(other, FIX.owner, NOW);
+    await db
+      .prepare(
+        `INSERT INTO workspace_authorization_epochs (workspace_id, human_id, authorization_epoch, updated_at) VALUES (?, ?, 1, ?)`,
+      )
+      .run(other, FIX.owner, NOW);
+    const first = await create();
+    const minted = mintUploadGrantSecret();
+    const second = result(
+      await hub.execute(createArtifactCommand, {
+        workspaceId: other,
+        actorHumanId: FIX.owner,
+        authorizationEpoch: 1,
+        now: NOW,
+        idempotencyKey: randomUlid(),
+        input: {
+          artifactId: null,
+          runId: null,
+          format: "markdown",
+          role: "review",
+          declaredSize: 18,
+          expectedDigest: DIGEST,
+          grantSecretHash: minted.secretHash,
+        },
+      }),
+    );
+    const firstKey = artifactObjectKey({
+      workspaceId: FIX.workspace,
+      role: "review",
+      runId: null,
+      versionId: first.version_id,
+      contentHash: DIGEST,
+    });
+    const secondKey = artifactObjectKey({
+      workspaceId: other,
+      role: "review",
+      runId: null,
+      versionId: second.version_id,
+      contentHash: DIGEST,
+    });
+    expect(secondKey).not.toBe(firstKey);
+    await redeemUploadGrant(db, {
+      grantId: first.upload_grant.grant_id,
+      secret: first.secret,
+      now: NOW,
+    });
+    await redeemUploadGrant(db, {
+      grantId: second.upload_grant.grant_id,
+      secret: minted.secret,
+      now: NOW,
+    });
+    await recordVerifiedUpload(db, {
+      workspaceId: FIX.workspace,
+      versionId: first.version_id,
+      runId: null,
+      role: "review",
+      contentHash: DIGEST,
+      r2Key: firstKey,
+      size: 18,
+      now: NOW,
+    });
+    // The second workspace sees the same success: no key-mismatch rejection
+    // and no signal that these bytes already exist elsewhere.
+    await recordVerifiedUpload(db, {
+      workspaceId: other,
+      versionId: second.version_id,
+      runId: null,
+      role: "review",
+      contentHash: DIGEST,
+      r2Key: secondKey,
+      size: 18,
+      now: NOW,
+    });
+    const finalizedFirst = result(
+      await human(finalizeArtifactCommand, {
+        versionId: first.version_id,
+        contentHash: DIGEST,
+        size: 18,
+      }),
+    );
+    expect(finalizedFirst.r2_key).toBe(firstKey);
+    const finalizedSecond = result(
+      await hub.execute(finalizeArtifactCommand, {
+        workspaceId: other,
+        actorHumanId: FIX.owner,
+        authorizationEpoch: 1,
+        now: NOW,
+        idempotencyKey: randomUlid(),
+        input: { versionId: second.version_id, contentHash: DIGEST, size: 18 },
+      }),
+    );
+    expect(finalizedSecond.state).toBe("available");
+    expect(finalizedSecond.r2_key).toBe(secondKey);
+    const objects = (await db
+      .prepare(`SELECT COUNT(*) AS count FROM artifact_objects WHERE content_hash = ?`)
+      .get(DIGEST)) as { count: number };
+    expect(objects.count).toBe(2);
+  });
+
   it("marks abandoned rows failed and leaves terminal history alone", async () => {
     const { db, human, create } = await fixture();
     const created = await create();
@@ -489,9 +684,15 @@ describe("artifact state machine", () => {
     ).rejects.toThrow();
     await db
       .prepare(
-        `INSERT INTO artifact_objects (content_hash, r2_key, size, created_at) VALUES (?, ?, ?, ?)`,
+        `INSERT INTO artifact_objects (workspace_id, r2_key, content_hash, size, created_at) VALUES (?, ?, ?, ?, ?)`,
       )
-      .run(DIGEST, "workspaces/w/artifacts/sha256/" + DIGEST, 18, NOW);
+      .run(
+        FIX.workspace,
+        `workspaces/${FIX.workspace}/artifacts/sha256/${DIGEST}`,
+        DIGEST,
+        18,
+        NOW,
+      );
     await expect(
       db.prepare(`DELETE FROM artifact_objects WHERE content_hash = ?`).run(DIGEST),
     ).rejects.toThrow();

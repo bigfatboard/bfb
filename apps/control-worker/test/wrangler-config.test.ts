@@ -160,6 +160,24 @@ describe("wrangler substrate configs", () => {
     expect(body).not.toMatch(/ENVIRONMENT|APP_ORIGIN|ARTIFACT_ORIGIN|LAUNCH_ORIGIN/);
   });
 
+  it("inlines no secret values in any committed wrangler config", () => {
+    // Local `wrangler dev` reads secrets from the gitignored `.dev.vars`;
+    // staging/production use `wrangler secret put`. A committed `[vars]`
+    // value is a convention break and a template for a real environment.
+    const committed = [
+      ...configs.map((name) => path.join(root, name)),
+      path.join(root, spikeConfig),
+      path.join(root, "wrangler.selfhost.toml"),
+      ...artifactConfigs.map((name) => path.join(artifactRoot, name)),
+      path.join(artifactRoot, "wrangler.selfhost.toml"),
+    ];
+    for (const file of committed) {
+      const body = readFileSync(file, "utf8");
+      const vars = body.match(/\[vars\][\s\S]*?(?=\n\[|\n\[\[|$)/);
+      expect(vars?.[0] ?? "").not.toMatch(/^\s*[A-Z0-9_]*SECRET[A-Z0-9_]*\s*=/m);
+    }
+  });
+
   it("includes Worker-first OAuth globs so SPA cannot shadow /oauth/*", () => {
     for (const name of configs) {
       const globs = extractRunWorkerFirst(read(name));

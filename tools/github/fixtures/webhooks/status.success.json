@@ -5,6 +5,9 @@
     "state": "success",
     "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
     "context": "synthetic-ci/status",
+    "name": "synthetic-ci/status",
+    "target_url": "https://github.com/synthetic-org/synthetic-repo/commit/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/checks",
+    "description": "Synthetic X04 status",
     "updated_at": "2026-09-18T12:00:00.000Z",
     "repository": {
       "id": 87654321,

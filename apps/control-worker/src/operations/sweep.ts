@@ -2,7 +2,7 @@
 // ABOUTME: Each step is isolated; an operations failure never blocks artifact, GitHub, or notify sweeps.
 
 import type { SqlDatabase } from "@bfb/db";
-import { listRetentionEligibleChunks, randomUlid } from "@bfb/domain";
+import { listRetentionEligibleChunks, markVersionRetained, randomUlid } from "@bfb/domain";
 
 export interface RetentionR2 {
   delete(key: string): Promise<unknown>;
@@ -19,9 +19,12 @@ export interface OperationsSweepResult {
 
 /**
  * Applies the workspace retention policy: deletes only eligible per-run raw
- * log R2 objects and records one retention_runs row per workspace. D1 rows,
- * hashes, metadata, review artifacts, and shared content-addressed bytes are
- * never touched; a failed object delete is recorded, never retried blindly.
+ * log R2 objects and records one retention_runs row per workspace. Each
+ * purged version row moves to `retained` with its hash, key, and metadata
+ * preserved as the purge record, so later ticks never re-delete or
+ * re-count it and its view grants stop redeeming. Review artifacts and
+ * shared content-addressed bytes are never touched; a failed object delete
+ * keeps the version `available` and is recorded, never retried blindly.
  */
 export async function runRetentionSweep(
   db: SqlDatabase,
@@ -55,10 +58,20 @@ export async function runRetentionSweep(
       for (const chunk of listed.eligible) {
         try {
           await r2.delete(chunk.r2_key);
-          deleted += 1;
-          bytes += chunk.declared_size;
         } catch {
           error = "r2_delete_failed";
+          continue;
+        }
+        // The R2 delete is idempotent, so a missing key still converges: the
+        // guarded transition records the purge exactly once, and only the
+        // transition counts bytes, so overlapping ticks never double-count.
+        const transitioned = await markVersionRetained(db, {
+          workspaceId: workspace.id,
+          versionId: chunk.version_id,
+        });
+        if (transitioned) {
+          deleted += 1;
+          bytes += chunk.declared_size;
         }
       }
       await db

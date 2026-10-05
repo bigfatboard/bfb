@@ -328,7 +328,7 @@ export const setNotificationPreferenceCommand: HubCommand<SetPreferenceInput, Pr
       enabled: input.enabled,
     }),
     async run(input, ctx) {
-      if (!ctx.actorHumanId) {
+      if (!ctx.actorHumanId || ctx.actorDelegationId) {
         throw new DomainError("forbidden", "notification preferences need a human actor");
       }
       if (!isChannel(input.channel) || !isCategory(input.category)) {
@@ -421,7 +421,7 @@ export const registerPushEndpointCommand: HubCommand<
     hasEndpoint: typeof input.endpoint === "string" && input.endpoint.length > 0,
   }),
   async run(input, ctx) {
-    if (!ctx.actorHumanId) {
+    if (!ctx.actorHumanId || ctx.actorDelegationId) {
       throw new DomainError("forbidden", "push endpoints need a human actor");
     }
     const checked = assertPushEndpoint(input);
@@ -454,7 +454,7 @@ export const removePushEndpointCommand: HubCommand<{ endpointHash: string }, { r
     name: "notification.push_endpoint.remove",
     auditInput: (input) => ({ hasEndpointHash: typeof input.endpointHash === "string" }),
     async run(input, ctx) {
-      if (!ctx.actorHumanId) {
+      if (!ctx.actorHumanId || ctx.actorDelegationId) {
         throw new DomainError("forbidden", "push endpoints need a human actor");
       }
       if (typeof input.endpointHash !== "string" || !/^[0-9a-f]{64}$/.test(input.endpointHash)) {
@@ -853,6 +853,13 @@ export type DeliveryOutcome =
  * endpoint may be contacted. Never returns task text: the payload carries
  * only fixed copy, IDs, and the deep link.
  */
+export interface PushAttemptEndpoint {
+  endpoint_hash: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+}
+
 export async function loadPushAttempt(
   db: SqlDatabase,
   input: { workspaceId: string; deliveryId: string },
@@ -860,9 +867,7 @@ export async function loadPushAttempt(
   | {
       ok: true;
       delivery: DeliveryRecord;
-      endpoint: string;
-      p256dh: string;
-      auth: string;
+      endpoints: PushAttemptEndpoint[];
       subject: ResolvedSubject;
     }
   | { ok: false; outcome: DeliveryOutcome }
@@ -912,22 +917,19 @@ export async function loadPushAttempt(
   if (!resolvePreference(overrides, subject.projectId, "browser_push", delivery.category)) {
     return { ok: false, outcome: { terminal: true, state: "suppressed", code: "opted_out" } };
   }
-  const endpoint = (await db
+  const endpoints = (await db
     .prepare(
-      `SELECT endpoint, p256dh, auth FROM notification_push_endpoints
-       WHERE workspace_id = ? AND human_id = ? ORDER BY created_at ASC LIMIT 1`,
+      `SELECT endpoint_hash, endpoint, p256dh, auth FROM notification_push_endpoints
+       WHERE workspace_id = ? AND human_id = ? ORDER BY created_at ASC`,
     )
-    .get(input.workspaceId, delivery.human_id)) as
-    { endpoint: string; p256dh: string; auth: string } | undefined;
-  if (!endpoint) {
+    .all(input.workspaceId, delivery.human_id)) as PushAttemptEndpoint[];
+  if (endpoints.length === 0) {
     return { ok: false, outcome: { terminal: true, state: "failed", code: "endpoint_gone" } };
   }
   return {
     ok: true,
     delivery,
-    endpoint: endpoint.endpoint,
-    p256dh: endpoint.p256dh,
-    auth: endpoint.auth,
+    endpoints,
     subject,
   };
 }
@@ -975,14 +977,26 @@ export async function recordDeliveryOutcome(
     );
 }
 
+/**
+ * Deletes one expired push endpoint row. A 404/410 from the push service
+ * identifies only the contacted subscription, so sibling endpoints of the
+ * same human must survive.
+ */
 export async function deletePushEndpoint(
   db: SqlDatabase,
   workspaceId: string,
   humanId: string,
+  endpointHash: string,
 ): Promise<void> {
+  if (!/^[0-9a-f]{64}$/.test(endpointHash)) {
+    throw new DomainError("invalid_argument", "push endpoint hash is invalid");
+  }
   await db
-    .prepare(`DELETE FROM notification_push_endpoints WHERE workspace_id = ? AND human_id = ?`)
-    .run(workspaceId, humanId);
+    .prepare(
+      `DELETE FROM notification_push_endpoints
+       WHERE workspace_id = ? AND human_id = ? AND endpoint_hash = ?`,
+    )
+    .run(workspaceId, humanId, endpointHash);
 }
 
 export interface MacosPullItem {

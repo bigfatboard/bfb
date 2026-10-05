@@ -1,7 +1,7 @@
 {
   "$schema": "../manifest.schema.json",
   "package": "X03",
-  "tested_commit": "a9d350dd28ca83070be5e8a80e74b92fb31d8371",
+  "tested_commit": "92d7269700b888cd2baeeac9eec4593554b51d47",
   "protocol_version": "MCP/2026-07-28 + bfb-wire/1",
   "schema_version": "1",
   "migration_head": "0027_measurements",

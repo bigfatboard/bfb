@@ -15,9 +15,6 @@ JSON, or self-contained HTML in a fully isolated origin that cannot touch
 control-plane sessions, cookies, or APIs, so teams can trust previews of
 agent-produced files.
 
-Settled 18 September: `done` — V01 is `done` and `pnpm test:v02` passed in
-a detached clean checkout at `9372c0f`; see Handoff.
-
 ## Dependencies
 
 - **Requires:** V01, C01, F03, W01.
@@ -97,19 +94,19 @@ a detached clean checkout at `9372c0f`; see Handoff.
 
 ## Acceptance
 
-- [ ] View secret appears in no URL, referrer, history entry, log, D1
+- [x] View secret appears in no URL, referrer, history entry, log, D1
   plaintext, or artifact bytes.
-- [ ] Reload requires a fresh grant; replay/expiry/revocation fails before bytes.
-- [ ] Hostile content cannot read cookies, call control APIs, navigate top,
+- [x] Reload requires a fresh grant; replay/expiry/revocation fails before bytes.
+- [x] Hostile content cannot read cookies, call control APIs, navigate top,
   open popups, submit forms, download, or make network requests from inside
   the intended iframe.
-- [ ] Redeemed hostile document opened directly as top-level remains
+- [x] Redeemed hostile document opened directly as top-level remains
   constrained by the response CSP sandbox and cannot recover navigation,
   network, form, popup, or download capability.
-- [ ] Only the exact transferred channel/nonce is accepted.
-- [ ] Mermaid and other renderers stop safely at bounds.
-- [ ] Artifact origin never sets/receives app session cookie.
-- [ ] View-grant attempt caps are durable across isolates; oversized/exhausted
+- [x] Only the exact transferred channel/nonce is accepted.
+- [x] Mermaid and other renderers stop safely at bounds.
+- [x] Artifact origin never sets/receives app session cookie.
+- [x] View-grant attempt caps are durable across isolates; oversized/exhausted
   redemption fails before bytes and exposes no raw secret.
 
 Every box above is proven by `pnpm test:v02`: the hostile HTML, SVG,

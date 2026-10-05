@@ -272,13 +272,13 @@ export class WorkspaceHub extends DurableObject<ControlBindings> {
         await this.scheduleAlarms();
       }
       return Response.json(outcome);
-    } catch (error) {
+    } catch {
       return Response.json(
         {
           ok: false,
           error: {
             code: "hub_execute_failed",
-            message: error instanceof Error ? error.message : "hub execute failed",
+            message: "hub execute failed",
           },
         },
         { status: 500 },

@@ -1,13 +1,13 @@
 {
   "package": "G02",
-  "tested_commit": "cda5fed88c06aa186c7f3afc25f287551f5e5b7d",
+  "tested_commit": "fb995a4d13410ac0a6383eefde5ef7223b091557",
   "environment": "implementation worktree on macOS (arm64); local workerd D1, real Chromium on BFB_E2E_PORT=4198",
   "outcome": "passed",
   "commands": [
     {
       "command": "pnpm test:g02",
       "outcome": "passed",
-      "result": "build plus web build plus tools/g02 typecheck; local signing proof (managed-link app builds, deep-strict verifies); harness G02_OK 14 stages and 18 golden steps (frozen heads, separate-resource inventory, manifest/SBOM/provenance, empty plus previous-release migration convergence, expand-contract audit, real kid overlap, bootstrap consume-once, enroll plus challenge plus token exchange, launch claim, heartbeat ingest, attention round trip, artifact publish plus review, member submit plus owner accept, revoke, real bfb install plus status plus checkout cycle plus logs plus launchd cleanup, provider probe check, 8 dry-runs, authenticated-handler smoke with sentinel failing closed, redaction scan, inherited gate report) and 3 Chromium scenarios on BFB_E2E_PORT=4198 (board, attention, review read-only)"
+      "result": "build plus web build plus tools/g02 typecheck; local signing proof (managed-link app builds, deep-strict verifies); harness G02_OK 15 stages and 18 golden steps (frozen heads, separate-resource inventory, manifest/SBOM/provenance, empty plus previous-release migration convergence, expand-contract audit, real kid overlap, bootstrap consume-once, enroll plus challenge plus token exchange, launch claim, heartbeat ingest, attention round trip, artifact publish plus review, member submit plus owner accept, revoke, real bfb install plus status plus checkout cycle plus logs plus launchd cleanup, provider probe check, 8 dry-runs, authenticated-handler smoke with sentinel failing closed, prepared-pipeline executability with approval setup and gate prerequisites, redaction scan, inherited gate report) and 3 Chromium scenarios on BFB_E2E_PORT=4198 (board, attention, review read-only)"
     },
     {
       "command": "pnpm verify",

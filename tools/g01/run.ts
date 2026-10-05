@@ -1,5 +1,5 @@
 // ABOUTME: Runs the G01 integrated adversarial hardening gate on real Workers and D1.
-// ABOUTME: Fixed seed, fixed synthetic IDs, and fixed timestamps keep evidence byte-identical.
+// ABOUTME: Fixed seed, fixed synthetic IDs, and fixed timestamps keep evidence byte-identical apart from perf-baseline.json measured timings.
 
 import assert from "node:assert/strict";
 import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
@@ -77,9 +77,12 @@ import {
   claimGitHubOutboxBatch,
   checkOperationsTables,
   claimLaunchCommand,
+  cliHash,
   collectWorkspaceHealth,
   createProjectCommand,
+  decodeRunnerToken,
   deriveDeliveryId,
+  encodeRunnerToken,
   getRunMeasurements,
   githubOutboxBackoffSeconds,
   listResultSubmissions,
@@ -110,20 +113,24 @@ import {
   type CommandOutcome,
   type IngestRunnerEventsResult,
   type RunnerPrincipal,
+  type RunnerTokenClaims,
   type TaskRecord,
 } from "@bfb/domain";
 import { createTestHarness } from "wrangler";
 
+import { GATE_ROWS, G01_COMMAND, flakyProofDefect, waiverDefect } from "./gates.js";
 import {
   G01_EXTRA_PROFILES,
   G01_EXTRA_PROJECTS,
   G01_FIXTURE_VERSION,
   G01_NOW,
   G01_RUNNERS,
+  G01_SECOND_TENANT,
   G01_SEED,
   g01Id,
   g01StableIds,
 } from "./fixture.js";
+import { burstWriteDelta, summarizeBurstLatencies } from "./perf.js";
 
 /** Evidence JSON must match the repository Prettier style so regeneration stays byte-identical. */
 async function writeJson(path: string, value: unknown): Promise<void> {
@@ -545,6 +552,63 @@ try {
   }
   note("fixture", "2 runners enrolled with 4 validated checkouts and launch grants");
 
+  // Second tenant workspace with its own owner, project, and task. The AG-01
+  // probes below act across the tenant boundary through the hub route, so a
+  // route that drops its workspace predicate is observed instead of passing
+  // a single-tenant fixture.
+  const wsB = g01Id(G01_SECOND_TENANT.workspace);
+  const ownerB = g01Id(G01_SECOND_TENANT.owner);
+  await db
+    .prepare(
+      `INSERT INTO workspaces (id, slug, jurisdiction, created_at, resource_version)
+       VALUES (?, 'synthetic-g01-b', ?, ?, 1)`,
+    )
+    .run(wsB, "eu", now);
+  await db
+    .prepare(`INSERT INTO humans (id, email, display_name, created_at) VALUES (?, ?, ?, ?)`)
+    .run(ownerB, "second-owner@g01.test", "Synthetic G01 Second Owner", now);
+  await db
+    .prepare(
+      `INSERT INTO workspace_members (workspace_id, human_id, role, authorization_epoch, created_at)
+       VALUES (?, ?, 'owner', 1, ?)`,
+    )
+    .run(wsB, ownerB, now);
+  await db
+    .prepare(
+      `INSERT INTO workspace_authorization_epochs
+       (workspace_id, human_id, authorization_epoch, revoked_at, updated_at)
+       VALUES (?, ?, 1, NULL, ?)`,
+    )
+    .run(wsB, ownerB, now);
+  const secondProject = success<{ id: string }>(
+    await execute<{ id: string }>(
+      createProjectCommand.name,
+      {
+        name: "G01 Second",
+        slug: "g01-second",
+        tint: "#0EA5E9",
+        accessMode: "workspace",
+        repositoryHost: "github.com",
+        hostedRepositoryId: "g01-host-id-second",
+        repositorySubpath: ".",
+      },
+      { actorHumanId: ownerB, workspaceId: wsB },
+    ),
+  );
+  const secondTask = success<TaskRecord>(
+    await execute<TaskRecord>(
+      createTaskCommand.name,
+      {
+        projectId: secondProject.id,
+        title: "Synthetic G01 second-tenant task",
+        priority: "P2",
+      },
+      { actorHumanId: ownerB, workspaceId: wsB },
+    ),
+  );
+  void secondTask;
+  note("fixture", "second tenant workspace holds one owner, one project, one task");
+
   // One task per project: the ten-project operating envelope.
   const taskIds: string[] = [];
   for (const [slug, projectId] of Object.entries(projectIds)) {
@@ -560,7 +624,7 @@ try {
   verdict(
     "G-FIXTURE",
     "passed",
-    "3 humans, 10 projects, 5 profiles, 2 runners, 4 checkouts, 10 tasks",
+    "3 humans, 10 projects, 5 profiles, 2 runners, 4 checkouts, 10 tasks, plus a second tenant (1 owner, 1 project, 1 task)",
   );
 
   function runnerPrincipal(alias: "mac-a" | "mac-b", runnerId?: string): RunnerPrincipal {
@@ -585,6 +649,7 @@ try {
     generation: 0,
     runId: "",
   };
+  const envelopeRuns = { started: 0, claimed: 0 };
   const idMacA = need(runnerIds["mac-a"], "runner mac-a");
   const idMacB = need(runnerIds["mac-b"], "runner mac-b");
   const idCkA1 = need(checkoutIds["G01CKA1"], "checkout A1");
@@ -596,53 +661,11 @@ try {
   const idProjGamma = need(projectIds["gamma"], "gamma project");
 
   // G-SG01: credential classes cannot substitute for one another.
+  // Synthetic reserved-format negatives stay with IC-1/X03A; this block owns
+  // the live cross-credential matrix further below: every credential is
+  // proven live on its home surface, then refused on each foreign resolver.
   {
     const resource = `${origin}/mcp`;
-    for (const presented of [
-      "bfb_session_cookie-value",
-      "session-cookie-includes-cookie",
-      "bfb_cli_0123456789abcdef",
-      "bfb_runner_0123456789abcdef",
-      "bfb_agent_0123456789abcdef",
-      "bfb_integration_0123456789abcdef",
-      "mcp_unknown-token",
-    ]) {
-      let code = "";
-      try {
-        await resolveAccessToken(db, presented, now, resource);
-      } catch (error) {
-        code = (error as { code?: string }).code ?? "thrown";
-      }
-      assert(
-        code === "credential_confusion" ||
-          code === "invalid_token" ||
-          code === "foreign_token" ||
-          code === "token_expired" ||
-          code === "token_revoked" ||
-          code === "unknown_delegation",
-        `mcp resolves foreign credential as ${code || "accepted"}`,
-      );
-    }
-    note("sg01", "mcp rejects cookie/cli/runner/agent/integration/unknown credentials");
-    for (const presented of [
-      "mcp_G01SYNTHETICACCESSTOKEN",
-      "bfb_runner_G01SYNTHETIC",
-      "bfb_session_G01SYNTHETIC=cookie",
-      "not-a-key",
-      "",
-    ]) {
-      let code = "";
-      try {
-        await resolveCliPrincipal(db, presented, now);
-      } catch (error) {
-        code = (error as { code?: string }).code ?? "thrown";
-      }
-      assert(
-        code === "unauthenticated",
-        `cli resolves foreign credential as ${code || "accepted"}`,
-      );
-    }
-    note("sg01", "cli principal resolution rejects mcp/runner/session/malformed credentials");
 
     // A live delegation: bound, scope-checked, then revoked before any cleanup runs.
     const authUserId = "g01-auth-user-owner";
@@ -733,6 +756,161 @@ try {
     const delegation = await resolveAccessToken(db, accessToken, now, resource);
     assert.equal(delegation.delegationId, delegationId, "mcp resolves the live delegation");
     assertScope(delegation, "bfb:task:write");
+    // Live cross-credential matrix: each credential authenticates on its home
+    // surface, then must fail on every foreign resolver. Key material is
+    // derived deterministically so reruns stay byte-identical.
+    const liveCliKey = `bfb_cli_${createHash("sha256").update("g01-sg01-live-cli-key").digest("base64url")}`;
+    await db
+      .prepare(
+        `INSERT INTO api_key_bindings
+         (workspace_id, id, principal_type, human_id, auth_user_id, device_row_id,
+          device_code_hash, key_hash, key_prefix, scopes_json, project_ids_json,
+          authorization_epoch, expires_at, exchanged_at, revoked_at, created_at)
+         VALUES (?, ?, 'human', ?, ?, NULL, ?, ?, ?, ?, NULL, 1, ?, ?, NULL, ?)`,
+      )
+      .run(
+        FIX.workspace,
+        g01Id("G01CLISG01"),
+        FIX.owner,
+        authUserId,
+        createHash("sha256").update("g01-sg01-device-code").digest("hex"),
+        cliHash(liveCliKey),
+        liveCliKey.slice(0, 12),
+        JSON.stringify(["bfb:read", "bfb:task:write"]),
+        "2027-09-18T12:00:00.000Z",
+        now,
+        now,
+      );
+    const liveCli = await resolveCliPrincipal(db, liveCliKey, now);
+    assert.equal(liveCli.humanId, FIX.owner, "live CLI key resolves its binding");
+    note("sg01", "live CLI key resolves its binding");
+    // The fixture runner rows hash arbitrary strings, so the matrix mints its
+    // own grant for mac-a and removes it afterwards.
+    const runnerTokenSecret = createHash("sha256")
+      .update("g01-sg01-runner-secret/mac-a")
+      .digest("base64url");
+    const runnerTokenId = g01Id("G01TOKC");
+    const runnerTokenClaims: RunnerTokenClaims = {
+      v: 1,
+      sub: idMacA,
+      workspace_id: FIX.workspace,
+      aud: "bfb-runner",
+      iss: origin,
+      jti: runnerTokenId,
+      iat: Date.parse(now) / 1000,
+      exp: Date.parse(launchDeadline(now, 300_000)) / 1000,
+      authorization_epoch: 1,
+      owner_authorization_epoch: 1,
+      grant_epoch: 1,
+      token_epoch: 1,
+      cnf: { jkt: "synthetic-g01-harness-key-a" },
+    };
+    const liveRunnerToken = encodeRunnerToken(runnerTokenClaims, runnerTokenSecret);
+    await db
+      .prepare(
+        `INSERT INTO runner_tokens (workspace_id, runner_id, id, token_hash, claims_json, expires_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        FIX.workspace,
+        idMacA,
+        runnerTokenId,
+        runnerHash(runnerTokenSecret),
+        JSON.stringify(runnerTokenClaims),
+        launchDeadline(now, 300_000),
+      );
+    const decodedRunner = decodeRunnerToken(liveRunnerToken);
+    const storedRunner = (await db
+      .prepare(
+        `SELECT token_hash, claims_json FROM runner_tokens WHERE workspace_id = ? AND id = ?`,
+      )
+      .get(FIX.workspace, runnerTokenId)) as { token_hash: string; claims_json: string };
+    assert.equal(
+      storedRunner.token_hash,
+      runnerHash(runnerTokenSecret),
+      "live runner token matches its stored grant",
+    );
+    assert.equal(
+      storedRunner.claims_json,
+      decodedRunner.claimsJson,
+      "live runner token carries its stored claims",
+    );
+    note("sg01", "live runner token decodes to its stored grant");
+    // The browser session backing the live delegation above is the live
+    // cookie credential material: the delegation resolves only through it.
+    const liveSessionToken = `session-${sessionId}`;
+    async function foreignCode(present: () => Promise<unknown>): Promise<string> {
+      try {
+        await present();
+      } catch (error) {
+        return (error as { code?: string }).code ?? "thrown";
+      }
+      return "accepted";
+    }
+    assert.equal(
+      await foreignCode(() => resolveAccessToken(db, liveCliKey, now, resource)),
+      "credential_confusion",
+      "live CLI key must not authenticate mcp",
+    );
+    assert.equal(
+      await foreignCode(() => resolveCliPrincipal(db, accessToken, now)),
+      "unauthenticated",
+      "live MCP token must not authenticate cli",
+    );
+    assert.equal(
+      await foreignCode(() => resolveCliPrincipal(db, liveRunnerToken, now)),
+      "unauthenticated",
+      "live runner token must not authenticate cli",
+    );
+    assert.equal(
+      await foreignCode(() => resolveAccessToken(db, liveRunnerToken, now, resource)),
+      "credential_confusion",
+      "live runner token must not authenticate mcp",
+    );
+    assert.equal(
+      await foreignCode(() => resolveCliPrincipal(db, liveSessionToken, now)),
+      "unauthenticated",
+      "live session token must not authenticate cli",
+    );
+    assert.equal(
+      await foreignCode(() => resolveAccessToken(db, liveSessionToken, now, resource)),
+      "invalid_token",
+      "live session token must not authenticate mcp",
+    );
+    note("sg01", "live cli/mcp/runner/session credentials refuse every foreign resolver");
+    await db
+      .prepare(`DELETE FROM runner_tokens WHERE workspace_id = ? AND id = ?`)
+      .run(FIX.workspace, runnerTokenId);
+    // Route-level confusion proof lives in the owning suites: SG-01 passes
+    // only while their manifests record passed runs, and X02 parity still
+    // refuses a live CLI key on browser and MCP routes.
+    for (const owner of ["C02", "C03", "C05", "C06", "X02", "X03A"]) {
+      const manifest = JSON.parse(
+        await readFile(
+          resolve(root, `docs/work-packages/evidence/WP-${owner}/manifest.json`),
+          "utf8",
+        ),
+      ) as { outcome?: unknown };
+      assert.equal(
+        manifest.outcome,
+        "passed",
+        `SG-01 cites WP-${owner}, which must record a passed run`,
+      );
+    }
+    const parity = JSON.parse(
+      await readFile(
+        resolve(root, "docs/work-packages/evidence/WP-X02/parity-report.json"),
+        "utf8",
+      ),
+    ) as { rows: Array<{ check: string; browser_status: number | null }> };
+    for (const check of ["CLI credential on browser routes", "CLI credential on MCP"]) {
+      assert.equal(
+        parity.rows.find((entry) => entry.check === check)?.browser_status,
+        401,
+        `X02 parity must still refuse ${check}`,
+      );
+    }
+    note("sg01", "owning route suites pass; X02 parity refuses CLI keys on browser and MCP");
     let scopeCode = "";
     try {
       assertScope(delegation, "bfb:admin");
@@ -809,7 +987,11 @@ try {
     }
     note("sg01", "scope-less and oversized delegation requests create no grant");
   }
-  verdict("SG-01", "passed", "credential-type confusion matrix with live delegation revocation");
+  verdict(
+    "SG-01",
+    "passed",
+    "live cross-credential matrix with delegation revocation and composed route proof",
+  );
 
   // G-SG04: step-up defaults admit no bypass route or flow.
   {
@@ -1301,7 +1483,11 @@ try {
           executionId: shared.executionId,
           assignmentGeneration: shared.generation,
           kind: "clarification",
-          question: `SYNTHETIC-G01-ATTENTION canary ${CANARIES.taskBody}`,
+          // The question is the free-text plant site: it carries the
+          // task-body canary and the hook-payload canary into the stored
+          // record. Derived outputs (subjects, links, payloads, audit,
+          // activity) must carry neither.
+          question: `SYNTHETIC-G01-ATTENTION canary ${CANARIES.taskBody} ${CANARIES.hook}`,
           blocking: true,
         },
         { actorRunnerId: macA.runnerId },
@@ -1350,7 +1536,9 @@ try {
         submitResultCommand.name,
         {
           runId: shared.runId,
-          summary: "Synthetic G01 explicit result",
+          // Agent result text carries the terminal-output canary into the
+          // stored submission; selection subjects and history must not.
+          summary: `Synthetic G01 explicit result ${CANARIES.terminal}`,
           limitations: "Synthetic G01 limitation",
           gitBranch: "main",
           gitCommit: "a".repeat(40),
@@ -2140,7 +2328,8 @@ try {
     const health = await collectWorkspaceHealth(db, FIX.workspace, now);
     assert.equal(health.retention.days, 30, "health reflects the committed retention policy");
     assert(health.workspace_id === FIX.workspace, "health is workspace-scoped");
-    // Diagnostics sanitize before review: prohibited patterns and canaries surface as hits.
+    // Diagnostics sanitize before review: every planted canary class surfaces
+    // as a hit, so the zero-hit report below is proven non-vacuous.
     const rendered = renderDiagnosticInventory({
       schema_version: 1,
       workspace_id: FIX.workspace,
@@ -2149,12 +2338,32 @@ try {
       sections: [],
     });
     assert(rendered.includes(FIX.workspace), "rendered inventory names its workspace");
-    const hits = scanDiagnosticText(`cookie ${CANARIES.cookie} path ${CANARIES.path}`, NEEDLES);
-    assert(hits.length > 0, "diagnostic scan flags planted secrets");
+    const hits = scanDiagnosticText(
+      [
+        `cookie ${CANARIES.cookie}`,
+        `path ${CANARIES.path}`,
+        `hook ${CANARIES.hook}`,
+        `terminal ${CANARIES.terminal}`,
+        `key ${CANARIES.privateKey}`,
+        `bearer ${CANARIES.bearer}`,
+        `task ${CANARIES.taskBody}`,
+        `artifact ${CANARIES.artifact}`,
+      ].join(" "),
+      NEEDLES,
+    );
+    for (const needle of NEEDLES) {
+      assert(
+        hits.includes(`canary:${needle.slice(0, 24)}`),
+        `diagnostic scan flags the planted ${needle.slice(0, 24)}`,
+      );
+    }
     const clean = scanDiagnosticText("synthetic diagnostic line with counts only", NEEDLES);
     assert.deepEqual(clean, [], "clean diagnostics scan without hits");
     const redacted = sanitizeDiagnosticValue({
       cookie: CANARIES.cookie,
+      hook_payload: CANARIES.hook,
+      terminal_output: CANARIES.terminal,
+      private_key: CANARIES.privateKey,
       nested: { token: CANARIES.bearer },
     });
     scanClean("ops-sanitizer", [redacted]);
@@ -2193,9 +2402,171 @@ try {
       member.authorizationEpoch === 1,
       "member epoch starts at 1 before the AG08 revocation probe",
     );
-    note("ag01", "owner/member/reviewer matrix holds across all ten projects");
+    // Cross-tenant boundary through the hub route: neither owner may act in
+    // the other workspace, in either direction.
+    const intoSecond = await execute(
+      createTaskCommand.name,
+      {
+        projectId: secondProject.id,
+        title: "Synthetic G01 cross-tenant probe",
+        priority: "P2",
+      },
+      { actorHumanId: FIX.owner, workspaceId: wsB },
+    );
+    assert(!intoSecond.ok, "primary owner cannot create tasks in the second workspace");
+    if (!intoSecond.ok) {
+      assert.equal(
+        intoSecond.error.code,
+        "forbidden",
+        `cross-tenant write rejected as ${intoSecond.error.code}`,
+      );
+    }
+    const intoPrimary = await execute(
+      createTaskCommand.name,
+      {
+        projectId: FIX.projectA,
+        title: "Synthetic G01 cross-tenant probe",
+        priority: "P2",
+      },
+      { actorHumanId: ownerB },
+    );
+    assert(!intoPrimary.ok, "second owner cannot create tasks in the primary workspace");
+    if (!intoPrimary.ok) {
+      assert.equal(
+        intoPrimary.error.code,
+        "forbidden",
+        `cross-tenant write rejected as ${intoPrimary.error.code}`,
+      );
+    }
+    // Principals load in no workspace but their own.
+    for (const [workspaceId, humanId] of [
+      [wsB, FIX.owner],
+      [FIX.workspace, ownerB],
+    ] as const) {
+      let code = "";
+      try {
+        await loadPrincipal(db, workspaceId, humanId);
+      } catch (error) {
+        code = (error as { code?: string }).code ?? "thrown";
+      }
+      assert.equal(code, "forbidden", "foreign principal must not load cross-workspace");
+    }
+    // Runner credentials are workspace-bound: mac-a re-authentication under
+    // the second workspace fails, and a mac-a claim presented to the second
+    // workspace route is refused before any launch row is read.
+    let runnerCode = "";
+    try {
+      await assertCurrentRunnerPrincipal(
+        db,
+        { ...runnerPrincipal("mac-a"), workspaceId: wsB },
+        now,
+      );
+    } catch (error) {
+      runnerCode = (error as { code?: string }).code ?? "thrown";
+    }
+    assert(runnerCode !== "", "runner principal cannot re-authenticate cross-workspace");
+    const runnerIntoSecond = await execute(
+      claimLaunchCommand.name,
+      {
+        principal: runnerPrincipal("mac-a"),
+        claim: {
+          schema_version: 1,
+          launch_id: g01Id("G01XWS"),
+          runner_id: need(runnerIds["mac-a"], "runner mac-a"),
+          idempotency_key: nextKey("launch"),
+          claimed_at: now,
+        },
+      },
+      { actorRunnerId: need(runnerIds["mac-a"], "runner mac-a"), workspaceId: wsB },
+    );
+    assert(!runnerIntoSecond.ok, "runner principal presented cross-workspace must be refused");
+    note(
+      "ag01",
+      "owner/member/reviewer matrix holds across all ten projects; hub route refuses cross-tenant commands both directions",
+    );
   }
-  verdict("AG-01", "passed", "permission matrix on the golden fixture");
+  verdict("AG-01", "passed", "permission matrix plus two-workspace route boundary");
+
+  // G-RUNS: concurrent runs across both Macs. Three launches start together
+  // and all three claims land, each on a free (runner, checkout) lease, so
+  // three distinct runs are live at once. The envelope records these launched
+  // runs; the ten envelope tasks stay open.
+  {
+    const specs = [
+      { runner: idMacA, checkout: idCkA2, alias: "mac-a" as const },
+      { runner: idMacB, checkout: idCkB1, alias: "mac-b" as const },
+      { runner: idMacB, checkout: idCkB2, alias: "mac-b" as const },
+    ];
+    const runTaskIds: string[] = [];
+    for (const [index] of specs.entries()) {
+      const task = await human<TaskRecord>(createTaskCommand.name, {
+        projectId: FIX.projectA,
+        title: `Synthetic G01 concurrent run ${index + 1}`,
+        priority: "P2",
+      });
+      runTaskIds.push(task.id);
+    }
+    const runVersions = await launchEnv(db, FIX.projectA, idProfFake);
+    const started = await Promise.all(
+      specs.map((spec, index) =>
+        execute<{ launch_id: string }>(startLaunchCommand.name, {
+          schema_version: 1,
+          idempotency_key: nextKey("launch"),
+          task_id: need(runTaskIds[index], `concurrent run task ${index}`),
+          expected_task_version: 1,
+          runner_id: spec.runner,
+          checkout_id: spec.checkout,
+          agent_profile_id: idProfFake,
+          agent_profile_version: runVersions.agentProfileVersion,
+          workspace_policy_version: runVersions.workspacePolicyVersion,
+          project_policy_version: runVersions.projectPolicyVersion,
+          repository_config_version: runVersions.repositoryConfigVersion,
+        }),
+      ),
+    );
+    const launchIds: string[] = [];
+    for (const [index, outcome] of started.entries()) {
+      assert(outcome.ok, `concurrent launch ${index} must start: ${JSON.stringify(outcome)}`);
+      if (outcome.ok) launchIds.push(outcome.result.launch_id);
+    }
+    assert.equal(launchIds.length, specs.length, "every concurrent launch must start");
+    const claimed = await Promise.all(
+      specs.map((spec, index) =>
+        execute<{
+          state: string;
+          claim: { specification: { run_id: string } };
+        }>(
+          claimLaunchCommand.name,
+          {
+            principal: runnerPrincipal(spec.alias),
+            claim: {
+              schema_version: 1,
+              launch_id: need(launchIds[index], `concurrent launch ${index}`),
+              runner_id: spec.runner,
+              idempotency_key: nextKey("launch"),
+              claimed_at: now,
+            },
+          },
+          { actorRunnerId: spec.runner },
+        ),
+      ),
+    );
+    const runIds = new Set<string>();
+    for (const [index, outcome] of claimed.entries()) {
+      assert(outcome.ok, `concurrent claim ${index} must land: ${JSON.stringify(outcome)}`);
+      const result = success<{
+        state: string;
+        claim: { specification: { run_id: string } };
+      }>(outcome);
+      assert.equal(result.state, "claimed", `concurrent claim ${index} must claim`);
+      runIds.add(result.claim.specification.run_id);
+    }
+    assert.equal(runIds.size, specs.length, "concurrent claims open distinct live runs");
+    envelopeRuns.started = launchIds.length;
+    envelopeRuns.claimed = runIds.size;
+    note("runs", "3 launches start together; 3 claims land on free leases across both Macs");
+  }
+  verdict("G-RUNS", "passed", "concurrent runs live across both runners");
 
   // G-SG03: D1/R2 partial failure cannot expose incomplete artifacts; same-hash
   // publication cannot race deletion because no v0.1 artifact delete path exists.
@@ -2225,44 +2596,141 @@ try {
       }
     }
     assert.deepEqual(hits, [], "no v0.1 artifact delete path may exist");
-    // Conditional same-hash publication: recording the verified upload twice
-    // converges on one object row instead of racing.
-    const objects = (await db.prepare(`SELECT COUNT(*) AS count FROM artifact_objects`).get()) as {
-      count: number;
-    };
-    assert(objects.count >= 1, "verified uploads record content-addressed objects");
-    note("sg03", "no artifact delete path; uploads converge on content hash");
+    // Same-hash convergence: two review versions carrying identical bytes share
+    // one server-derived object key, so recording both verified uploads must
+    // converge on a single object row (one receipt per version, one object).
+    const sharedBytes = new TextEncoder().encode("synthetic-g01-sg03-shared-review-bytes");
+    const sharedHash = artifactHash(sharedBytes);
+    const firstSecret = mintUploadGrantSecret();
+    const first = await human<{ version_id: string }>(createArtifactCommand.name, {
+      runId: null,
+      format: "markdown",
+      role: "review",
+      declaredSize: sharedBytes.byteLength,
+      expectedDigest: sharedHash,
+      grantSecretHash: artifactHash(firstSecret.secret),
+    });
+    const sharedKey = artifactObjectKey({
+      workspaceId: FIX.workspace,
+      role: "review",
+      runId: null,
+      versionId: first.version_id,
+      contentHash: sharedHash,
+    });
+    const secondSecret = mintUploadGrantSecret();
+    const second = await human<{ version_id: string }>(createArtifactCommand.name, {
+      runId: null,
+      format: "markdown",
+      role: "review",
+      declaredSize: sharedBytes.byteLength,
+      expectedDigest: sharedHash,
+      grantSecretHash: artifactHash(secondSecret.secret),
+    });
+    assert.equal(
+      artifactObjectKey({
+        workspaceId: FIX.workspace,
+        role: "review",
+        runId: null,
+        versionId: second.version_id,
+        contentHash: sharedHash,
+      }),
+      sharedKey,
+      "same-hash review versions share one object key",
+    );
+    for (const versionId of [first.version_id, second.version_id]) {
+      const recorded = await recordVerifiedUpload(db, {
+        workspaceId: FIX.workspace,
+        versionId,
+        runId: null,
+        role: "review",
+        contentHash: sharedHash,
+        r2Key: sharedKey,
+        size: sharedBytes.byteLength,
+        now,
+      });
+      assert.equal(recorded.deduplicated, false, "each version records its own receipt");
+    }
+    const converged = (await db
+      .prepare(
+        `SELECT COUNT(*) AS count FROM artifact_objects WHERE workspace_id = ? AND content_hash = ?`,
+      )
+      .get(FIX.workspace, sharedHash)) as { count: number };
+    assert.equal(converged.count, 1, "same-hash review uploads converge on one object row");
+    const receipts = (await db
+      .prepare(
+        `SELECT COUNT(*) AS count FROM artifact_upload_receipts WHERE workspace_id = ? AND content_hash = ?`,
+      )
+      .get(FIX.workspace, sharedHash)) as { count: number };
+    assert.equal(receipts.count, 2, "each same-hash version keeps its own receipt");
+    note("sg03", "no artifact delete path; same-hash uploads converge on one object row");
   }
   verdict("SG-03", "passed", "artifact failure boundaries without a delete path");
 
-  // G-PERF: bounded envelope baseline. Only counts and bound verdicts are
-  // recorded; raw timings vary between machines and never enter evidence.
+  // G-PERF: bounded envelope baseline. Per-command latencies, wall-clock
+  // elapsed, throughput, and hub write amplification are measured here and
+  // recorded in perf-baseline.json; the bound verdict is computed from the
+  // measured elapsed, so a hub slowdown changes the baseline instead of
+  // leaving a constant record behind.
   {
+    const burstBoundMs = 120_000;
+    async function perfCounters(workspaceId: string): Promise<{
+      tasks: number;
+      ledger_events: number;
+      semantic_events: number;
+    }> {
+      const tasks = (await db
+        .prepare(`SELECT COUNT(*) AS count FROM tasks WHERE workspace_id = ?`)
+        .get(workspaceId)) as { count: number };
+      const ledger = (await db
+        .prepare(`SELECT COUNT(*) AS count FROM event_ledger WHERE workspace_id = ?`)
+        .get(workspaceId)) as { count: number };
+      const semantic = (await db
+        .prepare(`SELECT COUNT(*) AS count FROM semantic_events WHERE workspace_id = ?`)
+        .get(workspaceId)) as { count: number };
+      return {
+        tasks: tasks.count,
+        ledger_events: ledger.count,
+        semantic_events: semantic.count,
+      };
+    }
+    const before = await perfCounters(FIX.workspace);
     const started = Date.now();
+    const latencies: number[] = [];
     const burst = await Promise.all(
-      Array.from({ length: 50 }, (_, index) =>
-        human<TaskRecord>(createTaskCommand.name, {
-          projectId: FIX.projectA,
-          title: `Synthetic G01 perf ${index}`,
-          priority: "P3",
-        }),
-      ),
+      Array.from({ length: 50 }, async (_, index) => {
+        const commandStarted = Date.now();
+        try {
+          return await human<TaskRecord>(createTaskCommand.name, {
+            projectId: FIX.projectA,
+            title: `Synthetic G01 perf ${index}`,
+            priority: "P3",
+          });
+        } finally {
+          latencies.push(Date.now() - commandStarted);
+        }
+      }),
     );
     assert.equal(burst.length, 50, "perf burst commits every command");
+    assert.equal(latencies.length, 50, "perf burst times every command");
     const elapsed = Date.now() - started;
-    assert(elapsed < 120_000, `perf burst exceeds its bound: ${elapsed}ms`);
-    const totals = (await db
+    const summary = summarizeBurstLatencies(latencies, elapsed, burstBoundMs);
+    const after = await perfCounters(FIX.workspace);
+    const writes = burstWriteDelta(before, after);
+    assert.equal(
+      writes.tasks_written,
+      burst.length,
+      "every burst command persists exactly one task row",
+    );
+    const totals = after;
+    // The primary-workspace totals above exclude the second tenant's single
+    // probe task, which fixture.json records separately; count it live so the
+    // baseline reconciles instead of implying it.
+    const secondTenantTotals = (await db
       .prepare(`SELECT COUNT(*) AS count FROM tasks WHERE workspace_id = ?`)
-      .get(FIX.workspace)) as { count: number };
-    const ledgerTotals = (await db
-      .prepare(`SELECT COUNT(*) AS count FROM event_ledger WHERE workspace_id = ?`)
-      .get(FIX.workspace)) as { count: number };
-    const semanticTotals = (await db
-      .prepare(`SELECT COUNT(*) AS count FROM semantic_events WHERE workspace_id = ?`)
-      .get(FIX.workspace)) as { count: number };
+      .get(wsB)) as { count: number };
+    assert.equal(secondTenantTotals.count, 1, "second tenant holds exactly its probe task");
     await mkdir(evidenceDir, { recursive: true });
     await writeJson(resolve(evidenceDir, "perf-baseline.json"), {
-      $schema: "../manifest.schema.json",
       seed: G01_SEED,
       fixture_version: G01_FIXTURE_VERSION,
       envelope: {
@@ -2271,20 +2739,42 @@ try {
         profiles: 5,
         runners: 2,
         checkouts: 4,
-        concurrent_envelope_tasks: 10,
+        workspaces: 2,
+        envelope_tasks: 10,
+        concurrent_runs: envelopeRuns.started,
       },
       measured: {
-        hub_burst_commands: 50,
+        hub_burst_commands: summary.commands,
         hub_burst_committed: burst.length,
-        hub_burst_bound_ms: 120_000,
-        hub_burst_within_bound: true,
-        tasks_total: totals.count,
-        ledger_events_total: ledgerTotals.count,
-        semantic_events_total: semanticTotals.count,
+        hub_burst_bound_ms: summary.bound_ms,
+        hub_burst_elapsed_ms: summary.elapsed_ms,
+        hub_burst_within_bound: summary.within_bound,
+        hub_burst_latency_ms: {
+          min: summary.latency_min_ms,
+          p50: summary.latency_p50_ms,
+          mean: summary.latency_mean_ms,
+          p95: summary.latency_p95_ms,
+          max: summary.latency_max_ms,
+        },
+        hub_burst_throughput_per_s: summary.throughput_per_s,
+        hub_burst_writes: {
+          tasks_written: writes.tasks_written,
+          ledger_events_written: writes.ledger_events_written,
+          semantic_events_written: writes.semantic_events_written,
+        },
+        concurrent_runs_claimed: envelopeRuns.claimed,
+        second_tenant_tasks: secondTenantTotals.count,
+        tasks_total: totals.tasks,
+        ledger_events_total: totals.ledger_events,
+        semantic_events_total: totals.semantic_events,
       },
-      outcome: "passed",
+      outcome: summary.within_bound ? "passed" : "failed",
     });
-    note("perf", `50-command burst within bound; ${totals.count} tasks committed`);
+    assert(
+      summary.within_bound,
+      `perf burst exceeds its bound: ${summary.elapsed_ms}ms >= ${summary.bound_ms}ms`,
+    );
+    note("perf", `50-command burst within bound; ${totals.tasks} tasks committed`);
   }
   verdict("G-PERF", "passed", "3/10/5 envelope operates within bounds");
 
@@ -2360,11 +2850,12 @@ try {
   // Evidence: bounded, redacted, and free of generated ids or timestamps.
   await mkdir(evidenceDir, { recursive: true });
   await writeJson(resolve(evidenceDir, "fixture.json"), {
-    $schema: "../manifest.schema.json",
     seed: G01_SEED,
     fixture_version: G01_FIXTURE_VERSION,
     now: G01_NOW,
     humans: ["owner", "member", "reviewer"],
+    workspaces: ["primary", "second-tenant"],
+    second_tenant: { humans: ["owner"], projects: ["second"], tasks: 1 },
     projects: ["alpha", "beta", ...G01_EXTRA_PROJECTS.map((spec) => spec.slug)],
     profiles: [
       { name: "Codex Refactor", provider: "codex", execution_mode: "interactive" },
@@ -2412,118 +2903,51 @@ try {
   });
   const environment =
     "local workerd D1 plus real Chromium on macOS (arm64); Node 24.19.0, pnpm 11.21.0, Go 1.26.5";
-  const gateCommand = "pnpm test:g01";
-  const gateRows = [
-    {
-      gate: "AG-01",
-      status: "passed",
-      detail:
-        "Owner/member/reviewer matrix holds across all ten fixture projects; owning evidence WP-C04/WP-C06/WP-W01/WP-X03A.",
-    },
-    {
-      gate: "AG-02",
-      status: "waived",
-      detail:
-        "Cloud-plane contention, expiry, and cleanup receipts pass in G01; owning evidence WP-C09/WP-W02.",
-      waiver:
-        "Native Terminal launch trace is L05-owned and blocked on L05 Terminal acceptance; this machine cannot drive Terminal from G01 while the L05 agent owns it.",
-    },
-    {
-      gate: "AG-03",
-      status: "passed",
-      detail:
-        "Duplicate/out-of-order/concurrent ingest has one effect with exact replay; owning evidence WP-E01/WP-E02/WP-L06.",
-    },
-    {
-      gate: "AG-04",
-      status: "waived",
-      detail:
-        "Shared Stop/exit lifecycle predicate matrix and provider capability ceilings pass in G01; owning evidence WP-L03/WP-L07/WP-P01/WP-P02.",
-      waiver:
-        "Live Claude/Codex/Grok turns need L05 supervision plus provider credentials and consent, unavailable to G01.",
-    },
-    {
-      gate: "AG-05",
-      status: "passed",
-      detail:
-        "Attention request/answer/resolve round-trips with version guards; owning evidence WP-A02/WP-E02/WP-X01.",
-    },
-    {
-      gate: "AG-06",
-      status: "passed",
-      detail:
-        "Hostile bytes publish inertly; single-use grants; sweep spares live versions; owning evidence WP-V01/WP-V02/WP-V03.",
-    },
-    {
-      gate: "AG-07",
-      status: "passed",
-      detail:
-        "Token observations dedupe; derivations union exact/estimated/unavailable; owning evidence WP-A04/WP-E01.",
-    },
-    {
-      gate: "AG-08",
-      status: "passed",
-      detail:
-        "Epoch, grant, token, and delegation revocation fence authority before cleanup; owning evidence WP-C04/WP-C05/WP-C06.",
-    },
-    {
-      gate: "AG-09",
-      status: "passed",
-      detail:
-        "Injection corpus rejected; launch specs carry no executable surface; hostile browser isolation in the G01 browser report; owning evidence WP-V02/WP-V03.",
-    },
-    {
-      gate: "AG-10",
-      status: "not_run",
-      detail: "G02 owns clean-install proof.",
-      waiver:
-        "G02 owns AG-10; the G01 procedure and frozen release candidate are recorded for G02.",
-    },
-    {
-      gate: "SG-01",
-      status: "passed",
-      detail:
-        "Credential-type confusion matrix with live delegation revocation; owning evidence WP-C02/WP-C03/WP-C05/WP-C06/WP-X03A.",
-    },
-    {
-      gate: "SG-02",
-      status: "passed",
-      detail: "Hub FIFO with idempotent results and eviction recovery; owning evidence WP-C01.",
-    },
-    {
-      gate: "SG-03",
-      status: "passed",
-      detail:
-        "No v0.1 artifact delete path; uploads converge on content hash; owning evidence WP-V01/WP-X05.",
-    },
-    {
-      gate: "SG-04",
-      status: "passed",
-      detail:
-        "Step-up mismatch/stale/replay matrix rejects bypasses; owning evidence WP-C02/WP-C03/WP-X03A.",
-    },
-    {
-      gate: "SG-05",
-      status: "passed",
-      detail:
-        "Selection extracts IDs; links, payloads, audit, activity, and diagnostics carry no canaries; browser URL scan in the G01 browser report; owning evidence WP-X01/WP-X04/WP-X05.",
-    },
-    {
-      gate: "OG-01",
-      status: "passed",
-      detail:
-        "Hub idempotency, ledger redelivery, and GitHub webhook dedupe converge on one effect; Queue/DLQ/Cron delivery owning evidence WP-X04/WP-X05.",
-    },
-    {
-      gate: "OG-02",
-      status: "not_run",
-      detail: "G02 owns migration/rotation/rollback proof.",
-      waiver:
-        "G02 owns OG-02; the G01 migration matrix (empty plus populated upgrade) is recorded for G02.",
-    },
-  ];
+  const gateCommand = G01_COMMAND;
+  // Composition check: a row owned elsewhere certifies proof that must exist and pass.
+  // A passed row must also cite proof with no failed runs recorded: per
+  // docs/work-packages/ACCEPTANCE.md a flaky check is not a release gate.
+  for (const row of GATE_ROWS) {
+    if (row.owner === "G01") continue;
+    const manifest = JSON.parse(await readFile(resolve(root, row.evidence), "utf8")) as {
+      outcome?: unknown;
+      commands?: { artifact?: unknown }[];
+    };
+    assert.equal(
+      manifest.outcome,
+      "passed",
+      `${row.gate} cites ${row.evidence}, which must record a passed run`,
+    );
+    const linked: unknown[] = [];
+    for (const entry of manifest.commands ?? []) {
+      if (typeof entry.artifact !== "string" || !entry.artifact.endsWith(".json")) {
+        continue;
+      }
+      try {
+        linked.push(JSON.parse(await readFile(resolve(root, entry.artifact), "utf8")) as unknown);
+      } catch {
+        continue;
+      }
+    }
+    assert.equal(
+      flakyProofDefect(row, linked),
+      null,
+      `${row.gate} cites proof with a failed run on record`,
+    );
+  }
+  // Waiver check: a waived row is stamped only with an ADR recording Timo's
+  // explicit decision, per docs/work-packages/ACCEPTANCE.md.
+  const adrIndex = new Map<string, string>();
+  for (const entry of await readdir(resolve(root, "docs/adr"))) {
+    if (!entry.endsWith(".md")) continue;
+    adrIndex.set(`docs/adr/${entry}`, await readFile(resolve(root, "docs/adr", entry), "utf8"));
+  }
+  for (const row of GATE_ROWS) {
+    assert.equal(waiverDefect(row, adrIndex), null, `${row.gate} carries an unauthorized waiver`);
+  }
+  const gateRows = GATE_ROWS;
+  const failedGates = gateRows.filter((row) => row.status === "failed").map((row) => row.gate);
   await writeJson(resolve(evidenceDir, "gate-report.json"), {
-    $schema: "../manifest.schema.json",
     seed: G01_SEED,
     fixture_version: G01_FIXTURE_VERSION,
     protocol_version: "bfb-wire/1",
@@ -2536,13 +2960,18 @@ try {
       status: row.status,
       schema: "protocol bfb-wire/1, schema 1, D1 0034_operations",
       environment,
-      command: gateCommand,
-      evidence: "docs/work-packages/evidence/WP-G01/gate-report.json",
+      command: row.command,
+      evidence: row.evidence,
       ...(row.waiver ? { waiver: row.waiver } : {}),
       detail: row.detail,
     })),
-    outcome: "passed",
+    outcome: failedGates.length > 0 ? "failed" : "passed",
   });
+  if (failedGates.length > 0) {
+    throw new Error(
+      `release gates failed: ${failedGates.join(", ")}; see docs/work-packages/evidence/WP-G01/gate-report.json`,
+    );
+  }
   console.log(
     `G01_OK ${gateRows.filter((row) => row.status === "passed").length} passed, ${gateRows.filter((row) => row.status === "waived").length} waived, ${gateRows.filter((row) => row.status === "not_run").length} not_run`,
   );

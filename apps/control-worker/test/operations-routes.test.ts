@@ -362,6 +362,85 @@ describe("operations browser routes", () => {
     ).toBe(true);
   });
 
+  it("replays recovery on the same request_id without a primary-key failure", async () => {
+    const { context, owner } = await contextWithSessions();
+    const { app, currentBindings } = appFor(context);
+    await context.db
+      .prepare(
+        `INSERT INTO semantic_events (workspace_id, event_id, workspace_cursor, kind, payload_json, created_at)
+         VALUES (?, '01JOPSREPLAY00000000000001', 21, 'attention.request', '{}', ?)`,
+      )
+      .run(FIX.workspace, NOW);
+    const ownerCsrf = await csrf(app, currentBindings, owner.cookie);
+    const targetId = `ops-recover:retry_notification_dispatch:${FIX.workspace}`;
+    const body = {
+      request_id: "ops-recovery-same-request-id",
+      kind: "retry_notification_dispatch",
+      target: { cursors: [21] },
+    };
+    const firstProof = await proofFor(context, FIX.owner, OPS_STEP_UP_ACTIONS.recover, targetId);
+    const first = await app.request(
+      mutation(`${OPS}/recovery`, owner.cookie, ownerCsrf, {
+        ...body,
+        step_up_proof_id: firstProof,
+      }),
+      undefined,
+      currentBindings,
+    );
+    expect(first.status).toBe(200);
+    expect(((await first.json()) as { result: { replayed: boolean } }).result.replayed).toBe(false);
+    const secondProof = await proofFor(context, FIX.owner, OPS_STEP_UP_ACTIONS.recover, targetId);
+    const second = await app.request(
+      mutation(`${OPS}/recovery`, owner.cookie, ownerCsrf, {
+        ...body,
+        step_up_proof_id: secondProof,
+      }),
+      undefined,
+      currentBindings,
+    );
+    expect(second.status).toBe(200);
+    expect(((await second.json()) as { result: { replayed: boolean } }).result.replayed).toBe(true);
+    const rows = (await context.db
+      .prepare(
+        `SELECT COUNT(*) AS count FROM audit_events WHERE workspace_id = ? AND action = 'ops.recover'`,
+      )
+      .get(FIX.workspace)) as { count: number };
+    expect(rows.count).toBe(2);
+  });
+
+  it("keeps a long request_id from colliding across different recovery targets", async () => {
+    const { context, owner } = await contextWithSessions();
+    const { app, currentBindings } = appFor(context);
+    await context.db
+      .prepare(
+        `INSERT INTO semantic_events (workspace_id, event_id, workspace_cursor, kind, payload_json, created_at)
+         VALUES (?, '01JOPSLONGID00000000000001', 31, 'attention.request', '{}', ?),
+                (?, '01JOPSLONGID00000000000002', 32, 'attention.request', '{}', ?)`,
+      )
+      .run(FIX.workspace, NOW, FIX.workspace, NOW);
+    const ownerCsrf = await csrf(app, currentBindings, owner.cookie);
+    const targetId = `ops-recover:retry_notification_dispatch:${FIX.workspace}`;
+    const requestId = `ops-recovery-${"r".repeat(115)}`;
+    expect(requestId.length).toBe(128);
+    for (const cursors of [[31], [32]]) {
+      const proof = await proofFor(context, FIX.owner, OPS_STEP_UP_ACTIONS.recover, targetId);
+      const response = await app.request(
+        mutation(`${OPS}/recovery`, owner.cookie, ownerCsrf, {
+          request_id: requestId,
+          kind: "retry_notification_dispatch",
+          target: { cursors },
+          step_up_proof_id: proof,
+        }),
+        undefined,
+        currentBindings,
+      );
+      expect(response.status).toBe(200);
+      expect(((await response.json()) as { result: { replayed: boolean } }).result.replayed).toBe(
+        false,
+      );
+    }
+  });
+
   it("generates and consents diagnostic bundles through explicit inventory review", async () => {
     const { context, owner, member } = await contextWithSessions();
     const { app, currentBindings } = appFor(context);

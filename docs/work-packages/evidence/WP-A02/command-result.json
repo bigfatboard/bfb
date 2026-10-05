@@ -38,7 +38,7 @@
   "migration_head": "0023_attention",
   "redaction": "passed",
   "notes": [
-    "The exact gate (install, build, test:a02) passed from the detached clean checkout /tmp/bfb-a02-clean at the final commit; the worktree was removed afterwards.",
+    "The exact gate (install, build, test:a02) passed from a detached clean checkout at the final commit; that checkout was removed afterwards.",
     "Evidence manifest and command results are docs-only additions after the tested commit; pnpm test:a02, pnpm verify, pnpm worktree:check, and the Linux cross-build were re-run on the final tree.",
     "Status stays planned: A01 and E02 are not done, so roadmap:check rejects anything beyond planned.",
     "All identities in tests, fixtures, recordings, and this report are synthetic; no secrets, task bodies, environment values, or local absolute paths are retained."

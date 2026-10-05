@@ -4,7 +4,7 @@
 import { describe, expect, it } from "vitest";
 
 import { FIX } from "@bfb/domain";
-import { randomUlid } from "@bfb/domain";
+import { listRetentionEligibleChunks, randomUlid } from "@bfb/domain";
 
 import Database from "better-sqlite3";
 import path from "node:path";
@@ -39,15 +39,17 @@ const NOW = "2026-09-18T12:00:00.000Z";
 interface FakeR2 {
   objects: Map<string, string>;
   failures: number;
+  deleteFailures: number;
   deleted: string[];
   put(key: string, body: string): Promise<void>;
   delete(key: string): Promise<void>;
 }
 
-function fakeR2(failures = 0): FakeR2 {
+function fakeR2(failures = 0, deleteFailures = 0): FakeR2 {
   const state: FakeR2 = {
     objects: new Map(),
     failures,
+    deleteFailures,
     deleted: [],
     async put(key: string, body: string) {
       if (state.failures > 0) {
@@ -57,6 +59,10 @@ function fakeR2(failures = 0): FakeR2 {
       state.objects.set(key, body);
     },
     async delete(key: string) {
+      if (state.deleteFailures > 0) {
+        state.deleteFailures -= 1;
+        throw new Error("r2 unavailable");
+      }
       state.deleted.push(key);
       state.objects.delete(key);
     },
@@ -277,14 +283,70 @@ describe("retention sweep", () => {
     expect(versions.count).toBe(2);
     const kept = (await db
       .prepare(
-        `SELECT content_hash, r2_key FROM artifact_versions WHERE workspace_id = ? AND id = ?`,
+        `SELECT state, content_hash, r2_key FROM artifact_versions WHERE workspace_id = ? AND id = ?`,
       )
-      .get(FIX.workspace, old.version)) as { content_hash: string; r2_key: string };
-    expect(kept).toEqual({ content_hash: old.hash, r2_key: old.key });
+      .get(FIX.workspace, old.version)) as {
+      state: string;
+      content_hash: string;
+      r2_key: string;
+    };
+    expect(kept).toEqual({ state: "retained", content_hash: old.hash, r2_key: old.key });
     const runs = (await db.prepare(`SELECT COUNT(*) AS count FROM retention_runs`).get()) as {
       count: number;
     };
     expect(runs.count).toBe(1);
+  });
+
+  it("never re-deletes or re-counts purged chunks on later ticks", async () => {
+    const db = await openDomainDb();
+    const old = await seedLogChunk(db, "2026-07-01T12:00:00.000Z");
+    await db
+      .prepare(
+        `INSERT INTO retention_policies (workspace_id, raw_log_retention_days, version, updated_by_human_id, updated_at)
+         VALUES (?, 30, 1, ?, ?)`,
+      )
+      .run(FIX.workspace, FIX.owner, NOW);
+    const r2 = fakeR2();
+    r2.objects.set(old.key, "old-bytes");
+    const first = await runRetentionSweep(db, r2, NOW);
+    expect(first.deleted_objects).toBe(1);
+    expect(first.deleted_bytes).toBe(512);
+    const second = await runRetentionSweep(db, r2, NOW);
+    expect(second.deleted_objects).toBe(0);
+    expect(second.deleted_bytes).toBe(0);
+    expect(second.examined).toBe(0);
+    expect(r2.deleted).toEqual([old.key]);
+    const listed = await listRetentionEligibleChunks(db, FIX.workspace, NOW);
+    expect(listed.eligible).toEqual([]);
+    const totals = (await db
+      .prepare(`SELECT SUM(deleted_bytes) AS bytes FROM retention_runs WHERE workspace_id = ?`)
+      .get(FIX.workspace)) as { bytes: number };
+    expect(totals.bytes).toBe(512);
+  });
+
+  it("keeps failed deletes available so the next tick retries them", async () => {
+    const db = await openDomainDb();
+    const old = await seedLogChunk(db, "2026-07-01T12:00:00.000Z");
+    await db
+      .prepare(
+        `INSERT INTO retention_policies (workspace_id, raw_log_retention_days, version, updated_by_human_id, updated_at)
+         VALUES (?, 30, 1, ?, ?)`,
+      )
+      .run(FIX.workspace, FIX.owner, NOW);
+    const flaky = fakeR2(0, 99);
+    flaky.objects.set(old.key, "old-bytes");
+    const failed = await runRetentionSweep(db, flaky, NOW);
+    expect(failed.deleted_objects).toBe(0);
+    expect(failed.errors).toHaveLength(1);
+    const row = (await db
+      .prepare(`SELECT state FROM artifact_versions WHERE workspace_id = ? AND id = ?`)
+      .get(FIX.workspace, old.version)) as { state: string };
+    expect(row.state).toBe("available");
+    const healthy = fakeR2();
+    healthy.objects.set(old.key, "old-bytes");
+    const retried = await runRetentionSweep(db, healthy, NOW);
+    expect(retried.deleted_objects).toBe(1);
+    expect(retried.deleted_bytes).toBe(512);
   });
 
   it("skips workspaces without an explicit policy", async () => {

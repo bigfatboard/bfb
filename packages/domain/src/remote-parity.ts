@@ -7,6 +7,7 @@ import {
   ARTIFACT_FORMATS,
   ARTIFACT_GRANT_TTL_MS,
   ARTIFACT_ROLES,
+  artifactObjectKey,
   roleMaxBytes,
   type ArtifactFormat,
   type ArtifactRole,
@@ -843,11 +844,19 @@ export const finalizeDelegatedArtifactCommand: HubCommand<
       throw new DomainError("request_rejected", "request rejected");
     }
     const artifact = (await ctx.db
-      .prepare(`SELECT run_id FROM artifacts WHERE workspace_id = ? AND id = ?`)
-      .get(ctx.workspaceId, version.artifact_id)) as { run_id: string | null } | undefined;
+      .prepare(`SELECT role, run_id FROM artifacts WHERE workspace_id = ? AND id = ?`)
+      .get(ctx.workspaceId, version.artifact_id)) as
+      { role: string; run_id: string | null } | undefined;
     if (!artifact || !artifact.run_id || !isUlid(artifact.run_id)) {
       throw new DomainError("request_rejected", "request rejected");
     }
+    const expectedKey = artifactObjectKey({
+      workspaceId: ctx.workspaceId,
+      role: artifactRole(artifact.role),
+      runId: artifact.run_id,
+      versionId: input.versionId,
+      contentHash,
+    });
     const run = (await ctx.db
       .prepare(`SELECT id, project_id, task_id FROM runs WHERE workspace_id = ? AND id = ?`)
       .get(ctx.workspaceId, artifact.run_id)) as
@@ -871,9 +880,12 @@ export const finalizeDelegatedArtifactCommand: HubCommand<
       throw new DomainError("request_rejected", "request rejected");
     }
     const object = (await ctx.db
-      .prepare(`SELECT r2_key, size FROM artifact_objects WHERE content_hash = ?`)
-      .get(contentHash)) as { r2_key: string; size: number } | undefined;
-    if (!object || object.size !== input.size) {
+      .prepare(
+        `SELECT content_hash, size FROM artifact_objects
+         WHERE workspace_id = ? AND r2_key = ?`,
+      )
+      .get(ctx.workspaceId, expectedKey)) as { content_hash: string; size: number } | undefined;
+    if (!object || object.content_hash !== contentHash || object.size !== input.size) {
       throw new DomainError("request_rejected", "request rejected");
     }
     await ctx.db
@@ -882,7 +894,7 @@ export const finalizeDelegatedArtifactCommand: HubCommand<
          SET state = 'available', content_hash = ?, r2_key = ?, available_at = ?
          WHERE workspace_id = ? AND id = ? AND state = 'uploading'`,
       )
-      .run(contentHash, object.r2_key, ctx.now, ctx.workspaceId, input.versionId);
+      .run(contentHash, expectedKey, ctx.now, ctx.workspaceId, input.versionId);
     const guardId = randomUlid();
     await ctx.db
       .prepare(
@@ -891,7 +903,7 @@ export const finalizeDelegatedArtifactCommand: HubCommand<
           WHERE workspace_id = ? AND id = ? AND state = 'available'
             AND content_hash = ? AND r2_key = ?))`,
       )
-      .run(guardId, ctx.workspaceId, input.versionId, contentHash, object.r2_key);
+      .run(guardId, ctx.workspaceId, input.versionId, contentHash, expectedKey);
     await ctx.db.prepare(`DELETE FROM artifact_mutation_guards WHERE id = ?`).run(guardId);
     await ctx.db
       .prepare(
@@ -907,7 +919,7 @@ export const finalizeDelegatedArtifactCommand: HubCommand<
         JSON.stringify({
           version_id: input.versionId,
           content_hash: contentHash,
-          r2_key: object.r2_key,
+          r2_key: expectedKey,
           size: input.size,
         }),
         ctx.now,
@@ -918,7 +930,7 @@ export const finalizeDelegatedArtifactCommand: HubCommand<
       artifact_id: version.artifact_id,
       state: "available",
       content_hash: contentHash,
-      r2_key: object.r2_key,
+      r2_key: expectedKey,
       available_at: ctx.now,
     };
   },

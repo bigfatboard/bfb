@@ -43,11 +43,11 @@ A card can open a supported Claude Code version in the exact checkout, bind the 
   ceilings, exact-session `PlanResume`, semantic interrupt/terminate, bounded
   hook candidates, and the setup proposal/approval/hash-CAS/atomic/rollback
   transaction. The shared L03 contract is frozen and unchanged by this package.
-- L05 local execution supervision contract (implementation `blocked`): the
+- L05 local execution supervision contract (`done`): the
   `LaunchPlan` and exact-session resume-plan shape the supervisor consumes,
   including pre-exec identity revalidation and the owned-process-group signal
   path behind adapter controls.
-- L06 hook-journal boundary (`planned`): the parser returns only bounded
+- L06 hook-journal boundary (`done`): the parser returns only bounded
   semantic candidates with content-derived duplicate identities; correlation
   validation, envelopes, sequencing, and persistence stay with L06.
 - F02 local-RPC diagnostics: the existing failure-code table and the
@@ -61,7 +61,9 @@ A card can open a supported Claude Code version in the exact checkout, bind the 
   editors and CLI).
 - `provider setup claude` / `provider doctor claude` transaction shape with
   combined proposal approval, drift/duplicate/unknown-version diagnostics, and
-  an honestly unverified local-MCP startup check pending A01.
+  an honestly unverified local-MCP startup check: A01 is `done`, but no live
+  run-scoped handshake has been exercised, so doctor still reports
+  `mcp_startup_unverified`.
 - Raw-to-candidate fixtures (captured and schema-derived) and the
   supported-version matrix consumed by G01/P01/P02/X02.
 - Stable `pnpm test:l07` target and evidence-manifest path for checkpoint
@@ -108,7 +110,8 @@ A card can open a supported Claude Code version in the exact checkout, bind the 
   missing from `--help` (the flag still works) and a login hint appended
   to the unauthenticated `-p` stderr.
 - Headless launch, discussion turns, fork, read-only tool boundaries, and MCP
-  stdio stay uncertified until A01/E01 prove the local server and ledger;
+  stdio stay uncertified until a live Claude run exercises them (A01/E01 are
+  `done`; provider credentials and consent still pending);
   configs requiring them fail closed at plan time.
 - Only `approval.on_request` with `filesystem.workspace_write` is certified;
   broader approval mappings are unverified on this version and fail closed.
@@ -121,8 +124,11 @@ A card can open a supported Claude Code version in the exact checkout, bind the 
 ## Handoff
 
 - Settled 18 September: `review`. A01, E01, L05, and L06 are `done`, and
-  `pnpm test:l07` passed in a detached clean checkout at `9372c0f`
-  (install, build, exact target with the 2.1.274/2.1.275 fixture suites).
+  `pnpm test:l07` passed from a detached clean checkout at the commit recorded
+  in the evidence manifest
+  (`6e6cae81989ccb5df2b296a47c0571d6b7a7b266`): frozen install, build, and the
+  exact target with the 2.1.274/2.1.275 fixture suites, as recorded in
+  `docs/work-packages/evidence/WP-L07/manifest.json` and `command-result.json`.
   Acceptance 3–7 stay proven as recorded below. Acceptance 1 (live chain:
   card Start, Claude opens, trusted `SessionStart` binds, MCP context loads,
   semantic events commit) and Acceptance 2 (resume on the same run) still
@@ -136,7 +142,9 @@ A card can open a supported Claude Code version in the exact checkout, bind the 
   transaction for both user-level files, including idempotent no-op runs.
 - Acceptance 5 (replaced binary/config detected before `exec`): proven at
   the adapter layer (probe identity, `Revalidate`, integration-hash drift);
-  L05's pre-exec consumption of that revalidation waits on L05.
+  L05 is `done` and its pre-exec consumption runs in the production daemon
+  through its launch installation, which fingerprints the same hook/MCP
+  sources.
 - Acceptance 6 (duplicate hooks diagnosed, concurrent deliveries safe):
   proven. Identical deliveries share one content-derived suppression
   identity; duplicates, drift, and concurrent edits are diagnosed; the
@@ -147,16 +155,19 @@ A card can open a supported Claude Code version in the exact checkout, bind the 
   session end; the candidate type carries no result-submission field, and
   headless exit paths stay uncertified.
 - Acceptance 1 (card → exact checkout → Claude opens → trusted `SessionStart`
-  binds → MCP context loads → semantic events commit): pending. Adapter
-  plans, hook parsing, and the `SessionStart` binding check are proven, but
-  the live chain waits on L05 (launch/supervision), L06 (journal/binding),
-  E01 (ingest), and A01 (MCP context).
+  binds → MCP context loads → semantic events commit): adapter plans, hook
+  parsing, and the `SessionStart` binding check are proven; L05
+  (launch/supervision), L06 (journal/binding), E01 (ingest), and A01 (MCP
+  context) are `done`, so the remaining step is a live Claude session with
+  provider credentials and consent.
 - Acceptance 2 (resume attaches the observed session to the same unfinished
-  run): pending. Exact-session resume plans and UUID binding are proven;
-  the resumed execution, source-absence proof, and durable binding wait on
-  L05 and L06.
+  run): exact-session resume plans and UUID binding are proven; L05 and L06
+  are `done`, so the remaining step is a resumed live execution with provider
+  credentials and consent.
 - Commands: `pnpm test:l07`, `bfb provider setup claude`, `bfb provider doctor
-  claude`. Doctor reports `mcp_startup_unverified` until A01 lands.
+  claude`. Doctor reports `mcp_startup_unverified` until a live run-scoped
+  handshake is exercised (A01 is `done`; provider credentials and consent
+  still pending).
 - Known limitations: rewritten config files are canonicalized (semantics
   preserved, formatting not byte-identical); settings files with comments or
   other non-strict JSON are refused; the hook launcher path is recorded, not

@@ -49,7 +49,7 @@ arguments. Only the key hash and the 12-character public prefix persist.
 
 ## Per-request authority and revocation
 
-Every `GET /api/v1/cli/session` call — and every future X02 CLI route —
+Every `GET /api/v1/cli/session` call — and every X02 human-mirror route —
 resolves the presented key against its binding, current workspace
 membership, role, project access, and authorization epoch. Revoking the
 binding disables authority in the same command that runs before device-row
@@ -69,9 +69,13 @@ A CLI credential is accepted only on `/api/v1/cli/*`. Browser
 (`/webhooks/*`) routes reject it; CLI routes reject cookies and browser
 origins in return. No endpoint exchanges a CLI credential for a session, and
 no direct key create/update route exists. Abuse budgets for issuance,
-approval, polling, and exchange are D1-backed and keyed by hashed IP plus
-hashed subject/code/client dimensions; rate keys and diagnostics contain no
-raw user code, device code, IP, or credential.
+approval, polling, exchange, and bearer-credential authentication are
+D1-backed and keyed by hashed IP plus hashed
+subject/code/client/credential dimensions. The session and human-mirror
+budgets are consumed before the presented credential resolves, so failed
+probes count exactly like successful ones and exhaustion answers uniform
+`request_rejected`; rate keys and diagnostics contain no raw user code,
+device code, IP, or credential.
 
 ## Keychain storage
 

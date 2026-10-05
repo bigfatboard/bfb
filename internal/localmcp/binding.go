@@ -30,8 +30,8 @@ type SessionBinding struct {
 var ErrSessionNotBound = errors.New("localmcp: session not bound")
 
 // SessionBindingSource returns the trusted observed binding for an assignment.
-// A01 defines this interface; L06's hook-journal store plugs in at merge by
-// implementing this one method. Test doubles stand in until then.
+// A01 defines this interface; production plugs L06's hook-journal store in
+// through JournalBindings. Test doubles stand in only inside the test suite.
 type SessionBindingSource interface {
 	ObservedBinding(ctx context.Context, ref AssignmentRef) (SessionBinding, error)
 }

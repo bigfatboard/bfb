@@ -1,5 +1,5 @@
 // ABOUTME: Certifies A02 attention request, wait, answer, and resolve against real D1 and Workers.
-// ABOUTME: Synthetic questions only; the recording carries IDs, states, and timings, never bodies.
+// ABOUTME: Synthetic questions only; the recording carries step outcomes, never bodies or live ids.
 
 import assert from "node:assert/strict";
 import { copyFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -35,7 +35,30 @@ import {
   type TaskRecord,
 } from "@bfb/domain";
 import type { RunnerInventory } from "@bfb/protocol";
+import { format, resolveConfig } from "prettier";
 import { createTestHarness } from "wrangler";
+
+import {
+  auditRedactionEntry,
+  answeredEntry,
+  duplicateRejectedEntry,
+  idempotentReplayEntry,
+  launchClaimedEntry,
+  migrationOkEntry,
+  observationsEntry,
+  permissionMatrixEntry,
+  reconnectRereadEntry,
+  requestGuardsEntry,
+  requestedEntry,
+  resolvedEntry,
+  revocationEntry,
+  type RecordingEntry,
+  serializeRecording,
+  timeoutRetryEntry,
+  waiterCadenceEntry,
+  waiterIdenticalEntry,
+  waiterPendingPollsEntry,
+} from "./evidence.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const now = "2026-09-12T12:00:00.000Z",
@@ -43,6 +66,15 @@ const now = "2026-09-12T12:00:00.000Z",
 const digest = `sha256:${"a".repeat(64)}`,
   emptyConfig = `sha256:${runnerHash("{}")}`;
 const evidenceDir = resolve(root, "docs/work-packages/evidence/WP-A02");
+
+/** Evidence JSON matches the repository Prettier style so reruns stay byte-identical. */
+async function writeJson(path: string, value: unknown): Promise<void> {
+  const options = (await resolveConfig(path)) ?? {};
+  await writeFile(
+    path,
+    await format(JSON.stringify(value, null, 2), { ...options, parser: "json" }),
+  );
+}
 const manifest = loadMigrationManifest(resolve(root, "migrations/d1"));
 const split = manifest.migrations.findIndex((migration) => migration.id === "0023_attention");
 assert(split >= 0, "A02 migration is required");
@@ -132,10 +164,7 @@ async function human<T>(name: string, input: unknown) {
   return success(await execute<T>(name, input));
 }
 
-const recording: Array<Record<string, unknown>> = [];
-function record(step: string, fields: Record<string, unknown> = {}): void {
-  recording.push({ step, ...fields });
-}
+const recording: Array<RecordingEntry> = [];
 
 const runner = randomUlid(),
   checkout = randomUlid(),
@@ -198,7 +227,7 @@ try {
     count: 0,
   });
   assert.deepEqual(await db.prepare("PRAGMA foreign_key_check").all(), []);
-  record("migration_ok", { preserved_task: preserved.id });
+  recording.push(migrationOkEntry(preserved.id));
   console.log("A02_MIGRATION_OK populated 0019 upgrade preserves tasks and opens empty attention");
 
   const policy = {
@@ -350,7 +379,7 @@ try {
   const executionId = claimed.claim.specification.run_execution_id;
   const generation = claimed.claim.specification.assignment_generation;
   const runId = claimed.claim.specification.run_id;
-  record("launch_claimed", { run: runId, execution: executionId, generation });
+  recording.push(launchClaimedEntry(generation));
 
   function requestBody(kind: string, tag: string, blocking: boolean) {
     return {
@@ -365,21 +394,14 @@ try {
   }
 
   // Agent requests attention; identical idempotency keys replay one record.
-  const t0 = Date.now();
   const first = await native<AttentionRecord>(
     requestAttentionCommand.name,
     requestBody("clarification", "HARNESS-Q1", true),
   );
-  const requestMs = Date.now() - t0;
   assert.equal(first.state, "open");
   assert.equal(first.required_role, "reviewer");
   assert.equal(first.resource_version, 1);
-  record("requested", {
-    id: first.id,
-    kind: first.kind,
-    version: first.resource_version,
-    elapsed_ms: requestMs,
-  });
+  recording.push(requestedEntry(first.kind, first.resource_version));
   const replayKey = randomUlid();
   const replayInput = requestBody("credential", "HARNESS-Q2", false);
   const replayOutcome = await (async () => {
@@ -423,39 +445,28 @@ try {
   assert(replayOutcome.every((outcome) => outcome.ok));
   const replayed = replayOutcome.map((outcome) => (outcome.ok ? outcome.result.id : null));
   assert.equal(replayed[0], replayed[1]);
-  record("idempotent_replay", { id: replayed[0] });
+  recording.push(idempotentReplayEntry(replayed[0] ?? null, replayed[1] ?? null));
   console.log("A02_REQUEST_OK open requests commit; duplicate keys replay one record");
 
   // Waiter polls committed reads: pending first, then the committed answer.
-  const polls: Array<{ index: number; elapsed_ms: number; state: string }> = [];
-  const pollStart = Date.now();
+  const pollStates: Array<string> = [];
   for (let index = 0; index < 3; index++) {
     const seen = await getAttention(db, FIX.workspace, [FIX.projectA], first.id);
-    polls.push({ index, elapsed_ms: Date.now() - pollStart, state: seen?.state ?? "missing" });
+    pollStates.push(seen?.state ?? "missing");
   }
-  assert(polls.every((poll) => poll.state === "open"));
-  record("waiter_pending_polls", { polls });
-  const answerMs0 = Date.now();
+  assert(pollStates.every((state) => state === "open"));
+  recording.push(waiterPendingPollsEntry(pollStates));
   const answered = await human<AttentionRecord>(answerAttentionCommand.name, {
     attentionId: first.id,
     expectedVersion: 1,
     answer: question("HARNESS-A1"),
   });
-  const answerMs = Date.now() - answerMs0;
   assert.equal(answered.state, "answered");
   assert.equal(answered.first_response_at, now);
-  record("answered", {
-    id: answered.id,
-    version: answered.resource_version,
-    by: "owner",
-    elapsed_ms: answerMs,
-  });
+  recording.push(answeredEntry(answered.resource_version, "owner"));
   const waiterSeen = await getAttention(db, FIX.workspace, [FIX.projectA], first.id);
   assert.deepEqual(waiterSeen, answered);
-  record("waiter_returned_identical", {
-    id: waiterSeen?.id,
-    version: waiterSeen?.resource_version,
-  });
+  recording.push(waiterIdenticalEntry(waiterSeen?.resource_version ?? 0));
   console.log("A02_WAIT_OK waiter polls pending, then returns the committed answer identically");
 
   // Duplicate answers never overwrite the committed response.
@@ -468,7 +479,7 @@ try {
   const kept = await getAttention(db, FIX.workspace, [FIX.projectA], first.id);
   assert.equal(kept?.answer, question("HARNESS-A1"));
   assert.equal(kept?.resource_version, 2);
-  record("duplicate_rejected", { code: "already_answered", kept_version: kept?.resource_version });
+  recording.push(duplicateRejectedEntry("already_answered", kept?.resource_version ?? 0));
   console.log("A02_DUPLICATE_OK second answer rejected; committed response kept");
 
   // Permission matrix: reviewer answers clarification/review, never owner-only kinds.
@@ -500,12 +511,7 @@ try {
     answer: question("HARNESS-A3"),
   });
   assert.equal(ownerCredential.state, "answered");
-  record("permission_matrix", {
-    reviewer_review: "answered",
-    reviewer_credential: "forbidden",
-    member_credential: "forbidden",
-    owner_credential: "answered",
-  });
+  recording.push(permissionMatrixEntry());
   console.log("A02_PERMISSION_OK reviewer answers review; owner-only credential rejects others");
 
   // Timeout and retry: answer lands after several polls; later polls repeat safely.
@@ -525,7 +531,7 @@ try {
     expectedVersion: 2,
   });
   assert.equal(resolved.state, "resolved");
-  record("resolved", { id: resolved.id, version: resolved.resource_version });
+  recording.push(resolvedEntry(resolved.resource_version));
   await human<AttentionRecord>(answerAttentionCommand.name, {
     attentionId: slow.id,
     expectedVersion: 1,
@@ -538,7 +544,7 @@ try {
     );
   }
   assert.deepEqual(after, ["answered", "answered", "answered"]);
-  record("timeout_retry", { pending_polls: pollsBefore, repeat_reads: after });
+  recording.push(timeoutRetryEntry(pollsBefore, after));
   console.log("A02_TIMEOUT_OK five pending polls, then repeated reads return the answer");
 
   // Foreign execution and terminal runs cannot request attention.
@@ -560,10 +566,7 @@ try {
     { actorRunnerId: runner },
   );
   assert(!terminal.ok && terminal.error.code === "invalid_transition");
-  record("request_guards", {
-    foreign_execution: "request_rejected",
-    terminal_run: "invalid_transition",
-  });
+  recording.push(requestGuardsEntry());
   console.log("A02_GUARDS_OK foreign executions and terminal runs cannot request");
 
   // Revocation: the old epoch fails; current authority still answers other requests.
@@ -574,7 +577,7 @@ try {
     { actorHumanId: FIX.owner, authorizationEpoch: 1 },
   );
   assert(!revoked.ok && revoked.error.code === "stale_authorization", JSON.stringify(revoked));
-  record("revocation", { old_epoch_answer: revoked.error.code });
+  recording.push(revocationEntry(revoked.error.code));
   console.log("A02_REVOCATION_OK stale epoch cannot answer after the bump");
 
   // Disconnect and reconnect: evict the hub; committed answers re-read from D1.
@@ -586,7 +589,7 @@ try {
   assert(ranked.length >= 4);
   assert.equal(ranked[0]?.kind, "blocker");
   assert(ranked.every((entry) => entry.rank_reason.includes(entry.kind)));
-  record("reconnect_reread", { id: reread?.id, state: reread?.state, ranked: ranked.length });
+  recording.push(reconnectRereadEntry(reread?.state ?? "missing", ranked.length));
   console.log("A02_RECONNECT_OK committed answers survive hub eviction via D1 reads");
 
   // Raw observations stay uniquely identified with actor provenance for A04.
@@ -620,35 +623,28 @@ try {
   assert.equal(auditPayload.input?.question, undefined);
   assert.equal(typeof auditPayload.input?.questionChars, "number");
   assert.equal(auditPayload.result?.id, first.id);
-  record("audit_redaction", {
-    input_echo: "metadata-only",
-    result_binds_record: auditPayload.result?.id === first.id,
-  });
-  record("observations", {
-    first_request: observations.map((entry) => ({
-      kind: entry.observed_kind,
-      actor: entry.actor_type,
-    })),
-    trail: [...new Set(trail.map((entry) => entry.kind))],
-  });
+  recording.push(auditRedactionEntry(auditPayload.result?.id === first.id));
+  recording.push(
+    observationsEntry(
+      observations.map((entry) => ({ kind: entry.observed_kind, actor: entry.actor_type })),
+      [...new Set(trail.map((entry) => entry.kind))],
+    ),
+  );
   console.log("A02_OBSERVATIONS_OK raw transitions carry unique identity and provenance");
 
-  const timings = {
-    request_ms: requestMs,
-    answer_ms: answerMs,
-    pending_polls: polls,
-    total_steps: recording.length,
-  };
   await mkdir(evidenceDir, { recursive: true });
-  await writeFile(
-    resolve(evidenceDir, "recording.jsonl"),
-    `${recording.map((entry) => JSON.stringify(entry)).join("\n")}\n`,
+  await writeFile(resolve(evidenceDir, "recording.jsonl"), serializeRecording(recording));
+  await writeJson(
+    resolve(evidenceDir, "waiter-cadence.json"),
+    waiterCadenceEntry({
+      pendingPolls: pollStates.length,
+      pollStates,
+      timeoutPendingPolls: pollsBefore,
+      repeatReads: after,
+      totalSteps: recording.length,
+    }),
   );
-  await writeFile(
-    resolve(evidenceDir, "raw-timing-observations.json"),
-    `${JSON.stringify(timings, null, 2)}\n`,
-  );
-  console.log("A02_EVIDENCE_OK recording and raw timing observations written");
+  console.log("A02_EVIDENCE_OK deterministic recording and waiter cadence written");
 } catch (error) {
   server.debug();
   throw error;

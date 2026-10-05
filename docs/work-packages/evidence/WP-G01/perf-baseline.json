@@ -1,5 +1,4 @@
 {
-  "$schema": "../manifest.schema.json",
   "seed": "bfb-g01/v1",
   "fixture_version": 1,
   "envelope": {
@@ -8,16 +7,34 @@
     "profiles": 5,
     "runners": 2,
     "checkouts": 4,
-    "concurrent_envelope_tasks": 10
+    "workspaces": 2,
+    "envelope_tasks": 10,
+    "concurrent_runs": 3
   },
   "measured": {
     "hub_burst_commands": 50,
     "hub_burst_committed": 50,
     "hub_burst_bound_ms": 120000,
+    "hub_burst_elapsed_ms": 140,
     "hub_burst_within_bound": true,
-    "tasks_total": 80,
+    "hub_burst_latency_ms": {
+      "min": 9,
+      "p50": 74,
+      "mean": 76.7,
+      "p95": 135,
+      "max": 139
+    },
+    "hub_burst_throughput_per_s": 357.14,
+    "hub_burst_writes": {
+      "tasks_written": 50,
+      "ledger_events_written": 0,
+      "semantic_events_written": 50
+    },
+    "concurrent_runs_claimed": 3,
+    "second_tenant_tasks": 1,
+    "tasks_total": 83,
     "ledger_events_total": 8,
-    "semantic_events_total": 147
+    "semantic_events_total": 158
   },
   "outcome": "passed"
 }

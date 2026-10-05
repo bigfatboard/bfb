@@ -6,6 +6,6 @@
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo",
     "types": ["node"]
   },
-  "include": ["run.ts", "fixture.ts"],
+  "include": ["run.ts", "fixture.ts", "gates.ts", "perf.ts"],
   "references": [{ "path": "../../packages/domain" }, { "path": "../../packages/db" }]
 }

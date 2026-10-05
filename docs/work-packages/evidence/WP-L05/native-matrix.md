@@ -25,8 +25,8 @@ full gates); all references below are synthetic fixtures, not user work.
 | Run controls | Duplicate, stale, expired and foreign-assignment controls | One effective local action; only bound fresh controls focus, signal, resume or terminate |
 | Captured command | Fixed helper path plus `__launch` and the local intent UUID | No cloud, task, profile or checkout data; never a wake-intent value |
 | Real focus | `focus_existing` against the owned tab before signalling | Terminal frontmost with the owned tab selected in the Ctrl-C and close scenarios |
-| Real Ctrl-C | System Events keystroke under frontmost and owned-tab checks | Exactly one SIGINT through the TTY foreground group; duplicates produce no second signal |
-| Real close | Provider-only window close with one confirmation answer | Exactly one close signal and a verified whole-group release |
+| Real Ctrl-C | System Events keystroke under frontmost and owned-tab checks | Exactly one SIGINT through the TTY foreground group: the counting provider stays alive past it and a 5-second settle admits no second signal |
+| Real close | Provider-only window close with one confirmation answer | Kernel SIGHUP observed by identity, plus at most the helper-shutdown SIGTERM and never a third signal; verified whole-group release |
 | Cleanup | Harness finally blocks | Test app quits, Terminal windows under test close, no provider or helper process remains |
 
 ## Bounded synthetic trace
@@ -59,4 +59,11 @@ fails safe. The synthetic `--require-focus` routing section of the macOS
 acceptance harness is not invoked by any gate; exact-tab focus is covered
 by the signed scenarios instead. A same-group survivor cannot outlive a
 real close, so survivor retention after close stays covered by the child
-and escape scenarios.
+and escape scenarios. The Ctrl-C/close counting rows above describe the
+committed gate after `d0b286d`; their first signed Terminal run is still
+pending (`test:l05` needs a GUI Mac). The certified `d0b286d` run proved
+the weaker exit-on-first-signal form recorded in `command-result.json`
+`native_assertions`. Whether the helper-shutdown SIGTERM follows the kernel
+SIGHUP on close depends on the closing shell forwarding the hangup (zsh
+forwards by default); the gate accepts the single SIGHUP alone and forbids
+anything beyond the pair.

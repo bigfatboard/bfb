@@ -3,6 +3,8 @@
 | Version | Date | Change |
 | --- | --- | --- |
 | 1 | 2026-09-18 | Freeze link, webhook, Queue, token, and evidence rules. |
+| 2 | 2026-09-18 | Rate-limit 403/429/5xx on repository reads retry; only 401/404 revoke. |
+| 3 | 2026-09-18 | Latest-wins guard is per object within each stream, not per stream. |
 
 Consumers: X05 (audit/retention), G01 (redelivery/revocation hardening).
 
@@ -11,8 +13,13 @@ BFB links immutable GitHub repository identity and branch/commit/PR/check
 evidence to work; GitHub Issues are never the task system and BFB task state
 never follows issue state. No real GitHub App exists yet: the REST shapes
 below follow GitHub's documented App, installation-token, and webhook
-semantics and are proven against recorded fixtures plus a local double. D1
+semantics and are proven against synthetic deterministic fixtures
+(shaped like GitHub's documented webhook payloads, including keys BFB
+never reads) plus a local double. D1
 migration head after this package is `0028_github_integration`.
+Webhook extraction uses a tolerant reader: unknown top-level and nested
+payload keys are ignored, and only the installation id, repository id,
+action, and per-event ref/version fields are validated.
 
 ## Permission inventory (least privilege, frozen)
 
@@ -40,17 +47,23 @@ to D1.
 
 - `github.install` (Owner + fresh `github.install` step-up bound to
   `github-installation:<installation_id>`): registers one installation as
-  `pending`. Rejects permissions/events outside the inventory above.
+  `pending`. Rejects permissions/events outside the inventory above. An
+  installation id belongs to exactly one workspace: a row registered in any
+  other workspace is rejected with `already_exists` (even when revoked, so a
+  revoked row is never reassigned), while the owning workspace may
+  re-register its own revoked row back to `pending`.
 - `github.remove` (Owner + fresh `github.remove` step-up): flips the
   installation to `revoked` and closes its repository links atomically.
 - `github.repository.map` (Owner + fresh `github.repository.map` step-up
   bound to `github-link:<repository_id>`): links one repository to one
   project. Requires an `active` installation and requires the project to
   already declare `repository_host: github.com` with the identical immutable
-  `hosted_repository_id`; otherwise `repository_identity_mismatch`. Remap
-  closes the previous active link for the repository or the project first, so
-  exactly one active link exists per repository and per project (partial
-  unique indexes backstop the command).
+  `hosted_repository_id`; otherwise `repository_identity_mismatch`. A
+  repository already linked by another workspace is rejected with
+  `repository_already_mapped` instead of evicting the foreign link. Remap
+  closes only the caller's own previous active link for the repository or
+  the project first, so exactly one active link exists per repository and
+  per project (partial unique indexes backstop the command).
 - `github.permissions.update` (Owner + fresh `github.permissions.update`
   step-up, version-guarded): replaces the recorded permission/event set
   within the inventory.
@@ -62,10 +75,17 @@ to D1.
   no outbox row. Duplicate delivery ids return the stored outcome with no
   new effect.
 - `github.reconcile` (system actor `github-queue`): converges one delivery
-  to current GitHub state. The per-repository, per-stream latest-wins guard
-  (`code`, `pull`, `check`, `issue`, `release`) marks stale deliveries
-  `superseded` without writes; unmapped repositories are `ignored`;
-  exhausted attempts move to visible `github_dlq` state.
+  to current GitHub state. The per-repository, per-stream, per-object
+  latest-wins guard (`code`, `pull`, `check`, `issue`, `release` streams,
+  keyed by branch, pull-request number, check-run id, issue number,
+  deployment id, or status context) marks stale deliveries for the same
+  object `superseded` without writes; out-of-order deliveries for a different
+  object still apply on their own cursor, because payload timestamps (such as
+  a head commit's author time) order updates to one object only and never
+  compare across objects. Unmapped repositories are `ignored`;
+  exhausted attempts move to visible `github_dlq` state. Link resolution is
+  scoped to the delivery's workspace, so one workspace's mapping can neither
+  evict nor receive evidence for another workspace's link.
   `installation.created` flips `pending` to `active`, `deleted` revokes and
   closes links, `suspend`/`unsuspend` move between `active` and `suspended`.
   `installation_repositories` is recorded only: repository mapping stays
@@ -79,11 +99,15 @@ to D1.
 
 `POST /webhooks/github` (no browser cookie; `credential_confusion` otherwise):
 
-1. Durable attempt budgets (IP plus installation dimensions), then the raw
-   body is read with a 262,144-byte bound.
+1. The per-IP attempt budget is charged first: unauthenticated callers
+   share no bucket, so one sender's flood cannot reject another sender.
+   Then the raw body is read with a 262,144-byte bound.
 2. `x-hub-signature-256` (`sha256=` HMAC over the exact raw bytes) is
    verified before any JSON parsing. Failures are `401`; oversized bodies
-   are `413`; the budget is a uniform `403`.
+   are `413`; the budget is a uniform `403`. Only after the signature
+   verifies and the installation id is extracted is the per-installation
+   attempt budget charged, so each valid delivery costs exactly one per-IP
+   unit plus one per-installation unit.
 3. `x-github-event` outside the subscribed set is acknowledged `202` with
    no state. Malformed JSON is `400`; unknown installations are `404` with
    no state.
@@ -103,12 +127,16 @@ to D1.
   unprocessable messages are recorded in `github_dlq` and acked.
 - Retryable GitHub outages increment the outbox attempt counter with
   backoff (`60 * 2^attempts`, capped at 30 minutes); attempts past 5 park
-  the message in `github_dlq` with the delivery marked `failed`.
+  the message in `github_dlq` with the delivery marked `failed`. A failed
+  reconcile is never acked: after a revocation, or for a terminal delivery
+  whose outbox never closed, it retries with a counted attempt on the same
+  curve as the queue redelivery delay.
 - The 5-minute Cron trigger claims due `pending` rows (the
   D1-commit-before-enqueue crash gap, including lost Queue messages via
   stale `dispatched` rows) and re-sends them, bounded to 25 rows per tick.
 - Queue delivery is at least once and out of order: reconcile is idempotent
-  and the latest-wins guard gives one domain effect per delivery set.
+  and the latest-wins guard gives one domain effect per delivery set per
+  object.
 
 ## Installation tokens
 
@@ -118,8 +146,13 @@ to D1.
   are never written to D1, Queue bodies, URLs, logs, or diagnostics. The App
   private key arrives only as a Worker secret and is used only to sign the
   short-lived App JWT for the token endpoint.
-- A `401`/`403`/`404` from GitHub marks the installation revoked, closes
-  its links, and records later deliveries ignored without minting again.
+- A `401`/`404` on a repository read, or a `404` from the token
+  endpoint, marks the installation revoked, closes its links, and records
+  later deliveries ignored without minting again.
+- A `403`/`429`/`5xx` from GitHub never revokes: repository reads answer
+  primary and secondary rate limits and abuse detection with `403`, so the
+  consumer retries with backoff and parks in `github_dlq` after 5 attempts.
+  This matches the token endpoint, which already treats `403` as retryable.
 
 ## Evidence and provenance
 
@@ -146,7 +179,8 @@ confusion rejected by the shared router):
   Owner-only mutations with per-request idempotency keys and fresh step-up
   proofs, forwarded into the hub commands above.
 - `POST /evidence/links` (owner/member), `POST /evidence/verification`
-  (owner/member/reviewer), `GET /status` (owner/member),
+  (owner/member; reviewers must pass `project_id` for a granted project and
+  answers are filtered to that project), `GET /status` (owner/member),
   `GET /evidence?project_id=&task_id=&repository_id=&limit=` (reviewers
   project-scoped).
 

@@ -10,7 +10,10 @@ binding, err := store.BoundSession(ctx, executionID, generation)
 
 `internal/journal.SessionReader` is the only trusted read path for the
 provider session observed behind a run. It returns `ObservedSession` with the
-bound provider, session ID, run/execution IDs, generation and bind time. An
+bound provider, session ID, execution ID, generation and bind time; `RunID`
+is empty because the binding table keys rows by execution ID plus assignment
+generation only. Consumers take the run from the assignment that key
+functionally determines (A01 echoes its startup-verified boundary run). An
 unbound execution fails with `session_unbound`; the reader never guesses a
 current run and never exposes the correlation capability, paths, credentials
 or provider payloads.
@@ -36,7 +39,7 @@ hook ingest or inbox import.
 ## Upload contract
 
 The uploader batches journaled `runner-event-submission` documents through
-`RunnerConnection.Request(ctx, "POST", "events/submit", body)` with
+`RunnerConnection.Request(ctx, "POST", "events/ingest", body)` with
 `{"schema_version":1,"events":[...]}` and applies the returned
 `{"schema_version":1,"dispositions":[...]}` per event: `accepted` and
 `already_committed` delete the row, `permanently_rejected` quarantines it, and
@@ -45,4 +48,6 @@ explicit disposition deletes or quarantines a row. The submission carries the
 immutable assignment reference and the runner credential proof; it never
 carries the correlation secret, so delayed final-hook replay needs no expired
 capability. E01 owns the real ingest endpoint and must preserve
-disposition-only deletion.
+disposition-only deletion. Batches hold at most 25 items in at most 65,536
+bytes (the E01 transport bounds); the uploader shrinks each batch to fit, so
+every drain makes progress.

@@ -8,9 +8,6 @@ Test target: `pnpm test:x01`
 
 Evidence manifest: `docs/work-packages/evidence/WP-X01/manifest.json`
 
-> Settled 18 September: `done` — `pnpm test:x01` passed in a detached clean
-> checkout at `9372c0f`; see Handoff.
-
 ## Outcome
 
 Humans receive deduplicated browser/macOS notifications for actionable committed events without turning normal agent telemetry into noise.
@@ -70,7 +67,7 @@ Humans receive deduplicated browser/macOS notifications for actionable committed
 - Deep links contain no task text, local path, token, command, or provider arguments.
 - Failed endpoints retry/bound/fall to visible DLQ without blocking product commands.
 
-## Evidence and handoff
+## Evidence
 
 - `docs/work-packages/evidence/WP-X01/manifest.json` indexes the tested commit, migration head, toolchains, commands, and redaction status per the evidence manifest schema.
 - `recording.jsonl` traces one end-to-end run across real Workers, D1, and a local Queue with DLQ (migration fresh and upgrade, seed, attention push plus macOS pull/ack with duplicate convergence, submit/accept/fail/changes/cancelled-defaults, launch-blocked, telemetry silence, revocation purge, poison-to-DLQ, expired-endpoint delete, canary redaction scan) with cursors, counts, and link shapes only.
@@ -78,15 +75,15 @@ Humans receive deduplicated browser/macOS notifications for actionable committed
 - Evidence contains synthetic identities only: no secret, VAPID private key, push endpoint, task body, local absolute path, environment value, or raw terminal output.
 - G01 verifies notifications remain non-authoritative and non-blocking.
 
-## Handoff
-
-- Settled 18 September: `done`. A02, A03, and E02 are `done`, and `pnpm test:x01` passed in a detached clean checkout at `9372c0f` (install, build, exact target with the real-Worker/D1/Queue harness). The evidence manifest is re-based on that rerun; the implementation evidence stays listed as manifest artifacts. Structural repair in this flip: the package declared its contract under a `## Produces` heading with no `### Consumes`, which `pnpm roadmap:check` rejects for any status beyond `planned`. It now uses a `## Contracts` section with `### Consumes` (A02/A03 trigger sources and the L04 pull/ack boundary, all restated from the Scope and Handoff) and the unchanged `### Produces` content; no product claim was added.
-- Commands: `pnpm test:x01`; `pnpm verify`; `pnpm worktree:check`. The Worker/D1/Queue flow is `tools/notifications/run.ts`; the macOS poller cases are `internal/notify/notify_test.go` and the bridge proof is `internal/appbridge/notify_x01_test.go`.
-- X04 shares the Queue/DLQ machinery with distinct additive `bfb-notify-*` names and consumer registrations; X01 consumes committed `attention.request` and A03 result events and never notification state as domain truth.
-- X05 consumes the delivery records and DLQ visibility; notification content stays redacted and preference-gated.
-
 ## Risks and decisions
 
 - Notification usefulness depends more on filtering than delivery volume. Defaults stay sparse.
 - The `bfb-notify-*` queues and consumers are additive and distinct from X04's GitHub queues, so parallel Queue work does not collide.
 - Unconfigured VAPID is terminal per endpoint, expired endpoints delete without retry, and revoked or suppressed recipients recheck at send time, so access loss converges without blocking product commands.
+
+## Handoff
+
+- Settled 18 September: `done`. A02, A03, and E02 are `done`, and `pnpm test:x01` passed in a detached clean checkout at `5951fb5` (install, build, exact target with the real-Worker/D1/Queue harness, plus the uniform-403 budget-exhaustion case and the delegation-envelope rejection on preference/endpoint commands). The evidence manifest is re-based on that rerun; the implementation evidence stays listed as manifest artifacts.
+- Commands: `pnpm test:x01`; `pnpm verify`; `pnpm worktree:check`. The Worker/D1/Queue flow is `tools/notifications/run.ts`; the macOS poller cases are `internal/notify/notify_test.go` and the bridge proof is `internal/appbridge/notify_x01_test.go`.
+- X04 shares the Queue/DLQ machinery with distinct additive `bfb-notify-*` names and consumer registrations; X01 consumes committed `attention.request` and A03 result events and never notification state as domain truth.
+- X05 consumes the delivery records and DLQ visibility; notification content stays redacted and preference-gated.

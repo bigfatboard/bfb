@@ -8,6 +8,7 @@ import { randomUlid, syntheticUlid, isUlid } from "../src/ids.js";
 import {
   buildPushPayload,
   defaultPreference,
+  deletePushEndpoint,
   deriveDeliveryId,
   fanoutNotificationEvent,
   getPreferenceOverrides,
@@ -386,6 +387,40 @@ describe("notification preference and endpoint commands", () => {
     );
     expect(missing.removed).toBe(false);
   });
+
+  it("rejects delegated envelopes without touching preferences or endpoints", async () => {
+    const f = await launchFixture();
+    const delegated = {
+      workspaceId: FIX.workspace,
+      actorHumanId: FIX.owner,
+      actorDelegationId: randomUlid(),
+      authorizationEpoch: 1,
+      now: LAUNCH_NOW,
+    };
+    const preference = await f.hub.execute(setNotificationPreferenceCommand, {
+      ...delegated,
+      idempotencyKey: randomUlid(),
+      input: { projectId: FIX.projectA, channel: "macos", category: "attention", enabled: true },
+    });
+    expect(preference).toMatchObject({ ok: false, error: { code: "forbidden" } });
+    const registered = await f.hub.execute(registerPushEndpointCommand, {
+      ...delegated,
+      idempotencyKey: randomUlid(),
+      input: {
+        endpoint: "https://push.synthetic.test/x01-delegated",
+        p256dh: "B".repeat(87),
+        auth: "A".repeat(22),
+      },
+    });
+    expect(registered).toMatchObject({ ok: false, error: { code: "forbidden" } });
+    const removed = await f.hub.execute(removePushEndpointCommand, {
+      ...delegated,
+      idempotencyKey: randomUlid(),
+      input: { endpointHash: "a".repeat(64) },
+    });
+    expect(removed).toMatchObject({ ok: false, error: { code: "forbidden" } });
+    expect(await getPreferenceOverrides(f.db, FIX.workspace, FIX.owner)).toHaveLength(0);
+  });
 });
 
 describe("notification fan-out guards", () => {
@@ -491,6 +526,95 @@ describe("notification fan-out guards", () => {
     expect(counted.attempt_count).toBe(1);
     expect(counted.state).toBe("pending");
     expect(counted.last_error).toContain("push_status_503");
+  });
+
+  it("loads every endpoint oldest-first and deletes only the expired row", async () => {
+    const f = await launchFixture();
+    const { claimed } = await f.claim();
+    const requested = success(
+      await f.native(requestAttentionCommand, {
+        principal: f.principal,
+        runId: claimed.specification.run_id,
+        executionId: claimed.specification.run_execution_id,
+        assignmentGeneration: claimed.specification.assignment_generation,
+        kind: "clarification",
+        question: "Synthetic X01 multi-endpoint question",
+        blocking: true,
+      }),
+    );
+    expect(requested.state).toBe("open");
+    const laptop = success(
+      await f.human(
+        registerPushEndpointCommand,
+        {
+          endpoint: "https://push.synthetic.test/x01-laptop",
+          p256dh: "B".repeat(87),
+          auth: "A".repeat(22),
+        },
+        LAUNCH_NOW,
+      ),
+    );
+    const phone = success(
+      await f.human(
+        registerPushEndpointCommand,
+        {
+          endpoint: "https://push.synthetic.test/x01-phone",
+          p256dh: "C".repeat(87),
+          auth: "D".repeat(22),
+        },
+        "2026-09-12T12:00:01.000Z",
+      ),
+    );
+    const cursorRow = (await f.db
+      .prepare(
+        `SELECT workspace_cursor FROM semantic_events
+         WHERE workspace_id = ? AND kind = 'attention.request' ORDER BY workspace_cursor DESC LIMIT 1`,
+      )
+      .get(FIX.workspace)) as { workspace_cursor: number };
+    const fanout = await fanoutNotificationEvent(f.db, {
+      workspaceId: FIX.workspace,
+      eventCursor: cursorRow.workspace_cursor,
+      eventKind: "attention.request",
+      now: LAUNCH_NOW,
+    });
+    expect(fanout.status).toBe("notified");
+    expect(fanout.push).toBe(1);
+    const deliveries = (await f.db
+      .prepare(
+        `SELECT delivery_id, channel FROM notification_deliveries
+         WHERE workspace_id = ? AND event_cursor = ? ORDER BY delivery_id`,
+      )
+      .all(FIX.workspace, cursorRow.workspace_cursor)) as Array<{
+      delivery_id: string;
+      channel: string;
+    }>;
+    const pushRow = deliveries.find((entry) => entry.channel === "browser_push");
+    expect(pushRow).toBeDefined();
+    const loaded = await loadPushAttempt(f.db, {
+      workspaceId: FIX.workspace,
+      deliveryId: pushRow!.delivery_id,
+    });
+    expect(loaded.ok).toBe(true);
+    if (!loaded.ok) throw new Error(`push attempt failed: ${loaded.outcome.code}`);
+    expect(loaded.endpoints.map((entry) => entry.endpoint_hash)).toEqual([
+      laptop.endpoint_hash,
+      phone.endpoint_hash,
+    ]);
+    await deletePushEndpoint(f.db, FIX.workspace, FIX.owner, laptop.endpoint_hash);
+    const remaining = (await f.db
+      .prepare(
+        `SELECT endpoint_hash FROM notification_push_endpoints
+         WHERE workspace_id = ? AND human_id = ? ORDER BY created_at ASC`,
+      )
+      .all(FIX.workspace, FIX.owner)) as Array<{ endpoint_hash: string }>;
+    expect(remaining.map((entry) => entry.endpoint_hash)).toEqual([phone.endpoint_hash]);
+    const reloaded = await loadPushAttempt(f.db, {
+      workspaceId: FIX.workspace,
+      deliveryId: pushRow!.delivery_id,
+    });
+    expect(reloaded.ok).toBe(true);
+    if (!reloaded.ok) throw new Error(`push re-attempt failed: ${reloaded.outcome.code}`);
+    expect(reloaded.endpoints.map((entry) => entry.endpoint_hash)).toEqual([phone.endpoint_hash]);
   });
 
   it("purges endpoints and preferences of removed members", async () => {

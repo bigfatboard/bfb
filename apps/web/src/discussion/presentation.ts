@@ -4,7 +4,7 @@
 import type { AgentProfileRecord, DiscussionMessageSummary, DiscussionView } from "./api.js";
 
 export type Eligibility =
-  "eligible" | "busy" | "offline" | "revoked" | "unsupported" | "checkout_conflict";
+  "eligible" | "busy" | "offline" | "revoked" | "unsupported" | "checkout_conflict" | "unavailable";
 
 export interface EligibilityResult {
   status: Eligibility;
@@ -28,6 +28,7 @@ export interface CheckoutInput {
   status: "registered" | "validated" | "stale" | "blocked";
   block_reason?: string;
   inventory_valid: boolean;
+  head?: string;
 }
 
 export interface ProfileEligibilityInput {
@@ -36,12 +37,34 @@ export interface ProfileEligibilityInput {
   checkout: CheckoutInput | undefined;
   checkoutOccupied: boolean;
   humanId: string;
+  /**
+   * True when the runner's checkout read failed or was rejected, so a missing
+   * checkout must not render as a Mac that never reported inventory.
+   */
+  checkoutReadFailed?: boolean;
+}
+
+/**
+ * Automatic slot resolution shared by eligibility and submit: an explicit
+ * checkout wins, otherwise the first checkout for the task's project. Both
+ * call sites must evaluate the same entry.
+ */
+export function resolveSlotCheckout<Entry extends { checkout_id: string; project_id: string }>(
+  checkouts: Entry[],
+  checkoutId: string,
+  projectId: string,
+): Entry | undefined {
+  if (checkoutId) {
+    return checkouts.find((entry) => entry.checkout_id === checkoutId);
+  }
+  return checkouts.find((entry) => entry.project_id === projectId);
 }
 
 /**
  * Eligibility for one discussion participant slot. The ordering is deliberate:
  * revoked authority first, then reachability, then provider support, then
- * checkout conflicts. An eligible slot is never a claim that delivery will succeed.
+ * checkout conflicts. A failed read is unavailable, never offline. An eligible
+ * slot is never a claim that delivery will succeed.
  */
 export function describeSlotEligibility(input: ProfileEligibilityInput): EligibilityResult {
   if (!input.runner || input.runner.status === "revoked") {
@@ -62,6 +85,14 @@ export function describeSlotEligibility(input: ProfileEligibilityInput): Eligibi
     };
   }
   if (!input.checkout || !input.checkout.inventory_valid) {
+    if (input.checkoutReadFailed) {
+      return {
+        status: "unavailable",
+        headline: "Checkout status unavailable",
+        nextAction:
+          "The checkout read failed or was rejected, so this slot cannot be evaluated. This does not mean the Mac reported nothing.",
+      };
+    }
     return {
       status: "offline",
       headline: "Runner offline",
@@ -107,6 +138,48 @@ export function describeSlotEligibility(input: ProfileEligibilityInput): Eligibi
 
 export function canStartDiscussion(first: EligibilityResult, second: EligibilityResult): boolean {
   return first.status === "eligible" && second.status === "eligible";
+}
+
+const GIT_REVISION_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
+
+export type FrozenRevision =
+  { ok: true; revision: string } | { ok: false; headline: string; nextAction: string };
+
+/**
+ * Resolves the single Git revision the brief freezes from both slots'
+ * observed checkout heads. The heads are Mac-reported inventory, already
+ * scoped to the task's project by slot resolution. A missing or malformed
+ * head means the Mac has not proven its commit, and disagreeing heads mean
+ * no single revision is honest for both participants: both stay actionable
+ * blocks, never a fabricated placeholder. The frozen revision is still a
+ * request until delivery verifies it locally.
+ */
+export function resolveFrozenRevision(
+  firstHead: string | undefined,
+  secondHead: string | undefined,
+): FrozenRevision {
+  if (
+    !firstHead ||
+    !secondHead ||
+    !GIT_REVISION_PATTERN.test(firstHead) ||
+    !GIT_REVISION_PATTERN.test(secondHead)
+  ) {
+    return {
+      ok: false,
+      headline: "Checkout head unavailable",
+      nextAction:
+        "Both checkouts must report an observed Git head before the discussion can freeze a revision. Wake the Mac or wait for its next inventory report.",
+    };
+  }
+  if (firstHead !== secondHead) {
+    return {
+      ok: false,
+      headline: "Checkouts disagree on the commit",
+      nextAction:
+        "Both checkouts must report the same observed Git head so the brief freezes one revision. Sync the Macs to the same commit, then start again.",
+    };
+  }
+  return { ok: true, revision: firstHead };
 }
 
 export interface Speaker {

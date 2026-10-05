@@ -159,6 +159,29 @@ function webhook(
   });
 }
 
+function webhookFromIp(
+  body: Uint8Array,
+  event: string,
+  delivery: string,
+  signature: string | null,
+  ip: string,
+): Request {
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+    "x-github-event": event,
+    "x-github-delivery": delivery,
+    "cf-connecting-ip": ip,
+  };
+  if (signature !== null) {
+    headers["x-hub-signature-256"] = signature;
+  }
+  return new Request(`${AUTH_TEST_ENV.APP_ORIGIN}/webhooks/github`, {
+    method: "POST",
+    headers,
+    body: body as unknown as BodyInit,
+  });
+}
+
 function pushPayload(sha: string): Record<string, unknown> {
   return {
     ref: "refs/heads/main",
@@ -258,6 +281,56 @@ describe("X04 github webhook route", () => {
       .get()) as { count: number };
     expect(rows.count).toBe(0);
     expect(queue.sent).toHaveLength(0);
+  });
+});
+
+describe("X04 github webhook budgets", () => {
+  it("unsigned floods never starve other senders and valid deliveries cost one IP unit", async () => {
+    const { context } = await contextWithSessions();
+    const queue = capturingQueue();
+    const { app, currentBindings } = appFor(context, queue);
+    const send = (request: Request) => app.request(request, undefined, currentBindings);
+
+    // 120 unsigned POSTs from one sender: rejected by signature, never by budget.
+    for (let i = 0; i < 120; i += 1) {
+      const garbage = new TextEncoder().encode("{invalid-json");
+      const response = await send(
+        webhookFromIp(garbage, "push", `flood-0000-${i}`, sign(garbage, "wrong"), "10.9.9.1"),
+      );
+      expect(response.status).toBe(401);
+    }
+
+    // A different sender's valid delivery is unaffected by the flood:
+    // no shared unauthenticated bucket may reject it.
+    const raw = new TextEncoder().encode(JSON.stringify(pushPayload("a".repeat(40))));
+    const crossIp = await send(
+      webhookFromIp(raw, "push", "delivery-cross-ip", sign(raw), "10.9.9.2"),
+    );
+    expect(crossIp.status).not.toBe(403);
+
+    // The flooding sender is still throttled on its own per-IP budget.
+    const garbage = new TextEncoder().encode("{invalid-json");
+    const throttled = await send(
+      webhookFromIp(garbage, "push", "flood-throttled", sign(garbage, "wrong"), "10.9.9.1"),
+    );
+    expect(throttled.status).toBe(403);
+  });
+
+  it("charges one per-IP unit per valid delivery", async () => {
+    const { context } = await contextWithSessions();
+    const queue = capturingQueue();
+    const { app, currentBindings } = appFor(context, queue);
+    const send = (request: Request) => app.request(request, undefined, currentBindings);
+
+    // 70 well-formed deliveries from one sender stay under the 120/min
+    // per-IP budget only when each delivery costs a single IP unit.
+    for (let i = 0; i < 70; i += 1) {
+      const raw = new TextEncoder().encode(JSON.stringify(pushPayload("a".repeat(40))));
+      const response = await send(
+        webhookFromIp(raw, "push", `delivery-budget-${i}`, sign(raw), "10.9.8.1"),
+      );
+      expect(response.status).toBe(404);
+    }
   });
 });
 
@@ -491,5 +564,84 @@ describe("X04 github management routes", () => {
       },
     );
     expect(removedAgain.status).toBe(409);
+  });
+});
+
+describe("X04 github verification project scoping", () => {
+  it("requires reviewers to scope verification to a granted project", async () => {
+    const { context, member, reviewer } = await contextWithSessions();
+    const queue = capturingQueue();
+    const { app, currentBindings } = appFor(context, queue);
+    const send = (request: Request) => app.request(request, undefined, currentBindings);
+    const base = `/api/v1/workspaces/${FIX.workspace}/github`;
+    const memberCsrf = await csrf(app, currentBindings, member.cookie);
+    const reviewerCsrf = await csrf(app, currentBindings, reviewer.cookie);
+    const post = (path: string, cookie: string, csrfToken: string, value: unknown) =>
+      send(mutation(`${base}${path}`, cookie, csrfToken, value));
+
+    // The reviewer fixture holds a grant only to projectA; the member links
+    // one runner-observed commit per project.
+    const shaA = "a".repeat(40);
+    const shaB = "b".repeat(40);
+    const links: Array<[number, string, string]> = [
+      [1, FIX.projectA, shaA],
+      [2, FIX.projectB, shaB],
+    ];
+    for (const [index, projectId, sha] of links) {
+      const linked = await post("/evidence/links", member.cookie, memberCsrf, {
+        request_id: `github-verify-scope-link-${index}`,
+        project_id: projectId,
+        repository_id: REPOSITORY,
+        kind: "commit",
+        ref: sha,
+        version_token: sha,
+        observed_by: "runner",
+      });
+      expect(linked.status, await linked.clone().text()).toBe(200);
+    }
+    const refs = [
+      { kind: "github", ref: `github:${REPOSITORY}:commit:${shaA}` },
+      { kind: "github", ref: `github:${REPOSITORY}:commit:${shaB}` },
+    ];
+
+    // Reviewers verify per project, like GET /evidence: unscoped reads fail.
+    const unscoped = await post("/evidence/verification", reviewer.cookie, reviewerCsrf, {
+      refs,
+    });
+    expect(unscoped.status).toBe(403);
+
+    // A project without a grant is rejected before any oracle answers.
+    const foreign = await post("/evidence/verification", reviewer.cookie, reviewerCsrf, {
+      project_id: FIX.projectB,
+      refs,
+    });
+    expect(foreign.status).toBe(403);
+
+    // Scoped to the granted project, the foreign ref stays unverified.
+    const scoped = await post("/evidence/verification", reviewer.cookie, reviewerCsrf, {
+      project_id: FIX.projectA,
+      refs,
+    });
+    expect(scoped.status, await scoped.clone().text()).toBe(200);
+    expect(await scoped.json()).toEqual({
+      ok: true,
+      statuses: [
+        { kind: "github", ref: refs[0]?.ref, provenance: "runner_observed" },
+        { kind: "github", ref: refs[1]?.ref, provenance: "unverified" },
+      ],
+    });
+
+    // Owner/member reads without a scope keep working.
+    const memberRead = await post("/evidence/verification", member.cookie, memberCsrf, {
+      refs,
+    });
+    expect(memberRead.status, await memberRead.clone().text()).toBe(200);
+    expect(await memberRead.json()).toEqual({
+      ok: true,
+      statuses: [
+        { kind: "github", ref: refs[0]?.ref, provenance: "runner_observed" },
+        { kind: "github", ref: refs[1]?.ref, provenance: "runner_observed" },
+      ],
+    });
   });
 });

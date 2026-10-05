@@ -12,12 +12,17 @@ import {
   createLaunchClient,
   describeCheckoutDisplay,
   describeLaunchStatus,
+  isSettledControlState,
+  isUnsettledLaunch,
   linkedCheckoutsMessage,
   newIdempotencyKey,
   providerStatusMessage,
   refreshTaskLaunches,
+  resolveEffectiveCheckoutId,
   splitRunnerStatuses,
+  startAttemptSettlesKey,
   type CheckoutStatus,
+  type CheckoutSummary,
   type LaunchStatus,
   type RunnerSummary,
 } from "../src/launch/api.js";
@@ -159,6 +164,27 @@ describe("w02 launch request builders", () => {
     expect(newIdempotencyKey()).toMatch(/^[0-7][0-9A-HJKMNP-TV-Z]{25}$/);
   });
 
+  it("settles the Start key on any answered request, never on a lost one", () => {
+    // A stored launch owns its key, and a typed rejection stored nothing, so
+    // the next Start must mint a fresh key instead of reusing a spent one for
+    // another task or changed inputs. Only a lost response keeps the key so
+    // the next click replays the same request.
+    expect(startAttemptSettlesKey("stored")).toBe(true);
+    expect(startAttemptSettlesKey("rejected")).toBe(true);
+    expect(startAttemptSettlesKey("unanswered")).toBe(false);
+  });
+
+  it("keeps the run-control key while live and frees it once settled", () => {
+    // Repeated presses for a live control replay the same control; a settled
+    // one (applied, rejected, or expired unclaimed) must free its key so the
+    // next press issues a new control instead of returning the settled one.
+    expect(isSettledControlState("pending")).toBe(false);
+    expect(isSettledControlState("claimed")).toBe(false);
+    expect(isSettledControlState("applied")).toBe(true);
+    expect(isSettledControlState("rejected")).toBe(true);
+    expect(isSettledControlState("expired")).toBe(true);
+  });
+
   it("matches the server grants step-up target without extra fields", async () => {
     const input = {
       runnerId: randomUlid(),
@@ -297,6 +323,67 @@ describe("w02 launch presentation", () => {
       expect(shown.headline).not.toContain(resultState);
     }
   });
+
+  it("keeps refreshing every launch that can still move", () => {
+    // Pending and claimed launches await the Mac; started launches still
+    // move through attach, detach, exit, and local containment recovery, so
+    // the card must keep reading them. Only a final presentation settles.
+    expect(isUnsettledLaunch(baseLaunch())).toBe(true);
+    expect(
+      isUnsettledLaunch(
+        baseLaunch({ state: "claimed", execution_state: "launching", lease_state: "reserved" }),
+      ),
+    ).toBe(true);
+    expect(
+      isUnsettledLaunch(
+        baseLaunch({ state: "started", execution_state: "attached", lease_state: "live" }),
+      ),
+    ).toBe(true);
+    expect(
+      isUnsettledLaunch(
+        baseLaunch({ state: "started", execution_state: "detached", lease_state: "live" }),
+      ),
+    ).toBe(true);
+    expect(
+      isUnsettledLaunch(
+        baseLaunch({
+          state: "claimed",
+          execution_state: "launching",
+          lease_state: "containment_unknown",
+          containment_reason: "escaped_descendant",
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it("settles only launches with a final presentation", () => {
+    expect(
+      isUnsettledLaunch(
+        baseLaunch({
+          state: "started",
+          execution_state: "ended",
+          execution_end_reason: "process_exit",
+          lease_state: "released",
+        }),
+      ),
+    ).toBe(false);
+    expect(
+      isUnsettledLaunch(
+        baseLaunch({
+          state: "expired",
+          end_reason: "launch_expired",
+          execution_state: "ended",
+          execution_end_reason: "launch_expired",
+        }),
+      ),
+    ).toBe(false);
+    expect(
+      isUnsettledLaunch(
+        baseLaunch({ state: "rejected", end_reason: "launch_blocked", execution_state: "ended" }),
+      ),
+    ).toBe(false);
+    expect(isUnsettledLaunch(baseLaunch({ cancelled: true }))).toBe(false);
+  });
 });
 
 function baseRunner(overrides: Partial<RunnerSummary> = {}): RunnerSummary {
@@ -422,5 +509,57 @@ describe("w02 runner inventory reads", () => {
     expect(calls).toEqual(["task-id"]);
     expect("listRunners" in client).toBe(false);
     expect("checkoutStatus" in client).toBe(false);
+  });
+});
+
+function baseCheckout(overrides: Partial<CheckoutSummary> = {}): CheckoutSummary {
+  const runnerId = randomUlid();
+  return {
+    schema_version: 1,
+    checkout_id: randomUlid(),
+    workspace_id: randomUlid(),
+    runner_id: runnerId,
+    project_id: randomUlid(),
+    label: "Synthetic checkout",
+    repository_identity: "synthetic/checkout",
+    workspace_subpath: ".",
+    physical_worktree_hash: `sha256:${"a".repeat(64)}`,
+    repository_config_hash: `sha256:${"b".repeat(64)}`,
+    is_default: false,
+    dirty: false,
+    status: "validated",
+    validated_at: "2026-08-07T12:00:00.000Z",
+    ...overrides,
+  };
+}
+
+describe("w02 start checkout selection", () => {
+  it("defaults to the task project default, not the first default in inventory order", () => {
+    const projectA = randomUlid();
+    const projectB = randomUlid();
+    const otherDefault = baseCheckout({ project_id: projectA, is_default: true });
+    const taskDefault = baseCheckout({ project_id: projectB, is_default: true });
+    const inventory = [otherDefault, taskDefault];
+    expect(resolveEffectiveCheckoutId("", inventory, projectB)).toBe(taskDefault.checkout_id);
+    expect(resolveEffectiveCheckoutId("", inventory, projectA)).toBe(otherDefault.checkout_id);
+  });
+
+  it("never falls back to another project's checkout when the task project has none", () => {
+    const other = baseCheckout({ project_id: randomUlid(), is_default: true });
+    expect(resolveEffectiveCheckoutId("", [other], randomUlid())).toBe("");
+  });
+
+  it("keeps an explicit selection only when it belongs to the task project", () => {
+    const projectB = randomUlid();
+    const other = baseCheckout({ project_id: randomUlid(), is_default: true });
+    const selected = baseCheckout({ project_id: projectB });
+    const taskDefault = baseCheckout({ project_id: projectB, is_default: true });
+    const inventory = [other, selected, taskDefault];
+    expect(resolveEffectiveCheckoutId(selected.checkout_id, inventory, projectB)).toBe(
+      selected.checkout_id,
+    );
+    expect(resolveEffectiveCheckoutId(other.checkout_id, inventory, projectB)).toBe(
+      taskDefault.checkout_id,
+    );
   });
 });

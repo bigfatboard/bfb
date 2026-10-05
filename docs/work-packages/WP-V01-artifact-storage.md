@@ -2,9 +2,6 @@
 
 Status: `done`
 
-> Settled 18 September: `done` — A01 is `done` and `pnpm test:v01` passed in
-> a detached clean checkout at `9372c0f`; see Handoff.
-
 Risk: High
 
 Test target: `pnpm test:v01`
@@ -107,6 +104,25 @@ tool.
   workspace, run, version, format, size, digest, and expiry; replay, wrong
   secret, unknown grant, expiry, and revocation never yield an available
   version (matrix below).
+- Failure at every D1/R2 step leaves recoverable non-viewable state:
+  conflicting objects, D1-consume faults, and R2-put faults never create an
+  `available` version, and content errors keep the version `uploading` for a
+  grant reissue (`docs/work-packages/evidence/WP-V01/fault-matrix.md`,
+  `tools/artifacts/run.ts`, mounted worker tests).
+- Same-hash concurrent publication never overwrites bytes and may back
+  distinct logical versions (SG-03; harness `same_hash_race_converged` plus
+  the domain convergence tests in `packages/domain/test/artifacts.test.ts`).
+- Only available versions can be referenced downstream: re-grants refuse
+  terminal versions, and view grants (V02) plus reviews (V03) refuse
+  non-`available` versions (`docs/contracts/artifacts.md`, the V02/V03
+  domain tests, and the V02 hostile corpus).
+- R2 keys are derived server-side and remain workspace-prefixed; callers
+  never select a key and responses carry none
+  (`packages/domain/test/artifacts.test.ts`, Go client error mapping).
+- Raw upload secrets exist only once and are never logged or stored
+  plaintext: only the creation/issuance response carries the secret, while
+  D1, events, idempotency records, and rate keys keep hashes only
+  (`docs/contracts/artifacts.md`, harness secret-retention scan).
 - Lost-grant recovery reissues a grant for an `uploading` version and
   converges receipts; abandoned versions are swept to `failed` without
   deleting shared bytes.
@@ -142,9 +158,10 @@ tool.
 - Risk: D1 batches cannot read after a queued write. Decision: all reads
   precede writes in every command/helper; the single-consume fence is a
   guarded update plus a mutating-guard row (domain tests + harness replay).
-- Risk: A01 (MCP registration) is in flight. Decision: V01 ships the typed
-  client plus a transport-free `ToolDefinition`/`InvokePublish` seam and
-  stays at `planned` until A01 lands (roadmap rule).
+- Risk: A01 (MCP registration) was in flight. Decision: V01 shipped the typed
+  client plus a transport-free `ToolDefinition`/`InvokePublish` seam; A01 is
+  `done` and registers `bfb_publish_artifact` on the run-scoped server
+  (`apps/control-worker/src/mcp/server-factory.ts`).
 
 ## Handoff
 

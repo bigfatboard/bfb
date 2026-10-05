@@ -942,16 +942,55 @@ async function main(): Promise<void> {
         .prepare(`SELECT COUNT(*) AS count FROM artifact_versions WHERE workspace_id = ?`)
         .get(FIX.workspace)) as { count: number };
       assert.ok(kept.count >= 3, "every D1 version row survives retention");
+      const purged = (await db
+        .prepare(
+          `SELECT state, content_hash, r2_key FROM artifact_versions WHERE workspace_id = ? AND id = ?`,
+        )
+        .get(FIX.workspace, chunks[0]!.version)) as {
+        state: string;
+        content_hash: string;
+        r2_key: string;
+      };
+      assert.equal(purged.state, "retained");
+      assert.equal(purged.content_hash, "e".repeat(64));
+      assert.equal(purged.r2_key, chunks[0]!.key);
+      const runsBefore = (await db
+        .prepare(`SELECT COUNT(*) AS count FROM retention_runs WHERE workspace_id = ?`)
+        .get(FIX.workspace)) as { count: number };
+      await queueEnv.OPS_JOBS.send({
+        schema_version: 1,
+        kind: "retention.sweep",
+        workspace_id: FIX.workspace,
+        attempt: 1,
+      });
+      const rerun = await poll("second retention run recorded", async () => {
+        const rows = (await db
+          .prepare(
+            `SELECT deleted_objects, deleted_bytes, error FROM retention_runs WHERE workspace_id = ? ORDER BY started_at DESC, id DESC`,
+          )
+          .all(FIX.workspace)) as Array<{
+          deleted_objects: number;
+          deleted_bytes: number;
+          error: string | null;
+        }>;
+        return rows.length === runsBefore.count + 1 ? rows[0]! : null;
+      });
+      assert.equal(rerun.deleted_objects, 0);
+      assert.equal(rerun.deleted_bytes, 0);
+      assert.equal(rerun.error, null);
       await writeJson(resolve(evidenceDir, "retention-fixture.json"), {
         examined: run.examined,
         deleted_objects: run.deleted_objects,
         deleted_bytes: run.deleted_bytes,
         kept_d1_rows: kept.count,
         review_object_intact: true,
+        purged_version_state: purged.state,
+        second_sweep_deleted_objects: rerun.deleted_objects,
+        second_sweep_deleted_bytes: rerun.deleted_bytes,
       });
       note(
         "D8",
-        `retention via queue deleted 1 eligible object; ${kept.count} D1 rows and review bytes intact`,
+        `retention via queue deleted 1 eligible object and retained its version; ${kept.count} D1 rows and review bytes intact; second sweep deleted 0`,
       );
       pass("D8-retention");
     }

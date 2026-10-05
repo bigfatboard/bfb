@@ -1,5 +1,5 @@
 # ABOUTME: Prepared release pipeline for the separately confirmed managed rollout.
-# ABOUTME: Four ordered jobs mirror docs/contracts/release.md; production publish needs approval.
+# ABOUTME: Staging runs by default; production needs the managed-production environment plus a typed confirmation.
 
 name: Release build, migrate, publish, and smoke
 
@@ -9,10 +9,21 @@ on:
       tag:
         description: Release tag under test (for example v0.1.3)
         required: true
+      target:
+        description: Deployment target (staging or production)
+        required: true
+        default: staging
       jurisdiction:
         description: Deployment jurisdiction (eu, us, or global)
         required: true
         default: eu
+      origin:
+        description: Public origin of the deployed control worker (for example https://bfb.example.org)
+        required: true
+      confirm_tag:
+        description: Retype the tag to confirm a production rollout (must equal tag when target is production)
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -24,8 +35,10 @@ concurrency:
 jobs:
   build-test:
     name: Build and test the release candidate
-    runs-on: ubuntu-24.04
+    runs-on: macos-15
     timeout-minutes: 20
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.0.1.app/Contents/Developer
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -46,6 +59,31 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Materialize the Mac development profile
+        env:
+          BFB_MACOS_PROFILE_B64: ${{ secrets.BFB_MACOS_PROFILE_B64 }}
+        run: |
+          echo "$BFB_MACOS_PROFILE_B64" | base64 --decode > "$RUNNER_TEMP/bfb-dev.provisionprofile"
+          echo "BFB_MACOS_PROFILE=$RUNNER_TEMP/bfb-dev.provisionprofile" >> "$GITHUB_ENV"
+
+      - name: Install the Apple Development signing certificate
+        env:
+          BFB_MACOS_SIGNING_P12_B64: ${{ secrets.BFB_MACOS_SIGNING_P12_B64 }}
+          BFB_MACOS_SIGNING_P12_PASSWORD: ${{ secrets.BFB_MACOS_SIGNING_P12_PASSWORD }}
+        run: |
+          echo "$BFB_MACOS_SIGNING_P12_B64" | base64 --decode > "$RUNNER_TEMP/signing.p12"
+          KEYCHAIN="$RUNNER_TEMP/bfb-release.keychain-db"
+          security create-keychain -p "$BFB_MACOS_SIGNING_P12_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$BFB_MACOS_SIGNING_P12_PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/signing.p12" -k "$KEYCHAIN" -P "$BFB_MACOS_SIGNING_P12_PASSWORD" -T /usr/bin/codesign
+          security list-keychains -d user -s "$KEYCHAIN" login.keychain
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$BFB_MACOS_SIGNING_P12_PASSWORD" "$KEYCHAIN"
+          rm "$RUNNER_TEMP/signing.p12"
+
       - name: Verify repository
         run: pnpm verify
 
@@ -58,10 +96,21 @@ jobs:
   migrate:
     name: Migrate target D1
     needs: build-test
-    runs-on: ubuntu-24.04
+    runs-on: macos-15
     timeout-minutes: 15
-    environment: managed-production
+    environment: ${{ inputs.target == 'production' && 'managed-production' || 'staging' }}
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.0.1.app/Contents/Developer
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
+      - name: Confirm the production target
+        run: |
+          if [ "${{ inputs.target }}" = "production" ] && [ "${{ inputs.confirm_tag }}" != "${{ inputs.tag }}" ]; then
+            echo "Production rollouts need confirm_tag to equal tag." >&2
+            exit 1
+          fi
+
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
@@ -70,17 +119,55 @@ jobs:
         with:
           node-version-file: .node-version
 
+      - name: Install pinned Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: .go-version
+
       - name: Activate pinned pnpm
         run: corepack enable && corepack install
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Materialize the Mac development profile
+        env:
+          BFB_MACOS_PROFILE_B64: ${{ secrets.BFB_MACOS_PROFILE_B64 }}
+        run: |
+          echo "$BFB_MACOS_PROFILE_B64" | base64 --decode > "$RUNNER_TEMP/bfb-dev.provisionprofile"
+          echo "BFB_MACOS_PROFILE=$RUNNER_TEMP/bfb-dev.provisionprofile" >> "$GITHUB_ENV"
+
+      - name: Install the Apple Development signing certificate
+        env:
+          BFB_MACOS_SIGNING_P12_B64: ${{ secrets.BFB_MACOS_SIGNING_P12_B64 }}
+          BFB_MACOS_SIGNING_P12_PASSWORD: ${{ secrets.BFB_MACOS_SIGNING_P12_PASSWORD }}
+        run: |
+          echo "$BFB_MACOS_SIGNING_P12_B64" | base64 --decode > "$RUNNER_TEMP/signing.p12"
+          KEYCHAIN="$RUNNER_TEMP/bfb-release.keychain-db"
+          security create-keychain -p "$BFB_MACOS_SIGNING_P12_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$BFB_MACOS_SIGNING_P12_PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/signing.p12" -k "$KEYCHAIN" -P "$BFB_MACOS_SIGNING_P12_PASSWORD" -T /usr/bin/codesign
+          security list-keychains -d user -s "$KEYCHAIN" login.keychain
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$BFB_MACOS_SIGNING_P12_PASSWORD" "$KEYCHAIN"
+          rm "$RUNNER_TEMP/signing.p12"
+
       - name: Export before destructive steps
-        run: pnpm exec wrangler d1 export bfb --remote --output "$RUNNER_TEMP/bfb-pre-${{ inputs.tag }}.sql" --config apps/control-worker/wrangler.production.toml
+        run: pnpm exec wrangler d1 export ${{ inputs.target == 'production' && 'bfb' || 'bfb-staging' }} --remote --output "$RUNNER_TEMP/bfb-pre-${{ inputs.tag }}.sql" --config apps/control-worker/wrangler.${{ inputs.target == 'production' && 'production' || 'staging' }}.toml
+
+      - name: Preserve the pre-migration backstop
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: bfb-pre-${{ inputs.tag }}-${{ inputs.target }}
+          path: ${{ runner.temp }}/bfb-pre-${{ inputs.tag }}.sql
+          retention-days: 30
+          if-no-files-found: error
 
       - name: Apply D1 migrations
-        run: pnpm exec wrangler d1 migrations apply bfb --remote --config apps/control-worker/wrangler.production.toml
+        run: pnpm exec wrangler d1 migrations apply ${{ inputs.target == 'production' && 'bfb' || 'bfb-staging' }} --remote --config apps/control-worker/wrangler.${{ inputs.target == 'production' && 'production' || 'staging' }}.toml
 
       - name: Prove empty and previous-release starts converge
         run: pnpm test:g02
@@ -90,8 +177,18 @@ jobs:
     needs: migrate
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    environment: managed-production
+    environment: ${{ inputs.target == 'production' && 'managed-production' || 'staging' }}
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
+      - name: Confirm the production target
+        run: |
+          if [ "${{ inputs.target }}" = "production" ] && [ "${{ inputs.confirm_tag }}" != "${{ inputs.tag }}" ]; then
+            echo "Production rollouts need confirm_tag to equal tag." >&2
+            exit 1
+          fi
+
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
@@ -107,20 +204,22 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Publish the control worker
-        run: pnpm exec wrangler deploy --config apps/control-worker/wrangler.production.toml --var JURISDICTION:${{ inputs.jurisdiction }}
+        run: pnpm exec wrangler deploy --config apps/control-worker/wrangler.${{ inputs.target == 'production' && 'production' || 'staging' }}.toml --var JURISDICTION:${{ inputs.jurisdiction }}
 
       - name: Publish the artifact worker
-        run: pnpm exec wrangler deploy --config apps/artifact-worker/wrangler.production.toml
+        run: pnpm exec wrangler deploy --config apps/artifact-worker/wrangler.${{ inputs.target == 'production' && 'production' || 'staging' }}.toml
 
   smoke:
     name: Post-deploy authenticated smoke
     needs: publish
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    environment: managed-production
+    environment: ${{ inputs.target == 'production' && 'managed-production' || 'staging' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Run the rollout smoke commands
-        run: node tools/g02/smoke-commands.mjs --origin https://bfb.example.test
+        env:
+          BFB_SMOKE_CREDENTIAL: ${{ secrets.BFB_SMOKE_CREDENTIAL }}
+        run: node tools/g02/smoke-commands.mjs --origin ${{ inputs.origin }}

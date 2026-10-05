@@ -5,7 +5,7 @@
 [D5] stuck upload resolved once, replayed on retry, live versions rejected
 [D6] github DLQ row requeued to pending with reset attempts
 [D7] notification watermark rewound to 20 for redelivery
-[D8] retention via queue deleted 1 eligible object; 4 D1 rows and review bytes intact
+[D8] retention via queue deleted 1 eligible object and retained its version; 4 D1 rows and review bytes intact; second sweep deleted 0
 [D9] bundle generated, inventory reviewed, consented, and uploaded redacted
 [D10] poison retried into the DLQ with IDs only; sibling sweep converged
 [D11] secret scan passed over 8 outputs

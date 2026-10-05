@@ -23,8 +23,9 @@ Rows are upserted by the owning human only; readers fall back to
 `(workspace, human, endpoint_hash)` where `endpoint_hash` is the hex
 SHA-256 of the `https:` push endpoint URL (at most 2048 chars). `p256dh`
 (87-88 base64url chars) and `auth` (22-24 base64url chars) are the
-receiver's public keys. A 404/410 from the push service deletes the row;
-there is no tombstone.
+receiver's public keys. A 404/410 from the push service deletes only the
+contacted endpoint's row; sibling endpoints of the same human survive.
+There is no tombstone.
 
 `notification_deliveries` is the delivery bookkeeping ledger, keyed by the
 stable `delivery_id`:
@@ -163,10 +164,13 @@ The encrypted payload is fixed-shape JSON:
 }
 ```
 
-Titles and bodies are fixed per category and carry no task text. A
-`200`/`201` from the push service marks `delivered`. A `404`/`410`
-deletes the endpoint and marks `failed` with `endpoint_expired`. A
-`429`/`5xx` or network failure is retryable.
+Titles and bodies are fixed per category and carry no task text. One
+delivery covers every endpoint of the human: the consumer tries each
+registered endpoint oldest-first. A `200`/`201` marks `delivered`. A
+`404`/`410` deletes only that endpoint's row and the consumer tries the
+next one. `failed` with `endpoint_expired` is recorded only when every
+endpoint answered `404`/`410`. A `429`/`5xx` or network failure is
+retryable.
 
 ### macOS
 
@@ -225,7 +229,9 @@ mints wake intents.
 
 Preference/endpoint mutations run as hub commands with the caller's
 idempotency key and the C01 durable per-address/per-principal budgets of
-their routes. Push endpoint registration bounds URL and key lengths and
+their routes. Exhausting the browser poll/attempt budget answers the
+uniform `403 {error: request_rejected}`, matching the GitHub browser
+surface. Push endpoint registration bounds URL and key lengths and
 accepts `https:` endpoints only. Fan-out bounds recipients per event (500
 humans, 25 runners per human) and never pages without a limit. Cron
 purges acked inbox rows older than 7 days and dead endpoint-less

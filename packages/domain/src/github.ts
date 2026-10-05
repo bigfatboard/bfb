@@ -1,5 +1,5 @@
 // ABOUTME: Owns GitHub App installation, repository link, delivery, outbox, and evidence records.
-// ABOUTME: Owner step-up gates management; reconcile converges duplicates with latest-wins guards.
+// ABOUTME: Owner step-up gates management; reconcile converges duplicates with per-object latest-wins guards.
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 
@@ -98,6 +98,20 @@ function closedObject(
     Object.keys(value).some((key) => !keys.includes(key))
   ) {
     fail("invalid_argument", `${what} must be an object with known fields`);
+  }
+  return value as Record<string, unknown>;
+}
+
+/**
+ * Requires a webhook payload (or nested payload object) to be an object.
+ * Unlike {@link closedObject} — which guards BFB's own command inputs —
+ * GitHub deliveries carry dozens of documented keys BFB never reads, so
+ * unknown fields are ignored and only the fields reconcile needs are
+ * validated by their own readers below.
+ */
+function webhookObject(value: unknown, what: string): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    fail("invalid_argument", `${what} must be an object`);
   }
   return value as Record<string, unknown>;
 }
@@ -230,7 +244,10 @@ function payloadTime(value: unknown): string | null {
 /**
  * Extracts the bounded reconcile effect from a verified webhook payload.
  * Returns `{supported: false}` for events outside the subscribed set; throws
- * only for malformed payloads that can never reconcile.
+ * only for malformed payloads that can never reconcile. Payloads are read
+ * with a tolerant reader: unknown top-level and nested keys are ignored so
+ * real GitHub deliveries (which always carry more keys than BFB needs)
+ * reconcile instead of being rejected.
  */
 export function extractWebhookEffect(
   event: string,
@@ -240,7 +257,7 @@ export function extractWebhookEffect(
   if (!(GITHUB_WEBHOOK_EVENTS_ALLOWLIST as readonly string[]).includes(event)) {
     return { supported: false };
   }
-  const body = closedObject(payload, knownPayloadKeys(event), "webhook payload");
+  const body = webhookObject(payload, "webhook payload");
   const installation = installationOf(body);
   const installationId = numericId(installation.id, "installation id");
   const repository = repositoryOf(body);
@@ -280,7 +297,9 @@ export function extractWebhookEffect(
           fail("webhook_payload_invalid", "webhook repository list is invalid");
         }
         detail[key] = entries
-          .map((entry) => numericId((entry as Record<string, unknown>).id, "repository id"))
+          .map((entry) =>
+            numericId(webhookObject(entry, "webhook repository entry").id, "repository id"),
+          )
           .join(",");
       }
       occurredAt = receivedAt;
@@ -296,22 +315,14 @@ export function extractWebhookEffect(
         occurredAt = receivedAt;
         break;
       }
-      const head = closedObject(
-        body.head_commit,
-        ["id", "timestamp", "message", "author", "url", "distinct", "added", "removed", "modified"],
-        "push head commit",
-      );
+      const head = webhookObject(body.head_commit, "push head commit");
       const sha = boundedText(head.id, "push sha", 64, SHA_PATTERN);
       version = sha;
       occurredAt = payloadTime(head.timestamp) ?? receivedAt;
       break;
     }
     case "pull_request": {
-      const pull = closedObject(
-        body.pull_request ?? {},
-        ["number", "head", "base", "state", "merged", "updated_at", "title"],
-        "pull request",
-      );
+      const pull = webhookObject(body.pull_request ?? {}, "pull request");
       const number = countText(pull.number, "pull request number");
       const head = (pull.head ?? {}) as Record<string, unknown>;
       ref = number;
@@ -322,11 +333,7 @@ export function extractWebhookEffect(
       break;
     }
     case "check_run": {
-      const check = closedObject(
-        body.check_run ?? {},
-        ["id", "name", "head_sha", "status", "conclusion", "started_at", "completed_at"],
-        "check run",
-      );
+      const check = webhookObject(body.check_run ?? {}, "check run");
       ref = countText(check.id, "check run id");
       take("check_name", check.name, 256);
       take("check_status", check.status, 32);
@@ -339,11 +346,7 @@ export function extractWebhookEffect(
       break;
     }
     case "check_suite": {
-      const suite = closedObject(
-        body.check_suite ?? {},
-        ["id", "head_sha", "status", "conclusion", "updated_at", "created_at"],
-        "check suite",
-      );
+      const suite = webhookObject(body.check_suite ?? {}, "check suite");
       ref = countText(suite.id, "check suite id");
       take("check_status", suite.status, 32);
       take("check_conclusion", suite.conclusion, 32);
@@ -363,11 +366,7 @@ export function extractWebhookEffect(
       break;
     }
     case "issues": {
-      const issue = closedObject(
-        body.issue ?? {},
-        ["number", "state", "title", "updated_at"],
-        "issue",
-      );
+      const issue = webhookObject(body.issue ?? {}, "issue");
       ref = countText(issue.number, "issue number");
       version = boundedText(issue.state, "issue state", 32);
       take("issue_title", issue.title, 256);
@@ -375,11 +374,7 @@ export function extractWebhookEffect(
       break;
     }
     case "deployment": {
-      const deployment = closedObject(
-        body.deployment ?? {},
-        ["id", "sha", "environment", "created_at"],
-        "deployment",
-      );
+      const deployment = webhookObject(body.deployment ?? {}, "deployment");
       ref = countText(deployment.id, "deployment id");
       take("deployment_environment", deployment.environment, 128);
       take("head_sha", deployment.sha, 64, SHA_PATTERN);
@@ -388,11 +383,7 @@ export function extractWebhookEffect(
       break;
     }
     case "deployment_status": {
-      const status = closedObject(
-        body.deployment_status ?? {},
-        ["id", "state", "deployment", "updated_at", "created_at"],
-        "deployment status",
-      );
+      const status = webhookObject(body.deployment_status ?? {}, "deployment status");
       const deployment = (status.deployment ?? {}) as Record<string, unknown>;
       ref = countText(deployment.id ?? status.id, "deployment id");
       version = boundedText(status.state, "deployment state", 32);
@@ -425,6 +416,9 @@ function take2(value: unknown): string {
 }
 
 async function requireOwner(ctx: HubContext) {
+  if (ctx.actorDelegationId) {
+    fail("forbidden", "direct authorized human required");
+  }
   if (!ctx.actorHumanId) {
     fail("unauthenticated", "human actor required");
   }
@@ -576,12 +570,22 @@ export const installGitHubCommand: HubCommand<InstallGitHubInput, GitHubInstalla
     const permissions = assertPermissionsSubset(input.permissions);
     const events = assertEventsSubset(input.events);
     // All reads precede the step-up consume: D1 batches forbid reads after a queued write.
+    // An installation id belongs to exactly one workspace: a row owned by any
+    // other workspace (active or revoked) is never reassigned here.
     const existing = (await ctx.db
       .prepare(
-        `SELECT status, resource_version FROM github_app_installations WHERE installation_id = ?`,
+        `SELECT workspace_id, status, resource_version FROM github_app_installations WHERE installation_id = ?`,
       )
       .get(installationId)) as
-      { status: GitHubInstallationStatus; resource_version: number } | undefined;
+      | {
+          workspace_id: string;
+          status: GitHubInstallationStatus;
+          resource_version: number;
+        }
+      | undefined;
+    if (existing && existing.workspace_id !== ctx.workspaceId) {
+      fail("already_exists", "github installation is already registered");
+    }
     if (existing && existing.status !== "revoked") {
       fail("already_exists", "github installation is already registered");
     }
@@ -596,14 +600,13 @@ export const installGitHubCommand: HubCommand<InstallGitHubInput, GitHubInstalla
       await ctx.db
         .prepare(
           `UPDATE github_app_installations
-           SET workspace_id = ?, app_id = ?, app_slug = ?, account_id = ?, account_login = ?,
+           SET app_id = ?, app_slug = ?, account_id = ?, account_login = ?,
                account_type = ?, status = 'pending', permissions_json = ?, events_json = ?,
                installed_by_human_id = ?, updated_at = ?, revoked_at = NULL,
                resource_version = resource_version + 1
-           WHERE installation_id = ?`,
+           WHERE installation_id = ? AND workspace_id = ?`,
         )
         .run(
-          ctx.workspaceId,
           appId,
           appSlug,
           accountId,
@@ -614,6 +617,7 @@ export const installGitHubCommand: HubCommand<InstallGitHubInput, GitHubInstalla
           ctx.actorHumanId,
           ctx.now,
           installationId,
+          ctx.workspaceId,
         );
       // No post-write re-read: D1 batches forbid reads after a queued write.
       return {
@@ -704,23 +708,23 @@ export const removeGitHubCommand: HubCommand<RemoveGitHubInput, GitHubInstallati
     await consume();
     await guard(
       ctx.db,
-      `SELECT COUNT(*) = 1 FROM github_app_installations WHERE installation_id = ? AND resource_version = ? AND status != 'revoked'`,
-      [installationId, row.resource_version],
+      `SELECT COUNT(*) = 1 FROM github_app_installations WHERE installation_id = ? AND workspace_id = ? AND resource_version = ? AND status != 'revoked'`,
+      [installationId, ctx.workspaceId, row.resource_version],
     );
     await ctx.db
       .prepare(
         `UPDATE github_app_installations
          SET status = 'revoked', revoked_at = ?, updated_at = ?, resource_version = resource_version + 1
-         WHERE installation_id = ?`,
+         WHERE installation_id = ? AND workspace_id = ?`,
       )
-      .run(ctx.now, ctx.now, installationId);
+      .run(ctx.now, ctx.now, installationId, ctx.workspaceId);
     await ctx.db
       .prepare(
         `UPDATE github_repository_links
          SET link_state = 'closed', closed_at = ?, resource_version = resource_version + 1
-         WHERE installation_id = ? AND link_state = 'active'`,
+         WHERE workspace_id = ? AND installation_id = ? AND link_state = 'active'`,
       )
-      .run(ctx.now, installationId);
+      .run(ctx.now, ctx.workspaceId, installationId);
     // No post-write re-read: D1 batches forbid reads after a queued write.
     return {
       installation_id: installationId,
@@ -803,6 +807,17 @@ export const mapGitHubRepositoryCommand: HubCommand<
     if (project.repository_host !== "github.com" || project.hosted_repository_id !== repositoryId) {
       fail("repository_identity_mismatch", "project does not declare this GitHub repository");
     }
+    // A repository already linked by another workspace stays theirs: mapping
+    // here must fail instead of evicting the foreign link.
+    const foreign = (await ctx.db
+      .prepare(
+        `SELECT workspace_id FROM github_repository_links
+         WHERE repository_id = ? AND link_state = 'active' AND workspace_id != ? LIMIT 1`,
+      )
+      .get(repositoryId, ctx.workspaceId)) as { workspace_id: string } | undefined;
+    if (foreign) {
+      fail("repository_already_mapped", "github repository is already linked by another workspace");
+    }
     const consume = await prepareStepUp(
       ctx,
       input.stepUpProofId,
@@ -810,14 +825,15 @@ export const mapGitHubRepositoryCommand: HubCommand<
       stepUpTarget("link", repositoryId),
     );
     await consume();
-    // Remap: close any active link for this repository or this project first.
+    // Remap: close only this workspace's active link for this repository or
+    // this project first.
     await ctx.db
       .prepare(
         `UPDATE github_repository_links
          SET link_state = 'closed', closed_at = ?, resource_version = resource_version + 1
-         WHERE link_state = 'active' AND (repository_id = ? OR (workspace_id = ? AND project_id = ?))`,
+         WHERE workspace_id = ? AND link_state = 'active' AND (repository_id = ? OR project_id = ?)`,
       )
-      .run(ctx.now, repositoryId, ctx.workspaceId, input.projectId);
+      .run(ctx.now, ctx.workspaceId, repositoryId, input.projectId);
     const linkId = randomUlid();
     await ctx.db
       .prepare(
@@ -911,16 +927,22 @@ export const updateGitHubPermissionsCommand: HubCommand<
     await consume();
     await guard(
       ctx.db,
-      `SELECT COUNT(*) = 1 FROM github_app_installations WHERE installation_id = ? AND resource_version = ?`,
-      [installationId, input.expectedVersion],
+      `SELECT COUNT(*) = 1 FROM github_app_installations WHERE installation_id = ? AND workspace_id = ? AND resource_version = ?`,
+      [installationId, ctx.workspaceId, input.expectedVersion],
     );
     await ctx.db
       .prepare(
         `UPDATE github_app_installations
          SET permissions_json = ?, events_json = ?, updated_at = ?, resource_version = resource_version + 1
-         WHERE installation_id = ?`,
+         WHERE installation_id = ? AND workspace_id = ?`,
       )
-      .run(JSON.stringify(permissions), JSON.stringify(events), ctx.now, installationId);
+      .run(
+        JSON.stringify(permissions),
+        JSON.stringify(events),
+        ctx.now,
+        installationId,
+        ctx.workspaceId,
+      );
     return {
       installation_id: installationId,
       workspace_id: ctx.workspaceId,
@@ -1201,8 +1223,10 @@ function evidenceKindForEvent(event: string): GitHubEvidenceKind | null {
 
 /**
  * Idempotently converges one delivery to current GitHub state. Duplicate and
- * out-of-order deliveries share one domain effect through the per-repository
- * latest-wins guard; stale deliveries are marked superseded without writes.
+ * out-of-order deliveries for the same object share one domain effect
+ * through the per-object latest-wins guard; stale deliveries are marked
+ * superseded without writes, while deliveries for another object in the same
+ * stream still apply on their own cursor.
  */
 export const reconcileGitHubCommand: HubCommand<ReconcileGitHubInput, ReconcileGitHubResult> = {
   name: "github.reconcile",
@@ -1281,8 +1305,11 @@ export const reconcileGitHubCommand: HubCommand<ReconcileGitHubInput, ReconcileG
     }
     const effect = JSON.parse(delivery.effect_json) as GitHubDeliveryEffect;
     const installation = (await ctx.db
-      .prepare(`SELECT status FROM github_app_installations WHERE installation_id = ?`)
-      .get(effect.installationId)) as { status: GitHubInstallationStatus } | undefined;
+      .prepare(
+        `SELECT workspace_id, status FROM github_app_installations WHERE installation_id = ?`,
+      )
+      .get(effect.installationId)) as
+      { workspace_id: string; status: GitHubInstallationStatus } | undefined;
     if (!installation || installation.status === "revoked") {
       await finishOutbox(
         ctx.db,
@@ -1295,6 +1322,9 @@ export const reconcileGitHubCommand: HubCommand<ReconcileGitHubInput, ReconcileG
         ctx.now,
       );
       return { effect: "ignored", reason: "installation revoked" };
+    }
+    if (installation.workspace_id !== ctx.workspaceId) {
+      fail("workspace_mismatch", "github installation belongs to another workspace");
     }
     if (effect.event === "installation") {
       // Lifecycle events carry their own state guards (pending can activate;
@@ -1328,9 +1358,10 @@ export const reconcileGitHubCommand: HubCommand<ReconcileGitHubInput, ReconcileG
     const link = (await ctx.db
       .prepare(
         `SELECT project_id, default_branch FROM github_repository_links
-         WHERE repository_id = ? AND link_state = 'active'`,
+         WHERE workspace_id = ? AND repository_id = ? AND link_state = 'active'`,
       )
-      .get(effect.repositoryId)) as { project_id: string; default_branch: string } | undefined;
+      .get(ctx.workspaceId, effect.repositoryId)) as
+      { project_id: string; default_branch: string } | undefined;
     if (!link) {
       await finishOutbox(
         ctx.db,
@@ -1348,11 +1379,20 @@ export const reconcileGitHubCommand: HubCommand<ReconcileGitHubInput, ReconcileG
     if (!stream) {
       fail("delivery_missing", "github delivery names no reconcile stream");
     }
+    // The guard is per object, not per stream: pushes to one branch, updates
+    // to one pull request, and events for one check run converge on their own
+    // cursor, so an out-of-order delivery for another object in the same
+    // stream still applies. Payload timestamps order updates to the same
+    // object only; commit author time never compares across branches.
+    const objectRef = effect.ref;
+    if (!objectRef) {
+      fail("delivery_missing", "github delivery names no reconcile object");
+    }
     const guard = (await ctx.db
       .prepare(
-        `SELECT last_event_time, last_delivery_id FROM github_reconcile_state WHERE workspace_id = ? AND repository_id = ? AND stream = ?`,
+        `SELECT last_event_time, last_delivery_id FROM github_reconcile_state WHERE workspace_id = ? AND repository_id = ? AND stream = ? AND ref = ?`,
       )
-      .get(ctx.workspaceId, effect.repositoryId, stream)) as
+      .get(ctx.workspaceId, effect.repositoryId, stream, objectRef)) as
       { last_event_time: string; last_delivery_id: string } | undefined;
     if (
       guard &&
@@ -1375,9 +1415,9 @@ export const reconcileGitHubCommand: HubCommand<ReconcileGitHubInput, ReconcileG
       await ctx.db
         .prepare(
           `UPDATE github_repository_links SET default_branch = ?, resource_version = resource_version + 1
-           WHERE repository_id = ? AND link_state = 'active'`,
+           WHERE workspace_id = ? AND repository_id = ? AND link_state = 'active'`,
         )
-        .run(observed.defaultBranch, effect.repositoryId);
+        .run(observed.defaultBranch, ctx.workspaceId, effect.repositoryId);
     }
     if (effect.event === "push" && effect.ref && effect.version) {
       await upsertEvidence(ctx.db, ctx.workspaceId, {
@@ -1421,9 +1461,9 @@ export const reconcileGitHubCommand: HubCommand<ReconcileGitHubInput, ReconcileG
     }
     await ctx.db
       .prepare(
-        `INSERT INTO github_reconcile_state (workspace_id, repository_id, stream, last_event_time, last_delivery_id, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?)
-         ON CONFLICT (workspace_id, repository_id, stream) DO UPDATE SET
+        `INSERT INTO github_reconcile_state (workspace_id, repository_id, stream, ref, last_event_time, last_delivery_id, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT (workspace_id, repository_id, stream, ref) DO UPDATE SET
            last_event_time = excluded.last_event_time,
            last_delivery_id = excluded.last_delivery_id,
            updated_at = excluded.updated_at`,
@@ -1432,6 +1472,7 @@ export const reconcileGitHubCommand: HubCommand<ReconcileGitHubInput, ReconcileG
         ctx.workspaceId,
         effect.repositoryId,
         stream,
+        objectRef,
         effect.occurredAt,
         input.deliveryId,
         ctx.now,
@@ -1460,38 +1501,38 @@ async function applyInstallationEvent(
     await ctx.db
       .prepare(
         `UPDATE github_app_installations SET status = 'active', updated_at = ?, resource_version = resource_version + 1
-         WHERE installation_id = ? AND status = 'pending'`,
+         WHERE installation_id = ? AND workspace_id = ? AND status = 'pending'`,
       )
-      .run(ctx.now, effect.installationId);
+      .run(ctx.now, effect.installationId, ctx.workspaceId);
   } else if (action === "deleted") {
     await ctx.db
       .prepare(
         `UPDATE github_app_installations
          SET status = 'revoked', revoked_at = ?, updated_at = ?, resource_version = resource_version + 1
-         WHERE installation_id = ? AND status != 'revoked'`,
+         WHERE installation_id = ? AND workspace_id = ? AND status != 'revoked'`,
       )
-      .run(ctx.now, ctx.now, effect.installationId);
+      .run(ctx.now, ctx.now, effect.installationId, ctx.workspaceId);
     await ctx.db
       .prepare(
         `UPDATE github_repository_links
          SET link_state = 'closed', closed_at = ?, resource_version = resource_version + 1
-         WHERE installation_id = ? AND link_state = 'active'`,
+         WHERE workspace_id = ? AND installation_id = ? AND link_state = 'active'`,
       )
-      .run(ctx.now, effect.installationId);
+      .run(ctx.now, ctx.workspaceId, effect.installationId);
   } else if (action === "suspend") {
     await ctx.db
       .prepare(
         `UPDATE github_app_installations SET status = 'suspended', updated_at = ?, resource_version = resource_version + 1
-         WHERE installation_id = ? AND status = 'active'`,
+         WHERE installation_id = ? AND workspace_id = ? AND status = 'active'`,
       )
-      .run(ctx.now, effect.installationId);
+      .run(ctx.now, effect.installationId, ctx.workspaceId);
   } else if (action === "unsuspend") {
     await ctx.db
       .prepare(
         `UPDATE github_app_installations SET status = 'active', updated_at = ?, resource_version = resource_version + 1
-         WHERE installation_id = ? AND status = 'suspended'`,
+         WHERE installation_id = ? AND workspace_id = ? AND status = 'suspended'`,
       )
-      .run(ctx.now, effect.installationId);
+      .run(ctx.now, effect.installationId, ctx.workspaceId);
   }
   await finishOutbox(
     ctx.db,
@@ -1603,6 +1644,9 @@ export const linkGitHubEvidenceCommand: HubCommand<LinkGitHubEvidenceInput, GitH
         ],
         "github evidence link",
       );
+      if (ctx.actorDelegationId) {
+        fail("forbidden", "direct authorized human required");
+      }
       if (!ctx.actorHumanId) {
         fail("unauthenticated", "human actor required");
       }
@@ -1737,42 +1781,6 @@ export const linkGitHubEvidenceCommand: HubCommand<LinkGitHubEvidenceInput, GitH
       };
     },
   };
-
-function knownPayloadKeys(event: string): readonly string[] {
-  switch (event) {
-    case "installation":
-      return ["action", "installation", "sender"];
-    case "installation_repositories":
-      return ["action", "installation", "repositories_added", "repositories_removed", "sender"];
-    case "push":
-      return ["ref", "head_commit", "repository", "installation", "sender"];
-    case "pull_request":
-      return ["action", "pull_request", "repository", "installation", "sender"];
-    case "check_run":
-      return ["action", "check_run", "repository", "installation", "sender"];
-    case "check_suite":
-      return ["action", "check_suite", "repository", "installation", "sender"];
-    case "status":
-      return [
-        "state",
-        "sha",
-        "context",
-        "name",
-        "updated_at",
-        "repository",
-        "installation",
-        "sender",
-      ];
-    case "issues":
-      return ["action", "issue", "repository", "installation", "sender"];
-    case "deployment":
-      return ["deployment", "repository", "installation", "sender"];
-    case "deployment_status":
-      return ["deployment_status", "deployment", "repository", "installation", "sender"];
-    default:
-      return [];
-  }
-}
 
 export interface GitHubStatusView {
   installations: Array<{
@@ -1944,14 +1952,21 @@ function parseGitHubRef(ref: string): { repositoryId: string; kind: string; name
  * Resolves A03-style generic evidence refs against GitHub observations.
  * A runner claim is never upgraded to GitHub verification without a matching
  * github-observed row; unknown kinds stay opaque per the results contract.
+ * A project scope narrows the lookup so callers answer only for evidence in
+ * projects the reader may see; reviewers always pass one.
  */
 export async function getEvidenceVerificationStatus(
   db: SqlDatabase,
   workspaceId: string,
   refs: EvidenceRefInput[],
+  options: { projectId?: string | undefined } = {},
 ): Promise<EvidenceVerification[]> {
   if (!Array.isArray(refs) || refs.length > 20) {
     fail("invalid_argument", "evidence refs must be a bounded list");
+  }
+  const projectId = options.projectId;
+  if (projectId !== undefined && !isUlid(projectId)) {
+    fail("invalid_argument", "project id is invalid");
   }
   const out: EvidenceVerification[] = [];
   for (const item of refs) {
@@ -1970,9 +1985,15 @@ export async function getEvidenceVerificationStatus(
     const rows = (await db
       .prepare(
         `SELECT observed_by, version_token FROM github_evidence
-         WHERE workspace_id = ? AND repository_id = ? AND kind = ? AND ref = ?`,
+         WHERE workspace_id = ? AND repository_id = ? AND kind = ? AND ref = ?${
+           projectId === undefined ? "" : " AND project_id = ?"
+         }`,
       )
-      .all(workspaceId, parsed.repositoryId, parsed.kind, parsed.name)) as Array<{
+      .all(
+        ...(projectId === undefined
+          ? [workspaceId, parsed.repositoryId, parsed.kind, parsed.name]
+          : [workspaceId, parsed.repositoryId, parsed.kind, parsed.name, projectId]),
+      )) as Array<{
       observed_by: GitHubObserver;
       version_token: string;
     }>;

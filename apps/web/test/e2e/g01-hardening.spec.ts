@@ -130,6 +130,7 @@ test("session cookies are http-only and same-site scoped", async ({ page, contex
   expect(session.length).toBeGreaterThan(0);
   for (const cookie of session) {
     expect(cookie.httpOnly).toBe(true);
+    expect(cookie.secure).toBe(true);
     expect(["Lax", "Strict"]).toContain(cookie.sameSite);
   }
   const values = cookies.map((cookie) => cookie.value).filter((value) => value.length > 0);

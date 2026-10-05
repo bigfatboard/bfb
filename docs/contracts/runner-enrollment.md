@@ -40,7 +40,10 @@ and regaining project access cannot resurrect that old grant; the runner owner
 must approve sharing again. C04's membership-removal event also remains the
 authority-revocation signal for commands attributed to that human.
 List results show only owned or explicitly granted runners; non-owners receive
-only their visible project IDs and their own launcher grant. Labels are at most
+only the intersection of their visible project IDs with the runner's current
+project grants, plus their own launcher grant. Per-runner checkout summaries
+apply the same intersection, so narrowing a runner's project grants immediately
+hides that project's checkouts from non-owner launchers. Labels are at most
 80 characters, using letters, numbers, spaces and limited display punctuation;
 slashes, control characters and paths are rejected.
 
@@ -170,7 +173,8 @@ challenge can renew only while the owner still has an eligible active role.
 C01's durable rate-limit service gates browser approval, challenge issuance,
 proof exchange and authentication. There are separate keyed IP and subject
 buckets per surface, with 20 bootstrap mutations or 60 reads per minute. Recurring
-L08 request-challenge, channel, pull and inventory surfaces have separate bounds:
+L08 request-challenge, channel, pull and inventory surfaces, plus E01 event
+ingest, have separate bounds:
 120 attempts per enrollment and 1,024 per IP per minute. An outer challenge-envelope
 budget also bounds malformed input; token challenges retain the 20-attempt bootstrap
 budget after parsing. Both changing

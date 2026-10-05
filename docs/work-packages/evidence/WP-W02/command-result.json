@@ -1,26 +1,35 @@
-[
-  {
-    "command": "pnpm test:w02",
-    "exit": 0,
-    "note": "C09 fixture check, build, protocol checks, launch domain suites, W02 unit suites, web build, synthetic C09 launch drive, and 9 Chromium scenarios all pass.",
-    "time": "2026-09-17T22:39:29Z"
-  },
-  {
-    "command": "BFB_CAPTURE_W02_EVIDENCE=1 pnpm test:w02:browser",
-    "exit": 0,
-    "note": "9 Chromium scenarios pass; screenshots and reports captured to the manifest directory.",
-    "time": "2026-09-17T22:45:01Z"
-  },
-  {
-    "command": "BFB_E2E_PORT=4174 pnpm verify",
-    "exit": 0,
-    "note": "Full repository verification passes (TypeScript, Go, Swift/Xcode, docs, roadmap, protocol, fixture checks).",
-    "time": "2026-09-17T22:44:31Z"
-  },
-  {
-    "command": "pnpm worktree:check",
-    "exit": 0,
-    "note": "Worktree clean after the evidence commit.",
-    "time": "2026-09-17T23:00:00Z"
-  }
-]
+{
+  "package": "W02",
+  "tested_commit": "8a9bc98c8c59f602dee8af7b63687e38816901b9",
+  "environment": "detached clean checkout on macOS (arm64) with the synthetic C09 launch drive and real Chromium",
+  "outcome": "passed",
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "result": "frozen lockfile install in a detached clean checkout"
+    },
+    {
+      "command": "pnpm test:w02",
+      "outcome": "passed",
+      "result": "C09 fixture check, build, protocol checks, launch domain suites, W02 unit suites (unsettled-launch matrix plus launch-refresh card cases: post-claim interval re-read, invalidation refetch, settled quiet; plus non-owner checkout grant-intersection cases on both checkout reads and the embedded runners-list status), web build, synthetic C09 launch drive (C09_D1_MIGRATION_OK, C09_D1_CLAIM_OK, C09_D1_CONTAINMENT_OK, C09_D1_RESUME_OK, C09_D1_RECONCILE_OK, C09_D1_OK), and 10 Chromium scenarios, all passing"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "result": "full repository verification: format, lint, typecheck, protocol, provider, TypeScript suites (1264 tests across 103 files), headers, docs, roadmap (45 packages), Go, Swift/Xcode"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "result": "clean worktree at the evidence commit"
+    }
+  ],
+  "redaction": "passed",
+  "notes": [
+    "The exact gate (install, test:w02) passed from a detached clean checkout at the tested commit; that checkout was removed afterwards.",
+    "Evidence manifest and command results are docs-only additions after the tested commit; pnpm verify and pnpm worktree:check were re-run on the evidence tree.",
+    "Screenshots and browser reports under this directory illustrate the reviewed UI states; they carry no commit claim.",
+    "No secrets, task bodies, or local absolute paths are retained."
+  ]
+}

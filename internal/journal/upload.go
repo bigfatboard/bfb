@@ -13,9 +13,10 @@ import (
 	"github.com/qdis/bfb/internal/protocol/generated"
 )
 
-// UploadAction is the runner channel action carrying event batches. E01 owns
-// the real ingest endpoint and must preserve disposition-only deletion.
-const UploadAction = "events/submit"
+// UploadAction is the runner channel action carrying event batches. It names
+// the E01 ingest route served at .../events/ingest (the nativePattern in
+// apps/control-worker/src/api/events.ts); E01 owns disposition-only deletion.
+const UploadAction = "events/ingest"
 
 // Connection is the narrow authenticated transport boundary the uploader needs.
 // *runner.Connection satisfies it; tests supply a scripted fake.
@@ -126,12 +127,32 @@ FROM hook_journal WHERE runner_id = ? ORDER BY captured_at, rowid LIMIT ?`, runn
 		// Offline enrollments keep their rows; the next due sweep retries.
 		return 0, len(batch), nil
 	}
+	// Shrink the batch to the E01 transport bounds: at most maxUploadBatch
+	// items with a body of at most uploadBodyLimit bytes. The batch holds
+	// the oldest rows, so every UploadOnce makes progress and the journal
+	// drains instead of stalling on a whole-batch transport rejection.
+	// Oversized single items are still delivered one per batch: the server
+	// answers those with a per-event permanently_rejected disposition that
+	// quarantines exactly that row.
+	sent := batch[:0]
 	events := make([]json.RawMessage, 0, len(batch))
 	for _, event := range batch {
-		events = append(events, json.RawMessage(event.submission))
+		candidate := append(events, json.RawMessage(event.submission))
+		body, err := json.Marshal(map[string]any{"schema_version": 1, "events": candidate})
+		if err != nil {
+			return 0, len(batch), failure("storage_failed")
+		}
+		if len(body) > uploadBodyLimit && len(events) > 0 {
+			break
+		}
+		events = candidate
+		sent = append(sent, event)
 	}
+	batch = sent
 	body, err := json.Marshal(map[string]any{"schema_version": 1, "events": events})
-	if err != nil || len(body) > 1_048_576 {
+	// Journaled submissions carry an empty payload object, so one item always
+	// fits; the length arm only guards against local corruption.
+	if err != nil || (len(body) > uploadBodyLimit && len(batch) > 1) {
 		return 0, len(batch), failure("storage_failed")
 	}
 	response, err := connection.Request(ctx, "POST", UploadAction, body)

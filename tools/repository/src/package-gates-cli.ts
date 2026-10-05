@@ -4,7 +4,7 @@
 import { readFile } from "node:fs/promises";
 
 import { runCommand } from "./commands.js";
-import { packageGates } from "./package-gates.js";
+import { planPackageGates } from "./package-gates.js";
 import { inspectRoadmap } from "./roadmap.js";
 import { assertCleanWorktree } from "./worktree.js";
 
@@ -24,7 +24,19 @@ const packageJson = JSON.parse(await readFile("package.json", "utf8")) as {
   scripts?: Record<string, unknown>;
 };
 const availableScripts = new Set(Object.keys(packageJson.scripts ?? {}));
-for (const gate of packageGates(inspection.packages, availableScripts)) {
+const plan = planPackageGates(inspection.packages, availableScripts);
+for (const gate of plan.skipped) {
+  console.log(
+    "Package gate " +
+      gate.packages.join(", ") +
+      ": requires macOS (pnpm " +
+      gate.args[0] +
+      "), skipped on " +
+      process.platform +
+      "; proven on maintainer Macs, see its evidence manifest",
+  );
+}
+for (const gate of plan.run) {
   if (gate.args[0] === "verify") {
     console.log("Package gate " + gate.packages.join(", ") + ": satisfied by pnpm verify");
     continue;

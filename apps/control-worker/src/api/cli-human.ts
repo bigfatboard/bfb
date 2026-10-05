@@ -1,11 +1,15 @@
 // ABOUTME: Serves the X02 human CLI mirror over bearer CLI credentials only.
 // ABOUTME: Reads and guarded writes reuse domain commands; this file owns no domain mutation.
 
+import { createHmac } from "node:crypto";
+
 import { createAuthorizationContext, type SqlDatabase } from "@bfb/db";
 import {
   answerAttentionCommand,
   assertTaskChildAccess,
   cancelRunCommand,
+  cliHash,
+  consumeCliBudget,
   consumeStepUpProof,
   createTaskCommand,
   DomainError,
@@ -44,6 +48,7 @@ export interface CliHumanDeps {
   db: SqlDatabase;
   now: string;
   jurisdiction: Jurisdiction;
+  abuseSecret: string;
   workspaceHubNs?: DurableObjectNamespace | undefined;
 }
 
@@ -88,10 +93,46 @@ function fail(error: unknown): Response {
   return json({ error: "request_failed", message: "request failed" }, 500);
 }
 
+function cliSeeds(
+  abuseSecret: string,
+  request: Request,
+): { ipSeed: string; subjectSeed: string } | null {
+  if (typeof abuseSecret !== "string" || abuseSecret.length < 32) return null;
+  const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
+  return {
+    ipSeed: createHmac("sha256", abuseSecret)
+      .update(`cli-ip:${ip.slice(0, 64)}`)
+      .digest("hex"),
+    subjectSeed: createHmac("sha256", abuseSecret).update("cli-subject").digest("hex"),
+  };
+}
+
+/**
+ * Consumes the bearer-auth budget for one presented credential before it
+ * costs a D1 lookup. The subject carries only the credential hash, so failed
+ * probes consume the same per-IP and per-credential budgets as successful
+ * resolutions; exhaustion rejects uniformly without an oracle.
+ */
+async function consumeBearerBudget(
+  deps: Pick<CliHumanDeps, "db" | "now" | "abuseSecret">,
+  request: Request,
+  bearer: string,
+): Promise<boolean> {
+  const seeds = cliSeeds(deps.abuseSecret, request);
+  if (!seeds) return false;
+  return consumeCliBudget(deps.db, {
+    ...seeds,
+    surface: "cli:bearer-auth",
+    subject: `bearer-auth:${cliHash(bearer)}`,
+    activity: "poll",
+    now: deps.now,
+  });
+}
+
 /** Resolves the bearer human credential; cookies and browser origins never authenticate here. */
 async function authenticate(
   request: Request,
-  deps: Pick<CliHumanDeps, "db" | "now">,
+  deps: Pick<CliHumanDeps, "db" | "now" | "abuseSecret">,
 ): Promise<CliPrincipal> {
   if (request.headers.has("cookie") || request.headers.has("origin")) {
     throw new DomainError("credential_confusion", "CLI routes accept bearer CLI credentials only");
@@ -100,6 +141,9 @@ async function authenticate(
   const match = /^Bearer ([A-Za-z0-9._~-]{1,512})$/.exec(authorization);
   if (!match?.[1]) {
     throw new DomainError("unauthenticated", "CLI credential required");
+  }
+  if (!(await consumeBearerBudget(deps, request, match[1]))) {
+    throw new DomainError("forbidden", "request rejected");
   }
   return resolveCliPrincipal(deps.db, match[1], deps.now);
 }

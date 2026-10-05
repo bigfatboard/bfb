@@ -3,17 +3,28 @@
 | Version | Date | Change |
 | --- | --- | --- |
 | 1 | 2026-09-17 | Freeze V01 state machine, client, and MCP seam. |
+| 2 | 2026-09-18 | Retention purge records `retained` versions (finding 24). |
 
 Consumers: V02 (views), V03 (review), X02 (CLI parity), A01 (run-scoped MCP tool).
 
 ## State machine
 
-`uploading` → `available` | `uploading` → `failed`. No other transition exists;
-the D1 trigger `artifact_versions_state_guarded` aborts anything else, and
-`available` additionally requires a verified content hash and R2 key. Only
-`available` versions may be viewed or reviewed. `uploading` rows hold no
-trusted bytes. `failed` rows are terminal. Distinct logical versions may share
-one content hash; v0.1 has no blob delete path by design.
+`uploading` → `available` | `uploading` → `failed` | `available` →
+`retained`. No other transition exists; the D1 trigger
+`artifact_versions_state_guarded` aborts anything else, and `available`
+additionally requires a verified content hash and R2 key. Only `available`
+versions may be viewed or reviewed. `uploading` rows hold no trusted bytes.
+`failed` rows are terminal. `retained` rows are terminal purge records
+written only by the X05 retention sweep after it deletes a per-run raw log
+R2 object: the content hash, R2 key, and metadata stay intact while the
+bytes are gone, so grants for a `retained` version reject like unknown
+versions instead of reaching byte reads. Distinct logical versions may share
+one content hash; v0.1 has no blob delete path by design. Identical bytes
+published for another workspace, or for another log version, are stored as
+separate objects under their own server-derived keys and finalize
+independently — a repeat publication never conflicts and reveals nothing
+about bytes held by another tenant. Only same-workspace review re-uploads of
+identical bytes converge on one stored object.
 
 ## Roles, formats, limits
 
@@ -32,7 +43,10 @@ one content hash; v0.1 has no blob delete path by design.
   declared_size, expected_digest, upload_grant: {grant_id, version_id,
   secret, expires_at}}`. In one hub batch this creates the artifact (unless
   `artifact_id` names an existing one with identical format/role/run), an
-  `uploading` version, a one-time grant, and an audit row.
+  `uploading` version, a one-time grant, and an audit row. Creation requires
+  an owner/member at the current epoch; when `run_id` names a run, the author
+  must hold project access to that run's project, otherwise the uniform
+  rejection applies. Run-free artifacts need membership only.
 - `POST .../artifacts/:version/grants` → `201 {grant_id, version_id,
   secret, expires_at}`. Recovery path for a consumed or expired grant on an
   `uploading` version; terminal versions are rejected.
@@ -54,10 +68,12 @@ bytes the worker consumes the grant in one conditional D1 batch that rechecks
 expiry, `uploading` state, and the current authorization epoch; a racing or
 replayed redemption aborts with no effect. Then it enforces exact size,
 SHA-256, format/MIME, and role/kind, and writes R2 with a conditional create
-(`onlyIf: etagDoesNotMatch: *`, verified `sha256`): an existing object is
-verified by size and stored checksum, never overwritten. The verified receipt
-is recorded before the `200 {version_id, artifact_id, content_hash, size,
-r2_key, deduplicated}` response.
+(`onlyIf: etagDoesNotMatch: *`, verified `sha256`) against the version's own
+server-derived key: an existing object under that same key is verified by
+size and stored checksum, never overwritten, while a different version or
+workspace holds a different key and uploads its own object. The verified
+receipt is recorded before the `200 {version_id, artifact_id, content_hash,
+size, r2_key, deduplicated}` response.
 
 Content errors after redemption are `422 {error: upload_rejected, message:
 size_mismatch | digest_mismatch | mime_mismatch | role_mismatch}`; the
@@ -69,13 +85,19 @@ past the global bound are `413 body_too_large`.
 - Review: `workspaces/<workspace>/artifacts/sha256/<content-hash>`
 - Log chunk: `workspaces/<workspace>/runs/<run>/logs/<version>.jsonl.zst`
 
+The D1 object registry (`artifact_objects`) is keyed by `(workspace_id,
+r2_key)`, not by content hash: the stored object identity is the
+server-derived key inside its workspace. Finalization binds each version to
+its own expected key, so a version can never finalize against another
+version's or another workspace's bytes.
+
 ## Recovery
 
 `artifact.mark_failed` (human member, or the system actor for Cron) moves an
 `uploading` version to `failed` with an audit row. The control Cron (every 5
 minutes) runs the same sweep the harness calls `runArtifactSweep` for:
 versions whose every grant expired past a 5-minute grace become `failed`.
-Shared content-addressed bytes are never deleted. Retry always converges
+Stored bytes are never deleted. Retry always converges
 through re-grant or a new version, never through overwriting.
 
 ## Abuse budgets
@@ -86,7 +108,9 @@ and survive Worker-isolate changes through shared D1 counters. Subjects are
 hashes of principals, versions, or grants. Uploads fail closed while
 `UPLOAD_ABUSE_SECRET` (Artifact Worker) or `AUTH_ABUSE_SECRET` (control) is
 missing or short; staging/production set the former with `wrangler secret
-put UPLOAD_ABUSE_SECRET`.
+put UPLOAD_ABUSE_SECRET`, and local `wrangler dev` reads it from the
+gitignored `apps/artifact-worker/.dev.vars`. No committed `wrangler.toml`
+may inline a secret value.
 
 ## Go publish client (`internal/artifact`)
 

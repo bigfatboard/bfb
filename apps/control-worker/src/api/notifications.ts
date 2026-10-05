@@ -38,6 +38,10 @@ function json(body: unknown, status = 200): Response {
   return Response.json(body, { status });
 }
 
+function rejected(): Response {
+  return json({ error: "request_rejected", message: "request rejected" }, 403);
+}
+
 function objectBody(value: unknown, allowed: readonly string[]): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new DomainError("invalid_argument", "request body must be an object");
@@ -119,6 +123,20 @@ function outcomeResponse(outcome: { ok: boolean; error?: { code: string } }): Re
 
 /** The mounted browser router has already checked the human session, origin and CSRF token. */
 export async function handleNotificationApi(
+  request: Request,
+  deps: NotificationApiDeps,
+): Promise<Response> {
+  try {
+    return await handleNotificationApiInner(request, deps);
+  } catch (error) {
+    if (error instanceof DomainError && error.code === "request_rejected") {
+      return rejected();
+    }
+    throw error;
+  }
+}
+
+async function handleNotificationApiInner(
   request: Request,
   deps: NotificationApiDeps,
 ): Promise<Response> {

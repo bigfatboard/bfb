@@ -195,6 +195,30 @@ export function newIdempotencyKey(): string {
   return browserUlid();
 }
 
+export type StartAttemptAnswer = "stored" | "rejected" | "unanswered";
+
+/**
+ * Whether a Start attempt settles its idempotency key so the next Start mints
+ * a fresh one. A stored launch owns the key, and a typed rejection stored
+ * nothing (the launch route answers only after the domain batch commits, and
+ * every rejection precedes the key write), so both settle it. Only a lost
+ * response keeps the key, so the next click replays the same request instead
+ * of recording a second launch.
+ */
+export function startAttemptSettlesKey(answer: StartAttemptAnswer): boolean {
+  return answer !== "unanswered";
+}
+
+/**
+ * Whether a received run-control result settles its scope's idempotency key.
+ * Settled controls (applied, rejected, expired) free the key so a later press
+ * issues a new control; live controls (pending, claimed) keep it so repeated
+ * presses replay the same control.
+ */
+export function isSettledControlState(state: string): boolean {
+  return state === "applied" || state === "rejected" || state === "expired";
+}
+
 export type CheckoutDisplay = "ready" | "empty" | "invalid" | "unavailable";
 
 /**
@@ -216,6 +240,27 @@ export function describeCheckoutDisplay(
     return "invalid";
   }
   return readFailed ? "unavailable" : "empty";
+}
+
+/**
+ * Resolves the Start form's checkout against the task's project only. Defaults
+ * are per (runner, project), so the unfiltered inventory can carry another
+ * project's default first: resolving from the unfiltered list would post a
+ * checkout the select never offered. A stale explicit selection from another
+ * project falls back to this project's default, and a project with no
+ * checkout resolves to empty so Start stays disabled instead of posting a
+ * foreign checkout.
+ */
+export function resolveEffectiveCheckoutId(
+  selectedId: string,
+  checkouts: CheckoutSummary[],
+  projectId: string,
+): string {
+  const scoped = checkouts.filter((checkout) => checkout.project_id === projectId);
+  if (selectedId && scoped.some((checkout) => checkout.checkout_id === selectedId)) {
+    return selectedId;
+  }
+  return scoped.find((checkout) => checkout.is_default)?.checkout_id ?? "";
 }
 
 /** Copy for the linked-checkouts block. Null when checkouts render as a list. */
@@ -494,4 +539,22 @@ export function describeLaunchStatus(launch: LaunchStatus): LaunchPresentation {
 
 export function resultLabel(resultState: string): string {
   return `Result: ${resultState.replaceAll("_", " ")} (recorded separately)`;
+}
+
+/**
+ * Whether a launch can still change presentation without a new explicit
+ * command, so the card must keep refreshing it. Only expired, rejected,
+ * cancelled, and ended launches render a final state: attached, detached,
+ * and containment-unknown launches still move (the daemon reports attach,
+ * loss, exit, and local recovery through the same read), as do launches
+ * still awaiting claim.
+ */
+export function isUnsettledLaunch(launch: LaunchStatus): boolean {
+  if (launch.state === "expired" || launch.state === "rejected" || launch.cancelled) {
+    return false;
+  }
+  if (launch.execution_state === "ended") {
+    return false;
+  }
+  return true;
 }

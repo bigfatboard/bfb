@@ -148,7 +148,9 @@ export const createViewGrantCommand: HubCommand<CreateViewGrantInput, ViewGrant>
       rejectViewRequest();
     }
     // Any workspace member may open a preview, including reviewers who approve
-    // artifacts; project scoping for views is a V03 review concern.
+    // artifacts. When the version's artifact names a run, the viewer must
+    // hold project access to that run's project; run-free artifacts need
+    // membership only, matching the review write path.
     const principal = await loadPrincipal(ctx.db, ctx.workspaceId, ctx.actorHumanId);
     assertEpoch(principal, ctx.authorizationEpoch);
     if (typeof input.versionId !== "string" || !isUlid(input.versionId)) rejectViewRequest();
@@ -176,6 +178,18 @@ export const createViewGrantCommand: HubCommand<CreateViewGrantInput, ViewGrant>
       | undefined;
     if (!version || version.state !== "available" || !version.content_hash || !version.r2_key) {
       rejectViewRequest();
+    }
+    const artifact = (await ctx.db
+      .prepare(`SELECT run_id FROM artifacts WHERE workspace_id = ? AND id = ?`)
+      .get(ctx.workspaceId, version.artifact_id)) as { run_id: string | null } | undefined;
+    if (!artifact) rejectViewRequest();
+    if (artifact.run_id) {
+      const run = (await ctx.db
+        .prepare(`SELECT project_id FROM runs WHERE workspace_id = ? AND id = ?`)
+        .get(ctx.workspaceId, artifact.run_id)) as { project_id: string } | undefined;
+      // The rejection stays uniform with unknown versions so the project
+      // boundary discloses no existence signal.
+      if (run && !principal.projectIds.includes(run.project_id)) rejectViewRequest();
     }
     const nowMs = Date.parse(ctx.now);
     if (!Number.isFinite(nowMs)) rejectViewRequest();

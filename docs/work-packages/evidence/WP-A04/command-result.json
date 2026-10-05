@@ -1,6 +1,6 @@
 {
   "gate": "pnpm test:a04",
-  "tested_tree": "34691ee59b32291bdcba7e53897559a936e8e487",
+  "tested_tree": "1c9ae5499ff25a33b8da4c2ed24982c538612f02",
   "outcome": "passed",
   "steps": [
     {
@@ -10,7 +10,7 @@
     {
       "command": "vitest run packages/domain/test/measurements.test.ts apps/control-worker/test/measurement-routes.test.ts apps/web/test/measurements.test.ts packages/db/test/migrations.test.ts",
       "outcome": "passed",
-      "detail": "4 files, 49 tests (34 domain, 4 routes, 4 view, 7 migrations)"
+      "detail": "4 files, 49 tests"
     },
     {
       "command": "pnpm exec tsc -b tools/measurements --pretty false",
@@ -28,17 +28,20 @@
     {
       "command": "BFB_E2E_PORT=4187 playwright test apps/web/test/e2e/a04-measurements.spec.ts",
       "outcome": "passed",
-      "detail": "2 browser tests: separated task-sheet sections with run API trace; owner review-timer start/stop with screenshots"
+      "detail": "2 browser tests passed: separated task-sheet sections with run API trace; owner review-timer start/stop with screenshots"
     },
     {
       "command": "pnpm verify",
       "outcome": "passed",
-      "detail": "format, lint, typecheck, protocol, provider, full tests, headers, docs, roadmap, go, swift"
+      "detail": "format, lint, typecheck, protocol, provider, TypeScript suites (1264 tests across 103 files), headers, docs, roadmap (45 packages), Go, Swift/Xcode"
     },
     {
       "command": "pnpm worktree:check",
       "outcome": "passed"
     }
   ],
-  "redaction": "summary only; no terminal output, secrets, or local paths retained"
+  "redaction": "summary only; no terminal output, secrets, or local paths retained",
+  "notes": [
+    "The exact gate passed from a detached clean checkout at the tested commit; evidence manifest and command results are docs-only additions after it, and pnpm verify plus pnpm worktree:check were re-run on the evidence tree."
+  ]
 }

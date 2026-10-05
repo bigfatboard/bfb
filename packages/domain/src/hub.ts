@@ -410,16 +410,19 @@ function validateCommand<TInput>(name: string, request: CommandRequest<TInput>):
   }
 }
 
+// Only DomainError carries a client-safe code and message. Driver and runtime
+// failures (for example D1/SQLite constraint text) stay behind a uniform
+// failure so API clients never observe schema or infrastructure detail.
 function commandFailure<TResult>(error: unknown): CommandOutcome<TResult> {
+  if (error instanceof DomainError) {
+    return {
+      ok: false,
+      error: { code: error.code, message: error.message },
+    };
+  }
   return {
     ok: false,
-    error: {
-      code:
-        error instanceof Error && "code" in error
-          ? String((error as { code: string }).code)
-          : "command_failed",
-      message: error instanceof Error ? error.message : "command failed",
-    },
+    error: { code: "command_failed", message: "command failed" },
   };
 }
 

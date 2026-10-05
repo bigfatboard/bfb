@@ -110,9 +110,17 @@ export async function checkoutStatusForRunner(
     };
   }
   const ownsRunner = runner.owner_human_id === principal.humanId;
+  // listRunners already intersects the runner's project grants with the caller's
+  // visible projects for non-owners (granted_project_ids); checkouts must apply
+  // the same intersection so narrowing grants hides that project's checkout
+  // summaries from non-owner launchers immediately.
+  const granted = new Set(runner.granted_project_ids);
   const visible = ownsRunner
     ? inventory.checkouts
-    : inventory.checkouts.filter((checkout) => principal.projectIds.includes(checkout.project_id));
+    : inventory.checkouts.filter(
+        (checkout) =>
+          granted.has(checkout.project_id) && principal.projectIds.includes(checkout.project_id),
+      );
   return {
     runner_id: runner.runner_id,
     device_label: runner.device_label,

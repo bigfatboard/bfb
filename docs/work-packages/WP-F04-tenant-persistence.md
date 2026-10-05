@@ -66,12 +66,14 @@ Every later cloud package builds on one reviewed D1 migration chain and tenant-s
 - D1 batched writes never invent pre-commit change counts or expose read-your-writes. Commands perform reads before queued writes; repository operations that require a conditional-write result run outside a deferred batch.
 - Wire-schema generation and D1 schema evolution remain independent.
 
-## Evidence and handoff
+## Evidence
 
 - Commit migration diagrams, schema snapshots, empty/previous migration results, interruption traces, and repository-boundary coverage.
-- C01 consumes the migration/batch/repository primitives and workspace registry; later packages append migrations without replacing this foundation.
-- F04 evidence covers the F04-owned repository surface only. C01, C02, C04, C07, C08, and X03A remain blocked from completion until their production tenant queries consume the authorization boundary instead of raw workspace identifiers.
-
 ## Risks and decisions
 
 - D1 has no row-level security. Composite keys, mandatory repository context, database constraints, and exhaustive negative tests are all required rather than alternative defenses.
+
+## Handoff
+
+- C01 consumes the migration/batch/repository primitives and workspace registry; later packages append migrations without replacing this foundation.
+- F04 evidence covers the F04-owned repository surface only. C01, C02, C04, C07, C08, and X03A remain blocked from completion until their production tenant queries consume the authorization boundary instead of raw workspace identifiers.

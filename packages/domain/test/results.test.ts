@@ -701,6 +701,87 @@ describe("agent result submission", () => {
     expect(err(revoked)).toBe("forbidden");
   });
 
+  it("binds runner submission to the current assignment generation", async () => {
+    const db = await openDomainDb();
+    const hub = new WorkspaceHub(db);
+    const { taskId, runId } = await createTaskAndRun(db, hub, "superseded");
+    const first = await seedRunnerAgent(db, hub, "superseded-1", runId, taskId);
+    const runnerId = randomUlid();
+    const checkoutId = randomUlid();
+    const thumbprint = `synthetic-superseded-key`;
+    await db
+      .prepare(
+        `INSERT INTO runners
+         (workspace_id, id, owner_human_id, device_label, public_key_json,
+          key_thumbprint, authorization_epoch, grant_epoch, token_epoch, enrolled_at, revoked_at)
+         VALUES (?, ?, ?, 'Synthetic superseding Mac', '{}', ?, 1, 1, 1, ?, NULL)`,
+      )
+      .run(FIX.workspace, runnerId, FIX.owner, thumbprint, NOW);
+    await db
+      .prepare(
+        `INSERT INTO runner_project_grants (workspace_id, runner_id, project_id) VALUES (?, ?, ?)`,
+      )
+      .run(FIX.workspace, runnerId, FIX.projectA);
+    ok(
+      await hub.execute(
+        transitionExecutionCommand,
+        human("superseded-end", {
+          runId,
+          executionId: first.executionId,
+          expectedVersion: 1,
+          state: "ended" as const,
+          endReason: "process_exit" as const,
+        }),
+      ),
+    );
+    const execution = ok(
+      await hub.execute(createExecutionCommand, human("superseded-execution-2", { runId })),
+    );
+    await db
+      .prepare(
+        `INSERT INTO execution_assignments
+         (workspace_id, execution_id, assignment_generation, run_id, task_id, project_id,
+          runner_id, checkout_id, physical_worktree_hash, requesting_human_id,
+          requesting_human_epoch, runner_authorization_epoch, runner_grant_epoch,
+          runner_key_thumbprint, created_at)
+         VALUES (?, ?, 2, ?, ?, ?, ?, ?, ?, ?, 1, 1, 1, ?, ?)`,
+      )
+      .run(
+        FIX.workspace,
+        execution.id,
+        runId,
+        taskId,
+        FIX.projectA,
+        runnerId,
+        checkoutId,
+        TREE_HASH,
+        FIX.owner,
+        thumbprint,
+        NOW,
+      );
+    const stale = await hub.execute(
+      submitResultCommand,
+      runnerRequest("superseded-stale", first.runnerId, {
+        runId,
+        summary: "Synthetic superseded submission",
+      }),
+    );
+    expect(err(stale)).toBe("forbidden");
+    const current = ok(
+      await hub.execute(
+        submitResultCommand,
+        runnerRequest("superseded-current", runnerId, {
+          runId,
+          summary: "Synthetic current submission",
+        }),
+      ),
+    );
+    expect(current.submission).toMatchObject({
+      submitted_by_kind: "agent_run",
+      submitted_by_id: runId,
+    });
+  });
+
   it("forbids the agent from reviewing, failing, or cancelling", async () => {
     const db = await openDomainDb();
     const hub = new WorkspaceHub(db);

@@ -305,6 +305,248 @@ describe("github effect extraction", () => {
     expect(() => extractWebhookEffect("push", { repository }, NOW)).toThrow(DomainError);
     expect(() => extractWebhookEffect("push", "nope", NOW)).toThrow(DomainError);
   });
+
+  it("accepts documented GitHub shapes with keys BFB never reads", () => {
+    const sender = { login: ACCOUNT };
+    // Documented push keys (before/after/commits/pusher) plus head_commit
+    // keys (tree_id/committer) ride along and must not reject the delivery.
+    const push = extractWebhookEffect(
+      "push",
+      {
+        ref: "refs/heads/main",
+        before: "a".repeat(40),
+        after: "b".repeat(40),
+        created: false,
+        deleted: false,
+        forced: false,
+        base_ref: null,
+        compare: "https://github.com/synthetic-org/synthetic-repo/compare/aaa...bbb",
+        commits: [{ id: "b".repeat(40), message: "Synthetic" }],
+        head_commit: {
+          id: "b".repeat(40),
+          tree_id: "c".repeat(40),
+          timestamp: NOW,
+          message: "Synthetic",
+          author: { name: "Synthetic" },
+          committer: { name: "Synthetic" },
+        },
+        repository,
+        pusher: { name: ACCOUNT },
+        installation,
+        sender,
+      },
+      LATER,
+    );
+    expect(push.supported).toBe(true);
+    expect(push.effect?.ref).toBe("main");
+    expect(push.effect?.version).toBe("b".repeat(40));
+
+    // installation.created carries repositories/requester plus installation
+    // metadata BFB never reads; it must still activate the installation.
+    const created = extractWebhookEffect(
+      "installation",
+      {
+        action: "created",
+        installation: {
+          ...installation,
+          app_id: 999000,
+          app_slug: "synthetic-app",
+          repository_selection: "all",
+          permissions: { metadata: "read" },
+          events: ["push"],
+          created_at: NOW,
+          updated_at: NOW,
+        },
+        repositories: [{ id: Number(REPOSITORY), full_name: "synthetic-org/synthetic-repo" }],
+        requester: null,
+        sender,
+      },
+      LATER,
+    );
+    expect(created.supported).toBe(true);
+    expect(created.effect?.action).toBe("created");
+
+    // pull_request.opened repeats the number at the top level and the nested
+    // pull request carries dozens of documented keys beyond the extracted few.
+    const pull = extractWebhookEffect(
+      "pull_request",
+      {
+        action: "opened",
+        number: 7,
+        pull_request: {
+          number: 7,
+          id: 111222333,
+          url: "https://api.github.com/repos/synthetic-org/synthetic-repo/pulls/7",
+          head: { sha: "b".repeat(40), ref: "feature-x04", label: "synthetic-org:feature-x04" },
+          base: { ref: "main" },
+          state: "open",
+          merged: false,
+          title: "Synthetic",
+          updated_at: NOW,
+        },
+        repository,
+        installation,
+        sender,
+      },
+      LATER,
+    );
+    expect(pull.effect?.ref).toBe("7");
+    expect(pull.effect?.version).toBe("b".repeat(40));
+
+    // deployment.created carries a top-level action BFB records, not rejects.
+    const deployment = extractWebhookEffect(
+      "deployment",
+      {
+        action: "created",
+        deployment: {
+          id: 6060,
+          sha: "b".repeat(40),
+          environment: "synthetic-staging",
+          created_at: NOW,
+          creator: { login: ACCOUNT },
+        },
+        repository,
+        installation,
+        sender,
+      },
+      LATER,
+    );
+    expect(deployment.supported).toBe(true);
+    expect(deployment.effect?.ref).toBe("6060");
+
+    // check_run/check_suite/status/issues/deployment_status tolerate extras too.
+    const check = extractWebhookEffect(
+      "check_run",
+      {
+        action: "completed",
+        check_run: {
+          id: 4242,
+          name: "ci",
+          head_sha: "c".repeat(40),
+          status: "completed",
+          conclusion: "success",
+          started_at: NOW,
+          completed_at: NOW,
+          pull_requests: [{ number: 7 }],
+          app: { id: 999000, slug: "synthetic-app" },
+        },
+        repository,
+        installation,
+        sender,
+      },
+      LATER,
+    );
+    expect(check.effect?.ref).toBe("4242");
+
+    const suite = extractWebhookEffect(
+      "check_suite",
+      {
+        action: "completed",
+        check_suite: {
+          id: 5150,
+          head_sha: "c".repeat(40),
+          status: "completed",
+          conclusion: "success",
+          created_at: NOW,
+          updated_at: NOW,
+          pull_requests: [],
+          app: { id: 999000 },
+        },
+        repository,
+        installation,
+        sender,
+      },
+      LATER,
+    );
+    expect(suite.effect?.ref).toBe("5150");
+
+    const status = extractWebhookEffect(
+      "status",
+      {
+        state: "success",
+        sha: "c".repeat(40),
+        context: "synthetic-ci/status",
+        name: "synthetic-ci/status",
+        target_url: "https://example.test/run/1",
+        description: "Synthetic",
+        updated_at: NOW,
+        repository,
+        installation,
+        sender,
+      },
+      LATER,
+    );
+    expect(status.supported).toBe(true);
+
+    const issue = extractWebhookEffect(
+      "issues",
+      {
+        action: "opened",
+        issue: {
+          number: 9,
+          state: "open",
+          title: "Synthetic",
+          updated_at: NOW,
+          id: 444555666,
+          user: { login: ACCOUNT },
+        },
+        repository,
+        installation,
+        sender,
+      },
+      LATER,
+    );
+    expect(issue.effect?.ref).toBe("9");
+
+    const deployStatus = extractWebhookEffect(
+      "deployment_status",
+      {
+        action: "created",
+        deployment_status: {
+          id: 7070,
+          state: "success",
+          deployment: { id: 6060 },
+          created_at: NOW,
+          updated_at: NOW,
+          creator: { login: ACCOUNT },
+        },
+        deployment: { id: 6060 },
+        repository,
+        installation,
+        sender,
+      },
+      LATER,
+    );
+    expect(deployStatus.effect?.ref).toBe("6060");
+  });
+
+  it("still rejects structurally invalid documented-shape payloads", () => {
+    // Missing installation can never reconcile.
+    expect(() => extractWebhookEffect("push", { ref: "refs/heads/main", repository }, NOW)).toThrow(
+      DomainError,
+    );
+    // Non-object nested payloads are malformed, not merely unknown keys.
+    expect(() =>
+      extractWebhookEffect(
+        "pull_request",
+        { action: "opened", pull_request: "nope", repository, installation },
+        NOW,
+      ),
+    ).toThrow(DomainError);
+    // Fields reconcile reads are still validated: a bad sha fails closed.
+    expect(() =>
+      extractWebhookEffect(
+        "push",
+        {
+          ref: "refs/heads/main",
+          head_commit: { id: "not-a-sha", timestamp: NOW },
+          repository,
+          installation,
+        },
+        NOW,
+      ),
+    ).toThrow(DomainError);
+  });
 });
 
 describe("github installation management", () => {
@@ -372,6 +614,18 @@ describe("github installation management", () => {
     const proof = await stepUp(db, FIX.owner, "github.install", target);
     expect((await attempt(FIX.owner, proof)).ok).toBe(true);
     expect((await attempt(FIX.owner, proof)).ok).toBe(false);
+    // A delegated envelope is rejected before step-up, even with a fresh Owner proof.
+    const delegatedProof = await stepUp(db, FIX.owner, "github.install", target);
+    const delegated = await hub(db).execute(installGitHubCommand, {
+      workspaceId: FIX.workspace,
+      idempotencyKey: randomUlid(),
+      actorHumanId: FIX.owner,
+      actorDelegationId: randomUlid(),
+      authorizationEpoch: 1,
+      now: NOW,
+      input: { ...base, stepUpProofId: delegatedProof },
+    });
+    expect(delegated).toMatchObject({ ok: false, error: { code: "forbidden" } });
   });
 
   it("removes with step-up, closes links, and refuses a second remove", async () => {
@@ -683,17 +937,49 @@ describe("github webhook receive and reconcile", () => {
     return outcome;
   }
 
-  function pushEffect(sha: string, at: string): GitHubDeliveryEffect {
+  function pushEffect(sha: string, at: string, branch = "main"): GitHubDeliveryEffect {
     return {
       event: "push",
       action: null,
       installationId: INSTALLATION,
       repositoryId: REPOSITORY,
       occurredAt: at,
-      ref: "main",
+      ref: branch,
       version: sha,
       detail: {},
     };
+  }
+
+  function pullRequestEffect(number: string, sha: string, at: string): GitHubDeliveryEffect {
+    return {
+      event: "pull_request",
+      action: "synchronize",
+      installationId: INSTALLATION,
+      repositoryId: REPOSITORY,
+      occurredAt: at,
+      ref: number,
+      version: sha,
+      detail: {},
+    };
+  }
+
+  function checkRunEffect(id: string, sha: string, at: string): GitHubDeliveryEffect {
+    return {
+      event: "check_run",
+      action: "completed",
+      installationId: INSTALLATION,
+      repositoryId: REPOSITORY,
+      occurredAt: at,
+      ref: id,
+      version: `completed:success:${sha}`,
+      detail: {},
+    };
+  }
+
+  async function outboxFor(db: SqlDatabase, deliveryId: string): Promise<{ outbox_id: string }> {
+    return (await db
+      .prepare(`SELECT outbox_id FROM github_integration_outbox WHERE delivery_id = ?`)
+      .get(deliveryId)) as { outbox_id: string };
   }
 
   it("rejects unknown installations and commits nothing", async () => {
@@ -784,6 +1070,74 @@ describe("github webhook receive and reconcile", () => {
       .all()) as Array<{ ref: string; version_token: string }>;
     expect(commits).toHaveLength(1);
     expect(commits[0]?.version_token).toBe("b".repeat(40));
+  });
+
+  it("applies out-of-order pushes to different branches independently", async () => {
+    const { db } = await setup();
+    const mainId = randomUlid();
+    const featureId = randomUlid();
+    // main's head commit is newer; feature's head commit is older (a rebase
+    // or cherry-pick), but it is a different object and must still apply.
+    await receive(db, mainId, pushEffect("b".repeat(40), LATER, "main"));
+    await receive(db, featureId, pushEffect("c".repeat(40), NOW, "feature"));
+    const main = await reconcile(db, (await outboxFor(db, mainId)).outbox_id, mainId, LATER);
+    expect(main.result.effect).toBe("applied");
+    const feature = await reconcile(
+      db,
+      (await outboxFor(db, featureId)).outbox_id,
+      featureId,
+      LATER,
+    );
+    expect(feature.result.effect).toBe("applied");
+    const branches = (await db
+      .prepare(
+        `SELECT ref, version_token FROM github_evidence WHERE kind = 'branch' AND observed_by = 'github' ORDER BY ref`,
+      )
+      .all()) as Array<{ ref: string; version_token: string }>;
+    expect(branches).toHaveLength(2);
+    expect(branches.map((row) => row.ref)).toEqual(["feature", "main"]);
+    const commits = (await db
+      .prepare(
+        `SELECT version_token FROM github_evidence WHERE kind = 'commit' AND observed_by = 'github' ORDER BY version_token`,
+      )
+      .all()) as Array<{ version_token: string }>;
+    expect(commits.map((row) => row.version_token)).toEqual(["b".repeat(40), "c".repeat(40)]);
+  });
+
+  it("applies out-of-order pull requests for different numbers independently", async () => {
+    const { db } = await setup();
+    const newerId = randomUlid();
+    const olderId = randomUlid();
+    await receive(db, newerId, pullRequestEffect("7", "b".repeat(40), LATER));
+    await receive(db, olderId, pullRequestEffect("9", "c".repeat(40), NOW));
+    const newer = await reconcile(db, (await outboxFor(db, newerId)).outbox_id, newerId, LATER);
+    expect(newer.result.effect).toBe("applied");
+    const older = await reconcile(db, (await outboxFor(db, olderId)).outbox_id, olderId, LATER);
+    expect(older.result.effect).toBe("applied");
+    const pulls = (await db
+      .prepare(
+        `SELECT ref FROM github_evidence WHERE kind = 'pull_request' AND observed_by = 'github' ORDER BY ref`,
+      )
+      .all()) as Array<{ ref: string }>;
+    expect(pulls.map((row) => row.ref)).toEqual(["7", "9"]);
+  });
+
+  it("applies out-of-order check runs for different ids independently", async () => {
+    const { db } = await setup();
+    const newerId = randomUlid();
+    const olderId = randomUlid();
+    await receive(db, newerId, checkRunEffect("101", "b".repeat(40), LATER));
+    await receive(db, olderId, checkRunEffect("102", "c".repeat(40), NOW));
+    const newer = await reconcile(db, (await outboxFor(db, newerId)).outbox_id, newerId, LATER);
+    expect(newer.result.effect).toBe("applied");
+    const older = await reconcile(db, (await outboxFor(db, olderId)).outbox_id, olderId, LATER);
+    expect(older.result.effect).toBe("applied");
+    const checks = (await db
+      .prepare(
+        `SELECT ref FROM github_evidence WHERE kind = 'check' AND observed_by = 'github' ORDER BY ref`,
+      )
+      .all()) as Array<{ ref: string }>;
+    expect(checks.map((row) => row.ref)).toEqual(["101", "102"]);
   });
 
   it("replays reconcile idempotently and isolates poison outbox rows", async () => {
@@ -1043,6 +1397,32 @@ describe("github evidence linking and provenance", () => {
     expect(listed[0]?.observed_by).toBe("runner");
   });
 
+  it("rejects delegated envelopes without writing evidence", async () => {
+    const db = await openDomainDb();
+    await install(db);
+    await activate(db);
+    const projectId = await createGitHubProject(db);
+    await mapRepo(db, projectId);
+    const delegated = await hub(db).execute(linkGitHubEvidenceCommand, {
+      workspaceId: FIX.workspace,
+      idempotencyKey: randomUlid(),
+      actorHumanId: FIX.member,
+      actorDelegationId: randomUlid(),
+      authorizationEpoch: 1,
+      now: NOW,
+      input: {
+        projectId,
+        repositoryId: REPOSITORY,
+        kind: "commit",
+        ref: "f".repeat(40),
+        versionToken: "f".repeat(40),
+        observedBy: "human",
+      },
+    });
+    expect(delegated).toMatchObject({ ok: false, error: { code: "forbidden" } });
+    expect(await listGitHubEvidence(db, FIX.workspace, { projectId })).toHaveLength(0);
+  });
+
   it("never upgrades runner claims without matching github evidence", async () => {
     const db = await openDomainDb();
     await install(db);
@@ -1087,6 +1467,71 @@ describe("github evidence linking and provenance", () => {
         { kind: "artifact_version", ref: "x" },
       ]),
     ).toEqual([{ kind: "artifact_version", ref: "x", provenance: "opaque" }]);
+  });
+
+  it("scopes verification answers to one project", async () => {
+    const db = await openDomainDb();
+    await install(db);
+    await activate(db);
+    // The reviewer fixture holds a grant only to projectA; the member links
+    // one runner-observed commit per project.
+    const shaA = "a".repeat(40);
+    const shaB = "b".repeat(40);
+    for (const [projectId, sha] of [
+      [FIX.projectA, shaA],
+      [FIX.projectB, shaB],
+    ] as const) {
+      const linked = await hub(db).execute(linkGitHubEvidenceCommand, {
+        workspaceId: FIX.workspace,
+        idempotencyKey: randomUlid(),
+        actorHumanId: FIX.member,
+        authorizationEpoch: 1,
+        now: NOW,
+        input: {
+          projectId,
+          repositoryId: REPOSITORY,
+          kind: "commit",
+          ref: sha,
+          versionToken: sha,
+          observedBy: "runner",
+        },
+      });
+      expect(linked.ok).toBe(true);
+    }
+    const refA = `github:${REPOSITORY}:commit:${shaA}`;
+    const refB = `github:${REPOSITORY}:commit:${shaB}`;
+    // Unscoped reads keep owner/member behavior: both rows are visible.
+    expect(
+      await getEvidenceVerificationStatus(db, FIX.workspace, [
+        { kind: "github", ref: refA },
+        { kind: "github", ref: refB },
+      ]),
+    ).toEqual([
+      { kind: "github", ref: refA, provenance: "runner_observed" },
+      { kind: "github", ref: refB, provenance: "runner_observed" },
+    ]);
+    // Scoped to projectA, the other project's row stays unverified instead
+    // of leaking its existence through the provenance oracle.
+    expect(
+      await getEvidenceVerificationStatus(
+        db,
+        FIX.workspace,
+        [
+          { kind: "github", ref: refA },
+          { kind: "github", ref: refB },
+        ],
+        { projectId: FIX.projectA },
+      ),
+    ).toEqual([
+      { kind: "github", ref: refA, provenance: "runner_observed" },
+      { kind: "github", ref: refB, provenance: "unverified" },
+    ]);
+    // A malformed scope fails closed instead of answering unscoped.
+    await expect(
+      getEvidenceVerificationStatus(db, FIX.workspace, [{ kind: "github", ref: refA }], {
+        projectId: "not-a-ulid",
+      }),
+    ).rejects.toThrow(DomainError);
   });
 });
 
@@ -1172,5 +1617,329 @@ describe("github queue envelope and outbox recovery", () => {
       .get(first[0]?.outbox_id as string)) as { error: string };
     expect(dlq.error).toBe("poison");
     expect(await claimGitHubOutboxBatch(db, "2026-09-18T12:30:00.000Z")).toHaveLength(0);
+  });
+});
+
+describe("github cross-workspace isolation", () => {
+  const INSTALLATION_B = "22334455";
+
+  async function secondWorkspace(db: SqlDatabase): Promise<string> {
+    const workspace = randomUlid();
+    await db
+      .prepare(
+        `INSERT INTO workspaces (id, slug, jurisdiction, created_at, resource_version) VALUES (?, 'second-github-workspace', 'eu', ?, 1)`,
+      )
+      .run(workspace, NOW);
+    await db
+      .prepare(
+        `INSERT INTO workspace_members (workspace_id, human_id, role, authorization_epoch, created_at) VALUES (?, ?, 'owner', 1, ?)`,
+      )
+      .run(workspace, FIX.owner, NOW);
+    await db
+      .prepare(
+        `INSERT INTO workspace_authorization_epochs (workspace_id, human_id, authorization_epoch, updated_at) VALUES (?, ?, 1, ?)`,
+      )
+      .run(workspace, FIX.owner, NOW);
+    return workspace;
+  }
+
+  function stepUpFor(
+    db: SqlDatabase,
+    workspaceId: string,
+    action: string,
+    targetId: string,
+    now: string = NOW,
+  ): Promise<string> {
+    return issueStepUpProof(
+      db,
+      FIX.owner,
+      {
+        action,
+        workspaceId,
+        targetId,
+        scopes: [],
+        authorizationEpoch: 1,
+        expiresAt: new Date(Date.parse(now) + 5 * 60 * 1000).toISOString(),
+      },
+      now,
+    );
+  }
+
+  async function installFor(
+    db: SqlDatabase,
+    workspaceId: string,
+    installationId: string,
+  ): Promise<{ ok: boolean; code?: string }> {
+    const proof = await stepUpFor(
+      db,
+      workspaceId,
+      "github.install",
+      `github-installation:${installationId}`,
+    );
+    const outcome = await hub(db).execute(installGitHubCommand, {
+      workspaceId,
+      idempotencyKey: randomUlid(),
+      actorHumanId: FIX.owner,
+      authorizationEpoch: 1,
+      now: NOW,
+      input: {
+        installationId,
+        appId: APP_ID,
+        appSlug: "synthetic-app",
+        accountId: "555666",
+        accountLogin: ACCOUNT,
+        accountType: "Organization",
+        permissions: PERMISSIONS,
+        events: EVENTS,
+        stepUpProofId: proof,
+      },
+    });
+    return outcome.ok
+      ? { ok: true }
+      : { ok: false, code: (outcome as { ok: false; error: { code: string } }).error.code };
+  }
+
+  async function activateFor(
+    db: SqlDatabase,
+    workspaceId: string,
+    installationId: string,
+  ): Promise<void> {
+    const received = await hub(db).execute(receiveGitHubWebhookCommand, {
+      workspaceId,
+      idempotencyKey: `github-delivery.${randomUlid()}`,
+      actorSystemId: GITHUB_WEBHOOK_SYSTEM_ID,
+      authorizationEpoch: 1,
+      now: NOW,
+      input: {
+        deliveryId: randomUlid(),
+        event: "installation",
+        supported: true,
+        effect: {
+          event: "installation",
+          action: "created",
+          installationId,
+          repositoryId: null,
+          occurredAt: NOW,
+          ref: null,
+          version: null,
+          detail: {},
+        },
+      },
+    });
+    if (!received.ok) {
+      throw new Error(`receive failed: ${JSON.stringify(received)}`);
+    }
+    const result = (received as { ok: true; result: ReceiveGitHubWebhookResult }).result;
+    const reconciled = await hub(db).execute(reconcileGitHubCommand, {
+      workspaceId,
+      idempotencyKey: `github-reconcile.${result.outbox_id}`,
+      actorSystemId: GITHUB_QUEUE_SYSTEM_ID,
+      authorizationEpoch: 1,
+      now: NOW,
+      input: {
+        outboxId: result.outbox_id as string,
+        deliveryId: result.delivery_id,
+        observed: {
+          repositoryFullName: "synthetic-org/synthetic-repo",
+          defaultBranch: "main",
+          fetchedAt: NOW,
+        },
+      },
+    });
+    if (!reconciled.ok) {
+      throw new Error(`reconcile failed: ${JSON.stringify(reconciled)}`);
+    }
+  }
+
+  async function projectFor(
+    db: SqlDatabase,
+    workspaceId: string,
+    slug: string,
+    repositoryId: string,
+  ): Promise<string> {
+    const outcome = await hub(db).execute(createProjectCommand, {
+      workspaceId,
+      idempotencyKey: randomUlid(),
+      actorHumanId: FIX.owner,
+      authorizationEpoch: 1,
+      now: NOW,
+      input: {
+        name: `Synthetic ${slug}`,
+        slug,
+        tint: "#3B82F6",
+        accessMode: "workspace",
+        repositoryHost: "github.com",
+        hostedRepositoryId: repositoryId,
+        repositorySubpath: ".",
+      },
+    });
+    if (!outcome.ok) {
+      throw new Error(`project failed: ${JSON.stringify(outcome)}`);
+    }
+    return (outcome as { ok: true; result: { id: string } }).result.id;
+  }
+
+  async function mapFor(
+    db: SqlDatabase,
+    workspaceId: string,
+    installationId: string,
+    repositoryId: string,
+    projectId: string,
+  ): Promise<{ ok: boolean; code?: string }> {
+    const proof = await stepUpFor(
+      db,
+      workspaceId,
+      "github.repository.map",
+      `github-link:${repositoryId}`,
+    );
+    const outcome = await hub(db).execute(mapGitHubRepositoryCommand, {
+      workspaceId,
+      idempotencyKey: randomUlid(),
+      actorHumanId: FIX.owner,
+      authorizationEpoch: 1,
+      now: NOW,
+      input: {
+        installationId,
+        repositoryId,
+        projectId,
+        fullName: "synthetic-org/synthetic-repo",
+        defaultBranch: "main",
+        stepUpProofId: proof,
+      },
+    });
+    return outcome.ok
+      ? { ok: true }
+      : { ok: false, code: (outcome as { ok: false; error: { code: string } }).error.code };
+  }
+
+  it("refuses to claim another workspace's installation id", async () => {
+    const db = await openDomainDb();
+    const other = await secondWorkspace(db);
+    expect((await installFor(db, FIX.workspace, INSTALLATION)).ok).toBe(true);
+    const squat = await installFor(db, other, INSTALLATION);
+    expect(squat.ok).toBe(false);
+    expect(squat.code).toBe("already_exists");
+    const row = (await db
+      .prepare(
+        `SELECT workspace_id, status FROM github_app_installations WHERE installation_id = ?`,
+      )
+      .get(INSTALLATION)) as { workspace_id: string; status: string };
+    expect(row.workspace_id).toBe(FIX.workspace);
+    expect(row.status).toBe("pending");
+  });
+
+  it("refuses to reassign a revoked installation to another workspace", async () => {
+    const db = await openDomainDb();
+    const other = await secondWorkspace(db);
+    expect((await installFor(db, FIX.workspace, INSTALLATION)).ok).toBe(true);
+    await activateFor(db, FIX.workspace, INSTALLATION);
+    const removeProof = await stepUpFor(
+      db,
+      FIX.workspace,
+      "github.remove",
+      `github-installation:${INSTALLATION}`,
+      LATER,
+    );
+    const removed = await hub(db).execute(removeGitHubCommand, {
+      workspaceId: FIX.workspace,
+      idempotencyKey: randomUlid(),
+      actorHumanId: FIX.owner,
+      authorizationEpoch: 1,
+      now: LATER,
+      input: { installationId: INSTALLATION, stepUpProofId: removeProof },
+    });
+    expect(removed.ok).toBe(true);
+    const squat = await installFor(db, other, INSTALLATION);
+    expect(squat.ok).toBe(false);
+    expect(squat.code).toBe("already_exists");
+    const row = (await db
+      .prepare(
+        `SELECT workspace_id, status FROM github_app_installations WHERE installation_id = ?`,
+      )
+      .get(INSTALLATION)) as { workspace_id: string; status: string };
+    expect(row.workspace_id).toBe(FIX.workspace);
+    expect(row.status).toBe("revoked");
+    // The owning workspace can still re-register its own revoked installation.
+    expect((await installFor(db, FIX.workspace, INSTALLATION)).ok).toBe(true);
+  });
+
+  it("keeps each workspace's repository link and reconcile pipeline independent", async () => {
+    const db = await openDomainDb();
+    const other = await secondWorkspace(db);
+    expect((await installFor(db, FIX.workspace, INSTALLATION)).ok).toBe(true);
+    await activateFor(db, FIX.workspace, INSTALLATION);
+    const projectA = await projectFor(db, FIX.workspace, "github-a", REPOSITORY);
+    expect((await mapFor(db, FIX.workspace, INSTALLATION, REPOSITORY, projectA)).ok).toBe(true);
+
+    expect((await installFor(db, other, INSTALLATION_B)).ok).toBe(true);
+    await activateFor(db, other, INSTALLATION_B);
+    const projectB = await projectFor(db, other, "github-b", REPOSITORY);
+    const evict = await mapFor(db, other, INSTALLATION_B, REPOSITORY, projectB);
+    expect(evict.ok).toBe(false);
+    expect(evict.code).toBe("repository_already_mapped");
+
+    // Workspace A's link survives the foreign map attempt untouched.
+    const links = (await db
+      .prepare(
+        `SELECT workspace_id, project_id FROM github_repository_links WHERE repository_id = ? AND link_state = 'active' ORDER BY workspace_id`,
+      )
+      .all(REPOSITORY)) as Array<{ workspace_id: string; project_id: string }>;
+    expect(links).toHaveLength(1);
+    expect(links[0]?.workspace_id).toBe(FIX.workspace);
+    expect(links[0]?.project_id).toBe(projectA);
+
+    // Workspace A's next delivery still reconciles into A's own project.
+    const deliveryId = randomUlid();
+    const received = await hub(db).execute(receiveGitHubWebhookCommand, {
+      workspaceId: FIX.workspace,
+      idempotencyKey: `github-delivery.${deliveryId}`,
+      actorSystemId: GITHUB_WEBHOOK_SYSTEM_ID,
+      authorizationEpoch: 1,
+      now: NOW,
+      input: {
+        deliveryId,
+        event: "push",
+        supported: true,
+        effect: {
+          event: "push",
+          action: null,
+          installationId: INSTALLATION,
+          repositoryId: REPOSITORY,
+          occurredAt: NOW,
+          ref: "main",
+          version: "a".repeat(40),
+          detail: {},
+        },
+      },
+    });
+    expect(received.ok).toBe(true);
+    const accepted = (received as { ok: true; result: ReceiveGitHubWebhookResult }).result;
+    const reconciled = await hub(db).execute(reconcileGitHubCommand, {
+      workspaceId: FIX.workspace,
+      idempotencyKey: `github-reconcile.${accepted.outbox_id}`,
+      actorSystemId: GITHUB_QUEUE_SYSTEM_ID,
+      authorizationEpoch: 1,
+      now: NOW,
+      input: {
+        outboxId: accepted.outbox_id as string,
+        deliveryId,
+        observed: {
+          repositoryFullName: "synthetic-org/synthetic-repo",
+          defaultBranch: "main",
+          fetchedAt: NOW,
+        },
+      },
+    });
+    expect(reconciled.ok).toBe(true);
+    expect((reconciled as { ok: true; result: ReconcileGitHubResult }).result.effect).toBe(
+      "applied",
+    );
+    const evidence = (await db
+      .prepare(
+        `SELECT workspace_id, project_id FROM github_evidence WHERE workspace_id = ? AND repository_id = ? AND kind = 'commit'`,
+      )
+      .all(FIX.workspace, REPOSITORY)) as Array<{ workspace_id: string; project_id: string }>;
+    expect(evidence).toHaveLength(1);
+    expect(evidence[0]?.project_id).toBe(projectA);
   });
 });

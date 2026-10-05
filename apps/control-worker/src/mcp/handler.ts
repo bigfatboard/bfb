@@ -142,8 +142,28 @@ async function boundedBodyBytes(request: Request): Promise<number | null> {
   if (request.body === null) {
     return 0;
   }
-  const bodyBytes = (await request.clone().arrayBuffer()).byteLength;
-  return bodyBytes <= BODY_LIMIT ? bodyBytes : null;
+  // Stream the clone so a chunked body is rejected once it passes the
+  // limit instead of being buffered whole. The clone is released, not
+  // cancelled: cancelling a cloned body does not settle.
+  const reader = request.clone().body?.getReader();
+  if (!reader) {
+    return 0;
+  }
+  let size = 0;
+  try {
+    while (true) {
+      const chunk = await reader.read();
+      if (chunk.done) {
+        return size;
+      }
+      size += chunk.value.byteLength;
+      if (size > BODY_LIMIT) {
+        return null;
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
 }
 
 async function consumeMcpBudget(

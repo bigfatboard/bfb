@@ -1,7 +1,7 @@
 // ABOUTME: Exercises X04 Queue per-message ack/retry, poison isolation, and DLQ state.
 // ABOUTME: Synthetic handles prove siblings ack once while poison retries or parks visibly.
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import Database from "better-sqlite3";
 import path from "node:path";
@@ -14,6 +14,7 @@ import {
   FIX,
   GITHUB_QUEUE_SYSTEM_ID,
   GITHUB_WEBHOOK_SYSTEM_ID,
+  githubOutboxBackoffSeconds,
   installGitHubCommand,
   issueStepUpProof,
   mapGitHubRepositoryCommand,
@@ -44,11 +45,16 @@ import { createTestWorkspaceHubNamespace } from "../src/hub-client.js";
 import {
   consumeGitHubQueueBatch,
   consumeGitHubQueueMessage,
+  createGitHubRestClient,
   runGitHubSweep,
   type GitHubConsumerDeps,
   type GitHubQueueHandle,
   type GitHubRestClient,
 } from "../src/api/github.js";
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 const NOW = "2026-09-18T12:00:00.000Z";
 const INSTALLATION = "12345678";
@@ -401,6 +407,122 @@ describe("X04 github queue consumer", () => {
     expect(client.minted).toEqual([INSTALLATION]);
   });
 
+  it("treats rate-limited repository reads as retryable, never revoked", async () => {
+    const client = createGitHubRestClient({ githubApiBase: "https://api.github.test" });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) => {
+        const url = input instanceof Request ? input.url : String(input);
+        const repositoryId = url.split("/repositories/")[1] ?? "";
+        if (repositoryId === "rate-limited") {
+          return new Response(JSON.stringify({ message: "API rate limit exceeded" }), {
+            status: 403,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (repositoryId === "abuse-limited") {
+          return new Response(
+            JSON.stringify({ message: "You have exceeded a secondary rate limit" }),
+            { status: 403, headers: { "content-type": "application/json" } },
+          );
+        }
+        if (repositoryId === "too-many") {
+          return new Response(JSON.stringify({ message: "Too Many Requests" }), {
+            status: 429,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (repositoryId === "rejected") {
+          return new Response(JSON.stringify({ message: "Bad credentials" }), {
+            status: 401,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (repositoryId === "missing") {
+          return new Response(JSON.stringify({ message: "Not Found" }), {
+            status: 404,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        return Response.json({ full_name: "synthetic-org/synthetic-repo", default_branch: "main" });
+      }),
+    );
+    await expect(client.fetchRepository("synthetic-token", "rate-limited")).rejects.toMatchObject({
+      code: "github_unreachable",
+    });
+    await expect(client.fetchRepository("synthetic-token", "abuse-limited")).rejects.toMatchObject({
+      code: "github_unreachable",
+    });
+    await expect(client.fetchRepository("synthetic-token", "too-many")).rejects.toMatchObject({
+      code: "github_unreachable",
+    });
+    await expect(client.fetchRepository("synthetic-token", "rejected")).resolves.toEqual({
+      revoked: true,
+    });
+    await expect(client.fetchRepository("synthetic-token", "missing")).resolves.toEqual({
+      revoked: true,
+    });
+    await expect(client.fetchRepository("synthetic-token", REPOSITORY)).resolves.toEqual({
+      fullName: "synthetic-org/synthetic-repo",
+      defaultBranch: "main",
+    });
+  });
+
+  it("retries a 403 repository read without revoking the installation or closing links", async () => {
+    const db = await openDomainDb();
+    await setupLinked(db);
+    const deliveryId = randomUlid();
+    const received = await receive(db, deliveryId, {
+      event: "push",
+      action: null,
+      installationId: INSTALLATION,
+      repositoryId: REPOSITORY,
+      occurredAt: NOW,
+      ref: "main",
+      version: "a".repeat(40),
+      detail: {},
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        return new Response(
+          JSON.stringify({ message: "You have exceeded a secondary rate limit" }),
+          { status: 403, headers: { "content-type": "application/json" } },
+        );
+      }),
+    );
+    const live = createGitHubRestClient({ githubApiBase: "https://api.github.test" });
+    const client: GitHubRestClient = {
+      ...live,
+      async mintInstallationToken() {
+        return { token: "synthetic-test-token", expiresAt: "2026-09-18T13:00:00.000Z" };
+      },
+    };
+    const deps = depsFor(db, client);
+    const handle = spyHandle(pushMessage(deliveryId, received.outbox_id));
+    await consumeGitHubQueueMessage(handle, deps);
+    expect(handle.retried).toBe(1);
+    expect(handle.acked).toBe(0);
+    const installation = (await db
+      .prepare(`SELECT status FROM github_app_installations WHERE installation_id = ?`)
+      .get(INSTALLATION)) as { status: string };
+    expect(installation.status).toBe("active");
+    const link = (await db
+      .prepare(
+        `SELECT link_state FROM github_repository_links WHERE workspace_id = ? AND repository_id = ?`,
+      )
+      .get(FIX.workspace, REPOSITORY)) as { link_state: string };
+    expect(link.link_state).toBe("active");
+    const delivery = (await db
+      .prepare(`SELECT state FROM github_webhook_deliveries WHERE delivery_id = ?`)
+      .get(deliveryId)) as { state: string };
+    expect(delivery.state).not.toBe("ignored");
+    const outbox = (await db
+      .prepare(`SELECT attempts FROM github_integration_outbox WHERE outbox_id = ?`)
+      .get(received.outbox_id)) as { attempts: number };
+    expect(outbox.attempts).toBe(1);
+  });
+
   it("recovers the commit-before-enqueue gap through the sweep", async () => {
     const db = await openDomainDb();
     await setupLinked(db);
@@ -454,5 +576,119 @@ describe("X04 github queue consumer", () => {
     expect(failed.claimed).toBe(1);
     expect(failed.sendFailures).toBe(1);
     void received;
+  });
+
+  it("retries when reconcile fails after a revocation instead of acking", async () => {
+    const db = await openDomainDb();
+    await setupLinked(db);
+    const deliveryId = randomUlid();
+    const received = await receive(db, deliveryId, {
+      event: "push",
+      action: null,
+      installationId: INSTALLATION,
+      repositoryId: REPOSITORY,
+      occurredAt: NOW,
+      ref: "main",
+      version: "a".repeat(40),
+      detail: {},
+    });
+    const failingNs = {
+      ...createTestWorkspaceHubNamespace(db),
+      get() {
+        return {
+          async fetch() {
+            return new Response("hub unavailable", { status: 500 });
+          },
+        };
+      },
+    } as unknown as DurableObjectNamespace;
+    const deps: GitHubConsumerDeps = {
+      ...depsFor(db, fakeClient({ fetch: "revoked" })),
+      workspaceHubNs: failingNs,
+    };
+    const handle = spyHandle(pushMessage(deliveryId, received.outbox_id));
+    await consumeGitHubQueueMessage(handle, deps);
+    // The installation is still marked revoked, but the failed reconcile must
+    // retry with a counted attempt instead of acking a pending outbox row.
+    const installation = (await db
+      .prepare(`SELECT status FROM github_app_installations WHERE installation_id = ?`)
+      .get(INSTALLATION)) as { status: string };
+    expect(installation.status).toBe("revoked");
+    expect(handle.acked).toBe(0);
+    expect(handle.retried).toBe(1);
+    const outbox = (await db
+      .prepare(`SELECT attempts, state FROM github_integration_outbox WHERE outbox_id = ?`)
+      .get(received.outbox_id)) as { attempts: number; state: string };
+    expect(outbox.attempts).toBe(1);
+    expect(outbox.state).not.toBe("done");
+  });
+
+  it("retries a terminal delivery whose outbox never closed when reconcile fails", async () => {
+    const db = await openDomainDb();
+    await setupLinked(db);
+    const deliveryId = randomUlid();
+    const received = await receive(db, deliveryId, {
+      event: "push",
+      action: null,
+      installationId: INSTALLATION,
+      repositoryId: REPOSITORY,
+      occurredAt: NOW,
+      ref: "main",
+      version: "a".repeat(40),
+      detail: {},
+    });
+    // Crashed finisher: the delivery is terminal but its outbox never closed.
+    await db
+      .prepare(`UPDATE github_webhook_deliveries SET state = 'applied' WHERE delivery_id = ?`)
+      .run(deliveryId);
+    const failingNs = {
+      ...createTestWorkspaceHubNamespace(db),
+      get() {
+        return {
+          async fetch() {
+            return new Response("hub unavailable", { status: 500 });
+          },
+        };
+      },
+    } as unknown as DurableObjectNamespace;
+    const deps: GitHubConsumerDeps = {
+      ...depsFor(db, fakeClient()),
+      workspaceHubNs: failingNs,
+    };
+    const handle = spyHandle(pushMessage(deliveryId, received.outbox_id));
+    await consumeGitHubQueueMessage(handle, deps);
+    expect(handle.acked).toBe(0);
+    expect(handle.retried).toBe(1);
+    const outbox = (await db
+      .prepare(`SELECT attempts, state FROM github_integration_outbox WHERE outbox_id = ?`)
+      .get(received.outbox_id)) as { attempts: number; state: string };
+    expect(outbox.attempts).toBe(1);
+    expect(outbox.state).not.toBe("done");
+  });
+
+  it("redelivers retryable failures on the full 30-minute backoff curve", async () => {
+    const db = await openDomainDb();
+    await setupLinked(db);
+    const deliveryId = randomUlid();
+    const received = await receive(db, deliveryId, {
+      event: "push",
+      action: null,
+      installationId: INSTALLATION,
+      repositoryId: REPOSITORY,
+      occurredAt: NOW,
+      ref: "main",
+      version: "a".repeat(40),
+      detail: {},
+    });
+    await db
+      .prepare(`UPDATE github_integration_outbox SET attempts = 3 WHERE outbox_id = ?`)
+      .run(received.outbox_id);
+    const handle = spyHandle(pushMessage(deliveryId, received.outbox_id));
+    await consumeGitHubQueueMessage(handle, depsFor(db, fakeClient({ fetch: "throw" })));
+    expect(handle.retried).toBe(1);
+    expect(handle.acked).toBe(0);
+    // The fourth attempt backs off 960s; the queue delay must match the D1
+    // next_attempt_at curve instead of flattening at 5 minutes.
+    expect(handle.delays[0]).toBe(githubOutboxBackoffSeconds(4));
   });
 });

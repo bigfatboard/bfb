@@ -26,8 +26,12 @@ also follow [`artifacts.md`](artifacts.md) for storage, roles, and kinds, and
   the non-secret view ID only: `{ version_id, view_id }`.
 - Issuance requires a current browser session with CSRF, workspace membership
   at the current epoch (any role, including reviewers), and an `available`
-  version. The session hash binds issuance and audit; redemption authority is
-  the single-use secret plus nonce, fenced by epoch and expiry.
+  version. When the version's artifact names a run, the viewer must hold
+  project access to that run's project; run-free artifacts need membership
+  only. Denials stay uniform with unknown versions, so the project boundary
+  discloses no existence signal. The session hash binds issuance and audit;
+  redemption authority is the single-use secret plus nonce, fenced by epoch
+  and expiry.
 - The view secret MUST NOT appear in any URL, referrer, history entry, log,
   D1 plaintext, or artifact byte.
 
@@ -65,7 +69,9 @@ also follow [`artifacts.md`](artifacts.md) for storage, roles, and kinds, and
   current authorization epoch, consumes the grant through the single-use
   trigger, and inserts the `artifact.view_redeemed` audit row. A racing or
   replayed redemption aborts the batch with no byte effect; reloads need fresh
-  grants.
+  grants. A version purged by retention (`retained`) is no longer `available`,
+  so its grants reject here with the uniform `403` instead of reaching byte
+  reads.
 - The worker re-verifies `SHA-256(R2 bytes) == content_hash` and the
   `workspaces/<workspace-id>/` key prefix before serving. Mismatch or absence
   fails `500 { error: "view_failed" }` without secret, nonce, digest, or byte
@@ -159,6 +165,6 @@ HTML escaping; hostile input survives only as visible escaped text.
 
 ## 8. Non-goals
 
-- Reviewer project scoping for previews (V03), server-side browser rendering,
-  generic `postMessage` trust, auto-running active content, downloads from
-  previews, and compressed log-chunk decompression.
+- Server-side browser rendering, generic `postMessage` trust, auto-running
+  active content, downloads from previews, and compressed log-chunk
+  decompression.

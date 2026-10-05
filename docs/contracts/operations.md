@@ -17,10 +17,13 @@ interprets provider-specific capability fields.
 ## Security-audit read model
 
 - `GET /api/v1/workspaces/:ws/operations/security-audit` — Owner only.
-  Rows come from `audit_events`, ordered by `audit_id`, paginated with
-  `after`/`limit` (max 100). Each entry carries `audit_id`,
-  `actor_principal_id`, `action`, `created_at`, and a `payload` passed
-  through the sanitizer below.
+  Rows come from `audit_events`, ordered chronologically by `created_at`
+  (insertion order breaks ties: audit ids carry no time component, so id
+  order is not time order). Paginated with `after`/`limit` (max 100):
+  `after` is an `audit_id` cursor resolved to its row's timestamp, so pages
+  advance in time, not id space; an unknown cursor is rejected. Each entry
+  carries `audit_id`, `actor_principal_id`, `action`, `created_at`, and a
+  `payload` passed through the sanitizer below.
 - The sanitizer drops any key naming a secret, path, or private payload
   (secret, token, bearer, cookie, password, credential, grant secrets,
   prompts, task bodies, hook payloads, terminal output, artifact bytes,
@@ -56,7 +59,9 @@ interprets provider-specific capability fields.
     own idempotent dispatch redelivers. Replays return the stored outcome.
   - `requeue_github_outbox` `{outbox_ids: string[1..50]}` — only rows in
     `dlq` or `dispatched` return to `pending` with attempts reset; the X04
-    reconciler converges them. Done/pending rows are rejected.
+    reconciler converges them. Done/pending rows are rejected. Every id is
+    validated before the first write, so a rejected target leaves all rows
+    untouched and writes no ledger row.
   - `resolve_stuck_upload` `{version_ids: ULID[1..50]}` — only versions in
     `uploading` with no live grant past TTL plus grace move to `failed`,
     with an `artifact.abandoned` audit-outbox row (the exact V01
@@ -81,12 +86,17 @@ interprets provider-specific capability fields.
   `available`, `available_at` older than the cutoff, key under
   `workspaces/<ws>/runs/*/logs/*`, never under `artifacts/sha256/`.
   Review artifacts, shared content-addressed bytes, D1 rows, hashes, and
-  metadata are never eligible.
+  metadata are never eligible. Already purged versions (state `retained`)
+  are never eligible again.
 - The Cron sweep (`runRetentionSweep`, also deliverable as an OPS queue
-  `retention.sweep` message) deletes only eligible R2 objects, records one
-  `retention_runs` row per configured workspace, and never deletes without
-  an explicit Owner-configured policy. A failed object delete is recorded
-  in the run row, never retried blindly.
+  `retention.sweep` message) deletes only eligible R2 objects, moves each
+  purged version to `retained` with its hash, key, and metadata preserved
+  as the purge record, records one `retention_runs` row per configured
+  workspace, and never deletes without an explicit Owner-configured
+  policy. Only the transition counts bytes, so a `retained` row is never
+  re-deleted or re-counted and its view grants stop redeeming. A failed
+  object delete keeps the version `available` for the next tick and is
+  recorded in the run row, never retried blindly.
 
 ## Diagnostic bundles
 

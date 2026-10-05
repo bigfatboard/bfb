@@ -5,6 +5,8 @@ import assert from "node:assert/strict";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { format } from "prettier";
+import prettierConfig from "../../prettier.config.mjs";
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const check = process.argv.includes("--check");
@@ -26,25 +28,70 @@ function envelope(event, delivery, payload) {
   return { event, delivery_id: delivery, payload };
 }
 
+const HEAD_COMMIT_NEW = {
+  id: SHA_NEW,
+  tree_id: "e".repeat(40),
+  timestamp: NOW,
+  message: "Synthetic X04 push",
+  author: { name: "Synthetic Author", email: "author@synthetic.test", username: "synthetic-org" },
+  committer: {
+    name: "Synthetic Author",
+    email: "author@synthetic.test",
+    username: "synthetic-org",
+  },
+  url: "https://github.com/synthetic-org/synthetic-repo/commit/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  added: [],
+  removed: [],
+  modified: ["README.md"],
+};
+const HEAD_COMMIT_OLD = { ...HEAD_COMMIT_NEW, id: SHA_OLD, timestamp: OLDER };
+const PUSH_COMMITS = [
+  {
+    id: SHA_NEW,
+    tree_id: "e".repeat(40),
+    message: "Synthetic X04 push",
+    timestamp: NOW,
+    author: { name: "Synthetic Author", email: "author@synthetic.test" },
+    committer: { name: "Synthetic Author", email: "author@synthetic.test" },
+    added: [],
+    removed: [],
+    modified: ["README.md"],
+  },
+];
+
 const webhooks = {
   "installation.created.json": envelope("installation", "x04-delivery-install-created", {
     action: "created",
-    installation: { ...INSTALLATION, app_id: APP_ID, app_slug: "synthetic-app", updated_at: NOW },
+    installation: {
+      ...INSTALLATION,
+      app_id: APP_ID,
+      app_slug: "synthetic-app",
+      repository_selection: "all",
+      permissions: { metadata: "read", pull_requests: "read", checks: "read" },
+      events: ["push", "pull_request"],
+      created_at: NOW,
+      updated_at: NOW,
+    },
+    repositories: [REPOSITORY],
+    requester: null,
     sender: { login: ACCOUNT.login },
   }),
   "installation.deleted.json": envelope("installation", "x04-delivery-install-deleted", {
     action: "deleted",
     installation: { ...INSTALLATION, app_id: APP_ID, app_slug: "synthetic-app", updated_at: NOW },
+    repositories: [REPOSITORY],
     sender: { login: ACCOUNT.login },
   }),
   "installation.suspend.json": envelope("installation", "x04-delivery-install-suspend", {
     action: "suspend",
     installation: { ...INSTALLATION, updated_at: NOW },
+    repositories: [REPOSITORY],
     sender: { login: ACCOUNT.login },
   }),
   "installation.unsuspend.json": envelope("installation", "x04-delivery-install-unsuspend", {
     action: "unsuspend",
     installation: { ...INSTALLATION, updated_at: NOW },
+    repositories: [REPOSITORY],
     sender: { login: ACCOUNT.login },
   }),
   "installation_repositories.added.json": envelope(
@@ -53,6 +100,7 @@ const webhooks = {
     {
       action: "added",
       installation: INSTALLATION,
+      repository_selection: "selected",
       repositories_added: [REPOSITORY],
       repositories_removed: [],
       sender: { login: ACCOUNT.login },
@@ -60,31 +108,64 @@ const webhooks = {
   ),
   "push.main-new.json": envelope("push", "x04-delivery-push-new", {
     ref: "refs/heads/main",
-    head_commit: { id: SHA_NEW, timestamp: NOW },
+    before: SHA_OLD,
+    after: SHA_NEW,
+    created: false,
+    deleted: false,
+    forced: false,
+    base_ref: null,
+    compare:
+      "https://github.com/synthetic-org/synthetic-repo/compare/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa...bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    commits: PUSH_COMMITS,
+    head_commit: HEAD_COMMIT_NEW,
     repository: REPOSITORY,
+    pusher: { name: "synthetic-org", email: "pusher@synthetic.test" },
     installation: INSTALLATION,
     sender: { login: ACCOUNT.login },
   }),
   "push.main-old.json": envelope("push", "x04-delivery-push-old", {
     ref: "refs/heads/main",
-    head_commit: { id: SHA_OLD, timestamp: OLDER },
+    before: "0".repeat(40),
+    after: SHA_OLD,
+    created: false,
+    deleted: false,
+    forced: false,
+    base_ref: null,
+    compare:
+      "https://github.com/synthetic-org/synthetic-repo/compare/0000000000000000000000000000000000000000...aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    commits: [{ ...PUSH_COMMITS[0], id: SHA_OLD, timestamp: OLDER }],
+    head_commit: HEAD_COMMIT_OLD,
     repository: REPOSITORY,
+    pusher: { name: "synthetic-org", email: "pusher@synthetic.test" },
     installation: INSTALLATION,
     sender: { login: ACCOUNT.login },
   }),
   "push.feature.json": envelope("push", "x04-delivery-push-feature", {
     ref: "refs/heads/feature-x04",
-    head_commit: { id: "c".repeat(40), timestamp: NOW },
+    before: SHA_OLD,
+    after: "c".repeat(40),
+    created: false,
+    deleted: false,
+    forced: false,
+    base_ref: null,
+    compare:
+      "https://github.com/synthetic-org/synthetic-repo/compare/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa...cccccccccccccccccccccccccccccccccccccccc",
+    commits: [{ ...PUSH_COMMITS[0], id: "c".repeat(40) }],
+    head_commit: { ...HEAD_COMMIT_NEW, id: "c".repeat(40) },
     repository: REPOSITORY,
+    pusher: { name: "synthetic-org", email: "pusher@synthetic.test" },
     installation: INSTALLATION,
     sender: { login: ACCOUNT.login },
   }),
   "pull_request.opened.json": envelope("pull_request", "x04-delivery-pr-opened", {
     action: "opened",
+    number: 7,
     pull_request: {
       number: 7,
-      head: { sha: SHA_NEW },
-      base: { ref: "main" },
+      id: 111222333,
+      url: "https://api.github.com/repos/synthetic-org/synthetic-repo/pulls/7",
+      head: { sha: SHA_NEW, ref: "feature-x04", label: "synthetic-org:feature-x04" },
+      base: { ref: "main", sha: SHA_OLD, label: "synthetic-org:main" },
       state: "open",
       merged: false,
       title: "Synthetic X04 evidence pull request",
@@ -96,10 +177,13 @@ const webhooks = {
   }),
   "pull_request.synchronize.json": envelope("pull_request", "x04-delivery-pr-sync", {
     action: "synchronize",
+    number: 7,
     pull_request: {
       number: 7,
-      head: { sha: "d".repeat(40) },
-      base: { ref: "main" },
+      id: 111222333,
+      url: "https://api.github.com/repos/synthetic-org/synthetic-repo/pulls/7",
+      head: { sha: "d".repeat(40), ref: "feature-x04", label: "synthetic-org:feature-x04" },
+      base: { ref: "main", sha: SHA_OLD, label: "synthetic-org:main" },
       state: "open",
       merged: false,
       title: "Synthetic X04 evidence pull request",
@@ -119,6 +203,8 @@ const webhooks = {
       conclusion: "success",
       started_at: OLDER,
       completed_at: NOW,
+      pull_requests: [{ number: 7 }],
+      app: { id: APP_ID, slug: "synthetic-app" },
     },
     repository: REPOSITORY,
     installation: INSTALLATION,
@@ -133,6 +219,8 @@ const webhooks = {
       conclusion: "success",
       created_at: OLDER,
       updated_at: NOW,
+      pull_requests: [],
+      app: { id: APP_ID, slug: "synthetic-app" },
     },
     repository: REPOSITORY,
     installation: INSTALLATION,
@@ -142,6 +230,10 @@ const webhooks = {
     state: "success",
     sha: SHA_NEW,
     context: "synthetic-ci/status",
+    name: "synthetic-ci/status",
+    target_url:
+      "https://github.com/synthetic-org/synthetic-repo/commit/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/checks",
+    description: "Synthetic X04 status",
     updated_at: NOW,
     repository: REPOSITORY,
     installation: INSTALLATION,
@@ -149,31 +241,54 @@ const webhooks = {
   }),
   "issues.opened.json": envelope("issues", "x04-delivery-issue-opened", {
     action: "opened",
-    issue: { number: 9, state: "open", title: "Synthetic X04 linked issue", updated_at: OLDER },
+    issue: {
+      number: 9,
+      state: "open",
+      title: "Synthetic X04 linked issue",
+      updated_at: OLDER,
+      id: 444555666,
+      user: { login: ACCOUNT.login },
+    },
     repository: REPOSITORY,
     installation: INSTALLATION,
     sender: { login: ACCOUNT.login },
   }),
   "issues.closed.json": envelope("issues", "x04-delivery-issue-closed", {
     action: "closed",
-    issue: { number: 9, state: "closed", title: "Synthetic X04 linked issue", updated_at: NOW },
+    issue: {
+      number: 9,
+      state: "closed",
+      title: "Synthetic X04 linked issue",
+      updated_at: NOW,
+      id: 444555666,
+      user: { login: ACCOUNT.login },
+    },
     repository: REPOSITORY,
     installation: INSTALLATION,
     sender: { login: ACCOUNT.login },
   }),
   "deployment.created.json": envelope("deployment", "x04-delivery-deployment", {
-    deployment: { id: 6060, sha: SHA_NEW, environment: "synthetic-staging", created_at: NOW },
+    action: "created",
+    deployment: {
+      id: 6060,
+      sha: SHA_NEW,
+      environment: "synthetic-staging",
+      created_at: NOW,
+      creator: { login: ACCOUNT.login },
+    },
     repository: REPOSITORY,
     installation: INSTALLATION,
     sender: { login: ACCOUNT.login },
   }),
   "deployment_status.success.json": envelope("deployment_status", "x04-delivery-deploy-status", {
+    action: "created",
     deployment_status: {
       id: 7070,
       state: "success",
       deployment: { id: 6060 },
       created_at: OLDER,
       updated_at: NOW,
+      creator: { login: ACCOUNT.login },
     },
     deployment: { id: 6060 },
     repository: REPOSITORY,
@@ -190,29 +305,29 @@ const rest = {
   },
 };
 
-function serialize(value) {
-  return `${JSON.stringify(value, null, 2)}\n`;
+async function serialize(value) {
+  return format(JSON.stringify(value, null, 2), { ...prettierConfig, parser: "json" });
 }
 
 async function writeFixtures() {
   await mkdir(webhooksDir, { recursive: true });
   await mkdir(restDir, { recursive: true });
   for (const [name, value] of Object.entries(webhooks)) {
-    await writeFile(resolve(webhooksDir, name), serialize(value));
+    await writeFile(resolve(webhooksDir, name), await serialize(value));
   }
   for (const [name, value] of Object.entries(rest)) {
-    await writeFile(resolve(restDir, name), serialize(value));
+    await writeFile(resolve(restDir, name), await serialize(value));
   }
 }
 
 async function checkFixtures() {
   for (const [name, value] of Object.entries(webhooks)) {
     const current = await readFile(resolve(webhooksDir, name), "utf8");
-    assert.equal(current, serialize(value), `fixture drift: fixtures/webhooks/${name}`);
+    assert.equal(current, await serialize(value), `fixture drift: fixtures/webhooks/${name}`);
   }
   for (const [name, value] of Object.entries(rest)) {
     const current = await readFile(resolve(restDir, name), "utf8");
-    assert.equal(current, serialize(value), `fixture drift: fixtures/rest/${name}`);
+    assert.equal(current, await serialize(value), `fixture drift: fixtures/rest/${name}`);
   }
   console.log(
     `X04 fixtures: checked (${Object.keys(webhooks).length} webhooks, ${Object.keys(rest).length} rest)`,

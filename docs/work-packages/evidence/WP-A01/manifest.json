@@ -1,7 +1,7 @@
 {
   "$schema": "../manifest.schema.json",
   "package": "A01",
-  "tested_commit": "b990ab91edc4fa6a694543f26ed1956d90792b76",
+  "tested_commit": "c21224916f5061aa2a03fa0b9eae764560516dae",
   "protocol_version": "local-mcp/1 over JSON-RPC 2.0 stdio; remote reference MCP/2026-07-28",
   "schema_version": "1",
   "migration_head": "0018_cli_credentials",
@@ -52,6 +52,7 @@
     "internal/localmcp/server_test.go",
     "internal/localmcp/env_test.go",
     "internal/localmcp/production_test.go",
+    "internal/cli/mcp_test.go",
     "tools/local-mcp/run.ts",
     "docs/contracts/local-mcp.md",
     "internal/localmcp/migrations/011_pending_operations.sql"

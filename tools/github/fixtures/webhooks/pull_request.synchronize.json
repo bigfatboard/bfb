@@ -3,13 +3,20 @@
   "delivery_id": "x04-delivery-pr-sync",
   "payload": {
     "action": "synchronize",
+    "number": 7,
     "pull_request": {
       "number": 7,
+      "id": 111222333,
+      "url": "https://api.github.com/repos/synthetic-org/synthetic-repo/pulls/7",
       "head": {
-        "sha": "dddddddddddddddddddddddddddddddddddddddd"
+        "sha": "dddddddddddddddddddddddddddddddddddddddd",
+        "ref": "feature-x04",
+        "label": "synthetic-org:feature-x04"
       },
       "base": {
-        "ref": "main"
+        "ref": "main",
+        "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "label": "synthetic-org:main"
       },
       "state": "open",
       "merged": false,

@@ -67,11 +67,13 @@ Authorized humans and policy-scoped agents can manage the architecture's compact
 - Changing C07 policy/profile/configuration never rewrites an existing run snapshot.
 - Provider Stop, tool failure, session end, process exit, and socket loss cannot be represented as result submission or human acceptance by this package.
 
-## Evidence and handoff
+## Evidence
 
 - Commit state diagrams as executable tests, API fixtures, pagination/projection tests, context-view snapshots, and immutable run-snapshot fixtures.
-- C09/A01/A03/X03A receive stable work commands and record IDs, never direct repositories.
-
 ## Risks and decisions
 
 - Resist workflow growth. States not required by the architecture need a reviewed domain decision, and execution presence must remain separate from run result.
+
+## Handoff
+
+- C09/A01/A03/X03A receive stable work commands and record IDs, never direct repositories.

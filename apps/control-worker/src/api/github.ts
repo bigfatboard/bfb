@@ -118,6 +118,72 @@ function failure(error: unknown): Response {
   return json({ error: "request_failed", message: "request failed" }, 500);
 }
 
+async function consumeBucket(
+  deps: GitHubApiDeps,
+  bucketSubject: string,
+  seed: string,
+  surface: string,
+  policy: typeof WEBHOOK_POLICY | typeof APPROVAL_POLICY,
+): Promise<void> {
+  const expiresAt = new Date(Date.parse(deps.now) + policy.windowSeconds * 1000).toISOString();
+  const decision = await consumeAbuseBudget(
+    deps.db,
+    {
+      bucketKey: abuseBucketKey({
+        ipHashSeed: seed,
+        subject: bucketSubject,
+        surface: `github:${surface}`,
+      }),
+      activity: "attempt",
+      bodyBytes: 0,
+      now: deps.now,
+      expiresAt,
+    },
+    policy,
+  );
+  if (!decision.allowed) {
+    throw new DomainError("request_rejected", "request rejected");
+  }
+}
+
+function requireAbuseSecret(deps: GitHubApiDeps): string {
+  if (typeof deps.abuseSecret !== "string" || deps.abuseSecret.length < 32) {
+    throw new DomainError("request_rejected", "request rejected");
+  }
+  return deps.abuseSecret;
+}
+
+function ipSeed(abuseSecret: string, request: Request): string {
+  const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
+  return createHmac("sha256", abuseSecret).update(`github-ip:${ip}`).digest("hex");
+}
+
+function subjectSeed(abuseSecret: string): string {
+  return createHmac("sha256", abuseSecret).update("github-subject").digest("hex");
+}
+
+/** Per-IP budget only: the one bucket charged before webhook signature verification. */
+async function budgetIp(
+  request: Request,
+  deps: GitHubApiDeps,
+  surface: string,
+  policy: typeof WEBHOOK_POLICY | typeof APPROVAL_POLICY,
+): Promise<void> {
+  const abuseSecret = requireAbuseSecret(deps);
+  await consumeBucket(deps, "all", ipSeed(abuseSecret, request), surface, policy);
+}
+
+/** Per-subject budget only: charged once the caller (installation, user) is known. */
+async function budgetSubject(
+  deps: GitHubApiDeps,
+  subject: string,
+  surface: string,
+  policy: typeof WEBHOOK_POLICY | typeof APPROVAL_POLICY,
+): Promise<void> {
+  const abuseSecret = requireAbuseSecret(deps);
+  await consumeBucket(deps, subject, subjectSeed(abuseSecret), surface, policy);
+}
+
 async function budget(
   request: Request,
   deps: GitHubApiDeps,
@@ -125,34 +191,9 @@ async function budget(
   surface: string,
   policy: typeof WEBHOOK_POLICY | typeof APPROVAL_POLICY,
 ): Promise<void> {
-  if (typeof deps.abuseSecret !== "string" || deps.abuseSecret.length < 32) {
-    throw new DomainError("request_rejected", "request rejected");
-  }
-  const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
-  const expiresAt = new Date(Date.parse(deps.now) + policy.windowSeconds * 1000).toISOString();
-  for (const [bucketSubject, seed] of [
-    ["all", createHmac("sha256", deps.abuseSecret).update(`github-ip:${ip}`).digest("hex")],
-    [subject, createHmac("sha256", deps.abuseSecret).update("github-subject").digest("hex")],
-  ] as const) {
-    const decision = await consumeAbuseBudget(
-      deps.db,
-      {
-        bucketKey: abuseBucketKey({
-          ipHashSeed: seed,
-          subject: bucketSubject,
-          surface: `github:${surface}`,
-        }),
-        activity: "attempt",
-        bodyBytes: 0,
-        now: deps.now,
-        expiresAt,
-      },
-      policy,
-    );
-    if (!decision.allowed) {
-      throw new DomainError("request_rejected", "request rejected");
-    }
-  }
+  requireAbuseSecret(deps);
+  await budgetIp(request, deps, surface, policy);
+  await budgetSubject(deps, subject, surface, policy);
 }
 
 function isHubNamespace(value: unknown): value is DurableObjectNamespace {
@@ -241,7 +282,7 @@ export async function handleGitHubWebhook(
     return json({ error: "method_not_allowed" }, 405);
   }
   try {
-    await budget(request, deps, "webhook", "webhook", WEBHOOK_POLICY);
+    await budgetIp(request, deps, "webhook", WEBHOOK_POLICY);
     const raw = await readBoundedBytes(request, GITHUB_WEBHOOK_BODY_LIMIT);
     verifyGitHubWebhookSignature(
       webhookSecret(deps),
@@ -279,7 +320,7 @@ export async function handleGitHubWebhook(
       return json({ received: true, ignored: "event_not_subscribed" }, 202);
     }
     const effect = extracted.effect;
-    await budget(request, deps, `installation:${effect.installationId}`, "webhook", WEBHOOK_POLICY);
+    await budgetSubject(deps, `installation:${effect.installationId}`, "webhook", WEBHOOK_POLICY);
     const workspaceId = await resolveWorkspaceForInstallation(deps, effect.installationId);
     if (!workspaceId) {
       return json(
@@ -507,11 +548,23 @@ export async function handleGitHubBrowserApi(
       if (!Array.isArray(body.refs)) {
         throw new DomainError("invalid_argument", "refs must be an array");
       }
+      const rawProjectId = body.project_id;
+      if (rawProjectId !== undefined && typeof rawProjectId !== "string") {
+        throw new DomainError("invalid_argument", "project id is invalid");
+      }
+      const projectId = rawProjectId as string | undefined;
+      if (principal.role === "reviewer" && !projectId) {
+        return json({ error: "forbidden", message: "reviewers verify evidence per project" }, 403);
+      }
       assertRole(principal, ["owner", "member", "reviewer"]);
+      if (projectId) {
+        assertProjectAccess(principal, projectId);
+      }
       const statuses = await getEvidenceVerificationStatus(
         deps.db,
         workspaceId,
         body.refs as Array<{ kind: string; ref: string; version?: string }>,
+        { projectId },
       );
       return json({ ok: true, statuses });
     }
@@ -710,8 +763,17 @@ export function createGitHubRestClient(deps: {
           "user-agent": "bfb-github/v1",
         },
       });
-      if (response.status === 401 || response.status === 403 || response.status === 404) {
+      if (response.status === 401 || response.status === 404) {
         return { revoked: true as const };
+      }
+      if (response.status === 403 || response.status === 429 || response.status >= 500) {
+        // GitHub answers primary and secondary rate limits and abuse
+        // detection with 403 on repository reads, so a 403 never proves the
+        // installation is gone. Retry with backoff instead of revoking.
+        throw new DomainError(
+          "github_unreachable",
+          "github repository read is rate limited or unavailable",
+        );
       }
       if (!response.ok) {
         throw new DomainError("github_unreachable", "github repository read failed");
@@ -865,11 +927,12 @@ export async function consumeGitHubQueueMessage(
     const link = context.repositoryId
       ? ((await deps.db
           .prepare(
-            `SELECT full_name, default_branch FROM github_repository_links WHERE repository_id = ? AND link_state = 'active'`,
+            `SELECT full_name, default_branch FROM github_repository_links WHERE workspace_id = ? AND repository_id = ? AND link_state = 'active'`,
           )
-          .get(context.repositoryId)) as { full_name: string; default_branch: string } | undefined)
+          .get(context.workspaceId, context.repositoryId)) as
+          { full_name: string; default_branch: string } | undefined)
       : undefined;
-    await reconcileThroughHub(
+    const closed = await reconcileThroughHub(
       deps,
       context,
       link === undefined
@@ -880,6 +943,10 @@ export async function consumeGitHubQueueMessage(
             fetchedAt: deps.now,
           },
     );
+    if (!closed.ok) {
+      await failAttempt(deps, handle, context, closed.code);
+      return;
+    }
     handle.ack();
     return;
   }
@@ -913,7 +980,11 @@ export async function consumeGitHubQueueMessage(
     if (error instanceof DomainError && error.code === "installation_revoked") {
       await markGitHubInstallationRevoked(deps.db, context.installationId, deps.now);
       try {
-        await reconcileThroughHub(deps, context, undefined);
+        const revoked = await reconcileThroughHub(deps, context, undefined);
+        if (!revoked.ok) {
+          await failAttempt(deps, handle, context, revoked.code);
+          return;
+        }
         handle.ack();
       } catch {
         await failAttempt(deps, handle, context, "installation_revoked");
@@ -934,7 +1005,11 @@ export async function consumeGitHubQueueMessage(
     if ("revoked" in repository) {
       await markGitHubInstallationRevoked(deps.db, context.installationId, deps.now);
       try {
-        await reconcileThroughHub(deps, context, undefined);
+        const revoked = await reconcileThroughHub(deps, context, undefined);
+        if (!revoked.ok) {
+          await failAttempt(deps, handle, context, revoked.code);
+          return;
+        }
         handle.ack();
       } catch {
         await failAttempt(deps, handle, context, "installation_revoked");
@@ -952,9 +1027,9 @@ export async function consumeGitHubQueueMessage(
   }
   const result = await reconcileThroughHub(deps, context, observed);
   if (!result.ok) {
-    // Reconcile throws only on retryable installation state or poison-missing
-    // rows; the loads above rule out the poison cases, so every failure here
-    // is a bounded retryable attempt.
+    // Reconcile reports failure as a code, never a throw; the loads above
+    // rule out the poison cases, so every failure here is a bounded
+    // retryable attempt.
     await failAttempt(deps, handle, context, result.code);
     return;
   }
@@ -987,7 +1062,9 @@ async function failAttempt(
     handle.ack();
     return;
   }
-  handle.retry({ delaySeconds: Math.min(githubOutboxBackoffSeconds(Math.max(attempts, 0)), 300) });
+  // The queue delay follows the same backoff curve as the D1 next_attempt_at
+  // so Cron reclaim and queue redelivery agree on timing.
+  handle.retry({ delaySeconds: githubOutboxBackoffSeconds(Math.max(attempts, 0)) });
 }
 
 /** Consumes one Queue batch with per-message try/catch and explicit dispositions. */

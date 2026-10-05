@@ -18,6 +18,7 @@ import {
   listRetentionEligibleChunks,
   listStuckLaunches,
   listStuckUploads,
+  markVersionRetained,
   OPS_MIGRATION_ID,
   OPS_STEP_UP_ACTIONS,
   readActivityFeed,
@@ -156,6 +157,30 @@ describe("retention policy", () => {
     );
     expect((await setRetention(db, 400, badWindow)).ok).toBe(false);
   });
+
+  it("rejects delegated envelopes before step-up without changing the policy", async () => {
+    const db = await openDomainDb();
+    const proof = await stepUp(
+      db,
+      FIX.owner,
+      OPS_STEP_UP_ACTIONS.retention,
+      `ops-retention:${FIX.workspace}`,
+    );
+    const delegated = await hub(db).execute(setRetentionPolicyCommand, {
+      workspaceId: FIX.workspace,
+      idempotencyKey: randomUlid(),
+      actorHumanId: FIX.owner,
+      actorDelegationId: randomUlid(),
+      authorizationEpoch: 1,
+      now: NOW,
+      input: { rawLogRetentionDays: 7, stepUpProofId: proof },
+    });
+    expect(delegated).toMatchObject({ ok: false, error: { code: "forbidden" } });
+    const policies = (await db
+      .prepare(`SELECT COUNT(*) AS count FROM retention_policies WHERE workspace_id = ?`)
+      .get(FIX.workspace)) as { count: number };
+    expect(policies).toEqual({ count: 0 });
+  });
 });
 
 describe("retention eligibility", () => {
@@ -254,6 +279,32 @@ describe("retention eligibility", () => {
     };
     expect(versions.count).toBe(4);
   });
+
+  it("stops listing purged chunks once they are retained", async () => {
+    const db = await openDomainDb();
+    const rows = await seedArtifacts(db);
+    const target = rows.find((row) => row.eligible)!.id;
+    expect(await markVersionRetained(db, { workspaceId: FIX.workspace, versionId: target })).toBe(
+      true,
+    );
+    expect(await markVersionRetained(db, { workspaceId: FIX.workspace, versionId: target })).toBe(
+      false,
+    );
+    expect(
+      await markVersionRetained(db, { workspaceId: FIX.workspace, versionId: randomUlid() }),
+    ).toBe(false);
+    const found = await listRetentionEligibleChunks(db, FIX.workspace, NOW);
+    expect(found.eligible).toEqual([]);
+    expect(found.examined).toBe(1);
+    const row = (await db
+      .prepare(
+        `SELECT state, content_hash, r2_key FROM artifact_versions WHERE workspace_id = ? AND id = ?`,
+      )
+      .get(FIX.workspace, target)) as { state: string; content_hash: string; r2_key: string };
+    expect(row.state).toBe("retained");
+    expect(row.content_hash).toBe("e".repeat(64));
+    expect(row.r2_key).toContain("/logs/");
+  });
 });
 
 describe("redaction", () => {
@@ -325,6 +376,71 @@ describe("audit versus activity", () => {
     expect(retentionRows[0]!.actor_principal_id).toBe(FIX.owner);
     const activity = await readActivityFeed(db, FIX.workspace);
     expect(activity.entries.find((entry) => entry.kind === "ops.retention.set")).toBeUndefined();
+  });
+});
+
+describe("security audit ordering", () => {
+  const T1 = "2026-09-18T12:00:00.000Z";
+  const T2 = "2026-09-18T12:10:00.000Z";
+  const T3 = "2026-09-18T12:20:00.000Z";
+
+  async function seedChronology(db: SqlDatabase): Promise<string[]> {
+    await db.prepare(`DELETE FROM audit_events WHERE workspace_id = ?`).run(FIX.workspace);
+    // Inserted oldest-first, but the ids sort in the opposite order on
+    // purpose (including the non-ULID recovery-row shape), so an id-ordered
+    // read model returns them scrambled.
+    const rows = [
+      { audit_id: "01ZZZZZZZZZZZZZZZZZZZZZZZZ", created_at: T1 },
+      { audit_id: "audit-recovery-shape", created_at: T2 },
+      { audit_id: "01000000000000000000000000", created_at: T2 },
+      { audit_id: "01MMMMMMMMMMMMMMMMMMMMMMMM", created_at: T3 },
+    ];
+    for (const row of rows) {
+      await db
+        .prepare(
+          `INSERT INTO audit_events
+             (workspace_id, audit_id, actor_principal_id, action, payload_json, created_at)
+           VALUES (?, ?, ?, 'ops.audit.order.probe', ?, ?)`,
+        )
+        .run(
+          FIX.workspace,
+          row.audit_id,
+          FIX.owner,
+          JSON.stringify({ action: "probe" }),
+          row.created_at,
+        );
+    }
+    return rows.map((row) => row.audit_id);
+  }
+
+  it("returns rows oldest-first regardless of id shape", async () => {
+    const db = await openDomainDb();
+    const ids = await seedChronology(db);
+    const audit = await readSecurityAudit(db, FIX.workspace);
+    expect(audit.entries.map((entry) => entry.audit_id)).toEqual(ids);
+    expect(audit.has_more).toBe(false);
+  });
+
+  it("pages forward in time through the after cursor", async () => {
+    const db = await openDomainDb();
+    const ids = await seedChronology(db);
+    const first = await readSecurityAudit(db, FIX.workspace, { limit: 2 });
+    expect(first.entries.map((entry) => entry.audit_id)).toEqual(ids.slice(0, 2));
+    expect(first.has_more).toBe(true);
+    const second = await readSecurityAudit(db, FIX.workspace, { limit: 2, after: ids[1] });
+    expect(second.entries.map((entry) => entry.audit_id)).toEqual(ids.slice(2));
+    expect(second.has_more).toBe(false);
+    const empty = await readSecurityAudit(db, FIX.workspace, { after: ids[3] });
+    expect(empty.entries).toEqual([]);
+    expect(empty.has_more).toBe(false);
+  });
+
+  it("rejects an unknown after cursor instead of skipping in id space", async () => {
+    const db = await openDomainDb();
+    await seedChronology(db);
+    await expect(
+      readSecurityAudit(db, FIX.workspace, { after: "01AAAAAAAAAAAAAAAAAAAAAAAAA" }),
+    ).rejects.toMatchObject({ code: "invalid_argument" });
   });
 });
 
@@ -540,6 +656,62 @@ describe("privileged recovery", () => {
         now: LATER,
       }),
     ).rejects.toBeInstanceOf(DomainError);
+  });
+
+  it("rejects a mixed github requeue target without touching any row", async () => {
+    const db = await openDomainDb();
+    const delivery = randomUlid();
+    await db
+      .prepare(
+        `INSERT INTO github_webhook_deliveries (workspace_id, delivery_id, event, effect_json, state, received_at)
+         VALUES (?, ?, 'push', '{}', 'received', ?)`,
+      )
+      .run(FIX.workspace, delivery, NOW);
+    await db
+      .prepare(
+        `INSERT INTO github_integration_outbox (workspace_id, outbox_id, delivery_id, kind, state, attempts, next_attempt_at, created_at, updated_at)
+         VALUES (?, 'outbox-mixed-dlq', ?, 'github.reconcile', 'dlq', 5, ?, ?, ?), (?, 'outbox-mixed-pending', ?, 'github.reconcile', 'pending', 0, ?, ?, ?)`,
+      )
+      .run(FIX.workspace, delivery, NOW, NOW, NOW, FIX.workspace, delivery, NOW, NOW, NOW);
+    await expect(
+      applyOpsRecovery({
+        db,
+        workspaceId: FIX.workspace,
+        kind: "requeue_github_outbox",
+        target: { outbox_ids: ["outbox-mixed-dlq", "outbox-mixed-pending"] },
+        actorHumanId: FIX.owner,
+        now: NOW,
+      }),
+    ).rejects.toBeInstanceOf(DomainError);
+    await expect(
+      applyOpsRecovery({
+        db,
+        workspaceId: FIX.workspace,
+        kind: "requeue_github_outbox",
+        target: { outbox_ids: ["outbox-mixed-pending", "outbox-mixed-dlq"] },
+        actorHumanId: FIX.owner,
+        now: NOW,
+      }),
+    ).rejects.toBeInstanceOf(DomainError);
+    const dlq = (await db
+      .prepare(
+        `SELECT state, attempts FROM github_integration_outbox WHERE workspace_id = ? AND outbox_id = ?`,
+      )
+      .get(FIX.workspace, "outbox-mixed-dlq")) as { state: string; attempts: number };
+    expect(dlq).toEqual({ state: "dlq", attempts: 5 });
+    const ledger = (await db
+      .prepare(`SELECT COUNT(*) AS n FROM ops_recovery_ledger WHERE workspace_id = ?`)
+      .get(FIX.workspace)) as { n: number };
+    expect(ledger.n).toBe(0);
+    const done = await applyOpsRecovery({
+      db,
+      workspaceId: FIX.workspace,
+      kind: "requeue_github_outbox",
+      target: { outbox_ids: ["outbox-mixed-dlq"] },
+      actorHumanId: FIX.owner,
+      now: LATER,
+    });
+    expect(done.detail).toEqual({ requeued: 1 });
   });
 
   it("resolves only genuinely stuck uploads and clears ledger state", async () => {

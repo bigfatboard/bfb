@@ -233,7 +233,7 @@ func reapedPID(t *testing.T) int {
 	return pid
 }
 
-func TestOfferReclaimedAfterOfferedAppDeath(t *testing.T) {
+func TestDeadOfferNeverReoffered(t *testing.T) {
 	b := syntheticBridge(t, Options{})
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -250,21 +250,31 @@ func TestOfferReclaimedAfterOfferedAppDeath(t *testing.T) {
 	if id == "" {
 		t.Fatal("offered delivery has no acknowledgement identity")
 	}
-	// The live relaunched app polls next and must receive the same delivery
-	// instead of idling until the handoff times out.
+	// The live relaunched app must never receive the same delivery: the dead
+	// app may already have run its Terminal open before dying without
+	// acknowledging, and a second open would repeat the speculative effect.
 	live := daemon.Peer{UID: os.Getuid(), PID: os.Getpid()}
-	fresh, err := b.poll(ctx, live, "available")
-	if err != nil || fresh["app_delivery_id"] != id || fresh["app_action"] != "open_terminal" {
-		t.Fatalf("dead owner's offer was not reclaimed: %#v %v", fresh, err)
+	short, cancelShort := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancelShort()
+	if again, err := b.poll(short, live, "available"); err != nil || len(again) != 0 {
+		t.Fatalf("dead owner's Terminal offer was re-offered: %#v %v", again, err)
 	}
-	if err := b.complete(live, id, "terminal_opened"); err != nil {
-		t.Fatal(err)
+	// The orphaned offer resolves as unknown so the supervisor reconciles
+	// the single-use intent instead of idling until the delivery times out.
+	if code := failureCode(<-done); code != "app_delivery_unknown" {
+		t.Fatalf("orphaned Terminal offer reported %s instead of app_delivery_unknown", code)
 	}
-	if err := <-done; err != nil {
-		t.Fatal("reclaimed delivery did not complete", err)
+	b.mu.Lock()
+	pending := len(b.pending)
+	b.mu.Unlock()
+	if pending != 0 {
+		t.Fatal("orphaned delivery retained for blind replay")
 	}
-	if failureCode(b.complete(dying, id, "terminal_opened")) != "invalid_request" {
-		t.Fatal("reclaimed receipt lost its process binding")
+	if failureCode(b.complete(live, id, "terminal_opened")) != "expired_intent" {
+		t.Fatal("orphaned delivery accepted a late receipt from the live app")
+	}
+	if failureCode(b.complete(dying, id, "terminal_opened")) != "expired_intent" {
+		t.Fatal("orphaned delivery accepted a late receipt from its dead owner")
 	}
 }
 

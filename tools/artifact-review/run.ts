@@ -16,6 +16,7 @@ import {
   listResultSubmissions,
   listReviewTimerObservations,
   listReviewTimers,
+  loadPrincipal,
   mintUploadGrantSecret,
   randomUlid,
   recordVerifiedUpload,
@@ -446,7 +447,9 @@ async function main(): Promise<void> {
       ),
       "reviewer request_changes on latest",
     );
-    const status = await getArtifactReviewStatus(db, workspaceId, first.artifact_id);
+    // The harness reads with the owner's full project grant.
+    const ownerScope = (await loadPrincipal(db, workspaceId, owner)).projectIds;
+    const status = await getArtifactReviewStatus(db, workspaceId, first.artifact_id, ownerScope);
     assert.equal(status?.approved, false);
     assert.equal(status?.changes_requested, true);
     assert.equal(status?.review_count, 2);
@@ -589,7 +592,12 @@ async function main(): Promise<void> {
       ),
       "browser_activity.record",
     );
-    const presenceStatus = await getArtifactReviewStatus(db, workspaceId, first.artifact_id);
+    const presenceStatus = await getArtifactReviewStatus(
+      db,
+      workspaceId,
+      first.artifact_id,
+      ownerScope,
+    );
     assert.ok(!("presence" in (presenceStatus ?? {})));
     assert.ok(!("browser_activity" in (presenceStatus ?? {})));
     assert.equal(presenceStatus?.review_count, 3);

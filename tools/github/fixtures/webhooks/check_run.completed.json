@@ -10,7 +10,16 @@
       "status": "completed",
       "conclusion": "success",
       "started_at": "2026-09-18T11:55:00.000Z",
-      "completed_at": "2026-09-18T12:00:00.000Z"
+      "completed_at": "2026-09-18T12:00:00.000Z",
+      "pull_requests": [
+        {
+          "number": 7
+        }
+      ],
+      "app": {
+        "id": 999000,
+        "slug": "synthetic-app"
+      }
     },
     "repository": {
       "id": 87654321,

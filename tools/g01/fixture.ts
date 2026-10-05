@@ -94,11 +94,22 @@ export function g01Id(tag: string): string {
   return syntheticUlid(tag);
 }
 
+/**
+ * Second tenant: the harness seeds a second workspace with its own owner so
+ * cross-workspace commands through the hub route are observed, not assumed.
+ */
+export const G01_SECOND_TENANT = {
+  workspace: "G01WSB",
+  owner: "G01OWNB",
+};
+
 /** Every stable fixture ID must be unique; the harness asserts this before seeding. */
 export function g01StableIds(): string[] {
   return [
     ...G01_EXTRA_PROJECTS.map((spec) => g01Id(spec.tag)),
     ...G01_RUNNERS.map((spec) => g01Id(spec.tag)),
     ...G01_RUNNERS.flatMap((spec) => spec.checkoutTags.map((tag) => g01Id(tag))),
+    g01Id(G01_SECOND_TENANT.workspace),
+    g01Id(G01_SECOND_TENANT.owner),
   ];
 }

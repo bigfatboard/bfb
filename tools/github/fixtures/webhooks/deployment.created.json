@@ -2,11 +2,15 @@
   "event": "deployment",
   "delivery_id": "x04-delivery-deployment",
   "payload": {
+    "action": "created",
     "deployment": {
       "id": 6060,
       "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       "environment": "synthetic-staging",
-      "created_at": "2026-09-18T12:00:00.000Z"
+      "created_at": "2026-09-18T12:00:00.000Z",
+      "creator": {
+        "login": "synthetic-org"
+      }
     },
     "repository": {
       "id": 87654321,

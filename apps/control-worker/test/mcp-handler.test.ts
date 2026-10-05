@@ -149,6 +149,37 @@ describe("mcp handler", () => {
     expect(session.status).not.toBe(200);
   });
 
+  it("rejects oversized chunked bodies without buffering them fully", async () => {
+    const db = await openDomainDb();
+    const { accessToken } = await issueSyntheticMcpAccess(db);
+    const totalBytes = 4_000_000;
+    const chunkBytes = 16_384;
+    let pulledBytes = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (pulledBytes >= totalBytes) {
+          controller.close();
+          return;
+        }
+        const size = Math.min(chunkBytes, totalBytes - pulledBytes);
+        pulledBytes += size;
+        controller.enqueue(new Uint8Array(size));
+      },
+    });
+    const response = await handleMcpRequest(
+      new Request("https://bfb.example.test/mcp", {
+        method: "POST",
+        headers: headers("tools/list", undefined, accessToken),
+        body,
+        duplex: "half",
+      } as RequestInit),
+      { db, ...handlerEnv },
+    );
+    expect(response.status).toBe(413);
+    // Buffering the whole body first would pull all four megabytes.
+    expect(pulledBytes).toBeLessThanOrEqual(65_536 * 2);
+  });
+
   it("proposes tasks and keeps discussion and progress idempotent", async () => {
     const db = await openDomainDb();
     const { accessToken } = await issueSyntheticMcpAccess(db);

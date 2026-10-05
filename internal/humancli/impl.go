@@ -37,7 +37,6 @@ func cmdLogin(ctx context.Context, s session) *Failure {
 	device, _ := started["device_code"].(string)
 	userCode, _ := started["user_code"].(string)
 	uri, _ := started["verification_uri"].(string)
-	complete, _ := started["verification_uri_complete"].(string)
 	interval := 5
 	if value, ok := started["interval"].(float64); ok && value >= 1 && value <= 30 {
 		interval = int(value)
@@ -45,13 +44,14 @@ func cmdLogin(ctx context.Context, s session) *Failure {
 	if device == "" || userCode == "" {
 		return s.diagnose(fail("request_failed", "the control plane answered outside the frozen surface"))
 	}
+	// Both modes poll the exchange endpoint to completion: JSON mode keeps
+	// standard output to its single result document, so the approval
+	// instructions go to standard error there.
 	if s.json {
-		return s.diagnose(s.ok(map[string]any{
-			"user_code": userCode, "verification_uri": uri,
-			"verification_uri_complete": complete, "interval": interval,
-		}, nil))
+		_, _ = fmt.Fprintln(s.stderr, "Open "+uri+" and enter code "+userCode)
+	} else {
+		_, _ = fmt.Fprintln(s.output, "Open "+uri+" and enter code "+userCode)
 	}
-	_, _ = fmt.Fprintln(s.output, "Open "+uri+" and enter code "+userCode)
 	deadline := time.Now().Add(10 * time.Minute)
 	for {
 		if time.Now().After(deadline) {

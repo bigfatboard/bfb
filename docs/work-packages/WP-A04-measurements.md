@@ -8,9 +8,6 @@ Test target: `pnpm test:a04`
 
 Evidence manifest: `docs/work-packages/evidence/WP-A04/manifest.json`
 
-> Settled 18 September: `done` — `pnpm test:a04` passed in a detached clean
-> checkout at `9372c0f`; see Handoff.
-
 ## Outcome
 
 BFB shows human attention, process elapsed time, active agent work, waiting, and token usage as separate provenance-labelled measurements rather than one misleading total.
@@ -41,7 +38,7 @@ BFB shows human attention, process elapsed time, active agent work, waiting, and
 ### Consumes
 
 - [Event ledger v1](../contracts/event-ledger.md) (uniquely identified raw observations, heartbeats, replay-safe derivation source; E01 computes no intervals).
-- [Human attention workflow v1](../contracts/attention.md) (raw `attention_observations` plus `requested_at`/`first_response_at`/`answered_at`/`resolved_at`; A02 timing evidence in `evidence/WP-A02/raw-timing-observations.json`).
+- [Human attention workflow v1](../contracts/attention.md) (raw `attention_observations` plus `requested_at`/`first_response_at`/`answered_at`/`resolved_at`; A02 waiter-cadence counts in `evidence/WP-A02/waiter-cadence.json` as a structural cross-check).
 - [Result submission and acceptance v1](../contracts/results.md) (submission/review timestamps for run age, review counts for interventions).
 - Provider usage fields in `internal/providers/codex` (`exec`/`turn.completed` usage) and `internal/providers/claude` (hook usage) as normalization sources.
 - W01 task and run surfaces in `apps/web` and `packages/ui` (task-sheet slot, component conventions; E02 sockets not consumed).
@@ -93,7 +90,7 @@ BFB shows human attention, process elapsed time, active agent work, waiting, and
 
 ## Handoff
 
-- Settled 18 September: `done`. A02, A03, and E01 are `done`, and `pnpm test:a04` passed in a detached clean checkout at `9372c0f` (install, build, exact target with the real-Worker/D1 harness and browser spec). The evidence manifest is re-based on that rerun (the `ci: not_run` key is omitted: no CI run exists on this line, and CI status is not claimed); the implementation evidence stays listed as manifest artifacts.
+- Settled 18 September: `done`. A02, A03, and E01 are `done`, and `pnpm test:a04` passed in a detached clean checkout at `1c9ae54` (install, build, exact target with the real-Worker/D1 harness and browser spec). The evidence manifest is re-based on that rerun; the implementation evidence stays listed as manifest artifacts.
 - Consume: `docs/contracts/measurements.md` (v1), domain commands `token.report`, `interval.report`, `review_timer.start`, `review_timer.stop`, `browser_activity.record` plus reads `getRunMeasurements`, `getTaskMeasurements`, `aggregateMeasurements` in `packages/domain/src/measurements.ts`, REST routes under `/runs/:runId/measurements`, `/tasks/:taskId/measurements`, `/tasks/:taskId/review-timers`, `/review-timers/:timerId/stop`, `/browser-activity`, `MeasurementsPanel`/`MeasurementsView` in `apps/web/src/work/measurements.tsx`.
 - V03: consume reviewed submission versions plus this review-timer service; never mutate submissions or create a second timer.
 - G01: use these metrics as release assertions; no exact product metric comes from sampled logs.

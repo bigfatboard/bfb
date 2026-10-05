@@ -619,6 +619,7 @@ export function createControlApp(
           db,
           now: c.get("now") ?? now,
           jurisdiction: current.jurisdiction,
+          abuseSecret: runtime.abuseSecret,
           workspaceHubNs: envBindings.WORKSPACE_HUB,
         });
       }

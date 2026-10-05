@@ -1,7 +1,7 @@
 {
   "$schema": "../manifest.schema.json",
   "package": "E02",
-  "tested_commit": "98cf0e110ddab20cb9fd403788d6d0f2e7f9c78f",
+  "tested_commit": "28446a77565a54ffd97b934e40c5169c7f5d0995",
   "protocol_version": "bfb-wire/1",
   "schema_version": "1",
   "migration_head": "d1:0019_event_ledger.sql",

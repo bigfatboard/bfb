@@ -6,6 +6,8 @@ package supervisor
 import (
 	"os"
 	"slices"
+	"strconv"
+	"strings"
 	"syscall"
 
 	"github.com/qdis/bfb/internal/daemon"
@@ -50,8 +52,58 @@ func NewGroup(leader Process) (*Group, error) {
 
 func failure(code string) error { return &daemon.Failure{Code: code} }
 
-// Observe records descendants while their ancestry is visible. The supported
-// adapter contract forbids daemonizing; polling is not a sandbox for evasive code.
+// compareStartIdentity orders kernel start identities numerically. Darwin
+// reports wall-clock seconds and microseconds while Linux reports
+// boot-relative ticks, but both render as "first:second" pairs whose
+// chronological order matches the numeric pair order. ok is false when
+// either side is malformed; callers must fail closed.
+func compareStartIdentity(first, second string) (order int, ok bool) {
+	parse := func(identity string) (uint64, uint64, bool) {
+		parts := strings.Split(identity, ":")
+		if len(parts) != 2 {
+			return 0, 0, false
+		}
+		major, err := strconv.ParseUint(parts[0], 10, 64)
+		if err != nil {
+			return 0, 0, false
+		}
+		minor, err := strconv.ParseUint(parts[1], 10, 64)
+		if err != nil {
+			return 0, 0, false
+		}
+		return major, minor, true
+	}
+	firstMajor, firstMinor, ok := parse(first)
+	if !ok {
+		return 0, false
+	}
+	secondMajor, secondMinor, ok := parse(second)
+	if !ok {
+		return 0, false
+	}
+	switch {
+	case firstMajor != secondMajor:
+		if firstMajor < secondMajor {
+			return -1, true
+		}
+		return 1, true
+	case firstMinor != secondMinor:
+		if firstMinor < secondMinor {
+			return -1, true
+		}
+		return 1, true
+	default:
+		return 0, true
+	}
+}
+
+// Observe records descendants while their ancestry is visible. A backgrounded
+// child whose parent already exited (reparented to PID 1 on Darwin) has no
+// visible ancestry left, so the walk below can never root it. The kernel
+// still proves its descent when it shares the owned group and started after
+// the leader; such an orphan is adopted as an observed descendant. The
+// supported adapter contract forbids daemonizing; polling is not a sandbox
+// for evasive code.
 func (group *Group) Observe(table ProcessTable) GroupObservation {
 	if group.Leader.GroupID != group.Leader.PID || group.Leader.UID != os.Getuid() || !group.Leader.Same(group.Observed[group.Leader.PID]) {
 		group.Unknown = true
@@ -76,6 +128,38 @@ func (group *Group) Observe(table ProcessTable) GroupObservation {
 			group.Observed[pid] = current
 			changed = true
 		}
+		for pid, process := range table {
+			if process.Zombie || process.UID != group.Leader.UID {
+				continue
+			}
+			if _, exists := group.Observed[pid]; exists {
+				continue
+			}
+			if process.GroupID != group.Leader.GroupID {
+				continue
+			}
+			if _, parentLive := table[process.ParentPID]; parentLive {
+				continue
+			}
+			// The parent link is dead: the member was reparented after its
+			// parent exited, or its parent is invisible under another UID.
+			// A member with a live parent elsewhere may have joined the
+			// group rather than descended from it, so only a dead parent
+			// link qualifies. Only the kernel start order can then tell a
+			// genuine orphan from a recycled group ID, and only a strictly
+			// later start proves descent. Anything older, tied, or
+			// malformed stays fail-closed in the sweep below.
+			order, ok := compareStartIdentity(process.StartIdentity, group.Leader.StartIdentity)
+			if !ok || order <= 0 {
+				continue
+			}
+			if len(group.Observed) == maxObservedProcesses {
+				group.Unknown, group.Incomplete = true, true
+				continue
+			}
+			group.Observed[pid] = process
+			changed = true
+		}
 	}
 	observation := GroupObservation{State: "gone", Live: []Process{}}
 	for pid, previous := range group.Observed {
@@ -95,8 +179,9 @@ func (group *Group) Observe(table ProcessTable) GroupObservation {
 			group.Unknown, group.HadEscape = true, true
 		}
 	}
-	// An unobserved member could be an orphaned child, or a recycled group ID.
-	// Without a known matching ancestor this cannot be upgraded to ownership.
+	// An unobserved member that the kernel does not prove started after the
+	// leader (a possible recycled group ID), or that keeps a live parent
+	// outside the owned group, cannot be upgraded to ownership.
 	for pid, process := range table {
 		if process.GroupID == group.Leader.GroupID && !process.Zombie {
 			if previous, known := group.Observed[pid]; !known || !previous.Same(process) {

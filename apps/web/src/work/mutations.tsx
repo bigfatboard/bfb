@@ -532,6 +532,7 @@ export function WorkMutations(props: WorkMutationsProps) {
           ) : null}
 
           <LaunchSection
+            key={task.id}
             workspaceId={props.workspaceId}
             taskId={task.id}
             humanId={props.humanId}

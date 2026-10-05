@@ -10,10 +10,12 @@ import {
   artifactEvidenceVersionMap,
   getArtifactReviewStatus,
   listArtifactReviews,
+  listArtifactsWithReviewState,
   listLinkedSubmissions,
   recordReviewCommand,
   type ReviewRecord,
 } from "../src/artifact-reviews.js";
+import { loadPrincipal } from "../src/authorization.js";
 import {
   createArtifactCommand,
   finalizeArtifactCommand,
@@ -499,6 +501,89 @@ describe("artifact reviews", () => {
     expect(await failure(f.review(input, { systemId: syntheticUlid("SYSSYN") }))).toBe("forbidden");
     // Epoch mismatch fails closed as well.
     expect(await failure(f.review(input, { epoch: 2 }))).toBe("stale_authorization");
+  });
+
+  it("scopes review reads to the reader's projects", async () => {
+    const f = await fixture();
+    const runA = await f.taskAndRun(FIX.projectA);
+    const runB = await f.taskAndRun(FIX.projectB);
+    const versionA = await f.available("v03-read-a", runA.runId);
+    const versionB = await f.available("v03-read-b", runB.runId);
+    const free = await f.available("v03-read-free");
+    // Reviewer holds a projectA grant in fixtures.
+    const restricted = await loadPrincipal(f.db, FIX.workspace, FIX.restricted);
+    const listed = await listArtifactsWithReviewState(f.db, FIX.workspace, restricted.projectIds);
+    const ids = listed.map((entry) => entry.artifact_id);
+    expect(ids).toContain(versionA.artifact_id);
+    expect(ids).toContain(free.artifact_id);
+    expect(ids).not.toContain(versionB.artifact_id);
+    // The run filter still applies within scope, and foreign runs list empty.
+    const scopedByRun = await listArtifactsWithReviewState(
+      f.db,
+      FIX.workspace,
+      restricted.projectIds,
+      runB.runId,
+    );
+    expect(scopedByRun).toEqual([]);
+    // Single-artifact reads hide foreign-project artifacts as missing.
+    expect(
+      await getArtifactReviewStatus(
+        f.db,
+        FIX.workspace,
+        versionB.artifact_id,
+        restricted.projectIds,
+      ),
+    ).toBeUndefined();
+    expect(
+      await getArtifactReviewStatus(
+        f.db,
+        FIX.workspace,
+        versionA.artifact_id,
+        restricted.projectIds,
+      ),
+    ).toBeDefined();
+    expect(
+      await getArtifactReviewStatus(f.db, FIX.workspace, free.artifact_id, restricted.projectIds),
+    ).toBeDefined();
+    // Full project access still observes every artifact.
+    const owner = await loadPrincipal(f.db, FIX.workspace, FIX.owner);
+    const ownerListed = await listArtifactsWithReviewState(f.db, FIX.workspace, owner.projectIds);
+    expect(ownerListed.map((entry) => entry.artifact_id)).toEqual(
+      expect.arrayContaining([versionA.artifact_id, versionB.artifact_id, free.artifact_id]),
+    );
+  });
+
+  it("refuses artifact creation on runs outside the author's projects", async () => {
+    const f = await fixture();
+    const runB = await f.taskAndRun(FIX.projectB);
+    // Narrow the member to project A only for this scenario.
+    await f.db
+      .prepare(
+        `DELETE FROM project_access WHERE workspace_id = ? AND project_id = ? AND human_id = ?`,
+      )
+      .run(FIX.workspace, FIX.projectB, FIX.member);
+    const minted = mintUploadGrantSecret();
+    const input = {
+      artifactId: null,
+      runId: runB.runId,
+      format: "markdown" as never,
+      role: "review" as never,
+      declaredSize: 32,
+      expectedDigest: digest("v03-write-scope"),
+      grantSecretHash: minted.secretHash,
+    };
+    expect(await failure(f.human(createArtifactCommand, input, { humanId: FIX.member }))).toBe(
+      "request_rejected",
+    );
+    const runA = await f.taskAndRun(FIX.projectA);
+    const scopedMinted = mintUploadGrantSecret();
+    result(
+      await f.human(
+        createArtifactCommand,
+        { ...input, runId: runA.runId, grantSecretHash: scopedMinted.secretHash },
+        { humanId: FIX.member },
+      ),
+    );
   });
 
   it("links an A04 timer observation without owning timer state", async () => {

@@ -25,8 +25,14 @@ force the operating system to recycle a PID.
 app or controlling Terminal. It explicitly cannot satisfy Terminal acceptance.
 The real Terminal mode requires an available GUI session. Its native
 open/focus/control delivery passed the complete clean-checkout `test:l05`
-gate: real `focus_existing`, human-like Ctrl-C with exactly one SIGINT, and
-provider-only window close with verified whole-group release. Honest limits:
+gate at `d0b286d` with an exit-on-first-signal provider: real
+`focus_existing`, one observed SIGINT on Ctrl-C, and a provider-only
+window close with verified whole-group release. The gate now uses a
+counting provider instead: human-like Ctrl-C must show exactly one SIGINT
+with a duplicate-free settle while the provider is kept alive, and a
+provider-only close must show the kernel SIGHUP plus at most the
+helper-shutdown SIGTERM, never a third signal. That stronger form awaits
+its first signed Terminal run. Honest limits:
 a same-group survivor cannot outlive a real close (retention stays covered
 by the child and escape scenarios); the synthetic `--require-focus` routing
 section is not invoked by any gate; a cold start beyond the scripting-readiness
@@ -103,6 +109,14 @@ and joins those workers before closing private assignment files. Registered
 executions remain owned by native lifecycle observation, not by the unstarted
 cleanup path. Missing provider adapters/installations fail closed; the fake provider
 is available only through a compiled synthetic-harness installation boundary.
+The production daemon resolves each real provider to its setup-published
+installation before probing: the `PATH` binary, the hook/MCP sources under the
+provider home (`BFB_CLAUDE_HOME` or the user home for Claude, `CODEX_HOME` or
+`~/.codex` for Codex, `GROK_HOME` or `~/.grok` for Grok), and the matching
+integration hash (content-derived for Claude, the packaged identity for
+Codex/Grok). Probe, plan, preparation and pre-exec revalidation therefore
+fingerprint the same files the launch depends on; replacing any of them
+between probe and exec blocks tracked launch.
 
 After that transaction, registration atomically publishes the strict assignment in
 the user-private `execution-records` directory, authenticated over both its bytes
@@ -180,6 +194,15 @@ and [Apple's terminal foreground contract](https://developer.apple.com/library/a
 Process identity includes kernel PID/start time, user and group identity; executable
 identity is verified separately for the trusted helper/provider. The supervisor
 remembers observed descendants and checks their identity and group membership.
+A backgrounded child whose parent already exited is reparented (to PID 1 on
+Darwin) and keeps the owned process group with no visible ancestry. The
+supervisor adopts such an orphan as an observed descendant when its parent link
+is dead and the kernel proves it started strictly after the group leader; the
+adoption is tracked like any descendant, so it cannot hide a later escape and
+still blocks whole-group absence until it exits. A same-group member that
+started no later than the leader (a possible recycled group ID), keeps a live
+parent outside the group, or carries a malformed start identity stays
+`containment_unknown`.
 Remote signals and escalation require a fresh matching owned group; terminal Ctrl-C
 is a separate kernel job-control path. An ambiguous PID is never signalled.
 The supervisor retains its direct child unreaped until the owned group is gone;

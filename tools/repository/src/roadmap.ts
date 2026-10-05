@@ -442,7 +442,181 @@ function replaceMarkedBlock(
   return before + "\n\n" + generated.trim() + "\n\n" + after;
 }
 
-async function validateEvidence(root: string, packages: WorkPackage[]): Promise<RoadmapIssue[]> {
+function sectionBody(source: string, heading: string): string {
+  const lines = source.split("\n");
+  const start = lines.findIndex((line) => line === "## " + heading);
+  if (start < 0) {
+    return "";
+  }
+  const rest = lines.slice(start + 1);
+  const end = rest.findIndex((line) => line.startsWith("## "));
+  return (end < 0 ? rest : rest.slice(0, end)).join("\n").trim();
+}
+
+function splitBullets(source: string): string[] {
+  return source
+    .split(/^(?=- |> )/mu)
+    .map((bullet) => bullet.trim())
+    .filter((bullet) => bullet.length > 0);
+}
+
+function validateSettledProse(
+  packages: WorkPackage[],
+  sources: Map<string, string>,
+): RoadmapIssue[] {
+  const issues: RoadmapIssue[] = [];
+  const byId = new Map<string, WorkPackage>();
+  for (const workPackage of packages) {
+    byId.set(workPackage.id, workPackage);
+  }
+  for (const workPackage of packages) {
+    if (!evidenceStatuses.has(workPackage.status)) {
+      continue;
+    }
+    const source = sources.get(workPackage.id);
+    if (source === undefined) {
+      continue;
+    }
+    const contracts = subsection(source, "Consumes") + "\n" + subsection(source, "Produces");
+    for (const bullet of splitBullets(contracts)) {
+      for (const requirement of workPackage.requires) {
+        const at = bullet.search(new RegExp("\\b" + requirement + "\\b", "u"));
+        if (at < 0) {
+          continue;
+        }
+        const actual = byId.get(requirement)?.status;
+        if (actual === undefined) {
+          continue;
+        }
+        const claimed = new RegExp("`(" + [...allowedStatuses].join("|") + ")`", "gu");
+        const after = bullet.slice(at + requirement.length);
+        let match: RegExpExecArray | null;
+        while ((match = claimed.exec(after)) !== null) {
+          if (match[1] !== actual) {
+            issues.push({
+              code: "metadata",
+              message:
+                workPackage.id +
+                " describes required dependency " +
+                requirement +
+                " as `" +
+                match[1] +
+                "` but " +
+                requirement +
+                " is `" +
+                actual +
+                "`",
+            });
+            break;
+          }
+        }
+      }
+    }
+    for (const bullet of splitBullets(source)) {
+      const waits = /\bwaits?\s+on\b/u.test(bullet);
+      const untilLands = /\buntil\s+[A-Z][A-Z0-9]*\s+lands\b/u.test(bullet);
+      if (!waits && !/\bpending\s+[A-Z]/u.test(bullet) && !untilLands) {
+        continue;
+      }
+      for (const requirement of workPackage.requires) {
+        if (byId.get(requirement)?.status !== "done") {
+          continue;
+        }
+        const mentioned = new RegExp("\\b" + requirement + "\\b", "u").test(bullet);
+        const pending = new RegExp("\\bpending\\s+" + requirement + "\\b", "u").test(bullet);
+        const landsAfter = new RegExp("\\buntil\\s+" + requirement + "\\s+lands\\b", "u").test(
+          bullet,
+        );
+        if (mentioned && (waits || pending || landsAfter)) {
+          issues.push({
+            code: "metadata",
+            message:
+              workPackage.id +
+              " describes done dependency " +
+              requirement +
+              " as still outstanding",
+          });
+        }
+      }
+    }
+    if (workPackage.status === "done") {
+      const unchecked = sectionBody(source, "Acceptance")
+        .split("\n")
+        .filter((line) => /^-\s+\[\s\]/u.test(line));
+      if (unchecked.length > 0) {
+        issues.push({
+          code: "metadata",
+          message:
+            workPackage.id +
+            " has " +
+            unchecked.length +
+            " unchecked Acceptance item" +
+            (unchecked.length === 1 ? "" : "s") +
+            " but " +
+            workPackage.id +
+            " is `done`",
+        });
+      }
+    }
+    if (workPackage.id === "V01") {
+      // V01 owns SG-03 (ACCEPTANCE.md): its Acceptance must keep stating the
+      // same-hash no-overwrite claim so readers find the primary proof.
+      const acceptance = sectionBody(source, "Acceptance");
+      if (!/same-hash/iu.test(acceptance) || !/overwrit/iu.test(acceptance)) {
+        issues.push({
+          code: "metadata",
+          message:
+            "V01 is the SG-03 primary but its Acceptance states no same-hash no-overwrite claim",
+        });
+      }
+    }
+  }
+  return issues;
+}
+
+function citedHandoffCommits(source: string): Set<string> {
+  const cited = new Set<string>();
+  const pattern = /`([0-9a-f]{7,40})`/gu;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(sectionBody(source, "Handoff"))) !== null) {
+    const commit = match[1] ?? "";
+    if (/\d/u.test(commit)) {
+      cited.add(commit);
+    }
+  }
+  return cited;
+}
+
+async function collectLinkedCommits(
+  root: string,
+  manifest: EvidenceManifest,
+): Promise<Set<string>> {
+  const recordedCommits = new Set<string>();
+  for (const command of manifest.commands) {
+    if (command.artifact === undefined || !command.artifact.endsWith(".json")) {
+      continue;
+    }
+    const artifactPath = await resolveExistingRepositoryPath(root, command.artifact);
+    if (artifactPath === undefined) {
+      continue;
+    }
+    try {
+      collectRecordedCommits(
+        JSON.parse(await readFile(artifactPath, "utf8")) as unknown,
+        recordedCommits,
+      );
+    } catch {
+      continue;
+    }
+  }
+  return recordedCommits;
+}
+
+async function validateEvidence(
+  root: string,
+  packages: WorkPackage[],
+  sources: Map<string, string>,
+): Promise<RoadmapIssue[]> {
   const issues: RoadmapIssue[] = [];
   for (const workPackage of packages) {
     if (!evidenceStatuses.has(workPackage.status) || workPackage.evidenceManifest === undefined) {
@@ -458,16 +632,45 @@ async function validateEvidence(root: string, packages: WorkPackage[]): Promise<
       if (manifest === undefined) {
         throw new Error("manifest does not satisfy the repository evidence contract");
       }
-      if (
-        workPackage.status === "done" &&
-        (manifest.environmentKind !== "clean_checkout" ||
+      if (workPackage.status === "done") {
+        if (
+          manifest.environmentKind !== "clean_checkout" ||
           manifest.outcome !== "passed" ||
           manifest.redaction.status !== "passed" ||
           manifest.commands.some((command) => command.outcome !== "passed") ||
           !manifest.commands.some((command) => command.command === workPackage.testTarget) ||
-          (manifest.ci !== undefined && manifest.ci.status !== "passed"))
-      ) {
-        throw new Error("done packages require passing evidence");
+          (manifest.ci !== undefined && manifest.ci.status !== "passed")
+        ) {
+          throw new Error("done packages require passing evidence");
+        }
+        if (manifest.commands.some((command) => command.artifact === undefined)) {
+          throw new Error("done packages require every command to link its evidence artifact");
+        }
+        const recordedCommits = await collectLinkedCommits(root, manifest);
+        if (recordedCommits.size > 0 && !recordedCommits.has(manifest.testedCommit)) {
+          throw new Error("done packages require linked artifacts to record the tested commit");
+        }
+      }
+      if (workPackage.status === "review") {
+        const cited = citedHandoffCommits(sources.get(workPackage.id) ?? "");
+        if (cited.size > 0) {
+          const recordedCommits = await collectLinkedCommits(root, manifest);
+          for (const commit of cited) {
+            const recorded =
+              manifest.testedCommit.startsWith(commit) ||
+              [...recordedCommits].some((recordedCommit) => recordedCommit.startsWith(commit));
+            if (!recorded) {
+              issues.push({
+                code: "evidence",
+                message:
+                  workPackage.id +
+                  " cites Handoff commit " +
+                  commit +
+                  " with no matching evidence record",
+              });
+            }
+          }
+        }
       }
       const referencedArtifacts = new Set([
         ...manifest.artifacts,
@@ -504,9 +707,32 @@ interface EvidenceManifest {
   commands: EvidenceCommand[];
   outcome: string;
   environmentKind: string;
+  testedCommit: string;
   artifacts: string[];
   redaction: { status: string; prohibited_content: string[] };
   ci?: { status: string; run_url?: string };
+}
+
+function collectRecordedCommits(value: unknown, into: Set<string>): void {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectRecordedCommits(item, into);
+    }
+    return;
+  }
+  const candidate = record(value);
+  if (candidate === undefined) {
+    return;
+  }
+  for (const key of ["tested_commit", "tested_tree"] as const) {
+    const commit = candidate[key];
+    if (typeof commit === "string" && /^[0-9a-f]{40}$/u.test(commit)) {
+      into.add(commit);
+    }
+  }
+  for (const item of Object.values(candidate)) {
+    collectRecordedCommits(item, into);
+  }
 }
 
 function record(value: unknown): Record<string, unknown> | undefined {
@@ -646,6 +872,7 @@ function evidenceManifest(
     commands,
     outcome: manifest.outcome,
     environmentKind: environment.kind,
+    testedCommit: manifest.tested_commit,
     artifacts: manifest.artifacts,
     redaction: {
       status: redaction.status,
@@ -669,6 +896,7 @@ export async function inspectRoadmap(root: string): Promise<RoadmapInspection> {
     .sort();
   const packages: WorkPackage[] = [];
   const issues: RoadmapIssue[] = [];
+  const sources = new Map<string, string>();
 
   for (const filename of filenames) {
     const source = await readFile(path.join(packageDirectory, filename), "utf8");
@@ -676,11 +904,13 @@ export async function inspectRoadmap(root: string): Promise<RoadmapInspection> {
     issues.push(...parsed.issues);
     if (parsed.workPackage !== undefined) {
       packages.push(parsed.workPackage);
+      sources.set(parsed.workPackage.id, source);
     }
   }
   packages.sort(comparePackages);
   issues.push(...validateDependencies(packages));
-  issues.push(...(await validateEvidence(root, packages)));
+  issues.push(...validateSettledProse(packages, sources));
+  issues.push(...(await validateEvidence(root, packages, sources)));
 
   const linkFailures = (await validateMarkdownLinks(root)).filter((failure) =>
     failure.document.startsWith("docs/work-packages/"),

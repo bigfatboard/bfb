@@ -43,9 +43,15 @@ import {
 
 import {
   createHumanAuth,
+  humanAuthOptions,
   parseAuthKeys,
+  type AuthDatabase,
   type AuthEnv,
 } from "../../../apps/control-worker/src/auth/better-auth.js";
+import {
+  serializeSessionSetCookie,
+  type SessionCookieAttributes,
+} from "../../../apps/control-worker/src/auth/session.js";
 import {
   isWorkerFirstPath,
   validateControlEnv,
@@ -1910,9 +1916,29 @@ function shouldHandleOnControl(pathname: string): boolean {
 
 type FixtureRole = "owner" | "member" | "restricted";
 
+function fixtureSessionAttributes(db: AuthDatabase, env: AuthEnv): SessionCookieAttributes {
+  const configured = humanAuthOptions(db, env).advanced?.cookies?.session_token?.attributes;
+  const sameSite = configured?.sameSite?.toLowerCase();
+  if (
+    configured?.path === undefined ||
+    configured.httpOnly === undefined ||
+    configured.secure === undefined ||
+    (sameSite !== "lax" && sameSite !== "strict" && sameSite !== "none")
+  ) {
+    throw new Error("fixture session cookie requires explicit production attributes");
+  }
+  return {
+    path: configured.path,
+    httpOnly: configured.httpOnly,
+    secure: configured.secure,
+    sameSite,
+  };
+}
+
 function handleFixtureSession(
   pathname: string,
   sessions: Readonly<Record<FixtureRole, string>>,
+  attributes: SessionCookieAttributes,
   res: ServerResponse,
 ): boolean {
   const match = pathname.match(/^\/__test\/session\/(owner|member|restricted)$/);
@@ -1922,7 +1948,7 @@ function handleFixtureSession(
   }
   res.statusCode = 302;
   res.setHeader("location", "/");
-  res.setHeader("set-cookie", `${sessions[role]}; Path=/; HttpOnly; Secure; SameSite=Lax`);
+  res.setHeader("set-cookie", serializeSessionSetCookie(sessions[role]!, attributes));
   res.end();
   return true;
 }
@@ -2087,6 +2113,9 @@ async function main(): Promise<void> {
   const d03 = await seedD03Discussions(db);
   const authEnv: AuthEnv = { ...AUTH_TEST_ENV, APP_ORIGIN: ORIGIN };
   const auth = createHumanAuth(authContext.raw, authEnv, { db, now: NOW });
+  // The seeded browser cookie must carry the production Better Auth attributes, so the
+  // cookie-hygiene scenario proves the Worker configuration instead of this header.
+  const fixtureCookieAttributes = fixtureSessionAttributes(authContext.raw, authEnv);
   const fixtureSessions: Record<FixtureRole, string> = {
     owner: (
       await seedAuthSession(authContext, {
@@ -2332,7 +2361,7 @@ async function main(): Promise<void> {
     void (async () => {
       try {
         const pathname = new URL(req.url ?? "/", ORIGIN).pathname;
-        if (handleFixtureSession(pathname, fixtureSessions, res)) {
+        if (handleFixtureSession(pathname, fixtureSessions, fixtureCookieAttributes, res)) {
           return;
         }
         if (handleE02Task(pathname, res)) {

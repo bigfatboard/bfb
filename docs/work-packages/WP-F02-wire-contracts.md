@@ -68,11 +68,13 @@ Cloud, Go, Swift-facing RPC, and tests share one versioned wire language with ge
 - All persisted arrays, strings, payloads, and timestamps have explicit bounds.
 - Fake control-plane/client tests execute in CI; L03 adds macOS process behavior.
 
-## Evidence and handoff
+## Evidence
 
 - Commit generated code, the Swift-consumable fixture corpus, fixture matrix, compatibility rules, and synthetic-run output.
-- Downstream packages import generated wire types; L04 runs its handwritten Codable boundary against the same fixtures, and a later wire change starts with schema and fixtures.
-
 ## Risks and decisions
 
 - The main risk is freezing guesses. Keep the first version narrow and let feature packages extend it deliberately.
+
+## Handoff
+
+- Downstream packages import generated wire types; L04 runs its handwritten Codable boundary against the same fixtures, and a later wire change starts with schema and fixtures.

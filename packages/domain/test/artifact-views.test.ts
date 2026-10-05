@@ -13,6 +13,9 @@ import {
   recordVerifiedUpload,
   redeemUploadGrant,
 } from "../src/artifacts.js";
+import { createTaskCommand } from "../src/work-commands.js";
+import { markVersionRetained } from "../src/operations.js";
+import { createRunCommand } from "../src/work-records.js";
 import {
   assertViewNonce,
   assertViewSecret,
@@ -68,9 +71,32 @@ async function fixture() {
       input,
     });
   }
+  async function taskAndRun(projectId: string): Promise<{ taskId: string; runId: string }> {
+    const task = result(
+      await human(createTaskCommand, {
+        projectId,
+        title: "Synthetic view task",
+        priority: "P1" as never,
+      }),
+    );
+    const run = result(
+      await human(createRunCommand, {
+        taskId: task.id,
+        expectedTaskVersion: 1,
+        agentProfileId: FIX.profileCodex,
+        workspacePolicyVersion: 1,
+        projectPolicyVersion: 1,
+        repositoryConfigVersion: 1,
+        agentProfileVersion: 1,
+      }),
+    );
+    return { taskId: task.id, runId: run.run.id };
+  }
   async function available(
     format = "html",
     now: string = NOW,
+    runId: string | null = null,
+    contentDigest: string = DIGEST,
   ): Promise<{ version_id: string; content_hash: string }> {
     const minted = mintUploadGrantSecret();
     const created = result(
@@ -78,11 +104,11 @@ async function fixture() {
         createArtifactCommand,
         {
           artifactId: null,
-          runId: null,
+          runId,
           format: format as never,
           role: "review" as never,
           declaredSize: 18,
-          expectedDigest: DIGEST,
+          expectedDigest: contentDigest,
           grantSecretHash: minted.secretHash,
         },
         { now },
@@ -93,13 +119,13 @@ async function fixture() {
       secret: minted.secret,
       now,
     });
-    const key = `workspaces/${FIX.workspace}/artifacts/sha256/${DIGEST}`;
+    const key = `workspaces/${FIX.workspace}/artifacts/sha256/${contentDigest}`;
     await recordVerifiedUpload(db, {
       workspaceId: FIX.workspace,
       versionId: created.version_id,
-      runId: null,
+      runId,
       role: "review",
-      contentHash: DIGEST,
+      contentHash: contentDigest,
       r2Key: key,
       size: 18,
       now,
@@ -107,11 +133,11 @@ async function fixture() {
     result(
       await human(
         finalizeArtifactCommand,
-        { versionId: created.version_id, contentHash: DIGEST, size: 18 },
+        { versionId: created.version_id, contentHash: contentDigest, size: 18 },
         { now },
       ),
     );
-    return { version_id: created.version_id, content_hash: DIGEST };
+    return { version_id: created.version_id, content_hash: contentDigest };
   }
   async function issue(
     versionId: string,
@@ -133,7 +159,7 @@ async function fixture() {
     );
     return { ...issueViewGrantResponse(grant, minted.secret, nonce), secret: minted.secret };
   }
-  return { db, hub, human, available, issue };
+  return { db, hub, human, taskAndRun, available, issue };
 }
 
 describe("artifact view grants", () => {
@@ -234,6 +260,35 @@ describe("artifact view grants", () => {
     );
   });
 
+  it("refuses view grants for run-bound artifacts outside the viewer's projects", async () => {
+    const { human, taskAndRun, available, issue } = await fixture();
+    const runA = await taskAndRun(FIX.projectA);
+    const runB = await taskAndRun(FIX.projectB);
+    const digestA = createHash("sha256").update("synthetic-view-scope-a").digest("hex");
+    const digestB = createHash("sha256").update("synthetic-view-scope-b").digest("hex");
+    const versionA = await available("html", NOW, runA.runId, digestA);
+    const versionB = await available("html", NOW, runB.runId, digestB);
+    // Reviewer holds a projectA grant in fixtures: same-project previews stay allowed.
+    const scoped = await issue(versionA.version_id, { humanId: FIX.restricted });
+    expect(scoped.version_id).toBe(versionA.version_id);
+    // ProjectB bytes are out of scope: uniform rejection with no existence signal.
+    const minted = mintViewGrantSecret();
+    expect(
+      await failure(
+        human(
+          createViewGrantCommand,
+          {
+            versionId: versionB.version_id,
+            grantSecretHash: minted.secretHash,
+            viewNonce: mintViewNonce(),
+            sessionHash: SESSION_HASH,
+          },
+          { humanId: FIX.restricted },
+        ),
+      ),
+    ).toBe("request_rejected");
+  });
+
   it("refuses view grants for versions that are not available", async () => {
     const { db, human } = await fixture();
     const minted = mintUploadGrantSecret();
@@ -262,6 +317,37 @@ describe("artifact view grants", () => {
         human(createViewGrantCommand, {
           versionId: created.version_id,
           grantSecretHash: viewMinted.secretHash,
+          viewNonce: mintViewNonce(),
+          sessionHash: SESSION_HASH,
+        }),
+      ),
+    ).toBe("request_rejected");
+  });
+
+  it("refuses issuance and redemption for retained versions", async () => {
+    const { db, human, available, issue } = await fixture();
+    const version = await available();
+    const grant = await issue(version.version_id);
+    expect(
+      await markVersionRetained(db, {
+        workspaceId: FIX.workspace,
+        versionId: version.version_id,
+      }),
+    ).toBe(true);
+    await expect(
+      redeemViewGrant(db, {
+        viewId: grant.view_id,
+        secret: grant.secret,
+        nonce: grant.nonce,
+        now: NOW,
+      }),
+    ).rejects.toThrow();
+    const minted = mintViewGrantSecret();
+    expect(
+      await failure(
+        human(createViewGrantCommand, {
+          versionId: version.version_id,
+          grantSecretHash: minted.secretHash,
           viewNonce: mintViewNonce(),
           sessionHash: SESSION_HASH,
         }),

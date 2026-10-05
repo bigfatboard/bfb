@@ -3,7 +3,7 @@
 
 import assert from "node:assert/strict";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import {
   existsSync,
   mkdirSync,
@@ -23,9 +23,11 @@ import { createTestHarness } from "wrangler";
 
 import {
   adaptBetterSqlite3,
+  adaptD1,
   applyMigrationsForVerification,
   loadMigrationManifest,
   schemaSnapshot,
+  type D1Like,
   type MigrationDatabase,
 } from "@bfb/db";
 import {
@@ -34,6 +36,8 @@ import {
   artifactObjectKey,
   canonicalRunnerKey,
   claimLaunchCommand,
+  cliHash,
+  CLI_SCOPES,
   createAgentProfileCommand,
   createArtifactCommand,
   createFirstWorkspace,
@@ -47,6 +51,7 @@ import {
   issueRunnerChallengeCommand,
   issueStepUpProof,
   launchDeadline,
+  mintCliKey,
   mintUploadGrantSecret,
   recordReviewCommand,
   redeemUploadGrant,
@@ -77,6 +82,8 @@ import {
   type WorkspaceIdentity,
 } from "@bfb/domain";
 import { parseAuthKeys } from "../../apps/control-worker/dist/auth/better-auth.js";
+
+import { G02_CANARIES, scanEvidenceText } from "./scan.js";
 
 const toolDir = dirname(fileURLToPath(import.meta.url));
 const root = resolve(toolDir, "../..");
@@ -665,7 +672,8 @@ golden.push({
 });
 console.log("G02_GOLDEN first-owner bootstrap consumes once");
 
-// G-CHAIN: enrollment, launch, realtime, attention, result, review, revoke on one local database.
+// G-CHAIN: enrollment, launch, realtime, attention, result, review, revoke,
+// plus upgrade re-migration with state preservation, on one local database.
 const chainRaw = openMigrationDb();
 applyMigrationsForVerification(asMigrationDb(chainRaw), migrationsDir);
 const db = adaptBetterSqlite3(chainRaw);
@@ -806,7 +814,11 @@ function native<I, R>(command: HubCommand<I, R>, input: I) {
   });
 }
 const G02_DIGEST = `sha256:${createHash("sha256").update("g02-artifact-bytes").digest("hex")}`;
-const G02_HEX = createHash("sha256").update("g02-artifact-bytes").digest("hex");
+// The published artifact bytes carry the artifact canary: only their hash may
+// ever reach evidence, and the scan below proves it.
+const G02_ARTIFACT_CONTENT = G02_CANARIES.artifact;
+const G02_ARTIFACT_SIZE = Buffer.byteLength(G02_ARTIFACT_CONTENT);
+const G02_HEX = createHash("sha256").update(G02_ARTIFACT_CONTENT).digest("hex");
 const G02_CONFIG = `sha256:${runnerHash("{}")}`;
 const policy = {
   allowedProviders: ["claude", "codex", "grok", "fake"] as const,
@@ -978,7 +990,8 @@ const attention = ok(
     executionId: spec.run_execution_id,
     assignmentGeneration: spec.assignment_generation,
     kind: "clarification",
-    question: "G02 synthetic clarification",
+    // Attention text carries the task-body canary; evidence must carry only IDs.
+    question: `G02 synthetic clarification ${G02_CANARIES.taskBody}`,
     blocking: true,
   }),
 );
@@ -1005,7 +1018,7 @@ const created = ok(
     runId: spec.run_id,
     format: "markdown",
     role: "review",
-    declaredSize: 18,
+    declaredSize: G02_ARTIFACT_SIZE,
     expectedDigest: G02_HEX,
     grantSecretHash: minted.secretHash,
   }),
@@ -1028,14 +1041,14 @@ await recordVerifiedUpload(db, {
     versionId: created.version_id,
     contentHash: G02_HEX,
   }),
-  size: 18,
+  size: G02_ARTIFACT_SIZE,
   now: NOW,
 });
 ok(
   await human(finalizeArtifactCommand, {
     versionId: created.version_id,
     contentHash: G02_HEX,
-    size: 18,
+    size: G02_ARTIFACT_SIZE,
   }),
 );
 const submitted = ok(
@@ -1043,8 +1056,10 @@ const submitted = ok(
     submitResultCommand,
     {
       runId: spec.run_id,
-      summary: "G02 synthetic result",
-      limitations: "G02 synthetic limitation",
+      // Agent result text carries the terminal-output and hook-payload
+      // canaries; evidence must carry only the submission outcome.
+      summary: `G02 synthetic result ${G02_CANARIES.terminal}`,
+      limitations: `G02 synthetic limitation ${G02_CANARIES.hook}`,
       evidenceRefs: [{ kind: "comment", ref: "g02-synthetic-comment" }],
       gitBranch: "main",
       gitCommit: "0".repeat(40),
@@ -1104,17 +1119,60 @@ const revoked = ok(
   await human(revokeRunnerCommand, { runnerId: G02_RUNNER, stepUpProofId: revokeProof }),
 );
 assert.equal(revoked.signal.reason, "revoked", "revocation closes the channel");
+// Runner revocation fences authority; it is not an uninstall. Binary
+// removal is proven separately by the "uninstall binary" stage below.
 golden.push({
-  stage: "uninstall",
+  stage: "runner revocation",
   outcome: "passed",
   detail: "runner revoke fences authority and closes the channel",
 });
+// Upgrade re-migration: the live golden chain database re-runs the
+// migration entry point the way a version upgrade would, then proves the
+// schema is unchanged and the golden rows survived.
+const preUpgradeSchema = schemaSnapshot(asMigrationDb(chainRaw));
+const preUpgradeTasks = chainRaw
+  .prepare("SELECT id, state, priority FROM tasks WHERE workspace_id = ? ORDER BY id")
+  .all(FIX.workspace);
+const preUpgradeRuns = chainRaw
+  .prepare("SELECT id, resource_version FROM runs WHERE workspace_id = ? ORDER BY id")
+  .all(FIX.workspace);
+assert.ok(
+  preUpgradeTasks.length >= 1 && preUpgradeRuns.length >= 1,
+  "golden rows exist before re-migration",
+);
+const reMigration = applyMigrationsForVerification(asMigrationDb(chainRaw), migrationsDir);
+assert.equal(reMigration.head, FROZEN_MIGRATION_HEAD, "re-migration stays on the frozen head");
+assert.deepEqual(reMigration.applied, [], "re-migration at head applies nothing new");
+assert.deepEqual(
+  schemaSnapshot(asMigrationDb(chainRaw)),
+  preUpgradeSchema,
+  "re-migration leaves the schema unchanged",
+);
+assert.deepEqual(
+  chainRaw.prepare("PRAGMA foreign_key_check").all(),
+  [],
+  "re-migrated chain has clean keys",
+);
+assert.deepEqual(
+  chainRaw
+    .prepare("SELECT id, state, priority FROM tasks WHERE workspace_id = ? ORDER BY id")
+    .all(FIX.workspace),
+  preUpgradeTasks,
+  "golden tasks survive re-migration",
+);
+assert.deepEqual(
+  chainRaw
+    .prepare("SELECT id, resource_version FROM runs WHERE workspace_id = ? ORDER BY id")
+    .all(FIX.workspace),
+  preUpgradeRuns,
+  "golden runs survive re-migration",
+);
 golden.push({
   stage: "upgrade",
   outcome: "passed",
-  detail: `chain runs on migration head ${migrationManifest.migration_head}`,
+  detail: `chain re-migrates to ${reMigration.head} with schema unchanged and ${preUpgradeTasks.length + preUpgradeRuns.length} golden rows preserved; cross-release upgrade waits on rollout`,
 });
-console.log("G02_GOLDEN domain chain revokes and closes");
+console.log("G02_GOLDEN domain chain revokes, re-migrates, and preserves state");
 
 // G-BINARY: the real bfb binary installs, serves, links, verifies, and cleans up on isolated state.
 const scratch = mkdtempSync(join(tmpdir(), "bfb-g02-"));
@@ -1373,13 +1431,192 @@ try {
   const anonymous = await smokeFetch("/api/v1/cli/session");
   assert.equal(anonymous.status, 401, "cli session without a credential is rejected");
   smoke.push({ check: "cli/session anonymous", status: 401, outcome: "passed" });
+  // Forged probes present canary credentials; the smoke evidence
+  // below records only check/status/outcome, never the presented secrets.
   const forged = await smokeFetch("/api/v1/cli/session", {
-    authorization: "Bearer bfb_cli_synthetic-forged-credential",
+    authorization: G02_CANARIES.bearer,
+    cookie: `g02_smoke=${G02_CANARIES.cookie}`,
   });
   assert.equal(forged.status, 401, "cli session with a bad credential is rejected");
   smoke.push({ check: "cli/session forged", status: 401, outcome: "passed" });
+  // Valid-credential proof on the shipped eu config: the rejection checks
+  // above pass even when authenticated handlers are broken, so a seeded
+  // binding must get 200s too. The binding row is inserted directly because
+  // the device-approve step commits through the hub DO, whose eu
+  // jurisdiction slice workerd cannot serve; the complete device flow runs
+  // on the global smoke worker below. Evidence records only
+  // check/status/outcome, never the minted credential.
+  const smokeEnv = (await local.getEnv()) as unknown as { DB: D1Like };
+  const smokeDb = adaptD1(smokeEnv.DB);
+  await seedSyntheticWorkspace(smokeDb, NOW, "eu");
+  const smokeUser = "g02-smoke-user";
+  await smokeDb
+    .prepare(
+      `INSERT INTO better_auth_users (id, name, email, email_verified, created_at, updated_at)
+       VALUES (?, 'G02 Smoke Owner', 'g02-smoke@synthetic.test', 1, ?, ?)`,
+    )
+    .run(smokeUser, NOW, NOW);
+  await smokeDb
+    .prepare(`UPDATE humans SET better_auth_user_id = ? WHERE id = ?`)
+    .run(smokeUser, FIX.owner);
+  const smokeMinted = mintCliKey();
+  await smokeDb
+    .prepare(
+      `INSERT INTO api_key_bindings
+         (workspace_id, id, principal_type, human_id, auth_user_id, device_row_id,
+          device_code_hash, key_hash, key_prefix, scopes_json, project_ids_json,
+          authorization_epoch, expires_at, exchanged_at, revoked_at, created_at)
+       VALUES (?, ?, 'human', ?, ?, NULL, ?, ?, ?, ?, NULL, 1,
+         '2026-10-18T12:00:00.000Z', ?, NULL, ?)`,
+    )
+    .run(
+      FIX.workspace,
+      syntheticUlid("G02BIND"),
+      FIX.owner,
+      smokeUser,
+      cliHash("g02-smoke-device-code"),
+      smokeMinted.keyHash,
+      smokeMinted.keyPrefix,
+      JSON.stringify([...CLI_SCOPES]),
+      NOW,
+      NOW,
+    );
+  const authed = await smokeFetch("/api/v1/cli/session", {
+    authorization: `Bearer ${smokeMinted.key}`,
+  });
+  assert.equal(authed.status, 200, "cli session with a valid credential answers");
+  const authedBody = (await authed.json()) as Record<string, unknown>;
+  assert.equal(authedBody.workspace_id, FIX.workspace, "session names the seeded workspace");
+  assert.equal(authedBody.human_id, FIX.owner, "session names the seeded owner");
+  smoke.push({ check: "cli/session authenticated", status: 200, outcome: "passed" });
+  const projectsRes = await smokeFetch("/api/v1/cli/projects", {
+    authorization: `Bearer ${smokeMinted.key}`,
+  });
+  assert.equal(projectsRes.status, 200, "cli projects with a valid credential answers");
+  const projectsBody = (await projectsRes.json()) as { projects: Array<{ id: string }> };
+  assert.deepEqual(
+    projectsBody.projects.map((project) => project.id).sort(),
+    [FIX.projectA, FIX.projectB].sort(),
+    "projects lists the seeded records",
+  );
+  smoke.push({ check: "cli/projects authenticated", status: 200, outcome: "passed" });
 } finally {
   await localServer.close();
+}
+// The complete device flow plus the hub-backed write run on the global
+// smoke worker: same bundle, same routes, only the jurisdiction var
+// differs, because workerd cannot serve the eu DO jurisdiction slice.
+const smokeServer = createTestHarness({
+  root,
+  workers: [{ configPath: "tools/g02/wrangler-g02-smoke.toml" }],
+});
+try {
+  await smokeServer.listen();
+  const smokeWorker = smokeServer.getWorker("bfb-g02-smoke");
+  await smokeWorker.applyD1Migrations("DB");
+  const smokeOrigin = "http://bfb.localhost:8787";
+  const deviceFetch = (
+    path: string,
+    init: { method?: string; headers?: Record<string, string>; body?: string } = {},
+  ): Promise<Response> =>
+    smokeWorker.fetch(`${smokeOrigin}${path}`, {
+      ...(init.method === undefined ? {} : { method: init.method }),
+      headers: { "cf-connecting-ip": "192.0.2.32", ...init.headers },
+      ...(init.body === undefined ? {} : { body: init.body }),
+    }) as unknown as Promise<Response>;
+  const smokeDbEnv = (await smokeWorker.getEnv()) as unknown as { DB: D1Like };
+  const deviceDb = adaptD1(smokeDbEnv.DB);
+  await seedSyntheticWorkspace(deviceDb, NOW, "global");
+  const deviceUser = "g02-device-user";
+  const deviceSessionId = "g02-device-session";
+  const deviceToken = "g02-device-session-token";
+  await deviceDb
+    .prepare(
+      `INSERT INTO better_auth_users (id, name, email, email_verified, created_at, updated_at)
+       VALUES (?, 'G02 Device Owner', 'g02-device@synthetic.test', 1, ?, ?)`,
+    )
+    .run(deviceUser, NOW, NOW);
+  await deviceDb
+    .prepare(`UPDATE humans SET better_auth_user_id = ? WHERE id = ?`)
+    .run(deviceUser, FIX.owner);
+  await deviceDb
+    .prepare(
+      `INSERT INTO better_auth_sessions (id, expires_at, token, created_at, updated_at, user_id)
+       VALUES (?, '2027-09-18T12:00:00.000Z', ?, ?, ?, ?)`,
+    )
+    .run(deviceSessionId, deviceToken, NOW, NOW, deviceUser);
+  const deviceKeys = parseAuthKeys(
+    tomlVar(readText("tools/g02/wrangler-g02-smoke.toml"), "BETTER_AUTH_SECRETS"),
+  );
+  const deviceCurrent = [...deviceKeys].sort((a, b) => b.version - a.version)[0];
+  assert.ok(deviceCurrent, "device smoke signing key is configured");
+  const deviceCookie = `__Host-bfb_session=${encodeURIComponent(
+    `${deviceToken}.${createHmac("sha256", deviceCurrent.value).update(deviceToken).digest("base64")}`,
+  )}`;
+  const deviceCsrf = `${deviceCurrent.version}.${createHmac("sha256", deviceCurrent.value)
+    .update(`bfb-csrf:${deviceSessionId}`)
+    .digest("hex")}`;
+  const devicePost = (path: string, body: unknown, browser = false): Promise<Response> =>
+    deviceFetch(path, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(browser
+          ? {
+              cookie: deviceCookie,
+              origin: smokeOrigin,
+              "sec-fetch-site": "same-origin",
+              "x-bfb-csrf": deviceCsrf,
+            }
+          : {}),
+      },
+      body: JSON.stringify(body),
+    });
+  const issued = await devicePost("/auth/device/code", { client_id: "bfb-cli" });
+  assert.equal(issued.status, 200, "device code issues");
+  const codes = (await issued.json()) as { device_code: string; user_code: string };
+  smoke.push({ check: "cli/device issue", status: 200, outcome: "passed" });
+  const approval = await devicePost(
+    `/api/v1/workspaces/${FIX.workspace}/cli/authorize`,
+    { user_code: codes.user_code, project_ids: [] },
+    true,
+  );
+  assert.equal(approval.status, 201, "device code authorizes");
+  smoke.push({ check: "cli/device authorize", status: 201, outcome: "passed" });
+  const exchanged = await devicePost("/api/v1/cli/exchange", {
+    client_id: "bfb-cli",
+    device_code: codes.device_code,
+  });
+  assert.equal(exchanged.status, 200, "credential exchanges");
+  const deviceCredential = ((await exchanged.json()) as { credential: string }).credential;
+  smoke.push({ check: "cli/device exchange", status: 200, outcome: "passed" });
+  const deviceSession = await deviceFetch("/api/v1/cli/session", {
+    headers: { authorization: `Bearer ${deviceCredential}` },
+  });
+  assert.equal(deviceSession.status, 200, "exchanged credential opens a session");
+  smoke.push({ check: "cli/session device credential", status: 200, outcome: "passed" });
+  // The task create commits through the WorkspaceHub DO, so a worker whose
+  // authenticated handlers cannot reach the hub fails the smoke here. The
+  // title carries the planted task-body canary; the redaction scan proves it
+  // never reaches the evidence.
+  const createdRes = await deviceFetch("/api/v1/cli/tasks", {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${deviceCredential}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      project_id: FIX.projectA,
+      title: `G02 smoke ${G02_CANARIES.taskBody}`,
+      request_id: syntheticUlid("G02SMOKE"),
+    }),
+  });
+  assert.equal(createdRes.status, 200, "cli task create with a valid credential answers");
+  const createdBody = (await createdRes.json()) as { ok: boolean };
+  assert.equal(createdBody.ok, true, "hub-backed task create commits through the DO");
+  smoke.push({ check: "cli/tasks create device credential", status: 200, outcome: "passed" });
+} finally {
+  await smokeServer.close();
 }
 // The gate config boots but refuses every request on the choice sentinel.
 const selfhostServer = createTestHarness({
@@ -1403,6 +1640,106 @@ await writeJson(join(evidenceDir, "smoke.json"), {
   rollout_smoke: "node tools/g02/smoke-commands.mjs --origin <production-origin>",
 });
 pass("SMOKE", "dry-runs plus authenticated-handler smoke pass; sentinel fails closed");
+
+// G-RELEASE: the prepared release pipeline runs as written, and the release
+// documents describe the real approval setup instead of a configured gate.
+const releaseWorkflow = readText(".github/workflows/release.yml");
+const releaseContract = readText("docs/contracts/release.md");
+const rolloutGuide = readText("docs/release/rollout.md");
+const cleanInstallGuide = readText("docs/release/clean-install.md");
+const selfHostGuide = readText("docs/self-host.md");
+// Every remote wrangler call authenticates from secrets mapped into the job.
+for (const secret of ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID"]) {
+  assert.ok(
+    releaseWorkflow.includes(`${secret}: \${{ secrets.${secret} }}`),
+    `release workflow maps ${secret} from secrets`,
+  );
+}
+// The pre-migration backstop outlives the job that captures it.
+assert.ok(
+  releaseWorkflow.includes("d1 export"),
+  "release workflow captures the pre-migration export",
+);
+assert.ok(
+  releaseWorkflow.includes("upload-artifact"),
+  "release backstop is uploaded, not left in $RUNNER_TEMP",
+);
+assert.ok(
+  releaseWorkflow.indexOf("d1 export") < releaseWorkflow.indexOf("upload-artifact"),
+  "the export is captured before the backstop upload",
+);
+// Jobs that run the Mac-only gate run on macOS with its toolchain.
+const releaseJobs = releaseWorkflow
+  .split(/\n(?=  [a-z-]+:\n)/u)
+  .filter((section) => section.includes("runs-on:"));
+assert.equal(releaseJobs.length, 4, "release pipeline keeps its four jobs");
+for (const job of releaseJobs) {
+  if (!job.includes("pnpm test:g02")) continue;
+  assert.match(job, /runs-on: macos-/u, "the release gate runs on macOS");
+  assert.ok(job.includes("playwright install"), "the gate installs Chromium first");
+  assert.ok(job.includes("setup-go"), "the gate installs Go first");
+  assert.ok(job.includes("DEVELOPER_DIR"), "the gate pins Xcode first");
+}
+// Staging is a real target, production needs a typed confirmation, and the
+// smoke runs against the deployed origin instead of a placeholder host.
+assert.ok(
+  releaseWorkflow.includes("inputs.target == 'production' && 'production' || 'staging'"),
+  "staging configs are selectable",
+);
+assert.ok(
+  releaseWorkflow.includes("inputs.target"),
+  "the rollout target is an input, not hard-coded production",
+);
+assert.ok(releaseWorkflow.includes("confirm_tag"), "production rollouts need a typed confirmation");
+assert.ok(
+  releaseWorkflow.includes("--origin ${{ inputs.origin }}"),
+  "smoke runs against the deployed origin",
+);
+assert.ok(
+  !releaseWorkflow.includes("bfb.example.test"),
+  "no placeholder host remains in the pipeline",
+);
+// The contract documents the GitHub setup that creates the approval instead
+// of claiming a protected environment already exists.
+assert.ok(
+  !releaseContract.includes("manual approval, EU runner"),
+  "the contract no longer claims a configured gate",
+);
+assert.ok(
+  releaseContract.includes("required reviewers"),
+  "the contract names the GitHub setup that creates the approval",
+);
+// The rollout names its secrets and staging path, and the install guides name
+// the Mac signing prerequisites of the gate itself.
+assert.ok(
+  !rolloutGuide.includes("https://bfb.example.test"),
+  "the rollout smoke names the operator host",
+);
+assert.ok(
+  rolloutGuide.includes("CLOUDFLARE_API_TOKEN"),
+  "rollout setup names the Cloudflare secrets",
+);
+assert.ok(
+  cleanInstallGuide.includes("BFB_MACOS_PROFILE"),
+  "clean install names the development profile",
+);
+assert.ok(
+  cleanInstallGuide.includes("Apple Development"),
+  "clean install names the signing identity",
+);
+assert.ok(selfHostGuide.includes("BFB_MACOS_PROFILE"), "self-host names the development profile");
+// The worker mints GitHub installation tokens only from the App pair, so
+// the self-host secret step must name both bindings.
+for (const secret of ["GITHUB_APP_ID", "GITHUB_APP_PRIVATE_KEY"]) {
+  assert.ok(
+    selfHostGuide.includes(`wrangler secret put ${secret}`),
+    `self-host names the ${secret} secret`,
+  );
+}
+pass(
+  "RELEASE",
+  "prepared pipeline is executable; approval setup and gate prerequisites documented",
+);
 
 // G-SIGN: the managed-link signing proof runs in signing.mjs; this gate pins the stable surface.
 const nativeActions = readText("apps/macos/Sources/BFB/NativeActions.swift");
@@ -1443,13 +1780,12 @@ try {
     (name) => name.endsWith(".json") || name.endsWith(".jsonl"),
   );
 }
-const needles = ["/Users/", "BEGIN PRIVATE KEY", "AKIA", "ghp_", "gho_", "xox"];
+// Every prohibited class has a needle: planted canaries for the content
+// classes, format patterns for paths, keys, presented secrets, and tokens.
 const findings: string[] = [];
 for (const name of scanFiles) {
   const text = readText(`docs/work-packages/evidence/WP-G02/${name}`);
-  for (const needle of needles) {
-    if (text.includes(needle)) findings.push(`${name}: ${needle}`);
-  }
+  for (const hit of scanEvidenceText(text)) findings.push(`${name}: ${hit}`);
 }
 assert.deepEqual(findings, [], "evidence stays bounded and redacted");
 await writeJson(join(evidenceDir, "redaction-scan.json"), {
@@ -1461,8 +1797,10 @@ await writeJson(join(evidenceDir, "redaction-scan.json"), {
     "cookies",
     "bearer secrets",
     "local paths",
-    "private keys",
+    "hook payloads",
+    "artifact bytes",
     "terminal output",
+    "private keys",
   ],
   findings: [],
   status: "passed",
