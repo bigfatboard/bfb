@@ -296,17 +296,39 @@ export const createRunControlCommand: HubCommand<RunControlRequest, ReturnType<t
 
 async function prepareResume(ctx: HubContext, control: ControlRow, row: LaunchRow) {
   const snapshot = snapshotOf(row);
-  const sessions = (await ctx.db
+  const association = (await ctx.db
     .prepare(
-      `SELECT id, observed_session_id FROM provider_sessions WHERE workspace_id = ? AND run_id = ? AND execution_id = ?
-    AND state = 'active' AND provider = ? AND observed_session_id IS NOT NULL LIMIT 2`,
+      `SELECT binding.provider_session_id AS id,
+    binding.provider, binding.observed_session_id, session.state AS session_state
+    FROM execution_session_bindings binding LEFT JOIN provider_sessions session
+      ON session.workspace_id = binding.workspace_id AND session.run_id = binding.run_id
+      AND session.id = binding.provider_session_id AND session.provider = binding.provider
+      AND session.observed_session_id = binding.observed_session_id
+    WHERE binding.workspace_id = ? AND binding.execution_id = ? AND binding.assignment_generation = ?
+      AND binding.run_id = ?`,
     )
-    .all(
-      ctx.workspaceId,
-      row.run_id,
-      row.execution_id,
-      snapshot.execution_config.provider,
-    )) as Array<{ id: string; observed_session_id: string }>;
+    .get(ctx.workspaceId, row.execution_id, row.assignment_generation, row.run_id)) as
+    | { id: string; provider: string; observed_session_id: string; session_state: string }
+    | undefined;
+  if (
+    association &&
+    (association.provider !== snapshot.execution_config.provider ||
+      association.session_state !== "active")
+  )
+    rejectRunnerRequest();
+  const sessions = association
+    ? [association]
+    : ((await ctx.db
+        .prepare(
+          `SELECT id, observed_session_id FROM provider_sessions WHERE workspace_id = ? AND run_id = ? AND execution_id = ?
+    AND state = 'active' AND provider = ? AND observed_session_id IS NOT NULL LIMIT 2`,
+        )
+        .all(
+          ctx.workspaceId,
+          row.run_id,
+          row.execution_id,
+          snapshot.execution_config.provider,
+        )) as Array<{ id: string; observed_session_id: string }>);
   if (
     sessions.length !== 1 ||
     !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(sessions[0]!.observed_session_id)

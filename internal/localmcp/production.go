@@ -4,39 +4,49 @@
 package localmcp
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
+	"io"
+	"strings"
 	"time"
 
 	"github.com/qdis/bfb/internal/journal"
 )
 
 // nativeProcess mirrors the PID/group/start-identity subset of L05's process
-// record. Only these three fields are read; every other L05 field is ignored,
+// record, including zombie liveness. Other L05 fields are ignored,
 // and absent or malformed values fail closed to zero values.
 type nativeProcess struct {
 	PID           int    `json:"pid"`
 	GroupID       int    `json:"group_id"`
 	StartIdentity string `json:"start_identity"`
-}
-
-type nativeGroup struct {
-	Leader     nativeProcess `json:"leader"`
-	Unknown    bool          `json:"unknown"`
-	HadEscape  bool          `json:"had_escape"`
-	Incomplete bool          `json:"incomplete"`
+	Zombie        bool   `json:"zombie"`
 }
 
 type nativeSupervisor struct {
 	Process nativeProcess `json:"process"`
 }
 
+type nativeHistory struct {
+	Uncertain          bool   `json:"uncertain"`
+	LocalReleasedAt    string `json:"local_released_at"`
+	ReleasedGroupHash  string `json:"released_group_hash"`
+	PreflightStoppedAt string `json:"preflight_stopped_at"`
+	Group              *struct {
+		Leader     nativeProcess `json:"leader"`
+		Unknown    bool          `json:"unknown"`
+		HadEscape  bool          `json:"had_escape"`
+		Incomplete bool          `json:"incomplete"`
+	} `json:"group"`
+}
+
 // DaemonAssignments resolves assignments from the daemon SQLite database. It
 // reads only the stable identity columns and parses the PID/group/start
 // subset of L05's owned-group and supervisor documents with mirrored structs;
-// anything else fails closed. At merge, L05 may replace this adapter with an
-// exported assignment reader; the Lookup signature already matches.
+// malformed identity or retained uncertainty fails closed. This projection
+// is a known-denial fence, not a fresh whole-group ownership inspection.
 type DaemonAssignments struct{ DB *sql.DB }
 
 // Lookup returns the assignment for an execution, or an unknown record when
@@ -47,12 +57,14 @@ func (source DaemonAssignments) Lookup(ctx context.Context, executionID string, 
 		return AssignmentRecord{}, fail("assignment_unknown")
 	}
 	var state, correlation, workspace, project, task, run, runner, checkout string
-	var supervisorJSON, groupJSON sql.NullString
+	var supervisorJSON, groupJSON, historyJSON sql.NullString
 	err := source.DB.QueryRowContext(ctx, `SELECT state, correlation_token,
 workspace_id, project_id, task_id, run_id, runner_id, checkout_id,
-supervisor_json, owned_group_json
-FROM local_execution_assignments WHERE execution_id = ? AND assignment_generation = ?`,
-		executionID, generation).Scan(&state, &correlation, &workspace, &project, &task, &run, &runner, &checkout, &supervisorJSON, &groupJSON)
+supervisor_json, owned_group_json, history.history_json
+FROM local_execution_assignments assignment LEFT JOIN execution_native_history history
+ON history.execution_id = assignment.execution_id
+WHERE assignment.execution_id = ? AND assignment.assignment_generation = ?`,
+		executionID, generation).Scan(&state, &correlation, &workspace, &project, &task, &run, &runner, &checkout, &supervisorJSON, &groupJSON, &historyJSON)
 	if err == sql.ErrNoRows {
 		return AssignmentRecord{}, fail("assignment_unknown")
 	}
@@ -75,12 +87,13 @@ FROM local_execution_assignments WHERE execution_id = ? AND assignment_generatio
 		record.Active = false
 	}
 	if groupJSON.Valid && groupJSON.String != "" {
-		var group nativeGroup
-		if json.Unmarshal([]byte(groupJSON.String), &group) == nil && !group.Unknown && !group.HadEscape && !group.Incomplete &&
-			group.Leader.PID > 0 && group.Leader.GroupID > 0 && group.Leader.StartIdentity != "" {
-			record.OwnedGroupID = group.Leader.GroupID
-			record.ProviderPID = group.Leader.PID
-			record.ProviderStart = group.Leader.StartIdentity
+		var leader nativeProcess
+		// L05 stores the pinned Process, not its separate native-history Group.
+		if decodeNativeProcess([]byte(groupJSON.String), &leader) &&
+			leader.PID > 1 && leader.GroupID == leader.PID && leader.StartIdentity != "" && !leader.Zombie {
+			record.OwnedGroupID = leader.GroupID
+			record.ProviderPID = leader.PID
+			record.ProviderStart = leader.StartIdentity
 		}
 	}
 	if record.OwnedGroupID == 0 && supervisorJSON.Valid && supervisorJSON.String != "" {
@@ -91,7 +104,102 @@ FROM local_execution_assignments WHERE execution_id = ? AND assignment_generatio
 			record.ProviderStart = identity.Process.StartIdentity
 		}
 	}
+	if historyJSON.Valid {
+		var history nativeHistory
+		if !decodeNativeHistory([]byte(historyJSON.String), &history) ||
+			history.Uncertain || history.LocalReleasedAt != "" || history.ReleasedGroupHash != "" || history.PreflightStoppedAt != "" ||
+			(history.Group != nil && (history.Group.Unknown || history.Group.HadEscape || history.Group.Incomplete || history.Group.Leader.Zombie ||
+				history.Group.Leader.PID != record.ProviderPID || history.Group.Leader.GroupID != record.OwnedGroupID ||
+				history.Group.Leader.StartIdentity != record.ProviderStart)) {
+			record.Active = false
+		}
+	}
 	return record, nil
+}
+
+// projectedObject permits unrelated L05 fields, but not duplicate keys, null
+// objects, trailing values or null known authority fields. Unknown fields are
+// intentionally not interpreted as ownership evidence.
+func projectedObject(data []byte) (map[string]json.RawMessage, bool) {
+	if len(data) > 65536 {
+		return nil, false
+	}
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	start, err := decoder.Token()
+	if err != nil || start != json.Delim('{') {
+		return nil, false
+	}
+	fields := make(map[string]json.RawMessage)
+	for decoder.More() {
+		token, err := decoder.Token()
+		key, ok := token.(string)
+		if err != nil || !ok || len(fields) >= 4096 {
+			return nil, false
+		}
+		if _, exists := fields[key]; exists {
+			return nil, false
+		}
+		var value json.RawMessage
+		if decoder.Decode(&value) != nil {
+			return nil, false
+		}
+		fields[key] = value
+	}
+	end, err := decoder.Token()
+	if err != nil || end != json.Delim('}') {
+		return nil, false
+	}
+	if _, err := decoder.Token(); err != io.EOF {
+		return nil, false
+	}
+	return fields, true
+}
+
+func nonnullFields(fields map[string]json.RawMessage, names ...string) bool {
+	for _, name := range names {
+		for key := range fields {
+			if key != name && strings.EqualFold(key, name) {
+				return false
+			}
+		}
+		if value, exists := fields[name]; exists && bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
+			return false
+		}
+	}
+	return true
+}
+
+func decodeNativeProcess(data []byte, process *nativeProcess) bool {
+	fields, ok := projectedObject(data)
+	return ok && nonnullFields(fields, "pid", "group_id", "start_identity", "zombie") && json.Unmarshal(data, process) == nil
+}
+
+func decodeNativeHistory(data []byte, history *nativeHistory) bool {
+	fields, ok := projectedObject(data)
+	if !ok || !nonnullFields(fields, "uncertain", "local_released_at", "released_group_hash", "preflight_stopped_at") || json.Unmarshal(data, history) != nil {
+		return false
+	}
+	for key := range fields {
+		if key != "group" && strings.EqualFold(key, "group") {
+			return false
+		}
+	}
+	if group, present := fields["group"]; present {
+		// L05 legitimately records no historical group before initial pinning.
+		// A fresh in-process ownership check still requires its current live group.
+		if bytes.Equal(bytes.TrimSpace(group), []byte("null")) {
+			return true
+		}
+		groupFields, ok := projectedObject(group)
+		if !ok || !nonnullFields(groupFields, "unknown", "had_escape", "incomplete", "leader") {
+			return false
+		}
+		leader, present := groupFields["leader"]
+		if !present || history.Group == nil || !decodeNativeProcess(leader, &history.Group.Leader) {
+			return false
+		}
+	}
+	return true
 }
 
 // DaemonAuthority checks only locally recorded assignment liveness.
@@ -107,6 +215,13 @@ func (source DaemonAuthority) Current(ctx context.Context, boundary Boundary) (A
 		return AuthorityState{ExecutionEnded: true}, nil
 	}
 	return AuthorityState{}, nil
+}
+
+func (DaemonAuthority) ConfirmSession(context.Context, Boundary, SessionBinding) (ConfirmedSession, error) {
+	return ConfirmedSession{}, fail("offline_rejected")
+}
+func (DaemonAuthority) CurrentBound(context.Context, Boundary, ConfirmedSession) (AuthorityState, error) {
+	return AuthorityState{}, fail("offline_rejected")
 }
 
 // OfflineTransport rejects operations that have no connected cloud implementation.
@@ -128,7 +243,7 @@ func (OfflineTransport) UpdateTask(_ context.Context, _ Boundary, _ UpdateTaskIn
 	return TaskView{}, fail("offline_rejected")
 }
 
-func (OfflineTransport) AddComment(_ context.Context, _ Boundary, _ string, _ string) (CommentResult, error) {
+func (OfflineTransport) AddComment(_ context.Context, _ Boundary, _ ConfirmedSession, _ string, _ string) (CommentResult, error) {
 	return CommentResult{}, fail("offline_rejected")
 }
 
@@ -176,7 +291,7 @@ func (bindings JournalBindings) ObservedBinding(ctx context.Context, ref Assignm
 		if journal.Code(err) == "session_unbound" {
 			return SessionBinding{}, ErrSessionNotBound
 		}
-		return SessionBinding{}, err
+		return SessionBinding{}, fail("storage_failed")
 	}
 	if observed.SessionID == "" {
 		return SessionBinding{}, ErrSessionNotBound
@@ -191,5 +306,6 @@ func (bindings JournalBindings) ObservedBinding(ctx context.Context, ref Assignm
 		RunID:                ref.RunID,
 		ObservedSessionID:    observed.SessionID,
 		ObservedAt:           boundAt,
+		Provider:             observed.Provider,
 	}, nil
 }

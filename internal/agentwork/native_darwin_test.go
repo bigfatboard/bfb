@@ -1,4 +1,4 @@
-// ABOUTME: Verifies compiled MCP stdio through signed daemon IPC and authenticated Worker/D1 reads.
+// ABOUTME: Verifies compiled MCP stdio through signed daemon IPC and authenticated Worker/D1 work commands.
 // ABOUTME: Uses a synthetic provider-shaped process group, exact Keychain cleanup and no live turns.
 
 //go:build darwin && cgo
@@ -9,8 +9,10 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"crypto/tls"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
@@ -24,27 +26,57 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"syscall"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/qdis/bfb/internal/auth"
 	"github.com/qdis/bfb/internal/daemon"
 	"github.com/qdis/bfb/internal/localmcp"
+	"github.com/qdis/bfb/internal/protocol/generated"
 	"github.com/qdis/bfb/internal/runner"
+	"github.com/qdis/bfb/internal/supervisor"
 	"golang.org/x/sys/unix"
 )
+
+var nativeCorrelation = base64.RawURLEncoding.EncodeToString(bytes.Repeat([]byte("A"), 32))
+
+func nativeFixtureProcess(pid int) (supervisor.Process, error) {
+	row, err := unix.SysctlKinfoProc("kern.proc.pid", pid)
+	if err != nil || row == nil {
+		return supervisor.Process{}, fmt.Errorf("native identity unavailable")
+	}
+	return supervisor.Process{PID: pid, ParentPID: int(row.Eproc.Ppid), GroupID: int(row.Eproc.Pgid), UID: int(row.Eproc.Ucred.Uid),
+		StartIdentity: fmt.Sprintf("%d:%d", row.Proc.P_starttime.Sec, row.Proc.P_starttime.Usec)}, nil
+}
+
+func waitFixtureLockFree(root, hash string) error {
+	name := filepath.Join(root, "worktree-locks", strings.TrimPrefix(hash, "sha256:")+".lock")
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		fd, err := unix.Open(name, unix.O_RDONLY|unix.O_NOFOLLOW, 0)
+		if err != nil {
+			return err
+		}
+		err = unix.Flock(fd, unix.LOCK_EX|unix.LOCK_NB)
+		_ = unix.Close(fd)
+		if err == nil {
+			return nil
+		}
+		time.Sleep(time.Millisecond)
+	}
+	return fmt.Errorf("fixture lock remained held")
+}
 
 // TestMCPProviderProcess is a subprocess fixture, never a real coding provider.
 func TestMCPProviderProcess(t *testing.T) {
 	if os.Getenv("BFB_A01_PROVIDER_FIXTURE") != "1" {
 		t.Skip("provider-shaped subprocess only")
 	}
-	row, err := unix.SysctlKinfoProc("kern.proc.pid", os.Getpid())
-	if err != nil || row == nil {
+	facts, err := nativeFixtureProcess(os.Getpid())
+	if err != nil {
 		os.Exit(2)
 	}
-	facts := map[string]any{"pid": os.Getpid(), "group_id": int(row.Eproc.Pgid), "start_identity": fmt.Sprintf("%d:%d", row.Proc.P_starttime.Sec, row.Proc.P_starttime.Usec)}
 	data, _ := json.Marshal(facts)
 	fmt.Println(string(data))
 	scanner := bufio.NewScanner(os.Stdin)
@@ -76,6 +108,21 @@ func TestMCPProviderProcess(t *testing.T) {
 			if probe.Run() != nil {
 				os.Exit(2)
 			}
+		} else if strings.HasPrefix(line, "__hook:") {
+			hook := exec.Command(os.Getenv("BFB_A01_BINARY"), "--data-dir", os.Getenv("BFB_A01_ROOT"), "hook", "ingest", "--provider", "fake")
+			for _, entry := range os.Environ() {
+				key, _, _ := strings.Cut(entry, "=")
+				if !strings.HasPrefix(key, "BFB_A01_") {
+					hook.Env = append(hook.Env, entry)
+				}
+			}
+			hook.Stdin = strings.NewReader(strings.TrimPrefix(line, "__hook:"))
+			result, err := hook.CombinedOutput()
+			if err != nil || !bytes.Contains(result, []byte(`"hook_status":"accepted"`)) {
+				fmt.Fprintln(os.Stderr, "trusted hook failed", err, string(result))
+				os.Exit(2)
+			}
+			fmt.Println("HOOKED")
 		} else if strings.HasPrefix(line, "__scope:") {
 			if child != nil {
 				_ = input.Close()
@@ -134,7 +181,11 @@ func TestMCPIPCProcess(t *testing.T) {
 	if json.Unmarshal(data, &payload) != nil {
 		os.Exit(2)
 	}
-	_, err = daemon.Call(context.Background(), paths, "mcp.authority", payload)
+	if _, present := payload["agent_comment_request"]; present {
+		_, err = daemon.CallAgent(context.Background(), paths, "mcp.v2.add_comment", payload)
+	} else {
+		_, err = daemon.Call(context.Background(), paths, "mcp.authority", payload)
+	}
 	code := "success"
 	if err != nil {
 		code = daemon.AsFailure(err).Code
@@ -160,6 +211,49 @@ func TestNativeAgentWork(t *testing.T) {
 		request.URL.Scheme = upstream.Scheme
 		request.URL.Host = upstream.Host
 		request.Host = "bfb.channel.test"
+	}
+	var loseReply atomic.Pointer[string]
+	type historyFault struct {
+		db                         *sql.DB
+		execution, history, action string
+	}
+	var duringCloud atomic.Pointer[historyFault]
+	type lockFault struct {
+		input      io.Writer
+		root, hash string
+	}
+	var releaseDuringCloud atomic.Pointer[lockFault]
+	proxy.ModifyResponse = func(response *http.Response) error {
+		path := response.Request.URL.Path
+		if strings.Contains(path, "/work/") {
+			t.Log("synthetic work reply", filepath.Base(path), response.StatusCode)
+		}
+		if response.StatusCode == 200 && strings.Contains(path, "/work/") {
+			if strings.HasSuffix(path, "/work/comment") {
+				if fault := releaseDuringCloud.Swap(nil); fault != nil {
+					if _, err := io.WriteString(fault.input, "__unlock\n"); err != nil {
+						return err
+					}
+					if err := waitFixtureLockFree(fault.root, fault.hash); err != nil {
+						return err
+					}
+				}
+			}
+			if fault := duringCloud.Load(); fault != nil && strings.HasSuffix(path, "/work/"+fault.action) && duringCloud.CompareAndSwap(fault, nil) {
+				if _, err := fault.db.Exec("INSERT OR REPLACE INTO execution_native_history (execution_id,history_json) VALUES (?,?)", fault.execution, fault.history); err != nil {
+					return err
+				}
+			}
+			if action := loseReply.Load(); action != nil && strings.HasSuffix(path, "/work/"+*action) && loseReply.CompareAndSwap(action, nil) {
+				_ = response.Body.Close()
+				return fmt.Errorf("synthetic committed response loss")
+			}
+		}
+		return nil
+	}
+	proxy.ErrorHandler = func(writer http.ResponseWriter, _ *http.Request, _ error) {
+		writer.WriteHeader(503)
+		_, _ = writer.Write([]byte(`{"error":"work_unavailable"}`))
 	}
 	server := httptest.NewTLSServer(proxy)
 	defer server.Close()
@@ -269,7 +363,15 @@ func TestNativeAgentWork(t *testing.T) {
 		observed := post("/__test/observe", map[string]any{"workspace_id": enrollment.WorkspaceID, "runner_id": enrollment.RunnerID}, false)
 		return string(observed["connection"]) != "null"
 	})
-	fixture := post("/__a01/seed", map[string]string{"runner": enrollment.RunnerID}, false)
+	template, err := os.ReadFile(filepath.Join(repo, "protocol/fixtures/v1/valid/launch-claim-result.c09-synthetic.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixture := post("/__a01/seed", map[string]string{"runner": enrollment.RunnerID, "claim_template": string(template)}, false)
+	var claim generated.LaunchClaimResult
+	if json.Unmarshal(fixture["claim"], &claim) != nil {
+		t.Fatal("closed claim missing")
+	}
 	ids := map[string]string{}
 	for key, value := range fixture {
 		var id string
@@ -277,14 +379,17 @@ func TestNativeAgentWork(t *testing.T) {
 		ids[key] = id
 	}
 	// The caller deliberately receives only scoped assignment values, not test cookie, key or token.
-	provider := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestMCPProviderProcess$")
-	provider.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	lockBinding := func() string {
+		data, _ := json.Marshal(supervisor.LockBinding{ExecutionID: ids["execution"], AssignmentGeneration: 1, FencingGeneration: claim.FencingGeneration, PhysicalWorktreeHash: ids["physical"]})
+		return string(data)
+	}
+	provider := exec.CommandContext(ctx, dae, "fixture-supervise", paths.Root, os.Args[0], "-test.run=^TestMCPProviderProcess$", lockBinding())
 	for _, key := range []string{"PATH", "TMPDIR", "LANG", "LC_ALL", "DEVELOPER_DIR"} {
 		if value, present := os.LookupEnv(key); present {
 			provider.Env = append(provider.Env, key+"="+value)
 		}
 	}
-	for key, value := range map[string]string{"BFB_A01_PROVIDER_FIXTURE": "1", "BFB_A01_BINARY": binary, "BFB_A01_ROOT": paths.Root, "BFB_WORKSPACE_ID": ids["workspace"], "BFB_PROJECT_ID": ids["project"], "BFB_TASK_ID": ids["task"], "BFB_RUN_ID": ids["run"], "BFB_RUN_EXECUTION_ID": ids["execution"], "BFB_ASSIGNMENT_GENERATION": "1", "BFB_CHECKOUT_ID": ids["checkout"], "BFB_RUNNER_ID": ids["runner"], "BFB_CORRELATION_TOKEN": "a01-synthetic-correlation", "BFB_ARTIFACTS_DIR": directory} {
+	for key, value := range map[string]string{"BFB_A01_PROVIDER_FIXTURE": "1", "BFB_A01_BINARY": binary, "BFB_A01_ROOT": paths.Root, "BFB_WORKSPACE_ID": ids["workspace"], "BFB_PROJECT_ID": ids["project"], "BFB_TASK_ID": ids["task"], "BFB_RUN_ID": ids["run"], "BFB_RUN_EXECUTION_ID": ids["execution"], "BFB_ASSIGNMENT_GENERATION": "1", "BFB_CHECKOUT_ID": ids["checkout"], "BFB_RUNNER_ID": ids["runner"], "BFB_CORRELATION_TOKEN": nativeCorrelation, "BFB_ARTIFACTS_DIR": directory} {
 		provider.Env = append(provider.Env, key+"="+value)
 	}
 	for _, entry := range provider.Env {
@@ -316,11 +421,17 @@ func TestNativeAgentWork(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var leader map[string]any
-	if json.Unmarshal(line, &leader) != nil {
+	var owned struct {
+		Leader supervisor.Process            `json:"leader"`
+		Owner  supervisor.SupervisorIdentity `json:"owner"`
+		LockID string                        `json:"lock_id"`
+	}
+	if json.Unmarshal(line, &owned) != nil || owned.LockID == "" {
 		t.Fatal("missing native fixture identity")
 	}
-	group, _ := json.Marshal(map[string]any{"leader": leader})
+	leader := owned.Leader
+	group, _ := json.Marshal(leader)
+	supervisorJSON, _ := json.Marshal(owned.Owner)
 	db, err := sql.Open("sqlite", "file:"+paths.Database+"?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)")
 	if err != nil {
 		t.Fatal(err)
@@ -333,12 +444,15 @@ func TestNativeAgentWork(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer tx.Rollback()
-		now := time.Now().UTC().Format(time.RFC3339Nano)
-		expires := time.Now().Add(10 * time.Minute).UTC().Format(time.RFC3339Nano)
+		now := claim.Assignment.CreatedAt
+		expires := claim.Specification.ExpiresAt
+		claimJSON, _ := json.Marshal(claim)
+		digest := sha256.Sum256([]byte(ids["launch"]))
+		intent := fmt.Sprintf("00000000-0000-4000-8000-%x", digest[:6])
 		if _, err := tx.Exec(`INSERT INTO execution_commands (runner_id,command_id,workspace_id,command_kind,expires_at,received_at,claim_key,claim_started_at,state) VALUES (?,?,?,'launch',?,?,?,?,'queued')`, ids["runner"], ids["launch"], ids["workspace"], expires, now, "synthetic", now); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := tx.Exec(`INSERT INTO local_execution_assignments (execution_id,assignment_generation,workspace_id,project_id,task_id,run_id,runner_id,checkout_id,launch_id,intent_id,physical_worktree_hash,fencing_generation,claim_json,provider_identity_hash,correlation_token,created_at,expires_at,state,owned_group_json) VALUES (?,1,?,?,?,?,?,?,?,?,?,1,'{}','synthetic','a01-synthetic-correlation',?,?,'running',?)`, ids["execution"], ids["workspace"], ids["project"], ids["task"], ids["run"], ids["runner"], ids["checkout"], ids["launch"], daemon.NewRequestID(), ids["physical"], now, expires, string(group)); err != nil {
+		if _, err := tx.Exec(`INSERT INTO local_execution_assignments (execution_id,assignment_generation,workspace_id,project_id,task_id,run_id,runner_id,checkout_id,launch_id,intent_id,physical_worktree_hash,fencing_generation,claim_json,provider_identity_hash,correlation_token,created_at,expires_at,state,owned_group_json,supervisor_json,local_lock_id) VALUES (?,1,?,?,?,?,?,?,?,?,?,1,?,?,?,?,?,'running',?,?,?)`, ids["execution"], ids["workspace"], ids["project"], ids["task"], ids["run"], ids["runner"], ids["checkout"], ids["launch"], intent, ids["physical"], string(claimJSON), "sha256:"+strings.Repeat("a", 64), nativeCorrelation, now, expires, string(group), string(supervisorJSON), owned.LockID); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := tx.Exec(`UPDATE execution_commands SET state='complete' WHERE runner_id=? AND command_id=?`, ids["runner"], ids["launch"]); err != nil {
@@ -451,6 +565,139 @@ func TestNativeAgentWork(t *testing.T) {
 	if len(committed) != 2 || string(observed["sessions"]) != "{\"count\":0}" {
 		t.Fatal("bootstrap invented session or repeated delivery", string(observed["sessions"]), len(committed))
 	}
+	hook := func(session string) {
+		t.Helper()
+		data, _ := json.Marshal(map[string]string{"kind": "turn_started", "session_id": session, "source_event_id": "a01-turn-before-start"})
+		_, _ = io.WriteString(stdin, "__hook:"+string(data)+"\n")
+		line, err := reader.ReadString('\n')
+		if err != nil || line != "HOOKED\n" {
+			t.Fatal("production L06 hook capture failed", err, line)
+		}
+		var providerName, observedID string
+		if err := db.QueryRow("SELECT provider,session_id FROM hook_observed_sessions WHERE execution_id=? AND assignment_generation=1", ids["execution"]).Scan(&providerName, &observedID); err != nil || providerName != "fake" || observedID != session {
+			t.Fatal("trusted turn-before-start missing", err)
+		}
+	}
+	restartBoth := func() {
+		t.Helper()
+		status, err := daemon.Call(ctx, paths, "daemon.status", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		previousPID := status.Payload["daemon_pid"]
+		command("/bin/launchctl", "kickstart", "-k", fmt.Sprintf("gui/%d/%s", os.Getuid(), label))
+		wait("restarted signed daemon", func() bool {
+			status, err := daemon.Call(ctx, paths, "daemon.status", nil)
+			return err == nil && status.Payload["daemon_pid"] != previousPID
+		})
+		wait("Keychain-backed runner reconnect", func() bool {
+			list, err := daemon.Call(ctx, paths, "runner.list", nil)
+			if err != nil {
+				return false
+			}
+			data, _ := json.Marshal(list.Payload["enrollments"])
+			var entries []runner.Enrollment
+			if json.Unmarshal(data, &entries) != nil {
+				return false
+			}
+			for _, entry := range entries {
+				if entry.RunnerID == enrollment.RunnerID && entry.State == "online" {
+					return true
+				}
+			}
+			return false
+		})
+		restart("__restart")
+	}
+	hook("synthetic-native-session")
+	// Drop the response only after the actual Hub/D1 commit, then restart both peers.
+	action := "session-bind"
+	loseReply.Store(&action)
+	body := "A01_PRIVATE_BODY_CANARY_" + strings.Repeat("<", 2024)
+	if len([]rune(body)) != 2048 {
+		t.Fatal("maximum body fixture changed")
+	}
+	if _, code := call("bfb_add_comment", "native-comment-01", map[string]any{"body": body}); code != "offline_rejected" {
+		t.Fatal("lost binding reply not retryable", code)
+	}
+	afterBinding := post("/__a01/observe", map[string]string{"execution": ids["execution"]}, false)
+	var bindings []map[string]any
+	_ = json.Unmarshal(afterBinding["bindings"], &bindings)
+	if len(bindings) != 1 || string(afterBinding["comments"]) != "[]" {
+		t.Fatal("binding loss did not commit exactly the binding")
+	}
+	sessionID := bindings[0]["provider_session_id"].(string)
+	restartBoth()
+	firstComment, code := call("bfb_add_comment", "native-comment-01", map[string]any{"body": body})
+	if code != "" {
+		t.Fatal("binding confirmation retry after both restarts", code)
+	}
+	action = "comment"
+	loseReply.Store(&action)
+	secondBody := "Synthetic committed comment response loss"
+	if _, code := call("bfb_add_comment", "native-comment-02", map[string]any{"body": secondBody}); code != "offline_rejected" {
+		t.Fatal("lost committed comment reply not retryable", code)
+	}
+	lostComment := post("/__a01/observe", map[string]string{"execution": ids["execution"]}, false)
+	var comments, effects []map[string]any
+	_ = json.Unmarshal(lostComment["comments"], &comments)
+	_ = json.Unmarshal(lostComment["effects"], &effects)
+	if len(comments) != 2 || len(effects) != 2 {
+		t.Fatal("uncertain comment outcome did not commit one canonical effect")
+	}
+	restartBoth()
+	retried, code := call("bfb_add_comment", "native-comment-02", map[string]any{"body": secondBody})
+	if code != "" {
+		t.Fatal("comment retry after both restarts", code)
+	}
+	again, code := call("bfb_add_comment", "native-comment-01", map[string]any{"body": body})
+	if code != "" || again["id"] != firstComment["id"] {
+		t.Fatal("escaped maximum body replay changed", code)
+	}
+	if _, code := call("bfb_add_comment", "native-comment-02", map[string]any{"body": "Changed synthetic body"}); code != "request_rejected" {
+		t.Fatal("reused write identity lost input binding", code)
+	}
+	// Even a genuine owned kernel peer cannot replace the daemon-read L06
+	// observation while reusing the original committed comment identity.
+	changedSession, _ := json.Marshal(map[string]any{"agent_comment_request": generated.AgentCommentLocalRequest{
+		Correlation: nativeCorrelation, Request: generated.AgentCommentRequest{
+			Reference: generated.AgentWorkRequest{SchemaVersion: 1, RunExecutionId: ids["execution"], AssignmentGeneration: 1, RequestId: "native-comment-02"},
+			Binding:   generated.AgentSessionReference{ProviderSessionId: sessionID, Provider: "fake", ObservedSessionId: "synthetic-changed-session"}, Body: secondBody,
+		},
+	}})
+	_, _ = io.WriteString(stdin, "__ipc:"+string(changedSession)+"\n")
+	changedReply, changedError := reader.ReadString('\n')
+	if changedError != nil || changedReply != "IPC:session_conflict\n" {
+		t.Fatal("owned caller changed captured session after restart", changedError, changedReply)
+	}
+	finalComment := post("/__a01/observe", map[string]string{"execution": ids["execution"]}, false)
+	_ = json.Unmarshal(finalComment["comments"], &comments)
+	_ = json.Unmarshal(finalComment["effects"], &effects)
+	_ = json.Unmarshal(finalComment["bindings"], &bindings)
+	if len(comments) != 2 || len(effects) != 2 || len(bindings) != 1 || bindings[0]["provider_session_id"] != sessionID {
+		t.Fatal("restarts duplicated conversation/effects")
+	}
+	foundMaximum := false
+	foundLost := false
+	for _, comment := range comments {
+		if comment["author_human_id"] != nil || comment["author_delegation_id"] != nil {
+			t.Fatal("agent impersonated human")
+		}
+		if comment["id"] == firstComment["id"] && comment["body"] == body {
+			foundMaximum = true
+		}
+		if comment["id"] == retried["id"] && comment["body"] == secondBody {
+			foundLost = true
+		}
+	}
+	for _, effect := range effects {
+		if effect["run_id"] != ids["run"] || effect["execution_id"] != ids["execution"] || effect["provider_session_id"] != sessionID || effect["source_task_id"] != ids["task"] || effect["target_task_id"] != ids["task"] {
+			t.Fatal("untruthful committed provenance")
+		}
+	}
+	if !foundMaximum || !foundLost || bytes.Contains(finalComment["receipts"], []byte("A01_PRIVATE_BODY_CANARY")) || bytes.Contains(finalComment["receipts"], []byte(secondBody)) {
+		t.Fatal("body round-trip/receipt boundary failed")
+	}
 	post("/__a01/oversize", map[string]string{"execution": ids["execution"]}, false)
 	if _, code := call("bfb_get_context", "native-oversize-01", nil); code != "request_rejected" {
 		t.Fatal("oversized escaped context not denied", code)
@@ -460,7 +707,7 @@ func TestNativeAgentWork(t *testing.T) {
 		t.Fatal("oversized context committed partial deliveries")
 	}
 	// Knowing the correlation is insufficient outside the verified kernel group.
-	_, err = daemon.Call(ctx, paths, "mcp.get_context", map[string]any{"agent_request": map[string]any{"correlation": "a01-synthetic-correlation", "request": map[string]any{"schema_version": 1, "run_execution_id": ids["execution"], "assignment_generation": 1, "request_id": "foreign-peer-01"}}})
+	_, err = daemon.Call(ctx, paths, "mcp.get_context", map[string]any{"agent_request": map[string]any{"correlation": nativeCorrelation, "request": map[string]any{"schema_version": 1, "run_execution_id": ids["execution"], "assignment_generation": 1, "request_id": "foreign-peer-01"}}})
 	if daemon.AsFailure(err).Code != "peer_denied" {
 		t.Fatal("daemon accepted foreign native caller", err)
 	}
@@ -468,7 +715,7 @@ func TestNativeAgentWork(t *testing.T) {
 		correlation string
 		generation  int
 		code        string
-	}{{"wrong-synthetic-correlation", 1, "correlation_rejected"}, {"a01-synthetic-correlation", 2, "assignment_unknown"}} {
+	}{{"wrong-synthetic-correlation", 1, "correlation_rejected"}, {nativeCorrelation, 2, "assignment_unknown"}} {
 		payload, _ := json.Marshal(map[string]any{"agent_request": map[string]any{"correlation": attack.correlation, "request": map[string]any{"schema_version": 1, "run_execution_id": ids["execution"], "assignment_generation": attack.generation, "request_id": "owned-caller-01"}}})
 		_, _ = io.WriteString(stdin, "__ipc:"+string(payload)+"\n")
 		line, err := reader.ReadString('\n')
@@ -476,16 +723,24 @@ func TestNativeAgentWork(t *testing.T) {
 			t.Fatal("owned caller boundary not denied", attack.code, err, line)
 		}
 	}
-	for _, closure := range []struct{ kind, code string }{{"end", "assignment_ended"}, {"result", "capability_closed"}, {"lease", "capability_closed"}, {"grant", "revoked"}} {
+	for _, closure := range []struct{ kind, code string }{{"session", "capability_closed"}, {"end", "assignment_ended"}, {"result", "capability_closed"}, {"lease", "capability_closed"}, {"history_before", "assignment_ended"}, {"history_during", "assignment_ended"}, {"history_write", "assignment_ended"}, {"lock_before", "assignment_ended"}, {"lock_write", "assignment_ended"}, {"grant", "revoked"}} {
 		if _, err := db.Exec(`UPDATE local_execution_assignments SET state='ended' WHERE execution_id=?`, ids["execution"]); err != nil {
 			t.Fatal(err)
 		}
-		fresh := post("/__a01/seed", map[string]string{"runner": enrollment.RunnerID}, false)
+		fresh := post("/__a01/seed", map[string]string{"runner": enrollment.RunnerID, "claim_template": string(template)}, false)
+		if json.Unmarshal(fresh["claim"], &claim) != nil {
+			t.Fatal("fresh claim missing")
+		}
 		ids = map[string]string{}
 		for key, value := range fresh {
 			var id string
 			_ = json.Unmarshal(value, &id)
 			ids[key] = id
+		}
+		_, _ = io.WriteString(stdin, "__ownership:"+lockBinding()+"\n")
+		ownershipLine, ownershipErr := reader.ReadBytes('\n')
+		if ownershipErr != nil || json.Unmarshal(ownershipLine, &owned) != nil || owned.LockID == "" || owned.Leader != leader {
+			t.Fatal("fresh signed helper lock missing", ownershipErr)
 		}
 		seedLocal()
 		scope, _ := json.Marshal(map[string]string{"BFB_WORKSPACE_ID": ids["workspace"], "BFB_PROJECT_ID": ids["project"], "BFB_TASK_ID": ids["task"], "BFB_RUN_ID": ids["run"], "BFB_RUN_EXECUTION_ID": ids["execution"], "BFB_CHECKOUT_ID": ids["checkout"], "BFB_RUNNER_ID": ids["runner"]})
@@ -496,12 +751,60 @@ func TestNativeAgentWork(t *testing.T) {
 		}
 		restart("__start")
 		requestID := "cached-closure-" + closure.kind
-		if _, code := call("bfb_get_context", requestID, nil); code != "" {
-			t.Fatal("fresh context failed", closure.kind, code)
+		hook("synthetic-session-" + closure.kind)
+		if _, code := call("bfb_add_comment", requestID, map[string]any{"body": "Synthetic cached closure comment"}); code != "" {
+			t.Fatal("fresh bound comment failed", closure.kind, code)
 		}
-		post("/__a01/change", map[string]string{"execution": ids["execution"], "kind": closure.kind}, false)
-		if _, code := call("bfb_get_context", requestID, nil); code != closure.code {
-			t.Fatal("cached context skipped current authority", closure.kind, code)
+		if _, code := call("bfb_get_context", requestID, nil); code != "request_rejected" {
+			t.Fatal("cached write identity accepted across tools", closure.kind, code)
+		}
+		retained, retainedError := supervisor.NewGroup(leader)
+		if retainedError != nil {
+			t.Fatal(retainedError)
+		}
+		retained.Unknown = true
+		if closure.kind == "lock_before" {
+			_, _ = io.WriteString(stdin, "__unlock\n")
+			if err := waitFixtureLockFree(paths.Root, ids["physical"]); err != nil {
+				t.Fatal(err)
+			}
+			var state, history string
+			if err := db.QueryRow("SELECT assignment.state, history.history_json FROM local_execution_assignments assignment JOIN execution_native_history history ON history.execution_id=assignment.execution_id WHERE assignment.execution_id=?", ids["execution"]).Scan(&state, &history); err != nil || state != "running" || strings.Contains(history, `"uncertain":true`) {
+				t.Fatal("free-lock test did not isolate fresh inspection", err, state)
+			}
+		} else if closure.kind == "lock_write" {
+			releaseDuringCloud.Store(&lockFault{input: stdin, root: paths.Root, hash: ids["physical"]})
+		} else if closure.kind == "history_before" {
+			retained.HadEscape = true
+			history, _ := json.Marshal(map[string]any{"uncertain": true, "group": retained})
+			if _, err := db.Exec("INSERT OR REPLACE INTO execution_native_history (execution_id,history_json) VALUES (?,?)", ids["execution"], string(history)); err != nil {
+				t.Fatal(err)
+			}
+		} else if closure.kind == "history_during" || closure.kind == "history_write" {
+			retained.Incomplete = true
+			history, _ := json.Marshal(map[string]any{"uncertain": true, "group": retained})
+			action := "bound-authority"
+			if closure.kind == "history_write" {
+				action = "comment"
+			}
+			duringCloud.Store(&historyFault{db: db, execution: ids["execution"], history: string(history), action: action})
+		} else {
+			post("/__a01/change", map[string]string{"execution": ids["execution"], "kind": closure.kind}, false)
+		}
+		if closure.kind == "history_write" || closure.kind == "lock_write" {
+			requestID += "-new"
+		}
+		if _, code := call("bfb_add_comment", requestID, map[string]any{"body": "Synthetic cached closure comment"}); code != closure.code {
+			t.Fatal("cached comment skipped current bound authority", closure.kind, code)
+		}
+		if closure.kind == "history_write" || closure.kind == "lock_write" {
+			committed := post("/__a01/observe", map[string]string{"execution": ids["execution"]}, false)
+			var retainedComments, retainedEffects []map[string]any
+			_ = json.Unmarshal(committed["comments"], &retainedComments)
+			_ = json.Unmarshal(committed["effects"], &retainedEffects)
+			if len(retainedComments) != 2 || len(retainedEffects) != 2 {
+				t.Fatal("post-commit denial incorrectly lost the canonical effect")
+			}
 		}
 		if _, code := call("bfb_get_task", "sticky-closure-"+closure.kind, nil); code != "capability_closed" {
 			t.Fatal("authority denial not sticky", closure.kind, code)

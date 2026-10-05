@@ -7,6 +7,8 @@ import (
 	"context"
 	"errors"
 	"time"
+
+	"github.com/qdis/bfb/internal/protocol/generated"
 )
 
 // AssignmentRef identifies one immutable execution assignment.
@@ -24,7 +26,11 @@ type SessionBinding struct {
 	RunID                string
 	ObservedSessionID    string
 	ObservedAt           time.Time
+	Provider             string
 }
+
+// ConfirmedSession is the closed wire reference returned by canonical binding.
+type ConfirmedSession = generated.AgentSessionReference
 
 // ErrSessionNotBound reports that L06 has not committed a binding for the ref yet.
 var ErrSessionNotBound = errors.New("localmcp: session not bound")

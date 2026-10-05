@@ -21,10 +21,14 @@ import (
 	"github.com/qdis/bfb/internal/cli"
 	"github.com/qdis/bfb/internal/daemon"
 	"github.com/qdis/bfb/internal/runner"
+	"github.com/qdis/bfb/internal/supervisor"
 )
 
 func main() {
 	syscall.Umask(0077)
+	if len(os.Args) == 6 && os.Args[1] == "fixture-supervise" {
+		os.Exit(fixtureSupervise(os.Args[2], os.Args[3], os.Args[4], os.Args[5]))
+	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	if len(os.Args) == 4 && os.Args[1] == "cleanup" {
@@ -62,8 +66,9 @@ func main() {
 		},
 	}}
 	manager := runner.NewManager(runner.ManagerOptions{HTTPClient: client})
+	executions := supervisor.NewService(supervisor.ServiceOptions{})
 	methods := daemon.NewRegistry()
-	if runner.RegisterRPC(methods, manager) != nil || agentwork.RegisterRPC(methods, manager.Connection) != nil {
+	if runner.RegisterRPC(methods, manager) != nil || supervisor.RegisterRPC(methods, executions) != nil || agentwork.RegisterRPC(methods, manager.Connection, executions.CheckAgentOwnership) != nil {
 		os.Exit(2)
 	}
 	commands := cli.NewRegistry()

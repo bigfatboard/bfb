@@ -14,6 +14,7 @@ import (
 	"os"
 	"regexp"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/qdis/bfb/internal/protocol"
@@ -96,7 +97,11 @@ func NewRequestID() string {
 }
 
 func Response(method, requestID string, payload map[string]any, err error) generated.LocalRpcEnvelope {
-	response := generated.LocalRpcEnvelope{SchemaVersion: 1, RequestId: requestID, Method: method, Direction: "response", Payload: payload}
+	return ResponseVersion(1, method, requestID, payload, err)
+}
+
+func ResponseVersion(version int64, method, requestID string, payload map[string]any, err error) generated.LocalRpcEnvelope {
+	response := generated.LocalRpcEnvelope{SchemaVersion: version, RequestId: requestID, Method: method, Direction: "response", Payload: payload}
 	if err != nil {
 		response.Payload = nil
 		response.Error = AsFailure(err).Diagnostic()
@@ -106,11 +111,10 @@ func Response(method, requestID string, payload map[string]any, err error) gener
 
 func EncodeEnvelope(envelope generated.LocalRpcEnvelope) ([]byte, error) {
 	data, err := json.Marshal(envelope)
-	if err != nil || len(data) > MaxRPCBytes {
+	if err != nil || len(data)+1 > MaxRPCBytes {
 		return nil, &Failure{Code: "invalid_request"}
 	}
-	decoded := protocol.DecodeWireDocument("local-rpc", data)
-	if !decoded.OK {
+	if !decodeEnvelope(data).OK {
 		return nil, &Failure{Code: "invalid_request"}
 	}
 	return append(data, '\n'), nil
@@ -124,14 +128,23 @@ func readEnvelope(reader *bufio.Reader) (generated.LocalRpcEnvelope, error) {
 		}
 		return generated.LocalRpcEnvelope{}, &Failure{Code: "invalid_request"}
 	}
-	if len(data) > MaxRPCBytes || !protocol.DecodeWireDocument("local-rpc", data).OK {
+	decoded := decodeEnvelope(data)
+	if len(data) > MaxRPCBytes || !decoded.OK {
 		return generated.LocalRpcEnvelope{}, &Failure{Code: "invalid_request"}
 	}
 	var envelope generated.LocalRpcEnvelope
-	if json.Unmarshal(data, &envelope) != nil {
+	if json.Unmarshal([]byte(decoded.JSON), &envelope) != nil {
 		return generated.LocalRpcEnvelope{}, &Failure{Code: "invalid_request"}
 	}
 	return envelope, nil
+}
+
+func decodeEnvelope(data []byte) protocol.DecodeResult {
+	decoded := protocol.DecodeWireDocument("local-rpc", data)
+	if decoded.OK && !strings.HasPrefix(decoded.Value["method"].(string), "mcp.v2.") {
+		return decoded
+	}
+	return protocol.DecodeWireDocument("local-agent-rpc", data)
 }
 
 func authorizePeer(peer Peer) error {
@@ -142,7 +155,7 @@ func authorizePeer(peer Peer) error {
 }
 
 func Call(ctx context.Context, paths Paths, method string, payload map[string]any) (generated.LocalRpcEnvelope, error) {
-	return call(ctx, paths, method, payload, nil)
+	return call(ctx, paths, 1, method, payload, nil)
 }
 
 // CallWithPeerAuthorization checks an additional native server identity before
@@ -151,30 +164,39 @@ func CallWithPeerAuthorization(ctx context.Context, paths Paths, method string, 
 	if authorize == nil {
 		return generated.LocalRpcEnvelope{}, &Failure{Code: "peer_denied"}
 	}
-	return call(ctx, paths, method, payload, authorize)
+	return call(ctx, paths, 1, method, payload, authorize)
 }
 
-func call(ctx context.Context, paths Paths, method string, payload map[string]any, extraAuthorization func(Peer) error) (generated.LocalRpcEnvelope, error) {
-	request := generated.LocalRpcEnvelope{SchemaVersion: 1, RequestId: NewRequestID(), Method: method, Direction: "request", Payload: payload}
+// CallAgent negotiates the fixed v2 lane before sending private execution input.
+// Negotiation is repeated for each call; no daemon replacement inherits a cache.
+func CallAgent(ctx context.Context, paths Paths, method string, payload map[string]any) (generated.LocalRpcEnvelope, error) {
+	if !strings.HasPrefix(method, "mcp.v2.") {
+		return generated.LocalRpcEnvelope{}, &Failure{Code: "protocol_unsupported"}
+	}
+	return call(ctx, paths, 2, method, payload, nil)
+}
+
+func call(ctx context.Context, paths Paths, version int64, method string, payload map[string]any, extraAuthorization func(Peer) error) (generated.LocalRpcEnvelope, error) {
+	request := generated.LocalRpcEnvelope{SchemaVersion: version, RequestId: NewRequestID(), Method: method, Direction: "request", Payload: payload}
 	data, err := EncodeEnvelope(request)
 	if err != nil {
-		return Response(method, request.RequestId, nil, err), err
+		return ResponseVersion(version, method, request.RequestId, nil, err), err
 	}
 	info, err := os.Lstat(paths.Root)
 	if err != nil || !info.IsDir() || !privateOwner(info) {
 		failure := &Failure{Code: "daemon_offline"}
-		return Response(method, request.RequestId, nil, failure), failure
+		return ResponseVersion(version, method, request.RequestId, nil, failure), failure
 	}
 	info, err = os.Lstat(paths.Socket)
 	if err != nil || info.Mode()&os.ModeSocket == 0 || !privateOwner(info) {
 		failure := &Failure{Code: "daemon_offline"}
-		return Response(method, request.RequestId, nil, failure), failure
+		return ResponseVersion(version, method, request.RequestId, nil, failure), failure
 	}
 	dialer := net.Dialer{Timeout: 5 * time.Second}
 	connection, err := dialer.DialContext(ctx, "unix", paths.Socket)
 	if err != nil {
 		failure := &Failure{Code: "daemon_offline"}
-		return Response(method, request.RequestId, nil, failure), failure
+		return ResponseVersion(version, method, request.RequestId, nil, failure), failure
 	}
 	defer func() { _ = connection.Close() }()
 	stopCancellation := context.AfterFunc(ctx, func() { _ = connection.Close() })
@@ -182,29 +204,60 @@ func call(ctx context.Context, paths Paths, method string, payload map[string]an
 	peer, err := socketPeer(connection.(*net.UnixConn))
 	if err != nil || authorizePeer(peer) != nil {
 		failure := &Failure{Code: "peer_denied"}
-		return Response(method, request.RequestId, nil, failure), failure
+		return ResponseVersion(version, method, request.RequestId, nil, failure), failure
 	}
 	if extraAuthorization != nil && extraAuthorization(peer) != nil {
 		failure := &Failure{Code: "peer_denied"}
-		return Response(method, request.RequestId, nil, failure), failure
+		return ResponseVersion(version, method, request.RequestId, nil, failure), failure
 	}
 	deadline := time.Now().Add(10 * time.Second)
 	if until, ok := ctx.Deadline(); ok && until.Before(deadline) {
 		deadline = until
 	}
 	_ = connection.SetDeadline(deadline)
+	if version == 2 {
+		// Keep negotiation and the private request on the same checked kernel peer.
+		status := generated.LocalRpcEnvelope{SchemaVersion: 1, RequestId: NewRequestID(), Method: "daemon.status", Direction: "request"}
+		statusData, encodeErr := EncodeEnvelope(status)
+		if encodeErr != nil {
+			return ResponseVersion(version, method, request.RequestId, nil, encodeErr), encodeErr
+		}
+		if _, err = connection.Write(statusData); err != nil {
+			failure := &Failure{Code: "daemon_offline"}
+			return ResponseVersion(version, method, request.RequestId, nil, failure), failure
+		}
+		advertised, readErr := readEnvelope(bufio.NewReaderSize(connection, MaxRPCBytes+1))
+		if readErr != nil || advertised.SchemaVersion != 1 || advertised.Method != status.Method || advertised.RequestId != status.RequestId || advertised.Direction != "response" || advertised.Error != nil {
+			failure := &Failure{Code: "protocol_unsupported"}
+			return ResponseVersion(version, method, request.RequestId, nil, failure), failure
+		}
+		encodedMethods, _ := json.Marshal(advertised.Payload["methods"])
+		var methods []string
+		supported := false
+		if json.Unmarshal(encodedMethods, &methods) == nil {
+			for _, advertisedMethod := range methods {
+				if advertisedMethod == method {
+					supported = true
+				}
+			}
+		}
+		if !supported {
+			failure := &Failure{Code: "protocol_unsupported"}
+			return ResponseVersion(version, method, request.RequestId, nil, failure), failure
+		}
+	}
 	if _, err = connection.Write(data); err != nil {
 		failure := &Failure{Code: "daemon_offline"}
-		return Response(method, request.RequestId, nil, failure), failure
+		return ResponseVersion(version, method, request.RequestId, nil, failure), failure
 	}
 	response, err := readEnvelope(bufio.NewReaderSize(connection, MaxRPCBytes+1))
-	if err != nil || response.Direction != "response" || response.RequestId != request.RequestId || response.Method != method {
+	if err != nil || response.SchemaVersion != request.SchemaVersion || response.Direction != "response" || response.RequestId != request.RequestId || response.Method != method {
 		failure := &Failure{Code: "invalid_request"}
-		return Response(method, request.RequestId, nil, failure), failure
+		return ResponseVersion(version, method, request.RequestId, nil, failure), failure
 	}
 	if response.Error != nil {
 		failure := &Failure{Code: response.Error.Code}
-		return Response(method, request.RequestId, nil, failure), failure
+		return ResponseVersion(version, method, request.RequestId, nil, failure), failure
 	}
 	return response, nil
 }

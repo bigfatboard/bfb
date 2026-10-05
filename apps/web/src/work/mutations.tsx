@@ -38,6 +38,30 @@ interface CommentRecord {
   created_at: string;
   author_human_id: string | null;
   author_delegation_id: string | null;
+  author_kind: "human" | "delegated_human" | "agent_run" | "unknown";
+  author_run_id: string | null;
+  author_execution_id: string | null;
+  author_provider_session_id: string | null;
+  percent: number | null;
+  confidence: number | null;
+}
+
+export function CommentAuthor({
+  comment,
+}: {
+  comment: Pick<CommentRecord, "author_kind" | "author_run_id">;
+}) {
+  return (
+    <span>
+      {comment.author_kind === "agent_run"
+        ? `Agent run ${comment.author_run_id ?? ""}`.trim()
+        : comment.author_kind === "delegated_human"
+          ? "Delegated client"
+          : comment.author_kind === "human"
+            ? "Human"
+            : "Unknown"}
+    </span>
+  );
 }
 
 interface ContextRecord {
@@ -654,7 +678,7 @@ export function WorkMutations(props: WorkMutationsProps) {
                 {comments.map((item) => (
                   <li key={item.id}>
                     <p>{item.body}</p>
-                    <span>{item.author_delegation_id ? "Delegated client" : "Human"}</span>
+                    <CommentAuthor comment={item} />
                   </li>
                 ))}
               </ol>

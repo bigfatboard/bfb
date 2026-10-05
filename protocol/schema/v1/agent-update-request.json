@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/agent-update-request.json",
+  "title": "AgentUpdateRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["reference", "binding", "expected_version"],
+  "properties": {
+    "reference": {
+      "$ref": "agent-work-request.json"
+    },
+    "binding": {
+      "$ref": "agent-session-reference.json"
+    },
+    "expected_version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "punchline": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    }
+  },
+  "anyOf": [
+    {
+      "required": ["title"],
+      "type": "object",
+      "properties": {
+        "title": {}
+      }
+    },
+    {
+      "required": ["punchline"],
+      "type": "object",
+      "properties": {
+        "punchline": {}
+      }
+    }
+  ]
+}

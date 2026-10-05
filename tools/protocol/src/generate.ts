@@ -14,6 +14,7 @@ import { build } from "esbuild";
 
 import { DOCUMENTS, PROTOCOL_HEAD, SCHEMA_VERSION } from "./document-names.js";
 import { generateSwift } from "./swift.js";
+import { generateAgentFixtures } from "./agent-fixtures.js";
 
 export interface JsonSchema {
   $id?: string;
@@ -631,6 +632,7 @@ export async function generateProtocol(
   goSchemaParts.push("}", "");
   await writeFile(path.join(goOutDir, "schemas.go"), goSchemaParts.join("\n"));
   await generateSwift(root, registry, schemaHash);
+  await generateAgentFixtures(root);
 
   // Catalog stamp for drift checks
   await writeFile(
@@ -640,7 +642,11 @@ export async function generateProtocol(
         protocol: PROTOCOL_HEAD,
         schema_version: SCHEMA_VERSION,
         schema_hash: schemaHash,
-        documents: DOCUMENTS.map((doc) => ({ name: doc.name, schema: doc.schemaFile })),
+        documents: DOCUMENTS.map((doc) => ({
+          name: doc.name,
+          schema: doc.schemaFile,
+          schema_version: doc.schemaVersion ?? SCHEMA_VERSION,
+        })),
       },
       null,
       2,

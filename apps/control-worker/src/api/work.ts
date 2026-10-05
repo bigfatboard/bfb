@@ -405,10 +405,19 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
       const limit = pagination.limit ?? 50;
       const rows = (await deps.db
         .prepare(
-          `SELECT id, author_human_id, author_delegation_id, body, kind, created_at
-           FROM comments WHERE workspace_id = ? AND task_id = ?
-             ${pagination.cursor ? "AND id > ?" : ""}
-           ORDER BY id ASC LIMIT ?`,
+          `SELECT comment.id, comment.author_human_id, comment.author_delegation_id,
+             comment.body, comment.kind, comment.created_at,
+             CASE WHEN effect.operation_key IS NOT NULL THEN 'agent_run'
+                  WHEN comment.author_delegation_id IS NOT NULL THEN 'delegated_human'
+                  WHEN comment.author_human_id IS NOT NULL THEN 'human' ELSE 'unknown' END AS author_kind,
+             effect.run_id AS author_run_id, effect.execution_id AS author_execution_id,
+             effect.provider_session_id AS author_provider_session_id, effect.percent, effect.confidence
+           FROM comments comment LEFT JOIN agent_work_effects effect
+             ON effect.workspace_id = comment.workspace_id AND effect.comment_id = comment.id
+             AND effect.target_task_id = comment.task_id AND effect.kind IN ('comment.add', 'progress.report')
+           WHERE comment.workspace_id = ? AND comment.task_id = ?
+             ${pagination.cursor ? "AND comment.id > ?" : ""}
+           ORDER BY comment.id ASC LIMIT ?`,
         )
         .all(
           deps.workspaceId,

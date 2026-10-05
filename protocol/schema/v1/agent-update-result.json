@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/agent-update-result.json",
+  "title": "AgentUpdateResult",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["task", "origin"],
+  "properties": {
+    "task": {
+      "$ref": "agent-task-result.json"
+    },
+    "origin": {
+      "$ref": "agent-effect-origin.json"
+    }
+  }
+}

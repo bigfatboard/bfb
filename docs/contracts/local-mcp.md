@@ -2,11 +2,14 @@
 
 Owner: [A01](../work-packages/WP-A01-local-mcp-context.md). Gate: `pnpm test:a01`.
 
-Status: Current bootstrap implementation `local-mcp/2` under
-[ADR 0004](../adr/0004-local-mcp-runtime-authority.md). Context/task reads and current
-authority use typed daemon RPC and the possession-authenticated Worker/Hub/D1
-path. Online mutations, explicit offline policy and daemon-owned pending replay
-remain closure obligations; this reads slice is not complete A01 acceptance.
+Status: Current `local-mcp/2` implementation under
+[ADR 0004](../adr/0004-local-mcp-runtime-authority.md) and
+[ADR 0005](../adr/0005-agent-work-session-and-attribution.md). Context/task reads,
+canonical session binding, current bound authority and online discussion comments
+use typed daemon RPC and the possession-authenticated Worker/Hub/D1 path. Task
+updates, progress and proposals, explicit offline policy, online write-ahead
+durability and daemon-owned pending replay remain closure obligations; this
+vertical slice is not complete A01 acceptance.
 
 This contract defines the tool and trust boundary for `bfb mcp stdio`.
 A02/A03/V01 extend this same server; they do not introduce another agent
@@ -34,13 +37,31 @@ The daemon alone obtains the current L08 connection for the runner derived from
 the verified local assignment. Neither RPC nor the cloud work API accepts an
 arbitrary URL, HTTP action, shell command, executable, or claimed principal.
 
-The bootstrap bridge has these fixed operations:
+The current host negotiates these fixed version-2 operations:
 
 | Local RPC method | Runner action | Result |
 | --- | --- | --- |
-| `mcp.authority` | `work/authority` | Current assignment/run authority disposition |
-| `mcp.get_context` | `work/context` | `ContextResult` with committed per-item delivery rows |
-| `mcp.get_task` | `work/task` | Agent-visible bound task view |
+| `mcp.v2.authority` | `work/authority` | Current assignment/run authority disposition |
+| `mcp.v2.get_context` | `work/context` | `ContextResult` with committed per-item delivery rows |
+| `mcp.v2.get_task` | `work/task` | Agent-visible bound task view |
+| `mcp.v2.bind_session` | `work/session-bind` | Canonical association from a daemon-read trusted L06 observation |
+| `mcp.v2.bound_authority` | `work/bound-authority` | Current authority for the original confirmed association/session |
+| `mcp.v2.add_comment` | `work/comment` | Canonical comment ID with bounded derived run/session provenance |
+
+`local-agent-rpc` is a separate closed document with `schema_version: 2` and
+fixed `mcp.v2.*` names. It declares all four ADR 0005 write shapes; only the
+implemented handlers are advertised. The original general `local-rpc` document
+and the three `mcp.*` read handlers remain version 1 for existing clients, with
+no write authority. The Swift app remains on version 1.
+
+Before sending any private version-2 input, the client asks the existing
+version-1 `daemon.status` for its registered `methods` on the same verified Unix
+connection. Unsupported methods produce a visible `protocol_unsupported`
+upgrade error, without downgrade, retry or a generic proxy. The exact document
+version, method and request ID must match the response. Replacing the socket
+pathname after negotiation cannot receive the private request through a new
+connection. The complete encoded frame, including its newline, is at most
+65,536 bytes.
 
 Runner actions are beneath the existing
 `/runner/workspaces/:workspaceId/runners/:runnerId` namespace and use the L08
@@ -58,8 +79,10 @@ from D1 and verify the authenticated runner owns that assignment.
 Wire schemas, method-specific payload validation and deterministic positive and
 negative fixtures cover these operations. Canonical schemas
 live in `protocol/schema/v1`; owning commands are `pnpm protocol:generate` and
-`pnpm protocol:check`. The local envelope remains schema version 1; the local
-tool-contract revision is independently `local-mcp/2`.
+`pnpm protocol:check`. Deterministic version-2 positive/negative fixtures live
+in `protocol/fixtures/v2/local-agent-rpc.json`. The cloud execution reference
+stays schema version 1, independently of the local IPC version; existing read
+operation hashes remain unchanged.
 
 The authenticated Hub transport actor remains `runner`. Current run authority
 also checks the assignment's requester membership/project grant and launch
@@ -94,6 +117,17 @@ process identities cannot satisfy this check. Unknown, escaped, stale or
 PID-reused containment fails closed. The host's startup check alone cannot
 authorize a daemon call.
 
+Before dispatch and again before releasing a cloud response, the production
+bridge invokes L05's in-process `CheckAgentOwnership` against the exact
+execution/generation. It inspects the held authenticated lock, signed helper,
+fresh process group and retained descendant history; it does not launch,
+recover or repair missing state. Local native-history projection rejects known
+uncertainty/release/escape/incomplete markers and malformed authority fields,
+but absence of such a marker is not itself a fresh ownership proof. A local
+containment denial closes the capability via `assignment_ended`; this diagnostic
+does not create a business execution-end event. A denial after cloud commit
+withholds the private reply without asserting that no effect committed.
+
 Any failure returns a JSON-RPC error and creates no capability. The server
 reads exactly the ten scoped `BFB_*` execution values: the nine named in the
 architecture plus `BFB_RUNNER_ID` (`BFB_WORKSPACE_ID`, `BFB_PROJECT_ID`, `BFB_TASK_ID`,
@@ -119,8 +153,9 @@ caller-supplied IDs.
   L06 commits the trusted observed-session binding.
 - `activated`: permits the full tool set. Activation is atomic: the
   connection observes, through its `SessionBindingSource`, a trusted binding
-  whose observed session ID, execution ID, and assignment generation equal
-  the assignment, and transitions exactly once. A competing session ID can
+  whose provider, observed session ID, execution ID, and assignment generation
+  equal the pinned assignment, explicitly confirms it through the daemon and
+  serialized Hub command, and transitions exactly once. A competing session ID can
   never activate the connection; after the first activation every other
   session ID returns `session_conflict`.
 - `closed`: entered on revocation (authorization or grant epoch change),
@@ -156,10 +191,20 @@ authority validation. Failed operations do not consume cache slots, and pending
 attention waits remain uncached. A fresh stdio connection starts a new local
 cache; the cloud keeps the scoped operation identity for committed reads.
 
+For online comments, the stable cloud identity contains only tool, cloud
+reference version, execution, generation and request ID. The confirmed session
+and typed body are bound independently by the input fingerprint, so changed
+payload/session cannot become a new identity after a process restart. Session
+binding has one assignment-scoped identity independent of caller request IDs;
+its fingerprint binds the trusted observation. Current bound authority precedes
+both local and cloud cached outcomes.
+
 New context/task command receipts in audit, semantic events and outbox records
 contain bounded IDs, versions, hashes, delivery references, state and priority,
 not private bodies, titles or punchlines. The full authorized response remains
-in canonical idempotency storage. Infrastructure failures are sanitized,
+in canonical idempotency storage. Binding/comment receipts also retain bounded
+derived run, execution, generation and canonical session IDs, never comment
+bodies. The authenticated runner remains a separate receipt actor. Infrastructure failures are sanitized,
 retryable errors, not terminal authority or permission to queue. Fresh polling
 currently creates bounded command receipts per request; durable poll growth
 needs measurement and a bounded follow-up.
@@ -228,10 +273,13 @@ partial page is the complete context.
 ## Pending-operation journal
 
 This section specifies required closure behavior, not a connected production
-replay service. The bootstrap CLI installs deny-by-default offline policy and
-does not queue unsupported mutations; its current daemon bridge exposes only
-authority, context and task reads. The existing journal and injected replay
-tests alone do not establish daemon-owned replay or durable online writes.
+replay service. The CLI installs deny-by-default offline policy and does not
+queue mutations. A committed online comment has canonical cloud idempotency,
+but a lost reply/post-commit containment denial is not yet captured in a
+production online write-ahead journal. Caller retry with the original identity
+can recover an authorized outcome; this is not daemon-owned replay or a durable
+local uncertain-outcome disposition. Existing injected journal tests alone do
+not establish that closure.
 
 When the cloud channel is unreachable, policy-permitted mutations
 (`bfb_update_task`, `bfb_add_comment`, `bfb_report_progress`,
@@ -275,7 +323,7 @@ type SessionBindingSource interface {
 ```
 
 `AssignmentRef` carries execution ID, assignment generation, and run ID.
-`SessionBinding` carries the observed provider session ID plus the same
+`SessionBinding` carries the observed provider and session ID plus the same
 three fields and the observation time. Production implements the source as
 `JournalBindings` in `internal/localmcp/production.go` over
 `journal.SessionReader` (the L06 hook journal, read through the same
@@ -284,8 +332,21 @@ wires it in `internal/cli/mcp.go`. The hook table keys rows by execution ID
 plus assignment generation only, so the adapter echoes the run ID from the
 startup-verified assignment boundary that key functionally determines. The
 fake in `internal/localmcp/fake_test.go` (test double) stands in only inside
-the test suite. L06 owns the binding truth; A01 only compares equality and
-never invents a session ID.
+the test suite. L06 owns observation truth; its first trusted session-scoped
+turn hook can precede SessionStart. Hooks do not create canonical business state.
+A01's explicit internal bind command creates the immutable cloud association;
+public MCP arguments cannot supply a session or observation. It uses the exact
+provider from the pinned launch snapshot, not a mutable agent profile.
+
+One canonical conversation retains its original provider-session ID and origin
+execution across resumed executions. Each execution/generation has its own
+immutable association; resume observations must match the launch's original
+canonical/observed session references. A malformed present association never
+falls back to a legacy session lookup. A new agent comment has null human and
+delegation author fields plus an atomic constrained `agent_work_effects` row.
+Ordinary browser reads and UI show Agent run, Delegated client, Human or Unknown
+from this provenance; a legacy null author is never presented as Human. The
+source task's original creator fields remain unchanged.
 
 Bootstrap reads require no fabricated cloud provider-session row. Canonical
 cloud session binding, if used for independent session fencing, needs its own
@@ -294,18 +355,24 @@ Event-ledger/session projections do not implicitly create that business record.
 
 ## Outstanding runtime closure
 
-The current v2 reads slice does not make A01 complete. Its owning `pnpm test:a01`
+The current v2 binding/comment slice does not make A01 complete. Its owning `pnpm test:a01`
 target exercises the compiled stdio host, production
 daemon RPC, real possession-authenticated L08 connection, local Control Worker,
 WorkspaceHub and D1. It proves agent/both bootstrap reads and real per-item
 delivery, request deduplication, denied unbound mutation, malicious boundary and
 process rejection, oversized retrieval and revocation/end/result/lease rejection even
-for cached IDs. An injected transport or stdout-only fixture is not a substitute.
+for cached IDs. The synthetic native lifecycle assembles a real signed helper,
+held authenticated lock and provider-shaped group, captures a real trusted L06
+turn-before-SessionStart hook, then exercises canonical binding/comments and
+lost-commit replies across both MCP and daemon restart. It is not full L05 launch
+or Terminal acceptance. An injected transport or stdout-only fixture is not a substitute.
 
-Remaining A01 closure includes the permitted online task/comment/progress/
-proposal writes with truthful durable run attribution; explicit versioned,
+Remaining A01 closure includes permitted online task/progress/proposal writes
+with truthful durable run attribution; online write-ahead uncertain-outcome
+capture; explicit versioned,
 deny-by-default offline policy and its authorized mutation path; daemon-owned
-restart/crash-safe replay; and the explicit session-binding lifecycle decision.
+restart/crash-safe replay. The implemented canonical association and comment
+idempotency are prerequisites, not proof of a connected replay lifecycle.
 Policy absence cannot imply permission to journal. Existing A02/A03 integration
 must retain their contracts on this endpoint, without being claimed as proven
 by bootstrap reads. Full exact-target, affected-gate and clean-checkout evidence
@@ -319,6 +386,7 @@ evidence is not relabelled as v2 proof.
 `boundary_escape`, `capability_closed`, `revoked`, `stale_version`,
 `already_answered`,
 `forbidden`, `policy_rejected`, `offline_pending`, `offline_rejected`,
-`request_rejected`, `invalid_request`, `method_not_found`. Failures carry a
+`request_rejected`, `invalid_request`, `invalid_argument`, `child_limit`,
+`protocol_unsupported`, `method_not_found`. Failures carry a
 bounded code and message only; they never echo tokens, environment values,
 task bodies, or human-only context.

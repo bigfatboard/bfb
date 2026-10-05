@@ -119,7 +119,15 @@ func (host *Host) remember(requestID string, result any) {
 // CallTool validates, authorizes, executes, and memoizes one tools/call.
 // Params arrive decoded from JSON-RPC; unknown fields are rejected so a
 // caller cannot smuggle workflow, routing, or identity fields.
-func (host *Host) CallTool(ctx context.Context, name string, params map[string]any) (any, error) {
+func (host *Host) CallTool(ctx context.Context, name string, params map[string]any) (result any, operationError error) {
+	defer func() {
+		// A terminal denial can arrive after the cloud committed an effect. Close
+		// future access, without claiming that the denied reply means no commit.
+		switch CodeOf(operationError) {
+		case "revoked", "assignment_ended", "capability_closed":
+			host.capability.Close()
+		}
+	}()
 	// Serialize the bounded connection cache and effects, including identical concurrent calls.
 	host.callMutex.Lock()
 	defer host.callMutex.Unlock()
@@ -265,11 +273,14 @@ func (host *Host) read(ctx context.Context, name string, requestID string) (any,
 }
 
 func (host *Host) write(ctx context.Context, name string, params map[string]any, requestID string, boundary Boundary) (any, error) {
-	if err := host.capability.allowWrite(ctx); err != nil {
+	if err := host.capability.authorize(ctx); err != nil {
 		return nil, err
 	}
 	payload, err := validatedPayload(name, params, boundary)
 	if err != nil {
+		return nil, err
+	}
+	if err := host.capability.allowWrite(ctx); err != nil {
 		return nil, err
 	}
 	if !host.transport.Online() {
@@ -279,7 +290,7 @@ func (host *Host) write(ctx context.Context, name string, params map[string]any,
 	case "bfb_update_task":
 		return host.transport.UpdateTask(ctx, boundary, payload.update, requestID)
 	case "bfb_add_comment":
-		return host.transport.AddComment(ctx, boundary, payload.comment, requestID)
+		return host.transport.AddComment(ctx, boundary, host.capability.ConfirmedSession(), payload.comment, requestID)
 	case "bfb_report_progress":
 		return host.transport.ReportProgress(ctx, boundary, payload.summary, payload.percent, payload.confidence, requestID)
 	case "bfb_submit_result":

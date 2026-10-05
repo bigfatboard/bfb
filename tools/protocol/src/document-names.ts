@@ -6,12 +6,122 @@ export interface DocumentSpec {
   schemaFile: string;
   goType: string;
   tsType: string;
+  schemaVersion?: number;
 }
 
 export const PROTOCOL_HEAD = "bfb-wire/1";
 export const SCHEMA_VERSION = 1;
 
 export const DOCUMENTS: DocumentSpec[] = [
+  {
+    name: "agent-update-result",
+    schemaFile: "agent-update-result.json",
+    goType: "AgentUpdateResult",
+    tsType: "AgentUpdateResult",
+  },
+  {
+    name: "agent-proposal-result",
+    schemaFile: "agent-proposal-result.json",
+    goType: "AgentProposalResult",
+    tsType: "AgentProposalResult",
+  },
+  {
+    name: "agent-effect-origin",
+    schemaFile: "agent-effect-origin.json",
+    goType: "AgentEffectOrigin",
+    tsType: "AgentEffectOrigin",
+  },
+  {
+    name: "local-agent-rpc",
+    schemaFile: "local-agent-rpc.json",
+    goType: "LocalAgentRpcEnvelope",
+    tsType: "LocalAgentRpcEnvelope",
+    schemaVersion: 2,
+  },
+  {
+    name: "agent-update-request",
+    schemaFile: "agent-update-request.json",
+    goType: "AgentUpdateRequest",
+    tsType: "AgentUpdateRequest",
+  },
+  {
+    name: "agent-progress-request",
+    schemaFile: "agent-progress-request.json",
+    goType: "AgentProgressRequest",
+    tsType: "AgentProgressRequest",
+  },
+  {
+    name: "agent-proposal-request",
+    schemaFile: "agent-proposal-request.json",
+    goType: "AgentProposalRequest",
+    tsType: "AgentProposalRequest",
+  },
+  {
+    name: "agent-update-local-request",
+    schemaFile: "agent-update-local-request.json",
+    goType: "AgentUpdateLocalRequest",
+    tsType: "AgentUpdateLocalRequest",
+  },
+  {
+    name: "agent-progress-local-request",
+    schemaFile: "agent-progress-local-request.json",
+    goType: "AgentProgressLocalRequest",
+    tsType: "AgentProgressLocalRequest",
+  },
+  {
+    name: "agent-proposal-local-request",
+    schemaFile: "agent-proposal-local-request.json",
+    goType: "AgentProposalLocalRequest",
+    tsType: "AgentProposalLocalRequest",
+  },
+  {
+    name: "agent-session-reference",
+    schemaFile: "agent-session-reference.json",
+    goType: "AgentSessionReference",
+    tsType: "AgentSessionReference",
+  },
+  {
+    name: "agent-session-bind-request",
+    schemaFile: "agent-session-bind-request.json",
+    goType: "AgentSessionBindRequest",
+    tsType: "AgentSessionBindRequest",
+  },
+  {
+    name: "agent-session-bind-result",
+    schemaFile: "agent-session-bind-result.json",
+    goType: "AgentSessionBindResult",
+    tsType: "AgentSessionBindResult",
+  },
+  {
+    name: "agent-bound-request",
+    schemaFile: "agent-bound-request.json",
+    goType: "AgentBoundRequest",
+    tsType: "AgentBoundRequest",
+  },
+  {
+    name: "agent-comment-request",
+    schemaFile: "agent-comment-request.json",
+    goType: "AgentCommentRequest",
+    tsType: "AgentCommentRequest",
+  },
+  {
+    name: "agent-comment-result",
+    schemaFile: "agent-comment-result.json",
+    goType: "AgentCommentResult",
+    tsType: "AgentCommentResult",
+  },
+  {
+    name: "agent-bound-local-request",
+    schemaFile: "agent-bound-local-request.json",
+    goType: "AgentBoundLocalRequest",
+    tsType: "AgentBoundLocalRequest",
+  },
+  {
+    name: "agent-comment-local-request",
+    schemaFile: "agent-comment-local-request.json",
+    goType: "AgentCommentLocalRequest",
+    tsType: "AgentCommentLocalRequest",
+  },
   {
     name: "agent-work-request",
     schemaFile: "agent-work-request.json",

@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/agent-progress-request.json",
+  "title": "AgentProgressRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["reference", "binding", "summary"],
+  "properties": {
+    "reference": {
+      "$ref": "agent-work-request.json"
+    },
+    "binding": {
+      "$ref": "agent-session-reference.json"
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048
+    },
+    "percent": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/agent-proposal-result.json",
+  "title": "AgentProposalResult",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "state", "origin"],
+  "properties": {
+    "id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "state": {
+      "type": "string",
+      "enum": ["proposed", "ready"]
+    },
+    "origin": {
+      "$ref": "agent-effect-origin.json"
+    }
+  }
+}

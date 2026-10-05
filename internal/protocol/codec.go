@@ -430,9 +430,13 @@ func preflightDiagnostic(document string, object map[string]any) *generated.Type
 	}
 
 	if rawVersion, exists := object["schema_version"]; exists {
+		expectedVersion := "1"
+		if document == "local-agent-rpc" {
+			expectedVersion = "2"
+		}
 		if number, ok := rawVersion.(json.Number); ok {
 			inspection := inspectNumber(number.String())
-			if inspection.integer != nil && *inspection.integer != "1" {
+			if inspection.integer != nil && *inspection.integer != expectedVersion {
 				return typedError("unknown_version", "unsupported_schema_version", "unsupported schema_version", "/schema_version")
 			}
 		}

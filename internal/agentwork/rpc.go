@@ -1,4 +1,4 @@
-// ABOUTME: Owns fixed agent read RPC actions using the daemon's authenticated runner connections.
+// ABOUTME: Owns fixed agent work RPC actions using the daemon's authenticated runner connections.
 // ABOUTME: Preserves typed denials and verifies native caller containment before and after network waits.
 
 package agentwork
@@ -7,8 +7,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"time"
 
 	"github.com/qdis/bfb/internal/daemon"
+	"github.com/qdis/bfb/internal/journal"
 	"github.com/qdis/bfb/internal/localmcp"
 	"github.com/qdis/bfb/internal/protocol"
 	"github.com/qdis/bfb/internal/protocol/generated"
@@ -16,33 +18,87 @@ import (
 )
 
 type ConnectionLookup func(string) (runner.RunnerConnection, error)
+type OwnershipCheck func(context.Context, string, int64) error
 
 // RegisterRPC is a fixed work-action bridge, not a URL, principal or shell proxy.
-func RegisterRPC(registry *daemon.Registry, connection ConnectionLookup) error {
-	actions := map[string]struct{ action, document, field string }{
-		"mcp.authority":   {"authority", "agent-authority-result", "agent_authority"},
-		"mcp.get_context": {"context", "agent-context-result", "agent_context"},
-		"mcp.get_task":    {"task", "agent-task-result", "agent_task"},
+func RegisterRPC(registry *daemon.Registry, connection ConnectionLookup, ownership OwnershipCheck) error {
+	if ownership == nil {
+		return &daemon.Failure{Code: "invalid_request"}
+	}
+	actions := map[string]struct{ action, inputDocument, inputField, document, field string }{
+		"mcp.authority":          {"authority", "agent-local-request", "agent_request", "agent-authority-result", "agent_authority"},
+		"mcp.get_context":        {"context", "agent-local-request", "agent_request", "agent-context-result", "agent_context"},
+		"mcp.get_task":           {"task", "agent-local-request", "agent_request", "agent-task-result", "agent_task"},
+		"mcp.v2.authority":       {"authority", "agent-local-request", "agent_request", "agent-authority-result", "agent_authority"},
+		"mcp.v2.get_context":     {"context", "agent-local-request", "agent_request", "agent-context-result", "agent_context"},
+		"mcp.v2.get_task":        {"task", "agent-local-request", "agent_request", "agent-task-result", "agent_task"},
+		"mcp.v2.bind_session":    {"session-bind", "agent-local-request", "agent_request", "agent-session-bind-result", "agent_binding"},
+		"mcp.v2.bound_authority": {"bound-authority", "agent-bound-local-request", "agent_bound_request", "agent-authority-result", "agent_authority"},
+		"mcp.v2.add_comment":     {"comment", "agent-comment-local-request", "agent_comment_request", "agent-comment-result", "agent_comment"},
 	}
 	for method, action := range actions {
 		if err := registry.Register(method, func(ctx context.Context, request daemon.Request) (map[string]any, error) {
-			data, err := json.Marshal(request.Envelope.Payload["agent_request"])
-			if err != nil || len(request.Envelope.Payload) != 1 || !protocol.DecodeWireDocument("agent-local-request", data).OK {
+			data, err := json.Marshal(request.Envelope.Payload[action.inputField])
+			if err != nil || len(request.Envelope.Payload) != 1 || !protocol.DecodeWireDocument(action.inputDocument, data).OK {
 				return nil, &daemon.Failure{Code: "invalid_request"}
 			}
 			var input generated.AgentLocalRequest
-			if json.Unmarshal(data, &input) != nil || request.Store == nil {
+			var wire struct {
+				Correlation string          `json:"correlation"`
+				Request     json.RawMessage `json:"request"`
+			}
+			if json.Unmarshal(data, &wire) != nil || request.Store == nil {
+				return nil, &daemon.Failure{Code: "invalid_request"}
+			}
+			input.Correlation = wire.Correlation
+			var binding *generated.AgentSessionReference
+			if action.action == "bound-authority" || action.action == "comment" {
+				var bound struct {
+					Reference generated.AgentWorkRequest      `json:"reference"`
+					Binding   generated.AgentSessionReference `json:"binding"`
+				}
+				if json.Unmarshal(wire.Request, &bound) != nil {
+					return nil, &daemon.Failure{Code: "invalid_request"}
+				}
+				input.Request, binding = bound.Reference, &bound.Binding
+			} else if json.Unmarshal(wire.Request, &input.Request) != nil {
 				return nil, &daemon.Failure{Code: "invalid_request"}
 			}
 			assignment, caller, err := localmcp.VerifyDaemonCaller(ctx, request, input)
 			if err != nil {
 				return nil, &daemon.Failure{Code: localmcp.CodeOf(err)}
 			}
+			if err := ownership(ctx, input.Request.RunExecutionId, input.Request.AssignmentGeneration); err != nil {
+				return nil, ownershipError(err)
+			}
+			body := []byte(wire.Request)
+			var observed localmcp.SessionBinding
+			if action.action == "session-bind" || binding != nil {
+				observed, err = (localmcp.JournalBindings{Sessions: journal.NewStore(request.Store.DB)}).ObservedBinding(ctx, localmcp.AssignmentRef{ExecutionID: input.Request.RunExecutionId, AssignmentGeneration: input.Request.AssignmentGeneration, RunID: assignment.Boundary.RunID})
+				if err != nil {
+					code := localmcp.CodeOf(err)
+					if errors.Is(err, localmcp.ErrSessionNotBound) {
+						code = "session_not_bound"
+					}
+					return nil, &daemon.Failure{Code: code}
+				}
+				if binding != nil && (binding.Provider != observed.Provider || binding.ObservedSessionId != observed.ObservedSessionID) {
+					return nil, &daemon.Failure{Code: "session_conflict"}
+				}
+				if action.action == "session-bind" {
+					body, err = json.Marshal(generated.AgentSessionBindRequest{Reference: input.Request, Observation: map[string]any{"provider": observed.Provider, "observed_session_id": observed.ObservedSessionID, "observed_at": observed.ObservedAt.UTC().Format(time.RFC3339Nano)}})
+					if err != nil || !protocol.DecodeWireDocument("agent-session-bind-request", body).OK {
+						return nil, &daemon.Failure{Code: "request_rejected"}
+					}
+				}
+			}
+			if len(body) > 16_384 {
+				return nil, &daemon.Failure{Code: "request_rejected"}
+			}
 			channel, err := connection(assignment.Boundary.RunnerID)
 			if err != nil {
 				return nil, channelError(err, nil)
 			}
-			body, _ := json.Marshal(input.Request)
 			result, err := channel.Request(ctx, "POST", "work/"+action.action, body)
 			if err != nil {
 				return nil, channelError(err, result)
@@ -57,12 +113,24 @@ func RegisterRPC(registry *daemon.Registry, connection ConnectionLookup) error {
 			if current.StartIdentity != caller.StartIdentity {
 				return nil, &daemon.Failure{Code: "peer_denied"}
 			}
+			if err := ownership(ctx, input.Request.RunExecutionId, input.Request.AssignmentGeneration); err != nil {
+				return nil, ownershipError(err)
+			}
+			if action.action == "session-bind" || binding != nil {
+				now, err := (localmcp.JournalBindings{Sessions: journal.NewStore(request.Store.DB)}).ObservedBinding(ctx, localmcp.AssignmentRef{ExecutionID: input.Request.RunExecutionId, AssignmentGeneration: input.Request.AssignmentGeneration, RunID: assignment.Boundary.RunID})
+				if err != nil {
+					return nil, &daemon.Failure{Code: "storage_failed"}
+				}
+				if now != observed {
+					return nil, &daemon.Failure{Code: "session_conflict"}
+				}
+			}
 			var value any
 			if json.Unmarshal(result, &value) != nil {
 				return nil, &daemon.Failure{Code: "invalid_request"}
 			}
 			payload := map[string]any{action.field: value}
-			if _, err := daemon.EncodeEnvelope(daemon.Response(method, request.Envelope.RequestId, payload, nil)); err != nil {
+			if _, err := daemon.EncodeEnvelope(daemon.ResponseVersion(request.Envelope.SchemaVersion, method, request.Envelope.RequestId, payload, nil)); err != nil {
 				return nil, &daemon.Failure{Code: "request_rejected"}
 			}
 			return payload, nil
@@ -71,6 +139,18 @@ func RegisterRPC(registry *daemon.Registry, connection ConnectionLookup) error {
 		}
 	}
 	return nil
+}
+
+func ownershipError(err error) error {
+	code := "offline_rejected"
+	switch daemon.AsFailure(err).Code {
+	case "execution_assignment_invalid", "containment_unknown":
+		// This closes access; it does not report a business execution-end event.
+		code = "assignment_ended"
+	case "storage_failed":
+		code = "storage_failed"
+	}
+	return &daemon.Failure{Code: code}
 }
 
 func channelError(err error, data []byte) error {
@@ -85,7 +165,7 @@ func channelError(err error, data []byte) error {
 		}
 		if json.Unmarshal(data, &denial) == nil {
 			switch denial.Error {
-			case "revoked", "assignment_ended", "capability_closed", "boundary_escape", "forbidden", "not_found", "request_rejected":
+			case "revoked", "assignment_ended", "capability_closed", "boundary_escape", "forbidden", "not_found", "request_rejected", "session_not_bound", "session_conflict", "stale_version", "policy_rejected", "invalid_argument", "child_limit":
 				code = denial.Error
 			}
 		}

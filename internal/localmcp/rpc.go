@@ -1,4 +1,4 @@
-// ABOUTME: Bridges fixed local agent read actions to the daemon-owned possession-authenticated connection.
+// ABOUTME: Bridges fixed local agent work actions to the daemon-owned possession-authenticated connection.
 // ABOUTME: Independently checks kernel containment and assignment identity without giving credentials to MCP.
 
 package localmcp
@@ -14,9 +14,9 @@ import (
 )
 
 var readActions = map[string]struct{ action, document, field string }{
-	"mcp.authority":   {"authority", "agent-authority-result", "agent_authority"},
-	"mcp.get_context": {"context", "agent-context-result", "agent_context"},
-	"mcp.get_task":    {"task", "agent-task-result", "agent_task"},
+	"mcp.v2.authority":   {"authority", "agent-authority-result", "agent_authority"},
+	"mcp.v2.get_context": {"context", "agent-context-result", "agent_context"},
+	"mcp.v2.get_task":    {"task", "agent-task-result", "agent_task"},
 }
 
 // VerifyDaemonCaller checks the kernel-supplied caller independently of stdio startup verification.
@@ -58,10 +58,17 @@ type RPCTransport struct {
 func (RPCTransport) Online() bool { return true }
 
 func (transport RPCTransport) call(ctx context.Context, method string, boundary Boundary, requestID string, target any) error {
-	input := generated.AgentLocalRequest{Correlation: transport.Correlation,
-		Request: generated.AgentWorkRequest{SchemaVersion: 1, RunExecutionId: boundary.ExecutionID,
-			AssignmentGeneration: boundary.Generation, RequestId: requestID}}
-	response, err := daemon.Call(ctx, transport.Paths, method, map[string]any{"agent_request": input})
+	input := generated.AgentLocalRequest{Correlation: transport.Correlation, Request: operationReference(boundary, requestID)}
+	action := readActions[method]
+	return transport.callPayload(ctx, method, map[string]any{"agent_request": input}, action.document, action.field, target)
+}
+
+func operationReference(boundary Boundary, requestID string) generated.AgentWorkRequest {
+	return generated.AgentWorkRequest{SchemaVersion: 1, RunExecutionId: boundary.ExecutionID, AssignmentGeneration: boundary.Generation, RequestId: requestID}
+}
+
+func (transport RPCTransport) callPayload(ctx context.Context, method string, payload map[string]any, document, field string, target any) error {
+	response, err := daemon.CallAgent(ctx, transport.Paths, method, payload)
 	if err != nil {
 		code := daemon.AsFailure(err).Code
 		switch code {
@@ -73,9 +80,8 @@ func (transport RPCTransport) call(ctx context.Context, method string, boundary 
 			return fail(code)
 		}
 	}
-	action := readActions[method]
-	data, err := json.Marshal(response.Payload[action.field])
-	if err != nil || !protocol.DecodeWireDocument(action.document, data).OK || json.Unmarshal(data, target) != nil {
+	data, err := json.Marshal(response.Payload[field])
+	if err != nil || !protocol.DecodeWireDocument(document, data).OK || json.Unmarshal(data, target) != nil {
 		return fail("request_rejected")
 	}
 	return nil
@@ -83,13 +89,13 @@ func (transport RPCTransport) call(ctx context.Context, method string, boundary 
 
 func (transport RPCTransport) Current(ctx context.Context, boundary Boundary) (AuthorityState, error) {
 	var state AuthorityState
-	err := transport.call(ctx, "mcp.authority", boundary, daemon.NewRequestID(), &state)
+	err := transport.call(ctx, "mcp.v2.authority", boundary, daemon.NewRequestID(), &state)
 	return state, err
 }
 
 func (transport RPCTransport) GetContext(ctx context.Context, boundary Boundary, requestID string) (ContextResult, error) {
 	var result ContextResult
-	if err := transport.call(ctx, "mcp.get_context", boundary, requestID, &result); err != nil {
+	if err := transport.call(ctx, "mcp.v2.get_context", boundary, requestID, &result); err != nil {
 		return ContextResult{}, err
 	}
 	if len(result.Context) != len(result.Deliveries) {
@@ -108,11 +114,47 @@ func (transport RPCTransport) GetContext(ctx context.Context, boundary Boundary,
 
 func (transport RPCTransport) GetTask(ctx context.Context, boundary Boundary, requestID string) (TaskView, error) {
 	var result TaskView
-	if err := transport.call(ctx, "mcp.get_task", boundary, requestID, &result); err != nil {
+	if err := transport.call(ctx, "mcp.v2.get_task", boundary, requestID, &result); err != nil {
 		return TaskView{}, err
 	}
 	if result.ID != boundary.TaskID || result.ProjectID != boundary.ProjectID {
 		return TaskView{}, fail("boundary_escape")
 	}
 	return result, nil
+}
+
+func originMatches(origin generated.AgentEffectOrigin, boundary Boundary, sessionID string) bool {
+	return origin.RunId == boundary.RunID && origin.RunExecutionId == boundary.ExecutionID &&
+		origin.AssignmentGeneration == boundary.Generation && origin.ProviderSessionId == sessionID
+}
+
+func (transport RPCTransport) ConfirmSession(ctx context.Context, boundary Boundary, observed SessionBinding) (ConfirmedSession, error) {
+	input := generated.AgentLocalRequest{Correlation: transport.Correlation, Request: operationReference(boundary, "session-bind-v1")}
+	var result generated.AgentSessionBindResult
+	if err := transport.callPayload(ctx, "mcp.v2.bind_session", map[string]any{"agent_request": input}, "agent-session-bind-result", "agent_binding", &result); err != nil {
+		return ConfirmedSession{}, err
+	}
+	if !originMatches(result.Origin, boundary, result.Binding.ProviderSessionId) || result.Binding.Provider != observed.Provider || result.Binding.ObservedSessionId != observed.ObservedSessionID || result.ObservedAt != observed.ObservedAt.UTC().Format("2006-01-02T15:04:05.999999999Z") {
+		return ConfirmedSession{}, fail("session_conflict")
+	}
+	return result.Binding, nil
+}
+
+func (transport RPCTransport) CurrentBound(ctx context.Context, boundary Boundary, session ConfirmedSession) (AuthorityState, error) {
+	input := generated.AgentBoundLocalRequest{Correlation: transport.Correlation, Request: generated.AgentBoundRequest{Reference: operationReference(boundary, daemon.NewRequestID()), Binding: session}}
+	var state AuthorityState
+	err := transport.callPayload(ctx, "mcp.v2.bound_authority", map[string]any{"agent_bound_request": input}, "agent-authority-result", "agent_authority", &state)
+	return state, err
+}
+
+func (transport RPCTransport) AddComment(ctx context.Context, boundary Boundary, session ConfirmedSession, body, requestID string) (CommentResult, error) {
+	input := generated.AgentCommentLocalRequest{Correlation: transport.Correlation, Request: generated.AgentCommentRequest{Reference: operationReference(boundary, requestID), Binding: session, Body: body}}
+	var result generated.AgentCommentResult
+	if err := transport.callPayload(ctx, "mcp.v2.add_comment", map[string]any{"agent_comment_request": input}, "agent-comment-result", "agent_comment", &result); err != nil {
+		return CommentResult{}, err
+	}
+	if !originMatches(result.Origin, boundary, session.ProviderSessionId) {
+		return CommentResult{}, fail("boundary_escape")
+	}
+	return CommentResult{ID: result.Id}, nil
 }

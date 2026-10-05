@@ -20,6 +20,29 @@ func TestAuthoritySnakeCaseFlags(t *testing.T) {
 	}
 }
 
+func TestOnlineOperationDenialsRemainTypedAndTerminalTransportDenialsClose(t *testing.T) {
+	for _, code := range []string{"invalid_argument", "child_limit", "stale_version", "session_conflict", "policy_rejected", "assignment_ended", "revoked", "capability_closed"} {
+		t.Run(code, func(t *testing.T) {
+			bindings, authority := &fakeBindings{}, &fakeAuthority{}
+			capability := NewCapability(syntheticBoundary, bindings, authority)
+			bindings.setBound(syntheticSession, capability.ref())
+			transport := syntheticTransport()
+			transport.failCode = code
+			host := NewHost(HostDeps{Capability: capability, Transport: transport})
+			if _, err := host.CallTool(context.Background(), "bfb_add_comment", map[string]any{"body": "Synthetic denied comment", "request_id": "transport-denial-001"}); CodeOf(err) != code {
+				t.Fatal("transport denial lost", err)
+			}
+			terminal := code == "assignment_ended" || code == "revoked" || code == "capability_closed"
+			if (capability.State() == StateClosed) != terminal {
+				t.Fatal("operation-local and terminal denial confused", capability.State())
+			}
+			if numeric, _ := jsonRPCCode(code); numeric == -32603 {
+				t.Fatal("typed operation denial presented as an internal failure")
+			}
+		})
+	}
+}
+
 func TestCacheKeepsInputBindingAfterFailedRequestSaturation(t *testing.T) {
 	authority := &fakeAuthority{}
 	host := NewHost(HostDeps{Capability: NewCapability(syntheticBoundary, &fakeBindings{}, authority), Transport: syntheticTransport()})

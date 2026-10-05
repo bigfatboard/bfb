@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/agent-session-bind-result.json",
+  "title": "AgentSessionBindResult",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["binding", "observed_at", "confirmed_at", "origin"],
+  "properties": {
+    "origin": { "$ref": "agent-effect-origin.json" },
+    "binding": { "$ref": "agent-session-reference.json" },
+    "observed_at": { "$ref": "primitives.json#/$defs/UtcTimestamp" },
+    "confirmed_at": { "$ref": "primitives.json#/$defs/UtcTimestamp" }
+  }
+}

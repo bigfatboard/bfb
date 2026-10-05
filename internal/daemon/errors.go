@@ -17,6 +17,13 @@ var failures = map[string]struct {
 }{
 	"invalid_request":                {"schema_invalid", "The local request is invalid.", 2},
 	"unknown_method":                 {"unknown_kind", "This local operation is not registered.", 2},
+	"protocol_unsupported":           {"unavailable", "Upgrade the local daemon to support this agent protocol.", 4},
+	"session_not_bound":              {"conflict", "No trusted provider session is bound yet.", 6},
+	"session_conflict":               {"conflict", "The provider session does not match the confirmed execution binding.", 6},
+	"stale_version":                  {"conflict", "The expected resource version does not match current state.", 6},
+	"policy_rejected":                {"authorization_denied", "Effective policy rejects this work action.", 3},
+	"invalid_argument":               {"schema_invalid", "The work action arguments are invalid.", 2},
+	"child_limit":                    {"conflict", "The task has reached its active-child limit.", 6},
 	"peer_denied":                    {"authorization_denied", "The local process is not authorized.", 3},
 	"unsafe_state":                   {"authorization_denied", "BFB state must be private, owned by this user, and not symlinked.", 3},
 	"daemon_offline":                 {"unavailable", "The local daemon is not available.", 4},

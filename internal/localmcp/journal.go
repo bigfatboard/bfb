@@ -434,7 +434,9 @@ func executeReplay(ctx context.Context, transport WorkTransport, operation Pendi
 	switch operation.Tool {
 	case "bfb_add_comment":
 		body, _ := input["body"].(string)
-		result, err := transport.AddComment(ctx, boundary, body, requestID)
+		// Legacy captures have no canonical session proof. Production RPC rejects
+		// this empty reference; the incomplete replayer cannot upgrade identity.
+		result, err := transport.AddComment(ctx, boundary, ConfirmedSession{}, body, requestID)
 		return replayEffect(result, err)
 	case "bfb_report_progress":
 		summary, _ := input["summary"].(string)

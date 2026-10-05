@@ -609,25 +609,11 @@ function commentCommand(
       if (name === "progress.report" && input.kind !== "progress") {
         throw new DomainError("invalid_argument", "progress report must use progress kind");
       }
-      const body = boundedText(input.body, "comment body", 2048);
-      const id = randomUlid();
-      await ctx.db
-        .prepare(
-          `INSERT INTO comments (
-            workspace_id, id, task_id, author_human_id, author_delegation_id,
-            body, kind, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        )
-        .run(
-          ctx.workspaceId,
-          id,
-          input.taskId,
-          ctx.actorHumanId ?? null,
-          ctx.actorDelegationId ?? null,
-          body,
-          input.kind,
-          ctx.now,
-        );
+      const body = checkedCommentBody(input.body);
+      const id = await persistComment(ctx, input.taskId, body, input.kind, {
+        humanId: ctx.actorHumanId ?? null,
+        delegationId: ctx.actorDelegationId ?? null,
+      });
       return { id };
     },
   };
@@ -635,6 +621,30 @@ function commentCommand(
 
 export const addCommentCommand = commentCommand("comment.add");
 export const reportProgressCommand = commentCommand("progress.report");
+
+export function checkedCommentBody(body: unknown): string {
+  return boundedText(body, "comment body", 2048);
+}
+
+// Authority and all preflight reads belong to the calling domain command.
+// This shared effect stages only the existing C08 comment row.
+export async function persistComment(
+  ctx: HubContext,
+  taskId: string,
+  body: string,
+  kind: "discussion" | "progress",
+  author: { humanId: string | null; delegationId: string | null },
+): Promise<string> {
+  const id = randomUlid();
+  await ctx.db
+    .prepare(
+      `INSERT INTO comments (
+    workspace_id, id, task_id, author_human_id, author_delegation_id, body, kind, created_at
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(ctx.workspaceId, id, taskId, author.humanId, author.delegationId, body, kind, ctx.now);
+  return id;
+}
 
 export interface AddContextInput {
   taskId: string;

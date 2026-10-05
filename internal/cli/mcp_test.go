@@ -46,6 +46,9 @@ workspace_id TEXT, project_id TEXT, task_id TEXT, run_id TEXT, runner_id TEXT, c
 supervisor_json TEXT, owned_group_json TEXT)`); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := db.Exec("CREATE TABLE execution_native_history (execution_id TEXT PRIMARY KEY, history_json TEXT)"); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := db.Exec(`INSERT INTO local_execution_assignments
 (execution_id, assignment_generation, state, correlation_token, workspace_id, project_id,
  task_id, run_id, runner_id, checkout_id, supervisor_json)

@@ -5,6 +5,7 @@ package localmcp
 
 import (
 	"context"
+	"errors"
 	"sync"
 )
 
@@ -33,6 +34,8 @@ type AuthorityState struct {
 // consults the daemon database and L08 channel state; tests inject fakes.
 type AuthoritySource interface {
 	Current(ctx context.Context, boundary Boundary) (AuthorityState, error)
+	ConfirmSession(ctx context.Context, boundary Boundary, observed SessionBinding) (ConfirmedSession, error)
+	CurrentBound(ctx context.Context, boundary Boundary, session ConfirmedSession) (AuthorityState, error)
 }
 
 // Capability binds one stdio connection to one assignment and boundary.
@@ -42,6 +45,7 @@ type Capability struct {
 	state     CapabilityState
 	boundary  Boundary
 	sessionID string
+	session   ConfirmedSession
 	bindings  SessionBindingSource
 	authority AuthoritySource
 }
@@ -85,14 +89,21 @@ func (capability *Capability) authorize(ctx context.Context) error {
 		capability.mutex.Unlock()
 		return fail("capability_closed")
 	}
+	activated, session := capability.state == StateActivated, capability.session
 	capability.mutex.Unlock()
-	state, err := capability.authority.Current(ctx, capability.boundary)
+	var state AuthorityState
+	var err error
+	if activated {
+		state, err = capability.authority.CurrentBound(ctx, capability.boundary, session)
+	} else {
+		state, err = capability.authority.Current(ctx, capability.boundary)
+	}
 	if err != nil {
 		switch CodeOf(err) {
 		case "revoked", "assignment_ended", "capability_closed":
 			capability.Close()
 			return err
-		case "offline_rejected", "peer_denied", "assignment_unknown", "correlation_rejected", "boundary_escape", "storage_failed", "request_rejected", "forbidden", "not_found":
+		case "offline_rejected", "peer_denied", "assignment_unknown", "correlation_rejected", "boundary_escape", "storage_failed", "request_rejected", "forbidden", "not_found", "session_conflict", "session_not_bound", "protocol_unsupported":
 			return err
 		}
 		return fail("internal_error")
@@ -146,9 +157,23 @@ func (capability *Capability) allowWrite(ctx context.Context) error {
 func (capability *Capability) activate(ctx context.Context) error {
 	binding, err := capability.bindings.ObservedBinding(ctx, capability.ref())
 	if err != nil {
-		return fail("session_not_bound")
+		if errors.Is(err, ErrSessionNotBound) {
+			return fail("session_not_bound")
+		}
+		return err
 	}
 	if !bindingMatches(capability.ref(), binding) {
+		return fail("session_conflict")
+	}
+	session, err := capability.authority.ConfirmSession(ctx, capability.boundary, binding)
+	if err != nil {
+		switch CodeOf(err) {
+		case "revoked", "assignment_ended", "capability_closed":
+			capability.Close()
+		}
+		return err
+	}
+	if session.ProviderSessionId == "" || session.ObservedSessionId != binding.ObservedSessionID || session.Provider != binding.Provider {
 		return fail("session_conflict")
 	}
 	capability.mutex.Lock()
@@ -157,14 +182,22 @@ func (capability *Capability) activate(ctx context.Context) error {
 		return fail("capability_closed")
 	}
 	if capability.state == StateActivated {
-		if capability.sessionID != binding.ObservedSessionID {
+		if capability.sessionID != binding.ObservedSessionID || capability.session != session {
 			return fail("session_conflict")
 		}
 		return nil
 	}
 	capability.sessionID = binding.ObservedSessionID
+	capability.session = session
 	capability.state = StateActivated
 	return nil
+}
+
+// ConfirmedSession returns the immutable cloud reference captured at activation.
+func (capability *Capability) ConfirmedSession() ConfirmedSession {
+	capability.mutex.Lock()
+	defer capability.mutex.Unlock()
+	return capability.session
 }
 
 // SessionID returns the bound observed session, or "" while provisional.

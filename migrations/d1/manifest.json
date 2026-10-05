@@ -1,5 +1,5 @@
 {
-  "migration_head": "0037_artifact_version_retained",
+  "migration_head": "0038_agent_work_authority",
   "migrations": [
     {
       "id": "0001_workspace_registry",
@@ -128,6 +128,10 @@
     {
       "id": "0037_artifact_version_retained",
       "file": "0037_artifact_version_retained.sql"
+    },
+    {
+      "id": "0038_agent_work_authority",
+      "file": "0038_agent_work_authority.sql"
     }
   ]
 }

@@ -84,7 +84,7 @@ type WorkTransport interface {
 	// UpdateTask applies permitted fields with an optimistic version check.
 	UpdateTask(ctx context.Context, boundary Boundary, input UpdateTaskInput, requestID string) (TaskView, error)
 	// AddComment appends a discussion comment attributed to the agent run.
-	AddComment(ctx context.Context, boundary Boundary, body string, requestID string) (CommentResult, error)
+	AddComment(ctx context.Context, boundary Boundary, session ConfirmedSession, body string, requestID string) (CommentResult, error)
 	// ReportProgress publishes a bounded progress checkpoint.
 	ReportProgress(ctx context.Context, boundary Boundary, summary string, percent *float64, confidence *float64, requestID string) (CommentResult, error)
 	// ProposeTask creates a proposed root or policy-bounded child task.

@@ -1,0 +1,372 @@
+{
+  "document": "local-agent-rpc",
+  "schema_version": 2,
+  "fixtures": [
+    {
+      "name": "authority.request",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.authority\",\"direction\":\"request\",\"payload\":{\"agent_request\":{\"request\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": true
+    },
+    {
+      "name": "authority.response",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.authority\",\"direction\":\"response\",\"payload\":{\"agent_authority\":{\"revoked\":false,\"execution_ended\":false,\"result_terminal\":false}}}",
+      "accept": true
+    },
+    {
+      "name": "authority.error",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.authority\",\"direction\":\"response\",\"error\":{\"schema_version\":1,\"category\":\"unavailable\",\"code\":\"offline_rejected\",\"message\":\"Temporarily unavailable.\"}}",
+      "accept": true
+    },
+    {
+      "name": "authority.wrong-input",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.authority\",\"direction\":\"request\",\"payload\":{\"agent_comment\":{\"id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":{\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\"}}}}",
+      "accept": false
+    },
+    {
+      "name": "authority.unknown-field",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.authority\",\"direction\":\"request\",\"payload\":{\"agent_request\":{\"request\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"correlation\":\"synthetic-correlation\"}},\"offline_permission\":true}",
+      "accept": false
+    },
+    {
+      "name": "get_context.request",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.get_context\",\"direction\":\"request\",\"payload\":{\"agent_request\":{\"request\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": true
+    },
+    {
+      "name": "get_context.response",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.get_context\",\"direction\":\"response\",\"payload\":{\"agent_context\":{\"context\":[],\"deliveries\":[]}}}",
+      "accept": true
+    },
+    {
+      "name": "get_context.error",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.get_context\",\"direction\":\"response\",\"error\":{\"schema_version\":1,\"category\":\"unavailable\",\"code\":\"offline_rejected\",\"message\":\"Temporarily unavailable.\"}}",
+      "accept": true
+    },
+    {
+      "name": "get_context.wrong-input",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.get_context\",\"direction\":\"request\",\"payload\":{\"agent_comment\":{\"id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":{\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\"}}}}",
+      "accept": false
+    },
+    {
+      "name": "get_context.unknown-field",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.get_context\",\"direction\":\"request\",\"payload\":{\"agent_request\":{\"request\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"correlation\":\"synthetic-correlation\"}},\"offline_permission\":true}",
+      "accept": false
+    },
+    {
+      "name": "get_task.request",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.get_task\",\"direction\":\"request\",\"payload\":{\"agent_request\":{\"request\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": true
+    },
+    {
+      "name": "get_task.response",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.get_task\",\"direction\":\"response\",\"payload\":{\"agent_task\":{\"id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"project_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"state\":\"active\",\"priority\":\"P2\",\"title\":\"Synthetic\",\"punchline\":\"\",\"resource_version\":1}}}",
+      "accept": true
+    },
+    {
+      "name": "get_task.error",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.get_task\",\"direction\":\"response\",\"error\":{\"schema_version\":1,\"category\":\"unavailable\",\"code\":\"offline_rejected\",\"message\":\"Temporarily unavailable.\"}}",
+      "accept": true
+    },
+    {
+      "name": "get_task.wrong-input",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.get_task\",\"direction\":\"request\",\"payload\":{\"agent_comment\":{\"id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":{\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\"}}}}",
+      "accept": false
+    },
+    {
+      "name": "get_task.unknown-field",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.get_task\",\"direction\":\"request\",\"payload\":{\"agent_request\":{\"request\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"correlation\":\"synthetic-correlation\"}},\"offline_permission\":true}",
+      "accept": false
+    },
+    {
+      "name": "bind_session.request",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.bind_session\",\"direction\":\"request\",\"payload\":{\"agent_request\":{\"request\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": true
+    },
+    {
+      "name": "bind_session.response",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.bind_session\",\"direction\":\"response\",\"payload\":{\"agent_binding\":{\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"origin\":{\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\"},\"observed_at\":\"2026-10-05T10:00:00Z\",\"confirmed_at\":\"2026-10-05T10:00:01Z\"}}}",
+      "accept": true
+    },
+    {
+      "name": "bind_session.error",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.bind_session\",\"direction\":\"response\",\"error\":{\"schema_version\":1,\"category\":\"unavailable\",\"code\":\"offline_rejected\",\"message\":\"Temporarily unavailable.\"}}",
+      "accept": true
+    },
+    {
+      "name": "bind_session.wrong-input",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.bind_session\",\"direction\":\"request\",\"payload\":{\"agent_comment\":{\"id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":{\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\"}}}}",
+      "accept": false
+    },
+    {
+      "name": "bind_session.unknown-field",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.bind_session\",\"direction\":\"request\",\"payload\":{\"agent_request\":{\"request\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"correlation\":\"synthetic-correlation\"}},\"offline_permission\":true}",
+      "accept": false
+    },
+    {
+      "name": "bound_authority.request",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.bound_authority\",\"direction\":\"request\",\"payload\":{\"agent_bound_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"}},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": true
+    },
+    {
+      "name": "bound_authority.response",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.bound_authority\",\"direction\":\"response\",\"payload\":{\"agent_authority\":{\"revoked\":false,\"execution_ended\":false,\"result_terminal\":false}}}",
+      "accept": true
+    },
+    {
+      "name": "bound_authority.error",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.bound_authority\",\"direction\":\"response\",\"error\":{\"schema_version\":1,\"category\":\"unavailable\",\"code\":\"offline_rejected\",\"message\":\"Temporarily unavailable.\"}}",
+      "accept": true
+    },
+    {
+      "name": "bound_authority.wrong-input",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.bound_authority\",\"direction\":\"request\",\"payload\":{\"agent_comment\":{\"id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":{\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\"}}}}",
+      "accept": false
+    },
+    {
+      "name": "bound_authority.unknown-field",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.bound_authority\",\"direction\":\"request\",\"payload\":{\"agent_bound_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"}},\"correlation\":\"synthetic-correlation\"}},\"offline_permission\":true}",
+      "accept": false
+    },
+    {
+      "name": "add_comment.request",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.add_comment\",\"direction\":\"request\",\"payload\":{\"agent_comment_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"body\":\"Synthetic comment\"},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": true
+    },
+    {
+      "name": "add_comment.response",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.add_comment\",\"direction\":\"response\",\"payload\":{\"agent_comment\":{\"id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":{\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\"}}}}",
+      "accept": true
+    },
+    {
+      "name": "add_comment.error",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.add_comment\",\"direction\":\"response\",\"error\":{\"schema_version\":1,\"category\":\"unavailable\",\"code\":\"offline_rejected\",\"message\":\"Temporarily unavailable.\"}}",
+      "accept": true
+    },
+    {
+      "name": "add_comment.wrong-input",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.add_comment\",\"direction\":\"request\",\"payload\":{\"agent_comment\":{\"id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":{\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\"}}}}",
+      "accept": false
+    },
+    {
+      "name": "add_comment.unknown-field",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.add_comment\",\"direction\":\"request\",\"payload\":{\"agent_comment_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"body\":\"Synthetic comment\"},\"correlation\":\"synthetic-correlation\"}},\"offline_permission\":true}",
+      "accept": false
+    },
+    {
+      "name": "update_task.request",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.update_task\",\"direction\":\"request\",\"payload\":{\"agent_update_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"expected_version\":1,\"title\":\"Synthetic replacement\"},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": true
+    },
+    {
+      "name": "update_task.response",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.update_task\",\"direction\":\"response\",\"payload\":{\"agent_update\":{\"task\":{\"id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"project_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"state\":\"active\",\"priority\":\"P2\",\"title\":\"Synthetic\",\"punchline\":\"\",\"resource_version\":1},\"origin\":{\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\"}}}}",
+      "accept": true
+    },
+    {
+      "name": "update_task.error",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.update_task\",\"direction\":\"response\",\"error\":{\"schema_version\":1,\"category\":\"unavailable\",\"code\":\"offline_rejected\",\"message\":\"Temporarily unavailable.\"}}",
+      "accept": true
+    },
+    {
+      "name": "update_task.wrong-input",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.update_task\",\"direction\":\"request\",\"payload\":{\"agent_comment\":{\"id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":{\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\"}}}}",
+      "accept": false
+    },
+    {
+      "name": "update_task.unknown-field",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.update_task\",\"direction\":\"request\",\"payload\":{\"agent_update_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"expected_version\":1,\"title\":\"Synthetic replacement\"},\"correlation\":\"synthetic-correlation\"}},\"offline_permission\":true}",
+      "accept": false
+    },
+    {
+      "name": "report_progress.request",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.report_progress\",\"direction\":\"request\",\"payload\":{\"agent_progress_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic checkpoint\",\"percent\":0,\"confidence\":0},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": true
+    },
+    {
+      "name": "report_progress.response",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.report_progress\",\"direction\":\"response\",\"payload\":{\"agent_comment\":{\"id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":{\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\"}}}}",
+      "accept": true
+    },
+    {
+      "name": "report_progress.error",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.report_progress\",\"direction\":\"response\",\"error\":{\"schema_version\":1,\"category\":\"unavailable\",\"code\":\"offline_rejected\",\"message\":\"Temporarily unavailable.\"}}",
+      "accept": true
+    },
+    {
+      "name": "report_progress.wrong-input",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.report_progress\",\"direction\":\"request\",\"payload\":{\"agent_comment\":{\"id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":{\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\"}}}}",
+      "accept": false
+    },
+    {
+      "name": "report_progress.unknown-field",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.report_progress\",\"direction\":\"request\",\"payload\":{\"agent_progress_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic checkpoint\",\"percent\":0,\"confidence\":0},\"correlation\":\"synthetic-correlation\"}},\"offline_permission\":true}",
+      "accept": false
+    },
+    {
+      "name": "propose_task.request",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.propose_task\",\"direction\":\"request\",\"payload\":{\"agent_proposal_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"title\":\"Synthetic root proposal\",\"priority\":\"P2\"},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": true
+    },
+    {
+      "name": "propose_task.response",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.propose_task\",\"direction\":\"response\",\"payload\":{\"agent_proposal\":{\"id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"state\":\"proposed\",\"origin\":{\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\"}}}}",
+      "accept": true
+    },
+    {
+      "name": "propose_task.error",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.propose_task\",\"direction\":\"response\",\"error\":{\"schema_version\":1,\"category\":\"unavailable\",\"code\":\"offline_rejected\",\"message\":\"Temporarily unavailable.\"}}",
+      "accept": true
+    },
+    {
+      "name": "propose_task.wrong-input",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.propose_task\",\"direction\":\"request\",\"payload\":{\"agent_comment\":{\"id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":{\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\"}}}}",
+      "accept": false
+    },
+    {
+      "name": "propose_task.unknown-field",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.propose_task\",\"direction\":\"request\",\"payload\":{\"agent_proposal_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"title\":\"Synthetic root proposal\",\"priority\":\"P2\"},\"correlation\":\"synthetic-correlation\"}},\"offline_permission\":true}",
+      "accept": false
+    },
+    {
+      "name": "propose_task.child-request",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.propose_task\",\"direction\":\"request\",\"payload\":{\"agent_proposal_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"title\":\"Synthetic child proposal\",\"priority\":\"P2\",\"parent_task_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": true
+    },
+    {
+      "name": "propose_task.child-ready-response",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.propose_task\",\"direction\":\"response\",\"payload\":{\"agent_proposal\":{\"id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"state\":\"ready\",\"origin\":{\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\"}}}}",
+      "accept": true
+    },
+    {
+      "name": "propose_task.invalid-state-response",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.propose_task\",\"direction\":\"response\",\"payload\":{\"agent_proposal\":{\"id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"state\":\"active\",\"origin\":{\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\"}}}}",
+      "accept": false
+    },
+    {
+      "name": "v2-as-v1-document",
+      "document": "local-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.authority\",\"direction\":\"request\",\"payload\":{\"agent_request\":{\"request\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": false
+    },
+    {
+      "name": "v1-as-v2-document",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":1,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.authority\",\"direction\":\"request\",\"payload\":{\"agent_request\":{\"request\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": false
+    },
+    {
+      "name": "unknown-version",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":3,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.authority\",\"direction\":\"request\",\"payload\":{\"agent_request\":{\"request\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": false
+    },
+    {
+      "name": "legacy-method",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.authority\",\"direction\":\"request\",\"payload\":{\"agent_request\":{\"request\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": false
+    },
+    {
+      "name": "undeclared-method",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.proxy\",\"direction\":\"request\",\"payload\":{\"agent_request\":{\"request\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": false
+    },
+    {
+      "name": "event-direction",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.authority\",\"direction\":\"event\",\"payload\":{\"agent_request\":{\"request\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": false
+    },
+    {
+      "name": "ambiguous-version",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":1,\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.authority\",\"direction\":\"request\",\"payload\":{\"agent_request\":{\"request\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": false
+    },
+    {
+      "name": "oversized-comment",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.add_comment\",\"direction\":\"request\",\"payload\":{\"agent_comment_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"body\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": false
+    },
+    {
+      "name": "caller-actor",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.add_comment\",\"direction\":\"request\",\"payload\":{\"agent_comment_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"body\":\"Synthetic\",\"actor_human_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": false
+    },
+    {
+      "name": "empty-update",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.update_task\",\"direction\":\"request\",\"payload\":{\"agent_update_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"expected_version\":1},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": false
+    },
+    {
+      "name": "progress-range",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.report_progress\",\"direction\":\"request\",\"payload\":{\"agent_progress_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic\",\"percent\":101},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": false
+    },
+    {
+      "name": "proposal-workflow",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.propose_task\",\"direction\":\"request\",\"payload\":{\"agent_proposal_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"title\":\"Synthetic\",\"state\":\"ready\"},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": false
+    },
+    {
+      "name": "success-with-error",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.authority\",\"direction\":\"response\",\"payload\":{\"agent_authority\":{\"revoked\":false,\"execution_ended\":false,\"result_terminal\":false}},\"error\":{\"schema_version\":1,\"category\":\"unavailable\",\"code\":\"offline_rejected\",\"message\":\"Temporarily unavailable.\"}}",
+      "accept": false
+    }
+  ]
+}

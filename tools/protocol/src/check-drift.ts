@@ -31,6 +31,7 @@ export async function checkProtocolDrift(root: string): Promise<string[]> {
       "internal/protocol/generated/types.go",
       "internal/protocol/generated/schemas.go",
       "apps/macos/Sources/BFB/WireGenerated.swift",
+      "protocol/fixtures/v2/local-agent-rpc.json",
     ];
     const issues: string[] = [];
     for (const relativePath of paths) {

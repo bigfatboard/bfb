@@ -36,7 +36,7 @@ func jsonRPCCode(code string) (int, string) {
 		return -32600, "The JSON-RPC request is invalid."
 	case "method_not_found":
 		return -32601, "This MCP method is not part of local-mcp/2."
-	case "invalid_params":
+	case "invalid_params", "invalid_argument":
 		return -32602, "The tool arguments are invalid."
 	case "peer_denied":
 		return -32001, "The local process is not the assigned provider process."
@@ -72,6 +72,10 @@ func jsonRPCCode(code string) (int, string) {
 		return -32016, "This tool belongs to a later package on the same server."
 	case "already_answered":
 		return -32017, "The attention request already has a committed answer."
+	case "protocol_unsupported":
+		return -32018, "Upgrade the local daemon to support this agent protocol."
+	case "child_limit":
+		return -32019, "The project policy child-task limit has been reached."
 	default:
 		return -32603, "The local operation failed."
 	}

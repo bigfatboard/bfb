@@ -3,6 +3,11 @@
 
 import type { HubCommand } from "./hub.js";
 import {
+  bindAgentSessionCommand,
+  agentBoundAuthorityCommand,
+  agentRunCommentCommand,
+} from "./agent-sessions.js";
+import {
   agentRunAuthorityCommand,
   agentRunContextCommand,
   agentRunTaskCommand,
@@ -131,6 +136,9 @@ import {
 
 const commands = new Map<string, HubCommand<unknown, unknown>>([
   [agentRunAuthorityCommand.name, agentRunAuthorityCommand as HubCommand<unknown, unknown>],
+  [bindAgentSessionCommand.name, bindAgentSessionCommand as HubCommand<unknown, unknown>],
+  [agentBoundAuthorityCommand.name, agentBoundAuthorityCommand as HubCommand<unknown, unknown>],
+  [agentRunCommentCommand.name, agentRunCommentCommand as HubCommand<unknown, unknown>],
   [agentRunContextCommand.name, agentRunContextCommand as HubCommand<unknown, unknown>],
   [agentRunTaskCommand.name, agentRunTaskCommand as HubCommand<unknown, unknown>],
   [ingestRunnerEventsCommand.name, ingestRunnerEventsCommand as HubCommand<unknown, unknown>],

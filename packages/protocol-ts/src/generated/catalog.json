@@ -1,211 +1,352 @@
 {
   "protocol": "bfb-wire/1",
   "schema_version": 1,
-  "schema_hash": "de71d34784a726f980ed4242fc1817bbf926e71782d0c0ebb9dde964fa81aff6",
+  "schema_hash": "0abff1a77e545e304d54fae31edaabf4c521f14da5bdaf70b2316ea62d611dd8",
   "documents": [
     {
+      "name": "agent-update-result",
+      "schema": "agent-update-result.json",
+      "schema_version": 1
+    },
+    {
+      "name": "agent-proposal-result",
+      "schema": "agent-proposal-result.json",
+      "schema_version": 1
+    },
+    {
+      "name": "agent-effect-origin",
+      "schema": "agent-effect-origin.json",
+      "schema_version": 1
+    },
+    {
+      "name": "local-agent-rpc",
+      "schema": "local-agent-rpc.json",
+      "schema_version": 2
+    },
+    {
+      "name": "agent-update-request",
+      "schema": "agent-update-request.json",
+      "schema_version": 1
+    },
+    {
+      "name": "agent-progress-request",
+      "schema": "agent-progress-request.json",
+      "schema_version": 1
+    },
+    {
+      "name": "agent-proposal-request",
+      "schema": "agent-proposal-request.json",
+      "schema_version": 1
+    },
+    {
+      "name": "agent-update-local-request",
+      "schema": "agent-update-local-request.json",
+      "schema_version": 1
+    },
+    {
+      "name": "agent-progress-local-request",
+      "schema": "agent-progress-local-request.json",
+      "schema_version": 1
+    },
+    {
+      "name": "agent-proposal-local-request",
+      "schema": "agent-proposal-local-request.json",
+      "schema_version": 1
+    },
+    {
+      "name": "agent-session-reference",
+      "schema": "agent-session-reference.json",
+      "schema_version": 1
+    },
+    {
+      "name": "agent-session-bind-request",
+      "schema": "agent-session-bind-request.json",
+      "schema_version": 1
+    },
+    {
+      "name": "agent-session-bind-result",
+      "schema": "agent-session-bind-result.json",
+      "schema_version": 1
+    },
+    {
+      "name": "agent-bound-request",
+      "schema": "agent-bound-request.json",
+      "schema_version": 1
+    },
+    {
+      "name": "agent-comment-request",
+      "schema": "agent-comment-request.json",
+      "schema_version": 1
+    },
+    {
+      "name": "agent-comment-result",
+      "schema": "agent-comment-result.json",
+      "schema_version": 1
+    },
+    {
+      "name": "agent-bound-local-request",
+      "schema": "agent-bound-local-request.json",
+      "schema_version": 1
+    },
+    {
+      "name": "agent-comment-local-request",
+      "schema": "agent-comment-local-request.json",
+      "schema_version": 1
+    },
+    {
       "name": "agent-work-request",
-      "schema": "agent-work-request.json"
+      "schema": "agent-work-request.json",
+      "schema_version": 1
     },
     {
       "name": "agent-local-request",
-      "schema": "agent-local-request.json"
+      "schema": "agent-local-request.json",
+      "schema_version": 1
     },
     {
       "name": "agent-authority-result",
-      "schema": "agent-authority-result.json"
+      "schema": "agent-authority-result.json",
+      "schema_version": 1
     },
     {
       "name": "agent-context-result",
-      "schema": "agent-context-result.json"
+      "schema": "agent-context-result.json",
+      "schema_version": 1
     },
     {
       "name": "agent-task-result",
-      "schema": "agent-task-result.json"
+      "schema": "agent-task-result.json",
+      "schema_version": 1
     },
     {
       "name": "event-envelope",
-      "schema": "event-envelope.json"
+      "schema": "event-envelope.json",
+      "schema_version": 1
     },
     {
       "name": "event-disposition",
-      "schema": "event-disposition.json"
+      "schema": "event-disposition.json",
+      "schema_version": 1
     },
     {
       "name": "runner-enrollment",
-      "schema": "runner-enrollment.json"
+      "schema": "runner-enrollment.json",
+      "schema_version": 1
     },
     {
       "name": "runner-identity",
-      "schema": "runner-identity.json"
+      "schema": "runner-identity.json",
+      "schema_version": 1
     },
     {
       "name": "runner-challenge",
-      "schema": "runner-challenge.json"
+      "schema": "runner-challenge.json",
+      "schema_version": 1
     },
     {
       "name": "runner-channel-close",
-      "schema": "runner-channel-close.json"
+      "schema": "runner-channel-close.json",
+      "schema_version": 1
     },
     {
       "name": "checkout-summary",
-      "schema": "checkout-summary.json"
+      "schema": "checkout-summary.json",
+      "schema_version": 1
     },
     {
       "name": "runner-local-enrollment",
-      "schema": "runner-local-enrollment.json"
+      "schema": "runner-local-enrollment.json",
+      "schema_version": 1
     },
     {
       "name": "runner-enrollment-handoff",
-      "schema": "runner-enrollment-handoff.json"
+      "schema": "runner-enrollment-handoff.json",
+      "schema_version": 1
     },
     {
       "name": "runner-channel-message",
-      "schema": "runner-channel-message.json"
+      "schema": "runner-channel-message.json",
+      "schema_version": 1
     },
     {
       "name": "runner-command-pull",
-      "schema": "runner-command-pull.json"
+      "schema": "runner-command-pull.json",
+      "schema_version": 1
     },
     {
       "name": "runner-inventory",
-      "schema": "runner-inventory.json"
+      "schema": "runner-inventory.json",
+      "schema_version": 1
     },
     {
       "name": "execution-assignment",
-      "schema": "execution-assignment.json"
+      "schema": "execution-assignment.json",
+      "schema_version": 1
     },
     {
       "name": "launch-specification",
-      "schema": "launch-specification.json"
+      "schema": "launch-specification.json",
+      "schema_version": 1
     },
     {
       "name": "launch-claim",
-      "schema": "launch-claim.json"
+      "schema": "launch-claim.json",
+      "schema_version": 1
     },
     {
       "name": "final-authorization",
-      "schema": "final-authorization.json"
+      "schema": "final-authorization.json",
+      "schema_version": 1
     },
     {
       "name": "cloud-wake-intent",
-      "schema": "cloud-wake-intent.json"
+      "schema": "cloud-wake-intent.json",
+      "schema_version": 1
     },
     {
       "name": "terminal-intent",
-      "schema": "terminal-intent.json"
+      "schema": "terminal-intent.json",
+      "schema_version": 1
     },
     {
       "name": "local-rpc",
-      "schema": "local-rpc.json"
+      "schema": "local-rpc.json",
+      "schema_version": 1
     },
     {
       "name": "local-execution-assignment",
-      "schema": "local-execution-assignment.json"
+      "schema": "local-execution-assignment.json",
+      "schema_version": 1
     },
     {
       "name": "runner-event-submission",
-      "schema": "runner-event-submission.json"
+      "schema": "runner-event-submission.json",
+      "schema_version": 1
     },
     {
       "name": "typed-error",
-      "schema": "typed-error.json"
+      "schema": "typed-error.json",
+      "schema_version": 1
     },
     {
       "name": "launch-start-request",
-      "schema": "launch-start-request.json"
+      "schema": "launch-start-request.json",
+      "schema_version": 1
     },
     {
       "name": "launch-snapshot",
-      "schema": "launch-snapshot.json"
+      "schema": "launch-snapshot.json",
+      "schema_version": 1
     },
     {
       "name": "launch-claim-result",
-      "schema": "launch-claim-result.json"
+      "schema": "launch-claim-result.json",
+      "schema_version": 1
     },
     {
       "name": "launch-final-request",
-      "schema": "launch-final-request.json"
+      "schema": "launch-final-request.json",
+      "schema_version": 1
     },
     {
       "name": "launch-reconciliation",
-      "schema": "launch-reconciliation.json"
+      "schema": "launch-reconciliation.json",
+      "schema_version": 1
     },
     {
       "name": "checkout-lease-observation",
-      "schema": "checkout-lease-observation.json"
+      "schema": "checkout-lease-observation.json",
+      "schema_version": 1
     },
     {
       "name": "run-control-request",
-      "schema": "run-control-request.json"
+      "schema": "run-control-request.json",
+      "schema_version": 1
     },
     {
       "name": "run-control-claim",
-      "schema": "run-control-claim.json"
+      "schema": "run-control-claim.json",
+      "schema_version": 1
     },
     {
       "name": "run-control-disposition",
-      "schema": "run-control-disposition.json"
+      "schema": "run-control-disposition.json",
+      "schema_version": 1
     },
     {
       "name": "launch-reject-request",
-      "schema": "launch-reject-request.json"
+      "schema": "launch-reject-request.json",
+      "schema_version": 1
     },
     {
       "name": "launch-tighten-request",
-      "schema": "launch-tighten-request.json"
+      "schema": "launch-tighten-request.json",
+      "schema_version": 1
     },
     {
       "name": "launch-wake-request",
-      "schema": "launch-wake-request.json"
+      "schema": "launch-wake-request.json",
+      "schema_version": 1
     },
     {
       "name": "launch-wake-redemption",
-      "schema": "launch-wake-redemption.json"
+      "schema": "launch-wake-redemption.json",
+      "schema_version": 1
     },
     {
       "name": "run-control-reference",
-      "schema": "run-control-reference.json"
+      "schema": "run-control-reference.json",
+      "schema_version": 1
     },
     {
       "name": "run-control-result",
-      "schema": "run-control-result.json"
+      "schema": "run-control-result.json",
+      "schema_version": 1
     },
     {
       "name": "local-execution-observation",
-      "schema": "local-execution-observation.json"
+      "schema": "local-execution-observation.json",
+      "schema_version": 1
     },
     {
       "name": "local-execution-control",
-      "schema": "local-execution-control.json"
+      "schema": "local-execution-control.json",
+      "schema_version": 1
     },
     {
       "name": "local-execution-focus",
-      "schema": "local-execution-focus.json"
+      "schema": "local-execution-focus.json",
+      "schema_version": 1
     },
     {
       "name": "discussion-create-request",
-      "schema": "discussion-create-request.json"
+      "schema": "discussion-create-request.json",
+      "schema_version": 1
     },
     {
       "name": "discussion-change-request",
-      "schema": "discussion-change-request.json"
+      "schema": "discussion-change-request.json",
+      "schema_version": 1
     },
     {
       "name": "discussion-turn-request",
-      "schema": "discussion-turn-request.json"
+      "schema": "discussion-turn-request.json",
+      "schema_version": 1
     },
     {
       "name": "discussion-recommendation",
-      "schema": "discussion-recommendation.json"
+      "schema": "discussion-recommendation.json",
+      "schema_version": 1
     },
     {
       "name": "discussion-receipt",
-      "schema": "discussion-receipt.json"
+      "schema": "discussion-receipt.json",
+      "schema_version": 1
     },
     {
       "name": "discussion-view",
-      "schema": "discussion-view.json"
+      "schema": "discussion-view.json",
+      "schema_version": 1
     }
   ]
 }

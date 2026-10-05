@@ -588,7 +588,8 @@ function categorize(
   }
 
   if (data && data.schema_version !== undefined) {
-    if (rootVersion?.integer !== undefined && rootVersion.integer !== "1") {
+    const expectedVersion = document === "local-agent-rpc" ? 2 : 1;
+    if (rootVersion?.integer !== undefined && rootVersion.integer !== String(expectedVersion)) {
       return {
         schema_version: 1,
         category: "unknown_version",
@@ -598,7 +599,12 @@ function categorize(
       };
     }
     const version = data.schema_version;
-    if (!rootVersion && typeof version === "number" && Number.isInteger(version) && version !== 1) {
+    if (
+      !rootVersion &&
+      typeof version === "number" &&
+      Number.isInteger(version) &&
+      version !== expectedVersion
+    ) {
       return {
         schema_version: 1,
         category: "unknown_version",

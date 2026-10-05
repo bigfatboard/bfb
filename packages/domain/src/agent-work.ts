@@ -26,7 +26,8 @@ export interface AgentWorkInput {
   principal: RunnerPrincipal;
   request: AgentWorkRequest;
 }
-interface BoundRun extends AssignmentRow {
+export interface BoundRun extends AssignmentRow {
+  launch_id: string;
   execution_state: string;
   result_state: string;
   purpose: string;
@@ -45,7 +46,15 @@ function checkedRequest(input: AgentWorkInput): AgentWorkRequest {
 
 export function agentWorkKey(tool: string, request: AgentWorkRequest): string {
   return `agent:${createHash("sha256")
-    .update(canonicalLaunchJson({ tool, ...request }))
+    .update(
+      canonicalLaunchJson({
+        tool,
+        schema_version: request.schema_version,
+        run_execution_id: request.run_execution_id,
+        assignment_generation: request.assignment_generation,
+        request_id: request.request_id,
+      }),
+    )
     .digest("hex")}`;
 }
 
@@ -60,7 +69,7 @@ async function boundRun(input: AgentWorkInput, ctx: HubContext): Promise<BoundRu
   const row = (await ctx.db
     .prepare(
       `SELECT assignment.*, execution.state AS execution_state,
-    run.result_state, run.purpose, launch.state AS launch_state, launch.final_authorized_at
+    run.result_state, run.purpose, launch.id AS launch_id, launch.state AS launch_state, launch.final_authorized_at
     FROM execution_assignments assignment
     JOIN run_executions execution ON execution.workspace_id = assignment.workspace_id
       AND execution.id = assignment.execution_id AND execution.run_id = assignment.run_id
@@ -111,7 +120,7 @@ function disposition(row: BoundRun): AgentAuthorityResult {
   };
 }
 
-async function liveRun(input: AgentWorkInput, ctx: HubContext): Promise<BoundRun> {
+export async function liveRun(input: AgentWorkInput, ctx: HubContext): Promise<BoundRun> {
   const row = await boundRun(input, ctx),
     state = disposition(row);
   if (state.execution_ended) throw new DomainError("assignment_ended", "execution ended");

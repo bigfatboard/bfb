@@ -107,7 +107,7 @@ func (s *Server) register(extensions *Registry) error {
 			return nil, &Failure{Code: "invalid_request"}
 		}
 		pending, err := s.Store.RecoveryPending(ctx)
-		return map[string]any{"status": "running", "daemon_pid": os.Getpid(), "started_at": s.started, "storage_version": StorageVersion, "recovery_pending": pending}, err
+		return map[string]any{"status": "running", "daemon_pid": os.Getpid(), "started_at": s.started, "storage_version": StorageVersion, "recovery_pending": pending, "methods": s.registry.Methods()}, err
 	})
 	_ = s.registry.Register("daemon.stop", func(_ context.Context, request Request) (map[string]any, error) {
 		if len(request.Envelope.Payload) != 0 {
@@ -196,11 +196,11 @@ func (s *Server) handle(ctx context.Context, connection *net.UnixConn) {
 		} else {
 			err = &Failure{Code: "unknown_method"}
 		}
-		response := Response(request.Method, request.RequestId, payload, err)
+		response := ResponseVersion(request.SchemaVersion, request.Method, request.RequestId, payload, err)
 		data, encodeErr := EncodeEnvelope(response)
 		if encodeErr != nil {
 			err = &Failure{Code: "internal_error"}
-			data, _ = EncodeEnvelope(Response(request.Method, request.RequestId, nil, err))
+			data, _ = EncodeEnvelope(ResponseVersion(request.SchemaVersion, request.Method, request.RequestId, nil, err))
 		}
 		if err != nil {
 			_ = s.Logger.Record(LogEvent{Event: "rpc_failed", Code: AsFailure(err).Diagnostic().Code, RequestID: request.RequestId})

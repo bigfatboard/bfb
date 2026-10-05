@@ -140,6 +140,33 @@ be retried with the same deterministic binding operation identity. Identical
 confirmation returns the same canonical ID; changed binding input is rejected.
 A binding request or bootstrap read cannot invent a trusted local observation.
 
+### Fresh local execution ownership
+
+Keep the daemon's independent kernel caller, correlation and trusted-session
+checks. In addition, use L05's existing live inspection before cloud dispatch
+and after network waits before private delivery. The last stored process row
+and a still-valid cloud lease cannot override a newly uncertain helper marker,
+free/missing local lock, lost signed supervisor or escaped descendant.
+
+Expose only a narrow in-process supervisor assertion for an exact execution
+and generation. It resolves L05's full checked assignment, requires active
+group/lock ownership, reuses signed-helper, authenticated-marker, held-flock
+and whole-group inspection, and retains newly observed uncertainty. Require
+the live capture predicate and re-read the exact active assignment after the
+inspection. Do not duplicate lock parsing, authorize the MCP child as a signed
+helper, initialize missing ownership evidence or invoke recovery. No lock or
+SQLite transaction spans cloud I/O. Missing production wiring fails closed.
+
+The native proof must use the actual flat process record written by L05 and
+a real signed helper with an authenticated held lock. A synthetic lifecycle
+fixture may exercise these real boundaries without opening Terminal, but it
+is not proof of Terminal launch, PTY handoff or a real coding provider. Earlier
+read-slice fixtures used a wrapped process shape that did not match L05's
+stored record; their historical passing checks do not certify that boundary.
+Fresh inspection remains polling-based evidence, not an OS sandbox or an
+atomic fence spanning remote commit. A post-send denial withholds delivery;
+it cannot establish that a cloud effect did not occur.
+
 ### Current bound authority and cached outcomes
 
 Add a fixed read-only `mcp.v2.bound_authority` / `work/bound-authority` operation

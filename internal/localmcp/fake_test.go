@@ -81,6 +81,7 @@ func (fake *fakeBindings) setBound(session string, ref AssignmentRef) {
 		RunID:                ref.RunID,
 		ObservedSessionID:    session,
 		ObservedAt:           syntheticTime,
+		Provider:             "fake",
 	}
 }
 
@@ -94,6 +95,13 @@ func (fake *fakeAuthority) Current(_ context.Context, _ Boundary) (AuthorityStat
 	fake.mutex.Lock()
 	defer fake.mutex.Unlock()
 	return fake.state, fake.err
+}
+
+func (fake *fakeAuthority) ConfirmSession(_ context.Context, _ Boundary, observed SessionBinding) (ConfirmedSession, error) {
+	return ConfirmedSession{ProviderSessionId: "01SYNTHETICSE00000000000001", Provider: observed.Provider, ObservedSessionId: observed.ObservedSessionID}, fake.err
+}
+func (fake *fakeAuthority) CurrentBound(ctx context.Context, boundary Boundary, _ ConfirmedSession) (AuthorityState, error) {
+	return fake.Current(ctx, boundary)
 }
 
 type fakeTransport struct {
@@ -203,7 +211,7 @@ func (fake *fakeTransport) UpdateTask(_ context.Context, _ Boundary, input Updat
 	return updated.(TaskView), nil
 }
 
-func (fake *fakeTransport) AddComment(_ context.Context, _ Boundary, body string, requestID string) (CommentResult, error) {
+func (fake *fakeTransport) AddComment(_ context.Context, _ Boundary, _ ConfirmedSession, body string, requestID string) (CommentResult, error) {
 	result, err := fake.dedupe(requestID, func() any {
 		fake.commented = append(fake.commented, body)
 		return CommentResult{ID: fmt.Sprintf("comment-%d", len(fake.commented))}
