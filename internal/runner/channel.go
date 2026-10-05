@@ -112,7 +112,6 @@ func (manager *Manager) serveChannel(parent context.Context, enrollment Enrollme
 	var current generated.RunnerChannelMessage
 	var offset time.Duration
 	var lastAlive time.Time
-	var lastSync time.Time
 	for {
 		select {
 		case <-ctx.Done():
@@ -172,11 +171,10 @@ func (manager *Manager) serveChannel(parent context.Context, enrollment Enrollme
 					return err
 				}
 			}
-			if time.Since(lastSync) >= manager.heartbeat {
+			if message.Kind == "runner.channel.ready" {
 				if err := manager.syncInventory(ctx, enrollment, connection, current.ProjectIds, offset); err != nil {
 					return err
 				}
-				lastSync = time.Now()
 			}
 		case <-heartbeat.C:
 			if current.ConnectionId == "" {
@@ -194,6 +192,12 @@ func (manager *Manager) serveChannel(parent context.Context, enrollment Enrollme
 			}
 			// Periodic pull does not depend on receiving a nudge or an alive reply.
 			if err := manager.pull(ctx, enrollment, connection); err != nil {
+				return err
+			}
+			// Refresh on the same scheduled tick, not the alive reply. Measuring
+			// from a completed sync can skip a tick and outlive the 30 s inventory
+			// and provider freshness windows after an ordinary delayed response.
+			if err := manager.syncInventory(ctx, enrollment, connection, current.ProjectIds, offset); err != nil {
 				return err
 			}
 		}
