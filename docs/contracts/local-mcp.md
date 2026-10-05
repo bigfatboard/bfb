@@ -9,8 +9,10 @@ canonical session binding, current bound authority and all four online writes
 use typed daemon RPC and the possession-authenticated Worker/Hub/D1 path.
 The [ADR 0006](../adr/0006-daemon-owned-pending-agent-work.md) implementation adds
 daemon-owned protected capture, write-ahead durability and pending replay on a
-separate version-3 write lane. It is undergoing integration certification; the
-committed online/policy checkpoint is not complete A01 acceptance.
+separate version-3 write lane. The [runtime certificate](../work-packages/evidence/WP-A01/runtime-manifest.json)
+records complete A01 clean-checkout acceptance at `adbf740`; earlier partial
+checkpoints remain historical. This is synthetic native proof, not live-provider
+or Terminal certification.
 
 This contract defines the tool and trust boundary for `bfb mcp stdio`.
 A02/A03/V01 extend this same server; they do not introduce another agent
@@ -409,10 +411,11 @@ cloud session binding, if used for independent session fencing, needs its own
 explicit checked command with assignment and trusted-observation provenance.
 Event-ledger/session projections do not implicitly create that business record.
 
-## Outstanding runtime closure
+## Runtime acceptance and remaining integrations
 
-The current capture/replay implementation does not make A01 complete. Its owning `pnpm test:a01`
-target exercises the compiled stdio host, production
+A01's owning `pnpm test:a01` target passed from a clean checkout at the commit
+recorded in the [runtime evidence manifest](../work-packages/evidence/WP-A01/runtime-manifest.json).
+It exercises the compiled stdio host, production
 daemon RPC, real possession-authenticated L08 connection, local Control Worker,
 WorkspaceHub and D1. It proves agent/both bootstrap reads and real per-item
 delivery, request deduplication, denied unbound mutation, malicious boundary and
@@ -421,18 +424,17 @@ for cached IDs. The synthetic native lifecycle assembles a real signed helper,
 held authenticated lock and provider-shaped group, captures a real trusted L06
 turn-before-SessionStart hook, then exercises canonical binding and all four
 online writes, including lost-commit replies across both MCP and daemon restart.
-It is not full L05 launch
-or Terminal acceptance. An injected transport or stdout-only fixture is not a substitute.
+The connected signed-native proof also covers permitted outage capture, MCP exit,
+daemon restart, current-authority denial, remote commit/local acknowledgement
+loss and durable dispatch-marker failure. Policy absence never grants permission
+to journal, and online-only work is never autonomously replayed.
 
-Remaining A01 closure is integrated signed-native capture/replay proof, including
-permitted outage capture, MCP exit, daemon restart, current-authority denial and
-remote commit/local acknowledgement loss. Focused component tests are not proof
-of that connected lifecycle.
-Policy absence cannot imply permission to journal. Existing A02/A03 integration
-must retain their contracts on this endpoint, without being claimed as proven
-by bootstrap reads. Full exact-target, affected-gate and clean-checkout evidence
-are required before complete A01 runtime acceptance is claimed. Historical v1
-evidence is not relabelled as v2 proof.
+The runtime certificate records the exact target, full repository verification
+and affected gates with their checkout scope. It is not full L05 launch,
+Terminal, PTY or live-provider acceptance. A02/A03 must separately integrate and
+certify their contracts on this endpoint; bootstrap reads and A01 writes do not
+prove those integrations. Historical v1 evidence remains historical rather than
+being relabelled as current runtime proof.
 
 ## Error codes
 

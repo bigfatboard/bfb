@@ -403,7 +403,7 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 
 | ID | Package | Status | Risk |
 | --- | --- | --- | --- |
-| A01 | [Run-scoped local MCP and context](WP-A01-local-mcp-context.md) | `in_progress` | Very high |
+| A01 | [Run-scoped local MCP and context](WP-A01-local-mcp-context.md) | `done` | Very high |
 | A02 | [Human attention workflow](WP-A02-attention.md) | `blocked` | High |
 | A03 | [Result submission and acceptance](WP-A03-results.md) | `blocked` | High |
 | A04 | [Measurements and provenance](WP-A04-measurements.md) | `blocked` | High |

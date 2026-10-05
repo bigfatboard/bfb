@@ -1,0 +1,75 @@
+{
+  "$schema": "../manifest.schema.json",
+  "package": "A01",
+  "tested_commit": "adbf7403bbafb7482ff7fe6f2c4881bf139459e6",
+  "protocol_version": "local-mcp/2 over JSON-RPC 2.0 stdio; MCP/2026-07-28",
+  "schema_version": "1 capture/replay; 2 local reads; 3 local writes",
+  "migration_head": "0039_offline_agent_policy",
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "xcode": "26.0.1",
+    "modernc.org/sqlite": "v1.58.0"
+  },
+  "environment": { "kind": "clean_checkout", "os": "macOS 26.2", "architecture": "arm64" },
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-A01/runtime-command-result.json"
+    },
+    {
+      "command": "pnpm exec tsc -b --force --pretty false",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-A01/runtime-command-result.json"
+    },
+    {
+      "command": "pnpm test:a01",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-A01/runtime-command-result.json"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-A01/runtime-command-result.json"
+    },
+    {
+      "command": "GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./...",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-A01/runtime-command-result.json"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-A01/runtime-command-result.json"
+    }
+  ],
+  "outcome": "passed",
+  "artifacts": [
+    "docs/work-packages/evidence/WP-A01/runtime-command-result.json",
+    "docs/work-packages/evidence/WP-A01/runtime-acceptance.md",
+    "docs/contracts/local-mcp.md",
+    "docs/adr/0006-daemon-owned-pending-agent-work.md",
+    "internal/agentwork/native_darwin_test.go",
+    "internal/agentwork/work_service_test.go",
+    "internal/agentwork/work_authority_test.go",
+    "internal/agentwork/work_journal_test.go",
+    "internal/runner/agent_capture_test.go",
+    "internal/localmcp/capability_test.go",
+    "internal/localmcp/server_test.go",
+    "internal/localmcp/rpc_test.go",
+    "internal/cli/mcp_test.go",
+    "internal/cli/run_test.go",
+    "packages/domain/test/agent-capture.test.ts",
+    "packages/domain/test/agent-work.test.ts",
+    "packages/domain/test/offline-policy-authority.test.ts",
+    "packages/domain/test/offline-policy-migration.test.ts",
+    "apps/control-worker/test/agent-capture.test.ts",
+    "tools/local-mcp/run.ts",
+    "tools/local-mcp/native.ts",
+    "protocol/fixtures/v3/local-agent-work-rpc.json",
+    "internal/agentwork/migrations/013_work_journal.sql"
+  ],
+  "redaction": { "status": "passed", "prohibited_content": [] }
+}

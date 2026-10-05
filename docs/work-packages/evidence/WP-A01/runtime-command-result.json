@@ -1,0 +1,95 @@
+{
+  "package": "A01",
+  "recorded_on": "2026-10-06",
+  "tested_commit": "adbf7403bbafb7482ff7fe6f2c4881bf139459e6",
+  "outcome": "passed",
+  "package_acceptance_complete": true,
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2",
+    "architecture": "arm64",
+    "cloud": "local real Worker, WorkspaceHub and D1 harness",
+    "native": "development-signed daemon and supervisor, Keychain enrollment, synthetic provider-shaped process, real kernel identity and held flock"
+  },
+  "migrations": {
+    "d1": "0039_offline_agent_policy",
+    "daemon": "010_hook_inbox",
+    "agent_journal": "013_work_journal"
+  },
+  "clean_commands": [
+    { "command": "pnpm install --frozen-lockfile", "exit_code": 0 },
+    { "command": "pnpm exec tsc -b --force --pretty false", "exit_code": 0 },
+    {
+      "command": "pnpm test:a01",
+      "exit_code": 0,
+      "protocol_cases": 765,
+      "domain_worker_migration_ui_cases": 413,
+      "go_race_checks": "passed, including runner signing",
+      "compiled_stdio": "passed",
+      "native_proof": "A01_NATIVE_PROOF_COMPLETE",
+      "native_test_seconds": 204.59,
+      "action_bound_policy_browser_cases": 1
+    },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 2087,
+      "typescript_files": 120,
+      "go_checks": "passed",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    { "command": "GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./...", "exit_code": 0 },
+    { "command": "pnpm worktree:check", "exit_code": 0 }
+  ],
+  "implementation_checkout_affected_gates": [
+    { "command": "pnpm test:c07", "outcome": "passed", "cases": 10, "real_d1": "C07_D1_OK" },
+    { "command": "pnpm test:c08", "outcome": "passed", "cases": 23, "real_d1": "C08_D1_OK" },
+    {
+      "command": "pnpm test:c09",
+      "outcome": "passed",
+      "launch_fixtures": 73,
+      "protocol_cases": 765,
+      "focused_cases": 77,
+      "real_d1": "C09_D1_OK"
+    },
+    {
+      "command": "pnpm test:l01",
+      "outcome": "passed",
+      "protocol_cases": 765,
+      "go_race_checks": "passed"
+    },
+    {
+      "command": "pnpm test:l08",
+      "outcome": "passed",
+      "protocol_cases": 765,
+      "focused_cases": 59,
+      "go_race_checks": "passed",
+      "signed_two_workspace_channel": "passed",
+      "enrollment_browser_cases": 1
+    }
+  ],
+  "native_scenarios": [
+    "Compiled MCP contains no runner credential or provider-side journal and denies all four unbound writes",
+    "Real L06 hook observation precedes explicit canonical session binding",
+    "All four writes retain original agent attribution and one canonical effect after lost replies and explicit restart retries",
+    "Online-only unknown records never auto-drain after MCP exit, daemon restart or later versioned policy enablement",
+    "Permitted outage admission persists a signed never-sent intent before returning pending_sync",
+    "MCP stays exited while signed daemon restart, ordinary same-owner lease renewal and autonomous replay retain the original execution, fence, capture and operation key",
+    "Real cloud commit followed by failed local acknowledgement returns storage_failed, retains uncertainty and recovers one effect after restart",
+    "Real marker UPDATE failure sends zero business requests, retains never-sent state and recovers once after the injected fault is removed",
+    "Queued session closure, genuine held-lock release and proof-bound project-policy generation tightening block delivery without business sends or replacement captures/fences",
+    "Expiry and grant revocation retain uncertainty after lost replies and disclose no cached private result",
+    "Current authority precedes cached outcomes; preflight and postflight native uncertainty deny delivery without erasing a committed effect"
+  ],
+  "not_claimed": [
+    "Full L05 launch, Terminal automation or PTY handoff certification",
+    "Live Claude/Codex behavior or exact provider continuation certification",
+    "Production offline permission enabled for a real workspace",
+    "A02/A03 attention or result integration, or automatic downstream certification",
+    "Private-task ACLs, project knowledge, skill catalogs, shared business secrets or other mandatory product extensions",
+    "Cross-device pilot, running end-to-end MVP, release readiness, push or deployment",
+    "Encrypted local journal, same-user deletion resistance or cryptographic anti-rollback"
+  ],
+  "redaction": { "status": "passed", "raw_logs_committed": false, "prohibited_content": [] }
+}
