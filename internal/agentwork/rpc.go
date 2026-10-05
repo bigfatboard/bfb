@@ -163,7 +163,7 @@ func RegisterRPC(registry *daemon.Registry, manager *runner.Manager, ownership O
 			return err
 		}
 	}
-	return nil
+	return registerAttentionRPC(registry, connection, ownership)
 }
 
 func ownershipError(err error) error {

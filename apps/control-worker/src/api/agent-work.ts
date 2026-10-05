@@ -13,6 +13,8 @@ import {
   type AgentProposalRequest,
   type AgentCaptureConfirmationRequest,
   type AgentWorkReplayRequest,
+  type AgentAttentionRequest,
+  type AgentAttentionReadRequest,
   type WireDocumentName,
 } from "@bfb/protocol";
 import {
@@ -33,6 +35,10 @@ import {
   AGENT_WRITE_REQUEST_BYTES,
   agentWorkKey,
   agentSessionBindKey,
+  requestAttentionCommand,
+  agentAttentionResult,
+  readAgentAttention,
+  type AttentionRecord,
   DomainError,
   runnerId,
   type HubCommand,
@@ -41,7 +47,7 @@ import { executeWorkspaceCommand } from "../hub-client.js";
 import { guardRunnerTransport, readPossessedRunnerRequest, type RunnerApiDeps } from "./runners.js";
 
 const pattern =
-  /^\/runner\/workspaces\/([^/]+)\/runners\/([^/]+)\/work\/(authority|context|task|session-bind|bound-authority|comment|update|progress|proposal|capture-confirmation|replay)$/;
+  /^\/runner\/workspaces\/([^/]+)\/runners\/([^/]+)\/work\/(authority|context|task|session-bind|bound-authority|comment|update|progress|proposal|capture-confirmation|replay|attention-request|attention-get)$/;
 const actions: Record<
   string,
   { document: WireDocumentName; command: HubCommand<unknown, unknown> }
@@ -86,6 +92,10 @@ const actions: Record<
     document: "agent-capture-confirmation-request",
     command: agentCaptureConfirmationCommand as HubCommand<unknown, unknown>,
   },
+  "attention-request": {
+    document: "agent-attention-request",
+    command: requestAttentionCommand as HubCommand<unknown, unknown>,
+  },
 };
 const replayCommands = {
   "agent_run.comment": agentRunCommentCommand,
@@ -113,7 +123,12 @@ export async function handleAgentWorkApi(request: Request, deps: RunnerApiDeps):
       runner = runnerId(match[2]),
       action = match[3]!;
     await guardRunnerTransport(request, deps, workspaceId, runner, `work/${action}`);
-    const document = action === "replay" ? "agent-work-replay-request" : actions[action]!.document;
+    const document =
+      action === "replay"
+        ? "agent-work-replay-request"
+        : action === "attention-get"
+          ? "agent-attention-read-request"
+          : actions[action]!.document;
     const possessed = await readPossessedRunnerRequest(
       request,
       deps,
@@ -127,6 +142,14 @@ export async function handleAgentWorkApi(request: Request, deps: RunnerApiDeps):
     );
     const decoded = decodeWireDocument(document, possessed.bytes);
     if (!decoded.ok) throw new DomainError("request_rejected", "invalid work reference");
+    if (action === "attention-get") {
+      return response(
+        await readAgentAttention(deps.db, workspaceId, {
+          principal: possessed.principal,
+          request: decoded.value as AgentAttentionReadRequest,
+        }),
+      );
+    }
     let command: HubCommand<unknown, unknown>, idempotencyKey: string, input: unknown;
     if (action === "replay") {
       const replay = decoded.value as AgentWorkReplayRequest;
@@ -149,6 +172,7 @@ export async function handleAgentWorkApi(request: Request, deps: RunnerApiDeps):
         | AgentUpdateRequest
         | AgentProgressRequest
         | AgentProposalRequest
+        | AgentAttentionRequest
         | AgentCaptureConfirmationRequest;
       const reference = "reference" in body ? body.reference : body;
       command = actions[action]!.command;
@@ -181,7 +205,14 @@ export async function handleAgentWorkApi(request: Request, deps: RunnerApiDeps):
       },
     );
     if (!outcome.ok) throw new DomainError(outcome.error.code, "agent work rejected");
-    return response(outcome.result);
+    return response(
+      action === "attention-request"
+        ? agentAttentionResult(
+            outcome.result as AttentionRecord,
+            (decoded.value as AgentAttentionRequest).binding,
+          )
+        : outcome.result,
+    );
   } catch (error) {
     // A classified domain denial is not a network outage or queue permission.
     const allowed = [

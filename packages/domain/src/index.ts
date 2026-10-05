@@ -9,6 +9,7 @@ export * from "./artifact-reviews.js";
 export * from "./artifact-views.js";
 export * from "./artifacts.js";
 export * from "./attention.js";
+export * from "./agent-attention.js";
 export * from "./authorization.js";
 export * from "./fixtures.js";
 export * from "./command-catalog.js";

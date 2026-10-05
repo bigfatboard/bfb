@@ -2,6 +2,12 @@
 // ABOUTME: Runner-bound agents request; workspace humans answer under rechecked role, epoch, and project scope.
 
 import type { SqlDatabase } from "@bfb/db";
+import { createHash } from "node:crypto";
+import {
+  decodeWireDocument,
+  type AgentAttentionRequest,
+  type AgentSessionReference,
+} from "@bfb/protocol";
 
 import {
   assertEpoch,
@@ -13,9 +19,11 @@ import {
 } from "./authorization.js";
 import { DomainError, type HubCommand, type HubContext } from "./hub.js";
 import { isUlid, randomUlid } from "./ids.js";
-import { launchRunner } from "./launch-state.js";
-import { rejectRunnerRequest, runnerId, runnerObject } from "./runner-crypto.js";
+import { canonicalLaunchJson, readLaunch, reauthorizeLaunch } from "./launch-state.js";
+import { runnerObject } from "./runner-crypto.js";
 import type { RunnerPrincipal } from "./runners.js";
+import { liveRun, type AgentWorkInput } from "./agent-work.js";
+import { currentAgentSession } from "./agent-sessions.js";
 
 export const ATTENTION_KINDS = [
   "clarification",
@@ -233,99 +241,91 @@ async function insertObservation(
 
 export interface RequestAttentionInput {
   principal: RunnerPrincipal;
-  runId: string;
-  executionId: string;
-  assignmentGeneration: number;
-  kind: AttentionKind;
-  question: string;
-  referenceKind?: string;
-  referenceId?: string;
-  blocking: boolean;
+  request: AgentAttentionRequest;
+}
+
+const fingerprint = (input: unknown) =>
+  createHash("sha256").update(canonicalLaunchJson(input)).digest("hex");
+
+/** Reauthorizes the complete calling execution without borrowing historical capture permission. */
+export async function requireAttentionRun(
+  input: AgentWorkInput,
+  ctx: HubContext,
+  supplied?: AgentSessionReference,
+) {
+  const row = await liveRun(input, ctx);
+  const launch = await readLaunch(ctx.db, ctx.workspaceId, row.launch_id);
+  try {
+    await reauthorizeLaunch(ctx, launch);
+  } catch (error) {
+    if (
+      error instanceof DomainError &&
+      ["request_rejected", "policy_widening", "invalid_policy"].includes(error.code)
+    )
+      throw new DomainError("policy_rejected", "current attention policy rejected");
+    throw error;
+  }
+  const binding = await currentAgentSession(ctx, row, supplied);
+  return { row, binding };
+}
+
+async function prepareAttentionRequest(input: RequestAttentionInput, ctx: HubContext) {
+  runnerObject(input, ["principal", "request"]);
+  const bytes = Buffer.from(JSON.stringify(input.request));
+  const decoded = decodeWireDocument("agent-attention-request", bytes);
+  if (bytes.length > 16_384 || !decoded.ok)
+    throw new DomainError("request_rejected", "invalid attention request");
+  const request = decoded.value as AgentAttentionRequest;
+  const current = await requireAttentionRun(
+    { principal: input.principal, request: request.reference },
+    ctx,
+    request.binding,
+  );
+  if (!current.binding)
+    throw new DomainError("session_not_bound", "attention requires a confirmed session");
+  const question = boundedText(request.question, "attention question", 2048);
+  const referenceKind = optionalBoundedText(request.reference_kind, "attention reference kind", 64);
+  const referenceId = optionalBoundedText(request.reference_id, "attention reference", 128);
+  if ((referenceKind === null) !== (referenceId === null))
+    throw new DomainError("invalid_argument", "attention reference fields must be paired");
+  return { ...current, request, question, referenceKind, referenceId };
+}
+
+function attentionReceipt(record: AttentionRecord) {
+  return {
+    id: record.id,
+    kind: record.kind,
+    state: record.state,
+    resource_version: record.resource_version,
+    project_id: record.project_id,
+    task_id: record.task_id,
+    run_id: record.run_id,
+    run_execution_id: record.run_execution_id,
+    assignment_generation: record.assignment_generation,
+  };
 }
 
 export const requestAttentionCommand: HubCommand<RequestAttentionInput, AttentionRecord> = {
   name: "attention.request",
+  authorize: async (input, ctx) => {
+    await prepareAttentionRequest(input, ctx);
+  },
+  inputFingerprint: (input) => fingerprint(input.request),
   auditInput: (input) => ({
-    runId: (input as RequestAttentionInput)?.runId,
-    executionId: (input as RequestAttentionInput)?.executionId,
-    kind: (input as RequestAttentionInput)?.kind,
-    blocking: (input as RequestAttentionInput)?.blocking,
-    questionChars: [...(((input as RequestAttentionInput)?.question as string) ?? "")].length,
+    executionId: input.request.reference.run_execution_id,
+    generation: input.request.reference.assignment_generation,
+    providerSessionId: input.request.binding.provider_session_id,
+    kind: input.request.kind,
+    blocking: input.request.blocking,
+    questionChars: [...input.request.question].length,
   }),
-  async run(raw, ctx) {
-    const body = runnerObject(raw as unknown, [
-      "principal",
-      "runId",
-      "executionId",
-      "assignmentGeneration",
-      "kind",
-      "question",
-      "referenceKind",
-      "referenceId",
-      "blocking",
-    ]);
-    const principal = await launchRunner(ctx, body.principal as RunnerPrincipal);
-    const runId = runnerId(body.runId);
-    const executionId = runnerId(body.executionId);
-    const generation = body.assignmentGeneration;
-    if (!Number.isSafeInteger(generation) || Number(generation) < 1) {
-      rejectRunnerRequest();
-    }
-    const kind = body.kind;
-    if (typeof kind !== "string" || !ATTENTION_KINDS.includes(kind as AttentionKind)) {
-      rejectRunnerRequest();
-    }
-    let question: string;
-    try {
-      question = boundedText(body.question, "attention question", 2048);
-    } catch {
-      rejectRunnerRequest();
-    }
-    let referenceKind: string | null = null;
-    let referenceId: string | null = null;
-    try {
-      referenceKind = optionalBoundedText(body.referenceKind, "attention reference kind", 64);
-      const rawReference = optionalBoundedText(body.referenceId, "attention reference", 128);
-      referenceId = rawReference;
-      if (typeof body.blocking !== "boolean") {
-        throw new DomainError("invalid_argument", "attention blocking flag is invalid");
-      }
-    } catch {
-      rejectRunnerRequest();
-    }
-    if ((referenceKind === null) !== (referenceId === null)) {
-      rejectRunnerRequest();
-    }
-    const binding = (await ctx.db
-      .prepare(
-        `SELECT a.runner_id, a.project_id, a.task_id, a.run_id,
-                r.result_state
-         FROM execution_assignments AS a
-         JOIN runs AS r ON r.workspace_id = a.workspace_id AND r.id = a.run_id
-         WHERE a.workspace_id = ? AND a.execution_id = ? AND a.assignment_generation = ?`,
-      )
-      .get(ctx.workspaceId, executionId, Number(generation))) as
-      | {
-          runner_id: string;
-          project_id: string;
-          task_id: string;
-          run_id: string;
-          result_state: string;
-        }
-      | undefined;
-    if (!binding || binding.runner_id !== principal.runnerId || binding.run_id !== runId) {
-      rejectRunnerRequest();
-    }
-    if (!principal.projectIds.includes(binding.project_id)) {
-      rejectRunnerRequest();
-    }
-    if (binding.result_state !== "open" && binding.result_state !== "changes_requested") {
-      throw new DomainError(
-        "invalid_transition",
-        `run in state ${binding.result_state} cannot request attention`,
-      );
-    }
-    const requiredRole = ATTENTION_KIND_ROLES[kind as AttentionKind];
+  auditResult: attentionReceipt,
+  async run(input, ctx) {
+    const { row, request, question, referenceKind, referenceId } = await prepareAttentionRequest(
+      input,
+      ctx,
+    );
+    const requiredRole = ATTENTION_KIND_ROLES[request.kind];
     const id = randomUlid();
     await ctx.db
       .prepare(
@@ -339,35 +339,43 @@ export const requestAttentionCommand: HubCommand<RequestAttentionInput, Attentio
       .run(
         ctx.workspaceId,
         id,
-        binding.project_id,
-        binding.task_id,
-        runId,
-        executionId,
-        Number(generation),
-        kind as string,
+        row.project_id,
+        row.task_id,
+        row.run_id,
+        row.execution_id,
+        row.assignment_generation,
+        request.kind,
         requiredRole,
         referenceKind,
         referenceId,
-        question!,
-        body.blocking === true ? 1 : 0,
+        question,
+        request.blocking ? 1 : 0,
         ctx.now,
       );
-    await insertObservation(ctx.db, ctx.workspaceId, id, "requested", "agent_run", runId, ctx.now);
+    await insertObservation(
+      ctx.db,
+      ctx.workspaceId,
+      id,
+      "requested",
+      "agent_run",
+      row.run_id,
+      ctx.now,
+    );
     // D1 batch transactions forbid reads after a queued write, so the
     // committed record is constructed here instead of re-selected.
     return {
       id,
-      project_id: binding.project_id,
-      task_id: binding.task_id,
-      run_id: runId,
-      run_execution_id: executionId,
-      assignment_generation: Number(generation),
-      kind: kind as AttentionKind,
+      project_id: row.project_id,
+      task_id: row.task_id,
+      run_id: row.run_id,
+      run_execution_id: row.execution_id,
+      assignment_generation: row.assignment_generation,
+      kind: request.kind,
       required_role: requiredRole,
       reference_kind: referenceKind,
       reference_id: referenceId,
-      question: question!,
-      blocking: body.blocking === true,
+      question,
+      blocking: request.blocking,
       state: "open" as AttentionState,
       answer: null,
       answered_by_human_id: null,
@@ -386,22 +394,40 @@ export interface AnswerAttentionInput {
   answer: string;
 }
 
+async function authorizeHumanAttention(
+  input: ResolveAttentionInput | AnswerAttentionInput,
+  ctx: HubContext,
+  answering: boolean,
+) {
+  runnerObject(
+    input,
+    answering ? ["attentionId", "expectedVersion", "answer"] : ["attentionId", "expectedVersion"],
+  );
+  version(input.expectedVersion, "expected attention version");
+  if (answering) boundedText((input as AnswerAttentionInput).answer, "attention answer", 2048);
+  const principal = await requireAttentionHuman(ctx);
+  const record = await loadRequestForHuman(ctx, principal, input.attentionId);
+  if (!attentionRoleSatisfies(principal.role, record.required_role))
+    throw new DomainError("forbidden", "attention requires an authorized human role");
+  // Version and transition checks belong only to a new effect. A replay of
+  // this actor's identical outcome still rechecks current authority above.
+  return { principal, record };
+}
+
 export const answerAttentionCommand: HubCommand<AnswerAttentionInput, AttentionRecord> = {
   name: "attention.answer",
+  authorize: async (input, ctx) => {
+    await authorizeHumanAttention(input, ctx, true);
+  },
+  inputFingerprint: fingerprint,
   auditInput: (input) => ({
     attentionId: (input as AnswerAttentionInput)?.attentionId,
     expectedVersion: (input as AnswerAttentionInput)?.expectedVersion,
     answerChars: [...(((input as AnswerAttentionInput)?.answer as string) ?? "")].length,
   }),
+  auditResult: attentionReceipt,
   async run(input, ctx) {
-    const principal = await requireAttentionHuman(ctx);
-    const record = await loadRequestForHuman(ctx, principal, input.attentionId);
-    if (!attentionRoleSatisfies(principal.role, record.required_role)) {
-      throw new DomainError(
-        "forbidden",
-        `answering this ${record.kind} request requires the ${record.required_role} role`,
-      );
-    }
+    const { principal, record } = await authorizeHumanAttention(input, ctx, true);
     const expected = version(input.expectedVersion, "expected attention version");
     if (record.resource_version !== expected) {
       throw new DomainError("stale_version", "attention version conflict");
@@ -450,15 +476,17 @@ export interface ResolveAttentionInput {
 
 export const resolveAttentionCommand: HubCommand<ResolveAttentionInput, AttentionRecord> = {
   name: "attention.resolve",
+  authorize: async (input, ctx) => {
+    await authorizeHumanAttention(input, ctx, false);
+  },
+  inputFingerprint: fingerprint,
+  auditInput: (input) => ({
+    attentionId: input.attentionId,
+    expectedVersion: input.expectedVersion,
+  }),
+  auditResult: attentionReceipt,
   async run(input, ctx) {
-    const principal = await requireAttentionHuman(ctx);
-    const record = await loadRequestForHuman(ctx, principal, input.attentionId);
-    if (!attentionRoleSatisfies(principal.role, record.required_role)) {
-      throw new DomainError(
-        "forbidden",
-        `resolving this ${record.kind} request requires the ${record.required_role} role`,
-      );
-    }
+    const { principal, record } = await authorizeHumanAttention(input, ctx, false);
     const expected = version(input.expectedVersion, "expected attention version");
     if (record.resource_version !== expected) {
       throw new DomainError("stale_version", "attention version conflict");

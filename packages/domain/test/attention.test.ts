@@ -1,7 +1,8 @@
 // ABOUTME: Proves A02 attention request, answer, resolve, ranking, and permission boundaries.
 // ABOUTME: All fixtures are synthetic; runner authority comes from the shared launch fixture.
 
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { AgentBoundRequest } from "@bfb/protocol";
 
 import {
   answerAttentionCommand,
@@ -21,6 +22,7 @@ import { randomUlid } from "../src/ids.js";
 import { claimLaunchCommand, startLaunchCommand } from "../src/launches.js";
 import { createTaskCommand } from "../src/work-commands.js";
 import { launchFixture, LAUNCH_NOW, success } from "./launch-fixture.js";
+import { prepareAttentionBinding, prepareAttentionClaim } from "./attention-fixture.js";
 
 type Fixture = Awaited<ReturnType<typeof launchFixture>>;
 
@@ -29,15 +31,18 @@ interface BoundRun {
   executionId: string;
   generation: number;
   taskId: string;
+  request: AgentBoundRequest;
 }
 
 async function boundRun(f: Fixture): Promise<BoundRun> {
-  const { claimed } = await f.claim();
+  const full = await f.claim();
+  const { claimed } = full;
   return {
     runId: claimed.specification.run_id,
     executionId: claimed.specification.run_execution_id,
     generation: claimed.specification.assignment_generation,
     taskId: f.task.id,
+    request: await prepareAttentionBinding(f, full),
   };
 }
 
@@ -97,6 +102,7 @@ async function freshBound(f: Fixture): Promise<BoundRun> {
     executionId: claimed.claim.specification.run_execution_id,
     generation: claimed.claim.specification.assignment_generation,
     taskId: task.id,
+    request: await prepareAttentionClaim(f, claimed.claim),
   };
 }
 
@@ -107,13 +113,13 @@ function requestInput(
 ): Record<string, unknown> {
   return {
     principal: f.principal,
-    runId: bound.runId,
-    executionId: bound.executionId,
-    assignmentGeneration: bound.generation,
-    kind: "clarification",
-    question: "Synthetic clarification question",
-    blocking: true,
-    ...overrides,
+    request: {
+      ...bound.request,
+      kind: "clarification",
+      question: "Synthetic clarification question",
+      blocking: true,
+      ...overrides,
+    },
   };
 }
 
@@ -131,6 +137,12 @@ async function answerAs(
     input,
   });
 }
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(LAUNCH_NOW));
+});
+afterEach(() => vi.useRealTimers());
 
 describe("attention request", () => {
   it("commits an open request with derived permission and a requested observation", async () => {
@@ -191,11 +203,19 @@ describe("attention request", () => {
         actorRunnerId: f.runner,
         authorizationEpoch: 1,
         now: LAUNCH_NOW,
-        input: requestInput(f, bound, { question: "Synthetic changed retry" }),
+        input: requestInput(f, bound),
       }),
     );
     expect(second).toEqual({ ...first, question: first.question });
     expect(second.id).toBe(first.id);
+    const changed = await f.hub.execute(requestAttentionCommand, {
+      workspaceId: FIX.workspace,
+      idempotencyKey: key,
+      actorRunnerId: f.runner,
+      authorizationEpoch: 1,
+      input: requestInput(f, bound, { question: "Synthetic changed retry" }),
+    });
+    expect(changed).toMatchObject({ ok: false, error: { code: "request_rejected" } });
   });
 
   it("rejects unknown executions, foreign runs, and dangling references uniformly", async () => {
@@ -203,18 +223,22 @@ describe("attention request", () => {
     const bound = await boundRun(f);
     const unknown = await f.native(
       requestAttentionCommand,
-      requestInput(f, bound, { executionId: randomUlid() }),
+      requestInput(f, bound, {
+        reference: { ...bound.request.reference, run_execution_id: randomUlid() },
+      }),
     );
     expect(unknown.ok).toBe(false);
-    if (!unknown.ok) expect(unknown.error.code).toBe("request_rejected");
+    if (!unknown.ok) expect(unknown.error.code).toBe("boundary_escape");
     const foreign = await f.native(
       requestAttentionCommand,
-      requestInput(f, bound, { runId: randomUlid() }),
+      requestInput(f, bound, {
+        binding: { ...bound.request.binding, provider_session_id: randomUlid() },
+      }),
     );
     expect(foreign.ok).toBe(false);
     const dangling = await f.native(
       requestAttentionCommand,
-      requestInput(f, bound, { referenceKind: "artifact_version" }),
+      requestInput(f, bound, { reference_kind: "artifact_version" }),
     );
     expect(dangling.ok).toBe(false);
     const oversized = await f.native(
@@ -232,7 +256,7 @@ describe("attention request", () => {
       .run(FIX.workspace, bound.runId);
     const outcome = await f.native(requestAttentionCommand, requestInput(f, bound));
     expect(outcome.ok).toBe(false);
-    if (!outcome.ok) expect(outcome.error.code).toBe("invalid_transition");
+    if (!outcome.ok) expect(outcome.error.code).toBe("capability_closed");
   });
 });
 

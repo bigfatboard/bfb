@@ -1,7 +1,7 @@
 // ABOUTME: Exercises mounted A02 attention list, read, answer, and resolve browser routes.
 // ABOUTME: Route tests enforce session auth, role scope, version conflicts, and duplicate-answer safety.
 
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   authorizeSyntheticPolicyUpdate,
@@ -13,6 +13,8 @@ import {
   replaceRunnerInventoryCommand,
   reportRepositoryConfigCommand,
   requestAttentionCommand,
+  prepareSyntheticAttentionClaim,
+  resolveCommand,
   runnerHash,
   seedSyntheticWorkspace,
   startLaunchCommand,
@@ -23,7 +25,7 @@ import {
   type PolicySettings,
   type RunnerPrincipal,
 } from "@bfb/domain";
-import type { RunnerInventory } from "@bfb/protocol";
+import type { LaunchClaimResult, RunnerInventory } from "@bfb/protocol";
 
 import { parseAuthKeys } from "../src/auth/better-auth.js";
 import { validateControlEnv, type ControlBindings } from "../src/env.js";
@@ -39,6 +41,12 @@ import {
 const NOW = "2026-08-12T08:00:00Z";
 const DIGEST = `sha256:${"a".repeat(64)}`;
 const EMPTY_CONFIG = `sha256:${runnerHash("{}")}`;
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(NOW));
+});
+afterEach(() => vi.useRealTimers());
 
 function fakeBinding<T extends object>(label: string): T {
   return { __synthetic: label } as unknown as T;
@@ -323,9 +331,7 @@ async function seedAttentionRun(
   });
   const claimed = await native<{
     state: string;
-    claim: {
-      specification: { run_execution_id: string; assignment_generation: number; run_id: string };
-    };
+    claim: LaunchClaimResult;
   }>(claimLaunchCommand, {
     principal,
     claim: {
@@ -337,14 +343,19 @@ async function seedAttentionRun(
     },
   });
   if (claimed.state !== "claimed") throw new Error(claimed.state);
+  const bound = await prepareSyntheticAttentionClaim(
+    async (name, input) => {
+      const command = resolveCommand(name);
+      if (!command) throw new Error(`missing fixture command ${name}`);
+      return native(command, input);
+    },
+    principal,
+    claimed.claim,
+    NOW,
+  );
   const requested = await native<{ id: string; run_id: string }>(requestAttentionCommand, {
     principal,
-    runId: claimed.claim.specification.run_id,
-    executionId: claimed.claim.specification.run_execution_id,
-    assignmentGeneration: claimed.claim.specification.assignment_generation,
-    kind,
-    question,
-    blocking: kind === "credential",
+    request: { ...bound, kind, question, blocking: kind === "credential" },
   });
   return { attentionId: requested.id, runId: requested.run_id };
 }

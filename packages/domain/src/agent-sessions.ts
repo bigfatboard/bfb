@@ -84,6 +84,10 @@ export interface AgentCaptureConfirmationInput {
   request: AgentCaptureConfirmationRequest;
 }
 interface BindingRow {
+  run_id: string;
+  runner_id: string;
+  source_task_id: string;
+  project_id: string;
   provider_session_id: string;
   provider: AgentSessionReference["provider"];
   observed_session_id: string;
@@ -125,23 +129,17 @@ const safeReference = (reference: AgentWorkRequest) => ({
 async function bindingRow(ctx: HubContext, row: BoundRun): Promise<BindingRow | undefined> {
   return (await ctx.db
     .prepare(
-      `SELECT binding.provider_session_id, binding.provider,
+      `SELECT binding.run_id, binding.runner_id, binding.source_task_id, binding.project_id,
+    binding.provider_session_id, binding.provider,
     binding.observed_session_id, binding.observed_at, binding.confirmed_at,
     session.state AS session_state
     FROM execution_session_bindings binding
     LEFT JOIN provider_sessions session ON session.workspace_id = binding.workspace_id
       AND session.run_id = binding.run_id AND session.id = binding.provider_session_id
       AND session.provider = binding.provider AND session.observed_session_id = binding.observed_session_id
-    WHERE binding.workspace_id = ? AND binding.execution_id = ? AND binding.assignment_generation = ?
-      AND binding.run_id = ? AND binding.runner_id = ?`,
+    WHERE binding.workspace_id = ? AND binding.execution_id = ? AND binding.assignment_generation = ?`,
     )
-    .get(
-      ctx.workspaceId,
-      row.execution_id,
-      row.assignment_generation,
-      row.run_id,
-      row.runner_id,
-    )) as BindingRow | undefined;
+    .get(ctx.workspaceId, row.execution_id, row.assignment_generation)) as BindingRow | undefined;
 }
 function origin(row: BoundRun, sessionId: string) {
   return {
@@ -314,9 +312,28 @@ export const bindAgentSessionCommand: HubCommand<AgentSessionInput, AgentSession
 async function boundAuthority(input: AgentBoundInput, ctx: HubContext) {
   const request = checked("agent-bound-request", input.request);
   const row = await liveRun({ principal: input.principal, request: request.reference }, ctx);
+  await currentAgentSession(ctx, row, request.binding);
+  return row;
+}
+
+/** Checks a present canonical association without creating one during provisional reads. */
+export async function currentAgentSession(
+  ctx: HubContext,
+  row: BoundRun,
+  supplied?: AgentSessionReference,
+): Promise<AgentSessionReference | null> {
   const binding = await bindingRow(ctx, row);
-  if (!binding) throw new DomainError("session_not_bound", "execution session is not confirmed");
-  if (!matches(binding, request.binding))
+  if (!binding) {
+    if (supplied) throw new DomainError("session_not_bound", "execution session is not confirmed");
+    return null;
+  }
+  if (
+    binding.run_id !== row.run_id ||
+    binding.runner_id !== row.runner_id ||
+    binding.source_task_id !== row.task_id ||
+    binding.project_id !== row.project_id ||
+    (supplied && !matches(binding, supplied))
+  )
     throw new DomainError("session_conflict", "session reference does not match");
   if (binding.session_state !== "active")
     throw new DomainError("capability_closed", "provider session ended");
@@ -328,7 +345,11 @@ async function boundAuthority(input: AgentBoundInput, ctx: HubContext) {
         launch.resume_observed_session_id !== binding.observed_session_id))
   )
     throw new DomainError("session_conflict", "session does not match pinned launch");
-  return row;
+  return {
+    provider_session_id: binding.provider_session_id,
+    provider: binding.provider,
+    observed_session_id: binding.observed_session_id,
+  };
 }
 export const agentBoundAuthorityCommand: HubCommand<AgentBoundInput, AgentAuthorityResult> = {
   name: "agent_run.bound_authority",

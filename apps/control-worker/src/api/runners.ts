@@ -71,6 +71,7 @@ const CHANNEL_SURFACES = new Set([
   "work/authority",
   "work/bound-authority",
   "work/capture-confirmation",
+  "work/attention-get",
 ]);
 
 function response(body: unknown, status = 200): Response {
