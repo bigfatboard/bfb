@@ -14,12 +14,13 @@ export interface PackageGatePlan {
   skipped: PackageGate[];
 }
 
-// Test targets that invoke tools/macos/* or tools/supervisor/native-execution.mjs.
-// Those harnesses assert process.platform === "darwin" and additionally require an
-// Apple development signing identity, a managed provisioning profile, and (for L05)
-// an unlocked GUI Terminal session, so they cannot run on Linux CI or hosted macOS
-// runners. Their proof lives in their own macOS clean-checkout evidence manifests.
-const darwinOnlyTargets = new Set(["pnpm test:l04", "pnpm test:l05"]);
+// These targets invoke native harnesses that assert process.platform === "darwin".
+// A01 runs development-signed daemon/IPC and native ownership proof through
+// tools/local-mcp/native.ts. L04/L05 additionally require managed macOS acceptance
+// signing/provisioning, and L05 requires an unlocked GUI Terminal session.
+// Scheduling skips elsewhere are not acceptance; each target still needs its own
+// macOS clean-checkout evidence and the native harness's required local setup.
+const darwinOnlyTargets = new Set(["pnpm test:a01", "pnpm test:l04", "pnpm test:l05"]);
 
 export function planPackageGates(
   packages: WorkPackage[],

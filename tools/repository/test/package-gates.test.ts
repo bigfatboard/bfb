@@ -1,5 +1,5 @@
 // ABOUTME: Exercises exact done-package gate selection and command-shape rejection.
-// ABOUTME: Proves planned packages are skipped and shared targets run only once.
+// ABOUTME: Keeps platform skips separate from runnable gates and ignores unfinished packages.
 
 import { describe, expect, test } from "vitest";
 
@@ -23,7 +23,14 @@ function workPackage(id: string, status: string, testTarget: string | undefined)
 }
 
 describe("done package gates", () => {
-  const scripts = new Set(["verify", "test:protocol", "test:substrate", "test:l04", "test:l05"]);
+  const scripts = new Set([
+    "verify",
+    "test:protocol",
+    "test:substrate",
+    "test:a01",
+    "test:l04",
+    "test:l05",
+  ]);
 
   test("selects exact done targets once in roadmap order", () => {
     expect(
@@ -33,6 +40,7 @@ describe("done package gates", () => {
           workPackage("F02", "planned", "pnpm test:protocol"),
           workPackage("F03", "done", "pnpm test:substrate"),
           workPackage("F04", "done", "pnpm test:substrate"),
+          workPackage("A01", "in_progress", "pnpm test:a01"),
         ],
         scripts,
         "darwin",
@@ -64,6 +72,7 @@ describe("done package gates", () => {
         workPackage("L04", "done", "pnpm test:l04"),
         workPackage("L05", "done", "pnpm test:l05"),
         workPackage("L06", "done", "pnpm test:substrate"),
+        workPackage("A01", "done", "pnpm test:a01"),
       ],
       scripts,
       "darwin",
@@ -72,24 +81,30 @@ describe("done package gates", () => {
       { command: "pnpm", args: ["test:l04"], packages: ["L04"] },
       { command: "pnpm", args: ["test:l05"], packages: ["L05"] },
       { command: "pnpm", args: ["test:substrate"], packages: ["L06"] },
+      { command: "pnpm", args: ["test:a01"], packages: ["A01"] },
     ]);
     expect(plan.skipped).toEqual([]);
   });
 
-  test("skips macOS-only gates off darwin instead of running their darwin assertion", () => {
-    const plan = planPackageGates(
-      [
-        workPackage("L04", "done", "pnpm test:l04"),
-        workPackage("L05", "done", "pnpm test:l05"),
-        workPackage("L06", "done", "pnpm test:substrate"),
-      ],
-      scripts,
-      "linux",
-    );
-    expect(plan.run).toEqual([{ command: "pnpm", args: ["test:substrate"], packages: ["L06"] }]);
-    expect(plan.skipped).toEqual([
-      { command: "pnpm", args: ["test:l04"], packages: ["L04"] },
-      { command: "pnpm", args: ["test:l05"], packages: ["L05"] },
-    ]);
-  });
+  test.each(["linux", "win32", "freebsd"])(
+    "skips macOS-only gates on %s instead of running their darwin assertion",
+    (platform) => {
+      const plan = planPackageGates(
+        [
+          workPackage("L04", "done", "pnpm test:l04"),
+          workPackage("L05", "done", "pnpm test:l05"),
+          workPackage("L06", "done", "pnpm test:substrate"),
+          workPackage("A01", "done", "pnpm test:a01"),
+        ],
+        scripts,
+        platform,
+      );
+      expect(plan.run).toEqual([{ command: "pnpm", args: ["test:substrate"], packages: ["L06"] }]);
+      expect(plan.skipped).toEqual([
+        { command: "pnpm", args: ["test:l04"], packages: ["L04"] },
+        { command: "pnpm", args: ["test:l05"], packages: ["L05"] },
+        { command: "pnpm", args: ["test:a01"], packages: ["A01"] },
+      ]);
+    },
+  );
 });
