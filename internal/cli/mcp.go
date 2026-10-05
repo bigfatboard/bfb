@@ -7,7 +7,6 @@ import (
 	"context"
 	"database/sql"
 	"os"
-	"path/filepath"
 
 	"github.com/qdis/bfb/internal/daemon"
 	"github.com/qdis/bfb/internal/journal"
@@ -51,12 +50,6 @@ func runMCPStdio(ctx context.Context, invocation Invocation) error {
 	}
 	assignments := localmcp.DaemonAssignments{DB: assignmentsDB}
 	transport := localmcp.RPCTransport{Paths: invocation.Paths, Correlation: env.Correlation}
-	journal, err := localmcp.OpenJournal(filepath.Join(invocation.Paths.Root, "local-mcp-journal.sqlite"))
-	if err != nil {
-		_, _ = os.Stderr.Write([]byte("bfb mcp stdio: storage_failed\n"))
-		return &daemon.Failure{Code: "storage_failed"}
-	}
-	defer journal.Close()
 	server := localmcp.NewServer(ctx, localmcp.Deps{
 		Env:         env,
 		Inspector:   localmcp.OSInspector(),
@@ -64,8 +57,6 @@ func runMCPStdio(ctx context.Context, invocation Invocation) error {
 		Bindings:    sessionBindings(assignmentsDB),
 		Authority:   transport,
 		Transport:   transport,
-		Journal:     journal,
-		Policy:      localmcp.DefaultOfflinePolicy{},
 		Stderr:      os.Stderr,
 	})
 	if code := server.Serve(ctx, invocation.Input, output); code != 0 {

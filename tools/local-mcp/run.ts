@@ -3,7 +3,7 @@
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -118,7 +118,10 @@ build();
   ]);
   assertNoLeak(run.stdout);
   assertNoLeak(run.stderr);
-  assert.ok(existsSync(join(dataDir, "local-mcp-journal.sqlite")), "journal file was not created");
+  assert.ok(
+    !existsSync(join(dataDir, "local-mcp-journal.sqlite")),
+    "provider-side journal was created",
+  );
 }
 
 // Missing environment: refusal with empty stdout.
@@ -157,16 +160,14 @@ build();
   assert.equal(run.stdout, "", `stdout not empty: ${run.stdout}`);
 }
 
-// Journal carries migration 011 even though the assignment is unknown.
+// Even an idle stdio connection cannot open a provider-side journal.
 {
   const dataDir = mkdtempSync(join(tmpdir(), "bfb-a01-data-"));
   serve(["--data-dir", dataDir, "mcp", "stdio"], "", scopedEnv());
   const journal = join(dataDir, "local-mcp-journal.sqlite");
-  assert.ok(existsSync(journal), "journal file missing");
-  const header = readFileSync(journal, "utf8").slice(0, 16);
-  assert.ok(header.startsWith("SQLite format 3"), `not a SQLite file: ${header}`);
+  assert.ok(!existsSync(journal), "provider-side journal was created");
 }
 
 console.log(
-  "local MCP stdio harness: passed (unknown-assignment visibility, stdout purity, env refusal, journal creation)",
+  "local MCP stdio harness: passed (unknown-assignment visibility, stdout purity, env refusal, no provider-side journal)",
 );

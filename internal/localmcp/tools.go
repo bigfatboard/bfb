@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/qdis/bfb/internal/protocol"
+	"github.com/qdis/bfb/internal/protocol/generated"
 )
 
 // ToolDescriptor advertises one tool for tools/list.
@@ -46,8 +47,8 @@ func ToolDescriptors() []ToolDescriptor {
 }
 
 // Host executes tools for one stdio connection. It owns the connection's
-// idempotency map; the capability owns trust state; the journal owns offline
-// durability. Host is safe for concurrent tools/call handling.
+// input-binding map; the capability owns trust state; production writes use
+// daemon-owned durability. Host is safe for concurrent tools/call handling.
 type Host struct {
 	callMutex   sync.Mutex
 	mutex       sync.Mutex
@@ -129,6 +130,12 @@ func (host *Host) CallTool(ctx context.Context, name string, params map[string]a
 		case "revoked", "assignment_ended", "capability_closed":
 			host.capability.Close()
 		}
+		if receipt, ok := result.(generated.AgentWorkReceipt); ok && receipt.ReasonCode != nil {
+			switch *receipt.ReasonCode {
+			case "revoked", "assignment_ended", "capability_closed":
+				host.capability.Close()
+			}
+		}
 	}()
 	// Serialize the bounded connection cache and effects, including identical concurrent calls.
 	host.callMutex.Lock()
@@ -145,6 +152,13 @@ func (host *Host) CallTool(ctx context.Context, name string, params map[string]a
 			return nil, fail("not_implemented")
 		}
 		return nil, fail("method_not_found")
+	}
+	_, daemonAdmission := host.transport.(agentAdmissionTransport)
+	_, daemonWrite := agentWorkActions[name]
+	daemonWrite = daemonAdmission && daemonWrite
+	if daemonAdmission && !daemonWrite && name != "bfb_get_context" && name != "bfb_get_task" {
+		// Later packages cannot fall back to the unsigned provider-side journal.
+		return nil, fail("not_implemented")
 	}
 	if params == nil {
 		return nil, fail("invalid_params")
@@ -189,6 +203,11 @@ func (host *Host) CallTool(ctx context.Context, name string, params map[string]a
 	host.fingerprint = fingerprint
 	host.mutex.Unlock()
 	if reused && prior.fingerprint != fingerprint {
+		// A cached identity conflict is scoped metadata, not an offline receipt.
+		// Recheck live authority even when daemon admission allows offline retry.
+		if err := host.capability.authorize(ctx); err != nil {
+			return nil, err
+		}
 		return nil, fail("request_rejected")
 	}
 	if !reused && full {
@@ -199,6 +218,11 @@ func (host *Host) CallTool(ctx context.Context, name string, params map[string]a
 		return nil, fail("request_rejected")
 	}
 	if result, ok := host.cached(rawRequestID); ok {
+		if daemonWrite {
+			// The daemon revalidates current authority and the original durable
+			// identity before returning either an outcome or a fresh receipt.
+			return host.write(ctx, name, params, rawRequestID, boundary)
+		}
 		if err := host.capability.authorize(ctx); err != nil {
 			return nil, err
 		}
@@ -229,7 +253,12 @@ func (host *Host) CallTool(ctx context.Context, name string, params map[string]a
 		if err != nil {
 			return nil, err
 		}
-		host.remember(rawRequestID, result)
+		if daemonWrite {
+			// Retain input binding, never a pending receipt or private cached body.
+			host.remember(rawRequestID, nil)
+		} else {
+			host.remember(rawRequestID, result)
+		}
 		return result, nil
 	}
 }
@@ -281,6 +310,18 @@ func (host *Host) read(ctx context.Context, name string, requestID string) (any,
 }
 
 func (host *Host) write(ctx context.Context, name string, params map[string]any, requestID string, boundary Boundary) (any, error) {
+	if admission, ok := host.transport.(agentAdmissionTransport); ok {
+		if _, supported := agentWorkActions[name]; !supported {
+			return nil, fail("not_implemented")
+		}
+		if _, err := validatedPayload(name, params, boundary); err != nil {
+			return nil, err
+		}
+		if err := host.capability.allowDaemonWrite(ctx); err != nil {
+			return nil, err
+		}
+		return admission.admitAgentWork(ctx, boundary, host.capability.ConfirmedSession(), name, params, requestID)
+	}
 	if err := host.capability.authorize(ctx); err != nil {
 		return nil, err
 	}

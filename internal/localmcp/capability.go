@@ -103,7 +103,7 @@ func (capability *Capability) authorize(ctx context.Context) error {
 		case "revoked", "assignment_ended", "capability_closed":
 			capability.Close()
 			return err
-		case "offline_rejected", "peer_denied", "assignment_unknown", "correlation_rejected", "boundary_escape", "storage_failed", "request_rejected", "forbidden", "not_found", "session_conflict", "session_not_bound", "protocol_unsupported":
+		case "offline_rejected", "work_unavailable", "peer_denied", "assignment_unknown", "correlation_rejected", "boundary_escape", "storage_failed", "request_rejected", "forbidden", "not_found", "session_conflict", "session_not_bound", "protocol_unsupported":
 			return err
 		}
 		return fail("internal_error")
@@ -121,6 +121,47 @@ func (capability *Capability) authorize(ctx context.Context) error {
 	default:
 		return nil
 	}
+}
+
+// allowDaemonWrite never activates without the live canonical binding. An
+// already-activated session may reach daemon admission through a transient
+// cloud failure, but not through changed local binding or known denial.
+func (capability *Capability) allowDaemonWrite(ctx context.Context) error {
+	if capability.State() != StateActivated {
+		return capability.allowWrite(ctx)
+	}
+	session := capability.ConfirmedSession()
+	checkBinding := func() error {
+		binding, err := capability.bindings.ObservedBinding(ctx, capability.ref())
+		if errors.Is(err, ErrSessionNotBound) {
+			return fail("session_not_bound")
+		}
+		if err != nil {
+			return err
+		}
+		if !bindingMatches(capability.ref(), binding) || binding.Provider != session.Provider || binding.ObservedSessionID != session.ObservedSessionId {
+			return fail("session_conflict")
+		}
+		return nil
+	}
+	if err := checkBinding(); err != nil {
+		return err
+	}
+	if err := capability.authorize(ctx); err != nil && CodeOf(err) != "offline_rejected" && CodeOf(err) != "work_unavailable" {
+		return err
+	}
+	if err := checkBinding(); err != nil {
+		return err
+	}
+	capability.mutex.Lock()
+	defer capability.mutex.Unlock()
+	if capability.state != StateActivated {
+		return fail("capability_closed")
+	}
+	if capability.session != session {
+		return fail("session_conflict")
+	}
+	return nil
 }
 
 // allowRead authorizes a bootstrap read: provisional or activated both serve.

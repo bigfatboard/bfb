@@ -76,6 +76,8 @@ func jsonRPCCode(code string) (int, string) {
 		return -32018, "Upgrade the local daemon to support this agent protocol."
 	case "child_limit":
 		return -32019, "The project policy child-task limit has been reached."
+	case "work_unavailable":
+		return -32020, "The work service is temporarily unavailable."
 	default:
 		return -32603, "The local operation failed."
 	}

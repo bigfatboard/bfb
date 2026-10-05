@@ -8,6 +8,8 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -165,6 +167,9 @@ func TestMCPStdioBoundSessionCannotInventOfflinePolicy(t *testing.T) {
 	}
 	if strings.Contains(output, testToken) || strings.Contains(output, "Synthetic comment") {
 		t.Fatalf("receipt leaks request material: %s", output)
+	}
+	if _, err := os.Lstat(filepath.Join(dataDir, "local-mcp-journal.sqlite")); !os.IsNotExist(err) {
+		t.Fatal("provider-side stdio opened a journal", err)
 	}
 }
 
