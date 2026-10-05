@@ -32,6 +32,7 @@ import {
 } from "@bfb/db";
 import {
   acceptResultCommand,
+  authorizeSyntheticPolicyUpdate,
   answerAttentionCommand,
   artifactObjectKey,
   canonicalRunnerKey,
@@ -827,19 +828,39 @@ const policy = {
   allowRunOverrides: true,
 };
 ok(
-  await human(updateWorkspacePolicyCommand, {
-    ...policy,
-    allowedProviders: [...policy.allowedProviders],
-    expectedVersion: 1,
-  }),
+  await human(
+    updateWorkspacePolicyCommand,
+    await authorizeSyntheticPolicyUpdate(
+      db,
+      {
+        workspaceId: FIX.workspace,
+        humanId: FIX.owner,
+      },
+      {
+        ...policy,
+        allowedProviders: [...policy.allowedProviders],
+        expectedVersion: 1,
+      },
+    ),
+  ),
 );
 ok(
-  await human(updateProjectPolicyCommand, {
-    ...policy,
-    allowedProviders: [...policy.allowedProviders],
-    expectedVersion: 1,
-    projectId: FIX.projectA,
-  }),
+  await human(
+    updateProjectPolicyCommand,
+    await authorizeSyntheticPolicyUpdate(
+      db,
+      {
+        workspaceId: FIX.workspace,
+        humanId: FIX.owner,
+      },
+      {
+        ...policy,
+        allowedProviders: [...policy.allowedProviders],
+        expectedVersion: 1,
+        projectId: FIX.projectA,
+      },
+    ),
+  ),
 );
 ok(
   await human(reportRepositoryConfigCommand, {

@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 
 import { adaptD1, loadMigrationManifest, type D1Like } from "@bfb/db";
 import {
+  authorizeSyntheticPolicyUpdate,
   canonicalRunnerKey,
   encodeRunnerToken,
   FIX,
@@ -24,6 +25,7 @@ import {
   seedSyntheticWorkspace,
   selectNotificationEvent,
   type CommandOutcome,
+  type PolicySettings,
   type RunnerChallenge,
   type RunnerPrincipal,
   type RunnerTokenClaims,
@@ -670,7 +672,7 @@ async function tableCount(table: string): Promise<number> {
   return row.count;
 }
 
-const policy = {
+const policy: Omit<PolicySettings, "offlineAgentWork"> = {
   allowedProviders: ["fake"],
   allowAgentRootPropose: false,
   allowPassToAgent: true,
@@ -838,8 +840,28 @@ try {
   }
 
   // S2: seed the notification world.
-  await human("workspace.policy.update", { ...policy, expectedVersion: 1 });
-  await human("project.policy.update", { ...policy, projectId: FIX.projectA, expectedVersion: 1 });
+  await human(
+    "workspace.policy.update",
+    await authorizeSyntheticPolicyUpdate(
+      db,
+      {
+        workspaceId: FIX.workspace,
+        humanId: FIX.owner,
+      },
+      { ...policy, expectedVersion: 1 },
+    ),
+  );
+  await human(
+    "project.policy.update",
+    await authorizeSyntheticPolicyUpdate(
+      db,
+      {
+        workspaceId: FIX.workspace,
+        humanId: FIX.owner,
+      },
+      { ...policy, projectId: FIX.projectA, expectedVersion: 1 },
+    ),
+  );
   await human("repository.config.report", {
     projectId: FIX.projectA,
     expectedVersion: 1,

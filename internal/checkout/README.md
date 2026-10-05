@@ -45,10 +45,23 @@ fallback is attempted.
 
 The detected Git root's `.bfb/config.yaml` governs root and monorepo-subdirectory
 registrations. The only fields are `allowed_providers`,
-`allow_agent_root_propose`, `allow_pass_to_agent` and `allow_run_overrides`.
+`allow_agent_root_propose`, `allow_pass_to_agent`, `allow_run_overrides` and
+the optional closed `offline_agent_work` object.
 Absent files and comment-only documents mean `{}`. The parser rejects symlinked
 policy files/directories, non-regular files, content above 8 KiB, unknown fields,
 duplicate keys, aliases, anchors and ambiguous/non-boolean flags.
+
+`offline_agent_work` requires `allowed_tools` and `max_pending_age_seconds`.
+Its four possible tools are `bfb_add_comment`, `bfb_propose_task`,
+`bfb_report_progress` and `bfb_update_task`; the parser sorts and deduplicates
+them. An empty set requires age zero, and a nonempty set requires an integer
+age from 1 through 300 seconds. Omission stays absent in canonical JSON and
+means denied capture in cloud policy; it never inherits enabled permission.
+Existing `{}` bytes and hashes stay unchanged. The separate four-field launch
+`Policy` projection and closed launch-tightening wire contract are unchanged.
+Parsing this field does not grant capture or replay authority; A01 must verify
+the exact approved immutable policy versions under
+[ADR 0006](../../docs/adr/0006-daemon-owned-pending-agent-work.md).
 
 Canonical JSON sorts object keys and normalizes provider lists. The owning
 conformance command is `pnpm test:l02`: Go parses the synthetic YAML cases in
@@ -56,6 +69,11 @@ conformance command is `pnpm test:l02`: Go parses the synthetic YAML cases in
 through the existing WorkspaceHub repository-policy command. Both must produce
 the recorded hash and inherited restrictions or the same widening failure.
 Fixtures are hand-maintained synthetic contract inputs, not runtime output.
+The additional hand-maintained `internal/checkout/testdata/offline-agent-work.json`
+cases pin native/cloud canonical bytes and hashes. Their owning checks are
+`go test ./internal/checkout/...` and
+`pnpm exec vitest run packages/domain/test/checkout-contract.test.ts`; both are
+included in the expanded A01 target.
 Protocol sources under `protocol/schema/v1` own generated types/validators;
 `pnpm protocol:generate` is their deterministic generator.
 

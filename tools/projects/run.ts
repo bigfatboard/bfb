@@ -6,7 +6,13 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { adaptD1, MIGRATION_HEAD, type D1Like } from "@bfb/db";
-import { randomUlid, type CommandOutcome, type ProjectRecord } from "@bfb/domain";
+import {
+  authorizeSyntheticPolicyUpdate,
+  randomUlid,
+  type CommandOutcome,
+  type ProjectRecord,
+  type PolicySettings,
+} from "@bfb/domain";
 import { createTestHarness } from "wrangler";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -136,7 +142,10 @@ async function main(): Promise<void> {
       1,
     );
 
-    const policyInput = {
+    const policyInput: Omit<PolicySettings, "offlineAgentWork"> & {
+      projectId: string;
+      expectedVersion: number;
+    } = {
       projectId,
       expectedVersion: 1,
       allowedProviders: ["codex"],
@@ -144,16 +153,32 @@ async function main(): Promise<void> {
       allowPassToAgent: false,
       allowRunOverrides: false,
     };
+    const firstPolicy = await authorizeSyntheticPolicyUpdate(
+      db,
+      { workspaceId, humanId },
+      policyInput,
+    );
+    const secondPolicy = await authorizeSyntheticPolicyUpdate(
+      db,
+      { workspaceId, humanId },
+      policyInput,
+    );
     const policyRacers = await Promise.all([
       execute(
         "bfb-projects-a",
         workspaceId,
-        request(workspaceId, humanId, "project.policy.update", "c07-workerd-policy-a", policyInput),
+        request(workspaceId, humanId, "project.policy.update", "c07-workerd-policy-a", firstPolicy),
       ),
       execute(
         "bfb-projects-b",
         workspaceId,
-        request(workspaceId, humanId, "project.policy.update", "c07-workerd-policy-b", policyInput),
+        request(
+          workspaceId,
+          humanId,
+          "project.policy.update",
+          "c07-workerd-policy-b",
+          secondPolicy,
+        ),
       ),
     ]);
     assert.equal(policyRacers.filter((outcome) => outcome.ok).length, 1);

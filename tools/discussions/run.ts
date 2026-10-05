@@ -8,12 +8,14 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { adaptD1, loadMigrationManifest, type D1Like } from "@bfb/db";
 import {
+  authorizeSyntheticPolicyUpdate,
   FIX,
   randomUlid,
   runnerHash,
   seedSyntheticWorkspace,
   type CommandOutcome,
   type AgentProfileRecord,
+  type PolicySettings,
   type TaskRecord,
 } from "@bfb/domain";
 import type {
@@ -198,14 +200,34 @@ try {
     "D01_MIGRATION_OK empty and populated 0016 upgrade preserve work, sessions, snapshots and event cursor",
   );
 
-  const policy = {
+  const policy: Omit<PolicySettings, "offlineAgentWork"> = {
     allowedProviders: ["claude", "codex"],
     allowAgentRootPropose: false,
     allowPassToAgent: true,
     allowRunOverrides: true,
   };
-  await human("workspace.policy.update", { ...policy, expectedVersion: 1 });
-  await human("project.policy.update", { ...policy, projectId: FIX.projectA, expectedVersion: 1 });
+  await human(
+    "workspace.policy.update",
+    await authorizeSyntheticPolicyUpdate(
+      db,
+      {
+        workspaceId: FIX.workspace,
+        humanId: FIX.owner,
+      },
+      { ...policy, expectedVersion: 1 },
+    ),
+  );
+  await human(
+    "project.policy.update",
+    await authorizeSyntheticPolicyUpdate(
+      db,
+      {
+        workspaceId: FIX.workspace,
+        humanId: FIX.owner,
+      },
+      { ...policy, projectId: FIX.projectA, expectedVersion: 1 },
+    ),
+  );
   await human("repository.config.report", {
     projectId: FIX.projectA,
     expectedVersion: 1,

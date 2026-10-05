@@ -4,6 +4,50 @@
 import type { Jurisdiction, SqlDatabase } from "@bfb/db";
 
 import { syntheticUlid } from "./ids.js";
+import { deniedOfflineAgentWork, type OfflineAgentWorkPolicy } from "./offline-agent-policy.js";
+import { policyUpdateTarget, type UpdatePolicyInput } from "./projects.js";
+import { issueStepUpProof } from "./step-up.js";
+
+/** Synthetic setup only: exercise the same bound policy proof as a verified browser assertion. */
+export async function authorizeSyntheticPolicyUpdate<
+  T extends Omit<UpdatePolicyInput, "stepUpProofId" | "offlineAgentWork"> & {
+    projectId?: string;
+    offlineAgentWork?: OfflineAgentWorkPolicy;
+  },
+>(
+  db: SqlDatabase,
+  scope: { workspaceId: string; humanId: string; authorizationEpoch?: number },
+  input: T,
+): Promise<T & { offlineAgentWork: OfflineAgentWorkPolicy; stepUpProofId: string }> {
+  const settings = {
+    ...input,
+    offlineAgentWork: input.offlineAgentWork ?? deniedOfflineAgentWork(),
+  };
+  const action =
+    input.projectId === undefined ? "workspace.policy.update" : "project.policy.update";
+  const now = new Date().toISOString();
+  const stepUpProofId = await issueStepUpProof(
+    db,
+    scope.humanId,
+    {
+      action,
+      workspaceId: scope.workspaceId,
+      ...(input.projectId === undefined ? {} : { projectId: input.projectId }),
+      targetId: policyUpdateTarget(
+        scope.workspaceId,
+        action,
+        input.projectId,
+        input.expectedVersion,
+        settings,
+      ),
+      scopes: [],
+      authorizationEpoch: scope.authorizationEpoch ?? 1,
+      expiresAt: new Date(Date.parse(now) + 60_000).toISOString(),
+    },
+    now,
+  );
+  return { ...settings, stepUpProofId };
+}
 
 export const FIX = {
   workspace: syntheticUlid("WORKSPACE"),

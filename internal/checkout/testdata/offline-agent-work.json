@@ -1,0 +1,261 @@
+{
+  "contract": "bfb-checkout-offline-agent-work/1",
+  "maintenance": "Hand-maintained synthetic fixtures. Conformance: go test -count=1 ./internal/checkout -run TestOfflineRepositoryConfigContract; pnpm exec vitest run packages/domain/test/checkout-contract.test.ts.",
+  "fixtures": [
+    {
+      "name": "omitted-denies-without-changing-empty-bytes",
+      "yaml": "# Offline permission is absent.\n",
+      "document": {},
+      "canonical": "{}",
+      "hash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+    },
+    {
+      "name": "explicit-deny",
+      "yaml": "offline_agent_work:\n  max_pending_age_seconds: 0\n  allowed_tools: []\n",
+      "document": { "offline_agent_work": { "allowed_tools": [], "max_pending_age_seconds": 0 } },
+      "canonical": "{\"offline_agent_work\":{\"allowed_tools\":[],\"max_pending_age_seconds\":0}}",
+      "hash": "sha256:790fbb8efefdd851728fc075790ee86212a66a77e94f6936f4d95b0ce5aafbf1"
+    },
+    {
+      "name": "minimum-age",
+      "yaml": "offline_agent_work: {allowed_tools: [bfb_add_comment], max_pending_age_seconds: 1}\n",
+      "document": {
+        "offline_agent_work": { "allowed_tools": ["bfb_add_comment"], "max_pending_age_seconds": 1 }
+      },
+      "canonical": "{\"offline_agent_work\":{\"allowed_tools\":[\"bfb_add_comment\"],\"max_pending_age_seconds\":1}}",
+      "hash": "sha256:db0912e6f2f1c19364ad3b5db2e70b35954d772c09b88f47b22e4475559c0c76"
+    },
+    {
+      "name": "integer-valued-decimal",
+      "yaml": "offline_agent_work: {allowed_tools: [bfb_add_comment], max_pending_age_seconds: 1.0}\n",
+      "document": {
+        "offline_agent_work": {
+          "allowed_tools": ["bfb_add_comment"],
+          "max_pending_age_seconds": 1.0
+        }
+      },
+      "canonical": "{\"offline_agent_work\":{\"allowed_tools\":[\"bfb_add_comment\"],\"max_pending_age_seconds\":1}}",
+      "hash": "sha256:db0912e6f2f1c19364ad3b5db2e70b35954d772c09b88f47b22e4475559c0c76"
+    },
+    {
+      "name": "integer-valued-exponent",
+      "yaml": "offline_agent_work: {allowed_tools: [bfb_add_comment], max_pending_age_seconds: 1e2}\n",
+      "document": {
+        "offline_agent_work": {
+          "allowed_tools": ["bfb_add_comment"],
+          "max_pending_age_seconds": 1e2
+        }
+      },
+      "canonical": "{\"offline_agent_work\":{\"allowed_tools\":[\"bfb_add_comment\"],\"max_pending_age_seconds\":100}}",
+      "hash": "sha256:5ae3a906cedbe9bab3c84f1ef84f061795a026cf8661e49065f672d89be6bf5c"
+    },
+    {
+      "name": "sorted-deduplicated-tools-at-maximum-age",
+      "yaml": "offline_agent_work:\n  max_pending_age_seconds: 300\n  allowed_tools: [bfb_update_task, bfb_report_progress, bfb_add_comment, bfb_update_task, bfb_propose_task]\n",
+      "document": {
+        "offline_agent_work": {
+          "allowed_tools": [
+            "bfb_update_task",
+            "bfb_report_progress",
+            "bfb_add_comment",
+            "bfb_update_task",
+            "bfb_propose_task"
+          ],
+          "max_pending_age_seconds": 300
+        }
+      },
+      "canonical": "{\"offline_agent_work\":{\"allowed_tools\":[\"bfb_add_comment\",\"bfb_propose_task\",\"bfb_report_progress\",\"bfb_update_task\"],\"max_pending_age_seconds\":300}}",
+      "hash": "sha256:a418ade7b96f9f1a0bc1653fcef469a792850f042ba5b35a17203eff6ca46626"
+    },
+    {
+      "name": "all-five-repository-fields",
+      "yaml": "offline_agent_work: {allowed_tools: [bfb_add_comment], max_pending_age_seconds: 30}\nallowed_providers: [codex]\nallow_run_overrides: false\nallow_pass_to_agent: false\nallow_agent_root_propose: false\n",
+      "document": {
+        "offline_agent_work": {
+          "allowed_tools": ["bfb_add_comment"],
+          "max_pending_age_seconds": 30
+        },
+        "allowed_providers": ["codex"],
+        "allow_run_overrides": false,
+        "allow_pass_to_agent": false,
+        "allow_agent_root_propose": false
+      },
+      "canonical": "{\"allow_agent_root_propose\":false,\"allow_pass_to_agent\":false,\"allow_run_overrides\":false,\"allowed_providers\":[\"codex\"],\"offline_agent_work\":{\"allowed_tools\":[\"bfb_add_comment\"],\"max_pending_age_seconds\":30}}",
+      "hash": "sha256:45379c5a83840450e26798f5ffac6e223622894d404472e0213b38683557da41"
+    },
+    {
+      "name": "null-object",
+      "yaml": "offline_agent_work: null",
+      "document": { "offline_agent_work": null },
+      "error": "invalid"
+    },
+    {
+      "name": "array-object",
+      "yaml": "offline_agent_work: []",
+      "document": { "offline_agent_work": [] },
+      "error": "invalid"
+    },
+    {
+      "name": "scalar-object",
+      "yaml": "offline_agent_work: false",
+      "document": { "offline_agent_work": false },
+      "error": "invalid"
+    },
+    {
+      "name": "empty-object",
+      "yaml": "offline_agent_work: {}",
+      "document": { "offline_agent_work": {} },
+      "error": "invalid"
+    },
+    {
+      "name": "missing-tools",
+      "yaml": "offline_agent_work: {max_pending_age_seconds: 0}",
+      "document": { "offline_agent_work": { "max_pending_age_seconds": 0 } },
+      "error": "invalid"
+    },
+    {
+      "name": "missing-age",
+      "yaml": "offline_agent_work: {allowed_tools: []}",
+      "document": { "offline_agent_work": { "allowed_tools": [] } },
+      "error": "invalid"
+    },
+    {
+      "name": "extra-key",
+      "yaml": "offline_agent_work: {allowed_tools: [], max_pending_age_seconds: 0, capture: true}",
+      "document": {
+        "offline_agent_work": { "allowed_tools": [], "max_pending_age_seconds": 0, "capture": true }
+      },
+      "error": "invalid"
+    },
+    {
+      "name": "unknown-key-with-two-fields",
+      "yaml": "offline_agent_work: {allowed_tools: [], max_pending_age_second: 0}",
+      "document": { "offline_agent_work": { "allowed_tools": [], "max_pending_age_second": 0 } },
+      "error": "invalid"
+    },
+    {
+      "name": "null-tools",
+      "yaml": "offline_agent_work: {allowed_tools: null, max_pending_age_seconds: 0}",
+      "document": { "offline_agent_work": { "allowed_tools": null, "max_pending_age_seconds": 0 } },
+      "error": "invalid"
+    },
+    {
+      "name": "scalar-tools",
+      "yaml": "offline_agent_work: {allowed_tools: bfb_add_comment, max_pending_age_seconds: 1}",
+      "document": {
+        "offline_agent_work": { "allowed_tools": "bfb_add_comment", "max_pending_age_seconds": 1 }
+      },
+      "error": "invalid"
+    },
+    {
+      "name": "non-string-tool",
+      "yaml": "offline_agent_work: {allowed_tools: [false], max_pending_age_seconds: 1}",
+      "document": {
+        "offline_agent_work": { "allowed_tools": [false], "max_pending_age_seconds": 1 }
+      },
+      "error": "invalid"
+    },
+    {
+      "name": "unsupported-result-tool",
+      "yaml": "offline_agent_work: {allowed_tools: [bfb_submit_result], max_pending_age_seconds: 1}",
+      "document": {
+        "offline_agent_work": {
+          "allowed_tools": ["bfb_submit_result"],
+          "max_pending_age_seconds": 1
+        }
+      },
+      "error": "invalid"
+    },
+    {
+      "name": "unsupported-attention-tool",
+      "yaml": "offline_agent_work: {allowed_tools: [bfb_request_human], max_pending_age_seconds: 1}",
+      "document": {
+        "offline_agent_work": {
+          "allowed_tools": ["bfb_request_human"],
+          "max_pending_age_seconds": 1
+        }
+      },
+      "error": "invalid"
+    },
+    {
+      "name": "null-age",
+      "yaml": "offline_agent_work: {allowed_tools: [], max_pending_age_seconds: null}",
+      "document": {
+        "offline_agent_work": { "allowed_tools": [], "max_pending_age_seconds": null }
+      },
+      "error": "invalid"
+    },
+    {
+      "name": "string-age",
+      "yaml": "offline_agent_work: {allowed_tools: [bfb_add_comment], max_pending_age_seconds: '1'}",
+      "document": {
+        "offline_agent_work": {
+          "allowed_tools": ["bfb_add_comment"],
+          "max_pending_age_seconds": "1"
+        }
+      },
+      "error": "invalid"
+    },
+    {
+      "name": "boolean-age",
+      "yaml": "offline_agent_work: {allowed_tools: [], max_pending_age_seconds: false}",
+      "document": {
+        "offline_agent_work": { "allowed_tools": [], "max_pending_age_seconds": false }
+      },
+      "error": "invalid"
+    },
+    {
+      "name": "fractional-age",
+      "yaml": "offline_agent_work: {allowed_tools: [bfb_add_comment], max_pending_age_seconds: 1.5}",
+      "document": {
+        "offline_agent_work": {
+          "allowed_tools": ["bfb_add_comment"],
+          "max_pending_age_seconds": 1.5
+        }
+      },
+      "error": "invalid"
+    },
+    {
+      "name": "zero-enabled-age",
+      "yaml": "offline_agent_work: {allowed_tools: [bfb_add_comment], max_pending_age_seconds: 0}",
+      "document": {
+        "offline_agent_work": { "allowed_tools": ["bfb_add_comment"], "max_pending_age_seconds": 0 }
+      },
+      "error": "invalid"
+    },
+    {
+      "name": "excessive-enabled-age",
+      "yaml": "offline_agent_work: {allowed_tools: [bfb_add_comment], max_pending_age_seconds: 301}",
+      "document": {
+        "offline_agent_work": {
+          "allowed_tools": ["bfb_add_comment"],
+          "max_pending_age_seconds": 301
+        }
+      },
+      "error": "invalid"
+    },
+    {
+      "name": "negative-enabled-age",
+      "yaml": "offline_agent_work: {allowed_tools: [bfb_add_comment], max_pending_age_seconds: -1}",
+      "document": {
+        "offline_agent_work": {
+          "allowed_tools": ["bfb_add_comment"],
+          "max_pending_age_seconds": -1
+        }
+      },
+      "error": "invalid"
+    },
+    {
+      "name": "positive-denied-age",
+      "yaml": "offline_agent_work: {allowed_tools: [], max_pending_age_seconds: 1}",
+      "document": { "offline_agent_work": { "allowed_tools": [], "max_pending_age_seconds": 1 } },
+      "error": "invalid"
+    },
+    {
+      "name": "negative-denied-age",
+      "yaml": "offline_agent_work: {allowed_tools: [], max_pending_age_seconds: -1}",
+      "document": { "offline_agent_work": { "allowed_tools": [], "max_pending_age_seconds": -1 } },
+      "error": "invalid"
+    }
+  ]
+}

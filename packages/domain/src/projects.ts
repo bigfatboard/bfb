@@ -14,6 +14,13 @@ import {
 } from "./authorization.js";
 import { DomainError, type HubCommand, type HubContext } from "./hub.js";
 import { isUlid, randomUlid } from "./ids.js";
+import {
+  assertOfflineAgentWorkTightens,
+  deniedOfflineAgentWork,
+  normalizeOfflineAgentWork,
+  type OfflineAgentWorkPolicy,
+} from "./offline-agent-policy.js";
+import { validateStepUpProof } from "./step-up.js";
 
 export const PROVIDERS = ["claude", "codex", "grok", "fake"] as const;
 export type Provider = (typeof PROVIDERS)[number];
@@ -24,6 +31,7 @@ export interface PolicySettings {
   allowAgentRootPropose: boolean;
   allowPassToAgent: boolean;
   allowRunOverrides: boolean;
+  offlineAgentWork: OfflineAgentWorkPolicy;
 }
 
 export interface ProjectRecord {
@@ -53,6 +61,8 @@ interface PolicyRow {
   allow_agent_root_propose: number;
   allow_pass_to_agent: number;
   allow_run_overrides: number;
+  offline_agent_tools_json: string;
+  offline_agent_max_pending_age_seconds: number;
   resource_version: number;
 }
 
@@ -156,15 +166,21 @@ function policyFromRow(row: PolicyRow): PolicySettings {
     allowAgentRootPropose: row.allow_agent_root_propose === 1,
     allowPassToAgent: row.allow_pass_to_agent === 1,
     allowRunOverrides: row.allow_run_overrides === 1,
+    offlineAgentWork: normalizeOfflineAgentWork({
+      allowed_tools: JSON.parse(row.offline_agent_tools_json) as unknown,
+      max_pending_age_seconds: row.offline_agent_max_pending_age_seconds,
+    }),
   };
 }
 
-function policyValues(policy: PolicySettings): [string, number, number, number] {
+function policyValues(policy: PolicySettings): [string, number, number, number, string, number] {
   return [
     JSON.stringify(normalizeProviders(policy.allowedProviders)),
     policy.allowAgentRootPropose ? 1 : 0,
     policy.allowPassToAgent ? 1 : 0,
     policy.allowRunOverrides ? 1 : 0,
+    JSON.stringify(policy.offlineAgentWork.allowed_tools),
+    policy.offlineAgentWork.max_pending_age_seconds,
   ];
 }
 
@@ -181,10 +197,12 @@ function normalizePolicySettings(input: PolicySettings): PolicySettings {
     allowAgentRootPropose: input.allowAgentRootPropose,
     allowPassToAgent: input.allowPassToAgent,
     allowRunOverrides: input.allowRunOverrides,
+    offlineAgentWork: normalizeOfflineAgentWork(input.offlineAgentWork),
   };
 }
 
 export function assertPolicyTightens(parent: PolicySettings, child: PolicySettings): void {
+  assertOfflineAgentWorkTightens(parent.offlineAgentWork, child.offlineAgentWork);
   const parentProviders = new Set(parent.allowedProviders);
   if (child.allowedProviders.some((provider) => !parentProviders.has(provider))) {
     throw new DomainError("policy_widening", "provider policy cannot widen its parent");
@@ -554,6 +572,109 @@ export const changeProjectAccessCommand: HubCommand<
 
 export interface UpdatePolicyInput extends PolicySettings {
   expectedVersion: number;
+  stepUpProofId: string;
+}
+
+export function policyUpdateTarget(
+  workspaceId: string,
+  action: "workspace.policy.update" | "project.policy.update",
+  projectId: string | undefined,
+  expectedVersion: number,
+  input: PolicySettings,
+): string {
+  const settings = normalizePolicySettings(input);
+  return `sha256:${createHash("sha256")
+    .update(
+      JSON.stringify([
+        "BFB-POLICY-UPDATE-V2",
+        action,
+        workspaceId,
+        projectId ?? null,
+        expectedVersion,
+        settings.allowedProviders,
+        settings.allowAgentRootPropose,
+        settings.allowPassToAgent,
+        settings.allowRunOverrides,
+        settings.offlineAgentWork.allowed_tools,
+        settings.offlineAgentWork.max_pending_age_seconds,
+      ]),
+    )
+    .digest("hex")}`;
+}
+
+function policyFingerprint(input: UpdatePolicyInput & { projectId?: string }): string {
+  return createHash("sha256")
+    .update(
+      canonicalJson({
+        projectId: input.projectId ?? null,
+        expectedVersion: input.expectedVersion,
+        settings: normalizePolicySettings(input),
+      }),
+    )
+    .digest("hex");
+}
+
+async function policyAuthority(ctx: HubContext, projectId?: string): Promise<AuthzPrincipal> {
+  if (ctx.actorDelegationId || ctx.actorRunnerId || ctx.actorSystemId) {
+    throw new DomainError("forbidden", "direct authorized human required");
+  }
+  const principal = await requireOwner(ctx);
+  if (projectId !== undefined) await projectForPrincipal(ctx.db, principal, projectId);
+  return principal;
+}
+
+// Predicates and identifiers are compiled here, never accepted from a request.
+async function policyGuard(ctx: HubContext, predicate: string, values: unknown[]): Promise<void> {
+  const id = randomUlid();
+  await ctx.db
+    .prepare(`INSERT INTO runner_mutation_guards (id, valid) VALUES (?, (${predicate}))`)
+    .run(id, ...values);
+  await ctx.db.prepare("DELETE FROM runner_mutation_guards WHERE id = ?").run(id);
+}
+
+async function preparePolicyStepUp(
+  ctx: HubContext,
+  proofId: string | undefined,
+  action: string,
+  targetId: string,
+  projectId?: string,
+): Promise<() => Promise<void>> {
+  if (!proofId || !isUlid(proofId)) {
+    throw new DomainError("step_up_invalid", "step-up proof is required");
+  }
+  const proof = (await ctx.db
+    .prepare("SELECT expires_at FROM passkey_step_up_proofs WHERE proof_id = ?")
+    .get(proofId)) as { expires_at: string } | undefined;
+  if (!proof || !ctx.actorHumanId)
+    throw new DomainError("step_up_invalid", "step-up proof not found");
+  await validateStepUpProof(
+    ctx.db,
+    proofId,
+    {
+      action,
+      workspaceId: ctx.workspaceId,
+      ...(projectId === undefined ? {} : { projectId }),
+      targetId,
+      scopes: [],
+      authorizationEpoch: ctx.authorizationEpoch,
+      expiresAt: proof.expires_at,
+    },
+    ctx.now,
+    ctx.actorHumanId,
+  );
+  const stamp = randomUlid();
+  return async () => {
+    await ctx.db
+      .prepare(
+        "UPDATE passkey_step_up_proofs SET consumed_at = ? WHERE proof_id = ? AND consumed_at IS NULL AND expires_at > ?",
+      )
+      .run(stamp, proofId, ctx.now);
+    await policyGuard(
+      ctx,
+      "SELECT COUNT(*) = 1 FROM passkey_step_up_proofs WHERE proof_id = ? AND consumed_at = ?",
+      [proofId, stamp],
+    );
+  };
 }
 
 export const updateWorkspacePolicyCommand: HubCommand<
@@ -561,20 +682,48 @@ export const updateWorkspacePolicyCommand: HubCommand<
   PolicySettings & { resourceVersion: number }
 > = {
   name: "workspace.policy.update",
+  authorize: async (_input, ctx) => {
+    await policyAuthority(ctx);
+  },
+  inputFingerprint: policyFingerprint,
+  auditInput: (input) => ({
+    expectedVersion: input.expectedVersion,
+    settingsHash: policyFingerprint(input),
+  }),
   async run(input, ctx) {
-    const principal = await requireOwner(ctx);
+    const principal = await policyAuthority(ctx);
     const current = await workspacePolicy(ctx.db, ctx.workspaceId);
     if (current.resource_version !== input.expectedVersion) {
       throw new DomainError("stale_version", "workspace policy version conflict");
     }
     const settings = normalizePolicySettings(input);
     const next = current.resource_version + 1;
-    const [providers, rootPropose, passToAgent, runOverrides] = policyValues(settings);
+    const [providers, rootPropose, passToAgent, runOverrides, offlineTools, offlineAge] =
+      policyValues(settings);
+    const consumeProof = await preparePolicyStepUp(
+      ctx,
+      input.stepUpProofId,
+      "workspace.policy.update",
+      policyUpdateTarget(
+        ctx.workspaceId,
+        "workspace.policy.update",
+        undefined,
+        input.expectedVersion,
+        settings,
+      ),
+    );
+    await consumeProof();
+    await policyGuard(
+      ctx,
+      "SELECT COUNT(*) = 1 FROM workspace_policies WHERE workspace_id = ? AND resource_version = ?",
+      [ctx.workspaceId, input.expectedVersion],
+    );
     await ctx.db
       .prepare(
         `UPDATE workspace_policies
          SET allowed_providers_json = ?, allow_agent_root_propose = ?,
-             allow_pass_to_agent = ?, allow_run_overrides = ?, resource_version = ?
+             allow_pass_to_agent = ?, allow_run_overrides = ?, offline_agent_tools_json = ?,
+             offline_agent_max_pending_age_seconds = ?, resource_version = ?
          WHERE workspace_id = ? AND resource_version = ?`,
       )
       .run(
@@ -582,6 +731,8 @@ export const updateWorkspacePolicyCommand: HubCommand<
         rootPropose,
         passToAgent,
         runOverrides,
+        offlineTools,
+        offlineAge,
         next,
         ctx.workspaceId,
         input.expectedVersion,
@@ -590,8 +741,9 @@ export const updateWorkspacePolicyCommand: HubCommand<
       .prepare(
         `INSERT INTO workspace_policy_versions
          (workspace_id, version, allowed_providers_json, allow_agent_root_propose,
-          allow_pass_to_agent, allow_run_overrides, created_by_human_id, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          allow_pass_to_agent, allow_run_overrides, offline_agent_tools_json,
+          offline_agent_max_pending_age_seconds, created_by_human_id, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         ctx.workspaceId,
@@ -600,6 +752,8 @@ export const updateWorkspacePolicyCommand: HubCommand<
         rootPropose,
         passToAgent,
         runOverrides,
+        offlineTools,
+        offlineAge,
         principal.humanId,
         ctx.now,
       );
@@ -616,9 +770,17 @@ export const updateProjectPolicyCommand: HubCommand<
   PolicySettings & { projectId: string; resourceVersion: number }
 > = {
   name: "project.policy.update",
+  authorize: async (input, ctx) => {
+    await policyAuthority(ctx, input.projectId);
+  },
+  inputFingerprint: policyFingerprint,
+  auditInput: (input) => ({
+    projectId: input.projectId,
+    expectedVersion: input.expectedVersion,
+    settingsHash: policyFingerprint(input),
+  }),
   async run(input, ctx) {
-    const principal = await requireOwner(ctx);
-    await projectForPrincipal(ctx.db, principal, input.projectId);
+    const principal = await policyAuthority(ctx, input.projectId);
     const ceiling = await workspacePolicy(ctx.db, ctx.workspaceId);
     const current = await projectPolicy(ctx.db, ctx.workspaceId, input.projectId);
     if (current.resource_version !== input.expectedVersion) {
@@ -627,12 +789,33 @@ export const updateProjectPolicyCommand: HubCommand<
     const settings = normalizePolicySettings(input);
     assertPolicyTightens(policyFromRow(ceiling), settings);
     const next = current.resource_version + 1;
-    const [providers, rootPropose, passToAgent, runOverrides] = policyValues(settings);
+    const [providers, rootPropose, passToAgent, runOverrides, offlineTools, offlineAge] =
+      policyValues(settings);
+    const consumeProof = await preparePolicyStepUp(
+      ctx,
+      input.stepUpProofId,
+      "project.policy.update",
+      policyUpdateTarget(
+        ctx.workspaceId,
+        "project.policy.update",
+        input.projectId,
+        input.expectedVersion,
+        settings,
+      ),
+      input.projectId,
+    );
+    await consumeProof();
+    await policyGuard(
+      ctx,
+      "SELECT COUNT(*) = 1 FROM project_policies WHERE workspace_id = ? AND project_id = ? AND resource_version = ?",
+      [ctx.workspaceId, input.projectId, input.expectedVersion],
+    );
     await ctx.db
       .prepare(
         `UPDATE project_policies
          SET allowed_providers_json = ?, allow_agent_root_propose = ?,
-             allow_pass_to_agent = ?, allow_run_overrides = ?, resource_version = ?
+             allow_pass_to_agent = ?, allow_run_overrides = ?, offline_agent_tools_json = ?,
+             offline_agent_max_pending_age_seconds = ?, resource_version = ?
          WHERE workspace_id = ? AND project_id = ? AND resource_version = ?`,
       )
       .run(
@@ -640,6 +823,8 @@ export const updateProjectPolicyCommand: HubCommand<
         rootPropose,
         passToAgent,
         runOverrides,
+        offlineTools,
+        offlineAge,
         next,
         ctx.workspaceId,
         input.projectId,
@@ -650,8 +835,9 @@ export const updateProjectPolicyCommand: HubCommand<
         `INSERT INTO project_policy_versions
          (workspace_id, project_id, version, allowed_providers_json,
           allow_agent_root_propose, allow_pass_to_agent, allow_run_overrides,
+          offline_agent_tools_json, offline_agent_max_pending_age_seconds,
           created_by_human_id, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         ctx.workspaceId,
@@ -661,6 +847,8 @@ export const updateProjectPolicyCommand: HubCommand<
         rootPropose,
         passToAgent,
         runOverrides,
+        offlineTools,
+        offlineAge,
         principal.humanId,
         ctx.now,
       );
@@ -673,6 +861,7 @@ type RepositoryConfigDocument = Partial<{
   allow_agent_root_propose: boolean;
   allow_pass_to_agent: boolean;
   allow_run_overrides: boolean;
+  offline_agent_work: OfflineAgentWorkPolicy;
 }>;
 
 function canonicalJson(value: unknown): string {
@@ -688,10 +877,7 @@ function canonicalJson(value: unknown): string {
   return JSON.stringify(value);
 }
 
-export function normalizeRepositoryConfig(
-  document: unknown,
-  parent: PolicySettings,
-): { canonical: string; settings: PolicySettings } {
+function normalizeRepositoryDocument(document: unknown): RepositoryConfigDocument {
   if (!document || typeof document !== "object" || Array.isArray(document)) {
     throw new DomainError("invalid_config", "repository config must be an object");
   }
@@ -700,6 +886,7 @@ export function normalizeRepositoryConfig(
     "allow_agent_root_propose",
     "allow_pass_to_agent",
     "allow_run_overrides",
+    "offline_agent_work",
   ]);
   const record = document as Record<string, unknown>;
   if (Object.keys(record).some((key) => !allowedKeys.has(key))) {
@@ -729,11 +916,23 @@ export function normalizeRepositoryConfig(
   if (typed.allow_run_overrides !== undefined) {
     normalized.allow_run_overrides = typed.allow_run_overrides;
   }
+  if (Object.hasOwn(record, "offline_agent_work")) {
+    normalized.offline_agent_work = normalizeOfflineAgentWork(record.offline_agent_work);
+  }
+  return normalized;
+}
+
+export function normalizeRepositoryConfig(
+  document: unknown,
+  parent: PolicySettings,
+): { canonical: string; settings: PolicySettings } {
+  const normalized = normalizeRepositoryDocument(document);
   const settings: PolicySettings = {
     allowedProviders: normalized.allowed_providers ?? parent.allowedProviders,
     allowAgentRootPropose: normalized.allow_agent_root_propose ?? parent.allowAgentRootPropose,
     allowPassToAgent: normalized.allow_pass_to_agent ?? parent.allowPassToAgent,
     allowRunOverrides: normalized.allow_run_overrides ?? parent.allowRunOverrides,
+    offlineAgentWork: normalized.offline_agent_work ?? deniedOfflineAgentWork(),
   };
   assertPolicyTightens(parent, settings);
   return { canonical: canonicalJson(normalized), settings };
@@ -744,6 +943,44 @@ export interface ReportRepositoryConfigInput {
   expectedVersion: number;
   document: unknown;
   contentHash: string;
+  stepUpProofId?: string;
+}
+
+export function repositoryConfigPolicyTarget(
+  workspaceId: string,
+  projectId: string,
+  expectedVersion: number,
+  contentHash: string,
+  offline: OfflineAgentWorkPolicy,
+): string {
+  const permission = normalizeOfflineAgentWork(offline);
+  return `sha256:${createHash("sha256")
+    .update(
+      JSON.stringify([
+        "BFB-REPOSITORY-CONFIG-UPDATE-V2",
+        "repository.config.report",
+        workspaceId,
+        projectId,
+        expectedVersion,
+        contentHash,
+        permission.allowed_tools,
+        permission.max_pending_age_seconds,
+      ]),
+    )
+    .digest("hex")}`;
+}
+
+function repositoryConfigFingerprint(input: ReportRepositoryConfigInput): string {
+  return createHash("sha256")
+    .update(
+      canonicalJson({
+        projectId: input.projectId,
+        expectedVersion: input.expectedVersion,
+        contentHash: input.contentHash,
+        document: normalizeRepositoryDocument(input.document),
+      }),
+    )
+    .digest("hex");
 }
 
 export const reportRepositoryConfigCommand: HubCommand<
@@ -751,9 +988,17 @@ export const reportRepositoryConfigCommand: HubCommand<
   { projectId: string; version: number; contentHash: string; canonicalJson: string }
 > = {
   name: "repository.config.report",
+  authorize: async (input, ctx) => {
+    await policyAuthority(ctx, input.projectId);
+  },
+  inputFingerprint: repositoryConfigFingerprint,
+  auditInput: (input) => ({
+    projectId: input.projectId,
+    expectedVersion: input.expectedVersion,
+    contentHash: input.contentHash,
+  }),
   async run(input, ctx) {
-    const principal = await requireOwner(ctx);
-    await projectForPrincipal(ctx.db, principal, input.projectId);
+    const principal = await policyAuthority(ctx, input.projectId);
     const workspace = policyFromRow(await workspacePolicy(ctx.db, ctx.workspaceId));
     const project = policyFromRow(await projectPolicy(ctx.db, ctx.workspaceId, input.projectId));
     assertPolicyTightens(workspace, project);
@@ -772,13 +1017,36 @@ export const reportRepositoryConfigCommand: HubCommand<
       throw new DomainError("config_hash_mismatch", "repository config hash does not match");
     }
     const next = current.resource_version + 1;
-    const [providers, rootPropose, passToAgent, runOverrides] = policyValues(normalized.settings);
+    const [providers, rootPropose, passToAgent, runOverrides, offlineTools, offlineAge] =
+      policyValues(normalized.settings);
+    const consumeProof = Object.hasOwn(input.document as object, "offline_agent_work")
+      ? await preparePolicyStepUp(
+          ctx,
+          input.stepUpProofId,
+          "repository.config.report",
+          repositoryConfigPolicyTarget(
+            ctx.workspaceId,
+            input.projectId,
+            input.expectedVersion,
+            hash,
+            normalized.settings.offlineAgentWork,
+          ),
+          input.projectId,
+        )
+      : undefined;
+    await consumeProof?.();
+    await policyGuard(
+      ctx,
+      "SELECT COUNT(*) = 1 FROM repository_configs WHERE workspace_id = ? AND project_id = ? AND resource_version = ?",
+      [ctx.workspaceId, input.projectId, input.expectedVersion],
+    );
     await ctx.db
       .prepare(
         `UPDATE repository_configs
          SET canonical_json = ?, content_hash = ?, allowed_providers_json = ?,
              allow_agent_root_propose = ?, allow_pass_to_agent = ?,
-             allow_run_overrides = ?, resource_version = ?
+             allow_run_overrides = ?, offline_agent_tools_json = ?,
+             offline_agent_max_pending_age_seconds = ?, resource_version = ?
          WHERE workspace_id = ? AND project_id = ? AND resource_version = ?`,
       )
       .run(
@@ -788,6 +1056,8 @@ export const reportRepositoryConfigCommand: HubCommand<
         rootPropose,
         passToAgent,
         runOverrides,
+        offlineTools,
+        offlineAge,
         next,
         ctx.workspaceId,
         input.projectId,
@@ -798,8 +1068,9 @@ export const reportRepositoryConfigCommand: HubCommand<
         `INSERT INTO repository_config_versions
          (workspace_id, project_id, version, canonical_json, content_hash,
           allowed_providers_json, allow_agent_root_propose, allow_pass_to_agent,
-          allow_run_overrides, reported_by_human_id, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          allow_run_overrides, offline_agent_tools_json, offline_agent_max_pending_age_seconds,
+          reported_by_human_id, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         ctx.workspaceId,
@@ -811,6 +1082,8 @@ export const reportRepositoryConfigCommand: HubCommand<
         rootPropose,
         passToAgent,
         runOverrides,
+        offlineTools,
+        offlineAge,
         principal.humanId,
         ctx.now,
       );

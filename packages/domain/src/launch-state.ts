@@ -15,6 +15,7 @@ import { assertEpoch, assertRole, loadPrincipal, type AuthzPrincipal } from "./a
 import { DomainError, type HubContext } from "./hub.js";
 import { randomUlid } from "./ids.js";
 import { assertPolicyTightens, type PolicySettings } from "./projects.js";
+import { deniedOfflineAgentWork } from "./offline-agent-policy.js";
 import { resolveRunnerCommandReference } from "./runner-channel.js";
 import { rejectRunnerRequest, runnerHash } from "./runner-crypto.js";
 import {
@@ -261,6 +262,9 @@ export function policySettings(value: Policy): PolicySettings {
     allowAgentRootPropose: value.allow_agent_root_propose,
     allowPassToAgent: value.allow_pass_to_agent,
     allowRunOverrides: value.allow_run_overrides,
+    // Frozen launch v1 projects only the original fields. Capture permission
+    // comes from exact immutable policy rows, never this legacy projection.
+    offlineAgentWork: deniedOfflineAgentWork(),
   };
 }
 

@@ -4,6 +4,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  authorizeSyntheticPolicyUpdate,
   createAgentProfileCommand,
   createRunCommand,
   createTaskCommand,
@@ -15,6 +16,7 @@ import {
   updateProjectPolicyCommand,
   updateWorkspacePolicyCommand,
   WorkspaceHub,
+  type PolicySettings,
 } from "@bfb/domain";
 
 import { parseAuthKeys } from "../src/auth/better-auth.js";
@@ -142,14 +144,28 @@ async function seedMeasuredTask(
     if (!outcome.ok) throw new Error(`seed human command failed: ${outcome.error.code}`);
     return outcome.result as T;
   }
-  const policy = {
+  const policy: Omit<PolicySettings, "offlineAgentWork"> = {
     allowedProviders: ["fake"],
     allowAgentRootPropose: false,
     allowPassToAgent: true,
     allowRunOverrides: true,
   };
-  await human(updateWorkspacePolicyCommand, { ...policy, expectedVersion: 1 });
-  await human(updateProjectPolicyCommand, { ...policy, projectId, expectedVersion: 1 });
+  await human(
+    updateWorkspacePolicyCommand,
+    await authorizeSyntheticPolicyUpdate(
+      db,
+      { workspaceId: FIX.workspace, humanId: FIX.owner },
+      { ...policy, expectedVersion: 1 },
+    ),
+  );
+  await human(
+    updateProjectPolicyCommand,
+    await authorizeSyntheticPolicyUpdate(
+      db,
+      { workspaceId: FIX.workspace, humanId: FIX.owner },
+      { ...policy, projectId, expectedVersion: 1 },
+    ),
+  );
   await human(reportRepositoryConfigCommand, {
     projectId,
     expectedVersion: 1,

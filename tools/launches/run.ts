@@ -8,10 +8,11 @@ import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { adaptD1, loadMigrationManifest, type D1Like } from "@bfb/db";
+import { adaptD1, loadMigrationManifest, type D1Like, type SqlDatabase } from "@bfb/db";
 import {
   FIX,
   WorkspaceHub,
+  authorizeSyntheticPolicyUpdate,
   canonicalRunnerKey,
   createAgentProfileCommand,
   createTaskCommand,
@@ -173,6 +174,65 @@ type Launch = {
 type Claimed = { state: "claimed"; claim: LaunchClaimResult };
 type Control = { control_id: string; state: string; expires_at: string; resume_launch_id?: string };
 
+async function seedPreLaunchPolicyHistory(
+  db: SqlDatabase,
+  policy: Omit<PolicySettings, "offlineAgentWork">,
+): Promise<void> {
+  // This arranges the actual pre-0016 schema; current mutators need the later 0039 columns.
+  const columns = await db.prepare("PRAGMA table_info(workspace_policies)").all();
+  assert(
+    !columns.some((column) => (column as { name: string }).name === "offline_agent_tools_json"),
+  );
+  const values = [
+    JSON.stringify([...policy.allowedProviders].sort()),
+    Number(policy.allowAgentRootPropose),
+    Number(policy.allowPassToAgent),
+    Number(policy.allowRunOverrides),
+  ];
+  for (const table of [
+    {
+      head: "workspace_policies",
+      versions: "workspace_policy_versions",
+      project: false,
+      repository: false,
+    },
+    {
+      head: "project_policies",
+      versions: "project_policy_versions",
+      project: true,
+      repository: false,
+    },
+    {
+      head: "repository_configs",
+      versions: "repository_config_versions",
+      project: true,
+      repository: true,
+    },
+  ]) {
+    const predicate = `workspace_id = ?${table.project ? " AND project_id = ?" : ""}`;
+    const scope = table.project ? [FIX.workspace, FIX.projectA] : [FIX.workspace];
+    await db
+      .prepare(
+        `UPDATE ${table.head} SET allowed_providers_json = ?,
+      allow_agent_root_propose = ?, allow_pass_to_agent = ?, allow_run_overrides = ?,
+      resource_version = 2 WHERE ${predicate}`,
+      )
+      .run(...values, ...scope);
+    const identity = `workspace_id${table.project ? ", project_id" : ""}`;
+    const config = table.repository ? ", canonical_json, content_hash" : "";
+    const actor = table.repository ? "reported_by_human_id" : "created_by_human_id";
+    await db
+      .prepare(
+        `INSERT INTO ${table.versions}
+      (${identity}, version${config}, allowed_providers_json, allow_agent_root_propose,
+       allow_pass_to_agent, allow_run_overrides, ${actor}, created_at)
+      SELECT ${identity}, resource_version${config}, allowed_providers_json, allow_agent_root_propose,
+       allow_pass_to_agent, allow_run_overrides, ?, ? FROM ${table.head} WHERE ${predicate}`,
+      )
+      .run(FIX.owner, now, ...scope);
+  }
+}
+
 try {
   await server.listen();
   const worker = server.getWorker("bfb-launches-a"),
@@ -201,24 +261,13 @@ try {
     assert(outcome.ok, JSON.stringify(outcome));
     return outcome.result;
   }
-  const ordinary: PolicySettings = {
+  const ordinary: Omit<PolicySettings, "offlineAgentWork"> = {
     allowedProviders: ["claude", "codex", "grok"],
     allowAgentRootPropose: false,
     allowPassToAgent: true,
     allowRunOverrides: true,
   };
-  await human(updateWorkspacePolicyCommand, { ...ordinary, expectedVersion: 1 });
-  await human(updateProjectPolicyCommand, {
-    ...ordinary,
-    projectId: FIX.projectA,
-    expectedVersion: 1,
-  });
-  await human(reportRepositoryConfigCommand, {
-    projectId: FIX.projectA,
-    expectedVersion: 1,
-    document: {},
-    contentHash: EMPTY,
-  });
+  await seedPreLaunchPolicyHistory(db, ordinary);
   const oldTask = await human(createTaskCommand, {
     projectId: FIX.projectA,
     title: "Synthetic preserved C08 task",
@@ -306,16 +355,36 @@ try {
       `INSERT INTO better_auth_sessions (id, expires_at, token, created_at, updated_at, user_id) VALUES (?, '2027-09-12T12:00:00.000Z', ?, ?, ?, 'c09-user')`,
     )
     .run(SESSION, SESSION_TOKEN, now, now);
-  const policy: PolicySettings = {
+  const policy: Omit<PolicySettings, "offlineAgentWork"> = {
     ...ordinary,
     allowedProviders: [...ordinary.allowedProviders, "fake"],
   };
-  await human(updateWorkspacePolicyCommand, { ...policy, expectedVersion: 2 });
-  await human(updateProjectPolicyCommand, {
-    ...policy,
-    projectId: FIX.projectA,
-    expectedVersion: 2,
-  });
+  await human(
+    updateWorkspacePolicyCommand,
+    await authorizeSyntheticPolicyUpdate(
+      db,
+      {
+        workspaceId: FIX.workspace,
+        humanId: FIX.owner,
+      },
+      { ...policy, expectedVersion: 2 },
+    ),
+  );
+  await human(
+    updateProjectPolicyCommand,
+    await authorizeSyntheticPolicyUpdate(
+      db,
+      {
+        workspaceId: FIX.workspace,
+        humanId: FIX.owner,
+      },
+      {
+        ...policy,
+        projectId: FIX.projectA,
+        expectedVersion: 2,
+      },
+    ),
+  );
   await human(reportRepositoryConfigCommand, {
     projectId: FIX.projectA,
     expectedVersion: 2,

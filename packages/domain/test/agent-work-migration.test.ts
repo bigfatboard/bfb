@@ -5,7 +5,12 @@ import Database from "better-sqlite3";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { adaptBetterSqlite3, applyMigrationsForVerification, schemaSnapshot } from "@bfb/db";
+import {
+  adaptBetterSqlite3,
+  applyMigrationsForVerification,
+  MIGRATION_HEAD,
+  schemaSnapshot,
+} from "@bfb/db";
 import type { AgentWorkRequest } from "@bfb/protocol";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -49,7 +54,14 @@ async function fixture(previous = false) {
     previous ? { stopBeforeId: migration } : {},
   );
   if (previous) expect(migrationResult.head).toBe("0037_artifact_version_retained");
-  const f = await launchFixture(adaptBetterSqlite3(raw));
+  const f = await launchFixture(
+    adaptBetterSqlite3(raw),
+    previous
+      ? {
+          policySchema: "pre-offline-agent-work",
+        }
+      : {},
+  );
   const claimed = await f.claim();
   success(
     await f.native(authorizeLaunchCommand, {
@@ -164,7 +176,7 @@ describe("agent-work migration relationships", () => {
     );
     const preservedTables = ["tasks", "comments", "provider_sessions", "execution_assignments"];
     const before = preservedTables.map((table) => f.raw.prepare(`SELECT * FROM ${table}`).all());
-    expect(applyMigrationsForVerification(f.raw, migrationDirectory).head).toBe(migration);
+    expect(applyMigrationsForVerification(f.raw, migrationDirectory).head).toBe(MIGRATION_HEAD);
     expect(preservedTables.map((table) => f.raw.prepare(`SELECT * FROM ${table}`).all())).toEqual(
       before,
     );

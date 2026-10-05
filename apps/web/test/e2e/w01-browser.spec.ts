@@ -248,30 +248,65 @@ test("owner policy update completes through action-bound passkey UI", async ({ p
     await expect(page.getByText("Claude UI Review")).toBeVisible();
 
     await page.getByLabel("Run overrides allowed").uncheck();
+    const policyForm = page.getByTestId("workspace-policy-form");
+    await policyForm.getByRole("checkbox", { name: "Comments", exact: true }).check();
+    await policyForm.getByLabel("Maximum pending age (seconds)").fill("30");
+    const policySaved = page.waitForResponse(
+      (response) =>
+        response.request().method() === "PUT" &&
+        response.url().endsWith(`/api/v1/workspaces/${FIX.workspace}/workspace-policy`),
+    );
     await page.getByTestId("save-workspace-policy").click();
+    const policyResponse = await policySaved;
+    expect(policyResponse.status(), await policyResponse.text()).toBe(200);
     const status = page.getByRole("status").filter({ hasText: "passkey verification" });
     await expect(status).toBeVisible();
+    const enabledPolicy = await page.request.get(
+      `/api/v1/workspaces/${FIX.workspace}/workspace-policy`,
+    );
+    expect(enabledPolicy.ok()).toBe(true);
+    expect(await enabledPolicy.json()).toMatchObject({
+      policy: {
+        offlineAgentWork: {
+          allowed_tools: ["bfb_add_comment"],
+          max_pending_age_seconds: 30,
+        },
+      },
+    });
 
     await page.screenshot({ path: path.join(EVIDENCE_DIR, "step-up.png"), fullPage: true });
     const versionBadge = page.locator("section.policy-panel .panel-title-row > span");
     const narrowedVersion = await versionBadge.innerText();
     await page.getByLabel("Run overrides allowed").check();
+    await policyForm.getByRole("checkbox", { name: "Comments", exact: true }).uncheck();
     await page.getByTestId("save-workspace-policy").click();
     await expect
       .poll(async () => versionBadge.innerText(), { timeout: 15_000 })
       .not.toBe(narrowedVersion);
+    const deniedPolicy = await page.request.get(
+      `/api/v1/workspaces/${FIX.workspace}/workspace-policy`,
+    );
+    expect(deniedPolicy.ok()).toBe(true);
+    expect(await deniedPolicy.json()).toMatchObject({
+      policy: {
+        offlineAgentWork: {
+          allowed_tools: [],
+          max_pending_age_seconds: 0,
+        },
+      },
+    });
     await writeReport(
       "step-up.md",
       [
         "# Step-up trace (W01 browser E2E)",
         "",
         "- Surface: owner Projects & policy",
-        "- Mutation: workspace policy version 1, run overrides true to false",
-        "- Restore: run overrides set back to true, so the shared fixture keeps a clean policy for later suites.",
+        "- Mutation: run overrides true to false; synthetic offline comment ceiling set to 30 seconds.",
+        "- Restore: run overrides set back to true and offline ceiling denied, so the shared fixture keeps a clean policy for later suites.",
         "- Browser: Chromium virtual CTAP2 platform authenticator",
         "- User verification: required",
         "- Action: `workspace.policy.update`",
-        "- Target: SHA-256 of the exact expected version and submitted settings",
+        "- Target: versioned domain, workspace, exact expected version and complete submitted settings including offline permission",
         "- Result: one-time proof consumed by the policy mutation; version advanced.",
         "",
       ].join("\n"),

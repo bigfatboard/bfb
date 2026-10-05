@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"slices"
 	"strings"
@@ -25,6 +26,7 @@ type RepositoryConfig struct {
 	document  map[string]any
 }
 
+// Policy is the frozen launch ceiling, separate from offline capture permission.
 type Policy struct {
 	AllowedProviders      []string `json:"allowed_providers"`
 	AllowAgentRootPropose bool     `json:"allow_agent_root_propose"`
@@ -52,7 +54,7 @@ func ParseRepositoryConfig(data []byte) (RepositoryConfig, error) {
 			return RepositoryConfig{}, failure("checkout_config_invalid")
 		}
 		root := document.Content[0]
-		if root.Kind != yaml.MappingNode || root.Tag != "!!map" || len(root.Content) > 8 {
+		if root.Kind != yaml.MappingNode || root.Tag != "!!map" || len(root.Content) > 10 {
 			return RepositoryConfig{}, failure("checkout_config_invalid")
 		}
 		nodes := 0
@@ -86,6 +88,12 @@ func ParseRepositoryConfig(data []byte) (RepositoryConfig, error) {
 					return RepositoryConfig{}, failure("checkout_config_invalid")
 				}
 				values[key.Value] = value.Value == "true"
+			case "offline_agent_work":
+				permission, err := parseOfflineAgentWork(value)
+				if err != nil {
+					return RepositoryConfig{}, err
+				}
+				values[key.Value] = permission
 			default:
 				return RepositoryConfig{}, failure("checkout_config_invalid")
 			}
@@ -100,6 +108,59 @@ func ParseRepositoryConfig(data []byte) (RepositoryConfig, error) {
 		return RepositoryConfig{}, failure("checkout_config_invalid")
 	}
 	return RepositoryConfig{Canonical: string(canonical), Hash: digest(string(canonical)), document: values}, nil
+}
+
+func parseOfflineAgentWork(node *yaml.Node) (map[string]any, error) {
+	if node.Kind != yaml.MappingNode || node.Tag != "!!map" || len(node.Content) != 4 {
+		return nil, failure("checkout_config_invalid")
+	}
+	permission := map[string]any{}
+	for index := 0; index < len(node.Content); index += 2 {
+		key, value := node.Content[index], node.Content[index+1]
+		if key.Kind != yaml.ScalarNode || key.Tag != "!!str" {
+			return nil, failure("checkout_config_invalid")
+		}
+		if _, exists := permission[key.Value]; exists {
+			return nil, failure("checkout_config_invalid")
+		}
+		switch key.Value {
+		case "allowed_tools":
+			if value.Kind != yaml.SequenceNode || value.Tag != "!!seq" {
+				return nil, failure("checkout_config_invalid")
+			}
+			tools := make([]string, 0, len(value.Content))
+			for _, tool := range value.Content {
+				if tool.Kind != yaml.ScalarNode || tool.Tag != "!!str" {
+					return nil, failure("checkout_config_invalid")
+				}
+				switch tool.Value {
+				case "bfb_add_comment", "bfb_propose_task", "bfb_report_progress", "bfb_update_task":
+					tools = append(tools, tool.Value)
+				default:
+					return nil, failure("checkout_config_invalid")
+				}
+			}
+			slices.Sort(tools)
+			permission[key.Value] = slices.Compact(tools)
+		case "max_pending_age_seconds":
+			if value.Kind != yaml.ScalarNode || (value.Tag != "!!int" && value.Tag != "!!float") {
+				return nil, failure("checkout_config_invalid")
+			}
+			var age float64
+			if value.Decode(&age) != nil || age != math.Trunc(age) || age < 0 || age > 300 {
+				return nil, failure("checkout_config_invalid")
+			}
+			permission[key.Value] = int(age)
+		default:
+			return nil, failure("checkout_config_invalid")
+		}
+	}
+	tools, hasTools := permission["allowed_tools"].([]string)
+	age, hasAge := permission["max_pending_age_seconds"].(int)
+	if !hasTools || !hasAge || (len(tools) == 0 && age != 0) || (len(tools) > 0 && age == 0) {
+		return nil, failure("checkout_config_invalid")
+	}
+	return permission, nil
 }
 
 func safeConfigNode(node *yaml.Node, depth int, count *int) bool {

@@ -19,6 +19,7 @@ import {
 } from "@bfb/db";
 import {
   activateDelegationGrant,
+  authorizeSyntheticPolicyUpdate,
   acceptResultCommand,
   answerAttentionCommand,
   assertCurrentRunnerPrincipal,
@@ -111,6 +112,7 @@ import {
   writeGitHubDlqRow,
   type AttentionRecord,
   type CommandOutcome,
+  type PolicySettings,
   type IngestRunnerEventsResult,
   type RunnerPrincipal,
   type RunnerTokenClaims,
@@ -409,13 +411,23 @@ try {
   assert.equal(Object.keys(projectIds).length, 10, "ten projects are required");
   note("fixture", "10 projects present with distinct repository identities");
 
-  const policy = {
+  const policy: Omit<PolicySettings, "offlineAgentWork"> = {
     allowedProviders: ["claude", "codex", "grok", "fake"],
     allowAgentRootPropose: false,
     allowPassToAgent: true,
     allowRunOverrides: true,
   };
-  await human(updateWorkspacePolicyCommand.name, { ...policy, expectedVersion: 1 });
+  await human(
+    updateWorkspacePolicyCommand.name,
+    await authorizeSyntheticPolicyUpdate(
+      db,
+      {
+        workspaceId: FIX.workspace,
+        humanId: FIX.owner,
+      },
+      { ...policy, expectedVersion: 1 },
+    ),
+  );
   // Five profiles across all four providers: codex/grok from the seed plus three G01 profiles.
   const profileIds: Record<string, string> = {
     codex: FIX.profileCodex,
@@ -435,11 +447,21 @@ try {
   note("fixture", "5 profiles across claude/codex/grok/fake with documented modes");
 
   for (const projectId of Object.values(projectIds)) {
-    await human(updateProjectPolicyCommand.name, {
-      ...policy,
-      expectedVersion: 1,
-      projectId,
-    });
+    await human(
+      updateProjectPolicyCommand.name,
+      await authorizeSyntheticPolicyUpdate(
+        db,
+        {
+          workspaceId: FIX.workspace,
+          humanId: FIX.owner,
+        },
+        {
+          ...policy,
+          expectedVersion: 1,
+          projectId,
+        },
+      ),
+    );
     await human(reportRepositoryConfigCommand.name, {
       projectId,
       expectedVersion: 1,
@@ -1704,14 +1726,24 @@ try {
         `SELECT MAX(version) AS version FROM project_policy_versions WHERE workspace_id = ? AND project_id = ?`,
       )
       .get(FIX.workspace, FIX.projectA)) as { version: number };
-    await human(updateProjectPolicyCommand.name, {
-      allowedProviders: ["codex"],
-      allowAgentRootPropose: false,
-      allowPassToAgent: true,
-      allowRunOverrides: true,
-      expectedVersion: alphaPolicy.version,
-      projectId: FIX.projectA,
-    });
+    await human(
+      updateProjectPolicyCommand.name,
+      await authorizeSyntheticPolicyUpdate(
+        db,
+        {
+          workspaceId: FIX.workspace,
+          humanId: FIX.owner,
+        },
+        {
+          allowedProviders: ["codex"],
+          allowAgentRootPropose: false,
+          allowPassToAgent: true,
+          allowRunOverrides: true,
+          expectedVersion: alphaPolicy.version,
+          projectId: FIX.projectA,
+        },
+      ),
+    );
     const tightTask = await human<TaskRecord>(createTaskCommand.name, {
       projectId: FIX.projectA,
       title: "Synthetic G01 tightened ceiling probe",
@@ -1746,11 +1778,21 @@ try {
         `SELECT MAX(version) AS version FROM project_policy_versions WHERE workspace_id = ? AND project_id = ?`,
       )
       .get(FIX.workspace, FIX.projectA)) as { version: number };
-    await human(updateProjectPolicyCommand.name, {
-      ...policy,
-      expectedVersion: restoredPolicy.version,
-      projectId: FIX.projectA,
-    });
+    await human(
+      updateProjectPolicyCommand.name,
+      await authorizeSyntheticPolicyUpdate(
+        db,
+        {
+          workspaceId: FIX.workspace,
+          humanId: FIX.owner,
+        },
+        {
+          ...policy,
+          expectedVersion: restoredPolicy.version,
+          projectId: FIX.projectA,
+        },
+      ),
+    );
     note("ag04", "provider ceilings reject mismatched launches and unknown providers");
   }
   verdict("AG-04", "passed", "shared lifecycle semantics with enforced capability ceilings");
