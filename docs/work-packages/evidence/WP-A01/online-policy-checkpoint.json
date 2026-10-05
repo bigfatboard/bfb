@@ -1,0 +1,130 @@
+{
+  "package": "A01",
+  "recorded_on": "2026-10-06",
+  "tested_commit": "88fbffae3004a719bfa58c341572cce4e194c1a5",
+  "scope": "All four connected online agent writes and version-pinned deny-by-default offline policy",
+  "scope_outcome": "passed",
+  "package_acceptance_complete": false,
+  "package_status": "in_progress",
+  "historical_manifest": "docs/work-packages/evidence/WP-A01/manifest.json",
+  "implementation_commits": {
+    "online_writes": "4a3c21e",
+    "offline_policy": "c7a61502059098aeb295f388d250ccc0385e1c17"
+  },
+  "protocol_version": "local-mcp/2 over JSON-RPC 2.0 stdio; MCP/2026-07-28",
+  "schema_versions": {
+    "cloud_agent_work_reference": 1,
+    "general_local_rpc": 1,
+    "local_agent_rpc": 2
+  },
+  "migration_head": "0039_offline_agent_policy",
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "xcode": "26.0.1",
+    "modernc.org/sqlite": "v1.58.0"
+  },
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2",
+    "architecture": "arm64",
+    "provider": "synthetic supervised process; no live model turn",
+    "signing": "local development signing",
+    "native_ownership": "authenticated signed helper, live owned process and actual held flock"
+  },
+  "commands": [
+    { "command": "pnpm install --frozen-lockfile", "outcome": "passed" },
+    { "command": "pnpm exec tsc -b --force --pretty false", "outcome": "passed" },
+    {
+      "command": "pnpm test:a01",
+      "outcome": "passed",
+      "protocol_cases": 573,
+      "domain_worker_migration_ui_cases": 330,
+      "go_race_checks": "passed",
+      "compiled_stdio_harness": "passed",
+      "native_worker_hub_d1_proof": "passed",
+      "action_bound_policy_browser_cases": 1
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "typescript_cases": 1810,
+      "go_checks": "passed",
+      "swift_cases": 16
+    },
+    {
+      "command": "pnpm test:c08",
+      "outcome": "passed",
+      "focused_cases": 23,
+      "real_worker_hub_d1_races": "passed"
+    },
+    { "command": "pnpm test:w01:browser", "outcome": "passed", "browser_cases": 61 },
+    { "command": "GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./...", "outcome": "passed" },
+    { "command": "pnpm worktree:check", "outcome": "passed" }
+  ],
+  "online_proof": [
+    "Canonical session binding and all four writes traverse compiled stdio, fixed daemon RPC, possession-authenticated Worker, WorkspaceHub and D1",
+    "Task updates preserve the original creator and use optimistic resource versions",
+    "Comments, progress and proposed tasks carry agent-run provenance without impersonating a human",
+    "Absent progress metadata stays absent while explicit zero and bounded fractional percent/confidence are retained",
+    "Root proposals stay proposed; bounded children target only the source task and use shared C08 rules",
+    "Current authority and root policy precede cached outcomes; expected version and child count apply only to a new effect",
+    "Lost replies and MCP/daemon restart retries preserve original identity and produce one canonical effect",
+    "Changed input under the same identity conflicts, including after a previously committed update",
+    "Real L06 session ingestion, authenticated native helper, actual held flock and pre/post-network containment checks remain enforced",
+    "Post-commit delivery denial preserves the committed effect while withholding the private result",
+    "Raw progress and version numerics are checked before rounding; equivalent exponent and signed-zero retries retain identity",
+    "Named progress decimal support leaves frozen general v1 schemas and fixtures unchanged"
+  ],
+  "policy_proof": [
+    "Migration 0039 adds explicit deny defaults to all six current/history policy tables",
+    "Exact immutable policy versions retain historical launch snapshot and repository canonical hashes",
+    "Complete settings and normalized offline permission bind to a versioned action-specific passkey target",
+    "Current direct-human authorization precedes cached policy outcomes",
+    "Proof consumption, guarded head, immutable history and outcome commit atomically; losing guards roll back the batch",
+    "Repository omission means deny; explicit permission, including explicit deny, requires its own bound proof",
+    "Project and repository permission can only remove tools or shorten the configured age",
+    "Native YAML and TypeScript canonicalization share deterministic permission fixtures without widening the frozen launch projection",
+    "The owner policy form completes action-bound passkey verification in a real browser",
+    "Fixture-only current security clocks preserve historical launch and lease scenarios without weakening production expiry checks"
+  ],
+  "implementation_checkout_affected_gates": [
+    { "command": "pnpm test:c07", "outcome": "passed", "scope": "isolated policy foundation" },
+    { "command": "pnpm test:c09", "outcome": "passed", "scope": "isolated policy foundation" }
+  ],
+  "proof_sources": [
+    "internal/agentwork/native_darwin_test.go",
+    "internal/localmcp/server_test.go",
+    "internal/localmcp/rpc_test.go",
+    "internal/protocol/agent_fixtures_test.go",
+    "internal/checkout/offline_config_test.go",
+    "internal/checkout/testdata/offline-agent-work.json",
+    "packages/domain/test/agent-work.test.ts",
+    "packages/domain/test/agent-work-migration.test.ts",
+    "packages/domain/test/offline-policy-authority.test.ts",
+    "packages/domain/test/offline-policy-migration.test.ts",
+    "apps/control-worker/test/agent-work.test.ts",
+    "apps/control-worker/test/project-routes.test.ts",
+    "apps/web/test/comment-attribution.test.ts",
+    "apps/web/test/policy-step-up.test.ts",
+    "apps/web/test/e2e/w01-browser.spec.ts",
+    "protocol/fixtures/v2/local-agent-rpc.json"
+  ],
+  "remaining_obligations": [
+    "Daemon-owned write-ahead records for online operations with checked durable acknowledgements",
+    "Complete short-lived confirmation, protected capture and immutable admission modes",
+    "Atomic legacy journal quarantine, bounded exclusive claims and restart-safe replay",
+    "Truthful pending, applied, rejected and delivery-blocked receipts without private cache bypass",
+    "Complete A01 runtime acceptance and downstream recertification"
+  ],
+  "not_claimed": [
+    "Full L05 launch, Terminal interaction or PTY handoff acceptance",
+    "Live Claude or Codex provider or exact continuation certification",
+    "Production protected capture or daemon-restart pending-operation replay",
+    "A02/A03 production attention/result integration",
+    "Cross-device pilot, running end-to-end MVP or release readiness",
+    "Production deployment or enabled real-workspace offline permission"
+  ],
+  "redaction": { "status": "passed", "prohibited_content": [], "raw_logs_committed": false }
+}
