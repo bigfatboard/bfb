@@ -1,6 +1,6 @@
 # WP-A02 — Human attention workflow
 
-Status: `blocked`
+Status: `in_progress`
 
 Risk: High
 
@@ -36,7 +36,7 @@ An agent can request a typed human decision, a permitted human can answer it fro
 
 ### Consumes
 
-- A01 `local-mcp/1` (`docs/contracts/local-mcp.md`): stdio transport, provisional/activated/closed capability states, `bfb_` naming, pending-operation journal (attention tools fail visibly offline and are never journaled), and the `SessionBindingSource`, `AssignmentSource`, `AuthoritySource`, `WorkTransport` interfaces the attention tools build against.
+- A01's clean-certified runtime at `adbf740` (`docs/contracts/local-mcp.md`): stdio transport, provisional/activated/closed capability states, `bfb_` naming, typed daemon authority and the `SessionBindingSource`, `AssignmentSource`, `AuthoritySource`, `WorkTransport` interfaces. Reads/session authority use closed v2; the protected four-tool journal uses closed v3. A02 adds its separate closed v4 lane under [ADR 0007](../adr/0007-online-agent-attention-runtime.md); attention fails visibly offline and is never journaled.
 - C08 work records, execution assignments, and run result states (`packages/domain/src/work-records.ts`); run/execution identity for request binding and terminal-result fences.
 - C04 workspace roles, project grants, and authorization epochs for answer permission rechecks; reviewers stay project-scoped.
 - E01 event ledger v1 (`docs/contracts/event-ledger.md`): committed observations as the durability reference; attention truth lives in its own tables, not the ledger.
@@ -59,6 +59,7 @@ An agent can request a typed human decision, a permitted human can answer it fro
 3. Ranked Attention UI, run integration, and browser tests.
 4. Local MCP request/get/wait tools with Go tests and transcript twin.
 5. Real-Worker/D1 harness for timeout, reconnect, revocation, and guards; contract freeze; evidence.
+6. Connect the production typed attention lane through fresh native/runner authority, preserve read-before-binding and online-only behavior, fix stale read caching and the complete wait deadline, and re-certify exact A02 from a clean checkout.
 
 ## Acceptance
 
@@ -82,15 +83,16 @@ An agent can request a typed human decision, a permitted human can answer it fro
 - Ranking must remain explainable and deterministic in v0.1; the rank is blocking flag, frozen kind severity, request time, then ID, and every item carries its `rank_reason`. No opaque priority model.
 - E02 builds its socket concurrently: both UI and runner signaling poll committed records, so no E02 surface is consumed before it freezes.
 - The 30-second wait never holds a Worker open; pending outcomes are never memoized, so repetition is side-effect free.
-- Attention questions are not journaled offline: a question is only useful inside a live waiter loop, and stale redelivery would mislead the human about run liveness. The A01 journal keeps exactly its four task-mutation tools (migration `011` untouched).
+- Attention questions are not journaled offline: a question is only useful inside a live waiter loop, and stale redelivery would mislead the human about run liveness. A01's daemon-owned `013_work_journal` keeps exactly its four task-mutation tools; A02 does not open, extend or drain it.
 - A03 also extends the local MCP server and run/task transitions; A02's MCP and domain additions are additive and separately named (`bfb_request_human`, `bfb_get_attention`, `bfb_wait_for_attention`, `attention.*`).
 
 ## Handoff
 
+- Runtime integration resumed 6 October after A01's clean certificate was committed at `df90709`. The prior exact A01 and full verification checkpoints passed at `adbf740`; source is unchanged by the evidence commit. [ADR 0007](../adr/0007-online-agent-attention-runtime.md) freezes the online-only v4 integration, fresh authority/read semantics, full wait deadline and bounded polling decision before implementation. A02 remains incomplete until its own connected and clean-checkout gates pass.
 - Dependency hold, 5 October: A01 is reopened for its missing production online/replay path. This implementation and historical isolated acceptance are retained; their tests have not been declared failed. Re-certification and settlement wait for A01 runtime acceptance and affected integration checks. The dated status below is historical, not the current package state.
 - Settled 18 September: `done`. A01 and E02 are `done`, and `pnpm test:a02` passed in a detached clean checkout at `9372c0f` (install, build, exact target with the real-Worker/D1 fault harness, real-binary stdio purity, and browser spec). Re-proven in-worktree at `b3b1391` after the evidence-determinism fix (build, exact target with the deterministic-evidence harness plus its regression test, real-binary stdio purity, and browser spec).
 - Commands: `pnpm test:a02`; `pnpm verify`; `pnpm worktree:check`. The Worker/D1 fault flow is `tools/attention/run.ts`; the attention stdio cases are `internal/localmcp/attention_test.go` plus the golden transcript.
 - A04 consumes `attention_observations` (unique identity, actor provenance) and the raw `requested_at`/`first_response_at`/`resolved_at` timestamps plus the `waiter-cadence.json` poll/retry counts as a structural cross-check; derivation and display belong to A04.
 - X01 consumes committed `attention.request`/`attention.answer`/`attention.resolve` semantic events; it does not own attention truth and owns all external delivery.
 - L08 merge step: implement `WorkTransport.RequestAttention`/`GetAttention` over the runner channel client (rechecking runner credential, epoch, run capability, and run-boundary ownership; foreign records report `not_found`), exactly like the other `WorkTransport` methods. No CLI wiring change needed beyond the transport swap.
-- Known limitations: waits poll on a 100 ms cadence rather than waking on commit (E02 may add wake-ups later without changing the bound); browser signaling polls every 15 seconds until E02 sockets land; offline agents cannot request attention until the channel returns.
+- Historical wait fixtures use a 100 ms cadence. The production integration moves to one second to fit existing possession budgets without widening them; it does not add commit-driven wake-ups. Browser signaling polls every 15 seconds; offline agents cannot request attention until the channel returns. A transport failure after dispatch may hide an already committed request; explicit same-identity retry is the only recovery path.
