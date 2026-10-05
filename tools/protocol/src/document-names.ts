@@ -14,6 +14,55 @@ export const SCHEMA_VERSION = 1;
 
 export const DOCUMENTS: DocumentSpec[] = [
   {
+    name: "agent-attention-request",
+    schemaFile: "agent-attention-request.json",
+    goType: "AgentAttentionRequest",
+    tsType: "AgentAttentionRequest",
+  },
+  {
+    name: "agent-attention-read-request",
+    schemaFile: "agent-attention-read-request.json",
+    goType: "AgentAttentionReadRequest",
+    tsType: "AgentAttentionReadRequest",
+  },
+  {
+    name: "agent-attention-record",
+    schemaFile: "agent-attention-record.json",
+    goType: "AgentAttentionRecord",
+    tsType: "AgentAttentionRecord",
+  },
+  {
+    name: "agent-attention-origin",
+    schemaFile: "agent-attention-origin.json",
+    goType: "AgentAttentionOrigin",
+    tsType: "AgentAttentionOrigin",
+  },
+  {
+    name: "agent-attention-result",
+    schemaFile: "agent-attention-result.json",
+    goType: "AgentAttentionResult",
+    tsType: "AgentAttentionResult",
+  },
+  {
+    name: "agent-attention-local-request",
+    schemaFile: "agent-attention-local-request.json",
+    goType: "AgentAttentionLocalRequest",
+    tsType: "AgentAttentionLocalRequest",
+  },
+  {
+    name: "agent-attention-read-local-request",
+    schemaFile: "agent-attention-read-local-request.json",
+    goType: "AgentAttentionReadLocalRequest",
+    tsType: "AgentAttentionReadLocalRequest",
+  },
+  {
+    name: "local-agent-attention-rpc",
+    schemaFile: "local-agent-attention-rpc.json",
+    goType: "LocalAgentAttentionRpcEnvelope",
+    tsType: "LocalAgentAttentionRpcEnvelope",
+    schemaVersion: 4,
+  },
+  {
     name: "agent-update-result",
     schemaFile: "agent-update-result.json",
     goType: "AgentUpdateResult",

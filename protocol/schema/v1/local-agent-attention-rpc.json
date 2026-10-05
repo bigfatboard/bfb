@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/local-agent-attention-rpc.json",
+  "title": "LocalAgentAttentionRpcEnvelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "request_id", "method", "direction"],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 4
+    },
+    "request_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "method": {
+      "type": "string",
+      "enum": ["mcp.v4.request_human", "mcp.v4.get_attention"]
+    },
+    "direction": {
+      "type": "string",
+      "enum": ["request", "response"]
+    },
+    "error": {
+      "$ref": "primitives.json#/$defs/TypedError"
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 1,
+      "properties": {
+        "agent_attention_request": {
+          "$ref": "agent-attention-local-request.json"
+        },
+        "agent_attention_read_request": {
+          "$ref": "agent-attention-read-local-request.json"
+        },
+        "agent_attention": {
+          "$ref": "agent-attention-result.json"
+        }
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "method": {
+          "const": "mcp.v4.request_human"
+        },
+        "direction": {
+          "const": "request"
+        },
+        "payload": {
+          "required": ["agent_attention_request"],
+          "type": "object",
+          "properties": {
+            "agent_attention_request": {}
+          }
+        }
+      },
+      "required": ["payload"],
+      "not": {
+        "required": ["error"],
+        "type": "object",
+        "properties": {
+          "error": {}
+        }
+      },
+      "type": "object"
+    },
+    {
+      "properties": {
+        "method": {
+          "const": "mcp.v4.get_attention"
+        },
+        "direction": {
+          "const": "request"
+        },
+        "payload": {
+          "required": ["agent_attention_read_request"],
+          "type": "object",
+          "properties": {
+            "agent_attention_read_request": {}
+          }
+        }
+      },
+      "required": ["payload"],
+      "not": {
+        "required": ["error"],
+        "type": "object",
+        "properties": {
+          "error": {}
+        }
+      },
+      "type": "object"
+    },
+    {
+      "properties": {
+        "direction": {
+          "const": "response"
+        },
+        "error": {}
+      },
+      "required": ["error"],
+      "not": {
+        "required": ["payload"],
+        "type": "object",
+        "properties": {
+          "payload": {}
+        }
+      },
+      "type": "object"
+    },
+    {
+      "properties": {
+        "direction": {
+          "const": "response"
+        },
+        "payload": {
+          "required": ["agent_attention"],
+          "type": "object",
+          "properties": {
+            "agent_attention": {}
+          }
+        }
+      },
+      "required": ["payload"],
+      "not": {
+        "required": ["error"],
+        "type": "object",
+        "properties": {
+          "error": {}
+        }
+      },
+      "type": "object"
+    }
+  ]
+}

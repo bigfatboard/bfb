@@ -1,8 +1,48 @@
 {
   "protocol": "bfb-wire/1",
   "schema_version": 1,
-  "schema_hash": "c12727949d9ee1dc0ddbe10fe9b9a3c56196da0c6906a165c3484d3c5c3e19df",
+  "schema_hash": "69b13715f850870f47470180b1110b11a6fc078716a1586d5d7fb3feb432fbb4",
   "documents": [
+    {
+      "name": "agent-attention-request",
+      "schema": "agent-attention-request.json",
+      "schema_version": 1
+    },
+    {
+      "name": "agent-attention-read-request",
+      "schema": "agent-attention-read-request.json",
+      "schema_version": 1
+    },
+    {
+      "name": "agent-attention-record",
+      "schema": "agent-attention-record.json",
+      "schema_version": 1
+    },
+    {
+      "name": "agent-attention-origin",
+      "schema": "agent-attention-origin.json",
+      "schema_version": 1
+    },
+    {
+      "name": "agent-attention-result",
+      "schema": "agent-attention-result.json",
+      "schema_version": 1
+    },
+    {
+      "name": "agent-attention-local-request",
+      "schema": "agent-attention-local-request.json",
+      "schema_version": 1
+    },
+    {
+      "name": "agent-attention-read-local-request",
+      "schema": "agent-attention-read-local-request.json",
+      "schema_version": 1
+    },
+    {
+      "name": "local-agent-attention-rpc",
+      "schema": "local-agent-attention-rpc.json",
+      "schema_version": 4
+    },
     {
       "name": "agent-update-result",
       "schema": "agent-update-result.json",

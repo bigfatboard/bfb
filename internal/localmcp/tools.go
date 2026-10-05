@@ -50,7 +50,7 @@ func ToolDescriptors() []ToolDescriptor {
 // input-binding map; the capability owns trust state; production writes use
 // daemon-owned durability. Host is safe for concurrent tools/call handling.
 type Host struct {
-	callMutex   sync.Mutex
+	callSeat    chan struct{}
 	mutex       sync.Mutex
 	capability  *Capability
 	transport   WorkTransport
@@ -94,6 +94,7 @@ func NewHost(deps HostDeps) *Host {
 		now = time.Now
 	}
 	return &Host{
+		callSeat:   make(chan struct{}, 1),
 		capability: deps.Capability,
 		transport:  deps.Transport,
 		journal:    deps.Journal,
@@ -115,7 +116,7 @@ func (host *Host) cached(requestID string) (any, bool) {
 func (host *Host) remember(requestID string, result any) {
 	host.mutex.Lock()
 	defer host.mutex.Unlock()
-	// CallTool admits new identities under callMutex before executing any effect.
+	// CallTool admits new identities under the call seat before executing any effect.
 	host.seen[requestID] = cachedOutcome{result: result, fingerprint: host.fingerprint}
 }
 
@@ -123,6 +124,11 @@ func (host *Host) remember(requestID string, result any) {
 // Params arrive decoded from JSON-RPC; unknown fields are rejected so a
 // caller cannot smuggle workflow, routing, or identity fields.
 func (host *Host) CallTool(ctx context.Context, name string, params map[string]any) (result any, operationError error) {
+	if name == "bfb_wait_for_attention" {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, attentionWaitTimeout)
+		defer cancel()
+	}
 	defer func() {
 		// A terminal denial can arrive after the cloud committed an effect. Close
 		// future access, without claiming that the denied reply means no commit.
@@ -138,8 +144,15 @@ func (host *Host) CallTool(ctx context.Context, name string, params map[string]a
 		}
 	}()
 	// Serialize the bounded connection cache and effects, including identical concurrent calls.
-	host.callMutex.Lock()
-	defer host.callMutex.Unlock()
+	select {
+	case host.callSeat <- struct{}{}:
+		defer func() { <-host.callSeat }()
+	case <-ctx.Done():
+		if name == "bfb_wait_for_attention" {
+			return map[string]any{"status": "pending"}, nil
+		}
+		return nil, fail("offline_rejected")
+	}
 	known := false
 	for _, descriptor := range ToolDescriptors() {
 		if descriptor.Name == name {
@@ -156,7 +169,8 @@ func (host *Host) CallTool(ctx context.Context, name string, params map[string]a
 	_, daemonAdmission := host.transport.(agentAdmissionTransport)
 	_, daemonWrite := agentWorkActions[name]
 	daemonWrite = daemonAdmission && daemonWrite
-	if daemonAdmission && !daemonWrite && name != "bfb_get_context" && name != "bfb_get_task" {
+	_, daemonAttention := host.transport.(daemonAttentionTransport)
+	if daemonAdmission && !daemonWrite && name != "bfb_get_context" && name != "bfb_get_task" && !(daemonAttention && attentionTool(name)) {
 		// Later packages cannot fall back to the unsigned provider-side journal.
 		return nil, fail("not_implemented")
 	}
@@ -188,10 +202,22 @@ func (host *Host) CallTool(ctx context.Context, name string, params map[string]a
 			}
 		}
 	}
+	fingerprintParams := params
+	if name == "bfb_request_human" {
+		request, err := validateAttention(params)
+		if err != nil {
+			return nil, err
+		}
+		fingerprintParams = map[string]any{"request_id": rawRequestID, "kind": request.Kind, "question": request.Question, "blocking": request.Blocking}
+		if request.ReferenceKind != "" {
+			fingerprintParams["reference_kind"] = request.ReferenceKind
+			fingerprintParams["reference_id"] = request.ReferenceID
+		}
+	}
 	encoded, err := json.Marshal(struct {
 		Name   string
 		Params map[string]any
-	}{name, params})
+	}{name, fingerprintParams})
 	if err != nil {
 		return nil, fail("invalid_params")
 	}
@@ -217,7 +243,7 @@ func (host *Host) CallTool(ctx context.Context, name string, params map[string]a
 		}
 		return nil, fail("request_rejected")
 	}
-	if result, ok := host.cached(rawRequestID); ok {
+	if result, ok := host.cached(rawRequestID); ok && !attentionTool(name) {
 		if daemonWrite {
 			// The daemon revalidates current authority and the original durable
 			// identity before returning either an outcome or a fresh receipt.
@@ -247,7 +273,11 @@ func (host *Host) CallTool(ctx context.Context, name string, params map[string]a
 	case "bfb_get_attention":
 		return host.getAttention(ctx, params, rawRequestID)
 	case "bfb_wait_for_attention":
-		return host.waitForAttention(ctx, params)
+		result, err := host.waitForAttention(ctx, params, rawRequestID)
+		if err == nil {
+			host.remember(rawRequestID, nil)
+		}
+		return result, err
 	default:
 		result, err := host.write(ctx, name, params, rawRequestID, boundary)
 		if err != nil {

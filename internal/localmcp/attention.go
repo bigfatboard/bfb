@@ -14,7 +14,19 @@ import (
 const attentionWaitTimeout = 30 * time.Second
 
 // attentionPollInterval spaces committed-state polls inside one bounded wait.
-const attentionPollInterval = 100 * time.Millisecond
+const attentionPollInterval = time.Second
+
+func attentionTool(name string) bool {
+	return name == "bfb_request_human" || name == "bfb_get_attention" || name == "bfb_wait_for_attention"
+}
+
+func attentionWaitExpired(ctx context.Context) bool {
+	if ctx.Err() != nil {
+		return true
+	}
+	deadline, bounded := ctx.Deadline()
+	return bounded && !time.Now().Before(deadline)
+}
 
 // attentionKinds is the frozen A02 kind set from docs/contracts/attention.md.
 var attentionKinds = map[string]bool{
@@ -65,17 +77,25 @@ func validateAttention(params map[string]any) (AttentionRequest, error) {
 	request := AttentionRequest{Kind: rawKind, Question: question}
 	if raw, present := params["reference_kind"]; present {
 		kind, ok := raw.(string)
-		if !ok || kind == "" || len(kind) > 64 {
+		if !ok {
 			return AttentionRequest{}, fail("invalid_params")
 		}
-		request.ReferenceKind = kind
+		normalized, err := boundedText(kind, "reference_kind", 64)
+		if err != nil {
+			return AttentionRequest{}, err
+		}
+		request.ReferenceKind = normalized
 	}
 	if raw, present := params["reference_id"]; present {
 		id, ok := raw.(string)
-		if !ok || checkID(id, "reference_id") != nil {
+		if !ok {
 			return AttentionRequest{}, fail("invalid_params")
 		}
-		request.ReferenceID = id
+		normalized, err := boundedText(id, "reference_id", 128)
+		if err != nil {
+			return AttentionRequest{}, err
+		}
+		request.ReferenceID = normalized
 	}
 	if (request.ReferenceKind == "") != (request.ReferenceID == "") {
 		return AttentionRequest{}, fail("invalid_params")
@@ -89,12 +109,9 @@ func validateAttention(params map[string]any) (AttentionRequest, error) {
 }
 
 // requestAttention validates, authorizes, and executes bfb_request_human.
-// Online it commits through the transport; offline it journals a durable
-// pending_sync exactly like the other run mutations.
+// Every explicit retry reaches current authority and the cloud's original
+// operation identity. Offline it fails visibly without opening any journal.
 func (host *Host) requestAttention(ctx context.Context, params map[string]any, requestID string) (any, error) {
-	if result, ok := host.cached(requestID); ok {
-		return result, nil
-	}
 	request, err := validateAttention(params)
 	if err != nil {
 		return nil, err
@@ -106,32 +123,52 @@ func (host *Host) requestAttention(ctx context.Context, params map[string]any, r
 		return nil, fail("offline_rejected")
 	}
 	boundary := host.capability.Boundary()
-	result, err := host.transport.RequestAttention(ctx, boundary, request, requestID)
+	result, err := host.transport.RequestAttention(ctx, boundary, host.capability.ConfirmedSession(), request, requestID)
 	if err != nil {
 		return nil, err
 	}
-	host.remember(requestID, result)
+	host.remember(requestID, nil)
 	return result, nil
 }
 
 // getAttention returns the committed metadata for one of the run's own
 // requests. Reads never journal; an unreachable channel fails visibly.
 func (host *Host) getAttention(ctx context.Context, params map[string]any, requestID string) (any, error) {
-	if err := host.capability.allowRead(ctx); err != nil {
-		return nil, err
-	}
 	rawID, _ := params["attention_id"].(string)
 	if checkID(rawID, "attention_id") != nil {
 		return nil, fail("invalid_params")
 	}
-	if !host.transport.Online() {
-		return nil, fail("offline_rejected")
-	}
-	result, err := host.transport.GetAttention(ctx, host.capability.Boundary(), rawID)
+	result, err := host.readAttention(ctx, rawID, requestID)
 	if err != nil {
 		return nil, err
 	}
-	host.remember(requestID, result)
+	host.remember(requestID, nil)
+	return result, nil
+}
+
+func (host *Host) readAttention(ctx context.Context, attentionID, requestID string) (AttentionRecord, error) {
+	if _, fixed := host.transport.(daemonAttentionTransport); fixed {
+		if host.capability.State() == StateClosed {
+			return AttentionRecord{}, fail("capability_closed")
+		}
+	} else if err := host.capability.allowRead(ctx); err != nil {
+		return AttentionRecord{}, err
+	}
+	if !host.transport.Online() {
+		return AttentionRecord{}, fail("offline_rejected")
+	}
+	var session *ConfirmedSession
+	if host.capability.State() == StateActivated {
+		confirmed := host.capability.ConfirmedSession()
+		session = &confirmed
+	}
+	result, err := host.transport.GetAttention(ctx, host.capability.Boundary(), session, attentionID, requestID)
+	if err != nil {
+		return AttentionRecord{}, err
+	}
+	if host.capability.State() == StateClosed {
+		return AttentionRecord{}, fail("capability_closed")
+	}
 	return result, nil
 }
 
@@ -139,42 +176,35 @@ func (host *Host) getAttention(ctx context.Context, params map[string]any, reque
 // the 30-second bound expires. Pending outcomes are never memoized: a
 // repeated wait re-reads committed state and is safe to repeat. A context
 // deadline earlier than the bound shortens the wait.
-func (host *Host) waitForAttention(ctx context.Context, params map[string]any) (any, error) {
-	if err := host.capability.allowRead(ctx); err != nil {
-		return nil, err
-	}
+func (host *Host) waitForAttention(ctx context.Context, params map[string]any, requestID string) (any, error) {
 	rawID, _ := params["attention_id"].(string)
 	if checkID(rawID, "attention_id") != nil {
 		return nil, fail("invalid_params")
 	}
-	deadline := time.Now().Add(attentionWaitTimeout)
-	if ctxDeadline, ok := ctx.Deadline(); ok && ctxDeadline.Before(deadline) {
-		deadline = ctxDeadline
-	}
-	boundary := host.capability.Boundary()
+	ctx, cancel := context.WithTimeout(ctx, attentionWaitTimeout)
+	defer cancel()
 	for {
-		if !host.transport.Online() {
-			return nil, fail("offline_rejected")
+		if attentionWaitExpired(ctx) {
+			return map[string]any{"status": "pending"}, nil
 		}
-		record, err := host.transport.GetAttention(ctx, boundary, rawID)
+		record, err := host.readAttention(ctx, rawID, requestID)
 		if err != nil {
+			if attentionWaitExpired(ctx) && (CodeOf(err) == "offline_rejected" || CodeOf(err) == "work_unavailable") {
+				return map[string]any{"status": "pending"}, nil
+			}
 			return nil, err
+		}
+		// Never release a private late answer, even if a transport ignored cancellation.
+		if attentionWaitExpired(ctx) {
+			return map[string]any{"status": "pending"}, nil
 		}
 		if record.State == "answered" || record.State == "resolved" {
 			return map[string]any{"status": record.State, "attention": record}, nil
 		}
-		remaining := time.Until(deadline)
-		if remaining <= 0 {
-			return map[string]any{"status": "pending"}, nil
-		}
-		pause := attentionPollInterval
-		if remaining < pause {
-			pause = remaining
-		}
 		select {
 		case <-ctx.Done():
 			return map[string]any{"status": "pending"}, nil
-		case <-time.After(pause):
+		case <-time.After(attentionPollInterval):
 		}
 	}
 }

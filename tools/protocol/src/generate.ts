@@ -16,6 +16,7 @@ import { DOCUMENTS, PROTOCOL_HEAD, SCHEMA_VERSION } from "./document-names.js";
 import { generateSwift } from "./swift.js";
 import { generateAgentFixtures } from "./agent-fixtures.js";
 import { generateCaptureFixtures } from "./capture-fixtures.js";
+import { generateAttentionFixtures } from "./attention-fixtures.js";
 
 export interface JsonSchema {
   $id?: string;
@@ -137,6 +138,14 @@ function tsTypeOf(
   registry: Map<string, JsonSchema>,
   forceOptional = false,
 ): string {
+  const nullableReference = schema.anyOf?.find((branch) => branch.$ref !== undefined);
+  if (
+    schema.anyOf?.length === 2 &&
+    nullableReference &&
+    schema.anyOf.some((branch) => branch.type === "null")
+  ) {
+    return tsTypeOf(nullableReference, rootSchema, registry, forceOptional) + " | null";
+  }
   if (schema.$ref) {
     const resolved = resolveRef(rootSchema, schema.$ref, registry);
     return tsTypeOf(resolved.schema, resolved.owner, registry, forceOptional);
@@ -265,6 +274,14 @@ function goTypeOf(
   registry: Map<string, JsonSchema>,
   fieldName: string,
 ): string {
+  const nullableReference = schema.anyOf?.find((branch) => branch.$ref !== undefined);
+  if (
+    schema.anyOf?.length === 2 &&
+    nullableReference &&
+    schema.anyOf.some((branch) => branch.type === "null")
+  ) {
+    return "*" + goTypeOf(nullableReference, rootSchema, registry, fieldName);
+  }
   if (schema.$ref) {
     const primitiveName = schema.$ref.split("/").at(-1);
     if (primitiveName && exportedPrimitiveSet.has(primitiveName)) {
@@ -635,6 +652,7 @@ export async function generateProtocol(
   await generateSwift(root, registry, schemaHash);
   await generateAgentFixtures(root);
   await generateCaptureFixtures(root);
+  await generateAttentionFixtures(root);
 
   // Catalog stamp for drift checks
   await writeFile(

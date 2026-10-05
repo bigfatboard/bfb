@@ -15,6 +15,13 @@ var captureByteLimits = map[string]int{
 	"agent-work-replay-request":          32768,
 	"agent-work-receipt":                 2048,
 	"local-agent-work-rpc":               65536,
+	"agent-attention-request":            16384,
+	"agent-attention-read-request":       16384,
+	"agent-attention-local-request":      32768,
+	"agent-attention-read-local-request": 32768,
+	"agent-attention-record":             32768,
+	"agent-attention-result":             32768,
+	"local-agent-attention-rpc":          65536,
 }
 
 func wireByteLimit(document string) int {
@@ -51,6 +58,21 @@ func captureDocumentBound(document string, root map[string]any, encoded string) 
 		return false
 	}
 	switch document {
+	case "agent-attention-local-request", "agent-attention-read-local-request":
+		return bounded(root["request"], 16384)
+	case "local-agent-attention-rpc":
+		if len(encoded)+1 > 65536 {
+			return false
+		}
+		payload, _ := root["payload"].(map[string]any)
+		if result, ok := payload["agent_attention"]; ok && !bounded(result, 32768) {
+			return false
+		}
+		for _, field := range []string{"agent_attention_request", "agent_attention_read_request"} {
+			if local, ok := payload[field].(map[string]any); ok && (!bounded(local, 32768) || !bounded(local["request"], 16384)) {
+				return false
+			}
+		}
 	case "agent-work-capture":
 		return captureBounded(root)
 	case "agent-work-replay-request":

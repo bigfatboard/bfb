@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/agent-attention-local-request.json",
+  "title": "AgentAttentionLocalRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["correlation", "request"],
+  "properties": {
+    "correlation": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "request": {
+      "$ref": "agent-attention-request.json"
+    }
+  }
+}

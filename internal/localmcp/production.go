@@ -255,11 +255,11 @@ func (OfflineTransport) ProposeTask(_ context.Context, _ Boundary, _ ConfirmedSe
 	return ProposeTaskResult{}, fail("offline_rejected")
 }
 
-func (OfflineTransport) RequestAttention(_ context.Context, _ Boundary, _ AttentionRequest, _ string) (AttentionRecord, error) {
+func (OfflineTransport) RequestAttention(_ context.Context, _ Boundary, _ ConfirmedSession, _ AttentionRequest, _ string) (AttentionRecord, error) {
 	return AttentionRecord{}, fail("offline_rejected")
 }
 
-func (OfflineTransport) GetAttention(_ context.Context, _ Boundary, _ string) (AttentionRecord, error) {
+func (OfflineTransport) GetAttention(_ context.Context, _ Boundary, _ *ConfirmedSession, _, _ string) (AttentionRecord, error) {
 	return AttentionRecord{}, fail("offline_rejected")
 }
 

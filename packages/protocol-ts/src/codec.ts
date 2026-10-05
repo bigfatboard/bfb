@@ -657,7 +657,13 @@ function categorize(
 
   if (data && data.schema_version !== undefined) {
     const expectedVersion =
-      document === "local-agent-work-rpc" ? 3 : document === "local-agent-rpc" ? 2 : 1;
+      document === "local-agent-attention-rpc"
+        ? 4
+        : document === "local-agent-work-rpc"
+          ? 3
+          : document === "local-agent-rpc"
+            ? 2
+            : 1;
     if (rootVersion?.integer !== undefined && rootVersion.integer !== String(expectedVersion)) {
       return {
         schema_version: 1,
@@ -964,6 +970,13 @@ const captureByteLimits: Partial<Record<WireDocumentName, number>> = {
   "agent-work-replay-request": 32_768,
   "agent-work-receipt": 2_048,
   "local-agent-work-rpc": 65_536,
+  "agent-attention-request": 16_384,
+  "agent-attention-read-request": 16_384,
+  "agent-attention-local-request": 32_768,
+  "agent-attention-read-local-request": 32_768,
+  "agent-attention-record": 32_768,
+  "agent-attention-result": 32_768,
+  "local-agent-attention-rpc": 65_536,
 };
 
 function wireByteLimit(document: WireDocumentName): number {
@@ -1008,6 +1021,21 @@ function captureDocumentBound(
     ]) {
       const local = payload?.[field] as Record<string, unknown> | undefined;
       if (local) valid &&= bounded(local.request, 16_384);
+    }
+  }
+  if (
+    document === "agent-attention-local-request" ||
+    document === "agent-attention-read-local-request"
+  ) {
+    valid &&= bounded(root.request, 16_384);
+  }
+  if (document === "local-agent-attention-rpc") {
+    valid &&= encoder.encode(json).byteLength + 1 <= 65_536;
+    const payload = root.payload as Record<string, unknown> | undefined;
+    if (payload?.agent_attention) valid &&= bounded(payload.agent_attention, 32_768);
+    for (const field of ["agent_attention_request", "agent_attention_read_request"]) {
+      const local = payload?.[field] as Record<string, unknown> | undefined;
+      if (local) valid &&= bounded(local, 32_768) && bounded(local.request, 16_384);
     }
   }
   return valid

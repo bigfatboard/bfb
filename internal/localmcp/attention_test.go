@@ -1,4 +1,4 @@
-// ABOUTME: Proves A02 attention request, read, bounded wait, and offline replay.
+// ABOUTME: Proves A02 attention request, read, bounded wait and online-only failure.
 // ABOUTME: Uses synthetic doubles only; the human answering side is driven through the fake.
 
 package localmcp

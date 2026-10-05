@@ -233,7 +233,7 @@ func (fake *fakeTransport) ReportProgress(_ context.Context, _ Boundary, _ Confi
 	return result.(CommentResult), nil
 }
 
-func (fake *fakeTransport) RequestAttention(_ context.Context, boundary Boundary, input AttentionRequest, requestID string) (AttentionRecord, error) {
+func (fake *fakeTransport) RequestAttention(_ context.Context, boundary Boundary, _ ConfirmedSession, input AttentionRequest, requestID string) (AttentionRecord, error) {
 	result, err := fake.dedupe(requestID, func() any {
 		fake.attnSeq++
 		record := &AttentionRecord{
@@ -252,7 +252,7 @@ func (fake *fakeTransport) RequestAttention(_ context.Context, boundary Boundary
 	return result.(AttentionRecord), nil
 }
 
-func (fake *fakeTransport) GetAttention(_ context.Context, boundary Boundary, attentionID string) (AttentionRecord, error) {
+func (fake *fakeTransport) GetAttention(_ context.Context, boundary Boundary, _ *ConfirmedSession, attentionID, _ string) (AttentionRecord, error) {
 	fake.mutex.Lock()
 	defer fake.mutex.Unlock()
 	if !fake.online {
