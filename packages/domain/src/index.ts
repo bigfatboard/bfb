@@ -3,6 +3,7 @@
 
 export * from "./abuse.js";
 export * from "./agent-work.js";
+export * from "./agent-capture.js";
 export * from "./agent-sessions.js";
 export * from "./artifact-reviews.js";
 export * from "./artifact-views.js";

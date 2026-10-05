@@ -9,6 +9,7 @@ import {
   agentRunUpdateCommand,
   agentRunProgressCommand,
   agentRunProposalCommand,
+  agentCaptureConfirmationCommand,
 } from "./agent-sessions.js";
 import {
   agentRunAuthorityCommand,
@@ -145,6 +146,10 @@ const commands = new Map<string, HubCommand<unknown, unknown>>([
   [agentRunUpdateCommand.name, agentRunUpdateCommand as HubCommand<unknown, unknown>],
   [agentRunProgressCommand.name, agentRunProgressCommand as HubCommand<unknown, unknown>],
   [agentRunProposalCommand.name, agentRunProposalCommand as HubCommand<unknown, unknown>],
+  [
+    agentCaptureConfirmationCommand.name,
+    agentCaptureConfirmationCommand as HubCommand<unknown, unknown>,
+  ],
   [agentRunContextCommand.name, agentRunContextCommand as HubCommand<unknown, unknown>],
   [agentRunTaskCommand.name, agentRunTaskCommand as HubCommand<unknown, unknown>],
   [ingestRunnerEventsCommand.name, ingestRunnerEventsCommand as HubCommand<unknown, unknown>],

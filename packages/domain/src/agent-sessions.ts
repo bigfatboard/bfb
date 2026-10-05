@@ -1,4 +1,4 @@
-// ABOUTME: Confirms trusted execution-session associations and derives bound online agent-work authority.
+// ABOUTME: Confirms trusted execution-session associations and current bound agent-work authority.
 // ABOUTME: Stages canonical business rows and immutable provenance together without impersonating a human.
 
 import { createHash } from "node:crypto";
@@ -17,6 +17,9 @@ import {
   type AgentProgressRequest,
   type AgentProposalRequest,
   type AgentProposalResult,
+  type AgentCaptureConfirmationRequest,
+  type AgentCaptureConfirmationResult,
+  type AgentWorkCapture,
   type WireDocumentName,
 } from "@bfb/protocol";
 import { agentWorkKey, agentTaskView, liveRun, type BoundRun } from "./agent-work.js";
@@ -24,6 +27,17 @@ import { DomainError, type HubCommand, type HubContext } from "./hub.js";
 import { randomUlid } from "./ids.js";
 import { canonicalLaunchJson, readLaunch, snapshotOf } from "./launch-state.js";
 import type { RunnerPrincipal } from "./runners.js";
+import { runnerObject } from "./runner-crypto.js";
+import {
+  AGENT_CAPTURE_CONFIRMATION_COMMAND,
+  AGENT_CONFIRMATION_REQUEST_BYTES,
+  checkedCaptureDocument,
+  deriveAgentCaptureConfirmation,
+  agentCaptureConfirmationFingerprint,
+  authorizeAgentReplay,
+  type AgentWriteRequest,
+  type AgentWriteCommandName,
+} from "./agent-capture.js";
 import {
   checkedCommentBody,
   getTask,
@@ -45,21 +59,29 @@ export interface AgentBoundInput {
   principal: RunnerPrincipal;
   request: AgentBoundRequest;
 }
-export interface AgentCommentInput {
+interface ReplayInput {
+  /** Internal Hub metadata; never accepted by an ordinary public work request document. */
+  replayCapture?: AgentWorkCapture;
+}
+export interface AgentCommentInput extends ReplayInput {
   principal: RunnerPrincipal;
   request: AgentCommentRequest;
 }
-export interface AgentUpdateInput {
+export interface AgentUpdateInput extends ReplayInput {
   principal: RunnerPrincipal;
   request: AgentUpdateRequest;
 }
-export interface AgentProgressInput {
+export interface AgentProgressInput extends ReplayInput {
   principal: RunnerPrincipal;
   request: AgentProgressRequest;
 }
-export interface AgentProposalInput {
+export interface AgentProposalInput extends ReplayInput {
   principal: RunnerPrincipal;
   request: AgentProposalRequest;
+}
+export interface AgentCaptureConfirmationInput {
+  principal: RunnerPrincipal;
+  request: AgentCaptureConfirmationRequest;
 }
 interface BindingRow {
   provider_session_id: string;
@@ -322,9 +344,68 @@ export const agentBoundAuthorityCommand: HubCommand<AgentBoundInput, AgentAuthor
     return { revoked: false, execution_ended: false, result_terminal: false };
   },
 };
-async function writeAuthority(input: AgentBoundInput, document: WireDocumentName, ctx: HubContext) {
+async function captureConfirmation(input: AgentCaptureConfirmationInput, ctx: HubContext) {
+  runnerObject(input, ["principal", "request"]);
+  const request = checkedCaptureDocument(
+    "agent-capture-confirmation-request",
+    input.request,
+    AGENT_CONFIRMATION_REQUEST_BYTES,
+  );
+  const row = await boundAuthority(
+    {
+      principal: input.principal,
+      request: {
+        reference: {
+          schema_version: 1,
+          request_id: request.request_id,
+          run_execution_id: request.run_execution_id,
+          assignment_generation: request.assignment_generation,
+        },
+        binding: request.binding,
+      },
+    },
+    ctx,
+  );
+  return deriveAgentCaptureConfirmation(ctx, row, input.principal, request);
+}
+export const agentCaptureConfirmationCommand: HubCommand<
+  AgentCaptureConfirmationInput,
+  AgentCaptureConfirmationResult
+> = {
+  name: AGENT_CAPTURE_CONFIRMATION_COMMAND,
+  inputFingerprint: (input) => agentCaptureConfirmationFingerprint(input.request),
+  auditInput: (input) => ({
+    confirmationId: input.request.request_id,
+    executionId: input.request.run_execution_id,
+    generation: input.request.assignment_generation,
+    bindingHash: hash(input.request.binding),
+  }),
+  auditResult: (result) => ({
+    confirmationId: result.confirmation_id,
+    runId: result.run_id,
+    executionId: result.run_execution_id,
+    snapshotHash: result.snapshot_hash,
+    permissionHash: hash(result.configured_permission),
+  }),
+  authorize: async (input, ctx) => {
+    await captureConfirmation(input, ctx);
+  },
+  run: captureConfirmation,
+};
+const writeDocumentCommands: Partial<Record<WireDocumentName, AgentWriteCommandName>> = {
+  "agent-comment-request": "agent_run.comment",
+  "agent-update-request": "agent_run.update",
+  "agent-progress-request": "agent_run.progress",
+  "agent-proposal-request": "agent_run.proposal",
+};
+async function writeAuthority(
+  input: AgentBoundInput & ReplayInput,
+  document: WireDocumentName,
+  ctx: HubContext,
+) {
+  runnerObject(input, ["principal", "request", "replayCapture"]);
   checked(document, input.request);
-  return boundAuthority(
+  const row = await boundAuthority(
     {
       principal: input.principal,
       request: {
@@ -334,6 +415,17 @@ async function writeAuthority(input: AgentBoundInput, document: WireDocumentName
     },
     ctx,
   );
+  if (Object.hasOwn(input, "replayCapture")) {
+    await authorizeAgentReplay(
+      ctx,
+      row,
+      input.principal,
+      input.request as AgentWriteRequest,
+      writeDocumentCommands[document]!,
+      input.replayCapture!,
+    );
+  }
+  return row;
 }
 async function boundTask(ctx: HubContext, row: BoundRun) {
   const task = await getTask(ctx.db, ctx.workspaceId, row.task_id);

@@ -11,6 +11,8 @@ import {
   type AgentUpdateRequest,
   type AgentProgressRequest,
   type AgentProposalRequest,
+  type AgentCaptureConfirmationRequest,
+  type AgentWorkReplayRequest,
   type WireDocumentName,
 } from "@bfb/protocol";
 import {
@@ -23,6 +25,11 @@ import {
   agentRunUpdateCommand,
   agentRunProgressCommand,
   agentRunProposalCommand,
+  agentCaptureConfirmationCommand,
+  agentCaptureConfirmationKey,
+  agentWriteAction,
+  AGENT_CONFIRMATION_REQUEST_BYTES,
+  AGENT_REPLAY_REQUEST_BYTES,
   AGENT_WRITE_REQUEST_BYTES,
   agentWorkKey,
   agentSessionBindKey,
@@ -34,7 +41,7 @@ import { executeWorkspaceCommand } from "../hub-client.js";
 import { guardRunnerTransport, readPossessedRunnerRequest, type RunnerApiDeps } from "./runners.js";
 
 const pattern =
-  /^\/runner\/workspaces\/([^/]+)\/runners\/([^/]+)\/work\/(authority|context|task|session-bind|bound-authority|comment|update|progress|proposal)$/;
+  /^\/runner\/workspaces\/([^/]+)\/runners\/([^/]+)\/work\/(authority|context|task|session-bind|bound-authority|comment|update|progress|proposal|capture-confirmation|replay)$/;
 const actions: Record<
   string,
   { document: WireDocumentName; command: HubCommand<unknown, unknown> }
@@ -75,6 +82,16 @@ const actions: Record<
     document: "agent-proposal-request",
     command: agentRunProposalCommand as HubCommand<unknown, unknown>,
   },
+  "capture-confirmation": {
+    document: "agent-capture-confirmation-request",
+    command: agentCaptureConfirmationCommand as HubCommand<unknown, unknown>,
+  },
+};
+const replayCommands = {
+  "agent_run.comment": agentRunCommentCommand,
+  "agent_run.update": agentRunUpdateCommand,
+  "agent_run.progress": agentRunProgressCommand,
+  "agent_run.proposal": agentRunProposalCommand,
 };
 export function isAgentWorkPath(path: string): boolean {
   return pattern.test(path);
@@ -96,25 +113,53 @@ export async function handleAgentWorkApi(request: Request, deps: RunnerApiDeps):
       runner = runnerId(match[2]),
       action = match[3]!;
     await guardRunnerTransport(request, deps, workspaceId, runner, `work/${action}`);
-    const operation = actions[action]!;
+    const document = action === "replay" ? "agent-work-replay-request" : actions[action]!.document;
     const possessed = await readPossessedRunnerRequest(
       request,
       deps,
       workspaceId,
       runner,
-      operation.document === "agent-work-request" ? 2048 : AGENT_WRITE_REQUEST_BYTES,
+      action === "replay"
+        ? AGENT_REPLAY_REQUEST_BYTES
+        : document === "agent-work-request" || action === "capture-confirmation"
+          ? AGENT_CONFIRMATION_REQUEST_BYTES
+          : AGENT_WRITE_REQUEST_BYTES,
     );
-    const decoded = decodeWireDocument(operation.document, possessed.bytes);
+    const decoded = decodeWireDocument(document, possessed.bytes);
     if (!decoded.ok) throw new DomainError("request_rejected", "invalid work reference");
-    const body = decoded.value as
-      | AgentWorkRequest
-      | AgentBoundRequest
-      | AgentSessionBindRequest
-      | AgentCommentRequest
-      | AgentUpdateRequest
-      | AgentProgressRequest
-      | AgentProposalRequest;
-    const reference = "reference" in body ? body.reference : body;
+    let command: HubCommand<unknown, unknown>, idempotencyKey: string, input: unknown;
+    if (action === "replay") {
+      const replay = decoded.value as AgentWorkReplayRequest;
+      command = replayCommands[replay.command_name] as HubCommand<unknown, unknown>;
+      idempotencyKey = agentWorkKey(
+        agentWriteAction(replay.command_name),
+        replay.original_request.reference,
+      );
+      input = {
+        principal: possessed.principal,
+        request: replay.original_request,
+        replayCapture: replay.capture,
+      };
+    } else {
+      const body = decoded.value as
+        | AgentWorkRequest
+        | AgentBoundRequest
+        | AgentSessionBindRequest
+        | AgentCommentRequest
+        | AgentUpdateRequest
+        | AgentProgressRequest
+        | AgentProposalRequest
+        | AgentCaptureConfirmationRequest;
+      const reference = "reference" in body ? body.reference : body;
+      command = actions[action]!.command;
+      idempotencyKey =
+        action === "session-bind"
+          ? agentSessionBindKey(reference)
+          : action === "capture-confirmation"
+            ? agentCaptureConfirmationKey(body as AgentCaptureConfirmationRequest)
+            : agentWorkKey(action, reference);
+      input = { principal: possessed.principal, request: body };
+    }
     const outcome = await executeWorkspaceCommand(
       {
         db: deps.db,
@@ -126,16 +171,13 @@ export async function handleAgentWorkApi(request: Request, deps: RunnerApiDeps):
           jurisdiction: deps.jurisdiction,
         }),
       },
-      operation.command,
+      command,
       {
         workspaceId,
         actorRunnerId: runner,
         authorizationEpoch: possessed.principal.authorizationEpoch,
-        idempotencyKey:
-          action === "session-bind"
-            ? agentSessionBindKey(reference)
-            : agentWorkKey(action, reference),
-        input: { principal: possessed.principal, request: body },
+        idempotencyKey,
+        input,
       },
     );
     if (!outcome.ok) throw new DomainError(outcome.error.code, "agent work rejected");
@@ -156,6 +198,8 @@ export async function handleAgentWorkApi(request: Request, deps: RunnerApiDeps):
       "policy_rejected",
       "invalid_argument",
       "child_limit",
+      "capture_invalid",
+      "intent_expired",
     ];
     if (error instanceof DomainError && error.code === "body_too_large") {
       return response({ error: "request_rejected", message: "agent work rejected" }, 403);

@@ -70,6 +70,7 @@ const CHANNEL_SURFACES = new Set([
   "events/ingest",
   "work/authority",
   "work/bound-authority",
+  "work/capture-confirmation",
 ]);
 
 function response(body: unknown, status = 200): Response {
