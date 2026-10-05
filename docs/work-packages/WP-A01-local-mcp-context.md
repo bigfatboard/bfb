@@ -71,7 +71,7 @@ An active local provider process can use stdio MCP to read exactly its run conte
 - The legacy capture proof omits authority-bearing fields and replay does not verify the observed session. Protect and recheck the complete capture; distinguish terminal denial from infrastructure failure. Existing rows without sufficient evidence must not acquire new permission on upgrade.
 - Make journal upgrades and terminal acknowledgements crash-safe. The existing batch selector is not an exclusive claim, and replay ignores status-write failures. Prove bounded serialized draining, failed status persistence, MCP exit, daemon restart and remote-commit/local-ack loss with one canonical effect.
 
-These are required integration checks, not completed acceptance. [ADR 0005](../adr/0005-agent-work-session-and-attribution.md) defines the reviewed canonical binding, repeated-resume association and truthful online-write attribution. Versioned offline authority and replay require their own recorded decision before implementation; neither ADR permits unconditional pending operations.
+These are required integration checks, not completed acceptance. [ADR 0005](../adr/0005-agent-work-session-and-attribution.md) defines the reviewed canonical binding, repeated-resume association, negotiated agent IPC and truthful online-write attribution. [ADR 0006](../adr/0006-daemon-owned-pending-agent-work.md) defines version-pinned offline authority, daemon-owned protected capture and truthful uncertainty/replay. Production offline policy remains deny until the complete path is implemented and proven; neither decision permits unconditional pending operations.
 
 ## Acceptance
 

@@ -266,7 +266,8 @@ principal or unvalidated extension object. Bound complete encoded write
 requests to 16,384 bytes and complete local IPC envelopes to the existing
 65,536 bytes, including JSON escaping and wrappers. Character limits alone
 are insufficient. Validate and reject oversized input/result before effects;
-never silently trim body, metadata or receipts. Deterministic positive and
+never truncate body, metadata or receipts to fit. Existing C08 whitespace
+normalization remains unchanged. Deterministic positive and
 negative fixtures are owned by `pnpm protocol:generate` / `pnpm protocol:check`.
 
 Full authorized outcomes remain in canonical idempotency storage. New binding
