@@ -424,6 +424,26 @@ export async function reauthorizeLaunch(
   fresh = true,
   replacementRepositoryHash?: string,
 ): Promise<{ checkout: CheckoutSummary; snapshot: LaunchSnapshot }> {
+  if (row.result_state !== "open" && row.result_state !== "changes_requested")
+    rejectRunnerRequest();
+  return reauthorizeLaunchScope(ctx, row, fresh, replacementRepositoryHash);
+}
+
+/** A submitted result remains nonterminal; this authority does not permit a new launch or capture. */
+export async function reauthorizeActiveRun(
+  ctx: HubContext,
+  row: LaunchRow,
+): Promise<{ checkout: CheckoutSummary; snapshot: LaunchSnapshot }> {
+  if (!["open", "changes_requested", "submitted"].includes(row.result_state)) rejectRunnerRequest();
+  return reauthorizeLaunchScope(ctx, row, true);
+}
+
+async function reauthorizeLaunchScope(
+  ctx: HubContext,
+  row: LaunchRow,
+  fresh: boolean,
+  replacementRepositoryHash?: string,
+): Promise<{ checkout: CheckoutSummary; snapshot: LaunchSnapshot }> {
   const principal = await loadPrincipal(ctx.db, ctx.workspaceId, row.requesting_human_id);
   assertEpoch(principal, row.requesting_human_epoch);
   await assertRunnerLaunchAuthority(ctx.db, principal, row.runner_id, row.project_id);
@@ -452,8 +472,7 @@ export async function reauthorizeLaunch(
     environment.snapshot.agent_profile_version !== snapshot.agent_profile_version ||
     environment.snapshot.repository_identity_hash !== snapshot.repository_identity_hash ||
     environment.snapshot.provider_manifest_id !== snapshot.provider_manifest_id ||
-    environment.snapshot.provider_version !== snapshot.provider_version ||
-    (row.result_state !== "open" && row.result_state !== "changes_requested")
+    environment.snapshot.provider_version !== snapshot.provider_version
   )
     rejectRunnerRequest();
   assertPolicyTightens(

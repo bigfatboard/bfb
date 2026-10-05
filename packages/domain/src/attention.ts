@@ -19,7 +19,7 @@ import {
 } from "./authorization.js";
 import { DomainError, type HubCommand, type HubContext } from "./hub.js";
 import { isUlid, randomUlid } from "./ids.js";
-import { canonicalLaunchJson, readLaunch, reauthorizeLaunch } from "./launch-state.js";
+import { canonicalLaunchJson, readLaunch, reauthorizeActiveRun } from "./launch-state.js";
 import { runnerObject } from "./runner-crypto.js";
 import type { RunnerPrincipal } from "./runners.js";
 import { liveRun, type AgentWorkInput } from "./agent-work.js";
@@ -256,7 +256,7 @@ export async function requireAttentionRun(
   const row = await liveRun(input, ctx);
   const launch = await readLaunch(ctx.db, ctx.workspaceId, row.launch_id);
   try {
-    await reauthorizeLaunch(ctx, launch);
+    await reauthorizeActiveRun(ctx, launch);
   } catch (error) {
     if (
       error instanceof DomainError &&

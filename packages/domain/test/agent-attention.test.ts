@@ -27,6 +27,8 @@ import { captureFixture } from "./agent-capture-fixture.js";
 import { LAUNCH_NOW, launchFixture, success } from "./launch-fixture.js";
 import { openMigratedDomainDb } from "./helpers.js";
 import { claimAnotherAttentionRun } from "./attention-fixture.js";
+import { submitResultCommand } from "../src/results.js";
+import { readLaunch, reauthorizeLaunch } from "../src/launch-state.js";
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
@@ -87,6 +89,70 @@ async function effects(db: SqlDatabase) {
 }
 
 describe("authenticated agent attention", () => {
+  it("creates, reads and exactly retries review attention after an explicit result submission", async () => {
+    const f = await captureFixture(undefined, false),
+      original = request(f),
+      originalRecord = success(
+        await f.hub.execute(requestAttentionCommand, operation(f, original)),
+      );
+    const submitted = success(
+      await f.human(submitResultCommand, { runId: f.launch.run_id, summary: "Synthetic result" }),
+    );
+    expect(submitted).toMatchObject({ runResultState: "submitted", taskState: "review" });
+    const state = await f.db
+      .prepare("SELECT result_state, resource_version FROM runs WHERE id = ?")
+      .get(f.launch.run_id);
+    const task = await f.db
+      .prepare("SELECT state, resource_version FROM tasks WHERE id = ?")
+      .get(f.task.id);
+    expect(success(await f.hub.execute(requestAttentionCommand, operation(f, original)))).toEqual(
+      originalRecord,
+    );
+    const review = { ...request(f), kind: "review" as const },
+      record = success(await f.hub.execute(requestAttentionCommand, operation(f, review))),
+      before = await effects(f.db);
+    expect(success(await f.hub.execute(requestAttentionCommand, operation(f, review)))).toEqual(
+      record,
+    );
+    expect((await read(f, record.id, false)).attention.state).toBe("open");
+    expect(await effects(f.db)).toEqual(before);
+    success(
+      await human(f, answerAttentionCommand, {
+        attentionId: record.id,
+        expectedVersion: 1,
+        answer: "Synthetic review answer",
+      }),
+    );
+    expect((await read(f, record.id)).attention).toMatchObject({
+      state: "answered",
+      answer: "Synthetic review answer",
+      resource_version: 2,
+    });
+    expect(
+      await f.db
+        .prepare("SELECT result_state, resource_version FROM runs WHERE id = ?")
+        .get(f.launch.run_id),
+    ).toEqual(state);
+    expect(
+      await f.db.prepare("SELECT state, resource_version FROM tasks WHERE id = ?").get(f.task.id),
+    ).toEqual(task);
+    // Attention authority must not expand the existing launch/capture eligibility.
+    await expect(
+      reauthorizeLaunch(
+        {
+          db: f.db,
+          workspaceId: FIX.workspace,
+          actorRunnerId: f.runner,
+          authorizationEpoch: 1,
+          now: LAUNCH_NOW,
+          cursorBase: 0,
+        },
+        await readLaunch(f.db, FIX.workspace, f.launch.launch_id),
+      ),
+    ).rejects.toMatchObject({ code: "request_rejected" });
+    expect(await f.confirm()).toMatchObject({ ok: false, error: { code: "policy_rejected" } });
+  });
+
   it("recovers one canonical request by exact identity, not changed payload or binding", async () => {
     const f = await captureFixture(undefined, false),
       body = request(f);
@@ -150,62 +216,76 @@ describe("authenticated agent attention", () => {
     await expect(read(f, foreign.id)).rejects.toMatchObject({ code: "not_found" });
   });
 
-  it.each([
-    "requester",
-    "runner",
-    "execution",
-    "result",
-    "lease",
-    "session",
-    "workspace policy",
-    "project policy",
-    "repository policy",
-    "profile",
-  ])("rechecks %s before cached request and optional-binding private read", async (fault) => {
-    const f = await captureFixture(undefined, false),
-      body = request(f);
-    const record = success(await f.hub.execute(requestAttentionCommand, operation(f, body))),
-      before = await effects(f.db);
-    if (fault === "requester")
-      await f.db.prepare("DELETE FROM runner_launch_grants WHERE human_id = ?").run(FIX.member);
-    if (fault === "runner")
-      await f.db
-        .prepare("UPDATE runners SET grant_epoch = grant_epoch + 1 WHERE id = ?")
-        .run(f.runner);
-    if (fault === "execution")
-      await f.db
-        .prepare(
-          "UPDATE run_executions SET state = 'ended', end_reason = 'process_exit', ended_at = ? WHERE id = ?",
-        )
-        .run(LAUNCH_NOW, f.final.run_execution_id);
-    if (fault === "result")
-      await f.db
-        .prepare("UPDATE runs SET result_state = 'cancelled' WHERE id = ?")
-        .run(record.run_id);
-    if (fault === "lease")
-      await f.db
-        .prepare("UPDATE checkout_leases SET expires_at = ? WHERE execution_id = ?")
-        .run(LAUNCH_NOW, f.final.run_execution_id);
-    if (fault === "session")
-      await f.db
-        .prepare("UPDATE provider_sessions SET state = 'ended', ended_at = ? WHERE id = ?")
-        .run(LAUNCH_NOW, f.binding.provider_session_id);
-    if (fault.endsWith("policy"))
-      await f.advancePolicy(fault.split(" ")[0] as "workspace" | "project" | "repository");
-    if (fault === "profile")
-      await f.db
-        .prepare("UPDATE agent_profiles SET resource_version = resource_version + 1 WHERE id = ?")
-        .run(f.start.agent_profile_id);
-    expect(await f.hub.execute(requestAttentionCommand, operation(f, body))).toMatchObject({
-      ok: false,
-    });
-    await expect(read(f, record.id, false)).rejects.toHaveProperty("code");
-    // Policy updates add their own audit outcomes; attention effects stay intact.
-    expect(await f.db.prepare("SELECT COUNT(*) n FROM attention_observations").get()).toEqual({
-      n: 1,
-    });
-    if (!fault.endsWith("policy")) expect(await effects(f.db)).toEqual(before);
-  });
+  it.each(
+    [
+      "requester",
+      "runner",
+      "execution",
+      "accepted",
+      "failed",
+      "cancelled",
+      "lease",
+      "session",
+      "workspace policy",
+      "project policy",
+      "repository policy",
+      "profile",
+    ].flatMap((fault) => ["open", "submitted"].map((state) => ({ fault, state }))),
+  )(
+    "rechecks $fault with a $state result before cached request and optional-binding private read",
+    async ({ fault, state }) => {
+      const f = await captureFixture(undefined, false),
+        body = request(f);
+      if (state === "submitted")
+        success(
+          await f.human(submitResultCommand, {
+            runId: f.launch.run_id,
+            summary: "Synthetic result before review",
+          }),
+        );
+      const record = success(await f.hub.execute(requestAttentionCommand, operation(f, body))),
+        before = await effects(f.db);
+      if (fault === "requester")
+        await f.db.prepare("DELETE FROM runner_launch_grants WHERE human_id = ?").run(FIX.member);
+      if (fault === "runner")
+        await f.db
+          .prepare("UPDATE runners SET grant_epoch = grant_epoch + 1 WHERE id = ?")
+          .run(f.runner);
+      if (fault === "execution")
+        await f.db
+          .prepare(
+            "UPDATE run_executions SET state = 'ended', end_reason = 'process_exit', ended_at = ? WHERE id = ?",
+          )
+          .run(LAUNCH_NOW, f.final.run_execution_id);
+      if (["accepted", "failed", "cancelled"].includes(fault))
+        await f.db
+          .prepare("UPDATE runs SET result_state = ? WHERE id = ?")
+          .run(fault, record.run_id);
+      if (fault === "lease")
+        await f.db
+          .prepare("UPDATE checkout_leases SET expires_at = ? WHERE execution_id = ?")
+          .run(LAUNCH_NOW, f.final.run_execution_id);
+      if (fault === "session")
+        await f.db
+          .prepare("UPDATE provider_sessions SET state = 'ended', ended_at = ? WHERE id = ?")
+          .run(LAUNCH_NOW, f.binding.provider_session_id);
+      if (fault.endsWith("policy"))
+        await f.advancePolicy(fault.split(" ")[0] as "workspace" | "project" | "repository");
+      if (fault === "profile")
+        await f.db
+          .prepare("UPDATE agent_profiles SET resource_version = resource_version + 1 WHERE id = ?")
+          .run(f.start.agent_profile_id);
+      expect(await f.hub.execute(requestAttentionCommand, operation(f, body))).toMatchObject({
+        ok: false,
+      });
+      await expect(read(f, record.id, false)).rejects.toHaveProperty("code");
+      // Policy updates add their own audit outcomes; attention effects stay intact.
+      expect(await f.db.prepare("SELECT COUNT(*) n FROM attention_observations").get()).toEqual({
+        n: 1,
+      });
+      if (!fault.endsWith("policy")) expect(await effects(f.db)).toEqual(before);
+    },
+  );
 
   it("allows truly unbound provisional reads without creating canonical state", async () => {
     const f = await launchFixture(),

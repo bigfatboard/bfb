@@ -9,6 +9,7 @@ import {
   type RunnerChallenge,
   answerAttentionCommand,
   resolveAttentionCommand,
+  submitResultCommand,
 } from "@bfb/domain";
 import type { AgentAttentionRequest, AgentAttentionResult } from "@bfb/protocol";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -130,6 +131,58 @@ async function effects(db: SqlDatabase) {
 }
 
 describe("mounted runner attention", () => {
+  it("creates, retrieves and exactly retries attention after a genuine result submission", async () => {
+    const f = await fixture(),
+      body = f.request(),
+      original = await f.create(body);
+    success(
+      await f.human(submitResultCommand, {
+        runId: f.launch.run_id,
+        summary: "Synthetic submitted result",
+      }),
+    );
+    const run = await f.db
+        .prepare("SELECT result_state, resource_version FROM runs WHERE id = ?")
+        .get(f.launch.run_id),
+      task = await f.db
+        .prepare("SELECT state, resource_version FROM tasks WHERE id = ?")
+        .get(f.task.id);
+    expect(run).toMatchObject({ result_state: "submitted" });
+    expect(task).toMatchObject({ state: "review" });
+    expect(await f.create(body)).toEqual(original);
+    const reviewBody = { ...f.request(), kind: "review" as const },
+      review = await f.create(reviewBody),
+      before = await effects(f.db);
+    expect(await f.create(reviewBody)).toEqual(review);
+    const readBody = f.read(review.attention.id, false);
+    const get = async () => {
+      const response = await f.send(await f.signed("attention-get", readBody));
+      expect(response.status, await response.clone().text()).toBe(200);
+      return (await response.json()) as AgentAttentionResult;
+    };
+    expect((await get()).attention.state).toBe("open");
+    success(
+      await f.human(answerAttentionCommand, {
+        attentionId: review.attention.id,
+        expectedVersion: 1,
+        answer: "Synthetic review response",
+      }),
+    );
+    expect((await get()).attention).toMatchObject({
+      state: "answered",
+      answer: "Synthetic review response",
+    });
+    expect(await effects(f.db)).toEqual(before);
+    expect(
+      await f.db
+        .prepare("SELECT result_state, resource_version FROM runs WHERE id = ?")
+        .get(f.launch.run_id),
+    ).toEqual(run);
+    expect(
+      await f.db.prepare("SELECT state, resource_version FROM tasks WHERE id = ?").get(f.task.id),
+    ).toEqual(task);
+  });
+
   it("returns current answer and resolution for repeated read ID, including provisional restart shape", async () => {
     const f = await fixture(),
       created = await f.create(),
@@ -203,12 +256,23 @@ describe("mounted runner attention", () => {
     expect(await effects(f.db)).toEqual(before);
   });
 
-  it.each(["session", "requester", "execution", "result", "lease"])(
-    "denies %s before cached creation or binding-omitted read",
-    async (fault) => {
+  it.each(
+    ["session", "requester", "execution", "accepted", "failed", "cancelled", "lease"].flatMap(
+      (fault) => ["open", "submitted"].map((state) => ({ fault, state })),
+    ),
+  )(
+    "denies $fault with a $state result before cached creation or binding-omitted read",
+    async ({ fault, state }) => {
       const f = await fixture(),
         body = f.request(),
         created = await f.create(body);
+      if (state === "submitted")
+        success(
+          await f.human(submitResultCommand, {
+            runId: f.launch.run_id,
+            summary: "Synthetic result before closure",
+          }),
+        );
       if (fault === "session")
         await f.db
           .prepare("UPDATE provider_sessions SET state='ended',ended_at=? WHERE id=?")
@@ -221,10 +285,8 @@ describe("mounted runner attention", () => {
             "UPDATE run_executions SET state='ended',end_reason='process_exit',ended_at=? WHERE id=?",
           )
           .run(LAUNCH_NOW, f.final.run_execution_id);
-      if (fault === "result")
-        await f.db
-          .prepare("UPDATE runs SET result_state='cancelled' WHERE id=?")
-          .run(f.launch.run_id);
+      if (["accepted", "failed", "cancelled"].includes(fault))
+        await f.db.prepare("UPDATE runs SET result_state=? WHERE id=?").run(fault, f.launch.run_id);
       if (fault === "lease")
         await f.db
           .prepare("UPDATE checkout_leases SET expires_at=? WHERE execution_id=?")
