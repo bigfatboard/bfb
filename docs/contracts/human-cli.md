@@ -28,7 +28,7 @@ duplicate owner, or a summary drift against the live registry.
 | `project list`, `project get` | C07 | Thin reads over `GET /api/v1/cli/projects*` |
 | `task list`, `task get`, `task create` | C08 | Thin clients over `GET/POST /api/v1/cli/tasks*` |
 | `run list`, `run get` | C08 | Thin reads mirroring the browser run columns |
-| `run submit` | A03 | Run-scoped agent submission, unchanged by X02 |
+| `run submit` | A03 | Reserved; bounded `not_implemented` until A03 integration |
 | `run cancel` | C08 | Guarded write over `POST /api/v1/cli/runs/:id/cancellation` |
 | `attention list`, `attention get`, `attention answer`, `attention resolve` | A02 | Thin clients over `/api/v1/cli/attention*` |
 | `hook ingest`, `hook status` | L06 | Local journal clients, unchanged by X02 |
@@ -161,9 +161,10 @@ confirmation. `bfb logout` revokes and forgets in both modes with the same
   the client version; mutations refuse with `version_mismatch` when the
   server API major moves past the client's supported major, while reads
   proceed with a standard-error warning.
-- Per-command offline behavior is frozen in the matrix: local commands work
-  from local state (`run submit` journals `pending_sync`; hook ingest falls
-  back to the local inbox); every control-plane read or write fails with
+- Per-command offline behavior is frozen in the matrix: supported local
+  commands work from local state (hook ingest falls back to the local
+  inbox); reserved `run submit` returns `not_implemented` with exit 4
+  without opening assignment or journal storage. Every control-plane read or write fails with
   `control_unreachable` and exit 4. The human CLI never queues offline
   mutations: the daemon journal is runner-plane only.
 

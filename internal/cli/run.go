@@ -1,5 +1,5 @@
-// ABOUTME: Offers the run-scoped result submission surface to agents without an MCP transport.
-// ABOUTME: Verifies the active assignment and correlation, then journals one pending_sync operation.
+// ABOUTME: Validates the reserved run-scoped result submission surface without admitting business work.
+// ABOUTME: Returns a bounded unsupported outcome without opening assignment or agent journal storage.
 
 package cli
 
@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/json"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -22,7 +21,7 @@ func RegisterRun(registry *Registry) {
 	if err := registry.Register(Command{
 		Path:     "run submit",
 		Method:   "run.submit",
-		Summary:  "Journal one run-scoped result submission for human review",
+		Summary:  "Validate result input; submission is not implemented",
 		RawStdio: true,
 		Run: func(ctx context.Context, invocation Invocation) (map[string]any, error) {
 			return nil, runSubmitStdio(ctx, invocation)
@@ -36,7 +35,7 @@ func RegisterRun(registry *Registry) {
 // local-rpc envelope has no result-receipt shape, so this command prints
 // exactly one JSON line carrying the bounded outcome. The returned error
 // only sets the exit status; the precise code is always in the JSON line.
-func runSubmitStdio(ctx context.Context, invocation Invocation) error {
+func runSubmitStdio(_ context.Context, invocation Invocation) error {
 	output := invocation.Output
 	if output == nil {
 		output = os.Stdout
@@ -53,58 +52,30 @@ func runSubmitStdio(ctx context.Context, invocation Invocation) error {
 		writeLine(map[string]any{"error": map[string]any{"code": "invalid_request"}})
 		return err
 	}
-	env, err := localmcp.ParseEnv(os.Environ(), os.Getuid())
+	_, err = localmcp.ParseEnv(os.Environ(), os.Getuid())
 	if err != nil {
 		writeLine(map[string]any{"error": map[string]any{"code": "invalid_request"}})
 		return &daemon.Failure{Code: "invalid_request"}
 	}
-	_, canonical, err := localmcp.ValidateSubmitInput(params)
+	_, _, err = localmcp.ValidateSubmitInput(params)
 	if err != nil {
 		code := localmcp.CodeOf(err)
 		writeLine(map[string]any{"error": map[string]any{"code": code}})
 		return &daemon.Failure{Code: "invalid_request"}
 	}
-	assignments := localmcp.DaemonAssignments{DB: openAssignmentsReadOnly(invocation)}
-	journal, err := localmcp.OpenJournal(filepath.Join(invocation.Paths.Root, "local-mcp-journal.sqlite"))
-	if err != nil {
-		writeLine(map[string]any{"error": map[string]any{"code": "storage_failed"}})
-		return &daemon.Failure{Code: "storage_failed"}
+	// Preserve the journal's former request-identity check without opening it.
+	for _, character := range requestID {
+		if character >= 'A' && character <= 'Z' || character >= 'a' && character <= 'z' ||
+			character >= '0' && character <= '9' || strings.ContainsRune("._:~-", character) {
+			continue
+		}
+		writeLine(map[string]any{"error": map[string]any{"code": "invalid_request"}})
+		return &daemon.Failure{Code: "invalid_request"}
 	}
-	defer journal.Close()
-	receipt, err := localmcp.JournalCLIResult(ctx, localmcp.CLISubmission{
-		Env:         env,
-		Assignments: assignments,
-		Journal:     journal,
-		Policy:      localmcp.DefaultOfflinePolicy{AllowPending: true},
-		Canonical:   canonical,
-		RequestID:   requestID,
-	})
-	if err != nil {
-		code := localmcp.CodeOf(err)
-		writeLine(map[string]any{"error": map[string]any{"code": code}})
-		return &daemon.Failure{Code: cliExitCode(code)}
-	}
-	outcome, ok := receipt.(map[string]any)
-	if !ok {
-		writeLine(map[string]any{"error": map[string]any{"code": "internal_error"}})
-		return &daemon.Failure{Code: "internal_error"}
-	}
-	writeLine(outcome)
-	return nil
-}
-
-// cliExitCode maps the bounded submission failure to the closest daemon exit
-// without inventing wire state: usage errors exit 2, assignment mismatches 3,
-// everything operational exits 5. The exact code stays in the JSON line.
-func cliExitCode(code string) string {
-	switch code {
-	case "invalid_request", "invalid_params", "method_not_found":
-		return "invalid_request"
-	case "assignment_unknown", "assignment_ended", "correlation_rejected":
-		return "execution_assignment_invalid"
-	default:
-		return "internal_error"
-	}
+	// A03 is held. This reserved command cannot write unsigned result rows or
+	// open the daemon-owned A01 journal, even for a syntactically valid caller.
+	writeLine(map[string]any{"error": map[string]any{"code": "not_implemented"}})
+	return &daemon.Failure{Code: "not_implemented"}
 }
 
 func parseSubmitArgs(args []string) (map[string]any, string, error) {

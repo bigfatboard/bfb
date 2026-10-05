@@ -1,15 +1,15 @@
-// ABOUTME: Drives the real bfb run submit binary through journaling and rejection cases.
-// ABOUTME: Uses synthetic identities only and asserts on stdout lines, never bodies.
+// ABOUTME: Proves the real reserved run submit command validates inputs without opening journal storage.
+// ABOUTME: Uses synthetic identities and byte-preserved historical rows without admitting result writes.
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
 const root = process.cwd();
-const binary = join(mkdtempSync(join(tmpdir(), "bfb-a03-harness-")), "bfb");
+const binary = join(mkdtempSync(join(tmpdir(), "bfb-reserved-results-harness-")), "bfb");
 const correlation = "synthetic-harness-correlation-002";
 
 function build(): void {
@@ -37,7 +37,7 @@ function scopedEnv(extra: Record<string, string> = {}): Record<string, string> {
     BFB_ASSIGNMENT_GENERATION: "7",
     BFB_CHECKOUT_ID: "01SYNTHETICCO00000000000001",
     BFB_CORRELATION_TOKEN: correlation,
-    BFB_ARTIFACTS_DIR: mkdtempSync(join(tmpdir(), "bfb-a03-artifacts-")),
+    BFB_ARTIFACTS_DIR: mkdtempSync(join(tmpdir(), "bfb-reserved-results-artifacts-")),
     BFB_RUNNER_ID: "01SYNTHETICRN00000000000001",
     ...extra,
   };
@@ -90,9 +90,29 @@ function receipt(stdout: string): Record<string, unknown> {
 }
 
 function assertNoLeak(text: string): void {
-  for (const secret of [correlation, "synthetic-harness-bearer"]) {
+  for (const secret of [
+    correlation,
+    "synthetic-harness-bearer",
+    "Synthetic harness result",
+    "synthetic-harness-comment",
+  ]) {
     assert.ok(!text.includes(secret), `leaked material in: ${text.slice(0, 200)}`);
   }
+}
+
+function assertNoJournal(dataDir: string): void {
+  assert.ok(
+    !readdirSync(dataDir).some((name) => name.startsWith("local-mcp-journal.sqlite")),
+    "reserved result command touched A01 journal state",
+  );
+}
+
+function assertUnsupported(run: Run): void {
+  assert.equal(run.status, 4, `exit: ${run.stderr}\n${run.stdout}`);
+  assert.equal(run.stdout, '{"error":{"code":"not_implemented"}}\n');
+  assert.deepEqual(receipt(run.stdout), { error: { code: "not_implemented" } });
+  assertNoLeak(run.stdout);
+  assertNoLeak(run.stderr);
 }
 
 build();
@@ -109,54 +129,99 @@ const submitArgs = [
   "--git-commit",
   "c".repeat(40),
   "--request-id",
-  "a03-harness-submit-001",
+  "reserved-harness-submit-001",
 ];
 
-// Bound run: one pending_sync receipt, repeat returns the original, journal created.
+// Valid input is unsupported without opening either assignment or journal storage.
 {
-  const dataDir = mkdtempSync(join(tmpdir(), "bfb-a03-data-"));
-  seedAssignments(join(dataDir, "state.sqlite"), "running", correlation);
+  const dataDir = mkdtempSync(join(tmpdir(), "bfb-reserved-results-data-"));
   const first = submit(submitArgs, scopedEnv(), dataDir);
-  assert.equal(first.status, 0, `exit: ${first.stderr}\n${first.stdout}`);
-  const firstReceipt = receipt(first.stdout);
-  assert.equal(firstReceipt["status"], "pending_sync");
-  assert.equal(firstReceipt["request_id"], "a03-harness-submit-001");
-  assert.equal(firstReceipt["tool"], "bfb_submit_result");
-  assertNoLeak(first.stdout);
-  assertNoLeak(first.stderr);
-  assert.ok(existsSync(join(dataDir, "local-mcp-journal.sqlite")), "journal file missing");
+  assertUnsupported(first);
   const second = submit(submitArgs, scopedEnv(), dataDir);
-  assert.equal(second.status, 0, `repeat exit: ${second.stderr}`);
-  assert.deepEqual(receipt(second.stdout), firstReceipt);
+  assertUnsupported(second);
+  assert.equal(second.stdout, first.stdout);
+  assertNoJournal(dataDir);
+  assert.ok(!existsSync(join(dataDir, "state.sqlite")), "assignment storage created");
 }
 
-// Wrong correlation: visible rejection with no journaled effect.
-{
-  const dataDir = mkdtempSync(join(tmpdir(), "bfb-a03-data-"));
-  seedAssignments(join(dataDir, "state.sqlite"), "running", "another-correlation");
-  const run = submit(submitArgs, scopedEnv(), dataDir);
-  assert.notEqual(run.status, 0);
-  const failure = receipt(run.stdout)["error"] as { code?: string };
-  assert.equal(failure.code, "correlation_rejected");
-  assertNoLeak(run.stdout);
-  assertNoLeak(run.stderr);
+// Assignment contents cannot enable this held result-write surface.
+for (const [state, token] of [
+  ["running", correlation],
+  ["running", "another-correlation"],
+  ["ended", correlation],
+] as const) {
+  const dataDir = mkdtempSync(join(tmpdir(), "bfb-reserved-results-data-"));
+  const assignments = join(dataDir, "state.sqlite");
+  seedAssignments(assignments, state, token);
+  const original = readFileSync(assignments);
+  assertUnsupported(submit(submitArgs, scopedEnv(), dataDir));
+  assert.deepEqual(readFileSync(assignments), original, "assignment history changed");
+  assertNoJournal(dataDir);
 }
 
-// Bearer-polluted environment: refusal before any storage effect.
+// Existing unsigned pending and terminal history remain byte-for-byte historical evidence.
 {
-  const dataDir = mkdtempSync(join(tmpdir(), "bfb-a03-data-"));
-  seedAssignments(join(dataDir, "state.sqlite"), "running", correlation);
-  const run = submit(
-    submitArgs,
-    scopedEnv({ BFB_RUNNER_TOKEN: "synthetic-harness-bearer" }),
-    dataDir,
+  const dataDir = mkdtempSync(join(tmpdir(), "bfb-reserved-results-history-"));
+  const journal = join(dataDir, "local-mcp-journal.sqlite");
+  const db = new DatabaseSync(journal);
+  db.exec(
+    readFileSync(join(root, "internal/localmcp/migrations/011_pending_operations.sql"), "utf8"),
   );
-  assert.notEqual(run.status, 0);
-  const failure = receipt(run.stdout)["error"] as { code?: string };
-  assert.equal(failure.code, "invalid_request");
-  assertNoLeak(run.stdout);
-  assertNoLeak(run.stderr);
-  assert.ok(!existsSync(join(dataDir, "local-mcp-journal.sqlite")), "refused run journaled");
+  db.exec("PRAGMA user_version = 12");
+  const insert = db.prepare(
+    `INSERT INTO pending_operations
+    (request_id, tool, workspace_id, project_id, task_id, run_id, runner_id, checkout_id,
+     execution_id, assignment_generation, observed_session_id, principal, grant_name,
+     expected_version, payload_hash, payload_json, capture_proof, captured_at, expires_at,
+     policy_decision, state, outcome_json)
+    VALUES (?, 'bfb_submit_result', 'workspace', 'project', 'task', 'run', 'runner', 'checkout',
+     'execution', 7, '', 'legacy', 'legacy', 0, 'legacy-hash', '{}', 'unsigned-legacy',
+     '2026-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z', 'pending_sync', ?, ?)`,
+  );
+  insert.run("legacy-pending-result-001", "pending", null);
+  insert.run("legacy-terminal-result-001", "applied", '{"historical":true}');
+  db.close();
+  const original = readFileSync(journal);
+  const originalFiles = readdirSync(dataDir).sort();
+  assertUnsupported(submit(submitArgs, scopedEnv(), dataDir));
+  assert.deepEqual(readFileSync(journal), original, "retained journal bytes changed");
+  assert.deepEqual(readdirSync(dataDir).sort(), originalFiles, "journal sidecar created");
 }
 
-console.log("A03 CLI submit harness: passed");
+// Existing input and environment validation still refuses malformed callers before storage.
+for (const [args, extra, code] of [
+  [submitArgs, { BFB_RUNNER_TOKEN: "synthetic-harness-bearer" }, "invalid_request"],
+  [submitArgs, { BFB_RUN_ID: "" }, "invalid_request"],
+  [submitArgs, { BFB_ASSIGNMENT_GENERATION: "0" }, "invalid_request"],
+  [[...submitArgs, "--unknown", "value"], {}, "invalid_request"],
+  [["run", "submit", "--summary", "x", "--request-id", "invalid request"], {}, "invalid_request"],
+  [
+    [
+      "run",
+      "submit",
+      "--summary",
+      "x",
+      "--request-id",
+      "valid-request-001",
+      "--git-commit",
+      "short",
+    ],
+    {},
+    "invalid_params",
+  ],
+] satisfies Array<[string[], Record<string, string>, string]>) {
+  const dataDir = mkdtempSync(join(tmpdir(), "bfb-reserved-results-refused-"));
+  const run = submit(args, scopedEnv(extra), dataDir);
+  assert.equal(run.status, 2, `exit: ${run.stderr}\n${run.stdout}`);
+  const failure = receipt(run.stdout)["error"] as { code?: string };
+  assert.equal(failure.code, code);
+  assertNoLeak(run.stdout);
+  assertNoLeak(run.stderr);
+  assertNoJournal(dataDir);
+  assert.ok(
+    !existsSync(join(dataDir, "state.sqlite")),
+    "refused command opened assignment storage",
+  );
+}
+
+console.log("Reserved results CLI harness: passed");

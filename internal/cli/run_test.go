@@ -1,5 +1,5 @@
-// ABOUTME: Proves run submit journals one idempotent pending_sync operation for the bound run.
-// ABOUTME: Uses synthetic identities only; no test reaches the network or the daemon database.
+// ABOUTME: Proves reserved run result submission validates inputs but never touches the agent journal.
+// ABOUTME: Uses synthetic identities and retained-history checks without network or daemon execution.
 
 package cli
 
@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -120,29 +121,62 @@ func decodeLine(t *testing.T, output string) map[string]any {
 	return value
 }
 
-func TestRunSubmitJournalsPendingSync(t *testing.T) {
+func assertNoSubmitJournal(t *testing.T, dataDir string) {
+	t.Helper()
+	entries, err := os.ReadDir(dataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), "local-mcp-journal.sqlite") {
+			t.Fatal("reserved result command touched A01 journal state", entry.Name())
+		}
+	}
+}
+
+func TestRunSubmitUnsupportedDoesNotCreateStorage(t *testing.T) {
 	submitEnv(t, nil)
 	dataDir := shortDataDir(t)
-	seedAssignments(t, dataDir+"/state.sqlite", "running", testToken)
 	code, output := executeRun(t, dataDir, submitArgs())
-	if code != 0 {
-		t.Fatalf("run submit failed: %d %s", code, output)
+	if code != 4 {
+		t.Fatalf("reserved submit did not return unsupported: %d %s", code, output)
 	}
-	receipt := decodeLine(t, output)
-	if receipt["status"] != "pending_sync" || receipt["request_id"] != "cli-submit-001" ||
-		receipt["tool"] != "bfb_submit_result" || receipt["expires_at"] == nil {
-		t.Fatalf("unexpected receipt: %s", output)
+	if output != "{\"error\":{\"code\":\"not_implemented\"}}\n" {
+		t.Fatalf("unsupported outcome is not bounded: %s", output)
 	}
 	if strings.Contains(output, "Synthetic CLI result") || strings.Contains(output, testToken) {
 		t.Fatalf("receipt leaks submission material: %s", output)
 	}
 	again, repeated := executeRun(t, dataDir, submitArgs())
-	if again != 0 {
-		t.Fatalf("repeat failed: %d %s", again, repeated)
+	if again != 4 || repeated != output {
+		t.Fatalf("repeat changed unsupported result: %d %s", again, repeated)
 	}
-	second := decodeLine(t, repeated)
-	if second["expires_at"] != receipt["expires_at"] || second["request_id"] != receipt["request_id"] {
-		t.Fatalf("repeat created a second operation: %s vs %s", repeated, output)
+	assertNoSubmitJournal(t, dataDir)
+	if _, err := os.Lstat(filepath.Join(dataDir, "state.sqlite")); !os.IsNotExist(err) {
+		t.Fatal("unsupported command opened assignment storage", err)
+	}
+}
+
+func TestRunSubmitUnsupportedPreservesExistingJournal(t *testing.T) {
+	submitEnv(t, nil)
+	dataDir := shortDataDir(t)
+	for _, suffix := range []string{"", ".identity", ".lock", "-wal", "-shm", "-journal"} {
+		path := filepath.Join(dataDir, "local-mcp-journal.sqlite"+suffix)
+		original := []byte("original retained daemon journal evidence " + suffix)
+		if err := os.WriteFile(path, original, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	code, output := executeRun(t, dataDir, submitArgs())
+	if code != 4 || output != "{\"error\":{\"code\":\"not_implemented\"}}\n" {
+		t.Fatal("legacy storage influenced unsupported result", code, output)
+	}
+	for _, suffix := range []string{"", ".identity", ".lock", "-wal", "-shm", "-journal"} {
+		path := filepath.Join(dataDir, "local-mcp-journal.sqlite"+suffix)
+		retained, err := os.ReadFile(path)
+		if err != nil || string(retained) != "original retained daemon journal evidence "+suffix {
+			t.Fatal("result path changed daemon evidence", suffix, err)
+		}
 	}
 }
 
@@ -156,13 +190,19 @@ func TestRunSubmitRejectsUntrustedInput(t *testing.T) {
 		code  string
 	}{
 		{"unknown assignment", "running", testToken, nil,
-			[]string{"run", "submit", "--summary", "x", "--request-id", "cli-neg-001"}, "storage_failed"},
-		{"wrong correlation", "running", "another-correlation", nil, submitArgs(), "correlation_rejected"},
-		{"ended assignment", "ended", testToken, nil, submitArgs(), "assignment_ended"},
+			[]string{"run", "submit", "--summary", "x", "--request-id", "cli-neg-001"}, "not_implemented"},
+		{"wrong correlation", "running", "another-correlation", nil, submitArgs(), "not_implemented"},
+		{"ended assignment", "ended", testToken, nil, submitArgs(), "not_implemented"},
+		{"missing environment boundary", "running", testToken, map[string]string{"BFB_RUN_ID": ""}, submitArgs(), "invalid_request"},
+		{"invalid environment generation", "running", testToken, map[string]string{"BFB_ASSIGNMENT_GENERATION": "0"}, submitArgs(), "invalid_request"},
 		{"missing summary", "running", testToken, nil,
 			[]string{"run", "submit", "--request-id", "cli-neg-002"}, "invalid_request"},
 		{"short request id", "running", testToken, nil,
 			[]string{"run", "submit", "--summary", "x", "--request-id", "short"}, "invalid_request"},
+		{"invalid request id characters", "running", testToken, nil,
+			[]string{"run", "submit", "--summary", "x", "--request-id", "cli invalid id"}, "invalid_request"},
+		{"non ASCII request id", "running", testToken, nil,
+			[]string{"run", "submit", "--summary", "x", "--request-id", "cli-invalid-ü"}, "invalid_request"},
 		{"unknown flag", "running", testToken, nil,
 			[]string{"run", "submit", "--summary", "x", "--request-id", "cli-neg-003", "--workspace", "other"}, "invalid_request"},
 		{"bad evidence ref", "running", testToken, nil,
@@ -189,6 +229,7 @@ func TestRunSubmitRejectsUntrustedInput(t *testing.T) {
 			if strings.Contains(output, testToken) || strings.Contains(output, "synthetic-cli") {
 				t.Fatalf("rejection leaks submission material: %s", output)
 			}
+			assertNoSubmitJournal(t, dataDir)
 		})
 	}
 }
@@ -209,4 +250,5 @@ func TestRunSubmitRefusesBearerEnvironment(t *testing.T) {
 	if strings.Contains(output, "synthetic-bearer") {
 		t.Fatalf("rejection leaks bearer material: %s", output)
 	}
+	assertNoSubmitJournal(t, dataDir)
 }

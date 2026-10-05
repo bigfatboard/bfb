@@ -51,7 +51,7 @@ func Table() []Definition {
 		{Path: "task create", Owner: "C08", Summary: "Create one task in an explicit project", Offline: "control_unreachable"},
 		{Path: "run list", Owner: "C08", Summary: "List runs for one task", Offline: "control_unreachable"},
 		{Path: "run get", Owner: "C08", Summary: "Show one run by ID", Offline: "control_unreachable"},
-		{Path: "run submit", Owner: "A03", Summary: "Journal one run-scoped result submission for human review", Offline: "journals pending_sync locally"},
+		{Path: "run submit", Owner: "A03", Summary: "Validate result input; submission is not implemented", Offline: "not_implemented; no storage effects"},
 		{Path: "run cancel", Owner: "C08", Summary: "Cancel one open run after explicit confirm and fresh proof", Destructive: true, StepUpAction: "cli:run:cancel", Offline: "control_unreachable"},
 		{Path: "attention list", Owner: "A02", Summary: "List attention requests across visible projects", Offline: "control_unreachable"},
 		{Path: "attention get", Owner: "A02", Summary: "Show one attention request with its history", Offline: "control_unreachable"},

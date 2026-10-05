@@ -4,8 +4,13 @@ Owner: [A03](../work-packages/WP-A03-results.md). Gate: `pnpm test:a03`.
 
 This contract freezes explicit result submission, human review decisions,
 outdated detection, and capability revocation for runs. It extends the
-run-scoped local MCP server defined in [local-mcp/1](local-mcp.md); it does
+run-scoped local MCP server defined in [local MCP](local-mcp.md); it does
 not introduce another agent credential or a second local tool endpoint.
+
+A03 runtime integration is held while A01 is re-certified. The result MCP
+tool is not advertised by the production host, and the reserved CLI command
+returns `not_implemented`. The domain and review contracts below do not
+certify those local submission paths.
 
 ## State coupling
 
@@ -141,17 +146,15 @@ read or write `checkout_leases`.
 
 ## Surfaces
 
-- Local MCP `bfb_submit_result` on the run-scoped stdio server: activated
-  capability only (provisional calls return `session_not_bound`); offline
-  calls journal a durable `pending_sync` operation or fail visibly as
-  `offline_rejected` exactly by policy. Project policy may prohibit
-  pending-sync result actions entirely.
-- Local CLI `bfb run submit`: the same run-scoped submission for agents
-  without an MCP transport. It verifies the active assignment and
-  correlation, validates the same bounds, and journals the same
-  `pending_sync` operation keyed by `request_id`; replay goes through L08
-  and rechecks runner credential, epoch, run capability, policy, and
-  versions. It never invents cloud state.
+- Local MCP `bfb_submit_result`: reserved for A03 integration; currently
+  absent from the production run-scoped tool surface. Result submission is
+  not one of A01's four admitted write commands and cannot inherit their
+  offline permission.
+- Local CLI `bfb run submit`: currently validates bounded input and the
+  required environment, then returns `not_implemented` with exit 4. It
+  does not open assignment or journal storage, enqueue an unsigned result,
+  or alter retained history. A03 must integrate any future submission with
+  the daemon-owned authority and protected-capture contracts before use.
 - REST work API under `/api/v1/workspaces/:workspace/runs/:run`: human
   `POST .../results` (submit), `GET .../results` (list with computed
   outdated flags), `POST .../review` (`request_changes` or `accept`),
