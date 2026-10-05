@@ -17,6 +17,10 @@ ABOUTME: Applies to JSON Schema under protocol/schema and generated codecs.
 - Required fields cannot be removed or retyped without a new wire version.
 - Deprecation requires an explicit version transition; v1 producers and readers do not silently accept deprecated values.
 
+### Local agent-work transition
+
+[ADR 0005](../../docs/adr/0005-agent-work-session-and-attribution.md) defines a separate closed `local-agent-rpc` envelope at schema version 2. The general `local-rpc` envelope and Swift app calls remain version 1. Fixed `mcp.v2.` methods are negotiated through the already-declared `methods` field of a v1 `daemon.status` response before private input is sent. Unsupported versions or missing methods fail visibly; no automatic downgrade is allowed. Version 2 is accepted only for the named agent document, and replies must match the selected version, method and request ID. The unchanged nested cloud operation reference remains version 1, preserving its idempotency hashes. This is a document-specific transition, not a global upgrade of existing `bfb-wire/1` records.
+
 ## Bounds
 
 - Every string, array, object map, and payload has explicit max length or max items in schema.

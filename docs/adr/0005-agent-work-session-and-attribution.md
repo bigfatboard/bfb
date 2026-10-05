@@ -36,9 +36,51 @@ than another invented vendor conversation or a reassigned origin execution.
 
 ## Decision
 
+### Negotiated local agent envelope
+
+The general local RPC v1 envelope is closed. Installed app, CLI and daemon
+binaries are not guaranteed to match: signature/team checks do not prove a
+build version, and an existing daemon may keep running during a CLI upgrade.
+Do not append the new payload fields to that envelope or claim lockstep
+deployment. Freeze the committed v1 envelope, including the preceding read
+slice, without rewriting its historical proof.
+
+Introduce a separate closed `local-agent-rpc` document with `schema_version: 2`
+on the same bounded Unix socket. Its version-qualified methods use the
+`mcp.v2.` prefix for authority, context, task, session binding, bound authority
+and the four specified writes. Declare all four write shapes in this version;
+advertise only handlers actually installed. The new host uses this lane for
+bootstrap reads too; the daemon may continue serving the existing v1 read
+methods without giving them write authority. The public MCP tool names and
+their `local-mcp/2` contract are unchanged.
+
+Before sending a correlation token, binding or task content, the host calls
+the existing v1 `daemon.status` method and requires the relevant version-
+qualified methods in its response. Populate the already-declared optional
+`methods` field with the registered methods; do not add a v1 field. A genuine
+old daemon omits that advertisement and the host reports unsupported protocol
+without attempting or downgrading the operation. This is capability
+negotiation, not business authority.
+
+The daemon validates the selected closed document and restricts v2 to its
+fixed method set before dispatch. Every response, including errors, echoes
+the request version, method and request ID. The client checks all three and
+the existing native server/peer boundary. A daemon replacement cannot be
+rescued by stale cached negotiation or a silent v1 fallback. Keep frame bounds,
+duplicate-key/Unicode rejection and schema errors intact. Permit version 2
+only for this named document; all existing documents keep their current
+version checks. Swift app RPC stays v1. Catalog/generator metadata and mixed-
+version negative fixtures must describe this document-specific transition;
+the rest of `bfb-wire/1` is not implicitly upgraded.
+
+Local-envelope version 2 is independent of the nested cloud operation
+reference's `schema_version: 1`. Preserve read idempotency hashes exactly.
+Offline permission and replay envelopes are not part of this version and
+cannot later be appended as optional v2 fields without an explicit transition.
+
 ### Explicit canonical binding
 
-Add a fixed internal `mcp.bind_session` RPC mapped to the possession-
+Add a fixed internal `mcp.v2.bind_session` RPC mapped to the possession-
 authenticated `work/session-bind` action. It is not an exposed MCP tool.
 The host requests confirmation for its already-verified execution reference;
 the daemon independently verifies the kernel caller and reads L06's trusted
@@ -100,7 +142,7 @@ A binding request or bootstrap read cannot invent a trusted local observation.
 
 ### Current bound authority and cached outcomes
 
-Add a fixed read-only `mcp.bound_authority` / `work/bound-authority` operation
+Add a fixed read-only `mcp.v2.bound_authority` / `work/bound-authority` operation
 for an activated connection's captured session reference. Every bound call,
 including a locally cached write outcome, rechecks the current association,
 canonical session state and exact provider/observed identity as well as the
@@ -245,6 +287,11 @@ attention, result, release or deployment package is started by this decision.
 
 Required regressions include:
 
+- New host plus old daemon fails before private input; old app/CLI and existing
+  v1 reads still work with the new daemon. Reject mismatched document/version,
+  wrong-version replies, unadvertised methods, duplicate/ambiguous framing and
+  downgrade attempts without business effects. Generated v1 fixtures remain
+  unchanged; generated v2 fixtures cover every declared fixed action.
 - No binding/business mutation from bootstrap reads, absent observation,
   competing observation, wrong provider, owned wrong correlation/generation,
   foreign process, cross-run/project/workspace input or caller session claims.
