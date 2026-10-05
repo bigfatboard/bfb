@@ -65,7 +65,7 @@ An active local provider process can use stdio MCP to read exactly its run conte
 ### Remaining runtime closure checks
 
 - Shared C08 write rules currently accept human/delegation actors. Add truthful run authorship to task/comment/proposal persistence and projections before exposing runner-authenticated writes; do not impersonate the requesting human. Preserve the advertised progress percent/confidence fields rather than silently dropping them.
-- Define an explicit checked canonical session-binding command. Local trusted hook binding is not a cloud business-state mutation, and a provider's session-tree identity must not be assumed equal to its exact continuation target.
+- Define an explicit checked canonical session-binding command. Local trusted hook binding is not a cloud business-state mutation, and a provider's session-tree identity must not be assumed equal to its exact continuation target. Exact resume creates a new execution/generation for an existing provider session; its binding must not invent another vendor session or require that session's original execution to equal every resumed execution. Derive provider identity from the pinned launch snapshot, not a mutable profile.
 - Keep cloud operation identity stable across online requests and replay: execution, generation, tool and original request ID identify the operation; normalized payload belongs in a separately checked fingerprint, not the identity key. Replace the journal's global raw-request-ID lookup before production use.
 - Add explicit versioned offline permission to the existing policy ceiling/tightening model and bind policy updates to their step-up proof. Daemon-owned capture must retain the authorized scope, trusted session, policy versions, requester/runner epochs, key identity and expiry. No missing permission evidence may be reconstructed as allowed.
 - The legacy capture proof omits authority-bearing fields and replay does not verify the observed session. Protect and recheck the complete capture; distinguish terminal denial from infrastructure failure. Existing rows without sufficient evidence must not acquire new permission on upgrade.
@@ -84,6 +84,7 @@ These are required integration checks, not accepted replacement architecture or 
 
 ## Evidence
 
+- [Read-slice checkpoint](evidence/WP-A01/read-slice-checkpoint.json) records the connected v2 bootstrap at `5640dcd`: exact A01, full repository verification, Linux build and worktree check passed from a clean checkout without prebuilt web assets. It explicitly marks full package acceptance incomplete and does not replace the historical manifest.
 - `docs/work-packages/evidence/WP-A01/manifest.json` indexes the tested commit, migration heads, toolchains, commands, and redaction status per the evidence manifest schema.
 - `inspector-transcript.jsonl` with its byte-pinned `.expected.jsonl` twin records a full stdio session (handshake, tool list, provisional reads, provisional rejection, binding, writes, proposal policy, versioned re-read, unknown method, absent tools), replayed verbatim by `TestGoldenInspectorTranscript`.
 - `pending-record.json` shows one journaled operation with every required evidence field; `replay-matrix.md` tabulates the replay dispositions.
