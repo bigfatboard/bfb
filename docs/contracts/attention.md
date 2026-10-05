@@ -32,7 +32,9 @@ permission, blocking flag, state, answer, and timestamps:
   `first_response_at`, `answered_at`, and `resolved_at` advance with it.
 - One row binds one run, execution, and assignment generation. A request is
   refused once its run result is terminal, and requesting never changes run,
-  membership, or policy state.
+  membership, or policy state. A submitted result remains nonterminal: a live,
+  currently authorized agent may still ask a review question or read an answer.
+  Accepted, failed and cancelled results close this access.
 
 `attention_observations` keeps one immutable raw row per transition
 (`requested`, `answered`, `resolved`) with actor provenance

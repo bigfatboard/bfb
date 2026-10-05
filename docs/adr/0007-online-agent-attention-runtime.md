@@ -64,6 +64,12 @@ the relevant session/launch fences. Creation also requires the exact trusted
 L06 observation and confirmed canonical session. Recheck local caller, native
 ownership and trusted observation after network waits before private delivery.
 
+An explicitly submitted result is still nonterminal: its live agent may request
+a review question or retrieve a committed answer. Attention retains all current
+launch-scope and policy checks without borrowing the narrower eligibility for
+starting a new launch. Accepted, failed and cancelled results remain closed.
+This does not widen launch, task-write capture or replay eligibility.
+
 Provisional reads remain allowed without creating a session binding. Omitting a
 binding cannot bypass an existing canonical association: an ended, malformed or
 conflicting current association fails closed, including after an MCP restart.
