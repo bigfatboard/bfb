@@ -115,16 +115,25 @@ function numericSourceInspection(source: string): NumericInspection {
   return { integer: negative ? "-" + integerDigits : integerDigits };
 }
 
-// Only the three named progress documents can carry these bounded decimals.
+// Only explicitly named progress paths can carry these bounded decimals.
 function progressDecimalPrefix(document: WireDocumentName, value: unknown): string | undefined {
   if (document === "agent-progress-request") return "";
   if (document === "agent-progress-local-request") return "/request";
-  if (document === "local-agent-rpc" && value && typeof value === "object") {
+  if (document === "agent-work-replay-request" && value && typeof value === "object") {
+    if ((value as Record<string, unknown>).command_name === "agent_run.progress")
+      return "/original_request";
+  }
+  if (
+    (document === "local-agent-rpc" || document === "local-agent-work-rpc") &&
+    value &&
+    typeof value === "object"
+  ) {
     const root = value as Record<string, unknown>;
     if (
-      root.schema_version === 2 &&
+      root.schema_version === (document === "local-agent-work-rpc" ? 3 : 2) &&
       root.direction === "request" &&
-      root.method === "mcp.v2.report_progress"
+      root.method ===
+        (document === "local-agent-work-rpc" ? "mcp.v3.report_progress" : "mcp.v2.report_progress")
     )
       return "/payload/agent_progress_request/request";
   }
@@ -647,7 +656,8 @@ function categorize(
   }
 
   if (data && data.schema_version !== undefined) {
-    const expectedVersion = document === "local-agent-rpc" ? 2 : 1;
+    const expectedVersion =
+      document === "local-agent-work-rpc" ? 3 : document === "local-agent-rpc" ? 2 : 1;
     if (rootVersion?.integer !== undefined && rootVersion.integer !== String(expectedVersion)) {
       return {
         schema_version: 1,
@@ -922,7 +932,7 @@ function categorize(
   };
 }
 
-function stableStringify(value: unknown): string {
+function stableStringify(value: unknown, escapeSeparators = true): string {
   let encoded: string | undefined;
   try {
     encoded = JSON.stringify(value, (_key, nested) => {
@@ -942,14 +952,79 @@ function stableStringify(value: unknown): string {
   if (encoded === undefined) {
     throw new Error("wire value is not JSON encodable");
   }
-  return encoded.replaceAll("\u2028", "\\u2028").replaceAll("\u2029", "\\u2029");
+  return escapeSeparators
+    ? encoded.replaceAll("\u2028", "\\u2028").replaceAll("\u2029", "\\u2029")
+    : encoded;
+}
+
+const captureByteLimits: Partial<Record<WireDocumentName, number>> = {
+  "agent-capture-confirmation-request": 2_048,
+  "agent-capture-confirmation-result": 4_096,
+  "agent-work-capture": 8_192,
+  "agent-work-replay-request": 32_768,
+  "agent-work-receipt": 2_048,
+  "local-agent-work-rpc": 65_536,
+};
+
+function wireByteLimit(document: WireDocumentName): number {
+  return captureByteLimits[document] ?? maximumWireBytes;
+}
+
+function captureDocumentBound(
+  document: WireDocumentName,
+  value: unknown,
+  json: string,
+): TypedError | undefined {
+  if (captureByteLimits[document] === undefined) return undefined;
+  const encoder = new TextEncoder();
+  const bounded = (item: unknown, maximum: number) =>
+    encoder.encode(stableStringify(item)).byteLength <= maximum;
+  const root = value as Record<string, unknown>;
+  const captureBounded = (capture: unknown): boolean => {
+    const record = capture as Record<string, unknown>;
+    const { signature: _signature, ...unsigned } = record;
+    const transcript = "BFB-AGENT-WORK-CAPTURE-V1\n" + stableStringify(unsigned) + "\n";
+    return (
+      bounded(record, 8_192) &&
+      bounded(record.confirmation, 4_096) &&
+      encoder.encode(transcript).byteLength <= 8_192
+    );
+  };
+  let valid = encoder.encode(json).byteLength <= wireByteLimit(document);
+  if (document === "agent-work-capture") valid &&= captureBounded(root);
+  if (document === "agent-work-replay-request") {
+    valid &&= captureBounded(root.capture) && bounded(root.original_request, 16_384);
+  }
+  if (document === "local-agent-work-rpc") {
+    // A complete UDS frame includes its trailing newline.
+    valid &&= encoder.encode(json).byteLength + 1 <= 65_536;
+    const payload = root.payload as Record<string, unknown> | undefined;
+    if (payload?.agent_work_receipt) valid &&= bounded(payload.agent_work_receipt, 2_048);
+    for (const field of [
+      "agent_comment_request",
+      "agent_update_request",
+      "agent_progress_request",
+      "agent_proposal_request",
+    ]) {
+      const local = payload?.[field] as Record<string, unknown> | undefined;
+      if (local) valid &&= bounded(local.request, 16_384);
+    }
+  }
+  return valid
+    ? undefined
+    : {
+        schema_version: 1,
+        category: "bound_exceeded",
+        code: "max_bytes",
+        message: "wire document exceeds the byte bound",
+      };
 }
 
 export function decodeWireDocument<T = unknown>(
   document: WireDocumentName,
   input: Uint8Array,
 ): DecodeResult<T> {
-  if (input.byteLength > maximumWireBytes) {
+  if (input.byteLength > wireByteLimit(document)) {
     return {
       ok: false,
       error: {
@@ -1120,6 +1195,8 @@ export function decodeWireDocument<T = unknown>(
   }
 
   const json = stableStringify(value);
+  const bound = captureDocumentBound(document, value, json);
+  if (bound) return { ok: false, error: bound };
   return { ok: true, value: value as T, json };
 }
 
@@ -1142,4 +1219,25 @@ export function encodeNamedWireDocument(document: WireDocumentName, value: unkno
   const result = decodeWireDocument(document, new TextEncoder().encode(stableStringify(value)));
   if (!result.ok) throw new Error(result.error.message);
   return result.json;
+}
+
+const originalAgentWriteDocuments = {
+  "agent_run.comment": "agent-comment-request",
+  "agent_run.update": "agent-update-request",
+  "agent_run.progress": "agent-progress-request",
+  "agent_run.proposal": "agent-proposal-request",
+} as const satisfies Record<string, WireDocumentName>;
+
+// Business digests retain JSON.stringify's literal Unicode separators and field absence.
+export function canonicalAgentWriteRequest(commandName: string, input: Uint8Array): string {
+  const document =
+    originalAgentWriteDocuments[commandName as keyof typeof originalAgentWriteDocuments];
+  if (!document) throw new Error("unknown agent write command");
+  if (input.byteLength > 16_384) throw new Error("agent write exceeds the byte bound");
+  const result = decodeWireDocument(document, input);
+  if (!result.ok) throw new Error(result.error.message);
+  const json = stableStringify(result.value, false);
+  if (new TextEncoder().encode(json).byteLength > 16_384)
+    throw new Error("agent write exceeds the byte bound");
+  return json;
 }

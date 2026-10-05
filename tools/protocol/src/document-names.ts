@@ -428,6 +428,43 @@ export const DOCUMENTS: DocumentSpec[] = [
     goType: "DiscussionView",
     tsType: "DiscussionView",
   },
+  {
+    name: "agent-capture-confirmation-request",
+    schemaFile: "agent-capture-confirmation-request.json",
+    goType: "AgentCaptureConfirmationRequest",
+    tsType: "AgentCaptureConfirmationRequest",
+  },
+  {
+    name: "agent-capture-confirmation-result",
+    schemaFile: "agent-capture-confirmation-result.json",
+    goType: "AgentCaptureConfirmationResult",
+    tsType: "AgentCaptureConfirmationResult",
+  },
+  {
+    name: "agent-work-capture",
+    schemaFile: "agent-work-capture.json",
+    goType: "AgentWorkCapture",
+    tsType: "AgentWorkCapture",
+  },
+  {
+    name: "agent-work-replay-request",
+    schemaFile: "agent-work-replay-request.json",
+    goType: "AgentWorkReplayRequest",
+    tsType: "AgentWorkReplayRequest",
+  },
+  {
+    name: "agent-work-receipt",
+    schemaFile: "agent-work-receipt.json",
+    goType: "AgentWorkReceipt",
+    tsType: "AgentWorkReceipt",
+  },
+  {
+    name: "local-agent-work-rpc",
+    schemaFile: "local-agent-work-rpc.json",
+    schemaVersion: 3,
+    goType: "LocalAgentWorkRpcEnvelope",
+    tsType: "LocalAgentWorkRpcEnvelope",
+  },
 ];
 
 export const SHELL_FIELDS = [

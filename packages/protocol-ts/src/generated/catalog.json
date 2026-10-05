@@ -1,7 +1,7 @@
 {
   "protocol": "bfb-wire/1",
   "schema_version": 1,
-  "schema_hash": "0abff1a77e545e304d54fae31edaabf4c521f14da5bdaf70b2316ea62d611dd8",
+  "schema_hash": "c12727949d9ee1dc0ddbe10fe9b9a3c56196da0c6906a165c3484d3c5c3e19df",
   "documents": [
     {
       "name": "agent-update-result",
@@ -347,6 +347,36 @@
       "name": "discussion-view",
       "schema": "discussion-view.json",
       "schema_version": 1
+    },
+    {
+      "name": "agent-capture-confirmation-request",
+      "schema": "agent-capture-confirmation-request.json",
+      "schema_version": 1
+    },
+    {
+      "name": "agent-capture-confirmation-result",
+      "schema": "agent-capture-confirmation-result.json",
+      "schema_version": 1
+    },
+    {
+      "name": "agent-work-capture",
+      "schema": "agent-work-capture.json",
+      "schema_version": 1
+    },
+    {
+      "name": "agent-work-replay-request",
+      "schema": "agent-work-replay-request.json",
+      "schema_version": 1
+    },
+    {
+      "name": "agent-work-receipt",
+      "schema": "agent-work-receipt.json",
+      "schema_version": 1
+    },
+    {
+      "name": "local-agent-work-rpc",
+      "schema": "local-agent-work-rpc.json",
+      "schema_version": 3
     }
   ]
 }

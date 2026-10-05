@@ -402,9 +402,19 @@ func progressDecimalLimits(document string, value any) map[string]string {
 	case "agent-progress-request":
 	case "agent-progress-local-request":
 		prefix = "/request"
-	case "local-agent-rpc":
+	case "agent-work-replay-request":
 		root, ok := asObject(value)
-		if !ok || root["direction"] != "request" || root["method"] != "mcp.v2.report_progress" {
+		if !ok || root["command_name"] != "agent_run.progress" {
+			return nil
+		}
+		prefix = "/original_request"
+	case "local-agent-rpc", "local-agent-work-rpc":
+		root, ok := asObject(value)
+		method, expectedVersion := "mcp.v2.report_progress", "2"
+		if document == "local-agent-work-rpc" {
+			method, expectedVersion = "mcp.v3.report_progress", "3"
+		}
+		if !ok || root["direction"] != "request" || root["method"] != method {
 			return nil
 		}
 		version, ok := root["schema_version"].(json.Number)
@@ -412,7 +422,7 @@ func progressDecimalLimits(document string, value any) map[string]string {
 			return nil
 		}
 		inspection := inspectNumber(version.String())
-		if inspection.failure != "" || inspection.integer == nil || *inspection.integer != "2" {
+		if inspection.failure != "" || inspection.integer == nil || *inspection.integer != expectedVersion {
 			return nil
 		}
 		prefix = "/payload/agent_progress_request/request"
@@ -549,6 +559,9 @@ func preflightDiagnostic(document string, object map[string]any) *generated.Type
 		expectedVersion := "1"
 		if document == "local-agent-rpc" {
 			expectedVersion = "2"
+		}
+		if document == "local-agent-work-rpc" {
+			expectedVersion = "3"
 		}
 		if number, ok := rawVersion.(json.Number); ok {
 			inspection := inspectNumber(number.String())
@@ -731,7 +744,7 @@ func DecodeWireDocument(document string, input []byte) DecodeResult {
 	if !exists {
 		return DecodeResult{OK: false, Error: typedError("schema_invalid", "unknown_document", "unknown wire document name", "")}
 	}
-	if len(input) > maximumWireBytes {
+	if len(input) > wireByteLimit(document) {
 		return DecodeResult{OK: false, Error: typedError("bound_exceeded", "max_bytes", "wire document exceeds the byte bound", "")}
 	}
 	if invalidUnicodeScalar(input) {
@@ -783,6 +796,9 @@ func DecodeWireDocument(document string, input []byte) DecodeResult {
 	encoded, err := stableJSON(object)
 	if err != nil {
 		return DecodeResult{OK: false, Error: typedError("schema_invalid", "encode_failed", err.Error(), "")}
+	}
+	if !captureDocumentBound(document, object, encoded) {
+		return DecodeResult{OK: false, Error: typedError("bound_exceeded", "max_bytes", "wire document exceeds the byte bound", "")}
 	}
 	return DecodeResult{OK: true, Value: object, JSON: encoded}
 }

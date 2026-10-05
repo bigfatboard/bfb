@@ -1,0 +1,234 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/agent-capture-confirmation-result.json",
+  "title": "AgentCaptureConfirmationResult",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "confirmation_id",
+    "workspace_id",
+    "project_id",
+    "source_task_id",
+    "run_id",
+    "run_execution_id",
+    "runner_id",
+    "checkout_id",
+    "requesting_human_id",
+    "runner_owner_human_id",
+    "assignment_generation",
+    "fencing_generation",
+    "requesting_human_authorization_epoch",
+    "runner_owner_authorization_epoch",
+    "runner_authorization_epoch",
+    "runner_grant_epoch",
+    "snapshot_generation",
+    "workspace_policy_version",
+    "project_policy_version",
+    "repository_config_version",
+    "runner_token_epoch",
+    "physical_worktree_hash",
+    "runner_key_thumbprint",
+    "snapshot_hash",
+    "snapshot_repository_config_hash",
+    "approved_repository_config_hash",
+    "binding",
+    "configured_permission",
+    "confirmed_at",
+    "lease_expires_at",
+    "credential_expires_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "confirmation_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "workspace_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "project_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "source_task_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "run_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "run_execution_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "runner_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "checkout_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "requesting_human_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "runner_owner_human_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "assignment_generation": {
+      "$ref": "primitives.json#/$defs/ResourceVersion"
+    },
+    "fencing_generation": {
+      "$ref": "primitives.json#/$defs/ResourceVersion"
+    },
+    "requesting_human_authorization_epoch": {
+      "$ref": "primitives.json#/$defs/ResourceVersion"
+    },
+    "runner_owner_authorization_epoch": {
+      "$ref": "primitives.json#/$defs/ResourceVersion"
+    },
+    "runner_authorization_epoch": {
+      "$ref": "primitives.json#/$defs/ResourceVersion"
+    },
+    "runner_grant_epoch": {
+      "$ref": "primitives.json#/$defs/ResourceVersion"
+    },
+    "snapshot_generation": {
+      "$ref": "primitives.json#/$defs/ResourceVersion"
+    },
+    "workspace_policy_version": {
+      "$ref": "primitives.json#/$defs/ResourceVersion"
+    },
+    "project_policy_version": {
+      "$ref": "primitives.json#/$defs/ResourceVersion"
+    },
+    "repository_config_version": {
+      "$ref": "primitives.json#/$defs/ResourceVersion"
+    },
+    "runner_token_epoch": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "physical_worktree_hash": {
+      "$ref": "primitives.json#/$defs/Sha256Digest"
+    },
+    "runner_key_thumbprint": {
+      "$ref": "primitives.json#/$defs/Sha256Digest"
+    },
+    "snapshot_hash": {
+      "$ref": "primitives.json#/$defs/Sha256Digest"
+    },
+    "snapshot_repository_config_hash": {
+      "$ref": "primitives.json#/$defs/Sha256Digest"
+    },
+    "approved_repository_config_hash": {
+      "$ref": "primitives.json#/$defs/Sha256Digest"
+    },
+    "binding": {
+      "$ref": "agent-session-reference.json"
+    },
+    "configured_permission": {
+      "$ref": "#/$defs/Permission"
+    },
+    "confirmed_at": {
+      "$ref": "#/$defs/CaptureTimestamp"
+    },
+    "lease_expires_at": {
+      "$ref": "#/$defs/CaptureTimestamp"
+    },
+    "credential_expires_at": {
+      "$ref": "#/$defs/CaptureTimestamp"
+    }
+  },
+  "$defs": {
+    "CaptureTimestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:[1-9][0-9]{3}|0[1-9][0-9]{2}|00[1-9][0-9]|000[1-9])-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-5][0-9]\\.[0-9]{3}Z$",
+      "minLength": 24,
+      "maxLength": 24
+    },
+    "NullableCaptureTimestamp": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "pattern": "^(?:[1-9][0-9]{3}|0[1-9][0-9]{2}|00[1-9][0-9]|000[1-9])-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-5][0-9]\\.[0-9]{3}Z$",
+      "minLength": 24,
+      "maxLength": 24
+    },
+    "Permission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowed_tools", "max_pending_age_seconds"],
+      "properties": {
+        "allowed_tools": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "bfb_add_comment",
+              "bfb_propose_task",
+              "bfb_report_progress",
+              "bfb_update_task"
+            ]
+          }
+        },
+        "max_pending_age_seconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 300
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "required": ["allowed_tools"],
+            "properties": {
+              "allowed_tools": {
+                "type": "array",
+                "maxItems": 0
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "max_pending_age_seconds": {
+                "const": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "required": ["allowed_tools"],
+            "properties": {
+              "allowed_tools": {
+                "type": "array",
+                "minItems": 1
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "max_pending_age_seconds": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "NullableUlid": {
+      "type": ["string", "null"],
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "minLength": 26,
+      "maxLength": 26
+    }
+  }
+}
