@@ -239,7 +239,7 @@ func (OfflineTransport) GetTask(_ context.Context, _ Boundary, _ string) (TaskVi
 	return TaskView{}, fail("offline_rejected")
 }
 
-func (OfflineTransport) UpdateTask(_ context.Context, _ Boundary, _ UpdateTaskInput, _ string) (TaskView, error) {
+func (OfflineTransport) UpdateTask(_ context.Context, _ Boundary, _ ConfirmedSession, _ UpdateTaskInput, _ string) (TaskView, error) {
 	return TaskView{}, fail("offline_rejected")
 }
 
@@ -247,11 +247,11 @@ func (OfflineTransport) AddComment(_ context.Context, _ Boundary, _ ConfirmedSes
 	return CommentResult{}, fail("offline_rejected")
 }
 
-func (OfflineTransport) ReportProgress(_ context.Context, _ Boundary, _ string, _ *float64, _ *float64, _ string) (CommentResult, error) {
+func (OfflineTransport) ReportProgress(_ context.Context, _ Boundary, _ ConfirmedSession, _ string, _ *float64, _ *float64, _ string) (CommentResult, error) {
 	return CommentResult{}, fail("offline_rejected")
 }
 
-func (OfflineTransport) ProposeTask(_ context.Context, _ Boundary, _ ProposeTaskInput, _ string) (ProposeTaskResult, error) {
+func (OfflineTransport) ProposeTask(_ context.Context, _ Boundary, _ ConfirmedSession, _ ProposeTaskInput, _ string) (ProposeTaskResult, error) {
 	return ProposeTaskResult{}, fail("offline_rejected")
 }
 

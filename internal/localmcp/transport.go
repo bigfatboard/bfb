@@ -82,13 +82,13 @@ type WorkTransport interface {
 	// GetTask returns the agent-visible task view.
 	GetTask(ctx context.Context, boundary Boundary, requestID string) (TaskView, error)
 	// UpdateTask applies permitted fields with an optimistic version check.
-	UpdateTask(ctx context.Context, boundary Boundary, input UpdateTaskInput, requestID string) (TaskView, error)
+	UpdateTask(ctx context.Context, boundary Boundary, session ConfirmedSession, input UpdateTaskInput, requestID string) (TaskView, error)
 	// AddComment appends a discussion comment attributed to the agent run.
 	AddComment(ctx context.Context, boundary Boundary, session ConfirmedSession, body string, requestID string) (CommentResult, error)
 	// ReportProgress publishes a bounded progress checkpoint.
-	ReportProgress(ctx context.Context, boundary Boundary, summary string, percent *float64, confidence *float64, requestID string) (CommentResult, error)
+	ReportProgress(ctx context.Context, boundary Boundary, session ConfirmedSession, summary string, percent *float64, confidence *float64, requestID string) (CommentResult, error)
 	// ProposeTask creates a proposed root or policy-bounded child task.
-	ProposeTask(ctx context.Context, boundary Boundary, input ProposeTaskInput, requestID string) (ProposeTaskResult, error)
+	ProposeTask(ctx context.Context, boundary Boundary, session ConfirmedSession, input ProposeTaskInput, requestID string) (ProposeTaskResult, error)
 	// RequestAttention commits a typed human-decision request for the run.
 	RequestAttention(ctx context.Context, boundary Boundary, input AttentionRequest, requestID string) (AttentionRecord, error)
 	// GetAttention returns the committed metadata for one of the run's own

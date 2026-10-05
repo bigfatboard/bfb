@@ -64,6 +64,22 @@ export function CommentAuthor({
   );
 }
 
+export function ProgressMetadata({
+  comment,
+}: {
+  comment: Pick<CommentRecord, "kind" | "author_kind" | "percent" | "confidence">;
+}) {
+  if (comment.kind !== "progress" || (comment.percent === null && comment.confidence === null))
+    return null;
+  return (
+    <span className="text-muted-foreground text-sm">
+      {comment.author_kind === "agent_run" ? "Agent-reported" : "Reported"}
+      {comment.percent !== null ? ` progress ${comment.percent}%` : " progress"}
+      {comment.confidence !== null ? ` · Confidence ${comment.confidence}` : ""}
+    </span>
+  );
+}
+
 interface ContextRecord {
   id: string;
   kind: string;
@@ -679,6 +695,7 @@ export function WorkMutations(props: WorkMutationsProps) {
                   <li key={item.id}>
                     <p>{item.body}</p>
                     <CommentAuthor comment={item} />
+                    <ProgressMetadata comment={item} />
                   </li>
                 ))}
               </ol>

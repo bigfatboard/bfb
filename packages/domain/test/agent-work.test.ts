@@ -8,6 +8,12 @@ import {
   type AgentSessionBindRequest,
   type AgentBoundRequest,
   type AgentCommentRequest,
+  type AgentUpdateRequest,
+  type AgentUpdateResult,
+  type AgentProgressRequest,
+  type AgentProposalRequest,
+  type AgentProposalResult,
+  type AgentCommentResult,
   type LaunchFinalRequest,
   type CheckoutLeaseObservation,
 } from "@bfb/protocol";
@@ -26,6 +32,9 @@ import {
   bindAgentSessionCommand,
   agentBoundAuthorityCommand,
   agentRunCommentCommand,
+  agentRunUpdateCommand,
+  agentRunProgressCommand,
+  agentRunProposalCommand,
 } from "../src/agent-sessions.js";
 import { observeCheckoutLeaseCommand } from "../src/checkout-leases.js";
 import { WorkspaceHub, type CommandRequest, type HubCommand } from "../src/hub.js";
@@ -34,7 +43,11 @@ import { authorizeLaunchCommand, claimLaunchCommand } from "../src/launches.js";
 import { createRunControlCommand, claimRunControlCommand } from "../src/run-controls.js";
 import { runnerHash } from "../src/runner-crypto.js";
 import { assertCurrentRunnerPrincipal, type RunnerPrincipal } from "../src/runners.js";
-import { addContextCommand, type RunContextResult } from "../src/work-commands.js";
+import {
+  addContextCommand,
+  updateTaskCommand,
+  type RunContextResult,
+} from "../src/work-commands.js";
 import { LAUNCH_NOW, launchFixture, success } from "./launch-fixture.js";
 import { openMigratedDomainDb } from "./helpers.js";
 
@@ -146,6 +159,24 @@ function leaseObservation(final: LaunchFinalRequest, sequence = 1): CheckoutLeas
   };
 }
 type AgentFixture = Awaited<ReturnType<typeof fixture>>;
+type WriteAction = "update" | "progress" | "proposal";
+type WriteRequest = AgentUpdateRequest | AgentProgressRequest | AgentProposalRequest;
+type WriteResult = AgentUpdateResult | AgentCommentResult | AgentProposalResult;
+const writeActions: WriteAction[] = ["update", "progress", "proposal"];
+const writeCommands = {
+  update: agentRunUpdateCommand,
+  progress: agentRunProgressCommand,
+  proposal: agentRunProposalCommand,
+};
+function executeWrite(f: AgentFixture, action: WriteAction, request: WriteRequest, hub = f.hub) {
+  return hub.execute(
+    writeCommands[action] as HubCommand<
+      { principal: RunnerPrincipal; request: WriteRequest },
+      WriteResult
+    >,
+    operation(f, action, request),
+  );
+}
 function operation<T extends { reference: AgentWorkRequest }>(
   f: AgentFixture,
   action: string,
@@ -181,6 +212,13 @@ async function sessionFixture(database?: SqlDatabase) {
   };
   const bind = () => f.hub.execute(bindAgentSessionCommand, operation(f, "session-bind", request));
   const result = success(await bind());
+  const startingTask = (await f.db
+    .prepare("SELECT resource_version FROM tasks WHERE id = ?")
+    .get(f.task.id)) as { resource_version: number };
+  for (const table of ["workspace_policies", "project_policies", "repository_configs"])
+    await f.db
+      .prepare(`UPDATE ${table} SET allow_agent_root_propose = 1 WHERE workspace_id = ?`)
+      .run(FIX.workspace);
   function bound(requestId = randomUlid()): AgentBoundRequest {
     return { reference: f.envelope("authority", requestId).input.request, binding: result.binding };
   }
@@ -190,7 +228,43 @@ async function sessionFixture(database?: SqlDatabase) {
   ): AgentCommentRequest {
     return { ...bound(requestId), body };
   }
-  return { ...f, request, result, bind, bound, comment };
+  function update(requestId = randomUlid()): AgentUpdateRequest {
+    return {
+      ...bound(requestId),
+      expected_version: startingTask.resource_version,
+      title: "Synthetic private updated title",
+    };
+  }
+  function progress(requestId = randomUlid()): AgentProgressRequest {
+    return { ...bound(requestId), summary: "Synthetic private progress" };
+  }
+  function proposal(requestId = randomUlid(), child = false): AgentProposalRequest {
+    return {
+      ...bound(requestId),
+      title: "Synthetic private proposal",
+      ...(child ? { parent_task_id: f.task.id } : {}),
+    };
+  }
+  function write(action: WriteAction, requestId = randomUlid()): WriteRequest {
+    return action === "update"
+      ? update(requestId)
+      : action === "progress"
+        ? progress(requestId)
+        : proposal(requestId);
+  }
+  return {
+    ...f,
+    startingVersion: startingTask.resource_version,
+    request,
+    result,
+    bind,
+    bound,
+    comment,
+    update,
+    progress,
+    proposal,
+    write,
+  };
 }
 async function agentEffects(db: SqlDatabase) {
   return {
@@ -252,6 +326,458 @@ function stagedD1(db: SqlDatabase) {
     },
   };
 }
+
+async function writeState(db: SqlDatabase) {
+  return {
+    counters: await agentEffects(db),
+    tasks: await db.prepare("SELECT * FROM tasks ORDER BY id").all(),
+    comments: await db.prepare("SELECT * FROM comments ORDER BY id").all(),
+    provenance: await db.prepare("SELECT * FROM agent_work_effects ORDER BY operation_key").all(),
+  };
+}
+
+async function seedChildren(f: AgentFixture, count: number, state = "ready") {
+  for (let index = 0; index < count; index += 1) {
+    await f.db
+      .prepare(
+        `INSERT INTO tasks
+      (workspace_id,id,project_id,parent_task_id,title,state,priority,next_owner_type,punchline,
+       resource_version,created_by_human_id,created_at)
+      VALUES (?, ?, ?, ?, 'Synthetic seeded child', ?, 'P2', 'unassigned', 'Synthetic seeded child', 1, ?, ?)`,
+      )
+      .run(FIX.workspace, randomUlid(), FIX.projectA, f.task.id, state, FIX.owner, LAUNCH_NOW);
+  }
+}
+
+describe("canonical agent task updates, progress and proposals", () => {
+  it.each(["human", "delegation"] as const)(
+    "preserves the %s creator and every uneditable field during an optimistic update",
+    async (creator) => {
+      const f = await sessionFixture();
+      if (creator === "delegation") {
+        const delegation = randomUlid();
+        await f.db
+          .prepare(
+            `INSERT INTO oauth_delegations
+        (workspace_id,id,human_id,client_id,resource,scopes_json,authorization_epoch,expires_at,created_at)
+        VALUES (?, ?, ?, ?, 'https://bfb.example.test/mcp', '["bfb:task:write"]', 1, '2027-01-01T00:00:00Z', ?)`,
+          )
+          .run(FIX.workspace, delegation, FIX.owner, FIX.client, LAUNCH_NOW);
+        await f.db
+          .prepare("UPDATE tasks SET created_by_delegation_id = ? WHERE id = ?")
+          .run(delegation, f.task.id);
+      }
+      const before = (await f.db
+        .prepare("SELECT * FROM tasks WHERE id = ?")
+        .get(f.task.id)) as Record<string, unknown>;
+      const request = {
+        ...f.update(),
+        title: "  Synthetic private new title  ",
+        punchline: "  Synthetic private new punchline  ",
+      };
+      const result = success(await executeWrite(f, "update", request)) as AgentUpdateResult;
+      expect(result.origin).toEqual(f.result.origin);
+      expect(result.task).toMatchObject({
+        id: f.task.id,
+        title: request.title.trim(),
+        punchline: request.punchline.trim(),
+        resource_version: Number(before.resource_version) + 1,
+      });
+      expect(await f.db.prepare("SELECT * FROM tasks WHERE id = ?").get(f.task.id)).toEqual({
+        ...before,
+        title: request.title.trim(),
+        punchline: request.punchline.trim(),
+        resource_version: Number(before.resource_version) + 1,
+      });
+      expect(
+        await f.db
+          .prepare(
+            "SELECT kind,source_task_id,target_task_id,resulting_task_version,comment_id FROM agent_work_effects",
+          )
+          .get(),
+      ).toEqual({
+        kind: "task.update",
+        source_task_id: f.task.id,
+        target_task_id: f.task.id,
+        resulting_task_version: result.task.resource_version,
+        comment_id: null,
+      });
+    },
+  );
+
+  it.each(["title", "punchline"] as const)(
+    "changes only a supplied %s and accepts its 512-character bound",
+    async (field) => {
+      const f = await sessionFixture(),
+        text = "😀".repeat(512);
+      const request: AgentUpdateRequest = {
+        ...f.bound(),
+        expected_version: f.startingVersion,
+        [field]: text,
+      };
+      const result = success(await executeWrite(f, "update", request)) as AgentUpdateResult;
+      expect(result.task[field]).toBe(text);
+      expect(result.task[field === "title" ? "punchline" : "title"]).toBe(
+        f.task[field === "title" ? "punchline" : "title"],
+      );
+    },
+  );
+
+  it("serializes competing versions and returns a cached revision before its old version precondition", async () => {
+    const f = await sessionFixture(),
+      first = f.update(),
+      second = { ...f.update(), title: "Synthetic competing update" };
+    const outcomes = await Promise.all([
+      executeWrite(f, "update", first),
+      executeWrite(f, "update", second),
+    ]);
+    expect(outcomes.filter((outcome) => outcome.ok)).toHaveLength(1);
+    expect(outcomes.filter((outcome) => !outcome.ok)).toMatchObject([
+      { ok: false, error: { code: "stale_version" } },
+    ]);
+    const index = outcomes.findIndex((outcome) => outcome.ok),
+      accepted = [first, second][index]!;
+    const original = success(outcomes[index]!) as AgentUpdateResult;
+    success(
+      await f.human(updateTaskCommand, {
+        taskId: f.task.id,
+        expectedVersion: original.task.resource_version,
+        punchline: "Synthetic later human revision",
+      }),
+    );
+    const before = await writeState(f.db),
+      retry = await executeWrite(f, "update", accepted, new WorkspaceHub(f.db));
+    expect(retry.ok && retry.replayed).toBe(true);
+    expect(success(retry)).toEqual(original);
+    expect(await writeState(f.db)).toEqual(before);
+    expect(
+      await f.db.prepare("SELECT resulting_task_version FROM agent_work_effects").get(),
+    ).toEqual({ resulting_task_version: original.task.resource_version });
+  });
+
+  it.each([
+    [{}, "request_rejected"],
+    [{ state: "done" }, "request_rejected"],
+    [{ priority: "P0" }, "request_rejected"],
+    [{ promote: true }, "request_rejected"],
+    [{ next_owner_id: FIX.owner }, "request_rejected"],
+    [{ title: "x".repeat(513) }, "request_rejected"],
+    [{ title: "   " }, "invalid_argument"],
+    [{ punchline: "bad\u0001text" }, "invalid_argument"],
+  ] as const)(
+    "rejects unpermitted or malformed update %j without effects",
+    async (fields, code) => {
+      const f = await sessionFixture(),
+        before = await writeState(f.db);
+      const request = {
+        ...f.bound(),
+        expected_version: f.startingVersion,
+        ...fields,
+      } as AgentUpdateRequest;
+      expect(await executeWrite(f, "update", request)).toMatchObject({
+        ok: false,
+        error: { code },
+      });
+      expect(await writeState(f.db)).toEqual(before);
+    },
+  );
+
+  it.each([
+    [{}, null, null],
+    [{ percent: 0, confidence: 0 }, 0, 0],
+    [{ percent: 100, confidence: 1 }, 100, 1],
+    [{ percent: 12.5 }, 12.5, null],
+    [{ confidence: 0.75 }, null, 0.75],
+  ] as const)(
+    "retains explicit progress metadata %j rather than inferring or defaulting it",
+    async (metadata, percent, confidence) => {
+      const f = await sessionFixture(),
+        request = { ...f.progress(), ...metadata, summary: "  Synthetic explicit checkpoint  " };
+      const runBefore = await f.db.prepare("SELECT * FROM runs WHERE id = ?").get(f.launch.run_id);
+      const executionBefore = await f.db
+        .prepare("SELECT * FROM run_executions WHERE id = ?")
+        .get(f.final.run_execution_id);
+      const result = success(await executeWrite(f, "progress", request)) as AgentCommentResult;
+      expect(result.origin).toEqual(f.result.origin);
+      expect(
+        await f.db
+          .prepare(
+            "SELECT body,kind,author_human_id,author_delegation_id FROM comments WHERE id = ?",
+          )
+          .get(result.id),
+      ).toEqual({
+        body: request.summary.trim(),
+        kind: "progress",
+        author_human_id: null,
+        author_delegation_id: null,
+      });
+      expect(
+        await f.db
+          .prepare(
+            "SELECT kind,percent,confidence,source_task_id,target_task_id,comment_id FROM agent_work_effects",
+          )
+          .get(),
+      ).toEqual({
+        kind: "progress.report",
+        percent,
+        confidence,
+        source_task_id: f.task.id,
+        target_task_id: f.task.id,
+        comment_id: result.id,
+      });
+      expect(await f.db.prepare("SELECT * FROM runs WHERE id = ?").get(f.launch.run_id)).toEqual(
+        runBefore,
+      );
+      expect(
+        await f.db
+          .prepare("SELECT * FROM run_executions WHERE id = ?")
+          .get(f.final.run_execution_id),
+      ).toEqual(executionBefore);
+    },
+  );
+
+  it.each([
+    { percent: -0.01 },
+    { percent: 100.01 },
+    { confidence: -0.01 },
+    { confidence: 1.01 },
+    { percent: null },
+    { confidence: "0" },
+  ])("rejects invalid progress metadata %j", async (metadata) => {
+    const f = await sessionFixture(),
+      before = await writeState(f.db);
+    expect(
+      await executeWrite(f, "progress", { ...f.progress(), ...metadata } as AgentProgressRequest),
+    ).toMatchObject({ ok: false, error: { code: "request_rejected" } });
+    expect(await writeState(f.db)).toEqual(before);
+  });
+
+  it.each([undefined, "P0", "P1", "P2", "P3"] as const)(
+    "creates a root proposed task with priority %s and source-only run attribution",
+    async (priority) => {
+      const f = await sessionFixture(),
+        request = { ...f.proposal(), ...(priority ? { priority } : {}) };
+      const original = await f.db.prepare("SELECT * FROM tasks WHERE id = ?").get(f.task.id);
+      const result = success(await executeWrite(f, "proposal", request)) as AgentProposalResult;
+      expect(result.state).toBe("proposed");
+      expect(result.id).not.toBe(f.task.id);
+      expect(result.origin).toEqual(f.result.origin);
+      expect(
+        await f.db
+          .prepare(
+            "SELECT parent_task_id,state,priority,created_by_human_id,created_by_delegation_id,next_owner_type FROM tasks WHERE id = ?",
+          )
+          .get(result.id),
+      ).toEqual({
+        parent_task_id: null,
+        state: "proposed",
+        priority: priority ?? "P2",
+        created_by_human_id: null,
+        created_by_delegation_id: null,
+        next_owner_type: "unassigned",
+      });
+      expect(
+        await f.db
+          .prepare(
+            "SELECT source_task_id,target_task_id,resulting_task_version,kind FROM agent_work_effects",
+          )
+          .get(),
+      ).toEqual({
+        source_task_id: f.task.id,
+        target_task_id: result.id,
+        resulting_task_version: 1,
+        kind: "task.propose",
+      });
+      expect(
+        await f.db.prepare("SELECT task_id FROM runs WHERE id = ?").get(f.launch.run_id),
+      ).toEqual({ task_id: f.task.id });
+      expect(await f.db.prepare("SELECT * FROM tasks WHERE id = ?").get(f.task.id)).toEqual(
+        original,
+      );
+    },
+  );
+
+  it.each(["workspace_policies", "project_policies", "repository_configs"] as const)(
+    "checks current %s permission before new and cached root proposals",
+    async (table) => {
+      const f = await sessionFixture(),
+        request = f.proposal();
+      success(await executeWrite(f, "proposal", request));
+      await f.db
+        .prepare(`UPDATE ${table} SET allow_agent_root_propose = 0 WHERE workspace_id = ?`)
+        .run(FIX.workspace);
+      const before = await writeState(f.db);
+      for (const input of [request, f.proposal()])
+        expect(await executeWrite(f, "proposal", input, new WorkspaceHub(f.db))).toMatchObject({
+          ok: false,
+          error: { code: "forbidden" },
+        });
+      expect(await writeState(f.db)).toEqual(before);
+    },
+  );
+
+  it("admits one twentieth ready child, excludes terminal children, and replays despite a full child count", async () => {
+    const f = await sessionFixture();
+    await seedChildren(f, 19);
+    await seedChildren(f, 2, "done");
+    await seedChildren(f, 2, "cancelled");
+    // Root-only policy does not become an invented child permission.
+    await f.db
+      .prepare("UPDATE workspace_policies SET allow_agent_root_propose = 0 WHERE workspace_id = ?")
+      .run(FIX.workspace);
+    const requests = [f.proposal(randomUlid(), true), f.proposal(randomUlid(), true)];
+    const outcomes = await Promise.all(
+      requests.map((request) => executeWrite(f, "proposal", request)),
+    );
+    expect(outcomes.filter((outcome) => outcome.ok)).toHaveLength(1);
+    expect(outcomes.filter((outcome) => !outcome.ok)).toMatchObject([
+      { ok: false, error: { code: "child_limit" } },
+    ]);
+    const index = outcomes.findIndex((outcome) => outcome.ok),
+      result = success(outcomes[index]!) as AgentProposalResult;
+    expect(result.state).toBe("ready");
+    expect(
+      await f.db
+        .prepare(
+          "SELECT parent_task_id,state,created_by_human_id,created_by_delegation_id FROM tasks WHERE id = ?",
+        )
+        .get(result.id),
+    ).toEqual({
+      parent_task_id: f.task.id,
+      state: "ready",
+      created_by_human_id: null,
+      created_by_delegation_id: null,
+    });
+    expect(
+      await f.db
+        .prepare(
+          "SELECT COUNT(*) AS count FROM tasks WHERE parent_task_id = ? AND state NOT IN ('done','cancelled')",
+        )
+        .get(f.task.id),
+    ).toEqual({ count: 20 });
+    const before = await writeState(f.db),
+      retry = await executeWrite(f, "proposal", requests[index]!, new WorkspaceHub(f.db));
+    expect(retry.ok && retry.replayed).toBe(true);
+    expect(success(retry)).toEqual(result);
+    expect(await executeWrite(f, "proposal", f.proposal(randomUlid(), true))).toMatchObject({
+      ok: false,
+      error: { code: "child_limit" },
+    });
+    expect(await writeState(f.db)).toEqual(before);
+  });
+
+  it("rejects foreign parents and workflow injection without changing source or target tasks", async () => {
+    const f = await sessionFixture(),
+      before = await writeState(f.db);
+    for (const [fields, code] of [
+      [{ parent_task_id: FIX.taskDelegable }, "boundary_escape"],
+      [{ project_id: FIX.projectB }, "request_rejected"],
+      [{ state: "ready" }, "request_rejected"],
+      [{ priority: "P4" }, "request_rejected"],
+      [{ title: "x".repeat(513) }, "request_rejected"],
+    ] as const) {
+      expect(
+        await executeWrite(f, "proposal", { ...f.proposal(), ...fields } as AgentProposalRequest),
+      ).toMatchObject({ ok: false, error: { code } });
+    }
+    expect(await writeState(f.db)).toEqual(before);
+  });
+
+  it.each(writeActions)(
+    "deduplicates concurrent %s and rejects changed payload/session after cache loss",
+    async (action) => {
+      const f = await sessionFixture(),
+        request = f.write(action);
+      const outcomes = await Promise.all(
+        Array.from({ length: 4 }, () => executeWrite(f, action, request)),
+      );
+      expect(outcomes.filter((outcome) => outcome.ok && !outcome.replayed)).toHaveLength(1);
+      const result = success(outcomes[0]!);
+      for (const outcome of outcomes) expect(success(outcome)).toEqual(result);
+      const hub = new WorkspaceHub(f.db),
+        before = await writeState(f.db);
+      const changes =
+        action === "update"
+          ? { title: "Synthetic changed title" }
+          : action === "progress"
+            ? { percent: 0 }
+            : { priority: "P0" };
+      expect(
+        await executeWrite(f, action, { ...request, ...changes } as WriteRequest, hub),
+      ).toMatchObject({ ok: false, error: { code: "request_rejected" } });
+      expect(
+        await executeWrite(
+          f,
+          action,
+          { ...request, binding: { ...request.binding, provider_session_id: randomUlid() } },
+          hub,
+        ),
+      ).toMatchObject({ ok: false, error: { code: "session_conflict" } });
+      expect(await writeState(f.db)).toEqual(before);
+    },
+  );
+
+  it.each(writeActions)(
+    "keeps %s receipts bounded and private payloads only in canonical business storage",
+    async (action) => {
+      const f = await sessionFixture(),
+        request = f.write(action);
+      const result = success(await executeWrite(f, action, request));
+      const privateText =
+        "title" in request ? request.title : "summary" in request ? request.summary : undefined;
+      for (const [table, column] of [
+        ["semantic_events", "kind"],
+        ["audit_events", "action"],
+        ["outbox_records", "kind"],
+      ] as const) {
+        const rows = (await f.db
+          .prepare(`SELECT payload_json FROM ${table} WHERE ${column} = ?`)
+          .all(`agent_run.${action}`)) as { payload_json: string }[];
+        expect(rows).toHaveLength(1);
+        const receipt = JSON.parse(rows[0]!.payload_json);
+        expect(receipt.actor.runnerId).toBe(f.runner);
+        expect(receipt.result.origin).toEqual(result.origin);
+        expect(rows[0]!.payload_json).not.toContain(privateText);
+        expect(rows[0]!.payload_json).not.toContain(f.principal.tokenId);
+        expect(rows[0]!.payload_json).not.toContain(f.request.observation.observed_session_id);
+      }
+    },
+  );
+
+  it.each(writeActions)(
+    "rolls back %s business rows, provenance and receipts after a late real D1 batch failure",
+    async (action) => {
+      const staged = stagedD1(await openMigratedDomainDb()),
+        f = await sessionFixture(staged.db),
+        request = f.write(action),
+        before = await writeState(f.db);
+      staged.fail(/INSERT INTO agent_work_effects/u);
+      expect(await executeWrite(f, action, request)).toMatchObject({
+        ok: false,
+        error: { code: "command_failed" },
+      });
+      expect(await writeState(f.db)).toEqual(before);
+      staged.fail();
+      success(await executeWrite(f, action, request));
+      expect(
+        staged.batches.at(-1)?.some((sql) => sql.includes("INSERT INTO agent_work_effects")),
+      ).toBe(true);
+      expect(
+        staged.batches
+          .at(-1)
+          ?.some((sql) =>
+            sql.includes(
+              action === "update"
+                ? "UPDATE tasks"
+                : action === "progress"
+                  ? "INSERT INTO comments"
+                  : "INSERT INTO tasks",
+            ),
+          ),
+      ).toBe(true);
+    },
+  );
+});
 
 describe("canonical agent sessions and comments", () => {
   it("binds one assignment identity across request IDs without changing the pinned provider", async () => {
@@ -528,10 +1054,12 @@ describe("canonical agent sessions and comments", () => {
       const f = await sessionFixture(),
         bound = f.bound(),
         comment = f.comment();
+      const writes = writeActions.map((action) => ({ action, request: f.write(action) }));
       success(
         await f.hub.execute(agentBoundAuthorityCommand, operation(f, "bound-authority", bound)),
       );
       success(await f.hub.execute(agentRunCommentCommand, operation(f, "comment", comment)));
+      for (const write of writes) success(await executeWrite(f, write.action, write.request));
       const target = name.startsWith("runner")
         ? f.runner
         : name.startsWith("requester")
@@ -552,6 +1080,13 @@ describe("canonical agent sessions and comments", () => {
         expect(
           await f.hub.execute(agentRunCommentCommand, operation(f, "comment", request)),
         ).toMatchObject({ ok: false, error: { code } });
+      for (const write of writes) {
+        for (const request of [write.request, f.write(write.action)]) {
+          expect(
+            await executeWrite(f, write.action, request, new WorkspaceHub(f.db)),
+          ).toMatchObject({ ok: false, error: { code } });
+        }
+      }
       expect(await agentEffects(f.db)).toEqual(before);
     },
   );

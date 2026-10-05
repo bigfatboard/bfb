@@ -2,6 +2,7 @@
 // ABOUTME: Covers every fixed v2 action without altering the frozen general v1 fixtures.
 
 import { mkdir, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import path from "node:path";
 
 export async function generateAgentFixtures(root: string): Promise<void> {
@@ -88,7 +89,14 @@ export async function generateAgentFixtures(root: string): Promise<void> {
       { id, state: "proposed", origin },
     ],
   ] as const;
-  const fixtures: Array<{ name: string; document: string; json: string; accept: boolean }> = [];
+  const fixtures: Array<{
+    name: string;
+    document: string;
+    json: string;
+    accept: boolean;
+    canonical_sha256?: string;
+    progress_request_sha256?: string;
+  }> = [];
   const add = (name: string, input: unknown, accept: boolean, document = "local-agent-rpc") =>
     fixtures.push({
       name,
@@ -211,6 +219,127 @@ export async function generateAgentFixtures(root: string): Promise<void> {
       },
     },
     false,
+  );
+  const canonicalHash = (value: unknown): string => {
+    const json = JSON.stringify(value, (_key, nested: unknown) => {
+      if (!nested || typeof nested !== "object" || Array.isArray(nested)) return nested;
+      return Object.fromEntries(
+        Object.entries(nested).sort(([left], [right]) =>
+          left < right ? -1 : left > right ? 1 : 0,
+        ),
+      );
+    });
+    return createHash("sha256").update(json).digest("hex");
+  };
+  const progress = {
+    ...bound,
+    summary: "Synthetic fractional progress",
+    percent: 12.5,
+    confidence: 0.75,
+  };
+  const progressScopes = [
+    ["direct", "agent-progress-request", (request: unknown) => request],
+    ["component", "agent-progress-local-request", local],
+    [
+      "envelope",
+      "local-agent-rpc",
+      (request: unknown) =>
+        envelope("report_progress", "request", { agent_progress_request: local(request) }),
+    ],
+  ] as const;
+  for (const [scope, document, wrap] of progressScopes) {
+    for (const [name, percent, confidence, accept] of [
+      ["fraction", "12.5", "0.75", true],
+      ["exponent", "125e-1", "75e-2", true],
+      ["small-exponent", "1e-7", "1e-6", true],
+      ["smallest-finite", "5e-324", "0", true],
+      ["zero-exponent", "-0e9999999999", "0e-9999999999", true],
+      ["inclusive-upper", "100.0", "1e0", true],
+      ["percent-rounded-outside", "100.00000000000000001", "0.75", false],
+      ["confidence-rounded-outside", "12.5", "1.00000000000000001", false],
+      ["negative", "-0.01", "0.75", false],
+      ["negative-underflow", "-1e-999", "0.75", false],
+      ["nonzero-underflow", "1e-324", "0.75", false],
+      ["confidence-underflow", "12.5", "1e-324", false],
+      ["overflow", "1e999", "0.75", false],
+      ["huge-negative-exponent", "1e-9999999999", "0.75", false],
+      ["malformed", ".75", "0.75", false],
+    ] as const) {
+      const request = { ...progress, percent: "__percent__", confidence: "__confidence__" };
+      const json = JSON.stringify(wrap(request))
+        .replace('"__percent__"', percent)
+        .replace('"__confidence__"', confidence);
+      add(`progress.${scope}.${name}`, json, accept, document);
+      if (accept) {
+        const normalizedRequest = {
+          ...progress,
+          percent: Number(percent),
+          confidence: Number(confidence),
+        };
+        const fixture = fixtures[fixtures.length - 1]!;
+        fixture.canonical_sha256 = canonicalHash(wrap(normalizedRequest));
+        fixture.progress_request_sha256 = canonicalHash(normalizedRequest);
+      }
+    }
+    add(
+      `progress.${scope}.fractional-generation`,
+      wrap({ ...progress, reference: { ...reference, assignment_generation: 1.5 } }),
+      false,
+      document,
+    );
+    add(
+      `progress.${scope}.fractional-reference-version`,
+      wrap({ ...progress, reference: { ...reference, schema_version: 1.5 } }),
+      false,
+      document,
+    );
+    add(`progress.${scope}.lookalike`, wrap({ ...progress, Percent: 12.5 }), false, document);
+    add(
+      `progress.${scope}.nested-lookalike`,
+      wrap({ ...progress, extra: { percent: 12.5 } }),
+      false,
+      document,
+    );
+  }
+  add(
+    "progress.fractional-envelope-version",
+    {
+      ...envelope("report_progress", "request", { agent_progress_request: local(progress) }),
+      schema_version: 2.5,
+    },
+    false,
+  );
+  add(
+    "progress.wrong-method",
+    envelope("add_comment", "request", { agent_progress_request: local(progress) }),
+    false,
+  );
+  add(
+    "progress.wrong-direction",
+    envelope("report_progress", "response", { agent_progress_request: local(progress) }),
+    false,
+  );
+  add(
+    "progress.frozen-v1",
+    {
+      ...envelope("report_progress", "request", { agent_progress_request: local(progress) }),
+      schema_version: 1,
+    },
+    false,
+    "local-rpc",
+  );
+  add(
+    "progress.fractional-update-version",
+    envelope("update_task", "request", {
+      agent_update_request: local({ ...bound, title: "Synthetic", expected_version: 1.5 }),
+    }),
+    false,
+  );
+  add(
+    "progress.unrelated-document",
+    { ...bound, body: "Synthetic", percent: 12.5 },
+    false,
+    "agent-comment-request",
   );
   const directory = path.join(root, "protocol/fixtures/v2");
   await mkdir(directory, { recursive: true });

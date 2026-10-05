@@ -21,6 +21,11 @@ import type {
   AgentBoundRequest,
   AgentCommentRequest,
   AgentCommentResult,
+  AgentUpdateRequest,
+  AgentUpdateResult,
+  AgentProgressRequest,
+  AgentProposalRequest,
+  AgentProposalResult,
   LaunchFinalRequest,
   CheckoutLeaseObservation,
 } from "@bfb/protocol";
@@ -39,9 +44,14 @@ import { validateControlEnv, type ControlBindings } from "../src/env.js";
 import { createTestWorkspaceHubNamespace } from "../src/hub-client.js";
 import { createControlApp } from "../src/routes.js";
 import { guardRunnerTransport } from "../src/api/runners.js";
-import { AUTH_TEST_ENV, openAuthTestContext } from "./auth-helpers.js";
+import { parseAuthKeys } from "../src/auth/better-auth.js";
+import { AUTH_TEST_ENV, openAuthTestContext, seedAuthSession } from "./auth-helpers.js";
 
-type SessionAction = "session-bind" | "bound-authority" | "comment";
+type WriteAction = "update" | "progress" | "proposal";
+type WriteRequest = AgentUpdateRequest | AgentProgressRequest | AgentProposalRequest;
+type WriteResult = AgentUpdateResult | AgentCommentResult | AgentProposalResult;
+const writeActions: WriteAction[] = ["update", "progress", "proposal"];
+type SessionAction = "session-bind" | "bound-authority" | "comment" | WriteAction;
 type Action = "authority" | "context" | "task" | SessionAction;
 const ORIGIN = AUTH_TEST_ENV.APP_ORIGIN;
 
@@ -237,6 +247,13 @@ async function sessionFixture() {
   const response = await f.send(await f.signed("session-bind", request));
   expect(response.status, await response.clone().text()).toBe(200);
   const result = (await response.json()) as AgentSessionBindResult;
+  const startingTask = (await f.context.db
+    .prepare("SELECT resource_version FROM tasks WHERE id = ?")
+    .get(f.task.id)) as { resource_version: number };
+  for (const table of ["workspace_policies", "project_policies", "repository_configs"])
+    await f.context.db
+      .prepare(`UPDATE ${table} SET allow_agent_root_propose = 1 WHERE workspace_id = ?`)
+      .run(FIX.workspace);
   function bound(requestId = randomUlid()): AgentBoundRequest {
     return { reference: f.reference(requestId), binding: result.binding };
   }
@@ -246,10 +263,40 @@ async function sessionFixture() {
   ): AgentCommentRequest {
     return { ...bound(requestId), body };
   }
-  function input(action: SessionAction) {
-    return action === "session-bind" ? request : action === "bound-authority" ? bound() : comment();
+  function update(requestId = randomUlid()): AgentUpdateRequest {
+    return {
+      ...bound(requestId),
+      expected_version: startingTask.resource_version,
+      title: "Synthetic private worker updated title",
+    };
   }
-  return { ...f, request, result, bound, comment, input };
+  function progress(requestId = randomUlid()): AgentProgressRequest {
+    return { ...bound(requestId), summary: "Synthetic private worker progress" };
+  }
+  function proposal(requestId = randomUlid(), child = false): AgentProposalRequest {
+    return {
+      ...bound(requestId),
+      title: "Synthetic private worker proposal",
+      ...(child ? { parent_task_id: f.task.id } : {}),
+    };
+  }
+  function write(action: WriteAction, requestId = randomUlid()): WriteRequest {
+    return action === "update"
+      ? update(requestId)
+      : action === "progress"
+        ? progress(requestId)
+        : proposal(requestId);
+  }
+  function input(action: SessionAction) {
+    return action === "session-bind"
+      ? request
+      : action === "bound-authority"
+        ? bound()
+        : action === "comment"
+          ? comment()
+          : write(action);
+  }
+  return { ...f, request, result, bound, comment, update, progress, proposal, write, input };
 }
 
 async function sessionEffects(db: SqlDatabase) {
@@ -265,6 +312,34 @@ async function sessionEffects(db: SqlDatabase) {
       )
       .get()) as object),
   };
+}
+
+async function writeState(db: SqlDatabase) {
+  return {
+    counts: await sessionEffects(db),
+    tasks: await db.prepare("SELECT * FROM tasks ORDER BY id").all(),
+    comments: await db.prepare("SELECT * FROM comments ORDER BY id").all(),
+    provenance: await db.prepare("SELECT * FROM agent_work_effects ORDER BY operation_key").all(),
+  };
+}
+
+async function seedChildren(f: Awaited<ReturnType<typeof sessionFixture>>, count: number) {
+  for (let index = 0; index < count; index += 1)
+    await f.context.db
+      .prepare(
+        `INSERT INTO tasks (workspace_id,id,project_id,parent_task_id,title,state,priority,
+        next_owner_type,punchline,resource_version,created_by_human_id,created_at)
+        VALUES (?,?,?,?,?,'ready','P2','unassigned','Synthetic child',1,?,?)`,
+      )
+      .run(
+        FIX.workspace,
+        randomUlid(),
+        FIX.projectA,
+        f.task.id,
+        `Synthetic child ${index}`,
+        FIX.owner,
+        LAUNCH_NOW,
+      );
 }
 
 async function consumeTransportAttempt(f: Awaited<ReturnType<typeof fixture>>, surface: string) {
@@ -311,12 +386,18 @@ describe("agent authority transport budgets", () => {
     },
   );
 
-  it.each(["comment", "session-bind", "context", "task"] as const)(
+  it.each(["comment", "session-bind", "context", "task", ...writeActions] as const)(
     "retains twenty signed attempts for work/%s",
     async (action) => {
       const f = await sessionFixture();
       const body =
-        action === "comment" ? f.comment() : action === "session-bind" ? f.request : f.reference();
+        action === "comment"
+          ? f.comment()
+          : action === "session-bind"
+            ? f.request
+            : action === "context" || action === "task"
+              ? f.reference()
+              : f.write(action);
       // sessionFixture already consumed the first successful bind attempt.
       for (let index = action === "session-bind" ? 1 : 0; index < 20; index += 1) {
         const response = await f.send(await f.signed(action, body));
@@ -489,7 +570,7 @@ describe("mounted canonical agent binding and comments", () => {
     }
   });
 
-  it.each(["session-bind", "bound-authority", "comment"] as const)(
+  it.each(["session-bind", "bound-authority", "comment", ...writeActions] as const)(
     "rechecks current authority before cached %s outcomes",
     async (action) => {
       for (const state of [
@@ -542,7 +623,7 @@ describe("mounted canonical agent binding and comments", () => {
     },
   );
 
-  it.each(["session-bind", "bound-authority", "comment"] as const)(
+  it.each(["session-bind", "bound-authority", "comment", ...writeActions] as const)(
     "rejects browser credential substitution for %s",
     async (action) => {
       const f = await sessionFixture(),
@@ -659,7 +740,7 @@ describe("mounted canonical agent binding and comments", () => {
     expect(await sessionEffects(f.context.db)).toEqual(before);
   });
 
-  it.each(["session-bind", "bound-authority", "comment"] as const)(
+  it.each(["session-bind", "bound-authority", "comment", ...writeActions] as const)(
     "keeps a Hub outage for %s retryable without declaring revocation",
     async (action) => {
       const f = await sessionFixture(),
@@ -671,7 +752,7 @@ describe("mounted canonical agent binding and comments", () => {
           ? "agent_run.session_bind"
           : action === "bound-authority"
             ? "agent_run.bound_authority"
-            : "agent_run.comment";
+            : `agent_run.${action}`;
       let injected = false;
       vi.spyOn(f.namespace, "get").mockImplementation((id: DurableObjectId) => {
         const stub = get(id);
@@ -898,6 +979,396 @@ describe("mounted canonical agent binding and comments", () => {
     });
     expect(await sessionEffects(f.context.db)).toEqual(before);
   });
+});
+
+describe("mounted canonical agent updates, progress and proposals", () => {
+  it.each(writeActions)(
+    "requires fresh possession for deduplicated %s and rejects identity/payload substitution",
+    async (action) => {
+      const f = await sessionFixture(),
+        input = f.write(action),
+        signed = await f.signed(action, input);
+      const unsigned = new Request(signed.url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      expect((await f.send(unsigned)).status).toBe(403);
+      const before = await writeState(f.context.db);
+      const changes =
+        action === "update"
+          ? { title: "Changed private title" }
+          : action === "progress"
+            ? { percent: 0 }
+            : { priority: "P0" };
+      const tampered = await f.signed(action, input);
+      expect(
+        (
+          await f.send(
+            new Request(tampered.url, {
+              method: "POST",
+              headers: tampered.headers,
+              body: JSON.stringify({ ...input, ...changes }),
+            }),
+          )
+        ).status,
+      ).toBe(403);
+      expect(await writeState(f.context.db)).toEqual(before);
+      const first = await f.send(signed.clone());
+      expect(first.status, await first.clone().text()).toBe(200);
+      expect(first.headers.get("cache-control")).toBe("no-store");
+      const result = (await first.json()) as WriteResult;
+      expect(result.origin).toEqual(f.result.origin);
+      expect((await f.send(signed)).status).toBe(403);
+      const repeated = await f.send(await f.signed(action, input));
+      expect(repeated.status, await repeated.clone().text()).toBe(200);
+      expect(await repeated.json()).toEqual(result);
+      const committed = await writeState(f.context.db);
+      for (const [request, error] of [
+        [{ ...input, ...changes }, "request_rejected"],
+        [
+          { ...input, binding: { ...input.binding, observed_session_id: "other-session" } },
+          "session_conflict",
+        ],
+        [
+          { ...input, reference: { ...input.reference, assignment_generation: 2 } },
+          "boundary_escape",
+        ],
+        [
+          { ...input, reference: { ...input.reference, run_execution_id: randomUlid() } },
+          "boundary_escape",
+        ],
+        [{ ...input, task_id: FIX.taskDelegable }, "request_rejected"],
+        [{ ...input, principal: f.principal }, "request_rejected"],
+        [
+          { ...input, reference: { ...input.reference, actor_human_id: FIX.owner } },
+          "request_rejected",
+        ],
+      ] as const) {
+        const denied = await f.send(await f.signed(action, request));
+        expect(denied.status, await denied.clone().text()).toBe(403);
+        expect(await denied.json()).toEqual({ error, message: "agent work rejected" });
+      }
+      expect(await writeState(f.context.db)).toEqual(committed);
+      const privateText = "summary" in input ? input.summary : input.title!;
+      for (const [table, column] of [
+        ["semantic_events", "kind"],
+        ["audit_events", "action"],
+        ["outbox_records", "kind"],
+      ] as const) {
+        const receipts = (await f.context.db
+          .prepare(`SELECT payload_json FROM ${table} WHERE ${column} = ?`)
+          .all(`agent_run.${action}`)) as { payload_json: string }[];
+        expect(receipts).toHaveLength(1);
+        const receipt = JSON.parse(receipts[0]!.payload_json);
+        expect(receipt.actor.runnerId).toBe(f.runner);
+        expect(receipt.result.origin).toEqual(f.result.origin);
+        expect(receipts[0]!.payload_json).not.toContain(privateText);
+        expect(receipts[0]!.payload_json).not.toContain(f.token);
+        expect(receipts[0]!.payload_json).not.toContain(f.request.observation.observed_session_id);
+      }
+    },
+  );
+
+  it.each(writeActions)(
+    "accepts a maximum escaped %s at the exact envelope cap and rejects one byte over",
+    async (action) => {
+      const f = await sessionFixture();
+      const text = Array.from('<>&"\\\u2028\u2029'.repeat(400))
+        .slice(0, action === "progress" ? 2048 : 512)
+        .join("");
+      const input: WriteRequest =
+        action === "update"
+          ? { ...f.update(), title: text, punchline: text }
+          : action === "progress"
+            ? { ...f.progress(), summary: text, percent: 0, confidence: 0 }
+            : { ...f.proposal(), title: text };
+      const encoded = JSON.stringify(input),
+        raw = encoded + " ".repeat(16384 - Buffer.byteLength(encoded));
+      expect(Buffer.byteLength(raw)).toBe(16384);
+      const response = await f.send(await f.signed(action, input, raw));
+      expect(response.status, await response.clone().text()).toBe(200);
+      const before = await writeState(f.context.db);
+      const denied = await f.send(await f.signed(action, input, raw + " "));
+      expect(denied.status).toBe(403);
+      expect(await denied.json()).toEqual({
+        error: "request_rejected",
+        message: "agent work rejected",
+      });
+      expect(await writeState(f.context.db)).toEqual(before);
+    },
+  );
+
+  it.each([
+    ["update", { title: undefined }, "request_rejected"],
+    ["update", { expected_version: 0 }, "request_rejected"],
+    ["update", { expected_version: 1.5 }, "request_rejected"],
+    ["update", { title: "x".repeat(513) }, "request_rejected"],
+    ["update", { title: "  " }, "invalid_argument"],
+    ["update", { punchline: "bad\u0001text" }, "invalid_argument"],
+    ["progress", { summary: "x".repeat(2049) }, "request_rejected"],
+    ["progress", { summary: "  " }, "invalid_argument"],
+    ["progress", { summary: "bad\u0001text" }, "invalid_argument"],
+    ["progress", { percent: null }, "request_rejected"],
+    ["progress", { percent: -0.01 }, "request_rejected"],
+    ["progress", { confidence: 1.01 }, "request_rejected"],
+    ["proposal", { title: "x".repeat(513) }, "request_rejected"],
+    ["proposal", { title: "  " }, "invalid_argument"],
+    ["proposal", { parent_task_id: FIX.taskDelegable }, "boundary_escape"],
+    ["proposal", { priority: "P4" }, "request_rejected"],
+  ] as const)(
+    "returns a typed denial for invalid %s fields %j without effects",
+    async (action, fields, error) => {
+      const f = await sessionFixture(),
+        before = await writeState(f.context.db);
+      const response = await f.send(await f.signed(action, { ...f.write(action), ...fields }));
+      expect(response.status, await response.clone().text()).toBe(403);
+      expect(await response.json()).toEqual({ error, message: "agent work rejected" });
+      expect(await writeState(f.context.db)).toEqual(before);
+    },
+  );
+
+  it.each([
+    ["percent", "100.00000000000000001", 100],
+    ["confidence", "1e-324", 0],
+  ] as const)(
+    "rejects signed raw %s=%s before numeric rounding can create an effect",
+    async (field, decimal, rounded) => {
+      const f = await sessionFixture(),
+        input = f.progress(),
+        raw = `${JSON.stringify(input).slice(0, -1)},"${field}":${decimal}}`;
+      // Ordinary parsing would erase the out-of-range/nonzero-underflow fact.
+      expect(JSON.parse(raw)[field]).toBe(rounded);
+      const before = await writeState(f.context.db);
+      const response = await f.send(await f.signed("progress", input, raw));
+      expect(response.status, await response.clone().text()).toBe(403);
+      expect(await response.json()).toEqual({
+        error: "request_rejected",
+        message: "agent work rejected",
+      });
+      expect(await writeState(f.context.db)).toEqual(before);
+      const corrected = await f.send(await f.signed("progress", { ...input, [field]: rounded }));
+      expect(corrected.status, await corrected.clone().text()).toBe(200);
+      expect(
+        await f.context.db.prepare("SELECT COUNT(*) AS count FROM agent_work_effects").get(),
+      ).toEqual({ count: 1 });
+    },
+  );
+
+  it("rechecks root policy before a cached result and reports child-limit as denial rather than outage", async () => {
+    const f = await sessionFixture(),
+      input = f.proposal();
+    expect((await f.send(await f.signed("proposal", input))).status).toBe(200);
+    await f.context.db
+      .prepare("UPDATE workspace_policies SET allow_agent_root_propose = 0 WHERE workspace_id = ?")
+      .run(FIX.workspace);
+    const before = await writeState(f.context.db);
+    const denied = await f.send(await f.signed("proposal", input));
+    expect(denied.status).toBe(403);
+    expect(await denied.json()).toEqual({ error: "forbidden", message: "agent work rejected" });
+    expect(await writeState(f.context.db)).toEqual(before);
+    await seedChildren(f, 19);
+    const childInput = f.proposal(randomUlid(), true),
+      twentieth = await f.send(await f.signed("proposal", childInput));
+    expect(twentieth.status, await twentieth.clone().text()).toBe(200);
+    const result = (await twentieth.json()) as AgentProposalResult;
+    expect(result.state).toBe("ready");
+    const full = await writeState(f.context.db),
+      repeated = await f.send(await f.signed("proposal", childInput));
+    expect(repeated.status).toBe(200);
+    expect(await repeated.json()).toEqual(result);
+    const twentyFirst = await f.send(await f.signed("proposal", f.proposal(randomUlid(), true)));
+    expect(twentyFirst.status).toBe(403);
+    expect(await twentyFirst.json()).toEqual({
+      error: "child_limit",
+      message: "agent work rejected",
+    });
+    expect(await writeState(f.context.db)).toEqual(full);
+  });
+
+  it("returns stale-version denial for new updates but preserves a committed cached update", async () => {
+    const f = await sessionFixture(),
+      input = f.update();
+    const first = await f.send(await f.signed("update", input));
+    expect(first.status, await first.clone().text()).toBe(200);
+    const result = await first.json(),
+      before = await writeState(f.context.db);
+    const stale = await f.send(await f.signed("update", f.update()));
+    expect(stale.status).toBe(403);
+    expect(await stale.json()).toEqual({ error: "stale_version", message: "agent work rejected" });
+    const repeated = await f.send(await f.signed("update", input));
+    expect(repeated.status).toBe(200);
+    expect(await repeated.json()).toEqual(result);
+    expect(await writeState(f.context.db)).toEqual(before);
+  });
+
+  it.each(["omitted", "zero", "fractional"] as const)(
+    "exposes %s progress metadata through the ordinary authenticated comments API",
+    async (metadata) => {
+      const f = await sessionFixture(),
+        input = {
+          ...f.progress(),
+          ...(metadata === "zero"
+            ? { percent: 0, confidence: 0 }
+            : metadata === "fractional"
+              ? { percent: 12.5, confidence: 0.75 }
+              : {}),
+        };
+      const created = await f.send(await f.signed("progress", input));
+      expect(created.status, await created.clone().text()).toBe(200);
+      const result = (await created.json()) as AgentCommentResult;
+      const session = await seedAuthSession(f.context, { humanId: FIX.owner, now: LAUNCH_NOW });
+      const app = createControlApp(validateControlEnv(f.env), {
+        db: f.context.db,
+        now: LAUNCH_NOW,
+        humanAuth: () => ({
+          auth: f.context.auth,
+          keys: parseAuthKeys(AUTH_TEST_ENV.BETTER_AUTH_SECRETS),
+          abuseSecret: AUTH_TEST_ENV.AUTH_ABUSE_SECRET,
+        }),
+      });
+      const response = await app.request(
+        new Request(`${ORIGIN}/api/v1/workspaces/${FIX.workspace}/tasks/${f.task.id}/comments`, {
+          headers: { cookie: session.cookie },
+        }),
+        undefined,
+        f.env,
+      );
+      expect(response.status, await response.clone().text()).toBe(200);
+      expect(((await response.json()) as { comments: unknown[] }).comments).toEqual([
+        {
+          id: result.id,
+          body: input.summary,
+          kind: "progress",
+          created_at: LAUNCH_NOW,
+          author_human_id: null,
+          author_delegation_id: null,
+          author_kind: "agent_run",
+          author_run_id: f.launch.run_id,
+          author_execution_id: f.final.run_execution_id,
+          author_provider_session_id: f.result.binding.provider_session_id,
+          percent: metadata === "zero" ? 0 : metadata === "fractional" ? 12.5 : null,
+          confidence: metadata === "zero" ? 0 : metadata === "fractional" ? 0.75 : null,
+        },
+      ]);
+    },
+  );
+
+  it.each(
+    writeActions.flatMap((action) =>
+      ["recover", "requester revoke", "execution end", "session end", "lease expiry"].map(
+        (disposition) => ({ action, disposition }),
+      ),
+    ),
+  )(
+    "preserves the committed $action after response loss with $disposition before retry",
+    async ({ action, disposition }) => {
+      const f = await sessionFixture(),
+        input = f.write(action, "response-lost-after-commit"),
+        get = f.namespace.get.bind(f.namespace);
+      let loseResponse = true,
+        committedResult: WriteResult | undefined;
+      vi.spyOn(f.namespace, "get").mockImplementation((id: DurableObjectId) => {
+        const stub = get(id);
+        return {
+          async fetch(request: RequestInfo | URL, init?: RequestInit) {
+            const body = JSON.parse(String(init?.body)) as { commandName: string };
+            const response = await stub.fetch(request, init);
+            if (loseResponse && body.commandName === `agent_run.${action}`) {
+              expect(response.status).toBe(200);
+              const outcome = (await response.clone().json()) as { result: WriteResult };
+              committedResult = outcome.result;
+              expect(
+                await f.context.db
+                  .prepare("SELECT COUNT(*) AS count FROM agent_work_effects")
+                  .get(),
+              ).toEqual({ count: 1 });
+              loseResponse = false;
+              throw new Error("synthetic-private-lost-write-response");
+            }
+            return response;
+          },
+        } as DurableObjectStub;
+      });
+      const lost = await f.send(await f.signed(action, input));
+      expect(committedResult).toBeDefined();
+      expect(lost.status).toBe(503);
+      expect(await lost.json()).toEqual({
+        error: "work_unavailable",
+        message: "agent work temporarily unavailable",
+      });
+      const before = await writeState(f.context.db);
+      if (disposition === "requester revoke")
+        await f.context.db
+          .prepare("UPDATE runner_launch_grants SET revoked_at = ? WHERE human_id = ?")
+          .run(LAUNCH_NOW, FIX.member);
+      else if (disposition === "execution end")
+        await f.context.db
+          .prepare(
+            "UPDATE run_executions SET state = 'ended', end_reason = 'process_exit', ended_at = ? WHERE id = ?",
+          )
+          .run(LAUNCH_NOW, f.final.run_execution_id);
+      else if (disposition === "session end")
+        await f.context.db
+          .prepare("UPDATE provider_sessions SET state = 'ended', ended_at = ? WHERE id = ?")
+          .run(LAUNCH_NOW, f.result.binding.provider_session_id);
+      else if (disposition === "lease expiry")
+        await f.context.db
+          .prepare("UPDATE checkout_leases SET expires_at = ? WHERE execution_id = ?")
+          .run(LAUNCH_NOW, f.final.run_execution_id);
+      const repeated = await f.send(await f.signed(action, input));
+      if (disposition === "recover") {
+        expect(repeated.status, await repeated.clone().text()).toBe(200);
+        expect(await repeated.json()).toEqual(committedResult);
+      } else {
+        expect(repeated.status, await repeated.clone().text()).toBe(403);
+        const outcome = await repeated.json();
+        expect(outcome).toEqual({
+          error:
+            disposition === "requester revoke"
+              ? "revoked"
+              : disposition === "execution end"
+                ? "assignment_ended"
+                : "capability_closed",
+          message: "agent work rejected",
+        });
+        const privateText = "summary" in input ? input.summary : input.title!;
+        expect(JSON.stringify(outcome)).not.toContain(privateText);
+        expect(JSON.stringify(outcome)).not.toContain(JSON.stringify(committedResult));
+      }
+      // Delivery denial does not remove or reclassify an already committed business effect.
+      expect(await writeState(f.context.db)).toEqual(before);
+    },
+  );
+
+  it.each(writeActions)(
+    "keeps a current binding D1 fault for %s retryable without side effects",
+    async (action) => {
+      const f = await sessionFixture(),
+        input = f.write(action),
+        request = await f.signed(action, input),
+        before = await writeState(f.context.db),
+        prepare = f.context.db.prepare.bind(f.context.db);
+      let injected = false;
+      const spy = vi.spyOn(f.context.db, "prepare").mockImplementation((sql) => {
+        if (sql.includes("FROM execution_session_bindings binding")) {
+          injected = true;
+          throw new Error("synthetic-private-write-binding-failure");
+        }
+        return prepare(sql);
+      });
+      const response = await f.send(request);
+      expect(injected).toBe(true);
+      expect(response.status).toBe(503);
+      expect(await response.json()).toEqual({
+        error: "work_unavailable",
+        message: "agent work temporarily unavailable",
+      });
+      expect(await writeState(f.context.db)).toEqual(before);
+      spy.mockRestore();
+      expect((await f.send(await f.signed(action, input))).status).toBe(200);
+    },
+  );
 });
 
 describe("mounted local-agent work transport", () => {

@@ -223,8 +223,16 @@ func TestNativeAgentWork(t *testing.T) {
 		root, hash string
 	}
 	var releaseDuringCloud atomic.Pointer[lockFault]
+	var challengeCount, challengeWindow atomic.Int64
 	proxy.ModifyResponse = func(response *http.Response) error {
 		path := response.Request.URL.Path
+		if strings.HasSuffix(path, "/challenge") && response.StatusCode == 200 {
+			challengeWindow.CompareAndSwap(0, time.Now().UnixNano())
+			challengeCount.Add(1)
+		}
+		if response.StatusCode >= 400 && !strings.Contains(path, "/work/") {
+			t.Log("synthetic channel denial", filepath.Base(path), response.StatusCode)
+		}
 		if strings.Contains(path, "/work/") {
 			t.Log("synthetic work reply", filepath.Base(path), response.StatusCode)
 		}
@@ -534,7 +542,7 @@ func TestNativeAgentWork(t *testing.T) {
 		t.Fatal("unbound mutation not denied", code)
 	}
 	beforeWrite := post("/__a01/observe", map[string]string{"execution": ids["execution"]}, false)
-	for tool, arguments := range map[string]map[string]any{"bfb_update_task": {"expected_version": 1, "title": "Denied synthetic title"}, "bfb_propose_task": {"title": "Denied synthetic proposal"}} {
+	for tool, arguments := range map[string]map[string]any{"bfb_update_task": {"expected_version": 1, "title": "Denied synthetic title"}, "bfb_report_progress": {"summary": "Denied synthetic checkpoint", "percent": 12.5, "confidence": 0.75}, "bfb_propose_task": {"title": "Denied synthetic proposal"}} {
 		if _, code := call(tool, "native-write-"+tool, arguments); code != "session_not_bound" {
 			t.Fatal("unbound mutation not denied", tool, code)
 		}
@@ -723,7 +731,25 @@ func TestNativeAgentWork(t *testing.T) {
 			t.Fatal("owned caller boundary not denied", attack.code, err, line)
 		}
 	}
-	for _, closure := range []struct{ kind, code string }{{"session", "capability_closed"}, {"end", "assignment_ended"}, {"result", "capability_closed"}, {"lease", "capability_closed"}, {"history_before", "assignment_ended"}, {"history_during", "assignment_ended"}, {"history_write", "assignment_ended"}, {"lock_before", "assignment_ended"}, {"lock_write", "assignment_ended"}, {"grant", "revoked"}} {
+	freshScope := func() {
+		t.Helper()
+		// This expanded fixture makes more signed calls than one production
+		// minute admits. Pace real traffic; never reset or bypass server budgets.
+		if start := challengeWindow.Load(); start != 0 && challengeCount.Load() >= 80 {
+			remaining := time.Until(time.Unix(0, start).Add(61 * time.Second))
+			if remaining > 0 {
+				t.Log("pacing synthetic challenge traffic", challengeCount.Load(), remaining.Round(time.Second))
+				timer := time.NewTimer(remaining)
+				select {
+				case <-timer.C:
+				case <-ctx.Done():
+					timer.Stop()
+					t.Fatal("native challenge pacing timed out")
+				}
+			}
+			challengeWindow.Store(0)
+			challengeCount.Store(0)
+		}
 		if _, err := db.Exec(`UPDATE local_execution_assignments SET state='ended' WHERE execution_id=?`, ids["execution"]); err != nil {
 			t.Fatal(err)
 		}
@@ -750,6 +776,147 @@ func TestNativeAgentWork(t *testing.T) {
 			t.Fatal("fixture scope switch failed", err, line)
 		}
 		restart("__start")
+	}
+	rows := func(observed map[string]json.RawMessage, key string) []map[string]any {
+		t.Helper()
+		var values []map[string]any
+		if err := json.Unmarshal(observed[key], &values); err != nil {
+			t.Fatal(err)
+		}
+		return values
+	}
+	observedTask := func(observed map[string]json.RawMessage) map[string]any {
+		t.Helper()
+		var business map[string]any
+		if err := json.Unmarshal(observed["business"], &business); err != nil {
+			t.Fatal(err)
+		}
+		return business["task"].(map[string]any)
+	}
+	privateTitle := "A01_PRIVATE_TITLE_CANARY_"
+	privateTitle += strings.Repeat("<", 512-len(privateTitle))
+	for _, effect := range []struct{ action, tool, kind string }{
+		{"update", "bfb_update_task", "task.update"},
+		{"progress", "bfb_report_progress", "progress.report"},
+		{"proposal", "bfb_propose_task", "task.propose"},
+	} {
+		freshScope()
+		hook("synthetic-online-" + effect.action)
+		before := post("/__a01/observe", map[string]string{"execution": ids["execution"]}, false)
+		beforeTask := observedTask(before)
+		params := map[string]any{}
+		switch effect.action {
+		case "update":
+			params = map[string]any{"expected_version": 1, "title": privateTitle, "punchline": strings.Repeat(">", 512)}
+		case "progress":
+			params = map[string]any{"summary": body, "percent": 12.5, "confidence": 0.75}
+			for index, invalid := range []map[string]any{
+				{"summary": "Synthetic rejected checkpoint", "percent": json.Number("100.00000000000000001")},
+				{"summary": "Synthetic rejected checkpoint", "confidence": json.Number("1.00000000000000001")},
+				{"summary": "Synthetic rejected checkpoint", "percent": json.Number("1e-324")},
+			} {
+				if _, code := call(effect.tool, fmt.Sprintf("native-progress-invalid-%d", index), invalid); code != "invalid_params" {
+					t.Fatal("compiled stdio rounded forbidden progress", index, code)
+				}
+			}
+			unchanged := post("/__a01/observe", map[string]string{"execution": ids["execution"]}, false)
+			if string(unchanged["effects"]) != string(before["effects"]) || string(unchanged["bindings"]) != string(before["bindings"]) || string(unchanged["business"]) != string(before["business"]) {
+				t.Fatal("rejected raw progress changed canonical state")
+			}
+		case "proposal":
+			params = map[string]any{"parent_task_id": ids["task"], "title": privateTitle}
+		}
+		requestID := "native-online-" + effect.action
+		action := effect.action
+		loseReply.Store(&action)
+		if _, code := call(effect.tool, requestID, params); code != "offline_rejected" {
+			t.Fatal("committed online write loss not retryable", effect.action, code)
+		}
+		committed := post("/__a01/observe", map[string]string{"execution": ids["execution"]}, false)
+		effects := rows(committed, "effects")
+		bindings := rows(committed, "bindings")
+		if len(effects) != 1 || len(bindings) != 1 {
+			t.Fatal("lost online write did not commit one effect/binding", effect.action)
+		}
+		origin := effects[0]
+		if origin["kind"] != effect.kind || origin["run_id"] != ids["run"] || origin["execution_id"] != ids["execution"] || origin["source_task_id"] != ids["task"] || origin["provider_session_id"] != bindings[0]["provider_session_id"] {
+			t.Fatal("online write provenance escaped bound origin", effect.action)
+		}
+		switch effect.action {
+		case "update":
+			updated := observedTask(committed)
+			if updated["title"] != params["title"] || updated["punchline"] != params["punchline"] || updated["resource_version"] != float64(2) || origin["resulting_task_version"] != float64(2) || origin["target_task_id"] != ids["task"] {
+				t.Fatal("compiled update did not retain bounded fields/version")
+			}
+			for _, key := range []string{"state", "priority", "next_owner_type", "next_owner_id", "next_action_reason", "due_at", "created_by_human_id", "created_by_delegation_id"} {
+				if updated[key] != beforeTask[key] {
+					t.Fatal("agent erased creator/workflow field", key)
+				}
+			}
+		case "progress":
+			comments := rows(committed, "comments")
+			if len(comments) != 1 || comments[0]["body"] != body || comments[0]["kind"] != "progress" || comments[0]["author_human_id"] != nil || comments[0]["author_delegation_id"] != nil || origin["percent"] != 12.5 || origin["confidence"] != 0.75 || origin["target_task_id"] != ids["task"] {
+				t.Fatal("compiled fractional progress lost payload/attribution")
+			}
+		case "proposal":
+			targets := rows(committed, "targets")
+			if len(targets) != 1 || targets[0]["id"] == ids["task"] || targets[0]["id"] != origin["target_task_id"] || targets[0]["parent_task_id"] != ids["task"] || targets[0]["title"] != params["title"] || targets[0]["state"] != "ready" || targets[0]["priority"] != "P2" || targets[0]["created_by_human_id"] != nil || targets[0]["created_by_delegation_id"] != nil {
+				t.Fatal("compiled child proposal lost source/target semantics")
+			}
+		}
+		if bytes.Contains(committed["receipts"], []byte("A01_PRIVATE_TITLE_CANARY")) || bytes.Contains(committed["receipts"], []byte("A01_PRIVATE_BODY_CANARY")) {
+			t.Fatal("private write content entered receipts")
+		}
+		restartBoth()
+		retried, code := call(effect.tool, requestID, params)
+		if code != "" {
+			t.Fatal("online write retry after both restarts", effect.action, code)
+		}
+		if effect.action == "update" && (retried["resource_version"] != float64(2) || retried["id"] != ids["task"]) || effect.action == "progress" && retried["id"] != origin["comment_id"] || effect.action == "proposal" && (retried["id"] != origin["target_task_id"] || retried["state"] != "ready") {
+			t.Fatal("retry changed canonical outcome", effect.action)
+		}
+		unchanged := post("/__a01/observe", map[string]string{"execution": ids["execution"]}, false)
+		if string(unchanged["effects"]) != string(committed["effects"]) || string(unchanged["bindings"]) != string(committed["bindings"]) || string(unchanged["business"]) != string(committed["business"]) {
+			t.Fatal("restarts repeated online business effects", effect.action)
+		}
+		restart("__restart")
+		changed := map[string]any{}
+		for key, value := range params {
+			changed[key] = value
+		}
+		if effect.action == "progress" {
+			changed["confidence"] = 0.5
+		} else {
+			changed["title"] = "Changed synthetic title"
+		}
+		if _, code := call(effect.tool, requestID, changed); code != "request_rejected" {
+			t.Fatal("cache loss forgot online payload fingerprint", effect.action, code)
+		}
+		if effect.action == "update" {
+			if _, code := call(effect.tool, requestID+"-later", map[string]any{"expected_version": 2, "title": "Synthetic later revision"}); code != "" {
+				t.Fatal("later task revision failed", code)
+			}
+			if previous, code := call(effect.tool, requestID, params); code != "" || previous["resource_version"] != float64(2) {
+				t.Fatal("committed update reran stale version check", code)
+			}
+		}
+		if effect.action == "proposal" {
+			post("/__a01/change", map[string]string{"execution": ids["execution"], "kind": "root_allow"}, false)
+			rootParams := map[string]any{"title": "Synthetic permitted root"}
+			if root, code := call(effect.tool, requestID+"-root", rootParams); code != "" || root["state"] != "proposed" {
+				t.Fatal("root proposal state/policy mismatch", code)
+			}
+			post("/__a01/change", map[string]string{"execution": ids["execution"], "kind": "root_deny"}, false)
+			if _, code := call(effect.tool, requestID+"-root", rootParams); code != "forbidden" {
+				t.Fatal("cached root ignored current policy", code)
+			}
+			if child, code := call(effect.tool, requestID, params); code != "" || child["state"] != "ready" {
+				t.Fatal("child replay acquired root-only policy", code)
+			}
+		}
+	}
+	for _, closure := range []struct{ kind, code string }{{"session", "capability_closed"}, {"end", "assignment_ended"}, {"result", "capability_closed"}, {"lease", "capability_closed"}, {"history_before", "assignment_ended"}, {"history_during", "assignment_ended"}, {"history_write", "assignment_ended"}, {"lock_before", "assignment_ended"}, {"lock_write", "assignment_ended"}, {"grant", "revoked"}} {
+		freshScope()
 		requestID := "cached-closure-" + closure.kind
 		hook("synthetic-session-" + closure.kind)
 		if _, code := call("bfb_add_comment", requestID, map[string]any{"body": "Synthetic cached closure comment"}); code != "" {

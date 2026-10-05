@@ -5,9 +5,12 @@ package localmcp
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/qdis/bfb/internal/protocol"
 )
 
 const (
@@ -86,8 +89,8 @@ func boundedText(value, field string, maximum int) (string, error) {
 }
 
 func checkVersion(value float64) (int64, error) {
-	version := int64(value)
-	if float64(version) != value || version < 1 {
+	version, valid := protocol.ParseWireInteger(strconv.FormatFloat(value, 'g', -1, 64))
+	if !valid || version < 1 {
 		return 0, fail("invalid_params")
 	}
 	return version, nil

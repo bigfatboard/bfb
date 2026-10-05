@@ -159,3 +159,60 @@ func TestRequestIDMatchesWirePrimitive(t *testing.T) {
 		}
 	}
 }
+
+func TestUpdateRequiresVisibleMutationBeforeSessionBinding(t *testing.T) {
+	bindings, authority := &fakeBindings{}, &fakeAuthority{}
+	capability := NewCapability(syntheticBoundary, bindings, authority)
+	transport := syntheticTransport()
+	host := NewHost(HostDeps{Capability: capability, Transport: transport})
+	params := map[string]any{"expected_version": float64(3), "request_id": "no-op-update-01"}
+	if _, err := host.CallTool(context.Background(), "bfb_update_task", params); CodeOf(err) != "invalid_params" || capability.State() != StateProvisional {
+		t.Fatal("no-op acquired a binding or reached effects", err, capability.State())
+	}
+	for _, descriptor := range ToolDescriptors() {
+		if descriptor.Name == "bfb_update_task" && descriptor.InputSchema["anyOf"] == nil {
+			t.Fatal("descriptor still advertises no-op updates")
+		}
+	}
+}
+
+type proposalPolicyTransport struct {
+	*fakeTransport
+	allowed bool
+	calls   int
+}
+
+func (transport *proposalPolicyTransport) ProposeTask(ctx context.Context, boundary Boundary, session ConfirmedSession, input ProposeTaskInput, requestID string) (ProposeTaskResult, error) {
+	transport.calls++
+	if input.ParentTaskID != nil {
+		return transport.fakeTransport.ProposeTask(ctx, boundary, session, input, requestID)
+	}
+	if !transport.allowed {
+		return ProposeTaskResult{}, fail("forbidden")
+	}
+	result, err := transport.dedupe(requestID, func() any { return ProposeTaskResult{ID: "synthetic-root", State: "proposed"} })
+	if err != nil {
+		return ProposeTaskResult{}, err
+	}
+	return result.(ProposeTaskResult), nil
+}
+
+func TestCachedProposalRechecksCloudPolicyWithoutClosingCapability(t *testing.T) {
+	bindings, authority := &fakeBindings{}, &fakeAuthority{}
+	capability := NewCapability(syntheticBoundary, bindings, authority)
+	bindings.setBound(syntheticSession, capability.ref())
+	transport := &proposalPolicyTransport{fakeTransport: syntheticTransport(), allowed: true}
+	host := NewHost(HostDeps{Capability: capability, Transport: transport})
+	params := map[string]any{"title": "Synthetic root", "request_id": "cached-root-001"}
+	first, err := host.CallTool(context.Background(), "bfb_propose_task", params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again, err := host.CallTool(context.Background(), "bfb_propose_task", params); err != nil || again != first || transport.calls != 2 {
+		t.Fatal("cached identity skipped cloud policy or changed outcome", again, err)
+	}
+	transport.allowed = false
+	if _, err := host.CallTool(context.Background(), "bfb_propose_task", params); CodeOf(err) != "forbidden" || capability.State() == StateClosed || transport.calls != 3 {
+		t.Fatal("cached root bypassed current policy", err)
+	}
+}

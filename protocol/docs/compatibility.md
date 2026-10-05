@@ -30,6 +30,7 @@ ABOUTME: Applies to JSON Schema under protocol/schema and generated codecs.
 - Timestamps are UTC RFC 3339 with a trailing `Z`, second precision minimum, at most six fractional digits, and seconds from `00` through `59`.
 - Resource IDs are Crockford ULID strings (`[0-7][0-9A-HJKMNP-TV-Z]{25}`).
 - Wire integers use exact JSON number semantics and the inclusive range `-9007199254740991` through `9007199254740991`; mathematically integral decimal/exponent spellings are accepted and re-encoded as canonical integers.
+- Agent progress is the sole bounded decimal exception: `percent` (0–100) and `confidence` (0–1) in `agent-progress-request`, its `agent-progress-local-request` wrapper, and the exact request payload of `local-agent-rpc` v2 `mcp.v2.report_progress`. Finite decimal/exponent values are normalized consistently by TypeScript and Go; nonzero underflow and raw out-of-range values fail closed. This does not relax integer fields, similarly named fields elsewhere, or general local RPC v1/Swift validation.
 - Oversized values fail with category `bound_exceeded`.
 
 ## Intent isolation

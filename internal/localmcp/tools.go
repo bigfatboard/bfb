@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/qdis/bfb/internal/protocol"
 )
 
 // ToolDescriptor advertises one tool for tools/list.
@@ -32,7 +34,7 @@ func ToolDescriptors() []ToolDescriptor {
 	return []ToolDescriptor{
 		{Name: "bfb_get_context", Description: "Read the run's scoped agent context with a delivery record.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{"task_id": optionalTask, "request_id": requestID}, "required": []string{"request_id"}, "additionalProperties": false}},
 		{Name: "bfb_get_task", Description: "Read the run's agent-visible task view.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{"task_id": optionalTask, "request_id": requestID}, "required": []string{"request_id"}, "additionalProperties": false}},
-		{Name: "bfb_update_task", Description: "Update permitted task fields with an optimistic version check.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{"task_id": optionalTask, "expected_version": map[string]any{"type": "integer", "minimum": 1}, "title": stringSchema("Replacement title.", 1, maxTitleLen), "punchline": stringSchema("Replacement punchline.", 1, maxTitleLen), "request_id": requestID}, "required": []string{"expected_version", "request_id"}, "additionalProperties": false}},
+		{Name: "bfb_update_task", Description: "Update permitted task fields with an optimistic version check.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{"task_id": optionalTask, "expected_version": map[string]any{"type": "integer", "minimum": 1}, "title": stringSchema("Replacement title.", 1, maxTitleLen), "punchline": stringSchema("Replacement punchline.", 1, maxTitleLen), "request_id": requestID}, "required": []string{"expected_version", "request_id"}, "anyOf": []map[string]any{{"required": []string{"title"}}, {"required": []string{"punchline"}}}, "additionalProperties": false}},
 		{Name: "bfb_add_comment", Description: "Add a discussion comment attributed to the agent run.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{"task_id": optionalTask, "body": stringSchema("Comment body.", 1, maxBodyLen), "request_id": requestID}, "required": []string{"body", "request_id"}, "additionalProperties": false}},
 		{Name: "bfb_report_progress", Description: "Publish a bounded progress checkpoint.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{"task_id": optionalTask, "summary": stringSchema("Progress summary.", 1, maxBodyLen), "percent": map[string]any{"type": "number", "minimum": 0, "maximum": 100}, "confidence": map[string]any{"type": "number", "minimum": 0, "maximum": 1}, "request_id": requestID}, "required": []string{"summary", "request_id"}, "additionalProperties": false}},
 		{Name: "bfb_propose_task", Description: "Propose a root task or a policy-bounded child task.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{"project_id": map[string]any{"type": "string", "description": "Optional project ID; must equal the run boundary.", "maxLength": maxIDLen}, "parent_task_id": map[string]any{"type": "string", "description": "Optional parent task ID; must equal the run boundary task.", "maxLength": maxIDLen}, "title": stringSchema("Proposed title.", 1, maxTitleLen), "priority": map[string]any{"type": "string", "enum": []string{"P0", "P1", "P2", "P3"}}, "request_id": requestID}, "required": []string{"title", "request_id"}, "additionalProperties": false}},
@@ -200,6 +202,12 @@ func (host *Host) CallTool(ctx context.Context, name string, params map[string]a
 		if err := host.capability.authorize(ctx); err != nil {
 			return nil, err
 		}
+		if name == "bfb_propose_task" && host.transport.Online() {
+			// The fixed bound-authority poll has no tool policy context. Reuse the
+			// cloud operation identity so current root policy is checked before its
+			// cached outcome, without rerunning a committed child's count gate.
+			return host.write(ctx, name, params, rawRequestID, boundary)
+		}
 		return result, nil
 	}
 	switch name {
@@ -288,15 +296,15 @@ func (host *Host) write(ctx context.Context, name string, params map[string]any,
 	}
 	switch name {
 	case "bfb_update_task":
-		return host.transport.UpdateTask(ctx, boundary, payload.update, requestID)
+		return host.transport.UpdateTask(ctx, boundary, host.capability.ConfirmedSession(), payload.update, requestID)
 	case "bfb_add_comment":
 		return host.transport.AddComment(ctx, boundary, host.capability.ConfirmedSession(), payload.comment, requestID)
 	case "bfb_report_progress":
-		return host.transport.ReportProgress(ctx, boundary, payload.summary, payload.percent, payload.confidence, requestID)
+		return host.transport.ReportProgress(ctx, boundary, host.capability.ConfirmedSession(), payload.summary, payload.percent, payload.confidence, requestID)
 	case "bfb_submit_result":
 		return host.transport.SubmitResult(ctx, boundary, payload.submit, requestID)
 	default:
-		return host.transport.ProposeTask(ctx, boundary, payload.propose, requestID)
+		return host.transport.ProposeTask(ctx, boundary, host.capability.ConfirmedSession(), payload.propose, requestID)
 	}
 }
 
@@ -350,6 +358,9 @@ func validatedPayload(name string, params map[string]any, boundary Boundary) (*v
 			input.Punchline = &punchline
 			canonical["punchline"] = punchline
 		}
+		if input.Title == nil && input.Punchline == nil {
+			return nil, fail("invalid_params")
+		}
 		payload.update = input
 		payload.canonical = map[string]any{"tool": name, "input": canonical}
 		payload.version = number
@@ -376,8 +387,8 @@ func validatedPayload(name string, params map[string]any, boundary Boundary) (*v
 		payload.summary = summary
 		input := map[string]any{"summary": summary}
 		if raw, present := params["percent"]; present {
-			number, ok := raw.(float64)
-			if !ok || number < 0 || number > 100 {
+			number, ok := progressNumber("percent", raw)
+			if !ok {
 				return nil, fail("invalid_params")
 			}
 			value := number
@@ -385,8 +396,8 @@ func validatedPayload(name string, params map[string]any, boundary Boundary) (*v
 			input["percent"] = number
 		}
 		if raw, present := params["confidence"]; present {
-			number, ok := raw.(float64)
-			if !ok || number < 0 || number > 1 {
+			number, ok := progressNumber("confidence", raw)
+			if !ok {
 				return nil, fail("invalid_params")
 			}
 			value := number
@@ -447,6 +458,19 @@ func validatedPayload(name string, params map[string]any, boundary Boundary) (*v
 		return nil, fail("method_not_found")
 	}
 	return payload, nil
+}
+
+func progressNumber(field string, value any) (float64, bool) {
+	if number, ok := value.(json.Number); ok {
+		return protocol.ParseProgressDecimal(field, number.String())
+	}
+	if number, ok := value.(float64); ok {
+		encoded, err := json.Marshal(number)
+		if err == nil {
+			return protocol.ParseProgressDecimal(field, string(encoded))
+		}
+	}
+	return 0, false
 }
 
 func (host *Host) offline(name string, payload *validatedWrite, requestID string, boundary Boundary) (any, error) {

@@ -8,6 +8,9 @@ import {
   type AgentBoundRequest,
   type AgentCommentRequest,
   type AgentSessionBindRequest,
+  type AgentUpdateRequest,
+  type AgentProgressRequest,
+  type AgentProposalRequest,
   type WireDocumentName,
 } from "@bfb/protocol";
 import {
@@ -17,6 +20,9 @@ import {
   bindAgentSessionCommand,
   agentBoundAuthorityCommand,
   agentRunCommentCommand,
+  agentRunUpdateCommand,
+  agentRunProgressCommand,
+  agentRunProposalCommand,
   AGENT_WRITE_REQUEST_BYTES,
   agentWorkKey,
   agentSessionBindKey,
@@ -28,7 +34,7 @@ import { executeWorkspaceCommand } from "../hub-client.js";
 import { guardRunnerTransport, readPossessedRunnerRequest, type RunnerApiDeps } from "./runners.js";
 
 const pattern =
-  /^\/runner\/workspaces\/([^/]+)\/runners\/([^/]+)\/work\/(authority|context|task|session-bind|bound-authority|comment)$/;
+  /^\/runner\/workspaces\/([^/]+)\/runners\/([^/]+)\/work\/(authority|context|task|session-bind|bound-authority|comment|update|progress|proposal)$/;
 const actions: Record<
   string,
   { document: WireDocumentName; command: HubCommand<unknown, unknown> }
@@ -56,6 +62,18 @@ const actions: Record<
   comment: {
     document: "agent-comment-request",
     command: agentRunCommentCommand as HubCommand<unknown, unknown>,
+  },
+  update: {
+    document: "agent-update-request",
+    command: agentRunUpdateCommand as HubCommand<unknown, unknown>,
+  },
+  progress: {
+    document: "agent-progress-request",
+    command: agentRunProgressCommand as HubCommand<unknown, unknown>,
+  },
+  proposal: {
+    document: "agent-proposal-request",
+    command: agentRunProposalCommand as HubCommand<unknown, unknown>,
   },
 };
 export function isAgentWorkPath(path: string): boolean {
@@ -89,7 +107,13 @@ export async function handleAgentWorkApi(request: Request, deps: RunnerApiDeps):
     const decoded = decodeWireDocument(operation.document, possessed.bytes);
     if (!decoded.ok) throw new DomainError("request_rejected", "invalid work reference");
     const body = decoded.value as
-      AgentWorkRequest | AgentBoundRequest | AgentSessionBindRequest | AgentCommentRequest;
+      | AgentWorkRequest
+      | AgentBoundRequest
+      | AgentSessionBindRequest
+      | AgentCommentRequest
+      | AgentUpdateRequest
+      | AgentProgressRequest
+      | AgentProposalRequest;
     const reference = "reference" in body ? body.reference : body;
     const outcome = await executeWorkspaceCommand(
       {

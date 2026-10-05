@@ -447,21 +447,21 @@ func executeReplay(ctx context.Context, transport WorkTransport, operation Pendi
 		if raw, ok := input["confidence"].(float64); ok {
 			confidence = &raw
 		}
-		result, err := transport.ReportProgress(ctx, boundary, summary, percent, confidence, requestID)
+		result, err := transport.ReportProgress(ctx, boundary, ConfirmedSession{}, summary, percent, confidence, requestID)
 		return replayEffect(result, err)
 	case "bfb_update_task":
 		restored, err := restoreUpdate(input, operation.ExpectedVersion)
 		if err != nil {
 			return nil, true, "payload_invalid"
 		}
-		result, callErr := transport.UpdateTask(ctx, boundary, restored, requestID)
+		result, callErr := transport.UpdateTask(ctx, boundary, ConfirmedSession{}, restored, requestID)
 		return replayEffect(result, callErr)
 	case "bfb_propose_task":
 		restored, err := restorePropose(input)
 		if err != nil {
 			return nil, true, "payload_invalid"
 		}
-		result, callErr := transport.ProposeTask(ctx, boundary, restored, requestID)
+		result, callErr := transport.ProposeTask(ctx, boundary, ConfirmedSession{}, restored, requestID)
 		return replayEffect(result, callErr)
 	case "bfb_submit_result":
 		restored, err := restoreSubmit(input)

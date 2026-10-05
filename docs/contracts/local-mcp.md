@@ -5,11 +5,10 @@ Owner: [A01](../work-packages/WP-A01-local-mcp-context.md). Gate: `pnpm test:a01
 Status: Current `local-mcp/2` implementation under
 [ADR 0004](../adr/0004-local-mcp-runtime-authority.md) and
 [ADR 0005](../adr/0005-agent-work-session-and-attribution.md). Context/task reads,
-canonical session binding, current bound authority and online discussion comments
-use typed daemon RPC and the possession-authenticated Worker/Hub/D1 path. Task
-updates, progress and proposals, explicit offline policy, online write-ahead
-durability and daemon-owned pending replay remain closure obligations; this
-vertical slice is not complete A01 acceptance.
+canonical session binding, current bound authority and all four online writes
+use typed daemon RPC and the possession-authenticated Worker/Hub/D1 path.
+Explicit offline policy, online write-ahead durability and daemon-owned pending
+replay remain closure obligations; the online slice is not complete A01 acceptance.
 
 This contract defines the tool and trust boundary for `bfb mcp stdio`.
 A02/A03/V01 extend this same server; they do not introduce another agent
@@ -47,6 +46,9 @@ The current host negotiates these fixed version-2 operations:
 | `mcp.v2.bind_session` | `work/session-bind` | Canonical association from a daemon-read trusted L06 observation |
 | `mcp.v2.bound_authority` | `work/bound-authority` | Current authority for the original confirmed association/session |
 | `mcp.v2.add_comment` | `work/comment` | Canonical comment ID with bounded derived run/session provenance |
+| `mcp.v2.update_task` | `work/update` | Permitted task revision with bounded derived run/session provenance |
+| `mcp.v2.report_progress` | `work/progress` | Canonical progress-comment ID with bounded derived run/session provenance |
+| `mcp.v2.propose_task` | `work/proposal` | Canonical root/child task ID and actual state with bounded derived provenance |
 
 `local-agent-rpc` is a separate closed document with `schema_version: 2` and
 fixed `mcp.v2.*` names. It declares all four ADR 0005 write shapes; only the
@@ -83,6 +85,19 @@ live in `protocol/schema/v1`; owning commands are `pnpm protocol:generate` and
 in `protocol/fixtures/v2/local-agent-rpc.json`. The cloud execution reference
 stays schema version 1, independently of the local IPC version; existing read
 operation hashes remain unchanged.
+
+Only percent/confidence in the named progress request, local component and exact
+v2 report-progress payload admit finite decimals. Raw out-of-range values and
+nonzero underflow fail before effects; integer fields and general v1 retain
+their exact numeric rules. The TypeScript `encodeNamedWireDocument` API applies
+the same closed named validation and canonicalization as decoding; the legacy
+unqualified encoder remains integer-only. Shared generated fixtures pin full
+document and typed-progress-request hashes against both TypeScript and Go.
+The stdio boundary validates the raw progress and `expected_version` number
+spellings before canonicalization. Equivalent accepted spellings, such as
+`125e-1` and `12.5` or `3.0` and `3`, share the same local request fingerprint.
+Rounded fractional versions and unsafe integers are rejected, not converted into
+valid versions. A rejected input does not consume its request identity.
 
 The authenticated Hub transport actor remains `runner`. Current run authority
 also checks the assignment's requester membership/project grant and launch
@@ -191,20 +206,27 @@ authority validation. Failed operations do not consume cache slots, and pending
 attention waits remain uncached. A fresh stdio connection starts a new local
 cache; the cloud keeps the scoped operation identity for committed reads.
 
-For online comments, the stable cloud identity contains only tool, cloud
+For all four online writes, the stable cloud identity contains only tool, cloud
 reference version, execution, generation and request ID. The confirmed session
-and typed body are bound independently by the input fingerprint, so changed
+and typed payload are bound independently by the input fingerprint, so changed
 payload/session cannot become a new identity after a process restart. Session
 binding has one assignment-scoped identity independent of caller request IDs;
 its fingerprint binds the trusted observation. Current bound authority precedes
 both local and cloud cached outcomes.
 
+Cached proposal outcomes also reach their original cloud command: current
+root-proposal policy is checked before the stored reply. An operation's committed
+expected-version or child-count precondition is not re-applied to a retry.
+Consequently a successful twentieth child remains replayable at a count of 20,
+and an old update returns its original revision after later task changes.
+
 New context/task command receipts in audit, semantic events and outbox records
 contain bounded IDs, versions, hashes, delivery references, state and priority,
 not private bodies, titles or punchlines. The full authorized response remains
-in canonical idempotency storage. Binding/comment receipts also retain bounded
+in canonical idempotency storage. Binding/write receipts also retain bounded
 derived run, execution, generation and canonical session IDs, never comment
-bodies. The authenticated runner remains a separate receipt actor. Infrastructure failures are sanitized,
+bodies, progress summaries, task titles or punchlines. Progress receipts may
+retain the explicitly reported percent/confidence. The authenticated runner remains a separate receipt actor. Infrastructure failures are sanitized,
 retryable errors, not terminal authority or permission to queue. Fresh polling
 currently creates bounded command receipts per request; durable poll growth
 needs measurement and a bounded follow-up.
@@ -222,10 +244,10 @@ original committed outcome and delivery IDs, without duplicating deliveries.
 | --- | --- | --- | --- |
 | `bfb_get_context` | allowed | `task_id?`, `request_id` | Returns `ContextResult {context, deliveries}` with one actual committed delivery row per returned immutable context item, bound to the run. |
 | `bfb_get_task` | allowed | `task_id?`, `request_id` | Returns one task view: id, project, state, priority, title, punchline, resource version. Never human-only context. |
-| `bfb_update_task` | `session_not_bound` | `task_id?`, `expected_version`, `title?`, `punchline?`, `request_id` | Updates permitted fields only (title 1-512 chars, punchline 1-512 chars) with an optimistic version check. State, priority, due, owner, and promotion are rejected with `forbidden`, exactly as for delegated agents. |
+| `bfb_update_task` | `session_not_bound` | `task_id?`, `expected_version`, `title?`, `punchline?`, `request_id` | Requires title or punchline and updates only those bounded fields (1-512 chars) with an optimistic version check. Preserves original creator/workflow fields; state, priority, due, owner and promotion changes remain forbidden. |
 | `bfb_add_comment` | `session_not_bound` | `task_id?`, `body` 1-2048 chars, `request_id` | Adds a discussion comment attributed to the agent run. |
-| `bfb_report_progress` | `session_not_bound` | `task_id?`, `summary` 1-2048 chars, `percent` 0-100 optional, `confidence` 0-1 optional, `request_id` | Publishes a bounded progress checkpoint attributed to the agent run. |
-| `bfb_propose_task` | `session_not_bound` | `project_id?`, `parent_task_id?`, `title` 1-512 chars, `priority` P0-P3 optional, `request_id` | Creates a root `proposed` task only when effective policy allows agent root proposals, else `forbidden`; creates a policy-bounded child task (at most 20 active children per parent). Never promotes, never launches a run. |
+| `bfb_report_progress` | `session_not_bound` | `task_id?`, `summary` 1-2048 chars, `percent` 0-100 optional, `confidence` 0-1 optional, `request_id` | Publishes an agent-reported progress comment with optional finite fractional metadata. Omitted values remain null; explicit zero is retained. Never infers activity or completion. |
+| `bfb_propose_task` | `session_not_bound` | `project_id?`, `parent_task_id?`, `title` 1-512 chars, `priority` P0-P3 optional, `request_id` | Creates a root `proposed` task only when all three current policy tiers allow agent roots, else `forbidden`; creates a `ready` child under the exact bound parent, limited to 20 children excluding done/cancelled. Priority defaults to P2. Never promotes or launches. |
 | `bfb_request_human` | `session_not_bound` | `kind` clarification/review/credential/capability/destructive_action/blocker, `question` 1-2048 chars, `reference_kind?`/`reference_id?` as a pair, `blocking`, `request_id` | Commits a typed attention request for the run. Fails visibly offline; attention questions are never journaled. |
 | `bfb_get_attention` | allowed | `attention_id`, `request_id` | Returns the committed resolution metadata for one of the run's own requests; foreign records report `not_found`. Reads fail visibly offline. |
 | `bfb_wait_for_attention` | allowed | `attention_id`, `request_id` | Polls committed state until answered/resolved, then returns the same metadata a later retrieval returns, or `pending` at the 30-second bound. Safe to repeat. |
@@ -274,7 +296,7 @@ partial page is the complete context.
 
 This section specifies required closure behavior, not a connected production
 replay service. The CLI installs deny-by-default offline policy and does not
-queue mutations. A committed online comment has canonical cloud idempotency,
+queue mutations. A committed online write has canonical cloud idempotency,
 but a lost reply/post-commit containment denial is not yet captured in a
 production online write-ahead journal. Caller retry with the original identity
 can recover an authorized outcome; this is not daemon-owned replay or a durable
@@ -355,7 +377,7 @@ Event-ledger/session projections do not implicitly create that business record.
 
 ## Outstanding runtime closure
 
-The current v2 binding/comment slice does not make A01 complete. Its owning `pnpm test:a01`
+The current v2 online-write slice does not make A01 complete. Its owning `pnpm test:a01`
 target exercises the compiled stdio host, production
 daemon RPC, real possession-authenticated L08 connection, local Control Worker,
 WorkspaceHub and D1. It proves agent/both bootstrap reads and real per-item
@@ -363,13 +385,12 @@ delivery, request deduplication, denied unbound mutation, malicious boundary and
 process rejection, oversized retrieval and revocation/end/result/lease rejection even
 for cached IDs. The synthetic native lifecycle assembles a real signed helper,
 held authenticated lock and provider-shaped group, captures a real trusted L06
-turn-before-SessionStart hook, then exercises canonical binding/comments and
-lost-commit replies across both MCP and daemon restart. It is not full L05 launch
+turn-before-SessionStart hook, then exercises canonical binding and all four
+online writes, including lost-commit replies across both MCP and daemon restart.
+It is not full L05 launch
 or Terminal acceptance. An injected transport or stdout-only fixture is not a substitute.
 
-Remaining A01 closure includes permitted online task/progress/proposal writes
-with truthful durable run attribution; online write-ahead uncertain-outcome
-capture; explicit versioned,
+Remaining A01 closure includes online write-ahead uncertain-outcome capture; explicit versioned,
 deny-by-default offline policy and its authorized mutation path; daemon-owned
 restart/crash-safe replay. The implemented canonical association and comment
 idempotency are prerequisites, not proof of a connected replay lifecycle.

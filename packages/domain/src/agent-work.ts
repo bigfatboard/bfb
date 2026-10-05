@@ -18,7 +18,12 @@ import {
 } from "./launch-state.js";
 import { launchRunner } from "./launch-state.js";
 import { assertRunnerLaunchAuthority, type RunnerPrincipal } from "./runners.js";
-import { deliverAgentContext, getTask, type RunContextResult } from "./work-commands.js";
+import {
+  deliverAgentContext,
+  getTask,
+  type RunContextResult,
+  type TaskRecord,
+} from "./work-commands.js";
 
 export const AGENT_CONTEXT_RESULT_BYTES = 61_440;
 
@@ -215,14 +220,18 @@ export const agentRunTaskCommand: HubCommand<AgentWorkInput, AgentTaskResult> = 
     const row = await liveRun(input, ctx),
       task = await getTask(ctx.db, ctx.workspaceId, row.task_id);
     if (!task) throw new DomainError("not_found", "task unavailable");
-    return {
-      id: task.id,
-      project_id: task.project_id,
-      state: task.state,
-      priority: task.priority,
-      title: task.title,
-      punchline: task.punchline,
-      resource_version: task.resource_version,
-    };
+    return agentTaskView(task);
   },
 };
+
+export function agentTaskView(task: TaskRecord): AgentTaskResult {
+  return {
+    id: task.id,
+    project_id: task.project_id,
+    state: task.state,
+    priority: task.priority,
+    title: task.title,
+    punchline: task.punchline,
+    resource_version: task.resource_version,
+  };
+}

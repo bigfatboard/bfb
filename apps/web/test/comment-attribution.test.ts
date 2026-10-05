@@ -1,5 +1,5 @@
-// ABOUTME: Proves normal browser comment reads and actual UI author labels preserve run provenance.
-// ABOUTME: Creates the agent comment through WorkspaceHub and keeps legacy null authors unknown.
+// ABOUTME: Proves normal browser comment reads and UI labels preserve run and progress provenance.
+// ABOUTME: Creates real Hub effects and distinguishes omitted metadata from explicit agent-reported zero.
 
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -10,6 +10,9 @@ import {
   agentWorkKey,
   bindAgentSessionCommand,
   agentRunCommentCommand,
+  agentRunProgressCommand,
+  agentRunUpdateCommand,
+  agentRunProposalCommand,
   addCommentCommand,
   authorizeLaunchCommand,
   observeCheckoutLeaseCommand,
@@ -29,7 +32,7 @@ import {
   openAuthTestContext,
   seedAuthSession,
 } from "../../control-worker/test/auth-helpers.js";
-import { CommentAuthor } from "../src/work/mutations.js";
+import { CommentAuthor, ProgressMetadata } from "../src/work/mutations.js";
 
 afterEach(() => vi.useRealTimers());
 describe("truthful comment authors", () => {
@@ -117,6 +120,72 @@ describe("truthful comment authors", () => {
           kind: "discussion",
         }),
       );
+      const progress = [];
+      for (const [index, metadata] of [
+        {},
+        { percent: 0, confidence: 0 },
+        { percent: 33.25, confidence: 0.75 },
+      ].entries()) {
+        const progressReference = { ...reference, request_id: `attribution-progress-${index}` };
+        progress.push(
+          success(
+            await f.hub.execute(agentRunProgressCommand, {
+              ...envelope,
+              idempotencyKey: agentWorkKey("progress", progressReference),
+              input: {
+                principal: f.principal,
+                request: {
+                  reference: progressReference,
+                  binding: bound.binding,
+                  summary: "Synthetic agent checkpoint",
+                  ...metadata,
+                },
+              },
+            }),
+          ),
+        );
+      }
+      const version = (await f.db
+        .prepare("SELECT resource_version FROM tasks WHERE id = ?")
+        .get(f.task.id)) as { resource_version: number };
+      const updateReference = { ...reference, request_id: "attribution-update-01" };
+      success(
+        await f.hub.execute(agentRunUpdateCommand, {
+          ...envelope,
+          idempotencyKey: agentWorkKey("update", updateReference),
+          input: {
+            principal: f.principal,
+            request: {
+              reference: updateReference,
+              binding: bound.binding,
+              expected_version: version.resource_version,
+              title: "Synthetic agent-revised task",
+            },
+          },
+        }),
+      );
+      const proposalReference = { ...reference, request_id: "attribution-proposal-01" };
+      const proposal = success(
+        await f.hub.execute(agentRunProposalCommand, {
+          ...envelope,
+          idempotencyKey: agentWorkKey("proposal", proposalReference),
+          input: {
+            principal: f.principal,
+            request: {
+              reference: proposalReference,
+              binding: bound.binding,
+              title: "Synthetic child",
+              parent_task_id: f.task.id,
+            },
+          },
+        }),
+      );
+      expect(proposal.state).toBe("ready");
+      expect(
+        await f.db
+          .prepare("SELECT created_by_human_id, created_by_delegation_id FROM tasks WHERE id = ?")
+          .get(proposal.id),
+      ).toEqual({ created_by_human_id: null, created_by_delegation_id: null });
       const delegation = randomUlid(),
         delegated = randomUlid(),
         unknown = randomUlid();
@@ -174,6 +243,9 @@ describe("truthful comment authors", () => {
       expect(response.status, await response.clone().text()).toBe(200);
       type Comment = {
         id: string;
+        kind: string;
+        percent: number | null;
+        confidence: number | null;
         author_kind: "human" | "delegated_human" | "agent_run" | "unknown";
         author_run_id: string | null;
         author_execution_id: string | null;
@@ -183,6 +255,28 @@ describe("truthful comment authors", () => {
       };
       const comments = ((await response.json()) as { comments: Comment[] }).comments;
       const byId = new Map(comments.map((comment) => [comment.id, comment]));
+      for (const [index, metadata] of [
+        { percent: null, confidence: null },
+        { percent: 0, confidence: 0 },
+        { percent: 33.25, confidence: 0.75 },
+      ].entries()) {
+        const checkpoint = byId.get(progress[index]!.id)!;
+        expect(checkpoint).toMatchObject({
+          kind: "progress",
+          author_kind: "agent_run",
+          ...metadata,
+        });
+        const markup = renderToStaticMarkup(
+          createElement(ProgressMetadata, { comment: checkpoint }),
+        );
+        if (index === 0) expect(markup).toBe("");
+        else
+          expect(markup).toContain(
+            index === 1
+              ? "Agent-reported progress 0% · Confidence 0"
+              : "Agent-reported progress 33.25% · Confidence 0.75",
+          );
+      }
       expect(byId.get(agent.id)).toMatchObject({
         author_kind: "agent_run",
         author_run_id: c.launch.run_id,

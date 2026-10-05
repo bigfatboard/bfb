@@ -48,7 +48,7 @@ func VerifyDaemonCaller(ctx context.Context, request daemon.Request, input gener
 }
 
 // RPCTransport contains only local paths and correlation, never runner credentials.
-// Unsupported mutations stay visibly rejected until writes and replay are closed.
+// Offline replay and unrelated mutations stay visibly rejected until separately connected.
 type RPCTransport struct {
 	OfflineTransport
 	Paths       daemon.Paths
@@ -157,4 +157,50 @@ func (transport RPCTransport) AddComment(ctx context.Context, boundary Boundary,
 		return CommentResult{}, fail("boundary_escape")
 	}
 	return CommentResult{ID: result.Id}, nil
+}
+
+func (transport RPCTransport) UpdateTask(ctx context.Context, boundary Boundary, session ConfirmedSession, update UpdateTaskInput, requestID string) (TaskView, error) {
+	input := generated.AgentUpdateLocalRequest{Correlation: transport.Correlation, Request: generated.AgentUpdateRequest{
+		Reference: operationReference(boundary, requestID), Binding: session,
+		ExpectedVersion: update.ExpectedVersion, Title: update.Title, Punchline: update.Punchline}}
+	var result generated.AgentUpdateResult
+	if err := transport.callPayload(ctx, "mcp.v2.update_task", map[string]any{"agent_update_request": input}, "agent-update-result", "agent_update", &result); err != nil {
+		return TaskView{}, err
+	}
+	if !originMatches(result.Origin, boundary, session.ProviderSessionId) || result.Task.Id != boundary.TaskID || result.Task.ProjectId != boundary.ProjectID || result.Task.ResourceVersion != update.ExpectedVersion+1 {
+		return TaskView{}, fail("boundary_escape")
+	}
+	return TaskView{ID: result.Task.Id, ProjectID: result.Task.ProjectId, State: result.Task.State,
+		Priority: result.Task.Priority, Title: result.Task.Title, Punchline: result.Task.Punchline, ResourceVersion: result.Task.ResourceVersion}, nil
+}
+
+func (transport RPCTransport) ReportProgress(ctx context.Context, boundary Boundary, session ConfirmedSession, summary string, percent, confidence *float64, requestID string) (CommentResult, error) {
+	input := generated.AgentProgressLocalRequest{Correlation: transport.Correlation, Request: generated.AgentProgressRequest{
+		Reference: operationReference(boundary, requestID), Binding: session, Summary: summary, Percent: percent, Confidence: confidence}}
+	var result generated.AgentCommentResult
+	if err := transport.callPayload(ctx, "mcp.v2.report_progress", map[string]any{"agent_progress_request": input}, "agent-comment-result", "agent_comment", &result); err != nil {
+		return CommentResult{}, err
+	}
+	if !originMatches(result.Origin, boundary, session.ProviderSessionId) {
+		return CommentResult{}, fail("boundary_escape")
+	}
+	return CommentResult{ID: result.Id}, nil
+}
+
+func (transport RPCTransport) ProposeTask(ctx context.Context, boundary Boundary, session ConfirmedSession, proposal ProposeTaskInput, requestID string) (ProposeTaskResult, error) {
+	input := generated.AgentProposalLocalRequest{Correlation: transport.Correlation, Request: generated.AgentProposalRequest{
+		Reference: operationReference(boundary, requestID), Binding: session, Title: proposal.Title,
+		Priority: &proposal.Priority, ParentTaskId: proposal.ParentTaskID}}
+	var result generated.AgentProposalResult
+	if err := transport.callPayload(ctx, "mcp.v2.propose_task", map[string]any{"agent_proposal_request": input}, "agent-proposal-result", "agent_proposal", &result); err != nil {
+		return ProposeTaskResult{}, err
+	}
+	state := "proposed"
+	if proposal.ParentTaskID != nil {
+		state = "ready"
+	}
+	if !originMatches(result.Origin, boundary, session.ProviderSessionId) || result.Id == boundary.TaskID || result.State != state {
+		return ProposeTaskResult{}, fail("boundary_escape")
+	}
+	return ProposeTaskResult{ID: result.Id, State: result.State}, nil
 }

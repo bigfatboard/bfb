@@ -221,6 +221,11 @@ The permitted local effects remain bounded by the existing contract:
 - Progress checkpoints keep that summary bound and retain optional explicit
   percent (0–100) and confidence (0–1). Absence is null, not zero. They are
   agent-reported values, never inferred activity, usage or result transitions.
+  These schema-declared numbers include finite fractions. Their direct request,
+  local component and exact v2 report-progress envelope paths are the only
+  decimal exception to the shared codec's integer discipline. Keep other numeric
+  fields and frozen v1 behavior unchanged; prove raw bounds, underflow rejection
+  and canonical TypeScript/Go parity before using their hashes for capture.
 - Root proposals remain `proposed` and require the effective workspace,
   project and repository policy to permit them. A child is under the exact
   bound parent and obeys C08's existing policy, state and 20-active-child

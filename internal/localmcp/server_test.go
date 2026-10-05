@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -151,6 +152,157 @@ func assertBFBCode(t *testing.T, response map[string]any, code string) {
 	data, _ := failure["data"].(map[string]any)
 	if data["bfb_code"] != code {
 		t.Fatalf("expected bfb_code %s, got %+v", code, response)
+	}
+}
+
+func TestStdioProgressPreservesRawNumberBounds(t *testing.T) {
+	for _, test := range []struct {
+		name, percent, confidence string
+		accept                    bool
+	}{
+		{"fraction", "12.5", "0.75", true},
+		{"exponent", "125e-1", "75e-2", true},
+		{"explicit-zero", "-0e9999999999", "0e-9999999999", true},
+		{"rounded-percent", "100.00000000000000001", "0.75", false},
+		{"rounded-confidence", "12.5", "1.00000000000000001", false},
+		{"percent-underflow", "1e-324", "0.75", false},
+		{"confidence-underflow", "12.5", "1e-324", false},
+		{"overflow", "1e999", "0.75", false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			harness, bindings := happyHarness(nil)
+			bindings.setBound(syntheticSession, harness.server.capability.ref())
+			line := fmt.Sprintf(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"bfb_report_progress","arguments":{"summary":"Synthetic raw-number checkpoint","request_id":"raw-progress-001","percent":%s,"confidence":%s}}}`, test.percent, test.confidence)
+			harness.server.serveLine(context.Background(), bufio.NewWriter(harness.stdout), []byte(line))
+			var reply map[string]any
+			if err := json.Unmarshal(harness.stdout.Bytes(), &reply); err != nil {
+				t.Fatal(err)
+			}
+			transport := harness.server.host.transport.(*fakeTransport)
+			if test.accept {
+				if reply["error"] != nil || len(transport.progress) != 1 {
+					t.Fatal("valid raw progress rejected", reply)
+				}
+			} else {
+				assertBFBCode(t, reply, "invalid_params")
+				if len(transport.progress) != 0 || harness.server.capability.State() != StateProvisional {
+					t.Fatal("invalid raw progress activated or wrote")
+				}
+			}
+		})
+	}
+}
+
+func TestStdioProgressCanonicalNumericRetry(t *testing.T) {
+	for _, test := range []struct {
+		name, percent, confidence, retryPercent, retryConfidence string
+		firstInvalid                                             bool
+	}{
+		{"equivalent-exponent", "125e-1", "75e-2", "12.5", "0.75", false},
+		{"equivalent-zero", "-0e9999999999", "0e-9999999999", "0", "0", false},
+		{"invalid-first", "100.00000000000000001", "1e-324", "12.5", "0.75", true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			harness, bindings := happyHarness(nil)
+			bindings.setBound(syntheticSession, harness.server.capability.ref())
+			call := func(id int, percent, confidence string) map[string]any {
+				t.Helper()
+				harness.stdout.Reset()
+				line := fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"method":"tools/call","params":{"name":"bfb_report_progress","arguments":{"summary":"Synthetic equivalent-number checkpoint","request_id":"retry-progress-001","percent":%s,"confidence":%s}}}`, id, percent, confidence)
+				harness.server.serveLine(context.Background(), bufio.NewWriter(harness.stdout), []byte(line))
+				var reply map[string]any
+				if err := json.Unmarshal(harness.stdout.Bytes(), &reply); err != nil {
+					t.Fatal(err)
+				}
+				return reply
+			}
+			first := call(1, test.percent, test.confidence)
+			transport := harness.server.host.transport.(*fakeTransport)
+			if test.firstInvalid {
+				assertBFBCode(t, first, "invalid_params")
+				if len(transport.progress) != 0 || len(harness.server.host.seen) != 0 {
+					t.Fatal("invalid raw input wrote or consumed the request identity")
+				}
+			} else if first["error"] != nil {
+				t.Fatal("valid initial numeric spelling rejected", first)
+			}
+			retry := call(2, test.retryPercent, test.retryConfidence)
+			if retry["error"] != nil || len(transport.progress) != 1 || transport.calls["retry-progress-001"] != 1 {
+				t.Fatal("equivalent numeric retry failed or duplicated its effect", retry)
+			}
+			if !test.firstInvalid {
+				firstResult, err := json.Marshal(first["result"])
+				if err != nil {
+					t.Fatal(err)
+				}
+				retryResult, err := json.Marshal(retry["result"])
+				if err != nil || !bytes.Equal(firstResult, retryResult) {
+					t.Fatal("equivalent numeric retry changed its original receipt", retry)
+				}
+			}
+			changed := call(3, "13", "0.75")
+			assertBFBCode(t, changed, "request_rejected")
+			if len(transport.progress) != 1 {
+				t.Fatal("changed numeric payload escaped the request fingerprint")
+			}
+		})
+	}
+}
+
+func TestStdioUpdatePreservesRawIntegerBounds(t *testing.T) {
+	for _, test := range []struct {
+		name, version string
+		accept        bool
+	}{
+		{"integer", "3", true},
+		{"integral-decimal", "3.0", true},
+		{"integral-exponent", "30e-1", true},
+		{"rounded-fraction", "3.00000000000000001", false},
+		{"fraction", "3.5", false},
+		{"unsafe-integer", "9007199254740992", false},
+		{"underflow", "1e-324", false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			harness, bindings := happyHarness(nil)
+			bindings.setBound(syntheticSession, harness.server.capability.ref())
+			call := func(id int, version string) map[string]any {
+				t.Helper()
+				harness.stdout.Reset()
+				line := fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"method":"tools/call","params":{"name":"bfb_update_task","arguments":{"title":"Synthetic integer checkpoint","request_id":"raw-update-001","expected_version":%s}}}`, id, version)
+				harness.server.serveLine(context.Background(), bufio.NewWriter(harness.stdout), []byte(line))
+				var reply map[string]any
+				if err := json.Unmarshal(harness.stdout.Bytes(), &reply); err != nil {
+					t.Fatal(err)
+				}
+				return reply
+			}
+			reply := call(1, test.version)
+			transport := harness.server.host.transport.(*fakeTransport)
+			if test.accept {
+				if reply["error"] != nil || len(transport.updated) != 1 {
+					t.Fatal("valid integral spelling rejected", reply)
+				}
+			} else {
+				assertBFBCode(t, reply, "invalid_params")
+				if len(transport.updated) != 0 || harness.server.capability.State() != StateProvisional {
+					t.Fatal("invalid raw integer activated or wrote")
+				}
+			}
+			retry := call(2, "3")
+			if retry["error"] != nil || len(transport.updated) != 1 || transport.calls["raw-update-001"] != 1 {
+				t.Fatal("canonical update retry rejected or duplicated", retry)
+			}
+			if test.accept {
+				firstResult, err := json.Marshal(reply["result"])
+				if err != nil {
+					t.Fatal(err)
+				}
+				retryResult, err := json.Marshal(retry["result"])
+				if err != nil || !bytes.Equal(firstResult, retryResult) {
+					t.Fatal("canonical update retry changed its original receipt", retry)
+				}
+			}
+		})
 	}
 }
 

@@ -191,7 +191,7 @@ func (fake *fakeTransport) GetTask(_ context.Context, _ Boundary, _ string) (Tas
 	return fake.task, nil
 }
 
-func (fake *fakeTransport) UpdateTask(_ context.Context, _ Boundary, input UpdateTaskInput, requestID string) (TaskView, error) {
+func (fake *fakeTransport) UpdateTask(_ context.Context, _ Boundary, _ ConfirmedSession, input UpdateTaskInput, requestID string) (TaskView, error) {
 	updated, err := fake.dedupe(requestID, func() any {
 		next := fake.task
 		if input.Title != nil {
@@ -222,7 +222,7 @@ func (fake *fakeTransport) AddComment(_ context.Context, _ Boundary, _ Confirmed
 	return result.(CommentResult), nil
 }
 
-func (fake *fakeTransport) ReportProgress(_ context.Context, _ Boundary, summary string, _ *float64, _ *float64, requestID string) (CommentResult, error) {
+func (fake *fakeTransport) ReportProgress(_ context.Context, _ Boundary, _ ConfirmedSession, summary string, _ *float64, _ *float64, requestID string) (CommentResult, error) {
 	result, err := fake.dedupe(requestID, func() any {
 		fake.progress = append(fake.progress, summary)
 		return CommentResult{ID: fmt.Sprintf("progress-%d", len(fake.progress))}
@@ -290,7 +290,7 @@ func (fake *fakeTransport) SubmitResult(_ context.Context, _ Boundary, input Sub
 	return result.(SubmitResultResult), nil
 }
 
-func (fake *fakeTransport) ProposeTask(_ context.Context, boundary Boundary, input ProposeTaskInput, requestID string) (ProposeTaskResult, error) {
+func (fake *fakeTransport) ProposeTask(_ context.Context, boundary Boundary, _ ConfirmedSession, input ProposeTaskInput, requestID string) (ProposeTaskResult, error) {
 	if input.ParentTaskID == nil {
 		return ProposeTaskResult{}, fail("policy_rejected")
 	}

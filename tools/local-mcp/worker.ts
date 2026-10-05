@@ -214,7 +214,13 @@ export default {
             "UPDATE provider_sessions SET state='ended', ended_at=? WHERE workspace_id=? AND run_id=?",
           )
           .run(now, workspace, row.run_id);
-      else return new Response(null, { status: 400 });
+      else if (input.kind === "root_allow" || input.kind === "root_deny") {
+        const allowed = input.kind === "root_allow" ? 1 : 0;
+        for (const table of ["workspace_policies", "project_policies", "repository_configs"])
+          await db
+            .prepare(`UPDATE ${table} SET allow_agent_root_propose=? WHERE workspace_id=?`)
+            .run(allowed, workspace);
+      } else return new Response(null, { status: 400 });
       return Response.json({ changed: true });
     }
     if (path === "/__a01/observe") {
@@ -230,7 +236,7 @@ export default {
         .get(workspace, row.run_id);
       const task = await db
         .prepare(
-          `SELECT title,punchline,state,resource_version FROM tasks WHERE workspace_id = ? AND id = ?`,
+          `SELECT id,title,punchline,state,priority,next_owner_type,next_owner_id,next_action_reason,due_at,created_by_human_id,created_by_delegation_id,resource_version FROM tasks WHERE workspace_id = ? AND id = ?`,
         )
         .get(workspace, row.task_id);
       const commentCount = (await db
@@ -252,9 +258,16 @@ export default {
         .all(workspace, execution);
       const receipts = await db
         .prepare(
-          "SELECT action,payload_json FROM audit_events WHERE workspace_id=? AND action IN ('agent_run.session_bind','agent_run.comment')",
+          "SELECT action,payload_json FROM audit_events WHERE workspace_id=? AND action IN ('agent_run.session_bind','agent_run.comment','agent_run.update','agent_run.progress','agent_run.proposal')",
         )
         .all(workspace);
+      const targets = await db
+        .prepare(
+          `SELECT task.id,task.parent_task_id,task.state,task.priority,task.title,task.punchline,task.created_by_human_id,task.created_by_delegation_id,task.resource_version
+         FROM agent_work_effects effect JOIN tasks task ON task.workspace_id=effect.workspace_id AND task.id=effect.target_task_id
+         WHERE effect.workspace_id=? AND effect.execution_id=? AND effect.kind='task.propose' ORDER BY task.id`,
+        )
+        .all(workspace, execution);
       return Response.json({
         deliveries,
         sessions,
@@ -262,6 +275,7 @@ export default {
         comments,
         effects,
         receipts,
+        targets,
         business: { task, comments: commentCount.count, tasks: taskCount.count },
       });
     }

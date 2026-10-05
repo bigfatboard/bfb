@@ -35,6 +35,9 @@ func RegisterRPC(registry *daemon.Registry, connection ConnectionLookup, ownersh
 		"mcp.v2.bind_session":    {"session-bind", "agent-local-request", "agent_request", "agent-session-bind-result", "agent_binding"},
 		"mcp.v2.bound_authority": {"bound-authority", "agent-bound-local-request", "agent_bound_request", "agent-authority-result", "agent_authority"},
 		"mcp.v2.add_comment":     {"comment", "agent-comment-local-request", "agent_comment_request", "agent-comment-result", "agent_comment"},
+		"mcp.v2.update_task":     {"update", "agent-update-local-request", "agent_update_request", "agent-update-result", "agent_update"},
+		"mcp.v2.report_progress": {"progress", "agent-progress-local-request", "agent_progress_request", "agent-comment-result", "agent_comment"},
+		"mcp.v2.propose_task":    {"proposal", "agent-proposal-local-request", "agent_proposal_request", "agent-proposal-result", "agent_proposal"},
 	}
 	for method, action := range actions {
 		if err := registry.Register(method, func(ctx context.Context, request daemon.Request) (map[string]any, error) {
@@ -52,7 +55,7 @@ func RegisterRPC(registry *daemon.Registry, connection ConnectionLookup, ownersh
 			}
 			input.Correlation = wire.Correlation
 			var binding *generated.AgentSessionReference
-			if action.action == "bound-authority" || action.action == "comment" {
+			if action.action == "bound-authority" || action.action == "comment" || action.action == "update" || action.action == "progress" || action.action == "proposal" {
 				var bound struct {
 					Reference generated.AgentWorkRequest      `json:"reference"`
 					Binding   generated.AgentSessionReference `json:"binding"`

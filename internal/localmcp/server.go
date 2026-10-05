@@ -10,6 +10,8 @@ import (
 	"io"
 	"os"
 	"strings"
+
+	"github.com/qdis/bfb/internal/protocol"
 )
 
 const (
@@ -297,9 +299,9 @@ func (server *Server) serveCall(ctx context.Context, writer *bufio.Writer, reque
 		server.note("invalid_params")
 		return
 	}
-	// The envelope decodes with UseNumber so large request IDs echo exactly;
-	// tool arguments normalize to float64 here, the only numeric shape tools accept.
-	rawArgs = normalizeNumbers(rawArgs)
+	// Validate exact progress and expected-version lexemes before converting
+	// accepted values to the tools' canonical float64 representation.
+	rawArgs = normalizeNumbers(name, rawArgs)
 	result, err := server.host.CallTool(ctx, name, rawArgs)
 	if err != nil {
 		server.writeError(writer, request.ID, err)
@@ -318,12 +320,28 @@ func (server *Server) serveCall(ctx context.Context, writer *bufio.Writer, reque
 	server.note("ok")
 }
 
-// normalizeNumbers converts envelope-decoded json.Number values in tool
-// arguments to float64. A non-numeric value is left for the tool to reject.
-func normalizeNumbers(args map[string]any) map[string]any {
+// normalizeNumbers validates progress metadata and update versions before
+// canonicalizing equivalent spellings; invalid raw values remain for rejection.
+func normalizeNumbers(tool string, args map[string]any) map[string]any {
 	normalized := make(map[string]any, len(args))
 	for key, value := range args {
+		if tool == "bfb_report_progress" && (key == "percent" || key == "confidence") {
+			if parsed, valid := progressNumber(key, value); valid {
+				normalized[key] = parsed
+			} else {
+				normalized[key] = value
+			}
+			continue
+		}
 		if number, ok := value.(json.Number); ok {
+			if tool == "bfb_update_task" && key == "expected_version" {
+				if parsed, valid := protocol.ParseWireInteger(number.String()); valid {
+					normalized[key] = float64(parsed)
+				} else {
+					normalized[key] = value
+				}
+				continue
+			}
 			if parsed, err := number.Float64(); err == nil {
 				normalized[key] = parsed
 				continue

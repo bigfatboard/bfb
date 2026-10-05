@@ -57,6 +57,7 @@ interface NumericObservation extends NumericInspection {
   holder: object;
   key: string;
   path?: string;
+  source?: string;
 }
 
 function exceedsMaximumInteger(digits: string): boolean {
@@ -112,6 +113,64 @@ function numericSourceInspection(source: string): NumericInspection {
     return { failure: "unsafe", integer: "out_of_range" };
   }
   return { integer: negative ? "-" + integerDigits : integerDigits };
+}
+
+// Only the three named progress documents can carry these bounded decimals.
+function progressDecimalPrefix(document: WireDocumentName, value: unknown): string | undefined {
+  if (document === "agent-progress-request") return "";
+  if (document === "agent-progress-local-request") return "/request";
+  if (document === "local-agent-rpc" && value && typeof value === "object") {
+    const root = value as Record<string, unknown>;
+    if (
+      root.schema_version === 2 &&
+      root.direction === "request" &&
+      root.method === "mcp.v2.report_progress"
+    )
+      return "/payload/agent_progress_request/request";
+  }
+  return undefined;
+}
+
+function boundedProgressDecimal(source: string, ceiling: string): boolean {
+  const match = /^(-?)(0|[1-9]\d*)(?:\.(\d+))?(?:[eE]([+-]?)(\d+))?$/u.exec(source);
+  if (!match) return false;
+  const fraction = match[3] ?? "";
+  const coefficient = (match[2] + fraction).replace(/^0+/u, "");
+  if (coefficient.length === 0) return true;
+  if (match[1] === "-") return false;
+  const exponentDigits = (match[5] ?? "0").replace(/^0+/u, "") || "0";
+  if (exponentDigits.length > 9) return false;
+  const exponent = Number(exponentDigits) * (match[4] === "-" ? -1 : 1);
+  const point = coefficient.length + exponent - fraction.length;
+  if (point > ceiling.length) return false;
+  if (point === ceiling.length) {
+    const leading = coefficient.slice(0, point).padEnd(point, "0");
+    if (leading > ceiling || (leading === ceiling && /[1-9]/u.test(coefficient.slice(point))))
+      return false;
+  }
+  const value = Number(source);
+  return Number.isFinite(value) && value !== 0;
+}
+
+function inspectProgressDecimals(
+  document: WireDocumentName,
+  value: unknown,
+  observations: NumericObservation[],
+): void {
+  const prefix = progressDecimalPrefix(document, value);
+  if (prefix === undefined) return;
+  for (const observation of observations) {
+    const ceiling =
+      observation.path === prefix + "/percent"
+        ? "100"
+        : observation.path === prefix + "/confidence"
+          ? "1"
+          : undefined;
+    if (ceiling === undefined || observation.source === undefined) continue;
+    if (boundedProgressDecimal(observation.source, ceiling)) delete observation.failure;
+    else observation.failure = "unsafe";
+    delete observation.integer;
+  }
 }
 
 function valueNumericFailure(
@@ -981,6 +1040,7 @@ export function decodeWireDocument<T = unknown>(
           numericObservations.push({
             holder: this,
             key,
+            ...(context?.source ? { source: context.source } : {}),
             ...(context?.source
               ? numericSourceInspection(context.source)
               : { failure: "source_unavailable" as const }),
@@ -1014,6 +1074,7 @@ export function decodeWireDocument<T = unknown>(
   }
 
   assignNumericPaths(value, numericObservations);
+  inspectProgressDecimals(document, value, numericObservations);
 
   const validate = validators[document];
   if (!validate) {
@@ -1071,4 +1132,14 @@ export function encodeWireDocument(value: unknown): string {
     throw new Error(numericDiagnostic(numericFailure).message);
   }
   return stableStringify(value);
+}
+
+// Named encoding applies the same closed schema and scoped numeric rules as decoding.
+export function encodeNamedWireDocument(document: WireDocumentName, value: unknown): string {
+  if (containsInvalidUnicodeScalar(value)) {
+    throw new Error("wire document contains an invalid Unicode scalar");
+  }
+  const result = decodeWireDocument(document, new TextEncoder().encode(stableStringify(value)));
+  if (!result.ok) throw new Error(result.error.message);
+  return result.json;
 }

@@ -335,6 +335,121 @@ export interface TaskRecord {
   resource_version: number;
 }
 
+export async function assertAgentRootProposalAllowed(
+  db: SqlDatabase,
+  workspaceId: string,
+  projectId: string,
+): Promise<void> {
+  const policy = (await db
+    .prepare(
+      `SELECT workspace.allow_agent_root_propose AS workspace_allowed,
+    project.allow_agent_root_propose AS project_allowed,
+    repository.allow_agent_root_propose AS repository_allowed
+    FROM workspace_policies workspace
+    JOIN project_policies project ON project.workspace_id = workspace.workspace_id
+    JOIN repository_configs repository ON repository.workspace_id = project.workspace_id
+      AND repository.project_id = project.project_id
+    WHERE workspace.workspace_id = ? AND project.project_id = ?`,
+    )
+    .get(workspaceId, projectId)) as
+    { workspace_allowed: number; project_allowed: number; repository_allowed: number } | undefined;
+  if (
+    !policy ||
+    policy.workspace_allowed !== 1 ||
+    policy.project_allowed !== 1 ||
+    policy.repository_allowed !== 1
+  )
+    throw new DomainError("forbidden", "effective policy forbids agent root proposals");
+}
+
+export async function assertAgentChildLimit(
+  db: SqlDatabase,
+  workspaceId: string,
+  parentTaskId: string,
+): Promise<void> {
+  const children = (await db
+    .prepare(
+      `SELECT COUNT(*) AS count FROM tasks
+    WHERE workspace_id = ? AND parent_task_id = ? AND state NOT IN ('done', 'cancelled')`,
+    )
+    .get(workspaceId, parentTaskId)) as { count: number };
+  if (children.count >= MAX_AGENT_READY_CHILDREN_PER_PARENT)
+    throw new DomainError("child_limit_reached", "agent child task limit reached");
+}
+
+// Callers establish authority and resolve the parent before this shared effect preparation.
+export async function prepareTaskCreation(
+  input: CreateTaskInput,
+  ctx: HubContext,
+  isAgent: boolean,
+  parent: TaskRecord | undefined,
+): Promise<TaskRecord> {
+  const title = boundedText(input.title, "task title", 512);
+  const priority = taskPriority(input.priority);
+  const nextOwnerType = input.nextOwnerType ?? "unassigned";
+  if (!["human", "agent_profile", "unassigned"].includes(nextOwnerType))
+    throw new DomainError("invalid_argument", "next owner type is invalid");
+  const nextOwnerId = input.nextOwnerId ?? null;
+  await assertOwnerTarget(ctx.db, ctx.workspaceId, input.projectId, nextOwnerType, nextOwnerId);
+  const dueAt = input.dueAt === undefined ? null : utc(input.dueAt, "dueAt");
+  const state: TaskState = isAgent ? (parent ? "ready" : "proposed") : (input.state ?? "ready");
+  if (input.state !== undefined && input.state !== "proposed" && input.state !== "ready")
+    throw new DomainError("invalid_argument", "new task state is invalid");
+  const nextActionReason = optionalBoundedText(input.nextActionReason, "next action reason", 512);
+  const punchline =
+    input.punchline === undefined
+      ? state === "proposed"
+        ? "Proposed agent work awaiting promotion"
+        : "Ready for next action"
+      : boundedText(input.punchline, "task punchline", 512);
+  return {
+    id: randomUlid(),
+    project_id: input.projectId,
+    parent_task_id: parent?.id ?? null,
+    title,
+    state,
+    priority,
+    due_at: dueAt,
+    next_owner_type: nextOwnerType,
+    next_owner_id: nextOwnerId,
+    next_action_reason: nextActionReason ?? null,
+    punchline,
+    resource_version: 1,
+  };
+}
+
+export async function persistTaskCreation(
+  ctx: HubContext,
+  task: TaskRecord,
+  author: { humanId: string | null; delegationId: string | null },
+): Promise<void> {
+  await ctx.db
+    .prepare(
+      `INSERT INTO tasks (
+    workspace_id, id, project_id, parent_task_id, title, state, priority, due_at,
+    next_owner_type, next_owner_id, next_action_reason, punchline,
+    resource_version, created_by_human_id, created_by_delegation_id, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
+    )
+    .run(
+      ctx.workspaceId,
+      task.id,
+      task.project_id,
+      task.parent_task_id,
+      task.title,
+      task.state,
+      task.priority,
+      task.due_at,
+      task.next_owner_type,
+      task.next_owner_id,
+      task.next_action_reason,
+      task.punchline,
+      author.humanId,
+      author.delegationId,
+      ctx.now,
+    );
+}
+
 export const createTaskCommand: HubCommand<CreateTaskInput, TaskRecord> = {
   name: "task.create",
   async run(input, ctx) {
@@ -358,102 +473,16 @@ export const createTaskCommand: HubCommand<CreateTaskInput, TaskRecord> = {
       parent?.id,
     );
     if (isAgent && !parent) {
-      const policy = (await ctx.db
-        .prepare(
-          `SELECT workspace.allow_agent_root_propose AS workspace_allowed,
-                  project.allow_agent_root_propose AS project_allowed,
-                  repository.allow_agent_root_propose AS repository_allowed
-           FROM workspace_policies AS workspace
-           JOIN project_policies AS project
-             ON project.workspace_id = workspace.workspace_id
-           JOIN repository_configs AS repository
-             ON repository.workspace_id = project.workspace_id
-            AND repository.project_id = project.project_id
-           WHERE workspace.workspace_id = ? AND project.project_id = ?`,
-        )
-        .get(ctx.workspaceId, input.projectId)) as
-        | { workspace_allowed: number; project_allowed: number; repository_allowed: number }
-        | undefined;
-      if (
-        !policy ||
-        policy.workspace_allowed !== 1 ||
-        policy.project_allowed !== 1 ||
-        policy.repository_allowed !== 1
-      ) {
-        throw new DomainError("forbidden", "effective policy forbids agent root proposals");
-      }
+      await assertAgentRootProposalAllowed(ctx.db, ctx.workspaceId, input.projectId);
     } else if (isAgent && parent) {
-      const activeChildren = (await ctx.db
-        .prepare(
-          `SELECT COUNT(*) AS count FROM tasks
-           WHERE workspace_id = ? AND parent_task_id = ?
-             AND state NOT IN ('done', 'cancelled')`,
-        )
-        .get(ctx.workspaceId, parent.id)) as { count: number };
-      if (activeChildren.count >= MAX_AGENT_READY_CHILDREN_PER_PARENT) {
-        throw new DomainError("child_limit_reached", "agent child task limit reached");
-      }
+      await assertAgentChildLimit(ctx.db, ctx.workspaceId, parent.id);
     }
-    const title = boundedText(input.title, "task title", 512);
-    const priority = taskPriority(input.priority);
-    const nextOwnerType = input.nextOwnerType ?? "unassigned";
-    if (!["human", "agent_profile", "unassigned"].includes(nextOwnerType)) {
-      throw new DomainError("invalid_argument", "next owner type is invalid");
-    }
-    const nextOwnerId = input.nextOwnerId ?? null;
-    await assertOwnerTarget(ctx.db, ctx.workspaceId, input.projectId, nextOwnerType, nextOwnerId);
-    const dueAt = input.dueAt === undefined ? null : utc(input.dueAt, "dueAt");
-    const state: TaskState = isAgent ? (parent ? "ready" : "proposed") : (input.state ?? "ready");
-    if (input.state !== undefined && input.state !== "proposed" && input.state !== "ready") {
-      throw new DomainError("invalid_argument", "new task state is invalid");
-    }
-    const nextActionReason = optionalBoundedText(input.nextActionReason, "next action reason", 512);
-    const punchline =
-      input.punchline === undefined
-        ? state === "proposed"
-          ? "Proposed agent work awaiting promotion"
-          : "Ready for next action"
-        : boundedText(input.punchline, "task punchline", 512);
-    const id = randomUlid();
-    await ctx.db
-      .prepare(
-        `INSERT INTO tasks (
-          workspace_id, id, project_id, parent_task_id, title, state, priority, due_at,
-          next_owner_type, next_owner_id, next_action_reason, punchline,
-          resource_version, created_by_human_id, created_by_delegation_id, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
-      )
-      .run(
-        ctx.workspaceId,
-        id,
-        input.projectId,
-        parent?.id ?? null,
-        title,
-        state,
-        priority,
-        dueAt,
-        nextOwnerType,
-        nextOwnerId,
-        nextActionReason ?? null,
-        punchline,
-        ctx.actorHumanId ?? null,
-        ctx.actorDelegationId ?? null,
-        ctx.now,
-      );
-    return {
-      id,
-      project_id: input.projectId,
-      parent_task_id: parent?.id ?? null,
-      title,
-      state,
-      priority,
-      due_at: dueAt,
-      next_owner_type: nextOwnerType,
-      next_owner_id: nextOwnerId,
-      next_action_reason: nextActionReason ?? null,
-      punchline,
-      resource_version: 1,
-    };
+    const task = await prepareTaskCreation(input, ctx, isAgent, parent);
+    await persistTaskCreation(ctx, task, {
+      humanId: ctx.actorHumanId ?? null,
+      delegationId: ctx.actorDelegationId ?? null,
+    });
+    return task;
   },
 };
 
@@ -469,6 +498,85 @@ export interface UpdateTaskInput {
   nextActionReason?: string | null;
   punchline?: string;
   promote?: boolean;
+}
+
+export function assertTaskVersion(task: TaskRecord, expectedVersion: number): void {
+  if (!Number.isSafeInteger(expectedVersion) || expectedVersion < 1)
+    throw new DomainError("invalid_argument", "expected task version is invalid");
+  if (task.resource_version !== expectedVersion)
+    throw new DomainError("stale_version", "task version conflict");
+}
+
+export async function prepareTaskUpdate(
+  input: UpdateTaskInput,
+  ctx: HubContext,
+  task: TaskRecord,
+): Promise<TaskRecord> {
+  assertTaskVersion(task, input.expectedVersion);
+  const requestedState = input.promote ? "ready" : input.state;
+  if (input.promote && task.state !== "proposed")
+    throw new DomainError("invalid_transition", "only proposed tasks can be promoted");
+  const state = requestedState === undefined ? task.state : taskState(requestedState);
+  assertTaskTransition(task.state, state);
+  const title =
+    input.title === undefined ? task.title : boundedText(input.title, "task title", 512);
+  const priority = input.priority === undefined ? task.priority : taskPriority(input.priority);
+  const dueAt =
+    input.dueAt === undefined
+      ? task.due_at
+      : input.dueAt === null
+        ? null
+        : utc(input.dueAt, "dueAt");
+  const ownerType = input.nextOwnerType ?? task.next_owner_type;
+  const ownerId = input.nextOwnerId === undefined ? task.next_owner_id : input.nextOwnerId;
+  await assertOwnerTarget(ctx.db, ctx.workspaceId, task.project_id, ownerType, ownerId);
+  const reason =
+    input.nextActionReason === undefined
+      ? task.next_action_reason
+      : (optionalBoundedText(input.nextActionReason, "next action reason", 512) ?? null);
+  const punchline =
+    input.punchline === undefined
+      ? task.punchline
+      : boundedText(input.punchline, "task punchline", 512);
+  return {
+    ...task,
+    title,
+    state,
+    priority,
+    due_at: dueAt,
+    next_owner_type: ownerType,
+    next_owner_id: ownerId,
+    next_action_reason: reason,
+    punchline,
+    resource_version: task.resource_version + 1,
+  };
+}
+
+export async function persistTaskUpdate(
+  ctx: HubContext,
+  task: TaskRecord,
+  expectedVersion: number,
+): Promise<void> {
+  await ctx.db
+    .prepare(
+      `UPDATE tasks SET title = ?, state = ?, priority = ?, due_at = ?,
+    next_owner_type = ?, next_owner_id = ?, next_action_reason = ?, punchline = ?, resource_version = ?
+    WHERE workspace_id = ? AND id = ? AND resource_version = ?`,
+    )
+    .run(
+      task.title,
+      task.state,
+      task.priority,
+      task.due_at,
+      task.next_owner_type,
+      task.next_owner_id,
+      task.next_action_reason,
+      task.punchline,
+      task.resource_version,
+      ctx.workspaceId,
+      task.id,
+      expectedVersion,
+    );
 }
 
 export const updateTaskCommand: HubCommand<UpdateTaskInput, TaskRecord> = {
@@ -489,12 +597,7 @@ export const updateTaskCommand: HubCommand<UpdateTaskInput, TaskRecord> = {
       task.project_id,
       task.id,
     );
-    if (!Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 1) {
-      throw new DomainError("invalid_argument", "expected task version is invalid");
-    }
-    if (task.resource_version !== input.expectedVersion) {
-      throw new DomainError("stale_version", "task version conflict");
-    }
+    assertTaskVersion(task, input.expectedVersion);
     if (authority.delegation) {
       if (
         input.promote ||
@@ -511,68 +614,9 @@ export const updateTaskCommand: HubCommand<UpdateTaskInput, TaskRecord> = {
         );
       }
     }
-    const requestedState = input.promote ? "ready" : input.state;
-    if (input.promote && task.state !== "proposed") {
-      throw new DomainError("invalid_transition", "only proposed tasks can be promoted");
-    }
-    const nextState = requestedState === undefined ? task.state : taskState(requestedState);
-    assertTaskTransition(task.state, nextState);
-    const nextTitle =
-      input.title === undefined ? task.title : boundedText(input.title, "task title", 512);
-    const nextPriority =
-      input.priority === undefined ? task.priority : taskPriority(input.priority);
-    const nextDue =
-      input.dueAt === undefined
-        ? task.due_at
-        : input.dueAt === null
-          ? null
-          : utc(input.dueAt, "dueAt");
-    const nextOwnerType = input.nextOwnerType ?? task.next_owner_type;
-    const nextOwnerId = input.nextOwnerId === undefined ? task.next_owner_id : input.nextOwnerId;
-    await assertOwnerTarget(ctx.db, ctx.workspaceId, task.project_id, nextOwnerType, nextOwnerId);
-    const nextActionReason =
-      input.nextActionReason === undefined
-        ? task.next_action_reason
-        : (optionalBoundedText(input.nextActionReason, "next action reason", 512) ?? null);
-    const nextPunchline =
-      input.punchline === undefined
-        ? task.punchline
-        : boundedText(input.punchline, "task punchline", 512);
-    const nextVersion = task.resource_version + 1;
-    await ctx.db
-      .prepare(
-        `UPDATE tasks SET
-          title = ?, state = ?, priority = ?, due_at = ?,
-          next_owner_type = ?, next_owner_id = ?, next_action_reason = ?,
-          punchline = ?, resource_version = ?
-         WHERE workspace_id = ? AND id = ? AND resource_version = ?`,
-      )
-      .run(
-        nextTitle,
-        nextState,
-        nextPriority,
-        nextDue,
-        nextOwnerType,
-        nextOwnerId,
-        nextActionReason,
-        nextPunchline,
-        nextVersion,
-        ctx.workspaceId,
-        input.taskId,
-        input.expectedVersion,
-      );
-    return {
-      ...task,
-      title: nextTitle,
-      state: nextState,
-      priority: nextPriority,
-      due_at: nextDue,
-      next_owner_type: nextOwnerType,
-      next_owner_id: nextOwnerId,
-      next_action_reason: nextActionReason,
-      punchline: nextPunchline,
-      resource_version: nextVersion,
-    };
+    const updated = await prepareTaskUpdate(input, ctx, task);
+    await persistTaskUpdate(ctx, updated, input.expectedVersion);
+    return updated;
   },
 };
 

@@ -1,4 +1,4 @@
-// ABOUTME: Confirms trusted execution-session associations and derives bound agent comment authority.
+// ABOUTME: Confirms trusted execution-session associations and derives bound online agent-work authority.
 // ABOUTME: Stages canonical business rows and immutable provenance together without impersonating a human.
 
 import { createHash } from "node:crypto";
@@ -12,14 +12,29 @@ import {
   type AgentCommentRequest,
   type AgentCommentResult,
   type AgentAuthorityResult,
+  type AgentUpdateRequest,
+  type AgentUpdateResult,
+  type AgentProgressRequest,
+  type AgentProposalRequest,
+  type AgentProposalResult,
   type WireDocumentName,
 } from "@bfb/protocol";
-import { agentWorkKey, liveRun, type BoundRun } from "./agent-work.js";
+import { agentWorkKey, agentTaskView, liveRun, type BoundRun } from "./agent-work.js";
 import { DomainError, type HubCommand, type HubContext } from "./hub.js";
 import { randomUlid } from "./ids.js";
 import { canonicalLaunchJson, readLaunch, snapshotOf } from "./launch-state.js";
 import type { RunnerPrincipal } from "./runners.js";
-import { checkedCommentBody, getTask, persistComment } from "./work-commands.js";
+import {
+  checkedCommentBody,
+  getTask,
+  persistComment,
+  assertAgentRootProposalAllowed,
+  assertAgentChildLimit,
+  prepareTaskCreation,
+  persistTaskCreation,
+  prepareTaskUpdate,
+  persistTaskUpdate,
+} from "./work-commands.js";
 
 export const AGENT_WRITE_REQUEST_BYTES = 16_384;
 export interface AgentSessionInput {
@@ -33,6 +48,18 @@ export interface AgentBoundInput {
 export interface AgentCommentInput {
   principal: RunnerPrincipal;
   request: AgentCommentRequest;
+}
+export interface AgentUpdateInput {
+  principal: RunnerPrincipal;
+  request: AgentUpdateRequest;
+}
+export interface AgentProgressInput {
+  principal: RunnerPrincipal;
+  request: AgentProgressRequest;
+}
+export interface AgentProposalInput {
+  principal: RunnerPrincipal;
+  request: AgentProposalRequest;
 }
 interface BindingRow {
   provider_session_id: string;
@@ -295,8 +322,8 @@ export const agentBoundAuthorityCommand: HubCommand<AgentBoundInput, AgentAuthor
     return { revoked: false, execution_ended: false, result_terminal: false };
   },
 };
-async function commentAuthority(input: AgentCommentInput, ctx: HubContext) {
-  checked("agent-comment-request", input.request);
+async function writeAuthority(input: AgentBoundInput, document: WireDocumentName, ctx: HubContext) {
+  checked(document, input.request);
   return boundAuthority(
     {
       principal: input.principal,
@@ -308,6 +335,59 @@ async function commentAuthority(input: AgentCommentInput, ctx: HubContext) {
     ctx,
   );
 }
+async function boundTask(ctx: HubContext, row: BoundRun) {
+  const task = await getTask(ctx.db, ctx.workspaceId, row.task_id);
+  if (!task || task.project_id !== row.project_id)
+    throw new DomainError("boundary_escape", "bound task unavailable");
+  return task;
+}
+type EffectTarget =
+  | {
+      tool: "comment" | "progress";
+      kind: "comment.add" | "progress.report";
+      taskId: string;
+      commentId: string;
+      percent?: number;
+      confidence?: number;
+    }
+  | {
+      tool: "update" | "proposal";
+      kind: "task.update" | "task.propose";
+      taskId: string;
+      version: number;
+    };
+async function persistAgentEffect(
+  ctx: HubContext,
+  input: AgentBoundInput,
+  row: BoundRun,
+  effect: EffectTarget,
+) {
+  await ctx.db
+    .prepare(
+      `INSERT INTO agent_work_effects
+    (workspace_id, operation_key, kind, run_id, execution_id, assignment_generation, provider_session_id,
+     project_id, source_task_id, target_task_id, comment_id, resulting_task_version, percent, confidence, input_hash, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      ctx.workspaceId,
+      agentWorkKey(effect.tool, input.request.reference),
+      effect.kind,
+      row.run_id,
+      row.execution_id,
+      row.assignment_generation,
+      input.request.binding.provider_session_id,
+      row.project_id,
+      row.task_id,
+      effect.taskId,
+      "commentId" in effect ? effect.commentId : null,
+      "version" in effect ? effect.version : null,
+      "percent" in effect ? (effect.percent ?? null) : null,
+      "confidence" in effect ? (effect.confidence ?? null) : null,
+      fingerprint(input),
+      ctx.now,
+    );
+}
 export const agentRunCommentCommand: HubCommand<AgentCommentInput, AgentCommentResult> = {
   name: "agent_run.comment",
   inputFingerprint: fingerprint,
@@ -318,40 +398,169 @@ export const agentRunCommentCommand: HubCommand<AgentCommentInput, AgentCommentR
   }),
   auditResult: (result) => ({ id: result.id, kind: "comment.add", origin: result.origin }),
   authorize: async (input, ctx) => {
-    await commentAuthority(input, ctx);
+    await writeAuthority(input, "agent-comment-request", ctx);
   },
   async run(input, ctx) {
-    const row = await commentAuthority(input, ctx);
-    const task = await getTask(ctx.db, ctx.workspaceId, row.task_id);
-    if (!task || task.project_id !== row.project_id)
-      throw new DomainError("boundary_escape", "bound task unavailable");
-    const body = checkedCommentBody(input.request.body),
-      inputHash = fingerprint(input);
+    const row = await writeAuthority(input, "agent-comment-request", ctx);
+    await boundTask(ctx, row);
+    const body = checkedCommentBody(input.request.body);
     const id = await persistComment(ctx, row.task_id, body, "discussion", {
       humanId: null,
       delegationId: null,
     });
-    await ctx.db
-      .prepare(
-        `INSERT INTO agent_work_effects
-      (workspace_id, operation_key, kind, run_id, execution_id, assignment_generation, provider_session_id,
-       project_id, source_task_id, target_task_id, comment_id, resulting_task_version, percent, confidence, input_hash, created_at)
-      VALUES (?, ?, 'comment.add', ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, ?)`,
-      )
-      .run(
-        ctx.workspaceId,
-        agentWorkKey("comment", input.request.reference),
-        row.run_id,
-        row.execution_id,
-        row.assignment_generation,
-        input.request.binding.provider_session_id,
-        row.project_id,
-        row.task_id,
-        row.task_id,
-        id,
-        inputHash,
-        ctx.now,
-      );
+    await persistAgentEffect(ctx, input, row, {
+      tool: "comment",
+      kind: "comment.add",
+      taskId: row.task_id,
+      commentId: id,
+    });
     return { id, origin: origin(row, input.request.binding.provider_session_id) };
+  },
+};
+
+export const agentRunUpdateCommand: HubCommand<AgentUpdateInput, AgentUpdateResult> = {
+  name: "agent_run.update",
+  inputFingerprint: fingerprint,
+  auditInput: (input) => ({
+    ...safeReference(input.request.reference),
+    providerSessionId: input.request.binding.provider_session_id,
+    expectedVersion: input.request.expected_version,
+    payloadHash: hash({
+      title: input.request.title ?? null,
+      punchline: input.request.punchline ?? null,
+    }),
+  }),
+  auditResult: (result) => ({
+    id: result.task.id,
+    version: result.task.resource_version,
+    kind: "task.update",
+    origin: result.origin,
+  }),
+  authorize: async (input, ctx) => {
+    await writeAuthority(input, "agent-update-request", ctx);
+  },
+  async run(input, ctx) {
+    const row = await writeAuthority(input, "agent-update-request", ctx);
+    const task = await boundTask(ctx, row);
+    const updated = await prepareTaskUpdate(
+      {
+        taskId: task.id,
+        expectedVersion: input.request.expected_version,
+        ...(input.request.title !== undefined ? { title: input.request.title } : {}),
+        ...(input.request.punchline !== undefined ? { punchline: input.request.punchline } : {}),
+      },
+      ctx,
+      task,
+    );
+    await persistTaskUpdate(ctx, updated, input.request.expected_version);
+    await persistAgentEffect(ctx, input, row, {
+      tool: "update",
+      kind: "task.update",
+      taskId: task.id,
+      version: updated.resource_version,
+    });
+    return {
+      task: agentTaskView(updated),
+      origin: origin(row, input.request.binding.provider_session_id),
+    };
+  },
+};
+
+export const agentRunProgressCommand: HubCommand<AgentProgressInput, AgentCommentResult> = {
+  name: "agent_run.progress",
+  inputFingerprint: fingerprint,
+  auditInput: (input) => ({
+    ...safeReference(input.request.reference),
+    providerSessionId: input.request.binding.provider_session_id,
+    summaryHash: hash(input.request.summary),
+    percent: input.request.percent ?? null,
+    confidence: input.request.confidence ?? null,
+  }),
+  auditResult: (result) => ({ id: result.id, kind: "progress.report", origin: result.origin }),
+  authorize: async (input, ctx) => {
+    await writeAuthority(input, "agent-progress-request", ctx);
+  },
+  async run(input, ctx) {
+    const row = await writeAuthority(input, "agent-progress-request", ctx);
+    await boundTask(ctx, row);
+    const summary = checkedCommentBody(input.request.summary);
+    const id = await persistComment(ctx, row.task_id, summary, "progress", {
+      humanId: null,
+      delegationId: null,
+    });
+    await persistAgentEffect(ctx, input, row, {
+      tool: "progress",
+      kind: "progress.report",
+      taskId: row.task_id,
+      commentId: id,
+      ...(input.request.percent !== undefined ? { percent: input.request.percent } : {}),
+      ...(input.request.confidence !== undefined ? { confidence: input.request.confidence } : {}),
+    });
+    return { id, origin: origin(row, input.request.binding.provider_session_id) };
+  },
+};
+
+async function proposalAuthority(input: AgentProposalInput, ctx: HubContext) {
+  const row = await writeAuthority(input, "agent-proposal-request", ctx);
+  if (input.request.parent_task_id !== undefined && input.request.parent_task_id !== row.task_id)
+    throw new DomainError("boundary_escape", "proposal parent is outside the bound task");
+  if (input.request.parent_task_id === undefined)
+    await assertAgentRootProposalAllowed(ctx.db, ctx.workspaceId, row.project_id);
+  return row;
+}
+export const agentRunProposalCommand: HubCommand<AgentProposalInput, AgentProposalResult> = {
+  name: "agent_run.proposal",
+  inputFingerprint: fingerprint,
+  auditInput: (input) => ({
+    ...safeReference(input.request.reference),
+    providerSessionId: input.request.binding.provider_session_id,
+    parentTaskId: input.request.parent_task_id ?? null,
+    priority: input.request.priority ?? "P2",
+    titleHash: hash(input.request.title),
+  }),
+  auditResult: (result) => ({
+    id: result.id,
+    state: result.state,
+    kind: "task.propose",
+    origin: result.origin,
+  }),
+  authorize: async (input, ctx) => {
+    await proposalAuthority(input, ctx);
+  },
+  async run(input, ctx) {
+    const row = await proposalAuthority(input, ctx);
+    const source = await boundTask(ctx, row);
+    const parent = input.request.parent_task_id !== undefined ? source : undefined;
+    if (parent) {
+      try {
+        await assertAgentChildLimit(ctx.db, ctx.workspaceId, parent.id);
+      } catch (error) {
+        if (error instanceof DomainError && error.code === "child_limit_reached")
+          throw new DomainError("child_limit", "agent child task limit reached");
+        throw error;
+      }
+    }
+    const task = await prepareTaskCreation(
+      {
+        projectId: row.project_id,
+        title: input.request.title,
+        priority: input.request.priority ?? "P2",
+      },
+      ctx,
+      true,
+      parent,
+    );
+    await persistTaskCreation(ctx, task, { humanId: null, delegationId: null });
+    await persistAgentEffect(ctx, input, row, {
+      tool: "proposal",
+      kind: "task.propose",
+      taskId: task.id,
+      version: task.resource_version,
+    });
+    return {
+      id: task.id,
+      state: task.state as AgentProposalResult["state"],
+      origin: origin(row, input.request.binding.provider_session_id),
+    };
   },
 };
