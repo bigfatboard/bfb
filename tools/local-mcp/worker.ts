@@ -1,4 +1,4 @@
-// ABOUTME: Hosts production agent work routes and synthetic canonical execution fixtures for A01.
+// ABOUTME: Hosts production agent work routes and synthetic execution fixtures for A01 and A02.
 // ABOUTME: Exposes test-only seed, observation and authority-change endpoints on disposable local D1.
 
 import channelWorker, { WorkspaceHub } from "../runner-channel/worker.js";
@@ -32,7 +32,8 @@ const hash = (body: string) => `sha256:${createHash("sha256").update(body).diges
 export default {
   async fetch(request: Request, env: { DB: D1Like; APP_ORIGIN: string }): Promise<Response> {
     const path = new URL(request.url).pathname;
-    if (!path.startsWith("/__a01/")) return channelWorker.fetch(request, env);
+    if (!path.startsWith("/__a01/") && !path.startsWith("/__a02/"))
+      return channelWorker.fetch(request, env);
     const db = adaptD1(env.DB),
       input = (await request.json()) as Record<string, string>;
     const workspace = FIX.workspace,
@@ -371,6 +372,40 @@ export default {
       )
       .get(workspace, execution)) as { run_id: string; task_id: string; runner_id: string };
     if (!row) return new Response(null, { status: 404 });
+    if (path === "/__a02/attention-observe") {
+      const attention = await db
+        .prepare("SELECT * FROM attention_requests WHERE workspace_id=? AND run_id=? ORDER BY id")
+        .all(workspace, row.run_id);
+      const observations = await db
+        .prepare(
+          `SELECT observation.attention_id,observation.observed_kind,observation.actor_type,observation.actor_id
+           FROM attention_observations observation JOIN attention_requests attention
+             ON attention.workspace_id=observation.workspace_id AND attention.id=observation.attention_id
+           WHERE attention.workspace_id=? AND attention.run_id=? ORDER BY observation.observation_id`,
+        )
+        .all(workspace, row.run_id);
+      const receipts = await db
+        .prepare(
+          `SELECT payload_json FROM audit_events WHERE workspace_id=? AND action LIKE 'attention.%'
+           UNION ALL SELECT payload_json FROM semantic_events WHERE workspace_id=? AND kind LIKE 'attention.%'
+           UNION ALL SELECT payload_json FROM outbox_records WHERE workspace_id=? AND kind LIKE 'attention.%'`,
+        )
+        .all(workspace, workspace, workspace);
+      const clock = (await db
+        .prepare(
+          `SELECT inventory.revision,inventory.received_at,connection.last_seen_at,
+             json_extract(inventory.inventory_json,'$.providers[0].provider') AS provider,
+             json_extract(inventory.inventory_json,'$.providers[0].version') AS provider_version,
+             json_extract(inventory.inventory_json,'$.providers[0].manifest_id') AS provider_manifest_id,
+             json_extract(inventory.inventory_json,'$.providers[0].observed_at') AS provider_observed_at,
+             json_extract(inventory.inventory_json,'$.providers[0].expires_at') AS provider_expires_at
+           FROM runner_inventories inventory LEFT JOIN runner_connections connection
+             ON connection.workspace_id=inventory.workspace_id AND connection.runner_id=inventory.runner_id
+           WHERE inventory.workspace_id=? AND inventory.runner_id=?`,
+        )
+        .get(workspace, row.runner_id)) as Record<string, unknown> | undefined;
+      return Response.json({ attention, observations, receipts, clock: { now, ...clock } });
+    }
     if (path === "/__a01/pin") {
       const finalIdentity = canonicalLaunchJson(JSON.parse(input.final_identity!));
       await db
@@ -402,7 +437,22 @@ export default {
             `UPDATE checkout_leases SET expires_at = ? WHERE workspace_id = ? AND execution_id = ?`,
           )
           .run(new Date(Date.now() - 1000).toISOString(), workspace, execution);
-      else if (input.kind === "result")
+      else if (input.kind === "lease_replaced") {
+        const replacement = (await db
+          .prepare(
+            `SELECT execution_id,assignment_generation FROM execution_assignments
+             WHERE workspace_id=? AND runner_id=? AND execution_id!=? ORDER BY created_at LIMIT 1`,
+          )
+          .get(workspace, row.runner_id, execution)) as
+          { execution_id: string; assignment_generation: number } | undefined;
+        if (!replacement) return new Response(null, { status: 400 });
+        await db
+          .prepare(
+            `UPDATE checkout_leases SET execution_id=?,assignment_generation=?,fencing_generation=fencing_generation+1
+             WHERE workspace_id=? AND execution_id=?`,
+          )
+          .run(replacement.execution_id, replacement.assignment_generation, workspace, execution);
+      } else if (input.kind === "result")
         await db
           .prepare(`UPDATE runs SET result_state = 'accepted' WHERE workspace_id = ? AND id = ?`)
           .run(workspace, row.run_id);

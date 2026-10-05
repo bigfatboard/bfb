@@ -231,6 +231,7 @@ func TestNativeAgentWork(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 7*time.Minute)
 	defer cancel()
+	attentionScenario := os.Getenv("BFB_A02_NATIVE_SCENARIO") == "1"
 	upstream, err := url.Parse(target)
 	if err != nil || upstream.Hostname() != "127.0.0.1" && upstream.Hostname() != "localhost" {
 		t.Fatal("Worker must be loopback")
@@ -247,6 +248,8 @@ func TestNativeAgentWork(t *testing.T) {
 	var outageOnLoss atomic.Bool
 	var replayResponses atomic.Int64
 	var businessRequests atomic.Int64
+	var attentionReads atomic.Int64
+	var slowAttentionRead atomic.Bool
 	type historyFault struct {
 		db                         *sql.DB
 		execution, history, action string
@@ -255,6 +258,7 @@ func TestNativeAgentWork(t *testing.T) {
 	type lockFault struct {
 		input      io.Writer
 		root, hash string
+		action     string
 	}
 	var releaseDuringCloud atomic.Pointer[lockFault]
 	var challengeCount, challengeWindow atomic.Int64
@@ -271,11 +275,25 @@ func TestNativeAgentWork(t *testing.T) {
 			t.Log("synthetic work reply", filepath.Base(path), response.StatusCode)
 		}
 		if response.StatusCode == 200 && strings.Contains(path, "/work/") {
+			if strings.HasSuffix(path, "/work/attention-get") && slowAttentionRead.Swap(false) {
+				timer := time.NewTimer(32 * time.Second)
+				defer timer.Stop()
+				select {
+				case <-timer.C:
+				case <-response.Request.Context().Done():
+					_ = response.Body.Close()
+					return response.Request.Context().Err()
+				}
+			}
 			if strings.HasSuffix(path, "/work/replay") {
 				replayResponses.Add(1)
 			}
-			if strings.HasSuffix(path, "/work/comment") {
-				if fault := releaseDuringCloud.Swap(nil); fault != nil {
+			if fault := releaseDuringCloud.Load(); fault != nil {
+				action := fault.action
+				if action == "" {
+					action = "comment"
+				}
+				if strings.HasSuffix(path, "/work/"+action) && releaseDuringCloud.CompareAndSwap(fault, nil) {
 					if _, err := io.WriteString(fault.input, "__unlock\n"); err != nil {
 						return err
 					}
@@ -309,7 +327,10 @@ func TestNativeAgentWork(t *testing.T) {
 			_, _ = writer.Write([]byte(`{"error":"work_unavailable"}`))
 			return
 		}
-		for _, action := range []string{"comment", "update", "progress", "proposal", "replay"} {
+		if strings.HasSuffix(request.URL.Path, "/work/attention-get") {
+			attentionReads.Add(1)
+		}
+		for _, action := range []string{"comment", "update", "progress", "proposal", "replay", "attention-request"} {
 			if strings.HasSuffix(request.URL.Path, "/work/"+action) {
 				businessRequests.Add(1)
 			}
@@ -591,7 +612,7 @@ FROM work_intents i JOIN work_delivery d USING(operation_key) WHERE json_extract
 			return json.Unmarshal(observed["inventory"], &inventory) == nil && len(inventory.Checkouts) == 1 && inventory.Checkouts[0].CheckoutId == ids["checkout"] && inventory.Checkouts[0].PhysicalWorktreeHash == ids["physical"] && inventory.Checkouts[0].RepositoryConfigHash == claim.Snapshot.RepositoryConfigHash
 		})
 	}
-	seedLocal(false)
+	seedLocal(attentionScenario)
 	write := func(value any) {
 		t.Helper()
 		data, _ := json.Marshal(value)
@@ -756,6 +777,68 @@ FROM work_intents i JOIN work_delivery d USING(operation_key) WHERE json_extract
 		})
 	}
 	restartBoth := func() { t.Helper(); restartDaemon(); restart("__restart") }
+	freshScope := func(renewLease bool) {
+		t.Helper()
+		// Pace real traffic; never reset or bypass server budgets.
+		if start := challengeWindow.Load(); start != 0 && challengeCount.Load() >= 80 {
+			remaining := time.Until(time.Unix(0, start).Add(61 * time.Second))
+			if remaining > 0 {
+				t.Log("pacing synthetic challenge traffic", challengeCount.Load(), remaining.Round(time.Second))
+				timer := time.NewTimer(remaining)
+				select {
+				case <-timer.C:
+				case <-ctx.Done():
+					timer.Stop()
+					t.Fatal("native challenge pacing timed out")
+				}
+			}
+			challengeWindow.Store(0)
+			challengeCount.Store(0)
+		}
+		if _, err := db.Exec(`UPDATE local_execution_assignments SET state='ended' WHERE execution_id=?`, ids["execution"]); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.Exec(`UPDATE execution_commands SET state='complete' WHERE runner_id=? AND command_id=?`, ids["runner"], ids["launch"]); err != nil {
+			t.Fatal(err)
+		}
+		fresh := post("/__a01/seed", map[string]string{"runner": enrollment.RunnerID, "claim_template": string(template)}, false)
+		fixture = fresh
+		if json.Unmarshal(fresh["claim"], &claim) != nil {
+			t.Fatal("fresh claim missing")
+		}
+		ids = map[string]string{}
+		for key, value := range fresh {
+			var id string
+			_ = json.Unmarshal(value, &id)
+			ids[key] = id
+		}
+		_, _ = io.WriteString(stdin, "__ownership:"+lockBinding()+"\n")
+		ownershipLine, ownershipErr := reader.ReadBytes('\n')
+		if ownershipErr != nil || json.Unmarshal(ownershipLine, &owned) != nil || owned.LockID == "" || owned.Leader != leader {
+			t.Fatal("fresh signed helper lock missing", ownershipErr)
+		}
+		seedLocal(renewLease)
+		scope, _ := json.Marshal(map[string]string{"BFB_WORKSPACE_ID": ids["workspace"], "BFB_PROJECT_ID": ids["project"], "BFB_TASK_ID": ids["task"], "BFB_RUN_ID": ids["run"], "BFB_RUN_EXECUTION_ID": ids["execution"], "BFB_CHECKOUT_ID": ids["checkout"], "BFB_RUNNER_ID": ids["runner"]})
+		_, _ = io.WriteString(stdin, "__scope:"+string(scope)+"\n")
+		line, err := reader.ReadString('\n')
+		if err != nil || line != "SCOPED\n" {
+			t.Fatal("fixture scope switch failed", err, line)
+		}
+		restart("__start")
+	}
+	if attentionScenario {
+		runNativeAttention(t, nativeAttentionFixture{
+			ctx: ctx, workDB: workDB, server: server,
+			ids: func() map[string]string { return ids }, call: call, post: post, restart: restart,
+			restartDaemon: restartDaemon, stopMCP: stopMCP, freshScope: freshScope, hook: hook,
+			outage: &workOutage, loseReply: &loseReply, businessRequests: &businessRequests,
+			reads: &attentionReads, slowRead: &slowAttentionRead,
+			postflightRelease: func(action string) {
+				releaseDuringCloud.Store(&lockFault{input: stdin, root: paths.Root, hash: ids["physical"], action: action})
+			},
+		})
+		return
+	}
 	hook("synthetic-native-session")
 	// Drop the response only after the actual Hub/D1 commit, then restart both peers.
 	action := "session-bind"
@@ -868,56 +951,6 @@ FROM work_intents i JOIN work_delivery d USING(operation_key) WHERE json_extract
 		if err != nil || line != "IPC:"+attack.code+"\n" {
 			t.Fatal("owned caller boundary not denied", attack.code, err, line)
 		}
-	}
-	freshScope := func(renewLease bool) {
-		t.Helper()
-		// This expanded fixture makes more signed calls than one production
-		// minute admits. Pace real traffic; never reset or bypass server budgets.
-		if start := challengeWindow.Load(); start != 0 && challengeCount.Load() >= 80 {
-			remaining := time.Until(time.Unix(0, start).Add(61 * time.Second))
-			if remaining > 0 {
-				t.Log("pacing synthetic challenge traffic", challengeCount.Load(), remaining.Round(time.Second))
-				timer := time.NewTimer(remaining)
-				select {
-				case <-timer.C:
-				case <-ctx.Done():
-					timer.Stop()
-					t.Fatal("native challenge pacing timed out")
-				}
-			}
-			challengeWindow.Store(0)
-			challengeCount.Store(0)
-		}
-		if _, err := db.Exec(`UPDATE local_execution_assignments SET state='ended' WHERE execution_id=?`, ids["execution"]); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := db.Exec(`UPDATE execution_commands SET state='complete' WHERE runner_id=? AND command_id=?`, ids["runner"], ids["launch"]); err != nil {
-			t.Fatal(err)
-		}
-		fresh := post("/__a01/seed", map[string]string{"runner": enrollment.RunnerID, "claim_template": string(template)}, false)
-		fixture = fresh
-		if json.Unmarshal(fresh["claim"], &claim) != nil {
-			t.Fatal("fresh claim missing")
-		}
-		ids = map[string]string{}
-		for key, value := range fresh {
-			var id string
-			_ = json.Unmarshal(value, &id)
-			ids[key] = id
-		}
-		_, _ = io.WriteString(stdin, "__ownership:"+lockBinding()+"\n")
-		ownershipLine, ownershipErr := reader.ReadBytes('\n')
-		if ownershipErr != nil || json.Unmarshal(ownershipLine, &owned) != nil || owned.LockID == "" || owned.Leader != leader {
-			t.Fatal("fresh signed helper lock missing", ownershipErr)
-		}
-		seedLocal(renewLease)
-		scope, _ := json.Marshal(map[string]string{"BFB_WORKSPACE_ID": ids["workspace"], "BFB_PROJECT_ID": ids["project"], "BFB_TASK_ID": ids["task"], "BFB_RUN_ID": ids["run"], "BFB_RUN_EXECUTION_ID": ids["execution"], "BFB_CHECKOUT_ID": ids["checkout"], "BFB_RUNNER_ID": ids["runner"]})
-		_, _ = io.WriteString(stdin, "__scope:"+string(scope)+"\n")
-		line, err := reader.ReadString('\n')
-		if err != nil || line != "SCOPED\n" {
-			t.Fatal("fixture scope switch failed", err, line)
-		}
-		restart("__start")
 	}
 	rows := func(observed map[string]json.RawMessage, key string) []map[string]any {
 		t.Helper()

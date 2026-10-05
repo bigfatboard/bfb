@@ -10,10 +10,13 @@ import { createTestHarness } from "wrangler";
 
 const root = process.cwd(),
   key = "l08-synthetic-current-signing-key-84d1e9";
+const scenario = process.argv[2];
+assert.ok(scenario === undefined || scenario === "a02", "unsupported native fixture scenario");
+const attention = scenario === "a02";
 assert.equal(
   process.platform,
   "darwin",
-  "A01 native proof requires macOS; do not treat skipped native checks as acceptance",
+  "native proof requires macOS; do not treat skipped native checks as acceptance",
 );
 const session = "a01-synthetic-session",
   token = "a01-synthetic-session-token";
@@ -42,6 +45,26 @@ try {
       `INSERT INTO better_auth_sessions (id,expires_at,token,created_at,updated_at,user_id) VALUES (?,'2027-09-12T00:00:00.000Z',?,?,?,'a01-user')`,
     )
     .run(session, token, now, now);
+  const attentionEnvironment: Record<string, string> = {};
+  if (attention) {
+    const reviewerSession = "a02-synthetic-reviewer-session",
+      reviewerToken = "a02-synthetic-reviewer-token";
+    await db
+      .prepare(
+        `INSERT INTO better_auth_users (id,name,email,email_verified,created_at,updated_at) VALUES ('a02-reviewer','Synthetic Attention Reviewer','reviewer@synthetic.test',1,?,?)`,
+      )
+      .run(now, now);
+    await db
+      .prepare("UPDATE humans SET better_auth_user_id='a02-reviewer' WHERE id=?")
+      .run(FIX.reviewer);
+    await db
+      .prepare(
+        `INSERT INTO better_auth_sessions (id,expires_at,token,created_at,updated_at,user_id) VALUES (?,'2027-09-12T00:00:00.000Z',?,?,?,'a02-reviewer')`,
+      )
+      .run(reviewerSession, reviewerToken, now, now);
+    attentionEnvironment.BFB_A02_TEST_REVIEWER_COOKIE = `__Host-bfb_session=${encodeURIComponent(`${reviewerToken}.${createHmac("sha256", key).update(reviewerToken).digest("base64")}`)}`;
+    attentionEnvironment.BFB_A02_TEST_REVIEWER_CSRF = `2.${createHmac("sha256", key).update(`bfb-csrf:${reviewerSession}`).digest("hex")}`;
+  }
   const child = spawn(
     "go",
     ["test", "-race", "-count=1", "-v", "./internal/agentwork", "-run", "^TestNativeAgentWork$"],
@@ -55,6 +78,8 @@ try {
         BFB_A01_TEST_PROJECT: FIX.projectA,
         BFB_A01_TEST_COOKIE: `__Host-bfb_session=${encodeURIComponent(`${token}.${createHmac("sha256", key).update(token).digest("base64")}`)}`,
         BFB_A01_TEST_CSRF: `2.${createHmac("sha256", key).update(`bfb-csrf:${session}`).digest("hex")}`,
+        BFB_A02_NATIVE_SCENARIO: attention ? "1" : "0",
+        ...attentionEnvironment,
       },
     },
   );
@@ -63,7 +88,8 @@ try {
   child.stdout.on("data", (data: Buffer) => {
     process.stdout.write(data);
     const chunk = proofTail + data.toString();
-    if (chunk.includes("A01_NATIVE_PROOF_COMPLETE")) proved = true;
+    if (chunk.includes(attention ? "A02_NATIVE_PROOF_COMPLETE" : "A01_NATIVE_PROOF_COMPLETE"))
+      proved = true;
     proofTail = chunk.slice(-128);
   });
   const code = await new Promise<number | null>((resolve, reject) => {
@@ -72,7 +98,9 @@ try {
   });
   assert.equal(code, 0, "compiled stdio / authenticated Worker integration failed");
   assert.ok(proved, "native proof did not run; skipped tests are not acceptance");
-  console.log("A01 native compiled stdio / daemon / possession / Worker / Hub / D1 proof passed");
+  console.log(
+    `${attention ? "A02" : "A01"} native compiled stdio / daemon / possession / Worker / Hub / D1 proof passed`,
+  );
 } finally {
   await server.close();
 }
