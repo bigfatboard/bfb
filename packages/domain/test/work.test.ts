@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import { WorkspaceHub } from "../src/hub.js";
 import { randomUlid } from "../src/ids.js";
 import { updateWorkspacePolicyCommand } from "../src/projects.js";
+import { authorizeSyntheticPolicyUpdate } from "../src/fixtures.js";
 import {
   addCommentCommand,
   addContextCommand,
@@ -834,13 +835,23 @@ describe("work records", () => {
     }
     const tightened = await hub.execute(
       updateWorkspacePolicyCommand,
-      humanRequest("tighten-workspace-policy", {
-        expectedVersion: 1,
-        allowedProviders: ["codex" as const],
-        allowAgentRootPropose: true,
-        allowPassToAgent: false,
-        allowRunOverrides: false,
-      }),
+      humanRequest(
+        "tighten-workspace-policy",
+        await authorizeSyntheticPolicyUpdate(
+          db,
+          {
+            workspaceId: FIX.workspace,
+            humanId: FIX.owner,
+          },
+          {
+            expectedVersion: 1,
+            allowedProviders: ["codex" as const],
+            allowAgentRootPropose: true,
+            allowPassToAgent: false,
+            allowRunOverrides: false,
+          },
+        ),
+      ),
     );
     expect(tightened.ok && tightened.result.resourceVersion).toBe(2);
     const historicalPolicyRun = await hub.execute(

@@ -12,12 +12,14 @@ import { format, resolveConfig } from "prettier";
 
 import { adaptD1, loadMigrationManifest, type D1Like, type SqlDatabase } from "@bfb/db";
 import {
+  authorizeSyntheticPolicyUpdate,
   checkOperationsTables,
   FIX,
   issueStepUpProof,
   OPS_STEP_UP_ACTIONS,
   randomUlid,
   seedSyntheticWorkspace,
+  type PolicySettings,
 } from "@bfb/domain";
 import { createTestHarness } from "wrangler";
 
@@ -539,16 +541,34 @@ async function main(): Promise<void> {
           }),
           principal.authExpiresAt,
         );
-      const policy = {
+      const policy: Omit<PolicySettings, "offlineAgentWork"> = {
         allowedProviders: ["claude", "codex", "grok", "fake"],
         allowAgentRootPropose: false,
         allowPassToAgent: true,
         allowRunOverrides: true,
       };
-      await human(updateWorkspacePolicyCommand, { ...policy, expectedVersion: 1 }, T0);
+      await human(
+        updateWorkspacePolicyCommand,
+        await authorizeSyntheticPolicyUpdate(
+          db,
+          {
+            workspaceId: FIX.workspace,
+            humanId: FIX.owner,
+          },
+          { ...policy, expectedVersion: 1 },
+        ),
+        T0,
+      );
       await human(
         updateProjectPolicyCommand,
-        { ...policy, expectedVersion: 1, projectId: FIX.projectA },
+        await authorizeSyntheticPolicyUpdate(
+          db,
+          {
+            workspaceId: FIX.workspace,
+            humanId: FIX.owner,
+          },
+          { ...policy, expectedVersion: 1, projectId: FIX.projectA },
+        ),
         T0,
       );
       const configHash = `sha256:${runnerHash("{}")}`;

@@ -1,18 +1,23 @@
 // ABOUTME: Runs the local checkout policy fixtures through canonical cloud domain commands.
 // ABOUTME: Proves Go and TypeScript agree on restriction hashes, inherited settings and widening rejection.
 
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
 import {
+  authorizeSyntheticPolicyUpdate,
   FIX,
+  normalizeRepositoryConfig,
+  OFFLINE_AGENT_TOOLS,
   reportRepositoryConfigCommand,
   updateProjectPolicyCommand,
   updateWorkspacePolicyCommand,
   workspaceHub,
   type HubCommand,
   type Provider,
+  type PolicySettings,
 } from "../src/index.js";
 import { openDomainDb } from "./helpers.js";
 
@@ -59,17 +64,37 @@ describe("shared local and cloud checkout policy contract", () => {
         input,
       });
     expect(
-      await execute(updateWorkspacePolicyCommand, {
-        expectedVersion: 1,
-        ...settings(fixture.parent),
-      }),
+      await execute(
+        updateWorkspacePolicyCommand,
+        await authorizeSyntheticPolicyUpdate(
+          db,
+          {
+            workspaceId: FIX.workspace,
+            humanId: FIX.owner,
+          },
+          {
+            expectedVersion: 1,
+            ...settings(fixture.parent),
+          },
+        ),
+      ),
     ).toMatchObject({ ok: true });
     expect(
-      await execute(updateProjectPolicyCommand, {
-        projectId: FIX.projectA,
-        expectedVersion: 1,
-        ...settings(fixture.parent),
-      }),
+      await execute(
+        updateProjectPolicyCommand,
+        await authorizeSyntheticPolicyUpdate(
+          db,
+          {
+            workspaceId: FIX.workspace,
+            humanId: FIX.owner,
+          },
+          {
+            projectId: FIX.projectA,
+            expectedVersion: 1,
+            ...settings(fixture.parent),
+          },
+        ),
+      ),
     ).toMatchObject({ ok: true });
     const result = await execute(reportRepositoryConfigCommand, {
       projectId: FIX.projectA,
@@ -104,5 +129,46 @@ describe("shared local and cloud checkout policy contract", () => {
       allow_pass_to_agent: Boolean(persisted.allow_pass_to_agent),
       allow_run_overrides: Boolean(persisted.allow_run_overrides),
     }).toEqual(fixture.effective);
+  });
+});
+
+describe("shared native and cloud offline repository policy contract", () => {
+  const offlineContract = JSON.parse(
+    readFileSync(
+      new URL("../../../internal/checkout/testdata/offline-agent-work.json", import.meta.url),
+      "utf8",
+    ),
+  ) as {
+    fixtures: {
+      name: string;
+      document: unknown;
+      canonical?: string;
+      hash?: string;
+      error?: string;
+    }[];
+  };
+  const parent: PolicySettings = {
+    allowedProviders: ["claude", "codex", "fake", "grok"],
+    allowAgentRootPropose: true,
+    allowPassToAgent: true,
+    allowRunOverrides: true,
+    offlineAgentWork: { allowed_tools: [...OFFLINE_AGENT_TOOLS], max_pending_age_seconds: 300 },
+  };
+  it.each(offlineContract.fixtures)("$name", (fixture) => {
+    if (fixture.error) {
+      expect(() => normalizeRepositoryConfig(fixture.document, parent)).toThrow();
+      return;
+    }
+    const normalized = normalizeRepositoryConfig(fixture.document, parent);
+    expect(normalized.canonical).toBe(fixture.canonical);
+    const canonical = JSON.parse(normalized.canonical) as {
+      offline_agent_work?: PolicySettings["offlineAgentWork"];
+    };
+    expect(normalized.settings.offlineAgentWork).toEqual(
+      canonical.offline_agent_work ?? { allowed_tools: [], max_pending_age_seconds: 0 },
+    );
+    expect(`sha256:${createHash("sha256").update(normalized.canonical).digest("hex")}`).toBe(
+      fixture.hash,
+    );
   });
 });

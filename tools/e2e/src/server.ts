@@ -10,6 +10,7 @@ import { createServer as createViteServer, type ViteDevServer } from "vite";
 import { WebSocket, WebSocketServer } from "ws";
 
 import {
+  authorizeSyntheticPolicyUpdate,
   authorizeLaunchCommand,
   changeDiscussionCommand,
   changeDiscussionTurnCommand,
@@ -33,6 +34,7 @@ import {
   WorkspaceHub,
   workspaceHub,
   type IngestRunnerEventsResult,
+  type PolicySettings,
   type RunnerPrincipal,
 } from "@bfb/domain";
 import type { DiscussionCreateRequest, RunnerInventory } from "@bfb/protocol";
@@ -424,19 +426,39 @@ async function seedE02Chains(db: SqlDatabase): Promise<E02State> {
   }
   // Extend the v1 baseline instead of replacing it: the W01 browser surface
   // asserts the seeded providers and flags, so only "fake" is appended.
-  const policy = {
+  const policy: Omit<PolicySettings, "offlineAgentWork"> = {
     allowedProviders: ["claude", "codex", "grok", "fake"],
     allowAgentRootPropose: true,
     allowPassToAgent: true,
     allowRunOverrides: true,
   };
   const versions = await currentPolicyVersions(db);
-  await human(updateWorkspacePolicyCommand, { ...policy, expectedVersion: versions.workspace });
-  await human(updateProjectPolicyCommand, {
-    ...policy,
-    expectedVersion: versions.project,
-    projectId: FIX.projectA,
-  });
+  await human(
+    updateWorkspacePolicyCommand,
+    await authorizeSyntheticPolicyUpdate(
+      db,
+      {
+        workspaceId: FIX.workspace,
+        humanId: FIX.owner,
+      },
+      { ...policy, expectedVersion: versions.workspace },
+    ),
+  );
+  await human(
+    updateProjectPolicyCommand,
+    await authorizeSyntheticPolicyUpdate(
+      db,
+      {
+        workspaceId: FIX.workspace,
+        humanId: FIX.owner,
+      },
+      {
+        ...policy,
+        expectedVersion: versions.project,
+        projectId: FIX.projectA,
+      },
+    ),
+  );
   await human(reportRepositoryConfigCommand, {
     projectId: FIX.projectA,
     expectedVersion: versions.config,
@@ -985,17 +1007,37 @@ async function seedLaunchOperations(db: SqlDatabase): Promise<void> {
     allowRunOverrides: true,
   } as const;
   const versions = await currentPolicyVersions(db);
-  await human(updateWorkspacePolicyCommand, {
-    ...policy,
-    allowedProviders: [...policy.allowedProviders],
-    expectedVersion: versions.workspace,
-  });
-  await human(updateProjectPolicyCommand, {
-    ...policy,
-    allowedProviders: [...policy.allowedProviders],
-    expectedVersion: versions.project,
-    projectId: FIX.projectA,
-  });
+  await human(
+    updateWorkspacePolicyCommand,
+    await authorizeSyntheticPolicyUpdate(
+      db,
+      {
+        workspaceId: FIX.workspace,
+        humanId: FIX.owner,
+      },
+      {
+        ...policy,
+        allowedProviders: [...policy.allowedProviders],
+        expectedVersion: versions.workspace,
+      },
+    ),
+  );
+  await human(
+    updateProjectPolicyCommand,
+    await authorizeSyntheticPolicyUpdate(
+      db,
+      {
+        workspaceId: FIX.workspace,
+        humanId: FIX.owner,
+      },
+      {
+        ...policy,
+        allowedProviders: [...policy.allowedProviders],
+        expectedVersion: versions.project,
+        projectId: FIX.projectA,
+      },
+    ),
+  );
   await human(reportRepositoryConfigCommand, {
     projectId: FIX.projectA,
     expectedVersion: versions.config,
@@ -1396,17 +1438,37 @@ async function seedD03Discussions(db: SqlDatabase): Promise<D03State> {
     allowRunOverrides: true,
   } as const;
   const before = await currentPolicyVersions(db);
-  await human(updateWorkspacePolicyCommand, {
-    ...policy,
-    allowedProviders: [...policy.allowedProviders],
-    expectedVersion: before.workspace,
-  });
-  await human(updateProjectPolicyCommand, {
-    ...policy,
-    allowedProviders: [...policy.allowedProviders],
-    expectedVersion: before.project,
-    projectId: FIX.projectA,
-  });
+  await human(
+    updateWorkspacePolicyCommand,
+    await authorizeSyntheticPolicyUpdate(
+      db,
+      {
+        workspaceId: FIX.workspace,
+        humanId: FIX.owner,
+      },
+      {
+        ...policy,
+        allowedProviders: [...policy.allowedProviders],
+        expectedVersion: before.workspace,
+      },
+    ),
+  );
+  await human(
+    updateProjectPolicyCommand,
+    await authorizeSyntheticPolicyUpdate(
+      db,
+      {
+        workspaceId: FIX.workspace,
+        humanId: FIX.owner,
+      },
+      {
+        ...policy,
+        allowedProviders: [...policy.allowedProviders],
+        expectedVersion: before.project,
+        projectId: FIX.projectA,
+      },
+    ),
+  );
   await human(reportRepositoryConfigCommand, {
     projectId: FIX.projectA,
     expectedVersion: before.config,
@@ -1914,6 +1976,18 @@ function shouldHandleOnControl(pathname: string): boolean {
   return isWorkerFirstPath(pathname);
 }
 
+function usesCurrentSecurityClock(pathname: string): boolean {
+  // Auth proofs must share the Hub's current time with their consumers. Keep
+  // historical task, launch and lease scenarios on their deterministic clock.
+  return (
+    /^\/(?:auth|oauth|\.well-known)(?:\/|$)/.test(pathname) ||
+    /^\/api\/v1\/cli(?:\/|$)/.test(pathname) ||
+    /^\/api\/v1\/workspaces\/[^/]+\/(?:workspace-policy|projects|members|agent-profiles|runners|cli|github|operations)(?:\/|$)/.test(
+      pathname,
+    )
+  );
+}
+
 type FixtureRole = "owner" | "member" | "restricted";
 
 function fixtureSessionAttributes(db: AuthDatabase, env: AuthEnv): SessionCookieAttributes {
@@ -1969,7 +2043,8 @@ async function handleFixturePasskeyFlow(
     return true;
   }
   const flowId = randomUlid();
-  const expiresAt = "2026-08-07T12:05:00Z";
+  const now = new Date().toISOString();
+  const expiresAt = new Date(Date.parse(now) + 5 * 60_000).toISOString();
   await db
     .prepare(
       `INSERT INTO passkey_ceremonies
@@ -1987,8 +2062,8 @@ async function handleFixturePasskeyFlow(
         authorizationEpoch: 0,
         expiresAt,
       }),
-      NOW,
-      NOW,
+      now,
+      now,
       expiresAt,
     );
   res.statusCode = 200;
@@ -2102,7 +2177,9 @@ const E02_HUMAN_BY_ROLE: Record<FixtureRole, string> = {
 };
 
 async function main(): Promise<void> {
-  const authContext = openAuthTestContext();
+  const authNow = new Date().toISOString();
+  const sessionExpiresAt = new Date(Date.parse(authNow) + 365 * 24 * 3600_000).toISOString();
+  const authContext = openAuthTestContext(authNow);
   await seedSyntheticWorkspace(authContext.db, NOW);
   await seedWorkSurface(authContext.db);
   await seedLaunchOperations(authContext.db);
@@ -2125,6 +2202,8 @@ async function main(): Promise<void> {
         email: "owner@synthetic.test",
         name: "Synthetic Owner",
         humanId: FIX.owner,
+        now: authNow,
+        expiresAt: sessionExpiresAt,
       })
     ).cookie,
     member: (
@@ -2135,6 +2214,8 @@ async function main(): Promise<void> {
         email: "member@synthetic.test",
         name: "Synthetic Member",
         humanId: FIX.member,
+        now: authNow,
+        expiresAt: sessionExpiresAt,
       })
     ).cookie,
     restricted: (
@@ -2145,21 +2226,26 @@ async function main(): Promise<void> {
         email: "restricted@synthetic.test",
         name: "Synthetic Restricted",
         humanId: FIX.restricted,
+        now: authNow,
+        expiresAt: sessionExpiresAt,
       })
     ).cookie,
   };
   const bindings = controlBindings(db);
   const validated = validateControlEnv(bindings);
-  const app = createControlApp(validated, {
-    db,
-    now: NOW,
-    abuseSecret: authEnv.AUTH_ABUSE_SECRET,
-    humanAuth: () => ({
-      auth,
-      keys: parseAuthKeys(authEnv.BETTER_AUTH_SECRETS),
+  function controlApp(now: string, humanAuth = auth) {
+    return createControlApp(validated, {
+      db,
+      now,
       abuseSecret: authEnv.AUTH_ABUSE_SECRET,
-    }),
-  });
+      humanAuth: () => ({
+        auth: humanAuth,
+        keys: parseAuthKeys(authEnv.BETTER_AUTH_SECRETS),
+        abuseSecret: authEnv.AUTH_ABUSE_SECRET,
+      }),
+    });
+  }
+  const app = controlApp(NOW);
 
   const vite = await createViteServer({
     configFile: path.join(webRoot, "vite.config.ts"),
@@ -2280,8 +2366,8 @@ async function main(): Promise<void> {
     return true;
   }
 
-  // Abuse windows slide by wall clock in production, but this harness freezes
-  // domain time for deterministic seeds. Resetting between scenarios restores
+  // Security windows use wall clock; historical work scenarios retain their
+  // deterministic clock. Resetting between scenarios restores
   // per-scenario isolation; abuse protection itself is proven by the
   // unit/worker gates, and no browser suite asserts a rejection.
   async function handleRateLimitReset(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
@@ -2337,14 +2423,16 @@ async function main(): Promise<void> {
         : role === "member"
           ? "auth-member-e2e"
           : "auth-restricted-e2e";
+    const now = new Date().toISOString();
+    const expiresAt = new Date(Date.parse(now) + 365 * 24 * 3600_000).toISOString();
     await db
       .prepare(
         `INSERT INTO better_auth_sessions
          (id, expires_at, token, created_at, updated_at, ip_address, user_agent, user_id)
-         VALUES (?, '2027-08-07T12:00:00.000Z', ?, ?, ?, NULL, NULL, ?)
+         VALUES (?, ?, ?, ?, ?, NULL, NULL, ?)
          ON CONFLICT (id) DO UPDATE SET expires_at = excluded.expires_at`,
       )
-      .run(E02_SESSION_BY_ROLE[role], `auth-${role}-e2e-token`, NOW, NOW, userId);
+      .run(E02_SESSION_BY_ROLE[role], expiresAt, `auth-${role}-e2e-token`, now, now, userId);
     res.statusCode = 200;
     res.setHeader("content-type", "application/json; charset=utf-8");
     res.end(JSON.stringify({ restored: role }));
@@ -2397,7 +2485,12 @@ async function main(): Promise<void> {
           return;
         }
         if (shouldHandleOnControl(pathname)) {
-          await forwardToControl(req, res, app, bindings);
+          const now = usesCurrentSecurityClock(pathname) ? new Date().toISOString() : NOW;
+          const requestApp =
+            now === NOW
+              ? app
+              : controlApp(now, createHumanAuth(authContext.raw, authEnv, { db, now }));
+          await forwardToControl(req, res, requestApp, bindings);
           // Emulate the hub broadcast so discussion commits invalidate live
           // browser sockets exactly like any other committed workspace command.
           if (req.method === "POST" && /\/discussions(\/|$)/.test(pathname)) {

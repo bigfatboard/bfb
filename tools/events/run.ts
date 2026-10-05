@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 
 import { adaptD1, createAuthorizationContext, loadMigrationManifest, type D1Like } from "@bfb/db";
 import {
+  authorizeSyntheticPolicyUpdate,
   claimLaunchCommand,
   createAgentProfileCommand,
   createTaskCommand,
@@ -27,6 +28,7 @@ import {
   updateWorkspacePolicyCommand,
   type CommandOutcome,
   type IngestRunnerEventsResult,
+  type PolicySettings,
   type RunnerPrincipal,
   type TaskRecord,
 } from "@bfb/domain";
@@ -216,18 +218,38 @@ try {
   });
   console.log("E01_MIGRATION_OK populated 0018 upgrade preserves tasks and opens an empty ledger");
 
-  const policy = {
+  const policy: Omit<PolicySettings, "offlineAgentWork"> = {
     allowedProviders: ["fake"],
     allowAgentRootPropose: false,
     allowPassToAgent: true,
     allowRunOverrides: true,
   };
-  await human(updateWorkspacePolicyCommand.name, { ...policy, expectedVersion: 1 });
-  await human(updateProjectPolicyCommand.name, {
-    ...policy,
-    expectedVersion: 1,
-    projectId: FIX.projectA,
-  });
+  await human(
+    updateWorkspacePolicyCommand.name,
+    await authorizeSyntheticPolicyUpdate(
+      db,
+      {
+        workspaceId: FIX.workspace,
+        humanId: FIX.owner,
+      },
+      { ...policy, expectedVersion: 1 },
+    ),
+  );
+  await human(
+    updateProjectPolicyCommand.name,
+    await authorizeSyntheticPolicyUpdate(
+      db,
+      {
+        workspaceId: FIX.workspace,
+        humanId: FIX.owner,
+      },
+      {
+        ...policy,
+        expectedVersion: 1,
+        projectId: FIX.projectA,
+      },
+    ),
+  );
   await human(reportRepositoryConfigCommand.name, {
     projectId: FIX.projectA,
     expectedVersion: 1,

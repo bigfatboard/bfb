@@ -4,6 +4,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  authorizeSyntheticPolicyUpdate,
   claimLaunchCommand,
   createAgentProfileCommand,
   createTaskCommand,
@@ -23,6 +24,7 @@ import {
   updateWorkspacePolicyCommand,
   WorkspaceHub,
   type NotifyMessage,
+  type PolicySettings,
   type RunnerPrincipal,
 } from "@bfb/domain";
 import type { RunnerInventory } from "@bfb/protocol";
@@ -212,18 +214,28 @@ async function seedQueueWorld(
       }),
       principal.authExpiresAt,
     );
-  const policy = {
+  const policy: Omit<PolicySettings, "offlineAgentWork"> = {
     allowedProviders: ["fake"],
     allowAgentRootPropose: false,
     allowPassToAgent: true,
     allowRunOverrides: true,
   };
-  await human(updateWorkspacePolicyCommand, { ...policy, expectedVersion: 1 });
-  await human(updateProjectPolicyCommand, {
-    ...policy,
-    projectId: FIX.projectA,
-    expectedVersion: 1,
-  });
+  await human(
+    updateWorkspacePolicyCommand,
+    await authorizeSyntheticPolicyUpdate(
+      db,
+      { workspaceId: FIX.workspace, humanId: FIX.owner },
+      { ...policy, expectedVersion: 1 },
+    ),
+  );
+  await human(
+    updateProjectPolicyCommand,
+    await authorizeSyntheticPolicyUpdate(
+      db,
+      { workspaceId: FIX.workspace, humanId: FIX.owner },
+      { ...policy, projectId: FIX.projectA, expectedVersion: 1 },
+    ),
+  );
   await human(reportRepositoryConfigCommand, {
     projectId: FIX.projectA,
     expectedVersion: 1,

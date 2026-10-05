@@ -10,7 +10,7 @@ import type {
 import type { SqlDatabase } from "@bfb/db";
 import { expect } from "vitest";
 
-import { FIX, seedSyntheticWorkspace } from "../src/fixtures.js";
+import { authorizeSyntheticPolicyUpdate, FIX, seedSyntheticWorkspace } from "../src/fixtures.js";
 import { WorkspaceHub, type CommandOutcome, type HubCommand } from "../src/hub.js";
 import { randomUlid } from "../src/ids.js";
 import { launchDeadline } from "../src/launch-state.js";
@@ -20,6 +20,7 @@ import {
   reportRepositoryConfigCommand,
   updateProjectPolicyCommand,
   updateWorkspacePolicyCommand,
+  type AgentProfileRecord,
 } from "../src/projects.js";
 import { replaceRunnerInventoryCommand } from "../src/runner-channel.js";
 import { runnerHash, type RunnerTokenClaims } from "../src/runner-crypto.js";
@@ -37,7 +38,10 @@ export function success<T>(outcome: CommandOutcome<T>): T {
   return outcome.result;
 }
 
-export async function launchFixture(database?: SqlDatabase) {
+export async function launchFixture(
+  database?: SqlDatabase,
+  options: { policySchema?: "pre-offline-agent-work" } = {},
+) {
   const db = database ?? (await openDomainDb()),
     hub = new WorkspaceHub(db);
   if (database) await seedSyntheticWorkspace(db);
@@ -125,38 +129,142 @@ export async function launchFixture(database?: SqlDatabase) {
     allowPassToAgent: true,
     allowRunOverrides: true,
   } as const;
-  success(
-    await human(updateWorkspacePolicyCommand, {
-      ...policy,
-      allowedProviders: [...policy.allowedProviders],
-      expectedVersion: 1,
-    }),
-  );
-  success(
-    await human(updateProjectPolicyCommand, {
-      ...policy,
-      allowedProviders: [...policy.allowedProviders],
-      expectedVersion: 1,
-      projectId: FIX.projectA,
-    }),
-  );
-  success(
-    await human(reportRepositoryConfigCommand, {
-      projectId: FIX.projectA,
-      expectedVersion: 1,
-      document: {},
-      contentHash: EMPTY_CONFIG_HASH,
-    }),
-  );
-  const profile = success(
-    await human(createAgentProfileCommand, {
-      name: "Synthetic launch provider",
-      provider: "fake",
-      model: "synthetic",
-      executionMode: "interactive",
-      harnessMode: "restricted",
-    }),
-  );
+  const profileInput = {
+    name: "Synthetic launch provider",
+    provider: "fake" as const,
+    model: "synthetic",
+    executionMode: "interactive" as const,
+    harnessMode: "restricted" as const,
+  };
+  let profile: AgentProfileRecord;
+  if (options.policySchema === "pre-offline-agent-work") {
+    // Arrange genuine pre-0039 history; today's proof-bound mutators require its columns.
+    const columns = await db.prepare("PRAGMA table_info(workspace_policies)").all();
+    expect(columns.map((column) => (column as { name: string }).name)).not.toContain(
+      "offline_agent_tools_json",
+    );
+    const providers = JSON.stringify([...policy.allowedProviders].sort());
+    await db
+      .prepare(
+        `UPDATE workspace_policies SET allowed_providers_json = ?,
+      allow_agent_root_propose = 0, allow_pass_to_agent = 1, allow_run_overrides = 1,
+      resource_version = 2 WHERE workspace_id = ?`,
+      )
+      .run(providers, FIX.workspace);
+    await db
+      .prepare(
+        `INSERT INTO workspace_policy_versions
+      (workspace_id, version, allowed_providers_json, allow_agent_root_propose,
+       allow_pass_to_agent, allow_run_overrides, created_by_human_id, created_at)
+      SELECT workspace_id, resource_version, allowed_providers_json, allow_agent_root_propose,
+       allow_pass_to_agent, allow_run_overrides, ?, ? FROM workspace_policies
+       WHERE workspace_id = ?`,
+      )
+      .run(FIX.owner, LAUNCH_NOW, FIX.workspace);
+    await db
+      .prepare(
+        `UPDATE project_policies SET allowed_providers_json = ?,
+      allow_agent_root_propose = 0, allow_pass_to_agent = 1, allow_run_overrides = 1,
+      resource_version = 2 WHERE workspace_id = ? AND project_id = ?`,
+      )
+      .run(providers, FIX.workspace, FIX.projectA);
+    await db
+      .prepare(
+        `INSERT INTO project_policy_versions
+      (workspace_id, project_id, version, allowed_providers_json, allow_agent_root_propose,
+       allow_pass_to_agent, allow_run_overrides, created_by_human_id, created_at)
+      SELECT workspace_id, project_id, resource_version, allowed_providers_json, allow_agent_root_propose,
+       allow_pass_to_agent, allow_run_overrides, ?, ? FROM project_policies
+       WHERE workspace_id = ? AND project_id = ?`,
+      )
+      .run(FIX.owner, LAUNCH_NOW, FIX.workspace, FIX.projectA);
+    await db
+      .prepare(
+        `UPDATE repository_configs SET allowed_providers_json = ?,
+      allow_agent_root_propose = 0, allow_pass_to_agent = 1, allow_run_overrides = 1,
+      resource_version = 2 WHERE workspace_id = ? AND project_id = ?`,
+      )
+      .run(providers, FIX.workspace, FIX.projectA);
+    await db
+      .prepare(
+        `INSERT INTO repository_config_versions
+      (workspace_id, project_id, version, canonical_json, content_hash, allowed_providers_json,
+       allow_agent_root_propose, allow_pass_to_agent, allow_run_overrides, reported_by_human_id, created_at)
+      SELECT workspace_id, project_id, resource_version, canonical_json, content_hash, allowed_providers_json,
+       allow_agent_root_propose, allow_pass_to_agent, allow_run_overrides, ?, ? FROM repository_configs
+       WHERE workspace_id = ? AND project_id = ?`,
+      )
+      .run(FIX.owner, LAUNCH_NOW, FIX.workspace, FIX.projectA);
+    profile = {
+      id: randomUlid(),
+      name: profileInput.name,
+      provider: profileInput.provider,
+      model: profileInput.model,
+      execution_mode: profileInput.executionMode,
+      harness_mode: profileInput.harnessMode,
+      resource_version: 1,
+    };
+    await db
+      .prepare(
+        `INSERT INTO agent_profiles
+      (workspace_id, id, name, provider, model, execution_mode, harness_mode, resource_version)
+      VALUES (?, ?, ?, 'fake', 'synthetic', 'interactive', 'restricted', 1)`,
+      )
+      .run(FIX.workspace, profile.id, profileInput.name);
+    await db
+      .prepare(
+        `INSERT INTO agent_profile_versions
+      (workspace_id, profile_id, version, name, provider, model, execution_mode, harness_mode,
+       created_by_human_id, created_at)
+      VALUES (?, ?, 1, ?, 'fake', 'synthetic', 'interactive', 'restricted', ?, ?)`,
+      )
+      .run(FIX.workspace, profile.id, profileInput.name, FIX.owner, LAUNCH_NOW);
+  } else {
+    success(
+      await human(
+        updateWorkspacePolicyCommand,
+        await authorizeSyntheticPolicyUpdate(
+          db,
+          {
+            workspaceId: FIX.workspace,
+            humanId: FIX.owner,
+          },
+          {
+            ...policy,
+            allowedProviders: [...policy.allowedProviders],
+            expectedVersion: 1,
+          },
+        ),
+      ),
+    );
+    success(
+      await human(
+        updateProjectPolicyCommand,
+        await authorizeSyntheticPolicyUpdate(
+          db,
+          {
+            workspaceId: FIX.workspace,
+            humanId: FIX.owner,
+          },
+          {
+            ...policy,
+            allowedProviders: [...policy.allowedProviders],
+            expectedVersion: 1,
+            projectId: FIX.projectA,
+          },
+        ),
+      ),
+    );
+    success(
+      await human(reportRepositoryConfigCommand, {
+        projectId: FIX.projectA,
+        expectedVersion: 1,
+        document: {},
+        contentHash: EMPTY_CONFIG_HASH,
+      }),
+    );
+    profile = success(await human(createAgentProfileCommand, profileInput));
+  }
   const task = success(
     await human(createTaskCommand, {
       projectId: FIX.projectA,

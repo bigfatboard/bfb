@@ -20,6 +20,7 @@ export * from "./notifications.js";
 export * from "./oauth.js";
 export * from "./operations.js";
 export * from "./projects.js";
+export * from "./offline-agent-policy.js";
 export * from "./projections.js";
 export * from "./remote-parity.js";
 export * from "./runner-crypto.js";

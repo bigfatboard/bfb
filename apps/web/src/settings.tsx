@@ -34,10 +34,17 @@ interface WorkspacePolicy {
   allowAgentRootPropose: boolean;
   allowPassToAgent: boolean;
   allowRunOverrides: boolean;
+  offlineAgentWork: { allowed_tools: string[]; max_pending_age_seconds: number };
   resourceVersion: number;
 }
 
 const KNOWN_PROVIDERS = ["claude", "codex", "grok"] as const;
+const OFFLINE_AGENT_TOOLS = [
+  ["bfb_add_comment", "Comments"],
+  ["bfb_propose_task", "Task proposals"],
+  ["bfb_report_progress", "Progress reports"],
+  ["bfb_update_task", "Task title and summary edits"],
+] as const;
 
 export interface WorkspaceSettingsProps {
   workspaceId: string;
@@ -59,13 +66,50 @@ async function sha256Json(value: unknown): Promise<string> {
     .join("")}`;
 }
 
-async function responseError(response: Response): Promise<string> {
+export async function workspacePolicyStepUpTarget(
+  workspaceId: string,
+  expectedVersion: number,
+  settings: {
+    allowed_providers: string[];
+    allow_agent_root_propose: boolean;
+    allow_pass_to_agent: boolean;
+    allow_run_overrides: boolean;
+    offline_agent_work: WorkspacePolicy["offlineAgentWork"];
+  },
+): Promise<string> {
+  return sha256Json([
+    "BFB-POLICY-UPDATE-V2",
+    "workspace.policy.update",
+    workspaceId,
+    null,
+    expectedVersion,
+    [...new Set(settings.allowed_providers)].sort(),
+    settings.allow_agent_root_propose,
+    settings.allow_pass_to_agent,
+    settings.allow_run_overrides,
+    [...new Set(settings.offline_agent_work.allowed_tools)].sort(),
+    settings.offline_agent_work.max_pending_age_seconds,
+  ]);
+}
+
+export async function responseError(response: Response): Promise<string> {
   try {
-    const body = (await response.json()) as { message?: string; error?: string };
-    return body.message ?? body.error ?? `Request failed (${response.status})`;
-  } catch {
-    return `Request failed (${response.status})`;
-  }
+    const body: unknown = await response.json();
+    if (body && typeof body === "object") {
+      if ("message" in body && typeof body.message === "string") return body.message;
+      if ("error" in body) {
+        if (typeof body.error === "string") return body.error;
+        if (
+          body.error &&
+          typeof body.error === "object" &&
+          "message" in body.error &&
+          typeof body.error.message === "string"
+        )
+          return body.error.message;
+      }
+    }
+  } catch {}
+  return `Request failed (${response.status})`;
 }
 
 export function WorkspaceSettings(props: WorkspaceSettingsProps) {
@@ -342,22 +386,27 @@ export function WorkspaceSettings(props: WorkspaceSettingsProps) {
                 const allowedProviders = providerOptions.filter(
                   (provider) => form.get(provider) === "on",
                 );
+                const offlineTools = OFFLINE_AGENT_TOOLS.filter(
+                  ([tool]) => form.get(tool) === "on",
+                ).map(([tool]) => tool);
                 const settings = {
                   allowed_providers: allowedProviders,
                   allow_agent_root_propose: form.get("allow_agent_root_propose") === "on",
                   allow_pass_to_agent: form.get("allow_pass_to_agent") === "on",
                   allow_run_overrides: form.get("allow_run_overrides") === "on",
+                  offline_agent_work: {
+                    allowed_tools: offlineTools,
+                    max_pending_age_seconds: offlineTools.length
+                      ? Number(form.get("offline_pending_age"))
+                      : 0,
+                  },
                 };
                 void mutate(async () => {
-                  const targetId = await sha256Json([
-                    "workspace.policy.update",
-                    null,
+                  const targetId = await workspacePolicyStepUpTarget(
+                    props.workspaceId,
                     policy.resourceVersion,
-                    [...allowedProviders].sort(),
-                    settings.allow_agent_root_propose,
-                    settings.allow_pass_to_agent,
-                    settings.allow_run_overrides,
-                  ]);
+                    settings,
+                  );
                   const proofId = await requestStepUpProof(fetchFn, props.csrfToken, {
                     action: "workspace.policy.update",
                     workspaceId: props.workspaceId,
@@ -420,6 +469,35 @@ export function WorkspaceSettings(props: WorkspaceSettingsProps) {
                   />
                   Run overrides allowed
                 </label>
+              </fieldset>
+              <fieldset>
+                <legend>Offline agent-work ceiling</legend>
+                {OFFLINE_AGENT_TOOLS.map(([tool, label]) => (
+                  <label className="check-row" key={tool}>
+                    <input
+                      type="checkbox"
+                      name={tool}
+                      defaultChecked={policy.offlineAgentWork.allowed_tools.includes(tool)}
+                    />
+                    {label}
+                  </label>
+                ))}
+                <label>
+                  Maximum pending age (seconds)
+                  <input
+                    type="number"
+                    name="offline_pending_age"
+                    min="1"
+                    max="300"
+                    step="1"
+                    required
+                    defaultValue={policy.offlineAgentWork.max_pending_age_seconds || 300}
+                  />
+                </label>
+                <p className="section-help">
+                  Denied when no tools are selected. Projects and repository versions must
+                  explicitly allow a subset; this ceiling alone does not permit capture or replay.
+                </p>
               </fieldset>
               <p className="section-help">
                 Saving invokes a user-verifying passkey assertion bound to this exact policy version

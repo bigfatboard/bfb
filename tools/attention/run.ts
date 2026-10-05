@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 
 import { adaptD1, loadMigrationManifest, type D1Like } from "@bfb/db";
 import {
+  authorizeSyntheticPolicyUpdate,
   answerAttentionCommand,
   bumpMemberEpoch,
   claimLaunchCommand,
@@ -31,6 +32,7 @@ import {
   updateWorkspacePolicyCommand,
   type AttentionRecord,
   type CommandOutcome,
+  type PolicySettings,
   type RunnerPrincipal,
   type TaskRecord,
 } from "@bfb/domain";
@@ -230,18 +232,38 @@ try {
   recording.push(migrationOkEntry(preserved.id));
   console.log("A02_MIGRATION_OK populated 0019 upgrade preserves tasks and opens empty attention");
 
-  const policy = {
+  const policy: Omit<PolicySettings, "offlineAgentWork"> = {
     allowedProviders: ["fake"],
     allowAgentRootPropose: false,
     allowPassToAgent: true,
     allowRunOverrides: true,
   };
-  await human(updateWorkspacePolicyCommand.name, { ...policy, expectedVersion: 1 });
-  await human(updateProjectPolicyCommand.name, {
-    ...policy,
-    expectedVersion: 1,
-    projectId: FIX.projectA,
-  });
+  await human(
+    updateWorkspacePolicyCommand.name,
+    await authorizeSyntheticPolicyUpdate(
+      db,
+      {
+        workspaceId: FIX.workspace,
+        humanId: FIX.owner,
+      },
+      { ...policy, expectedVersion: 1 },
+    ),
+  );
+  await human(
+    updateProjectPolicyCommand.name,
+    await authorizeSyntheticPolicyUpdate(
+      db,
+      {
+        workspaceId: FIX.workspace,
+        humanId: FIX.owner,
+      },
+      {
+        ...policy,
+        expectedVersion: 1,
+        projectId: FIX.projectA,
+      },
+    ),
+  );
   await human(reportRepositoryConfigCommand.name, {
     projectId: FIX.projectA,
     expectedVersion: 1,

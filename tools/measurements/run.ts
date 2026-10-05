@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 
 import { adaptD1, loadMigrationManifest, type D1Like } from "@bfb/db";
 import {
+  authorizeSyntheticPolicyUpdate,
   aggregateMeasurements,
   answerAttentionCommand,
   calculateCost,
@@ -38,6 +39,7 @@ import {
   updateProjectPolicyCommand,
   updateWorkspacePolicyCommand,
   type CommandOutcome,
+  type PolicySettings,
   type RunnerPrincipal,
   type TaskRecord,
 } from "@bfb/domain";
@@ -239,18 +241,38 @@ try {
     tables: 5,
   });
 
-  const policy = {
+  const policy: Omit<PolicySettings, "offlineAgentWork"> = {
     allowedProviders: ["fake"],
     allowAgentRootPropose: false,
     allowPassToAgent: true,
     allowRunOverrides: true,
   };
-  await human(updateWorkspacePolicyCommand.name, { ...policy, expectedVersion: 1 });
-  await human(updateProjectPolicyCommand.name, {
-    ...policy,
-    expectedVersion: 1,
-    projectId: FIX.projectA,
-  });
+  await human(
+    updateWorkspacePolicyCommand.name,
+    await authorizeSyntheticPolicyUpdate(
+      db,
+      {
+        workspaceId: FIX.workspace,
+        humanId: FIX.owner,
+      },
+      { ...policy, expectedVersion: 1 },
+    ),
+  );
+  await human(
+    updateProjectPolicyCommand.name,
+    await authorizeSyntheticPolicyUpdate(
+      db,
+      {
+        workspaceId: FIX.workspace,
+        humanId: FIX.owner,
+      },
+      {
+        ...policy,
+        expectedVersion: 1,
+        projectId: FIX.projectA,
+      },
+    ),
+  );
   await human(reportRepositoryConfigCommand.name, {
     projectId: FIX.projectA,
     expectedVersion: 1,
