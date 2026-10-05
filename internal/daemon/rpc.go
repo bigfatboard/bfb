@@ -141,10 +141,13 @@ func readEnvelope(reader *bufio.Reader) (generated.LocalRpcEnvelope, error) {
 
 func decodeEnvelope(data []byte) protocol.DecodeResult {
 	decoded := protocol.DecodeWireDocument("local-rpc", data)
-	if decoded.OK && !strings.HasPrefix(decoded.Value["method"].(string), "mcp.v2.") {
+	if decoded.OK && !strings.HasPrefix(decoded.Value["method"].(string), "mcp.v2.") && !strings.HasPrefix(decoded.Value["method"].(string), "mcp.v3.") {
 		return decoded
 	}
-	return protocol.DecodeWireDocument("local-agent-rpc", data)
+	if decoded = protocol.DecodeWireDocument("local-agent-rpc", data); decoded.OK {
+		return decoded
+	}
+	return protocol.DecodeWireDocument("local-agent-work-rpc", data)
 }
 
 func authorizePeer(peer Peer) error {
@@ -174,6 +177,17 @@ func CallAgent(ctx context.Context, paths Paths, method string, payload map[stri
 		return generated.LocalRpcEnvelope{}, &Failure{Code: "protocol_unsupported"}
 	}
 	return call(ctx, paths, 2, method, payload, nil)
+}
+
+// CallAgentWork negotiates the closed write/receipt lane on the same checked
+// socket. An older daemon is unsupported; private input never falls back to v2.
+func CallAgentWork(ctx context.Context, paths Paths, method string, payload map[string]any) (generated.LocalRpcEnvelope, error) {
+	switch method {
+	case "mcp.v3.add_comment", "mcp.v3.update_task", "mcp.v3.report_progress", "mcp.v3.propose_task":
+		return call(ctx, paths, 3, method, payload, nil)
+	default:
+		return generated.LocalRpcEnvelope{}, &Failure{Code: "protocol_unsupported"}
+	}
 }
 
 func call(ctx context.Context, paths Paths, version int64, method string, payload map[string]any, extraAuthorization func(Peer) error) (generated.LocalRpcEnvelope, error) {
@@ -215,7 +229,7 @@ func call(ctx context.Context, paths Paths, version int64, method string, payloa
 		deadline = until
 	}
 	_ = connection.SetDeadline(deadline)
-	if version == 2 {
+	if version == 2 || version == 3 {
 		// Keep negotiation and the private request on the same checked kernel peer.
 		status := generated.LocalRpcEnvelope{SchemaVersion: 1, RequestId: NewRequestID(), Method: "daemon.status", Direction: "request"}
 		statusData, encodeErr := EncodeEnvelope(status)
