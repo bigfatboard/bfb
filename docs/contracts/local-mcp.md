@@ -1,4 +1,4 @@
-# Local run-scoped MCP v2
+# Local run-scoped MCP
 
 Owner: [A01](../work-packages/WP-A01-local-mcp-context.md). Gate: `pnpm test:a01`.
 
@@ -7,8 +7,10 @@ Status: Current `local-mcp/2` implementation under
 [ADR 0005](../adr/0005-agent-work-session-and-attribution.md). Context/task reads,
 canonical session binding, current bound authority and all four online writes
 use typed daemon RPC and the possession-authenticated Worker/Hub/D1 path.
-Explicit offline policy, online write-ahead durability and daemon-owned pending
-replay remain closure obligations; the online slice is not complete A01 acceptance.
+The [ADR 0006](../adr/0006-daemon-owned-pending-agent-work.md) implementation adds
+daemon-owned protected capture, write-ahead durability and pending replay on a
+separate version-3 write lane. It is undergoing integration certification; the
+committed online/policy checkpoint is not complete A01 acceptance.
 
 This contract defines the tool and trust boundary for `bfb mcp stdio`.
 A02/A03/V01 extend this same server; they do not introduce another agent
@@ -36,7 +38,7 @@ The daemon alone obtains the current L08 connection for the runner derived from
 the verified local assignment. Neither RPC nor the cloud work API accepts an
 arbitrary URL, HTTP action, shell command, executable, or claimed principal.
 
-The current host negotiates these fixed version-2 operations:
+The current host negotiates these fixed operations:
 
 | Local RPC method | Runner action | Result |
 | --- | --- | --- |
@@ -45,18 +47,22 @@ The current host negotiates these fixed version-2 operations:
 | `mcp.v2.get_task` | `work/task` | Agent-visible bound task view |
 | `mcp.v2.bind_session` | `work/session-bind` | Canonical association from a daemon-read trusted L06 observation |
 | `mcp.v2.bound_authority` | `work/bound-authority` | Current authority for the original confirmed association/session |
-| `mcp.v2.add_comment` | `work/comment` | Canonical comment ID with bounded derived run/session provenance |
-| `mcp.v2.update_task` | `work/update` | Permitted task revision with bounded derived run/session provenance |
-| `mcp.v2.report_progress` | `work/progress` | Canonical progress-comment ID with bounded derived run/session provenance |
-| `mcp.v2.propose_task` | `work/proposal` | Canonical root/child task ID and actual state with bounded derived provenance |
+| `mcp.v3.add_comment` | `work/comment` | Canonical comment result or bounded delivery receipt |
+| `mcp.v3.update_task` | `work/update` | Permitted task revision or bounded delivery receipt |
+| `mcp.v3.report_progress` | `work/progress` | Canonical progress-comment result or bounded delivery receipt |
+| `mcp.v3.propose_task` | `work/proposal` | Canonical root/child result or bounded delivery receipt |
 
 `local-agent-rpc` is a separate closed document with `schema_version: 2` and
-fixed `mcp.v2.*` names. It declares all four ADR 0005 write shapes; only the
-implemented handlers are advertised. The original general `local-rpc` document
+fixed `mcp.v2.*` names. Its four legacy writes share the daemon's write-ahead
+admission but keep their committed-result-or-error shapes; they cannot return
+pending receipts. The separate closed `local-agent-work-rpc` document has
+`schema_version: 3` and only the four `mcp.v3.*` writes. The daemon alone calls
+`work/capture-confirmation` and `work/replay`; neither is a provider-facing RPC.
+Only implemented handlers are advertised. The original general `local-rpc` document
 and the three `mcp.*` read handlers remain version 1 for existing clients, with
 no write authority. The Swift app remains on version 1.
 
-Before sending any private version-2 input, the client asks the existing
+Before sending any private version-2 or version-3 input, the client asks the existing
 version-1 `daemon.status` for its registered `methods` on the same verified Unix
 connection. Unsupported methods produce a visible `protocol_unsupported`
 upgrade error, without downgrade, retry or a generic proxy. The exact document
@@ -82,12 +88,14 @@ Wire schemas, method-specific payload validation and deterministic positive and
 negative fixtures cover these operations. Canonical schemas
 live in `protocol/schema/v1`; owning commands are `pnpm protocol:generate` and
 `pnpm protocol:check`. Deterministic version-2 positive/negative fixtures live
-in `protocol/fixtures/v2/local-agent-rpc.json`. The cloud execution reference
+in `protocol/fixtures/v2/local-agent-rpc.json`; capture, replay and version-3
+fixtures live in `protocol/fixtures/v3/local-agent-work-rpc.json` under those same
+owning commands. The cloud execution reference
 stays schema version 1, independently of the local IPC version; existing read
 operation hashes remain unchanged.
 
 Only percent/confidence in the named progress request, local component and exact
-v2 report-progress payload admit finite decimals. Raw out-of-range values and
+v2/v3 report-progress payloads and the named replay progress request admit finite decimals. Raw out-of-range values and
 nonzero underflow fail before effects; integer fields and general v1 retain
 their exact numeric rules. The TypeScript `encodeNamedWireDocument` API applies
 the same closed named validation and canonicalization as decoding; the legacy
@@ -185,7 +193,11 @@ and a read-only run-authority hook uses fresh server time inside WorkspaceHub's
 serialized transaction before returning an existing idempotent result. It runs
 before staged writes, not after them. Connectivity failure does not mean
 revocation, completion or successful cloud delivery. Cloud permission/policy
-denials must never be downgraded to offline queue permission.
+denials must never be downgraded to offline queue permission. An already
+activated capability may reach daemon write admission after a transient cloud
+poll failure, but only after rechecking its trusted local binding. This cannot
+activate a new session offline or authorize capture by itself. Terminal receipt
+reasons close a capability just like terminal errors.
 
 ## Tool map
 
@@ -198,12 +210,14 @@ with a different tool or payload is rejected, not interpreted as the original
 operation. This includes changed task/project/parent/attention arguments.
 Bounds mirror C08 so local and remote behavior agree.
 
-One stdio connection retains at most 256 completed request identities with
-their input fingerprints and outcomes. Once full, every unseen identity returns
+One stdio connection retains at most 256 accepted request identities with
+their input fingerprints. Reads retain outcomes; production writes never cache
+a private outcome or pending receipt and always recontact the daemon. Once full, every unseen identity returns
 `request_rejected` before any tool effect; no outcome is executed without room
 for its binding. Existing identical identities remain usable after current
-authority validation. Failed operations do not consume cache slots, and pending
-attention waits remain uncached. A fresh stdio connection starts a new local
+authority validation. Error responses do not consume cache slots, but successful
+delivery-receipt responses (including pending or rejected delivery) retain their
+input binding. Pending attention waits remain uncached. A fresh stdio connection starts a new local
 cache; the cloud keeps the scoped operation identity for committed reads.
 
 For all four online writes, the stable cloud identity contains only tool, cloud
@@ -294,44 +308,64 @@ partial page is the complete context.
 
 ## Pending-operation journal
 
-This section specifies required closure behavior, not a connected production
-replay service. The CLI installs deny-by-default offline policy and does not
-queue mutations. A committed online write has canonical cloud idempotency,
-but a lost reply/post-commit containment denial is not yet captured in a
-production online write-ahead journal. Caller retry with the original identity
-can recover an authorized outcome; this is not daemon-owned replay or a durable
-local uncertain-outcome disposition. Existing injected journal tests alone do
-not establish that closure.
+The production CLI never opens the journal. One daemon-owned service opens
+`local-mcp-journal.sqlite`, using migration `013_work_journal` independently of
+the daemon's migration chain and L06 hook state. A retained private flock and
+identity sentinel reject accidental database replacement/loss. Recognized
+legacy 011/012 rows migrate atomically without rewriting their raw contents;
+unsigned pending history is quarantined, never granted new capture authority.
+This is not encryption, same-user deletion resistance or cryptographic rollback
+protection.
 
-When the cloud channel is unreachable, policy-permitted mutations
-(`bfb_update_task`, `bfb_add_comment`, `bfb_report_progress`,
-`bfb_propose_task`) either persist a durable `pending_sync` operation or
-fail visibly as offline, exactly by project policy. Reads and attention
-tools fail visibly offline; they are never journaled.
+Every new write obtains a complete cloud confirmation of its canonical session,
+assignment, native checkout fence, exact snapshot/policy versions, requesting
+human and runner epochs, key identity and server deadlines. New capture lasts
+at most 45 seconds from the original request send, bounded further by confirmed
+lease/credential expiry. Suspend-inclusive elapsed time and the first verified
+response anchor prevent sleep, delayed replies or wall-clock changes from
+renewing permission. A daemon restart needs fresh live confirmation before new
+capture; it cannot reconstruct a timing anchor from stored JSON.
 
-Each record carries the originating agent-run principal and grant, the
-immutable assignment and session binding, `request_id` plus idempotency
-key, expected resource version, bounded payload hash, local capture proof,
-capture and expiry times (expiry is capture plus 24 hours), and the policy
-decision. The journal is local SQLite migration `011_pending_operations`
-in the A01-owned journal file; it shares no table with L06 hook state.
+Offline permission is explicitly empty/zero by default on all three immutable
+policy tiers. An enabled setting selects only the four A01 writes and an age of
+1–300 seconds. The snapshot repository hash must match the referenced approved
+repository version. The signed mode is immutable: `online_only` admits empty/zero
+with null expiry; `offline_admitted` retains exact configured permission and
+`intent_expires_at = captured_at + policy age`. A failed request never upgrades
+an online-only intent. Reads, attention, results and artifacts are not queued.
 
-Replay goes through the L08 channel transport and rechecks, in order, the
-current runner credential, authorization/grant epoch, run capability
-(revocation, execution end, terminal result), current policy, and resource
-version. A stale operation becomes a visible terminal rejection; it is
-never applied under stale authority. Replay uses the original scoped operation
-identity: an already-applied operation reports its stored outcome, after current
-authority validation.
+The enrolled P-256 key signs a closed `BFB-AGENT-WORK-CAPTURE-V1` transcript over
+complete authority and the original typed request's hash. Original whitespace,
+optional-field absence and operation schema remain part of the business
+fingerprint. The key stays daemon-owned; there is no signing RPC. Both local
+verification and Worker replay use the enrolled key, not a row-supplied JWK.
 
-The daemon owns the replay service independently of provider/MCP lifetime. A
-restart reopens the A01 journal and preserves the originating principal,
-assignment, observed session, grant/epoch and policy decision; it cannot upgrade
-an old capture to a newly authorized identity or session. Remote commit followed
-by lost acknowledgement must replay to the same outcome. Local applied/rejected
-dispositions must be durably acknowledged before they are reported as durable.
-An unavailable connection remains retryable; explicit stale authority, expiry,
-policy or optimistic-version failure becomes a bounded visible rejection.
+Before any business send, an atomic durable intent/claim/dispatch marker records
+possible application, including online-only writes. A validated cloud result
+must be durably acknowledged before success is returned. Marker failure sends
+nothing; acknowledgement failure preserves uncertainty and stops recovery.
+Receipts contain only operation identity, tool, mode, capture/expiry times,
+delivery state, effect certainty and bounded reason, never private content or
+credentials. `pending_sync` distinguishes `not_attempted` from
+`possibly_applied`; a later denial cannot turn a possibly sent operation into
+“no effect.” A known committed effect stays committed even when current
+authorization blocks delivery of its private result.
+
+Recovery claims only offline-admitted operations and is independent of MCP
+lifetime. Exclusive token/incarnation/deadline claims last 30 seconds; a batch
+is at most 16 and network requests hold no SQLite transaction. Admission limits
+are 256 unresolved per run, 1024 per daemon, and 10,000 retained rows including
+legacy history. Unknown outcomes are not deleted to make room. Local storage
+failure stops draining and produces a bounded recovery diagnostic.
+
+Replay preserves the original command, operation key, payload and expected
+version. Current native ownership, trusted session, runner/requester authority,
+exact policy and the original stored confirmation are checked before the cloud
+business cache. Ordinary token/lease renewal is allowed; key/grant replacement
+does not renew old permission. Optimistic version and child count are checked
+only for a new effect, not its own cached success. Replay stops at intent expiry
+even when a prior cloud effect may exist; permanent unknowns may consume quota.
+No expired intent is rerouted through the ordinary online route.
 
 ## Session binding plug-in (L06)
 
@@ -377,7 +411,7 @@ Event-ledger/session projections do not implicitly create that business record.
 
 ## Outstanding runtime closure
 
-The current v2 online-write slice does not make A01 complete. Its owning `pnpm test:a01`
+The current capture/replay implementation does not make A01 complete. Its owning `pnpm test:a01`
 target exercises the compiled stdio host, production
 daemon RPC, real possession-authenticated L08 connection, local Control Worker,
 WorkspaceHub and D1. It proves agent/both bootstrap reads and real per-item
@@ -390,10 +424,10 @@ online writes, including lost-commit replies across both MCP and daemon restart.
 It is not full L05 launch
 or Terminal acceptance. An injected transport or stdout-only fixture is not a substitute.
 
-Remaining A01 closure includes online write-ahead uncertain-outcome capture; explicit versioned,
-deny-by-default offline policy and its authorized mutation path; daemon-owned
-restart/crash-safe replay. The implemented canonical association and comment
-idempotency are prerequisites, not proof of a connected replay lifecycle.
+Remaining A01 closure is integrated signed-native capture/replay proof, including
+permitted outage capture, MCP exit, daemon restart, current-authority denial and
+remote commit/local acknowledgement loss. Focused component tests are not proof
+of that connected lifecycle.
 Policy absence cannot imply permission to journal. Existing A02/A03 integration
 must retain their contracts on this endpoint, without being claimed as proven
 by bootstrap reads. Full exact-target, affected-gate and clean-checkout evidence
@@ -407,7 +441,8 @@ evidence is not relabelled as v2 proof.
 `boundary_escape`, `capability_closed`, `revoked`, `stale_version`,
 `already_answered`,
 `forbidden`, `policy_rejected`, `offline_pending`, `offline_rejected`,
-`request_rejected`, `invalid_request`, `invalid_argument`, `child_limit`,
+`request_rejected`, `request_conflict`, `invalid_request`, `invalid_argument`, `child_limit`,
+`capture_invalid`, `intent_expired`, `capacity_exceeded`, `storage_failed`,
 `protocol_unsupported`, `method_not_found`. Failures carry a
 bounded code and message only; they never echo tokens, environment values,
 task bodies, or human-only context.

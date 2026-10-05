@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/qdis/bfb/internal/auth"
+	"github.com/qdis/bfb/internal/daemon"
 	"github.com/qdis/bfb/internal/protocol"
 	"github.com/qdis/bfb/internal/protocol/generated"
 )
@@ -86,7 +87,10 @@ func (manager *Manager) captureEnrollment(ctx context.Context, capture generated
 	}
 	enrollment, err := store.Get(ctx, capture.Confirmation.RunnerId)
 	if err != nil {
-		return Enrollment{}, err
+		if ctx.Err() != nil {
+			return Enrollment{}, ErrOffline
+		}
+		return Enrollment{}, &daemon.Failure{Code: "storage_failed"}
 	}
 	switch enrollment.State {
 	case "revoked":

@@ -14,6 +14,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -481,5 +482,65 @@ func TestWorkJournalEncodedBoundsAndWrongOutcome(t *testing.T) {
 		if _, _, err := journal.admit(ctx, bad, false); !errors.Is(err, errWorkInvalid) {
 			t.Fatal(field, "oversized evidence admitted", err)
 		}
+	}
+}
+
+func TestWorkJournalAutonomousCursorAndExplicitWrap(t *testing.T) {
+	journal, _, _ := newWorkTestJournal(t)
+	ctx := context.Background()
+	var keys []string
+	for _, id := range []string{"cursor-one", "cursor-two", "cursor-three"} {
+		intent := workTestIntent(t, id, workTestID, "offline_admitted")
+		if _, _, err := journal.admit(ctx, intent, false); err != nil {
+			t.Fatal(err)
+		}
+		keys = append(keys, intent.OperationKey)
+	}
+	sort.Strings(keys)
+	online := workTestIntent(t, "cursor-online", workTestID, "online_only")
+	record, _, err := journal.admit(ctx, online, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = journal.release(ctx, *record.Claim); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := journal.claimBatchAfter(ctx, keys[0], 16)
+	if err != nil || len(rows) != 2 || rows[0].Intent.OperationKey != keys[1] || rows[1].Intent.OperationKey != keys[2] {
+		t.Fatal("keyset selection", rows, err)
+	}
+	for _, record := range rows {
+		if err = journal.release(ctx, *record.Claim); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if rows, err = journal.claimBatchAfter(ctx, keys[2], 16); err != nil || len(rows) != 0 {
+		t.Fatal("cursor wrapped implicitly", rows, err)
+	}
+	rows, err = journal.claimBatchAfter(ctx, "", 1)
+	if err != nil || len(rows) != 1 || rows[0].Intent.OperationKey != keys[0] {
+		t.Fatal("explicit wrap", rows, err)
+	}
+	if err = journal.markDispatch(ctx, *rows[0].Claim); err != nil {
+		t.Fatal(err)
+	}
+	if err = journal.release(ctx, *rows[0].Claim); err != nil {
+		t.Fatal(err)
+	}
+	rows, err = journal.claimBatchAfter(ctx, keys[0], 1)
+	if err != nil || len(rows) != 1 || rows[0].Intent.OperationKey != keys[1] {
+		t.Fatal("first retry starved next key", rows, err)
+	}
+	remaining, err := journal.claimBatch(ctx, 16)
+	if err != nil || len(remaining) != 2 || remaining[0].Intent.OperationKey != keys[0] || remaining[1].Intent.OperationKey != keys[2] || remaining[0].Effect != "unknown" || remaining[0].EverDispatched == nil {
+		t.Fatal("ordinary batch semantics or marker changed", remaining, err)
+	}
+	for _, bad := range []string{"unscoped", "agent:" + strings.Repeat("F", 64), "agent:" + strings.Repeat("a", 65), "agent:' OR 1=1"} {
+		if _, err = journal.claimBatchAfter(ctx, bad, 1); !errors.Is(err, errWorkInvalid) {
+			t.Fatal("open cursor key accepted", bad, err)
+		}
+	}
+	if _, err = journal.claimBatchAfter(ctx, keys[0], 17); !errors.Is(err, errWorkInvalid) {
+		t.Fatal("cursor widened batch bound", err)
 	}
 }

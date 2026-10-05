@@ -6,5 +6,12 @@
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo",
     "types": ["node"]
   },
-  "include": ["run.ts", "native.ts"]
+  "include": ["run.ts", "native.ts", "worker.ts"],
+  "references": [
+    { "path": "../runner-channel" },
+    { "path": "../../packages/domain" },
+    { "path": "../../packages/db" },
+    { "path": "../../packages/protocol-ts" },
+    { "path": "../../apps/control-worker" }
+  ]
 }

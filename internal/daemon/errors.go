@@ -24,6 +24,10 @@ var failures = map[string]struct {
 	"policy_rejected":                {"authorization_denied", "Effective policy rejects this work action.", 3},
 	"invalid_argument":               {"schema_invalid", "The work action arguments are invalid.", 2},
 	"child_limit":                    {"conflict", "The task has reached its active-child limit.", 6},
+	"request_conflict":               {"conflict", "This operation identity is already bound to different input.", 6},
+	"capacity_exceeded":              {"unavailable", "Agent work storage is full; unresolved outcomes were preserved.", 4},
+	"capture_invalid":                {"authorization_denied", "Complete current capture authority could not be verified.", 3},
+	"intent_expired":                 {"authorization_denied", "The original agent work delivery window has expired.", 3},
 	"peer_denied":                    {"authorization_denied", "The local process is not authorized.", 3},
 	"unsafe_state":                   {"authorization_denied", "BFB state must be private, owned by this user, and not symlinked.", 3},
 	"daemon_offline":                 {"unavailable", "The local daemon is not available.", 4},
@@ -91,7 +95,7 @@ var failures = map[string]struct {
 	"forbidden":                      {"authorization_denied", "The run capability cannot perform this action.", 3},
 	"not_found":                      {"unavailable", "The record is not visible to this run.", 4},
 	"request_rejected":               {"schema_invalid", "The agent request or response exceeds its contract.", 2},
-	"offline_rejected":               {"unavailable", "The online work action is temporarily unavailable; no operation was queued.", 4},
+	"offline_rejected":               {"unavailable", "Work delivery is unavailable; no cloud success is confirmed.", 4},
 }
 
 func (f *Failure) Error() string { return f.Diagnostic().Message }

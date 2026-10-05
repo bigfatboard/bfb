@@ -21,9 +21,14 @@ type ConnectionLookup func(string) (runner.RunnerConnection, error)
 type OwnershipCheck func(context.Context, string, int64) error
 
 // RegisterRPC is a fixed work-action bridge, not a URL, principal or shell proxy.
-func RegisterRPC(registry *daemon.Registry, connection ConnectionLookup, ownership OwnershipCheck) error {
-	if ownership == nil {
+func RegisterRPC(registry *daemon.Registry, manager *runner.Manager, ownership OwnershipCheck) error {
+	if ownership == nil || manager == nil {
 		return &daemon.Failure{Code: "invalid_request"}
+	}
+	connection := manager.Connection
+	work := newWorkService(manager, ownership)
+	if err := registry.RegisterService("agent.work", work.start); err != nil {
+		return err
 	}
 	actions := map[string]struct{ action, inputDocument, inputField, document, field string }{
 		"mcp.authority":          {"authority", "agent-local-request", "agent_request", "agent-authority-result", "agent_authority"},
@@ -38,6 +43,10 @@ func RegisterRPC(registry *daemon.Registry, connection ConnectionLookup, ownersh
 		"mcp.v2.update_task":     {"update", "agent-update-local-request", "agent_update_request", "agent-update-result", "agent_update"},
 		"mcp.v2.report_progress": {"progress", "agent-progress-local-request", "agent_progress_request", "agent-comment-result", "agent_comment"},
 		"mcp.v2.propose_task":    {"proposal", "agent-proposal-local-request", "agent_proposal_request", "agent-proposal-result", "agent_proposal"},
+		"mcp.v3.add_comment":     {"comment", "agent-comment-local-request", "agent_comment_request", "agent-comment-result", "agent_comment"},
+		"mcp.v3.update_task":     {"update", "agent-update-local-request", "agent_update_request", "agent-update-result", "agent_update"},
+		"mcp.v3.report_progress": {"progress", "agent-progress-local-request", "agent_progress_request", "agent-comment-result", "agent_comment"},
+		"mcp.v3.propose_task":    {"proposal", "agent-proposal-local-request", "agent_proposal_request", "agent-proposal-result", "agent_proposal"},
 	}
 	for method, action := range actions {
 		if err := registry.Register(method, func(ctx context.Context, request daemon.Request) (map[string]any, error) {
@@ -97,6 +106,19 @@ func RegisterRPC(registry *daemon.Registry, connection ConnectionLookup, ownersh
 			}
 			if len(body) > 16_384 {
 				return nil, &daemon.Failure{Code: "request_rejected"}
+			}
+			if command, write := agentWorkCommand("agent_run." + action.action); write {
+				check := func(ctx context.Context) error {
+					_, current, err := localmcp.VerifyDaemonCaller(ctx, request, input)
+					if err != nil {
+						return &daemon.Failure{Code: localmcp.CodeOf(err)}
+					}
+					if current.StartIdentity != caller.StartIdentity {
+						return &daemon.Failure{Code: "peer_denied"}
+					}
+					return nil
+				}
+				return work.write(ctx, command, body, request.Envelope.SchemaVersion == 3, check)
 			}
 			channel, err := connection(assignment.Boundary.RunnerID)
 			if err != nil {
@@ -168,7 +190,7 @@ func channelError(err error, data []byte) error {
 		}
 		if json.Unmarshal(data, &denial) == nil {
 			switch denial.Error {
-			case "revoked", "assignment_ended", "capability_closed", "boundary_escape", "forbidden", "not_found", "request_rejected", "session_not_bound", "session_conflict", "stale_version", "policy_rejected", "invalid_argument", "child_limit":
+			case "revoked", "assignment_ended", "capability_closed", "boundary_escape", "forbidden", "not_found", "request_rejected", "session_not_bound", "session_conflict", "stale_version", "policy_rejected", "invalid_argument", "child_limit", "capture_invalid", "intent_expired":
 				code = denial.Error
 			}
 		}

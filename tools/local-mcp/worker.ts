@@ -3,7 +3,26 @@
 
 import channelWorker, { WorkspaceHub } from "../runner-channel/worker.js";
 import { adaptD1, type D1Like } from "@bfb/db";
-import { FIX, randomUlid, runnerId, canonicalLaunchJson } from "@bfb/domain";
+import {
+  FIX,
+  randomUlid,
+  runnerId,
+  canonicalLaunchJson,
+  WorkspaceHub as DomainHub,
+  authorizeSyntheticPolicyUpdate,
+  updateWorkspacePolicyCommand,
+  updateProjectPolicyCommand,
+  reportRepositoryConfigCommand,
+  getWorkspacePolicy,
+  getProjectPolicy,
+  normalizeRepositoryConfig,
+  repositoryConfigPolicyTarget,
+  issueStepUpProof,
+  OFFLINE_AGENT_TOOLS,
+  createAgentProfileCommand,
+  type HubCommand,
+  type PolicySettings,
+} from "@bfb/domain";
 import { decodeWireDocument, type LaunchClaimResult } from "@bfb/protocol";
 import { createHash } from "node:crypto";
 
@@ -18,6 +37,124 @@ export default {
       input = (await request.json()) as Record<string, string>;
     const workspace = FIX.workspace,
       now = new Date().toISOString();
+    const hub = new DomainHub(db);
+    const human = async <I, R>(command: HubCommand<I, R>, value: I): Promise<R> => {
+      const outcome = await hub.execute(command, {
+        workspaceId: workspace,
+        actorHumanId: FIX.owner,
+        authorizationEpoch: 1,
+        idempotencyKey: randomUlid(),
+        now,
+        input: value,
+      });
+      if (!outcome.ok) throw new Error(`synthetic policy configuration ${outcome.error.code}`);
+      return outcome.result;
+    };
+    if (path === "/__a01/project-tighten") {
+      const { resourceVersion, ...current } = await getProjectPolicy(db, workspace, FIX.projectA);
+      const settings = {
+        ...current,
+        offlineAgentWork: {
+          ...current.offlineAgentWork,
+          max_pending_age_seconds: current.offlineAgentWork.max_pending_age_seconds - 1,
+        },
+        expectedVersion: resourceVersion,
+        projectId: FIX.projectA,
+      };
+      const input = await authorizeSyntheticPolicyUpdate(
+        db,
+        { workspaceId: workspace, humanId: FIX.owner },
+        settings,
+      );
+      return Response.json(await human(updateProjectPolicyCommand, input));
+    }
+    if (path === "/__a01/configure") {
+      const permission =
+        input.offline === "allow"
+          ? {
+              allowed_tools: [...OFFLINE_AGENT_TOOLS],
+              max_pending_age_seconds: Number(input.age ?? "300"),
+            }
+          : { allowed_tools: [], max_pending_age_seconds: 0 };
+      const settings: PolicySettings = {
+        allowedProviders: ["fake"],
+        allowAgentRootPropose: false,
+        allowPassToAgent: true,
+        allowRunOverrides: false,
+        offlineAgentWork: permission,
+      };
+      for (const project of [false, true]) {
+        const current = project
+          ? await getProjectPolicy(db, workspace, FIX.projectA)
+          : await getWorkspacePolicy(db, workspace);
+        const value = await authorizeSyntheticPolicyUpdate(
+          db,
+          { workspaceId: workspace, humanId: FIX.owner },
+          {
+            ...settings,
+            expectedVersion: current.resourceVersion,
+            ...(project ? { projectId: FIX.projectA } : {}),
+          },
+        );
+        if (project) await human(updateProjectPolicyCommand, { ...value, projectId: FIX.projectA });
+        else await human(updateWorkspacePolicyCommand, value);
+      }
+      const repository = (await db
+        .prepare(
+          "SELECT resource_version FROM repository_configs WHERE workspace_id=? AND project_id=?",
+        )
+        .get(workspace, FIX.projectA)) as { resource_version: number };
+      const document = { offline_agent_work: permission };
+      const canonical = normalizeRepositoryConfig(document, settings).canonical;
+      const contentHash = hash(canonical);
+      const stepUpProofId = await issueStepUpProof(
+        db,
+        FIX.owner,
+        {
+          action: "repository.config.report",
+          workspaceId: workspace,
+          projectId: FIX.projectA,
+          targetId: repositoryConfigPolicyTarget(
+            workspace,
+            FIX.projectA,
+            repository.resource_version,
+            contentHash,
+            permission,
+          ),
+          scopes: [],
+          authorizationEpoch: 1,
+          expiresAt: new Date(Date.parse(now) + 60_000).toISOString(),
+        },
+        now,
+      );
+      await human(reportRepositoryConfigCommand, {
+        projectId: FIX.projectA,
+        expectedVersion: repository.resource_version,
+        document,
+        contentHash,
+        stepUpProofId,
+      });
+      await db
+        .prepare(
+          "UPDATE projects SET repository_host='synthetic',repository_subpath='.' WHERE workspace_id=? AND id=?",
+        )
+        .run(workspace, FIX.projectA);
+      if (
+        !(await db
+          .prepare(
+            "SELECT id FROM agent_profiles WHERE workspace_id=? AND provider='fake' AND model='synthetic'",
+          )
+          .get(workspace))
+      )
+        await human(createAgentProfileCommand, {
+          name: "Synthetic native provider",
+          provider: "fake",
+          model: "synthetic",
+          executionMode: "interactive",
+          harnessMode: "restricted",
+        });
+      return Response.json({ configured: true, permission });
+    }
     if (path === "/__a01/seed") {
       const runner = runnerId(input.runner),
         task = randomUlid(),
@@ -26,6 +163,7 @@ export default {
       const checkout = randomUlid(),
         snapshot = randomUlid(),
         launch = randomUlid(),
+        claimKey = randomUlid(),
         physical = hash(execution);
       const enrolled = (await db
         .prepare(
@@ -37,8 +175,20 @@ export default {
         grant_epoch: number;
       };
       if (!enrolled) return new Response(null, { status: 400 });
-      // The committed C09 fixture supplies a closed snapshot; only synthetic scope/time change.
+      // The committed C09 fixture supplies the closed execution shape; current fixture policy and inventory define its scope.
       const claim = JSON.parse(input.claim_template!) as LaunchClaimResult;
+      const profile = (await db
+        .prepare(
+          "SELECT id FROM agent_profiles WHERE workspace_id=? AND provider='fake' AND model='synthetic'",
+        )
+        .get(workspace)) as { id: string };
+      const workspacePolicy = await getWorkspacePolicy(db, workspace);
+      const projectPolicy = await getProjectPolicy(db, workspace, FIX.projectA);
+      const repository = (await db
+        .prepare(
+          "SELECT resource_version,content_hash FROM repository_configs WHERE workspace_id=? AND project_id=?",
+        )
+        .get(workspace, FIX.projectA)) as { resource_version: number; content_hash: string };
       claim.assignment = {
         schema_version: 1,
         workspace_id: workspace,
@@ -55,11 +205,13 @@ export default {
         workspace_id: workspace,
         project_id: FIX.projectA,
         task_id: task,
-        agent_profile_id: FIX.profileCodex,
+        agent_profile_id: profile.id,
         physical_worktree_hash: physical,
-        workspace_policy_version: 1,
-        project_policy_version: 1,
-        repository_config_version: 1,
+        workspace_policy_version: workspacePolicy.resourceVersion,
+        project_policy_version: projectPolicy.resourceVersion,
+        repository_config_version: repository.resource_version,
+        repository_config_hash: repository.content_hash,
+        repository_identity_hash: hash("synthetic/a01"),
       });
       const canonical = canonicalLaunchJson(claim.snapshot),
         snapshotHash = hash(canonical);
@@ -70,7 +222,7 @@ export default {
         task_id: task,
         runner_id: runner,
         checkout_id: checkout,
-        agent_profile_id: FIX.profileCodex,
+        agent_profile_id: profile.id,
         config_snapshot_id: snapshot,
         config_snapshot_hash: snapshotHash,
         expires_at: new Date(Date.parse(now) + 120_000).toISOString(),
@@ -87,17 +239,20 @@ export default {
         .prepare(
           `INSERT INTO runs (workspace_id,id,project_id,task_id,requested_by_human_id,agent_profile_id,result_state,activity,created_at) VALUES (?,?,?,?,?,?,'open','unknown',?)`,
         )
-        .run(workspace, run, FIX.projectA, task, FIX.owner, FIX.profileCodex, now);
+        .run(workspace, run, FIX.projectA, task, FIX.owner, profile.id, now);
       await db
         .prepare(
-          `INSERT INTO run_configuration_snapshots (workspace_id,id,project_id,run_id,workspace_policy_version,project_policy_version,repository_config_version,agent_profile_id,agent_profile_version,canonical_json,content_hash,created_at) VALUES (?,?,?,?,1,1,1,?,1,?,?,?)`,
+          `INSERT INTO run_configuration_snapshots (workspace_id,id,project_id,run_id,workspace_policy_version,project_policy_version,repository_config_version,agent_profile_id,agent_profile_version,canonical_json,content_hash,created_at) VALUES (?,?,?,?,?,?,?, ?,1,?,?,?)`,
         )
         .run(
           workspace,
           snapshot,
           FIX.projectA,
           run,
-          FIX.profileCodex,
+          workspacePolicy.resourceVersion,
+          projectPolicy.resourceVersion,
+          repository.resource_version,
+          profile.id,
           canonical,
           snapshotHash,
           now,
@@ -128,7 +283,7 @@ export default {
         );
       await db
         .prepare(
-          `INSERT INTO launch_commands (workspace_id,id,execution_id,assignment_generation,run_id,requesting_human_id,idempotency_key_hash,request_hash,state,snapshot_id,created_at,expires_at,final_authorized_at) VALUES (?,?,?,1,?,?,?,?,'started',?,?,?,?)`,
+          `INSERT INTO launch_commands (workspace_id,id,execution_id,assignment_generation,run_id,requesting_human_id,idempotency_key_hash,request_hash,state,snapshot_id,created_at,expires_at,final_authorized_at,claim_key_hash) VALUES (?,?,?,1,?,?,?,?,'started',?,?,?,?,?)`,
         )
         .run(
           workspace,
@@ -142,6 +297,7 @@ export default {
           now,
           claim.specification.expires_at,
           now,
+          hash(claimKey).slice(7),
         );
       await db
         .prepare(
@@ -156,6 +312,43 @@ export default {
           )
           .run(workspace, randomUlid(), task, audience, body, index + 1, hash(body), now);
       }
+      const inventory = {
+        schema_version: 1,
+        workspace_id: workspace,
+        runner_id: runner,
+        revision: Date.now(),
+        checkouts: [
+          {
+            schema_version: 1,
+            checkout_id: checkout,
+            workspace_id: workspace,
+            runner_id: runner,
+            project_id: FIX.projectA,
+            label: "Synthetic native checkout",
+            repository_identity: "synthetic/a01",
+            workspace_subpath: ".",
+            physical_worktree_hash: physical,
+            repository_config_hash: repository.content_hash,
+            is_default: true,
+            dirty: false,
+            status: "validated",
+            validated_at: now,
+          },
+        ],
+        providers: [
+          {
+            provider: "fake",
+            version: claim.snapshot.provider_version,
+            manifest_id: claim.snapshot.provider_manifest_id,
+            capabilities: claim.snapshot.execution_config.required_capabilities,
+            status: "healthy",
+            observed_at: now,
+            expires_at: new Date(Date.parse(now) + 30_000).toISOString(),
+          },
+        ],
+      };
+      if (!decodeWireDocument("runner-inventory", Buffer.from(JSON.stringify(inventory))).ok)
+        return new Response("invalid synthetic inventory", { status: 400 });
       return Response.json({
         workspace,
         project: FIX.projectA,
@@ -167,6 +360,8 @@ export default {
         launch,
         physical,
         claim,
+        claim_key: claimKey,
+        inventory,
       });
     }
     const execution = runnerId(input.execution);
@@ -176,6 +371,15 @@ export default {
       )
       .get(workspace, execution)) as { run_id: string; task_id: string; runner_id: string };
     if (!row) return new Response(null, { status: 404 });
+    if (path === "/__a01/pin") {
+      const finalIdentity = canonicalLaunchJson(JSON.parse(input.final_identity!));
+      await db
+        .prepare(
+          "UPDATE launch_commands SET final_identity_json=? WHERE workspace_id=? AND execution_id=?",
+        )
+        .run(finalIdentity, workspace, execution);
+      return Response.json({ pinned: true });
+    }
     if (path === "/__a01/oversize") {
       const body = "<".repeat(12_000);
       await db
@@ -224,6 +428,11 @@ export default {
       return Response.json({ changed: true });
     }
     if (path === "/__a01/observe") {
+      const lease = await db
+        .prepare(
+          "SELECT execution_id,fencing_generation,state,expires_at,observation_sequence,observed_at,identity_json FROM checkout_leases WHERE workspace_id=? AND execution_id=?",
+        )
+        .get(workspace, execution);
       const deliveries = await db
         .prepare(
           `SELECT id,context_version,content_hash,delivered_at,run_id FROM task_context_deliveries WHERE workspace_id = ? AND run_id = ? ORDER BY context_version`,
@@ -269,6 +478,7 @@ export default {
         )
         .all(workspace, execution);
       return Response.json({
+        lease,
         deliveries,
         sessions,
         bindings,

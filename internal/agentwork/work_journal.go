@@ -74,10 +74,14 @@ func journalCommand(tool string) (workCommand, bool) {
 	return workCommand{}, false
 }
 
+func validJournalOperationKey(key string) bool {
+	return len(key) == 70 && key[:6] == "agent:" && workHexPattern.MatchString(key[6:])
+}
+
 func validateJournalRequest(intent journalIntent) error {
 	command, known := journalCommand(intent.Tool)
 	if !known || len(intent.RequestJSON) < 1 || len(intent.RequestJSON) > 16_384 ||
-		len(intent.OperationKey) != 70 || intent.OperationKey[:6] != "agent:" || !workHexPattern.MatchString(intent.OperationKey[6:]) ||
+		!validJournalOperationKey(intent.OperationKey) ||
 		!workHexPattern.MatchString(intent.Fingerprint) || !protocol.DecodeWireDocument(command.requestDocument, []byte(intent.RequestJSON)).OK {
 		return errWorkInvalid
 	}
@@ -356,16 +360,23 @@ func (journal *workJournal) newClaim(key string) (journalClaim, time.Duration, e
 // Claim bookkeeping grants neither replay authority nor trusted expiry time.
 // The consumer checks those independently before markDispatch/network send.
 func (journal *workJournal) claimBatch(ctx context.Context, limit int) ([]journalRecord, error) {
-	if limit < 1 || limit > workClaimLimit {
+	return journal.claimBatchAfter(ctx, "", limit)
+}
+
+// The consumer keeps an ephemeral keyset cursor and explicitly resets it after
+// an exhausted batch. Cursor position is fairness bookkeeping, not authority,
+// a durable claim, or permission to select an online-only operation.
+func (journal *workJournal) claimBatchAfter(ctx context.Context, afterKey string, limit int) ([]journalRecord, error) {
+	if limit < 1 || limit > workClaimLimit || (afterKey != "" && !validJournalOperationKey(afterKey)) {
 		return nil, errWorkInvalid
 	}
-	return journal.claim(ctx, "", limit)
+	return journal.claim(ctx, "", afterKey, limit)
 }
 
 // claimOperation supports a currently authorized explicit retry of an online-
 // only identity. Such rows are never selected by the autonomous batch path.
 func (journal *workJournal) claimOperation(ctx context.Context, key string) (journalRecord, error) {
-	rows, err := journal.claim(ctx, key, 1)
+	rows, err := journal.claim(ctx, key, "", 1)
 	if err != nil {
 		return journalRecord{}, err
 	}
@@ -375,7 +386,7 @@ func (journal *workJournal) claimOperation(ctx context.Context, key string) (jou
 	return rows[0], nil
 }
 
-func (journal *workJournal) claim(ctx context.Context, key string, limit int) ([]journalRecord, error) {
+func (journal *workJournal) claim(ctx context.Context, key, afterKey string, limit int) ([]journalRecord, error) {
 	tx, err := journal.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, errWorkStorage
@@ -394,7 +405,7 @@ func (journal *workJournal) claim(ctx context.Context, key string, limit int) ([
 	}
 	rows, err := tx.QueryContext(ctx, `SELECT i.operation_key FROM work_intents i JOIN work_delivery d USING(operation_key)
 WHERE d.state='open' AND (d.claim_token IS NULL OR d.claim_incarnation!=? OR d.claim_deadline_ns<=?)
-AND ((?='' AND i.admission_mode='offline_admitted') OR i.operation_key=?) ORDER BY i.operation_key LIMIT ?`, journal.incarnation, int64(sample), key, key, limit)
+AND ((?='' AND i.admission_mode='offline_admitted' AND i.operation_key>?) OR i.operation_key=?) ORDER BY i.operation_key LIMIT ?`, journal.incarnation, int64(sample), key, afterKey, key, limit)
 	if err != nil {
 		return nil, errWorkStorage
 	}

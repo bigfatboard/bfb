@@ -33,13 +33,34 @@ import (
 	"github.com/qdis/bfb/internal/auth"
 	"github.com/qdis/bfb/internal/daemon"
 	"github.com/qdis/bfb/internal/localmcp"
+	"github.com/qdis/bfb/internal/protocol"
 	"github.com/qdis/bfb/internal/protocol/generated"
+	"github.com/qdis/bfb/internal/provider"
+	"github.com/qdis/bfb/internal/providers"
+	"github.com/qdis/bfb/internal/providers/fake"
 	"github.com/qdis/bfb/internal/runner"
 	"github.com/qdis/bfb/internal/supervisor"
 	"golang.org/x/sys/unix"
 )
 
 var nativeCorrelation = base64.RawURLEncoding.EncodeToString(bytes.Repeat([]byte("A"), 32))
+
+// Only this synthetic executable answers fake-provider probes. The running
+// provider-shaped child remains the same native image verified by L05.
+func TestMain(tests *testing.M) {
+	if os.Getenv("BFB_A01_PROVIDER_FIXTURE") == "1" && len(os.Args) == 2 {
+		switch os.Args[1] {
+		case "--version":
+			fmt.Println("bfb-fake-provider 1.0.0")
+			os.Exit(0)
+		case "--probe":
+			data, _ := json.Marshal(map[string]any{"healthy": true, "capabilities": fake.Capabilities()})
+			fmt.Println(string(data))
+			os.Exit(0)
+		}
+	}
+	os.Exit(tests.Run())
+}
 
 func nativeFixtureProcess(pid int) (supervisor.Process, error) {
 	row, err := unix.SysctlKinfoProc("kern.proc.pid", pid)
@@ -142,6 +163,15 @@ func TestMCPProviderProcess(t *testing.T) {
 				}
 			}
 			fmt.Println("SCOPED")
+		} else if line == "__stop" {
+			if child != nil {
+				_ = input.Close()
+				if child.Wait() != nil {
+					os.Exit(2)
+				}
+				child, input = nil, nil
+			}
+			fmt.Println("STOPPED")
 		} else if line == "__start" || line == "__restart" {
 			if child != nil {
 				_ = input.Close()
@@ -199,7 +229,7 @@ func TestNativeAgentWork(t *testing.T) {
 	if target == "" {
 		t.Skip("run through tools/local-mcp/native.ts")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 7*time.Minute)
 	defer cancel()
 	upstream, err := url.Parse(target)
 	if err != nil || upstream.Hostname() != "127.0.0.1" && upstream.Hostname() != "localhost" {
@@ -213,6 +243,10 @@ func TestNativeAgentWork(t *testing.T) {
 		request.Host = "bfb.channel.test"
 	}
 	var loseReply atomic.Pointer[string]
+	var workOutage atomic.Bool
+	var outageOnLoss atomic.Bool
+	var replayResponses atomic.Int64
+	var businessRequests atomic.Int64
 	type historyFault struct {
 		db                         *sql.DB
 		execution, history, action string
@@ -237,6 +271,9 @@ func TestNativeAgentWork(t *testing.T) {
 			t.Log("synthetic work reply", filepath.Base(path), response.StatusCode)
 		}
 		if response.StatusCode == 200 && strings.Contains(path, "/work/") {
+			if strings.HasSuffix(path, "/work/replay") {
+				replayResponses.Add(1)
+			}
 			if strings.HasSuffix(path, "/work/comment") {
 				if fault := releaseDuringCloud.Swap(nil); fault != nil {
 					if _, err := io.WriteString(fault.input, "__unlock\n"); err != nil {
@@ -253,6 +290,9 @@ func TestNativeAgentWork(t *testing.T) {
 				}
 			}
 			if action := loseReply.Load(); action != nil && strings.HasSuffix(path, "/work/"+*action) && loseReply.CompareAndSwap(action, nil) {
+				if outageOnLoss.Swap(false) {
+					workOutage.Store(true)
+				}
 				_ = response.Body.Close()
 				return fmt.Errorf("synthetic committed response loss")
 			}
@@ -263,7 +303,19 @@ func TestNativeAgentWork(t *testing.T) {
 		writer.WriteHeader(503)
 		_, _ = writer.Write([]byte(`{"error":"work_unavailable"}`))
 	}
-	server := httptest.NewTLSServer(proxy)
+	server := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if workOutage.Load() && strings.Contains(request.URL.Path, "/work/") {
+			writer.WriteHeader(503)
+			_, _ = writer.Write([]byte(`{"error":"work_unavailable"}`))
+			return
+		}
+		for _, action := range []string{"comment", "update", "progress", "proposal", "replay"} {
+			if strings.HasSuffix(request.URL.Path, "/work/"+action) {
+				businessRequests.Add(1)
+			}
+		}
+		proxy.ServeHTTP(writer, request)
+	}))
 	defer server.Close()
 	directory, err := os.MkdirTemp("", "bfb-a01-native-")
 	if err != nil {
@@ -274,7 +326,7 @@ func TestNativeAgentWork(t *testing.T) {
 	if err != nil || paths.Prepare() != nil {
 		t.Fatal("private state setup failed", err)
 	}
-	config, _ := json.Marshal(map[string]string{"ProxyAddress": server.Listener.Addr().String(), "Certificate": string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw}))})
+	config, _ := json.Marshal(map[string]string{"ProxyAddress": server.Listener.Addr().String(), "Certificate": string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw})), "ProviderExecutable": os.Args[0]})
 	if err := os.WriteFile(filepath.Join(paths.Root, "fixture.json"), config, 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -354,6 +406,7 @@ func TestNativeAgentWork(t *testing.T) {
 		}
 		return result
 	}
+	post("/__a01/configure", map[string]string{"offline": "deny"}, false)
 	response, err := daemon.Call(ctx, paths, "runner.enroll", map[string]any{"app_origin": "https://bfb.channel.test", "workspace_id": os.Getenv("BFB_A01_TEST_WORKSPACE"), "device_label": "Synthetic A01 Mac"})
 	if err != nil {
 		t.Fatal(err)
@@ -375,6 +428,25 @@ func TestNativeAgentWork(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	registry, err := provider.NewRegistry(providers.Descriptors())
+	if err != nil {
+		t.Fatal(err)
+	}
+	installation := provider.Installation{Executable: os.Args[0], IntegrationHash: provider.Hash(nil), Environment: []string{"BFB_A01_PROVIDER_FIXTURE=1", "PATH=" + os.Getenv("PATH")}}
+	probe, err := registry.Probe(ctx, "fake", installation, time.Now())
+	if err != nil || probe.Status != "healthy" {
+		t.Fatal("synthetic native image probe", err)
+	}
+	providerIdentity, err := registry.IdentityHash(probe)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var templateClaim generated.LaunchClaimResult
+	if json.Unmarshal(template, &templateClaim) != nil {
+		t.Fatal("synthetic claim template")
+	}
+	templateClaim.Snapshot.ProviderManifestId, templateClaim.Snapshot.ProviderVersion = probe.ManifestID, probe.Version
+	template, _ = json.Marshal(templateClaim)
 	fixture := post("/__a01/seed", map[string]string{"runner": enrollment.RunnerID, "claim_template": string(template)}, false)
 	var claim generated.LaunchClaimResult
 	if json.Unmarshal(fixture["claim"], &claim) != nil {
@@ -445,8 +517,34 @@ func TestNativeAgentWork(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	seedLocal := func() {
+	workDB, err := sql.Open("sqlite", "file:"+filepath.Join(paths.Root, "local-mcp-journal.sqlite")+"?mode=rw&_pragma=busy_timeout(5000)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer workDB.Close()
+	type persistedWork struct {
+		key, state, effect, request, capture, fingerprint string
+		dispatched                                        sql.NullInt64
+		reason, outcome                                   sql.NullString
+	}
+	workRow := func(requestID string) persistedWork {
 		t.Helper()
+		var row persistedWork
+		if err := workDB.QueryRow(`SELECT i.operation_key,d.state,d.effect,i.request_json,i.capture_json,i.fingerprint,d.ever_dispatched_ns,d.reason_code,d.outcome_json
+FROM work_intents i JOIN work_delivery d USING(operation_key) WHERE json_extract(i.request_json,'$.reference.request_id')=?`, requestID).Scan(&row.key, &row.state, &row.effect, &row.request, &row.capture, &row.fingerprint, &row.dispatched, &row.reason, &row.outcome); err != nil {
+			t.Fatal("durable native work disposition", requestID, err)
+		}
+		return row
+	}
+	seedLocal := func(renewLease bool) {
+		t.Helper()
+		inventoryPath := filepath.Join(paths.Root, "fixture-inventory.json")
+		if err := os.WriteFile(inventoryPath+".next", fixture["inventory"], 0600); err != nil {
+			t.Fatal("synthetic inventory persistence", err)
+		}
+		if err := os.Rename(inventoryPath+".next", inventoryPath); err != nil {
+			t.Fatal(err)
+		}
 		tx, err := db.BeginTx(ctx, nil)
 		if err != nil {
 			t.Fatal(err)
@@ -457,20 +555,43 @@ func TestNativeAgentWork(t *testing.T) {
 		claimJSON, _ := json.Marshal(claim)
 		digest := sha256.Sum256([]byte(ids["launch"]))
 		intent := fmt.Sprintf("00000000-0000-4000-8000-%x", digest[:6])
-		if _, err := tx.Exec(`INSERT INTO execution_commands (runner_id,command_id,workspace_id,command_kind,expires_at,received_at,claim_key,claim_started_at,state) VALUES (?,?,?,'launch',?,?,?,?,'queued')`, ids["runner"], ids["launch"], ids["workspace"], expires, now, "synthetic", now); err != nil {
+		if _, err := tx.Exec(`INSERT INTO execution_commands (runner_id,command_id,workspace_id,command_kind,expires_at,received_at,claim_key,claim_started_at,state) VALUES (?,?,?,'launch',?,?,?,?,'queued')`, ids["runner"], ids["launch"], ids["workspace"], expires, now, ids["claim_key"], now); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := tx.Exec(`INSERT INTO local_execution_assignments (execution_id,assignment_generation,workspace_id,project_id,task_id,run_id,runner_id,checkout_id,launch_id,intent_id,physical_worktree_hash,fencing_generation,claim_json,provider_identity_hash,correlation_token,created_at,expires_at,state,owned_group_json,supervisor_json,local_lock_id) VALUES (?,1,?,?,?,?,?,?,?,?,?,1,?,?,?,?,?,'running',?,?,?)`, ids["execution"], ids["workspace"], ids["project"], ids["task"], ids["run"], ids["runner"], ids["checkout"], ids["launch"], intent, ids["physical"], string(claimJSON), "sha256:"+strings.Repeat("a", 64), nativeCorrelation, now, expires, string(group), string(supervisorJSON), owned.LockID); err != nil {
+		if _, err := tx.Exec(`INSERT INTO local_execution_assignments (execution_id,assignment_generation,workspace_id,project_id,task_id,run_id,runner_id,checkout_id,launch_id,intent_id,physical_worktree_hash,fencing_generation,claim_json,provider_identity_hash,correlation_token,created_at,expires_at,state,owned_group_json,supervisor_json,local_lock_id) VALUES (?,1,?,?,?,?,?,?,?,?,?,1,?,?,?,?,?,'running',?,?,?)`, ids["execution"], ids["workspace"], ids["project"], ids["task"], ids["run"], ids["runner"], ids["checkout"], ids["launch"], intent, ids["physical"], string(claimJSON), providerIdentity, nativeCorrelation, now, expires, string(group), string(supervisorJSON), owned.LockID); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := tx.Exec(`UPDATE execution_commands SET state='complete' WHERE runner_id=? AND command_id=?`, ids["runner"], ids["launch"]); err != nil {
+		commandState := "complete"
+		if renewLease {
+			commandState = "waiting"
+		}
+		if _, err := tx.Exec(`UPDATE execution_commands SET state=? WHERE runner_id=? AND command_id=?`, commandState, ids["runner"], ids["launch"]); err != nil {
 			t.Fatal(err)
 		}
 		if err := tx.Commit(); err != nil {
 			t.Fatal(err)
 		}
+		files, err := supervisor.OpenAssignmentFiles(paths.Root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = files.Prepare(supervisor.LocalAssignment{IntentID: intent, State: "intent_ready", ProviderIdentityHash: providerIdentity, Claim: claim}, registry, probe, repo)
+		_ = files.Close()
+		if err != nil {
+			t.Fatal("synthetic authenticated image preparation", err)
+		}
+		finalIdentity, _ := json.Marshal(map[string]any{"supervisor": generated.SupervisorIdentity{Pid: int64(owned.Owner.Process.PID), StartIdentity: owned.Owner.Process.StartIdentity, ExecutableHash: owned.Owner.ExecutableHash}, "local_lock_id": owned.LockID})
+		post("/__a01/pin", map[string]string{"execution": ids["execution"], "final_identity": string(finalIdentity)}, false)
+		if _, err := daemon.Call(ctx, paths, "runner.wake", map[string]any{"runner_id": ids["runner"]}); err != nil {
+			t.Fatal("synthetic runner inventory wake", err)
+		}
+		wait("signed synthetic checkout inventory", func() bool {
+			observed := post("/__test/observe", map[string]string{"workspace_id": ids["workspace"], "runner_id": ids["runner"]}, false)
+			var inventory generated.RunnerInventory
+			return json.Unmarshal(observed["inventory"], &inventory) == nil && len(inventory.Checkouts) == 1 && inventory.Checkouts[0].CheckoutId == ids["checkout"] && inventory.Checkouts[0].PhysicalWorktreeHash == ids["physical"] && inventory.Checkouts[0].RepositoryConfigHash == claim.Snapshot.RepositoryConfigHash
+		})
 	}
-	seedLocal()
+	seedLocal(false)
 	write := func(value any) {
 		t.Helper()
 		data, _ := json.Marshal(value)
@@ -516,6 +637,16 @@ func TestNativeAgentWork(t *testing.T) {
 			t.Fatal("tool text not JSON")
 		}
 		return body, ""
+	}
+	receipt := func(result map[string]any, code, tool, requestID, state, certainty string, reason any) {
+		t.Helper()
+		data, err := json.Marshal(result)
+		if code != "" || err != nil || !protocol.DecodeWireDocument("agent-work-receipt", data).OK || result["tool"] != tool || result["request_id"] != requestID || result["delivery_state"] != state || result["effect_certainty"] != certainty || result["reason_code"] != reason {
+			t.Fatal("untruthful bounded work receipt", code, string(data))
+		}
+		if result["id"] != nil || result["body"] != nil || result["capture"] != nil || result["origin"] != nil {
+			t.Fatal("receipt disclosed private outcome or authority")
+		}
 	}
 	restart("__start")
 	contextResult, code := call("bfb_get_context", "native-context-1", nil)
@@ -586,7 +717,15 @@ func TestNativeAgentWork(t *testing.T) {
 			t.Fatal("trusted turn-before-start missing", err)
 		}
 	}
-	restartBoth := func() {
+	stopMCP := func() {
+		t.Helper()
+		_, _ = io.WriteString(stdin, "__stop\n")
+		line, err := reader.ReadString('\n')
+		if err != nil || line != "STOPPED\n" {
+			t.Fatal("compiled MCP did not exit", err, line)
+		}
+	}
+	restartDaemon := func() {
 		t.Helper()
 		status, err := daemon.Call(ctx, paths, "daemon.status", nil)
 		if err != nil {
@@ -615,8 +754,8 @@ func TestNativeAgentWork(t *testing.T) {
 			}
 			return false
 		})
-		restart("__restart")
 	}
+	restartBoth := func() { t.Helper(); restartDaemon(); restart("__restart") }
 	hook("synthetic-native-session")
 	// Drop the response only after the actual Hub/D1 commit, then restart both peers.
 	action := "session-bind"
@@ -643,9 +782,8 @@ func TestNativeAgentWork(t *testing.T) {
 	action = "comment"
 	loseReply.Store(&action)
 	secondBody := "Synthetic committed comment response loss"
-	if _, code := call("bfb_add_comment", "native-comment-02", map[string]any{"body": secondBody}); code != "offline_rejected" {
-		t.Fatal("lost committed comment reply not retryable", code)
-	}
+	lost, code := call("bfb_add_comment", "native-comment-02", map[string]any{"body": secondBody})
+	receipt(lost, code, "bfb_add_comment", "native-comment-02", "delivery_blocked", "possibly_applied", "work_unavailable")
 	lostComment := post("/__a01/observe", map[string]string{"execution": ids["execution"]}, false)
 	var comments, effects []map[string]any
 	_ = json.Unmarshal(lostComment["comments"], &comments)
@@ -731,7 +869,7 @@ func TestNativeAgentWork(t *testing.T) {
 			t.Fatal("owned caller boundary not denied", attack.code, err, line)
 		}
 	}
-	freshScope := func() {
+	freshScope := func(renewLease bool) {
 		t.Helper()
 		// This expanded fixture makes more signed calls than one production
 		// minute admits. Pace real traffic; never reset or bypass server budgets.
@@ -753,7 +891,11 @@ func TestNativeAgentWork(t *testing.T) {
 		if _, err := db.Exec(`UPDATE local_execution_assignments SET state='ended' WHERE execution_id=?`, ids["execution"]); err != nil {
 			t.Fatal(err)
 		}
+		if _, err := db.Exec(`UPDATE execution_commands SET state='complete' WHERE runner_id=? AND command_id=?`, ids["runner"], ids["launch"]); err != nil {
+			t.Fatal(err)
+		}
 		fresh := post("/__a01/seed", map[string]string{"runner": enrollment.RunnerID, "claim_template": string(template)}, false)
+		fixture = fresh
 		if json.Unmarshal(fresh["claim"], &claim) != nil {
 			t.Fatal("fresh claim missing")
 		}
@@ -768,7 +910,7 @@ func TestNativeAgentWork(t *testing.T) {
 		if ownershipErr != nil || json.Unmarshal(ownershipLine, &owned) != nil || owned.LockID == "" || owned.Leader != leader {
 			t.Fatal("fresh signed helper lock missing", ownershipErr)
 		}
-		seedLocal()
+		seedLocal(renewLease)
 		scope, _ := json.Marshal(map[string]string{"BFB_WORKSPACE_ID": ids["workspace"], "BFB_PROJECT_ID": ids["project"], "BFB_TASK_ID": ids["task"], "BFB_RUN_ID": ids["run"], "BFB_RUN_EXECUTION_ID": ids["execution"], "BFB_CHECKOUT_ID": ids["checkout"], "BFB_RUNNER_ID": ids["runner"]})
 		_, _ = io.WriteString(stdin, "__scope:"+string(scope)+"\n")
 		line, err := reader.ReadString('\n')
@@ -800,7 +942,7 @@ func TestNativeAgentWork(t *testing.T) {
 		{"progress", "bfb_report_progress", "progress.report"},
 		{"proposal", "bfb_propose_task", "task.propose"},
 	} {
-		freshScope()
+		freshScope(false)
 		hook("synthetic-online-" + effect.action)
 		before := post("/__a01/observe", map[string]string{"execution": ids["execution"]}, false)
 		beforeTask := observedTask(before)
@@ -829,9 +971,8 @@ func TestNativeAgentWork(t *testing.T) {
 		requestID := "native-online-" + effect.action
 		action := effect.action
 		loseReply.Store(&action)
-		if _, code := call(effect.tool, requestID, params); code != "offline_rejected" {
-			t.Fatal("committed online write loss not retryable", effect.action, code)
-		}
+		lost, code := call(effect.tool, requestID, params)
+		receipt(lost, code, effect.tool, requestID, "delivery_blocked", "possibly_applied", "work_unavailable")
 		committed := post("/__a01/observe", map[string]string{"execution": ids["execution"]}, false)
 		effects := rows(committed, "effects")
 		bindings := rows(committed, "bindings")
@@ -889,7 +1030,7 @@ func TestNativeAgentWork(t *testing.T) {
 		} else {
 			changed["title"] = "Changed synthetic title"
 		}
-		if _, code := call(effect.tool, requestID, changed); code != "request_rejected" {
+		if _, code := call(effect.tool, requestID, changed); code != "request_conflict" {
 			t.Fatal("cache loss forgot online payload fingerprint", effect.action, code)
 		}
 		if effect.action == "update" {
@@ -907,16 +1048,308 @@ func TestNativeAgentWork(t *testing.T) {
 				t.Fatal("root proposal state/policy mismatch", code)
 			}
 			post("/__a01/change", map[string]string{"execution": ids["execution"], "kind": "root_deny"}, false)
-			if _, code := call(effect.tool, requestID+"-root", rootParams); code != "forbidden" {
-				t.Fatal("cached root ignored current policy", code)
-			}
+			denied, code := call(effect.tool, requestID+"-root", rootParams)
+			receipt(denied, code, effect.tool, requestID+"-root", "delivery_blocked", "confirmed", "forbidden")
 			if child, code := call(effect.tool, requestID, params); code != "" || child["state"] != "ready" {
 				t.Fatal("child replay acquired root-only policy", code)
 			}
 		}
 	}
+	// A lost online-only outcome is never autonomously delivered, including
+	// after restart and a later genuine policy grant. Only explicit retry can
+	// seek its original cached result under current authority.
+	freshScope(false)
+	hook("synthetic-online-only-isolation")
+	action = "comment"
+	loseReply.Store(&action)
+	onlineUnknown, code := call("bfb_add_comment", "native-online-only-isolation", map[string]any{"body": "Synthetic online-only uncertain commit"})
+	receipt(onlineUnknown, code, "bfb_add_comment", "native-online-only-isolation", "delivery_blocked", "possibly_applied", "work_unavailable")
+	only := workRow("native-online-only-isolation")
+	var capture generated.AgentWorkCapture
+	if json.Unmarshal([]byte(only.capture), &capture) != nil || capture.AdmissionMode != "online_only" {
+		t.Fatal("denied policy acquired offline mode")
+	}
+	stopMCP()
+	requestsBefore := businessRequests.Load()
+	restartDaemon()
+	drainInterval := func() {
+		t.Helper()
+		timer := time.NewTimer(4200 * time.Millisecond)
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+			timer.Stop()
+			t.Fatal("native drain interval timed out")
+		}
+	}
+	drainInterval()
+	if current := workRow("native-online-only-isolation"); current.state != "open" || current.effect != "unknown" || current.outcome.Valid || current.capture != only.capture || businessRequests.Load() != requestsBefore {
+		t.Fatal("online-only row auto-drained after exit/restart")
+	}
+
+	// Only the disposable fixture grants an explicit, proof-bound offline policy.
+	// No unsigned provider-side journal or persisted timing receipt activates it.
+	post("/__a01/configure", map[string]string{"offline": "allow"}, false)
+	drainInterval()
+	if current := workRow("native-online-only-isolation"); current.state != "open" || current.effect != "unknown" || current.outcome.Valid || current.capture != only.capture || businessRequests.Load() != requestsBefore {
+		t.Fatal("later policy enablement upgraded online-only capture")
+	}
+	freshScope(true)
+	hook("synthetic-offline-restart")
+	if _, code := call("bfb_add_comment", "native-offline-prime", map[string]any{"body": "Synthetic confirmed activation"}); code != "" {
+		t.Fatal("offline activation", code)
+	}
+	leaseOf := func() map[string]any {
+		t.Helper()
+		observed := post("/__a01/observe", map[string]string{"execution": ids["execution"]}, false)
+		var lease map[string]any
+		if json.Unmarshal(observed["lease"], &lease) != nil {
+			t.Fatal("canonical lease missing")
+		}
+		return lease
+	}
+	wait("ordinary initial native lease renewal", func() bool {
+		lease := leaseOf()
+		return lease["state"] == "live" && lease["execution_id"] == ids["execution"] && lease["fencing_generation"] == float64(1) && lease["observation_sequence"].(float64) > 0 && lease["expires_at"].(string) > claim.LeaseExpiresAt
+	})
+	workOutage.Store(true)
+	offlineBody := "  Synthetic durable offline intent \u2028 <>&  "
+	pending, code := call("bfb_add_comment", "native-offline-restart", map[string]any{"body": offlineBody})
+	receipt(pending, code, "bfb_add_comment", "native-offline-restart", "pending_sync", "not_attempted", nil)
+	admitted := workRow("native-offline-restart")
+	if json.Unmarshal([]byte(admitted.capture), &capture) != nil || capture.AdmissionMode != "offline_admitted" || len(capture.Signature) != 86 || capture.IntentExpiresAt == nil || admitted.state != "open" || admitted.effect != "never_sent" || admitted.dispatched.Valid || admitted.outcome.Valid || pending["operation_key"] != admitted.key {
+		t.Fatal("offline receipt lacks durable signed never-sent intent")
+	}
+	if !strings.Contains(admitted.request, offlineBody) {
+		t.Fatal("capture changed original whitespace or Unicode business bytes")
+	}
+	beforeReplay := post("/__a01/observe", map[string]string{"execution": ids["execution"]}, false)
+	if len(rows(beforeReplay, "comments")) != 1 || len(rows(beforeReplay, "effects")) != 1 {
+		t.Fatal("outage sent a business effect")
+	}
+	stopMCP()
+	beforeRenewal := leaseOf()
+	oldExpiry := beforeRenewal["expires_at"].(string)
+	oldSequence := beforeRenewal["observation_sequence"].(float64)
+	oldReplays := replayResponses.Load()
+	restartDaemon()
+	wait("ordinary same-owner lease renewal after daemon restart", func() bool {
+		lease := leaseOf()
+		return lease["state"] == "live" && lease["execution_id"] == ids["execution"] && lease["fencing_generation"] == beforeRenewal["fencing_generation"] && lease["observation_sequence"].(float64) > oldSequence && lease["expires_at"].(string) > oldExpiry
+	})
+	stillPending := workRow("native-offline-restart")
+	if stillPending.effect != "never_sent" || stillPending.dispatched.Valid || stillPending.capture != admitted.capture || stillPending.fingerprint != admitted.fingerprint {
+		t.Fatal("restart reconstructed or dispatched offline intent during outage")
+	}
+	workOutage.Store(false)
+	wait("daemon-only autonomous signed replay", func() bool { return workRow("native-offline-restart").state == "applied" })
+	applied := workRow("native-offline-restart")
+	if applied.effect != "applied" || !applied.dispatched.Valid || !applied.outcome.Valid || applied.key != admitted.key || applied.capture != admitted.capture || applied.fingerprint != admitted.fingerprint || replayResponses.Load() <= oldReplays {
+		t.Fatal("autonomous replay changed immutable capture or lacked authenticated Worker replay")
+	}
+	committedOffline := post("/__a01/observe", map[string]string{"execution": ids["execution"]}, false)
+	if len(rows(committedOffline, "comments")) != 2 || len(rows(committedOffline, "effects")) != 2 {
+		t.Fatal("autonomous replay did not create one effect")
+	}
+	var originalOutcome generated.AgentCommentResult
+	if json.Unmarshal([]byte(applied.outcome.String), &originalOutcome) != nil {
+		t.Fatal("committed offline result missing")
+	}
+	restart("__start")
+	if repeated, code := call("bfb_add_comment", "native-offline-restart", map[string]any{"body": offlineBody}); code != "" || repeated["id"] != originalOutcome.Id {
+		t.Fatal("original offline identity retry changed outcome", code)
+	}
+	if observed := post("/__a01/observe", map[string]string{"execution": ids["execution"]}, false); string(observed["effects"]) != string(committedOffline["effects"]) || string(observed["business"]) != string(committedOffline["business"]) {
+		t.Fatal("explicit retry duplicated autonomous effect")
+	}
+
+	// Fail only the actual local acknowledgement UPDATE, after the real cloud
+	// write succeeds. Remove that synthetic fault, never the retained intent.
+	freshScope(false)
+	hook("synthetic-ack-restart")
+	if _, err := workDB.Exec(`CREATE TRIGGER a01_fixture_ack_loss BEFORE UPDATE OF state ON work_delivery
+WHEN NEW.state='applied' AND OLD.state='open' AND (SELECT json_extract(request_json,'$.reference.request_id') FROM work_intents WHERE operation_key=NEW.operation_key)='native-ack-loss'
+BEGIN SELECT RAISE(ABORT,'synthetic acknowledgment failure'); END`); err != nil {
+		t.Fatal(err)
+	}
+	ackBody := "Synthetic canonical write with local acknowledgement loss"
+	if _, code := call("bfb_add_comment", "native-ack-loss", map[string]any{"body": ackBody}); code != "storage_failed" {
+		t.Fatal("failed durable acknowledgment looked successful", code)
+	}
+	unknownAck := workRow("native-ack-loss")
+	ackCommitted := post("/__a01/observe", map[string]string{"execution": ids["execution"]}, false)
+	if unknownAck.state != "open" || unknownAck.effect != "unknown" || !unknownAck.dispatched.Valid || unknownAck.outcome.Valid || len(rows(ackCommitted, "comments")) != 1 || len(rows(ackCommitted, "effects")) != 1 {
+		t.Fatal("ack failure lost dispatch uncertainty or canonical effect")
+	}
+	stopMCP()
+	if _, err := workDB.Exec("DROP TRIGGER a01_fixture_ack_loss"); err != nil {
+		t.Fatal(err)
+	}
+	restartDaemon()
+	wait("uncertain local acknowledgment recovery", func() bool { return workRow("native-ack-loss").state == "applied" })
+	knownAck := workRow("native-ack-loss")
+	if knownAck.key != unknownAck.key || knownAck.capture != unknownAck.capture || knownAck.fingerprint != unknownAck.fingerprint {
+		t.Fatal("ack recovery replaced original identity")
+	}
+	if observed := post("/__a01/observe", map[string]string{"execution": ids["execution"]}, false); string(observed["effects"]) != string(ackCommitted["effects"]) || string(observed["business"]) != string(ackCommitted["business"]) {
+		t.Fatal("ack restart repeated real business effect")
+	}
+	restart("__start")
+	if _, code := call("bfb_add_comment", "native-ack-loss", map[string]any{"body": ackBody}); code != "" {
+		t.Fatal("original ack identity unavailable after recovery", code)
+	}
+
+	// A failure of the real dispatch-marker UPDATE must send no business
+	// request. The already-admitted signed never-sent row remains recoverable.
+	freshScope(false)
+	hook("synthetic-marker-failure")
+	if _, code := call("bfb_add_comment", "native-marker-prime", map[string]any{"body": "Synthetic marker activation"}); code != "" {
+		t.Fatal("marker activation", code)
+	}
+	workOutage.Store(true)
+	markerBody := "Synthetic never-sent marker failure"
+	markerPending, code := call("bfb_add_comment", "native-marker-loss", map[string]any{"body": markerBody})
+	receipt(markerPending, code, "bfb_add_comment", "native-marker-loss", "pending_sync", "not_attempted", nil)
+	markerBefore := workRow("native-marker-loss")
+	if _, err := workDB.Exec(`CREATE TRIGGER a01_fixture_marker_loss BEFORE UPDATE OF ever_dispatched_ns ON work_delivery
+WHEN OLD.ever_dispatched_ns IS NULL AND NEW.ever_dispatched_ns IS NOT NULL AND (SELECT json_extract(request_json,'$.reference.request_id') FROM work_intents WHERE operation_key=NEW.operation_key)='native-marker-loss'
+BEGIN SELECT RAISE(ABORT,'synthetic dispatch marker failure'); END`); err != nil {
+		t.Fatal(err)
+	}
+	requestsBefore = businessRequests.Load()
+	workOutage.Store(false)
+	if _, code := call("bfb_add_comment", "native-marker-loss", map[string]any{"body": markerBody}); code != "storage_failed" {
+		t.Fatal("failed durable marker looked successful", code)
+	}
+	markerAfter := workRow("native-marker-loss")
+	if markerAfter.state != "open" || markerAfter.effect != "never_sent" || markerAfter.dispatched.Valid || markerAfter.outcome.Valid || markerAfter.capture != markerBefore.capture || markerAfter.key != markerBefore.key || businessRequests.Load() != requestsBefore {
+		t.Fatal("marker failure lost durable state or sent business request")
+	}
+	if observed := post("/__a01/observe", map[string]string{"execution": ids["execution"]}, false); len(rows(observed, "comments")) != 1 || len(rows(observed, "effects")) != 1 {
+		t.Fatal("marker failure created canonical effect")
+	}
+	stopMCP()
+	if _, err := workDB.Exec("DROP TRIGGER a01_fixture_marker_loss"); err != nil {
+		t.Fatal(err)
+	}
+	restartDaemon()
+	wait("never-sent marker recovery", func() bool { return workRow("native-marker-loss").state == "applied" })
+	if current := workRow("native-marker-loss"); current.capture != markerBefore.capture || current.key != markerBefore.key {
+		t.Fatal("marker recovery replaced signed intent")
+	}
+	if observed := post("/__a01/observe", map[string]string{"execution": ids["execution"]}, false); len(rows(observed, "comments")) != 2 || len(rows(observed, "effects")) != 2 {
+		t.Fatal("marker recovery did not apply exactly once")
+	}
+	restart("__start")
+
+	for _, closure := range []string{"session", "lock", "policy"} {
+		freshScope(false)
+		hook("synthetic-never-sent-" + closure)
+		if _, code := call("bfb_add_comment", "native-queued-prime-"+closure, map[string]any{"body": "Synthetic queued activation"}); code != "" {
+			t.Fatal("queued activation", closure, code)
+		}
+		workOutage.Store(true)
+		requestID := "native-queued-closed-" + closure
+		queuedBody := "Synthetic queued denied before dispatch"
+		queued, code := call("bfb_add_comment", requestID, map[string]any{"body": queuedBody})
+		receipt(queued, code, "bfb_add_comment", requestID, "pending_sync", "not_attempted", nil)
+		beforeDeny := workRow(requestID)
+		stopMCP()
+		reason := "capability_closed"
+		if closure == "session" {
+			post("/__a01/change", map[string]string{"execution": ids["execution"], "kind": "session"}, false)
+		} else if closure == "lock" {
+			reason = "assignment_ended"
+			_, _ = io.WriteString(stdin, "__unlock\n")
+			if err := waitFixtureLockFree(paths.Root, ids["physical"]); err != nil {
+				t.Fatal(err)
+			}
+		} else {
+			reason = "policy_rejected"
+			var previous generated.AgentWorkCapture
+			if json.Unmarshal([]byte(beforeDeny.capture), &previous) != nil {
+				t.Fatal("original policy capture missing")
+			}
+			response := post("/__a01/project-tighten", map[string]string{}, false)
+			var changedVersion int64
+			if json.Unmarshal(response["resourceVersion"], &changedVersion) != nil || changedVersion != previous.Confirmation.ProjectPolicyVersion+1 {
+				t.Fatal("project policy did not commit a genuine new generation")
+			}
+		}
+		requestsBefore = businessRequests.Load()
+		workOutage.Store(false)
+		wait("never-sent current authority denial "+closure, func() bool { return workRow(requestID).state == "blocked" })
+		afterDeny := workRow(requestID)
+		if afterDeny.effect != "never_sent" || afterDeny.dispatched.Valid || afterDeny.reason.String != reason || afterDeny.capture != beforeDeny.capture || afterDeny.key != beforeDeny.key || businessRequests.Load() != requestsBefore {
+			t.Fatal("queued closure changed capture or dispatched", closure)
+		}
+		if json.Unmarshal([]byte(afterDeny.capture), &capture) != nil || capture.Confirmation.FencingGeneration != 1 || capture.Confirmation.RunExecutionId != ids["execution"] {
+			t.Fatal("queued closure replaced capture fence")
+		}
+		if lease := leaseOf(); lease["execution_id"] != ids["execution"] || lease["fencing_generation"] != float64(capture.Confirmation.FencingGeneration) {
+			t.Fatal("queued denial replaced canonical ownership fence")
+		}
+		if observed := post("/__a01/observe", map[string]string{"execution": ids["execution"]}, false); len(rows(observed, "comments")) != 1 || len(rows(observed, "effects")) != 1 {
+			t.Fatal("queued closure created canonical effect", closure)
+		}
+		if closure == "lock" {
+			_, _ = io.WriteString(stdin, "__start\n")
+			line, err := reader.ReadString('\n')
+			if err != nil || line != "READY\n" {
+				t.Fatal("closed ownership MCP start", err, line)
+			}
+			write(map[string]any{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": map[string]any{}})
+			line, err = reader.ReadString('\n')
+			if err != nil || !strings.Contains(line, `"bfb_code":"assignment_ended"`) {
+				t.Fatal("free-lock MCP startup did not fail closed", err, line)
+			}
+		} else {
+			restart("__start")
+		}
+	}
+
+	// Strict expiry stops delivery without relabeling an uncertain committed
+	// operation as rejected/no-effect. The cloud lease remains currently live.
+	post("/__a01/configure", map[string]string{"offline": "allow", "age": "3"}, false)
+	freshScope(false)
+	hook("synthetic-uncertain-expiry")
+	action = "comment"
+	outageOnLoss.Store(true)
+	loseReply.Store(&action)
+	expiredBody := "Synthetic committed reply lost before strict expiry"
+	uncertain, code := call("bfb_add_comment", "native-uncertain-expiry", map[string]any{"body": expiredBody})
+	receipt(uncertain, code, "bfb_add_comment", "native-uncertain-expiry", "pending_sync", "possibly_applied", nil)
+	workOutage.Store(true)
+	expiring := workRow("native-uncertain-expiry")
+	if json.Unmarshal([]byte(expiring.capture), &capture) != nil || capture.IntentExpiresAt == nil {
+		t.Fatal("strict capture expiry missing")
+	}
+	expires, err := time.Parse(time.RFC3339Nano, *capture.IntentExpiresAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	timer := time.NewTimer(max(0, time.Until(expires.Add(100*time.Millisecond))))
+	select {
+	case <-timer.C:
+	case <-ctx.Done():
+		timer.Stop()
+		t.Fatal("strict expiry fixture timed out")
+	}
+	workOutage.Store(false)
+	wait("strict uncertain expiry", func() bool { return workRow("native-uncertain-expiry").state == "blocked" })
+	expired := workRow("native-uncertain-expiry")
+	if expired.effect != "unknown" || expired.reason.String != "intent_expired" || expired.key != expiring.key || expired.capture != expiring.capture {
+		t.Fatal("expiry erased uncertainty or changed original intent")
+	}
+	if observed := post("/__a01/observe", map[string]string{"execution": ids["execution"]}, false); len(rows(observed, "comments")) != 1 || len(rows(observed, "effects")) != 1 {
+		t.Fatal("expiry repeated or lost committed effect")
+	}
+	deniedExpiry, code := call("bfb_add_comment", "native-uncertain-expiry", map[string]any{"body": expiredBody})
+	receipt(deniedExpiry, code, "bfb_add_comment", "native-uncertain-expiry", "delivery_blocked", "possibly_applied", "intent_expired")
+	post("/__a01/configure", map[string]string{"offline": "allow"}, false)
+
 	for _, closure := range []struct{ kind, code string }{{"session", "capability_closed"}, {"end", "assignment_ended"}, {"result", "capability_closed"}, {"lease", "capability_closed"}, {"history_before", "assignment_ended"}, {"history_during", "assignment_ended"}, {"history_write", "assignment_ended"}, {"lock_before", "assignment_ended"}, {"lock_write", "assignment_ended"}, {"grant", "revoked"}} {
-		freshScope()
+		freshScope(false)
 		requestID := "cached-closure-" + closure.kind
 		hook("synthetic-session-" + closure.kind)
 		if _, code := call("bfb_add_comment", requestID, map[string]any{"body": "Synthetic cached closure comment"}); code != "" {
@@ -924,6 +1357,15 @@ func TestNativeAgentWork(t *testing.T) {
 		}
 		if _, code := call("bfb_get_context", requestID, nil); code != "request_rejected" {
 			t.Fatal("cached write identity accepted across tools", closure.kind, code)
+		}
+		if closure.kind == "grant" {
+			requestID += "-uncertain"
+			action = "comment"
+			outageOnLoss.Store(true)
+			loseReply.Store(&action)
+			unknown, code := call("bfb_add_comment", requestID, map[string]any{"body": "Synthetic cached closure comment"})
+			receipt(unknown, code, "bfb_add_comment", requestID, "pending_sync", "possibly_applied", nil)
+			workOutage.Store(true)
 		}
 		retained, retainedError := supervisor.NewGroup(leader)
 		if retainedError != nil {
@@ -958,10 +1400,26 @@ func TestNativeAgentWork(t *testing.T) {
 		} else {
 			post("/__a01/change", map[string]string{"execution": ids["execution"], "kind": closure.kind}, false)
 		}
+		if closure.kind == "grant" {
+			beforeDeny := workRow(requestID)
+			workOutage.Store(false)
+			wait("uncertain dispatch revocation", func() bool { return workRow(requestID).state == "blocked" })
+			afterDeny := workRow(requestID)
+			if afterDeny.effect != "unknown" || afterDeny.reason.String != "revoked" || afterDeny.capture != beforeDeny.capture || afterDeny.key != beforeDeny.key {
+				t.Fatal("revocation erased uncertain dispatch")
+			}
+			observed := post("/__a01/observe", map[string]string{"execution": ids["execution"]}, false)
+			if len(rows(observed, "comments")) != 2 || len(rows(observed, "effects")) != 2 {
+				t.Fatal("revocation repeated or lost committed effects")
+			}
+		}
 		if closure.kind == "history_write" || closure.kind == "lock_write" {
 			requestID += "-new"
 		}
-		if _, code := call("bfb_add_comment", requestID, map[string]any{"body": "Synthetic cached closure comment"}); code != closure.code {
+		denied, code := call("bfb_add_comment", requestID, map[string]any{"body": "Synthetic cached closure comment"})
+		if closure.kind == "history_write" || closure.kind == "lock_write" {
+			receipt(denied, code, "bfb_add_comment", requestID, "delivery_blocked", "confirmed", closure.code)
+		} else if code != closure.code {
 			t.Fatal("cached comment skipped current bound authority", closure.kind, code)
 		}
 		if closure.kind == "history_write" || closure.kind == "lock_write" {

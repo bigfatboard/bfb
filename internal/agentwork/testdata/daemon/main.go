@@ -20,6 +20,7 @@ import (
 	"github.com/qdis/bfb/internal/auth"
 	"github.com/qdis/bfb/internal/cli"
 	"github.com/qdis/bfb/internal/daemon"
+	"github.com/qdis/bfb/internal/provider"
 	"github.com/qdis/bfb/internal/runner"
 	"github.com/qdis/bfb/internal/supervisor"
 )
@@ -51,7 +52,7 @@ func main() {
 	if err != nil {
 		os.Exit(2)
 	}
-	var config struct{ ProxyAddress, Certificate string }
+	var config struct{ ProxyAddress, Certificate, ProviderExecutable string }
 	if json.Unmarshal(data, &config) != nil {
 		os.Exit(2)
 	}
@@ -65,10 +66,17 @@ func main() {
 			return (&net.Dialer{}).DialContext(ctx, network, config.ProxyAddress)
 		},
 	}}
-	manager := runner.NewManager(runner.ManagerOptions{HTTPClient: client})
-	executions := supervisor.NewService(supervisor.ServiceOptions{})
+	manager := runner.NewManager(runner.ManagerOptions{HTTPClient: client, Inventory: fixtureInventory(os.Args[2])})
+	executions := supervisor.NewService(supervisor.ServiceOptions{Connection: manager.Connection, WakeRunner: manager.Wake,
+		Installation: func(_ context.Context, name string) (provider.Installation, error) {
+			if name != "fake" || config.ProviderExecutable == "" {
+				return provider.Installation{}, errors.New("synthetic provider unavailable")
+			}
+			return provider.Installation{Executable: config.ProviderExecutable, IntegrationHash: provider.Hash(nil), Environment: []string{"BFB_A01_PROVIDER_FIXTURE=1"}}, nil
+		},
+	})
 	methods := daemon.NewRegistry()
-	if runner.RegisterRPC(methods, manager) != nil || supervisor.RegisterRPC(methods, executions) != nil || agentwork.RegisterRPC(methods, manager.Connection, executions.CheckAgentOwnership) != nil {
+	if runner.RegisterRPC(methods, manager) != nil || supervisor.RegisterRPC(methods, executions) != nil || agentwork.RegisterRPC(methods, manager, executions.CheckAgentOwnership) != nil {
 		os.Exit(2)
 	}
 	commands := cli.NewRegistry()

@@ -58,7 +58,7 @@ func main() {
 	if err := runner.RegisterRPC(methods, manager); err != nil {
 		panic("duplicate built-in runner operation")
 	}
-	if err := agentwork.RegisterRPC(methods, manager.Connection, executions.CheckAgentOwnership); err != nil {
+	if err := agentwork.RegisterRPC(methods, manager, executions.CheckAgentOwnership); err != nil {
 		panic("duplicate built-in agent work operation")
 	}
 	if err := supervisor.RegisterRPC(methods, executions); err != nil {
