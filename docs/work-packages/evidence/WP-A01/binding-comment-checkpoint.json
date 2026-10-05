@@ -1,0 +1,118 @@
+{
+  "package": "A01",
+  "recorded_on": "2026-10-05",
+  "tested_commit": "a78be00300aeaedf8af6b25a60d2535a6ad61c71",
+  "scope": "Canonical execution-session binding and online agent-attributed comments, including the connected read bootstrap",
+  "scope_outcome": "passed",
+  "package_acceptance_complete": false,
+  "package_status": "in_progress",
+  "historical_manifest": "docs/work-packages/evidence/WP-A01/manifest.json",
+  "protocol_version": "local-mcp/2 over JSON-RPC 2.0 stdio; MCP/2026-07-28",
+  "schema_versions": {
+    "cloud_agent_work_reference": 1,
+    "general_local_rpc": 1,
+    "local_agent_rpc": 2
+  },
+  "migration_head": "0038_agent_work_authority",
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "xcode": "26.0.1",
+    "modernc.org/sqlite": "v1.58.0"
+  },
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2",
+    "architecture": "arm64",
+    "provider": "synthetic supervised process; no live model turn",
+    "signing": "local development signing",
+    "native_ownership": "authenticated signed helper, live owned process and actual held flock"
+  },
+  "commands": [
+    { "command": "pnpm install --frozen-lockfile", "outcome": "passed" },
+    { "command": "pnpm exec tsc -b --force --pretty false", "outcome": "passed" },
+    {
+      "command": "pnpm test:a01",
+      "outcome": "passed",
+      "protocol_cases": 509,
+      "domain_worker_migration_ui_cases": 121,
+      "go_race_checks": "passed",
+      "compiled_stdio_harness": "passed",
+      "native_worker_hub_d1_proof": "passed"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "typescript_cases": 1545,
+      "go_checks": "passed",
+      "swift_cases": 16
+    },
+    { "command": "GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./...", "outcome": "passed" },
+    { "command": "pnpm worktree:check", "outcome": "passed" }
+  ],
+  "native_proof": [
+    "Compiled stdio client reaches fixed negotiated daemon RPC and possession-authenticated production Worker, WorkspaceHub and D1",
+    "Development-signed launchd daemon uses real Keychain-backed enrollment without passing reusable credentials to the provider-shaped child",
+    "Real L06 hook ingestion supplies the trusted observation; bootstrap reads do not fabricate canonical sessions",
+    "Explicit canonical binding and a bounded attributed comment commit through the production domain commands",
+    "Lost binding and comment replies followed by MCP and daemon restart deduplicate unchanged-identity retries",
+    "Changed captured session is rejected after both peers restart",
+    "Current grant, execution, result, canonical session and lease fences reject cached access",
+    "Fresh L05 inspection uses its actual flat process record and retains native uncertainty before and after cloud waits",
+    "Releasing the real held flock while keeping helper and provider alive denies cached delivery and post-commit delivery",
+    "Postflight denial withholds the result but preserves the already committed effect"
+  ],
+  "additional_regressions": [
+    "Initial C09 attach and repeated exact resume bind three execution associations to one unchanged canonical session origin",
+    "Immediate previous-head migration preserves existing task, comment, assignment and session rows; fresh and upgraded schemas converge",
+    "Composite foreign keys, immutable provenance and comment-author guards reject mismatched attribution",
+    "Normal authenticated comment API and UI distinguish human, delegated, agent-run and unknown authors",
+    "D1 staged writes have no read-after-write and late failures roll back business effect, attribution and Hub outcome together",
+    "Current authority is checked before cached outcomes, including revocation after commit and before the first successful retry",
+    "Version negotiation occurs on the same checked socket before private input; v1 stays frozen and only installed v2 handlers are advertised",
+    "Complete cloud request and local-frame byte bounds, typed errors and safe receipt projections are enforced",
+    "Only authority polling uses the existing 120-per-minute channel class; writes and enrollment retain their 20-attempt class",
+    "Reserved v2 proposal result represents proposed roots and ready children without changing existing C08 behavior"
+  ],
+  "implementation_checkout_affected_gates": [
+    { "command": "pnpm test:c01", "outcome": "passed" },
+    { "command": "pnpm test:c08", "outcome": "passed" },
+    { "command": "pnpm test:c09", "outcome": "passed" },
+    { "command": "pnpm test:l06", "outcome": "passed" },
+    { "command": "pnpm test:l08", "outcome": "passed" }
+  ],
+  "affected_gate_scope_note": "Affected gates passed before the final reserved-proposal schema correction; the corrected committed schema then passed the complete clean-checkout exact A01 and repository gates.",
+  "proof_sources": [
+    "internal/agentwork/native_darwin_test.go",
+    "internal/agentwork/testdata/daemon/supervise.go",
+    "internal/agentwork/rpc_test.go",
+    "internal/supervisor/agent_ownership_test.go",
+    "internal/daemon/agent_rpc_test.go",
+    "internal/localmcp/production_test.go",
+    "internal/localmcp/rpc_test.go",
+    "packages/domain/test/agent-work.test.ts",
+    "packages/domain/test/agent-work-migration.test.ts",
+    "apps/control-worker/test/agent-work.test.ts",
+    "apps/web/test/comment-attribution.test.ts",
+    "tools/local-mcp/native.ts",
+    "tools/local-mcp/worker.ts",
+    "protocol/fixtures/v2/local-agent-rpc.json"
+  ],
+  "remaining_obligations": [
+    "Production task update, progress and proposal writes with truthful attribution",
+    "Online write-ahead uncertainty records and checked durable acknowledgements",
+    "Versioned deny-by-default offline permission and its action-bound authorized update path",
+    "Protected daemon-owned capture, journal upgrade and bounded restart-safe replay",
+    "Complete A01 acceptance and downstream recertification"
+  ],
+  "not_claimed": [
+    "Full L05 launch, Terminal interaction or PTY handoff acceptance",
+    "Live Claude or Codex provider or exact continuation certification",
+    "Daemon-restart pending-operation replay",
+    "A02/A03 production attention/result integration",
+    "Cross-device pilot, running end-to-end MVP or release readiness",
+    "Production deployment or enabled real-workspace offline permission"
+  ],
+  "redaction": { "status": "passed", "prohibited_content": [], "raw_logs_committed": false }
+}
