@@ -2,7 +2,7 @@
 
 Status: Approved for local implementation
 
-Date: 11 September 2026
+Approved: 11 September 2026. Integration review updated: 5 October 2026.
 
 Review baseline: `13e1e21`
 
@@ -26,11 +26,17 @@ The goal remains the fully working and verified local MVP described here, includ
 
 ## Where we are
 
-At the review baseline, the roadmap records 12 completed packages: platform foundations, identity and authorization, projects, task/run/context records, the board, and remote MCP core.
+The integrated feature branch at `472f007` includes the reviewed fixes history and passes the full repository verification suite. The reconciliation reopened A01 for missing runtime integration and held its previously certified descendants; current package metadata records 26 done, one in progress, 11 blocked and seven planned. Historical component evidence remains intact. The current implementation/verification/running distinction and next closure sequence are maintained in [MVP progress](mvp.progress.md).
 
-Three important gaps:
+The 5 October audit found production gaps in A01's online MCP/replay path and D02's discussion scheduling/provider execution, beyond missing live acceptance. Close those within their owning packages, then re-prove exact package targets and the real end-to-end pilot. The [current agent-to-agent research](docs/research/agent-to-agent.md) informs provider experiments without replacing BFB's authority or durable turn model.
 
-- The runner and macOS app remain scaffolds: [Go entry point](cmd/bfb/main.go), [macOS entry point](apps/macos/Sources/BFB/BFBApp.swift).
+### Original planning baseline — 11 September
+
+At the original review baseline, the roadmap recorded 12 completed packages: platform foundations, identity and authorization, projects, task/run/context records, the board, and remote MCP core.
+
+The three original gaps were:
+
+- The runner and macOS app were scaffolds: [Go entry point](cmd/bfb/main.go), [macOS entry point](apps/macos/Sources/BFB/BFBApp.swift).
 - Remote MCP supplies delegated task access, not remote process control. Its [committed provider-compatibility evidence](docs/work-packages/evidence/WP-X03A/provider-compat.md) also contains incomplete OAuth flows.
 - Discussion is not covered by task comments. Normal [run creation](packages/domain/src/work-records.ts) requires a ready task and advances its state, so simply starting two ordinary runs against an existing issue would be wrong.
 
@@ -101,7 +107,7 @@ Separate three responsibilities: D1/WorkspaceHub owns the discussion and permiss
 
 - Borrow controlled rounds and deliberate outputs from [Agent Room](https://github.com/agent-room-alkl/agent-room), and shared evidence, proposal versions, independent review, and human decisions from [Mohamed's Agent Room](https://github.com/mohamedadelfouda/agent-room). Do not adopt its automatic disposable clones.
 - Borrow the distinction between a trusted inbox nudge and untrusted message content from [agent-talk's delivery design](https://github.com/xhluca/agent-talk/blob/main/docs/codex-auto-receive.md). Its documented one-loaded-thread idle-wake arrangement is not BFB's multi-session addressing contract.
-- Native capabilities are evolving. Local discovery found Codex `0.153.4` with `exec fork` and Claude Code `2.1.268`; [Claude cross-session messaging](https://code.claude.com/docs/en/cross-session-messaging) and the [Codex Python SDK external-message release](https://learn.chatgpt.com/docs/changelog#github-release-386577294) justify an early experiment. They do not authorize an SDK/runtime replacement or an unsupported production app-server transport.
+- Native capabilities are evolving. The 5 October review found documented [Claude cross-session messaging](https://code.claude.com/docs/en/cross-session-messaging) and [Codex subagents](https://learn.chatgpt.com/docs/agent-configuration/subagents), but these are not interchangeable external coordination APIs. Installed Claude `2.1.289` and Codex `0.159.0` need exact-version experiments. The [Codex app-server command](https://learn.chatgpt.com/docs/app-server) is documented as experimental; a changelog mention alone does not establish a supported external-message contract. See the [versioned research and experiment matrix](docs/research/agent-to-agent.md). This does not authorize an SDK/runtime replacement.
 - Treat repository licenses as version-specific. [mcp-huddle](https://github.com/kolotovalexander/mcp-huddle) identifies its current source as PolyForm Noncommercial and an older published release as MIT. Reuse concepts without adding that implementation as a dependency.
 
 The capability experiment must exercise duplicate input, wrong-session targeting, a busy source session, cancellation, process loss before/after provider acknowledgement, inherited MCP/tool permissions, and attempts to write or escalate from peer content. Capture only bounded synthetic fixtures and redacted version/capability results, not personal session history.

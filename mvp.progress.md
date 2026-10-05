@@ -1,12 +1,29 @@
 # BFB MVP progress
 
-Updated: 18 September 2026
+Updated: 5 October 2026
 
-Status: L05 Terminal supervision done 18 September; status-flip settled 15 packages to done and L07 to review; P01, P02, D02, D03, X02, G01, G02 stay planned
+Status: Integrated baseline passes repository verification; the end-to-end local MVP is not complete. A01 runtime closure is in progress.
 
 Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 
 ## Current checkpoint
+
+- The reviewed `muse/fix-findings` history is integrated into `codex/remote-launch-discussion-mvp` at `472f007`, together with the upstream Apache-2.0 license change. No changes were pushed or deployed during this reconciliation.
+- Reconciliation found 37 historical `done` certificates, L07 `review`, and seven `planned` packages. A01 is now honestly reopened as `in_progress`; ten previously certified descendants and L07 are `blocked` by that dependency. The current total is 26 `done`, one `in_progress`, 11 `blocked`, seven `planned` (P01, P02, D02, D03, X02, G01, G02). No implementation or historical evidence was removed; the holds mean integration acceptance is outstanding, not that every component's tests failed. Several planned packages also contain substantial implementation.
+- The first concrete integration gap is A01: production stdio uses `JournalBindings` but still selects `OfflineTransport`. Online scoped reads, daemon-owned cloud calls and restart-safe replay are not connected. Its earlier exact target proves the isolated implementation and local binding, not the missing production path. Finish and re-prove that path before moving to live provider certification.
+- Discussion records and UI exist, but creating a discussion does not enqueue a production `discussion_turn`, the daemon registers no discussion consumer, and the Claude adapter rejects headless turns as unsupported. D03's synthetic browser tests and the smoke script that inspects an already concluded discussion are not evidence for a working two-agent exchange.
+- Installed provider discovery on 5 October found Claude Code `2.1.289` and Codex `0.159.0`. Existing adapter fixtures certify older versions; capabilities must not be enabled by broadening version checks without new evidence. No live provider turn was performed in this reconciliation.
+- On the clean merged checkout, frozen install, build and `pnpm verify` passed: 1,353 TypeScript tests, Go checks and 16 Swift tests using Xcode 26.0.1. The separate fixes checkout also passed full verification. These checks do not replace missing live, cross-device, native interaction or release acceptance.
+- Release remains blocked: G01 reports AG-02 and AG-04 failed, AG-10 and OG-02 not run. G02 freezes migration 0034 although the integrated schema reaches 0037; the release workflow applies migrations before that stale check, and compatibility with the old Worker needs an explicit rollout repair. Do not deploy this candidate by merely changing the frozen migration number.
+- No running local MVP, cross-device pilot or production deployment is claimed. Terminal automation remains unavailable to this session; the earlier L05 evidence and its disclosed shutdown-observation flake have not been replaced by a new native interaction proof.
+
+Next sequence: close A01's online tools, truthful attribution, explicit offline policy and durable replay; revalidate and settle affected dependents in dependency order, including L07 and P01 against exact installed versions; connect D02's production scheduling and supervised turns; prove D03's complete browser-to-provider flow. Keep the existing package dependency gates and fail-closed behavior.
+
+Current upstream comparison: [Agent-to-agent research](docs/research/agent-to-agent.md). Provider-native messaging is a delivery capability, not a replacement for BFB's permissions, turn identities or recovery decisions.
+
+## Historical certification checkpoints
+
+The dated checkpoints below preserve their original test scope. The current integration findings above supersede historical statements that describe runtime closure as only a credentials or consent issue.
 
 - Timo explicitly authorized Codex to finish the full local MVP independently on autopilot, without routine approval pauses, and instructed work to resume. This authority is recorded in the plan's Goal section. Feature branch: `codex/remote-launch-discussion-mvp`, based on `main` at `e1bc7a0`.
 - Plan updated; ADR 0002 accepted; D01–D03 assigned with dependency edges, test targets and evidence paths. Roadmap generation now covers 45 packages.
@@ -21,7 +38,7 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 - L05 implements native supervision, cleanup, lease renewal, durable controls, bound signal delivery and exact-session child-launch integration. The resume checkpoint passed exact L03 (333 protocol cases and the provider race suite), the complete supervisor race suite, signed-helper authentication, full repository verification (680 TypeScript tests, Go and 11 Swift tests) and Linux executable/test compilation in the implementation checkout. Resume requires complete prior native release evidence, an immutable C09 child, fresh source absence and the ordinary physical-lock/final-authorization gates. The native tests inject signing/cloud observations at explicit boundaries; the daemon never signals directly.
 - Exact-tab focus delivery is implemented with fresh native TTY/lock/group checks, a one-way control barrier and signed-app per-effect reauthorization. Focused native race/PTY tests, 351 protocol tests with Go parity and 15 Swift tests pass. The signed app's real focus gate reached a locked macOS session and correctly refused Terminal work; real Apple-event focus acceptance is still unverified. The production entry point now connects the launch/control consumers, signed-app bridge, bound runner transport and fixed helper commands, including bounded wake-hint redemption that only triggers a durable command pull. Reproduced controls stranded by an absent local assignment now settle only from bound terminal receipts, without inventing native outcomes. Wiring, wake, daemon restart and control regressions, the complete native race suite, full repository verification (698 TypeScript tests, Go and 15 Swift tests), and Linux executable/test compilation pass. Explicit local recovery now has a signed-helper-only CLI/RPC and certifies complete retained native release history without clearing uncertainty or fabricating events. Focused recovery/CLI/binary race tests, real signed-helper authentication, 359 protocol tests with Go parity, full verification (706 TypeScript tests, Go and 15 Swift tests) and Linux builds pass. Real signed Terminal supervision acceptance passed clean certification at `d0b286d` on 18 September: three consecutive exact `pnpm test:l05` passes plus a clean-checkout pass after one fail-closed clean failure, then `pnpm verify`, with bounded evidence at `docs/work-packages/evidence/WP-L05/`. L05 is done with the recorded limits; the full MVP is not complete.
 
-## Milestones
+## Milestone evidence and current state
 
 L05 clean certification passed at `d0b286d`: three consecutive exact `pnpm test:l05`
 passes in the implementation checkout plus a clean-checkout pass after one
@@ -51,18 +68,18 @@ work, snapshots, sessions and event cursors. The 62 synthetic discussion fixture
 are deterministic. Full repository verification passes (804 TypeScript tests,
 Go checks and 15 Swift tests), as do exact C08/C09, Linux cross-build and the final
 clean-worktree check. The committed evidence manifest marks D01 done without
-claiming provider execution. Every remaining package in the approved MVP depends
-directly or transitively on L05. The Mac is now unlocked, but permitted Terminal
-automation remains unavailable. The remaining interaction harness and exact
-clean-checkout gate are not complete; this is separate from BFB's macOS Automation
-consent. No unfinished package is consumed and the full MVP is not done.
+claiming provider execution. This is historical D01 evidence, not proof of the
+subsequently assembled discussion runtime. L05 later received its own clean
+certification, with the flake disclosed above. Current integration gaps include
+A01's online bridge and D02's production turn path, independently of provider
+credentials and native interaction consent. The full MVP is not done.
 
 | Milestone | Packages | State | Completion check |
 | --- | --- | --- | --- |
 | Trusted Mac | L01–L03, C06, L08, L04 | All milestone packages done | Enroll, register exact checkout, probe providers, reconnect, revoke |
 | Remote launch | C09, L05, W02 | All milestone packages done | Card starts fake provider; contention, expiry, revocation and containment fail safely |
-| Real agent work | L06, E01–E02, A01–A04, L07, P01 | L06, E01, E02, A01–A04 done 18 September on clean-checkout reruns; L07 review pending live Claude credentials and consent; P01 planned pending L07 | Claude/Codex start, scoped context, attention, explicit result and human acceptance |
-| Discussion | D01–D03 | D01 done; D02 and D03 planned (L07 review, P01 planned; live smoke needs provider credentials and consent) | Two read-only participants, bounded turns, recovery, intervention, human decision |
+| Real agent work | L06, E01–E02, A01–A04, L07, P01 | A01 reopened for production bridge/replay; A02–A04 and L07 on dependency hold; P01 planned; current provider versions not certified | Claude/Codex start, scoped context, attention, explicit result and human acceptance |
+| Discussion | D01–D03 | Records and synthetic UI implemented; production scheduling/consumer and Claude headless turn support missing; D02 and D03 remain planned | Two read-only participants, bounded turns, recovery, intervention, human decision |
 | Running local delivery | Integrated MVP | Pending | Start services, full browser/runner/provider smoke, negative checks and health instructions |
 
 ## Verification
@@ -177,3 +194,4 @@ consent. No unfinished package is consumed and the full MVP is not done.
 - 18 September: L05 Terminal execution supervisor certified on `muse/l05-cert3` at `d0b286d` (status set to `done`). Three consecutive exact `pnpm test:l05` passes in the implementation checkout (101 fixtures, 438 protocol tests, Go race suites, 16 Swift tests, all five signed Terminal scenarios, managed macOS acceptance), then a detached clean checkout at `/tmp/bfb-l05-clean`: `pnpm install --frozen-lockfile`, `pnpm build`, `pnpm test:l05`, `pnpm verify` (1254 TypeScript tests). The first clean `test:l05` failed its interactive scenario in the release wait after a same-instant uncertainty capture wedged the cloud release leg; the retained native history shows the extra same-group provider child fully rooted, so the extra member is not the source, and everything failed closed with the lock retained. The second clean run passed in full. No product code changed; the supervisor's containment was never loosened. Bounded evidence is committed at `docs/work-packages/evidence/WP-L05/manifest.json`. Known limits travel with the done status: close-with-survivor covered by the child and escape scenarios, the synthetic `--require-focus` section not invoked by any gate, cold starts beyond the readiness poll fail safe, and the one-in-five shutdown-observation race recorded above.
 - 18 September: G01 unauthorized AG-02/AG-04 waivers removed on `muse/fix-findings` (findings 16, 28). AG-02 is `passed` on the completed L05 Terminal certification with the G01 cloud-plane halves; AG-04 is `failed` because live Claude/Codex/Grok turns need provider credentials and consent that are unavailable, and no ADR with Timo's explicit decision authorizes a waiver, so no waiver is recorded. `tools/g01` now refuses any `waived` row that does not cite an ADR naming the gate and recording Timo's explicit decision, and fails the run while any gate is `failed`. Exact `pnpm test:g01` ends `G01_FAILED release gates failed: AG-04` with 14 passed, 1 failed, 2 not_run; `pnpm verify`, `pnpm worktree:check`, and the Linux cross-build pass; evidence is recommitted at `docs/work-packages/evidence/WP-G01/manifest.json` with the release candidate updated in `docs/contracts/release-candidate.md`, which states the candidate is not settled until AG-04 passes. WP-G02 inherits the corrected rows on its next passing `pnpm test:g02` run, currently blocked by the pre-existing migration-0035 frozen-head drift from the finding-8 fix. Status stays `planned`; nothing downstream may consume it yet.
 - 18 September: AG-02 failed on the flaky L05 Terminal proof on `muse/fix-findings` (finding 27). WP-L05 certification records one fail-closed clean-checkout failure in five full gates and retains only the bounded redacted matrix with no separate raw launch trace, so per `ACCEPTANCE.md` the native launch trace is not a deterministic release gate; `tools/g01` now refuses any `passed` row whose cited proof records a failed run. Exact `pnpm test:g01` ends `G01_FAILED release gates failed: AG-02, AG-04` with 13 passed, 2 failed, 2 not_run; `pnpm verify`, `pnpm worktree:check`, and the Linux cross-build pass; evidence is recommitted at `docs/work-packages/evidence/WP-G01/manifest.json` with the release candidate updated in `docs/contracts/release-candidate.md`, which states the candidate is not settled until AG-02 and AG-04 pass. WP-L05 stays `done` on its clean-checkout pass with the flake disclosed in its risks; the Terminal proof cannot be re-proven deterministically from this machine without driving Terminal.app. Status stays `planned`; nothing downstream may consume it yet.
+- 5 October: integrated the reviewed fixes history and upstream license change at `472f007`; frozen install, build and full verification passed on the clean merged tree (1,353 TypeScript tests, Go and 16 Swift tests). Audited production connections and reopened A01 for online MCP/replay closure under ADR 0004. Held ten previously certified descendants and L07 by dependency, retaining all implementation and historical evidence. Recorded current Codex/Claude/T3/OpenCode research separately from provider acceptance. No live provider turn, Terminal interaction proof, running local MVP or deployment is claimed by this checkpoint.

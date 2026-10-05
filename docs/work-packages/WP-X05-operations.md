@@ -1,6 +1,6 @@
 # WP-X05 — Operations, audit and retention
 
-Status: `done`
+Status: `blocked`
 
 Risk: High
 
@@ -112,6 +112,7 @@ surface in the W01 product shell.
 
 ## Handoff
 
+- Dependency hold, 5 October: the dependency chain reaches reopened A01 and its missing production online/replay path. This implementation and historical isolated acceptance are retained; their tests have not been declared failed. Settlement waits for dependency certification and affected integration checks. The dated status below is historical, not the current package state.
 - Implementation, gate (`pnpm test:x05`, `pnpm verify`,
   `pnpm worktree:check`, `GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build
   ./...`, clean-checkout gate), and evidence are complete on branch

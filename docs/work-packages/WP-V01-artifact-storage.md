@@ -1,6 +1,6 @@
 # WP-V01 — Artifact storage state machine
 
-Status: `done`
+Status: `blocked`
 
 Risk: High
 
@@ -165,6 +165,7 @@ tool.
 
 ## Handoff
 
+- Dependency hold, 5 October: A01 is reopened for its missing production online/replay path. This implementation and historical isolated acceptance are retained; their tests have not been declared failed. Re-certification and settlement wait for A01 runtime acceptance and affected integration checks. The dated status below is historical, not the current package state.
 - Settled 18 September: `done`. A01 is `done`, and `pnpm test:v01` passed in a detached clean checkout at `9372c0f` (install, build, exact target ending `V01_D1_OK` with Go race tests).
 - Run `pnpm test:v01` (toolchain: Node 24.19.0, pnpm 11.21.0, Go 1.26.5;
   browser tests use `BFB_E2E_PORT=4176`; V01 needs none; Worker ports are

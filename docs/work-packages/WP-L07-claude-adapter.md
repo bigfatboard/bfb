@@ -1,6 +1,6 @@
 # WP-L07 — Claude Code reference adapter
 
-Status: `review`
+Status: `blocked`
 
 Risk: High
 
@@ -123,6 +123,7 @@ A card can open a supported Claude Code version in the exact checkout, bind the 
 
 ## Handoff
 
+- Dependency hold, 5 October: A01 is reopened for its missing production online/replay path. The adapter implementation and historical fixture acceptance are retained, but the remaining live chain is not only a credentials/consent issue. Close A01 and certify the exact installed provider version before proving live launch and resume. The dated status below is historical, not the current package state.
 - Settled 18 September: `review`. A01, E01, L05, and L06 are `done`, and
   `pnpm test:l07` passed from a detached clean checkout at the commit recorded
   in the evidence manifest
@@ -157,17 +158,17 @@ A card can open a supported Claude Code version in the exact checkout, bind the 
 - Acceptance 1 (card → exact checkout → Claude opens → trusted `SessionStart`
   binds → MCP context loads → semantic events commit): adapter plans, hook
   parsing, and the `SessionStart` binding check are proven; L05
-  (launch/supervision), L06 (journal/binding), E01 (ingest), and A01 (MCP
-  context) are `done`, so the remaining step is a live Claude session with
-  provider credentials and consent.
+  (launch/supervision), L06 (journal/binding), and E01 (ingest) have historical
+  certification. A01's production context path must first be completed, then
+  the exact supported provider version must pass the live chain.
 - Acceptance 2 (resume attaches the observed session to the same unfinished
   run): exact-session resume plans and UUID binding are proven; L05 and L06
-  are `done`, so the remaining step is a resumed live execution with provider
-  credentials and consent.
+  have historical certification. The assembled canonical session/continuation
+  path and a resumed live execution still require proof; fixture identity checks
+  do not establish that integration.
 - Commands: `pnpm test:l07`, `bfb provider setup claude`, `bfb provider doctor
   claude`. Doctor reports `mcp_startup_unverified` until a live run-scoped
-  handshake is exercised (A01 is `done`; provider credentials and consent
-  still pending).
+  handshake is exercised after A01 runtime closure and exact-version setup.
 - Known limitations: rewritten config files are canonicalized (semantics
   preserved, formatting not byte-identical); settings files with comments or
   other non-strict JSON are refused; the hook launcher path is recorded, not

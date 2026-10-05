@@ -1,6 +1,6 @@
 # WP-X01 — Actionable notifications
 
-Status: `done`
+Status: `blocked`
 
 Risk: Medium
 
@@ -83,6 +83,7 @@ Humans receive deduplicated browser/macOS notifications for actionable committed
 
 ## Handoff
 
+- Dependency hold, 5 October: the dependency chain reaches reopened A01 and its missing production online/replay path. This implementation and historical isolated acceptance are retained; their tests have not been declared failed. Settlement waits for dependency certification and affected integration checks. The dated status below is historical, not the current package state.
 - Settled 18 September: `done`. A02, A03, and E02 are `done`, and `pnpm test:x01` passed in a detached clean checkout at `5951fb5` (install, build, exact target with the real-Worker/D1/Queue harness, plus the uniform-403 budget-exhaustion case and the delegation-envelope rejection on preference/endpoint commands). The evidence manifest is re-based on that rerun; the implementation evidence stays listed as manifest artifacts.
 - Commands: `pnpm test:x01`; `pnpm verify`; `pnpm worktree:check`. The Worker/D1/Queue flow is `tools/notifications/run.ts`; the macOS poller cases are `internal/notify/notify_test.go` and the bridge proof is `internal/appbridge/notify_x01_test.go`.
 - X04 shares the Queue/DLQ machinery with distinct additive `bfb-notify-*` names and consumer registrations; X01 consumes committed `attention.request` and A03 result events and never notification state as domain truth.

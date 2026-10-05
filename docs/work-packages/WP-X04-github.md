@@ -1,6 +1,6 @@
 # WP-X04 — GitHub evidence integration
 
-Status: `done`
+Status: `blocked`
 
 Risk: High
 
@@ -134,6 +134,7 @@ keep their own provenance.
 
 ## Handoff
 
+- Dependency hold, 5 October: the dependency chain reaches reopened A01 and its missing production online/replay path. This implementation and historical isolated acceptance are retained; their tests have not been declared failed. Settlement waits for dependency certification and affected integration checks. The dated status below is historical, not the current package state.
 - Settled 18 September: `done`. A03 and E01 are `done`, and `pnpm test:x04`
   passed in a detached clean checkout at `5951fb5` (install, build, exact
   target with the real-Worker/D1/Queue fault harness, plus the

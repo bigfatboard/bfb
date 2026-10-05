@@ -1,6 +1,6 @@
 # WP-A01 — Run-scoped local MCP and context
 
-Status: `done`
+Status: `in_progress`
 
 Risk: Very high
 
@@ -40,16 +40,16 @@ An active local provider process can use stdio MCP to read exactly its run conte
 
 - C08 transport-neutral reads and commands with actor envelope, idempotency, optimistic version, context audience, proposal, and delivery contracts (`packages/domain/src/work-commands.ts`; local tools mirror their bounds and delegated-agent restrictions).
 - C08 run/execution/provider-session records for assignment identity and terminal-result fences (`packages/domain/src/work-records.ts`).
-- L01 daemon kernel: CLI registry and raw-stdio dispatch (`internal/cli`), user-only state directory (`internal/daemon`); no daemon RPC or migration-chain changes.
+- L01 daemon kernel: CLI registry and raw-stdio dispatch (`internal/cli`), user-only state directory and peer-authenticated RPC (`internal/daemon`). ADR 0004 governs the typed runtime bridge; the original isolated implementation added no daemon-chain migration.
 - L03 provider kit capability ceilings for the launch-time installation identity the assignment pins.
 - L05 execution supervision: immutable assignment identity, correlation token shape, owned process group, and `local_execution_assignments` state names, read through A01's adapter with L05's own structs (`docs/contracts/execution-supervisor.md`).
-- L06 trusted observed-session binding, consumed exclusively through the `SessionBindingSource` interface defined in `internal/localmcp/binding.go` and tested with a double until L06 plugs in its hook-journal reader.
-- L08 runner channel client as the future online `WorkTransport` and replay path; until then `OfflineTransport` provides the specified offline behavior.
+- L06 trusted observed-session binding, consumed exclusively through the `SessionBindingSource` interface defined in `internal/localmcp/binding.go`; production uses `JournalBindings` over L06's hook-journal reader.
+- L08 runner channel client for the required daemon-owned online `WorkTransport` and replay path. Production currently selects `OfflineTransport`; connecting the client and current-policy replay is outstanding A01 work, not completed acceptance.
 - X03A remote MCP tool shapes and bounds as the consistency reference for the six local tools.
 
 ### Produces
 
-- Local MCP tool contract `local-mcp/1`, frozen in `docs/contracts/local-mcp.md`: stdio JSON-RPC transport, process-verification order, provisional/activated/closed capability states, the six-tool map with bounds, boundary-derivation and idempotency rules, pending-journal fields and replay order, error codes, and the `SessionBindingSource` plug-in signature.
+- Current local MCP implementation `local-mcp/1`; target `local-mcp/2` is defined in `docs/contracts/local-mcp.md` and [ADR 0004](../adr/0004-local-mcp-runtime-authority.md): the same stdio endpoint with daemon-owned run authority, per-item context delivery, checked cached outcomes, typed IPC and restart-safe replay. Historical v1 evidence is not v2 runtime proof.
 - Stable test target `pnpm test:a01` and evidence manifest `docs/work-packages/evidence/WP-A01/manifest.json`.
 - `internal/localmcp`: capability, tool, journal, and stdio-server implementation with the `SessionBindingSource`, `AssignmentSource`, `AuthoritySource`, `WorkTransport`, `OfflinePolicy`, and `ReplayPolicy` interfaces downstream packages build against.
 - Local SQLite migration `011_pending_operations` (`internal/localmcp/migrations/011_pending_operations.sql`) owning the A01 journal file; it shares no table with L06 hook state.
@@ -60,6 +60,7 @@ An active local provider process can use stdio MCP to read exactly its run conte
 2. Implement context/read tools and delivered-version recording.
 3. Implement bounded write/proposal tools and the fully evidenced offline operation journal.
 4. Test cross-run/process/UID/session attacks, revocation, version conflicts, startup race, and stdout purity.
+5. Close the production daemon/Worker/D1 path, truthful run attribution, explicit deny-by-default offline policy and daemon-owned replay. Prove the compiled stdio binary across that path, including cached-request revocation and remote-commit/local-ack crash recovery; then re-certify the full package from a clean checkout.
 
 ## Acceptance
 
@@ -81,13 +82,14 @@ An active local provider process can use stdio MCP to read exactly its run conte
 ## Risks and decisions
 
 - Provider MCP hosting can alter ancestry. Test per supported provider/version instead of weakening checks globally.
-- L05/L06/E01 are in flight in sibling worktrees: A01 proves their touchpoints with doubles behind narrow interfaces (`SessionBindingSource`, `AssignmentSource`, `AuthoritySource`, `WorkTransport`, `ReplayPolicy`) rather than consuming unfinished stores. The Handoff names each merge step.
+- Original interface evidence used doubles behind narrow interfaces (`SessionBindingSource`, `AssignmentSource`, `AuthoritySource`, `WorkTransport`, `ReplayPolicy`). L05/L06/E01 are now certified dependencies; the remaining A01 production connections must be proven with the actual assembled runtime, not inferred from those doubles.
 - The A01 journal is its own SQLite file with migration `011`, not a daemon-chain migration, because the daemon chain applies strictly sequentially and `009`/`010` belong to L06's in-flight hook journal. A future consolidation may fold the journal into the daemon database without changing the record shape.
-- No D1 migration: context deliveries already persist in `task_context_deliveries`, and the journal is local-only. D1 head stays `0018_cli_credentials`.
+- The original isolated implementation added no D1 migration: context deliveries already persist in `task_context_deliveries`, and the journal is local-only. Its recorded `0018_cli_credentials` head is historical. Runtime closure must record the actual integrated migration head and own any additive attribution/policy migration it needs.
 - Local tool names keep the `bfb_` prefix shared with the remote map (`bfb_get_context`, not `get_context`) so one contract table covers both transports; the Scope short names map one-to-one.
 
 ## Handoff
 
+- Reopened 5 October: `in_progress`. The production online `WorkTransport` and daemon replay remain absent, so the full Outcome and Acceptance are not met. The historical implementation and manifests below are retained unchanged, but do not certify that missing path. Downstream packages are held by this dependency until complete runtime acceptance is re-proven; no gate or architecture boundary is waived.
 - Settled 18 September: `done`. E01, L05, and L06 are `done`, and `pnpm test:a01` passed in a detached clean checkout at `c212249` (install, build, exact target with race-tested Go suites and the real-binary stdio harness, including the landed L06 session-binding merge).
 - Commands: `pnpm test:a01`; `pnpm verify`; `pnpm worktree:check`. The inspector-style session replay is `TestGoldenInspectorTranscript` in `internal/localmcp`.
 - L06 merge step (landed, finding 13): `JournalBindings` in `internal/localmcp/production.go` implements `ObservedBinding(ctx, ref) (SessionBinding, error)` from the hook journal's trusted observed-session record via `journal.SessionReader` (match on execution ID and assignment generation; the run ID echoes the startup-verified boundary that key determines; `ErrSessionNotBound` while unbound or malformed, storage faults propagate), and `internal/cli/mcp.go` wires it over the read-only daemon handle. No other A01 change needed; the activation race, competing-session, and provisional tests already cover the real source. Proven by `TestJournalBindings*` in `internal/localmcp/production_test.go` and `TestMCPStdioActivatesBoundSession` / `TestMCPStdioRejectsMutationWhileUnbound` in `internal/cli/mcp_test.go`.

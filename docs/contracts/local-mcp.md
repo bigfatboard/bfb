@@ -1,8 +1,13 @@
-# Local run-scoped MCP v1
+# Local run-scoped MCP v2
 
 Owner: [A01](../work-packages/WP-A01-local-mcp-context.md). Gate: `pnpm test:a01`.
 
-This contract is the frozen tool and trust boundary for `bfb mcp stdio`.
+Status: Approved target `local-mcp/2` under [ADR 0004](../adr/0004-local-mcp-runtime-authority.md).
+The current implementation advertises `local-mcp/1` and still uses the offline
+production transport. This draft is not evidence of implemented v2 behavior or
+complete A01 runtime acceptance.
+
+This contract defines the tool and trust boundary for `bfb mcp stdio`.
 A02/A03/V01 extend this same server; they do not introduce another agent
 credential or a second local tool endpoint.
 
@@ -16,9 +21,55 @@ credential or a second local tool endpoint.
   when any stdout line is not a JSON-RPC value.
 - Supported methods: `initialize`, `notifications/initialized` (no-op),
   `tools/list`, `tools/call`. Every other method returns `method_not_found`.
-  There are no prompts, resources, or subscriptions in v1.
+  There are no prompts, resources, or subscriptions in v2.
 - Protocol version reported by `initialize` is `2026-07-28`; the server name
-  is `bfb-local-mcp` and the contract version below is `local-mcp/1`.
+  is `bfb-local-mcp`. The v2 implementation reports `local-mcp/2` only after
+  the corresponding runtime implementation and tests land.
+
+## Daemon and cloud bridge
+
+The MCP host has no runner token, signing key, `RunnerConnection`, or human
+credential. It calls fixed typed Unix RPC methods on the private daemon socket.
+The daemon alone obtains the current L08 connection for the runner derived from
+the verified local assignment. Neither RPC nor the cloud work API accepts an
+arbitrary URL, HTTP action, shell command, executable, or claimed principal.
+
+The bootstrap bridge has these fixed operations:
+
+| Local RPC method | Runner action | Result |
+| --- | --- | --- |
+| `mcp.authority` | `work/authority` | Current assignment/run authority disposition |
+| `mcp.get_context` | `work/context` | `ContextResult` with committed per-item delivery rows |
+| `mcp.get_task` | `work/task` | Agent-visible bound task view |
+
+Runner actions are beneath the existing
+`/runner/workspaces/:workspaceId/runners/:runnerId` namespace and use the L08
+proof bound to the actual request method, path and body. Browser, human CLI and
+OAuth credentials cannot substitute for that proof. Correlation values and
+kernel process facts stay local; they are not sent to Cloudflare.
+
+Local requests carry a typed execution reference (execution ID, assignment
+generation and same-execution correlation) plus the original tool request ID
+where relevant. The daemon resolves all remaining IDs from its assignment and
+rejects mismatches with the host's already-verified boundary. Cloud requests
+identify the execution/generation; domain commands derive task/project/run
+from D1 and verify the authenticated runner owns that assignment.
+
+Wire schemas, method-specific payload validation and deterministic positive and
+negative fixtures must land before these operations ship. Canonical schemas
+live in `protocol/schema/v1`; owning commands are `pnpm protocol:generate` and
+`pnpm protocol:check`. The local envelope remains schema version 1; the local
+tool-contract revision is independently `local-mcp/2`.
+
+The authenticated Hub transport actor remains `runner`. Current run authority
+also checks the assignment's requester membership/project grant and launch
+grant, runner authorization/grant epochs, assignment generation/ownership,
+checkout lease, execution and result state. Domain effects attribute the
+originating `agent_run` separately from the requesting human and executing
+runner. A requesting-human or `actorSystemId = run` shortcut is forbidden.
+Context delivery is a serialized WorkspaceHub command even though the MCP tool
+is permitted as a bootstrap read. Audience filtering and delivery insertion
+reuse C08's domain implementation.
 
 ## Process verification
 
@@ -35,6 +86,13 @@ generation) and never against caller-supplied identity:
    result is not terminal.
 4. The presented correlation value equals the assignment's correlation
    token, compared in constant time.
+
+Each daemon IPC operation independently validates its kernel-authenticated MCP
+host caller and the live provider parent/owned group against that assignment.
+It inspects UID, PID/start identity and containment itself; payload-supplied
+process identities cannot satisfy this check. Unknown, escaped, stale or
+PID-reused containment fails closed. The host's startup check alone cannot
+authorize a daemon call.
 
 Any failure returns a JSON-RPC error and creates no capability. The server
 reads exactly the ten scoped `BFB_*` execution values: the nine named in the
@@ -59,7 +117,7 @@ caller-supplied IDs.
   `bfb_get_task`, and `bfb_get_attention`. Every mutation returns
   `session_not_bound`. This state exists so startup can load context before
   L06 commits the trusted observed-session binding.
-- `activated`: permits the full v1 tool set. Activation is atomic: the
+- `activated`: permits the full tool set. Activation is atomic: the
   connection observes, through its `SessionBindingSource`, a trusted binding
   whose observed session ID, execution ID, and assignment generation equal
   the assignment, and transitions exactly once. A competing session ID can
@@ -71,19 +129,33 @@ caller-supplied IDs.
   never reopens.
 
 Every call rechecks current revocation, execution, and result state, not
-just the state observed at activation.
+just the state observed at activation. This includes repeated request IDs:
+the local capability, argument and boundary checks precede cached replies,
+and a read-only run-authority hook uses fresh server time inside WorkspaceHub's
+serialized transaction before returning an existing idempotent result. It runs
+before staged writes, not after them. Connectivity failure does not mean
+revocation, completion or successful cloud delivery. Cloud permission/policy
+denials must never be downgraded to offline queue permission.
 
 ## Tool map
 
-All nine tools require `request_id` (8-128 characters). A repeated
-`request_id` on one connection returns the stored outcome without
-re-executing, except `bfb_wait_for_attention`, whose pending outcomes are
-never memoized so a repeated wait always re-reads committed state. Bounds
-mirror C08 so local and remote behavior agree.
+All tools require `request_id` (8-128 characters). An authorized repeated
+operation returns the stored outcome without re-executing, except
+`bfb_wait_for_attention`, whose pending outcomes are never memoized so a
+repeated wait always re-reads committed state. Reusing an operation identity
+with a different tool or payload is rejected, not interpreted as the original
+operation. This includes changed task/project/parent/attention arguments.
+Bounds mirror C08 so local and remote behavior agree.
+
+The original request ID is forwarded through IPC to the cloud, including for
+context retrieval. Cloud idempotency keys are bounded deterministic identities
+scoped to execution ID, assignment generation, tool name and request ID, not
+raw unscoped request IDs. Retries after an uncertain response return the
+original committed outcome and delivery IDs, without duplicating deliveries.
 
 | Tool | Provisional | Input | Effect |
 | --- | --- | --- | --- |
-| `bfb_get_context` | allowed | `task_id?`, `request_id` | Returns the scoped agent context items plus a delivery record `{context_version, content_hash, delivered_at, run_id}`. Records the delivery bound to the run. |
+| `bfb_get_context` | allowed | `task_id?`, `request_id` | Returns `ContextResult {context, deliveries}` with one actual committed delivery row per returned immutable context item, bound to the run. |
 | `bfb_get_task` | allowed | `task_id?`, `request_id` | Returns one task view: id, project, state, priority, title, punchline, routing, resource version. Never human-only context. |
 | `bfb_update_task` | `session_not_bound` | `task_id?`, `expected_version`, `title?`, `punchline?`, `request_id` | Updates permitted fields only (title 1-512 chars, punchline 1-512 chars) with an optimistic version check. State, priority, due, owner, and promotion are rejected with `forbidden`, exactly as for delegated agents. |
 | `bfb_add_comment` | `session_not_bound` | `task_id?`, `body` 1-2048 chars, `request_id` | Adds a discussion comment attributed to the agent run. |
@@ -99,11 +171,39 @@ value returns `boundary_escape`. Omitted IDs are derived from the
 capability. No tool accepts workspace, run, execution, session, or
 assignment IDs from the caller.
 
-Explicitly absent in v1: result submission, artifact bytes, workspace
-administration, self-approval, enumeration beyond the bound task, and any
-cloud bearer credential in the provider environment. Attention tools are
-owned by A02 above; A03/V01 extend this same server and must not add a
-credential, endpoint, or journal.
+Absent from the A01 core: result submission, artifact bytes, workspace
+administration, self-approval, enumeration beyond the bound task, and any cloud
+bearer credential in the provider environment. Attention tools are owned by
+A02 above; the [A03 result contract](results.md) extends this same server.
+A03/V01 must not add a credential, endpoint, or journal. Their existing tool
+rules do not establish an implemented online bridge during the bootstrap slice.
+
+## Per-item context result
+
+`ContextResult` contains exactly `context` and `deliveries` arrays. Each context
+item retains C08's `id`, `kind`, `body`, `version`, `audience`, `content_hash`
+and `created_at` fields, with audience restricted to `agent` or `both`.
+Each delivery has exactly:
+
+```text
+id, context_version, content_hash, delivered_at, run_id
+```
+
+The delivery ID is the actual `task_context_deliveries.id`. Its version/hash
+identify the corresponding immutable item, not an aggregate task snapshot.
+The arrays have equal length and matching order; an empty context returns
+`{"context":[],"deliveries":[]}` and creates no item-delivery rows. Deliveries
+are returned only after their WorkspaceHub/D1 command commits. No singular
+`delivery` alias, invented aggregate hash/version, synthetic provider session
+row, or human-only item is returned. The delegated remote context projection
+is unchanged by this local revision.
+
+The complete response, including its RPC envelope, must fit the existing
+65,536-byte IPC limit. The domain command bounds the result before staging any
+delivery writes. An oversized retrieval fails with `request_rejected` and no
+delivery rows; neither array may be silently truncated. Pagination, if added,
+requires an explicit versioned request/result contract and cannot pretend a
+partial page is the complete context.
 
 ## Pending-operation journal
 
@@ -124,8 +224,18 @@ Replay goes through the L08 channel transport and rechecks, in order, the
 current runner credential, authorization/grant epoch, run capability
 (revocation, execution end, terminal result), current policy, and resource
 version. A stale operation becomes a visible terminal rejection; it is
-never applied under stale authority. Replay is idempotent on
-`request_id`: an already-applied operation reports its stored outcome.
+never applied under stale authority. Replay uses the original scoped operation
+identity: an already-applied operation reports its stored outcome, after current
+authority validation.
+
+The daemon owns the replay service independently of provider/MCP lifetime. A
+restart reopens the A01 journal and preserves the originating principal,
+assignment, observed session, grant/epoch and policy decision; it cannot upgrade
+an old capture to a newly authorized identity or session. Remote commit followed
+by lost acknowledgement must replay to the same outcome. Local applied/rejected
+dispositions must be durably acknowledged before they are reported as durable.
+An unavailable connection remains retryable; explicit stale authority, expiry,
+policy or optimistic-version failure becomes a bounded visible rejection.
 
 ## Session binding plug-in (L06)
 
@@ -150,6 +260,31 @@ startup-verified assignment boundary that key functionally determines. The
 fake in `internal/localmcp/fake_test.go` (test double) stands in only inside
 the test suite. L06 owns the binding truth; A01 only compares equality and
 never invents a session ID.
+
+Bootstrap reads require no fabricated cloud provider-session row. Canonical
+cloud session binding, if used for independent session fencing, needs its own
+explicit checked command with assignment and trusted-observation provenance.
+Event-ledger/session projections do not implicitly create that business record.
+
+## Outstanding runtime closure
+
+This proposed contract does not make the current A01 implementation complete.
+The initial vertical gate must exercise the compiled stdio host, production
+daemon RPC, real possession-authenticated L08 connection, local Control Worker,
+WorkspaceHub and D1. It proves agent/both bootstrap reads and real per-item
+delivery, request deduplication, denied unbound mutation, malicious boundary and
+process rejection, oversized retrieval and revocation/end/result rejection even
+for cached IDs. An injected transport or stdout-only fixture is not a substitute.
+
+Remaining A01 closure includes the permitted online task/comment/progress/
+proposal writes with truthful durable run attribution; explicit versioned,
+deny-by-default offline policy and its authorized mutation path; daemon-owned
+restart/crash-safe replay; and the explicit session-binding lifecycle decision.
+Policy absence cannot imply permission to journal. Existing A02/A03 integration
+must retain their contracts on this endpoint, without being claimed as proven
+by bootstrap reads. Full exact-target, affected-gate and clean-checkout evidence
+are required before complete A01 runtime acceptance is claimed. Historical v1
+evidence is not relabelled as v2 proof.
 
 ## Error codes
 

@@ -1,6 +1,6 @@
 # WP-X03 — Remote MCP parity extensions
 
-Status: `done`
+Status: `blocked`
 
 Risk: Very high
 
@@ -68,6 +68,7 @@ The remote MCP surface can use later attention, result, and artifact commands th
 
 ## Handoff
 
+- Dependency hold, 5 October: A01 is reopened for its missing production online/replay path. This implementation and historical isolated acceptance are retained; their tests have not been declared failed. Re-certification and settlement wait for A01 runtime acceptance and affected integration checks. The dated status below is historical, not the current package state.
 - Settled 18 September: `done`. A01, A02, A03, and V01 are `done`, and `pnpm test:x03` passed in a detached clean checkout at `92d7269` (install, build, exact target with the OAuth browser flow, plus the chunked-body streaming bound case).
 - Commands: `pnpm test:x03` (build, seven vitest suites, OAuth browser flow on `BFB_E2E_PORT=4193`), plus `pnpm test:x03a`, `pnpm verify`, `pnpm worktree:check`.
 - X03A's transport, OAuth model, scopes, and seven tools are untouched; only the tool map grows. No service-account automation was added.

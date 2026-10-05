@@ -1,6 +1,6 @@
 # WP-A03 — Result submission and acceptance
 
-Status: `done`
+Status: `blocked`
 
 Risk: High
 
@@ -151,6 +151,7 @@ an explicit call; every interactive ending never submits or accepts.
 
 ## Handoff
 
+- Dependency hold, 5 October: A01 is reopened for its missing production online/replay path. This implementation and historical isolated acceptance are retained; their tests have not been declared failed. Re-certification and settlement wait for A01 runtime acceptance and affected integration checks. The dated status below is historical, not the current package state.
 - Settled 18 September: `done`. A01 and E01 are `done`, and `pnpm test:a03`
   passed in a detached clean checkout at `1d0046b` (install, build, exact
   target with the real-Worker/D1 harness, real-binary CLI harness, and
