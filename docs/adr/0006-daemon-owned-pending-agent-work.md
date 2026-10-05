@@ -71,6 +71,16 @@ helper cannot be called unchanged inside this staged command. The business
 fingerprint covers normalized settings and expected version, not the one-use
 proof identifier.
 
+Repository configuration reporting currently has owner/project authorization
+but no step-up. Require the new versioned, action-bound proof whenever its
+submitted canonical document explicitly contains `offline_agent_work`, even
+when that setting denies capture. Bind the target to action, workspace,
+project, expected repository version, canonical document hash and normalized
+offline setting. A report omitting the field retains the existing authorized
+reporting path but produces empty/zero permission, never inheritance. Thus no
+enabled repository version is created without proof. Validate and consume
+that proof inside the same serialized batch, not in the HTTP adapter.
+
 Keep existing launch-snapshot v1 bytes and hashes unchanged. The source of
 capture permission is the three exact immutable policy-version rows already
 referenced by that snapshot, not current heads or a mutable profile. Additive
@@ -80,6 +90,18 @@ for older rows. Launch reauthorization continues requiring exact current
 version equality, so even a more permissive policy edit invalidates the old
 launch instead of widening it in place. Test unchanged historical hashes.
 Historical repository canonical JSON and content hashes stay unchanged too.
+An omitted repository setting resolves to empty/zero permission, not the
+parent's enabled offline setting. Keep an existing `{}` document's canonical
+bytes/hash unchanged. Project defaults and synthetic seeds also start denied;
+only an explicit new setting can produce enabled columns in a new version.
+The legacy launch policy projection remains unchanged: L05 must not interpret
+the absence of this new field in a frozen v1 snapshot as a new repository
+ceiling. Capture confirmation/replay reads the exact immutable policy rows
+separately. Require the snapshot's repository hash to match its referenced
+repository-version row. Existing local launch tightening can change that hash
+without changing the version reference; such a launch cannot borrow the old
+row's offline permission. It remains online-only until a matching approved
+version/new launch exists. Do not widen the closed launch-tightening document.
 
 ### Short-lived daemon capture confirmation
 
@@ -97,12 +119,29 @@ and uses `intent_expires_at = captured_at + effective_policy_age`. Its deadline
 does not reuse the old lease or credential expiry. Use a conservative elapsed
 deadline anchored to request send time; derive persisted capture time from
 confirmed server time plus elapsed time since response receipt, not send time.
+Each refresh uses a fresh daemon-owned confirmation request identity, separate
+from the stable business operation identity. Retrying that same confirmation
+keeps its original server confirmation time and original send/deadline anchor;
+a delayed cached reply cannot restart a 45-second capture window. If the
+original timing anchor is unavailable, obtain a new live confirmation instead
+of inventing one from receipt time. Daemon restart follows the same rule.
 Worker verification checks the capture-time inequalities and maximum age.
 Wall-clock rollback cannot extend permission. Use suspend-inclusive elapsed
 time or invalidate cached permission on sleep/wake before further admission;
 ordinary Go monotonic time alone is not a sleep boundary.
 Daemon restart discards permission to capture new intents until fresh online
 confirmation; previously signed intents remain available for disposition.
+
+Use one complete confirmation shape for both admission modes. It retains the
+effective configured policy and both actual repository hashes. A tightened
+snapshot whose repository hash differs from the referenced immutable row can
+still record online provenance, but cannot admit offline work. Configured
+permission is separate from the signed intent's admitted permission:
+`online_only` always admits empty/zero and has `intent_expires_at: null`,
+which grants no replay horizon; `offline_admitted` records the checked
+effective permission and an exact capture-time-plus-policy-age expiry.
+Ordinary online writes therefore obtain complete confirmation provenance too;
+they do not fabricate missing policy, epoch or time fields.
 
 During that bounded interval, the daemon still verifies the live kernel caller,
 execution containment, immutable assignment and exact trusted session, and
@@ -134,6 +173,17 @@ runner/checkout/fence; requester and grant/epoch identities; canonical and
 observed session/provider; snapshot hash/generation and all policy versions;
 exact capture permission, confirmation/capture/expiry times and key thumbprint.
 It cannot invent a proposal's future generated task ID.
+
+Canonicalize the exact original typed business request, including its binding,
+omissions and original whitespace, before hashing. This preserves ADR 0005's
+existing fingerprint, which precedes C08's body trimming. Do not insert a
+default priority or replace absent progress fields with null for this hash.
+The business fingerprint remains bare lowercase SHA-256 hex; the capture's
+payload digest uses the existing `sha256:` prefix over those same bytes. Keep
+both separate from the capture signature. Sign the UTF-8 domain prefix, a
+newline, canonical closed unsigned metadata and a final newline; the existing
+signer hashes internally. Encode its 64-byte P1363 signature as canonical
+unpadded base64url, checking decoded size and exact re-encoding.
 
 Verification uses the original assignment/enrollment key identity, not an
 arbitrary JWK stored in the row. The Worker verifies the signed capture on
@@ -228,6 +278,49 @@ Do not append optional fields to ADR 0005's closed local-agent v2 envelope or
 to existing launch snapshots. Preserve the ordinary online operation route
 and identity; the fixed replay path verifies its proof then invokes the same
 domain preparation/effect logic, not parallel business rules.
+
+### Closed transport contracts
+
+Introduce separate closed `agent-capture-confirmation-request`,
+`agent-capture-confirmation-result`, `agent-work-capture`,
+`agent-work-replay-request` and `agent-work-receipt` documents, plus
+`local-agent-work-rpc` with envelope version 3. Its only methods are the four
+`mcp.v3.` writes, negotiated on the same checked socket through the existing
+status advertisement. Keep bootstrap/session reads on v2 and do not widen its
+schemas. Legacy v2 writes share internal write-ahead admission but cannot
+return a pending receipt through their unchanged committed-result shapes.
+
+Only the daemon calls fixed possession-authenticated `work/capture-confirmation`
+and `work/replay` actions. No provider-facing confirmation, signing, replay or
+journal-enumeration method is exposed. Confirmation requests contain only a
+fresh daemon-generated identity, execution/generation and existing session
+reference. The result contains the complete derived scope, checkout/fence,
+requester and runner-owner identities/epochs, runner authorization/grant/token
+epochs and key thumbprint, session, snapshot hash/generation, exact three
+policy versions, both repository hashes, configured permission and confirmed
+time/lease/credential expiries. Do not invent grant IDs where the existing
+grant identity is a workspace/runner/project/requester tuple.
+
+Use existing wire ULIDs for BFB human/record identities, not BetterAuth user
+IDs. Existing digest encoding is `sha256:` plus 64 lowercase hexadecimal
+characters, including the runner key thumbprint. Captured token epoch retains
+its existing nonnegative range; authorization/grant epochs remain positive.
+New capture timestamps use canonical UTC milliseconds without changing old
+timestamp schemas. Bound complete encoded confirmation requests to 2,048
+bytes, results to 4,096, original writes to 16,384, replay requests to 32,768,
+signature transcripts to 8,192 and local envelopes to 65,536 bytes.
+
+Replay preserves the original Hub business command name as well as its
+operation key and fingerprint. Its capture-aware read-only authorization
+wrapper runs inside the same serialized unit before the business cache lookup.
+After current authority, compare the embedded confirmation against the
+canonical result stored by its original confirmation command and independently
+derive the current assignment/session/key and exact immutable policy rows.
+Keep those reads before staged writes. Retain confirmation outcomes for at
+least 345 seconds after confirmation: capture may occur up to 45 seconds later
+and remain pending for 300 seconds. Existing idempotency storage has no expiry;
+future retention work must preserve this minimum. Missing confirmation evidence
+fails closed rather than reconstructing a new server-time anchor.
 
 ### Atomic journal migration and bounded evidence
 
