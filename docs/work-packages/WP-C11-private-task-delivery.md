@@ -132,3 +132,16 @@ with insertion-order ties and unchanged display timestamps. Recovery execution
 is unchanged. Other audit families, live queue/health aggregates, frozen diagnostics,
 opaque positions and complete delivery/creation/sharing remain open; the prior
 in-flight credential/lease expiry reproducer is unresolved. C11 stays in progress.
+
+The [scoped operations aggregate checkpoint](evidence/WP-C11/operations-aggregate-manifest.json)
+is clean-certified at `2a38b63`: 1,800 cases, 45 real-D1 checks across two
+harnesses, retained C10/C08, exact X05 acceptance and full verification with
+4,141 TypeScript cases, Go and all 16 Swift cases. One final current-observer
+selection binds supported queue/token totals and remasks hydrated work together.
+Notification operator history is separate from recipient preferences; typed
+GitHub and applied-recovery projections require every current shared source.
+Independent NUL-parent regressions close malformed upload/retention remask while
+preserving genuine run-free uploads. Counts are supported visible sources, not
+physical queue-drained status. Frozen diagnostics, other audit/recovery families,
+opaque positions and complete delivery remain open; private creation stays
+disabled and the earlier in-flight expiry barrier remains unresolved.

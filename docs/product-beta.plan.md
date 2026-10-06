@@ -186,4 +186,14 @@ manifests; current runtime proof must have its own explicit scope.
   insertion ties without changing display timestamps or recovery execution.
   Other audit families, live queue/health aggregates and frozen diagnostics
   remain open. The prior in-flight credential/lease expiry reproducer remains
-  unresolved; live private R2 byte delivery remains uncertified. C12 stays planned.
+unresolved; live private R2 byte delivery remains uncertified. C12 stays planned.
+  The [scoped operations aggregate checkpoint](work-packages/evidence/WP-C11/operations-aggregate-manifest.json)
+  is clean-certified at `2a38b63`: 1,800 C11 cases, 45 real-D1 checks across two
+  harnesses and exact X05 acceptance; full verification passes 4,141 TypeScript
+  cases, Go and all 16 Swift cases. Supported queue totals, workspace token
+  counts and hydrated work share one final current-observer selection. Typed
+  shared lineage and all-target recovery prevent hidden source contributions;
+  genuine run-free uploads survive while malformed run parents do not.
+  Concise visible-count copy adds no default controls. Frozen diagnostics,
+  other audit/recovery families, opaque positions, complete delivery and the
+  in-flight expiry barrier remain open. Private creation remains disabled.

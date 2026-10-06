@@ -352,9 +352,10 @@ It does not change recovery execution or complete C11:
 
 ### Scoped operations queue and health totals
 
-The next bounded C11 repair covers human queue/health projections, not queue
-execution, frozen diagnostics or complete operations privacy. It requires a
-separate clean checkpoint before being certified:
+The bounded C11 repair covers human queue/health projections, not queue
+execution, frozen diagnostics or complete operations privacy. Its
+[clean checkpoint](../work-packages/evidence/WP-C11/operations-aggregate-manifest.json)
+certifies this subset only:
 
 - Require explicit `TaskAccessContext`, current Owner/member membership and
   retained epoch, even when every source set is empty. Missing context is not

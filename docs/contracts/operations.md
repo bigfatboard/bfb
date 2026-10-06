@@ -62,7 +62,7 @@ interprets provider-specific capability fields.
 
 ## Scoped queue and health projections
 
-C11's next bounded read repair freezes the [queue/health delivery contract](private-task-delivery.md).
+C11's bounded read repair follows the [queue/health delivery contract](private-task-delivery.md).
 It requires an explicit current Owner/member observer and retained epoch, then
 selects all supported visible queue/token totals and hydrated stuck/retention
 references together as the final query. Existing response envelopes remain.
@@ -78,7 +78,8 @@ These numbers mean currently visible supported sources, not that physical
 queues are drained. Use concise scoped count labels rather than adding default
 controls or diagnostic detail. Frozen diagnostic inventory retains its separately
 named legacy counts and remains uncertified. No execution or provider authority
-changes. This contract is not yet an implementation certificate.
+changes. Its [clean checkpoint](../work-packages/evidence/WP-C11/operations-aggregate-manifest.json)
+certifies these projections, not complete operations privacy.
 
 ## Activity read model
 

@@ -1,0 +1,73 @@
+{
+  "$schema": "../manifest.schema.json",
+  "package": "C11",
+  "tested_commit": "2a38b637d07ae5bfcb90155a42175b9200d274aa",
+  "protocol_version": "bfb-wire/1 unchanged",
+  "schema_version": "private-task-delivery/1 stages 1 and 2 plus partial stage 3 scoped operations aggregates; activation unavailable",
+  "migration_head": "0045_private_task_authority",
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "xcode": "26.0.1",
+    "wrangler": "4.120.1",
+    "playwright": "1.55.1"
+  },
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56)",
+    "architecture": "arm64"
+  },
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/operations-aggregate-command-result.json"
+    },
+    {
+      "command": "pnpm test:c11",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/operations-aggregate-command-result.json"
+    },
+    {
+      "command": "pnpm test:x05",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/operations-aggregate-command-result.json"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/operations-aggregate-command-result.json"
+    },
+    {
+      "command": "pnpm exec tsc -b tools/g01 --pretty false",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/operations-aggregate-command-result.json"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/operations-aggregate-command-result.json"
+    }
+  ],
+  "outcome": "passed",
+  "artifacts": [
+    "docs/work-packages/evidence/WP-C11/operations-aggregate-command-result.json",
+    "docs/work-packages/evidence/WP-C11/operations-aggregate-acceptance.md",
+    "docs/contracts/private-task-delivery.md",
+    "docs/contracts/operations.md",
+    "packages/domain/test/private-operations-aggregates.test.ts",
+    "apps/control-worker/test/private-operations-aggregate-routes.test.ts",
+    "tools/work-records/aggregates.ts",
+    "tools/work-records/README.md",
+    "apps/web/src/operations/page.tsx",
+    "tools/g01/run.ts"
+  ],
+  "redaction": {
+    "status": "passed",
+    "prohibited_content": []
+  },
+  "ci": {
+    "status": "not_run"
+  }
+}
