@@ -1,6 +1,8 @@
 // ABOUTME: Exercises exact done-package gate selection and command-shape rejection.
 // ABOUTME: Keeps platform skips separate from runnable gates and ignores unfinished packages.
 
+import { readFileSync } from "node:fs";
+
 import { describe, expect, test } from "vitest";
 
 import { planPackageGates } from "../src/package-gates.js";
@@ -34,6 +36,19 @@ describe("done package gates", () => {
     "test:l04",
     "test:l05",
   ]);
+
+  test("keeps mounted telemetry ingest tests in the exact A04 target", () => {
+    const manifest = JSON.parse(
+      readFileSync(new URL("../../../package.json", import.meta.url), "utf8"),
+    ) as { scripts: Record<string, string> };
+    const focusedTests = (manifest.scripts["test:a04"] ?? "")
+      .split("&&")
+      .map((command) => command.trim())
+      .find((command) => command.startsWith("vitest run "))
+      ?.split(/\s+/)
+      .slice(2);
+    expect(focusedTests).toContain("apps/control-worker/test/measurement-ingest.test.ts");
+  });
 
   test("selects exact done targets once in roadmap order", () => {
     expect(
