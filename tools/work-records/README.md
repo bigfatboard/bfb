@@ -24,7 +24,8 @@ An independent consumed live grant inserted before the real D1 batch rolls back
 proof consumption, version changes, recovery ledger, outbox and audit effects.
 Current-scope sentinels reject stale membership epochs even when a final composite
 has no references. These bounded checks do not certify diagnostic snapshots,
-audit/queue totals, other recovery kinds or private destructive retention.
+other recovery kinds or private destructive retention. Later bounded audit and
+aggregate extensions have their own scope below.
 The bounded artifact-audit extension dispatches all nine canonical actions
 through the production Hub and checks strict reconstructed wrappers, exact
 upload/view provenance, genuine run-free history and expired/consumed grants.
@@ -57,6 +58,16 @@ shared/private parents and current preference denial; no push is contacted.
 This is not a full delivery certificate: creation/sharing, private R2/browser-byte
 delivery, opaque realtime positions, in-flight natural credential expiry and
 the remaining matrix stay gated.
+
+`pnpm test:c11` also owns `aggregates.ts`: fresh real D1 checks operator queue
+counts against exact retained shared sources, separate from recipient delivery
+preferences. Typed GitHub outbox/DLQ history and supported applied recovery rows
+bind all targets before counting; malformed, private and unsupported sources are
+omitted. A fifty-target recovery receipt exercises actual D1 binding/expression
+limits. Independent source privatization before one final selection remasks
+counts and hydrated upload/retention references together. Retained Owner scope
+is rechecked even with empty references. This is not a physical queue-drained,
+usable-credential, frozen-diagnostic or full C11 delivery certificate.
 
 All use the checked-in ordered migrations in a disposable local harness. No
 pilot enrollment, persistent local database, real user, credential or Terminal

@@ -514,7 +514,7 @@ export async function buildDiagnosticInventory(
       .get(workspaceId, ...params)) as { count: number };
     return row.count;
   }
-  const queue = await readQueueState(db, workspaceId, nowIso);
+  const queue = await readLegacyDiagnosticQueueTotals(db, workspaceId, nowIso);
   const stuckUploads = await listStuckUploads(db, workspaceId, nowIso);
   const stuckLaunches = await listStuckLaunches(db, workspaceId, nowIso);
   const sections: DiagnosticSection[] = [
@@ -1017,6 +1017,29 @@ function auditClosedObject(expression: string, keys: string[]): string {
     AND SUM(key NOT IN (${keys.map((key) => `'${key}'`).join(",")}))=0 FROM json_each(${expression}))`;
 }
 
+/** Source fields may carry unrelated producer metadata, but duplicate keys never select lineage. */
+function auditUniqueObject(expression: string): string {
+  return `(SELECT COUNT(*)=COUNT(DISTINCT key) FROM json_each(${expression}))`;
+}
+
+function operationsText(column: string, maximum: number, minimum = 1): string {
+  return `(typeof(${column})='text' AND instr(${column},char(0))=0 AND length(${column}) BETWEEN ${minimum} AND ${maximum})`;
+}
+
+function operationsGitHubId(column: string): string {
+  return `(${operationsText(column, 128, 8)} AND ${column} NOT GLOB '*[^A-Za-z0-9._:~-]*')`;
+}
+
+function operationsNumericId(column: string): string {
+  return `(${operationsText(column, 20)} AND ${column} NOT GLOB '*[^0-9]*')`;
+}
+
+function operationsRecoveryId(column: string, kind: string): string {
+  return `(typeof(${column})='text' AND instr(${column},char(0))=0 AND length(${column})=length(${kind})+37
+    AND substr(${column},1,length(${kind})+5)='ops:'||${kind}||':'
+    AND substr(${column},length(${kind})+6) NOT GLOB '*[^0-9a-f]*')`;
+}
+
 function auditUlid(column: string): string {
   return `(typeof(${column})='text' AND instr(${column},char(0))=0 AND length(${column})=26 AND ${column} NOT GLOB '*[^0-9A-HJKMNP-TV-Z]*')`;
 }
@@ -1259,8 +1282,26 @@ export async function filterOperationsStuckWork(
   workspaceId: string,
   nowIso: string,
   work: OperationsStuckWork,
-  access?: TaskAccessContext,
+  access: TaskAccessContext,
 ): Promise<OperationsStuckWork> {
+  return (await readOperationsProjection(db, workspaceId, nowIso, work, access)).work;
+}
+
+export interface OperationsProjection {
+  work: OperationsStuckWork;
+  queues: QueueState;
+  tokens: WorkspaceHealth["tokens"];
+}
+
+/** Current observer scope, supported-source totals and hydrated references share one final query. */
+export async function readOperationsProjection(
+  db: SqlDatabase,
+  workspaceId: string,
+  nowIso: string,
+  work: OperationsStuckWork,
+  access: TaskAccessContext,
+): Promise<OperationsProjection> {
+  if (!access) fail("invalid_argument", "human operations access is required");
   const parent = operationsTaskPredicate(access);
   const human = operationsWorkspacePredicate(access, "ops_scope");
   const cutoffs = uploadRecoveryCutoffs(nowIso);
@@ -1283,8 +1324,162 @@ export async function filterOperationsStuckWork(
     .prepare(
       `SELECT * FROM (WITH current_scope AS MATERIALIZED (
        SELECT ops_scope.workspace_id, ${human.sql} AS authorized FROM (SELECT ? AS workspace_id) AS ops_scope
+     ), readable_projects AS MATERIALIZED (
+       SELECT project.workspace_id,project.id FROM projects AS project JOIN current_scope AS scope
+         ON scope.workspace_id=project.workspace_id AND scope.authorized
+       WHERE project.access_mode='workspace' OR EXISTS (SELECT 1 FROM project_access AS project_grant
+         WHERE project_grant.workspace_id=project.workspace_id AND project_grant.project_id=project.id AND project_grant.human_id=?)
+     ), current_tasks AS MATERIALIZED (
+       SELECT ops_task.workspace_id,ops_task.id,ops_task.project_id FROM tasks AS ops_task
+       JOIN current_scope AS scope ON scope.workspace_id=ops_task.workspace_id AND scope.authorized
+       WHERE ${parent.sql} AND ${auditUlid("ops_task.id")} AND ${auditUlid("ops_task.project_id")}
+     ), readable_runs AS MATERIALIZED (
+       SELECT run.workspace_id,run.id,run.task_id,run.project_id FROM runs AS run JOIN current_tasks AS task
+         ON task.workspace_id=run.workspace_id AND task.id=run.task_id AND task.project_id=run.project_id
+       WHERE ${auditUlid("run.id")}
+     ), event_envelopes AS MATERIALIZED (
+       SELECT event.workspace_id,event.workspace_cursor,event.kind,${auditJsonObject("event.payload_json")} AS envelope
+       FROM semantic_events AS event JOIN current_scope AS scope ON scope.workspace_id=event.workspace_id AND scope.authorized
+       WHERE event.kind IN ('attention.request','launch.reject','launch.claim','launch.authorize','result.submit',
+         'result.request_changes','result.accept','result.fail','result.cancel')
+         AND typeof(event.workspace_cursor)='integer' AND event.workspace_cursor BETWEEN 1 AND 9007199254740991
+     ), event_objects AS MATERIALIZED (
+       SELECT *,${auditJsonObject("json_extract(envelope,'$.input')")} AS input,
+         ${auditJsonObject("json_extract(envelope,'$.result')")} AS result FROM event_envelopes
+     ), event_children AS MATERIALIZED (
+       SELECT *,${auditJsonObject("json_extract(result,'$.submission')")} AS submission,
+         ${auditJsonObject("json_extract(result,'$.rejection')")} AS rejection FROM event_objects
+       WHERE json_type(envelope,'$.input')='object' AND json_type(envelope,'$.result')='object'
+         AND ${auditUniqueObject("envelope")} AND ${auditUniqueObject("input")} AND ${auditUniqueObject("result")}
+     ), event_sources AS MATERIALIZED (
+       SELECT event.workspace_id,event.workspace_cursor,event.kind,'attention' AS category,attention.run_id
+       FROM event_children AS event JOIN attention_requests AS attention
+         ON attention.workspace_id=event.workspace_id AND attention.id=json_extract(event.result,'$.id')
+       JOIN readable_runs AS run ON run.workspace_id=attention.workspace_id AND run.id=attention.run_id
+         AND run.task_id=attention.task_id AND run.project_id=attention.project_id
+       WHERE event.kind='attention.request' AND json_extract(event.result,'$.state')='open'
+         AND ${auditUlid("attention.id")}
+       UNION ALL SELECT event.workspace_id,event.workspace_cursor,event.kind,'launch_blocked',launch.run_id
+       FROM event_children AS event JOIN launch_commands AS launch ON launch.workspace_id=event.workspace_id
+         AND launch.id=CASE WHEN event.kind='launch.authorize' THEN json_extract(event.result,'$.launch_id') ELSE json_extract(event.input,'$.launchId') END
+       JOIN readable_runs AS run ON run.workspace_id=launch.workspace_id AND run.id=launch.run_id
+       WHERE ${auditUlid("launch.id")} AND (
+         (event.kind='launch.reject' AND json_extract(event.result,'$.state') IN ('rejected','expired'))
+         OR (event.kind='launch.claim' AND json_extract(event.result,'$.state') IN ('rejected','expired')
+           AND json_extract(event.result,'$.reason') IN ('launch_blocked','launch_expired'))
+         OR (event.kind='launch.authorize' AND json_extract(event.result,'$.decision')='rejected'
+           AND json_type(event.result,'$.rejection')='object' AND ${auditUniqueObject("event.rejection")}
+           AND json_extract(event.rejection,'$.code') IN ('launch_blocked','launch_expired')
+           AND json_extract(event.input,'$.launchId')=launch.id))
+       UNION ALL SELECT event.workspace_id,event.workspace_cursor,event.kind,'result_submitted',submission.run_id
+       FROM event_children AS event JOIN result_submissions AS submission ON submission.workspace_id=event.workspace_id
+         AND submission.id=json_extract(event.submission,'$.id') AND submission.run_id=json_extract(event.submission,'$.run_id')
+         AND submission.version=json_extract(event.submission,'$.version')
+       JOIN readable_runs AS run ON run.workspace_id=submission.workspace_id AND run.id=submission.run_id
+       WHERE event.kind='result.submit' AND json_extract(event.result,'$.taskState')='review'
+         AND json_type(event.result,'$.submission')='object' AND ${auditUniqueObject("event.submission")}
+         AND ${auditUlid("submission.id")} AND json_type(event.submission,'$.version')='integer'
+         AND json_extract(event.submission,'$.version') BETWEEN 1 AND 9007199254740991
+       UNION ALL SELECT event.workspace_id,event.workspace_cursor,event.kind,
+         CASE event.kind WHEN 'result.request_changes' THEN 'result_changes_requested' WHEN 'result.accept' THEN 'result_accepted'
+           WHEN 'result.fail' THEN 'run_failed' ELSE 'run_cancelled' END,run.id
+       FROM event_children AS event JOIN readable_runs AS run
+         ON run.workspace_id=event.workspace_id AND run.id=json_extract(event.input,'$.runId')
+       WHERE ((event.kind='result.request_changes' AND json_extract(event.result,'$.runResultState')='changes_requested')
+         OR (event.kind='result.accept' AND json_extract(event.result,'$.runResultState')='accepted'))
+         AND EXISTS (SELECT 1 FROM result_submissions AS submission WHERE submission.workspace_id=run.workspace_id
+           AND submission.run_id=run.id AND submission.id=json_extract(event.input,'$.submissionId') AND ${auditUlid("submission.id")})
+         OR ((event.kind='result.fail' AND json_extract(event.result,'$.runResultState')='failed')
+           OR (event.kind='result.cancel' AND json_extract(event.result,'$.runResultState')='cancelled'))
+     ), visible_notifications AS MATERIALIZED (
+       SELECT delivery.state FROM notification_deliveries AS delivery JOIN event_sources AS event
+         ON event.workspace_id=delivery.workspace_id AND event.workspace_cursor=delivery.event_cursor
+           AND event.kind=delivery.event_kind AND event.category=delivery.category
+       WHERE delivery.state IN ('pending','dead_lettered','failed') AND ${auditUlid("delivery.delivery_id")}
+     ), github_objects AS MATERIALIZED (
+       SELECT outbox.workspace_id,outbox.outbox_id,outbox.delivery_id,outbox.kind,outbox.state,outbox.next_attempt_at,
+         delivery.event,delivery.action,delivery.installation_id,delivery.repository_id,
+         ${auditJsonObject("delivery.effect_json")} AS effect
+       FROM github_integration_outbox AS outbox JOIN current_scope AS scope ON scope.workspace_id=outbox.workspace_id AND scope.authorized
+       JOIN github_webhook_deliveries AS delivery ON delivery.workspace_id=outbox.workspace_id AND delivery.delivery_id=outbox.delivery_id
+       WHERE outbox.kind='github.reconcile' AND ${operationsGitHubId("outbox.outbox_id")} AND ${operationsGitHubId("outbox.delivery_id")}
+     ), github_fields AS MATERIALIZED (
+       SELECT *,json_extract(effect,'$.event') AS effect_event,json_extract(effect,'$.action') AS effect_action,
+         json_extract(effect,'$.installationId') AS effect_installation,json_extract(effect,'$.repositoryId') AS effect_repository,
+         json_extract(effect,'$.ref') AS effect_ref,json_extract(effect,'$.version') AS effect_version,
+         ${auditJsonObject("json_extract(effect,'$.detail')")} AS detail FROM github_objects
+       WHERE ${auditClosedObject("effect", ["event", "action", "installationId", "repositoryId", "occurredAt", "ref", "version", "detail"])}
+         AND json_type(effect,'$.detail')='object' AND ${auditUtc("json_extract(effect,'$.occurredAt')")}
+     ), github_typed AS MATERIALIZED (
+       SELECT * FROM github_fields WHERE event=effect_event AND action IS effect_action
+         AND ((action IS NULL AND json_type(effect,'$.action')='null') OR (${operationsText("action", 64)}
+           AND action NOT GLOB '*[^a-z_]*' AND json_type(effect,'$.action')='text'))
+         AND installation_id=effect_installation AND ${operationsNumericId("installation_id")} AND ${operationsNumericId("effect_installation")}
+         AND ${auditUniqueObject("detail")}
+     ), github_repositories AS MATERIALIZED (
+       SELECT source.*,link.project_id,CASE source.event WHEN 'pull_request' THEN 'pull_request'
+         WHEN 'check_run' THEN 'check' WHEN 'check_suite' THEN 'check' WHEN 'status' THEN 'check'
+         WHEN 'issues' THEN 'issue' WHEN 'deployment' THEN 'deployment' WHEN 'deployment_status' THEN 'deployment' ELSE 'branch' END AS evidence_kind
+       FROM github_typed AS source JOIN github_app_installations AS installation
+         ON installation.workspace_id=source.workspace_id AND installation.installation_id=source.installation_id
+           AND installation.status='active' AND installation.revoked_at IS NULL
+       JOIN github_repository_links AS link ON link.workspace_id=source.workspace_id AND link.installation_id=source.installation_id
+         AND link.repository_id=source.repository_id AND link.link_state='active'
+       JOIN readable_projects AS project ON project.workspace_id=link.workspace_id AND project.id=link.project_id
+       WHERE source.event IN ('push','pull_request','check_run','check_suite','status','issues','deployment','deployment_status')
+         AND source.repository_id=source.effect_repository AND ${operationsNumericId("source.repository_id")}
+         AND ${operationsNumericId("source.effect_repository")} AND ${operationsText("source.effect_ref", 512)} AND ${operationsText("source.effect_version", 128)}
+     ), github_authorized AS MATERIALIZED (
+       SELECT source.workspace_id,source.outbox_id,source.delivery_id,source.kind,source.state,source.next_attempt_at FROM github_repositories AS source
+       WHERE NOT EXISTS (SELECT 1 FROM github_evidence AS evidence WHERE evidence.workspace_id=source.workspace_id
+         AND evidence.repository_id=source.repository_id AND evidence.observed_by='github'
+         AND ((evidence.kind=source.evidence_kind AND evidence.ref=source.effect_ref)
+           OR (source.event='push' AND evidence.kind='commit' AND evidence.ref=CASE WHEN source.effect_version='deleted'
+             THEN source.effect_ref||':deleted' ELSE source.effect_version END))
+         AND (evidence.project_id<>source.project_id OR (evidence.task_id IS NOT NULL AND NOT EXISTS (
+           SELECT 1 FROM current_tasks AS task WHERE task.workspace_id=evidence.workspace_id AND task.id=evidence.task_id AND task.project_id=source.project_id))))
+       UNION ALL SELECT source.workspace_id,source.outbox_id,source.delivery_id,source.kind,source.state,source.next_attempt_at FROM github_typed AS source
+       JOIN github_app_installations AS installation ON installation.workspace_id=source.workspace_id AND installation.installation_id=source.installation_id
+       WHERE source.event='installation' AND source.action IN ('created','deleted','suspend','unsuspend')
+         AND source.repository_id IS NULL AND json_type(source.effect,'$.repositoryId')='null'
+         AND json_type(source.effect,'$.ref')='null' AND json_type(source.effect,'$.version')='null'
+     ), recovery_objects AS MATERIALIZED (
+       SELECT ledger.*,${auditJsonObject("ledger.target_json")} AS target,${auditJsonObject("ledger.result_json")} AS result
+       FROM ops_recovery_ledger AS ledger JOIN current_scope AS scope ON scope.workspace_id=ledger.workspace_id AND scope.authorized
+       WHERE ledger.state='applied' AND ledger.kind IN ('resolve_stuck_upload','retry_notification_dispatch','requeue_github_outbox')
+         AND ${operationsRecoveryId("ledger.action_id", "ledger.kind")} AND ${auditUlid("ledger.created_by_human_id")}
+         AND ${auditUtc("ledger.created_at")} AND ${auditUtc("ledger.updated_at")}
+     ), recovery_arrays AS MATERIALIZED (
+       SELECT *,CASE kind WHEN 'resolve_stuck_upload' THEN CASE WHEN json_type(target,'$.version_ids')='array' THEN json_extract(target,'$.version_ids') ELSE '[]' END
+         WHEN 'retry_notification_dispatch' THEN CASE WHEN json_type(target,'$.cursors')='array' THEN json_extract(target,'$.cursors') ELSE '[]' END
+         ELSE CASE WHEN json_type(target,'$.outbox_ids')='array' THEN json_extract(target,'$.outbox_ids') ELSE '[]' END END AS targets FROM recovery_objects
+     ), recovery_shapes AS MATERIALIZED (
+       SELECT * FROM recovery_arrays WHERE json_array_length(targets) BETWEEN 1 AND 50 AND (
+         (kind='resolve_stuck_upload' AND ${auditClosedObject("target", ["version_ids"])} AND ${auditClosedObject("result", ["resolved"])}
+           AND json_type(result,'$.resolved')='integer' AND json_extract(result,'$.resolved')=json_array_length(targets)
+           AND (SELECT COUNT(DISTINCT value) FROM json_each(targets))=json_array_length(targets)
+           AND NOT EXISTS (SELECT 1 FROM json_each(targets) WHERE type<>'text' OR NOT ${auditUlid("value")}))
+         OR (kind='retry_notification_dispatch' AND ${auditClosedObject("target", ["cursors"])} AND ${auditClosedObject("result", ["redispatched_from", "cursors"])}
+           AND json_type(result,'$.cursors')='integer' AND json_extract(result,'$.cursors')=json_array_length(targets)
+           AND json_type(result,'$.redispatched_from')='integer' AND json_extract(result,'$.redispatched_from')=(SELECT MIN(value)-1 FROM json_each(targets))
+           AND NOT EXISTS (SELECT 1 FROM json_each(targets) WHERE type<>'integer' OR value<1 OR value>9007199254740991))
+         OR (kind='requeue_github_outbox' AND ${auditClosedObject("target", ["outbox_ids"])} AND ${auditClosedObject("result", ["requeued"])}
+           AND json_type(result,'$.requeued')='integer' AND json_extract(result,'$.requeued')=json_array_length(targets)
+           AND NOT EXISTS (SELECT 1 FROM json_each(targets) WHERE type<>'text' OR NOT ${operationsGitHubId("value")})))
+     ), recovery_authorized AS MATERIALIZED (
+       SELECT ledger.action_id FROM recovery_shapes AS ledger WHERE
+         (ledger.kind='retry_notification_dispatch' AND NOT EXISTS (SELECT 1 FROM json_each(ledger.targets) AS requested
+           WHERE NOT EXISTS (SELECT 1 FROM event_sources AS event WHERE event.workspace_id=ledger.workspace_id AND event.workspace_cursor=requested.value)))
+         OR (ledger.kind='requeue_github_outbox' AND NOT EXISTS (SELECT 1 FROM json_each(ledger.targets) AS requested
+           WHERE NOT EXISTS (SELECT 1 FROM github_authorized AS source WHERE source.workspace_id=ledger.workspace_id AND source.outbox_id=requested.value)))
+         OR (ledger.kind='resolve_stuck_upload' AND NOT EXISTS (SELECT 1 FROM json_each(ledger.targets) AS requested
+           WHERE NOT EXISTS (SELECT 1 FROM artifact_versions AS version JOIN artifacts AS artifact
+             ON artifact.workspace_id=version.workspace_id AND artifact.id=version.artifact_id
+             LEFT JOIN readable_runs AS run ON run.workspace_id=artifact.workspace_id AND run.id=artifact.run_id
+             WHERE version.workspace_id=ledger.workspace_id AND version.id=requested.value AND version.state='failed'
+               AND ${auditUlid("artifact.id")} AND (artifact.run_id IS NULL OR run.id IS NOT NULL))))
      ), requested AS MATERIALIZED (
-       SELECT json_extract(ref.value,'$.kind') AS kind,json_extract(ref.value,'$.id') AS id,
+       SELECT ref.key AS ref_index,json_extract(ref.value,'$.kind') AS kind,json_extract(ref.value,'$.id') AS id,
          json_extract(ref.value,'$.parent_id') AS parent_id,json_extract(ref.value,'$.run_id') AS run_id,
          json_extract(ref.value,'$.r2_key') AS r2_key FROM json_each(?) AS ref
      ), resolved AS MATERIALIZED (
@@ -1300,19 +1495,14 @@ export async function filterOperationsStuckWork(
        AND artifact.id = version.artifact_id AND artifact.id = ref.parent_id
      LEFT JOIN launch_commands AS launch ON launch.workspace_id = scope.workspace_id
        AND ref.kind = 'launch' AND launch.id = ref.id AND launch.run_id = ref.parent_id
-     LEFT JOIN runs AS ops_run ON ops_run.workspace_id = scope.workspace_id
+     LEFT JOIN readable_runs AS ops_run ON ops_run.workspace_id = scope.workspace_id
        AND ops_run.id = CASE WHEN ref.kind = 'launch' THEN launch.run_id ELSE artifact.run_id END
      LEFT JOIN tasks AS ops_task ON ops_task.workspace_id = ops_run.workspace_id
        AND ops_task.id = ops_run.task_id AND ops_task.project_id = ops_run.project_id
-     ), current_tasks AS MATERIALIZED (
-       SELECT ops_task.workspace_id,ops_task.id FROM tasks AS ops_task
-       JOIN (SELECT DISTINCT workspace_id,task_id FROM resolved) AS candidate
-         ON candidate.workspace_id = ops_task.workspace_id AND candidate.task_id = ops_task.id
-       WHERE ${parent.sql}
      ), permitted AS MATERIALIZED (
-       SELECT ref.kind,ref.id FROM resolved AS ref
+       SELECT ref.ref_index,ref.kind,ref.id FROM resolved AS ref
        LEFT JOIN current_tasks AS task ON task.workspace_id = ref.workspace_id AND task.id = ref.task_id
-       WHERE ((ref.kind = 'upload' AND ref.artifact_id IS NOT NULL
+       WHERE ${auditUlid("ref.id")} AND ${auditUlid("ref.parent_id")} AND ((ref.kind = 'upload' AND ref.artifact_id IS NOT NULL
          AND ref.version_state = 'uploading' AND ref.created_at <= ?
          AND NOT EXISTS (SELECT 1 FROM artifact_upload_grants AS upload_grant
            WHERE upload_grant.workspace_id = ref.workspace_id AND upload_grant.version_id = ref.id AND upload_grant.expires_at > ?))
@@ -1324,33 +1514,89 @@ export async function filterOperationsStuckWork(
          AND ref.version_key = 'workspaces/' || ref.workspace_id || '/runs/' || ref.run_id || '/logs/' || ref.id || '.jsonl.zst'
          AND ref.available_at <= strftime('%Y-%m-%dT%H:%M:%fZ',?, '-' || COALESCE((SELECT raw_log_retention_days FROM retention_policies WHERE workspace_id=ref.workspace_id),${RETENTION_DEFAULT_DAYS}) || ' days')))
        AND ((ref.kind = 'upload' AND ref.artifact_run_id IS NULL) OR task.id IS NOT NULL)
-     ) SELECT scope.authorized,(SELECT json_group_array(json_object('kind',kind,'id',id)) FROM permitted) AS refs_json
+     ) SELECT scope.authorized,(SELECT json_group_array(ref_index) FROM permitted) AS refs_json,
+       (SELECT COUNT(*) FROM visible_notifications WHERE state='pending') AS notification_pending,
+       (SELECT COUNT(*) FROM visible_notifications WHERE state='dead_lettered') AS notification_dead,
+       (SELECT COUNT(*) FROM visible_notifications WHERE state='failed') AS notification_failed,
+       (SELECT COUNT(*) FROM github_authorized WHERE state='pending') AS github_pending,
+       (SELECT COUNT(*) FROM github_authorized WHERE state='dispatched' AND datetime(next_attempt_at)<=datetime(?)) AS github_stale,
+       (SELECT COUNT(*) FROM github_dlq AS dlq WHERE EXISTS (SELECT 1 FROM github_authorized AS source
+         WHERE source.workspace_id=dlq.workspace_id AND source.outbox_id=dlq.outbox_id AND source.delivery_id=dlq.delivery_id AND source.kind=dlq.kind)) AS github_dead,
+       (SELECT COUNT(*) FROM recovery_authorized) AS recovery_applied,
+       (SELECT COUNT(*) FROM runner_tokens WHERE workspace_id=scope.workspace_id AND revoked_at IS NULL AND datetime(expires_at)<=datetime(?,'+24 hours')) AS runner_tokens,
+       (SELECT COUNT(*) FROM api_key_bindings WHERE workspace_id=scope.workspace_id AND revoked_at IS NULL) AS api_bindings
      FROM current_scope AS scope)`,
     )
     .get(
       ...human.parameters,
       workspaceId,
-      JSON.stringify(refs),
+      access.humanId,
       ...parent.parameters,
+      JSON.stringify(refs),
       cutoffs.created,
       cutoffs.expiry,
       nowIso,
       nowIso,
       nowIso,
-    )) as { authorized: number; refs_json: string };
+      nowIso,
+      nowIso,
+    )) as {
+    authorized: number;
+    refs_json: string;
+    notification_pending: number;
+    notification_dead: number;
+    notification_failed: number;
+    github_pending: number;
+    github_stale: number;
+    github_dead: number;
+    recovery_applied: number;
+    runner_tokens: number;
+    api_bindings: number;
+  };
   if (!current.authorized) fail("not_found", "operations scope not found");
-  const rows = JSON.parse(current.refs_json) as Array<{ kind: string; id: string }>;
-  const allowed = new Set(rows.map((row) => `${row.kind}:${row.id}`));
+  const allowed = new Set(JSON.parse(current.refs_json) as number[]);
+  let index = 0;
   return {
-    uploads: work.uploads.filter((row) => allowed.has(`upload:${row.version_id}`)),
-    launches: work.launches.filter((row) => allowed.has(`launch:${row.command_id}`)),
-    ...(work.retention === undefined
-      ? {}
-      : { retention: work.retention.filter((row) => allowed.has(`retention:${row.version_id}`)) }),
+    work: {
+      uploads: work.uploads.filter(() => allowed.has(index++)),
+      launches: work.launches.filter(() => allowed.has(index++)),
+      ...(work.retention === undefined
+        ? {}
+        : { retention: work.retention.filter(() => allowed.has(index++)) }),
+    },
+    queues: {
+      notifications: {
+        pending: current.notification_pending,
+        dead_lettered: current.notification_dead,
+        failed: current.notification_failed,
+      },
+      github_outbox: {
+        pending: current.github_pending,
+        dispatched_stale: current.github_stale,
+        dlq: current.github_dead,
+      },
+      ops_recovery: { applied: current.recovery_applied, failed: 0 },
+    },
+    tokens: {
+      expiring_runner_tokens: current.runner_tokens,
+      active_api_bindings: current.api_bindings,
+    },
   };
 }
 
 export async function readQueueState(
+  db: SqlDatabase,
+  workspaceId: string,
+  nowIso: string,
+  access: TaskAccessContext,
+): Promise<QueueState> {
+  return (
+    await readOperationsProjection(db, workspaceId, nowIso, { uploads: [], launches: [] }, access)
+  ).queues;
+}
+
+/** Legacy frozen diagnostic inventory counts remain outside the human projection certificate. */
+async function readLegacyDiagnosticQueueTotals(
   db: SqlDatabase,
   workspaceId: string,
   nowIso: string,
@@ -1418,29 +1664,14 @@ export async function collectWorkspaceHealth(
   db: SqlDatabase,
   workspaceId: string,
   nowIso: string,
-  access?: TaskAccessContext,
+  access: TaskAccessContext,
 ): Promise<WorkspaceHealth> {
+  if (!access) fail("invalid_argument", "human operations access is required");
   const nowMs = Date.parse(nowIso);
-  const retentionList = access
-    ? await listRetentionEligibleChunks(db, workspaceId, nowIso, access)
-    : undefined;
-  const policy =
-    retentionList?.policy ?? (access ? null : await getRetentionPolicy(db, workspaceId));
-  const queues = await readQueueState(db, workspaceId, nowIso);
+  const retentionList = await listRetentionEligibleChunks(db, workspaceId, nowIso, access);
+  const policy = retentionList.policy;
   const stuckUploads = await listStuckUploads(db, workspaceId, nowIso, access);
   const stuckLaunches = await listStuckLaunches(db, workspaceId, nowIso, access);
-  const expiring = (await db
-    .prepare(
-      `SELECT COUNT(*) AS count FROM runner_tokens
-       WHERE workspace_id = ? AND revoked_at IS NULL
-         AND datetime(expires_at) <= datetime(?, '+24 hours')`,
-    )
-    .get(workspaceId, nowIso)) as { count: number };
-  const bindings = (await db
-    .prepare(
-      `SELECT COUNT(*) AS count FROM api_key_bindings WHERE workspace_id = ? AND revoked_at IS NULL`,
-    )
-    .get(workspaceId)) as { count: number };
   const runners = (await db
     .prepare(`SELECT id FROM runners WHERE workspace_id = ? AND revoked_at IS NULL`)
     .all(workspaceId)) as Array<{ id: string }>;
@@ -1500,14 +1731,14 @@ export async function collectWorkspaceHealth(
       }),
     });
   }
-  const currentStuck = await filterOperationsStuckWork(
+  const current = await readOperationsProjection(
     db,
     workspaceId,
     nowIso,
     {
       uploads: stuckUploads,
       launches: stuckLaunches,
-      retention: retentionList?.eligible ?? [],
+      retention: retentionList.eligible,
     },
     access,
   );
@@ -1519,12 +1750,12 @@ export async function collectWorkspaceHealth(
       configured: policy !== null,
       days: policy?.raw_log_retention_days ?? RETENTION_DEFAULT_DAYS,
       version: policy?.version ?? null,
-      eligible_chunks: currentStuck.retention?.length ?? 0,
+      eligible_chunks: current.work.retention?.length ?? 0,
     },
-    queues,
-    launches: { stuck: currentStuck.launches },
-    uploads: { stuck: currentStuck.uploads },
-    tokens: { expiring_runner_tokens: expiring.count, active_api_bindings: bindings.count },
+    queues: current.queues,
+    launches: { stuck: current.work.launches },
+    uploads: { stuck: current.work.uploads },
+    tokens: current.tokens,
     providers,
   };
 }

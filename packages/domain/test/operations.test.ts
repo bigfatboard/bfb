@@ -852,9 +852,14 @@ describe("stuck launches and queue health", () => {
     expect(await listStuckLaunches(f.db, FIX.workspace, "2026-09-12T12:01:00.000Z")).toEqual([]);
     const stuck = await listStuckLaunches(f.db, FIX.workspace, "2026-09-12T12:10:00.000Z");
     expect(stuck.map((entry) => entry.command_id)).toEqual([launch.launch_id]);
-    const queues = await readQueueState(f.db, FIX.workspace, NOW);
+    const queues = await readQueueState(f.db, FIX.workspace, NOW, ACCESS);
     expect(queues.ops_recovery).toEqual({ applied: 0, failed: 0 });
-    const health = await collectWorkspaceHealth(f.db, FIX.workspace, "2026-09-12T12:10:00.000Z");
+    const health = await collectWorkspaceHealth(
+      f.db,
+      FIX.workspace,
+      "2026-09-12T12:10:00.000Z",
+      ACCESS,
+    );
     expect(health.launches.stuck.map((entry) => entry.command_id)).toEqual([launch.launch_id]);
     expect(health.retention.configured).toBe(false);
     expect(health.providers.length).toBeGreaterThan(0);

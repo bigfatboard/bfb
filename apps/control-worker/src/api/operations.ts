@@ -16,7 +16,6 @@ import {
   createDiagnosticBundleCommand,
   diagnosticR2Key,
   DomainError,
-  filterOperationsStuckWork,
   listRetentionEligibleChunks,
   listStuckLaunches,
   listStuckUploads,
@@ -24,7 +23,7 @@ import {
   OPS_RECOVERY_KINDS,
   randomUlid,
   readActivityFeed,
-  readQueueState,
+  readOperationsProjection,
   readSecurityAudit,
   resolveStuckUploadCommand,
   sanitizeDiagnosticValue,
@@ -297,10 +296,9 @@ export async function handleOperationsApi(
     }
     if (request.method === "GET" && (tail === "/queues" || tail === "/queues/")) {
       assertRole(principal, ["owner", "member"]);
-      const queues = await readQueueState(deps.db, workspaceId, deps.now);
       const uploads = await listStuckUploads(deps.db, workspaceId, deps.now, principal);
       const launches = await listStuckLaunches(deps.db, workspaceId, deps.now, principal);
-      const currentStuck = await filterOperationsStuckWork(
+      const projection = await readOperationsProjection(
         deps.db,
         workspaceId,
         deps.now,
@@ -312,9 +310,9 @@ export async function handleOperationsApi(
       );
       return json({
         ok: true,
-        queues,
-        stuck_uploads: currentStuck.uploads,
-        stuck_launches: currentStuck.launches,
+        queues: projection.queues,
+        stuck_uploads: projection.work.uploads,
+        stuck_launches: projection.work.launches,
       });
     }
     if (request.method === "GET" && (tail === "/health" || tail === "/health/")) {

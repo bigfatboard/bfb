@@ -383,12 +383,15 @@ export function OperationsPage(props: OperationsPageProps) {
 
       {sections.includes("queues") ? (
         <section aria-label="Queues and stuck work" data-testid="operations-queues">
-          <h2>Queues &amp; stuck work</h2>
+          <h2>Visible queues &amp; stuck work</h2>
           {queues.loading ? <p>Loading queues…</p> : null}
           {queues.error ? <p className="inline-error">{queues.error}</p> : null}
           {queueData ? (
             <>
-              <p data-testid="queue-counts">
+              <p
+                data-testid="queue-counts"
+                title="Only supported records you can currently access are counted. Zero does not mean all queues are empty."
+              >
                 Notifications pending {formatCount(queueData.queues?.notifications?.pending)},
                 dead-lettered {formatCount(queueData.queues?.notifications?.dead_lettered)}; GitHub
                 outbox pending {formatCount(queueData.queues?.github_outbox?.pending)}, DLQ{" "}

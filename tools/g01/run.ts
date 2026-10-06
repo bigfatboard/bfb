@@ -2410,7 +2410,11 @@ try {
       stepUpProofId: retentionProof,
     });
     assert(!staleRetention.ok, "consumed retention proof cannot set policy twice");
-    const health = await collectWorkspaceHealth(db, FIX.workspace, now);
+    const health = await collectWorkspaceHealth(db, FIX.workspace, now, {
+      workspaceId: FIX.workspace,
+      humanId: FIX.owner,
+      authorizationEpoch: 1,
+    });
     assert.equal(health.retention.days, 30, "health reflects the committed retention policy");
     assert(health.workspace_id === FIX.workspace, "health is workspace-scoped");
     // Diagnostics sanitize before review: every planted canary class surfaces

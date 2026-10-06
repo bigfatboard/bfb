@@ -316,9 +316,9 @@ describe("private operations retention", () => {
     await expect(
       listRetentionEligibleChunks(f.db, FIX.workspace, NOW, undefined as never),
     ).rejects.toMatchObject({ code: "invalid_argument" });
-    expect((await collectWorkspaceHealth(f.db, FIX.workspace, NOW)).retention.eligible_chunks).toBe(
-      0,
-    );
+    await expect(
+      collectWorkspaceHealth(f.db, FIX.workspace, NOW, undefined as never),
+    ).rejects.toMatchObject({ code: "invalid_argument" });
   });
   it.each(["creator", "read", "contribute", "edit"] as const)(
     "never exposes private retention to %s",
