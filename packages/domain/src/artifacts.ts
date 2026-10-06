@@ -277,7 +277,7 @@ async function artifactHuman(ctx: HubContext): Promise<{
 }
 
 async function requireRun(
-  ctx: HubContext,
+  ctx: Pick<HubContext, "db" | "workspaceId">,
   runId: string | null,
   projectIds: readonly string[],
 ): Promise<string | null> {
@@ -317,6 +317,19 @@ async function versionRow(
     .get(workspaceId, versionId)) as VersionRow | undefined;
   if (!row) rejectArtifactRequest();
   return row;
+}
+
+async function artifactVersionScope(ctx: HubContext, versionId: string) {
+  const author = await artifactHuman(ctx);
+  if (typeof versionId !== "string" || !isUlid(versionId)) rejectArtifactRequest();
+  const version = await versionRow(ctx.db, ctx.workspaceId, versionId);
+  const artifact = (await ctx.db
+    .prepare(`SELECT run_id, role FROM artifacts WHERE workspace_id = ? AND id = ?`)
+    .get(ctx.workspaceId, version.artifact_id)) as
+    { run_id: string | null; role: string } | undefined;
+  if (!artifact) rejectArtifactRequest();
+  await requireRun(ctx, artifact.run_id, author.projectIds);
+  return { author, version, artifact };
 }
 
 async function auditOutbox(
@@ -466,6 +479,10 @@ export const createArtifactCommand: HubCommand<CreateArtifactInput, CreateArtifa
   name: "artifact.create_version",
   replay: "reject",
   auditInput: () => ({ action: "artifact.create_version" }),
+  async authorize(input, ctx) {
+    const author = await artifactHuman(ctx);
+    await requireRun(ctx, optionalUlid(input.runId), author.projectIds);
+  },
   async run(input, ctx) {
     artifactObject(input, [
       "artifactId",
@@ -568,20 +585,16 @@ export const issueArtifactGrantCommand: HubCommand<IssueArtifactGrantInput, Arti
   name: "artifact.issue_grant",
   replay: "reject",
   auditInput: () => ({ action: "artifact.issue_grant" }),
+  async authorize(input, ctx) {
+    await artifactVersionScope(ctx, input.versionId);
+  },
   async run(input, ctx) {
     artifactObject(input, ["versionId", "grantSecretHash"]);
-    const author = await artifactHuman(ctx);
-    if (typeof input.versionId !== "string" || !isUlid(input.versionId)) rejectArtifactRequest();
+    const { author, version, artifact } = await artifactVersionScope(ctx, input.versionId);
     if (typeof input.grantSecretHash !== "string" || !HEX64.test(input.grantSecretHash)) {
       rejectArtifactRequest();
     }
-    const version = await versionRow(ctx.db, ctx.workspaceId, input.versionId);
     if (version.state !== "uploading") rejectArtifactRequest();
-    const artifact = (await ctx.db
-      .prepare(`SELECT run_id, role FROM artifacts WHERE workspace_id = ? AND id = ?`)
-      .get(ctx.workspaceId, version.artifact_id)) as
-      { run_id: string | null; role: string } | undefined;
-    if (!artifact) rejectArtifactRequest();
     const { row, grant } = mintGrant({
       workspaceId: ctx.workspaceId,
       versionId: version.id,
@@ -673,20 +686,53 @@ export async function redeemUploadGrant(
     rejectArtifactRequest();
   }
   const artifact = (await db
-    .prepare(`SELECT role FROM artifacts WHERE workspace_id = ? AND id = ?`)
-    .get(candidate.workspace_id, candidate.artifact_id)) as { role: string } | undefined;
+    .prepare(`SELECT role, run_id FROM artifacts WHERE workspace_id = ? AND id = ?`)
+    .get(candidate.workspace_id, candidate.artifact_id)) as
+    { role: string; run_id: string | null } | undefined;
   if (!artifact) rejectArtifactRequest();
-  // The membership/epoch fence is part of the guarded update so revocation
-  // between the read above and the consume cannot grant upload authority.
+  if (artifact.run_id !== candidate.run_id || !candidate.human_id) rejectArtifactRequest();
+  const principal = await loadPrincipal(db, candidate.workspace_id, candidate.human_id);
+  assertRole(principal, ["owner", "member"]);
+  assertEpoch(principal, candidate.authorization_epoch);
+  await requireRun(
+    { db, workspaceId: candidate.workspace_id },
+    candidate.run_id,
+    principal.projectIds,
+  );
+  // An immutable per-grant claim identifies THIS consume attempt, not another
+  // request that happened to observe the same timestamp. A loser rolls back
+  // this whole batch before the Worker reads its body.
+  const attemptId = randomUlid();
+  await db
+    .prepare(
+      `INSERT INTO artifact_upload_consumptions (workspace_id, grant_id, attempt_id, consumed_at)
+     VALUES (?, ?, ?, ?)`,
+    )
+    .run(candidate.workspace_id, input.grantId, attemptId, input.now);
+  // Repeat current role/project and exact grant scope at commit, because the
+  // candidate and principal reads happen before D1 flushes this write batch.
   await db
     .prepare(
       `UPDATE artifact_upload_grants SET consumed_at = ?
        WHERE id = ? AND grant_hash = ? AND consumed_at IS NULL AND expires_at > ?
          AND EXISTS (
            SELECT 1 FROM artifact_versions AS v
+           JOIN artifacts AS a ON a.workspace_id = v.workspace_id AND a.id = v.artifact_id
+           LEFT JOIN runs AS r ON r.workspace_id = a.workspace_id AND r.id = a.run_id
+           LEFT JOIN projects AS p ON p.workspace_id = r.workspace_id AND p.id = r.project_id
            WHERE v.workspace_id = artifact_upload_grants.workspace_id
              AND v.id = artifact_upload_grants.version_id
              AND v.state = 'uploading'
+             AND v.format = artifact_upload_grants.format
+             AND v.declared_size = artifact_upload_grants.declared_size
+             AND v.expected_digest = artifact_upload_grants.expected_digest
+             AND a.run_id IS artifact_upload_grants.run_id
+             AND (a.run_id IS NULL OR (r.id IS NOT NULL AND
+               (p.access_mode = 'workspace' OR EXISTS (
+                 SELECT 1 FROM project_access AS access
+                 WHERE access.workspace_id = r.workspace_id AND access.project_id = r.project_id
+                   AND access.human_id = artifact_upload_grants.human_id
+               ))))
          )
          AND EXISTS (
            SELECT 1 FROM workspace_members AS m
@@ -695,22 +741,23 @@ export async function redeemUploadGrant(
            WHERE m.workspace_id = artifact_upload_grants.workspace_id
              AND m.human_id = artifact_upload_grants.human_id
              AND m.authorization_epoch = e.authorization_epoch
+             AND m.role IN ('owner', 'member')
              AND e.revoked_at IS NULL
              AND e.authorization_epoch = artifact_upload_grants.authorization_epoch
          )`,
     )
     .run(input.now, input.grantId, secretHash, input.now);
-  // D1 batches cannot read after a queued write, so the single-consume check
-  // is a guard row: D1 evaluates the predicate at commit time and aborts the
-  // entire batch when a racing redemption consumed the grant first.
+  // The guard must identify our claim as well as the consumed timestamp.
+  // D1 evaluates it inside the same atomic batch, with no read-after-write.
   const guardId = randomUlid();
   await db
     .prepare(
       `INSERT INTO artifact_mutation_guards (id, valid) VALUES (?,
-       (SELECT COUNT(*) = 1 FROM artifact_upload_grants
-        WHERE id = ? AND grant_hash = ? AND consumed_at = ?))`,
+       (SELECT COUNT(*) = 1 FROM artifact_upload_grants AS g
+        JOIN artifact_upload_consumptions AS c ON c.workspace_id = g.workspace_id AND c.grant_id = g.id
+        WHERE g.id = ? AND g.grant_hash = ? AND g.consumed_at = ? AND c.attempt_id = ?))`,
     )
-    .run(guardId, input.grantId, secretHash, input.now);
+    .run(guardId, input.grantId, secretHash, input.now, attemptId);
   await db.prepare(`DELETE FROM artifact_mutation_guards WHERE id = ?`).run(guardId);
   await auditOutbox(db, {
     workspaceId: candidate.workspace_id,
@@ -863,22 +910,18 @@ export const finalizeArtifactCommand: HubCommand<FinalizeArtifactInput, Finalize
   name: "artifact.finalize_version",
   replay: "reject",
   auditInput: () => ({ action: "artifact.finalize_version" }),
+  async authorize(input, ctx) {
+    await artifactVersionScope(ctx, input.versionId);
+  },
   async run(input, ctx) {
     artifactObject(input, ["versionId", "contentHash", "size"]);
-    await artifactHuman(ctx);
-    if (typeof input.versionId !== "string" || !isUlid(input.versionId)) rejectArtifactRequest();
+    const { version, artifact } = await artifactVersionScope(ctx, input.versionId);
     const contentHash = artifactDigest(input.contentHash);
     if (!Number.isSafeInteger(input.size) || (input.size as number) < 1) rejectArtifactRequest();
-    const version = await versionRow(ctx.db, ctx.workspaceId, input.versionId);
     if (version.state !== "uploading") rejectArtifactRequest();
     if (version.expected_digest !== contentHash || version.declared_size !== input.size) {
       rejectArtifactRequest();
     }
-    const artifact = (await ctx.db
-      .prepare(`SELECT role, run_id FROM artifacts WHERE workspace_id = ? AND id = ?`)
-      .get(ctx.workspaceId, version.artifact_id)) as
-      { role: string; run_id: string | null } | undefined;
-    if (!artifact) rejectArtifactRequest();
     const expectedKey = artifactObjectKey({
       workspaceId: ctx.workspaceId,
       role: artifactRole(artifact.role),
@@ -968,13 +1011,20 @@ export const markArtifactFailedCommand: HubCommand<
   name: "artifact.mark_failed",
   replay: "reject",
   auditInput: () => ({ action: "artifact.mark_failed" }),
+  async authorize(input, ctx) {
+    if (ctx.actorSystemId) {
+      if (ctx.actorHumanId || ctx.actorDelegationId || ctx.actorRunnerId) rejectArtifactRequest();
+    } else {
+      await artifactVersionScope(ctx, input.versionId);
+    }
+  },
   async run(input, ctx) {
     artifactObject(input, ["versionId"]);
     if (typeof input.versionId !== "string" || !isUlid(input.versionId)) rejectArtifactRequest();
     if (ctx.actorSystemId) {
       if (ctx.actorHumanId || ctx.actorDelegationId || ctx.actorRunnerId) rejectArtifactRequest();
     } else {
-      await artifactHuman(ctx);
+      await artifactVersionScope(ctx, input.versionId);
     }
     const version = await versionRow(ctx.db, ctx.workspaceId, input.versionId);
     if (version.state !== "uploading") rejectArtifactRequest();

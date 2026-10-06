@@ -5,7 +5,7 @@ import Database from "better-sqlite3";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { adaptBetterSqlite3, applyMigrationsForVerification, type SqlDatabase } from "@bfb/db";
 import {
@@ -28,6 +28,12 @@ const PNG = Uint8Array.from([
   0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
 ]);
 const TEXT = new TextEncoder().encode("# synthetic review\n");
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(NOW);
+});
+afterEach(() => vi.useRealTimers());
 
 function digest(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex");
@@ -58,7 +64,7 @@ function fakeR2() {
       ) {
         calls.push({ op: "put", key });
         if (options?.onlyIf?.etagDoesNotMatch === "*" && objects.has(key)) {
-          throw new Error("precondition failed: object exists");
+          return null;
         }
         const bytes = value.slice();
         if (options?.sha256 && digest(bytes) !== options.sha256) {
@@ -79,6 +85,7 @@ function fakeR2() {
           key,
           size: stored.bytes.byteLength,
           customMetadata: stored.customMetadata,
+          checksums: { sha256: Uint8Array.from(Buffer.from(stored.sha256, "hex")).buffer },
         } as R2Object;
       },
     } as unknown as R2Bucket,
@@ -365,6 +372,133 @@ describe("artifact upload", () => {
       .prepare(`SELECT COUNT(*) AS count FROM artifact_upload_receipts`)
       .get()) as { count: number };
     expect(receipts.count).toBe(0);
+  });
+
+  it("does not trust matching custom metadata over a conflicting stored checksum", async () => {
+    const db = await openDb();
+    const r2 = fakeR2();
+    const { created, secret, bytes } = await grant(db);
+    const key = artifactObjectKey({
+      workspaceId: FIX.workspace,
+      role: "review",
+      runId: null,
+      versionId: created.version_id,
+      contentHash: digest(bytes),
+    });
+    r2.objects.set(key, {
+      bytes: bytes.slice(),
+      sha256: "0".repeat(64),
+      customMetadata: { sha256: digest(bytes) },
+    });
+    const response = await upload(
+      db,
+      r2.bucket,
+      uploadRequest(created.upload_grant.grant_id, secret, bytes),
+    );
+    expect(response.status).toBe(500);
+    expect(r2.calls.filter((call) => call.op === "head")).toHaveLength(1);
+    expect(await db.prepare("SELECT COUNT(*) count FROM artifact_upload_receipts").get()).toEqual({
+      count: 0,
+    });
+  });
+
+  it.each(["missing", "size", "changed", "body", "oversize", "head-fault", "get-fault"] as const)(
+    "rejects an unverifiable existing object (%s) without a receipt",
+    async (fault) => {
+      const db = await openDb();
+      const { created, secret, bytes } = await grant(db);
+      const key = artifactObjectKey({
+        workspaceId: FIX.workspace,
+        role: "review",
+        runId: null,
+        versionId: created.version_id,
+        contentHash: digest(bytes),
+      });
+      const bucket = {
+        async put() {
+          return null;
+        },
+        async head() {
+          if (fault === "head-fault") throw new Error("synthetic head failure");
+          if (fault === "missing") return null;
+          return {
+            key,
+            version: "first",
+            size: fault === "size" ? bytes.length + 1 : bytes.length,
+            customMetadata: { sha256: digest(bytes) },
+            checksums: {},
+          };
+        },
+        async get() {
+          if (fault === "get-fault") throw new Error("synthetic get failure");
+          const body = fault === "oversize" ? new Uint8Array(bytes.length + 1) : bytes.slice();
+          if (fault === "body") body[0] ^= 1;
+          return {
+            key,
+            version: fault === "changed" ? "replacement" : "first",
+            size: bytes.length,
+            body: new ReadableStream({
+              start(controller) {
+                controller.enqueue(body);
+                controller.close();
+              },
+            }),
+          };
+        },
+      } as unknown as R2Bucket;
+      const response = await upload(
+        db,
+        bucket,
+        uploadRequest(created.upload_grant.grant_id, secret, bytes),
+      );
+      expect(response.status).toBe(500);
+      expect(await db.prepare("SELECT COUNT(*) count FROM artifact_upload_receipts").get()).toEqual(
+        { count: 0 },
+      );
+    },
+  );
+
+  it("rehashes a bounded existing object when its stored checksum is absent", async () => {
+    const db = await openDb();
+    const { created, secret, bytes } = await grant(db);
+    const key = artifactObjectKey({
+      workspaceId: FIX.workspace,
+      role: "review",
+      runId: null,
+      versionId: created.version_id,
+      contentHash: digest(bytes),
+    });
+    let reads = 0;
+    const bucket = {
+      async put() {
+        return null;
+      },
+      async head() {
+        return { key, version: "first", size: bytes.length, checksums: {}, customMetadata: {} };
+      },
+      async get() {
+        reads += 1;
+        return {
+          key,
+          version: "first",
+          size: bytes.length,
+          body: new ReadableStream({
+            start(controller) {
+              controller.enqueue(bytes);
+              controller.close();
+            },
+          }),
+        };
+      },
+    } as unknown as R2Bucket;
+    const response = await upload(
+      db,
+      bucket,
+      uploadRequest(created.upload_grant.grant_id, secret, bytes),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ deduplicated: true });
+    expect(reads).toBe(1);
   });
 
   it("rejects oversized bodies and fails closed without an abuse secret", async () => {

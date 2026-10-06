@@ -12,23 +12,25 @@ import {
   bumpMemberEpoch,
   seedSyntheticWorkspace,
   sweepAbandonedArtifactUploads,
+  randomUlid,
   syntheticUlid,
 } from "@bfb/domain";
 import { createTestHarness } from "wrangler";
+import type { ArtifactTestBucket } from "./artifact.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const ORIGIN = "https://bfb.v01.test";
 const ARTIFACT_ORIGIN = "https://artifacts.v01.test";
-// Phased clocks keep each phase inside a fresh durable-abuse window while
-// grant TTL and sweep assertions use their own explicit timestamps.
-const T0 = "2026-09-17T12:00:00.000Z";
-const T1 = "2026-09-17T12:05:00.000Z";
-const T1_LATE = "2026-09-17T12:21:01.000Z";
-const T2 = "2026-09-17T12:10:00.000Z";
-const T3 = "2026-09-17T12:15:00.000Z";
-const T4A = "2026-09-17T12:20:00.000Z";
-const T4B = "2026-09-17T12:39:00.000Z";
-const SWEEP_TIME = "2026-09-17T12:40:00.000Z";
+// Abuse-clock phases are synthetic; Hub authority and grant issuance use real
+// current server time. Expiry/sweep probes remain relative to this fresh base.
+const T0 = new Date(Math.floor(Date.now() / 1000) * 1000).toISOString();
+const phase = (minutes: number) => new Date(Date.parse(T0) + minutes * 60_000).toISOString();
+const T1 = phase(1);
+const T1_LATE = phase(17);
+const T2 = phase(2);
+const T3 = phase(3);
+const T4A = phase(4);
+const SWEEP_TIME = phase(40);
 const SIGNING = "v01-runtime-current-signing-key-55c1e7";
 const SESSION = "v01-synthetic-session";
 const SESSION_TOKEN = "v01-synthetic-session-token";
@@ -112,6 +114,20 @@ const server = createTestHarness({
     {
       config: {
         ...base,
+        name: "bfb-v01-artifact-b",
+        main: resolve(root, "tools/artifacts/artifact.ts"),
+        vars: {
+          ENVIRONMENT: "local",
+          ARTIFACT_ORIGIN,
+          APP_ORIGIN: ORIGIN,
+          UPLOAD_ABUSE_SECRET: "v01-harness-upload-abuse-secret-8e13d2axx-long",
+        },
+        r2_buckets: [{ binding: "ARTIFACTS", bucket_name: "bfb-v01-artifacts" }],
+      },
+    },
+    {
+      config: {
+        ...base,
         name: "bfb-v01-artifact",
         main: resolve(root, "tools/artifacts/artifact.ts"),
         vars: {
@@ -163,6 +179,8 @@ function upload(
   body: Uint8Array,
   ip = "192.0.2.91",
   now: string = T0,
+  index = 0,
+  raceScope?: string,
 ) {
   const headers: Record<string, string> = {
     "content-type": "application/octet-stream",
@@ -170,11 +188,14 @@ function upload(
     "x-v01-test-time": now,
   };
   if (secret !== null) headers.authorization = `Bearer ${secret}`;
-  return server.getWorker("bfb-v01-artifact").fetch(`${ARTIFACT_ORIGIN}/upload/${grantId}`, {
-    method: "PUT",
-    headers,
-    body: body as unknown as never,
-  });
+  if (raceScope) headers["x-v01-race-scope"] = raceScope;
+  return server
+    .getWorker(index % 2 ? "bfb-v01-artifact-b" : "bfb-v01-artifact")
+    .fetch(`${ARTIFACT_ORIGIN}/upload/${grantId}`, {
+      method: "PUT",
+      headers,
+      body: body as unknown as never,
+    });
 }
 
 type WorkerResponse = Awaited<ReturnType<typeof upload>>;
@@ -269,11 +290,12 @@ try {
   await worker.applyD1Migrations("DB");
   const env = (await worker.getEnv()) as unknown as {
     DB: D1Like;
-    ARTIFACTS: {
-      head(key: string): Promise<{ size: number; customMetadata?: Record<string, string> } | null>;
-    };
+    ARTIFACTS: ArtifactTestBucket;
   };
   const db = adaptD1(env.DB);
+  await db
+    .prepare("CREATE TABLE v01_read_barriers (scope TEXT PRIMARY KEY, arrivals INTEGER NOT NULL)")
+    .run();
 
   await seedSyntheticWorkspace(db, T0, "global");
   await seedHuman(db, "v01-user", SESSION, SESSION_TOKEN, FIX.owner, "owner@synthetic.test");
@@ -338,6 +360,57 @@ try {
   assert.equal(finalized.state, "available");
   assert.equal(finalized.r2_key, uploaded.r2_key);
   note("finalized");
+
+  // A valid workspace member loses all artifact mutation/upload authority on
+  // a restricted run as soon as the project grant is removed, without an epoch bump.
+  const scoped = await create(0, reviewBody(TEXT, { run_id: RUN_ID }), MEMBER, "192.0.2.181");
+  const scopedReceipt = await create(1, reviewBody(TEXT, { run_id: RUN_ID }), OWNER, "192.0.2.182");
+  await accepted(
+    await upload(
+      scopedReceipt.upload_grant.grant_id,
+      scopedReceipt.upload_grant.secret,
+      TEXT,
+      "192.0.2.182",
+    ),
+  );
+  await db
+    .prepare(
+      "DELETE FROM project_access WHERE workspace_id = ? AND project_id = ? AND human_id = ?",
+    )
+    .run(FIX.workspace, FIX.projectA, FIX.member);
+  await rejected(
+    await browser(
+      0,
+      "POST",
+      `/api/v1/workspaces/${FIX.workspace}/artifacts/${scoped.version_id}/grants`,
+      {},
+      MEMBER,
+      "192.0.2.183",
+    ),
+  );
+  await rejected(
+    await browser(
+      1,
+      "POST",
+      `/api/v1/workspaces/${FIX.workspace}/artifacts/${scopedReceipt.version_id}/finalize`,
+      { content_hash: digest(TEXT), size: TEXT.byteLength },
+      MEMBER,
+      "192.0.2.184",
+    ),
+  );
+  await rejected(
+    await upload(scoped.upload_grant.grant_id, scoped.upload_grant.secret, TEXT, "192.0.2.185"),
+  );
+  assert.deepEqual(
+    await db
+      .prepare("SELECT consumed_at FROM artifact_upload_grants WHERE id = ?")
+      .get(scoped.upload_grant.grant_id),
+    { consumed_at: null },
+  );
+  await db
+    .prepare("INSERT INTO project_access (workspace_id, project_id, human_id) VALUES (?, ?, ?)")
+    .run(FIX.workspace, FIX.projectA, FIX.member);
+  note("current_project_authority_rejected");
 
   // Replay, wrong secret, unknown grant, and missing auth never yield bytes.
   await rejected(await upload(created.upload_grant.grant_id, created.upload_grant.secret, TEXT));
@@ -599,6 +672,98 @@ try {
   assert(raceHead && raceHead.size === TEXT.byteLength);
   note("same_hash_race_converged");
 
+  // Both real isolates finish their live candidate reads before either atomic
+  // D1 consume batch commits. An exact same timestamp must still have one winner.
+  const sameTimeBytes = new TextEncoder().encode("# synthetic same-time grant race\n");
+  const sameTime = await create(0, reviewBody(sameTimeBytes), OWNER, "192.0.2.186", T2);
+  const raceScope = randomUlid();
+  await db.prepare("INSERT INTO v01_read_barriers (scope, arrivals) VALUES (?, 0)").run(raceScope);
+  const sameTimeResponses = await Promise.all(
+    [0, 1].map((index) =>
+      upload(
+        sameTime.upload_grant.grant_id,
+        sameTime.upload_grant.secret,
+        sameTimeBytes,
+        `192.0.2.${187 + index}`,
+        T2,
+        index,
+        raceScope,
+      ),
+    ),
+  );
+  assert.deepEqual(sameTimeResponses.map((response) => response.status).sort(), [200, 403]);
+  for (const response of sameTimeResponses) await response.arrayBuffer();
+  let bodyReads = 0,
+    putCalls = 0;
+  for (const name of ["bfb-v01-artifact", "bfb-v01-artifact-b"]) {
+    const counts = (await (
+      await server.getWorker(name).fetch(`${ARTIFACT_ORIGIN}/__v01/effects/${raceScope}`)
+    ).json()) as { body_reads: number; put_calls: number };
+    bodyReads += counts.body_reads;
+    putCalls += counts.put_calls;
+  }
+  assert.equal(bodyReads, 1, "losing grant consumer read its body");
+  assert.equal(putCalls, 1, "losing grant consumer called R2 put");
+  assert.deepEqual(
+    await db
+      .prepare("SELECT COUNT(*) n FROM artifact_upload_consumptions WHERE grant_id = ?")
+      .get(sameTime.upload_grant.grant_id),
+    { n: 1 },
+  );
+  assert.deepEqual(
+    await db
+      .prepare(
+        "SELECT COUNT(*) n FROM artifact_audit_outbox WHERE action = 'artifact.grant_consumed' AND grant_id = ?",
+      )
+      .get(sameTime.upload_grant.grant_id),
+    { n: 1 },
+  );
+  note("same_timestamp_single_consume");
+  note("same_timestamp_body_reads", bodyReads);
+  note("same_timestamp_r2_puts", putCalls);
+
+  // Real R2 returns null for the conditional conflict. Matching custom metadata
+  // cannot override its stored checksum for different same-sized bytes.
+  const conflictBytes = new TextEncoder().encode("# synthetic R2 checksum conflict\n");
+  const conflict = await create(1, reviewBody(conflictBytes), OWNER, "192.0.2.189", T2);
+  const conflictKey = `workspaces/${FIX.workspace}/artifacts/sha256/${digest(conflictBytes)}`;
+  const corruptBytes = conflictBytes.slice();
+  corruptBytes[2] = corruptBytes[2]! ^ 1;
+  await env.ARTIFACTS.put(conflictKey, corruptBytes, {
+    sha256: digest(corruptBytes),
+    customMetadata: { sha256: digest(conflictBytes) },
+  });
+  const conflictResponse = await upload(
+    conflict.upload_grant.grant_id,
+    conflict.upload_grant.secret,
+    conflictBytes,
+    "192.0.2.189",
+    T2,
+  );
+  assert.equal(conflictResponse.status, 500);
+  assert.deepEqual(await conflictResponse.json(), { error: "upload_failed" });
+  assert.deepEqual(
+    await db
+      .prepare("SELECT COUNT(*) n FROM artifact_upload_receipts WHERE version_id = ?")
+      .get(conflict.version_id),
+    { n: 0 },
+  );
+  const unchanged = await env.ARTIFACTS.get(conflictKey);
+  assert(unchanged);
+  assert.equal(digest(new Uint8Array(await unchanged.arrayBuffer())), digest(corruptBytes));
+  await rejected(
+    await browser(
+      0,
+      "POST",
+      `/api/v1/workspaces/${FIX.workspace}/artifacts/${conflict.version_id}/finalize`,
+      { content_hash: digest(conflictBytes), size: conflictBytes.byteLength },
+      OWNER,
+      "192.0.2.190",
+      T2,
+    ),
+  );
+  note("r2_null_checksum_conflict_rejected");
+
   // Upload budgets survive Worker-isolate changes; the 21st attempt fails closed.
   // Creates split across two principals so only the upload budget is exhausted.
   const budgetVersions: Created[] = [];
@@ -642,8 +807,8 @@ try {
 
   // Recovery sweep marks only versions whose grants all expired past grace.
   const abandoned = await create(0, reviewBody(TEXT), OWNER, "192.0.2.91", T4A);
-  const liveAtSweep = await create(1, reviewBody(TEXT), OWNER, "192.0.2.91", T4B);
-  void liveAtSweep;
+  const earlySweep = await sweepAbandonedArtifactUploads(db, new Date().toISOString());
+  assert(!earlySweep.includes(abandoned.version_id), "fresh grant was swept before expiry");
   const marked = await sweepAbandonedArtifactUploads(db, SWEEP_TIME);
   assert(marked.includes(abandoned.version_id), "abandoned version was not swept");
   const states = (await db.prepare(`SELECT id, state FROM artifact_versions`).all()) as Array<{

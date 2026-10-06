@@ -94,6 +94,50 @@ function digestHex(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
+async function verifiedExistingObject(
+  bucket: R2Bucket,
+  key: string,
+  size: number,
+  contentHash: string,
+): Promise<boolean> {
+  const head = await bucket.head(key);
+  if (!head || head.size !== size) return false;
+  const checksum = head.checksums?.sha256;
+  if (checksum !== undefined) {
+    return checksum.byteLength === 32 && Buffer.from(checksum).toString("hex") === contentHash;
+  }
+  // Custom metadata is caller-set, not an integrity check. Older objects may
+  // lack a stored SHA-256, so rehash their bounded body without trusting it.
+  const object = await bucket.get(key);
+  if (
+    !object ||
+    !("body" in object) ||
+    !object.body ||
+    object.size !== size ||
+    !head.version ||
+    object.version !== head.version
+  )
+    return false;
+  const reader = object.body.getReader();
+  const hash = createHash("sha256");
+  let received = 0;
+  try {
+    for (;;) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      received += chunk.value.byteLength;
+      if (received > size) {
+        await reader.cancel();
+        return false;
+      }
+      hash.update(chunk.value);
+    }
+    return received === size && hash.digest("hex") === contentHash;
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 /** Handles PUT /upload/:grantId. Every failure leaves a recoverable non-viewable version. */
 export async function handleUpload(
   request: Request,
@@ -185,20 +229,31 @@ export async function handleUpload(
     // Conditional create: an existing object is verified, never overwritten.
     let deduplicated = false;
     try {
-      await deps.artifacts.put(r2Key, bytes, {
-        sha256: contentHash,
-        onlyIf: { etagDoesNotMatch: "*" },
-        customMetadata: { sha256: contentHash },
-      });
-    } catch {
-      const head = await deps.artifacts.head(r2Key);
-      if (!head || head.size !== bytes.byteLength || head.customMetadata?.sha256 !== contentHash) {
-        return new Response(JSON.stringify({ error: "upload_failed" }), {
-          status: 500,
-          headers,
+      let written: R2Object | null;
+      try {
+        written = await deps.artifacts.put(r2Key, bytes, {
+          sha256: contentHash,
+          onlyIf: { etagDoesNotMatch: "*" },
+          customMetadata: { sha256: contentHash },
         });
+      } catch {
+        // A lost write response may still have stored the correct object.
+        written = null;
       }
-      deduplicated = true;
+      if (written === null) {
+        if (!(await verifiedExistingObject(deps.artifacts, r2Key, bytes.byteLength, contentHash))) {
+          return new Response(JSON.stringify({ error: "upload_failed" }), {
+            status: 500,
+            headers,
+          });
+        }
+        deduplicated = true;
+      }
+    } catch {
+      return new Response(JSON.stringify({ error: "upload_failed" }), {
+        status: 500,
+        headers,
+      });
     }
 
     let receipt;

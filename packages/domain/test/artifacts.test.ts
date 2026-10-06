@@ -3,7 +3,7 @@
 
 import { createHash } from "node:crypto";
 
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   ARTIFACT_LOG_MAX_BYTES,
@@ -39,6 +39,12 @@ const NOW = "2026-09-17T12:00:00.000Z";
 const SWEEP = "2026-09-17T12:40:00.000Z";
 const DIGEST = createHash("sha256").update("synthetic-artifact").digest("hex");
 
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(NOW);
+});
+afterEach(() => vi.useRealTimers());
+
 type Created = CreateArtifactResult & { secret: string };
 
 function result<T>(outcome: CommandOutcome<T>): T {
@@ -62,6 +68,7 @@ async function fixture() {
     input: T,
     overrides: { humanId?: string; epoch?: number; now?: string; key?: string } = {},
   ) {
+    vi.setSystemTime(overrides.now ?? NOW);
     return hub.execute(command, {
       workspaceId: FIX.workspace,
       actorHumanId: overrides.humanId ?? FIX.owner,

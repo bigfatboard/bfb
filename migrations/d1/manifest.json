@@ -1,5 +1,5 @@
 {
-  "migration_head": "0041_measurement_sources",
+  "migration_head": "0042_artifact_upload_consumptions",
   "migrations": [
     {
       "id": "0001_workspace_registry",
@@ -144,6 +144,10 @@
     {
       "id": "0041_measurement_sources",
       "file": "0041_measurement_sources.sql"
+    },
+    {
+      "id": "0042_artifact_upload_consumptions",
+      "file": "0042_artifact_upload_consumptions.sql"
     }
   ]
 }

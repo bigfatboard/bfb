@@ -1,0 +1,450 @@
+// ABOUTME: Proves artifact publication and redemption use current project and human authority.
+// ABOUTME: Staged D1 races exercise exact one-time consumption and complete batch rollback.
+
+import Database from "better-sqlite3";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import {
+  adaptBetterSqlite3,
+  adaptD1,
+  applyMigrationsForVerification,
+  type D1Like,
+  type D1StatementLike,
+} from "@bfb/db";
+
+import {
+  artifactHash,
+  artifactObjectKey,
+  createArtifactCommand,
+  finalizeArtifactCommand,
+  issueArtifactGrantCommand,
+  markArtifactFailedCommand,
+  mintUploadGrantSecret,
+  recordVerifiedUpload,
+  redeemUploadGrant,
+} from "../src/artifacts.js";
+import { FIX, seedSyntheticWorkspace } from "../src/fixtures.js";
+import { WorkspaceHub, type HubCommand } from "../src/hub.js";
+import { randomUlid } from "../src/ids.js";
+
+const NOW = "2026-10-06T12:00:00.000Z";
+const DIGEST = artifactHash("synthetic artifact authority");
+
+interface StagedStatement extends D1StatementLike {
+  sql: string;
+  params: unknown[];
+}
+
+function stagedDatabase(raw: Database.Database, beforeBatch?: () => Promise<void>) {
+  const d1: D1Like = {
+    prepare(sql) {
+      const statement: StagedStatement = {
+        sql,
+        params: [],
+        bind(...params) {
+          statement.params = params;
+          return statement;
+        },
+        async first() {
+          return raw.prepare(sql).get(...statement.params) ?? null;
+        },
+        async all() {
+          return { results: raw.prepare(sql).all(...statement.params) };
+        },
+        async run() {
+          return { meta: { changes: raw.prepare(sql).run(...statement.params).changes } };
+        },
+      };
+      return statement;
+    },
+    async batch(statements) {
+      await beforeBatch?.();
+      return raw.transaction(() =>
+        (statements as StagedStatement[]).map((statement) => ({
+          meta: { changes: raw.prepare(statement.sql).run(...statement.params).changes },
+        })),
+      )();
+    },
+  };
+  return adaptD1(d1);
+}
+
+async function fixture() {
+  const raw = new Database(":memory:");
+  raw.pragma("foreign_keys = ON");
+  applyMigrationsForVerification(raw, path.resolve("migrations/d1"));
+  const db = adaptBetterSqlite3(raw);
+  await seedSyntheticWorkspace(db, NOW);
+  const hub = new WorkspaceHub(db);
+  const taskId = randomUlid();
+  const runId = randomUlid();
+  raw
+    .prepare(
+      `INSERT INTO tasks (workspace_id, id, project_id, title, state, priority,
+      next_owner_type, punchline, resource_version, created_by_human_id, created_at)
+     VALUES (?, ?, ?, 'Synthetic', 'ready', 'P2', 'unassigned', 'Synthetic', 1, ?, ?)`,
+    )
+    .run(FIX.workspace, taskId, FIX.projectA, FIX.owner, NOW);
+  raw
+    .prepare(
+      `INSERT INTO runs (workspace_id, id, project_id, task_id, requested_by_human_id,
+      agent_profile_id, result_state, activity, resource_version, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, 'open', 'unknown', 1, ?)`,
+    )
+    .run(FIX.workspace, runId, FIX.projectA, taskId, FIX.owner, FIX.profileCodex, NOW);
+  function human<I, R>(
+    command: HubCommand<I, R>,
+    input: I,
+    humanId = FIX.owner,
+    key = randomUlid(),
+  ) {
+    return hub.execute(command, {
+      workspaceId: FIX.workspace,
+      actorHumanId: humanId,
+      authorizationEpoch: 1,
+      idempotencyKey: key,
+      now: NOW,
+      input,
+    });
+  }
+  async function create(boundRun: string | null = runId, humanId = FIX.owner) {
+    const minted = mintUploadGrantSecret();
+    const outcome = await human(
+      createArtifactCommand,
+      {
+        runId: boundRun,
+        format: "markdown",
+        role: "review",
+        declaredSize: 18,
+        expectedDigest: DIGEST,
+        grantSecretHash: minted.secretHash,
+      },
+      humanId,
+    );
+    if (!outcome.ok) throw new Error(JSON.stringify(outcome));
+    return { ...outcome.result, secret: minted.secret };
+  }
+  function removeProject() {
+    raw
+      .prepare(
+        "DELETE FROM project_access WHERE workspace_id = ? AND project_id = ? AND human_id = ?",
+      )
+      .run(FIX.workspace, FIX.projectA, FIX.member);
+  }
+  async function receipt(versionId: string) {
+    await db.withTransaction((tx) =>
+      recordVerifiedUpload(tx, {
+        workspaceId: FIX.workspace,
+        versionId,
+        runId,
+        role: "review",
+        contentHash: DIGEST,
+        r2Key: artifactObjectKey({
+          workspaceId: FIX.workspace,
+          runId,
+          role: "review",
+          versionId,
+          contentHash: DIGEST,
+        }),
+        size: 18,
+        now: NOW,
+      }),
+    );
+  }
+  return { raw, db, hub, runId, human, create, removeProject, receipt };
+}
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(NOW);
+});
+afterEach(() => vi.useRealTimers());
+
+describe("current artifact authority", () => {
+  it.each(["create", "issue", "finalize", "fail"] as const)(
+    "rejects restricted-project %s without a mutation",
+    async (action) => {
+      const f = await fixture();
+      const created = await f.create();
+      await f.receipt(created.version_id);
+      f.removeProject();
+      const before = f.raw.prepare("SELECT COUNT(*) n FROM artifact_audit_outbox").get();
+      const minted = mintUploadGrantSecret();
+      const input = { versionId: created.version_id };
+      const outcome =
+        action === "create"
+          ? await f.human(
+              createArtifactCommand,
+              {
+                runId: f.runId,
+                format: "markdown",
+                role: "review",
+                declaredSize: 18,
+                expectedDigest: DIGEST,
+                grantSecretHash: minted.secretHash,
+              },
+              FIX.member,
+            )
+          : action === "issue"
+            ? await f.human(
+                issueArtifactGrantCommand,
+                { ...input, grantSecretHash: minted.secretHash },
+                FIX.member,
+              )
+            : action === "finalize"
+              ? await f.human(
+                  finalizeArtifactCommand,
+                  { ...input, contentHash: DIGEST, size: 18 },
+                  FIX.member,
+                )
+              : await f.human(markArtifactFailedCommand, input, FIX.member);
+      expect(outcome).toMatchObject({ ok: false, error: { code: "request_rejected" } });
+      expect(f.raw.prepare("SELECT COUNT(*) n FROM artifact_audit_outbox").get()).toEqual(before);
+      expect(
+        f.raw.prepare("SELECT state FROM artifact_versions WHERE id = ?").get(created.version_id),
+      ).toEqual({ state: "uploading" });
+    },
+  );
+
+  it.each(["project", "role", "membership", "epoch"] as const)(
+    "denies grant redemption after current %s changes",
+    async (change) => {
+      const f = await fixture();
+      const created = await f.create(f.runId, FIX.member);
+      if (change === "project") f.removeProject();
+      if (change === "role")
+        f.raw
+          .prepare("UPDATE workspace_members SET role = 'reviewer' WHERE human_id = ?")
+          .run(FIX.member);
+      if (change === "membership")
+        f.raw
+          .prepare("UPDATE workspace_authorization_epochs SET revoked_at = ? WHERE human_id = ?")
+          .run(NOW, FIX.member);
+      if (change === "epoch")
+        f.raw
+          .prepare(
+            "UPDATE workspace_authorization_epochs SET authorization_epoch = 2 WHERE human_id = ?",
+          )
+          .run(FIX.member);
+      await expect(
+        f.db.withTransaction((tx) =>
+          redeemUploadGrant(tx, {
+            grantId: created.upload_grant.grant_id,
+            secret: created.secret,
+            now: NOW,
+          }),
+        ),
+      ).rejects.toThrow();
+      expect(
+        f.raw
+          .prepare("SELECT consumed_at FROM artifact_upload_grants WHERE id = ?")
+          .get(created.upload_grant.grant_id),
+      ).toEqual({ consumed_at: null });
+      expect(
+        f.raw
+          .prepare(
+            "SELECT COUNT(*) n FROM artifact_audit_outbox WHERE action = 'artifact.grant_consumed'",
+          )
+          .get(),
+      ).toEqual({ n: 0 });
+    },
+  );
+
+  it("preserves run-free member publication and current workspace-visible project access", async () => {
+    const f = await fixture();
+    f.removeProject();
+    expect((await f.create(null, FIX.member)).state).toBe("uploading");
+    f.raw.prepare("UPDATE projects SET access_mode = 'workspace' WHERE id = ?").run(FIX.projectA);
+    const created = await f.create(f.runId, FIX.member);
+    const redeemed = await f.db.withTransaction((tx) =>
+      redeemUploadGrant(tx, {
+        grantId: created.upload_grant.grant_id,
+        secret: created.secret,
+        now: NOW,
+      }),
+    );
+    expect(redeemed.runId).toBe(f.runId);
+  });
+});
+
+describe("exact upload consumption", () => {
+  it("retains populated 0041 grants without inventing historical consumption identities", async () => {
+    const raw = new Database(":memory:");
+    applyMigrationsForVerification(raw, path.resolve("migrations/d1"), {
+      stopBeforeId: "0042_artifact_upload_consumptions",
+    });
+    const db = adaptBetterSqlite3(raw);
+    await seedSyntheticWorkspace(db, NOW);
+    const minted = mintUploadGrantSecret();
+    const outcome = await new WorkspaceHub(db).execute(createArtifactCommand, {
+      workspaceId: FIX.workspace,
+      actorHumanId: FIX.owner,
+      authorizationEpoch: 1,
+      idempotencyKey: randomUlid(),
+      now: NOW,
+      input: {
+        format: "markdown",
+        role: "review",
+        declaredSize: 18,
+        expectedDigest: DIGEST,
+        grantSecretHash: minted.secretHash,
+      },
+    });
+    if (!outcome.ok) throw new Error(JSON.stringify(outcome));
+    raw
+      .prepare("UPDATE artifact_upload_grants SET consumed_at = ? WHERE id = ?")
+      .run(NOW, outcome.result.upload_grant.grant_id);
+    const before = raw.prepare("SELECT * FROM artifact_upload_grants").all();
+    applyMigrationsForVerification(raw, path.resolve("migrations/d1"));
+    expect(raw.prepare("SELECT * FROM artifact_upload_grants").all()).toEqual(before);
+    expect(raw.prepare("SELECT COUNT(*) n FROM artifact_upload_consumptions").get()).toEqual({
+      n: 0,
+    });
+    await expect(
+      db.withTransaction((tx) =>
+        redeemUploadGrant(tx, {
+          grantId: outcome.result.upload_grant.grant_id,
+          secret: minted.secret,
+          now: NOW,
+        }),
+      ),
+    ).rejects.toThrow();
+    expect(raw.prepare("SELECT COUNT(*) n FROM artifact_upload_consumptions").get()).toEqual({
+      n: 0,
+    });
+    expect(raw.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+  });
+
+  it("rolls back consumption and claim if its late audit insert fails", async () => {
+    const f = await fixture();
+    const created = await f.create();
+    f.raw.exec(
+      "CREATE TRIGGER synthetic_consume_audit_failure BEFORE INSERT ON artifact_audit_outbox WHEN NEW.action = 'artifact.grant_consumed' BEGIN SELECT RAISE(ABORT, 'synthetic late batch failure'); END",
+    );
+    const db = stagedDatabase(f.raw);
+    await expect(
+      db.withTransaction((tx) =>
+        redeemUploadGrant(tx, {
+          grantId: created.upload_grant.grant_id,
+          secret: created.secret,
+          now: NOW,
+        }),
+      ),
+    ).rejects.toThrow();
+    expect(
+      f.raw
+        .prepare("SELECT consumed_at FROM artifact_upload_grants WHERE id = ?")
+        .get(created.upload_grant.grant_id),
+    ).toEqual({ consumed_at: null });
+    expect(f.raw.prepare("SELECT COUNT(*) n FROM artifact_upload_consumptions").get()).toEqual({
+      n: 0,
+    });
+    f.raw.exec("DROP TRIGGER synthetic_consume_audit_failure");
+    await db.withTransaction((tx) =>
+      redeemUploadGrant(tx, {
+        grantId: created.upload_grant.grant_id,
+        secret: created.secret,
+        now: NOW,
+      }),
+    );
+    const claim = f.raw.prepare("SELECT * FROM artifact_upload_consumptions").get() as Record<
+      string,
+      unknown
+    >;
+    expect(claim.attempt_id).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/);
+    expect(() =>
+      f.raw.prepare("UPDATE artifact_upload_consumptions SET consumed_at = ?").run(NOW),
+    ).toThrow();
+    expect(() => f.raw.prepare("DELETE FROM artifact_upload_consumptions").run()).toThrow();
+  });
+
+  it("allows only one staged same-timestamp attempt and one consume audit", async () => {
+    const f = await fixture();
+    const created = await f.create();
+    let batches = 0;
+    let release!: () => void;
+    const barrier = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const db = stagedDatabase(f.raw, async () => {
+      if (++batches === 2) release();
+      await barrier;
+    });
+    const outcomes = await Promise.allSettled(
+      [1, 2].map(() =>
+        db.withTransaction((tx) =>
+          redeemUploadGrant(tx, {
+            grantId: created.upload_grant.grant_id,
+            secret: created.secret,
+            now: NOW,
+          }),
+        ),
+      ),
+    );
+    expect(outcomes.map((outcome) => outcome.status).sort()).toEqual(["fulfilled", "rejected"]);
+    expect(f.raw.prepare("SELECT COUNT(*) n FROM artifact_upload_consumptions").get()).toEqual({
+      n: 1,
+    });
+    expect(
+      f.raw
+        .prepare(
+          "SELECT COUNT(*) n FROM artifact_audit_outbox WHERE action = 'artifact.grant_consumed'",
+        )
+        .get(),
+    ).toEqual({ n: 1 });
+  });
+
+  it.each(["project", "role", "membership", "epoch", "version"] as const)(
+    "rolls back its claim and audit when %s changes before the D1 commit",
+    async (change) => {
+      const f = await fixture();
+      const created = await f.create(f.runId, FIX.member);
+      const db = stagedDatabase(f.raw, async () => {
+        if (change === "project") f.removeProject();
+        if (change === "role")
+          f.raw
+            .prepare("UPDATE workspace_members SET role = 'reviewer' WHERE human_id = ?")
+            .run(FIX.member);
+        if (change === "membership")
+          f.raw
+            .prepare("UPDATE workspace_authorization_epochs SET revoked_at = ? WHERE human_id = ?")
+            .run(NOW, FIX.member);
+        if (change === "epoch")
+          f.raw
+            .prepare(
+              "UPDATE workspace_authorization_epochs SET authorization_epoch = 2 WHERE human_id = ?",
+            )
+            .run(FIX.member);
+        if (change === "version")
+          f.raw
+            .prepare("UPDATE artifact_versions SET state = 'failed' WHERE id = ?")
+            .run(created.version_id);
+      });
+      await expect(
+        db.withTransaction((tx) =>
+          redeemUploadGrant(tx, {
+            grantId: created.upload_grant.grant_id,
+            secret: created.secret,
+            now: NOW,
+          }),
+        ),
+      ).rejects.toThrow();
+      expect(
+        f.raw
+          .prepare("SELECT consumed_at FROM artifact_upload_grants WHERE id = ?")
+          .get(created.upload_grant.grant_id),
+      ).toEqual({ consumed_at: null });
+      expect(f.raw.prepare("SELECT COUNT(*) n FROM artifact_upload_consumptions").get()).toEqual({
+        n: 0,
+      });
+      expect(
+        f.raw
+          .prepare(
+            "SELECT COUNT(*) n FROM artifact_audit_outbox WHERE action = 'artifact.grant_consumed'",
+          )
+          .get(),
+      ).toEqual({ n: 0 });
+    },
+  );
+});

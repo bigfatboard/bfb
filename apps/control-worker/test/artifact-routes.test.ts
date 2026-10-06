@@ -3,7 +3,7 @@
 
 import { createHash } from "node:crypto";
 
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { artifactObjectKey, FIX, recordVerifiedUpload, seedSyntheticWorkspace } from "@bfb/domain";
 import type { SqlDatabase } from "@bfb/db";
@@ -18,6 +18,12 @@ import { AUTH_TEST_ENV, openAuthTestContext, seedAuthSession } from "./auth-help
 const NOW = "2026-09-17T12:00:00.000Z";
 const ORIGIN = AUTH_TEST_ENV.APP_ORIGIN;
 const TEXT = new TextEncoder().encode("# synthetic review\n");
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(NOW);
+});
+afterEach(() => vi.useRealTimers());
 
 function digest(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex");
