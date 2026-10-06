@@ -241,7 +241,7 @@ try {
     tables: 5,
   });
 
-  const policy: Omit<PolicySettings, "offlineAgentWork"> = {
+  const policy: Omit<PolicySettings, "offlineAgentWork" | "offlineAgentResults"> = {
     allowedProviders: ["fake"],
     allowAgentRootPropose: false,
     allowPassToAgent: true,

@@ -541,7 +541,7 @@ async function main(): Promise<void> {
           }),
           principal.authExpiresAt,
         );
-      const policy: Omit<PolicySettings, "offlineAgentWork"> = {
+      const policy: Omit<PolicySettings, "offlineAgentWork" | "offlineAgentResults"> = {
         allowedProviders: ["claude", "codex", "grok", "fake"],
         allowAgentRootPropose: false,
         allowPassToAgent: true,

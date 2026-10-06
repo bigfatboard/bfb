@@ -233,7 +233,7 @@ try {
   recording.push(migrationOkEntry(preserved.id));
   console.log("A02_MIGRATION_OK populated 0019 upgrade preserves tasks and opens empty attention");
 
-  const policy: Omit<PolicySettings, "offlineAgentWork"> = {
+  const policy: Omit<PolicySettings, "offlineAgentWork" | "offlineAgentResults"> = {
     allowedProviders: ["fake"],
     allowAgentRootPropose: false,
     allowPassToAgent: true,

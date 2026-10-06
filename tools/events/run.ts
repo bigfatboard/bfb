@@ -218,7 +218,7 @@ try {
   });
   console.log("E01_MIGRATION_OK populated 0018 upgrade preserves tasks and opens an empty ledger");
 
-  const policy: Omit<PolicySettings, "offlineAgentWork"> = {
+  const policy: Omit<PolicySettings, "offlineAgentWork" | "offlineAgentResults"> = {
     allowedProviders: ["fake"],
     allowAgentRootPropose: false,
     allowPassToAgent: true,

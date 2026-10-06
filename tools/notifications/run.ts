@@ -672,7 +672,7 @@ async function tableCount(table: string): Promise<number> {
   return row.count;
 }
 
-const policy: Omit<PolicySettings, "offlineAgentWork"> = {
+const policy: Omit<PolicySettings, "offlineAgentWork" | "offlineAgentResults"> = {
   allowedProviders: ["fake"],
   allowAgentRootPropose: false,
   allowPassToAgent: true,

@@ -176,7 +176,7 @@ type Control = { control_id: string; state: string; expires_at: string; resume_l
 
 async function seedPreLaunchPolicyHistory(
   db: SqlDatabase,
-  policy: Omit<PolicySettings, "offlineAgentWork">,
+  policy: Omit<PolicySettings, "offlineAgentWork" | "offlineAgentResults">,
 ): Promise<void> {
   // This arranges the actual pre-0016 schema; current mutators need the later 0039 columns.
   const columns = await db.prepare("PRAGMA table_info(workspace_policies)").all();
@@ -261,7 +261,7 @@ try {
     assert(outcome.ok, JSON.stringify(outcome));
     return outcome.result;
   }
-  const ordinary: Omit<PolicySettings, "offlineAgentWork"> = {
+  const ordinary: Omit<PolicySettings, "offlineAgentWork" | "offlineAgentResults"> = {
     allowedProviders: ["claude", "codex", "grok"],
     allowAgentRootPropose: false,
     allowPassToAgent: true,
@@ -355,7 +355,7 @@ try {
       `INSERT INTO better_auth_sessions (id, expires_at, token, created_at, updated_at, user_id) VALUES (?, '2027-09-12T12:00:00.000Z', ?, ?, ?, 'c09-user')`,
     )
     .run(SESSION, SESSION_TOKEN, now, now);
-  const policy: Omit<PolicySettings, "offlineAgentWork"> = {
+  const policy: Omit<PolicySettings, "offlineAgentWork" | "offlineAgentResults"> = {
     ...ordinary,
     allowedProviders: [...ordinary.allowedProviders, "fake"],
   };

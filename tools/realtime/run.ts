@@ -274,7 +274,7 @@ try {
     await db.prepare(`UPDATE humans SET better_auth_user_id = ? WHERE id = ?`).run(userId, humanId);
   }
 
-  const policy: Omit<PolicySettings, "offlineAgentWork"> = {
+  const policy: Omit<PolicySettings, "offlineAgentWork" | "offlineAgentResults"> = {
     allowedProviders: ["fake"],
     allowAgentRootPropose: false,
     allowPassToAgent: true,

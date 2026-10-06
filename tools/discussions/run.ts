@@ -200,7 +200,7 @@ try {
     "D01_MIGRATION_OK empty and populated 0016 upgrade preserve work, sessions, snapshots and event cursor",
   );
 
-  const policy: Omit<PolicySettings, "offlineAgentWork"> = {
+  const policy: Omit<PolicySettings, "offlineAgentWork" | "offlineAgentResults"> = {
     allowedProviders: ["claude", "codex"],
     allowAgentRootPropose: false,
     allowPassToAgent: true,

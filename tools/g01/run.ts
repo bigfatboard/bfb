@@ -411,7 +411,7 @@ try {
   assert.equal(Object.keys(projectIds).length, 10, "ten projects are required");
   note("fixture", "10 projects present with distinct repository identities");
 
-  const policy: Omit<PolicySettings, "offlineAgentWork"> = {
+  const policy: Omit<PolicySettings, "offlineAgentWork" | "offlineAgentResults"> = {
     allowedProviders: ["claude", "codex", "grok", "fake"],
     allowAgentRootPropose: false,
     allowPassToAgent: true,
