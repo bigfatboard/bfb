@@ -6,16 +6,24 @@ import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { loadMigrationManifest } from "@bfb/db";
 import {
+  CERTIFIED_RUNTIME_MIGRATION_HEAD,
   duplicateResultEntry,
   EXPECTED_RUNTIME_RECORDING,
   RUNTIME_TRANSITIONS,
   serializeRuntimeRecording,
   serializeRuntimeTransitions,
+  shouldWriteRuntimeEvidence,
 } from "./evidence.ts";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const evidence = resolve(root, "docs/work-packages/evidence/WP-A03");
+const migrationManifest = loadMigrationManifest(resolve(root, "migrations/d1"));
+const atHead = (head) =>
+  EXPECTED_RUNTIME_RECORDING.map((entry) =>
+    entry.step === "migration" ? { ...entry, head } : { ...entry },
+  );
 
 test("duplicate projections compare identity but never retain it", () => {
   assert.deepEqual(
@@ -35,13 +43,45 @@ test("serialized trace rejects arbitrary private and volatile fields", () => {
     "captured_at",
     "token",
   ]) {
-    const entries = EXPECTED_RUNTIME_RECORDING.map((entry) => ({ ...entry }));
-    entries[0][field] = "must-not-be-recorded";
-    assert.throws(() => serializeRuntimeRecording(entries));
+    for (const head of [CERTIFIED_RUNTIME_MIGRATION_HEAD, migrationManifest.migration_head]) {
+      const entries = atHead(head);
+      entries[0][field] = "must-not-be-recorded";
+      assert.throws(() => serializeRuntimeRecording(entries, head));
+    }
   }
 });
 
-test("the committed current trace is byte-identical to its bounded projection", async () => {
+test("the current manifest head validates without replacing the certified recording", async () => {
+  const head = migrationManifest.migration_head;
+  const baseline = await readFile(resolve(evidence, "runtime-recording.jsonl"), "utf8");
+  const serialized = serializeRuntimeRecording(atHead(head), head);
+  assert.equal(JSON.parse(serialized.split("\n")[0]).head, head);
+  assert.equal(shouldWriteRuntimeEvidence(head), head === CERTIFIED_RUNTIME_MIGRATION_HEAD);
+  assert.equal(shouldWriteRuntimeEvidence(CERTIFIED_RUNTIME_MIGRATION_HEAD), true);
+  assert.equal(baseline, serializeRuntimeRecording(EXPECTED_RUNTIME_RECORDING));
+  assert.equal(await readFile(resolve(evidence, "runtime-recording.jsonl"), "utf8"), baseline);
+  if (head !== CERTIFIED_RUNTIME_MIGRATION_HEAD) {
+    assert.notEqual(serialized, baseline);
+    assert.throws(() => serializeRuntimeRecording(atHead(head)));
+    assert.throws(() => serializeRuntimeRecording(EXPECTED_RUNTIME_RECORDING, head));
+  }
+});
+
+test("arbitrary and older migration heads cannot be recorded or written", () => {
+  for (const head of ["0041_arbitrary", "9999_arbitrary", "0039_offline_agent_policy", "secret"]) {
+    assert.throws(() => serializeRuntimeRecording(atHead(head), head));
+    assert.throws(() => shouldWriteRuntimeEvidence(head));
+  }
+});
+
+test("a newer head does not relax any non-migration projection", () => {
+  const head = migrationManifest.migration_head;
+  const entries = atHead(head);
+  entries[1].task = "done";
+  assert.throws(() => serializeRuntimeRecording(entries, head));
+});
+
+test("the certified trace is byte-identical to its bounded projection", async () => {
   assert.equal(
     await readFile(resolve(evidence, "runtime-recording.jsonl"), "utf8"),
     serializeRuntimeRecording(EXPECTED_RUNTIME_RECORDING),

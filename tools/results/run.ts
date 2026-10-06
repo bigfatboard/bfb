@@ -20,9 +20,11 @@ import {
 } from "@bfb/domain";
 import { createTestHarness } from "wrangler";
 import {
+  CERTIFIED_RUNTIME_MIGRATION_HEAD,
   duplicateResultEntry,
   serializeRuntimeRecording,
   serializeRuntimeTransitions,
+  shouldWriteRuntimeEvidence,
 } from "./evidence.js";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -155,7 +157,10 @@ async function main(): Promise<void> {
       migrationManifest.migrations.some((entry) => entry.id === "0024_result_submissions"),
       "A03 result submission migration must be registered",
     );
-    assert.equal(migrationManifest.migration_head, "0040_offline_result_policy");
+    assert.ok(
+      migrationManifest.migrations.some((entry) => entry.id === CERTIFIED_RUNTIME_MIGRATION_HEAD),
+      "A03 offline result policy migration must be registered",
+    );
     recording.push({
       step: "migration",
       head: migrationManifest.migration_head,
@@ -704,15 +709,21 @@ UNION ALL SELECT payload_json FROM outbox_records WHERE workspace_id=? AND kind 
       );
     }
     recording.push({ step: "privacy", private_result_and_review_payloads_absent: true });
-    const evidenceRoot = resolve(repoRoot, "docs/work-packages/evidence/WP-A03");
-    await writeFile(
-      resolve(evidenceRoot, "runtime-recording.jsonl"),
-      serializeRuntimeRecording(recording),
+    const serializedRecording = serializeRuntimeRecording(
+      recording,
+      migrationManifest.migration_head,
     );
-    await writeFile(
-      resolve(evidenceRoot, "runtime-transition-matrix.json"),
-      serializeRuntimeTransitions(),
-    );
+    if (shouldWriteRuntimeEvidence(migrationManifest.migration_head)) {
+      const evidenceRoot = resolve(repoRoot, "docs/work-packages/evidence/WP-A03");
+      await writeFile(resolve(evidenceRoot, "runtime-recording.jsonl"), serializedRecording);
+      await writeFile(
+        resolve(evidenceRoot, "runtime-transition-matrix.json"),
+        serializeRuntimeTransitions(),
+      );
+    } else {
+      console.log(serializedRecording.trimEnd());
+      console.log("A03_CERTIFIED_EVIDENCE_PRESERVED");
+    }
 
     console.log(`A03 worker results: passed (${checks.length} checks)`);
     for (const check of checks) {

@@ -2,6 +2,10 @@
 // ABOUTME: Keeps generated identities, private result content and wall-clock facts out of committed traces.
 
 import assert from "node:assert/strict";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { loadMigrationManifest } from "@bfb/db";
 
 export const EXPECTED_RUNTIME_RECORDING = [
   { step: "migration", head: "0040_offline_result_policy", result_tables_present: true },
@@ -24,6 +28,28 @@ export const EXPECTED_RUNTIME_RECORDING = [
   { step: "privacy", private_result_and_review_payloads_absent: true },
 ] as const;
 
+export const CERTIFIED_RUNTIME_MIGRATION_HEAD = EXPECTED_RUNTIME_RECORDING[0].head;
+const migrationManifest = loadMigrationManifest(
+  resolve(dirname(fileURLToPath(import.meta.url)), "../../migrations/d1"),
+);
+
+function validateRuntimeMigrationHead(head: string): void {
+  assert.ok(
+    migrationManifest.migrations.some((entry) => entry.id === CERTIFIED_RUNTIME_MIGRATION_HEAD),
+    "A03 offline result policy migration must be registered",
+  );
+  assert.ok(
+    head === CERTIFIED_RUNTIME_MIGRATION_HEAD || head === migrationManifest.migration_head,
+    "runtime result trace requires its certified or actual manifest head",
+  );
+}
+
+/** A newer integration run validates its own head without replacing the certified trace. */
+export function shouldWriteRuntimeEvidence(head: string): boolean {
+  validateRuntimeMigrationHead(head);
+  return head === CERTIFIED_RUNTIME_MIGRATION_HEAD;
+}
+
 export const RUNTIME_TRANSITIONS = {
   submitted: { run: "submitted", task: "review" },
   changes_requested: { run: "changes_requested", task: "active" },
@@ -34,10 +60,16 @@ export const RUNTIME_TRANSITIONS = {
   scope: "isolated_real_worker_hub_d1_human_command_trace",
 } as const;
 
-export function serializeRuntimeRecording(entries: readonly unknown[]): string {
+export function serializeRuntimeRecording(
+  entries: readonly unknown[],
+  migrationHead: string = CERTIFIED_RUNTIME_MIGRATION_HEAD,
+): string {
+  validateRuntimeMigrationHead(migrationHead);
   assert.deepEqual(
     entries,
-    EXPECTED_RUNTIME_RECORDING,
+    EXPECTED_RUNTIME_RECORDING.map((entry) =>
+      entry.step === "migration" ? { ...entry, head: migrationHead } : entry,
+    ),
     "runtime result trace must match exact safe projections",
   );
   return `${entries.map((entry) => JSON.stringify(entry)).join("\n")}\n`;
