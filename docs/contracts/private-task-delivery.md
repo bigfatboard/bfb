@@ -392,8 +392,10 @@ separate clean checkpoint before being certified:
 - GitHub totals bind exact same-workspace outbox→delivery and
   `github.reconcile` kind. DLQ rows independently match that same outbox,
   delivery ID and kind; preserve the existing dispatched-stale time condition.
-  Repository events require matching typed stored/effect installation and
-  repository identities, current active link and observer-accessible project.
+  Stored delivery event/action must agree with typed effect event/action,
+  including genuine NULL agreement, before selecting a lifecycle or repository
+  branch. Repository events require matching typed stored/effect installation
+  and repository identities, current active link and observer-accessible project.
   Every applicable existing `observed_by='github'` evidence task association
   must match that project and remain shared/readable; missing evidence may be
   pending project-only work. Human/runner observations are distinct. Do not
