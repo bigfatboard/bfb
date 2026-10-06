@@ -256,6 +256,46 @@ It does not certify complete operations privacy or enable private work:
 These checks preserve the shared authorization-clock semantics and do not
 certify natural expiry during an in-flight batch or complete operations privacy.
 
+The next bounded security-audit slice covers canonical artifact receipts only;
+it requires its own clean checkpoint before certification:
+
+- `readSecurityAudit` requires explicit `options.access`, captured from the
+  authenticated browser's human principal. One final selection rechecks current
+  Owner membership/retained epoch even for empty pages, then resolves the anchor
+  through the same visibility rules. Scope loss returns the fixed operations
+  scope denial before anchor validation. Missing, foreign, hidden, malformed and
+  unsupported anchors retain the same `invalid_argument / unknown audit cursor`.
+- Quarantine the artifact namespace case-insensitively; recognize only the nine
+  exact registered `ARTIFACT_AUDIT_ACTIONS` and `artifact.dispatch_audit`.
+  Unsupported artifact command receipts are omitted. Unrelated action families
+  retain their existing sanitizer and remain explicitly uncertified. No generic
+  payload-ID inference or presence-dependent route gating is allowed.
+- Direct receipts bind `audit_id = outbox.id` and the exact source action.
+  Wrappers need a closed, duplicate-free `{actor,input,result}` envelope with
+  matching input/result outbox identities and canonical source tuple. Both use
+  the fixed artifact system actor, typed ULID/UTC fields and the source's exact
+  dispatch time. A wrapper must also have its matching canonical direct receipt,
+  since production dispatch commits both atomically.
+- Resolve the exact same-workspace outbox→version→artifact→run→task/project.
+  Task-bound sources require a shared parent and current read/project authority,
+  even for private creators/grantees. Only a genuinely NULL artifact run uses
+  workspace authority; a missing non-NULL run is unavailable. Upload-grant
+  actions require matching workspace/grant/version and exact nullable run
+  association; view actions resolve the view-grant table instead. Finalized,
+  abandoned and review-recorded sources require a genuinely NULL grant. Grant
+  expiry/consumption and retained artifact state do not erase authorized history.
+- Filter malformed or unauthorized sources before chronological ordering,
+  `LIMIT + 1` and `has_more`. Materialized normalization/authority boundaries
+  must fit actual D1 expression limits. Do not await more hydration after the
+  final selection. Direct payloads ignore historical JSON entirely and rebuild
+  the six-field canonical projection. Wrappers rebuild that projection inside
+  the recognized actor/input/result shape; arbitrary audit/outbox JSON is never
+  returned for these families. Stored history and internal dispatch are unchanged.
+
+This slice preserves the historical audit-ID cursor wire form, not a new opaque
+recipient position. Complete audit families, global positions, diagnostics and
+operations aggregates remain activation barriers.
+
 ## Delivery inventory and required proof
 
 | Surface | Existing owner / entry points | C11 completion check |

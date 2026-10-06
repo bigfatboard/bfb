@@ -36,6 +36,16 @@ interprets provider-specific capability fields.
   webhook/VAPID markers, local absolute paths, launch commands) become
   `[redacted]`. Nested objects and arrays are summarized by shape beyond
   depth 2, 25 keys, or 25 items.
+- C11's next bounded artifact-receipt repair requires explicit retained human
+  `options.access`, current Owner/epoch scope even for empty pages, and exact
+  shared source lineage before pagination. It recognizes only the nine canonical
+  artifact actions and their strict dispatch wrapper; unsupported artifact-family
+  receipts are unavailable. Canonical source fields replace arbitrary historical
+  payloads. Hidden and missing anchors share the existing cursor denial. This
+  does not certify unrelated audit families, diagnostics or opaque positions;
+  see the [C11 delivery contract](private-task-delivery.md) for the source,
+  grant, normalization and final-delivery rules. Internal dispatch/history and
+  the browser response/cursor envelope remain unchanged.
 
 ## Activity read model
 
