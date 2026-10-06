@@ -564,6 +564,8 @@ export function LaunchSection(props: LaunchSectionProps) {
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const checkoutSelect = useRef<HTMLSelectElement>(null);
   const [loaded, setLoaded] = useState(false);
 
   const reload = useCallback(async () => {
@@ -720,6 +722,15 @@ export function LaunchSection(props: LaunchSectionProps) {
     (item) => item.checkout_id === effectiveCheckoutId,
   );
   const checkoutBlocked = selectedCheckout && selectedCheckout.status !== "validated";
+  const checkoutBlockedMessage = checkoutBlocked
+    ? `This checkout is ${selectedCheckout.status}${
+        selectedCheckout.block_reason
+          ? `: ${selectedCheckout.block_reason.replaceAll("_", " ")}`
+          : ""
+      }. Relink and verify it on the Mac before starting.`
+    : null;
+  const checkoutIssue = checkoutError ?? checkoutBlockedMessage;
+  const checkoutErrorId = `start-checkout-error-${props.taskId}`;
 
   async function readVersions(retryRunId?: string) {
     if (!task) {
@@ -756,11 +767,32 @@ export function LaunchSection(props: LaunchSectionProps) {
   }
 
   async function startAttempt(retryRunId?: string, freshKey?: string) {
-    if (!task || !effectiveRunnerId || !effectiveCheckoutId || busy) {
+    if (busy) {
+      return;
+    }
+    setError(null);
+    setCheckoutError(null);
+    if (!task) {
+      setError("Task is not available. Reload this card before starting.");
+      return;
+    }
+    if (!effectiveRunnerId) {
+      setError("Select an available Mac runner before starting.");
+      return;
+    }
+    // Retry buttons are outside the form, so required-field validation must
+    // also run here. Never let a displayed first option stand in for selection.
+    if (!selectedCheckout || checkoutBlocked) {
+      setCheckoutError(
+        checkoutBlockedMessage ??
+          (selectableCheckouts.length === 0
+            ? "No linked checkout is available for this project on the selected Mac. Link and verify one on the Mac, then reload this card."
+            : "Select a linked checkout before starting or retrying this run."),
+      );
+      checkoutSelect.current?.focus();
       return;
     }
     setBusy(true);
-    setError(null);
     try {
       const versions = await readVersions(retryRunId);
       const taskResponse = await fetchFn(
@@ -912,6 +944,7 @@ export function LaunchSection(props: LaunchSectionProps) {
               onChange={(event) => {
                 setRunnerId(event.target.value);
                 setCheckoutId("");
+                setCheckoutError(null);
               }}
               required
             >
@@ -932,11 +965,18 @@ export function LaunchSection(props: LaunchSectionProps) {
           <label>
             Linked checkout
             <select
+              ref={checkoutSelect}
               data-testid="start-checkout"
               value={effectiveCheckoutId}
-              onChange={(event) => setCheckoutId(event.target.value)}
+              onChange={(event) => {
+                setCheckoutId(event.target.value);
+                setCheckoutError(null);
+              }}
+              aria-invalid={Boolean(checkoutIssue)}
+              aria-describedby={checkoutIssue ? checkoutErrorId : undefined}
               required
             >
+              <option value="">Select a linked checkout</option>
               {selectableCheckouts.map((checkout) => (
                 <option key={checkout.checkout_id} value={checkout.checkout_id}>
                   {`${checkout.label} · ${checkout.branch ?? "branch unknown"} · ${checkout.dirty ? "dirty" : "clean"} · ${checkout.status}`}
@@ -954,13 +994,14 @@ export function LaunchSection(props: LaunchSectionProps) {
               No agent profile pins a model. Ask an owner to set one before starting.
             </p>
           ) : null}
-          {checkoutBlocked ? (
-            <p role="alert" data-testid="checkout-blocked">
-              {`This checkout is ${selectedCheckout?.status}${
-                selectedCheckout?.block_reason
-                  ? `: ${selectedCheckout.block_reason.replaceAll("_", " ")}`
-                  : ""
-              }. Relink and verify it on the Mac before starting.`}
+          {checkoutIssue ? (
+            <p
+              id={checkoutErrorId}
+              className="inline-error"
+              role="alert"
+              data-testid={checkoutBlocked ? "checkout-blocked" : "checkout-selection-error"}
+            >
+              {checkoutIssue}
             </p>
           ) : null}
           <button
@@ -1037,6 +1078,7 @@ export function LaunchSection(props: LaunchSectionProps) {
                   type="button"
                   className="button-secondary"
                   data-testid={`retry-${launch.launch_id}`}
+                  disabled={busy}
                   onClick={() => {
                     // startAttempt settles keys on any answer, so the retry
                     // only mints its own without touching the Start form key.

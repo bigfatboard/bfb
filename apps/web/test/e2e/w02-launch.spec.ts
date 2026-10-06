@@ -9,6 +9,7 @@ import { runnerGrantsTarget } from "@bfb/domain";
 
 import { signInAndOpenBoard } from "./helpers.js";
 import { enrollVirtualPasskey } from "./webauthn-helpers.js";
+import type { RunnerSummary } from "../../src/launch/api.js";
 import {
   apiFetch,
   ensureEvidenceDir,
@@ -325,40 +326,6 @@ test("duplicate cancel shares one disposition and settles the launch", async ({ 
   );
 });
 
-test("expired launch waits for another explicit click", async ({ page }) => {
-  await signInAndOpenBoard(page, "owner");
-  await openTaskCard(page, FIX.taskLaunchExpired, "Synthetic expired launch");
-  await selectW02RunnerAndCheckout(page);
-  await waitForStartReady(page);
-  await expect(page.getByText("Launch expired")).toBeVisible();
-  const expiredId = await page.evaluate(
-    async ({ workspace, taskId }) => {
-      const response = await fetch(`/api/v1/workspaces/${workspace}/launches?task_id=${taskId}`);
-      const body = (await response.json()) as {
-        launches: { launch_id: string; run_id: string }[];
-      };
-      return body.launches[0]!;
-    },
-    { workspace: FIX.workspace, taskId: FIX.taskLaunchExpired },
-  );
-  await page.waitForTimeout(6000);
-  const count = await page.getByTestId("launch-list").locator("article").count();
-  expect(count).toBe(1);
-  await page.getByRole("button", { name: "Start again explicitly" }).click();
-  await expect(page.getByText("Pending Mac claim")).toBeVisible();
-  const launches = await page.evaluate(
-    async ({ workspace, taskId }) => {
-      const response = await fetch(`/api/v1/workspaces/${workspace}/launches?task_id=${taskId}`);
-      return (await response.json()) as { launches: { launch_id: string; run_id: string }[] };
-    },
-    { workspace: FIX.workspace, taskId: FIX.taskLaunchExpired },
-  );
-  expect(launches.launches).toHaveLength(2);
-  const retried = launches.launches.find((item) => item.launch_id !== expiredId.launch_id)!;
-  expect(retried.run_id).toBe(expiredId.run_id);
-  await page.screenshot({ path: path.join(W02_EVIDENCE_DIR, "expired-retry.png") });
-});
-
 test("containment unknown offers only the local handoff", async ({ page }) => {
   await signInAndOpenBoard(page, "owner");
   await openTaskCard(page, FIX.taskLaunchContained, "Synthetic contained launch");
@@ -411,6 +378,157 @@ test("ended process leaves result and task open", async ({ page }) => {
       "",
     ].join("\n"),
   );
+});
+
+async function presentRetryCheckouts(
+  page: Page,
+  state: "unselected" | "missing" | "blocked",
+  expired = false,
+) {
+  // Change only this browser's inventory projection. The successful retry
+  // still goes to the real fixture API with its registered Alpha checkout.
+  await page.route(`**/api/v1/workspaces/${FIX.workspace}/runners`, async (route) => {
+    const response = await route.fetch();
+    const body = (await response.json()) as { runners: RunnerSummary[] };
+    const runner = body.runners.find((item) => item.runner_id === W02_RUNNER_ID)!;
+    const status = runner.checkout_status!;
+    const checkout = status.checkouts.find((item) => item.label === "Synthetic Alpha Checkout")!;
+    status.checkouts =
+      state === "missing"
+        ? []
+        : [
+            {
+              ...checkout,
+              is_default: false,
+              ...(state === "blocked"
+                ? { status: "blocked" as const, block_reason: "repository_mismatch" }
+                : {}),
+            },
+          ];
+    await route.fulfill({ response, json: { runners: [runner] } });
+  });
+  await signInAndOpenBoard(page, "owner");
+  await openTaskCard(
+    page,
+    expired ? FIX.taskLaunchExpired : FIX.taskLaunchEnded,
+    expired ? "Synthetic expired launch" : "Synthetic ended launch",
+  );
+  await expect(page.getByText(expired ? "Launch expired" : "Process ended")).toBeVisible();
+}
+
+test("retry without a project checkout explains how to recover without posting", async ({
+  page,
+}) => {
+  await presentRetryCheckouts(page, "missing");
+  const posts: unknown[] = [];
+  page.on("request", (request) => {
+    if (request.method() === "POST" && new URL(request.url()).pathname.endsWith("/launches")) {
+      posts.push(request.postDataJSON());
+    }
+  });
+  await page.getByRole("button", { name: "Start again explicitly" }).click();
+  await expect(page.getByTestId("checkout-selection-error")).toContainText(
+    "Link and verify one on the Mac",
+  );
+  await expect(page.getByTestId("start-checkout")).toBeFocused();
+  expect(posts).toEqual([]);
+});
+
+test("retry with a blocked checkout explains the block without posting", async ({ page }) => {
+  await presentRetryCheckouts(page, "blocked");
+  const checkout = page.getByTestId("start-checkout");
+  await checkout.selectOption({ label: "Synthetic Alpha Checkout · main · clean · blocked" });
+  const posts: unknown[] = [];
+  page.on("request", (request) => {
+    if (request.method() === "POST" && new URL(request.url()).pathname.endsWith("/launches")) {
+      posts.push(request.postDataJSON());
+    }
+  });
+  await page.getByRole("button", { name: "Start again explicitly" }).click();
+  await expect(page.getByTestId("checkout-blocked")).toContainText("repository mismatch");
+  await expect(checkout).toBeFocused();
+  expect(posts).toEqual([]);
+});
+
+test("expired launch waits for another explicit click with a sole non-default checkout", async ({
+  page,
+}) => {
+  // An unclaimed expired launch naturally returns the task to ready; unlike
+  // a started process exit, it needs no human workflow transition to retry.
+  await presentRetryCheckouts(page, "unselected", true);
+  const checkout = page.getByTestId("start-checkout");
+  const retry = page.getByRole("button", { name: "Start again explicitly" });
+  const original = (await apiFetch(
+    page,
+    "GET",
+    `/api/v1/workspaces/${FIX.workspace}/launches?task_id=${FIX.taskLaunchExpired}`,
+  ).then((result) => result.body)) as {
+    launches: { launch_id: string; run_id: string; agent_profile_id: string }[];
+  };
+  const posts: Record<string, unknown>[] = [];
+  let releasePost!: () => void;
+  const heldPost = new Promise<void>((resolve) => {
+    releasePost = resolve;
+  });
+  await page.route(`**/api/v1/workspaces/${FIX.workspace}/launches`, async (route) => {
+    if (route.request().method() !== "POST") {
+      await route.continue();
+      return;
+    }
+    posts.push(route.request().postDataJSON() as Record<string, unknown>);
+    await heldPost;
+    await route.continue();
+  });
+  // Native select presentation and React state must agree; no hidden first
+  // option may make an empty selection look ready.
+  await expect(checkout).toHaveValue("");
+  await expect(checkout.locator("option:checked")).toHaveText("Select a linked checkout");
+  await page.waitForTimeout(6000);
+  await expect(page.getByTestId("launch-list").locator("article")).toHaveCount(1);
+  expect(posts).toEqual([]);
+  await retry.click();
+  await expect(page.getByTestId("checkout-selection-error")).toContainText(
+    "Select a linked checkout",
+  );
+  await expect(checkout).toHaveAttribute("aria-invalid", "true");
+  await expect(checkout).toHaveAttribute(
+    "aria-describedby",
+    (await page.getByTestId("checkout-selection-error").getAttribute("id"))!,
+  );
+  await expect(checkout).toBeFocused();
+  expect(posts).toEqual([]);
+
+  await checkout.selectOption({ label: "Synthetic Alpha Checkout · main · clean · validated" });
+  await expect(page.getByTestId("checkout-selection-error")).toHaveCount(0);
+  await expect(checkout).toHaveAttribute("aria-invalid", "false");
+  await retry.click();
+  await expect.poll(() => posts.length).toBe(1);
+  await expect(retry).toBeDisabled();
+  await retry.evaluate((button: HTMLButtonElement) => button.click());
+  expect(posts).toHaveLength(1);
+  releasePost();
+  await expect(page.getByText("Pending Mac claim")).toBeVisible();
+  await expect(retry).toBeEnabled();
+  const listed = (await apiFetch(
+    page,
+    "GET",
+    `/api/v1/workspaces/${FIX.workspace}/launches?task_id=${FIX.taskLaunchExpired}`,
+  ).then((result) => result.body)) as {
+    launches: { launch_id: string; run_id: string; agent_profile_id: string }[];
+  };
+  expect(listed.launches).toHaveLength(2);
+  const retried = listed.launches.find(
+    (item) => item.launch_id !== original.launches[0]!.launch_id,
+  )!;
+  expect(retried.run_id).toBe(original.launches[0]!.run_id);
+  expect(retried.agent_profile_id).toBe(original.launches[0]!.agent_profile_id);
+  expect(posts[0]!["retry_run_id"]).toBe(original.launches[0]!.run_id);
+  await page.screenshot({ path: path.join(W02_EVIDENCE_DIR, "expired-retry.png") });
+  // A later deliberate click is not swallowed by a stale busy guard and
+  // uses another fresh key, even if the domain rejects a now-pending run.
+  await retry.click();
+  await expect.poll(() => posts.length).toBe(2);
+  expect(posts[1]!["idempotency_key"]).not.toBe(posts[0]!["idempotency_key"]);
 });
 
 test("runner operations show checkouts, capability, and step-up sharing", async ({

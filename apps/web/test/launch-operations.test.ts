@@ -549,6 +549,19 @@ describe("w02 start checkout selection", () => {
     expect(resolveEffectiveCheckoutId("", [other], randomUlid())).toBe("");
   });
 
+  it("requires explicit selection even when the project has just one non-default checkout", () => {
+    const checkout = baseCheckout();
+    expect(resolveEffectiveCheckoutId("", [checkout], checkout.project_id)).toBe("");
+    expect(resolveEffectiveCheckoutId(checkout.checkout_id, [checkout], checkout.project_id)).toBe(
+      checkout.checkout_id,
+    );
+  });
+
+  it("leaves a removed selection empty instead of choosing another non-default checkout", () => {
+    const checkout = baseCheckout();
+    expect(resolveEffectiveCheckoutId(randomUlid(), [checkout], checkout.project_id)).toBe("");
+  });
+
   it("keeps an explicit selection only when it belongs to the task project", () => {
     const projectB = randomUlid();
     const other = baseCheckout({ project_id: randomUlid(), is_default: true });
