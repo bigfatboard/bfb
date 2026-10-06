@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 
 import type { SqlDatabase } from "@bfb/db";
 import {
-  ARTIFACT_BODY_LIMIT,
+  VIEW_REDEEM_BODY_LIMIT,
   artifactSubject,
   consumeArtifactBudget,
   isUlid,
@@ -288,7 +288,7 @@ export async function handleViewRedeem(
     if (!contentType.startsWith("application/x-www-form-urlencoded")) return rejected();
     let form: URLSearchParams;
     try {
-      form = await readBoundedForm(request, ARTIFACT_BODY_LIMIT);
+      form = await readBoundedForm(request, VIEW_REDEEM_BODY_LIMIT);
     } catch (error) {
       if (error instanceof Error && error.message === "body_too_large") {
         return new Response(JSON.stringify({ error: "body_too_large" }), {

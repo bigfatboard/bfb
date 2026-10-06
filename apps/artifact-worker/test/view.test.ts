@@ -23,6 +23,7 @@ import {
   recordVerifiedUpload,
   redeemUploadGrant,
   seedSyntheticWorkspace,
+  VIEW_REDEEM_BODY_LIMIT,
   WorkspaceHub,
 } from "@bfb/domain";
 import { bumpMemberEpoch } from "@bfb/domain";
@@ -492,6 +493,40 @@ describe("artifact view redemption", () => {
     expect(response.status).toBe(413);
     expect(r2.calls.filter((entry) => entry.op === "get").length).toBe(0);
   });
+
+  it.each([false, true])(
+    "enforces the exact 4096-byte form bound with content length %s",
+    async (declared) => {
+      const db = await openDb();
+      const r2 = fakeR2();
+      const version = await publish(db, r2, { format: "html", bytes: HTML });
+      const grant = await issue(db, version.version_id);
+      // Size rejection precedes credential validation for declared and streamed bodies.
+      const base = `view_secret=${grant.secret}&view_nonce=${grant.nonce}`;
+      const pad = "%61".repeat(Math.ceil((VIEW_REDEEM_BODY_LIMIT + 1 - base.length) / 3));
+      const body = `${base}${pad}`;
+      const response = await call(
+        db,
+        r2.bucket,
+        new Request(`${ORIGIN}/view/${grant.view_id}/redeem`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/x-www-form-urlencoded",
+            "cf-connecting-ip": "192.0.2.71",
+            ...(declared ? { "content-length": String(body.length) } : {}),
+          },
+          body,
+        }),
+      );
+      expect(response.status).toBe(413);
+      expect(r2.calls.filter((entry) => entry.op === "get").length).toBe(0);
+      expect(
+        await db
+          .prepare("SELECT consumed_at FROM artifact_view_grants WHERE id = ?")
+          .get(grant.view_id),
+      ).toEqual({ consumed_at: null });
+    },
+  );
 
   it("rejects expired grants and revoked epochs before bytes", async () => {
     const db = await openDb();

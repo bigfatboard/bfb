@@ -11,7 +11,13 @@ import { fileURLToPath } from "node:url";
 import { buildViewBootstrap, viewBootstrapCsp, viewFinalCsp } from "@bfb/artifact-worker";
 import { VIEW_PERMISSIONS_POLICY } from "@bfb/artifact-worker/view";
 import { adaptD1, type D1Like, type SqlDatabase } from "@bfb/db";
-import { FIX, bumpMemberEpoch, seedSyntheticWorkspace, syntheticUlid } from "@bfb/domain";
+import {
+  FIX,
+  bumpMemberEpoch,
+  listArtifactAuditCandidates,
+  seedSyntheticWorkspace,
+  syntheticUlid,
+} from "@bfb/domain";
 import { createTestHarness } from "wrangler";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -706,11 +712,88 @@ try {
     result: "20 x 200 then 403; spared grant redeems from a fresh IP",
   });
 
+  // V02 owns dispatch of its two view actions, using V01's bounded projection
+  // and source-ID backstop rather than copying source payloads into the Hub.
+  const sources = (await db
+    .prepare(
+      `SELECT id, action FROM artifact_audit_outbox WHERE grant_id = ? AND action IN ('artifact.view_issued', 'artifact.view_redeemed') ORDER BY action`,
+    )
+    .all(first.view_id)) as Array<{ id: string; action: string }>;
+  assert.deepEqual(
+    sources.map((row) => row.action),
+    ["artifact.view_issued", "artifact.view_redeemed"],
+  );
+  const candidates = await listArtifactAuditCandidates(db);
+  for (const source of sources) assert(candidates.some((row) => row.id === source.id));
+  const dispatchAudit = (id: string, index = 0, drop = false) =>
+    server.getWorker(index % 2 ? "bfb-v02-b" : "bfb-v02-a").fetch(`${ORIGIN}/__v02/audit/${id}`, {
+      method: "POST",
+      headers: drop ? { "x-v02-drop-audit-reply": "1" } : {},
+    });
+  async function dispatchResult(response: WorkerResponse) {
+    assert.equal(response.status, 200);
+    return (await response.json()) as { ok: boolean; replayed?: boolean };
+  }
+  async function assertProjection(source: { id: string; action: string }) {
+    const events = (await db
+      .prepare(`SELECT payload_json FROM semantic_events WHERE event_id = ?`)
+      .all(source.id)) as Array<{ payload_json: string }>;
+    const audit = (await db
+      .prepare(`SELECT payload_json FROM audit_events WHERE audit_id = ?`)
+      .all(source.id)) as Array<{ payload_json: string }>;
+    assert.equal(events.length, 1);
+    assert.equal(audit.length, 1);
+    const projection = {
+      schema_version: 1,
+      outbox_id: source.id,
+      version_id: versions.html,
+      grant_id: first.view_id,
+      source_action: source.action,
+      occurred_at: T0,
+    };
+    assert.deepEqual(JSON.parse(events[0]!.payload_json), projection);
+    assert.deepEqual(JSON.parse(audit[0]!.payload_json), projection);
+    const row = (await db
+      .prepare(`SELECT dispatched_at FROM artifact_audit_outbox WHERE id = ?`)
+      .get(source.id)) as { dispatched_at: string | null };
+    assert(row.dispatched_at);
+  }
+  const issuedSource = sources[0]!;
+  const results = await Promise.all(
+    (await Promise.all([dispatchAudit(issuedSource.id), dispatchAudit(issuedSource.id, 1)])).map(
+      dispatchResult,
+    ),
+  );
+  assert(results.every((result) => result.ok));
+  assert.equal(results.filter((result) => result.replayed).length, 1);
+  await assertProjection(issuedSource);
+  const redeemedSource = sources[1]!;
+  const lost = await dispatchAudit(redeemedSource.id, 0, true);
+  assert.equal(lost.status, 503);
+  await lost.arrayBuffer();
+  const recovered = await dispatchResult(await dispatchAudit(redeemedSource.id, 1));
+  assert.equal(recovered.ok, true);
+  assert.equal(recovered.replayed, true);
+  await db
+    .prepare(`DELETE FROM idempotency_records WHERE workspace_id = ? AND idempotency_key = ?`)
+    .run(FIX.workspace, `artifact-audit:${redeemedSource.id}`);
+  assert.equal((await dispatchResult(await dispatchAudit(redeemedSource.id))).ok, false);
+  await assertProjection(redeemedSource);
+  note("view_audit_concurrent_single_projection");
+  note("view_audit_lost_reply_cache_loss_single_projection");
+  corpusRows.push({
+    case: "View audit dispatch",
+    proof:
+      "production Hub command across two control isolates, duplicate and lost reply/cache loss",
+    result: "one metadata-only semantic/audit projection per issued/redeemed source",
+  });
+
   // Capability scan: no secret, nonce, or local path survives in D1 or R2 keys.
   const dump = JSON.stringify({
     grants: await db.prepare(`SELECT * FROM artifact_view_grants`).all(),
     versions: await db.prepare(`SELECT * FROM artifact_versions`).all(),
     audit: await db.prepare(`SELECT payload_json FROM artifact_audit_outbox`).all(),
+    projectedAudit: await db.prepare(`SELECT payload_json FROM audit_events`).all(),
     events: await db.prepare(`SELECT payload_json FROM semantic_events`).all(),
     idempotency: await db.prepare(`SELECT result_json FROM idempotency_records`).all(),
     buckets: await db.prepare(`SELECT bucket_key FROM rate_limit_buckets`).all(),

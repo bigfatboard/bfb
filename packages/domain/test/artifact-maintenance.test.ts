@@ -61,6 +61,28 @@ async function fixture() {
 }
 
 describe("artifact audit maintenance", () => {
+  it.each(["artifact.view_issued", "artifact.view_redeemed"])(
+    "dispatches %s once without projecting private payloads",
+    async (action) => {
+      const f = await fixture();
+      const id = await f.seed(action);
+      expect(await listArtifactAuditCandidates(f.db)).toEqual([
+        { workspace_id: FIX.workspace, id },
+      ]);
+      const outcome = await f.dispatch(id);
+      expect(outcome).toMatchObject({
+        ok: true,
+        result: { outbox_id: id, source_action: action, occurred_at: OCCURRED },
+      });
+      expect(await f.dispatch(id)).toMatchObject({ ok: true, replayed: true });
+      expect(await f.count("semantic_events", "event_id", id)).toBe(1);
+      expect(await f.count("audit_events", "audit_id", id)).toBe(1);
+      const projection = JSON.stringify(
+        await f.db.prepare("SELECT payload_json FROM semantic_events WHERE event_id = ?").all(id),
+      );
+      expect(projection).not.toContain("DO-NOT-PROJECT");
+    },
+  );
   it("projects one original source with distinct occurrence/dispatch time and no private payload", async () => {
     const f = await fixture(),
       id = await f.seed();

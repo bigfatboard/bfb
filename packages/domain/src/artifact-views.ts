@@ -341,12 +341,14 @@ export async function redeemViewGrant(
     .run(input.now, input.viewId, secretHash, artifactHash(nonce), input.now);
   // D1 batches cannot read after a queued write, so the single-consume check
   // is a guard row: D1 evaluates the predicate at commit time and aborts the
-  // entire batch when a racing redemption consumed the grant first.
+  // entire batch when a racing redemption consumed the grant first. The
+  // immediately preceding update must have changed exactly one row; matching
+  // a consumed timestamp alone cannot distinguish same-clock contenders.
   const guardId = randomUlid();
   await db
     .prepare(
       `INSERT INTO artifact_mutation_guards (id, valid) VALUES (?,
-       (SELECT COUNT(*) = 1 FROM artifact_view_grants
+       (SELECT changes() = 1 AND COUNT(*) = 1 FROM artifact_view_grants
         WHERE id = ? AND grant_hash = ? AND consumed_at = ?))`,
     )
     .run(guardId, input.viewId, secretHash, input.now);

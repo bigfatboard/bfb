@@ -69,7 +69,9 @@ also follow [`artifacts.md`](artifacts.md) for storage, roles, and kinds, and
   current authorization epoch, consumes the grant through the single-use
   trigger, and inserts the `artifact.view_redeemed` audit row. A racing or
   replayed redemption aborts the batch with no byte effect; reloads need fresh
-  grants. A version purged by retention (`retained`) is no longer `available`,
+  grants. The guard checks the immediately preceding conditional UPDATE's
+  `changes() = 1`, not just the consumed timestamp: concurrent requests sharing
+  the same clock value must still have exactly one winner. A version purged by retention (`retained`) is no longer `available`,
   so its grants reject here with the uniform `403` instead of reaching byte
   reads.
 - The worker re-verifies `SHA-256(R2 bytes) == content_hash` and the
@@ -168,3 +170,16 @@ HTML escaping; hostile input survives only as visible escaped text.
 - Server-side browser rendering, generic `postMessage` trust, auto-running
   active content, downloads from previews, and compressed log-chunk
   decompression.
+
+## 9. Audit dispatch
+
+- V02 owns the closed `artifact.view_issued` and `artifact.view_redeemed`
+  actions in the shared artifact audit dispatcher. The bounded backlog scan
+  and `artifact.dispatch_audit` system command use the WorkspaceHub FIFO.
+- Each source ID creates at most one semantic event and one audit projection,
+  including concurrent dispatch, lost replies, and transient idempotency cache
+  loss. Projection carries only source ID, version ID, non-secret grant/view ID,
+  action, and occurrence time; source payloads and viewing credentials are not
+  copied. This reuses V01's projection contract without adding business progress
+  or a parallel mutation path.
+- Review and retention audit actions remain with their owning packages.

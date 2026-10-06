@@ -31,6 +31,12 @@ import {
 import { FIX, seedSyntheticWorkspace } from "../src/fixtures.js";
 import { WorkspaceHub, type HubCommand } from "../src/hub.js";
 import { randomUlid, syntheticUlid } from "../src/ids.js";
+import {
+  createViewGrantCommand,
+  mintViewGrantSecret,
+  mintViewNonce,
+  redeemViewGrant,
+} from "../src/artifact-views.js";
 
 const NOW = "2026-10-06T12:00:00.000Z";
 const DIGEST = artifactHash("synthetic artifact authority");
@@ -568,6 +574,60 @@ describe("exact upload consumption", () => {
         )
         .get(),
     ).toEqual({ n: 1 });
+  });
+
+  it("allows only one staged view redemption when both attempts share the same clock", async () => {
+    const f = await fixture();
+    const created = await f.create();
+    await f.receipt(created);
+    const finalized = await f.human(finalizeArtifactCommand, {
+      versionId: created.version_id,
+      contentHash: DIGEST,
+      size: 18,
+    });
+    expect(finalized.ok).toBe(true);
+    const minted = mintViewGrantSecret();
+    const nonce = mintViewNonce();
+    const issued = await f.human(createViewGrantCommand, {
+      versionId: created.version_id,
+      grantSecretHash: minted.secretHash,
+      viewNonce: nonce,
+      sessionHash: artifactHash("synthetic view session"),
+    });
+    if (!issued.ok) throw new Error(issued.error.code);
+    let batches = 0;
+    let release!: () => void;
+    const barrier = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const db = stagedDatabase(f.raw, async () => {
+      if (++batches === 2) release();
+      await barrier;
+    });
+    const outcomes = await Promise.allSettled(
+      [1, 2].map(() =>
+        db.withTransaction((tx) =>
+          redeemViewGrant(tx, {
+            viewId: issued.result.view_id,
+            secret: minted.secret,
+            nonce,
+            now: NOW,
+          }),
+        ),
+      ),
+    );
+    expect(outcomes.map((outcome) => outcome.status).sort()).toEqual(["fulfilled", "rejected"]);
+    expect(
+      f.raw
+        .prepare(
+          "SELECT COUNT(*) n FROM artifact_audit_outbox WHERE action = 'artifact.view_redeemed'",
+        )
+        .get(),
+    ).toEqual({ n: 1 });
+    expect(f.raw.prepare("SELECT COUNT(*) n FROM artifact_mutation_guards").get()).toEqual({
+      n: 0,
+    });
+    expect(f.raw.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
   });
 
   it.each(["project", "role", "membership", "epoch", "version"] as const)(

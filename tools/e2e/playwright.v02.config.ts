@@ -10,7 +10,7 @@ const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../.
 
 export default defineConfig({
   testDir: path.join(rootDir, "apps/web/test/e2e"),
-  testMatch: ["v02-viewer.spec.ts"],
+  testMatch: ["v02-viewer.spec.ts", "v02-runtime.spec.ts"],
   outputDir: path.join(rootDir, "apps/web/test/e2e/test-results"),
   fullyParallel: false,
   workers: 1,

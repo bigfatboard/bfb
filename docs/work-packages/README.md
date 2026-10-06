@@ -421,7 +421,7 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 | ID | Package | Status | Risk |
 | --- | --- | --- | --- |
 | V01 | [Artifact storage state machine](WP-V01-artifact-storage.md) | `done` | High |
-| V02 | [Isolated artifact viewer](WP-V02-artifact-viewer.md) | `blocked` | Very high |
+| V02 | [Isolated artifact viewer](WP-V02-artifact-viewer.md) | `in_progress` | Very high |
 | V03 | [Immutable artifact review](WP-V03-artifact-review.md) | `blocked` | High |
 
 ### Provider parity

@@ -1,6 +1,6 @@
 # WP-V02 — Isolated artifact viewer
 
-Status: `blocked`
+Status: `in_progress`
 
 Risk: Very high
 
@@ -145,6 +145,14 @@ sandbox and CSP claims and live in `apps/web/test/e2e/v02-viewer.spec.ts`.
 
 ## Handoff
 
+- Product lane reopened, 6 October: V01 and all direct dependencies are now
+  `done`. The unchanged exact V02 baseline passes at `7b8620c`, but does not
+  cover the same-clock redemption race, 4096/8192-byte body mismatch, held
+  view-audit dispatch or compiled-viewer/browser-auth proof identified in the
+  readiness review. Current re-certification owns those gaps. Historical
+  acceptance and manifest below remain intact; no current viewer certificate
+  or pilot feature enablement is implied. See
+  [the product beta lane](../product-beta.plan.md) for the approved ownership split.
 - Dependency hold, 5 October: the dependency chain reaches reopened A01 and its missing production online/replay path. This implementation and historical isolated acceptance are retained; their tests have not been declared failed. Settlement waits for dependency certification and affected integration checks. The dated status below is historical, not the current package state.
 - Settled 18 September: `done`. V01 is `done`, and `pnpm test:v02` passed in a detached clean checkout at `9372c0f` (install, build, exact target with the D1 harness and 11 real-Chromium sandbox/CSP tests).
 - Commands: `pnpm test:v02` (build, protocol, vitest suites, harness with
