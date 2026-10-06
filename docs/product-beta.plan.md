@@ -197,3 +197,16 @@ unresolved; live private R2 byte delivery remains uncertified. C12 stays planned
   Concise visible-count copy adds no default controls. Frozen diagnostics,
   other audit/recovery families, opaque positions, complete delivery and the
   in-flight expiry barrier remain open. Private creation remains disabled.
+  The [diagnostic quarantine checkpoint](work-packages/evidence/WP-C11/diagnostic-manifest.json)
+  is clean-certified at `03c0b81`: 1,828 C11 cases, 49 real-D1 checks across
+  three harnesses and exact X05 acceptance; full verification passes 4,169
+  TypeScript cases, Go and all 16 Swift cases. Legacy snapshots are uniformly
+  unavailable before source/cache/proof/business effects; diagnostic copies
+  are omitted before visible audit/semantic limits while stored history remains
+  unchanged. A compact unavailable notice replaces controls and diagnostic
+  fetches; its explanation is keyboard-operable and on demand. Current X05 D9
+  proves the hold rather than v1 upload. Other audit/recovery families, opaque
+  positions, composite board/deck delivery, coordination and the prior natural
+  expiry barrier remain open. Private creation/sharing/checkpoints stay disabled.
+  Next priority is final current-authority board/deck delivery after hydration;
+  new optional audit detail does not take priority over that core product boundary.

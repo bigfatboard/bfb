@@ -172,8 +172,8 @@ certifies these projections, not complete operations privacy.
 
 ## Diagnostic bundles
 
-C11 freezes a [uniform diagnostic snapshot quarantine](private-task-delivery.md)
-for the next bounded repair. After existing authority and structural gates,
+C11 clean-certifies a [uniform diagnostic snapshot quarantine](private-task-delivery.md)
+at source `03c0b81`. After existing authority and structural gates,
 browser list/detail/generation/consent use fixed 409 `request_rejected` with
 `diagnostic bundles are unavailable`. Both Hub commands deny before cache/proof
 effects; production inventory/body rendering and diagnostic queue uploads are
@@ -181,8 +181,9 @@ unavailable. Valid diagnostic jobs acknowledge without storage/DLQ effects.
 Diagnostic audit/semantic copies are omitted before page/anchor/limit selection.
 Rows and stored objects remain unchanged; no private-presence branch or body
 schema claim confers authority. The UI shows an unavailable state without
-mutation controls or requests. This frozen contract requires its own clean
-checkpoint before certification.
+mutation controls or requests. Its
+[bounded checkpoint](../work-packages/evidence/WP-C11/diagnostic-manifest.json)
+does not certify a source-backed replacement format or complete C11 delivery.
 
 The following records the historical v1 behavior, not an enabled private-safe
 snapshot contract after the quarantine repair:

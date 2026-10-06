@@ -431,20 +431,22 @@ certifies this subset only:
   expiring by `now+24h`, including already expired rows, and unrevoked API
   bindings. They are workspace-owned source counts, not usable-credential or
   provider activity claims. Other provider/policy metadata remains unchanged.
-- The old raw eight-count helper becomes privately named for legacy diagnostic
-  inventory only. Human `readQueueState` requires context and wraps the same
-  final projection with empty work. Legacy v1 diagnostic bodies remain expressly
-  uncertified; repairing or quarantining their snapshot provenance is separate.
+- At the aggregate checkpoint, the old raw eight-count helper was privately
+  named for legacy diagnostic inventory only. The quarantine below removes it.
+  Human `readQueueState` requires context and wraps the same final projection
+  with empty work. Legacy v1 bodies have no certified snapshot provenance.
   No schema, mutation, recovery/notification/GitHub execution, provider operation,
   private activation or historical evidence rewrite is included.
 
 ### Frozen diagnostic snapshot quarantine
 
-The next bounded C11 slice makes uncertified diagnostic delivery uniformly
+This bounded C11 slice makes uncertified diagnostic delivery uniformly
 unavailable. Legacy workspace-wide counts have no immutable source manifest or
 recipient/audience provenance. A secret scan, current epoch, recount, hash or
-claimed newer body schema cannot supply that missing history. This is a frozen
-repair contract, not an implementation certificate or new diagnostic format.
+claimed newer body schema cannot supply that missing history. The
+[clean checkpoint](../work-packages/evidence/WP-C11/diagnostic-manifest.json)
+certifies source `03c0b81` against this frozen quarantine contract, not a new
+diagnostic format or complete C11 delivery.
 
 - Preserve authentication, role, CSRF and structural validation. After those
   checks, list/detail/generation/consent use the fixed `request_rejected` denial

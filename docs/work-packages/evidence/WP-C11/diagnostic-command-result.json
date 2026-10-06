@@ -1,0 +1,126 @@
+{
+  "package": "C11",
+  "recorded_on": "2026-10-07",
+  "tested_commit": "03c0b81a8325b8a7c3a3f5cc5553c2753af63b1f",
+  "outcome": "passed",
+  "stage": "partial_metadata_diagnostic_snapshot_quarantine",
+  "package_acceptance_complete": false,
+  "private_creation_available": false,
+  "scope": "Diagnostic list/detail/generation/consent, inventory/body renderers and valid upload jobs are uniformly unavailable without source/body/proof effects. Diagnostic audit/semantic copies are omitted before visible limits and anchors; stored history remains unchanged.",
+  "migration_head": "0045_private_task_authority",
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56)",
+    "architecture": "arm64",
+    "runtime": "Production Hub fixtures and disposable real D1, mounted authenticated operations routes, synthetic queue isolation and Chromium regressions"
+  },
+  "clean_commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "exit_code": 0
+    },
+    {
+      "command": "pnpm test:c11",
+      "exit_code": 0,
+      "c10_cases": 86,
+      "c10_files": 8,
+      "c10_d1_checks": 9,
+      "c08_cases": 23,
+      "c08_files": 5,
+      "c08_proof": "C08_D1_OK",
+      "stage_cases": 1828,
+      "stage_files": 64,
+      "stage_d1_checks": 49,
+      "stage_d1_harnesses": [
+        {
+          "proof": "C11_TASK_D1_OK",
+          "checks": 37
+        },
+        {
+          "proof": "C11_OPERATIONS_AGGREGATES_D1_OK",
+          "checks": 8
+        },
+        {
+          "proof": "C11_DIAGNOSTIC_QUARANTINE_D1_OK",
+          "checks": 4
+        }
+      ],
+      "counting": "Separate invocations overlap; counts are not a unique combined total"
+    },
+    {
+      "command": "pnpm test:x05",
+      "exit_code": 0,
+      "cases": 60,
+      "files": 6,
+      "worker_scenarios": 11,
+      "browser_cases": 5,
+      "proof": "X05_DRILL_OK",
+      "package_status_changed": false,
+      "current_d9": "Held diagnostic policy, not historical v1 upload; dated X05 evidence unchanged"
+    },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 4169,
+      "typescript_files": 182,
+      "go": "passed",
+      "go_scheduling": "GOFLAGS=-p=1",
+      "swift": "passed",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    {
+      "command": "pnpm exec tsc -b tools/g01 --pretty false",
+      "exit_code": 0,
+      "scope": "Caller compilation only; G01 runtime acceptance not run"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "exit_code": 0,
+      "before_and_after_verify": true,
+      "committed_source_unchanged": true,
+      "final_status_empty": true
+    }
+  ],
+  "focused_new_suites": {
+    "domain_cases": 17,
+    "mounted_cases": 9,
+    "independent_final_cases": 36,
+    "independent_final_files": 3,
+    "independent_queue_cases": 10
+  },
+  "real_d1_extension_checks": [
+    "real_hub_diagnostic_empty_generation_denies_before_proof_or_business_effects",
+    "real_hub_diagnostic_cache_and_known_missing_consent_are_uniform_without_history_rewrite",
+    "real_d1_diagnostic_audit_anchor_and_semantic_copy_omission_precedes_limits_without_rewrite",
+    "real_hub_diagnostic_cache_requires_current_epoch_and_audit_scope_precedes_anchor"
+  ],
+  "repairs_with_regression_proof": [
+    "Current direct-human Owner and retained epoch precede diagnostic command cache lookup; malformed proof IDs retain the old pure structural denial without proof query or consumption",
+    "Browser list/detail/generation/consent retain auth, role, CSRF and structural admission, then fixed request_rejected with diagnostic bundles are unavailable, independent of source existence, inventory body, state or private presence",
+    "Inventory construction and both body-rendering surfaces deny uniformly; obsolete raw-count/hash/TTL helpers are removed and pure scanners remain separate",
+    "Valid diagnostic upload jobs acknowledge before bundle lookup without DB, R2, DLQ, retry or state effects; retention and malformed poison-message isolation remain separate",
+    "Case-insensitive diagnostic namespace is omitted before security-audit pagination, has_more and anchors and before exported semantic replay LIMIT",
+    "Synthetic retained bundle, cache and historical copies remain byte-for-byte unchanged; no historical deletion or provenance reconstruction",
+    "Domain, mounted/queue and browser regressions failed meaningfully before repair; two malformed-proof regressions independently failed before the pure admission guard repair",
+    "Initial real-D1 fixture failure was a missing consent timestamp, not security red; the corrected four-check actual-D1 harness passes",
+    "Impeccable hardening replaces unavailable actions and stale bundle state with a compact accessible notice and keyboard-operable on-demand explanation",
+    "Independent final review and 36 focused cases pass; full clean C11/X05/repository gates pass with frozen source and empty final status"
+  ],
+  "activation_barriers": [
+    "Natural credential or lease expiry while a D1 batch is already in flight remains unresolved",
+    "Principal-bound opaque positions, raw notification identities and unbound GitHub evidence-key collision policy",
+    "Other security-audit families, other recovery and destructive private-retention privacy",
+    "Composite board/deck final delivery and coordination consumers need their complete matrix",
+    "Private creation, creator sharing, author-private checkpoints and downstream C12 publication"
+  ],
+  "not_claimed": [
+    "Complete C11 acceptance or private-feature activation",
+    "A source-backed diagnostic v2 format, historical snapshot/audience attestation or working v1 upload",
+    "Generic audit-family safety, opaque-position authority, physical commit/send-time expiry guarantees or performance certification",
+    "Private R2 byte/browser delivery, new provider/coordination behavior, live queue or enrolled pilot operation",
+    "Deployment, external CI, G01 runtime acceptance or a new visual redesign",
+    "Project-wide knowledge, skill catalogs, business vault values, checkpoint reminders or contribution UI"
+  ],
+  "redaction": "Bounded synthetic counts, proof labels, source identity and limits only; no credentials, private bodies, raw output or local absolute paths"
+}

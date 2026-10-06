@@ -145,3 +145,18 @@ preserving genuine run-free uploads. Counts are supported visible sources, not
 physical queue-drained status. Frozen diagnostics, other audit/recovery families,
 opaque positions and complete delivery remain open; private creation stays
 disabled and the earlier in-flight expiry barrier remains unresolved.
+
+The [diagnostic quarantine checkpoint](evidence/WP-C11/diagnostic-manifest.json)
+is clean-certified at `03c0b81`: 1,828 cases, 49 real-D1 checks across three
+harnesses, retained C10/C08, exact X05 acceptance and full verification with
+4,169 TypeScript cases, Go and all 16 Swift cases. Browser diagnostic paths and
+Hub commands retain authority/structural admission, then deny uniformly before
+cache/proof/business effects. Valid upload jobs acknowledge without source or
+storage lookup. Diagnostic audit/semantic copies are omitted before visible
+limits and anchors while historical rows and objects remain unchanged. The UI
+has an accessible unavailable notice and on-demand explanation, with no
+diagnostic or passkey requests. Current X05 D9 proves this hold, not v1 upload;
+dated evidence is preserved. Other audit/recovery families, opaque positions,
+composite board/deck final delivery, coordination consumers and the prior
+natural-expiry barrier remain open. C11 stays in progress; private creation,
+creator sharing and author-private checkpoints remain disabled; C12 stays planned.
