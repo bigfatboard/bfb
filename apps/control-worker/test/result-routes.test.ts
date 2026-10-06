@@ -174,16 +174,17 @@ describe("A03 result browser API", () => {
       "cycle",
     );
 
+    const submissionInput = {
+      summary: "Synthetic route result",
+      limitations: "Synthetic route limitation",
+      evidence_refs: [{ kind: "comment", ref: "synthetic-route-comment" }],
+      git_branch: "main",
+      git_commit: COMMIT,
+      git_dirty: false,
+      request_id: "result-route-submit-1",
+    };
     const submit = await app.request(
-      mutation(`${base}/runs/${runId}/results`, "POST", owner.cookie, ownerCsrf, {
-        summary: "Synthetic route result",
-        limitations: "Synthetic route limitation",
-        evidence_refs: [{ kind: "comment", ref: "synthetic-route-comment" }],
-        git_branch: "main",
-        git_commit: COMMIT,
-        git_dirty: false,
-        request_id: "result-route-submit-1",
-      }),
+      mutation(`${base}/runs/${runId}/results`, "POST", owner.cookie, ownerCsrf, submissionInput),
       undefined,
       currentBindings,
     );
@@ -200,10 +201,7 @@ describe("A03 result browser API", () => {
     expect(first.submission.version).toBe(1);
 
     const retry = await app.request(
-      mutation(`${base}/runs/${runId}/results`, "POST", owner.cookie, ownerCsrf, {
-        summary: "Synthetic route result",
-        request_id: "result-route-submit-1",
-      }),
+      mutation(`${base}/runs/${runId}/results`, "POST", owner.cookie, ownerCsrf, submissionInput),
       undefined,
       currentBindings,
     );
@@ -215,6 +213,20 @@ describe("A03 result browser API", () => {
     };
     expect(retried.replayed).toBe(true);
     expect(retried.result.submission.id).toBe(first.submission.id);
+
+    const changedRetry = await app.request(
+      mutation(`${base}/runs/${runId}/results`, "POST", owner.cookie, ownerCsrf, {
+        ...submissionInput,
+        evidence_refs: [],
+      }),
+      undefined,
+      currentBindings,
+    );
+    expect(changedRetry.status).toBe(400);
+    expect(await changedRetry.json()).toMatchObject({
+      ok: false,
+      error: { code: "request_rejected" },
+    });
 
     const reviewerSubmit = await app.request(
       mutation(`${base}/runs/${runId}/results`, "POST", reviewer.cookie, reviewerCsrf, {

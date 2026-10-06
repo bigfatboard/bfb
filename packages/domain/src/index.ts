@@ -4,6 +4,7 @@
 export * from "./abuse.js";
 export * from "./agent-work.js";
 export * from "./agent-capture.js";
+export * from "./agent-results.js";
 export * from "./agent-sessions.js";
 export * from "./artifact-reviews.js";
 export * from "./artifact-views.js";
@@ -23,6 +24,7 @@ export * from "./oauth.js";
 export * from "./operations.js";
 export * from "./projects.js";
 export * from "./offline-agent-policy.js";
+export * from "./offline-result-policy.js";
 export * from "./projections.js";
 export * from "./remote-parity.js";
 export * from "./runner-crypto.js";

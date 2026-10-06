@@ -71,6 +71,7 @@ const CHANNEL_SURFACES = new Set([
   "work/authority",
   "work/bound-authority",
   "work/capture-confirmation",
+  "work/result-confirmation",
   "work/attention-get",
 ]);
 

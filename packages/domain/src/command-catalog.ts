@@ -2,6 +2,7 @@
 // ABOUTME: Transports send command names; only registered commands may mutate workspace state.
 
 import type { HubCommand } from "./hub.js";
+import { resultCaptureConfirmationCommand } from "./agent-results.js";
 import {
   bindAgentSessionCommand,
   agentBoundAuthorityCommand,
@@ -139,6 +140,10 @@ import {
 } from "./operations.js";
 
 const commands = new Map<string, HubCommand<unknown, unknown>>([
+  [
+    resultCaptureConfirmationCommand.name,
+    resultCaptureConfirmationCommand as HubCommand<unknown, unknown>,
+  ],
   [agentRunAuthorityCommand.name, agentRunAuthorityCommand as HubCommand<unknown, unknown>],
   [bindAgentSessionCommand.name, bindAgentSessionCommand as HubCommand<unknown, unknown>],
   [agentBoundAuthorityCommand.name, agentBoundAuthorityCommand as HubCommand<unknown, unknown>],

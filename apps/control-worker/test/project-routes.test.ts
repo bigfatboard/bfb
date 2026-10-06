@@ -10,6 +10,8 @@ import {
   issueStepUpProof,
   seedSyntheticWorkspace,
   repositoryConfigPolicyTarget,
+  normalizeRepositoryConfig,
+  getProjectPolicy,
 } from "@bfb/domain";
 
 import { projectStepUpTarget } from "../src/api/projects.js";
@@ -27,6 +29,7 @@ import {
 const NOW = "2026-08-12T08:00:00.000Z";
 const PROOF_EXPIRY = "2026-08-12T08:05:00.000Z";
 const OFFLINE_DENIED = { allowed_tools: [], max_pending_age_seconds: 0 };
+const RESULT_DENIED = { allow_submit_result: false, max_pending_age_seconds: 0 };
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
@@ -447,6 +450,7 @@ describe("project browser API", () => {
       allow_pass_to_agent: true,
       allow_run_overrides: true,
       offline_agent_work: OFFLINE_DENIED,
+      offline_agent_results: RESULT_DENIED,
     };
     const workspacePolicyWithoutProof = await app.request(
       mutation(`${base}/workspace-policy`, "PUT", owner.cookie, csrf, {
@@ -461,7 +465,7 @@ describe("project browser API", () => {
       context,
       "workspace.policy.update",
       projectStepUpTarget([
-        "BFB-POLICY-UPDATE-V2",
+        "BFB-POLICY-UPDATE-V3",
         "workspace.policy.update",
         FIX.workspace,
         null,
@@ -472,6 +476,8 @@ describe("project browser API", () => {
         workspacePolicySettings.allow_run_overrides,
         workspacePolicySettings.offline_agent_work.allowed_tools,
         workspacePolicySettings.offline_agent_work.max_pending_age_seconds,
+        false,
+        0,
       ]),
     );
     const workspacePolicy = await app.request(
@@ -493,12 +499,13 @@ describe("project browser API", () => {
       allow_pass_to_agent: false,
       allow_run_overrides: false,
       offline_agent_work: OFFLINE_DENIED,
+      offline_agent_results: RESULT_DENIED,
     };
     const policyProof = await stepUpProof(
       context,
       "project.policy.update",
       projectStepUpTarget([
-        "BFB-POLICY-UPDATE-V2",
+        "BFB-POLICY-UPDATE-V3",
         "project.policy.update",
         FIX.workspace,
         FIX.projectA,
@@ -509,6 +516,8 @@ describe("project browser API", () => {
         projectPolicySettings.allow_run_overrides,
         projectPolicySettings.offline_agent_work.allowed_tools,
         projectPolicySettings.offline_agent_work.max_pending_age_seconds,
+        false,
+        0,
       ]),
       FIX.projectA,
     );
@@ -609,6 +618,7 @@ describe("project browser API", () => {
       allow_pass_to_agent: true,
       allow_run_overrides: false,
       offline_agent_work: OFFLINE_DENIED,
+      offline_agent_results: RESULT_DENIED,
     };
     const oldProof = await stepUpProof(
       context,
@@ -637,7 +647,7 @@ describe("project browser API", () => {
       context,
       "workspace.policy.update",
       projectStepUpTarget([
-        "BFB-POLICY-UPDATE-V2",
+        "BFB-POLICY-UPDATE-V3",
         "workspace.policy.update",
         FIX.workspace,
         null,
@@ -647,6 +657,8 @@ describe("project browser API", () => {
         true,
         false,
         [],
+        0,
+        false,
         0,
       ]),
     );
@@ -698,7 +710,16 @@ describe("project browser API", () => {
     const proof = await stepUpProof(
       context,
       "repository.config.report",
-      repositoryConfigPolicyTarget(FIX.workspace, FIX.projectA, 1, contentHash, OFFLINE_DENIED),
+      repositoryConfigPolicyTarget(
+        FIX.workspace,
+        FIX.projectA,
+        1,
+        contentHash,
+        normalizeRepositoryConfig(
+          document,
+          await getProjectPolicy(context.db, FIX.workspace, FIX.projectA),
+        ).settings,
+      ),
       FIX.projectA,
     );
     const committed = await app.request(

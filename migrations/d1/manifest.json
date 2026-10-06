@@ -1,5 +1,5 @@
 {
-  "migration_head": "0039_offline_agent_policy",
+  "migration_head": "0040_offline_result_policy",
   "migrations": [
     {
       "id": "0001_workspace_registry",
@@ -136,6 +136,10 @@
     {
       "id": "0039_offline_agent_policy",
       "file": "0039_offline_agent_policy.sql"
+    },
+    {
+      "id": "0040_offline_result_policy",
+      "file": "0040_offline_result_policy.sql"
     }
   ]
 }

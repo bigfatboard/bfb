@@ -18,6 +18,7 @@ import {
   listVersionRows,
   loadPrincipal,
   normalizeOfflineAgentWork,
+  normalizeOfflineAgentResults,
   reportRepositoryConfigCommand,
   updateAgentProfileCommand,
   updateProjectCommand,
@@ -116,6 +117,7 @@ function policy(body: Record<string, unknown>): PolicySettings {
     allowPassToAgent: body.allow_pass_to_agent as boolean,
     allowRunOverrides: body.allow_run_overrides as boolean,
     offlineAgentWork: normalizeOfflineAgentWork(body.offline_agent_work),
+    offlineAgentResults: normalizeOfflineAgentResults(body.offline_agent_results),
   };
 }
 
@@ -314,6 +316,7 @@ export async function handleProjectApi(request: Request, deps: ProjectApiDeps): 
       "allow_pass_to_agent",
       "allow_run_overrides",
       "offline_agent_work",
+      "offline_agent_results",
       "step_up_proof_id",
       "request_id",
     ]);
@@ -495,6 +498,7 @@ export async function handleProjectApi(request: Request, deps: ProjectApiDeps): 
       "allow_pass_to_agent",
       "allow_run_overrides",
       "offline_agent_work",
+      "offline_agent_results",
       "step_up_proof_id",
       "request_id",
     ]);

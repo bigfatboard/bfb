@@ -16,6 +16,7 @@ import { DomainError, type HubContext } from "./hub.js";
 import { randomUlid } from "./ids.js";
 import { assertPolicyTightens, type PolicySettings } from "./projects.js";
 import { deniedOfflineAgentWork } from "./offline-agent-policy.js";
+import { deniedOfflineAgentResults } from "./offline-result-policy.js";
 import { resolveRunnerCommandReference } from "./runner-channel.js";
 import { rejectRunnerRequest, runnerHash } from "./runner-crypto.js";
 import {
@@ -265,6 +266,7 @@ export function policySettings(value: Policy): PolicySettings {
     // Frozen launch v1 projects only the original fields. Capture permission
     // comes from exact immutable policy rows, never this legacy projection.
     offlineAgentWork: deniedOfflineAgentWork(),
+    offlineAgentResults: deniedOfflineAgentResults(),
   };
 }
 

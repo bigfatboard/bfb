@@ -29,11 +29,9 @@ function database(previous = false) {
   const raw = new Database(":memory:");
   raw.pragma("foreign_keys = ON");
   rawDatabases.push(raw);
-  const migrated = applyMigrationsForVerification(
-    raw,
-    directory,
-    previous ? { stopBeforeId: head } : {},
-  );
+  const migrated = applyMigrationsForVerification(raw, directory, {
+    stopBeforeId: previous ? head : "0040_offline_result_policy",
+  });
   expect(migrated.head).toBe(previous ? "0038_agent_work_authority" : head);
   return raw;
 }
@@ -90,7 +88,10 @@ describe("offline policy migration", () => {
     expect(run.snapshot.contentHash).toBe(
       `sha256:${createHash("sha256").update(run.snapshot.canonicalJson).digest("hex")}`,
     );
-    expect(applyMigrationsForVerification(raw, directory).head).toBe(head);
+    expect(
+      applyMigrationsForVerification(raw, directory, { stopBeforeId: "0040_offline_result_policy" })
+        .head,
+    ).toBe(head);
     for (const { table, columns, rows } of before) {
       expect(raw.prepare(`SELECT ${columns.join(",")} FROM ${table}`).all()).toEqual(rows);
       for (const permission of raw
@@ -117,6 +118,7 @@ describe("offline policy migration", () => {
   it("keeps new projects denied even when their workspace permits offline work", async () => {
     const raw = database(),
       db = adaptBetterSqlite3(raw);
+    applyMigrationsForVerification(raw, directory);
     await seedSyntheticWorkspace(db);
     raw
       .prepare(

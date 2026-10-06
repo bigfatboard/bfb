@@ -230,6 +230,7 @@ describe("policy and configuration history", () => {
         allowPassToAgent: false,
         allowRunOverrides: false,
         offlineAgentWork: { allowed_tools: [], max_pending_age_seconds: 0 },
+        offlineAgentResults: { allow_submit_result: false, max_pending_age_seconds: 0 },
         stepUpProofId: "synthetic-malformed-policy",
       },
       { key: "workspace-policy-malformed" },
@@ -359,6 +360,7 @@ describe("policy and configuration history", () => {
     const effective = evaluateEffectivePolicy({
       workspace: {
         offlineAgentWork: { allowed_tools: [], max_pending_age_seconds: 0 },
+        offlineAgentResults: { allow_submit_result: false, max_pending_age_seconds: 0 },
         allowedProviders: ["claude", "codex"],
         allowAgentRootPropose: true,
         allowPassToAgent: true,
@@ -366,6 +368,7 @@ describe("policy and configuration history", () => {
       },
       project: {
         offlineAgentWork: { allowed_tools: [], max_pending_age_seconds: 0 },
+        offlineAgentResults: { allow_submit_result: false, max_pending_age_seconds: 0 },
         allowedProviders: ["codex"],
         allowAgentRootPropose: true,
         allowPassToAgent: false,
@@ -373,6 +376,7 @@ describe("policy and configuration history", () => {
       },
       repository: {
         offlineAgentWork: { allowed_tools: [], max_pending_age_seconds: 0 },
+        offlineAgentResults: { allow_submit_result: false, max_pending_age_seconds: 0 },
         allowedProviders: ["codex"],
         allowAgentRootPropose: false,
         allowPassToAgent: false,
@@ -390,6 +394,7 @@ describe("policy and configuration history", () => {
       evaluateEffectivePolicy({
         workspace: {
           offlineAgentWork: { allowed_tools: [], max_pending_age_seconds: 0 },
+          offlineAgentResults: { allow_submit_result: false, max_pending_age_seconds: 0 },
           allowedProviders: ["codex"],
           allowAgentRootPropose: true,
           allowPassToAgent: true,
@@ -397,6 +402,7 @@ describe("policy and configuration history", () => {
         },
         project: {
           offlineAgentWork: { allowed_tools: [], max_pending_age_seconds: 0 },
+          offlineAgentResults: { allow_submit_result: false, max_pending_age_seconds: 0 },
           allowedProviders: ["codex"],
           allowAgentRootPropose: true,
           allowPassToAgent: true,
@@ -404,6 +410,7 @@ describe("policy and configuration history", () => {
         },
         repository: {
           offlineAgentWork: { allowed_tools: [], max_pending_age_seconds: 0 },
+          offlineAgentResults: { allow_submit_result: false, max_pending_age_seconds: 0 },
           allowedProviders: ["codex"],
           allowAgentRootPropose: true,
           allowPassToAgent: true,

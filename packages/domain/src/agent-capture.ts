@@ -21,6 +21,7 @@ import {
   readLease,
   assertLeaseBinding,
   reauthorizeLaunch,
+  reauthorizeActiveRun,
 } from "./launch-state.js";
 import {
   normalizeOfflineAgentWork,
@@ -90,7 +91,7 @@ async function exactPermission(
     throw new DomainError("policy_rejected", "capture policy version invalid");
   }
 }
-async function capturePublicKey(ctx: HubContext, row: BoundRun) {
+export async function capturePublicKey(ctx: HubContext, row: BoundRun) {
   const stored = (await ctx.db
     .prepare("SELECT public_key_json FROM runners WHERE workspace_id = ? AND id = ?")
     .get(ctx.workspaceId, row.runner_id)) as { public_key_json: string } | undefined;
@@ -105,12 +106,13 @@ async function capturePublicKey(ctx: HubContext, row: BoundRun) {
 }
 
 /** Caller has already established live execution, canonical binding and authenticated Hub actor. */
-export async function deriveAgentCaptureConfirmation(
+export async function deriveAgentCaptureScope(
   ctx: HubContext,
   row: BoundRun,
   principal: RunnerPrincipal,
   request: AgentCaptureConfirmationRequest,
-): Promise<AgentCaptureConfirmationResult> {
+  authority: "launch" | "active",
+): Promise<Omit<AgentCaptureConfirmationResult, "configured_permission">> {
   checkedCaptureDocument(
     "agent-capture-confirmation-request",
     request,
@@ -120,7 +122,9 @@ export async function deriveAgentCaptureConfirmation(
   await capturePublicKey(ctx, row);
   let snapshot;
   try {
-    ({ snapshot } = await reauthorizeLaunch(ctx, launch));
+    ({ snapshot } = await (authority === "launch"
+      ? reauthorizeLaunch(ctx, launch)
+      : reauthorizeActiveRun(ctx, launch)));
   } catch (error) {
     if (
       error instanceof DomainError &&
@@ -129,22 +133,81 @@ export async function deriveAgentCaptureConfirmation(
       throw new DomainError("policy_rejected", "current launch policy unavailable");
     throw error;
   }
+  const lease = await readLease(ctx.db, row);
+  assertLeaseBinding(lease, row);
+  if (!lease || !["reserved", "live"].includes(lease.state) || lease.expires_at <= ctx.now)
+    throw new DomainError("capability_closed", "checkout lease ended");
+  const repository = (await ctx.db
+    .prepare(
+      "SELECT canonical_json, content_hash FROM repository_config_versions WHERE workspace_id = ? AND project_id = ? AND version = ?",
+    )
+    .get(ctx.workspaceId, row.project_id, snapshot.repository_config_version)) as
+    { canonical_json: string; content_hash: string } | undefined;
+  if (
+    !repository ||
+    typeof repository.canonical_json !== "string" ||
+    repository.content_hash !== `sha256:${runnerHash(repository.canonical_json)}`
+  )
+    throw new DomainError("policy_rejected", "repository version hash invalid");
+  return {
+    schema_version: 1,
+    confirmation_id: request.request_id,
+    workspace_id: ctx.workspaceId,
+    project_id: row.project_id,
+    source_task_id: row.task_id,
+    run_id: row.run_id,
+    run_execution_id: row.execution_id,
+    runner_id: row.runner_id,
+    checkout_id: row.checkout_id,
+    requesting_human_id: row.requesting_human_id,
+    runner_owner_human_id: principal.ownerHumanId,
+    assignment_generation: row.assignment_generation,
+    fencing_generation: lease.fencing_generation,
+    requesting_human_authorization_epoch: row.requesting_human_epoch,
+    runner_owner_authorization_epoch: principal.ownerAuthorizationEpoch,
+    runner_authorization_epoch: row.runner_authorization_epoch,
+    runner_grant_epoch: row.runner_grant_epoch,
+    runner_token_epoch: principal.tokenEpoch,
+    runner_key_thumbprint: row.runner_key_thumbprint,
+    physical_worktree_hash: row.physical_worktree_hash,
+    snapshot_hash: launch.snapshot_hash,
+    snapshot_generation: snapshot.snapshot_generation,
+    workspace_policy_version: snapshot.workspace_policy_version,
+    project_policy_version: snapshot.project_policy_version,
+    repository_config_version: snapshot.repository_config_version,
+    snapshot_repository_config_hash: snapshot.repository_config_hash,
+    approved_repository_config_hash: repository.content_hash,
+    binding: request.binding,
+    confirmed_at: ctx.now,
+    lease_expires_at: lease.expires_at,
+    credential_expires_at: principal.authExpiresAt,
+  };
+}
+
+/** A01 retains launch eligibility; result reconciliation uses the separately named active scope. */
+export async function deriveAgentCaptureConfirmation(
+  ctx: HubContext,
+  row: BoundRun,
+  principal: RunnerPrincipal,
+  request: AgentCaptureConfirmationRequest,
+): Promise<AgentCaptureConfirmationResult> {
+  const scope = await deriveAgentCaptureScope(ctx, row, principal, request, "launch");
   const workspace = await exactPermission(
     ctx,
     "workspace_policy_versions",
-    snapshot.workspace_policy_version,
+    scope.workspace_policy_version,
     row.project_id,
   );
   const project = await exactPermission(
     ctx,
     "project_policy_versions",
-    snapshot.project_policy_version,
+    scope.project_policy_version,
     row.project_id,
   );
   const repository = await exactPermission(
     ctx,
     "repository_config_versions",
-    snapshot.repository_config_version,
+    scope.repository_config_version,
     row.project_id,
   );
   try {
@@ -153,51 +216,12 @@ export async function deriveAgentCaptureConfirmation(
   } catch {
     throw new DomainError("policy_rejected", "capture policy widens its ceiling");
   }
-  if (
-    typeof repository.row.canonical_json !== "string" ||
-    repository.row.content_hash !== `sha256:${runnerHash(repository.row.canonical_json)}`
-  )
-    throw new DomainError("policy_rejected", "repository version hash invalid");
-  const lease = await readLease(ctx.db, row);
-  assertLeaseBinding(lease, row);
-  if (!lease || !["reserved", "live"].includes(lease.state) || lease.expires_at <= ctx.now)
-    throw new DomainError("capability_closed", "checkout lease ended");
   return checkedCaptureDocument(
     "agent-capture-confirmation-result",
     {
-      schema_version: 1,
-      confirmation_id: request.request_id,
-      workspace_id: ctx.workspaceId,
-      project_id: row.project_id,
-      source_task_id: row.task_id,
-      run_id: row.run_id,
-      run_execution_id: row.execution_id,
-      runner_id: row.runner_id,
-      checkout_id: row.checkout_id,
-      requesting_human_id: row.requesting_human_id,
-      runner_owner_human_id: principal.ownerHumanId,
-      assignment_generation: row.assignment_generation,
-      fencing_generation: lease.fencing_generation,
-      requesting_human_authorization_epoch: row.requesting_human_epoch,
-      runner_owner_authorization_epoch: principal.ownerAuthorizationEpoch,
-      runner_authorization_epoch: row.runner_authorization_epoch,
-      runner_grant_epoch: row.runner_grant_epoch,
-      runner_token_epoch: principal.tokenEpoch,
-      runner_key_thumbprint: row.runner_key_thumbprint,
-      physical_worktree_hash: row.physical_worktree_hash,
-      snapshot_hash: launch.snapshot_hash,
-      snapshot_generation: snapshot.snapshot_generation,
-      workspace_policy_version: snapshot.workspace_policy_version,
-      project_policy_version: snapshot.project_policy_version,
-      repository_config_version: snapshot.repository_config_version,
-      snapshot_repository_config_hash: snapshot.repository_config_hash,
-      approved_repository_config_hash: repository.row.content_hash,
-      binding: request.binding,
+      ...scope,
       configured_permission: repository.permission,
-      confirmed_at: ctx.now,
-      lease_expires_at: lease.expires_at,
-      credential_expires_at: principal.authExpiresAt,
-    } satisfies AgentCaptureConfirmationResult,
+    },
     AGENT_CONFIRMATION_RESULT_BYTES,
   );
 }

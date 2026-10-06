@@ -7,23 +7,38 @@ import { syntheticUlid } from "./ids.js";
 import { deniedOfflineAgentWork, type OfflineAgentWorkPolicy } from "./offline-agent-policy.js";
 import { policyUpdateTarget, type UpdatePolicyInput } from "./projects.js";
 import { issueStepUpProof } from "./step-up.js";
+import {
+  deniedOfflineAgentResults,
+  type OfflineAgentResultsPolicy,
+} from "./offline-result-policy.js";
 
 export { prepareSyntheticAttentionClaim } from "./attention-fixture.js";
 
 /** Synthetic setup only: exercise the same bound policy proof as a verified browser assertion. */
 export async function authorizeSyntheticPolicyUpdate<
-  T extends Omit<UpdatePolicyInput, "stepUpProofId" | "offlineAgentWork"> & {
+  T extends Omit<
+    UpdatePolicyInput,
+    "stepUpProofId" | "offlineAgentWork" | "offlineAgentResults"
+  > & {
     projectId?: string;
     offlineAgentWork?: OfflineAgentWorkPolicy;
+    offlineAgentResults?: OfflineAgentResultsPolicy;
   },
 >(
   db: SqlDatabase,
   scope: { workspaceId: string; humanId: string; authorizationEpoch?: number },
   input: T,
-): Promise<T & { offlineAgentWork: OfflineAgentWorkPolicy; stepUpProofId: string }> {
+): Promise<
+  T & {
+    offlineAgentWork: OfflineAgentWorkPolicy;
+    offlineAgentResults: OfflineAgentResultsPolicy;
+    stepUpProofId: string;
+  }
+> {
   const settings = {
     ...input,
     offlineAgentWork: input.offlineAgentWork ?? deniedOfflineAgentWork(),
+    offlineAgentResults: input.offlineAgentResults ?? deniedOfflineAgentResults(),
   };
   const action =
     input.projectId === undefined ? "workspace.policy.update" : "project.policy.update";

@@ -142,7 +142,7 @@ async function main(): Promise<void> {
       1,
     );
 
-    const policyInput: Omit<PolicySettings, "offlineAgentWork"> & {
+    const policyInput: Omit<PolicySettings, "offlineAgentWork" | "offlineAgentResults"> & {
       projectId: string;
       expectedVersion: number;
     } = {

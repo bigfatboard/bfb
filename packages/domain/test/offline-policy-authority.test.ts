@@ -64,6 +64,7 @@ function settings(offline = permission): PolicySettings {
     allowPassToAgent: true,
     allowRunOverrides: true,
     offlineAgentWork: offline,
+    offlineAgentResults: { allow_submit_result: false, max_pending_age_seconds: 0 },
   };
 }
 const hash = (value: string) => `sha256:${createHash("sha256").update(value).digest("hex")}`;
@@ -115,7 +116,7 @@ async function draft(db: SqlDatabase, action: Action, offline = permission) {
           FIX.projectA,
           expectedVersion,
           contentHash,
-          offline,
+          normalizeRepositoryConfig(document, settings()).settings,
         )
       : policyUpdateTarget(
           FIX.workspace,

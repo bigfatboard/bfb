@@ -29,6 +29,10 @@ import { randomUlid } from "../src/ids.js";
 import { authorizeLaunchCommand, tightenLaunchCommand } from "../src/launches.js";
 import { OFFLINE_AGENT_TOOLS } from "../src/offline-agent-policy.js";
 import {
+  deniedOfflineAgentResults,
+  type OfflineAgentResultsPolicy,
+} from "../src/offline-result-policy.js";
+import {
   updateWorkspacePolicyCommand,
   updateProjectPolicyCommand,
   reportRepositoryConfigCommand,
@@ -48,7 +52,12 @@ import {
 import { issueStepUpProof } from "../src/step-up.js";
 import { LAUNCH_NOW, launchFixture, success } from "./launch-fixture.js";
 
-export async function captureFixture(database?: SqlDatabase, enabled = true, tightened = false) {
+export async function captureFixture(
+  database?: SqlDatabase,
+  enabled = true,
+  tightened = false,
+  options: { offlineResults?: OfflineAgentResultsPolicy } = {},
+) {
   const f = await launchFixture(database);
   const key = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, [
     "sign",
@@ -69,14 +78,18 @@ export async function captureFixture(database?: SqlDatabase, enabled = true, tig
     .prepare("UPDATE runner_tokens SET claims_json = ?, token_hash = ? WHERE id = ?")
     .run(JSON.stringify(claims), runnerHash(secret), f.principal.tokenId);
   f.principal.keyThumbprint = thumbprint;
-  if (enabled) {
-    const permission = { allowed_tools: [...OFFLINE_AGENT_TOOLS], max_pending_age_seconds: 300 };
+  if (enabled || options.offlineResults !== undefined) {
+    const permission = {
+      allowed_tools: enabled ? [...OFFLINE_AGENT_TOOLS] : [],
+      max_pending_age_seconds: enabled ? 300 : 0,
+    };
     const policy = {
       allowedProviders: ["claude", "codex", "grok", "fake"],
       allowAgentRootPropose: true,
       allowPassToAgent: true,
       allowRunOverrides: true,
       offlineAgentWork: permission,
+      offlineAgentResults: options.offlineResults ?? deniedOfflineAgentResults(),
     };
     for (const project of [false, true]) {
       const input = await authorizeSyntheticPolicyUpdate(
@@ -92,7 +105,12 @@ export async function captureFixture(database?: SqlDatabase, enabled = true, tig
         await f.human(project ? updateProjectPolicyCommand : updateWorkspacePolicyCommand, input),
       );
     }
-    const document = { offline_agent_work: permission };
+    const document = {
+      offline_agent_work: permission,
+      ...(options.offlineResults === undefined
+        ? {}
+        : { offline_agent_results: options.offlineResults }),
+    };
     const contentHash = `sha256:${runnerHash(normalizeRepositoryConfig(document, policy).canonical)}`;
     const stepUpProofId = await issueStepUpProof(
       f.db,
@@ -101,13 +119,7 @@ export async function captureFixture(database?: SqlDatabase, enabled = true, tig
         action: "repository.config.report",
         workspaceId: FIX.workspace,
         projectId: FIX.projectA,
-        targetId: repositoryConfigPolicyTarget(
-          FIX.workspace,
-          FIX.projectA,
-          2,
-          contentHash,
-          permission,
-        ),
+        targetId: repositoryConfigPolicyTarget(FIX.workspace, FIX.projectA, 2, contentHash, policy),
         scopes: [],
         authorizationEpoch: 1,
         expiresAt: "2026-09-12T12:01:00.000Z",
@@ -269,7 +281,7 @@ export async function captureFixture(database?: SqlDatabase, enabled = true, tig
     const permission = normalizeRepositoryConfig(
       document,
       await getProjectPolicy(f.db, FIX.workspace, FIX.projectA),
-    ).settings.offlineAgentWork;
+    ).settings;
     const stepUpProofId = await issueStepUpProof(
       f.db,
       FIX.owner,

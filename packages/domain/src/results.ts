@@ -2,6 +2,10 @@
 // ABOUTME: Provider, session, and process endings never submit or accept; only these commands do.
 
 import { assertEpoch, assertProjectAccess, assertRole, loadPrincipal } from "./authorization.js";
+import type { AgentEffectOrigin } from "@bfb/protocol";
+import { authorizeAgentResult, type AgentResultInput } from "./agent-results.js";
+import { canonicalLaunchJson, readLaunch } from "./launch-state.js";
+import { runnerHash } from "./runner-crypto.js";
 import { DomainError, type HubCommand, type HubContext } from "./hub.js";
 import { isUlid, randomUlid } from "./ids.js";
 import { getTask } from "./work-commands.js";
@@ -57,7 +61,9 @@ export interface SubmitResultResult {
   taskState: "review";
   runVersion: number;
   taskVersion: number;
+  agentOrigin?: AgentEffectOrigin;
 }
+export type ResultSubmissionInput = SubmitResultInput | AgentResultInput;
 
 export interface ReviewResultInput {
   runId: string;
@@ -264,11 +270,8 @@ async function readLatestSnapshot(
 /**
  * Resolves the submitting principal. Human submission requires a direct
  * owner/member (delegated remote clients cannot submit: their provider
- * label is reported metadata, not a verified agent process). Agent
- * submission requires a live runner holding the run's current (latest
- * generation) execution assignment and project grant plus a non-ended
- * execution bound to that assignment's execution; possession proof stays
- * at the runner transport, this rechecks grants, assignment, and run state.
+ * label is reported metadata, not a verified agent process). Agents use
+ * the separately checked exact request, never this legacy human shape.
  */
 async function resolveSubmitter(ctx: HubContext, run: RunRow): Promise<ResultSubmitter> {
   if (ctx.actorDelegationId || ctx.actorSystemId) {
@@ -280,44 +283,6 @@ async function resolveSubmitter(ctx: HubContext, run: RunRow): Promise<ResultSub
     assertRole(principal, ["owner", "member"]);
     assertProjectAccess(principal, run.project_id);
     return { kind: "human", id: principal.humanId };
-  }
-  if (ctx.actorRunnerId && !ctx.actorHumanId) {
-    const runner = (await ctx.db
-      .prepare(`SELECT id, revoked_at FROM runners WHERE workspace_id = ? AND id = ?`)
-      .get(ctx.workspaceId, ctx.actorRunnerId)) as
-      { id: string; revoked_at: string | null } | undefined;
-    if (!runner || runner.revoked_at !== null) {
-      throw new DomainError("forbidden", "runner cannot submit for this run");
-    }
-    const current = (await ctx.db
-      .prepare(
-        `SELECT execution_id, runner_id FROM execution_assignments
-         WHERE workspace_id = ? AND run_id = ?
-         ORDER BY assignment_generation DESC LIMIT 1`,
-      )
-      .get(ctx.workspaceId, run.id)) as { execution_id: string; runner_id: string } | undefined;
-    if (!current || current.runner_id !== ctx.actorRunnerId) {
-      throw new DomainError("forbidden", "runner holds no current assignment for this run");
-    }
-    const grant = await ctx.db
-      .prepare(
-        `SELECT 1 AS found FROM runner_project_grants
-         WHERE workspace_id = ? AND runner_id = ? AND project_id = ?`,
-      )
-      .get(ctx.workspaceId, ctx.actorRunnerId, run.project_id);
-    if (!grant) {
-      throw new DomainError("forbidden", "runner project grant revoked");
-    }
-    const live = await ctx.db
-      .prepare(
-        `SELECT 1 AS found FROM run_executions
-         WHERE workspace_id = ? AND id = ? AND run_id = ? AND state != 'ended'`,
-      )
-      .get(ctx.workspaceId, current.execution_id, run.id);
-    if (!live) {
-      throw new DomainError("invalid_transition", "no live execution accepts a submission");
-    }
-    return { kind: "agent_run", id: run.id };
   }
   throw new DomainError("forbidden", "result submission requires a human or runner authority");
 }
@@ -371,32 +336,104 @@ function submissionRow(row: {
   };
 }
 
-export const submitResultCommand: HubCommand<SubmitResultInput, SubmitResultResult> = {
+function resultFingerprint(input: unknown): string {
+  // Transport JSON omits absent optional fields. Preserve supplied values before trimming.
+  return runnerHash(canonicalLaunchJson(JSON.parse(JSON.stringify(input))));
+}
+async function submissionAuthority(input: ResultSubmissionInput, ctx: HubContext) {
+  if ("request" in input) {
+    const row = await authorizeAgentResult(input, ctx);
+    const request = input.request;
+    const fields: SubmitResultInput = {
+      runId: row.run_id,
+      summary: request.summary,
+      ...(request.limitations === undefined ? {} : { limitations: request.limitations }),
+      ...(request.evidence_refs === undefined ? {} : { evidenceRefs: request.evidence_refs }),
+      ...(request.git_branch === undefined ? {} : { gitBranch: request.git_branch }),
+      ...(request.git_commit === undefined ? {} : { gitCommit: request.git_commit }),
+      ...(request.git_dirty === undefined ? {} : { gitDirty: request.git_dirty }),
+    };
+    const launch = await readLaunch(ctx.db, ctx.workspaceId, row.launch_id);
+    return {
+      fields,
+      run: await readRun(ctx, row.run_id),
+      submitter: { kind: "agent_run", id: row.run_id } as ResultSubmitter,
+      snapshot: { id: launch.snapshot_id, content_hash: launch.snapshot_hash },
+      origin: {
+        run_id: row.run_id,
+        run_execution_id: row.execution_id,
+        assignment_generation: row.assignment_generation,
+        provider_session_id: request.binding.provider_session_id,
+      } satisfies AgentEffectOrigin,
+    };
+  }
+  const run = await readRun(ctx, input.runId);
+  return {
+    fields: input,
+    run,
+    submitter: await resolveSubmitter(ctx, run),
+    snapshot: undefined,
+    origin: undefined,
+  };
+}
+function validateSubmission(input: SubmitResultInput) {
+  return {
+    summary: boundedText(input.summary, "result summary", 1, MAX_RESULT_SUMMARY_CHARS),
+    limitations:
+      optionalBoundedText(input.limitations, "result limitations", MAX_RESULT_LIMITATIONS_CHARS) ??
+      "",
+    refs: evidenceRefs(input.evidenceRefs),
+    git: gitFacts(input),
+  };
+}
+export const submitResultCommand: HubCommand<ResultSubmissionInput, SubmitResultResult> = {
   name: "result.submit",
-  auditInput: (input) => ({
-    runId: input.runId,
-    summaryLength: typeof input.summary === "string" ? [...input.summary].length : 0,
-    evidenceRefs: Array.isArray(input.evidenceRefs) ? input.evidenceRefs.length : 0,
-    gitCommit: typeof input.gitCommit === "string" ? input.gitCommit : null,
+  authorize: async (input, ctx) => {
+    const authority = await submissionAuthority(input, ctx);
+    validateSubmission(authority.fields);
+  },
+  inputFingerprint: (input) => resultFingerprint("request" in input ? input.request : input),
+  auditInput: (input) =>
+    "request" in input
+      ? {
+          executionId: input.request.reference.run_execution_id,
+          generation: input.request.reference.assignment_generation,
+          sessionId: input.request.binding.provider_session_id,
+          summaryLength: [...input.request.summary].length,
+          evidenceRefs: input.request.evidence_refs?.length ?? 0,
+        }
+      : {
+          runId: input.runId,
+          summaryLength: typeof input.summary === "string" ? [...input.summary].length : 0,
+          evidenceRefs: input.evidenceRefs?.length ?? 0,
+        },
+  auditResult: (result) => ({
+    submission: {
+      id: result.submission.id,
+      version: result.submission.version,
+      run_id: result.submission.run_id,
+      submitted_by_kind: result.submission.submitted_by_kind,
+      submitted_by_id: result.submission.submitted_by_id,
+    },
+    runResultState: result.runResultState,
+    taskState: result.taskState,
+    runVersion: result.runVersion,
+    taskVersion: result.taskVersion,
+    ...(result.agentOrigin ? { origin: result.agentOrigin } : {}),
   }),
   async run(input, ctx) {
-    const run = await readRun(ctx, input.runId);
+    const authority = await submissionAuthority(input, ctx);
+    const { run, submitter } = authority;
     const task = await getTask(ctx.db, ctx.workspaceId, run.task_id);
     if (!task) {
       throw new DomainError("not_found", "task not found");
     }
-    const submitter = await resolveSubmitter(ctx, run);
-    const summary = boundedText(input.summary, "result summary", 1, MAX_RESULT_SUMMARY_CHARS);
-    const limitations =
-      optionalBoundedText(input.limitations, "result limitations", MAX_RESULT_LIMITATIONS_CHARS) ??
-      "";
-    const refs = evidenceRefs(input.evidenceRefs);
-    const git = gitFacts(input);
+    const { summary, limitations, refs, git } = validateSubmission(authority.fields);
     assertRunResultTransition(run.result_state as "open", "submitted");
     if (task.state !== "active") {
       throw new DomainError("invalid_transition", "submission requires an active task");
     }
-    const snapshot = await readLatestSnapshot(ctx, run.id);
+    const snapshot = authority.snapshot ?? (await readLatestSnapshot(ctx, run.id));
     const current = (await ctx.db
       .prepare(
         `SELECT COALESCE(MAX(version), 0) AS latest FROM result_submissions
@@ -465,6 +502,7 @@ export const submitResultCommand: HubCommand<SubmitResultInput, SubmitResultResu
       taskState: "review",
       runVersion: nextRunVersion,
       taskVersion: nextTaskVersion,
+      ...(authority.origin ? { agentOrigin: authority.origin } : {}),
     };
   },
 };
@@ -580,8 +618,34 @@ async function reviewRun(
   };
 }
 
+async function reviewAuthority(
+  input: ReviewResultInput,
+  ctx: HubContext,
+  roles: Array<"owner" | "member" | "reviewer">,
+) {
+  await resolveReviewer(ctx, await readRun(ctx, input.runId), roles);
+  if (!isUlid(input.submissionId))
+    throw new DomainError("invalid_argument", "invalid submission reference");
+  versionNumber(input.expectedRunVersion, "expected run version");
+  versionNumber(input.expectedTaskVersion, "expected task version");
+  reviewComment(input.comment);
+}
+const reviewAuditInput = (input: ReviewResultInput) => ({
+  runId: input.runId,
+  submissionId: input.submissionId,
+  expectedRunVersion: input.expectedRunVersion,
+  expectedTaskVersion: input.expectedTaskVersion,
+  commentLength: typeof input.comment === "string" ? [...input.comment].length : 0,
+});
+async function closeAuthority(input: CloseRunInput, ctx: HubContext) {
+  await resolveReviewer(ctx, await readRun(ctx, input.runId), ["owner", "member"]);
+  versionNumber(input.expectedRunVersion, "expected run version");
+}
 export const requestChangesCommand: HubCommand<ReviewResultInput, ReviewResultResult> = {
   name: "result.request_changes",
+  authorize: (input, ctx) => reviewAuthority(input, ctx, ["owner", "member", "reviewer"]),
+  inputFingerprint: resultFingerprint,
+  auditInput: reviewAuditInput,
   async run(input, ctx) {
     return reviewRun(ctx, input, "request_changes");
   },
@@ -589,6 +653,9 @@ export const requestChangesCommand: HubCommand<ReviewResultInput, ReviewResultRe
 
 export const acceptResultCommand: HubCommand<ReviewResultInput, ReviewResultResult> = {
   name: "result.accept",
+  authorize: (input, ctx) => reviewAuthority(input, ctx, ["owner", "member"]),
+  inputFingerprint: resultFingerprint,
+  auditInput: reviewAuditInput,
   async run(input, ctx) {
     return reviewRun(ctx, input, "accept");
   },
@@ -596,6 +663,8 @@ export const acceptResultCommand: HubCommand<ReviewResultInput, ReviewResultResu
 
 export const failRunCommand: HubCommand<CloseRunInput, { runResultState: "failed" }> = {
   name: "result.fail",
+  authorize: closeAuthority,
+  inputFingerprint: resultFingerprint,
   async run(input, ctx) {
     const run = await readRun(ctx, input.runId);
     await resolveReviewer(ctx, run, ["owner", "member"]);
@@ -616,6 +685,8 @@ export const failRunCommand: HubCommand<CloseRunInput, { runResultState: "failed
 
 export const cancelRunCommand: HubCommand<CloseRunInput, { runResultState: "cancelled" }> = {
   name: "result.cancel",
+  authorize: closeAuthority,
+  inputFingerprint: resultFingerprint,
   async run(input, ctx) {
     const run = await readRun(ctx, input.runId);
     await resolveReviewer(ctx, run, ["owner", "member"]);

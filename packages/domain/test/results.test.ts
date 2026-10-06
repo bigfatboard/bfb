@@ -220,6 +220,117 @@ async function seedRunnerToken(
 }
 
 describe("result submission commands", () => {
+  it.each(["fail", "cancel"])(
+    "reauthorizes exact cached %s independently of terminal effect preconditions",
+    async (decision) => {
+      const db = await openDomainDb(),
+        hub = new WorkspaceHub(db);
+      const { runId } = await createTaskAndRun(db, hub, `cached-${decision}`);
+      const request = human(`cached-${decision}`, { runId, expectedRunVersion: 1 }, FIX.member);
+      const command = decision === "fail" ? failRunCommand : cancelRunCommand;
+      const original = ok(await hub.execute(command, request));
+      expect(await hub.execute(command, request)).toMatchObject({
+        ok: true,
+        replayed: true,
+        result: original,
+      });
+      expect(
+        await hub.execute(command, {
+          ...request,
+          input: { ...request.input, expectedRunVersion: 2 },
+        }),
+      ).toMatchObject({ ok: false, error: { code: "request_rejected" } });
+      await db
+        .prepare("UPDATE workspace_members SET role='reviewer' WHERE human_id=?")
+        .run(FIX.member);
+      expect(await hub.execute(command, request)).toMatchObject({
+        ok: false,
+        error: { code: "forbidden" },
+      });
+    },
+  );
+  it("reauthorizes cached human submissions and binds original private input", async () => {
+    const db = await openDomainDb(),
+      hub = new WorkspaceHub(db);
+    const { runId } = await createTaskAndRun(db, hub, "human-current-cache");
+    const request = human(
+      "human-cache-submit",
+      {
+        runId,
+        summary: " PRIVATE_HUMAN_SUMMARY ",
+        limitations: "PRIVATE_HUMAN_LIMITATIONS",
+        evidenceRefs: [{ kind: "comment", ref: "PRIVATE_HUMAN_EVIDENCE" }],
+      },
+      FIX.member,
+    );
+    const original = ok(await hub.execute(submitResultCommand, request));
+    expect(await hub.execute(submitResultCommand, request)).toMatchObject({
+      ok: true,
+      replayed: true,
+      result: original,
+    });
+    expect(
+      err(
+        await hub.execute(submitResultCommand, {
+          ...request,
+          input: { ...request.input, summary: request.input.summary.trim() },
+        }),
+      ),
+    ).toBe("request_rejected");
+    for (const table of ["audit_events", "semantic_events", "outbox_records"]) {
+      const receipt = JSON.stringify(await db.prepare(`SELECT * FROM ${table}`).all());
+      expect(receipt).not.toContain("PRIVATE_HUMAN_");
+    }
+    await db.prepare("UPDATE projects SET access_mode='restricted' WHERE id=?").run(FIX.projectA);
+    await db
+      .prepare("DELETE FROM project_access WHERE human_id=? AND project_id=?")
+      .run(FIX.member, FIX.projectA);
+    expect(await hub.execute(submitResultCommand, request)).toMatchObject({ ok: false });
+  });
+  it.each(["accept", "request_changes"])(
+    "reauthorizes cached human %s without rerunning resulting-state preconditions",
+    async (decision) => {
+      const db = await openDomainDb(),
+        hub = new WorkspaceHub(db);
+      const { runId } = await createTaskAndRun(db, hub, `human-${decision}-cache`);
+      const submit = ok(
+        await hub.execute(
+          submitResultCommand,
+          human(`human-${decision}-submit`, { runId, summary: "Synthetic review target" }),
+        ),
+      );
+      const request = human(
+        `human-${decision}-decision`,
+        {
+          runId,
+          submissionId: submit.submission.id,
+          expectedRunVersion: submit.runVersion,
+          expectedTaskVersion: submit.taskVersion,
+          comment: "PRIVATE_HUMAN_REVIEW",
+        },
+        FIX.member,
+      );
+      const command = decision === "accept" ? acceptResultCommand : requestChangesCommand;
+      const original = ok(await hub.execute(command, request));
+      expect(await hub.execute(command, request)).toMatchObject({
+        ok: true,
+        replayed: true,
+        result: original,
+      });
+      expect(
+        err(
+          await hub.execute(command, {
+            ...request,
+            input: { ...request.input, comment: "changed" },
+          }),
+        ),
+      ).toBe("request_rejected");
+      await db
+        .prepare("UPDATE workspace_members SET authorization_epoch=2 WHERE human_id=?")
+        .run(FIX.member);
+      expect(await hub.execute(command, request)).toMatchObject({ ok: false });
+    },
+  );
   it("registers the five result commands on the hub catalog", () => {
     for (const name of [
       "result.submit",
@@ -630,27 +741,21 @@ describe("result submission commands", () => {
 });
 
 describe("agent result submission", () => {
-  it("accepts the bound runner agent and records agent attribution", async () => {
+  it("rejects the legacy runner shape without exact launch and session authority", async () => {
     const db = await openDomainDb();
     const hub = new WorkspaceHub(db);
     const { taskId, runId } = await createTaskAndRun(db, hub, "agent");
     const agent = await seedRunnerAgent(db, hub, "agent", runId, taskId);
-    const submitted = ok(
-      await hub.execute(
-        submitResultCommand,
-        runnerRequest("agent-submit", agent.runnerId, {
-          runId,
-          summary: "Synthetic agent result",
-          gitCommit: COMMIT,
-        }),
-      ),
+    const submitted = await hub.execute(
+      submitResultCommand,
+      runnerRequest("agent-submit", agent.runnerId, {
+        runId,
+        summary: "Synthetic agent result",
+        gitCommit: COMMIT,
+      }),
     );
-    expect(submitted.submission).toMatchObject({
-      version: 1,
-      submitted_by_kind: "agent_run",
-      submitted_by_id: runId,
-    });
-    expect(await readRun(db, runId)).toMatchObject({ result_state: "submitted" });
+    expect(err(submitted)).toBe("forbidden");
+    expect(await readRun(db, runId)).toMatchObject({ result_state: "open" });
   });
 
   it("forbids agents without an assignment, with ended executions, or after revocation", async () => {
@@ -687,7 +792,7 @@ describe("agent result submission", () => {
         summary: "Synthetic post-exit submission",
       }),
     );
-    expect(err(afterEnd)).toBe("invalid_transition");
+    expect(err(afterEnd)).toBe("forbidden");
     await db
       .prepare(`UPDATE runners SET revoked_at = ? WHERE workspace_id = ? AND id = ?`)
       .run(LATER, FIX.workspace, agent.runnerId);
@@ -701,7 +806,7 @@ describe("agent result submission", () => {
     expect(err(revoked)).toBe("forbidden");
   });
 
-  it("binds runner submission to the current assignment generation", async () => {
+  it("never revives the legacy input through a newer synthetic assignment", async () => {
     const db = await openDomainDb();
     const hub = new WorkspaceHub(db);
     const { taskId, runId } = await createTaskAndRun(db, hub, "superseded");
@@ -767,19 +872,14 @@ describe("agent result submission", () => {
       }),
     );
     expect(err(stale)).toBe("forbidden");
-    const current = ok(
-      await hub.execute(
-        submitResultCommand,
-        runnerRequest("superseded-current", runnerId, {
-          runId,
-          summary: "Synthetic current submission",
-        }),
-      ),
+    const current = await hub.execute(
+      submitResultCommand,
+      runnerRequest("superseded-current", runnerId, {
+        runId,
+        summary: "Synthetic current submission",
+      }),
     );
-    expect(current.submission).toMatchObject({
-      submitted_by_kind: "agent_run",
-      submitted_by_id: runId,
-    });
+    expect(err(current)).toBe("forbidden");
   });
 
   it("forbids the agent from reviewing, failing, or cancelling", async () => {

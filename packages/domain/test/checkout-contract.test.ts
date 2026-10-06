@@ -153,6 +153,7 @@ describe("shared native and cloud offline repository policy contract", () => {
     allowPassToAgent: true,
     allowRunOverrides: true,
     offlineAgentWork: { allowed_tools: [...OFFLINE_AGENT_TOOLS], max_pending_age_seconds: 300 },
+    offlineAgentResults: { allow_submit_result: false, max_pending_age_seconds: 0 },
   };
   it.each(offlineContract.fixtures)("$name", (fixture) => {
     if (fixture.error) {
@@ -169,6 +170,49 @@ describe("shared native and cloud offline repository policy contract", () => {
     );
     expect(`sha256:${createHash("sha256").update(normalized.canonical).digest("hex")}`).toBe(
       fixture.hash,
+    );
+  });
+});
+
+describe("shared native and cloud offline result repository policy contract", () => {
+  const shared = JSON.parse(
+    readFileSync(
+      new URL("../../../internal/checkout/testdata/offline-agent-results.json", import.meta.url),
+      "utf8",
+    ),
+  ) as {
+    fixtures: {
+      name: string;
+      document: unknown;
+      canonical?: string;
+      hash?: string;
+      error?: string;
+    }[];
+  };
+  const parent: PolicySettings = {
+    allowedProviders: ["claude", "codex", "fake", "grok"],
+    allowAgentRootPropose: true,
+    allowPassToAgent: true,
+    allowRunOverrides: true,
+    offlineAgentWork: { allowed_tools: [...OFFLINE_AGENT_TOOLS], max_pending_age_seconds: 300 },
+    offlineAgentResults: { allow_submit_result: true, max_pending_age_seconds: 300 },
+  };
+  it.each(shared.fixtures)("$name", (fixture) => {
+    if (fixture.error) {
+      expect(() => normalizeRepositoryConfig(fixture.document, parent)).toThrow();
+      return;
+    }
+    const normalized = normalizeRepositoryConfig(fixture.document, parent);
+    expect(normalized.canonical).toBe(fixture.canonical);
+    expect(`sha256:${createHash("sha256").update(normalized.canonical).digest("hex")}`).toBe(
+      fixture.hash,
+    );
+    const document = JSON.parse(normalized.canonical);
+    expect(normalized.settings.offlineAgentResults).toEqual(
+      document.offline_agent_results ?? { allow_submit_result: false, max_pending_age_seconds: 0 },
+    );
+    expect(normalized.settings.offlineAgentWork).toEqual(
+      document.offline_agent_work ?? { allowed_tools: [], max_pending_age_seconds: 0 },
     );
   });
 });

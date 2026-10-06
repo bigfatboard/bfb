@@ -21,6 +21,12 @@ import {
   type OfflineAgentWorkPolicy,
 } from "./offline-agent-policy.js";
 import { validateStepUpProof } from "./step-up.js";
+import {
+  assertOfflineAgentResultsTightens,
+  deniedOfflineAgentResults,
+  normalizeOfflineAgentResults,
+  type OfflineAgentResultsPolicy,
+} from "./offline-result-policy.js";
 
 export const PROVIDERS = ["claude", "codex", "grok", "fake"] as const;
 export type Provider = (typeof PROVIDERS)[number];
@@ -32,6 +38,7 @@ export interface PolicySettings {
   allowPassToAgent: boolean;
   allowRunOverrides: boolean;
   offlineAgentWork: OfflineAgentWorkPolicy;
+  offlineAgentResults: OfflineAgentResultsPolicy;
 }
 
 export interface ProjectRecord {
@@ -63,6 +70,8 @@ interface PolicyRow {
   allow_run_overrides: number;
   offline_agent_tools_json: string;
   offline_agent_max_pending_age_seconds: number;
+  offline_result_allow_submit: number;
+  offline_result_max_pending_age_seconds: number;
   resource_version: number;
 }
 
@@ -170,10 +179,16 @@ function policyFromRow(row: PolicyRow): PolicySettings {
       allowed_tools: JSON.parse(row.offline_agent_tools_json) as unknown,
       max_pending_age_seconds: row.offline_agent_max_pending_age_seconds,
     }),
+    offlineAgentResults: normalizeOfflineAgentResults({
+      allow_submit_result: row.offline_result_allow_submit === 1,
+      max_pending_age_seconds: row.offline_result_max_pending_age_seconds,
+    }),
   };
 }
 
-function policyValues(policy: PolicySettings): [string, number, number, number, string, number] {
+function policyValues(
+  policy: PolicySettings,
+): [string, number, number, number, string, number, number, number] {
   return [
     JSON.stringify(normalizeProviders(policy.allowedProviders)),
     policy.allowAgentRootPropose ? 1 : 0,
@@ -181,6 +196,8 @@ function policyValues(policy: PolicySettings): [string, number, number, number, 
     policy.allowRunOverrides ? 1 : 0,
     JSON.stringify(policy.offlineAgentWork.allowed_tools),
     policy.offlineAgentWork.max_pending_age_seconds,
+    policy.offlineAgentResults.allow_submit_result ? 1 : 0,
+    policy.offlineAgentResults.max_pending_age_seconds,
   ];
 }
 
@@ -198,11 +215,13 @@ function normalizePolicySettings(input: PolicySettings): PolicySettings {
     allowPassToAgent: input.allowPassToAgent,
     allowRunOverrides: input.allowRunOverrides,
     offlineAgentWork: normalizeOfflineAgentWork(input.offlineAgentWork),
+    offlineAgentResults: normalizeOfflineAgentResults(input.offlineAgentResults),
   };
 }
 
 export function assertPolicyTightens(parent: PolicySettings, child: PolicySettings): void {
   assertOfflineAgentWorkTightens(parent.offlineAgentWork, child.offlineAgentWork);
+  assertOfflineAgentResultsTightens(parent.offlineAgentResults, child.offlineAgentResults);
   const parentProviders = new Set(parent.allowedProviders);
   if (child.allowedProviders.some((provider) => !parentProviders.has(provider))) {
     throw new DomainError("policy_widening", "provider policy cannot widen its parent");
@@ -586,7 +605,7 @@ export function policyUpdateTarget(
   return `sha256:${createHash("sha256")
     .update(
       JSON.stringify([
-        "BFB-POLICY-UPDATE-V2",
+        "BFB-POLICY-UPDATE-V3",
         action,
         workspaceId,
         projectId ?? null,
@@ -597,6 +616,8 @@ export function policyUpdateTarget(
         settings.allowRunOverrides,
         settings.offlineAgentWork.allowed_tools,
         settings.offlineAgentWork.max_pending_age_seconds,
+        settings.offlineAgentResults.allow_submit_result,
+        settings.offlineAgentResults.max_pending_age_seconds,
       ]),
     )
     .digest("hex")}`;
@@ -698,8 +719,16 @@ export const updateWorkspacePolicyCommand: HubCommand<
     }
     const settings = normalizePolicySettings(input);
     const next = current.resource_version + 1;
-    const [providers, rootPropose, passToAgent, runOverrides, offlineTools, offlineAge] =
-      policyValues(settings);
+    const [
+      providers,
+      rootPropose,
+      passToAgent,
+      runOverrides,
+      offlineTools,
+      offlineAge,
+      resultAllow,
+      resultAge,
+    ] = policyValues(settings);
     const consumeProof = await preparePolicyStepUp(
       ctx,
       input.stepUpProofId,
@@ -723,7 +752,8 @@ export const updateWorkspacePolicyCommand: HubCommand<
         `UPDATE workspace_policies
          SET allowed_providers_json = ?, allow_agent_root_propose = ?,
              allow_pass_to_agent = ?, allow_run_overrides = ?, offline_agent_tools_json = ?,
-             offline_agent_max_pending_age_seconds = ?, resource_version = ?
+             offline_agent_max_pending_age_seconds = ?, offline_result_allow_submit = ?,
+             offline_result_max_pending_age_seconds = ?, resource_version = ?
          WHERE workspace_id = ? AND resource_version = ?`,
       )
       .run(
@@ -733,6 +763,8 @@ export const updateWorkspacePolicyCommand: HubCommand<
         runOverrides,
         offlineTools,
         offlineAge,
+        resultAllow,
+        resultAge,
         next,
         ctx.workspaceId,
         input.expectedVersion,
@@ -742,8 +774,9 @@ export const updateWorkspacePolicyCommand: HubCommand<
         `INSERT INTO workspace_policy_versions
          (workspace_id, version, allowed_providers_json, allow_agent_root_propose,
           allow_pass_to_agent, allow_run_overrides, offline_agent_tools_json,
-          offline_agent_max_pending_age_seconds, created_by_human_id, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          offline_agent_max_pending_age_seconds, offline_result_allow_submit,
+          offline_result_max_pending_age_seconds, created_by_human_id, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         ctx.workspaceId,
@@ -754,6 +787,8 @@ export const updateWorkspacePolicyCommand: HubCommand<
         runOverrides,
         offlineTools,
         offlineAge,
+        resultAllow,
+        resultAge,
         principal.humanId,
         ctx.now,
       );
@@ -789,8 +824,16 @@ export const updateProjectPolicyCommand: HubCommand<
     const settings = normalizePolicySettings(input);
     assertPolicyTightens(policyFromRow(ceiling), settings);
     const next = current.resource_version + 1;
-    const [providers, rootPropose, passToAgent, runOverrides, offlineTools, offlineAge] =
-      policyValues(settings);
+    const [
+      providers,
+      rootPropose,
+      passToAgent,
+      runOverrides,
+      offlineTools,
+      offlineAge,
+      resultAllow,
+      resultAge,
+    ] = policyValues(settings);
     const consumeProof = await preparePolicyStepUp(
       ctx,
       input.stepUpProofId,
@@ -815,7 +858,8 @@ export const updateProjectPolicyCommand: HubCommand<
         `UPDATE project_policies
          SET allowed_providers_json = ?, allow_agent_root_propose = ?,
              allow_pass_to_agent = ?, allow_run_overrides = ?, offline_agent_tools_json = ?,
-             offline_agent_max_pending_age_seconds = ?, resource_version = ?
+             offline_agent_max_pending_age_seconds = ?, offline_result_allow_submit = ?,
+             offline_result_max_pending_age_seconds = ?, resource_version = ?
          WHERE workspace_id = ? AND project_id = ? AND resource_version = ?`,
       )
       .run(
@@ -825,6 +869,8 @@ export const updateProjectPolicyCommand: HubCommand<
         runOverrides,
         offlineTools,
         offlineAge,
+        resultAllow,
+        resultAge,
         next,
         ctx.workspaceId,
         input.projectId,
@@ -836,8 +882,9 @@ export const updateProjectPolicyCommand: HubCommand<
          (workspace_id, project_id, version, allowed_providers_json,
           allow_agent_root_propose, allow_pass_to_agent, allow_run_overrides,
           offline_agent_tools_json, offline_agent_max_pending_age_seconds,
+          offline_result_allow_submit, offline_result_max_pending_age_seconds,
           created_by_human_id, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         ctx.workspaceId,
@@ -849,6 +896,8 @@ export const updateProjectPolicyCommand: HubCommand<
         runOverrides,
         offlineTools,
         offlineAge,
+        resultAllow,
+        resultAge,
         principal.humanId,
         ctx.now,
       );
@@ -862,6 +911,7 @@ type RepositoryConfigDocument = Partial<{
   allow_pass_to_agent: boolean;
   allow_run_overrides: boolean;
   offline_agent_work: OfflineAgentWorkPolicy;
+  offline_agent_results: OfflineAgentResultsPolicy;
 }>;
 
 function canonicalJson(value: unknown): string {
@@ -887,6 +937,7 @@ function normalizeRepositoryDocument(document: unknown): RepositoryConfigDocumen
     "allow_pass_to_agent",
     "allow_run_overrides",
     "offline_agent_work",
+    "offline_agent_results",
   ]);
   const record = document as Record<string, unknown>;
   if (Object.keys(record).some((key) => !allowedKeys.has(key))) {
@@ -919,6 +970,9 @@ function normalizeRepositoryDocument(document: unknown): RepositoryConfigDocumen
   if (Object.hasOwn(record, "offline_agent_work")) {
     normalized.offline_agent_work = normalizeOfflineAgentWork(record.offline_agent_work);
   }
+  if (Object.hasOwn(record, "offline_agent_results")) {
+    normalized.offline_agent_results = normalizeOfflineAgentResults(record.offline_agent_results);
+  }
   return normalized;
 }
 
@@ -933,6 +987,7 @@ export function normalizeRepositoryConfig(
     allowPassToAgent: normalized.allow_pass_to_agent ?? parent.allowPassToAgent,
     allowRunOverrides: normalized.allow_run_overrides ?? parent.allowRunOverrides,
     offlineAgentWork: normalized.offline_agent_work ?? deniedOfflineAgentWork(),
+    offlineAgentResults: normalized.offline_agent_results ?? deniedOfflineAgentResults(),
   };
   assertPolicyTightens(parent, settings);
   return { canonical: canonicalJson(normalized), settings };
@@ -951,20 +1006,26 @@ export function repositoryConfigPolicyTarget(
   projectId: string,
   expectedVersion: number,
   contentHash: string,
-  offline: OfflineAgentWorkPolicy,
+  input: PolicySettings,
 ): string {
-  const permission = normalizeOfflineAgentWork(offline);
+  const settings = normalizePolicySettings(input);
   return `sha256:${createHash("sha256")
     .update(
       JSON.stringify([
-        "BFB-REPOSITORY-CONFIG-UPDATE-V2",
+        "BFB-REPOSITORY-CONFIG-UPDATE-V3",
         "repository.config.report",
         workspaceId,
         projectId,
         expectedVersion,
         contentHash,
-        permission.allowed_tools,
-        permission.max_pending_age_seconds,
+        settings.allowedProviders,
+        settings.allowAgentRootPropose,
+        settings.allowPassToAgent,
+        settings.allowRunOverrides,
+        settings.offlineAgentWork.allowed_tools,
+        settings.offlineAgentWork.max_pending_age_seconds,
+        settings.offlineAgentResults.allow_submit_result,
+        settings.offlineAgentResults.max_pending_age_seconds,
       ]),
     )
     .digest("hex")}`;
@@ -1017,23 +1078,33 @@ export const reportRepositoryConfigCommand: HubCommand<
       throw new DomainError("config_hash_mismatch", "repository config hash does not match");
     }
     const next = current.resource_version + 1;
-    const [providers, rootPropose, passToAgent, runOverrides, offlineTools, offlineAge] =
-      policyValues(normalized.settings);
-    const consumeProof = Object.hasOwn(input.document as object, "offline_agent_work")
-      ? await preparePolicyStepUp(
-          ctx,
-          input.stepUpProofId,
-          "repository.config.report",
-          repositoryConfigPolicyTarget(
-            ctx.workspaceId,
+    const [
+      providers,
+      rootPropose,
+      passToAgent,
+      runOverrides,
+      offlineTools,
+      offlineAge,
+      resultAllow,
+      resultAge,
+    ] = policyValues(normalized.settings);
+    const consumeProof =
+      Object.hasOwn(input.document as object, "offline_agent_work") ||
+      Object.hasOwn(input.document as object, "offline_agent_results")
+        ? await preparePolicyStepUp(
+            ctx,
+            input.stepUpProofId,
+            "repository.config.report",
+            repositoryConfigPolicyTarget(
+              ctx.workspaceId,
+              input.projectId,
+              input.expectedVersion,
+              hash,
+              normalized.settings,
+            ),
             input.projectId,
-            input.expectedVersion,
-            hash,
-            normalized.settings.offlineAgentWork,
-          ),
-          input.projectId,
-        )
-      : undefined;
+          )
+        : undefined;
     await consumeProof?.();
     await policyGuard(
       ctx,
@@ -1046,7 +1117,8 @@ export const reportRepositoryConfigCommand: HubCommand<
          SET canonical_json = ?, content_hash = ?, allowed_providers_json = ?,
              allow_agent_root_propose = ?, allow_pass_to_agent = ?,
              allow_run_overrides = ?, offline_agent_tools_json = ?,
-             offline_agent_max_pending_age_seconds = ?, resource_version = ?
+             offline_agent_max_pending_age_seconds = ?, offline_result_allow_submit = ?,
+             offline_result_max_pending_age_seconds = ?, resource_version = ?
          WHERE workspace_id = ? AND project_id = ? AND resource_version = ?`,
       )
       .run(
@@ -1058,6 +1130,8 @@ export const reportRepositoryConfigCommand: HubCommand<
         runOverrides,
         offlineTools,
         offlineAge,
+        resultAllow,
+        resultAge,
         next,
         ctx.workspaceId,
         input.projectId,
@@ -1069,8 +1143,9 @@ export const reportRepositoryConfigCommand: HubCommand<
          (workspace_id, project_id, version, canonical_json, content_hash,
           allowed_providers_json, allow_agent_root_propose, allow_pass_to_agent,
           allow_run_overrides, offline_agent_tools_json, offline_agent_max_pending_age_seconds,
+          offline_result_allow_submit, offline_result_max_pending_age_seconds,
           reported_by_human_id, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         ctx.workspaceId,
@@ -1084,6 +1159,8 @@ export const reportRepositoryConfigCommand: HubCommand<
         runOverrides,
         offlineTools,
         offlineAge,
+        resultAllow,
+        resultAge,
         principal.humanId,
         ctx.now,
       );
