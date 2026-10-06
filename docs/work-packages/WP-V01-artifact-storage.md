@@ -1,6 +1,6 @@
 # WP-V01 — Artifact storage state machine
 
-Status: `blocked`
+Status: `in_progress`
 
 Risk: High
 
@@ -10,10 +10,10 @@ Evidence manifest: `docs/work-packages/evidence/WP-V01/manifest.json`
 
 ## Outcome
 
-An authorized human can publish a bounded review artifact or compressed log
-chunk through typed create → upload → finalize calls backed by real Workers,
-D1, and R2, and A01 can register the same publish flow as a run-scoped MCP
-tool.
+An authorized human or currently bound agent can publish a bounded review
+artifact or compressed log chunk through typed create → upload → finalize
+calls backed by real Workers, D1, and R2. Local MCP and the bound CLI use
+daemon-owned authority and scoped files, not caller-selected cloud credentials.
 
 ## Dependencies
 
@@ -23,6 +23,12 @@ tool.
 
 ## Scope
 
+- Repair current project authorization at issuance, redemption and finalization,
+  exact one-time consumption identity, and real R2 conditional-write handling.
+- Connect online-only run-scoped local publication through the current A01
+  native/runner authority boundary with explicit same-identity recovery.
+  Freeze its separate closed protocol and artifact/audit bookkeeping contract
+  in an ADR before implementation. No A01/A03 offline journal widening.
 - Artifact/version/grant upload state machine with format and role as
   separate fields (`markdown`, `mermaid`, `diff`, `svg`, `png`, `jpeg`,
   `html`, `log`, `json`; review 5 MiB, compressed log chunks 1 MiB).
@@ -48,8 +54,8 @@ tool.
 - Artifact views, renderers, and review surfacing (V02/V03 own them; no
   viewer, renderer, or review work happened here).
 - Retention, lifecycle deletion, and client-supplied storage keys.
-- CLI-credential auth on publication routes (X02) and run-scoped agent
-  authority (A01 registers it against these same commands).
+- Human CLI-credential auth on publication routes (X02), offline automatic
+  artifact replay, an outbox watcher, or provider/Terminal acceptance.
 
 ## Contracts
 
@@ -78,6 +84,11 @@ tool.
   evidence for the tested commit.
 
 ## Work plan
+
+The numbered list records historical component implementation. Current runtime
+closure proceeds through authority/storage regressions, the separately documented
+closed local publication contract, compiled signed end-to-end proof, and clean
+exact-gate certification. Historical manifests are retained without relabelling.
 
 1. D1 migration 0020 with guards and triggers; verified with the migration
    gate. Done.
@@ -158,13 +169,22 @@ tool.
 - Risk: D1 batches cannot read after a queued write. Decision: all reads
   precede writes in every command/helper; the single-consume fence is a
   guarded update plus a mutating-guard row (domain tests + harness replay).
-- Risk: A01 (MCP registration) was in flight. Decision: V01 shipped the typed
-  client plus a transport-free `ToolDefinition`/`InvokePublish` seam; A01 is
-  `done` and registers `bfb_publish_artifact` on the run-scoped server
-  (`apps/control-worker/src/mcp/server-factory.ts`).
+- Risk: the historical transport-free `ToolDefinition`/`InvokePublish` seam
+  was mistaken for local integration. The registration in
+  `apps/control-worker/src/mcp/server-factory.ts` is delegated remote OAuth,
+  not local native-run authority; the local Host currently rejects publication.
+  Current V01 owns the missing connected local path and its acceptance.
 
 ## Handoff
 
+- Runtime integration active 6 October after A04 certification at `a7a763c`.
+  Required A01/C01/C04/F03 packages are `done`. Reproduced or code-confirmed
+  gaps include restricted-project regrant/finalize access, timestamp-based
+  consume correlation, ignored R2 conditional `null`, absent local MCP
+  publication and incompatible historical browser-auth client assumptions.
+  Direct upload-grant consumption is an explicit architecture exception;
+  immutable upload bookkeeping and audit projection need precise documentation.
+  No new V01 runtime acceptance or downstream certification is claimed yet.
 - Dependency hold, 5 October: A01 is reopened for its missing production online/replay path. This implementation and historical isolated acceptance are retained; their tests have not been declared failed. Re-certification and settlement wait for A01 runtime acceptance and affected integration checks. The dated status below is historical, not the current package state.
 - Settled 18 September: `done`. A01 is `done`, and `pnpm test:v01` passed in a detached clean checkout at `9372c0f` (install, build, exact target ending `V01_D1_OK` with Go race tests).
 - Run `pnpm test:v01` (toolchain: Node 24.19.0, pnpm 11.21.0, Go 1.26.5;
