@@ -15,7 +15,7 @@ The remote MCP surface can use later attention, result, and artifact commands th
 ## Dependencies
 
 - **Requires:** A01, A02, A03, V01, X03A.
-- **Unlocks:** G01.
+- **Unlocks:** C11, C12, G01.
 - **Can run with:** X02/X04 after auth migrations are sequenced.
 
 ## Scope

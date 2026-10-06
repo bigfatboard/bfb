@@ -15,7 +15,7 @@ A signed-in human can authorize the BFB CLI through a browser device flow and re
 ## Dependencies
 
 - **Requires:** C01, C02, C04, C07.
-- **Unlocks:** X02.
+- **Unlocks:** C11, X02.
 - **Can run with:** C06 if migrations and auth routes are coordinated sequentially.
 
 ## Scope

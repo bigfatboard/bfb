@@ -75,14 +75,23 @@ Root instructions, publication authority and skill enablement still require
 explicit contracts/ADRs before implementation. The current eight-feature
 acceptance definitions remain in the linked MVP plan.
 
-## Outstanding user choices
+## Confirmed defaults — 6 October
 
-- Private-task ownership/ACL and workspace-owner exceptions.
-- BFB-managed encrypted business secrets versus an external secret manager.
-- Electric lime/cyan core UI direction versus the existing crimson palette.
+Timo answered **“defaults”** to the three proposed choices:
 
-Questions were presented to Timo on 6 October. Viewer/review re-certification
-does not depend on their answers. No answer has been silently assumed.
+- Private work: creator plus explicitly shared humans, without automatic
+  workspace-owner access or an administrator ACL override.
+- Business secrets: a BFB-managed encrypted vault, separate from infrastructure
+  secrets and local provider credentials. Key lifecycle/recovery/agent grants
+  still require their owning contract before values ship.
+- Core UI: electric lime/cyan accents and neutral light/dark themes. Palette
+  approval is not a completed design or accessibility certificate.
+
+[ADR 0014](adr/0014-private-work-authorization.md) fixes the privacy boundary.
+C10 establishes its dormant authorization kernel; C11 gates activation on
+cross-surface delivery and sharing enforcement. C12 separately owns immutable
+selected-content publication. Knowledge precedence and skill enablement remain
+separate contracts. No secret is implicitly delivered in a prompt.
 
 ## Verification and running state
 
@@ -106,7 +115,7 @@ manifests; current runtime proof must have its own explicit scope.
   11 real-Worker/D1/R2 checks and both OAuth browser scenarios. Full verification
   passes 2,923 TypeScript cases, Go and 16 Swift cases. Exact retries and current
   authority fence private cached replies; receipts exclude private bodies.
-  Mandatory new privacy/knowledge/design contracts are next, pending the
-  recorded choices. Remaining foundation integrations keep their own gates.
+  Privacy/knowledge/design work follows the confirmed defaults. Remaining
+  foundation integrations keep their own gates.
 - No pilot configuration, production deployment or live-provider outcome is
   changed or claimed by this lane.

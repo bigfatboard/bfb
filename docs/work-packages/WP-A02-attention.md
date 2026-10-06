@@ -15,7 +15,7 @@ An agent can request a typed human decision, a permitted human can answer it fro
 ## Dependencies
 
 - **Requires:** A01, E02, W01.
-- **Unlocks:** A04, X01, X02, X03.
+- **Unlocks:** A04, C11, X01, X02, X03.
 - **Can run with:** A03 after shared run-state mutations freeze.
 
 ## Scope

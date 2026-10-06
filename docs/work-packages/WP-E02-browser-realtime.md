@@ -15,7 +15,7 @@ A workspace member watching a running attempt sees one live Run timeline and hon
 ## Dependencies
 
 - **Requires:** E01, W01.
-- **Unlocks:** A02, D03, G01, X01.
+- **Unlocks:** A02, C11, D03, G01, X01.
 - **Can run with:** L05, W02, L06, A01, V01, L07, P01.
 
 ## Scope

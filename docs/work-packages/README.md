@@ -4,7 +4,7 @@ This plan turns the [v0.1 architecture](../../ARCHITECTURE.md) into independentl
 
 The default is sequence over concurrency. Parallel work is allowed only where this document names a stable contract and non-overlapping ownership boundary.
 
-The program contains 45 work packages, nine release integration checkpoints, and the MVP discussion checkpoint below. Package IDs are stable identifiers, not a claim that packages execute in numeric order. The approved [MVP plan](../../mvp.plan.md) prioritizes remote launch and human-initiated discussion; [ADR 0002](../adr/0002-human-initiated-discussions.md) records its domain and execution boundaries.
+The program contains 48 work packages, nine release integration checkpoints, and the MVP discussion checkpoint below. Package IDs are stable identifiers, not a claim that packages execute in numeric order. The approved [MVP plan](../../mvp.plan.md) prioritizes remote launch and human-initiated discussion; [ADR 0002](../adr/0002-human-initiated-discussions.md) records its domain and execution boundaries.
 
 ## Delivery rules
 
@@ -73,6 +73,9 @@ flowchart TD
         C07["C07 Projects, repository identity, and policy"]
         C08["C08 Tasks, runs, context, and work APIs"]
         C09["C09 Durable launch orchestration"]
+        C10["C10 Private-task authorization kernel"]
+        C11["C11 Private-task delivery and sharing"]
+        C12["C12 Selected-content publication"]
     end
     subgraph Localexecution["Local execution"]
         L01["L01 Go daemon and CLI kernel"]
@@ -156,6 +159,23 @@ flowchart TD
     C06 --> C09
     C07 --> C09
     C08 --> C09
+    C04 --> C10
+    C08 --> C10
+    A01 --> C11
+    A02 --> C11
+    A03 --> C11
+    A04 --> C11
+    C05 --> C11
+    C06 --> C11
+    C10 --> C11
+    D01 --> C11
+    E02 --> C11
+    V03 --> C11
+    W01 --> C11
+    X03 --> C11
+    C11 --> C12
+    V03 --> C12
+    X03 --> C12
     F01 --> L01
     F02 --> L01
     F02 --> L02
@@ -376,6 +396,9 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 | C07 | [Projects, repository identity, and policy](WP-C07-work-domain.md) | `done` | High |
 | C08 | [Tasks, runs, context, and work APIs](WP-C08-work-records.md) | `done` | High |
 | C09 | [Durable launch orchestration](WP-C09-launch-orchestration.md) | `done` | Very high |
+| C10 | [Private-task authorization kernel](WP-C10-private-task-authority.md) | `in_progress` | Very high |
+| C11 | [Private-task delivery and sharing](WP-C11-private-task-delivery.md) | `planned` | Very high |
+| C12 | [Selected-content publication](WP-C12-selected-content-publication.md) | `planned` | Very high |
 
 ### Local execution
 

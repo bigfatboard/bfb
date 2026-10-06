@@ -20,7 +20,7 @@ an explicit call; every interactive ending never submits or accepts.
 ## Dependencies
 
 - **Requires:** A01, C08, E01, W01.
-- **Unlocks:** A04, P01, P02, V03, X01, X02, X03, X04.
+- **Unlocks:** A04, C11, P01, P02, V03, X01, X02, X03, X04.
 - **Can run with:** E02, L06, L07, P01, W02.
 
 ## Scope

@@ -15,7 +15,7 @@ A human reviews an exact artifact version and records approval, changes requeste
 ## Dependencies
 
 - **Requires:** A03, A04, V02, W01.
-- **Unlocks:** G01.
+- **Unlocks:** C11, C12, G01.
 - **Can run with:** P01/P02 after feature contracts freeze.
 
 ## Scope

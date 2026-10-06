@@ -15,7 +15,7 @@ BFB shows human attention, process elapsed time, active agent work, waiting, and
 ## Dependencies
 
 - **Requires:** A02, A03, E01, W01.
-- **Unlocks:** G01, V03.
+- **Unlocks:** C11, G01, V03.
 - **Can run with:** V01/V02 if UI ownership is coordinated.
 
 ## Scope

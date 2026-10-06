@@ -980,6 +980,12 @@ Generated protocol code is checked for drift in CI. Handwritten TypeScript and G
 
 ## Observability, privacy, and audit
 
+[ADR 0014](docs/adr/0014-private-work-authorization.md) adds creator-private tasks
+and named-human sharing without a workspace-owner exception. Existing tasks
+stay project-shared. C10 is a dormant kernel; C11 must fence all delivery,
+projection, cache and private-existence paths before enabling creation. C12
+owns selected-content publication. Consumer audiences alone are not privacy.
+
 Control Workers emit structured logs with request ID, route, status, latency, and pseudonymous internal IDs. Logs exclude cookies, bearer tokens, launch/view/upload tickets, task bodies, prompts, local paths, environment variables, artifact contents, hook payloads, and terminal output. Sampled traces are used for performance diagnosis; D1 is used for exact product metrics.
 
 The daemon writes rotating local logs under BFB’s Application Support directory. It records adapter version, event IDs, retry state, and typed errors while applying the same redaction rules. A diagnostic bundle requires explicit human action and shows its file list before upload.

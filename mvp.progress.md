@@ -8,6 +8,15 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 
 ## Current checkpoint
 
+- Product-only lane, 6 October: Timo confirmed creator-private explicit sharing
+  without owner bypass, a BFB-managed encrypted business vault, and lime/cyan
+  light/dark UI. V02/V03/X03 current runtime certificates are committed on the
+  isolated product branch; nothing is deployed or enabled on the pilot.
+  [ADR 0014](docs/adr/0014-private-work-authorization.md) and C10–C12 sequence
+  the dormant privacy kernel, complete delivery/sharing gate and selected-content
+  publication. C10 is in progress; the unchanged C08 checkpoint passes. Private
+  creation is unavailable until cross-surface delivery enforcement passes.
+
 - The [launch-selection checkpoint](docs/work-packages/evidence/WP-L07/launch-selection-checkpoint.json)
   records a separate retry blocker: the browser made the sole non-default
   checkout look selected while the handler saw an empty choice and sent no

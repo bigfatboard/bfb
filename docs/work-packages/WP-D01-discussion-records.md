@@ -15,7 +15,7 @@ A human can create a task-linked discussion with two authorized participants and
 ## Dependencies
 
 - **Requires:** C01, C04, C06, C08, C09, L08.
-- **Unlocks:** D02, D03.
+- **Unlocks:** C11, D02, D03.
 - **Can run with:** none during shared D1/hub/domain changes.
 
 ## Scope
