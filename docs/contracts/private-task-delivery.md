@@ -300,6 +300,50 @@ This slice preserves the historical audit-ID cursor wire form, not a new opaque
 recipient position. Complete audit families, global positions, diagnostics and
 operations aggregates remain activation barriers.
 
+The next bounded audit slice covers `ops.recovery.resolve_stuck_upload` only;
+it requires a separate clean checkpoint and does not change recovery execution:
+
+- Quarantine `ops.recovery.*` case-insensitively. Recognize only the exact
+  lowercase registered action. Legacy `ops.recover` and unrelated families
+  remain explicitly uncertified, not inferred from arbitrary payload IDs.
+- Require a closed, duplicate-free `{actor,input,result}` envelope with actual
+  object children. Actor is exactly `{humanId,authorizationEpoch}`: typed human
+  ULID matching `audit.actor_principal_id` and a positive safe integer historical
+  epoch. Audit identity/time and every source identity/time reject embedded NULs.
+  Historical actor membership is not current viewer authority.
+- Input is exactly `{version_ids}` with 1–50 distinct typed ULIDs in preserved
+  order. Result is exactly `{action_id,kind,replayed,resolved}` with fixed kind,
+  genuine boolean replay flag, integer resolved count and a typed action ID
+  (`ops:resolve_stuck_upload:` plus 32 lowercase hex digits). Resolve that ID to
+  the same-workspace applied ledger of the same kind; do not claim cryptographic
+  hash recomputation by D1.
+- The ledger target is a closed `{version_ids}` object with an actual distinct
+  typed array exactly matching input order and values. Its result is a closed
+  `{resolved}` object with integer count equal to the complete target length and
+  the receipt count. Stored JSON representation alone is not type validation.
+- Select every current failed version→artifact→run→task/project together. Each
+  task-bound target requires current shared read/project authority; creators and
+  private grants confer no operations override. Only genuinely NULL artifact
+  runs use workspace authority. Missing, foreign, mismatched, dangling, nonfailed
+  or malformed targets omit the entire receipt; a mixed hidden target list never
+  produces a partial count. Do not reapply upload age or live-grant conditions to
+  failed history.
+- An original receipt binds actor/time to ledger creator/creation time. A
+  target-ledger retry permits the same or later time and a different direct human
+  actor. Legitimate older ledgers can be retried without a modern original audit
+  counterpart or attempt-count-one requirement. Ledger history contains neither
+  historical actor epoch nor per-retry proof identity; do not invent either.
+- Preserve the certified artifact projection and current final Owner/retained
+  epoch sentinel. Filter recovery receipts before ordering, `LIMIT + 1`, counts
+  and anchors; scope loss precedes the same hidden/unknown cursor denial, even
+  for empty pages. Normalize JSON through materialized boundaries within actual
+  D1 limits, then reconstruct synchronously without later awaited hydration.
+- Reconstruct typed actor/result fields and keep `input.version_ids` displayed
+  as the existing literal `[redacted]`, while validating the complete source array
+  internally. This avoids expanding the current nested-array outward payload.
+  No history rewrite, proof consumption, command/transport envelope change,
+  private activation or opaque-position claim is included.
+
 ## Delivery inventory and required proof
 
 | Surface | Existing owner / entry points | C11 completion check |
