@@ -1,6 +1,6 @@
 # BFB product beta lane
 
-Status: implementation in progress, 6 October 2026.
+Status: implementation in progress, 7 October 2026.
 
 This lane owns the board, product UI, authenticated MCP product features and
 the eight [mandatory requirements](../mvp.plan.md#mandatory-product-scope-extension--5-october).
@@ -151,6 +151,17 @@ manifests; current runtime proof must have its own explicit scope.
   cases, Go and all 16 Swift cases. Current task-parent child/content and
   artifact authority are fenced through synthetic domain and authenticated
   transport proofs, including fake-R2 revoke/expiry races and real-D1 atomic
-  receipt rollback. Reference-existence privacy, metadata/realtime,
-  notifications/integrations, private creation/sharing and the full certificate
-  remain open. Live private R2 byte delivery is not certified. C12 remains planned.
+  receipt rollback. The
+  [partial metadata checkpoint](work-packages/evidence/WP-C11/stage-three-manifest.json)
+  is clean-certified at `1e6b710`: 1,079 focused cases, 20 real-D1 checks and
+  retained C10/C08/X01/X04/X05/X03 regressions. Full verification passes 3,420
+  TypeScript cases, Go and all 16 Swift cases. Recognized result references now
+  have uniform resource denial, current cache authority and atomic source
+  guards; notifications, GitHub and operations have partial shared-only content
+  fences. This does not settle held external-package dependencies or complete
+  C11. Opaque positions, GitHub unbound-key collisions, operations aggregates,
+  diagnostics, audit, retention/recovery, coordination consumers and
+  creation/sharing remain open. Natural credential/lease expiry during an
+  in-flight D1 batch is explicitly uncertified. The next bounded slice is
+  authorized retention reads and atomic stuck-upload recovery, without provider
+  operation. Live private R2 byte delivery remains uncertified. C12 stays planned.

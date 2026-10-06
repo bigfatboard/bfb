@@ -84,8 +84,16 @@ pass. Its manifest explicitly excludes complete package acceptance. The
 clean-certified at `21e6d8b`: 821 focused cases, 14 real-D1 checks, retained
 C10/C08/X03 regressions and full verification with 3,296 TypeScript cases, Go
 and all 16 Swift cases. Synthetic task-parent child/content and artifact
-authority are fenced; reference-existence privacy, metadata/realtime,
-notifications/integrations and creation/sharing/internal-progress controls
-remain open. No full delivery certificate, live private R2 byte certificate or
-deployment exists. Downstream C12 remains planned until all stages pass from
-one clean committed checkout.
+authority are fenced. The
+[partial metadata checkpoint](evidence/WP-C11/stage-three-manifest.json) is
+clean-certified at `1e6b710`: 1,079 focused cases, 20 real-D1 checks and exact
+C10/C08/X01/X04/X05/X03 regressions; full verification passes 3,420 TypeScript
+cases, Go and all 16 Swift cases. It closes recognized result-reference
+existence/cache/atomic source checks and adds shared-only notification,
+GitHub and operations content fences. Opaque positions, GitHub unbound-key
+collisions, complete operations privacy, coordination consumers and
+creation/sharing/internal-progress remain open. Natural credential/lease expiry
+during an in-flight D1 batch is explicitly uncertified and still requires a
+coordinated repair before activation. No full delivery certificate, live private
+R2 byte certificate or deployment exists. Downstream C12 remains planned until
+all stages pass from one clean committed checkout.

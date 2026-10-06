@@ -1,0 +1,127 @@
+{
+  "package": "C11",
+  "recorded_on": "2026-10-07",
+  "tested_commit": "1e6b710a0b7dbe040632a1a00b71398ecd39b1c3",
+  "outcome": "passed",
+  "stage": "human_task_child_and_partial_metadata_surfaces",
+  "package_acceptance_complete": false,
+  "private_creation_available": false,
+  "scope": "Exact immutable result-evidence references and cached/atomic authority; shared-only notification, GitHub and operations content projections. Not opaque positions, complete operations privacy or full C11 acceptance.",
+  "migration_head": "0045_private_task_authority",
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56)",
+    "architecture": "arm64",
+    "runtime": "Production Hub and disposable real D1; separate mounted authenticated transport suites, notification and GitHub Queue drills, operations drill and browser regressions"
+  },
+  "clean_commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "exit_code": 0
+    },
+    {
+      "command": "pnpm test:c11",
+      "exit_code": 0,
+      "c10_cases": 86,
+      "c10_files": 8,
+      "c10_d1_checks": 9,
+      "c08_cases": 23,
+      "c08_files": 5,
+      "c08_proof": "C08_D1_OK",
+      "stage_cases": 1079,
+      "stage_files": 54,
+      "stage_d1_checks": 20,
+      "proof": "C11_TASK_D1_OK",
+      "counting": "Separate invocations overlap; counts are not a unique combined total"
+    },
+    {
+      "command": "pnpm test:x01",
+      "exit_code": 0,
+      "cases": 37,
+      "files": 5,
+      "go": "passed",
+      "proof": "X01_HARNESS_OK",
+      "package_status_changed": false
+    },
+    {
+      "command": "pnpm test:x04",
+      "exit_code": 0,
+      "protocol_cases": 1154,
+      "protocol_files": 12,
+      "cases": 49,
+      "files": 3,
+      "worker_scenarios": 13,
+      "proof": "X04_E2E_OK",
+      "package_status_changed": false
+    },
+    {
+      "command": "pnpm test:x05",
+      "exit_code": 0,
+      "cases": 57,
+      "files": 6,
+      "worker_scenarios": 11,
+      "browser_cases": 4,
+      "proof": "X05_DRILL_OK",
+      "package_status_changed": false
+    },
+    {
+      "command": "pnpm test:x03",
+      "exit_code": 0,
+      "cases": 71,
+      "files": 7,
+      "worker_d1_r2_checks": 11,
+      "browser_cases": 2,
+      "proof": "X03_D1_OK"
+    },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 3420,
+      "typescript_files": 172,
+      "go": "passed",
+      "go_scheduling": "GOFLAGS=-p=1",
+      "swift": "passed",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    {
+      "command": "pnpm worktree:check",
+      "exit_code": 0,
+      "before_and_after_verify": true,
+      "committed_source_unchanged": true
+    }
+  ],
+  "real_d1_extension_checks": [
+    "real_d1_operations_stuck_upload_projection_hides_private_and_rechecks_epoch",
+    "real_d1_exact_artifact_evidence_binding_and_local_run_ceiling",
+    "real_d1_exact_evidence_retains_delegation_boundary_and_current_scope",
+    "real_d1_historical_evidence_normalization_omits_corruption_without_row_rewrite",
+    "real_d1_result_source_private_before_batch_rolls_back_submission_state_receipts_and_audit",
+    "real_d1_notification_fanout_contact_and_history_keep_current_shared_parent_and_preference"
+  ],
+  "repairs_with_regression_proof": [
+    "Recognized artifact_version identities are exact; unknown, hidden, wrong-binding, other-tenant and private cross-task references share a fixed resource denial",
+    "All result evidence sources are selected together; retained cache references reauthorize through the current request after hydration and fresh writes repeat authority in the atomic batch",
+    "Immutable result history omits invalid or inaccessible recognized references without changing stored submissions or receipts; MATERIALIZED CTE boundaries fit real-D1 expression limits",
+    "Notification fanout, actual push attempts after signing, native pull/ack and history repeat exact shared parent, retained membership/credential and effective current delivery preference checks",
+    "GitHub writes and retries check requested and retained task association; one verification selection prevents stale earlier provenance surviving later awaits",
+    "Operations activity filters before pagination; final composite selection remasks hydrated stuck upload and launch references after other reads",
+    "The current notification runtime harness uses synthetic bound authority and preserves its historical migration-head evidence"
+  ],
+  "activation_barriers": [
+    "Natural credential or lease expiry while a D1 batch is already in flight remains uncertified; row revocation and changed expiry witnesses are covered but do not establish that timing guarantee",
+    "Principal-bound opaque realtime, measurement, source, receipt and audit positions; raw notification delivery identities",
+    "Unbound GitHub evidence-key collision presence policy",
+    "Operations aggregate counts, security audit, frozen diagnostics, retention and recovery privacy",
+    "Coordination consumers and complete delivery matrix",
+    "Private creation, creator sharing, author-private checkpoints and downstream C12 publication"
+  ],
+  "not_claimed": [
+    "Complete C11 acceptance or private-feature activation",
+    "Live private R2 byte delivery, private browser workflows or provider execution",
+    "Settlement of held X01, X04 or X05 dependencies",
+    "Remote start, agent discussions, enrolled pilot operation, provider configuration, deployment or external CI",
+    "New UI, project-wide knowledge, skill catalogs, encrypted vault values, checkpoint reminders or contribution UI"
+  ],
+  "redaction": "Bounded synthetic counts, proof labels, source identity and limits only; no credentials, private bodies, raw output or local absolute paths"
+}
