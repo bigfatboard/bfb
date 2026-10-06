@@ -426,7 +426,7 @@ async function seedE02Chains(db: SqlDatabase): Promise<E02State> {
   }
   // Extend the v1 baseline instead of replacing it: the W01 browser surface
   // asserts the seeded providers and flags, so only "fake" is appended.
-  const policy: Omit<PolicySettings, "offlineAgentWork"> = {
+  const policy: Omit<PolicySettings, "offlineAgentWork" | "offlineAgentResults"> = {
     allowedProviders: ["claude", "codex", "grok", "fake"],
     allowAgentRootPropose: true,
     allowPassToAgent: true,

@@ -50,22 +50,32 @@ describe("workspace policy passkey target", () => {
         max_pending_age_seconds: 300,
       },
     ]) {
-      const settings: PolicySettings = {
-        allowedProviders: ["codex", "claude", "codex"],
-        allowAgentRootPropose: false,
-        allowPassToAgent: true,
-        allowRunOverrides: false,
-        offlineAgentWork: offline,
-      };
-      expect(
-        await workspacePolicyStepUpTarget(FIX.workspace, 7, {
-          allowed_providers: settings.allowedProviders,
-          allow_agent_root_propose: settings.allowAgentRootPropose,
-          allow_pass_to_agent: settings.allowPassToAgent,
-          allow_run_overrides: settings.allowRunOverrides,
-          offline_agent_work: offline,
-        }),
-      ).toBe(policyUpdateTarget(FIX.workspace, "workspace.policy.update", undefined, 7, settings));
+      for (const results of [
+        { allow_submit_result: false, max_pending_age_seconds: 0 },
+        { allow_submit_result: true, max_pending_age_seconds: 1 },
+        { allow_submit_result: true, max_pending_age_seconds: 300 },
+      ]) {
+        const settings: PolicySettings = {
+          allowedProviders: ["codex", "claude", "codex"],
+          allowAgentRootPropose: false,
+          allowPassToAgent: true,
+          allowRunOverrides: false,
+          offlineAgentWork: offline,
+          offlineAgentResults: results,
+        };
+        expect(
+          await workspacePolicyStepUpTarget(FIX.workspace, 7, {
+            allowed_providers: settings.allowedProviders,
+            allow_agent_root_propose: settings.allowAgentRootPropose,
+            allow_pass_to_agent: settings.allowPassToAgent,
+            allow_run_overrides: settings.allowRunOverrides,
+            offline_agent_work: offline,
+            offline_agent_results: settings.offlineAgentResults,
+          }),
+        ).toBe(
+          policyUpdateTarget(FIX.workspace, "workspace.policy.update", undefined, 7, settings),
+        );
+      }
     }
   });
 
@@ -76,6 +86,7 @@ describe("workspace policy passkey target", () => {
       allow_pass_to_agent: true,
       allow_run_overrides: false,
       offline_agent_work: { allowed_tools: ["bfb_add_comment"], max_pending_age_seconds: 30 },
+      offline_agent_results: { allow_submit_result: true, max_pending_age_seconds: 30 },
     };
     const base = await workspacePolicyStepUpTarget(FIX.workspace, 1, settings);
     for (const changed of [
@@ -92,6 +103,14 @@ describe("workspace policy passkey target", () => {
       workspacePolicyStepUpTarget(FIX.workspace, 1, {
         ...settings,
         offline_agent_work: { allowed_tools: ["bfb_add_comment"], max_pending_age_seconds: 31 },
+      }),
+      workspacePolicyStepUpTarget(FIX.workspace, 1, {
+        ...settings,
+        offline_agent_results: { allow_submit_result: false, max_pending_age_seconds: 0 },
+      }),
+      workspacePolicyStepUpTarget(FIX.workspace, 1, {
+        ...settings,
+        offline_agent_results: { allow_submit_result: true, max_pending_age_seconds: 31 },
       }),
     ])
       expect(await changed).not.toBe(base);

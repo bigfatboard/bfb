@@ -35,6 +35,7 @@ interface WorkspacePolicy {
   allowPassToAgent: boolean;
   allowRunOverrides: boolean;
   offlineAgentWork: { allowed_tools: string[]; max_pending_age_seconds: number };
+  offlineAgentResults: { allow_submit_result: boolean; max_pending_age_seconds: number };
   resourceVersion: number;
 }
 
@@ -75,10 +76,11 @@ export async function workspacePolicyStepUpTarget(
     allow_pass_to_agent: boolean;
     allow_run_overrides: boolean;
     offline_agent_work: WorkspacePolicy["offlineAgentWork"];
+    offline_agent_results: WorkspacePolicy["offlineAgentResults"];
   },
 ): Promise<string> {
   return sha256Json([
-    "BFB-POLICY-UPDATE-V2",
+    "BFB-POLICY-UPDATE-V3",
     "workspace.policy.update",
     workspaceId,
     null,
@@ -89,6 +91,8 @@ export async function workspacePolicyStepUpTarget(
     settings.allow_run_overrides,
     [...new Set(settings.offline_agent_work.allowed_tools)].sort(),
     settings.offline_agent_work.max_pending_age_seconds,
+    settings.offline_agent_results.allow_submit_result,
+    settings.offline_agent_results.max_pending_age_seconds,
   ]);
 }
 
@@ -400,6 +404,13 @@ export function WorkspaceSettings(props: WorkspaceSettingsProps) {
                       ? Number(form.get("offline_pending_age"))
                       : 0,
                   },
+                  offline_agent_results: {
+                    allow_submit_result: form.get("allow_offline_result") === "on",
+                    max_pending_age_seconds:
+                      form.get("allow_offline_result") === "on"
+                        ? Number(form.get("offline_result_pending_age"))
+                        : 0,
+                  },
                 };
                 void mutate(async () => {
                   const targetId = await workspacePolicyStepUpTarget(
@@ -497,6 +508,33 @@ export function WorkspaceSettings(props: WorkspaceSettingsProps) {
                 <p className="section-help">
                   Denied when no tools are selected. Projects and repository versions must
                   explicitly allow a subset; this ceiling alone does not permit capture or replay.
+                </p>
+              </fieldset>
+              <fieldset>
+                <legend>Offline result-submission ceiling</legend>
+                <label className="check-row">
+                  <input
+                    type="checkbox"
+                    name="allow_offline_result"
+                    defaultChecked={policy.offlineAgentResults.allow_submit_result}
+                  />
+                  Allow pending result submissions
+                </label>
+                <label>
+                  Maximum pending result age (seconds)
+                  <input
+                    type="number"
+                    name="offline_result_pending_age"
+                    min="1"
+                    max="300"
+                    step="1"
+                    required
+                    defaultValue={policy.offlineAgentResults.max_pending_age_seconds || 300}
+                  />
+                </label>
+                <p className="section-help">
+                  Separate from task updates. Projects and repository versions must also explicitly
+                  allow results. Pending means stored locally, not submitted for review.
                 </p>
               </fieldset>
               <p className="section-help">

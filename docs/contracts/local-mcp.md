@@ -278,8 +278,9 @@ Absent from the A01 core: result submission, artifact bytes, workspace
 administration, self-approval, enumeration beyond the bound task, and any cloud
 bearer credential in the provider environment. Attention tools are owned by
 A02 above; the [A03 result contract](results.md) extends this same server.
-A03/V01 must not add a credential, endpoint, or journal. Their existing tool
-rules do not establish an implemented online bridge during the bootstrap slice.
+A03 adds its separate v5 protected result family to this same daemon and journal;
+it does not add a credential or endpoint. Its connected runtime has a separate
+clean-certification gate. V01's rules alone do not establish an online bridge.
 
 ## Per-item context result
 
@@ -334,7 +335,9 @@ policy tiers. An enabled setting selects only the four A01 writes and an age of
 repository version. The signed mode is immutable: `online_only` admits empty/zero
 with null expiry; `offline_admitted` retains exact configured permission and
 `intent_expires_at = captured_at + policy age`. A failed request never upgrades
-an online-only intent. Reads, attention, results and artifacts are not queued.
+an online-only intent. Reads, attention and artifacts are not queued. Result
+submission cannot use this A01 permission: A03 defines independent result-only
+permission, confirmation and signature within the same bounded journal.
 
 The enrolled P-256 key signs a closed `BFB-AGENT-WORK-CAPTURE-V1` transcript over
 complete authority and the original typed request's hash. Original whitespace,

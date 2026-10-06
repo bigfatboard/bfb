@@ -9,11 +9,11 @@ not introduce another agent credential or a second local tool endpoint.
 
 A03 runtime integration is active under
 [ADR 0008](../adr/0008-protected-agent-result-submission.md), after A01/A02
-clean certification. The result MCP tool is not yet advertised by the production
-host, and the reserved CLI command returns `not_implemented`. The domain and
-review contracts below do not certify those local submission paths. The new
-default-denied result policy, v5 transport and protected journal family require
-their own connected and clean-checkout evidence.
+clean certification. Production MCP and CLI now use the separate v5 result
+transport and daemon-owned protected journal. These connected changes are not
+yet clean-certified: the independent default-denied result policy, result
+signature and shared recovery family require the expanded A03 gate before
+the package can be marked done.
 
 ## State coupling
 
@@ -37,8 +37,9 @@ No command rewrites a prior submission.
 
 ## Submission record
 
-One immutable `result_submissions` row per version. D1 migration head after
-this package is `0024_result_submissions`.
+One immutable `result_submissions` row per version, introduced by
+`0024_result_submissions`. Protected runtime policy adds
+`0040_offline_result_policy` without rewriting historical snapshot bytes.
 
 - `version`: 1-based per-run sequence, allocated as `max + 1` inside the
   serialized hub lane with a uniqueness backstop.
@@ -48,8 +49,9 @@ this package is `0024_result_submissions`.
 - Git facts, when the submitter observes them: `git_branch` (1-256 chars),
   `git_commit` (40 lowercase hex characters), `git_dirty` (boolean). They are
   observations bound at submit time, never live checkout state.
-- `config_snapshot_id` and `config_hash`: bound server-side from the run's
-  latest configuration snapshot. Callers never supply them.
+- `config_snapshot_id` and `config_hash`: agents bind the exact immutable
+  snapshot of their current execution; human submission uses the run's latest
+  configuration snapshot. Callers never supply them.
 - `submitted_by_kind` (`agent_run` or `human`) plus `submitted_by_id`
   (run ID for agents, human ID for humans), and `submitted_at` (server time).
 
@@ -117,8 +119,17 @@ for the run: once a retry creates a newer generation on another runner,
 the older generation's runner loses submit authority even while its old
 assignment row still exists. Human submission requires owner/member role
 plus project access and needs no live execution. Every mutation carries
-an idempotency key: a retried key returns the stored submission without
-creating a version.
+an idempotency key. All five result commands reauthorize before stored outcomes
+or fingerprint conflicts are returned. An exact authorized retry returns the
+original outcome without creating a version; changed original input is rejected.
+Agent retries can reconcile the original operation while the run is submitted,
+but cannot create another submission until changes are requested. Terminal
+state or revoked authority withholds the stored agent outcome.
+
+Audit, workspace event and outbox projections contain bounded identifiers,
+counts and states, never result summaries, limitations, evidence text, Git branch
+text or review comments. Canonical submission and review records remain private
+and immutable; authorized human result reads retain their full content.
 
 ## Headless-success rule
 
@@ -150,15 +161,33 @@ commands release or rewrite `checkout_leases`.
 
 ## Surfaces
 
-- Local MCP `bfb_submit_result`: reserved for A03 integration; currently
-  absent from the production run-scoped tool surface. Result submission is
-  not one of A01's four admitted write commands and cannot inherit their
-  offline permission.
-- Local CLI `bfb run submit`: currently validates bounded input and the
-  required environment, then returns `not_implemented` with exit 4. It
-  does not open assignment or journal storage, enqueue an unsigned result,
-  or alter retained history. A03 must integrate any future submission with
-  the daemon-owned authority and protected-capture contracts before use.
+- Local MCP `bfb_submit_result` and local CLI `bfb run submit` use only
+  `mcp.v5.submit_result`. The daemon verifies kernel caller, immutable startup
+  assignment, native containment/held checkout lock, trusted L06 observation
+  and canonical cloud binding. Activated MCP supplies a binding assertion;
+  fresh CLI/provisional MCP lets the daemon derive it. No client supplies a
+  capture, principal or receipt. The closed host remains denied.
+- Result submission does not inherit A01 task-write permission. The separate
+  `offline_agent_results` policy defaults to false/zero at workspace, project
+  and repository scope; children can only tighten an explicitly enabled
+  ceiling of 1–300 seconds. Complete policy changes and explicit repository
+  policy use V3 proof targets binding both independent permission families.
+- The daemon signs the original canonical input and result-specific cloud
+  confirmation using `BFB-AGENT-RESULT-CAPTURE-V1`. Ordinary online writes still
+  journal before dispatch. Offline capture additionally requires independently
+  confirmed result permission in this process, within the original strict
+  45-second/lease/credential horizon. Optional bounded background confirmation
+  after verified session binding or fresh A01 confirmation never extends an
+  existing proof's age. Restart, known denial and expiry cannot manufacture
+  new capture authority.
+- Journal v14 retains A01 bytes and history, adds an explicit result family,
+  and shares its existing quotas. Unsigned historical result rows remain
+  quarantined. Pending means not yet cloud-submitted. Only signed
+  `offline_admitted` intents can drain autonomously; `online_only` intents need
+  an explicit retry. Lost replies and failed acknowledgement preserve
+  `possibly_applied`; current authority precedes every reconciliation and
+  private response. Original request ID, input, signature and expiry never
+  change during replay.
 - REST work API under `/api/v1/workspaces/:workspace/runs/:run`: human
   `POST .../results` (submit), `GET .../results` (list with computed
   outdated flags), `POST .../review` (`request_changes` or `accept`),
@@ -174,4 +203,7 @@ stale evidence, interactive-exit negatives, the headless-success predicate,
 the revocation race with lease retention, the changes-requested cycle with
 new immutable versions, idempotent retries, and the role matrix across real
 Workers and D1, the Go MCP server and CLI, and browser result/review state.
-D1 migration head after this package is `0024_result_submissions`.
+The connected runtime additionally covers signed MCP/CLI outage and restart,
+the result-only policy migration and proof targets, shared journal upgrade and
+quotas, current-authority-before-cache, body redaction, and unaffected A01/A02
+surfaces. The exact clean-checkout target is required before certification.

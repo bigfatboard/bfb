@@ -85,8 +85,8 @@ an explicit call; every interactive ending never submits or accepts.
    `vitest run packages/domain/test/results.test.ts`.
 3. Serve REST submission/review endpoints; verify with
    `vitest run apps/control-worker/test/result-routes.test.ts`.
-4. Add local MCP `bfb_submit_result` (activated only, journaled offline,
-   replayed by L08 rules) and local CLI `run submit`; verify with
+4. Add local MCP `bfb_submit_result` and local CLI `run submit` through the
+   daemon-owned protected v5 result family under ADR 0008; verify with
    `go test -race ./internal/localmcp/... ./internal/cli/...`.
 5. Add task-sheet result/review state; verify with
    `vitest run apps/web/test/result.test.ts` plus the browser spec on
@@ -154,7 +154,8 @@ an explicit call; every interactive ending never submits or accepts.
 - Risk: sibling packages (A02 attention, V01 artifacts) extend the same MCP
   server and evidence contract. Decision: A03 additions are additive and
   separately named (`bfb_submit_result`, `run submit`, generic refs with an
-  explicit V01/V03 extension hook); no shared file was refactored.
+  explicit V01/V03 extension hook). Shared authority and journal changes retain
+  the original A01/A02 wire families and require their regression gates.
 
 ## Handoff
 
@@ -183,14 +184,15 @@ an explicit call; every interactive ending never submits or accepts.
 - L05: acceptance and review commands never read or write
   `checkout_leases`; the live lock survives until verified process end.
 - A02: MCP and domain additions are additive; A02 attention tools keep
-  separate names.
+  separate names and frozen v4 wire bytes. A known attention authority denial
+  also invalidates pending result-confirmation availability.
 - L08: replay journaled `bfb_submit_result` rows through the runner channel
   as the run-bound agent authority with the same capability, epoch, and
   version rechecks as A01 writes.
 - X02/X03: build human CLI and remote MCP parity on the frozen contract;
   local `run submit` stays the agent-local journaling surface.
 - Current limitations: no automatic submission caller exists in v0.1 (even
-  headless runs submit explicitly); production MCP/CLI submission remains
-  unsupported until ADR 0008 integration. The historical unsigned CLI journal
+  headless runs submit explicitly); the connected production MCP/CLI result
+  draft is under verification and is not yet clean-certified. The historical unsigned CLI journal
   is not enabled or reinterpreted as capture authority; UI renders no artifact
   content yet.

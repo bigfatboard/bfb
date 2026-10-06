@@ -29,6 +29,7 @@ describe("done package gates", () => {
     "test:substrate",
     "test:a01",
     "test:a02",
+    "test:a03",
     "test:l04",
     "test:l05",
   ]);
@@ -43,6 +44,7 @@ describe("done package gates", () => {
           workPackage("F04", "done", "pnpm test:substrate"),
           workPackage("A01", "in_progress", "pnpm test:a01"),
           workPackage("A02", "in_progress", "pnpm test:a02"),
+          workPackage("A03", "in_progress", "pnpm test:a03"),
         ],
         scripts,
         "darwin",
@@ -76,6 +78,7 @@ describe("done package gates", () => {
         workPackage("L06", "done", "pnpm test:substrate"),
         workPackage("A01", "done", "pnpm test:a01"),
         workPackage("A02", "done", "pnpm test:a02"),
+        workPackage("A03", "done", "pnpm test:a03"),
       ],
       scripts,
       "darwin",
@@ -86,6 +89,7 @@ describe("done package gates", () => {
       { command: "pnpm", args: ["test:substrate"], packages: ["L06"] },
       { command: "pnpm", args: ["test:a01"], packages: ["A01"] },
       { command: "pnpm", args: ["test:a02"], packages: ["A02"] },
+      { command: "pnpm", args: ["test:a03"], packages: ["A03"] },
     ]);
     expect(plan.skipped).toEqual([]);
   });
@@ -100,6 +104,7 @@ describe("done package gates", () => {
           workPackage("L06", "done", "pnpm test:substrate"),
           workPackage("A01", "done", "pnpm test:a01"),
           workPackage("A02", "done", "pnpm test:a02"),
+          workPackage("A03", "done", "pnpm test:a03"),
         ],
         scripts,
         platform,
@@ -110,6 +115,7 @@ describe("done package gates", () => {
         { command: "pnpm", args: ["test:l05"], packages: ["L05"] },
         { command: "pnpm", args: ["test:a01"], packages: ["A01"] },
         { command: "pnpm", args: ["test:a02"], packages: ["A02"] },
+        { command: "pnpm", args: ["test:a03"], packages: ["A03"] },
       ]);
     },
   );

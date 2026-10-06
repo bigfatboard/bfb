@@ -251,6 +251,8 @@ test("owner policy update completes through action-bound passkey UI", async ({ p
     const policyForm = page.getByTestId("workspace-policy-form");
     await policyForm.getByRole("checkbox", { name: "Comments", exact: true }).check();
     await policyForm.getByLabel("Maximum pending age (seconds)").fill("30");
+    await policyForm.getByRole("checkbox", { name: "Allow pending result submissions" }).check();
+    await policyForm.getByLabel("Maximum pending result age (seconds)").fill("45");
     const policySaved = page.waitForResponse(
       (response) =>
         response.request().method() === "PUT" &&
@@ -271,6 +273,7 @@ test("owner policy update completes through action-bound passkey UI", async ({ p
           allowed_tools: ["bfb_add_comment"],
           max_pending_age_seconds: 30,
         },
+        offlineAgentResults: { allow_submit_result: true, max_pending_age_seconds: 45 },
       },
     });
 
@@ -279,6 +282,7 @@ test("owner policy update completes through action-bound passkey UI", async ({ p
     const narrowedVersion = await versionBadge.innerText();
     await page.getByLabel("Run overrides allowed").check();
     await policyForm.getByRole("checkbox", { name: "Comments", exact: true }).uncheck();
+    await policyForm.getByRole("checkbox", { name: "Allow pending result submissions" }).uncheck();
     await page.getByTestId("save-workspace-policy").click();
     await expect
       .poll(async () => versionBadge.innerText(), { timeout: 15_000 })
@@ -293,6 +297,7 @@ test("owner policy update completes through action-bound passkey UI", async ({ p
           allowed_tools: [],
           max_pending_age_seconds: 0,
         },
+        offlineAgentResults: { allow_submit_result: false, max_pending_age_seconds: 0 },
       },
     });
     await writeReport(
@@ -301,8 +306,8 @@ test("owner policy update completes through action-bound passkey UI", async ({ p
         "# Step-up trace (W01 browser E2E)",
         "",
         "- Surface: owner Projects & policy",
-        "- Mutation: run overrides true to false; synthetic offline comment ceiling set to 30 seconds.",
-        "- Restore: run overrides set back to true and offline ceiling denied, so the shared fixture keeps a clean policy for later suites.",
+        "- Mutation: run overrides true to false; synthetic offline comment/result ceilings set independently to 30/45 seconds.",
+        "- Restore: run overrides set back to true and both offline ceilings denied, so the shared fixture keeps a clean policy for later suites.",
         "- Browser: Chromium virtual CTAP2 platform authenticator",
         "- User verification: required",
         "- Action: `workspace.policy.update`",

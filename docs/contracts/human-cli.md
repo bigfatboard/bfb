@@ -28,7 +28,7 @@ duplicate owner, or a summary drift against the live registry.
 | `project list`, `project get` | C07 | Thin reads over `GET /api/v1/cli/projects*` |
 | `task list`, `task get`, `task create` | C08 | Thin clients over `GET/POST /api/v1/cli/tasks*` |
 | `run list`, `run get` | C08 | Thin reads mirroring the browser run columns |
-| `run submit` | A03 | Reserved; bounded `not_implemented` until A03 integration |
+| `run submit` | A03 | Protected agent-local v5 submission; independent offline result permission |
 | `run cancel` | C08 | Guarded write over `POST /api/v1/cli/runs/:id/cancellation` |
 | `attention list`, `attention get`, `attention answer`, `attention resolve` | A02 | Thin clients over `/api/v1/cli/attention*` |
 | `hook ingest`, `hook status` | L06 | Local journal clients, unchanged by X02 |
@@ -163,8 +163,9 @@ confirmation. `bfb logout` revokes and forgets in both modes with the same
   proceed with a standard-error warning.
 - Per-command offline behavior is frozen in the matrix: supported local
   commands work from local state (hook ingest falls back to the local
-  inbox); reserved `run submit` returns `not_implemented` with exit 4
-  without opening assignment or journal storage. Every control-plane read or write fails with
+  inbox); agent-local `run submit` uses the daemon's verified execution and
+  protected result journal, never a human credential. Offline admission needs
+  separate current result permission; pending is not cloud submission. Every human control-plane read or write fails with
   `control_unreachable` and exit 4. The human CLI never queues offline
   mutations: the daemon journal is runner-plane only.
 
