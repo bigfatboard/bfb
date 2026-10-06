@@ -235,6 +235,77 @@ async function comments() {
 }
 
 describe("private task delivery through remote MCP", () => {
+  it.each([
+    ["visibility", "private"],
+    ["private", true],
+    ["owner_human_id", FIX.owner],
+    ["private_owner_human_id", FIX.owner],
+  ] as const)(
+    "rejects unsupported private task-create field %s without creating shared work",
+    async (field, intent) => {
+      const { accessToken } = await access();
+      const reply = await call(accessToken, "bfb_propose_task", {
+        project_id: FIX.projectA,
+        parent_task_id: sharedTask.id,
+        title: "Synthetic unsupported private task",
+        [field]: intent,
+        request_id: `synthetic-private-intent-create-${field}`,
+      });
+      expect.soft(reply.result?.isError === true || reply.error !== undefined).toBe(true);
+      expect(
+        await db
+          .prepare("SELECT COUNT(*) AS count FROM tasks WHERE workspace_id = ?")
+          .get(FIX.workspace),
+      ).toEqual({ count: 3 });
+    },
+  );
+
+  for (const tool of ["bfb_add_comment", "bfb_report_progress"] as const) {
+    it.each([
+      ["audience", "private"],
+      ["visibility", "private"],
+      ["private", true],
+    ] as const)(
+      `${tool} rejects unsupported private %s without publishing a comment`,
+      async (field, intent) => {
+        const { accessToken } = await access();
+        const prose = "Synthetic unsupported private checkpoint";
+        const reply = await call(accessToken, tool, {
+          task_id: sharedTask.id,
+          ...(tool === "bfb_add_comment" ? { body: prose } : { summary: prose }),
+          [field]: intent,
+          request_id: `synthetic-private-intent-${tool}-${field}`,
+        });
+        expect.soft(reply.result?.isError === true || reply.error !== undefined).toBe(true);
+        expect(
+          await db
+            .prepare("SELECT COUNT(*) AS count FROM comments WHERE workspace_id = ?")
+            .get(FIX.workspace),
+        ).toEqual({ count: 0 });
+      },
+    );
+  }
+
+  it("keeps the existing shared child proposal available without private arguments", async () => {
+    const { accessToken } = await access();
+    const outcome = value<{ ok: boolean; result: TaskRecord }>(
+      await call(accessToken, "bfb_propose_task", {
+        project_id: FIX.projectA,
+        parent_task_id: sharedTask.id,
+        title: "Synthetic permitted shared child",
+        request_id: "synthetic-shared-proposal-control",
+      }),
+    );
+    expect(outcome).toMatchObject({ ok: true, result: { parent_task_id: sharedTask.id } });
+    expect(
+      await db
+        .prepare(
+          "SELECT COUNT(*) AS count FROM task_privacy WHERE workspace_id = ? AND task_id = ?",
+        )
+        .get(FIX.workspace, outcome.result.id),
+    ).toEqual({ count: 0 });
+  });
+
   it.each(["creator", "new-epoch grantee"] as const)(
     "an old delegation cannot adopt fresh %s authority after token resolution",
     async (actor) => {

@@ -106,10 +106,10 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
     "bfb_list_tasks",
     {
       description: "List tasks under the delegated boundary",
-      inputSchema: {
+      inputSchema: z.strictObject({
         limit: z.number().int().min(1).max(100).optional(),
         cursor: z.string().max(128).optional(),
-      },
+      }),
     },
     async ({ limit, cursor }) => {
       assertScope(deps.delegation, "bfb:read");
@@ -146,7 +146,7 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
     "bfb_get_task",
     {
       description: "Get one task by id within the delegated boundary",
-      inputSchema: { task_id: z.string().min(1).max(128) },
+      inputSchema: z.strictObject({ task_id: z.string().min(1).max(128) }),
     },
     async ({ task_id }) => {
       assertScope(deps.delegation, "bfb:read");
@@ -167,10 +167,10 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
     "bfb_get_context",
     {
       description: "Read agent-visible context for a task",
-      inputSchema: {
+      inputSchema: z.strictObject({
         task_id: z.string().min(1).max(128),
         request_id: z.string().min(1).max(128),
-      },
+      }),
     },
     async ({ task_id, request_id }) => {
       assertScope(deps.delegation, "bfb:read");
@@ -208,11 +208,11 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
     "bfb_add_comment",
     {
       description: "Add a discussion comment to a task",
-      inputSchema: {
+      inputSchema: z.strictObject({
         task_id: z.string().min(1).max(128),
         body: z.string().min(1).max(2048),
         request_id: z.string().min(1).max(128),
-      },
+      }),
     },
     async ({ task_id, body, request_id }) => {
       assertScope(deps.delegation, "bfb:task:write");
@@ -244,11 +244,11 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
     "bfb_report_progress",
     {
       description: "Report bounded progress on a task",
-      inputSchema: {
+      inputSchema: z.strictObject({
         task_id: z.string().min(1).max(128),
         summary: z.string().min(1).max(2048),
         request_id: z.string().min(1).max(128),
-      },
+      }),
     },
     async ({ task_id, summary, request_id }) => {
       assertScope(deps.delegation, "bfb:task:write");
@@ -280,13 +280,13 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
     "bfb_propose_task",
     {
       description: "Propose a root task or create a policy-bounded child task",
-      inputSchema: {
+      inputSchema: z.strictObject({
         project_id: z.string().min(1).max(128),
         parent_task_id: z.string().min(1).max(128).optional(),
         title: z.string().min(1).max(512),
         priority: z.enum(["P0", "P1", "P2", "P3"]).optional(),
         request_id: z.string().min(1).max(128),
-      },
+      }),
     },
     async ({ project_id, parent_task_id, title, priority, request_id }) => {
       assertScope(deps.delegation, "bfb:task:write");
