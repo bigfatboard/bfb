@@ -24,11 +24,15 @@ function open() {
 }
 
 describe("measurement source migration", () => {
-  it("upgrades the populated immediate previous head without rewriting legacy identities or snapshots", async () => {
+  it("upgrades populated 0040 through 0041 and the current head without rewriting legacy identities or snapshots", async () => {
     const raw = open(),
-      migrations = listMigrationFiles(directory);
-    for (const migration of migrations.slice(0, -1)) raw.exec(migration.sql);
-    expect(migrations.at(-2)?.id).toBe("0040_offline_result_policy");
+      migrations = listMigrationFiles(directory),
+      sourceIndex = migrations.findIndex(
+        (migration) => migration.id === "0041_measurement_sources",
+      );
+    expect(sourceIndex).toBeGreaterThan(0);
+    expect(migrations[sourceIndex - 1]?.id).toBe("0040_offline_result_policy");
+    for (const migration of migrations.slice(0, sourceIndex)) raw.exec(migration.sql);
     const f = await launchFixture(adaptBetterSqlite3(raw)),
       { claimed } = await f.claim(),
       spec = claimed.specification;
@@ -92,7 +96,15 @@ describe("measurement source migration", () => {
     const before = tables.map((table) =>
       raw.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all(),
     );
-    raw.exec(migrations.at(-1)!.sql);
+    raw.exec(migrations[sourceIndex]!.sql);
+    expect(
+      tables.map((table) => raw.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all()),
+    ).toEqual(before);
+    expect(raw.prepare("SELECT COUNT(*) AS total FROM measurement_sources").get()).toEqual({
+      total: 0,
+    });
+    expect(raw.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+    for (const migration of migrations.slice(sourceIndex + 1)) raw.exec(migration.sql);
     expect(
       tables.map((table) => raw.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all()),
     ).toEqual(before);
