@@ -404,7 +404,7 @@ describe("audit versus activity", () => {
       `ops-retention:${FIX.workspace}`,
     );
     expect((await setRetention(db, 14, proof)).ok).toBe(true);
-    const audit = await readSecurityAudit(db, FIX.workspace);
+    const audit = await readSecurityAudit(db, FIX.workspace, { access: ACCESS });
     const retentionRows = audit.entries.filter((entry) => entry.action === "ops.retention.set");
     expect(retentionRows.length).toBe(1);
     expect(retentionRows[0]!.actor_principal_id).toBe(FIX.owner);
@@ -450,7 +450,7 @@ describe("security audit ordering", () => {
   it("returns rows oldest-first regardless of id shape", async () => {
     const db = await openDomainDb();
     const ids = await seedChronology(db);
-    const audit = await readSecurityAudit(db, FIX.workspace);
+    const audit = await readSecurityAudit(db, FIX.workspace, { access: ACCESS });
     expect(audit.entries.map((entry) => entry.audit_id)).toEqual(ids);
     expect(audit.has_more).toBe(false);
   });
@@ -458,13 +458,17 @@ describe("security audit ordering", () => {
   it("pages forward in time through the after cursor", async () => {
     const db = await openDomainDb();
     const ids = await seedChronology(db);
-    const first = await readSecurityAudit(db, FIX.workspace, { limit: 2 });
+    const first = await readSecurityAudit(db, FIX.workspace, { limit: 2, access: ACCESS });
     expect(first.entries.map((entry) => entry.audit_id)).toEqual(ids.slice(0, 2));
     expect(first.has_more).toBe(true);
-    const second = await readSecurityAudit(db, FIX.workspace, { limit: 2, after: ids[1] });
+    const second = await readSecurityAudit(db, FIX.workspace, {
+      limit: 2,
+      after: ids[1],
+      access: ACCESS,
+    });
     expect(second.entries.map((entry) => entry.audit_id)).toEqual(ids.slice(2));
     expect(second.has_more).toBe(false);
-    const empty = await readSecurityAudit(db, FIX.workspace, { after: ids[3] });
+    const empty = await readSecurityAudit(db, FIX.workspace, { after: ids[3], access: ACCESS });
     expect(empty.entries).toEqual([]);
     expect(empty.has_more).toBe(false);
   });
@@ -473,7 +477,10 @@ describe("security audit ordering", () => {
     const db = await openDomainDb();
     await seedChronology(db);
     await expect(
-      readSecurityAudit(db, FIX.workspace, { after: "01AAAAAAAAAAAAAAAAAAAAAAAAA" }),
+      readSecurityAudit(db, FIX.workspace, {
+        after: "01AAAAAAAAAAAAAAAAAAAAAAAAA",
+        access: ACCESS,
+      }),
     ).rejects.toMatchObject({ code: "invalid_argument" });
   });
 });

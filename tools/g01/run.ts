@@ -2228,7 +2228,10 @@ try {
     scanClean("sg05-outputs", [link, payload]);
     // Audit and activity stay separated: audit is Owner-only structured records,
     // activity is project-scoped without private payloads.
-    const audit = await readSecurityAudit(db, FIX.workspace, { limit: 50 });
+    const audit = await readSecurityAudit(db, FIX.workspace, {
+      limit: 50,
+      access: await loadPrincipal(db, FIX.workspace, FIX.owner),
+    });
     const activity = await readActivityFeed(db, FIX.workspace, {
       limit: 50,
       projectIds: [FIX.projectA],

@@ -289,6 +289,7 @@ export async function handleOperationsApi(
       assertRole(principal, ["owner"]);
       const after = url.searchParams.get("after") ?? undefined;
       const audit = await readSecurityAudit(deps.db, workspaceId, {
+        access: principal,
         limit: Number.isSafeInteger(limit) ? limit : 50,
         ...(after === undefined ? {} : { after }),
       });

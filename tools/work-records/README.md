@@ -25,6 +25,15 @@ proof consumption, version changes, recovery ledger, outbox and audit effects.
 Current-scope sentinels reject stale membership epochs even when a final composite
 has no references. These bounded checks do not certify diagnostic snapshots,
 audit/queue totals, other recovery kinds or private destructive retention.
+The bounded artifact-audit extension dispatches all nine canonical actions
+through the production Hub and checks strict reconstructed wrappers, exact
+upload/view provenance, genuine run-free history and expired/consumed grants.
+Hidden, misbound and malformed records do not consume visible pagination slots
+or counts; hidden and unknown anchors share one denial. Independent parent
+privatization and retained-epoch loss before the final read fence delivery,
+including an empty page. An observed anchor separates the synthetic pagination
+history from earlier probes; dispatch times come from the production Hub clock.
+Other audit families and opaque positions remain uncertified.
 Exact artifact-version evidence is checked
 with human, originating-run and task-bound delegation ceilings, including current
 scope denial. Independent source privatization before a real D1 result batch

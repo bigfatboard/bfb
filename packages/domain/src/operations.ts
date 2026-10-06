@@ -6,7 +6,12 @@ import { createHash } from "node:crypto";
 import type { SqlDatabase } from "@bfb/db";
 
 import { assertEpoch, assertRole, loadPrincipal } from "./authorization.js";
-import { ARTIFACT_ABANDON_GRACE_MS, ARTIFACT_GRANT_TTL_MS } from "./artifacts.js";
+import {
+  ARTIFACT_ABANDON_GRACE_MS,
+  ARTIFACT_GRANT_TTL_MS,
+  ARTIFACT_RECOVERY_SYSTEM_ID,
+} from "./artifacts.js";
+import { ARTIFACT_AUDIT_ACTIONS } from "./artifact-maintenance.js";
 import { DomainError, type HubCommand, type HubContext } from "./hub.js";
 import { isUlid, randomUlid } from "./ids.js";
 import { validateStepUpProof, type StepUpAction } from "./step-up.js";
@@ -707,9 +712,9 @@ export interface SecurityAuditEntry {
 }
 
 /**
- * Owner-only security audit read model. Payloads pass through the sanitizer
- * so older rows written before strict auditInput projection cannot leak
- * secrets, paths, or private payloads into the Operations surface.
+ * Owner-only security audit read model. Canonical artifact receipts resolve
+ * current shared parents before pagination; unrelated families retain their
+ * historical sanitizer and are not certified as private-safe projections.
  *
  * Rows are ordered chronologically by `created_at`, with insertion order
  * (`rowid`) breaking ties: audit ids carry no time component (hub ids are
@@ -720,55 +725,197 @@ export interface SecurityAuditEntry {
 export async function readSecurityAudit(
   db: SqlDatabase,
   workspaceId: string,
-  options: { limit?: number; after?: string } = {},
+  options: { limit?: number; after?: string; access: TaskAccessContext },
 ): Promise<{ entries: SecurityAuditEntry[]; has_more: boolean }> {
+  if (!options?.access) fail("invalid_argument", "human audit access is required");
   const limit = Math.min(Math.max(options.limit ?? 50, 1), OPS_MAX_PAGE);
-  const params: unknown[] = [workspaceId];
-  let cursorFilter = "";
-  if (options.after) {
-    const anchor = (await db
-      .prepare(
-        `SELECT created_at, rowid AS anchor_rowid FROM audit_events
-         WHERE workspace_id = ? AND audit_id = ?`,
-      )
-      .get(workspaceId, options.after)) as { created_at: string; anchor_rowid: number } | undefined;
-    if (!anchor) {
-      fail("invalid_argument", "unknown audit cursor");
-    }
-    cursorFilter = "AND (created_at > ? OR (created_at = ? AND rowid > ?))";
-    params.push(anchor.created_at, anchor.created_at, anchor.anchor_rowid);
-  }
-  const rows = (await db
+  const scope = operationsWorkspacePredicate(options.access, "ops_scope", true);
+  const parent = operationsTaskPredicate(options.access);
+  const ownedActions = ARTIFACT_AUDIT_ACTIONS.map((action) => `'${action}'`).join(",");
+  const current = (await db
     .prepare(
-      `SELECT audit_id, actor_principal_id, action, payload_json, created_at
-       FROM audit_events
-       WHERE workspace_id = ? ${cursorFilter}
-       ORDER BY created_at ASC, rowid ASC
-       LIMIT ?`,
+      `SELECT * FROM (WITH current_scope AS MATERIALIZED (
+        SELECT ops_scope.workspace_id,${scope.sql} AS authorized FROM (SELECT ? AS workspace_id) AS ops_scope
+      ), requested_cursor AS MATERIALIZED (SELECT ? AS after_id,? AS page_limit),
+      audits AS MATERIALIZED (
+        SELECT audit.rowid AS audit_rowid,audit.* FROM audit_events AS audit
+        JOIN current_scope AS scope ON scope.workspace_id=audit.workspace_id AND scope.authorized
+      ), wrapper_envelopes AS MATERIALIZED (
+        SELECT audit_id,${auditJsonObject("payload_json")} AS envelope FROM audits WHERE action='artifact.dispatch_audit'
+      ), wrapper_objects AS MATERIALIZED (
+        SELECT *,${auditJsonObject("json_extract(envelope,'$.actor')")} AS actor_json,
+          ${auditJsonObject("json_extract(envelope,'$.input')")} AS input_json,
+          ${auditJsonObject("json_extract(envelope,'$.result')")} AS result_json FROM wrapper_envelopes
+      ), wrappers AS MATERIALIZED (
+        SELECT audit_id,json_extract(input_json,'$.outbox_id') AS input_outbox_id,
+          json_extract(result_json,'$.outbox_id') AS result_outbox_id,
+          json_extract(result_json,'$.version_id') AS result_version_id,
+          json_extract(result_json,'$.grant_id') AS result_grant_id,
+          json_extract(result_json,'$.source_action') AS result_source_action,
+          json_extract(result_json,'$.occurred_at') AS result_occurred_at
+        FROM wrapper_objects WHERE ${auditClosedObject("envelope", ["actor", "input", "result"])}
+          AND json_type(envelope,'$.actor')='object' AND json_type(envelope,'$.input')='object'
+          AND json_type(envelope,'$.result')='object'
+          AND ${auditClosedObject("actor_json", ["systemId", "authorizationEpoch"])}
+          AND ${auditClosedObject("input_json", ["outbox_id"])}
+          AND ${auditClosedObject("result_json", ["schema_version", "outbox_id", "version_id", "grant_id", "source_action", "occurred_at"])}
+          AND json_type(actor_json,'$.systemId')='text' AND json_extract(actor_json,'$.systemId')='${ARTIFACT_RECOVERY_SYSTEM_ID}'
+          AND json_type(actor_json,'$.authorizationEpoch')='integer' AND json_extract(actor_json,'$.authorizationEpoch')=1
+          AND json_type(input_json,'$.outbox_id')='text' AND json_type(result_json,'$.outbox_id')='text'
+          AND json_type(result_json,'$.version_id')='text' AND json_type(result_json,'$.grant_id') IN ('text','null')
+          AND json_type(result_json,'$.source_action')='text' AND json_type(result_json,'$.occurred_at')='text'
+          AND json_type(result_json,'$.schema_version')='integer' AND json_extract(result_json,'$.schema_version')=1
+      ), sources AS MATERIALIZED (
+        SELECT audit.audit_rowid,audit.audit_id,audit.actor_principal_id,audit.action,audit.created_at,
+          source.workspace_id,source.id AS outbox_id,source.version_id,source.grant_id,
+          source.action AS source_action,source.created_at AS occurred_at,source.dispatched_at
+        FROM audits AS audit LEFT JOIN wrappers AS wrapper ON wrapper.audit_id=audit.audit_id
+        JOIN artifact_audit_outbox AS source ON source.workspace_id=audit.workspace_id
+          AND source.id=CASE WHEN audit.action='artifact.dispatch_audit' THEN wrapper.input_outbox_id ELSE audit.audit_id END
+        WHERE (audit.action IN (${ownedActions}) AND source.action=audit.action)
+          OR (audit.action='artifact.dispatch_audit' AND source.action IN (${ownedActions})
+            AND wrapper.result_outbox_id=source.id AND wrapper.result_version_id=source.version_id
+            AND wrapper.result_grant_id IS source.grant_id AND wrapper.result_source_action=source.action
+            AND wrapper.result_occurred_at=source.created_at AND EXISTS (
+              SELECT 1 FROM audits AS direct WHERE direct.audit_id=source.id AND direct.action=source.action
+                AND direct.actor_principal_id='${ARTIFACT_RECOVERY_SYSTEM_ID}' AND direct.created_at=source.dispatched_at))
+      ), typed_sources AS MATERIALIZED (
+        SELECT * FROM sources WHERE actor_principal_id='${ARTIFACT_RECOVERY_SYSTEM_ID}' AND created_at=dispatched_at
+          AND ${auditUlid("audit_id")} AND ${auditUlid("outbox_id")} AND ${auditUlid("version_id")}
+          AND (grant_id IS NULL OR (${auditUlid("grant_id")}))
+          AND ${auditUtc("occurred_at")} AND ${auditUtc("dispatched_at")}
+      ), resolved AS MATERIALIZED (
+        SELECT source.*,artifact.id AS artifact_id,artifact.run_id,
+          ops_task.id AS task_id,ops_run.project_id,
+          upload.id AS upload_id,upload.run_id AS upload_run_id,view.id AS view_id
+        FROM typed_sources AS source JOIN artifact_versions AS version
+          ON version.workspace_id=source.workspace_id AND version.id=source.version_id
+        JOIN artifacts AS artifact ON artifact.workspace_id=version.workspace_id AND artifact.id=version.artifact_id
+        LEFT JOIN runs AS ops_run ON ops_run.workspace_id=artifact.workspace_id AND ops_run.id=artifact.run_id
+        LEFT JOIN tasks AS ops_task ON ops_task.workspace_id=ops_run.workspace_id AND ops_task.id=ops_run.task_id
+          AND ops_task.project_id=ops_run.project_id
+        LEFT JOIN artifact_upload_grants AS upload ON upload.workspace_id=source.workspace_id
+          AND upload.id=source.grant_id AND upload.version_id=source.version_id
+        LEFT JOIN artifact_view_grants AS view ON view.workspace_id=source.workspace_id
+          AND view.id=source.grant_id AND view.version_id=source.version_id
+      ), canonical_parents AS MATERIALIZED (
+        SELECT * FROM resolved WHERE ${auditUlid("artifact_id")}
+          AND (run_id IS NULL OR ((${auditUlid("run_id")}) AND (${auditUlid("task_id")}) AND (${auditUlid("project_id")})))
+          AND ((source_action IN ('artifact.grant_issued','artifact.grant_reissued','artifact.grant_consumed','artifact.upload_verified')
+              AND upload_id IS NOT NULL AND upload_run_id IS run_id)
+            OR (source_action IN ('artifact.view_issued','artifact.view_redeemed') AND view_id IS NOT NULL)
+            OR (source_action IN ('artifact.finalized','artifact.abandoned','artifact.review_recorded') AND grant_id IS NULL))
+      ), current_tasks AS MATERIALIZED (
+        SELECT ops_task.workspace_id,ops_task.id FROM tasks AS ops_task
+        JOIN (SELECT DISTINCT workspace_id,task_id FROM canonical_parents) AS candidate
+          ON candidate.workspace_id=ops_task.workspace_id AND candidate.task_id=ops_task.id
+        WHERE ${parent.sql}
+      ), visible AS MATERIALIZED (
+        SELECT source.audit_rowid,source.audit_id,source.actor_principal_id,source.action,source.created_at,
+          NULL AS payload_json,source.outbox_id,source.version_id,source.grant_id,source.source_action,source.occurred_at
+        FROM canonical_parents AS source LEFT JOIN current_tasks AS task
+          ON task.workspace_id=source.workspace_id AND task.id=source.task_id
+        WHERE source.run_id IS NULL OR task.id IS NOT NULL
+        UNION ALL SELECT audit_rowid,audit_id,actor_principal_id,action,created_at,payload_json,NULL,NULL,NULL,NULL,NULL
+          FROM audits WHERE lower(action) NOT GLOB 'artifact.*'
+      ), anchor AS MATERIALIZED (
+        SELECT visible.created_at,visible.audit_rowid FROM visible JOIN requested_cursor AS cursor ON visible.audit_id=cursor.after_id
+      ), page AS MATERIALIZED (
+        SELECT visible.* FROM visible JOIN requested_cursor AS cursor LEFT JOIN anchor ON 1
+        WHERE cursor.after_id IS NULL OR visible.created_at>anchor.created_at
+          OR (visible.created_at=anchor.created_at AND visible.audit_rowid>anchor.audit_rowid)
+        ORDER BY visible.created_at,visible.audit_rowid LIMIT (SELECT page_limit FROM requested_cursor)
+      ) SELECT scope.authorized,(cursor.after_id IS NULL OR EXISTS (SELECT 1 FROM anchor)) AS anchor_valid,
+        (SELECT json_group_array(json_object('audit_id',audit_id,'actor_principal_id',actor_principal_id,'action',action,
+          'created_at',created_at,'payload_json',payload_json,'outbox_id',outbox_id,'version_id',version_id,
+          'grant_id',grant_id,'source_action',source_action,'occurred_at',occurred_at)) FROM page) AS rows_json
+      FROM current_scope AS scope JOIN requested_cursor AS cursor)`,
     )
-    .all(...params, limit + 1)) as Array<{
+    .get(
+      ...scope.parameters,
+      workspaceId,
+      options.after ?? null,
+      limit + 1,
+      ...parent.parameters,
+    )) as { authorized: number; anchor_valid: number; rows_json: string };
+  if (!current.authorized) fail("not_found", "operations scope not found");
+  if (!current.anchor_valid) fail("invalid_argument", "unknown audit cursor");
+  const rows = JSON.parse(current.rows_json) as Array<{
     audit_id: string;
     actor_principal_id: string;
     action: string;
-    payload_json: string;
+    payload_json: string | null;
     created_at: string;
+    outbox_id: string | null;
+    version_id: string;
+    grant_id: string | null;
+    source_action: string;
+    occurred_at: string;
   }>;
   const entries = rows.slice(0, limit).map((row) => {
     let payload: unknown = null;
-    try {
-      payload = JSON.parse(row.payload_json) as unknown;
-    } catch {
-      payload = "[unparseable]";
+    if (row.outbox_id !== null) {
+      const projection = {
+        schema_version: 1,
+        outbox_id: row.outbox_id,
+        version_id: row.version_id,
+        grant_id: row.grant_id,
+        source_action: row.source_action,
+        occurred_at: row.occurred_at,
+      };
+      payload =
+        row.action === "artifact.dispatch_audit"
+          ? {
+              actor: { systemId: ARTIFACT_RECOVERY_SYSTEM_ID, authorizationEpoch: 1 },
+              input: { outbox_id: row.outbox_id },
+              result: projection,
+            }
+          : projection;
+    } else {
+      try {
+        payload = JSON.parse(row.payload_json!) as unknown;
+      } catch {
+        payload = "[unparseable]";
+      }
+      payload = sanitizeDiagnosticValue(payload);
     }
     return {
       audit_id: row.audit_id,
       actor_principal_id: row.actor_principal_id,
       action: row.action,
-      payload: sanitizeDiagnosticValue(payload),
+      payload,
       created_at: row.created_at,
     };
   });
   return { entries, has_more: rows.length > limit };
+}
+
+/** Normalize before extraction: malformed JSON and SQL scalar text never reach JSON joins. */
+function auditJsonObject(expression: string): string {
+  return `CASE WHEN json_valid(${expression}) THEN CASE WHEN json_type(${expression})='object'
+    THEN ${expression} ELSE '{}' END ELSE '{}' END`;
+}
+
+/** Every recognized object is closed and duplicate-free, including ignored duplicate values. */
+function auditClosedObject(expression: string, keys: string[]): string {
+  return `(SELECT COUNT(*)=${keys.length} AND COUNT(DISTINCT key)=${keys.length}
+    AND SUM(key NOT IN (${keys.map((key) => `'${key}'`).join(",")}))=0 FROM json_each(${expression}))`;
+}
+
+function auditUlid(column: string): string {
+  return `(typeof(${column})='text' AND instr(${column},char(0))=0 AND length(${column})=26 AND ${column} NOT GLOB '*[^0-9A-HJKMNP-TV-Z]*')`;
+}
+
+/** Matches the persistence UTC shape, calendar validity and one-to-six fractional digits. */
+function auditUtc(column: string): string {
+  return `(typeof(${column})='text' AND instr(${column},char(0))=0
+    AND substr(${column},1,10) GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
+    AND substr(${column},11,1)='T' AND substr(${column},12,8) GLOB '[0-9][0-9]:[0-9][0-9]:[0-5][0-9]'
+    AND date(substr(${column},1,10),'+0 days')=substr(${column},1,10)
+    AND CAST(substr(${column},12,2) AS INTEGER)<=23 AND CAST(substr(${column},15,2) AS INTEGER)<=59
+    AND ((length(${column})=20 AND substr(${column},20,1)='Z')
+      OR (length(${column}) BETWEEN 22 AND 27 AND substr(${column},20,1)='.' AND substr(${column},-1)='Z'
+        AND substr(${column},21,length(${column})-21) NOT GLOB '*[^0-9]*')))`;
 }
 
 export interface ActivityEntry {

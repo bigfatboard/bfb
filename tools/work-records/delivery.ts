@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createTestHarness } from "wrangler";
-import { adaptD1, loadMigrationManifest, type D1Like } from "@bfb/db";
+import { adaptD1, loadMigrationManifest, type D1Like, type SqlDatabase } from "@bfb/db";
 import {
   FIX,
   randomUlid,
@@ -34,6 +34,9 @@ import {
   issueStepUpProof,
   recoveryActionId,
   OPS_STEP_UP_ACTIONS,
+  ARTIFACT_AUDIT_ACTIONS,
+  ARTIFACT_RECOVERY_SYSTEM_ID,
+  readSecurityAudit,
   authorizeResultEvidence,
   listResultSubmissions,
   fanoutNotificationEvent,
@@ -1161,6 +1164,361 @@ try {
     },
   );
   check("real_d1_empty_composite_scope_rechecks_epoch_before_hydrated_workspace_metadata");
+  const auditAccess = { ...access(), authorizationEpoch: 3 };
+  // The observed anchor separates this synthetic history from prior probes.
+  // Hub authorization owns dispatch time; request.now cannot override its clock.
+  const auditAnchorAt = new Date().toISOString();
+  const auditAnchorId = randomUlid();
+  await db
+    .prepare(
+      `INSERT INTO audit_events
+     (workspace_id,audit_id,actor_principal_id,action,payload_json,created_at)
+     VALUES (?,?,?,'ops.audit.synthetic_anchor','{"action":"synthetic"}',?)`,
+    )
+    .run(FIX.workspace, auditAnchorId, FIX.owner, auditAnchorAt);
+
+  async function seedAuditSource(
+    action: string,
+    versionId: string,
+    grantId: string | null,
+    at = auditAnchorAt,
+  ) {
+    const id = randomUlid();
+    await db
+      .prepare(
+        `INSERT INTO artifact_audit_outbox
+       (workspace_id,id,version_id,grant_id,action,payload_json,created_at)
+       VALUES (?,?,?,?,?,'{"synthetic":true}',?)`,
+      )
+      .run(FIX.workspace, id, versionId, grantId, action, at);
+    const response = await server
+      .getWorker("bfb-work-records-a")
+      .fetch(origin + "/workspaces/" + FIX.workspace + "/execute", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          commandName: "artifact.dispatch_audit",
+          request: {
+            workspaceId: FIX.workspace,
+            actorSystemId: ARTIFACT_RECOVERY_SYSTEM_ID,
+            authorizationEpoch: 1,
+            idempotencyKey: "c11-audit." + id,
+            now: at,
+            input: { outboxId: id },
+          },
+        }),
+      });
+    assert.equal(response.status, 200, await response.clone().text());
+    const outcome = (await response.json()) as CommandOutcome<unknown>;
+    assert(outcome.ok, JSON.stringify(outcome));
+    return id;
+  }
+  async function seedAuditUploadGrant(versionId: string) {
+    const id = randomUlid();
+    await db
+      .prepare(
+        `INSERT INTO artifact_upload_grants
+       (workspace_id,id,version_id,grant_hash,human_id,authorization_epoch,run_id,format,
+        declared_size,expected_digest,expires_at,consumed_at,created_at)
+       VALUES (?,?,?,?,?,3,?,'log',64,?,?,?,?)`,
+      )
+      .run(
+        FIX.workspace,
+        id,
+        versionId,
+        artifactHash(id),
+        FIX.owner,
+        operationsRun,
+        digest,
+        oldUploadAt,
+        oldUploadAt,
+        oldUploadAt,
+      );
+    return id;
+  }
+  async function seedAuditViewGrant(versionId: string) {
+    const id = randomUlid();
+    await db
+      .prepare(
+        `INSERT INTO artifact_view_grants
+       (workspace_id,id,version_id,grant_hash,view_nonce_hash,human_id,session_hash,
+        authorization_epoch,content_hash,expires_at,consumed_at,created_at)
+       VALUES (?,?,?,?,?,?,?,3,?,?,?,?)`,
+      )
+      .run(
+        FIX.workspace,
+        id,
+        versionId,
+        artifactHash(id),
+        artifactHash("nonce." + id),
+        FIX.owner,
+        artifactHash("session." + id),
+        digest,
+        oldUploadAt,
+        oldUploadAt,
+        oldUploadAt,
+      );
+    return id;
+  }
+  const sourceByAction = new Map<string, string>();
+  let auditUploadGrant = "";
+  for (const action of ARTIFACT_AUDIT_ACTIONS) {
+    let grantId: string | null = null;
+    if (
+      [
+        "artifact.grant_issued",
+        "artifact.grant_reissued",
+        "artifact.grant_consumed",
+        "artifact.upload_verified",
+      ].includes(action)
+    ) {
+      grantId = await seedAuditUploadGrant(canonicalLog);
+      auditUploadGrant = grantId;
+    } else if (["artifact.view_issued", "artifact.view_redeemed"].includes(action)) {
+      grantId = await seedAuditViewGrant(canonicalLog);
+    }
+    sourceByAction.set(action, await seedAuditSource(action, canonicalLog, grantId));
+  }
+  const runFreeAuditVersion = await seedOperationsVersion(null, "available");
+  const runFreeAuditSource = await seedAuditSource("artifact.finalized", runFreeAuditVersion, null);
+  const runFreeAuditTimes = (await db
+    .prepare(
+      "SELECT created_at,dispatched_at FROM artifact_audit_outbox WHERE workspace_id=? AND id=?",
+    )
+    .get(FIX.workspace, runFreeAuditSource)) as { created_at: string; dispatched_at: string };
+  const auditOptions = { access: auditAccess, after: auditAnchorId, limit: 100 };
+  const canonicalAudit = await readSecurityAudit(db, FIX.workspace, auditOptions);
+  assert.equal(canonicalAudit.entries.length, 20);
+  assert.equal(canonicalAudit.has_more, false);
+  for (const [action, id] of sourceByAction) {
+    assert(canonicalAudit.entries.some((row) => row.audit_id === id && row.action === action));
+    assert(
+      canonicalAudit.entries.some(
+        (row) =>
+          row.action === "artifact.dispatch_audit" && JSON.stringify(row.payload).includes(id),
+      ),
+    );
+  }
+  assert(canonicalAudit.entries.some((row) => row.audit_id === runFreeAuditSource));
+  // Historical direct payloads are not provenance and cannot replace typed
+  // canonical fields with a private identity or arbitrary identifier prose.
+  await db
+    .prepare("UPDATE audit_events SET payload_json=? WHERE workspace_id=? AND audit_id=?")
+    .run(
+      JSON.stringify({ version_id: privateLog, canary_id: "SYNTHETIC-PRIVATE-AUDIT-CANARY" }),
+      FIX.workspace,
+      sourceByAction.get("artifact.finalized"),
+    );
+  assert.deepEqual(await readSecurityAudit(db, FIX.workspace, auditOptions), canonicalAudit);
+  check("real_d1_canonical_artifact_audit_reconstructs_nine_sources_and_runfree_history");
+
+  // SQLite text length and GLOB stop at NUL, but JSON retains the suffix.
+  // Genuine canonical parents do not authorize malformed typed receipt fields.
+  const nulAuditIds: string[] = [];
+  for (const field of ["source_time", "outbox_id"]) {
+    const suffix = "\0SYNTHETIC-NUL-AUDIT-CANARY";
+    const id = randomUlid() + (field === "outbox_id" ? suffix : "");
+    const sourceTime = auditAnchorAt + (field === "source_time" ? suffix : "");
+    await db
+      .prepare(
+        `INSERT INTO artifact_audit_outbox
+       (workspace_id,id,version_id,grant_id,action,payload_json,created_at,dispatched_at)
+       VALUES (?,?,?,NULL,'artifact.finalized','{"synthetic":true}',?,?)`,
+      )
+      .run(FIX.workspace, id, runFreeAuditVersion, sourceTime, auditAnchorAt);
+    await db
+      .prepare(
+        `INSERT INTO audit_events
+       (workspace_id,audit_id,actor_principal_id,action,payload_json,created_at)
+       VALUES (?,?,?,'artifact.finalized','{"synthetic":true}',?)`,
+      )
+      .run(FIX.workspace, id, ARTIFACT_RECOVERY_SYSTEM_ID, auditAnchorAt);
+    nulAuditIds.push(id);
+  }
+  assert.deepEqual(await readSecurityAudit(db, FIX.workspace, auditOptions), canonicalAudit);
+  const nulAuditPage = await readSecurityAudit(db, FIX.workspace, { ...auditOptions, limit: 1 });
+  assert.equal(nulAuditPage.entries[0]?.audit_id, sourceByAction.get(ARTIFACT_AUDIT_ACTIONS[0]));
+  assert.equal(nulAuditPage.has_more, true);
+  for (const after of nulAuditIds) {
+    await assert.rejects(readSecurityAudit(db, FIX.workspace, { ...auditOptions, after }), {
+      code: "invalid_argument",
+      message: "unknown audit cursor",
+    });
+  }
+  check("real_d1_artifact_audit_nul_suffixed_typed_fields_are_omitted_before_page_and_anchor");
+
+  const privateAuditSource = await seedAuditSource("artifact.finalized", privateLog, null);
+  await seedAuditSource("artifact.view_issued", canonicalLog, auditUploadGrant);
+  await seedAuditSource("artifact.grant_issued", runFreeAuditVersion, auditUploadGrant);
+  async function insertHistoricalAudit(action: string, payload: string) {
+    await db
+      .prepare(
+        `INSERT INTO audit_events
+       (workspace_id,audit_id,actor_principal_id,action,payload_json,created_at)
+       VALUES (?,?,?,?,?,?)`,
+      )
+      .run(
+        FIX.workspace,
+        randomUlid(),
+        ARTIFACT_RECOVERY_SYSTEM_ID,
+        action,
+        payload,
+        runFreeAuditTimes.dispatched_at,
+      );
+  }
+  const projection = {
+    schema_version: 1,
+    outbox_id: runFreeAuditSource,
+    version_id: runFreeAuditVersion,
+    grant_id: null,
+    source_action: "artifact.finalized",
+    occurred_at: runFreeAuditTimes.created_at,
+  };
+  const wrapperActor = { systemId: ARTIFACT_RECOVERY_SYSTEM_ID, authorizationEpoch: 1 };
+  await insertHistoricalAudit("Artifact.Finalized", JSON.stringify({ version_id: privateLog }));
+  await insertHistoricalAudit("artifact.dispatch_audit", "not-json");
+  await insertHistoricalAudit(
+    "artifact.dispatch_audit",
+    JSON.stringify({
+      actor: wrapperActor,
+      input: JSON.stringify({ outbox_id: runFreeAuditSource }),
+      result: projection,
+    }),
+  );
+  await insertHistoricalAudit(
+    "artifact.dispatch_audit",
+    JSON.stringify({
+      actor: wrapperActor,
+      input: { outbox_id: runFreeAuditSource },
+      result: { ...projection, extra_id: privateLog },
+    }),
+  );
+  const duplicateInput =
+    '{"outbox_id":"' + runFreeAuditSource + '","outbox_id":"' + privateAuditSource + '"}';
+  await insertHistoricalAudit(
+    "artifact.dispatch_audit",
+    '{"actor":' +
+      JSON.stringify(wrapperActor) +
+      ',"input":' +
+      duplicateInput +
+      ',"result":' +
+      JSON.stringify(projection) +
+      "}",
+  );
+  // An orphan historical wrapper cannot invent the paired direct receipt
+  // which real production dispatch writes atomically.
+  const orphanSource = randomUlid();
+  await db
+    .prepare(
+      `INSERT INTO artifact_audit_outbox
+     (workspace_id,id,version_id,grant_id,action,payload_json,created_at,dispatched_at)
+     VALUES (?,?,?,NULL,'artifact.finalized','{"synthetic":true}',?,?)`,
+    )
+    .run(
+      FIX.workspace,
+      orphanSource,
+      runFreeAuditVersion,
+      runFreeAuditTimes.created_at,
+      runFreeAuditTimes.dispatched_at,
+    );
+  await insertHistoricalAudit(
+    "artifact.dispatch_audit",
+    JSON.stringify({
+      actor: wrapperActor,
+      input: { outbox_id: orphanSource },
+      result: { ...projection, outbox_id: orphanSource },
+    }),
+  );
+  assert.deepEqual(await readSecurityAudit(db, FIX.workspace, auditOptions), canonicalAudit);
+  const firstAuditPage = await readSecurityAudit(db, FIX.workspace, { ...auditOptions, limit: 1 });
+  assert.equal(firstAuditPage.entries[0]?.audit_id, sourceByAction.get(ARTIFACT_AUDIT_ACTIONS[0]));
+  assert.equal(firstAuditPage.has_more, true);
+  check("real_d1_artifact_audit_hidden_misbound_and_malformed_rows_do_not_consume_page_or_count");
+  for (const after of [privateAuditSource, randomUlid()]) {
+    await assert.rejects(readSecurityAudit(db, FIX.workspace, { ...auditOptions, after }), {
+      code: "invalid_argument",
+      message: "unknown audit cursor",
+    });
+  }
+  check("real_d1_artifact_audit_hidden_and_unknown_anchor_denial_parity");
+
+  const auditTask = (await db
+    .prepare(
+      `SELECT run.task_id,task.created_by_human_id FROM runs AS run
+       JOIN tasks AS task ON task.workspace_id=run.workspace_id AND task.id=run.task_id
+       WHERE run.workspace_id=? AND run.id=?`,
+    )
+    .get(FIX.workspace, operationsRun)) as { task_id: string; created_by_human_id: string };
+  function beforeAuditSelection(change: () => Promise<void>): SqlDatabase {
+    let changed = false;
+    async function applyChange() {
+      if (!changed) {
+        changed = true;
+        await change();
+      }
+    }
+    return {
+      ...db,
+      prepare(sql) {
+        const statement = db.prepare(sql);
+        return {
+          ...statement,
+          async get(...parameters: unknown[]) {
+            await applyChange();
+            return statement.get(...parameters);
+          },
+          async all(...parameters: unknown[]) {
+            await applyChange();
+            return statement.all(...parameters);
+          },
+        };
+      },
+    };
+  }
+  const parentChangedAudit = await readSecurityAudit(
+    beforeAuditSelection(async () => {
+      await db
+        .prepare(
+          "INSERT INTO task_privacy (workspace_id,task_id,owner_human_id,created_at) VALUES (?,?,?,?)",
+        )
+        .run(FIX.workspace, auditTask.task_id, auditTask.created_by_human_id, now);
+    }),
+    FIX.workspace,
+    auditOptions,
+  );
+  assert.equal(parentChangedAudit.entries.length, 2);
+  assert(
+    parentChangedAudit.entries.every((row) =>
+      JSON.stringify(row.payload).includes(runFreeAuditVersion),
+    ),
+  );
+  assert.equal(parentChangedAudit.has_more, false);
+  check("real_d1_artifact_audit_final_selection_drops_parent_privatized_before_delivery");
+  const lastRunFreeAudit = parentChangedAudit.entries.at(-1)!.audit_id;
+  assert.deepEqual(
+    await readSecurityAudit(db, FIX.workspace, { ...auditOptions, after: lastRunFreeAudit }),
+    { entries: [], has_more: false },
+  );
+  await assert.rejects(
+    readSecurityAudit(
+      beforeAuditSelection(async () => {
+        await db
+          .prepare(
+            "UPDATE workspace_members SET authorization_epoch=4 WHERE workspace_id=? AND human_id=?",
+          )
+          .run(FIX.workspace, FIX.owner);
+        await db
+          .prepare(
+            "UPDATE workspace_authorization_epochs SET authorization_epoch=4 WHERE workspace_id=? AND human_id=?",
+          )
+          .run(FIX.workspace, FIX.owner);
+      }),
+      FIX.workspace,
+      { ...auditOptions, after: lastRunFreeAudit },
+    ),
+    { code: "not_found", message: "operations scope not found" },
+  );
+  check("real_d1_empty_artifact_audit_scope_denial_after_epoch_loss");
   console.log(
     JSON.stringify({
       schema_version: 1,
@@ -1171,7 +1529,7 @@ try {
       limits: [
         "synthetic policies only",
         "no full C11 delivery certificate",
-        "partial metadata/retention/upload-recovery fences, not opaque positions or complete operations privacy",
+        "partial metadata/retention/upload-recovery/canonical artifact audit fences, not opaque positions or complete operations privacy",
         "natural credential expiry in flight remains uncertified",
         "real D1/domain/Hub proof, not real HTTP OAuth or provider execution",
         "grant-consumption proof, not live R2 or private browser-byte delivery",
