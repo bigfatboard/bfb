@@ -140,6 +140,14 @@ A card can open a supported Claude Code version in the exact checkout, bind the 
 
 ## Handoff
 
+- Real local pilot startup, 6 October: operator-supplied OAuth bindings pass
+  preflight and both persistent stock Workers are healthy over browser-trusted
+  HTTPS. The real sign-in reaches GitHub consent for read-only profile/email
+  access. Unauthenticated session/workspace requests remain denied. The
+  first-owner verifier is prepared without seeding a human, workspace or
+  session; GitHub authorization, owner/passkey onboarding, runner enrollment
+  and the actual tracked provider workflow remain pending. No deployment or
+  package completion follows from this local readiness result.
 - Active 6 October: Timo approved the Claude-first private-pilot delivery path.
   A01–A04 and V01 now have connected runtime certificates, and every L07
   dependency is `done`. The unchanged `pnpm test:l07` baseline passes before
@@ -151,8 +159,9 @@ A card can open a supported Claude Code version in the exact checkout, bind the 
   and seven exec-form hooks without widening the tested-version manifest.
   Stock Worker smoke proves trusted loopback HTTPS, denied unauthenticated
   access, exact bootstrap retry and D1/R2 persistence across restart. Real
-  GitHub OAuth configuration, human login and the tracked provider chain remain
-  open; the isolated smoke creates no fake human or browser session.
+  OAuth configuration/startup has since progressed as recorded above; human
+  login and the tracked provider chain remain open. The isolated smoke creates
+  no fake human or browser session.
   A passing synthetic certificate does not prove any live acceptance below.
   Bounded BFB-owned live tests are part of the approved pilot; existing provider
   sessions, non-BFB settings, macOS consent and user authority remain protected.

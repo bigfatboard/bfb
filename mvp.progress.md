@@ -2,12 +2,20 @@
 
 Updated: 6 October 2026
 
-Status: A01–A04 are complete at clean-certified runtimes: agent context/writes/protected recovery, connected human attention, protected explicit results with human review, and connected measurement telemetry/provenance. V01 online bound-agent artifact publication is also clean-certified. Provider/discussion integration remains open. The end-to-end local MVP is not complete or running.
+Status: A01–A04 are complete at clean-certified runtimes: agent context/writes/protected recovery, connected human attention, protected explicit results with human review, and connected measurement telemetry/provenance. V01 online bound-agent artifact publication is also clean-certified. The persistent local control plane is running over trusted HTTPS; human onboarding and the live provider/discussion workflow remain unverified. The end-to-end MVP is not complete.
 
 Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 
 ## Current checkpoint
 
+- The real private-pilot Control and Artifact Workers now run with persistent
+  local D1/R2 and operator-supplied GitHub OAuth bindings. Both health checks
+  pass; the browser accepts HTTPS and reaches the real GitHub consent page.
+  Consent requests read-only profile and email access, not repository access.
+  Unauthenticated session and workspace requests return 401. A private
+  one-time first-owner verifier is initialized without creating a fake human,
+  workspace or browser session. GitHub authorization, owner/passkey onboarding,
+  runner enrollment and the live provider chain are still pending.
 - 6 October pilot continuation: Timo approved the persistent real-auth Claude-first
   path in the plan. L07 is now `in_progress`; 31 packages remain `done`, six
   `blocked` and seven `planned`. The unchanged exact L07 baseline passes with
@@ -19,15 +27,16 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
   `2025-11-25` MCP handshake and seven exec-form hooks; it did not exercise BFB
   authority or tracked launch. Stock production Worker smoke proves trusted
   local HTTPS, denied unauthenticated access, exact bootstrap retry and D1/R2
-  persistence across restart. GitHub OAuth configuration and the real human
-  login/provider workflow remain open; no running pilot or new acceptance is
-  claimed.
+  persistence across restart. The subsequent real pilot startup above closes
+  configuration/startup only, not the human login/provider workflow or package
+  acceptance.
 - The [pilot integration checkpoint](docs/work-packages/evidence/WP-L07/pilot-integration-checkpoint.json)
   at `d6d854d` passes expanded exact L07, the compiled A01 native MCP regression,
   persistent stock-Worker smoke and full repository verification (2,837
   TypeScript cases, Go and 16 Swift cases). These are implementation checks,
-  not a clean live-provider completion certificate. OAuth registration and the
-  real human/provider chain remain open; L07 stays `in_progress`.
+  not a clean live-provider completion certificate. OAuth registration has since
+  completed; the real human/provider chain remains open and L07 stays
+  `in_progress`.
 - V01's [connected publication certificate](docs/work-packages/evidence/WP-V01/runtime-manifest.json) at `663dbdb` closes the package under [ADR 0010](docs/adr/0010-connected-artifact-publication.md). Clean exact V01 passes 1,123 protocol cases, 213 focused cases, nine Go race-tested packages, real two-isolate D1/R2 fault proof and signed compiled MCP/fresh CLI proof (`V01_NATIVE_PROOF_COMPLETE`, 137.80 seconds). Full `pnpm verify` passes 2,814 TypeScript tests in 141 files, Go and 16 Swift tests without platform skips. Exact A01–A04/L08, Linux build and clean-worktree checks pass on the same source. Publication verifies pinned bytes, current authority, explicit recovery after three lost committed replies across daemon/MCP restart, no artifact journal/autoreplay, Submitted eligibility and human-accepted denial. A stale migration-head test was repaired without changing production code; disappearing shared Go/Chromium caches were isolated and complete affected gates rerun. Both failures and their passing retries are retained in bounded evidence. This certificate is not Terminal/live-provider, viewer/review, human-CLI parity or full-MVP acceptance.
 - The reviewed `muse/fix-findings` history is integrated into `codex/remote-launch-discussion-mvp` at `472f007`, together with the upstream Apache-2.0 license change. No changes were pushed or deployed during this reconciliation.
 - Reconciliation found 37 historical `done` certificates, L07 `review`, and seven `planned` packages. It reopened A01 and held ten previously certified descendants plus L07. Connected runtime certificates now close A01–A04 and V01 under their recorded ADRs. The current total is 31 `done`, L07 `in_progress`, six `blocked`, seven `planned` (P01, P02, D02, D03, X02, G01, G02). Descendant holds await their own runtime integration/revalidation, not automatic certification from A01–A04/V01. No implementation or historical evidence was removed. Several planned packages also contain substantial implementation.
