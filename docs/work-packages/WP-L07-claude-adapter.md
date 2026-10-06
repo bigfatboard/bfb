@@ -94,6 +94,11 @@ A card can open a supported Claude Code version in the exact checkout, bind the 
 
 ## Evidence
 
+- [Owner-onboarding checkpoint](evidence/WP-L07/owner-onboarding-checkpoint.json)
+  records the actual authenticated UI writes, explicit local Hub repair, pinned
+  candidate build and passing full/L07 integration checks at source-equivalent
+  `c0f00b7`. Runner approval and live provider acceptance remain unverified; this
+  is not a clean-checkout completion certificate.
 - [Pilot integration checkpoint](evidence/WP-L07/pilot-integration-checkpoint.json)
   records the passing implementation checks at `d6d854d`, retained failures and
   retries, and the still-unverified real human/provider chain. It does not
@@ -102,6 +107,9 @@ A card can open a supported Claude Code version in the exact checkout, bind the 
   runtime, private configuration, TLS and start/stop/health commands.
   `pnpm test:l07` now includes native MCP/runner/supervisor regression and the
   `pnpm test:pilot` configuration, server-denial and mounted first-run UI checks.
+  It also explicitly selects the test-only Claude candidate helper and builder
+  regressions, and the pilot target exercises EU logical namespace isolation
+  against a real local Hub/D1 under [ADR 0012](../adr/0012-local-pilot-hub-jurisdiction.md).
   `pnpm pilot:smoke` checks stock Worker startup and restart persistence with
   isolated synthetic bindings; `pnpm probe:claude-mcp` is a separately invoked,
   bounded live protocol experiment, not a tracked-launch acceptance substitute.
@@ -145,11 +153,15 @@ A card can open a supported Claude Code version in the exact checkout, bind the 
   HTTPS. The real sign-in reaches GitHub consent for read-only profile/email
   access. Unauthenticated session/workspace requests remain denied. The
   first-owner verifier is prepared without seeding a human, workspace or
-  session. Timo approved GitHub consent, but the in-app browser blocks the exact
-  localhost callback with `ERR_BLOCKED_BY_CLIENT`; no bypass was attempted.
-  Fresh sign-in in a regular browser, owner/passkey onboarding, runner enrollment
-  and the actual tracked provider workflow remain pending. No deployment or
-  package completion follows from this local readiness result.
+  session. The initial in-app callback was blocked with `ERR_BLOCKED_BY_CLIENT`;
+  no bypass was attempted. Timo completed fresh sign-in, workspace creation and
+  passkey registration. Owner access and the registered passkey are now verified
+  in the real in-app browser session. Actual project/profile/task/context writes
+  pass after the explicit local-only Hub jurisdiction repair. An isolated signed
+  Claude candidate preserves exact binary and private-state pins without
+  promoting production capabilities. Runner approval and the actual tracked
+  provider workflow remain pending. No deployment or package completion follows
+  from this local onboarding result.
 - Active 6 October: Timo approved the Claude-first private-pilot delivery path.
   A01–A04 and V01 now have connected runtime certificates, and every L07
   dependency is `done`. The unchanged `pnpm test:l07` baseline passes before
@@ -158,11 +170,13 @@ A card can open a supported Claude Code version in the exact checkout, bind the 
   repairs include provider-aware inventory, helper environment preservation,
   trusted SessionStart bootstrap and actual local-MCP protocol interoperability.
   The bounded isolated `2.1.291` probe passed its real `2025-11-25` MCP handshake
-  and seven exec-form hooks without widening the tested-version manifest.
+  and six observed exec-form hook deliveries without widening the tested-version
+  manifest. Seven event handlers were configured; `PostToolUseFailure` was not
+  observed by that successful-tool probe.
   Stock Worker smoke proves trusted loopback HTTPS, denied unauthenticated
   access, exact bootstrap retry and D1/R2 persistence across restart. Real
-  OAuth configuration/startup has since progressed as recorded above; human
-  login and the tracked provider chain remain open. The isolated smoke creates
+  OAuth configuration/startup and human onboarding have since passed as recorded
+  above; the tracked provider chain remains open. The isolated smoke creates
   no fake human or browser session.
   A passing synthetic certificate does not prove any live acceptance below.
   Bounded BFB-owned live tests are part of the approved pilot; existing provider

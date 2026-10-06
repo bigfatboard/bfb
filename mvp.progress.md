@@ -2,23 +2,36 @@
 
 Updated: 6 October 2026
 
-Status: A01–A04 are complete at clean-certified runtimes: agent context/writes/protected recovery, connected human attention, protected explicit results with human review, and connected measurement telemetry/provenance. V01 online bound-agent artifact publication is also clean-certified. The persistent local control plane is running over trusted HTTPS; human onboarding and the live provider/discussion workflow remain unverified. The end-to-end MVP is not complete.
+Status: A01–A04 are complete at clean-certified runtimes: agent context/writes/protected recovery, connected human attention, protected explicit results with human review, and connected measurement telemetry/provenance. V01 online bound-agent artifact publication is also clean-certified. The persistent local control plane is running over trusted HTTPS, and real owner/passkey onboarding is verified. The live provider/discussion workflow remains unverified. The end-to-end MVP is not complete.
 
 Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 
 ## Current checkpoint
 
+- The [owner-onboarding checkpoint](docs/work-packages/evidence/WP-L07/owner-onboarding-checkpoint.json)
+  records the source-equivalent `c0f00b7` integration: full verification passes
+  2,841 TypeScript cases, Go and 16 Swift cases; expanded L07 passes 1,123
+  protocol cases, candidate/runtime race checks, the real local Hub regression,
+  126 focused cases and six browser scenarios. The signed isolated daemon is
+  running with a pending enrollment; human Mac approval and live provider
+  acceptance remain open. These are not clean-checkout completion evidence.
 - The real private-pilot Control and Artifact Workers now run with persistent
   local D1/R2 and operator-supplied GitHub OAuth bindings. Both health checks
   pass; the browser accepts HTTPS and reaches the real GitHub consent page.
   Consent requests read-only profile and email access, not repository access.
   Unauthenticated session and workspace requests return 401. A private
   one-time first-owner verifier is initialized without creating a fake human,
-  workspace or browser session. Timo approved GitHub consent, but the in-app
-  browser refused the exact localhost callback with `ERR_BLOCKED_BY_CLIENT`.
-  No browser-security bypass was attempted. A fresh sign-in in the user's
-  regular browser, owner/passkey onboarding, runner enrollment and the live
-  provider chain are still pending.
+  workspace or browser session. The first in-app callback was blocked with
+  `ERR_BLOCKED_BY_CLIENT`; no browser-security bypass was attempted. Timo
+  completed fresh sign-in, workspace creation and passkey registration. The
+  real in-app session now visibly has owner access and a registered passkey.
+  Project, profile, task and agent-context creation now pass through the normal
+  authenticated UI. That first write exposed Workerd's unsupported geographic
+  jurisdiction call; [ADR 0012](docs/adr/0012-local-pilot-hub-jurisdiction.md)
+  records the explicit local-only logical namespace adapter, with real Hub/D1
+  regression and unchanged production placement checks. The isolated signed
+  Claude candidate is prepared; runner approval and the live provider chain
+  remain pending. Normal provider capabilities have not been widened.
 - 6 October pilot continuation: Timo approved the persistent real-auth Claude-first
   path in the plan. L07 is now `in_progress`; 31 packages remain `done`, six
   `blocked` and seven `planned`. The unchanged exact L07 baseline passes with
@@ -27,12 +40,12 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
   preserved helper environment restrictions, trusted SessionStart bootstrap,
   actual local-MCP compatibility, durable authenticated startup and fail-closed
   pilot surface gates. A bounded isolated Claude probe passed the actual
-  `2025-11-25` MCP handshake and seven exec-form hooks; it did not exercise BFB
-  authority or tracked launch. Stock production Worker smoke proves trusted
+  `2025-11-25` MCP handshake and six observed exec-form hook deliveries; it did
+  not exercise BFB authority or tracked launch. Stock production Worker smoke proves trusted
   local HTTPS, denied unauthenticated access, exact bootstrap retry and D1/R2
   persistence across restart. The subsequent real pilot startup above closes
-  configuration/startup only, not the human login/provider workflow or package
-  acceptance.
+  configuration/startup and human onboarding only, not the provider workflow or
+  package acceptance.
 - The [pilot integration checkpoint](docs/work-packages/evidence/WP-L07/pilot-integration-checkpoint.json)
   at `d6d854d` passes expanded exact L07, the compiled A01 native MCP regression,
   persistent stock-Worker smoke and full repository verification (2,837

@@ -59,7 +59,9 @@
       "binary_identity": "unchanged across the bounded isolated probe",
       "mcp_protocol": "2025-11-25",
       "wire_sequence": ["initialize", "notifications/initialized", "tools/list", "tools/call"],
-      "exec_form_hook_count": 7,
+      "configured_exec_form_hook_count": 7,
+      "observed_exec_form_hook_count": 6,
+      "unobserved_configured_hook_events": ["PostToolUseFailure"],
       "tracked_bfb_execution": false
     }
   ],
