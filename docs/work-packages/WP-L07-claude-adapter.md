@@ -94,6 +94,10 @@ A card can open a supported Claude Code version in the exact checkout, bind the 
 
 ## Evidence
 
+- [Pilot integration checkpoint](evidence/WP-L07/pilot-integration-checkpoint.json)
+  records the passing implementation checks at `d6d854d`, retained failures and
+  retries, and the still-unverified real human/provider chain. It does not
+  replace the completion manifest or mark this package done.
 - [Private pilot guide](../pilot.md) documents the real-auth persistent Worker
   runtime, private configuration, TLS and start/stop/health commands.
   `pnpm test:l07` now includes native MCP/runner/supervisor regression and the

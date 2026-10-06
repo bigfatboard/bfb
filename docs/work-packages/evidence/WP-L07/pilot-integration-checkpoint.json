@@ -1,0 +1,95 @@
+{
+  "package": "L07",
+  "recorded_on": "2026-10-06",
+  "tested_commit": "d6d854d1b05382d6f969caab283259792135fb4b",
+  "scope": "Persistent real-auth pilot infrastructure, held feature gates and Claude integration boundary repairs",
+  "scope_outcome": "passed",
+  "package_acceptance_complete": false,
+  "package_status": "in_progress",
+  "historical_manifest": "docs/work-packages/evidence/WP-L07/manifest.json",
+  "implementation_commits": ["93b06d2", "ac03334", "d6d854d"],
+  "environment": {
+    "kind": "implementation_checkout",
+    "repository_verify": "clean committed source; no platform check omitted",
+    "other_checks": "same implementation source, before final source commits; not a detached clean package certificate",
+    "os": "macOS 26.2",
+    "architecture": "arm64"
+  },
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "xcode": "26.0.1",
+    "wrangler": "4.120.1"
+  },
+  "commands": [
+    {
+      "command": "pnpm test:l07",
+      "outcome": "passed",
+      "protocol_cases": 1123,
+      "provider_probe_cases": 5,
+      "pilot_node_cases": 12,
+      "focused_typescript_cases": 122,
+      "browser_cases": 6,
+      "native_race_checks": "passed"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "typescript_cases": 2837,
+      "typescript_files": 142,
+      "go_checks": "passed",
+      "swift_cases": 16
+    },
+    {
+      "command": "pnpm exec tsx tools/local-mcp/native.ts",
+      "outcome": "passed",
+      "marker": "A01_NATIVE_PROOF_COMPLETE",
+      "native_test_seconds": 205.18
+    },
+    {
+      "command": "pnpm pilot:smoke",
+      "outcome": "passed",
+      "runtime": "Stock production Control and Artifact Worker entrypoints; isolated synthetic OAuth configuration; no fake human or session"
+    },
+    {
+      "command": "pnpm probe:claude-mcp",
+      "outcome": "passed",
+      "provider_version": "2.1.291",
+      "binary_identity": "unchanged across the bounded isolated probe",
+      "mcp_protocol": "2025-11-25",
+      "wire_sequence": ["initialize", "notifications/initialized", "tools/list", "tools/call"],
+      "exec_form_hook_count": 7,
+      "tracked_bfb_execution": false
+    }
+  ],
+  "proven": [
+    "Local stdio advertises its implemented handshake, validates initialization and preserves current-authority checks",
+    "Inventory and launch share provider-owned integration sources; signed helpers preserve Claude environment restrictions and exact config HOME",
+    "Trusted accepted or duplicate SessionStart emits only the fixed BFB bootstrap instruction",
+    "Stock Workers start over trusted loopback HTTPS without a test-login route; unauthenticated business requests remain denied",
+    "Bootstrap retry after a committed result loss preserves the exact private code and original expiry without creating a human or workspace",
+    "D1 and R2 survive full owned-supervisor stop and restart",
+    "Pilot state rejects symlink ancestors and repository paths; shutdown excludes completed and signal-exited children",
+    "Held viewer, artifact-review and discussion surfaces fail closed at server boundaries and in the mounted UI",
+    "First-run UI and actual passkey options/verification routes pass isolated browser tests with a virtual authenticator"
+  ],
+  "failures_and_retries": [
+    "Stock Wrangler exposed invalid Artifact Worker string exports hidden by the fixture harness; exports were moved behind a package subpath and stock smoke passed",
+    "Mounted onboarding exposed native fetch being called with a props receiver; lexical fetch binding repaired it and both browser cases passed",
+    "Native review restored the existing missing-provider failure category and rejected configuration HOME differing from execution HOME",
+    "Initial broad checks found two incorrect new fixture expectations; exact early-denial assertions were corrected and complete L07 and repository gates passed",
+    "A concurrent native run hit the existing bounded configuration-swap inspection deadline; no timeout was widened, and the complete L07 retry passed",
+    "Pilot hardening regressions and a final stock smoke passed after the process-ownership and physical-path fixes"
+  ],
+  "remaining": [
+    "Configure the dedicated GitHub OAuth client and complete real BFB sign-in, first-owner setup and physical passkey interaction",
+    "Enroll the pilot runner and project checkout through their ordinary authority flows",
+    "Certify the exact installed Claude version without merely widening its manifest; tracked MCP capability remains withheld",
+    "Prove browser Start, trusted session binding, scoped MCP context/progress, human attention, explicit result and human acceptance through the real provider",
+    "Prove cancel, same-run resume, restart and reconnect through that live chain",
+    "Run final exact L07 acceptance from a clean checkout and commit its completion manifest",
+    "Prove independently reachable HTTPS and a real second-client remote pilot"
+  ],
+  "redaction": "No credentials, private work content, local absolute paths or raw provider/terminal output are retained in this checkpoint"
+}
