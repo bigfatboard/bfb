@@ -27,8 +27,9 @@ daemon-owned authority and scoped files, not caller-selected cloud credentials.
   exact one-time consumption identity, and real R2 conditional-write handling.
 - Connect online-only run-scoped local publication through the current A01
   native/runner authority boundary with explicit same-identity recovery.
-  Freeze its separate closed protocol and artifact/audit bookkeeping contract
-  in an ADR before implementation. No A01/A03 offline journal widening.
+  Its separate closed protocol and artifact/audit bookkeeping contract are
+  frozen in [ADR 0010](../adr/0010-connected-artifact-publication.md).
+  No A01/A03 offline journal widening.
 - Artifact/version/grant upload state machine with format and role as
   separate fields (`markdown`, `mermaid`, `diff`, `svg`, `png`, `jpeg`,
   `html`, `log`, `json`; review 5 MiB, compressed log chunks 1 MiB).

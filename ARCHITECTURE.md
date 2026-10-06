@@ -524,13 +524,20 @@ Execution end closes the event-creation window after a bounded final-hook grace 
 
 Telemetry events may queue offline. Business operations do not pretend they reached Cloudflare: attention creation, task mutation, artifact finalization, and result submission either return a durable `pending_sync` operation with its originating principal/grant, idempotency key, expected resource version, capture proof, and expiry or fail visibly as offline. Replay rechecks the current credential, authorization epoch, run capability, policy, and resource version; an operation that is no longer authorized becomes a visible terminal rejection rather than being applied under stale authority. Project policy may prohibit pending-sync result/review actions entirely.
 
-The daemon-owned artifact outbox is outside the repository:
+[ADR 0010](docs/adr/0010-connected-artifact-publication.md) defines online-only local artifact publication on a separate closed v6 capability. The daemon reads one bounded immutable snapshot from the supervisor-pinned artifact directory; cloud operation identity binds the version and metadata for explicit recovery. No artifact journal or automatic replay is added. Upload-grant consumption and immutable verified-byte bookkeeping use narrowly guarded D1 batches; availability, abandonment and audit projection serialize through WorkspaceHub. Only a currently authorized explicit finalization publishes an available version.
+
+The supervisor-pinned artifact directory is outside the repository and scoped
+to an execution under private BFB state:
 
 ```text
-~/Library/Application Support/BFB/runs/<run-id>/artifacts/
+<private BFB state>/run-artifacts/<run-execution-id>/
 ```
 
-MCP publishing is preferred. The outbox watcher and `bfb artifact publish` are fallbacks. Symlinks, traversal, MIME mismatches, unsupported formats, and size violations are rejected before upload.
+MCP publishing is preferred, with credential-free bound `bfb artifact publish`
+using the same authority boundary. The directory is not an automatic upload
+queue; a watcher/durable artifact outbox remains deferred. Symlinks, traversal,
+MIME mismatches, unsupported formats, and size violations are rejected before
+upload.
 
 ## Protocols and APIs
 
