@@ -78,6 +78,18 @@ func jsonRPCCode(code string) (int, string) {
 		return -32019, "The project policy child-task limit has been reached."
 	case "work_unavailable":
 		return -32020, "The work service is temporarily unavailable."
+	case "invalid_transition":
+		return -32021, "The current state does not permit a new result submission."
+	case "request_conflict":
+		return -32022, "This operation identity is already bound to different input."
+	case "capture_invalid":
+		return -32023, "Complete current capture authority could not be verified."
+	case "intent_expired":
+		return -32024, "The original delivery window has expired."
+	case "capacity_exceeded":
+		return -32025, "Local work storage is full; unresolved outcomes were preserved."
+	case "storage_failed":
+		return -32026, "Local storage could not be verified; existing evidence was preserved."
 	default:
 		return -32603, "The local operation failed."
 	}

@@ -142,6 +142,12 @@ func (host *Host) CallTool(ctx context.Context, name string, params map[string]a
 				host.capability.Close()
 			}
 		}
+		if receipt, ok := result.(generated.AgentResultReceipt); ok && receipt.ReasonCode != nil {
+			switch *receipt.ReasonCode {
+			case "revoked", "assignment_ended", "capability_closed":
+				host.capability.Close()
+			}
+		}
 	}()
 	// Serialize the bounded connection cache and effects, including identical concurrent calls.
 	select {
@@ -169,8 +175,10 @@ func (host *Host) CallTool(ctx context.Context, name string, params map[string]a
 	_, daemonAdmission := host.transport.(agentAdmissionTransport)
 	_, daemonWrite := agentWorkActions[name]
 	daemonWrite = daemonAdmission && daemonWrite
+	_, daemonResult := host.transport.(daemonResultTransport)
+	daemonResult = daemonResult && name == "bfb_submit_result"
 	_, daemonAttention := host.transport.(daemonAttentionTransport)
-	if daemonAdmission && !daemonWrite && name != "bfb_get_context" && name != "bfb_get_task" && !(daemonAttention && attentionTool(name)) {
+	if daemonAdmission && !daemonWrite && !daemonResult && name != "bfb_get_context" && name != "bfb_get_task" && !(daemonAttention && attentionTool(name)) {
 		// Later packages cannot fall back to the unsigned provider-side journal.
 		return nil, fail("not_implemented")
 	}
@@ -229,6 +237,12 @@ func (host *Host) CallTool(ctx context.Context, name string, params map[string]a
 	host.fingerprint = fingerprint
 	host.mutex.Unlock()
 	if reused && prior.fingerprint != fingerprint {
+		if daemonResult {
+			// Result retries have their own current authority, including Submitted.
+			// The daemon checks it before its durable original-input conflict; an
+			// ordinary launch poll must not close this Host before an exact retry.
+			return host.write(ctx, name, params, rawRequestID, boundary)
+		}
 		// A cached identity conflict is scoped metadata, not an offline receipt.
 		// Recheck live authority even when daemon admission allows offline retry.
 		if err := host.capability.authorize(ctx); err != nil {
@@ -244,7 +258,7 @@ func (host *Host) CallTool(ctx context.Context, name string, params map[string]a
 		return nil, fail("request_rejected")
 	}
 	if result, ok := host.cached(rawRequestID); ok && !attentionTool(name) {
-		if daemonWrite {
+		if daemonWrite || daemonResult {
 			// The daemon revalidates current authority and the original durable
 			// identity before returning either an outcome or a fresh receipt.
 			return host.write(ctx, name, params, rawRequestID, boundary)
@@ -283,7 +297,7 @@ func (host *Host) CallTool(ctx context.Context, name string, params map[string]a
 		if err != nil {
 			return nil, err
 		}
-		if daemonWrite {
+		if daemonWrite || daemonResult {
 			// Retain input binding, never a pending receipt or private cached body.
 			host.remember(rawRequestID, nil)
 		} else {
@@ -340,6 +354,16 @@ func (host *Host) read(ctx context.Context, name string, requestID string) (any,
 }
 
 func (host *Host) write(ctx context.Context, name string, params map[string]any, requestID string, boundary Boundary) (any, error) {
+	if admission, ok := host.transport.(daemonResultTransport); ok && name == "bfb_submit_result" {
+		if _, _, err := ValidateSubmitInput(params); err != nil {
+			return nil, err
+		}
+		session, err := host.capability.resultBinding(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return admission.AdmitResult(ctx, boundary, session, params, requestID)
+	}
 	if admission, ok := host.transport.(agentAdmissionTransport); ok {
 		if _, supported := agentWorkActions[name]; !supported {
 			return nil, fail("not_implemented")

@@ -148,42 +148,21 @@ func NewServer(ctx context.Context, deps Deps) *Server {
 	if deps.Stderr == nil {
 		server.deps.Stderr = os.Stderr
 	}
-	assignment, err := deps.Assignments.Lookup(ctx, deps.Env.ExecutionID, deps.Env.Generation)
-	if err != nil {
-		server.startupErr = fail("assignment_unknown")
-		server.diagnose("startup error=assignment_unknown")
-		return server
-	}
-	if assignment.Boundary.ExecutionID != deps.Env.ExecutionID ||
-		assignment.Boundary.Generation != deps.Env.Generation ||
-		assignment.Boundary.RunID != deps.Env.RunID ||
-		assignment.Boundary.TaskID != deps.Env.TaskID ||
-		assignment.Boundary.ProjectID != deps.Env.ProjectID ||
-		assignment.Boundary.WorkspaceID != deps.Env.WorkspaceID {
-		server.startupErr = fail("assignment_unknown")
-		server.diagnose("startup error=assignment_unknown")
-		return server
-	}
-	facts, err := deps.Inspector.Inspect()
+	boundary, err := VerifyStartup(ctx, deps.Env, deps.Inspector, deps.Assignments)
 	if err != nil {
 		server.startupErr = err
 		server.diagnose("startup error=" + CodeOf(err))
 		return server
 	}
-	if err := VerifyPeer(facts, deps.Env.DaemonUID, assignment, deps.Env.Correlation); err != nil {
-		server.startupErr = err
-		server.diagnose("startup error=" + CodeOf(err))
-		return server
-	}
-	server.capability = NewCapability(assignment.Boundary, deps.Bindings, deps.Authority)
+	server.capability = NewCapability(boundary, deps.Bindings, deps.Authority)
 	server.diagnose("verified provisional")
 	principal := deps.Principal
 	if principal == "" {
-		principal = "agent_run:" + assignment.Boundary.RunID
+		principal = "agent_run:" + boundary.RunID
 	}
 	grant := deps.Grant
 	if grant == "" {
-		grant = "runner:" + assignment.Boundary.RunnerID
+		grant = "runner:" + boundary.RunnerID
 	}
 	server.host = NewHost(HostDeps{
 		Capability: server.capability,
@@ -194,6 +173,28 @@ func NewServer(ctx context.Context, deps Deps) *Server {
 		Grant:      grant,
 	})
 	return server
+}
+
+// VerifyStartup shares the read-only local peer and execution checks with the
+// one-shot CLI. It does not activate a session or invent cloud confirmation.
+func VerifyStartup(ctx context.Context, env ScopedEnv, inspector Inspector, assignments AssignmentSource) (Boundary, error) {
+	if assignments == nil || inspector == nil {
+		return Boundary{}, fail("assignment_unknown")
+	}
+	assignment, err := assignments.Lookup(ctx, env.ExecutionID, env.Generation)
+	if err != nil || assignment.Boundary.ExecutionID != env.ExecutionID || assignment.Boundary.Generation != env.Generation ||
+		assignment.Boundary.RunID != env.RunID || assignment.Boundary.TaskID != env.TaskID || assignment.Boundary.ProjectID != env.ProjectID || assignment.Boundary.WorkspaceID != env.WorkspaceID ||
+		assignment.Boundary.CheckoutID != env.CheckoutID || (env.RunnerID != "" && assignment.Boundary.RunnerID != env.RunnerID) {
+		return Boundary{}, fail("assignment_unknown")
+	}
+	facts, err := inspector.Inspect()
+	if err != nil {
+		return Boundary{}, err
+	}
+	if err := VerifyPeer(facts, env.DaemonUID, assignment, env.Correlation); err != nil {
+		return Boundary{}, err
+	}
+	return assignment.Boundary, nil
 }
 
 type wireRequest struct {

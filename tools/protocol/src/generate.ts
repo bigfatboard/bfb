@@ -17,6 +17,7 @@ import { generateSwift } from "./swift.js";
 import { generateAgentFixtures } from "./agent-fixtures.js";
 import { generateCaptureFixtures } from "./capture-fixtures.js";
 import { generateAttentionFixtures } from "./attention-fixtures.js";
+import { generateResultFixtures } from "./result-fixtures.js";
 
 export interface JsonSchema {
   $id?: string;
@@ -357,6 +358,9 @@ function goStructLines(
   const lines = ["type " + name + " struct {"];
   for (const [key, value] of Object.entries(schema.properties)) {
     let fieldType = goTypeOf(value, rootSchema, registry, key);
+    // Original result bytes distinguish omission from an explicit empty list.
+    // Earlier generated wire types remain frozen under their existing contract.
+    if (name === "AgentResultRequest" && key === "evidence_refs") fieldType = "*" + fieldType;
     if (
       !required.has(key) &&
       !fieldType.startsWith("[]") &&
@@ -653,6 +657,7 @@ export async function generateProtocol(
   await generateAgentFixtures(root);
   await generateCaptureFixtures(root);
   await generateAttentionFixtures(root);
+  await generateResultFixtures(root);
 
   // Catalog stamp for drift checks
   await writeFile(

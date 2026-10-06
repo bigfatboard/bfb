@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/agent-result-result.json",
+  "title": "AgentResultResult",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "submission_id",
+    "version",
+    "result_state",
+    "task_state",
+    "run_version",
+    "task_version",
+    "origin"
+  ],
+  "properties": {
+    "submission_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "version": {
+      "$ref": "primitives.json#/$defs/ResourceVersion"
+    },
+    "result_state": {
+      "type": "string",
+      "const": "submitted"
+    },
+    "task_state": {
+      "type": "string",
+      "const": "review"
+    },
+    "run_version": {
+      "$ref": "primitives.json#/$defs/ResourceVersion"
+    },
+    "task_version": {
+      "$ref": "primitives.json#/$defs/ResourceVersion"
+    },
+    "origin": {
+      "$ref": "agent-effect-origin.json"
+    }
+  }
+}

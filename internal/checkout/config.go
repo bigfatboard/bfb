@@ -54,7 +54,7 @@ func ParseRepositoryConfig(data []byte) (RepositoryConfig, error) {
 			return RepositoryConfig{}, failure("checkout_config_invalid")
 		}
 		root := document.Content[0]
-		if root.Kind != yaml.MappingNode || root.Tag != "!!map" || len(root.Content) > 10 {
+		if root.Kind != yaml.MappingNode || root.Tag != "!!map" || len(root.Content) > 12 {
 			return RepositoryConfig{}, failure("checkout_config_invalid")
 		}
 		nodes := 0
@@ -94,6 +94,12 @@ func ParseRepositoryConfig(data []byte) (RepositoryConfig, error) {
 					return RepositoryConfig{}, err
 				}
 				values[key.Value] = permission
+			case "offline_agent_results":
+				permission, err := parseOfflineAgentResults(value)
+				if err != nil {
+					return RepositoryConfig{}, err
+				}
+				values[key.Value] = permission
 			default:
 				return RepositoryConfig{}, failure("checkout_config_invalid")
 			}
@@ -108,6 +114,46 @@ func ParseRepositoryConfig(data []byte) (RepositoryConfig, error) {
 		return RepositoryConfig{}, failure("checkout_config_invalid")
 	}
 	return RepositoryConfig{Canonical: string(canonical), Hash: digest(string(canonical)), document: values}, nil
+}
+
+func parseOfflineAgentResults(node *yaml.Node) (map[string]any, error) {
+	if node.Kind != yaml.MappingNode || node.Tag != "!!map" || len(node.Content) != 4 {
+		return nil, failure("checkout_config_invalid")
+	}
+	permission := map[string]any{}
+	for index := 0; index < len(node.Content); index += 2 {
+		key, value := node.Content[index], node.Content[index+1]
+		if key.Kind != yaml.ScalarNode || key.Tag != "!!str" {
+			return nil, failure("checkout_config_invalid")
+		}
+		if _, duplicate := permission[key.Value]; duplicate {
+			return nil, failure("checkout_config_invalid")
+		}
+		switch key.Value {
+		case "allow_submit_result":
+			if value.Kind != yaml.ScalarNode || value.Tag != "!!bool" || (value.Value != "true" && value.Value != "false") {
+				return nil, failure("checkout_config_invalid")
+			}
+			permission[key.Value] = value.Value == "true"
+		case "max_pending_age_seconds":
+			if value.Kind != yaml.ScalarNode || (value.Tag != "!!int" && value.Tag != "!!float") {
+				return nil, failure("checkout_config_invalid")
+			}
+			var age float64
+			if value.Decode(&age) != nil || math.IsNaN(age) || math.IsInf(age, 0) || age != math.Trunc(age) || age < 0 || age > 300 {
+				return nil, failure("checkout_config_invalid")
+			}
+			permission[key.Value] = int(age)
+		default:
+			return nil, failure("checkout_config_invalid")
+		}
+	}
+	allow, hasAllow := permission["allow_submit_result"].(bool)
+	age, hasAge := permission["max_pending_age_seconds"].(int)
+	if !hasAllow || !hasAge || (!allow && age != 0) || (allow && age == 0) {
+		return nil, failure("checkout_config_invalid")
+	}
+	return permission, nil
 }
 
 func parseOfflineAgentWork(node *yaml.Node) (map[string]any, error) {

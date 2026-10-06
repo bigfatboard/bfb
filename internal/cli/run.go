@@ -1,5 +1,5 @@
-// ABOUTME: Validates the reserved run-scoped result submission surface without admitting business work.
-// ABOUTME: Returns a bounded unsupported outcome without opening assignment or agent journal storage.
+// ABOUTME: Submits bounded run results through the daemon-owned protected v5 lane.
+// ABOUTME: Verifies local execution facts read-only and prints one safe result or receipt without opening the journal.
 
 package cli
 
@@ -12,6 +12,7 @@ import (
 
 	"github.com/qdis/bfb/internal/daemon"
 	"github.com/qdis/bfb/internal/localmcp"
+	"github.com/qdis/bfb/internal/protocol/generated"
 )
 
 // RegisterRun registers the run-scoped agent commands. Only `run submit`
@@ -21,7 +22,7 @@ func RegisterRun(registry *Registry) {
 	if err := registry.Register(Command{
 		Path:     "run submit",
 		Method:   "run.submit",
-		Summary:  "Validate result input; submission is not implemented",
+		Summary:  "Submit a protected run result for human review",
 		RawStdio: true,
 		Run: func(ctx context.Context, invocation Invocation) (map[string]any, error) {
 			return nil, runSubmitStdio(ctx, invocation)
@@ -31,16 +32,15 @@ func RegisterRun(registry *Registry) {
 	}
 }
 
-// runSubmitStdio owns standard output like the MCP server does: the frozen
-// local-rpc envelope has no result-receipt shape, so this command prints
-// exactly one JSON line carrying the bounded outcome. The returned error
+// runSubmitStdio owns standard output like the MCP server does. It prints
+// exactly one JSON line carrying the closed result or receipt. The returned error
 // only sets the exit status; the precise code is always in the JSON line.
-func runSubmitStdio(_ context.Context, invocation Invocation) error {
+func runSubmitStdio(ctx context.Context, invocation Invocation) error {
 	output := invocation.Output
 	if output == nil {
 		output = os.Stdout
 	}
-	writeLine := func(value map[string]any) {
+	writeLine := func(value any) {
 		data, err := json.Marshal(value)
 		if err != nil {
 			return
@@ -52,7 +52,7 @@ func runSubmitStdio(_ context.Context, invocation Invocation) error {
 		writeLine(map[string]any{"error": map[string]any{"code": "invalid_request"}})
 		return err
 	}
-	_, err = localmcp.ParseEnv(os.Environ(), os.Getuid())
+	env, err := localmcp.ParseEnv(os.Environ(), os.Getuid())
 	if err != nil {
 		writeLine(map[string]any{"error": map[string]any{"code": "invalid_request"}})
 		return &daemon.Failure{Code: "invalid_request"}
@@ -72,10 +72,30 @@ func runSubmitStdio(_ context.Context, invocation Invocation) error {
 		writeLine(map[string]any{"error": map[string]any{"code": "invalid_request"}})
 		return &daemon.Failure{Code: "invalid_request"}
 	}
-	// A03 is held. This reserved command cannot write unsigned result rows or
-	// open the daemon-owned A01 journal, even for a syntactically valid caller.
-	writeLine(map[string]any{"error": map[string]any{"code": "not_implemented"}})
-	return &daemon.Failure{Code: "not_implemented"}
+	assignmentsDB := openAssignmentsReadOnly(invocation)
+	if assignmentsDB != nil {
+		defer assignmentsDB.Close()
+	}
+	boundary, err := localmcp.VerifyStartup(ctx, env, localmcp.OSInspector(), localmcp.DaemonAssignments{DB: assignmentsDB})
+	if err != nil {
+		code := localmcp.CodeOf(err)
+		writeLine(map[string]any{"error": map[string]any{"code": code}})
+		return &daemon.Failure{Code: code}
+	}
+	// A one-shot CLI has no MCP activation state. Only the daemon may derive an
+	// existing live canonical binding, or verify a retained signed retry intent.
+	transport := localmcp.RPCTransport{Paths: invocation.Paths, Correlation: env.Correlation}
+	result, err := transport.AdmitResult(ctx, boundary, nil, params, requestID)
+	if err != nil {
+		code := localmcp.CodeOf(err)
+		writeLine(map[string]any{"error": map[string]any{"code": code}})
+		return &daemon.Failure{Code: code}
+	}
+	writeLine(result)
+	if receipt, ok := result.(generated.AgentResultReceipt); ok && receipt.ReasonCode != nil {
+		return &daemon.Failure{Code: *receipt.ReasonCode}
+	}
+	return nil
 }
 
 func parseSubmitArgs(args []string) (map[string]any, string, error) {
@@ -118,6 +138,7 @@ func parseSubmitArgs(args []string) (map[string]any, string, error) {
 			if name == "evidence-refs-json" {
 				hasRefsJSON = true
 				refsJSON = value
+				values[name] = value
 				continue
 			}
 			values[name] = value
@@ -136,7 +157,7 @@ func parseSubmitArgs(args []string) (map[string]any, string, error) {
 		return nil, "", &daemon.Failure{Code: "invalid_request"}
 	}
 	params := map[string]any{"summary": summary, "request_id": requestID}
-	if limitations, ok := values["limitations"]; ok && strings.TrimSpace(limitations) != "" {
+	if limitations, ok := values["limitations"]; ok {
 		params["limitations"] = limitations
 	}
 	if hasRefsJSON {

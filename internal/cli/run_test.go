@@ -1,5 +1,5 @@
-// ABOUTME: Proves reserved run result submission validates inputs but never touches the agent journal.
-// ABOUTME: Uses synthetic identities and retained-history checks without network or daemon execution.
+// ABOUTME: Proves protected run result submission checks local identity and never opens the journal.
+// ABOUTME: Uses synthetic scope, actual peer inspection and bounded v5 socket responses.
 
 package cli
 
@@ -13,17 +13,19 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/qdis/bfb/internal/localmcp"
+
 	_ "modernc.org/sqlite"
 )
 
 const (
-	testWorkspace = "01SYNTHETICWS00000000000001"
-	testProject   = "01SYNTHETICPR00000000000001"
-	testTask      = "01SYNTHETICTA00000000000001"
-	testRun       = "01SYNTHETICRU00000000000001"
-	testExecution = "01SYNTHETICEX00000000000001"
-	testCheckout  = "01SYNTHETICCO00000000000001"
-	testRunner    = "01SYNTHETICRN00000000000001"
+	testWorkspace = "01K6R7DT00AAAAAAAAAAAAAAAA"
+	testProject   = "01K6R7DT00BBBBBBBBBBBBBBBB"
+	testTask      = "01K6R7DT00CCCCCCCCCCCCCCCC"
+	testRun       = "01K6R7DT00DDDDDDDDDDDDDDDD"
+	testExecution = "01K6R7DT00EEEEEEEEEEEEEEEE"
+	testCheckout  = "01K6R7DT00FFFFFFFFFFFFFFFF"
+	testRunner    = "01K6R7DT00GGGGGGGGGGGGGGGG"
 	testToken     = "synthetic-cli-correlation-001"
 )
 
@@ -83,6 +85,14 @@ VALUES (?, 7, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		testExecution, state, token, testWorkspace, testProject, testTask, testRun, testRunner, testCheckout); err != nil {
 		t.Fatal(err)
 	}
+	facts, err := localmcp.OSInspector().Inspect()
+	if err != nil {
+		t.Fatal(err)
+	}
+	supervisor, _ := json.Marshal(map[string]any{"process": map[string]any{"pid": facts.PID, "start_identity": facts.StartIdentity}})
+	if _, err := db.Exec(`UPDATE local_execution_assignments SET supervisor_json = ?`, string(supervisor)); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func submitArgs() []string {
@@ -134,21 +144,21 @@ func assertNoSubmitJournal(t *testing.T, dataDir string) {
 	}
 }
 
-func TestRunSubmitUnsupportedDoesNotCreateStorage(t *testing.T) {
+func TestRunSubmitMissingAssignmentDoesNotCreateStorage(t *testing.T) {
 	submitEnv(t, nil)
 	dataDir := shortDataDir(t)
 	code, output := executeRun(t, dataDir, submitArgs())
-	if code != 4 {
-		t.Fatalf("reserved submit did not return unsupported: %d %s", code, output)
+	if code != 3 {
+		t.Fatalf("missing assignment did not fail closed: %d %s", code, output)
 	}
-	if output != "{\"error\":{\"code\":\"not_implemented\"}}\n" {
+	if output != "{\"error\":{\"code\":\"assignment_unknown\"}}\n" {
 		t.Fatalf("unsupported outcome is not bounded: %s", output)
 	}
 	if strings.Contains(output, "Synthetic CLI result") || strings.Contains(output, testToken) {
 		t.Fatalf("receipt leaks submission material: %s", output)
 	}
 	again, repeated := executeRun(t, dataDir, submitArgs())
-	if again != 4 || repeated != output {
+	if again != 3 || repeated != output {
 		t.Fatalf("repeat changed unsupported result: %d %s", again, repeated)
 	}
 	assertNoSubmitJournal(t, dataDir)
@@ -157,7 +167,7 @@ func TestRunSubmitUnsupportedDoesNotCreateStorage(t *testing.T) {
 	}
 }
 
-func TestRunSubmitUnsupportedPreservesExistingJournal(t *testing.T) {
+func TestRunSubmitMissingAssignmentPreservesExistingJournal(t *testing.T) {
 	submitEnv(t, nil)
 	dataDir := shortDataDir(t)
 	for _, suffix := range []string{"", ".identity", ".lock", "-wal", "-shm", "-journal"} {
@@ -168,7 +178,7 @@ func TestRunSubmitUnsupportedPreservesExistingJournal(t *testing.T) {
 		}
 	}
 	code, output := executeRun(t, dataDir, submitArgs())
-	if code != 4 || output != "{\"error\":{\"code\":\"not_implemented\"}}\n" {
+	if code != 3 || output != "{\"error\":{\"code\":\"assignment_unknown\"}}\n" {
 		t.Fatal("legacy storage influenced unsupported result", code, output)
 	}
 	for _, suffix := range []string{"", ".identity", ".lock", "-wal", "-shm", "-journal"} {
@@ -190,9 +200,9 @@ func TestRunSubmitRejectsUntrustedInput(t *testing.T) {
 		code  string
 	}{
 		{"unknown assignment", "running", testToken, nil,
-			[]string{"run", "submit", "--summary", "x", "--request-id", "cli-neg-001"}, "not_implemented"},
-		{"wrong correlation", "running", "another-correlation", nil, submitArgs(), "not_implemented"},
-		{"ended assignment", "ended", testToken, nil, submitArgs(), "not_implemented"},
+			[]string{"run", "submit", "--summary", "x", "--request-id", "cli-neg-001"}, "assignment_unknown"},
+		{"wrong correlation", "running", "another-correlation", nil, submitArgs(), "correlation_rejected"},
+		{"ended assignment", "ended", testToken, nil, submitArgs(), "assignment_ended"},
 		{"missing environment boundary", "running", testToken, map[string]string{"BFB_RUN_ID": ""}, submitArgs(), "invalid_request"},
 		{"invalid environment generation", "running", testToken, map[string]string{"BFB_ASSIGNMENT_GENERATION": "0"}, submitArgs(), "invalid_request"},
 		{"missing summary", "running", testToken, nil,

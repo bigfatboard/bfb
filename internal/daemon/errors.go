@@ -96,6 +96,11 @@ var failures = map[string]struct {
 	"not_found":                      {"unavailable", "The record is not visible to this run.", 4},
 	"request_rejected":               {"schema_invalid", "The agent request or response exceeds its contract.", 2},
 	"offline_rejected":               {"unavailable", "Work delivery is unavailable; no cloud success is confirmed.", 4},
+	"work_unavailable":               {"unavailable", "Work delivery is unavailable; existing outcome uncertainty was preserved.", 4},
+	"capture_unavailable":            {"unavailable", "No live result confirmation can admit a new intent.", 4},
+	"invalid_transition":             {"conflict", "The current state does not permit a new result submission.", 6},
+	"legacy_capture_unverifiable":    {"authorization_denied", "Historical local evidence cannot authorize result delivery.", 3},
+	"storage_corrupt":                {"operation_failed", "Local evidence is corrupt; outcome uncertainty was preserved.", 5},
 }
 
 func (f *Failure) Error() string { return f.Diagnostic().Message }

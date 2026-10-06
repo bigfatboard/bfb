@@ -1,8 +1,53 @@
 {
   "protocol": "bfb-wire/1",
   "schema_version": 1,
-  "schema_hash": "69b13715f850870f47470180b1110b11a6fc078716a1586d5d7fb3feb432fbb4",
+  "schema_hash": "c0692208c2f3ae4be70d31bf842cf67b19f754341fc45d147c8c28a2b5d9654f",
   "documents": [
+    {
+      "name": "agent-result-request",
+      "schema": "agent-result-request.json",
+      "schema_version": 1
+    },
+    {
+      "name": "agent-result-local-request",
+      "schema": "agent-result-local-request.json",
+      "schema_version": 1
+    },
+    {
+      "name": "agent-result-result",
+      "schema": "agent-result-result.json",
+      "schema_version": 1
+    },
+    {
+      "name": "agent-result-confirmation-request",
+      "schema": "agent-result-confirmation-request.json",
+      "schema_version": 1
+    },
+    {
+      "name": "agent-result-confirmation-result",
+      "schema": "agent-result-confirmation-result.json",
+      "schema_version": 1
+    },
+    {
+      "name": "agent-result-capture",
+      "schema": "agent-result-capture.json",
+      "schema_version": 1
+    },
+    {
+      "name": "agent-result-replay-request",
+      "schema": "agent-result-replay-request.json",
+      "schema_version": 1
+    },
+    {
+      "name": "agent-result-receipt",
+      "schema": "agent-result-receipt.json",
+      "schema_version": 1
+    },
+    {
+      "name": "local-agent-result-rpc",
+      "schema": "local-agent-result-rpc.json",
+      "schema_version": 5
+    },
     {
       "name": "agent-attention-request",
       "schema": "agent-attention-request.json",

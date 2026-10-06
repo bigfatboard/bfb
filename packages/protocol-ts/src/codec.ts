@@ -657,13 +657,15 @@ function categorize(
 
   if (data && data.schema_version !== undefined) {
     const expectedVersion =
-      document === "local-agent-attention-rpc"
-        ? 4
-        : document === "local-agent-work-rpc"
-          ? 3
-          : document === "local-agent-rpc"
-            ? 2
-            : 1;
+      document === "local-agent-result-rpc"
+        ? 5
+        : document === "local-agent-attention-rpc"
+          ? 4
+          : document === "local-agent-work-rpc"
+            ? 3
+            : document === "local-agent-rpc"
+              ? 2
+              : 1;
     if (rootVersion?.integer !== undefined && rootVersion.integer !== String(expectedVersion)) {
       return {
         schema_version: 1,
@@ -964,6 +966,15 @@ function stableStringify(value: unknown, escapeSeparators = true): string {
 }
 
 const captureByteLimits: Partial<Record<WireDocumentName, number>> = {
+  "agent-result-request": 32_768,
+  "agent-result-local-request": 49_152,
+  "agent-result-result": 16_384,
+  "agent-result-confirmation-request": 2_048,
+  "agent-result-confirmation-result": 4_096,
+  "agent-result-capture": 8_192,
+  "agent-result-replay-request": 49_152,
+  "agent-result-receipt": 2_048,
+  "local-agent-result-rpc": 65_536,
   "agent-capture-confirmation-request": 2_048,
   "agent-capture-confirmation-result": 4_096,
   "agent-work-capture": 8_192,
@@ -993,10 +1004,10 @@ function captureDocumentBound(
   const bounded = (item: unknown, maximum: number) =>
     encoder.encode(stableStringify(item)).byteLength <= maximum;
   const root = value as Record<string, unknown>;
-  const captureBounded = (capture: unknown): boolean => {
+  const captureBounded = (capture: unknown, domain = "BFB-AGENT-WORK-CAPTURE-V1"): boolean => {
     const record = capture as Record<string, unknown>;
     const { signature: _signature, ...unsigned } = record;
-    const transcript = "BFB-AGENT-WORK-CAPTURE-V1\n" + stableStringify(unsigned) + "\n";
+    const transcript = domain + "\n" + stableStringify(unsigned) + "\n";
     return (
       bounded(record, 8_192) &&
       bounded(record.confirmation, 4_096) &&
@@ -1004,6 +1015,21 @@ function captureDocumentBound(
     );
   };
   let valid = encoder.encode(json).byteLength <= wireByteLimit(document);
+  if (document === "agent-result-local-request") valid &&= bounded(root.request, 32_768);
+  if (document === "agent-result-capture")
+    valid &&= captureBounded(root, "BFB-AGENT-RESULT-CAPTURE-V1");
+  if (document === "agent-result-replay-request")
+    valid &&=
+      captureBounded(root.capture, "BFB-AGENT-RESULT-CAPTURE-V1") &&
+      bounded(root.original_request, 32_768);
+  if (document === "local-agent-result-rpc") {
+    valid &&= encoder.encode(json).byteLength + 1 <= 65_536;
+    const payload = root.payload as Record<string, unknown> | undefined;
+    if (payload?.agent_result_receipt) valid &&= bounded(payload.agent_result_receipt, 2_048);
+    if (payload?.agent_result) valid &&= bounded(payload.agent_result, 16_384);
+    const local = payload?.agent_result_request as Record<string, unknown> | undefined;
+    if (local) valid &&= bounded(local, 49_152) && bounded(local.request, 32_768);
+  }
   if (document === "agent-work-capture") valid &&= captureBounded(root);
   if (document === "agent-work-replay-request") {
     valid &&= captureBounded(root.capture) && bounded(root.original_request, 16_384);
@@ -1250,6 +1276,7 @@ export function encodeNamedWireDocument(document: WireDocumentName, value: unkno
 }
 
 const originalAgentWriteDocuments = {
+  "result.submit": "agent-result-request",
   "agent_run.comment": "agent-comment-request",
   "agent_run.update": "agent-update-request",
   "agent_run.progress": "agent-progress-request",
@@ -1261,11 +1288,12 @@ export function canonicalAgentWriteRequest(commandName: string, input: Uint8Arra
   const document =
     originalAgentWriteDocuments[commandName as keyof typeof originalAgentWriteDocuments];
   if (!document) throw new Error("unknown agent write command");
-  if (input.byteLength > 16_384) throw new Error("agent write exceeds the byte bound");
+  const maximum = commandName === "result.submit" ? 32_768 : 16_384;
+  if (input.byteLength > maximum) throw new Error("agent write exceeds the byte bound");
   const result = decodeWireDocument(document, input);
   if (!result.ok) throw new Error(result.error.message);
   const json = stableStringify(result.value, false);
-  if (new TextEncoder().encode(json).byteLength > 16_384)
+  if (new TextEncoder().encode(json).byteLength > maximum)
     throw new Error("agent write exceeds the byte bound");
   return json;
 }

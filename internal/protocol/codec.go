@@ -566,6 +566,9 @@ func preflightDiagnostic(document string, object map[string]any) *generated.Type
 		if document == "local-agent-attention-rpc" {
 			expectedVersion = "4"
 		}
+		if document == "local-agent-result-rpc" {
+			expectedVersion = "5"
+		}
 		if number, ok := rawVersion.(json.Number); ok {
 			inspection := inspectNumber(number.String())
 			if inspection.integer != nil && *inspection.integer != expectedVersion {

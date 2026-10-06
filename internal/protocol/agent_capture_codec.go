@@ -9,6 +9,15 @@ import (
 )
 
 var captureByteLimits = map[string]int{
+	"agent-result-request":               32768,
+	"agent-result-local-request":         49152,
+	"agent-result-result":                16384,
+	"agent-result-confirmation-request":  2048,
+	"agent-result-confirmation-result":   4096,
+	"agent-result-capture":               8192,
+	"agent-result-replay-request":        49152,
+	"agent-result-receipt":               2048,
+	"local-agent-result-rpc":             65536,
 	"agent-capture-confirmation-request": 2048,
 	"agent-capture-confirmation-result":  4096,
 	"agent-work-capture":                 8192,
@@ -39,7 +48,7 @@ func captureDocumentBound(document string, root map[string]any, encoded string) 
 		canonical, err := stableJSON(value)
 		return err == nil && len(canonical) <= maximum
 	}
-	captureBounded := func(value any) bool {
+	captureBounded := func(value any, domain string) bool {
 		capture, ok := value.(map[string]any)
 		if !ok {
 			return false
@@ -52,12 +61,32 @@ func captureDocumentBound(document string, root map[string]any, encoded string) 
 		}
 		canonical, err := stableJSON(unsigned)
 		return err == nil && bounded(capture, 8192) && bounded(capture["confirmation"], 4096) &&
-			len("BFB-AGENT-WORK-CAPTURE-V1\n"+canonical+"\n") <= 8192
+			len(domain+"\n"+canonical+"\n") <= 8192
 	}
 	if len(encoded) > wireByteLimit(document) {
 		return false
 	}
 	switch document {
+	case "agent-result-local-request":
+		return bounded(root["request"], 32768)
+	case "agent-result-capture":
+		return captureBounded(root, "BFB-AGENT-RESULT-CAPTURE-V1")
+	case "agent-result-replay-request":
+		return captureBounded(root["capture"], "BFB-AGENT-RESULT-CAPTURE-V1") && bounded(root["original_request"], 32768)
+	case "local-agent-result-rpc":
+		if len(encoded)+1 > 65536 {
+			return false
+		}
+		payload, _ := root["payload"].(map[string]any)
+		if receipt, ok := payload["agent_result_receipt"]; ok && !bounded(receipt, 2048) {
+			return false
+		}
+		if result, ok := payload["agent_result"]; ok && !bounded(result, 16384) {
+			return false
+		}
+		if local, ok := payload["agent_result_request"].(map[string]any); ok && (!bounded(local, 49152) || !bounded(local["request"], 32768)) {
+			return false
+		}
 	case "agent-attention-local-request", "agent-attention-read-local-request":
 		return bounded(root["request"], 16384)
 	case "local-agent-attention-rpc":
@@ -74,9 +103,9 @@ func captureDocumentBound(document string, root map[string]any, encoded string) 
 			}
 		}
 	case "agent-work-capture":
-		return captureBounded(root)
+		return captureBounded(root, "BFB-AGENT-WORK-CAPTURE-V1")
 	case "agent-work-replay-request":
-		return captureBounded(root["capture"]) && bounded(root["original_request"], 16384)
+		return captureBounded(root["capture"], "BFB-AGENT-WORK-CAPTURE-V1") && bounded(root["original_request"], 16384)
 	case "local-agent-work-rpc":
 		if len(encoded)+1 > 65536 {
 			return false
@@ -98,6 +127,7 @@ func captureDocumentBound(document string, root map[string]any, encoded string) 
 }
 
 var originalAgentWriteDocuments = map[string]string{
+	"result.submit":      "agent-result-request",
 	"agent_run.comment":  "agent-comment-request",
 	"agent_run.update":   "agent-update-request",
 	"agent_run.progress": "agent-progress-request",
@@ -111,7 +141,11 @@ func CanonicalAgentWriteRequest(commandName string, input []byte) (string, error
 	if !ok {
 		return "", fmt.Errorf("unknown agent write command")
 	}
-	if len(input) > 16384 {
+	maximum := 16384
+	if commandName == "result.submit" {
+		maximum = 32768
+	}
+	if len(input) > maximum {
 		return "", fmt.Errorf("agent write exceeds the byte bound")
 	}
 	decoded := DecodeWireDocument(document, input)
@@ -119,7 +153,7 @@ func CanonicalAgentWriteRequest(commandName string, input []byte) (string, error
 		return "", fmt.Errorf("agent write: %s", decoded.Error.Code)
 	}
 	canonical := literalJSONSeparators(decoded.JSON)
-	if len(canonical) > 16384 {
+	if len(canonical) > maximum {
 		return "", fmt.Errorf("agent write exceeds the byte bound")
 	}
 	return canonical, nil

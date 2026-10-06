@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/local-agent-result-rpc.json",
+  "title": "LocalAgentResultRpcEnvelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "request_id", "method", "direction"],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 5
+    },
+    "request_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "method": {
+      "type": "string",
+      "const": "mcp.v5.submit_result"
+    },
+    "direction": {
+      "type": "string",
+      "enum": ["request", "response"]
+    },
+    "error": {
+      "$ref": "primitives.json#/$defs/TypedError"
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 1,
+      "properties": {
+        "agent_result_request": {
+          "$ref": "agent-result-local-request.json"
+        },
+        "agent_result": {
+          "$ref": "agent-result-result.json"
+        },
+        "agent_result_receipt": {
+          "$ref": "agent-result-receipt.json"
+        }
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "type": "object",
+      "required": ["payload"],
+      "properties": {
+        "direction": {
+          "const": "request"
+        },
+        "payload": {
+          "type": "object",
+          "required": ["agent_result_request"],
+          "properties": { "agent_result_request": {} }
+        }
+      },
+      "not": {
+        "required": ["error"],
+        "type": "object",
+        "properties": { "error": {} }
+      }
+    },
+    {
+      "type": "object",
+      "required": ["payload"],
+      "properties": {
+        "direction": {
+          "const": "response"
+        },
+        "payload": {
+          "type": "object",
+          "required": ["agent_result"],
+          "properties": { "agent_result": {} }
+        }
+      },
+      "not": {
+        "required": ["error"],
+        "type": "object",
+        "properties": { "error": {} }
+      }
+    },
+    {
+      "type": "object",
+      "required": ["payload"],
+      "properties": {
+        "direction": {
+          "const": "response"
+        },
+        "payload": {
+          "type": "object",
+          "required": ["agent_result_receipt"],
+          "properties": { "agent_result_receipt": {} }
+        }
+      },
+      "not": {
+        "required": ["error"],
+        "type": "object",
+        "properties": { "error": {} }
+      }
+    },
+    {
+      "type": "object",
+      "required": ["error"],
+      "properties": {
+        "error": {},
+        "direction": {
+          "const": "response"
+        }
+      },
+      "not": {
+        "required": ["payload"],
+        "type": "object",
+        "properties": { "payload": {} }
+      }
+    }
+  ]
+}

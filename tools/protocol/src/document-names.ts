@@ -14,6 +14,61 @@ export const SCHEMA_VERSION = 1;
 
 export const DOCUMENTS: DocumentSpec[] = [
   {
+    name: "agent-result-request",
+    schemaFile: "agent-result-request.json",
+    goType: "AgentResultRequest",
+    tsType: "AgentResultRequest",
+  },
+  {
+    name: "agent-result-local-request",
+    schemaFile: "agent-result-local-request.json",
+    goType: "AgentResultLocalRequest",
+    tsType: "AgentResultLocalRequest",
+  },
+  {
+    name: "agent-result-result",
+    schemaFile: "agent-result-result.json",
+    goType: "AgentResultResult",
+    tsType: "AgentResultResult",
+  },
+  {
+    name: "agent-result-confirmation-request",
+    schemaFile: "agent-result-confirmation-request.json",
+    goType: "AgentResultConfirmationRequest",
+    tsType: "AgentResultConfirmationRequest",
+  },
+  {
+    name: "agent-result-confirmation-result",
+    schemaFile: "agent-result-confirmation-result.json",
+    goType: "AgentResultConfirmationResult",
+    tsType: "AgentResultConfirmationResult",
+  },
+  {
+    name: "agent-result-capture",
+    schemaFile: "agent-result-capture.json",
+    goType: "AgentResultCapture",
+    tsType: "AgentResultCapture",
+  },
+  {
+    name: "agent-result-replay-request",
+    schemaFile: "agent-result-replay-request.json",
+    goType: "AgentResultReplayRequest",
+    tsType: "AgentResultReplayRequest",
+  },
+  {
+    name: "agent-result-receipt",
+    schemaFile: "agent-result-receipt.json",
+    goType: "AgentResultReceipt",
+    tsType: "AgentResultReceipt",
+  },
+  {
+    name: "local-agent-result-rpc",
+    schemaFile: "local-agent-result-rpc.json",
+    goType: "LocalAgentResultRpcEnvelope",
+    tsType: "LocalAgentResultRpcEnvelope",
+    schemaVersion: 5,
+  },
+  {
     name: "agent-attention-request",
     schemaFile: "agent-attention-request.json",
     goType: "AgentAttentionRequest",
