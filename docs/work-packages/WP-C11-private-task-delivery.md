@@ -77,5 +77,9 @@ Coordinate shared contracts without changing the other lane's execution work.
 ## Handoff
 
 In progress. Contracts and exact target are assigned; private creation remains
-unavailable. No full delivery certificate or deployment exists yet. Downstream
-C12 remains planned until all stages pass from one clean committed checkout.
+unavailable. Stage 1 is clean-certified at `02dffa6`: 121 focused cases, nine
+real-D1 checks, C10/C08/X03 regressions and full repository/platform verification
+pass. Its manifest explicitly excludes complete package acceptance. Child/artifact
+delivery, metadata/realtime and creation/sharing/internal-progress controls are
+next. No full delivery certificate or deployment exists. Downstream C12 remains
+planned until all stages pass from one clean committed checkout.

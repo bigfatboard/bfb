@@ -1,0 +1,94 @@
+{
+  "package": "C11",
+  "recorded_on": "2026-10-06",
+  "tested_commit": "02dffa68354ae3897a93bc5a77d08267784156d8",
+  "outcome": "passed",
+  "stage": "human_task_surfaces",
+  "package_acceptance_complete": false,
+  "private_creation_available": false,
+  "scope": "Stage 1 human/board/delegated task selection and work-command retry authority; not complete private delivery",
+  "migration_head": "0045_private_task_authority",
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56)",
+    "architecture": "arm64",
+    "runtime": "Independent synthetic command proxies to production Hub and disposable real D1; separate mounted browser-cookie and MCP authority suites"
+  },
+  "clean_commands": [
+    { "command": "pnpm install --frozen-lockfile", "exit_code": 0 },
+    {
+      "command": "pnpm test:c11",
+      "exit_code": 0,
+      "c10_cases": 86,
+      "c10_files": 8,
+      "c10_d1_checks": 9,
+      "c08_cases": 23,
+      "c08_files": 5,
+      "c08_proof": "C08_D1_OK",
+      "stage_cases": 121,
+      "stage_files": 6,
+      "dedicated_domain_cases": 21,
+      "dedicated_transition_cases": 4,
+      "mounted_browser_cases": 42,
+      "mounted_mcp_cases": 35,
+      "stage_d1_checks": 9,
+      "ordered_migrations": 40,
+      "proof": "C11_TASK_D1_OK"
+    },
+    {
+      "command": "pnpm test:x03",
+      "exit_code": 0,
+      "cases": 71,
+      "files": 7,
+      "worker_d1_r2_checks": 11,
+      "browser_cases": 2,
+      "proof": "X03_D1_OK"
+    },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 3089,
+      "typescript_files": 153,
+      "go": "passed",
+      "go_scheduling": "GOFLAGS=-p=1",
+      "swift": "passed",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    { "command": "pnpm worktree:check", "exit_code": 0, "before_and_after_verify": true }
+  ],
+  "failing_first": {
+    "initial_delivery_failures": 17,
+    "initial_delivery_cases": 18,
+    "unsupported_private_intent_failures": 10,
+    "unsupported_private_intent_file_cases": 35,
+    "meaning": "Current-authority delivery fails before implementation; SDK stripping demonstrably inserts shared task/comment rows from unsupported private arguments before strict schemas"
+  },
+  "intermediate_repairs": [
+    "Five historical migration fixture paths fail on missing pre0045 authority tables; unscoped historical reader receives before/after catalog checks, while explicit human reads never fall back",
+    "D1 missing-row null is normalized to the documented task-helper undefined result",
+    "Repeated board task filters exceed D1 bound-parameter limits; one visible-task CTE and 49-card D1 regression replace them",
+    "Cached child and task-bound root references are re-projected against current parent access and credential boundaries",
+    "Credential-bound epoch and active delegation are checked during actual task selection",
+    "A first clean stage checkpoint passes before final SDK private-intent review; final source includes strict schemas and repeats exact targets and full verification"
+  ],
+  "runtime_checks": [
+    "creation_stays_shared_private_policy_is_fixture_only",
+    "read_query_creator_only_no_owner_or_unscoped_bypass",
+    "task_board_and_deck_filter_before_pagination",
+    "read_grant_does_not_authorize_contribution",
+    "cross_isolate_idempotency_binds_exact_input_and_one_effect",
+    "work_receipts_exclude_private_titles_prose_and_context",
+    "revocation_fences_cross_isolate_cached_comment_and_context",
+    "private_parent_children_remain_unavailable",
+    "full_board_page_stays_within_d1_parameter_limit"
+  ],
+  "not_claimed": [
+    "Complete C11 acceptance, private creation/sharing/internal-progress commands or UI, C12 selected-content publication",
+    "Child-record/result/attention/measurement/artifact-byte/local-agent/pending-replay private authority",
+    "Opaque realtime positions, diagnostic/security-audit/notification/integration private enforcement",
+    "Cloud project knowledge, catalogs, vault values, contribution UI or theme redesign",
+    "Provider execution, remote start, discussions, pilot changes, deployment or external CI"
+  ],
+  "redaction": "Bounded synthetic counts, proof labels, source identity and limits only; no credentials, private bodies, raw output or local paths"
+}

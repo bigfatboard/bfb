@@ -20,7 +20,11 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
   dormant-only scope. C11 is in progress: its first delivery stage fences human
   task/board/deck reads and delegated MCP, action-specific work commands and
   cached replies. Child/artifact delivery, metadata/realtime, sharing controls
-  and the complete certificate remain open. C12 remains planned; private
+  and the complete certificate remain open. The [stage-1 checkpoint](docs/work-packages/evidence/WP-C11/manifest.json)
+  is clean-certified at `02dffa6`: 121 focused cases, nine real-D1 checks,
+  C10/C08/X03 regressions and full verification (3,089 TypeScript cases,
+  Go and 16 Swift cases). Unsupported private arguments reject rather than
+  becoming shared MCP writes. C12 remains planned; private
   creation is unavailable until cross-surface delivery enforcement passes.
 
 - The [launch-selection checkpoint](docs/work-packages/evidence/WP-L07/launch-selection-checkpoint.json)
@@ -136,13 +140,17 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 - The product lane certifies V03 at `c20648a`: [current review certificate](docs/work-packages/evidence/WP-V03/runtime-manifest.json), clean exact acceptance (62 focused cases, 14 real-D1 checks and nine browser scenarios), V02 regression, full verification (2,908 TypeScript cases, Go and 16 Swift cases) and clean-worktree checks pass. Review retries recheck current authority and exact input, audit receipts exclude private notes, and compiled review controls load isolated bytes and wrap at narrow widths. Historical evidence and pilot flags remain unchanged; mandatory product additions are still open.
 - The product lane certifies X03 at `edac71e`: [current delegated MCP certificate](docs/work-packages/evidence/WP-X03/runtime-manifest.json), clean exact acceptance (71 focused cases, 11 real-Worker/D1/R2 checks and both OAuth browser scenarios), full verification (2,923 TypeScript cases, Go and 16 Swift cases) and clean-worktree checks pass. Current authority fences cached private replies; changed retries reject, receipts exclude private text, and submitted-run review questions match A02. Canonical history and historical evidence stay intact; legacy cache replies lacking fingerprints fail closed. No scope, provider, pilot or deployed state changed. The product plan now tracks all eight mandatory gaps separately from these foundations.
 
-Next sequence: close L07's real Claude private pilot, then P01 Codex parity,
+Other lane's sequence: close L07's real Claude private pilot, then P01 Codex parity,
 D02 production scheduling/supervised turns and D03's browser-to-provider flow.
 The held viewer/review surfaces stay server-disabled until separately certified.
 Keep the existing package dependency gates and fail-closed behavior. Bounded
 BFB-owned live integration is authorized by Timo's pilot approval, not by the
 synthetic certificates; actual macOS consent and session availability still
 require preflight and may need Timo's interaction.
+
+This product-only lane continues C11's remaining delivery/activation stages,
+then C12 and the mandatory product ledger. It does not operate that launch or
+agent-discussion sequence, the menu app or the persistent pilot.
 
 Current upstream comparison: [Agent-to-agent research](docs/research/agent-to-agent.md). Provider-native messaging is a delivery capability, not a replacement for BFB's permissions, turn identities or recovery decisions.
 

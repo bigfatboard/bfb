@@ -125,5 +125,9 @@ manifests; current runtime proof must have its own explicit scope.
   unchanged by migration `0045_private_task_authority`. Private policies/grants
   are dormant until C11's complete delivery gate passes. C11 is in progress:
   stage 1 fences human task/board/deck and delegated task reads, work actions
-  and cached responses. Child/artifact delivery, metadata/realtime, private
+  and cached responses. Its [checkpoint](work-packages/evidence/WP-C11/manifest.json)
+  is clean-certified at `02dffa6`: 121 focused cases, nine real-D1 checks and
+  retained C10/C08/X03 regressions; full verification passes 3,089 TypeScript
+  cases, Go and 16 Swift cases. Strict task-tool schemas reject unsupported
+  private intent without shared insertion. Child/artifact delivery, metadata/realtime, private
   creation/sharing and the full certificate remain open. C12 remains planned.

@@ -12,8 +12,8 @@ policies; these inserts are not a product command or deployment instruction.
 
 1. Fence human/delegated task reads, board/deck pagination and the shared work
    commands, including cached outcomes. Internal callers without a human access
-  context exclude private tasks. Child creation under a private task is rejected
-  until inheritance is implemented. This stage does not certify child delivery.
+   context exclude private tasks. Child creation under a private task is rejected
+   until inheritance is implemented. This stage does not certify child delivery.
    Task-tool arguments are closed shapes: unsupported private visibility,
    ownership or audience fields reject before a shared business write, never
    silently become shared creation or progress through SDK field stripping.
