@@ -113,6 +113,18 @@ func (authority *resultAuthority) currentGeneration() uint64 {
 	return authority.generation
 }
 
+// A validated committed result is explicit knowledge that the old capture
+// eligibility was consumed. Invalidate its cache and any already-running prime;
+// a later changes-requested cycle must obtain a fresh cloud confirmation.
+func (authority *resultAuthority) closeSubmissionCaptureWindow(expected uint64) (uint64, bool) {
+	authority.mu.Lock()
+	defer authority.mu.Unlock()
+	unchanged := authority.generation == expected
+	clear(authority.confirmations)
+	authority.generation++
+	return authority.generation, unchanged
+}
+
 func (authority *resultAuthority) invalidateOnDenial(err error) {
 	if authority == nil || err == nil {
 		return

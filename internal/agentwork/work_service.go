@@ -290,6 +290,7 @@ func (service *workService) retry(ctx context.Context, record journalRecord, req
 
 func (service *workService) dispatch(ctx context.Context, command workCommand, record journalRecord, replay bool, peerCheck func(context.Context) error) (journalRecord, error) {
 	var resultGeneration uint64
+	resultAuthorityUnchanged := true
 	if record.Intent.CaptureFamily == "agent_result" {
 		resultGeneration = service.results.currentGeneration()
 	}
@@ -362,6 +363,9 @@ func (service *workService) dispatch(ctx context.Context, command workCommand, r
 	if len(result) > 16384 || !protocol.DecodeWireDocument(command.resultDocument, result).OK || !journalOutcomeBound(record.Intent, string(result)) {
 		return service.unavailable(ctx, record)
 	}
+	if record.Intent.CaptureFamily == "agent_result" {
+		resultGeneration, resultAuthorityUnchanged = service.results.closeSubmissionCaptureWindow(resultGeneration)
+	}
 	if record.State != "applied" {
 		persist, cancel := workPersistenceContext(ctx)
 		err := service.journal.acknowledge(persist, *record.Claim, string(result))
@@ -394,7 +398,7 @@ func (service *workService) dispatch(ctx context.Context, command workCommand, r
 			return journalRecord{}, err
 		}
 	}
-	if record.Intent.CaptureFamily == "agent_result" && resultGeneration != service.results.currentGeneration() {
+	if record.Intent.CaptureFamily == "agent_result" && (!resultAuthorityUnchanged || resultGeneration != service.results.currentGeneration()) {
 		return service.unavailable(ctx, record)
 	}
 	return record, nil

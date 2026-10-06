@@ -281,6 +281,21 @@ func TestResultServiceOnlineOnlyNeverDrainsAutonomously(t *testing.T) {
 	}
 }
 
+func TestResultServiceConfirmedSubmissionClosesNewOfflineCaptureWindow(t *testing.T) {
+	f := newResultServiceFixture(t, true)
+	if result, err := f.submit(); err != nil || result["agent_result"] == nil {
+		t.Fatal(result, err)
+	}
+	f.cloud.confirmationErr = runner.ErrOffline
+	f.newID("new-after-confirmed-submission")
+	if result, err := f.submit(); result != nil || daemon.AsFailure(err).Code != "offline_rejected" {
+		t.Fatal("known submitted state retained pre-submit capture eligibility", result, err)
+	}
+	if _, found, _ := f.service.journal.lookup(context.Background(), f.key); found {
+		t.Fatal("known submitted run captured a new offline result")
+	}
+}
+
 func TestResultServiceUnknownEffectRemainsUnknownAfterDenial(t *testing.T) {
 	for _, reason := range []string{"revoked", "intent_expired", "policy_rejected"} {
 		t.Run(reason, func(t *testing.T) {
