@@ -11,8 +11,12 @@ import { createTestHarness } from "wrangler";
 const root = process.cwd(),
   key = "l08-synthetic-current-signing-key-84d1e9";
 const scenario = process.argv[2];
-assert.ok(scenario === undefined || scenario === "a02", "unsupported native fixture scenario");
+assert.ok(
+  scenario === undefined || scenario === "a02" || scenario === "a03",
+  "unsupported native fixture scenario",
+);
 const attention = scenario === "a02";
+const results = scenario === "a03";
 assert.equal(
   process.platform,
   "darwin",
@@ -46,7 +50,7 @@ try {
     )
     .run(session, token, now, now);
   const attentionEnvironment: Record<string, string> = {};
-  if (attention) {
+  if (attention || results) {
     const reviewerSession = "a02-synthetic-reviewer-session",
       reviewerToken = "a02-synthetic-reviewer-token";
     await db
@@ -79,6 +83,7 @@ try {
         BFB_A01_TEST_COOKIE: `__Host-bfb_session=${encodeURIComponent(`${token}.${createHmac("sha256", key).update(token).digest("base64")}`)}`,
         BFB_A01_TEST_CSRF: `2.${createHmac("sha256", key).update(`bfb-csrf:${session}`).digest("hex")}`,
         BFB_A02_NATIVE_SCENARIO: attention ? "1" : "0",
+        BFB_A03_NATIVE_SCENARIO: results ? "1" : "0",
         ...attentionEnvironment,
       },
     },
@@ -88,7 +93,15 @@ try {
   child.stdout.on("data", (data: Buffer) => {
     process.stdout.write(data);
     const chunk = proofTail + data.toString();
-    if (chunk.includes(attention ? "A02_NATIVE_PROOF_COMPLETE" : "A01_NATIVE_PROOF_COMPLETE"))
+    if (
+      chunk.includes(
+        results
+          ? "A03_NATIVE_PROOF_COMPLETE"
+          : attention
+            ? "A02_NATIVE_PROOF_COMPLETE"
+            : "A01_NATIVE_PROOF_COMPLETE",
+      )
+    )
       proved = true;
     proofTail = chunk.slice(-128);
   });
@@ -99,7 +112,7 @@ try {
   assert.equal(code, 0, "compiled stdio / authenticated Worker integration failed");
   assert.ok(proved, "native proof did not run; skipped tests are not acceptance");
   console.log(
-    `${attention ? "A02" : "A01"} native compiled stdio / daemon / possession / Worker / Hub / D1 proof passed`,
+    `${results ? "A03" : attention ? "A02" : "A01"} native compiled stdio / daemon / possession / Worker / Hub / D1 proof passed`,
   );
 } finally {
   await server.close();

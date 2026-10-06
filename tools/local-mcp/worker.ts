@@ -1,4 +1,4 @@
-// ABOUTME: Hosts production agent work routes and synthetic execution fixtures for A01 and A02.
+// ABOUTME: Hosts production agent work routes and synthetic execution fixtures for A01, A02 and A03.
 // ABOUTME: Exposes test-only seed, observation and authority-change endpoints on disposable local D1.
 
 import channelWorker, { WorkspaceHub } from "../runner-channel/worker.js";
@@ -32,7 +32,7 @@ const hash = (body: string) => `sha256:${createHash("sha256").update(body).diges
 export default {
   async fetch(request: Request, env: { DB: D1Like; APP_ORIGIN: string }): Promise<Response> {
     const path = new URL(request.url).pathname;
-    if (!path.startsWith("/__a01/") && !path.startsWith("/__a02/"))
+    if (!path.startsWith("/__a01/") && !path.startsWith("/__a02/") && !path.startsWith("/__a03/"))
       return channelWorker.fetch(request, env);
     const db = adaptD1(env.DB),
       input = (await request.json()) as Record<string, string>;
@@ -51,14 +51,23 @@ export default {
       if (!outcome.ok) throw new Error(`synthetic policy configuration ${outcome.error.code}`);
       return outcome.result;
     };
-    if (path === "/__a01/project-tighten") {
+    if (path === "/__a01/project-tighten" || path === "/__a03/project-tighten") {
       const { resourceVersion, ...current } = await getProjectPolicy(db, workspace, FIX.projectA);
       const settings = {
         ...current,
-        offlineAgentWork: {
-          ...current.offlineAgentWork,
-          max_pending_age_seconds: current.offlineAgentWork.max_pending_age_seconds - 1,
-        },
+        ...(path === "/__a03/project-tighten"
+          ? {
+              offlineAgentResults: {
+                ...current.offlineAgentResults,
+                max_pending_age_seconds: current.offlineAgentResults.max_pending_age_seconds - 1,
+              },
+            }
+          : {
+              offlineAgentWork: {
+                ...current.offlineAgentWork,
+                max_pending_age_seconds: current.offlineAgentWork.max_pending_age_seconds - 1,
+              },
+            }),
         expectedVersion: resourceVersion,
         projectId: FIX.projectA,
       };
@@ -69,7 +78,7 @@ export default {
       );
       return Response.json(await human(updateProjectPolicyCommand, input));
     }
-    if (path === "/__a01/configure") {
+    if (path === "/__a01/configure" || path === "/__a03/configure") {
       const permission =
         input.offline === "allow"
           ? {
@@ -83,6 +92,13 @@ export default {
         allowPassToAgent: true,
         allowRunOverrides: false,
         offlineAgentWork: permission,
+        offlineAgentResults:
+          input.result_offline === "allow"
+            ? {
+                allow_submit_result: true,
+                max_pending_age_seconds: Number(input.result_age ?? "300"),
+              }
+            : { allow_submit_result: false, max_pending_age_seconds: 0 },
       };
       for (const project of [false, true]) {
         const current = project
@@ -105,8 +121,12 @@ export default {
           "SELECT resource_version FROM repository_configs WHERE workspace_id=? AND project_id=?",
         )
         .get(workspace, FIX.projectA)) as { resource_version: number };
-      const document = { offline_agent_work: permission };
-      const canonical = normalizeRepositoryConfig(document, settings).canonical;
+      const document = {
+        offline_agent_work: permission,
+        offline_agent_results: settings.offlineAgentResults,
+      };
+      const normalized = normalizeRepositoryConfig(document, settings);
+      const canonical = normalized.canonical;
       const contentHash = hash(canonical);
       const stepUpProofId = await issueStepUpProof(
         db,
@@ -120,7 +140,7 @@ export default {
             FIX.projectA,
             repository.resource_version,
             contentHash,
-            permission,
+            normalized.settings,
           ),
           scopes: [],
           authorizationEpoch: 1,
@@ -372,6 +392,45 @@ export default {
       )
       .get(workspace, execution)) as { run_id: string; task_id: string; runner_id: string };
     if (!row) return new Response(null, { status: 404 });
+    if (path === "/__a03/result-observe") {
+      const submissions = await db
+        .prepare(
+          `SELECT id,version,summary,limitations,evidence_refs_json,git_branch,git_commit,git_dirty,
+             config_snapshot_id,config_hash,submitted_by_kind,submitted_by_id
+           FROM result_submissions WHERE workspace_id=? AND run_id=? ORDER BY version`,
+        )
+        .all(workspace, row.run_id);
+      const reviews = await db
+        .prepare(
+          `SELECT submission_id,decision,comment FROM result_reviews
+           WHERE workspace_id=? AND run_id=? ORDER BY created_at,id`,
+        )
+        .all(workspace, row.run_id);
+      const run = await db
+        .prepare("SELECT result_state,resource_version FROM runs WHERE workspace_id=? AND id=?")
+        .get(workspace, row.run_id);
+      const task = await db
+        .prepare("SELECT state,resource_version FROM tasks WHERE workspace_id=? AND id=?")
+        .get(workspace, row.task_id);
+      const lease = await db
+        .prepare(
+          `SELECT execution_id,fencing_generation,state,expires_at,observation_sequence
+           FROM checkout_leases WHERE workspace_id=? AND execution_id=?`,
+        )
+        .get(workspace, execution);
+      const receiptPrivacy = await db
+        .prepare(
+          `SELECT COUNT(*) AS total,
+             COALESCE(SUM(CASE WHEN instr(payload_json,'A03_PRIVATE_') > 0 THEN 1 ELSE 0 END),0) AS private_payloads
+           FROM (
+             SELECT payload_json FROM audit_events WHERE workspace_id=? AND action LIKE 'result.%'
+             UNION ALL SELECT payload_json FROM semantic_events WHERE workspace_id=? AND kind LIKE 'result.%'
+             UNION ALL SELECT payload_json FROM outbox_records WHERE workspace_id=? AND kind LIKE 'result.%'
+           )`,
+        )
+        .get(workspace, workspace, workspace);
+      return Response.json({ submissions, reviews, run, task, lease, receiptPrivacy });
+    }
     if (path === "/__a02/attention-observe") {
       const attention = await db
         .prepare("SELECT * FROM attention_requests WHERE workspace_id=? AND run_id=? ORDER BY id")

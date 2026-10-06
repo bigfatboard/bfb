@@ -15,6 +15,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -121,7 +122,33 @@ func TestMCPProviderProcess(t *testing.T) {
 	}
 	for scanner.Scan() {
 		line := scanner.Text()
-		if strings.HasPrefix(line, "__ipc:") {
+		if strings.HasPrefix(line, "__submit:") {
+			var args []string
+			if json.Unmarshal([]byte(strings.TrimPrefix(line, "__submit:")), &args) != nil {
+				os.Exit(2)
+			}
+			command := exec.Command(os.Getenv("BFB_A01_BINARY"), append([]string{"--data-dir", os.Getenv("BFB_A01_ROOT"), "run", "submit"}, args...)...)
+			for _, entry := range os.Environ() {
+				key, _, _ := strings.Cut(entry, "=")
+				if !strings.HasPrefix(key, "BFB_A01_") {
+					command.Env = append(command.Env, entry)
+				}
+			}
+			output, err := command.Output()
+			status := 0
+			if err != nil {
+				var exit *exec.ExitError
+				if !errors.As(err, &exit) {
+					os.Exit(2)
+				}
+				status = exit.ExitCode()
+			}
+			if !json.Valid(bytes.TrimSpace(output)) {
+				os.Exit(2)
+			}
+			data, _ := json.Marshal(map[string]any{"status": status, "output": json.RawMessage(bytes.TrimSpace(output))})
+			fmt.Println("CLI:" + string(data))
+		} else if strings.HasPrefix(line, "__ipc:") {
 			probe := exec.Command(os.Args[0], "-test.run=^TestMCPIPCProcess$")
 			probe.Env = append(os.Environ(), "BFB_A01_IPC_FIXTURE=1")
 			probe.Stdin = strings.NewReader(strings.TrimPrefix(line, "__ipc:"))
@@ -229,9 +256,10 @@ func TestNativeAgentWork(t *testing.T) {
 	if target == "" {
 		t.Skip("run through tools/local-mcp/native.ts")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 7*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 9*time.Minute)
 	defer cancel()
 	attentionScenario := os.Getenv("BFB_A02_NATIVE_SCENARIO") == "1"
+	resultScenario := os.Getenv("BFB_A03_NATIVE_SCENARIO") == "1"
 	upstream, err := url.Parse(target)
 	if err != nil || upstream.Hostname() != "127.0.0.1" && upstream.Hostname() != "localhost" {
 		t.Fatal("Worker must be loopback")
@@ -245,8 +273,10 @@ func TestNativeAgentWork(t *testing.T) {
 	}
 	var loseReply atomic.Pointer[string]
 	var workOutage atomic.Bool
+	var resultProofOutage atomic.Bool
 	var outageOnLoss atomic.Bool
 	var replayResponses atomic.Int64
+	var resultConfirmations atomic.Int64
 	var businessRequests atomic.Int64
 	var attentionReads atomic.Int64
 	var slowAttentionRead atomic.Bool
@@ -275,6 +305,9 @@ func TestNativeAgentWork(t *testing.T) {
 			t.Log("synthetic work reply", filepath.Base(path), response.StatusCode)
 		}
 		if response.StatusCode == 200 && strings.Contains(path, "/work/") {
+			if strings.HasSuffix(path, "/work/result-confirmation") {
+				resultConfirmations.Add(1)
+			}
 			if strings.HasSuffix(path, "/work/attention-get") && slowAttentionRead.Swap(false) {
 				timer := time.NewTimer(32 * time.Second)
 				defer timer.Stop()
@@ -285,7 +318,7 @@ func TestNativeAgentWork(t *testing.T) {
 					return response.Request.Context().Err()
 				}
 			}
-			if strings.HasSuffix(path, "/work/replay") {
+			if strings.HasSuffix(path, "/work/replay") || strings.HasSuffix(path, "/work/result-replay") {
 				replayResponses.Add(1)
 			}
 			if fault := releaseDuringCloud.Load(); fault != nil {
@@ -322,7 +355,7 @@ func TestNativeAgentWork(t *testing.T) {
 		_, _ = writer.Write([]byte(`{"error":"work_unavailable"}`))
 	}
 	server := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if workOutage.Load() && strings.Contains(request.URL.Path, "/work/") {
+		if workOutage.Load() && strings.Contains(request.URL.Path, "/work/") || resultProofOutage.Load() && strings.HasSuffix(request.URL.Path, "/work/result-confirmation") {
 			writer.WriteHeader(503)
 			_, _ = writer.Write([]byte(`{"error":"work_unavailable"}`))
 			return
@@ -330,7 +363,7 @@ func TestNativeAgentWork(t *testing.T) {
 		if strings.HasSuffix(request.URL.Path, "/work/attention-get") {
 			attentionReads.Add(1)
 		}
-		for _, action := range []string{"comment", "update", "progress", "proposal", "replay", "attention-request"} {
+		for _, action := range []string{"comment", "update", "progress", "proposal", "replay", "attention-request", "result-submit", "result-replay"} {
 			if strings.HasSuffix(request.URL.Path, "/work/"+action) {
 				businessRequests.Add(1)
 			}
@@ -612,7 +645,7 @@ FROM work_intents i JOIN work_delivery d USING(operation_key) WHERE json_extract
 			return json.Unmarshal(observed["inventory"], &inventory) == nil && len(inventory.Checkouts) == 1 && inventory.Checkouts[0].CheckoutId == ids["checkout"] && inventory.Checkouts[0].PhysicalWorktreeHash == ids["physical"] && inventory.Checkouts[0].RepositoryConfigHash == claim.Snapshot.RepositoryConfigHash
 		})
 	}
-	seedLocal(attentionScenario)
+	seedLocal(attentionScenario || resultScenario)
 	write := func(value any) {
 		t.Helper()
 		data, _ := json.Marshal(value)
@@ -658,6 +691,26 @@ FROM work_intents i JOIN work_delivery d USING(operation_key) WHERE json_extract
 			t.Fatal("tool text not JSON")
 		}
 		return body, ""
+	}
+	submitCLI := func(args []string) (map[string]any, int) {
+		t.Helper()
+		data, err := json.Marshal(args)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, _ = io.WriteString(stdin, "__submit:"+string(data)+"\n")
+		line, err := reader.ReadString('\n')
+		if err != nil || !strings.HasPrefix(line, "CLI:") {
+			t.Fatal("owned fresh one-shot CLI failed", err)
+		}
+		var response struct {
+			Status int            `json:"status"`
+			Output map[string]any `json:"output"`
+		}
+		if json.Unmarshal([]byte(strings.TrimPrefix(line, "CLI:")), &response) != nil || response.Output == nil {
+			t.Fatal("CLI stdout was not one bounded JSON outcome")
+		}
+		return response.Output, response.Status
 	}
 	receipt := func(result map[string]any, code, tool, requestID, state, certainty string, reason any) {
 		t.Helper()
@@ -825,6 +878,28 @@ FROM work_intents i JOIN work_delivery d USING(operation_key) WHERE json_extract
 			t.Fatal("fixture scope switch failed", err, line)
 		}
 		restart("__start")
+	}
+	if resultScenario {
+		runNativeResults(t, nativeResultFixture{
+			ctx: ctx, workDB: workDB, server: server,
+			ids: func() map[string]string { return ids }, call: call, submitCLI: submitCLI,
+			post: post, restart: restart, restartDaemon: restartDaemon, stopMCP: stopMCP,
+			freshScope: freshScope, hook: hook, wait: wait, paths: paths,
+			outage: &workOutage, proofOutage: &resultProofOutage, outageOnLoss: &outageOnLoss,
+			loseReply: &loseReply, businessRequests: &businessRequests,
+			confirmations: &resultConfirmations, replayResponses: &replayResponses,
+			snapshot: func() string { return claim.Specification.ConfigSnapshotId },
+			postflightRelease: func(action string) {
+				releaseDuringCloud.Store(&lockFault{input: stdin, root: paths.Root, hash: ids["physical"], action: action})
+			},
+			unlock: func() {
+				_, _ = io.WriteString(stdin, "__unlock\n")
+				if err := waitFixtureLockFree(paths.Root, ids["physical"]); err != nil {
+					t.Fatal(err)
+				}
+			},
+		})
+		return
 	}
 	if attentionScenario {
 		runNativeAttention(t, nativeAttentionFixture{

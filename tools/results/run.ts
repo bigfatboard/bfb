@@ -2,6 +2,7 @@
 // ABOUTME: Duplicate retries, stale versions, the revocation race, and lease retention run on D1.
 
 import assert from "node:assert/strict";
+import { writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -18,6 +19,11 @@ import {
   type TaskRecord,
 } from "@bfb/domain";
 import { createTestHarness } from "wrangler";
+import {
+  duplicateResultEntry,
+  serializeRuntimeRecording,
+  serializeRuntimeTransitions,
+} from "./evidence.js";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const migrationManifest = loadMigrationManifest(resolve(repoRoot, "migrations/d1"));
@@ -140,6 +146,7 @@ async function seedHuman(
 
 async function main(): Promise<void> {
   const checks: string[] = [];
+  const recording: unknown[] = [];
   try {
     await server.listen();
     const hubWorker = server.getWorker("bfb-results-hub");
@@ -148,6 +155,12 @@ async function main(): Promise<void> {
       migrationManifest.migrations.some((entry) => entry.id === "0024_result_submissions"),
       "A03 result submission migration must be registered",
     );
+    assert.equal(migrationManifest.migration_head, "0040_offline_result_policy");
+    recording.push({
+      step: "migration",
+      head: migrationManifest.migration_head,
+      result_tables_present: true,
+    });
     const env = (await hubWorker.getEnv()) as unknown as HubEnv;
     const db = adaptD1(env.DB);
     const workspaceId = randomUlid();
@@ -244,19 +257,20 @@ async function main(): Promise<void> {
     );
     void execution;
 
+    const firstInput = {
+      runId,
+      summary: "Synthetic workerd first result",
+      limitations: "Synthetic workerd limitation",
+      evidenceRefs: [{ kind: "comment", ref: "synthetic-workerd-comment" }],
+      gitBranch: "main",
+      gitCommit: commit,
+      gitDirty: false,
+    };
     const first = ok(
       await execute<SubmitResultResult>(
         "bfb-results-a",
         workspaceId,
-        humanCommand(workspaceId, owner, "result.submit", "a03-submit-1", {
-          runId,
-          summary: "Synthetic workerd first result",
-          limitations: "Synthetic workerd limitation",
-          evidenceRefs: [{ kind: "comment", ref: "synthetic-workerd-comment" }],
-          gitBranch: "main",
-          gitCommit: commit,
-          gitDirty: false,
-        }),
+        humanCommand(workspaceId, owner, "result.submit", "a03-submit-1", firstInput),
       ),
       "result.submit v1",
     );
@@ -264,18 +278,42 @@ async function main(): Promise<void> {
     assert.equal(first.runResultState, "submitted");
     assert.equal(first.taskState, "review");
     checks.push("human submission moves run to submitted and task to review");
+    recording.push({
+      step: "human_submit",
+      version: first.submission.version,
+      run: first.runResultState,
+      task: first.taskState,
+    });
 
     const retry = await execute<SubmitResultResult>(
       "bfb-results-b",
       workspaceId,
-      humanCommand(workspaceId, owner, "result.submit", "a03-submit-1", {
-        runId,
-        summary: "Synthetic workerd first result",
-      }),
+      humanCommand(workspaceId, owner, "result.submit", "a03-submit-1", firstInput),
     );
     assert.equal(retry.ok && retry.replayed, true);
     assert(retry.ok && retry.result.submission.id === first.submission.id);
     checks.push("idempotent retry across workers creates one submission");
+    assert(retry.ok);
+    recording.push(
+      duplicateResultEntry(
+        first.submission.id,
+        retry.result.submission.id,
+        retry.replayed === true,
+      ),
+    );
+    const changedRetry = await execute<SubmitResultResult>(
+      "bfb-results-b",
+      workspaceId,
+      humanCommand(workspaceId, owner, "result.submit", "a03-submit-1", {
+        ...firstInput,
+        summary: "Changed synthetic workerd input",
+      }),
+    );
+    assert.equal(code(changedRetry as CommandOutcome<never>, "changed retry"), "request_rejected");
+    recording.push({
+      step: "changed_retry",
+      code: code(changedRetry as CommandOutcome<never>, "changed retry"),
+    });
 
     const duplicate = await execute<SubmitResultResult>(
       "bfb-results-a",
@@ -314,6 +352,12 @@ async function main(): Promise<void> {
     );
     assert.equal(code(staleAccept as CommandOutcome<never>, "stale accept"), "stale_version");
     checks.push("duplicate evidence, reviewer submit, and stale accept fail closed");
+    recording.push({
+      step: "guards",
+      duplicate_evidence: code(duplicate as CommandOutcome<never>, "duplicate"),
+      reviewer_submit: code(reviewerSubmit as CommandOutcome<never>, "reviewer"),
+      stale_accept: code(staleAccept as CommandOutcome<never>, "stale"),
+    });
 
     const changed = ok(
       await execute<ReviewResultResult>(
@@ -330,6 +374,11 @@ async function main(): Promise<void> {
       "result.request_changes",
     );
     assert.equal(changed.runResultState, "changes_requested");
+    recording.push({
+      step: "request_changes",
+      run: changed.runResultState,
+      task: changed.taskState,
+    });
     const second = ok(
       await execute<SubmitResultResult>(
         "bfb-results-b",
@@ -351,6 +400,17 @@ async function main(): Promise<void> {
       ],
     );
     checks.push("changes-requested cycle creates a new immutable version with outdated history");
+    const original = views.find((view) => view.version === 1);
+    assert(original);
+    assert.equal(original.summary, first.submission.summary);
+    assert.equal(original.limitations, first.submission.limitations);
+    assert.deepEqual(original.evidence_refs, first.submission.evidence_refs);
+    recording.push({
+      step: "resubmit",
+      versions: views.map((view) => view.version),
+      old_outdated: original.outdated,
+      immutable_history: true,
+    });
 
     const accepted = ok(
       await execute<ReviewResultResult>(
@@ -368,6 +428,11 @@ async function main(): Promise<void> {
     assert.equal(accepted.runResultState, "accepted");
     assert.equal(accepted.taskState, "done");
     checks.push("owner acceptance completes the run and task");
+    recording.push({
+      step: "human_accept",
+      run: accepted.runResultState,
+      task: accepted.taskState,
+    });
 
     const taskTwo = ok(
       await execute<TaskRecord>(
@@ -468,17 +533,19 @@ async function main(): Promise<void> {
       await execute<SubmitResultResult>(
         "bfb-results-a",
         workspaceId,
-        runnerCommand(workspaceId, runnerId, "result.submit", "a03-agent-submit", {
+        humanCommand(workspaceId, member, "result.submit", "a03-race-submit", {
           runId: runTwoId,
-          summary: "Synthetic workerd agent result",
+          summary: "Synthetic workerd member race result",
           gitCommit: commit,
         }),
       ),
-      "agent result.submit",
+      "member result.submit",
     );
-    assert.equal(agentSubmit.submission.submitted_by_kind, "agent_run");
+    assert.equal(agentSubmit.submission.submitted_by_kind, "human");
     assert.equal(agentSubmit.submission.version, 1);
-    checks.push("bound runner agent submits with agent attribution");
+    checks.push(
+      "direct member result supplies the real-D1 human review race; agent attribution is proved by the separate signed-native gate",
+    );
 
     const agentAccept = await execute<ReviewResultResult>(
       "bfb-results-b",
@@ -492,6 +559,10 @@ async function main(): Promise<void> {
     );
     assert.equal(code(agentAccept as CommandOutcome<never>, "agent accept"), "forbidden");
     checks.push("agent self-acceptance is forbidden");
+    recording.push({
+      step: "agent_self_accept",
+      code: code(agentAccept as CommandOutcome<never>, "agent accept"),
+    });
 
     const racers = await Promise.all([
       execute<ReviewResultResult>(
@@ -556,6 +627,13 @@ async function main(): Promise<void> {
       .get(workspaceId, runnerId)) as Record<string, unknown>;
     assert.deepEqual(leaseAfter, leaseSeeded);
     checks.push("accept/changes race commits exactly one review and retains the checkout lock");
+    recording.push({
+      step: "review_race",
+      winners: racers.filter((outcome) => outcome.ok).length,
+      reviews: reviews.length,
+      loser: code(loser, "review race loser"),
+    });
+    recording.push({ step: "lease_retention", identical: true });
 
     const taskThree = ok(
       await execute<TaskRecord>(
@@ -604,6 +682,37 @@ async function main(): Promise<void> {
       .get(workspaceId, taskThree.id)) as { state: string };
     assert.equal(taskThreeState.state, "active");
     checks.push("failure closes the run without moving the task");
+    recording.push({ step: "failure", run: failed.runResultState, task: taskThreeState.state });
+
+    const receipts = await db
+      .prepare(
+        `SELECT payload_json FROM audit_events WHERE workspace_id=? AND action LIKE 'result.%'
+UNION ALL SELECT payload_json FROM semantic_events WHERE workspace_id=? AND kind LIKE 'result.%'
+UNION ALL SELECT payload_json FROM outbox_records WHERE workspace_id=? AND kind LIKE 'result.%'`,
+      )
+      .all(workspaceId, workspaceId, workspaceId);
+    for (const privateValue of [
+      firstInput.summary,
+      firstInput.limitations,
+      "synthetic-workerd-comment",
+      "Synthetic workerd change request",
+      "Synthetic workerd member race result",
+    ]) {
+      assert.ok(
+        !JSON.stringify(receipts).includes(privateValue),
+        "result event/audit/outbox copies contain a private body",
+      );
+    }
+    recording.push({ step: "privacy", private_result_and_review_payloads_absent: true });
+    const evidenceRoot = resolve(repoRoot, "docs/work-packages/evidence/WP-A03");
+    await writeFile(
+      resolve(evidenceRoot, "runtime-recording.jsonl"),
+      serializeRuntimeRecording(recording),
+    );
+    await writeFile(
+      resolve(evidenceRoot, "runtime-transition-matrix.json"),
+      serializeRuntimeTransitions(),
+    );
 
     console.log(`A03 worker results: passed (${checks.length} checks)`);
     for (const check of checks) {

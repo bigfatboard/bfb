@@ -1,0 +1,13 @@
+{"step":"migration","head":"0040_offline_result_policy","result_tables_present":true}
+{"step":"human_submit","version":1,"run":"submitted","task":"review"}
+{"step":"cross_worker_retry","replayed":true,"same_submission":true}
+{"step":"changed_retry","code":"request_rejected"}
+{"step":"guards","duplicate_evidence":"invalid_argument","reviewer_submit":"forbidden","stale_accept":"stale_version"}
+{"step":"request_changes","run":"changes_requested","task":"active"}
+{"step":"resubmit","versions":[2,1],"old_outdated":true,"immutable_history":true}
+{"step":"human_accept","run":"accepted","task":"done"}
+{"step":"agent_self_accept","code":"forbidden"}
+{"step":"review_race","winners":1,"reviews":1,"loser":"invalid_transition"}
+{"step":"lease_retention","identical":true}
+{"step":"failure","run":"failed","task":"active"}
+{"step":"privacy","private_result_and_review_payloads_absent":true}
