@@ -1,11 +1,24 @@
 # Isolated Claude tracked-launch candidate
 
 This is a test-only composition, not production provider support. It permits
-only experimental Claude `2.1.291` with the existing interactive,
-`on_request`/`workspace_write` adapter. It adds the measured MCP handshake
-surface only when real inspection finds the exact owned user hook/MCP
-configuration. Headless, discussion, fork and broader permissions stay closed.
-The production manifest, tested versions and doctor remain unchanged.
+only exact-pinned experimental Claude `2.1.291`. Candidate manifest `0.0.2`
+supports the existing interactive manual profile and an explicit autonomous
+standard profile with `approval.never`, `filesystem.full_access` and
+`--dangerously-skip-permissions`. Autonomous mode has the local user's full
+access; it is not a workspace filesystem boundary. The measured MCP handshake
+surface still requires real inspection of the exact owned user hook/MCP
+configuration. Headless, discussion and fork stay closed. The production
+manifest, tested versions and doctor remain unchanged.
+
+The candidate separately selects root supervision under
+[ADR 0013](../../docs/adr/0013-claude-autonomy-and-root-supervision.md), for both
+manual and autonomous profiles. Detached descendants alone do not close a live,
+authenticated root's authority. Whole-family coverage remains unproven, signals
+target only the original root group, and root exit closes MCP without releasing
+checkout occupancy. Automatic release and local recovery remain denied until
+the separate operator-acknowledgement path is implemented and verified. Use a
+fresh execution and a separately registered checkout; never reinterpret a
+previous closed execution as root-supervised.
 
 Preparation consumes the complete metadata-only log from the separately
 approved `claude-mcp.mjs` probe. It does not execute Claude, copy authentication,

@@ -171,13 +171,25 @@ A card can open a supported Claude Code version in the exact checkout, bind the 
 ## Handoff
 
 - Autonomy/supervision correction, 6 October: Timo approved explicit Claude
-  bypass permissions and the independent runner-design correction. ADR 0013
-  records the contract before implementation: full-access profile opt-in,
-  exact-candidate capability gates, root-only signal authority, independent
-  live-root MCP authentication, and no automatic release based on incomplete
-  detached-family observations. Existing closed executions are not upgraded
-  or revived. Implementation and synthetic acceptance are in progress; no
-  fresh live launch, automatic cleanup proof or package completion is claimed.
+  bypass permissions and the independent runner-design correction. Commit
+  `d86ea7f` implements ADR 0013: full-access profile opt-in, exact-candidate
+  capability gates, root-only signals, independent live-root MCP authentication
+  and versioned root-lease observations. The
+  [autonomy/supervision checkpoint](evidence/WP-L07/autonomy-supervision-checkpoint.json)
+  records failing-first native proofs, passing full verification and the exact
+  L07 target, migration 0044 with existing profiles remaining manual, and a
+  separately signed candidate preserving its enrollment binding. Actual signed
+  unscoped hooks are silent, and BFB-only helper path updates passed the normal
+  preview/hash-CAS transaction after a stale preview was correctly rejected.
+  The localhost pilot is healthy after recovering its interrupted supervisor;
+  private persistent data is preserved. Timo opened the replacement app, and its
+  private daemon reconnected with the same enrollment. The cloud reports the
+  exact Claude candidate healthy with autonomous capabilities, and a separately
+  registered clean proof checkout is visible. A fresh live MCP
+  context/attention/result/resume chain remains pending. Existing closed
+  executions are not upgraded or revived. Root-supervised automatic release and
+  local recovery remain denied; no complete-family cleanup, production rollout
+  or package completion is claimed.
 - Retry-UI continuation, 6 October: the enrolled runner remained online but
   received no new command after a human retry click. A synthetic browser test
   reproduced a non-default checkout displayed as selected while application
