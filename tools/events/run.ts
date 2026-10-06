@@ -36,7 +36,7 @@ import type { RunnerInventory } from "@bfb/protocol";
 import { createTestHarness } from "wrangler";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-const now = "2026-09-12T12:00:00.000Z",
+const now = new Date(Math.floor(Date.now() / 1000) * 1000).toISOString(),
   origin = "https://bfb.events.test";
 const digest = `sha256:${"a".repeat(64)}`,
   emptyConfig = `sha256:${runnerHash("{}")}`;
@@ -521,7 +521,10 @@ try {
     { ...item(executionId, generation, streamA, 10, "heartbeat"), payload: { intruder: 1 } },
     { ...item(executionId, generation, streamA, 11), run_execution_id: randomUlid() },
     { ...item(executionId, generation, streamA, 12), assignment_generation: 99 },
-    { ...item(executionId, generation, streamA, 13), occurred_at: "2026-09-12T12:06:00.000Z" },
+    {
+      ...item(executionId, generation, streamA, 13),
+      occurred_at: launchDeadline(new Date().toISOString(), 360_000),
+    },
     item(executionId, generation, streamA, 14),
   ]);
   assert.deepEqual(
