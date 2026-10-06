@@ -5,19 +5,19 @@ import { assertEpoch, assertProjectAccess, assertRole, loadPrincipal } from "./a
 import type { SqlDatabase } from "@bfb/db";
 import type { AgentEffectOrigin } from "@bfb/protocol";
 import { authorizeAgentResult, type AgentResultInput } from "./agent-results.js";
-import { canonicalLaunchJson, readLaunch } from "./launch-state.js";
+import { canonicalLaunchJson, guardLaunchMutation, readLaunch } from "./launch-state.js";
 import { runnerHash } from "./runner-crypto.js";
 import { DomainError, type HubCommand, type HubContext } from "./hub.js";
 import { isUlid, randomUlid } from "./ids.js";
-import { getTask } from "./work-commands.js";
+import { getTask, readTaskPredicate, type TaskReadAccess } from "./work-commands.js";
 import { assertRunResultTransition, type ExecutionEndReason } from "./work-records.js";
 import { agentTaskAccess } from "./agent-work.js";
+import { prepareAgentArtifactAuthority } from "./artifact-agent-authority.js";
 import {
   assertTaskAccess,
   sharedTaskPredicate,
   taskAccessPredicate,
   type TaskAccessAction,
-  type TaskAccessContext,
 } from "./task-access.js";
 
 export const MAX_RESULT_SUMMARY_CHARS = 2048;
@@ -408,112 +408,235 @@ function validateSubmission(input: SubmitResultInput) {
   };
 }
 
-type ResultReadDb = {
-  prepare(query: string): {
-    get(...params: unknown[]): Promise<unknown>;
-    all(...params: unknown[]): Promise<unknown[]>;
+function resultDelegationScope(
+  access: TaskReadAccess | undefined,
+  scope: "bfb:read" | "bfb:task:write" | ReadonlyArray<"bfb:read" | "bfb:task:write">,
+  taskAlias: "task" | "target_task",
+) {
+  if (!access?.delegationId) return { sql: "1", parameters: [] };
+  const required = typeof scope === "string" ? [scope] : scope;
+  const scopes = `CASE WHEN json_valid(result_delegation.scopes_json) THEN
+    CASE WHEN json_type(result_delegation.scopes_json) = 'array'
+      THEN result_delegation.scopes_json ELSE '[]' END ELSE '[]' END`;
+  return {
+    sql: `EXISTS (SELECT 1 FROM oauth_delegations AS result_delegation
+      WHERE result_delegation.workspace_id = ${taskAlias}.workspace_id AND result_delegation.id = ?
+        AND NOT EXISTS (SELECT 1 FROM json_each(${scopes}) AS invalid_scope WHERE invalid_scope.type <> 'text')
+        AND (SELECT COUNT(DISTINCT required_scope.value) FROM json_each(${scopes}) AS required_scope
+          WHERE required_scope.value IN (${required.map(() => "?").join(",")})) = ${required.length})`,
+    parameters: [access.delegationId, ...required],
   };
-};
-
-async function artifactEvidenceSource(db: ResultReadDb, workspaceId: string, ref: EvidenceRef) {
-  const readArtifact = async (artifactId: string) =>
-    (await db
-      .prepare(
-        `SELECT artifact.id, artifact.run_id, run.task_id,
-      task.id AS parent_id,
-      EXISTS (SELECT 1 FROM task_privacy AS policy
-        WHERE policy.workspace_id = task.workspace_id AND policy.task_id = task.id) AS is_private
-    FROM artifacts AS artifact
-    LEFT JOIN runs AS run ON run.workspace_id = artifact.workspace_id AND run.id = artifact.run_id
-    LEFT JOIN tasks AS task ON task.workspace_id = run.workspace_id AND task.id = run.task_id
-      AND task.project_id = run.project_id
-    WHERE artifact.workspace_id = ? AND artifact.id = ?`,
-      )
-      .get(workspaceId, artifactId)) as
-      | {
-          id: string;
-          run_id: string | null;
-          task_id: string | null;
-          parent_id: string | null;
-          is_private: number;
-        }
-      | undefined;
-  let artifactId = ref.ref;
-  let artifact = await readArtifact(artifactId);
-  let version =
-    ref.version === undefined
-      ? undefined
-      : ((await db
-          .prepare("SELECT artifact_id FROM artifact_versions WHERE workspace_id = ? AND id = ?")
-          .get(workspaceId, ref.version)) as { artifact_id: string } | undefined);
-  // V03 also recognizes a version ID in ref without a separate version field.
-  // A directly named artifact takes precedence; unknown IDs remain opaque.
-  if (!artifact && ref.version === undefined) {
-    version = (await db
-      .prepare("SELECT artifact_id FROM artifact_versions WHERE workspace_id = ? AND id = ?")
-      .get(workspaceId, ref.ref)) as { artifact_id: string } | undefined;
-    if (version) {
-      artifactId = version.artifact_id;
-      artifact = await readArtifact(artifactId);
-    }
-  }
-  return { artifact, version, artifactId };
 }
 
-/** Unknown evidence kinds/IDs stay opaque; known private artifacts cannot publish across tasks. */
+function runFreeEvidence(access: TaskReadAccess | undefined) {
+  return access?.delegationId
+    ? {
+        sql: `EXISTS (SELECT 1 FROM oauth_delegations AS unbound_delegation
+          WHERE unbound_delegation.workspace_id = source_artifact.workspace_id AND unbound_delegation.id = ?
+            AND unbound_delegation.project_id IS NULL AND unbound_delegation.task_id IS NULL)`,
+        parameters: [access.delegationId],
+      }
+    : { sql: "1", parameters: [] };
+}
+
+function resultEvidenceSelection(
+  workspaceId: string,
+  taskId: string,
+  refs: EvidenceRef[],
+  access: TaskReadAccess,
+  originatingRunId?: string,
+  targetRunId?: string,
+) {
+  const target = taskAccessPredicate(access, "contribute", "target_task");
+  const credential = readTaskPredicate(access, "target_task");
+  const source = readTaskPredicate(access, "source_task");
+  const scope = resultDelegationScope(access, ["bfb:read", "bfb:task:write"], "target_task");
+  const runFree = runFreeEvidence(access);
+  return {
+    sql: `SELECT * FROM (WITH requested_evidence AS MATERIALIZED (
+      SELECT evidence.key AS ref_index, json_extract(evidence.value,'$.ref') AS ref,
+        json_extract(evidence.value,'$.version') AS version FROM json_each(?) AS evidence
+    ), current_target AS MATERIALIZED (
+      SELECT target_task.workspace_id, target_task.id FROM tasks AS target_task
+      WHERE target_task.workspace_id = ? AND target_task.id = ?
+        AND ${target.sql} AND ${credential.sql} AND ${scope.sql}
+        AND EXISTS (SELECT 1 FROM workspace_members AS result_member
+          WHERE result_member.workspace_id = target_task.workspace_id AND result_member.human_id = ?
+            AND result_member.role IN ('owner','member'))
+        ${
+          targetRunId
+            ? `AND EXISTS (SELECT 1 FROM runs AS target_run WHERE target_run.workspace_id = target_task.workspace_id
+          AND target_run.id = ? AND target_run.task_id = target_task.id
+          AND target_run.project_id = target_task.project_id AND target_run.purpose = 'work')`
+            : ""
+        }
+    ), current_sources AS MATERIALIZED (
+      SELECT evidence.ref_index FROM requested_evidence AS evidence
+      JOIN current_target AS target ON 1
+      JOIN artifact_versions AS source_version
+        ON source_version.workspace_id = target.workspace_id AND source_version.id = COALESCE(evidence.version,evidence.ref)
+      JOIN artifacts AS source_artifact ON source_artifact.workspace_id = source_version.workspace_id
+        AND source_artifact.id = source_version.artifact_id
+        AND (evidence.version IS NULL OR source_artifact.id = evidence.ref)
+      LEFT JOIN runs AS source_run ON source_run.workspace_id = source_artifact.workspace_id AND source_run.id = source_artifact.run_id
+      LEFT JOIN tasks AS source_task ON source_task.workspace_id = source_run.workspace_id
+        AND source_task.id = source_run.task_id AND source_task.project_id = source_run.project_id
+      WHERE (? IS NULL OR source_artifact.run_id = ?)
+        AND ((source_artifact.run_id IS NULL AND ${runFree.sql}) OR (
+          ${source.sql} AND (${sharedTaskPredicate("source_task")} OR source_task.id = target.id)
+        ))
+    ) SELECT 1 AS authorized,
+      ${access.delegationId ? `(SELECT expires_at FROM oauth_delegations WHERE workspace_id = target.workspace_id AND id = ?)` : "NULL"} AS credential_expires_at
+      FROM current_target AS target
+      WHERE (SELECT COUNT(*) FROM current_sources) = (SELECT COUNT(*) FROM requested_evidence))`,
+    parameters: [
+      JSON.stringify(refs.filter((ref) => ref.kind === "artifact_version")),
+      workspaceId,
+      taskId,
+      ...target.parameters,
+      ...credential.parameters,
+      ...scope.parameters,
+      access.humanId,
+      ...(targetRunId ? [targetRunId] : []),
+      originatingRunId ?? null,
+      originatingRunId ?? null,
+      ...runFree.parameters,
+      ...source.parameters,
+      ...(access.delegationId ? [access.delegationId] : []),
+    ],
+  };
+}
+
+/** Select every exact reference together; no earlier source check survives later awaited work. */
 export async function authorizeResultEvidence(
   db: SqlDatabase,
   workspaceId: string,
   taskId: string,
   refs: EvidenceRef[],
-  access: TaskAccessContext,
+  access: TaskReadAccess,
+  originatingRunId?: string,
+  targetRunId?: string,
 ): Promise<void> {
-  for (const ref of refs) {
-    if (ref.kind !== "artifact_version") continue;
-    const { artifact, version, artifactId } = await artifactEvidenceSource(db, workspaceId, ref);
-    if (version && version.artifact_id !== artifactId)
-      throw new DomainError("invalid_argument", "evidence version does not belong to artifact");
-    if (!artifact || artifact.run_id === null) continue;
-    if (!artifact.parent_id || (artifact.is_private === 1 && artifact.task_id !== taskId))
+  const query = resultEvidenceSelection(
+    workspaceId,
+    taskId,
+    refs,
+    access,
+    originatingRunId,
+    targetRunId,
+  );
+  const current = (await db.prepare(query.sql).get(...query.parameters)) as
+    { credential_expires_at: string | null } | undefined;
+  if (
+    !current ||
+    (access.delegationId && !(Date.parse(current.credential_expires_at ?? "") > Date.now()))
+  )
+    throw new DomainError("not_found", "evidence artifact not found");
+}
+
+/** The same current all-reference fact guards the entire committing D1 batch. */
+export async function guardResultEvidence(
+  ctx: HubContext,
+  taskId: string,
+  refs: EvidenceRef[],
+  access: TaskReadAccess,
+  originatingRunId?: string,
+  targetRunId?: string,
+) {
+  const query = resultEvidenceSelection(
+    ctx.workspaceId,
+    taskId,
+    refs,
+    access,
+    originatingRunId,
+    targetRunId,
+  );
+  const id = randomUlid();
+  await ctx.db
+    .prepare(
+      `INSERT INTO artifact_mutation_guards (id,valid)
+    SELECT ?, CASE WHEN EXISTS (${query.sql}) THEN 1 ELSE 0 END`,
+    )
+    .run(id, ...query.parameters);
+  await ctx.db.prepare("DELETE FROM artifact_mutation_guards WHERE id = ?").run(id);
+}
+
+/** Cache payloads are untrusted historical data, not authorization evidence. */
+export function cachedResultEvidence(
+  result: { submission: SubmissionRecord },
+  runId: string,
+): EvidenceRef[] {
+  try {
+    if (
+      !result?.submission ||
+      result.submission.run_id !== runId ||
+      !Array.isArray(result.submission.evidence_refs)
+    )
+      throw new DomainError("invalid_argument", "invalid result cache");
+    const refs = evidenceRefs(result.submission.evidence_refs);
+    if (canonicalLaunchJson(refs) !== canonicalLaunchJson(result.submission.evidence_refs))
+      throw new DomainError("invalid_argument", "invalid result cache");
+    return refs;
+  } catch (error) {
+    if (error instanceof DomainError)
       throw new DomainError("not_found", "evidence artifact not found");
-    await assertTaskAccess(db, access, artifact.parent_id, "read");
+    throw error;
   }
 }
 
-function resultEvidenceProjection(access?: TaskAccessContext) {
-  const predicate = access
-    ? taskAccessPredicate(access, "read", "source_task")
-    : { sql: sharedTaskPredicate("source_task"), parameters: [] };
-  // Every submission has at most twenty refs. Resolve those exact identities,
-  // including the supported version-ID alias, in the content-bearing query so
-  // a source revoke cannot interleave a separate final target-authority read.
+function resultEvidenceProjection(access?: TaskReadAccess) {
+  const predicate = readTaskPredicate(access, "source_task");
+  const runFree = runFreeEvidence(access);
+  // Materialized expression boundaries keep D1's depth limit while selecting
+  // the target, every bounded source and the returned content in one statement.
   return {
-    sql: `(SELECT json_group_array(json(evidence.value))
-      FROM json_each(submission.evidence_refs_json) AS evidence
-      LEFT JOIN artifacts AS named_artifact
-        ON named_artifact.workspace_id = submission.workspace_id
-          AND named_artifact.id = json_extract(evidence.value, '$.ref')
-      LEFT JOIN artifact_versions AS alias_version
-        ON alias_version.workspace_id = submission.workspace_id
-          AND alias_version.id = json_extract(evidence.value, '$.ref')
-          AND named_artifact.id IS NULL AND json_extract(evidence.value, '$.version') IS NULL
-      LEFT JOIN artifact_versions AS bound_version
-        ON bound_version.workspace_id = submission.workspace_id
-          AND bound_version.id = json_extract(evidence.value, '$.version')
+    sql: `normalized_evidence AS MATERIALIZED (
+      SELECT submission.workspace_id, submission.id AS submission_id, submission.target_task_id,
+        element.key AS ref_index, CASE WHEN element.type = 'object' THEN element.value ELSE '{}' END AS value
+      FROM authorized_submissions AS submission,
+        json_each(CASE WHEN json_valid(submission.evidence_refs_json) THEN
+          CASE WHEN json_type(submission.evidence_refs_json) = 'array'
+            AND json_array_length(submission.evidence_refs_json) <= ${MAX_EVIDENCE_REFS}
+            THEN submission.evidence_refs_json ELSE '[]' END ELSE '[]' END) AS element
+    ), typed_evidence AS MATERIALIZED (
+      SELECT evidence.*, json_extract(evidence.value,'$.kind') AS kind,
+        json_extract(evidence.value,'$.ref') AS ref, json_type(evidence.value,'$.ref') AS ref_type,
+        json_extract(evidence.value,'$.version') AS version, json_type(evidence.value,'$.version') AS version_type
+      FROM normalized_evidence AS evidence
+      WHERE NOT EXISTS (SELECT 1 FROM json_each(evidence.value) AS evidence_field
+        GROUP BY evidence_field.key HAVING COUNT(*) > 1)
+    ), resolved_evidence AS MATERIALIZED (
+      SELECT evidence.*, source_version.id AS source_version_id, source_artifact.id AS source_artifact_id,
+        source_artifact.run_id AS source_run_id, source_task.id AS source_task_id,
+        ${sharedTaskPredicate("source_task")} AS source_shared,
+        ${runFree.sql} AS run_free_authorized
+      FROM typed_evidence AS evidence
+      LEFT JOIN artifact_versions AS source_version
+        ON source_version.workspace_id = evidence.workspace_id AND evidence.kind = 'artifact_version'
+          AND source_version.id = COALESCE(evidence.version,evidence.ref)
       LEFT JOIN artifacts AS source_artifact
-        ON source_artifact.workspace_id = submission.workspace_id
-          AND source_artifact.id = COALESCE(named_artifact.id, alias_version.artifact_id)
-      WHERE json_extract(evidence.value, '$.kind') <> 'artifact_version' OR (
-        (bound_version.id IS NULL OR bound_version.artifact_id = json_extract(evidence.value, '$.ref'))
-        AND (source_artifact.id IS NULL OR source_artifact.run_id IS NULL OR EXISTS (
-          SELECT 1 FROM runs AS source_run JOIN tasks AS source_task
-            ON source_task.workspace_id = source_run.workspace_id AND source_task.id = source_run.task_id
-              AND source_task.project_id = source_run.project_id
-          WHERE source_run.workspace_id = source_artifact.workspace_id
-            AND source_run.id = source_artifact.run_id AND ${predicate.sql}
-        ))
-      ))`,
-    parameters: predicate.parameters,
+        ON source_artifact.workspace_id = evidence.workspace_id
+          AND source_artifact.id = source_version.artifact_id
+          AND (evidence.version_type IS NULL OR source_artifact.id = evidence.ref)
+      LEFT JOIN runs AS source_run ON source_run.workspace_id = source_artifact.workspace_id AND source_run.id = source_artifact.run_id
+      LEFT JOIN tasks AS source_task ON source_task.workspace_id = source_run.workspace_id
+        AND source_task.id = source_run.task_id AND source_task.project_id = source_run.project_id
+    ), authorized_source_tasks AS MATERIALIZED (
+      SELECT source_task.workspace_id, source_task.id FROM tasks AS source_task
+      JOIN (SELECT DISTINCT workspace_id,source_task_id FROM resolved_evidence WHERE kind = 'artifact_version') AS candidate
+        ON candidate.workspace_id = source_task.workspace_id AND candidate.source_task_id = source_task.id
+      WHERE ${predicate.sql}
+    ), visible_evidence AS MATERIALIZED (
+      SELECT evidence.submission_id, evidence.ref_index, evidence.value FROM resolved_evidence AS evidence
+      LEFT JOIN authorized_source_tasks AS source ON source.workspace_id = evidence.workspace_id AND source.id = evidence.source_task_id
+      WHERE evidence.kind <> 'artifact_version' OR (
+        evidence.source_version_id IS NOT NULL AND evidence.source_artifact_id IS NOT NULL
+        AND evidence.ref_type = 'text' AND (evidence.version_type IS NULL OR evidence.version_type = 'text')
+        AND ((evidence.source_run_id IS NULL AND evidence.run_free_authorized)
+          OR (source.id IS NOT NULL AND (evidence.source_shared OR source.id = evidence.target_task_id)))
+      )
+    )`,
+    parameters: [...runFree.parameters, ...predicate.parameters],
   };
 }
 
@@ -528,7 +651,38 @@ export const submitResultCommand: HubCommand<ResultSubmissionInput, SubmitResult
       authority.run.task_id,
       refs,
       authority.access,
+      "request" in input ? authority.run.id : undefined,
+      authority.run.id,
     );
+  },
+  replayResult: async (result, ctx, input) => {
+    const hasArtifacts =
+      Array.isArray(result?.submission?.evidence_refs) &&
+      result.submission.evidence_refs.some((ref) => ref?.kind === "artifact_version");
+    try {
+      const fresh = { ...ctx, now: new Date().toISOString() };
+      const authority = await submissionAuthority(input, fresh);
+      const refs = cachedResultEvidence(result, authority.run.id);
+      if (
+        canonicalLaunchJson(result.agentOrigin ?? null) !==
+        canonicalLaunchJson(authority.origin ?? null)
+      )
+        throw new DomainError("not_found", "evidence artifact not found");
+      await authorizeResultEvidence(
+        fresh.db,
+        fresh.workspaceId,
+        authority.run.task_id,
+        refs,
+        authority.access,
+        "request" in input ? authority.run.id : undefined,
+        authority.run.id,
+      );
+      return result;
+    } catch (error) {
+      if (hasArtifacts && error instanceof DomainError)
+        throw new DomainError("not_found", "evidence artifact not found");
+      throw error;
+    }
   },
   inputFingerprint: (input) => resultFingerprint("request" in input ? input.request : input),
   auditInput: (input) =>
@@ -567,7 +721,15 @@ export const submitResultCommand: HubCommand<ResultSubmissionInput, SubmitResult
       throw new DomainError("not_found", "task not found");
     }
     const { summary, limitations, refs, git } = validateSubmission(authority.fields);
-    await authorizeResultEvidence(ctx.db, ctx.workspaceId, run.task_id, refs, authority.access);
+    await authorizeResultEvidence(
+      ctx.db,
+      ctx.workspaceId,
+      run.task_id,
+      refs,
+      authority.access,
+      "request" in input ? run.id : undefined,
+      run.id,
+    );
     assertRunResultTransition(run.result_state as "open", "submitted");
     if (task.state !== "active") {
       throw new DomainError("invalid_transition", "submission requires an active task");
@@ -583,6 +745,29 @@ export const submitResultCommand: HubCommand<ResultSubmissionInput, SubmitResult
     const nextRunVersion = run.resource_version + 1;
     const nextTaskVersion = task.resource_version + 1;
     const id = randomUlid();
+    const localAuthority =
+      "request" in input
+        ? await prepareAgentArtifactAuthority(
+            ctx,
+            input.principal,
+            input.request.reference,
+            input.request.binding,
+          )
+        : undefined;
+    await guardResultEvidence(
+      ctx,
+      run.task_id,
+      refs,
+      authority.access,
+      "request" in input ? run.id : undefined,
+      run.id,
+    );
+    if (localAuthority)
+      await guardLaunchMutation(
+        ctx,
+        localAuthority.witness.predicate,
+        localAuthority.witness.params,
+      );
     await ctx.db
       .prepare(
         `INSERT INTO result_submissions
@@ -872,11 +1057,14 @@ export async function listResultSubmissions(
   workspaceId: string,
   runId: string,
   currentEvidenceVersions: ReadonlyMap<string, string> = new Map(),
-  access?: TaskAccessContext,
+  access?: TaskReadAccess,
 ): Promise<SubmissionView[]> {
-  const predicate = access
-    ? taskAccessPredicate(access, "read", "task")
-    : { sql: sharedTaskPredicate("task"), parameters: [] };
+  const taskPredicate = readTaskPredicate(access, "task");
+  const scope = resultDelegationScope(access, "bfb:read", "task");
+  const predicate = {
+    sql: `(${taskPredicate.sql} AND ${scope.sql})`,
+    parameters: [...taskPredicate.parameters, ...scope.parameters],
+  };
   const current = await db
     .prepare(
       `SELECT run.id FROM runs AS run JOIN tasks AS task
@@ -889,22 +1077,27 @@ export async function listResultSubmissions(
   const evidence = resultEvidenceProjection(access);
   const rows = (await db
     .prepare(
-      `SELECT submission.id, submission.run_id, submission.version, submission.summary,
-              submission.limitations, ${evidence.sql} AS evidence_refs_json,
+      `SELECT * FROM (WITH authorized_submissions AS MATERIALIZED (
+        SELECT submission.*, task.id AS target_task_id,
+          (SELECT snapshot.content_hash FROM run_configuration_snapshots AS snapshot
+           WHERE snapshot.workspace_id = run.workspace_id AND snapshot.run_id = run.id
+           ORDER BY snapshot.snapshot_generation DESC LIMIT 1) AS current_config_hash
+        FROM result_submissions AS submission
+        JOIN runs AS run ON run.workspace_id = submission.workspace_id AND run.id = submission.run_id
+        JOIN tasks AS task ON task.workspace_id = run.workspace_id
+          AND task.id = run.task_id AND task.project_id = run.project_id
+        WHERE submission.workspace_id = ? AND submission.run_id = ? AND ${predicate.sql}
+      ), ${evidence.sql}
+      SELECT submission.id, submission.run_id, submission.version, submission.summary,
+              submission.limitations, (SELECT json_group_array(json(visible.value))
+                FROM (SELECT value FROM visible_evidence WHERE submission_id = submission.id ORDER BY ref_index) AS visible) AS evidence_refs_json,
               submission.git_branch, submission.git_commit, submission.git_dirty,
               submission.config_snapshot_id, submission.config_hash,
               submission.submitted_by_kind, submission.submitted_by_id, submission.submitted_at,
-              (SELECT snapshot.content_hash FROM run_configuration_snapshots AS snapshot
-               WHERE snapshot.workspace_id = run.workspace_id AND snapshot.run_id = run.id
-               ORDER BY snapshot.snapshot_generation DESC LIMIT 1) AS current_config_hash
-       FROM result_submissions AS submission
-       JOIN runs AS run ON run.workspace_id = submission.workspace_id AND run.id = submission.run_id
-       JOIN tasks AS task ON task.workspace_id = run.workspace_id
-         AND task.id = run.task_id AND task.project_id = run.project_id
-       WHERE submission.workspace_id = ? AND submission.run_id = ? AND ${predicate.sql}
-       ORDER BY submission.version DESC`,
+              submission.current_config_hash
+       FROM authorized_submissions AS submission ORDER BY submission.version DESC)`,
     )
-    .all(...evidence.parameters, workspaceId, runId, ...predicate.parameters)) as Array<{
+    .all(workspaceId, runId, ...predicate.parameters, ...evidence.parameters)) as Array<{
     id: string;
     run_id: string;
     version: number;
@@ -924,6 +1117,15 @@ export async function listResultSubmissions(
   const views: SubmissionView[] = [];
   for (const [index, row] of rows.entries()) {
     const record = submissionRow(row);
+    record.evidence_refs = record.evidence_refs.filter((ref) => {
+      try {
+        const validated = evidenceRefs([ref])[0];
+        return canonicalLaunchJson(ref) === canonicalLaunchJson(validated);
+      } catch (error) {
+        if (error instanceof DomainError && error.code === "invalid_argument") return false;
+        throw error;
+      }
+    });
     const reasons: SubmissionView["outdated_reasons"] = [];
     if (index > 0) {
       reasons.push("superseded");

@@ -19,8 +19,8 @@ export interface HubCommand<TInput, TResult> {
   authorize?: (input: TInput, ctx: HubContext) => Promise<void>;
   /** Binds retry identity to the operation input without persisting private input. */
   inputFingerprint?: (input: TInput) => string;
-  /** Read-only delivery projection for saved results whose related resources may lose access. */
-  replayResult?: (result: TResult, ctx: HubContext) => Promise<TResult>;
+  /** Read-only projection reuses authenticated input when related resources lose access. */
+  replayResult?: (result: TResult, ctx: HubContext, input: TInput) => Promise<TResult>;
   /** Security commands explicitly project safe audit input fields. */
   auditInput?: (input: TInput) => unknown;
   /** Safe receipts for audit/semantic/outbox only; response and idempotency retain the full result. */
@@ -171,7 +171,7 @@ export class WorkspaceHub {
             return {
               ok: true,
               result: command.replayResult
-                ? await command.replayResult(parsed.result, authorityContext)
+                ? await command.replayResult(parsed.result, authorityContext, request.input)
                 : parsed.result,
               replayed: true,
               cursor: parsed.cursor,

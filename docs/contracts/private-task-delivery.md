@@ -103,13 +103,48 @@ configuration body. Private execution support belongs to its owning lane.
 
 Known private artifact evidence cannot be copied into a different task even
 when the submitting human can read both. Current reads re-project historical
-evidence links through recipient access without rewriting submissions. Generic
-unknown references retain their earlier opaque handling. This interim behavior
-does **not** certify reference-existence privacy: accepting an unknown artifact
-ID while rejecting an existing hidden ID distinguishes presence. Stage 3 must
-provide a uniform external policy for recognized artifact references before
-private creation can be enabled. Synthetic child tests prove access/content
-fences, not that remaining existence check or live private R2 byte delivery.
+evidence links through recipient access without rewriting submissions.
+
+Stage 3 reserves evidence kind `artifact_version` for an exact existing immutable
+artifact version. Supported identities are `{ref: artifactId, version: versionId}`
+and the retained version-ID alias `{ref: versionId}`. An artifact ID without a
+version is not an exact version reference. Missing artifact/version, hidden or
+other-tenant source, wrong-artifact version, dangling/mismatched task parent and
+private evidence crossing tasks have one fixed `not_found` reference denial.
+Validate before cached submission delivery as well as before a fresh write.
+Select all recognized references together so an earlier source cannot survive
+access loss during a later reference lookup. Cached delivery reuses the current
+authenticated request, not authority reconstructed from cached metadata, and
+checks the actual retained references after the cache read. Fresh submissions
+also require same-batch current target/credential/source guards; independent
+revocation before commit rolls back submission, state, receipt and audit
+effects. A stale-authorized batch guard uses the existing uniform `command_failed`
+transaction outcome, not a new semantic reference-error contract. These checks
+do not rewrite historical rows or cached receipts.
+The checkpoint preserves shared authority helpers' server-observed authorization
+time. It does not certify natural credential/lease expiry while a D1 batch is
+in flight; that temporal boundary needs coordinated proof before activation,
+not a silent clock-policy change in result-reference code.
+Historical invalid or inaccessible recognized references are omitted from
+current delivery without rewriting the submission or its receipt. Other
+evidence kinds remain opaque and retain their existing version-map behavior;
+they are not looked up as artifact IDs. Run-free artifacts retain workspace
+membership authority rather than gaining a fabricated project/task association.
+Credential boundaries also apply to the source lookup, not just the destination:
+delegated references require the current active delegation, scope and exact
+project/task/subtree boundary in that query. A bound delegation does not gain
+workspace-wide run-free artifact authority. Local-agent references remain in
+their exact originating run; the sponsor's broader personal access cannot
+authorize a foreign run or run-free source. Direct human submissions retain
+authorized shared cross-task and run-free source references. These rules do not
+change provider execution or runner acknowledgement wire.
+
+The stage-two checkpoint predates this uniform policy: it accepts some unknown
+recognized references while rejecting hidden sources, which distinguishes
+presence. Its certificate proves content/access fences, not this remaining
+existence check. Private creation stays unavailable until the stage-three
+regressions and complete matrix pass. Live private R2 byte delivery is a
+separate proof, not implied by either reference validation or synthetic races.
 
 ## Frozen replay contract
 
@@ -128,6 +163,53 @@ state and closes/rebinds affected sockets; reconnect re-authorizes before replay
 Old raw-cursor endpoints must not become a private-work back door. Activation
 requires their safe version transition, including shared command receipts,
 measurement-source cursors and security-audit pagination, not just `/events`.
+
+## Fail-closed notification and integration delivery
+
+Until recipient-safe dispatch is certified, private task-bound notifications
+are unavailable to every recipient, including creators and named grantees.
+Fanout, retry, each push endpoint attempt, historical delivery lists and native
+pull/ack resolve the exact same-workspace/project/task parent and exclude private
+or missing lineage. Filter before pagination; current recipient membership,
+project and credential authority still apply. Recheck at commit and immediately
+before external contact, including effective current project/workspace delivery
+preferences after signing. Missing/hidden native acknowledgements both return
+zero without changing hidden inbox records. Answered shared attention history
+remains readable; history selection does not require the attention to be open.
+Internal dispatch watermarks may advance over denied events without creating
+delivery rows. Existing cursor-derived delivery identities and outward raw
+cursors remain activation barriers until the recipient-position transition.
+
+GitHub evidence may associate shared tasks or remain project-only. It cannot
+associate private tasks, even for their creator. Explicit missing/private task
+IDs have the same `not_found` outcome. Existing stored task association is also
+checked before an omitted-task update or cached return, and at commit. Private
+historical rows do not consume pages or count as verification provenance;
+hidden-only and unknown references both project to `unverified`. Retain separate
+accessible public observations of the same external reference. Receipts contain
+bounded identifiers/versions, never arbitrary reference prose or state bodies.
+
+Do not detach or rewrite old private GitHub associations. An unbound absent
+evidence key can currently create a project-only row while an existing hidden
+key rejects; blocking that write is a content fence, not a reference-presence
+certificate. A uniform collision policy is still required before private
+activation. Incoming webhook convergence, installation authority and internal
+queue identity remain unchanged; there is no new external-publication API.
+
+Operations activity and stuck-work projections exclude private or dangling
+task-bound rows, even for the creator, until the complete operations delivery
+gate passes. Resolve ledger/launch/artifact children through their exact
+same-workspace run, task and project; apply current human membership/epoch/project
+authority in the selecting query before LIMIT. Unscoped internal projections
+remain shared-only. Run-free uploads retain workspace membership authority.
+Composite queue/health delivery rechecks the hydrated upload and launch references
+in one final query after other awaited reads; an earlier list cannot survive
+parent or credential loss during later hydration.
+Do not operate providers or change launch lifecycle through these read repairs.
+These content selectors do not certify queue/audit totals, frozen diagnostic
+snapshots, retention/recovery targets or raw positions; those remain activation
+barriers with separate lineage and count proofs. Never disable a route merely
+because a private record exists, since that response would expose its presence.
 
 ## Delivery inventory and required proof
 

@@ -997,7 +997,7 @@ describe("result outdated detection", () => {
         human("evmap-submit", {
           runId,
           summary: "Synthetic evidence map target",
-          evidenceRefs: [{ kind: "artifact_version", ref: "synthetic-artifact", version: "1" }],
+          evidenceRefs: [{ kind: "external", ref: "synthetic-external", version: "1" }],
         }),
       ),
     );
@@ -1007,7 +1007,7 @@ describe("result outdated detection", () => {
       db,
       FIX.workspace,
       runId,
-      new Map([["artifact_version\nsynthetic-artifact", "2"]]),
+      new Map([["external\nsynthetic-external", "2"]]),
     );
     expect(changed[0]).toMatchObject({ outdated: true });
     expect(changed[0]?.outdated_reasons).toEqual(["evidence_changed"]);
@@ -1015,7 +1015,7 @@ describe("result outdated detection", () => {
       db,
       FIX.workspace,
       runId,
-      new Map([["other_kind\nsynthetic-artifact", "2"]]),
+      new Map([["other_kind\nsynthetic-external", "2"]]),
     );
     expect(opaque[0]).toMatchObject({ outdated: false });
   });

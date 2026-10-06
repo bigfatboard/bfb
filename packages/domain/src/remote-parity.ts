@@ -33,6 +33,8 @@ import { canonicalLaunchJson } from "./launch-state.js";
 import { runnerHash } from "./runner-crypto.js";
 import {
   authorizeResultEvidence,
+  cachedResultEvidence,
+  guardResultEvidence,
   MAX_EVIDENCE_REFS,
   MAX_RESULT_LIMITATIONS_CHARS,
   MAX_RESULT_SUMMARY_CHARS,
@@ -366,7 +368,9 @@ async function delegatedResultAuthority(input: SubmitDelegatedResultInput, ctx: 
     ctx.workspaceId,
     state.task.id,
     evidenceRefs(input.evidenceRefs),
-    state.authority.delegation,
+    delegationTaskAccess(state.authority),
+    undefined,
+    state.run.id,
   );
   return state;
 }
@@ -527,6 +531,30 @@ export const submitDelegatedResultCommand: HubCommand<
   authorize: async (input, ctx) => {
     await delegatedResultAuthority(input, ctx);
   },
+  replayResult: async (result, ctx, input) => {
+    const refs = cachedResultEvidence(result, input.runId);
+    try {
+      const fresh = { ...ctx, now: new Date().toISOString() };
+      const { authority, run, task } = await delegatedRunAuthority(input.runId, fresh, [
+        "owner",
+        "member",
+      ]);
+      await authorizeResultEvidence(
+        fresh.db,
+        fresh.workspaceId,
+        task.id,
+        refs,
+        delegationTaskAccess(authority),
+        undefined,
+        run.id,
+      );
+      return result;
+    } catch (error) {
+      if (refs.some((ref) => ref.kind === "artifact_version") && error instanceof DomainError)
+        throw new DomainError("not_found", "evidence artifact not found");
+      throw error;
+    }
+  },
   inputFingerprint: delegatedFingerprint,
   auditInput: (input) => ({
     runId: (input as SubmitDelegatedResultInput)?.runId,
@@ -606,6 +634,14 @@ export const submitDelegatedResultCommand: HubCommand<
     const nextRunVersion = run.resource_version + 1;
     const nextTaskVersion = task.resource_version + 1;
     const id = randomUlid();
+    await guardResultEvidence(
+      ctx,
+      task.id,
+      refs,
+      delegationTaskAccess(authority),
+      undefined,
+      run.id,
+    );
     await ctx.db
       .prepare(
         `INSERT INTO result_submissions

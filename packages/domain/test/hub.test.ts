@@ -79,6 +79,49 @@ describe("workspace hub", () => {
     expect(cursors).toEqual([1, 2, 3, 4, 5]);
   });
 
+  it("passes the current request input to post-cache authority without rewriting the receipt", async () => {
+    const db = await openDomainDb();
+    const hub = new WorkspaceHub(db);
+    const requestInput = { n: 1 };
+    const command: HubCommand<{ n: number }, { n: number }> = {
+      ...echo,
+      name: "test.replay-authority",
+      auditInput: () => ({}),
+      async replayResult(result, ctx, input) {
+        expect(input).toBe(requestInput);
+        expect(ctx.actorHumanId).toBe(FIX.owner);
+        expect(ctx.authorizationEpoch).toBe(1);
+        return { n: result.n + input.n };
+      },
+    };
+    const request = {
+      workspaceId: FIX.workspace,
+      idempotencyKey: "replay-input-authority",
+      input: requestInput,
+      authorizationEpoch: 1,
+      actorHumanId: FIX.owner,
+    };
+    expect(await hub.execute(command, request)).toMatchObject({
+      ok: true,
+      replayed: false,
+      result: { n: 1 },
+    });
+    const stored = await db
+      .prepare("SELECT result_json FROM idempotency_records WHERE idempotency_key = ?")
+      .get(request.idempotencyKey);
+    expect(await hub.execute(command, request)).toMatchObject({
+      ok: true,
+      replayed: true,
+      result: { n: 2 },
+    });
+    expect(
+      await db
+        .prepare("SELECT result_json FROM idempotency_records WHERE idempotency_key = ?")
+        .get(request.idempotencyKey),
+    ).toEqual(stored);
+    expect(await db.prepare("SELECT COUNT(*) AS n FROM semantic_events").get()).toEqual({ n: 1 });
+  });
+
   it("rejects idempotency replay under a different authority", async () => {
     const db = await openDomainDb();
     const hub = new WorkspaceHub(db);
