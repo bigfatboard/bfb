@@ -40,12 +40,13 @@ daemon-owned authority and scoped files, not caller-selected cloud credentials.
   of lost grants, and durable abuse controls on every request surface.
 - Content verification (MIME binding, digest, size, conditional create) with
   shared content hashes and no public unauthenticated writes.
-- D1 migration `0020_artifact_storage` (manifest head `0020_artifact_storage`)
-  with single-claim guards, immutable history, upload receipts, the
-  content-addressed object registry, and the audit outbox.
-- Typed Go create → upload → finalize client plus CLI (`bfb artifact
-  publish`) and daemon (`artifact.publish`) entry points, exposed for A01 to
-  register as an MCP tool; local-RPC wire contract and fixtures included.
+- D1 artifact schema rooted at `0020_artifact_storage`, with additive
+  current-runtime migrations, immutable history, exact consume attempts,
+  verified upload receipts, the content-addressed object registry and audit outbox.
+- Bound CLI and local MCP through negotiated `mcp.v6.publish_artifact`,
+  daemon-owned scope, pinned files and fixed runner prepare/finalize phases.
+  The historical general `artifact.publish` client/wire remains separate;
+  it is not a native-run capability or current X02 parity certificate.
 - Acceptance harness `tools/artifacts/run.ts` proving every bullet against
   real Workers, D1, and disposable R2, with fault injection at every D1/R2
   boundary.
@@ -68,19 +69,20 @@ daemon-owned authority and scoped files, not caller-selected cloud credentials.
   (`packages/domain`: principal load, role/epoch fences, budget buckets).
 - F03 Artifact Worker + R2 substrate (`apps/artifact-worker`,
   `tools/substrate`): cookie-less origin, private bucket, Cron discipline.
-- D1 layer and migration chain (`packages/db`, `migrations/d1`,
-  manifest head `0020_artifact_storage`).
-- Local-RPC envelope (`protocol/schema/v1/local-rpc.json`): V01 declares the
-  `artifact.publish` payload keys, dispatch entries, and `v01-publish`
-  fixtures (minimal integration point, regenerated bindings committed).
+- D1 layer and current migration chain (`packages/db`, `migrations/d1`),
+  retaining historical artifact migrations and evidence unchanged.
+- Closed v6 `local-agent-artifact-rpc` and four artifact request/result
+  documents; deterministic v6 fixtures and generated TypeScript/Go codecs.
+  Historical general v1 `artifact.publish` payloads remain frozen.
 
 ### Produces
 
 - `docs/contracts/artifacts.md` (frozen): state machine, grant rules,
   routes, R2 key layout, formats/limits, Go client errors, local-RPC
   payload, and the `bfb_publish_artifact` MCP seam for A01.
-- `pnpm test:v01`: domain unit tests, mounted worker/route tests, the
-  real-Worker acceptance harness, protocol gate, and Go race tests.
+- `pnpm test:v01`: domain authority/recovery/audit tests, mounted routes,
+  real-Worker D1/R2 fault harness, migration/protocol checks, Go race tests,
+  compiled MCP/fresh CLI and signed native runtime proof on macOS.
 - `docs/work-packages/evidence/WP-V01/manifest.json`: bounded, redacted
   evidence for the tested commit.
 
@@ -140,10 +142,15 @@ exact-gate certification. Historical manifests are retained without relabelling.
   deleting shared bytes.
 - Upload-grant budgets survive Worker-isolate changes (21st pinned-IP upload
   attempt fails closed; the spared grant redeems from a fresh IP).
-- Run-scoped MCP/CLI/daemon client consumes authorization, runs typed
-  create → upload → finalize, and never selects an R2 key or emits secrets
-  (`internal/artifact`, `bfb artifact publish`, `artifact.publish`,
-  `bfb_publish_artifact` seam for A01).
+- Run-scoped MCP/CLI/daemon derives current authority, reads one pinned
+  bounded immutable snapshot, performs fixed prepare/upload/finalize phases,
+  and returns no credential, origin, local path or R2 key. Explicit same-ID
+  retry after lost replies and MCP/daemon restart resolves one canonical
+  operation; changed input or lost authority cannot expose a private result.
+- Cron scans are bounded and read-only; fresh system Hub commands protect
+  regrants and in-flight consumed grants until expiry plus grace. Original
+  audit-outbox IDs bind atomic, redacted event/audit projection and stamping
+  despite concurrent dispatch, late failure or transient reply-cache loss.
 - Exact gate from a clean checkout: `pnpm test:v01` passes; evidence
   manifest committed with the tested commit hash.
 
@@ -195,11 +202,10 @@ exact-gate certification. Historical manifests are retained without relabelling.
   `wrangler secret put UPLOAD_ABUSE_SECRET` on staging/production (uploads
   fail closed without it); control Cron sweeps abandoned uploads every 5
   minutes via `runArtifactSweep`.
-- A01 seam: register `internal/artifact.ToolDefinition()`
-  (`bfb_publish_artifact`) on the run-scoped server and call
-  `Client.InvokePublish`; scope `path` to the calling run first — results
-  never carry the grant secret. X02 seam: publication routes currently take
-  browser sessions only; designate CLI-credential auth there when X02 lands.
+- Current local integration follows ADR 0010's closed v6 capability, not the
+  old `internal/artifact.ToolDefinition()`/`Client.InvokePublish` seam.
+  X02 remains held: browser publication routes do not accept human CLI
+  credentials, and bound native-run authority cannot substitute for them.
 - Limitations: no view path (V02), no retention delete, sweep marks
   versions `failed` but never removes shared bytes, oversized/rejected
   uploads consume their grant (reissue to retry).
