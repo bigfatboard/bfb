@@ -145,7 +145,9 @@ A card can open a supported Claude Code version in the exact checkout, bind the 
   HTTPS. The real sign-in reaches GitHub consent for read-only profile/email
   access. Unauthenticated session/workspace requests remain denied. The
   first-owner verifier is prepared without seeding a human, workspace or
-  session; GitHub authorization, owner/passkey onboarding, runner enrollment
+  session. Timo approved GitHub consent, but the in-app browser blocks the exact
+  localhost callback with `ERR_BLOCKED_BY_CLIENT`; no bypass was attempted.
+  Fresh sign-in in a regular browser, owner/passkey onboarding, runner enrollment
   and the actual tracked provider workflow remain pending. No deployment or
   package completion follows from this local readiness result.
 - Active 6 October: Timo approved the Claude-first private-pilot delivery path.

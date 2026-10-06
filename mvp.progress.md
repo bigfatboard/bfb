@@ -14,8 +14,11 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
   Consent requests read-only profile and email access, not repository access.
   Unauthenticated session and workspace requests return 401. A private
   one-time first-owner verifier is initialized without creating a fake human,
-  workspace or browser session. GitHub authorization, owner/passkey onboarding,
-  runner enrollment and the live provider chain are still pending.
+  workspace or browser session. Timo approved GitHub consent, but the in-app
+  browser refused the exact localhost callback with `ERR_BLOCKED_BY_CLIENT`.
+  No browser-security bypass was attempted. A fresh sign-in in the user's
+  regular browser, owner/passkey onboarding, runner enrollment and the live
+  provider chain are still pending.
 - 6 October pilot continuation: Timo approved the persistent real-auth Claude-first
   path in the plan. L07 is now `in_progress`; 31 packages remain `done`, six
   `blocked` and seven `planned`. The unchanged exact L07 baseline passes with
