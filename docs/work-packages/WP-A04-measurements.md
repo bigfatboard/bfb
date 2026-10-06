@@ -49,12 +49,12 @@ BFB shows human attention, process elapsed time, active agent work, waiting, and
 
 ### Produces
 
-- [Measurements and provenance v1](../contracts/measurements.md), freezing the observation, interval-union, token-quality, price-catalog, and review-timer contracts; D1 head `0027_measurements`. V03 consumes the review-timer service and creates no second timer.
+- [Measurements and provenance v1](../contracts/measurements.md), freezing the observation, interval-union, token-quality, price-catalog, and review-timer contracts, with the ADR 0009 typed-telemetry extension at D1 head `0041_measurement_sources` and daemon `011_measurement_telemetry`. The original observation tables remain at `0027_measurements`. V03 consumes the review-timer service and creates no second timer.
 - Stable test target `pnpm test:a04` and evidence-manifest path `docs/work-packages/evidence/WP-A04/manifest.json`.
 - `packages/domain/src/measurements.ts`: `token.report`/`interval.report` (runner actor, assignment-validated, idempotent with confusion rejection), `review_timer.start`/`stop` (starter-scoped human timer), `browser_activity.record` (capped, estimated), and read-time derivations `getRunMeasurements`/`getTaskMeasurements`/`aggregateMeasurements`.
 - `apps/control-worker/src/api/work.ts`: run/task measurement reads, review-timer start/stop, and browser-activity routes.
 - `apps/web/src/work/measurements.tsx`: separated task-sheet display with explicit review-timer controls.
-- `tools/measurements/run.ts`: real-Worker/D1 fault and derivation harness writing `calculation-snapshots.json`.
+- `tools/measurements/run.ts`: real-Worker/D1 fault and derivation harness writing `runtime-calculation-snapshots.json`; historical `calculation-snapshots.json` is retained untouched. The signed compiled-hook/daemon upload proof is a separate native gate, not an inference from those calculation fixtures.
 
 ## Work plan
 
@@ -95,7 +95,7 @@ the committed A02/A03 runtime contracts and E01 v1 without widening them.
 ## Risks and decisions
 
 - Risk: metrics shape behavior toward false precision. Decision: honest incompleteness everywhere — unpaired starts contribute nothing and are counted, missing idle sources report null with reason, unknown models price as null, empty states name what is missing.
-- Risk: sibling packages share the event ledger, MCP-adjacent surfaces, and task sheet. Decision: A04 adds additive tables/commands/routes only; E01, A02, and A03 code is untouched, and the one W01 spec assertion that pinned the replaced placeholder now pins the live panel.
+- Risk: sibling packages share the event ledger, journal, MCP-adjacent surfaces, and task sheet. Decision: the current extension preserves frozen v1, protected business authority and historical evidence; it adds versioned typed ingest and source tables under ADR 0009. Changed shared paths require E01/L06 and affected A01–A03 regression checks; dependency certificates do not stand in for those checks.
 - Risk: price catalogs rot. Decision: catalogs are frozen versioned constants with an explicit unknown-model null; history recomputes under the pinned version.
 
 ## Handoff
@@ -111,5 +111,5 @@ the committed A02/A03 runtime contracts and E01 v1 without widening them.
 - Consume: `docs/contracts/measurements.md` (v1), domain commands `token.report`, `interval.report`, `review_timer.start`, `review_timer.stop`, `browser_activity.record` plus reads `getRunMeasurements`, `getTaskMeasurements`, `aggregateMeasurements` in `packages/domain/src/measurements.ts`, REST routes under `/runs/:runId/measurements`, `/tasks/:taskId/measurements`, `/tasks/:taskId/review-timers`, `/review-timers/:timerId/stop`, `/browser-activity`, `MeasurementsPanel`/`MeasurementsView` in `apps/web/src/work/measurements.tsx`.
 - V03: consume reviewed submission versions plus this review-timer service; never mutate submissions or create a second timer.
 - G01: use these metrics as release assertions; no exact product metric comes from sampled logs.
-- Token ingestion for live runners goes through the `token.report`/`interval.report` hub commands (same assignment validation as event ingest); no runner REST route was added in v1.
+- Explicit `token.report`/`interval.report` commands retain historical assignment validation with current authority before cache delivery. Connected native measurements use the existing event ingest route with v2 typed telemetry; no parallel measurement upload route is added. Pinned live provider usage without a certified delta basis/stable identity remains unavailable; the synthetic native proof is not live usage certification.
 - Limitations: external wait/idle derive only from explicitly reported intervals (the v1 ledger carries no implicit source); failed/cancelled runs without submissions measure run age to read time and say so; aggregation caps at 200 runs with a `truncated` flag.

@@ -14,12 +14,35 @@ infers completion, human attention, agent activity, time, or token usage from
 transport presence or prose, and never presents estimated or unavailable
 values as exact.
 
-## Records (D1 migration `0027_measurements`)
+## Records (D1 migrations `0027_measurements` and `0041_measurement_sources`)
 
 Every stored observation carries a unique `(workspace_id, observation_id)`.
 Totals are derived at read time from unique identities; replaying an
 observation inserts no second row, so replays cannot inflate totals.
 Observation tables are immutable: update/delete triggers abort.
+
+The connected telemetry extension follows [ADR 0009](../adr/0009-connected-measurement-telemetry.md).
+`measurement_sources` binds each canonical turn/tool phase or token delta to
+an execution, assignment generation, immutable provider snapshot, optional
+provider session, opaque source identity and semantic fingerprint.
+`measurement_event_sources` links every accepted v2 ledger event, including
+recaptured aliases, to that canonical source and its complete input fingerprint.
+Ledger, source and token rows commit in the same WorkspaceHub D1 batch. Duplicate
+semantic sources cannot create a second token observation or activity phase;
+changed data under the same identity is rejected. Historical rows are untouched.
+
+The existing runner event channel accepts frozen v1 submissions and closed
+`runner-telemetry-submission` v2 items in the existing batch envelope. Native
+capture uses the same durable journal and authenticated upload route, with
+bounded persistent dedupe in daemon migration `011_measurement_telemetry`.
+Capabilities are discovered with authenticated `events/capabilities`; unsupported
+typed rows remain visibly durable, never downgraded or silently quarantined.
+Only a matching explicit item disposition in a valid workspace-bound acknowledgement
+can acknowledge a row. A high-water cursor alone cannot delete it.
+
+Current runner credentials and grants plus the historical execution assignment
+authorize delayed telemetry after execution end. This does not grant permission
+to make A01–A03 business writes or infer task progress/completion from hooks.
 
 `token_observations` keeps one row per unique usage report:
 
@@ -65,7 +88,7 @@ milliseconds. Union totals merge overlapping and adjacent intervals from
 unique observation identities and report milliseconds plus the contributing
 observation count. Zero-length intervals contribute nothing; inverted
 intervals are rejected. Open (unpaired) starts are reported as
-`open_interval_count` and contribute nothing to totals.
+`open_intervals` and contribute nothing to totals.
 
 Derived run measures (all in milliseconds, each with its provenance):
 
@@ -73,26 +96,34 @@ Derived run measures (all in milliseconds, each with its provenance):
   `execution_attached` ledger event for its execution; when nothing ever
   attached, to `cancelled_at`, or to `expires_at` once expired. Null while
   the command is still pending.
-- `process_elapsed_ms`: first execution attach (ledger `execution_attached`,
-  falling back to execution `created_at`) to the last execution `ended_at`,
-  or to read time while an execution is still live. Runner-offline wall time
-  stays inside this span and is additionally reported as `offline_ms`.
-- `process_alive_ms`: union of per-execution `[attach, end]` spans. Unlike
-  elapsed wall time, gaps between executions are excluded.
-- `active_ms`: union of paired turn intervals (`turn_started` to the next
-  `turn_stopped`/`turn_failed`) and tool intervals (`tool_started` to the
-  next `tool_finished`/`tool_failed`) per execution, plus reported `active`
-  intervals. Pairing is per execution in `occurred_at` order.
+- `process_elapsed_ms`: first observed process window to the last window's
+  end. A window requires an actual `execution_attached` event or explicit
+  `process_alive` interval, clipped to that execution's creation/end and read
+  time. Never-attached queued/launching/ended executions do not gain process
+  time from creation. No windows means null, not a measured zero.
+- `process_alive_ms`: union of those per-execution windows. Unlike elapsed
+  wall time, gaps between executions are excluded. Runner-offline wall time
+  stays inside both observed spans and is also reported separately.
+- `active_ms`: union of matching typed turn/tool start and terminal phases,
+  keyed by execution, assignment generation, provider session, activity family
+  and identity, plus explicit `active` intervals. All activity is clipped to
+  observed process windows and read time. Recaptured aliases never add a pair.
+  Unambiguous identity-free legacy pairs remain `includes_legacy_estimates`;
+  overlapping ambiguous legacy starts are not matched by FIFO. `active_quality`
+  is `observed`, `includes_legacy_estimates`, or `unavailable`, with incomplete
+  pairs and ambiguous legacy events counted separately.
 - `attention_wait_ms`: union of spans with at least one open blocking
   attention request (`requested_at` to `answered_at`, else `resolved_at`,
   else read time). Non-blocking requests never contribute.
 - `external_wait_ms` / `idle_ms`: union of reported `external_wait`/`idle`
   intervals. The v1 ledger carries no implicit source for either; absence is
-  reported as null with reason `no_observations`, never as zero labor.
-- `offline_ms`: within the elapsed span, sub-spans with no heartbeat for
+  reported as null, never as zero labor. Reported intervals are clipped to
+  the same execution's observed process windows and read time.
+- `offline_ms`: within each execution's observed process windows, sub-spans with no heartbeat for
   longer than `HEARTBEAT_STALE_MS` (45 seconds, the architecture presence
   threshold), from last heartbeat plus 45 seconds to the next heartbeat.
-  Reported beside elapsed time, never subtracted from it.
+  Include the trailing stale tail of still-live executions. Another execution's
+  heartbeat cannot mask it. Reported beside elapsed time, never subtracted from it.
 - `run_age_ms`: run `created_at` to the latest result submission or review
   timestamp, else to read time. Terminal result state is reported as
   `run_complete`; a failed or cancelled run with no submission measures to
@@ -113,6 +144,15 @@ without invention:
   unless the provider reports it.
 - Unknown, negative, non-integer, or unsafe values are rejected; a report
   with no usable field is stored as `unavailable`, never as zeros.
+- Every supplied alias is checked, including aliases not selected first.
+  Conflicting aliases and unknown fields are rejected.
+- A native adapter emits a token delta only for a pinned tested source that
+  supplies a known turn-delta basis and stable usage identity. Missing or
+  cumulative/unidentified usage cannot be invented into additive deltas.
+  The current pinned Codex stream preserves reported cache/reasoning fields but
+  does not invent the missing stable usage identity or delta basis. The pinned
+  Claude hook path has no validated usage source. Synthetic typed-usage capture
+  proves journal/upload/persistence behavior, not live usage certification.
 
 Summation rules:
 
@@ -121,6 +161,12 @@ Summation rules:
 - `unavailable` counts rows without counters; they contribute nothing.
 - No response carries a single combined total. Displays show the exact
   total, the estimated total, and the unavailable count as separate values.
+- Each counter is summed with safe-integer checks at run, task and aggregation
+  levels. Overflow nulls the affected field and propagates its name in
+  `exact_overflow_fields` or `estimated_overflow_fields`; original source facts
+  remain intact. A later subtotal cannot turn an overflow back into a number.
+- Cache and reasoning counters can overlap input/output; they are separate
+  fields, never added into a token grand total.
 
 ## Price catalogs (calculation only, never stored facts)
 
@@ -136,6 +182,10 @@ version and calculation time. Token rows never store money.
   back to another model's price.
 - Recomputing the same token facts under another catalog version explains
   historical totals without changing them.
+- Overflow yields `counter_overflow` and null cost. The total is null whenever
+  any exact model group cannot be priced; a known-model subtotal is not labelled
+  the complete cost. These catalogs contain synthetic fixture-model prices,
+  not a claim to cover current production provider pricing.
 
 ## Review-timer service (consumed by V03)
 
@@ -151,7 +201,10 @@ code uses this service and does not create a second timer implementation.
 - Reads report per-timer durations, per-task totals (stopped durations
   summed; open timers reported separately with elapsed-to-read-time), and
   the full observation history oldest first.
-- Hub idempotency replays the identical record on retried keys.
+- Hub idempotency replays the identical record only after current authority
+  is checked inside the workspace FIFO and the complete request fingerprint
+  matches. A cached stop may replay after stopping, but only for the currently
+  authorized starting human.
 
 ## Attention latency, interventions, browser activity
 
@@ -171,11 +224,21 @@ code uses this service and does not create a second timer implementation.
 ## Aggregation
 
 `aggregateMeasurements` rolls the same separated measures up by
-`project_id`, provider (from the run's agent profile), and task priority
+`project_id`, provider (from immutable launch snapshots), and task priority
 (the v1 task-type grouping; v1 has no separate task-type field). Each cell
-carries run counts, summed active/elapsed/attention milliseconds, token
-sums by quality class, human review milliseconds, and attention counts.
-Aggregation implements no autonomy rule and changes no record.
+carries run counts, summed active/elapsed/alive/offline/attention milliseconds,
+unknown-process/activity counts, legacy-estimated run counts, checked token
+sums by quality class, human review milliseconds, and attention counts. Mixed
+provider snapshots within one run produce a null provider rather than a guess.
+Run-grouped human review includes only timers explicitly linked to those runs
+(`review_scope: run_linked_timers`), separating stopped time from open elapsed
+time. Task-only timers remain in task review totals and are not attributed to a
+guessed provider. Aggregation is capped at 200 runs with an explicit `truncated`
+flag. It implements no autonomy rule and changes no record.
+
+Task totals expose `unknown_run_counts` for process, active, external wait and
+idle, so a partial known subtotal is not labelled complete. Zero runs or no
+observations render as missing, distinct from an observed zero.
 
 ## Displays
 
@@ -187,29 +250,36 @@ provenance, and never collapse them into one number:
 3. Waiting: attention wait, external wait/idle, and visible offline spans.
 4. Tokens: exact total, estimated total, unavailable count, per-field
    quality labels, and cost with its catalog version.
-5. Provenance: observation counts by kind and the note that every total
-   traces to source observations through the measurements reads.
+5. Provenance: observation counts, activity completeness, immutable provider
+   and a bounded canonical source page in an accessible disclosure. This is
+   source metadata, not provider text or raw hook payloads.
 
-Empty states say what is missing (`no_observations`,
-`no_idle_source_in_v1`) instead of showing zeros as facts.
+Empty states say what is missing instead of showing zeros as facts. Existing
+styling is retained; this is not the later product-wide theme redesign.
 
 ## Domain commands and reads
 
 - `token.report` (runner actor): validates the execution assignment against
   the authenticated runner exactly like event ingest, binds run and
-  execution server-side, and stores one observation. A repeated
+  execution/provider from immutable launch state, and stores one observation. A repeated
   `observation_id` returns the stored row without a second effect.
 - `interval.report` (runner actor): same assignment validation; stores one
   reported interval. Repeats return the stored row.
 - `review_timer.start` / `review_timer.stop` (direct human only).
 - `browser_activity.record` (direct human, self only): caps the stored
   duration and reports whether the cap applied.
+- All five commands revalidate current workspace epoch, actor and project or
+  runner authority before cached success, and bind cache keys to exact input.
 - Reads go directly to D1: `getRunMeasurements`, `getTaskMeasurements`,
   `aggregateMeasurements`, `listTokenObservations`,
   `listMeasurementIntervals`, `listReviewTimers`,
-  `listReviewTimerObservations`, `listBrowserActivity`.
+  `listReviewTimerObservations`, `listBrowserActivity`,
+  `listRunMeasurementSources` (canonical metadata, default/max 100 records,
+  `afterCursor`, `has_more`, `next_cursor`). Internal activity derivation reads
+  all canonical identities; the displayed page does not truncate arithmetic.
 - Browser REST under `/api/v1/workspaces/:workspace`: `GET
-  /runs/:run/measurements`; `GET /tasks/:task/measurements`; `GET|POST
+  /runs/:run/measurements`; `GET /runs/:run/measurement-sources`;
+  `GET /tasks/:task/measurements`; `GET|POST
   /tasks/:task/review-timers`; `POST /review-timers/:timer/stop`; `POST
   /browser-activity`.
 
@@ -219,5 +289,9 @@ The A04 gate covers interval-union property tests (seeded, deterministic),
 duplicate and replayed observations, overlapping activity/process/wait
 intervals, offline-gap visibility, missing provider usage, historical price
 changes, review-timer races, aggregation, and the separated browser
-displays with traceable provenance. D1 migration head after this package is
-`0027_measurements`.
+displays with traceable provenance. The connected extension additionally owns
+capability discovery, genuine acknowledgement parsing, durable replay/dedupe,
+typed semantic identities, current authority, atomic ledger/source/token
+rollback, immutable provider attribution, overflow, and compiled signed
+synthetic native delivery. Historical evidence stays separate from new runtime
+evidence. D1 migration head for this extension is `0041_measurement_sources`.

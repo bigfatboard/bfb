@@ -2,6 +2,7 @@
 // ABOUTME: Human, agent, wait, token, and provenance sections never collapse into one total.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { RunMeasurements, TaskMeasurements } from "@bfb/domain";
 
 import { client } from "./mutations.js";
 
@@ -57,14 +58,11 @@ export interface ReviewTimerView {
 }
 
 export interface TaskMeasurementsView {
-  totals: {
-    active_ms: number;
-    process_elapsed_ms: number;
-    attention_wait_ms: number;
-    exact_tokens: MeasurementsTokenFields;
-    estimated_tokens: MeasurementsTokenFields;
-    unavailable_token_reports: number;
-  };
+  totals: TaskMeasurements["totals"];
+  runs: Pick<
+    RunMeasurements,
+    "run_id" | "provider" | "times" | "tokens" | "sources" | "provenance"
+  >[];
   review: {
     timers: ReviewTimerView[];
     stopped_total_ms: number;
@@ -102,10 +100,15 @@ export function formatDuration(ms: number | null): string {
 }
 
 export function formatCount(value: number | null): string {
-  if (value === null || !Number.isFinite(value)) {
+  if (value === null || !Number.isSafeInteger(value) || value < 0) {
     return "unavailable";
   }
   return String(value).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+function observedDuration(ms: number | null, missing: number, runs: number): string {
+  if (runs === 0 || missing === runs || ms === null) return "no observations";
+  return `${formatDuration(ms)}${missing > 0 ? ` observed · ${missing} run${missing === 1 ? "" : "s"} unavailable` : ""}`;
 }
 
 function tokenFieldRows(fields: MeasurementsTokenFields): Array<[string, number | null]> {
@@ -146,7 +149,9 @@ export function MeasurementsView(props: MeasurementsViewProps) {
           <div className="truth-row" data-testid="measurements-human">
             <span>Human review</span>
             <strong>
-              {formatDuration(measurements.review.stopped_total_ms)} reviewed
+              {measurements.review.timers.length === 0
+                ? "no review timers"
+                : `${formatDuration(measurements.review.stopped_total_ms)} reviewed`}
               {measurements.review.open_ms > 0
                 ? ` · timer running ${formatDuration(measurements.review.open_ms)}`
                 : ""}
@@ -179,14 +184,78 @@ export function MeasurementsView(props: MeasurementsViewProps) {
           <div className="truth-row" data-testid="measurements-agent">
             <span>Agent active / elapsed</span>
             <strong>
-              {formatDuration(measurements.totals.active_ms)} active ·{" "}
-              {formatDuration(measurements.totals.process_elapsed_ms)} elapsed
+              {observedDuration(
+                measurements.totals.active_ms,
+                measurements.totals.unknown_run_counts.active,
+                measurements.interventions.runs,
+              )}{" "}
+              active ·{" "}
+              {observedDuration(
+                measurements.totals.process_elapsed_ms,
+                measurements.totals.unknown_run_counts.process,
+                measurements.interventions.runs,
+              )}{" "}
+              elapsed
+              {measurements.totals.legacy_estimated_runs > 0
+                ? " · includes legacy activity estimates"
+                : ""}
+            </strong>
+          </div>
+          <div className="truth-row" data-testid="measurements-process">
+            <span>Process-alive / offline gap</span>
+            <strong>
+              {observedDuration(
+                measurements.totals.process_alive_ms,
+                measurements.totals.unknown_run_counts.process,
+                measurements.interventions.runs,
+              )}{" "}
+              alive ·{" "}
+              {observedDuration(
+                measurements.totals.offline_ms,
+                measurements.totals.unknown_run_counts.process,
+                measurements.interventions.runs,
+              )}{" "}
+              without fresh heartbeat
+            </strong>
+          </div>
+          <div className="truth-row" data-testid="measurements-external-wait">
+            <span>External wait</span>
+            <strong>
+              {observedDuration(
+                measurements.totals.external_wait_ms,
+                measurements.totals.unknown_run_counts.external_wait,
+                measurements.interventions.runs,
+              )}
+            </strong>
+          </div>
+          <div className="truth-row" data-testid="measurements-idle">
+            <span>Reported idle</span>
+            <strong>
+              {observedDuration(
+                measurements.totals.idle_ms,
+                measurements.totals.unknown_run_counts.idle,
+                measurements.interventions.runs,
+              )}
             </strong>
           </div>
           <div className="truth-row" data-testid="measurements-waiting">
             <span>Attention wait</span>
             <strong>{formatDuration(measurements.totals.attention_wait_ms)} waiting</strong>
           </div>
+          {measurements.totals.exact_overflow_fields.length +
+            measurements.totals.estimated_overflow_fields.length >
+          0 ? (
+            <p data-testid="measurements-overflow">
+              Token total unavailable: safe counter range exceeded
+              {measurements.totals.exact_overflow_fields.length > 0
+                ? ` (exact: ${measurements.totals.exact_overflow_fields.join(", ")})`
+                : ""}
+              {measurements.totals.estimated_overflow_fields.length > 0
+                ? ` (estimated: ${measurements.totals.estimated_overflow_fields.join(", ")})`
+                : ""}
+              . Source reports are retained.
+            </p>
+          ) : null}
           <div className="truth-row" data-testid="measurements-tokens">
             <span>Tokens (exact / estimated / unavailable)</span>
             <strong>
@@ -202,6 +271,56 @@ export function MeasurementsView(props: MeasurementsViewProps) {
               {` · ${measurements.totals.unavailable_token_reports} unavailable`}
             </strong>
           </div>
+          <details data-testid="measurements-sources">
+            <summary>Measurement sources</summary>
+            <p>
+              Activity is observed work, not proof of completion. Offline gaps remain inside elapsed
+              time. Cache and reasoning counts may overlap input/output and are not added to a token
+              grand total.
+            </p>
+            {measurements.runs.length === 0 ? <p>No run observations yet.</p> : null}
+            {measurements.runs.map((run) => (
+              <div key={run.run_id}>
+                <h4>
+                  Run <code>{run.run_id}</code> · {run.provider ?? "provider unavailable"}
+                </h4>
+                <p>
+                  {run.provenance.ledger_events} ledger events · {run.provenance.token_observations}{" "}
+                  token reports · {run.provenance.reported_intervals} interval reports ·{" "}
+                  {run.provenance.attention_observations} attention observations.
+                </p>
+                <p>
+                  {run.times.open_intervals} incomplete activity pairs ·{" "}
+                  {run.times.ambiguous_legacy_events} ambiguous legacy events.
+                </p>
+                {run.sources.sources.length === 0 ? (
+                  <p>No identity-linked telemetry sources.</p>
+                ) : (
+                  <ul>
+                    {run.sources.sources.map((source) => (
+                      <li key={source.event_id}>
+                        {source.kind} · {source.occurred_at} · source <code>{source.event_id}</code>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {run.sources.has_more ? (
+                  <p>
+                    Showing the first 100 canonical telemetry sources; more are available through
+                    the authorized source API.
+                  </p>
+                ) : null}
+                {run.tokens.costs.length > 0 ? (
+                  <p>
+                    Token cost ({run.tokens.catalog_version}):{" "}
+                    {run.tokens.costs_total_usd === null
+                      ? "unavailable — not every exact report can be priced safely"
+                      : `$${run.tokens.costs_total_usd.toFixed(6)}`}
+                  </p>
+                ) : null}
+              </div>
+            ))}
+          </details>
           <div className="truth-row" data-testid="measurements-provenance">
             <span>Provenance</span>
             <strong>

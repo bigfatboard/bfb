@@ -68,6 +68,7 @@ const CHANNEL_SURFACES = new Set([
   "inventory",
   "leases/observe",
   "events/ingest",
+  "events/capabilities",
   "work/authority",
   "work/bound-authority",
   "work/capture-confirmation",

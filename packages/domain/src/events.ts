@@ -8,14 +8,22 @@ import {
   type EventDisposition,
   type EventEnvelope,
   type RunnerEventSubmission,
+  type RunnerTelemetrySubmission,
   type TypedError,
 } from "@bfb/protocol";
 
 import { assertEpoch, assertRole, loadPrincipal } from "./authorization.js";
 import { DomainError, type HubCommand } from "./hub.js";
 import { isUlid } from "./ids.js";
-import { launchRunner } from "./launch-state.js";
-import { rejectRunnerRequest, runnerId, runnerObject } from "./runner-crypto.js";
+import { canonicalLaunchJson, launchRunner, readLaunch, snapshotOf } from "./launch-state.js";
+import {
+  prepareMeasurementSource,
+  persistMeasurementSource,
+  telemetryInputFingerprint,
+  type PreparedMeasurementSource,
+} from "./measurement-sources.js";
+import type { MeasurementProvider } from "./measurements.js";
+import { rejectRunnerRequest, runnerHash, runnerId, runnerObject } from "./runner-crypto.js";
 import type { RunnerPrincipal } from "./runners.js";
 
 /** Maximum runner events committed by one ingest command. Bounds the cursor reservation. */
@@ -78,6 +86,8 @@ export const OBSERVATION_KINDS: ReadonlySet<string> = new Set([
 export interface IngestRunnerEventsInput {
   principal: RunnerPrincipal;
   events: unknown[];
+  /** Exact signed raw item bytes retained by the fixed Worker adapter, never user-supplied authority. */
+  encodedEvents?: string[];
 }
 
 export interface IngestRunnerEventsResult {
@@ -184,7 +194,8 @@ interface AssignmentBinding {
 
 interface PreparedEvent {
   triple: EventTriple;
-  submission: RunnerEventSubmission;
+  submission: RunnerEventSubmission | RunnerTelemetrySubmission;
+  measurementSource?: PreparedMeasurementSource;
   binding: AssignmentBinding;
   actorType: "runner" | "agent_run";
   cursor: number;
@@ -195,6 +206,16 @@ export const ingestRunnerEventsCommand: HubCommand<
   IngestRunnerEventsResult
 > = {
   name: "event.ingest",
+  async authorize(input, ctx) {
+    await launchRunner(ctx, input.principal);
+  },
+  inputFingerprint: (input) =>
+    runnerHash(
+      canonicalLaunchJson({
+        events: input.events,
+        encodedEvents: input.encodedEvents ?? input.events.map(encodeSubmission),
+      }),
+    ),
   extraCursors: (input) => {
     try {
       const events = (input as IngestRunnerEventsInput | null)?.events;
@@ -217,7 +238,7 @@ export const ingestRunnerEventsCommand: HubCommand<
     }
   },
   async run(raw, ctx) {
-    runnerObject(raw, ["principal", "events"]);
+    runnerObject(raw, ["principal", "events", "encodedEvents"]);
     const input = raw as IngestRunnerEventsInput;
     const principal = await launchRunner(ctx, input.principal);
     if (
@@ -228,6 +249,11 @@ export const ingestRunnerEventsCommand: HubCommand<
       rejectRunnerRequest();
     }
     const items = input.events;
+    if (
+      input.encodedEvents &&
+      (!Array.isArray(input.encodedEvents) || input.encodedEvents.length !== items.length)
+    )
+      rejectRunnerRequest();
 
     // Phase 1: decode every item before any database write is staged. Items
     // without a well-formed transport triple are transport violations: the
@@ -235,14 +261,24 @@ export const ingestRunnerEventsCommand: HubCommand<
     // disposition could address the row. Well-identified poison receives a
     // per-event permanently_rejected and never blocks later rows.
     const decoded: Array<
-      | { triple: EventTriple; submission: RunnerEventSubmission }
+      | { triple: EventTriple; submission: RunnerEventSubmission | RunnerTelemetrySubmission }
       | { triple: EventTriple; fault: TypedError }
     > = [];
-    for (const rawItem of items) {
+    for (const [index, rawItem] of items.entries()) {
       if (!rawItem || typeof rawItem !== "object" || Array.isArray(rawItem)) {
         rejectRunnerRequest();
       }
-      const encoded = encodeSubmission(rawItem);
+      const encoded = input.encodedEvents?.[index] ?? encodeSubmission(rawItem);
+      if (typeof encoded !== "string") rejectRunnerRequest();
+      if (input.encodedEvents) {
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(encoded);
+        } catch {
+          rejectRunnerRequest();
+        }
+        if (encodeSubmission(parsed) !== encodeSubmission(rawItem)) rejectRunnerRequest();
+      }
       if (Buffer.byteLength(encoded) > EVENT_ITEM_LIMIT) {
         const triple = extractTriple(rawItem);
         if (!triple) rejectRunnerRequest();
@@ -252,7 +288,11 @@ export const ingestRunnerEventsCommand: HubCommand<
         });
         continue;
       }
-      const result = decodeWireDocument("runner-event-submission", Buffer.from(encoded));
+      const telemetry = (rawItem as Record<string, unknown>).schema_version === 2;
+      const result = decodeWireDocument(
+        telemetry ? "runner-telemetry-submission" : "runner-event-submission",
+        Buffer.from(encoded),
+      );
       if (!result.ok) {
         const triple = extractTriple(rawItem);
         if (!triple) rejectRunnerRequest();
@@ -261,7 +301,7 @@ export const ingestRunnerEventsCommand: HubCommand<
       }
       decoded.push({
         triple: extractTriple(rawItem) as EventTriple,
-        submission: result.value as RunnerEventSubmission,
+        submission: result.value as RunnerEventSubmission | RunnerTelemetrySubmission,
       });
     }
 
@@ -269,7 +309,8 @@ export const ingestRunnerEventsCommand: HubCommand<
     // write, so every lookup completes before the first staged insert.
     const dispositions: EventDisposition[] = [];
     const prepared: PreparedEvent[] = [];
-    const seenIds = new Map<string, EventTriple>();
+    const seenIds = new Map<string, EventTriple & { fingerprint: string | null }>();
+    const measurementSources = new Map<string, PreparedMeasurementSource>();
     const seenStreams = new Map<string, string>();
     const bindings = new Map<string, AssignmentBinding | null>();
     const executions = new Map<string, boolean>();
@@ -285,11 +326,10 @@ export const ingestRunnerEventsCommand: HubCommand<
       if (cached !== undefined) return cached;
       const row = (await ctx.db
         .prepare(
-          `SELECT a.runner_id, a.project_id, a.task_id, a.run_id, p.provider
+          `SELECT a.runner_id, a.project_id, a.task_id, a.run_id, l.id AS launch_id
            FROM execution_assignments a
            JOIN runs r ON r.workspace_id = a.workspace_id AND r.id = a.run_id
-           LEFT JOIN agent_profiles p
-             ON p.workspace_id = a.workspace_id AND p.id = r.agent_profile_id
+           LEFT JOIN launch_commands l ON l.workspace_id = a.workspace_id AND l.execution_id = a.execution_id
            WHERE a.workspace_id = ? AND a.execution_id = ? AND a.assignment_generation = ?`,
         )
         .get(ctx.workspaceId, executionId, generation)) as
@@ -298,7 +338,7 @@ export const ingestRunnerEventsCommand: HubCommand<
             project_id: string;
             task_id: string;
             run_id: string;
-            provider: string | null;
+            launch_id: string | null;
           }
         | undefined;
       const binding: AssignmentBinding | null = row
@@ -307,7 +347,10 @@ export const ingestRunnerEventsCommand: HubCommand<
             project_id: row.project_id,
             task_id: row.task_id,
             run_id: row.run_id,
-            provider: row.provider,
+            provider: row.launch_id
+              ? snapshotOf(await readLaunch(ctx.db, ctx.workspaceId, row.launch_id))
+                  .execution_config.provider
+              : null,
           }
         : null;
       bindings.set(key, binding);
@@ -344,9 +387,15 @@ export const ingestRunnerEventsCommand: HubCommand<
         continue;
       }
       const { triple, submission } = entry;
+      const inputFingerprint =
+        submission.schema_version === 2 ? telemetryInputFingerprint(submission) : null;
       const duplicate = seenIds.get(triple.eventId);
       if (duplicate) {
-        if (duplicate.streamId === triple.streamId && duplicate.sequence === triple.sequence) {
+        if (
+          duplicate.streamId === triple.streamId &&
+          duplicate.sequence === triple.sequence &&
+          duplicate.fingerprint === inputFingerprint
+        ) {
           dispositions.push(alreadyCommittedDisposition(triple));
         } else {
           dispositions.push(
@@ -377,9 +426,6 @@ export const ingestRunnerEventsCommand: HubCommand<
         );
         continue;
       }
-      seenIds.set(triple.eventId, triple);
-      seenStreams.set(streamKey, triple.eventId);
-
       const occurred = Date.parse(submission.occurred_at);
       if (occurred - Date.parse(ctx.now) > EVENT_FUTURE_TOLERANCE_MS) {
         dispositions.push(
@@ -459,17 +505,28 @@ export const ingestRunnerEventsCommand: HubCommand<
 
       const committed = (await ctx.db
         .prepare(
-          `SELECT event_id, source_stream_id, source_sequence
+          `SELECT event_id, source_stream_id, source_sequence,
+             (SELECT input_fingerprint FROM measurement_event_sources s
+              WHERE s.workspace_id = event_ledger.workspace_id AND s.event_id = event_ledger.event_id) AS input_fingerprint
            FROM event_ledger WHERE workspace_id = ? AND event_id = ?`,
         )
         .get(ctx.workspaceId, triple.eventId)) as
-        { event_id: string; source_stream_id: string; source_sequence: number } | undefined;
+        | {
+            event_id: string;
+            source_stream_id: string;
+            source_sequence: number;
+            input_fingerprint: string | null;
+          }
+        | undefined;
       if (committed) {
         if (
           committed.source_stream_id === triple.streamId &&
-          committed.source_sequence === triple.sequence
+          committed.source_sequence === triple.sequence &&
+          committed.input_fingerprint === inputFingerprint
         ) {
           dispositions.push(alreadyCommittedDisposition(triple));
+          seenIds.set(triple.eventId, { ...triple, fingerprint: inputFingerprint });
+          seenStreams.set(streamKey, triple.eventId);
         } else {
           dispositions.push(
             rejectedDisposition(
@@ -505,12 +562,54 @@ export const ingestRunnerEventsCommand: HubCommand<
         continue;
       }
 
+      let measurementSource: PreparedMeasurementSource | undefined;
+      if (submission.schema_version === 2) {
+        if (!isKnownProvider(binding.provider)) {
+          dispositions.push(
+            rejectedDisposition(
+              triple,
+              diagnostic(
+                "conflict",
+                "execution_snapshot_missing",
+                "telemetry has no immutable provider snapshot",
+              ),
+            ),
+          );
+          continue;
+        }
+        try {
+          measurementSource = await prepareMeasurementSource(
+            ctx.db,
+            ctx.workspaceId,
+            submission,
+            { ...binding, provider: binding.provider },
+            ctx.now,
+            measurementSources,
+          );
+        } catch (error) {
+          if (
+            !(error instanceof DomainError) ||
+            !["measurement_source_conflict", "invalid_argument"].includes(error.code)
+          )
+            throw error;
+          dispositions.push(
+            rejectedDisposition(
+              triple,
+              diagnostic("conflict", error.code, "telemetry differs from its semantic identity"),
+            ),
+          );
+          continue;
+        }
+      }
+      seenIds.set(triple.eventId, { ...triple, fingerprint: inputFingerprint });
+      seenStreams.set(streamKey, triple.eventId);
       prepared.push({
         triple,
         submission,
         binding,
         actorType: submission.capture_origin === "runner_observed" ? "runner" : "agent_run",
         cursor: ctx.cursorBase + acceptedCount,
+        ...(measurementSource ? { measurementSource } : {}),
       });
       acceptedCount += 1;
       dispositions.push(acceptedDisposition(triple));
@@ -625,7 +724,19 @@ export const ingestRunnerEventsCommand: HubCommand<
           envelope.received_at,
           JSON.stringify(event.submission.payload),
         );
-      if (OBSERVATION_KINDS.has(envelope.kind)) {
+      if (event.submission.schema_version === 2 && event.measurementSource) {
+        await persistMeasurementSource(
+          ctx.db,
+          ctx.workspaceId,
+          event.submission,
+          { ...event.binding, provider: event.binding.provider as MeasurementProvider },
+          event.measurementSource,
+        );
+      }
+      if (
+        OBSERVATION_KINDS.has(envelope.kind) &&
+        (!event.measurementSource || event.measurementSource.isCanonical)
+      ) {
         await ctx.db
           .prepare(
             `INSERT INTO measurement_observations
@@ -904,6 +1015,7 @@ interface LedgerRow {
   occurred_at: string;
   received_at: string;
   payload_json: string;
+  telemetry_version: number;
 }
 
 /** Paginated replay of committed ledger envelopes in cursor order. Reads go directly to D1. */
@@ -930,7 +1042,8 @@ export async function listLedgerEvents(
       `SELECT event_id, workspace_cursor, source_stream_id, source_event_id, source_sequence,
               workspace_id, project_id, task_id, run_id, run_execution_id, assignment_generation,
               provider_session_id, actor_type, actor_id, source_type, source_id, source_provider,
-              capture_origin, kind, occurred_at, received_at, payload_json
+              capture_origin, kind, occurred_at, received_at, payload_json,
+              EXISTS (SELECT 1 FROM measurement_event_sources s WHERE s.workspace_id = event_ledger.workspace_id AND s.event_id = event_ledger.event_id) AS telemetry_version
        FROM event_ledger
        WHERE workspace_id = ? AND workspace_cursor > ? AND workspace_cursor <= ?
        ORDER BY workspace_cursor ASC
@@ -948,7 +1061,7 @@ export async function listLedgerEvents(
     }
     let payload: unknown;
     try {
-      payload = JSON.parse(row.payload_json) as unknown;
+      payload = row.telemetry_version ? {} : (JSON.parse(row.payload_json) as unknown);
     } catch {
       throw new DomainError("event_history_corrupt", "ledger payload is invalid");
     }

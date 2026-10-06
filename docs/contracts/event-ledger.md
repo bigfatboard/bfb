@@ -9,13 +9,18 @@ intervals and totals from raw observations without reinterpreting them.
 
 ## Wire consumed (F02, frozen)
 
-- `runner-event-submission` v1: the only accepted batch item. Claimed
+- `runner-event-submission` v1: the frozen original batch item. Claimed
   workspace/project/task/run IDs are non-authoritative hints; the server
   ignores them for attribution and never stores them.
 - `event-envelope` v1: the committed replay shape returned by browser reads.
 - `event-disposition` v1: the per-event ingest outcome. `accepted` and
   `already_committed` carry no diagnostic; `retryable` and
   `permanently_rejected` always carry a bounded `TypedError`.
+- A04 adds separately named `runner-telemetry-submission` v2 under
+  [ADR 0009](../adr/0009-connected-measurement-telemetry.md), without widening
+  those v1 schemas or fixtures. Mixed v1/v2 batches retain the outer v1 envelope.
+  Typed payloads contain only bounded activity identities or quality-labelled
+  turn-delta token fields; they cannot create business state.
 
 No shell, executable, argv, cwd, local path, task text, repository URL,
 branch, credential, or provider argument is an accepted ingest field. Payloads
@@ -45,6 +50,15 @@ are closed objects; unknown provider fields fail validation.
   cannot receive an explicit disposition, so it can never be deleted or
   quarantined by cursor.
 
+`GET /runner/workspaces/:workspace/runners/:runner/events/capabilities` uses
+the same possession channel and recurring budget. The closed response is
+`{"schema_version":1,"accepted_event_versions":[1,2]}`. An unsupported or
+unavailable peer leaves typed rows durable and visibly degraded locally;
+neither downgrade nor compatibility-only quarantine is allowed.
+
+The signed raw batch/item bytes are checked before numeric normalization.
+Non-integer/unsafe JSON counter lexemes cannot round into accepted integers.
+
 ## Attribution
 
 Every committed event binds its immutable execution assignment exactly:
@@ -59,8 +73,10 @@ Every committed event binds its immutable execution assignment exactly:
   `runner_observed` commits actor `{type: "runner", id: <runner>}`;
   `agent_reported` and `hook_inbox` commit actor
   `{type: "agent_run", id: <run_execution_id>}`.
-- Source is always `{type: "runner", id: <runner>}` plus the run profile
-  provider when the bound profile resolves to a known provider.
+- Source is always `{type: "runner", id: <runner>}` plus the provider from
+  that execution's immutable launch snapshot when one is present. Mutable
+  profile edits cannot relabel historical telemetry. Typed measurements require
+  a valid immutable snapshot; no current-profile fallback is guessed.
 - `provider_session_id`, when present, is passed through as an observation
   key. Ingest does not create provider sessions and never interprets session,
   heartbeat, Stop, socket-loss, terminal-close, or process-exit rows as a
@@ -86,6 +102,10 @@ reuse across event IDs (`stream_sequence_conflict`), oversized item
 
 Only an explicit per-event disposition may delete or quarantine a local
 outbox row. A workspace replay cursor never deletes or quarantines rows.
+The uploader validates the complete workspace-bound acknowledgement and
+matching event/stream/sequence triples before applying any disposition.
+Malformed, foreign-workspace or conflicting duplicate acknowledgements retain
+the batch. A typed row rejected only for unsupported schema remains queued.
 
 ## Cursors, ledger, and projections
 
@@ -104,6 +124,10 @@ outbox row. A workspace replay cursor never deletes or quarantines rows.
   keyed by the event ID with actor/source/capture-origin provenance. Totals
   are derived from unique observation identities; replaying a heartbeat or
   observation can never inflate a later aggregate.
+- For typed telemetry, A04's canonical source and alias tables bind the full
+  input fingerprint and semantic activity/usage identity. Canonical facts,
+  token observations and ledger rows share the atomic D1 batch; recaptured
+  aliases remain traceable ledger events without duplicating observations.
 - Run, execution, session, and per-kind projections are absolute,
   cursor-guarded upserts recomputed from committed counts plus the batch;
   they never blindly increment after an insert. Heartbeat presence
@@ -121,6 +145,11 @@ returns committed `event-envelope` rows in cursor order plus
 high-water; `limit` defaults to 100 and caps at 100. Both reads go directly
 to D1 and require a current workspace owner or member; reviewers stay
 project-scoped. There is no browser or workspace-cursor delete path.
+
+Frozen v1 replay is a metadata projection: typed telemetry rows retain their
+closed payload in canonical storage but expose an empty v1 replay payload.
+Authorized A04 measurement-source reads expose bounded source metadata; replay
+is not an export of raw typed payloads.
 
 Browser resynchronization follows the architecture rule: connect first, read
 the D1 high-water, buffer live invalidations, replay HTTP events after the

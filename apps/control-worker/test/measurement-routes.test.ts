@@ -1,7 +1,7 @@
 // ABOUTME: Exercises mounted A04 measurement reads and human review-timer/browser routes.
 // ABOUTME: Route tests enforce session auth, project scope, timer races, and honest empty states.
 
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   authorizeSyntheticPolicyUpdate,
@@ -31,6 +31,11 @@ import {
 } from "./auth-helpers.js";
 
 const NOW = "2026-08-12T08:00:00Z";
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(NOW));
+});
+afterEach(() => vi.useRealTimers());
 const EMPTY_CONFIG = `sha256:${runnerHash("{}")}`;
 
 function fakeBinding<T extends object>(label: string): T {

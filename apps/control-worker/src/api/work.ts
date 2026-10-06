@@ -27,6 +27,7 @@ import {
   isUlid,
   listReviewTimers,
   listResultSubmissions,
+  listRunMeasurementSources,
   listTasksPage,
   loadPrincipal,
   recordBrowserActivityCommand,
@@ -632,6 +633,24 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
         }
         throw error;
       }
+    }
+    if (rest === "/measurement-sources" && request.method === "GET") {
+      if ([...url.searchParams.keys()].some((name) => !["after_cursor", "limit"].includes(name))) {
+        throw new DomainError("invalid_argument", "measurement source query is invalid");
+      }
+      const integer = (name: string, fallback: number): number => {
+        const values = url.searchParams.getAll(name);
+        if (values.length > 1 || (values.length && !/^[0-9]{1,16}$/.test(values[0]!))) {
+          throw new DomainError("invalid_argument", "measurement source query is invalid");
+        }
+        return values.length ? Number(values[0]) : fallback;
+      };
+      return json(
+        await listRunMeasurementSources(deps.db, deps.workspaceId, runId, {
+          afterCursor: integer("after_cursor", 0),
+          limit: integer("limit", 100),
+        }),
+      );
     }
     if (rest === "/activity" && request.method === "PATCH") {
       const record = await body(request, ["expected_version", "activity", "request_id"]);

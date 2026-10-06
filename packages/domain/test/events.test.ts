@@ -3,7 +3,7 @@
 
 import type { SqlDatabase } from "@bfb/db";
 import type { RunnerEventSubmission } from "@bfb/protocol";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   EVENT_BATCH_LIMIT,
@@ -23,6 +23,12 @@ import { runnerHash } from "../src/runner-crypto.js";
 import { LAUNCH_NOW, launchFixture, success } from "./launch-fixture.js";
 
 type Fixture = Awaited<ReturnType<typeof launchFixture>>;
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(LAUNCH_NOW));
+});
+afterEach(() => vi.useRealTimers());
 
 interface BoundExecution {
   executionId: string;

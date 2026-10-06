@@ -1,7 +1,7 @@
 // ABOUTME: Exercises mounted E01 ingest and replay routes with real sessions and device signatures.
 // ABOUTME: Browser replay is read-only; runner batches authenticate through request-bound possession.
 
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   FIX,
   canonicalRunnerKey,
@@ -23,6 +23,11 @@ import { createControlApp } from "../src/routes.js";
 import { AUTH_TEST_ENV, openAuthTestContext, seedAuthSession } from "./auth-helpers.js";
 
 const ORIGIN = AUTH_TEST_ENV.APP_ORIGIN;
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(LAUNCH_NOW));
+});
+afterEach(() => vi.useRealTimers());
 
 async function fixture() {
   const context = openAuthTestContext(LAUNCH_NOW),

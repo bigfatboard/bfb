@@ -13,9 +13,18 @@ import {
 } from "../src/work/measurements.js";
 
 const MEASUREMENTS: TaskMeasurementsView = {
+  runs: [],
   totals: {
     active_ms: 90_000,
     process_elapsed_ms: 120_000,
+    process_alive_ms: 120_000,
+    offline_ms: 20_000,
+    external_wait_ms: null,
+    idle_ms: null,
+    unknown_run_counts: { process: 0, active: 0, external_wait: 1, idle: 1 },
+    legacy_estimated_runs: 0,
+    exact_overflow_fields: [],
+    estimated_overflow_fields: [],
     attention_wait_ms: 540_000,
     exact_tokens: { input: 1200, output: 34, cache_read: 100, cache_write: null, reasoning: 5 },
     estimated_tokens: {
@@ -150,5 +159,46 @@ describe("A04 measurements view", () => {
     expect(formatDuration(3_700_000)).toBe("1h 1m");
     expect(formatCount(null)).toBe("unavailable");
     expect(formatCount(1_200_000)).toBe("1,200,000");
+    expect(formatCount(Number.MAX_SAFE_INTEGER + 1)).toBe("unavailable");
+    expect(formatCount(-1)).toBe("unavailable");
+  });
+
+  it("shows absent process observations and overflow instead of false precision", () => {
+    const html = view({
+      measurements: {
+        ...MEASUREMENTS,
+        totals: {
+          ...MEASUREMENTS.totals,
+          active_ms: 0,
+          process_elapsed_ms: 0,
+          unknown_run_counts: { process: 1, active: 1, external_wait: 1, idle: 1 },
+          exact_tokens: { ...MEASUREMENTS.totals.exact_tokens, input: null },
+          exact_overflow_fields: ["input"],
+        },
+      },
+    });
+    expect(html).toContain("no observations");
+    expect(html).not.toContain("0s alive");
+    expect(html.replaceAll("<!-- -->", "")).toContain("safe counter range exceeded (exact: input)");
+    expect(html).toContain("Source reports are retained");
+  });
+
+  it("labels partial observations, offline time, and legacy estimates separately", () => {
+    const html = view({
+      measurements: {
+        ...MEASUREMENTS,
+        interventions: { ...MEASUREMENTS.interventions, runs: 2 },
+        totals: {
+          ...MEASUREMENTS.totals,
+          legacy_estimated_runs: 1,
+          unknown_run_counts: { process: 1, active: 1, external_wait: 2, idle: 2 },
+        },
+      },
+    });
+    expect(html).toContain("1 run unavailable");
+    expect(html).toContain("includes legacy activity estimates");
+    expect(html).toContain("without fresh heartbeat");
+    expect(html).toContain("not added to a token grand total");
+    expect(html).toContain("<summary>Measurement sources</summary>");
   });
 });

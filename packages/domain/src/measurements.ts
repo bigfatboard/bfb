@@ -6,9 +6,25 @@ import type { SqlDatabase } from "@bfb/db";
 import { assertEpoch, assertProjectAccess, assertRole, loadPrincipal } from "./authorization.js";
 import { DomainError, type HubCommand, type HubContext } from "./hub.js";
 import { isUlid, randomUlid } from "./ids.js";
-import { launchRunner } from "./launch-state.js";
-import { rejectRunnerRequest, runnerId, runnerObject } from "./runner-crypto.js";
+import { canonicalLaunchJson, launchRunner, readLaunch, snapshotOf } from "./launch-state.js";
+import {
+  listRunMeasurementActivitySources,
+  listRunMeasurementSources,
+  type MeasurementSourceReference,
+} from "./measurement-sources.js";
+import { rejectRunnerRequest, runnerHash, runnerId, runnerObject } from "./runner-crypto.js";
 import type { RunnerPrincipal } from "./runners.js";
+import {
+  normalizeTokenFields,
+  persistTokenObservation,
+  TOKEN_FIELD_NAMES,
+  tokenFieldsPresent,
+} from "./measurement-tokens.js";
+export {
+  normalizeTokenFields,
+  persistTokenObservation,
+  tokenFieldsPresent,
+} from "./measurement-tokens.js";
 
 export const MEASUREMENT_PROVIDERS = ["claude", "codex", "grok", "fake"] as const;
 export type MeasurementProvider = (typeof MEASUREMENT_PROVIDERS)[number];
@@ -110,67 +126,16 @@ export interface TokenFields {
   reasoning: number | null;
 }
 
-const TOKEN_FIELD_NAMES = ["input", "output", "cache_read", "cache_write", "reasoning"] as const;
-
-function tokenCounter(value: unknown, field: string): number | null {
-  if (value === undefined || value === null) {
-    return null;
-  }
-  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
-    throw new DomainError("invalid_argument", `token field ${field} is invalid`);
-  }
-  return value;
-}
-
-/**
- * Maps one provider usage shape to canonical token fields without invention.
- * Unknown, negative, non-integer, or unsafe values are rejected; callers
- * store `unavailable` when the provider exposes no usable count.
- */
-export function normalizeTokenFields(raw: unknown): TokenFields {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-    throw new DomainError("invalid_argument", "token usage must be an object");
-  }
-  const record = raw as Record<string, unknown>;
-  const pick = (...keys: string[]): unknown => {
-    for (const key of keys) {
-      if (record[key] !== undefined) {
-        return record[key];
-      }
-    }
-    return undefined;
-  };
-  // Codex exec/stream usage uses input_tokens/output_tokens/cached_input_tokens.
-  // Claude hook usage uses cache_read_input_tokens/cache_creation_input_tokens.
-  // Canonical snake_case aliases are accepted for stored rows.
-  return {
-    input: tokenCounter(pick("input", "input_tokens"), "input"),
-    output: tokenCounter(pick("output", "output_tokens"), "output"),
-    cache_read: tokenCounter(
-      pick("cache_read", "cache_read_tokens", "cached_input_tokens", "cache_read_input_tokens"),
-      "cache_read",
-    ),
-    cache_write: tokenCounter(
-      pick(
-        "cache_write",
-        "cache_write_tokens",
-        "cache_creation_tokens",
-        "cache_creation_input_tokens",
-      ),
-      "cache_write",
-    ),
-    reasoning: tokenCounter(
-      pick("reasoning", "reasoning_tokens", "reasoning_output_tokens"),
-      "reasoning",
-    ),
-  };
-}
-
-export function tokenFieldsPresent(fields: TokenFields): boolean {
-  return TOKEN_FIELD_NAMES.some((name) => fields[name] !== null);
-}
-
 export function sumTokenFields(rows: readonly TokenFields[]): TokenFields {
+  return sumTokenFieldsChecked(rows).fields;
+}
+
+export type TokenFieldName = keyof TokenFields;
+
+function sumTokenFieldsChecked(
+  rows: readonly TokenFields[],
+  priorOverflow: readonly TokenFieldName[] = [],
+): { fields: TokenFields; overflow_fields: TokenFieldName[] } {
   const sums: Record<(typeof TOKEN_FIELD_NAMES)[number], number | null> = {
     input: null,
     output: null,
@@ -178,15 +143,22 @@ export function sumTokenFields(rows: readonly TokenFields[]): TokenFields {
     cache_write: null,
     reasoning: null,
   };
+  const overflow = new Set<TokenFieldName>(priorOverflow);
   for (const row of rows) {
     for (const name of TOKEN_FIELD_NAMES) {
       const value = row[name];
-      if (value !== null) {
-        sums[name] = (sums[name] ?? 0) + value;
+      if (value !== null && !overflow.has(name)) {
+        const next = (sums[name] ?? 0) + value;
+        if (!Number.isSafeInteger(next) || next < 0) {
+          overflow.add(name);
+        } else {
+          sums[name] = next;
+        }
       }
     }
   }
-  return sums;
+  for (const name of overflow) sums[name] = null;
+  return { fields: sums, overflow_fields: TOKEN_FIELD_NAMES.filter((name) => overflow.has(name)) };
 }
 
 export interface PriceEntry {
@@ -405,6 +377,7 @@ interface ExecutionBinding {
   project_id: string;
   task_id: string;
   run_id: string;
+  provider: MeasurementProvider;
 }
 
 async function requireExecutionBinding(
@@ -420,18 +393,45 @@ async function requireExecutionBinding(
   }
   const binding = (await db
     .prepare(
-      `SELECT a.runner_id, a.project_id, a.task_id, a.run_id
+      `SELECT a.runner_id, a.project_id, a.task_id, a.run_id, l.id AS launch_id
        FROM execution_assignments AS a
+       JOIN launch_commands AS l ON l.workspace_id = a.workspace_id AND l.execution_id = a.execution_id
        WHERE a.workspace_id = ? AND a.execution_id = ? AND a.assignment_generation = ?`,
     )
-    .get(workspaceId, executionId, Number(generation))) as ExecutionBinding | undefined;
+    .get(workspaceId, executionId, Number(generation))) as
+    (Omit<ExecutionBinding, "provider"> & { launch_id: string }) | undefined;
   if (!binding || binding.runner_id !== principal.runnerId || binding.run_id !== runId) {
     rejectRunnerRequest();
   }
   if (!principal.projectIds.includes(binding.project_id)) {
     rejectRunnerRequest();
   }
-  return binding;
+  const provider = snapshotOf(await readLaunch(db, workspaceId, binding.launch_id)).execution_config
+    .provider;
+  return { ...binding, provider: provider as MeasurementProvider };
+}
+
+function measurementFingerprint(input: unknown): string {
+  const body = { ...(input as Record<string, unknown>) };
+  delete body.principal;
+  if (Object.hasOwn(body, "tokens")) body.tokens = normalizeTokenFields(body.tokens);
+  return runnerHash(canonicalLaunchJson(JSON.parse(JSON.stringify(body))));
+}
+
+async function authorizeRunnerMeasurement(
+  input: ReportTokensInput | ReportIntervalInput,
+  ctx: HubContext,
+) {
+  const principal = await launchRunner(ctx, input.principal);
+  const binding = await requireExecutionBinding(
+    ctx.db,
+    ctx.workspaceId,
+    principal,
+    runnerId(input.runId),
+    runnerId(input.executionId),
+    input.assignmentGeneration,
+  );
+  if ("provider" in input && input.provider !== binding.provider) rejectRunnerRequest();
 }
 
 function tokenRowToObservation(row: Record<string, unknown>): TokenObservation {
@@ -471,6 +471,15 @@ export interface ReportTokensInput {
 
 export const reportTokensCommand: HubCommand<ReportTokensInput, TokenObservation> = {
   name: "token.report",
+  authorize: authorizeRunnerMeasurement,
+  inputFingerprint: measurementFingerprint,
+  auditResult: (result) => ({
+    observation_id: result.observation_id,
+    run_id: result.run_id,
+    run_execution_id: result.run_execution_id,
+    provider: result.provider,
+    quality: result.quality,
+  }),
   auditInput: (input) => ({
     runId: (input as ReportTokensInput)?.runId,
     executionId: (input as ReportTokensInput)?.executionId,
@@ -494,7 +503,7 @@ export const reportTokensCommand: HubCommand<ReportTokensInput, TokenObservation
     const principal = await launchRunner(ctx, body.principal as RunnerPrincipal);
     const runId = runnerId(body.runId);
     const executionId = runnerId(body.executionId);
-    await requireExecutionBinding(
+    const binding = await requireExecutionBinding(
       ctx.db,
       ctx.workspaceId,
       principal,
@@ -504,7 +513,8 @@ export const reportTokensCommand: HubCommand<ReportTokensInput, TokenObservation
     );
     if (
       typeof body.provider !== "string" ||
-      !MEASUREMENT_PROVIDERS.includes(body.provider as MeasurementProvider)
+      !MEASUREMENT_PROVIDERS.includes(body.provider as MeasurementProvider) ||
+      body.provider !== binding.provider
     ) {
       rejectRunnerRequest();
     }
@@ -552,38 +562,14 @@ export const reportTokensCommand: HubCommand<ReportTokensInput, TokenObservation
         stored.model === (model ?? null) &&
         stored.quality === quality &&
         stored.provenance === provenanceRaw &&
-        TOKEN_FIELD_NAMES.every((name) => stored.tokens[name] === fields![name]);
+        TOKEN_FIELD_NAMES.every((name) => stored.tokens[name] === fields![name]) &&
+        (body.occurredAt === undefined || stored.occurred_at === occurredAt);
       if (!identical) {
         throw new DomainError("conflict", "observation id is bound to another report");
       }
       return stored;
     }
-    await ctx.db
-      .prepare(
-        `INSERT INTO token_observations
-         (workspace_id, observation_id, run_id, run_execution_id, provider, model,
-          input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, reasoning_tokens,
-          quality, provenance, occurred_at, committed_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        ctx.workspaceId,
-        id,
-        runId,
-        executionId,
-        body.provider as string,
-        model,
-        fields!.input,
-        fields!.output,
-        fields!.cache_read,
-        fields!.cache_write,
-        fields!.reasoning,
-        quality,
-        provenanceRaw as string,
-        occurredAt,
-        ctx.now,
-      );
-    return {
+    const observation: TokenObservation = {
       observation_id: id,
       run_id: runId,
       run_execution_id: executionId,
@@ -595,6 +581,8 @@ export const reportTokensCommand: HubCommand<ReportTokensInput, TokenObservation
       occurred_at: occurredAt,
       committed_at: ctx.now,
     };
+    await persistTokenObservation(ctx.db, ctx.workspaceId, observation);
+    return observation;
   },
 };
 
@@ -627,6 +615,8 @@ function intervalRowToReported(row: Record<string, unknown>): ReportedInterval {
 
 export const reportIntervalCommand: HubCommand<ReportIntervalInput, ReportedInterval> = {
   name: "interval.report",
+  authorize: authorizeRunnerMeasurement,
+  inputFingerprint: measurementFingerprint,
   auditInput: (input) => ({
     runId: (input as ReportIntervalInput)?.runId,
     executionId: (input as ReportIntervalInput)?.executionId,
@@ -695,7 +685,8 @@ export const reportIntervalCommand: HubCommand<ReportIntervalInput, ReportedInte
         stored.interval_kind === body.intervalKind &&
         stored.started_at === body.startedAt &&
         stored.ended_at === body.endedAt &&
-        stored.provenance === provenanceRaw;
+        stored.provenance === provenanceRaw &&
+        (body.occurredAt === undefined || stored.occurred_at === occurredAt);
       if (!identical) {
         throw new DomainError("conflict", "observation id is bound to another interval");
       }
@@ -748,7 +739,7 @@ function timerRowToRecord(row: Record<string, unknown>): ReviewTimerRecord {
 }
 
 async function requireMeasurementHuman(ctx: HubContext) {
-  if (!ctx.actorHumanId || ctx.actorDelegationId) {
+  if (!ctx.actorHumanId || ctx.actorDelegationId || ctx.actorRunnerId || ctx.actorSystemId) {
     throw new DomainError("forbidden", "direct authorized human required");
   }
   const principal = await loadPrincipal(ctx.db, ctx.workspaceId, ctx.actorHumanId);
@@ -783,6 +774,18 @@ export interface StartReviewTimerInput {
 
 export const startReviewTimerCommand: HubCommand<StartReviewTimerInput, ReviewTimerRecord> = {
   name: "review_timer.start",
+  async authorize(input, ctx) {
+    const principal = await requireMeasurementHuman(ctx);
+    await requireTaskProject(ctx.db, ctx.workspaceId, principal, input.taskId);
+    if (input.runId !== undefined && input.runId !== null) {
+      const run = (await ctx.db
+        .prepare("SELECT task_id FROM runs WHERE workspace_id = ? AND id = ?")
+        .get(ctx.workspaceId, input.runId)) as { task_id: string } | undefined;
+      if (!run || run.task_id !== input.taskId)
+        throw new DomainError("not_found", "run not found for this task");
+    }
+  },
+  inputFingerprint: measurementFingerprint,
   auditInput: (input) => ({
     taskId: (input as StartReviewTimerInput)?.taskId,
     runId: (input as StartReviewTimerInput)?.runId,
@@ -853,6 +856,20 @@ export interface StopReviewTimerInput {
 
 export const stopReviewTimerCommand: HubCommand<StopReviewTimerInput, ReviewTimerRecord> = {
   name: "review_timer.stop",
+  async authorize(input, ctx) {
+    const principal = await requireMeasurementHuman(ctx);
+    const row = (await ctx.db
+      .prepare(
+        "SELECT task_id, started_by_human_id FROM review_timers WHERE workspace_id = ? AND id = ?",
+      )
+      .get(ctx.workspaceId, input.timerId)) as
+      { task_id: string; started_by_human_id: string } | undefined;
+    if (!row) throw new DomainError("not_found", "review timer not found");
+    await requireTaskProject(ctx.db, ctx.workspaceId, principal, row.task_id);
+    if (row.started_by_human_id !== ctx.actorHumanId)
+      throw new DomainError("forbidden", "only the starting reviewer can stop this timer");
+  },
+  inputFingerprint: measurementFingerprint,
   auditInput: (input) => ({
     timerId: (input as StopReviewTimerInput)?.timerId,
     expectedVersion: (input as StopReviewTimerInput)?.expectedVersion,
@@ -914,6 +931,13 @@ export const recordBrowserActivityCommand: HubCommand<
   BrowserActivityObservation
 > = {
   name: "browser_activity.record",
+  async authorize(input, ctx) {
+    const principal = await requireMeasurementHuman(ctx);
+    if (input.taskId !== undefined && input.taskId !== null) {
+      await requireTaskProject(ctx.db, ctx.workspaceId, principal, input.taskId);
+    }
+  },
+  inputFingerprint: measurementFingerprint,
   auditInput: (input) => ({
     taskId: (input as RecordBrowserActivityInput)?.taskId,
   }),
@@ -1107,6 +1131,9 @@ export async function listBrowserActivity(
 }
 
 interface LedgerRow {
+  event_id: string;
+  typed_measurement: number;
+  provider_session_id: string | null;
   kind: string;
   occurred_at: string;
   run_execution_id: string;
@@ -1164,6 +1191,8 @@ export interface TokenCostEntry {
 export interface TokenSummary {
   exact: TokenFields;
   estimated: TokenFields;
+  exact_overflow_fields: TokenFieldName[];
+  estimated_overflow_fields: TokenFieldName[];
   unavailable_count: number;
   exact_observation_ids: string[];
   estimated_observation_ids: string[];
@@ -1191,20 +1220,30 @@ export function summarizeTokens(
     byModel.set(row.model, group);
   }
   const costs: TokenCostEntry[] = [...byModel.entries()].map(([model, rows]) => {
-    const result = calculateCost(sumTokenFields(rows), model, catalogVersion, calculatedAt);
+    const total = sumTokenFieldsChecked(rows);
+    if (total.overflow_fields.length > 0) {
+      return { model, amount_usd: null, reason: "counter_overflow" };
+    }
+    const result = calculateCost(total.fields, model, catalogVersion, calculatedAt);
     return { model, amount_usd: result.amount_usd, reason: result.reason };
   });
   const known = costs.filter((entry) => entry.amount_usd !== null);
+  const exact = sumTokenFieldsChecked(exactRows.map((row) => row.tokens));
+  const estimated = sumTokenFieldsChecked(estimatedRows.map((row) => row.tokens));
   return {
-    exact: sumTokenFields(exactRows.map((row) => row.tokens)),
-    estimated: sumTokenFields(estimatedRows.map((row) => row.tokens)),
+    exact: exact.fields,
+    estimated: estimated.fields,
+    exact_overflow_fields: exact.overflow_fields,
+    estimated_overflow_fields: estimated.overflow_fields,
     unavailable_count: unavailable.length,
     exact_observation_ids: exactRows.map((row) => row.observation_id),
     estimated_observation_ids: estimatedRows.map((row) => row.observation_id),
     unavailable_observation_ids: unavailable.map((row) => row.observation_id),
     costs,
     costs_total_usd:
-      known.length > 0 ? known.reduce((sum, entry) => sum + (entry.amount_usd ?? 0), 0) : null,
+      known.length > 0 && known.length === costs.length && exact.overflow_fields.length === 0
+        ? known.reduce((sum, entry) => sum + (entry.amount_usd ?? 0), 0)
+        : null,
     catalog_version: catalogVersion,
     calculated_at: calculatedAt,
   };
@@ -1216,6 +1255,8 @@ export interface RunTimeMeasures {
   process_elapsed_ms: number | null;
   process_alive_ms: number;
   active_ms: number;
+  active_quality: "observed" | "includes_legacy_estimates" | "unavailable";
+  ambiguous_legacy_events: number;
   attention_wait_ms: number;
   external_wait_ms: number | null;
   idle_ms: number | null;
@@ -1242,12 +1283,34 @@ export interface RunMeasurements {
     stopped_total_ms: number;
     open_ms: number;
   };
+  sources: { sources: MeasurementSourceReference[]; has_more: boolean; next_cursor: number };
   provenance: {
     ledger_events: number;
     token_observations: number;
     reported_intervals: number;
     attention_observations: number;
   };
+}
+
+// A run may span resumed executions; only immutable launch snapshots name their providers.
+const RUN_PROVIDER_SQL = `(SELECT CASE WHEN COUNT(DISTINCT json_extract(snapshot.canonical_json,
+  '$.execution_config.provider')) = 1 THEN MIN(json_extract(snapshot.canonical_json,
+  '$.execution_config.provider')) END FROM launch_commands AS launch
+  JOIN run_configuration_snapshots AS snapshot ON snapshot.workspace_id = launch.workspace_id
+    AND snapshot.id = launch.snapshot_id AND snapshot.run_id = launch.run_id
+  WHERE launch.workspace_id = r.workspace_id AND launch.run_id = r.id)`;
+
+function mergeMeasurementWindows(windows: readonly IntervalMs[]): IntervalMs[] {
+  const sorted = windows
+    .filter((row) => row.end >= row.start)
+    .sort((a, b) => a.start - b.start || a.end - b.end);
+  const merged: IntervalMs[] = [];
+  for (const row of sorted) {
+    const last = merged.at(-1);
+    if (last && row.start <= last.end) last.end = Math.max(last.end, row.end);
+    else merged.push({ ...row });
+  }
+  return merged;
 }
 
 /** Derives every separated run measure from committed rows at read time. */
@@ -1261,10 +1324,8 @@ export async function getRunMeasurements(
   const run = (await db
     .prepare(
       `SELECT r.id, r.project_id, r.task_id, r.result_state, r.activity, r.created_at,
-              p.provider AS provider
+              ${RUN_PROVIDER_SQL} AS provider
        FROM runs AS r
-       LEFT JOIN agent_profiles AS p
-         ON p.workspace_id = r.workspace_id AND p.id = r.agent_profile_id
        WHERE r.workspace_id = ? AND r.id = ?`,
     )
     .get(workspaceId, runId)) as
@@ -1307,9 +1368,11 @@ export async function getRunMeasurements(
   }>;
   const ledger = (await db
     .prepare(
-      `SELECT kind, occurred_at, run_execution_id, workspace_cursor
-       FROM event_ledger WHERE workspace_id = ? AND run_id = ?
-       ORDER BY workspace_cursor ASC`,
+      `SELECT e.event_id, e.kind, e.occurred_at, e.run_execution_id, e.workspace_cursor, e.provider_session_id,
+              CASE WHEN s.event_id IS NULL THEN 0 ELSE 1 END AS typed_measurement
+       FROM event_ledger e LEFT JOIN measurement_event_sources s
+         ON s.workspace_id = e.workspace_id AND s.event_id = e.event_id
+       WHERE e.workspace_id = ? AND e.run_id = ? ORDER BY e.workspace_cursor ASC`,
     )
     .all(workspaceId, runId)) as LedgerRow[];
   const attentionRows = (await db
@@ -1327,6 +1390,8 @@ export async function getRunMeasurements(
     )
     .get(workspaceId, workspaceId, runId)) as { total: number };
   const tokens = await listTokenObservations(db, workspaceId, runId);
+  const activitySources = await listRunMeasurementActivitySources(db, workspaceId, runId);
+  const sources = await listRunMeasurementSources(db, workspaceId, runId);
   const reported = await listMeasurementIntervals(db, workspaceId, runId);
   const timers = (await db
     .prepare(`SELECT * FROM review_timers WHERE workspace_id = ? AND run_id = ?`)
@@ -1353,76 +1418,126 @@ export async function getRunMeasurements(
   }
 
   const attachSpans: IntervalMs[] = [];
+  const processWindows = new Map<string, IntervalMs[]>();
   let liveExecution = false;
   for (const execution of executions) {
     const rows = (byExecution.get(execution.id) ?? [])
       .map((row) => ({ kind: row.kind, at: parseMs(row.occurred_at) }))
       .filter((row) => row.at !== null) as Array<{ kind: string; at: number }>;
-    const attaches = rows.filter((row) => row.kind === "execution_attached").map((row) => row.at);
     const created = parseMs(execution.created_at);
-    const attach = attaches.length > 0 ? Math.min(...attaches) : created;
-    if (attach === null) {
-      continue;
+    if (created === null) continue;
+    const end = Math.min(
+      nowMs,
+      execution.ended_at ? (parseMs(execution.ended_at) ?? created) : nowMs,
+    );
+    const attaches = rows
+      .filter((row) => row.kind === "execution_attached" && row.at <= end)
+      .map((row) => Math.max(created, row.at));
+    const attach = attaches.length > 0 ? Math.min(...attaches) : null;
+    const explicit = reported
+      .filter(
+        (row) => row.run_execution_id === execution.id && row.interval_kind === "process_alive",
+      )
+      .map((row) => ({ start: Date.parse(row.started_at), end: Date.parse(row.ended_at) }));
+    const windows = clipIntervals(explicit, { start: created, end });
+    if (attach !== null && end >= attach) {
+      windows.push({ start: attach, end });
+      liveExecution ||= execution.state !== "ended";
     }
-    if (execution.state === "ended" && execution.ended_at) {
-      const end = parseMs(execution.ended_at);
-      if (end !== null && end >= attach) {
-        attachSpans.push({ start: attach, end });
-      }
-    } else {
-      liveExecution = true;
-      if (nowMs >= attach) {
-        attachSpans.push({ start: attach, end: nowMs });
-      }
-    }
+    const merged = mergeMeasurementWindows(windows);
+    processWindows.set(execution.id, merged);
+    attachSpans.push(...merged);
   }
 
   const elapsedStart =
     attachSpans.length > 0 ? Math.min(...attachSpans.map((span) => span.start)) : null;
   const elapsedEnd =
     attachSpans.length > 0 ? Math.max(...attachSpans.map((span) => span.end)) : null;
-  const reportedAlive = reported
-    .filter((row) => row.interval_kind === "process_alive")
-    .map((row) => ({ start: Date.parse(row.started_at), end: Date.parse(row.ended_at) }))
-    .filter(
-      (span) => Number.isFinite(span.start) && Number.isFinite(span.end) && span.end > span.start,
-    );
-  const alive = unionIntervalsMs([...attachSpans, ...reportedAlive]);
+  const alive = unionIntervalsMs(attachSpans);
+  const clipToProcess = (executionId: string, spans: readonly IntervalMs[]) =>
+    (processWindows.get(executionId) ?? []).flatMap((window) => clipIntervals(spans, window));
 
   const pairedActive: IntervalMs[] = [];
   let openIntervals = 0;
-  for (const rows of byExecution.values()) {
+  let legacyPairs = 0;
+  let ambiguousLegacyEvents = 0;
+  const identified = new Map<string, { execution: string; start?: number; end?: number }>();
+  for (const source of activitySources) {
+    const at = parseMs(source.occurred_at);
+    if (at === null || at > nowMs) continue;
+    const key = JSON.stringify([
+      source.run_execution_id,
+      source.assignment_generation,
+      source.provider_session_id,
+      source.family,
+      source.activity_id,
+    ]);
+    const pair = identified.get(key) ?? { execution: source.run_execution_id };
+    pair[source.phase] = at;
+    identified.set(key, pair);
+  }
+  for (const pair of identified.values()) {
+    if (pair.start !== undefined && pair.end !== undefined && pair.end >= pair.start) {
+      pairedActive.push(...clipToProcess(pair.execution, [{ start: pair.start, end: pair.end }]));
+    } else {
+      openIntervals += 1;
+    }
+  }
+  const legacyGroups = new Map<string, { executionId: string; rows: LedgerRow[] }>();
+  for (const row of ledger) {
+    if (row.typed_measurement !== 0) continue;
+    const key = JSON.stringify([row.run_execution_id, row.provider_session_id]);
+    const group = legacyGroups.get(key) ?? { executionId: row.run_execution_id, rows: [] };
+    group.rows.push(row);
+    legacyGroups.set(key, group);
+  }
+  for (const { executionId, rows } of legacyGroups.values()) {
     const ordered = rows
       .map((row) => ({ kind: row.kind, at: parseMs(row.occurred_at) }))
-      .filter((row) => row.at !== null)
+      .filter((row) => row.at !== null && row.at <= nowMs)
       .sort((a, b) => (a.at as number) - (b.at as number)) as Array<{ kind: string; at: number }>;
     const openTurns: number[] = [];
     const openTools: number[] = [];
+    let ambiguousTurns = false;
+    let ambiguousTools = false;
     for (const row of ordered) {
       if (row.kind === "turn_started") {
+        if (openTurns.length > 0) ambiguousLegacyEvents += 1;
+        ambiguousTurns ||= openTurns.length > 0;
         openTurns.push(row.at);
       } else if (row.kind === "turn_stopped" || row.kind === "turn_failed") {
         const start = openTurns.shift();
-        if (start !== undefined && row.at >= start) {
-          pairedActive.push({ start, end: row.at });
+        if (start !== undefined && row.at >= start && !ambiguousTurns) {
+          const spans = clipToProcess(executionId, [{ start, end: row.at }]);
+          pairedActive.push(...spans);
+          if (spans.length > 0) legacyPairs += 1;
         }
+        if (openTurns.length === 0) ambiguousTurns = false;
       } else if (row.kind === "tool_started") {
+        if (openTools.length > 0) ambiguousLegacyEvents += 1;
+        ambiguousTools ||= openTools.length > 0;
         openTools.push(row.at);
       } else if (row.kind === "tool_finished" || row.kind === "tool_failed") {
         const start = openTools.shift();
-        if (start !== undefined && row.at >= start) {
-          pairedActive.push({ start, end: row.at });
+        if (start !== undefined && row.at >= start && !ambiguousTools) {
+          const spans = clipToProcess(executionId, [{ start, end: row.at }]);
+          pairedActive.push(...spans);
+          if (spans.length > 0) legacyPairs += 1;
         }
+        if (openTools.length === 0) ambiguousTools = false;
       }
     }
     openIntervals += openTurns.length + openTools.length;
   }
-  const reportedActive = reported
-    .filter((row) => row.interval_kind === "active")
-    .map((row) => ({ start: Date.parse(row.started_at), end: Date.parse(row.ended_at) }))
-    .filter(
-      (span) => Number.isFinite(span.start) && Number.isFinite(span.end) && span.end > span.start,
-    );
+  const reportedByKind = (kind: ReportedIntervalKind): IntervalMs[] =>
+    reported
+      .filter((row) => row.interval_kind === kind)
+      .flatMap((row) =>
+        clipToProcess(row.run_execution_id, [
+          { start: Date.parse(row.started_at), end: Date.parse(row.ended_at) },
+        ]),
+      );
+  const reportedActive = reportedByKind("active");
   const active = unionIntervalsMs([...pairedActive, ...reportedActive]);
 
   const waitSpans: IntervalMs[] = [];
@@ -1444,35 +1559,23 @@ export async function getRunMeasurements(
   });
   const attentionWait = unionIntervalsMs(waitSpans);
 
-  const reportedByKind = (kind: ReportedIntervalKind): IntervalMs[] =>
-    reported
-      .filter((row) => row.interval_kind === kind)
-      .map((row) => ({ start: Date.parse(row.started_at), end: Date.parse(row.ended_at) }))
-      .filter(
-        (span) => Number.isFinite(span.start) && Number.isFinite(span.end) && span.end > span.start,
-      );
   const externalUnion = unionIntervalsMs(reportedByKind("external_wait"));
   const idleUnion = unionIntervalsMs(reportedByKind("idle"));
 
-  const heartbeats = ledger
-    .filter((row) => row.kind === "heartbeat")
-    .map((row) => parseMs(row.occurred_at))
-    .filter((at): at is number => at !== null)
-    .sort((a, b) => a - b);
   let offlineMs = 0;
-  if (elapsedStart !== null && elapsedEnd !== null) {
-    let cursor = elapsedStart;
-    for (const beat of heartbeats) {
-      if (beat - cursor > HEARTBEAT_STALE_MS) {
-        const gapStart = Math.min(cursor + HEARTBEAT_STALE_MS, elapsedEnd);
-        offlineMs += Math.max(0, Math.min(beat, elapsedEnd) - gapStart);
-      }
-      if (beat > cursor) {
+  for (const [executionId, windows] of processWindows) {
+    const heartbeats = (byExecution.get(executionId) ?? [])
+      .filter((row) => row.kind === "heartbeat")
+      .map((row) => parseMs(row.occurred_at))
+      .filter((at): at is number => at !== null)
+      .sort((a, b) => a - b);
+    for (const window of windows) {
+      let cursor = window.start;
+      for (const beat of heartbeats.filter((at) => at >= window.start && at <= window.end)) {
+        offlineMs += Math.max(0, beat - cursor - HEARTBEAT_STALE_MS);
         cursor = beat;
       }
-    }
-    if (elapsedEnd - cursor > HEARTBEAT_STALE_MS && !liveExecution) {
-      offlineMs += elapsedEnd - Math.min(cursor + HEARTBEAT_STALE_MS, elapsedEnd);
+      offlineMs += Math.max(0, window.end - cursor - HEARTBEAT_STALE_MS);
     }
   }
 
@@ -1492,7 +1595,8 @@ export async function getRunMeasurements(
         .filter(
           (row) => row.kind === "execution_attached" && row.run_execution_id === first.execution_id,
         )
-        .map((row) => parseMs(row.occurred_at) ?? Number.POSITIVE_INFINITY),
+        .map((row) => parseMs(row.occurred_at) ?? Number.POSITIVE_INFINITY)
+        .filter((at) => at <= nowMs && created !== null && at >= created),
     );
     if (created !== null) {
       if (Number.isFinite(attachedAt)) {
@@ -1562,6 +1666,13 @@ export async function getRunMeasurements(
         elapsedStart !== null && elapsedEnd !== null ? elapsedEnd - elapsedStart : null,
       process_alive_ms: alive.total_ms,
       active_ms: active.total_ms,
+      active_quality:
+        legacyPairs > 0
+          ? "includes_legacy_estimates"
+          : pairedActive.length + reportedActive.length > 0
+            ? "observed"
+            : "unavailable",
+      ambiguous_legacy_events: ambiguousLegacyEvents,
       attention_wait_ms: attentionWait.total_ms,
       external_wait_ms: externalUnion.observation_count > 0 ? externalUnion.total_ms : null,
       idle_ms: idleUnion.observation_count > 0 ? idleUnion.total_ms : null,
@@ -1575,6 +1686,7 @@ export async function getRunMeasurements(
     attention,
     tokens: summarizeTokens(tokens, CURRENT_PRICE_CATALOG_VERSION, now),
     review: { timers: timerRecords, stopped_total_ms: stoppedTotal, open_ms: openMs },
+    sources,
     provenance: {
       ledger_events: ledger.length,
       token_observations: tokens.length,
@@ -1610,9 +1722,17 @@ export interface TaskMeasurements {
   totals: {
     active_ms: number;
     process_elapsed_ms: number;
+    process_alive_ms: number;
+    offline_ms: number;
+    external_wait_ms: number | null;
+    idle_ms: number | null;
+    unknown_run_counts: { process: number; active: number; external_wait: number; idle: number };
+    legacy_estimated_runs: number;
     attention_wait_ms: number;
     exact_tokens: TokenFields;
     estimated_tokens: TokenFields;
+    exact_overflow_fields: TokenFieldName[];
+    estimated_overflow_fields: TokenFieldName[];
     unavailable_token_reports: number;
   };
   review: {
@@ -1756,8 +1876,18 @@ export async function getTaskMeasurements(
     }
     activityByHuman.set(row.human_id, entry);
   }
-  const exactTokens = sumTokenFields(runs.map((run) => run.tokens.exact));
-  const estimatedTokens = sumTokenFields(runs.map((run) => run.tokens.estimated));
+  const exactTokens = sumTokenFieldsChecked(
+    runs.map((run) => run.tokens.exact),
+    runs.flatMap((run) => run.tokens.exact_overflow_fields),
+  );
+  const estimatedTokens = sumTokenFieldsChecked(
+    runs.map((run) => run.tokens.estimated),
+    runs.flatMap((run) => run.tokens.estimated_overflow_fields),
+  );
+  const sumKnown = (values: (number | null)[]) =>
+    values.some((value) => value !== null)
+      ? values.reduce<number>((sum, value) => sum + (value ?? 0), 0)
+      : null;
   return {
     task_id: taskId,
     project_id: task.project_id,
@@ -1766,9 +1896,24 @@ export async function getTaskMeasurements(
     totals: {
       active_ms: runs.reduce((sum, run) => sum + run.times.active_ms, 0),
       process_elapsed_ms: runs.reduce((sum, run) => sum + (run.times.process_elapsed_ms ?? 0), 0),
+      process_alive_ms: runs.reduce((sum, run) => sum + run.times.process_alive_ms, 0),
+      offline_ms: runs.reduce((sum, run) => sum + run.times.offline_ms, 0),
+      external_wait_ms: sumKnown(runs.map((run) => run.times.external_wait_ms)),
+      idle_ms: sumKnown(runs.map((run) => run.times.idle_ms)),
+      unknown_run_counts: {
+        process: runs.filter((run) => run.times.process_elapsed_ms === null).length,
+        active: runs.filter((run) => run.times.active_quality === "unavailable").length,
+        external_wait: runs.filter((run) => run.times.external_wait_ms === null).length,
+        idle: runs.filter((run) => run.times.idle_ms === null).length,
+      },
+      legacy_estimated_runs: runs.filter(
+        (run) => run.times.active_quality === "includes_legacy_estimates",
+      ).length,
       attention_wait_ms: runs.reduce((sum, run) => sum + run.times.attention_wait_ms, 0),
-      exact_tokens: exactTokens,
-      estimated_tokens: estimatedTokens,
+      exact_tokens: exactTokens.fields,
+      estimated_tokens: estimatedTokens.fields,
+      exact_overflow_fields: exactTokens.overflow_fields,
+      estimated_overflow_fields: estimatedTokens.overflow_fields,
       unavailable_token_reports: runs.reduce((sum, run) => sum + run.tokens.unavailable_count, 0),
     },
     review: { timers, stopped_total_ms: stoppedTotal, open_ms: openMs },
@@ -1800,9 +1945,19 @@ export interface AggregateCell {
   runs: number;
   active_ms: number;
   process_elapsed_ms: number;
+  process_alive_ms: number;
+  offline_ms: number;
+  process_unavailable_runs: number;
+  active_unavailable_runs: number;
+  legacy_estimated_runs: number;
+  review_stopped_ms: number;
+  review_open_ms: number;
+  review_scope: "run_linked_timers";
   attention_wait_ms: number;
   exact_tokens: TokenFields;
   estimated_tokens: TokenFields;
+  exact_overflow_fields: TokenFieldName[];
+  estimated_overflow_fields: TokenFieldName[];
   unavailable_token_reports: number;
   attention_requests: number;
   submission_versions: number;
@@ -1829,20 +1984,18 @@ export async function aggregateMeasurements(
     params.push(filters.priority);
   }
   if (filters.provider !== undefined) {
-    conditions.push("p.provider = ?");
+    conditions.push(`${RUN_PROVIDER_SQL} = ?`);
     params.push(filters.provider);
   }
   const rows = (await db
     .prepare(
-      `SELECT r.id AS run_id, r.project_id, t.priority, p.provider AS provider,
+      `SELECT r.id AS run_id, r.project_id, t.priority, ${RUN_PROVIDER_SQL} AS provider,
               (SELECT COUNT(*) FROM attention_requests AS a
                WHERE a.workspace_id = r.workspace_id AND a.run_id = r.id) AS attention_requests,
               (SELECT COUNT(*) FROM result_submissions AS s
                WHERE s.workspace_id = r.workspace_id AND s.run_id = r.id) AS submissions
        FROM runs AS r
        JOIN tasks AS t ON t.workspace_id = r.workspace_id AND t.id = r.task_id
-       LEFT JOIN agent_profiles AS p
-         ON p.workspace_id = r.workspace_id AND p.id = r.agent_profile_id
        WHERE ${conditions.join(" AND ")}
        ORDER BY r.id ASC LIMIT ?`,
     )
@@ -1866,6 +2019,14 @@ export async function aggregateMeasurements(
       runs: 0,
       active_ms: 0,
       process_elapsed_ms: 0,
+      process_alive_ms: 0,
+      offline_ms: 0,
+      process_unavailable_runs: 0,
+      active_unavailable_runs: 0,
+      legacy_estimated_runs: 0,
+      review_stopped_ms: 0,
+      review_open_ms: 0,
+      review_scope: "run_linked_timers" as const,
       attention_wait_ms: 0,
       exact_tokens: {
         input: null,
@@ -1881,6 +2042,8 @@ export async function aggregateMeasurements(
         cache_write: null,
         reasoning: null,
       },
+      exact_overflow_fields: [] as TokenFieldName[],
+      estimated_overflow_fields: [] as TokenFieldName[],
       unavailable_token_reports: 0,
       attention_requests: 0,
       submission_versions: 0,
@@ -1888,8 +2051,27 @@ export async function aggregateMeasurements(
     cell.runs += 1;
     cell.active_ms += measured.times.active_ms;
     cell.process_elapsed_ms += measured.times.process_elapsed_ms ?? 0;
-    cell.exact_tokens = sumTokenFields([cell.exact_tokens, measured.tokens.exact]);
-    cell.estimated_tokens = sumTokenFields([cell.estimated_tokens, measured.tokens.estimated]);
+    cell.process_alive_ms += measured.times.process_alive_ms;
+    cell.offline_ms += measured.times.offline_ms;
+    cell.process_unavailable_runs += Number(measured.times.process_elapsed_ms === null);
+    cell.active_unavailable_runs += Number(measured.times.active_quality === "unavailable");
+    cell.legacy_estimated_runs += Number(
+      measured.times.active_quality === "includes_legacy_estimates",
+    );
+    cell.review_stopped_ms += measured.review.stopped_total_ms;
+    cell.review_open_ms += measured.review.open_ms;
+    const exact = sumTokenFieldsChecked(
+      [cell.exact_tokens, measured.tokens.exact],
+      [...cell.exact_overflow_fields, ...measured.tokens.exact_overflow_fields],
+    );
+    const estimated = sumTokenFieldsChecked(
+      [cell.estimated_tokens, measured.tokens.estimated],
+      [...cell.estimated_overflow_fields, ...measured.tokens.estimated_overflow_fields],
+    );
+    cell.exact_tokens = exact.fields;
+    cell.exact_overflow_fields = exact.overflow_fields;
+    cell.estimated_tokens = estimated.fields;
+    cell.estimated_overflow_fields = estimated.overflow_fields;
     cell.unavailable_token_reports += measured.tokens.unavailable_count;
     cell.attention_requests += Number(row.attention_requests);
     cell.submission_versions += Number(row.submissions);

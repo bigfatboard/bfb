@@ -2,6 +2,7 @@
 // ABOUTME: Raw runner claims never enter the ledger; attribution is derived server-side by E01 ingest.
 
 import { createAuthorizationContext } from "@bfb/db";
+import { decodeRunnerEventBatch } from "@bfb/protocol";
 import {
   assertLedgerBrowserAccess,
   DomainError,
@@ -14,7 +15,6 @@ import {
   readLedgerHighWater,
   rejectRunnerRequest,
   runnerId,
-  runnerObject,
   type HubCommand,
 } from "@bfb/domain";
 
@@ -26,7 +26,8 @@ import {
   type RunnerApiDeps,
 } from "./runners.js";
 
-const nativePattern = /^\/runner\/workspaces\/([^/]+)\/runners\/([^/]+)\/events\/ingest$/;
+const nativePattern =
+  /^\/runner\/workspaces\/([^/]+)\/runners\/([^/]+)\/events\/(ingest|capabilities)$/;
 
 export function isRunnerEventPath(path: string): boolean {
   return nativePattern.test(path);
@@ -54,8 +55,9 @@ export async function handleRunnerEventApi(
     if (!match?.[1] || !match[2] || url.search) rejectRunnerRequest();
     const workspaceId = runnerId(match[1]),
       runner = runnerId(match[2]);
-    await guardRunnerTransport(request, deps, workspaceId, runner, "events/ingest");
-    if (request.method !== "POST") rejectRunnerRequest();
+    const surface = `events/${match[3]}`;
+    await guardRunnerTransport(request, deps, workspaceId, runner, surface);
+    if (request.method !== (match[3] === "capabilities" ? "GET" : "POST")) rejectRunnerRequest();
     const { principal, bytes } = await readPossessedRunnerRequest(
       request,
       deps,
@@ -63,9 +65,15 @@ export async function handleRunnerEventApi(
       runner,
       EVENT_BODY_LIMIT,
     );
-    const body = runnerObject(parseJson(bytes), ["schema_version", "events"]);
-    if (body.schema_version !== 1 || !Array.isArray(body.events)) rejectRunnerRequest();
-    if (body.events.length < 1 || body.events.length > EVENT_BATCH_LIMIT) rejectRunnerRequest();
+    if (match[3] === "capabilities") {
+      if (bytes.length !== 0) rejectRunnerRequest();
+      return response({ schema_version: 1, accepted_event_versions: [1, 2] });
+    }
+    const decoded = decodeRunnerEventBatch(bytes);
+    if (!decoded.ok) rejectRunnerRequest();
+    const encodedEvents = decoded.value.events;
+    const events = encodedEvents.map((item) => parseJson(Buffer.from(item)));
+    if (events.length < 1 || events.length > EVENT_BATCH_LIMIT) rejectRunnerRequest();
     const run = <I, R>(command: HubCommand<I, R>, input: I) =>
       executeRunnerCommand(deps, command, {
         workspaceId,
@@ -77,11 +85,22 @@ export async function handleRunnerEventApi(
       });
     const result = await run(ingestRunnerEventsCommand, {
       principal,
-      events: body.events,
+      events,
+      encodedEvents,
     });
     return response(result);
-  } catch {
-    return rejected();
+  } catch (error) {
+    if (error instanceof SyntaxError) return rejected();
+    if (
+      error instanceof DomainError &&
+      ["request_rejected", "invalid_json", "body_too_large", "rate_limited"].includes(error.code)
+    ) {
+      return rejected();
+    }
+    return response(
+      { error: "event_ingest_unavailable", message: "event ingest temporarily unavailable" },
+      503,
+    );
   }
 }
 

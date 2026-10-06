@@ -1,7 +1,7 @@
 // ABOUTME: Proves A04 interval unions, token quality separation, and price-catalog independence.
 // ABOUTME: All fixtures are synthetic; seeded property tests stay deterministic without new dependencies.
 
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SqlDatabase } from "@bfb/db";
 
@@ -38,6 +38,12 @@ import { createTaskCommand } from "../src/work-commands.js";
 import { launchFixture, LAUNCH_NOW, success } from "./launch-fixture.js";
 
 type Fixture = Awaited<ReturnType<typeof launchFixture>>;
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(LAUNCH_NOW));
+});
+afterEach(() => vi.useRealTimers());
 
 let ledgerCursor = 1000;
 
@@ -323,7 +329,7 @@ describe("token.report and interval.report", () => {
       runId: spec.run_id,
       executionId: spec.run_execution_id,
       assignmentGeneration: spec.assignment_generation,
-      provider: "codex" as const,
+      provider: "fake" as const,
       model: "codex-fixture-model",
       tokens: { input_tokens: 120, output_tokens: 34, cached_input_tokens: 100 },
       quality: "provider_reported" as const,
@@ -382,7 +388,7 @@ describe("token.report and interval.report", () => {
       runId: spec.run_id,
       executionId: spec.run_execution_id,
       assignmentGeneration: spec.assignment_generation,
-      provider: "codex" as const,
+      provider: "fake" as const,
       quality: "provider_reported" as const,
     };
     success(
@@ -410,7 +416,7 @@ describe("token.report and interval.report", () => {
       runId: spec.run_id,
       executionId: randomUlid(),
       assignmentGeneration: spec.assignment_generation,
-      provider: "codex" as const,
+      provider: "fake" as const,
       tokens: { input_tokens: 1, output_tokens: 1 },
       quality: "provider_reported" as const,
     });
@@ -421,7 +427,7 @@ describe("token.report and interval.report", () => {
       runId: spec.run_id,
       executionId: spec.run_execution_id,
       assignmentGeneration: spec.assignment_generation,
-      provider: "claude" as const,
+      provider: "fake" as const,
       tokens: { input_tokens: 1 },
       quality: "unavailable" as const,
     });
@@ -432,7 +438,7 @@ describe("token.report and interval.report", () => {
       runId: spec.run_id,
       executionId: spec.run_execution_id,
       assignmentGeneration: spec.assignment_generation,
-      provider: "claude" as const,
+      provider: "fake" as const,
       tokens: {},
       quality: "estimated" as const,
     });
@@ -454,7 +460,7 @@ describe("token.report and interval.report", () => {
       runId: spec.run_id,
       executionId: spec.run_execution_id,
       assignmentGeneration: spec.assignment_generation,
-      provider: "codex" as const,
+      provider: "fake" as const,
       model: "bad\nmodel",
       tokens: { input_tokens: 1, output_tokens: 1 },
       quality: "provider_reported" as const,
@@ -472,7 +478,7 @@ describe("token.report and interval.report", () => {
         runId: spec.run_id,
         executionId: spec.run_execution_id,
         assignmentGeneration: spec.assignment_generation,
-        provider: "grok" as const,
+        provider: "fake" as const,
         tokens: {},
         quality: "unavailable" as const,
       }),
@@ -722,7 +728,12 @@ describe("run derivations", () => {
       kind: "execution_attached",
       occurredAt: "2026-09-12T12:00:30.000Z",
     });
-    const measured = await getRunMeasurements(f.db, FIX.workspace, spec.run_id, LAUNCH_NOW);
+    const measured = await getRunMeasurements(
+      f.db,
+      FIX.workspace,
+      spec.run_id,
+      "2026-09-12T12:01:00.000Z",
+    );
     expect(measured.times.launch_latency_ms).toBe(30_000);
     expect(measured.times.launch_latency_reason).toBeNull();
   });
@@ -735,7 +746,7 @@ describe("run derivations", () => {
       runId: spec.run_id,
       executionId: spec.run_execution_id,
       assignmentGeneration: spec.assignment_generation,
-      provider: "codex" as const,
+      provider: "fake" as const,
       model: "codex-fixture-model",
     };
     success(
@@ -802,6 +813,7 @@ describe("review timers", () => {
     const f = await launchFixture();
     const timer = success(await f.human(startReviewTimerCommand, { taskId: f.task.id }));
     expect(timer.state).toBe("open");
+    vi.setSystemTime(new Date("2026-09-12T12:04:00.000Z"));
     const stopped = success(
       await f.human(
         stopReviewTimerCommand,
@@ -931,7 +943,7 @@ describe("task measurements and aggregation", () => {
         runId: spec.run_id,
         executionId: spec.run_execution_id,
         assignmentGeneration: spec.assignment_generation,
-        provider: "codex" as const,
+        provider: "fake" as const,
         tokens: { input_tokens: 100, output_tokens: 20 },
         quality: "provider_reported" as const,
       }),
