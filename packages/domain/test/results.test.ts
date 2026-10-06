@@ -2,7 +2,7 @@
 // ABOUTME: All fixtures are synthetic; fault rows never touch real runner or provider state.
 
 import type { SqlDatabase } from "@bfb/db";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ingestRunnerEventsCommand } from "../src/events.js";
 import { FIX } from "../src/fixtures.js";
@@ -34,6 +34,12 @@ const LATER = "2026-08-12T09:00:00Z";
 const COMMIT = "a".repeat(40);
 const OTHER_COMMIT = "b".repeat(40);
 const TREE_HASH = `sha256:${"c".repeat(64)}`;
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(NOW));
+});
+afterEach(() => vi.useRealTimers());
 
 function human<T>(idempotencyKey: string, input: T, humanId = FIX.owner, now = NOW) {
   return {

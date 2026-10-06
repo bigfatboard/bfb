@@ -1,7 +1,7 @@
 // ABOUTME: Proves browser socket admit, heartbeat, broadcast, expiry, and eviction behavior.
 // ABOUTME: Uses socket doubles plus real D1 reads; native Workerd acceptance rides the E02 harness.
 
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createAuthorizationContext } from "@bfb/db";
 import {
@@ -26,6 +26,12 @@ import { discussionFixture } from "../../../packages/domain/test/discussion-fixt
 const NOW = "2026-09-12T12:00:00.000Z";
 const LATER = "2026-09-12T12:00:20.000Z";
 const SESSION_EXPIRY = "2026-09-12T13:00:00.000Z";
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(NOW));
+});
+afterEach(() => vi.useRealTimers());
 
 type FixtureDb = Awaited<ReturnType<typeof launchFixture>>["db"];
 

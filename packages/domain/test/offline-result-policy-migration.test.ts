@@ -66,7 +66,11 @@ describe("offline result migration", () => {
         ),
       }));
       const snapshots = raw.prepare("SELECT * FROM run_configuration_snapshots").all();
-      expect(applyMigrationsForVerification(raw, directory).head).toBe(head);
+      expect(
+        applyMigrationsForVerification(raw, directory, {
+          stopBeforeId: "0041_measurement_sources",
+        }).head,
+      ).toBe(head);
       for (const { table, rows, columns } of before) {
         expect(raw.prepare(`SELECT ${columns.join(",")} FROM ${table}`).all()).toEqual(rows);
         expect(
@@ -78,7 +82,9 @@ describe("offline result migration", () => {
         ).toEqual(rows.map(() => ({ allow: 0, age: 0 })));
       }
       expect(raw.prepare("SELECT * FROM run_configuration_snapshots").all()).toEqual(snapshots);
-      applyMigrationsForVerification(fresh, directory);
+      applyMigrationsForVerification(fresh, directory, {
+        stopBeforeId: "0041_measurement_sources",
+      });
       expect(schemaSnapshot(raw)).toEqual(schemaSnapshot(fresh));
       expect(raw.pragma("foreign_key_check")).toEqual([]);
       for (const table of tables.filter((table) => table.endsWith("versions")))
