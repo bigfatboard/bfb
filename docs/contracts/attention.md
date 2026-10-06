@@ -7,11 +7,13 @@ human answer/resolution APIs, the ranked Attention home, and the raw
 observation boundary consumed by A04. E02 consumes committed rows by polling
 these reads; X01 consumes committed semantic events for external delivery.
 
-The production integration is in progress under
-[ADR 0007](../adr/0007-online-agent-attention-runtime.md). Historical A02 evidence
-does not certify the new runtime until its connected and clean-checkout gates
-pass. The records and human-visible tool shapes below remain the business
-contract; the new closed transport carries their authority and provenance.
+The production integration is clean-certified at `891fbcc` under
+[ADR 0007](../adr/0007-online-agent-attention-runtime.md), with the
+[connected runtime evidence](../work-packages/evidence/WP-A02/runtime-manifest.json)
+kept separate from historical isolated evidence. The records and human-visible
+tool shapes below remain the business contract; the closed transport carries
+their authority and provenance. Synthetic native proof does not certify
+Terminal interaction or live provider behavior.
 
 ## Records (D1 migration `0023_attention`)
 

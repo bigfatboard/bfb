@@ -1,12 +1,12 @@
 # WP-A02 — Human attention workflow
 
-Status: `in_progress`
+Status: `done`
 
 Risk: High
 
 Test target: `pnpm test:a02`
 
-Evidence manifest: `docs/work-packages/evidence/WP-A02/manifest.json`
+Evidence manifest: `docs/work-packages/evidence/WP-A02/runtime-manifest.json`
 
 ## Outcome
 
@@ -45,7 +45,7 @@ An agent can request a typed human decision, a permitted human can answer it fro
 ### Produces
 
 - Attention workflow v1, frozen in `docs/contracts/attention.md`: `0023_attention` records, `attention.request`/`attention.answer`/`attention.resolve` commands, ranked reads, the three local MCP tools with the 30-second bound, the no-transport signaling model, and the raw-observation boundary for A04.
-- Stable test target `pnpm test:a02` and evidence manifest `docs/work-packages/evidence/WP-A02/manifest.json`.
+- Stable test target `pnpm test:a02` and evidence manifest `docs/work-packages/evidence/WP-A02/runtime-manifest.json`.
 - `packages/domain/src/attention.ts`: commands, ranked `listAttention` with explainable `rank_reason`, and immutable observation reads consumed by routes, UI, and the harness.
 - `apps/control-worker/src/api/attention.ts`: ranked list, scoped read with observations, answer (409 carries the committed record on duplicates), and resolve routes.
 - `apps/web/src/attention/home.tsx`: ranked Attention home with answer/resolve actions and the native-permission notice.
@@ -73,10 +73,11 @@ An agent can request a typed human decision, a permitted human can answer it fro
 
 ## Evidence
 
-- `docs/work-packages/evidence/WP-A02/manifest.json` indexes the tested commit, migration head, toolchains, commands, and redaction status per the evidence manifest schema.
-- `recording.jsonl` traces one end-to-end run across two Workers and real D1 (migration, claim, request, idempotent replay, pending polls, answer, duplicate rejection, permission matrix, timeout/retry, guards, revocation, reconnect re-read, observations) with step outcomes, kinds, states, versions, and counts only — no run ids or wall-clock timings, so reruns are byte-identical and package verification ends with a clean worktree.
-- `waiter-cadence.json` carries the deterministic waiter poll cadence (pending-poll counts and repeated-read states). A04 derives latencies from committed attention timestamps, never from harness wall-clock.
-- `permission-matrix.md` tabulates the role/kind answer matrix; `timeout-reconnect-trace.md` narrates the bounded wait, retry, and eviction traces; `acceptance-matrix.md` maps each Acceptance bullet to its proving test; `command-result.json` records the `pnpm test:a02`, `pnpm verify`, `pnpm worktree:check`, Linux cross-build, and clean-checkout gate outcomes.
+- `docs/work-packages/evidence/WP-A02/runtime-manifest.json` indexes the clean-tested `891fbcc` source, migration head, toolchains, commands, and redaction status per the evidence manifest schema.
+- `runtime-recording.jsonl` traces the connected flow across two Workers and real D1 (migration, final launch authority, lease observation, canonical binding, request, exact/changed-input retry, pending polls, answer, permission matrix, guards, revocation, reconnect and observations). It contains step outcomes, kinds, states, versions and counts, not run IDs or private bodies; reruns are byte-identical.
+- `runtime-waiter-cadence.json` carries deterministic pending-poll and repeated-read states as a structural cross-check. A04 derives latencies from committed attention timestamps, never from harness wall-clock. The native proof separately measures the actual 30-second production wait and its 26 reads.
+- `runtime-acceptance.md` maps the connected authority, durability, privacy and wait contracts to tests; `runtime-command-result.json` records exact A02, A01, L08, repository verification, Linux build and clean-worktree outcomes, plus the separately scoped implementation-checkout C09 regression.
+- Historical `manifest.json`, `recording.jsonl`, `waiter-cadence.json`, `permission-matrix.md`, `timeout-reconnect-trace.md`, `acceptance-matrix.md` and `command-result.json` remain unchanged. They document the earlier isolated implementation, not the connected runtime certificate.
 - Evidence contains synthetic identities only: no bearer/grant secret, task body, local absolute path, environment value, or raw terminal output.
 
 ## Risks and decisions
@@ -84,16 +85,17 @@ An agent can request a typed human decision, a permitted human can answer it fro
 - Ranking must remain explainable and deterministic in v0.1; the rank is blocking flag, frozen kind severity, request time, then ID, and every item carries its `rank_reason`. No opaque priority model.
 - Both UI and runner signaling poll committed records; socket presence or notification delivery is not evidence of an answer.
 - The 30-second wait never holds a Worker open; pending outcomes are never memoized, so repetition is side-effect free.
-- Attention questions are not journaled offline: a question is only useful inside a live waiter loop, and stale redelivery would mislead the human about run liveness. A01's daemon-owned `013_work_journal` keeps exactly its four task-mutation tools; A02 does not open, extend or drain it.
+- Attention questions are not journaled offline: autonomous stale redelivery could mislead a human about current run authority. Committed questions and answers remain durable and readable by a currently authorized agent after a waiter ends. A01's daemon-owned `013_work_journal` keeps exactly its four task-mutation tools; A02 does not open, extend or drain it.
 - A03 also extends the local MCP server and run/task transitions; A02's MCP and domain additions are additive and separately named (`bfb_request_human`, `bfb_get_attention`, `bfb_wait_for_attention`, `attention.*`).
 
 ## Handoff
 
-- Runtime integration resumed 6 October after A01's clean certificate was committed at `df90709`. The prior exact A01 and full verification checkpoints passed at `adbf740`; source is unchanged by the evidence commit. [ADR 0007](../adr/0007-online-agent-attention-runtime.md) freezes the online-only v4 integration, fresh authority/read semantics, full wait deadline and bounded polling decision before implementation. A02 remains incomplete until its own connected and clean-checkout gates pass.
+- Re-certified 6 October at clean source `891fbcc`: frozen install, forced build, exact A02 (866 protocol cases, 85 focused cases, Go race suites, real D1, seven evidence checks, compiled stdio, signed native proof and three browser cases), full verification (2,245 TypeScript cases, Go and 16 Swift cases), exact A01/L08, Linux build and clean-worktree check pass. C09 also passes at that source in the implementation checkout. [ADR 0007](../adr/0007-online-agent-attention-runtime.md) and the runtime evidence above define the connected contract. This uses synthetic provider-shaped processes, not Terminal automation or live provider turns, and does not certify A03 or the full MVP.
+- The native acceptance found and reproduced a runner inventory scheduling gap; `63f02ec` restores each existing heartbeat refresh without widening freshness or rate limits. `891fbcc` keeps attention available on submitted nonterminal runs while preserving launch/task-capture eligibility and terminal closure.
 - Dependency hold, 5 October: A01 is reopened for its missing production online/replay path. This implementation and historical isolated acceptance are retained; their tests have not been declared failed. Re-certification and settlement wait for A01 runtime acceptance and affected integration checks. The dated status below is historical, not the current package state.
 - Settled 18 September: `done`. A01 and E02 are `done`, and `pnpm test:a02` passed in a detached clean checkout at `9372c0f` (install, build, exact target with the real-Worker/D1 fault harness, real-binary stdio purity, and browser spec). Re-proven in-worktree at `b3b1391` after the evidence-determinism fix (build, exact target with the deterministic-evidence harness plus its regression test, real-binary stdio purity, and browser spec).
 - Commands: `pnpm test:a02`; `pnpm verify`; `pnpm worktree:check`. The Worker/D1 fault flow is `tools/attention/run.ts`; the attention stdio cases are `internal/localmcp/attention_test.go` plus the golden transcript.
-- A04 consumes `attention_observations` (unique identity, actor provenance) and the raw `requested_at`/`first_response_at`/`resolved_at` timestamps plus the `waiter-cadence.json` poll/retry counts as a structural cross-check; derivation and display belong to A04.
+- A04 consumes `attention_observations` (unique identity, actor provenance) and the raw `requested_at`/`first_response_at`/`resolved_at` timestamps plus the `runtime-waiter-cadence.json` poll/retry counts as a structural cross-check; derivation and display belong to A04.
 - X01 consumes committed `attention.request`/`attention.answer`/`attention.resolve` semantic events; it does not own attention truth and owns all external delivery.
-- The historical L08 merge step is the active runtime integration: `WorkTransport.RequestAttention`/`GetAttention` use the separate v4 daemon lane and fixed runner actions, with current native ownership, credential/epoch, run/session/launch/lease checks and uniform `not_found` for foreign records. Completion still requires the connected and clean-checkout acceptance above.
+- The historical L08 merge step is now connected: `WorkTransport.RequestAttention`/`GetAttention` use the separate v4 daemon lane and fixed runner actions, with current native ownership, credential/epoch, run/session/launch/lease checks and uniform `not_found` for foreign records. The clean acceptance above proves this connection.
 - Historical wait fixtures use a 100 ms cadence. The production integration moves to one second to fit existing possession budgets without widening them; it does not add commit-driven wake-ups. Browser signaling polls every 15 seconds; offline agents cannot request attention until the channel returns. A transport failure after dispatch may hide an already committed request; explicit same-identity retry is the only recovery path.
