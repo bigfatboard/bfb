@@ -1,4 +1,4 @@
-{"direction":"client","payload":{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}}
+{"direction":"client","payload":{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"bfb-inspector","version":"1.0.0"}}}}
 {"direction":"client","payload":{"jsonrpc":"2.0","method":"notifications/initialized"}}
 {"direction":"client","payload":{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}}
 {"direction":"client","payload":{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"bfb_get_task","arguments":{"request_id":"transcript-001"}}}}

@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	protocolVersion = "2026-07-28"
+	protocolVersion = "2025-11-25"
 	serverName      = "bfb-local-mcp"
 	contractVersion = "local-mcp/2"
 	maxStdioLine    = 65536
@@ -132,11 +132,13 @@ type Deps struct {
 
 // Server owns one stdio connection from startup verification to EOF.
 type Server struct {
-	deps       Deps
-	host       *Host
-	capability *Capability
-	startupErr error
-	stats      map[string]int
+	deps        Deps
+	host        *Host
+	capability  *Capability
+	startupErr  error
+	stats       map[string]int
+	initialized bool
+	ready       bool
 }
 
 // NewServer verifies peer, assignment, and correlation, then builds the
@@ -258,8 +260,8 @@ func (server *Server) serveLine(ctx context.Context, writer *bufio.Writer, line 
 		return
 	}
 	if request.ID == nil {
-		if request.Method == "notifications/initialized" {
-			return
+		if request.Method == "notifications/initialized" && server.initialized {
+			server.ready = true
 		}
 		return
 	}
@@ -272,14 +274,40 @@ func (server *Server) serveLine(ctx context.Context, writer *bufio.Writer, line 
 	}
 	switch request.Method {
 	case "initialize":
+		if server.initialized {
+			server.writeError(writer, request.ID, fail("invalid_request"))
+			return
+		}
+		version, _ := request.Params["protocolVersion"].(string)
+		_, capabilitiesOK := request.Params["capabilities"].(map[string]any)
+		client, _ := request.Params["clientInfo"].(map[string]any)
+		name, _ := client["name"].(string)
+		clientVersion, _ := client["version"].(string)
+		if version == "" || !capabilitiesOK || name == "" || clientVersion == "" {
+			server.writeError(writer, request.ID, fail("invalid_params"))
+			return
+		}
+		// This server supports one handshake-era revision. A different request
+		// gets that counteroffer; it never switches to the modern lifecycle.
+		server.initialized = true
 		server.writeResult(writer, request.ID, map[string]any{
 			"protocolVersion": protocolVersion,
 			"capabilities":    map[string]any{"tools": map[string]any{}},
 			"serverInfo":      map[string]any{"name": serverName, "version": contractVersion},
 		})
+	case "ping":
+		server.writeResult(writer, request.ID, map[string]any{})
 	case "tools/list":
+		if !server.ready {
+			server.writeError(writer, request.ID, fail("invalid_request"))
+			return
+		}
 		server.writeResult(writer, request.ID, map[string]any{"tools": ToolDescriptors()})
 	case "tools/call":
+		if !server.ready {
+			server.writeError(writer, request.ID, fail("invalid_request"))
+			return
+		}
 		server.serveCall(ctx, writer, request)
 	default:
 		server.writeError(writer, request.ID, fail("method_not_found"))

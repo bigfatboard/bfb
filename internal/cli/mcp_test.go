@@ -152,7 +152,8 @@ func TestMCPStdioBoundSessionCannotInventOfflinePolicy(t *testing.T) {
 	dataDir := shortDataDir(t)
 	seedBoundAssignment(t, dataDir+"/state.sqlite")
 	schemaValidMCPAssignment(t, dataDir+"/state.sqlite")
-	stdin := "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}\n" +
+	stdin := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"bfb-cli-test","version":"1.0.0"}}}` + "\n" +
+		`{"jsonrpc":"2.0","method":"notifications/initialized"}` + "\n" +
 		"{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"bfb_add_comment\",\"arguments\":{\"body\":\"Synthetic comment\",\"request_id\":\"mcp-bind-0001\"}}}\n"
 	code, output := executeMCP(t, dataDir, stdin)
 	if code != 0 {
@@ -199,7 +200,8 @@ func TestMCPStdioRejectsMutationWhileUnbound(t *testing.T) {
 	}
 	_ = db.Close()
 	schemaValidMCPAssignment(t, dataDir+"/state.sqlite")
-	stdin := "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}\n" +
+	stdin := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"bfb-cli-test","version":"1.0.0"}}}` + "\n" +
+		`{"jsonrpc":"2.0","method":"notifications/initialized"}` + "\n" +
 		"{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"bfb_add_comment\",\"arguments\":{\"body\":\"Synthetic comment\",\"request_id\":\"mcp-bind-0002\"}}}\n"
 	code, output := executeMCP(t, dataDir, stdin)
 	if code != 0 {

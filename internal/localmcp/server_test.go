@@ -22,6 +22,19 @@ type stdioHarness struct {
 	stderr *bytes.Buffer
 }
 
+const validInitialize = `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"bfb-test","version":"1.0.0"}}}`
+
+func initializeHarness(t *testing.T, harness *stdioHarness) {
+	t.Helper()
+	harness.server.serveLine(context.Background(), bufio.NewWriter(harness.stdout), []byte(validInitialize))
+	var reply map[string]any
+	if json.Unmarshal(harness.stdout.Bytes(), &reply) != nil || reply["error"] != nil {
+		t.Fatal("stdio initialization failed")
+	}
+	harness.server.serveLine(context.Background(), bufio.NewWriter(harness.stdout), []byte(`{"jsonrpc":"2.0","method":"notifications/initialized"}`))
+	harness.stdout.Reset()
+}
+
 func newStdioHarness(env ScopedEnv, assignments AssignmentSource, bindings *fakeBindings, authority *fakeAuthority, transport *fakeTransport, journal Journal) *stdioHarness {
 	if bindings == nil {
 		bindings = &fakeBindings{}
@@ -90,7 +103,7 @@ func TestStdoutPurityAndSessionFlow(t *testing.T) {
 	harness, bindings := happyHarness(nil)
 	ref := AssignmentRef{ExecutionID: syntheticBoundary.ExecutionID, AssignmentGeneration: syntheticBoundary.Generation, RunID: syntheticBoundary.RunID}
 	session := []string{
-		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`,
+		validInitialize,
 		`{"jsonrpc":"2.0","method":"notifications/initialized"}`,
 		`{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}`,
 		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"bfb_get_task","arguments":{"request_id":"purity-001"}}}`,
@@ -171,6 +184,7 @@ func TestStdioProgressPreservesRawNumberBounds(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			harness, bindings := happyHarness(nil)
+			initializeHarness(t, harness)
 			bindings.setBound(syntheticSession, harness.server.capability.ref())
 			line := fmt.Sprintf(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"bfb_report_progress","arguments":{"summary":"Synthetic raw-number checkpoint","request_id":"raw-progress-001","percent":%s,"confidence":%s}}}`, test.percent, test.confidence)
 			harness.server.serveLine(context.Background(), bufio.NewWriter(harness.stdout), []byte(line))
@@ -204,6 +218,7 @@ func TestStdioProgressCanonicalNumericRetry(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			harness, bindings := happyHarness(nil)
+			initializeHarness(t, harness)
 			bindings.setBound(syntheticSession, harness.server.capability.ref())
 			call := func(id int, percent, confidence string) map[string]any {
 				t.Helper()
@@ -264,6 +279,7 @@ func TestStdioUpdatePreservesRawIntegerBounds(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			harness, bindings := happyHarness(nil)
+			initializeHarness(t, harness)
 			bindings.setBound(syntheticSession, harness.server.capability.ref())
 			call := func(id int, version string) map[string]any {
 				t.Helper()
@@ -309,7 +325,7 @@ func TestStdioUpdatePreservesRawIntegerBounds(t *testing.T) {
 func TestStartupRaceFailsVisibleAndPure(t *testing.T) {
 	assignments := &fakeAssignments{err: fail("assignment_unknown")}
 	harness := newStdioHarness(syntheticEnv(), assignments, &fakeBindings{}, &fakeAuthority{}, syntheticTransport(), nil)
-	harness.server.serveLine(context.Background(), bufio.NewWriter(harness.stdout), []byte(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`+"\n"))
+	harness.server.serveLine(context.Background(), bufio.NewWriter(harness.stdout), []byte(validInitialize+"\n"))
 	harness.server.serveLine(context.Background(), bufio.NewWriter(harness.stdout), []byte(`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"bfb_get_task","arguments":{"request_id":"race-0001"}}}`+"\n"))
 	lines := strings.Split(strings.TrimSpace(harness.stdout.String()), "\n")
 	if len(lines) != 2 {

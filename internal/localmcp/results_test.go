@@ -394,6 +394,7 @@ func TestSubmitResultTerminalCloses(t *testing.T) {
 
 func TestSubmitResultStdioPurity(t *testing.T) {
 	harness, bindings := happyHarness(nil)
+	initializeHarness(t, harness)
 	bindings.setBound(syntheticSession, boundRef())
 	harness.server.serveLine(context.Background(), bufio.NewWriter(harness.stdout),
 		[]byte(`{"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":"bfb_submit_result","arguments":{"summary":"Synthetic purity summary","request_id":"submit-pure-001"}}}`+"\n"))

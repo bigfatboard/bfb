@@ -738,11 +738,12 @@ FROM work_intents i JOIN work_delivery d USING(operation_key) WHERE json_extract
 		if err != nil || line != "READY\n" {
 			t.Fatal("MCP startup failed", err, line)
 		}
-		write(map[string]any{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": map[string]any{}})
+		write(map[string]any{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": map[string]any{"protocolVersion": "2025-11-25", "capabilities": map[string]any{}, "clientInfo": map[string]string{"name": "bfb-native-test", "version": "1.0.0"}}})
 		line, err = reader.ReadString('\n')
 		if err != nil || !strings.Contains(line, "local-mcp/2") {
 			t.Fatal("compiled v2 initialize failed", err, line)
 		}
+		write(map[string]any{"jsonrpc": "2.0", "method": "notifications/initialized"})
 	}
 	call := func(tool, id string, extra map[string]any) (map[string]any, string) {
 		t.Helper()
@@ -1540,7 +1541,7 @@ BEGIN SELECT RAISE(ABORT,'synthetic dispatch marker failure'); END`); err != nil
 			if err != nil || line != "READY\n" {
 				t.Fatal("closed ownership MCP start", err, line)
 			}
-			write(map[string]any{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": map[string]any{}})
+			write(map[string]any{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": map[string]any{"protocolVersion": "2025-11-25", "capabilities": map[string]any{}, "clientInfo": map[string]string{"name": "bfb-native-test", "version": "1.0.0"}}})
 			line, err = reader.ReadString('\n')
 			if err != nil || !strings.Contains(line, `"bfb_code":"assignment_ended"`) {
 				t.Fatal("free-lock MCP startup did not fail closed", err, line)

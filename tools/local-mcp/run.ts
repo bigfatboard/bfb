@@ -87,7 +87,11 @@ build();
   const dataDir = mkdtempSync(join(tmpdir(), "bfb-a01-data-"));
   const stdin =
     [
-      sessionLine(1, "initialize", {}),
+      sessionLine(1, "initialize", {
+        protocolVersion: "2025-11-25",
+        capabilities: {},
+        clientInfo: { name: "bfb-harness", version: "1.0.0" },
+      }),
       sessionLine(2, "tools/list", {}),
       sessionLine(3, "tools/call", {
         name: "bfb_get_task",

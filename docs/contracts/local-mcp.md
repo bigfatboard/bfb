@@ -26,11 +26,19 @@ credential or a second local tool endpoint.
 - Standard output carries JSON-RPC responses and notifications only.
   Diagnostics go to standard error and the redacted local log. A test fails
   when any stdout line is not a JSON-RPC value.
-- Supported methods: `initialize`, `notifications/initialized` (no-op),
+- Supported methods: `initialize`, `notifications/initialized`, `ping`,
   `tools/list`, `tools/call`. Every other method returns `method_not_found`.
   There are no prompts, resources, or subscriptions in v2.
-- Protocol version reported by `initialize` is `2026-07-28`; the server name
-  is `bfb-local-mcp`. The bootstrap implementation reports `local-mcp/2`.
+- The supported handshake revision is `2025-11-25`, independently of the
+  remote MCP protocol. Initialization requires a nonempty `protocolVersion`,
+  object `capabilities`, and `clientInfo` with nonempty name/version strings.
+  Another requested revision receives the supported `2025-11-25` counteroffer;
+  it is never falsely advertised as supported. The initialized notification
+  completes the exchange before tool listing or calls. Reinitialization fails.
+  `ping` reports transport responsiveness only. Modern `server/discover` is
+  unsupported. See [ADR 0011](../adr/0011-local-mcp-handshake-compatibility.md).
+  The server name remains `bfb-local-mcp`; `local-mcp/2` identifies the BFB tool
+  and trust contract, not MCP's dated transport revision.
 
 ## Daemon and cloud bridge
 
