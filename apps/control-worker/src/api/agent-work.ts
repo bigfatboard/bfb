@@ -18,6 +18,7 @@ import {
   type AgentResultRequest,
   type AgentResultConfirmationRequest,
   type AgentResultReplayRequest,
+  type AgentArtifactRequest,
   type WireDocumentName,
 } from "@bfb/protocol";
 import {
@@ -52,12 +53,19 @@ import {
   AGENT_RESULT_REQUEST_BYTES,
   AGENT_RESULT_REPLAY_BYTES,
   type SubmitResultResult,
+  agentArtifactPrepareCommand,
+  agentArtifactFinalizeCommand,
+  agentArtifactPrepareProjection,
+  AGENT_ARTIFACT_REQUEST_BYTES,
+  type AgentArtifactPrepared,
+  mintUploadGrantSecret,
+  randomUlid,
 } from "@bfb/domain";
 import { executeWorkspaceCommand } from "../hub-client.js";
 import { guardRunnerTransport, readPossessedRunnerRequest, type RunnerApiDeps } from "./runners.js";
 
 const pattern =
-  /^\/runner\/workspaces\/([^/]+)\/runners\/([^/]+)\/work\/(authority|context|task|session-bind|bound-authority|comment|update|progress|proposal|capture-confirmation|replay|attention-request|attention-get|result-submit|result-confirmation|result-replay)$/;
+  /^\/runner\/workspaces\/([^/]+)\/runners\/([^/]+)\/work\/(authority|context|task|session-bind|bound-authority|comment|update|progress|proposal|capture-confirmation|replay|attention-request|attention-get|result-submit|result-confirmation|result-replay|artifact-prepare|artifact-finalize)$/;
 const actions: Record<
   string,
   { document: WireDocumentName; command: HubCommand<unknown, unknown> }
@@ -114,6 +122,14 @@ const actions: Record<
     document: "agent-result-confirmation-request",
     command: resultCaptureConfirmationCommand as HubCommand<unknown, unknown>,
   },
+  "artifact-prepare": {
+    document: "agent-artifact-request",
+    command: agentArtifactPrepareCommand as HubCommand<unknown, unknown>,
+  },
+  "artifact-finalize": {
+    document: "agent-artifact-request",
+    command: agentArtifactFinalizeCommand as HubCommand<unknown, unknown>,
+  },
 };
 const replayCommands = {
   "agent_run.comment": agentRunCommentCommand,
@@ -132,6 +148,7 @@ function response(body: unknown, status = 200): Response {
 }
 
 export async function handleAgentWorkApi(request: Request, deps: RunnerApiDeps): Promise<Response> {
+  let artifactAction = false;
   try {
     const url = new URL(request.url),
       match = pattern.exec(url.pathname);
@@ -140,6 +157,7 @@ export async function handleAgentWorkApi(request: Request, deps: RunnerApiDeps):
     const workspaceId = runnerId(match[1]),
       runner = runnerId(match[2]),
       action = match[3]!;
+    artifactAction = action === "artifact-prepare" || action === "artifact-finalize";
     await guardRunnerTransport(request, deps, workspaceId, runner, `work/${action}`);
     const document =
       action === "replay"
@@ -154,17 +172,19 @@ export async function handleAgentWorkApi(request: Request, deps: RunnerApiDeps):
       deps,
       workspaceId,
       runner,
-      action === "result-replay"
-        ? AGENT_RESULT_REPLAY_BYTES
-        : action === "result-submit"
-          ? AGENT_RESULT_REQUEST_BYTES
-          : action === "replay"
-            ? AGENT_REPLAY_REQUEST_BYTES
-            : document === "agent-work-request" ||
-                action === "capture-confirmation" ||
-                action === "result-confirmation"
-              ? AGENT_CONFIRMATION_REQUEST_BYTES
-              : AGENT_WRITE_REQUEST_BYTES,
+      artifactAction
+        ? AGENT_ARTIFACT_REQUEST_BYTES
+        : action === "result-replay"
+          ? AGENT_RESULT_REPLAY_BYTES
+          : action === "result-submit"
+            ? AGENT_RESULT_REQUEST_BYTES
+            : action === "replay"
+              ? AGENT_REPLAY_REQUEST_BYTES
+              : document === "agent-work-request" ||
+                  action === "capture-confirmation" ||
+                  action === "result-confirmation"
+                ? AGENT_CONFIRMATION_REQUEST_BYTES
+                : AGENT_WRITE_REQUEST_BYTES,
     );
     const decoded = decodeWireDocument(document, possessed.bytes);
     if (!decoded.ok) throw new DomainError("request_rejected", "invalid work reference");
@@ -177,6 +197,7 @@ export async function handleAgentWorkApi(request: Request, deps: RunnerApiDeps):
       );
     }
     let command: HubCommand<unknown, unknown>, idempotencyKey: string, input: unknown;
+    let artifactSecret: string | undefined;
     if (action === "result-replay") {
       const replay = decoded.value as AgentResultReplayRequest;
       command = submitResultCommand as HubCommand<unknown, unknown>;
@@ -209,6 +230,7 @@ export async function handleAgentWorkApi(request: Request, deps: RunnerApiDeps):
         | AgentProposalRequest
         | AgentAttentionRequest
         | AgentResultRequest
+        | AgentArtifactRequest
         | AgentResultConfirmationRequest
         | AgentCaptureConfirmationRequest;
       const reference = "reference" in body ? body.reference : body;
@@ -224,6 +246,21 @@ export async function handleAgentWorkApi(request: Request, deps: RunnerApiDeps):
                 ? agentWorkKey("submit_result", reference)
                 : agentWorkKey(action, reference);
       input = { principal: possessed.principal, request: body };
+      if (action === "artifact-prepare") {
+        // Each explicit retry gets a fresh ephemeral grant attempt. The domain
+        // retains the independent canonical publication key, never this secret.
+        if (!deps.artifactOrigin) throw new Error("artifact origin unavailable");
+        const minted = mintUploadGrantSecret();
+        artifactSecret = minted.secret;
+        idempotencyKey = `artifact-prepare:${randomUlid()}`;
+        input = {
+          principal: possessed.principal,
+          request: body,
+          grantSecretHash: minted.secretHash,
+        };
+      } else if (action === "artifact-finalize") {
+        idempotencyKey = agentWorkKey("publish_artifact", reference);
+      }
     }
     const outcome = await executeWorkspaceCommand(
       {
@@ -246,6 +283,23 @@ export async function handleAgentWorkApi(request: Request, deps: RunnerApiDeps):
       },
     );
     if (!outcome.ok) throw new DomainError(outcome.error.code, "agent work rejected");
+    if (action === "artifact-prepare") {
+      return response(
+        agentArtifactPrepareProjection(
+          outcome.result as AgentArtifactPrepared,
+          deps.artifactOrigin!,
+          artifactSecret!,
+        ),
+      );
+    }
+    if (action === "artifact-finalize") {
+      const result = decodeWireDocument(
+        "agent-artifact-result",
+        new TextEncoder().encode(JSON.stringify(outcome.result)),
+      );
+      if (!result.ok) throw new Error("invalid artifact projection");
+      return response(result.value);
+    }
     return response(
       action === "result-submit" || action === "result-replay"
         ? agentResultProjection(outcome.result as SubmitResultResult)
@@ -278,6 +332,9 @@ export async function handleAgentWorkApi(request: Request, deps: RunnerApiDeps):
     ];
     if (error instanceof DomainError && error.code === "body_too_large") {
       return response({ error: "request_rejected", message: "agent work rejected" }, 403);
+    }
+    if (artifactAction && error instanceof DomainError && error.code === "request_conflict") {
+      return response({ error: "request_conflict", message: "agent work rejected" }, 403);
     }
     if (error instanceof DomainError && allowed.includes(error.code)) {
       return response({ error: error.code, message: "agent work rejected" }, 403);

@@ -167,6 +167,7 @@ export function createControlApp(
       now: c.get("now") ?? now,
       jurisdiction: current.jurisdiction,
       appOrigin: current.origins.appOrigin,
+      artifactOrigin: current.origins.artifactOrigin,
       abuseSecret: options.abuseSecret,
       workspaceHubNs: envBindings.WORKSPACE_HUB,
     });

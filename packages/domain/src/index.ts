@@ -9,6 +9,7 @@ export * from "./agent-sessions.js";
 export * from "./artifact-reviews.js";
 export * from "./artifact-views.js";
 export * from "./artifacts.js";
+export * from "./agent-artifacts.js";
 export * from "./artifact-maintenance.js";
 export * from "./attention.js";
 export * from "./agent-attention.js";

@@ -90,7 +90,7 @@ export async function resultFixture(db?: SqlDatabase, enabled = true, tightened 
   };
 }
 
-export function resultStagedD1(db: SqlDatabase) {
+export function resultStagedD1(db: SqlDatabase, beforeBatch?: () => Promise<void>) {
   const entries = new Map<D1StatementLike, { sql: string; params: unknown[] }>();
   let failure: RegExp | undefined;
   const binding: D1Like = {
@@ -108,8 +108,9 @@ export function resultStagedD1(db: SqlDatabase) {
       entries.set(statement, entry);
       return statement;
     },
-    batch: async (pending) =>
-      db.withTransaction(async (tx) => {
+    batch: async (pending) => {
+      await beforeBatch?.();
+      return db.withTransaction(async (tx) => {
         const results = [];
         for (const statement of pending) {
           const entry = entries.get(statement)!;
@@ -118,7 +119,8 @@ export function resultStagedD1(db: SqlDatabase) {
           results.push({ meta });
         }
         return results;
-      }),
+      });
+    },
   };
   return {
     db: adaptD1(binding),

@@ -4,6 +4,9 @@
 import { createHash, randomBytes } from "node:crypto";
 
 import type { SqlDatabase } from "@bfb/db";
+import { prepareAgentArtifactGrantAuthority } from "./artifact-agent-authority.js";
+import type { RunnerPrincipal } from "./runners.js";
+import { runnerObject } from "./runner-crypto.js";
 
 import { abuseBucketKey, consumeAbuseBudget } from "./abuse.js";
 import { assertEpoch, assertRole, loadPrincipal } from "./authorization.js";
@@ -295,7 +298,7 @@ async function requireRun(
   return runId;
 }
 
-interface VersionRow {
+export interface ArtifactVersionRow {
   workspace_id: string;
   id: string;
   artifact_id: string;
@@ -313,10 +316,10 @@ async function versionRow(
   db: SqlDatabase,
   workspaceId: string,
   versionId: string,
-): Promise<VersionRow> {
+): Promise<ArtifactVersionRow> {
   const row = (await db
     .prepare(`SELECT * FROM artifact_versions WHERE workspace_id = ? AND id = ?`)
-    .get(workspaceId, versionId)) as VersionRow | undefined;
+    .get(workspaceId, versionId)) as ArtifactVersionRow | undefined;
   if (!row) rejectArtifactRequest();
   return row;
 }
@@ -403,7 +406,7 @@ export interface CreateArtifactResult {
 function mintGrant(input: {
   workspaceId: string;
   versionId: string;
-  humanId: string;
+  humanId: string | null;
   authorizationEpoch: number;
   runId: string | null;
   format: ArtifactFormat;
@@ -477,6 +480,120 @@ export interface CreateArtifactInput {
   grantSecretHash: string;
 }
 
+export interface ArtifactVersionPreparation {
+  artifactId: string;
+  versionId: string;
+  runId: string | null;
+  format: ArtifactFormat;
+  role: ArtifactRole;
+  declaredSize: number;
+  expectedDigest: string;
+  createArtifact: boolean;
+}
+
+/** Validates immutable metadata and target compatibility before staging writes. */
+export async function prepareArtifactVersion(
+  db: SqlDatabase,
+  workspaceId: string,
+  input: Omit<CreateArtifactInput, "grantSecretHash">,
+): Promise<ArtifactVersionPreparation> {
+  const format = artifactFormat(input.format),
+    role = artifactRole(input.role);
+  const declaredSize = artifactSize(input.declaredSize, role),
+    expectedDigest = artifactDigest(input.expectedDigest);
+  const runId = optionalUlid(input.runId),
+    selected = optionalUlid(input.artifactId);
+  if (selected) {
+    const existing = (await db
+      .prepare("SELECT run_id,format,role FROM artifacts WHERE workspace_id=? AND id=?")
+      .get(workspaceId, selected)) as
+      { run_id: string | null; format: string; role: string } | undefined;
+    if (
+      !existing ||
+      existing.format !== format ||
+      existing.role !== role ||
+      existing.run_id !== runId
+    )
+      rejectArtifactRequest();
+  }
+  return {
+    artifactId: selected ?? randomUlid(),
+    versionId: randomUlid(),
+    runId,
+    format,
+    role,
+    declaredSize,
+    expectedDigest,
+    createArtifact: selected === null,
+  };
+}
+
+/** Human and agent publication share exactly the same artifact/version effect. */
+export async function persistArtifactVersion(
+  ctx: HubContext,
+  plan: ArtifactVersionPreparation,
+  humanId: string | null,
+): Promise<void> {
+  if (plan.createArtifact)
+    await ctx.db
+      .prepare(
+        `INSERT INTO artifacts
+    (workspace_id,id,run_id,format,role,created_by_human_id,created_at) VALUES (?,?,?,?,?,?,?)`,
+      )
+      .run(ctx.workspaceId, plan.artifactId, plan.runId, plan.format, plan.role, humanId, ctx.now);
+  await ctx.db
+    .prepare(
+      `INSERT INTO artifact_versions
+    (workspace_id,id,artifact_id,state,format,declared_size,expected_digest,content_hash,r2_key,created_at,available_at)
+    VALUES (?,?,?,'uploading',?,?,?,NULL,NULL,?,NULL)`,
+    )
+    .run(
+      ctx.workspaceId,
+      plan.versionId,
+      plan.artifactId,
+      plan.format,
+      plan.declaredSize,
+      plan.expectedDigest,
+      ctx.now,
+    );
+}
+
+/** Persists only a secret hash; the transport holds the ephemeral plaintext. */
+export async function issueArtifactUploadGrant(
+  ctx: HubContext,
+  input: {
+    versionId: string;
+    runId: string | null;
+    humanId: string | null;
+    authorizationEpoch: number;
+    format: ArtifactFormat;
+    role: ArtifactRole;
+    declaredSize: number;
+    expectedDigest: string;
+    grantSecretHash: string;
+    reissued: boolean;
+  },
+): Promise<ArtifactGrant> {
+  const { row, grant } = mintGrant({ ...input, workspaceId: ctx.workspaceId, now: ctx.now });
+  await insertGrant(ctx.db, row);
+  await auditOutbox(ctx.db, {
+    workspaceId: ctx.workspaceId,
+    versionId: input.versionId,
+    grantId: grant.grant_id,
+    action: input.reissued ? "artifact.grant_reissued" : "artifact.grant_issued",
+    payload: {
+      version_id: input.versionId,
+      grant_id: grant.grant_id,
+      grant_hash: grant.grant_hash,
+      ...(input.reissued
+        ? {}
+        : { format: input.format, role: input.role, declared_size: input.declaredSize }),
+    },
+    now: ctx.now,
+  });
+  return grant;
+}
+
 export const createArtifactCommand: HubCommand<CreateArtifactInput, CreateArtifactResult> = {
   name: "artifact.create_version",
   replay: "reject",
@@ -496,10 +613,6 @@ export const createArtifactCommand: HubCommand<CreateArtifactInput, CreateArtifa
       "grantSecretHash",
     ]);
     const author = await artifactHuman(ctx);
-    const format = artifactFormat(input.format);
-    const role = artifactRole(input.role);
-    const declaredSize = artifactSize(input.declaredSize, role);
-    const expectedDigest = artifactDigest(input.expectedDigest);
     if (typeof input.grantSecretHash !== "string" || !HEX64.test(input.grantSecretHash)) {
       rejectArtifactRequest();
     }
@@ -507,71 +620,29 @@ export const createArtifactCommand: HubCommand<CreateArtifactInput, CreateArtifa
     const nowMs = Date.parse(ctx.now);
     if (!Number.isFinite(nowMs)) rejectArtifactRequest();
 
-    let artifactId = optionalUlid(input.artifactId);
-    if (artifactId) {
-      const existing = (await ctx.db
-        .prepare(`SELECT id, run_id, format, role FROM artifacts WHERE workspace_id = ? AND id = ?`)
-        .get(ctx.workspaceId, artifactId)) as
-        { id: string; run_id: string | null; format: string; role: string } | undefined;
-      if (!existing) rejectArtifactRequest();
-      if (existing.format !== format || existing.role !== role) rejectArtifactRequest();
-      if ((existing.run_id ?? null) !== runId) rejectArtifactRequest();
-    } else {
-      artifactId = randomUlid();
-      await ctx.db
-        .prepare(
-          `INSERT INTO artifacts
-           (workspace_id, id, run_id, format, role, created_by_human_id, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        )
-        .run(ctx.workspaceId, artifactId, runId, format, role, author.humanId, ctx.now);
-    }
-    const versionId = randomUlid();
-    await ctx.db
-      .prepare(
-        `INSERT INTO artifact_versions
-         (workspace_id, id, artifact_id, state, format, declared_size, expected_digest,
-          content_hash, r2_key, created_at, available_at)
-         VALUES (?, ?, ?, 'uploading', ?, ?, ?, NULL, NULL, ?, NULL)`,
-      )
-      .run(ctx.workspaceId, versionId, artifactId, format, declaredSize, expectedDigest, ctx.now);
-    const { row, grant } = mintGrant({
-      workspaceId: ctx.workspaceId,
-      versionId,
+    const plan = await prepareArtifactVersion(ctx.db, ctx.workspaceId, { ...input, runId });
+    await persistArtifactVersion(ctx, plan, author.humanId);
+    const grant = await issueArtifactUploadGrant(ctx, {
+      versionId: plan.versionId,
       humanId: author.humanId,
       authorizationEpoch: author.authorizationEpoch,
       runId,
-      format,
-      declaredSize,
-      expectedDigest,
+      format: plan.format,
+      role: plan.role,
+      declaredSize: plan.declaredSize,
+      expectedDigest: plan.expectedDigest,
       grantSecretHash: input.grantSecretHash,
-      now: ctx.now,
-    });
-    await insertGrant(ctx.db, row);
-    await auditOutbox(ctx.db, {
-      workspaceId: ctx.workspaceId,
-      versionId,
-      grantId: grant.grant_id,
-      action: "artifact.grant_issued",
-      payload: {
-        version_id: versionId,
-        grant_id: grant.grant_id,
-        grant_hash: row.grant_hash,
-        format,
-        role,
-        declared_size: declaredSize,
-      },
-      now: ctx.now,
+      reissued: false,
     });
     return {
       schema_version: 1,
-      artifact_id: artifactId,
-      version_id: versionId,
+      artifact_id: plan.artifactId,
+      version_id: plan.versionId,
       state: "uploading",
-      format,
-      role,
-      declared_size: declaredSize,
-      expected_digest: expectedDigest,
+      format: plan.format,
+      role: plan.role,
+      declared_size: plan.declaredSize,
+      expected_digest: plan.expectedDigest,
       upload_grant: grant,
     };
   },
@@ -597,28 +668,18 @@ export const issueArtifactGrantCommand: HubCommand<IssueArtifactGrantInput, Arti
       rejectArtifactRequest();
     }
     if (version.state !== "uploading") rejectArtifactRequest();
-    const { row, grant } = mintGrant({
-      workspaceId: ctx.workspaceId,
+    return issueArtifactUploadGrant(ctx, {
       versionId: version.id,
       humanId: author.humanId,
       authorizationEpoch: author.authorizationEpoch,
       runId: artifact.run_id,
       format: artifactFormat(version.format),
+      role: artifactRole(artifact.role),
       declaredSize: version.declared_size,
       expectedDigest: artifactDigest(version.expected_digest),
       grantSecretHash: input.grantSecretHash,
-      now: ctx.now,
+      reissued: true,
     });
-    await insertGrant(ctx.db, row);
-    await auditOutbox(ctx.db, {
-      workspaceId: ctx.workspaceId,
-      versionId: version.id,
-      grantId: grant.grant_id,
-      action: "artifact.grant_reissued",
-      payload: { version_id: version.id, grant_id: grant.grant_id, grant_hash: row.grant_hash },
-      now: ctx.now,
-    });
-    return grant;
   },
 };
 
@@ -668,7 +729,7 @@ export async function redeemUploadGrant(
     | {
         workspace_id: string;
         version_id: string;
-        human_id: string;
+        human_id: string | null;
         authorization_epoch: number;
         run_id: string | null;
         format: string;
@@ -693,15 +754,65 @@ export async function redeemUploadGrant(
     .get(candidate.workspace_id, candidate.artifact_id)) as
     { role: string; run_id: string | null } | undefined;
   if (!artifact) rejectArtifactRequest();
-  if (artifact.run_id !== candidate.run_id || !candidate.human_id) rejectArtifactRequest();
-  const principal = await loadPrincipal(db, candidate.workspace_id, candidate.human_id);
-  assertRole(principal, ["owner", "member"]);
-  assertEpoch(principal, candidate.authorization_epoch);
-  await requireRun(
-    { db, workspaceId: candidate.workspace_id },
-    candidate.run_id,
-    principal.projectIds,
-  );
+  if (artifact.run_id !== candidate.run_id) rejectArtifactRequest();
+  let agentAuthority: Awaited<ReturnType<typeof prepareAgentArtifactGrantAuthority>> | undefined;
+  if (candidate.human_id) {
+    const principal = await loadPrincipal(db, candidate.workspace_id, candidate.human_id);
+    assertRole(principal, ["owner", "member"]);
+    assertEpoch(principal, candidate.authorization_epoch);
+    await requireRun(
+      { db, workspaceId: candidate.workspace_id },
+      candidate.run_id,
+      principal.projectIds,
+    );
+  } else {
+    const source = (await db
+      .prepare(
+        `SELECT op.execution_id,op.assignment_generation,op.run_id,op.provider_session_id,op.runner_id,
+      source.principal_json FROM artifact_agent_grants source JOIN artifact_agent_operations op
+      ON op.workspace_id=source.workspace_id AND op.operation_key=source.operation_key AND op.version_id=source.version_id
+      WHERE source.workspace_id=? AND source.grant_id=? AND source.version_id=?`,
+      )
+      .get(candidate.workspace_id, input.grantId, candidate.version_id)) as
+      | {
+          execution_id: string;
+          assignment_generation: number;
+          run_id: string;
+          provider_session_id: string;
+          runner_id: string;
+          principal_json: string;
+        }
+      | undefined;
+    if (!source || source.run_id !== candidate.run_id) rejectArtifactRequest();
+    const principal = JSON.parse(source.principal_json) as RunnerPrincipal;
+    runnerObject(principal, [
+      "kind",
+      "runnerId",
+      "workspaceId",
+      "ownerHumanId",
+      "authorizationEpoch",
+      "ownerAuthorizationEpoch",
+      "grantEpoch",
+      "tokenEpoch",
+      "tokenId",
+      "keyThumbprint",
+      "authExpiresAt",
+      "projectIds",
+    ]);
+    if (
+      principal.authorizationEpoch !== candidate.authorization_epoch ||
+      principal.runnerId !== source.runner_id ||
+      principal.workspaceId !== candidate.workspace_id
+    )
+      rejectArtifactRequest();
+    agentAuthority = await prepareAgentArtifactGrantAuthority(
+      db,
+      candidate.workspace_id,
+      source,
+      principal,
+      input.now,
+    );
+  }
   // An immutable per-grant claim identifies THIS consume attempt, not another
   // request that happened to observe the same timestamp. A loser rolls back
   // this whole batch before the Worker reads its body.
@@ -714,9 +825,22 @@ export async function redeemUploadGrant(
     .run(candidate.workspace_id, input.grantId, attemptId, input.now);
   // Repeat current role/project and exact grant scope at commit, because the
   // candidate and principal reads happen before D1 flushes this write batch.
-  await db
-    .prepare(
-      `UPDATE artifact_upload_grants SET consumed_at = ?
+  if (agentAuthority) {
+    await db
+      .prepare(
+        `UPDATE artifact_upload_grants SET consumed_at=? WHERE id=? AND grant_hash=?
+      AND human_id IS NULL AND consumed_at IS NULL AND expires_at>?
+      AND EXISTS(SELECT 1 FROM artifact_versions v JOIN artifacts a ON a.workspace_id=v.workspace_id AND a.id=v.artifact_id
+        WHERE v.workspace_id=artifact_upload_grants.workspace_id AND v.id=artifact_upload_grants.version_id
+          AND v.state='uploading' AND v.format=artifact_upload_grants.format AND v.declared_size=artifact_upload_grants.declared_size
+          AND v.expected_digest=artifact_upload_grants.expected_digest AND a.run_id IS artifact_upload_grants.run_id)
+      AND (${agentAuthority.witness.predicate})`,
+      )
+      .run(input.now, input.grantId, secretHash, input.now, ...agentAuthority.witness.params);
+  } else
+    await db
+      .prepare(
+        `UPDATE artifact_upload_grants SET consumed_at = ?
        WHERE id = ? AND grant_hash = ? AND consumed_at IS NULL AND expires_at > ?
          AND EXISTS (
            SELECT 1 FROM artifact_versions AS v
@@ -748,8 +872,8 @@ export async function redeemUploadGrant(
              AND e.revoked_at IS NULL
              AND e.authorization_epoch = artifact_upload_grants.authorization_epoch
          )`,
-    )
-    .run(input.now, input.grantId, secretHash, input.now);
+      )
+      .run(input.now, input.grantId, secretHash, input.now);
   // The guard must identify our claim as well as the consumed timestamp.
   // D1 evaluates it inside the same atomic batch, with no read-after-write.
   const guardId = randomUlid();
@@ -999,6 +1123,104 @@ export interface FinalizeArtifactResult {
   available_at: string;
 }
 
+export interface ArtifactFinalization {
+  version: ArtifactVersionRow;
+  contentHash: string;
+  size: number;
+  r2Key: string;
+}
+
+/** Reads canonical metadata and verified physical facts before any availability write. */
+export async function prepareArtifactFinalization(
+  db: SqlDatabase,
+  workspaceId: string,
+  input: FinalizeArtifactInput,
+  allowAvailable = false,
+): Promise<ArtifactFinalization> {
+  const version = await versionRow(db, workspaceId, input.versionId),
+    contentHash = artifactDigest(input.contentHash);
+  if (
+    !Number.isSafeInteger(input.size) ||
+    input.size < 1 ||
+    !(version.state === "uploading" || (allowAvailable && version.state === "available")) ||
+    version.expected_digest !== contentHash ||
+    version.declared_size !== input.size
+  )
+    rejectArtifactRequest();
+  const artifact = (await db
+    .prepare("SELECT run_id,role FROM artifacts WHERE workspace_id=? AND id=?")
+    .get(workspaceId, version.artifact_id)) as { run_id: string | null; role: string } | undefined;
+  if (!artifact) rejectArtifactRequest();
+  const r2Key = artifactObjectKey({
+    workspaceId,
+    role: artifactRole(artifact.role),
+    runId: artifact.run_id,
+    versionId: version.id,
+    contentHash,
+  });
+  const receipt = (await db
+    .prepare(
+      "SELECT content_hash,size FROM artifact_upload_receipts WHERE workspace_id=? AND version_id=?",
+    )
+    .get(workspaceId, version.id)) as { content_hash: string; size: number } | undefined;
+  const object = (await db
+    .prepare("SELECT content_hash,size FROM artifact_objects WHERE workspace_id=? AND r2_key=?")
+    .get(workspaceId, r2Key)) as { content_hash: string; size: number } | undefined;
+  if (
+    !receipt ||
+    !object ||
+    receipt.content_hash !== contentHash ||
+    object.content_hash !== contentHash ||
+    receipt.size !== input.size ||
+    object.size !== input.size ||
+    (version.state === "available" &&
+      (version.content_hash !== contentHash || version.r2_key !== r2Key || !version.available_at))
+  )
+    rejectArtifactRequest();
+  return { version, contentHash, size: input.size, r2Key };
+}
+
+/** Shares the one-way business transition; an available canonical version has no new effect. */
+export async function persistArtifactFinalization(
+  ctx: HubContext,
+  plan: ArtifactFinalization,
+): Promise<FinalizeArtifactResult> {
+  const { version, contentHash, r2Key, size } = plan;
+  if (version.state !== "available") {
+    await ctx.db
+      .prepare(
+        `UPDATE artifact_versions SET state='available',content_hash=?,r2_key=?,available_at=?
+      WHERE workspace_id=? AND id=? AND state='uploading'`,
+      )
+      .run(contentHash, r2Key, ctx.now, ctx.workspaceId, version.id);
+    const guardId = randomUlid();
+    await ctx.db
+      .prepare(
+        `INSERT INTO artifact_mutation_guards (id,valid) VALUES (?,
+      (SELECT COUNT(*)=1 FROM artifact_versions WHERE workspace_id=? AND id=? AND state='available' AND content_hash=? AND r2_key=?))`,
+      )
+      .run(guardId, ctx.workspaceId, version.id, contentHash, r2Key);
+    await ctx.db.prepare("DELETE FROM artifact_mutation_guards WHERE id=?").run(guardId);
+    await auditOutbox(ctx.db, {
+      workspaceId: ctx.workspaceId,
+      versionId: version.id,
+      grantId: null,
+      action: "artifact.finalized",
+      payload: { version_id: version.id, content_hash: contentHash, r2_key: r2Key, size },
+      now: ctx.now,
+    });
+  }
+  return {
+    schema_version: 1,
+    version_id: version.id,
+    artifact_id: version.artifact_id,
+    state: "available",
+    content_hash: contentHash,
+    r2_key: r2Key,
+    available_at: version.available_at ?? ctx.now,
+  };
+}
+
 export const finalizeArtifactCommand: HubCommand<FinalizeArtifactInput, FinalizeArtifactResult> = {
   name: "artifact.finalize_version",
   replay: "reject",
@@ -1008,77 +1230,11 @@ export const finalizeArtifactCommand: HubCommand<FinalizeArtifactInput, Finalize
   },
   async run(input, ctx) {
     artifactObject(input, ["versionId", "contentHash", "size"]);
-    const { version, artifact } = await artifactVersionScope(ctx, input.versionId);
-    const contentHash = artifactDigest(input.contentHash);
-    if (!Number.isSafeInteger(input.size) || (input.size as number) < 1) rejectArtifactRequest();
-    if (version.state !== "uploading") rejectArtifactRequest();
-    if (version.expected_digest !== contentHash || version.declared_size !== input.size) {
-      rejectArtifactRequest();
-    }
-    const expectedKey = artifactObjectKey({
-      workspaceId: ctx.workspaceId,
-      role: artifactRole(artifact.role),
-      runId: artifact.run_id,
-      versionId: input.versionId,
-      contentHash,
-    });
-    const receipt = (await ctx.db
-      .prepare(
-        `SELECT content_hash, size FROM artifact_upload_receipts
-         WHERE workspace_id = ? AND version_id = ?`,
-      )
-      .get(ctx.workspaceId, input.versionId)) as { content_hash: string; size: number } | undefined;
-    if (!receipt || receipt.content_hash !== contentHash || receipt.size !== input.size) {
-      rejectArtifactRequest();
-    }
-    const object = (await ctx.db
-      .prepare(
-        `SELECT content_hash, size FROM artifact_objects
-         WHERE workspace_id = ? AND r2_key = ?`,
-      )
-      .get(ctx.workspaceId, expectedKey)) as { content_hash: string; size: number } | undefined;
-    if (!object || object.content_hash !== contentHash || object.size !== input.size) {
-      rejectArtifactRequest();
-    }
-    await ctx.db
-      .prepare(
-        `UPDATE artifact_versions
-         SET state = 'available', content_hash = ?, r2_key = ?, available_at = ?
-         WHERE workspace_id = ? AND id = ? AND state = 'uploading'`,
-      )
-      .run(contentHash, expectedKey, ctx.now, ctx.workspaceId, input.versionId);
-    const guardId = randomUlid();
-    await ctx.db
-      .prepare(
-        `INSERT INTO artifact_mutation_guards (id, valid) VALUES (?,
-         (SELECT COUNT(*) = 1 FROM artifact_versions
-          WHERE workspace_id = ? AND id = ? AND state = 'available'
-            AND content_hash = ? AND r2_key = ?))`,
-      )
-      .run(guardId, ctx.workspaceId, input.versionId, contentHash, expectedKey);
-    await ctx.db.prepare(`DELETE FROM artifact_mutation_guards WHERE id = ?`).run(guardId);
-    await auditOutbox(ctx.db, {
-      workspaceId: ctx.workspaceId,
-      versionId: input.versionId,
-      grantId: null,
-      action: "artifact.finalized",
-      payload: {
-        version_id: input.versionId,
-        content_hash: contentHash,
-        r2_key: expectedKey,
-        size: input.size,
-      },
-      now: ctx.now,
-    });
-    return {
-      schema_version: 1,
-      version_id: input.versionId,
-      artifact_id: version.artifact_id,
-      state: "available",
-      content_hash: contentHash,
-      r2_key: expectedKey,
-      available_at: ctx.now,
-    };
+    await artifactVersionScope(ctx, input.versionId);
+    return persistArtifactFinalization(
+      ctx,
+      await prepareArtifactFinalization(ctx.db, ctx.workspaceId, input),
+    );
   },
 };
 

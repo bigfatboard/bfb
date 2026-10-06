@@ -42,6 +42,8 @@ export interface RunnerApiDeps {
   now: string;
   jurisdiction: Jurisdiction;
   appOrigin: string;
+  /** Required only by artifact prepare; never accepted from a runner request. */
+  artifactOrigin?: string;
   abuseSecret: string;
   workspaceHubNs?: DurableObjectNamespace | undefined;
 }
