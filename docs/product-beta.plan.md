@@ -170,6 +170,14 @@ manifests; current runtime proof must have its own explicit scope.
   and atomic Owner upload recovery, with separate configured-system selection
   and post-Hub browser checks. Destructive private retention and complete
   operations audit, aggregates, diagnostics and other recovery remain open.
-  The next bounded slice is canonical artifact security-audit receipt delivery,
-  without provider operation. Live private R2 byte delivery remains uncertified.
-  C12 stays planned.
+  The [canonical artifact audit checkpoint](work-packages/evidence/WP-C11/artifact-audit-manifest.json)
+  is clean-certified at `80abaa6`: 1,373 C11 cases, 30 real-D1 checks and exact
+  X05 acceptance; full verification passes 3,714 TypeScript cases, Go and all
+  16 Swift cases. Nine canonical artifact actions and strict paired dispatch
+  wrappers use exact current shared parents and typed reconstructed sources
+  before page/count/anchor delivery. Owner/epoch loss denies even empty pages;
+  NUL-suffixed typed fields and serialized object envelopes are rejected.
+  The next bounded audit slice is stuck-upload recovery receipt delivery,
+  without changing command execution. Other audit families, live operations
+  aggregates and frozen diagnostics remain open. Live private R2 byte delivery
+  remains uncertified; C12 stays planned.

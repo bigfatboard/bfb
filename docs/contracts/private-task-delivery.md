@@ -256,8 +256,9 @@ It does not certify complete operations privacy or enable private work:
 These checks preserve the shared authorization-clock semantics and do not
 certify natural expiry during an in-flight batch or complete operations privacy.
 
-The next bounded security-audit slice covers canonical artifact receipts only;
-it requires its own clean checkpoint before certification:
+The bounded security-audit slice covers canonical artifact receipts only. Its
+[clean checkpoint](../work-packages/evidence/WP-C11/artifact-audit-manifest.json)
+is certified at `80abaa6`; complete audit privacy and activation remain open:
 
 - `readSecurityAudit` requires explicit `options.access`, captured from the
   authenticated browser's human principal. One final selection rechecks current
@@ -276,6 +277,9 @@ it requires its own clean checkpoint before certification:
   the fixed artifact system actor, typed ULID/UTC fields and the source's exact
   dispatch time. A wrapper must also have its matching canonical direct receipt,
   since production dispatch commits both atomically.
+  Envelope children must be actual JSON objects, not serialized object strings;
+  typed fields explicitly reject embedded NULs that SQLite prefix functions
+  would otherwise ignore but JSON delivery would retain.
 - Resolve the exact same-workspace outbox→version→artifact→run→task/project.
   Task-bound sources require a shared parent and current read/project authority,
   even for private creators/grantees. Only a genuinely NULL artifact run uses

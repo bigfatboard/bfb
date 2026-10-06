@@ -106,6 +106,18 @@ parents/current scope; configured system selection is separate. Upload recovery
 commits proof, current authority/state guards, artifact effects, ledger and safe
 receipts atomically through the Hub, with a final browser authority check.
 Complete audit/aggregate/diagnostic/other-recovery privacy and destructive
-private retention remain uncertified. The next bounded repair is canonical
-artifact security-audit receipt delivery, not private activation or provider
-operation.
+private retention remain uncertified. Canonical artifact security-audit delivery
+is certified separately below, not as private activation or provider operation.
+
+The [canonical artifact audit checkpoint](evidence/WP-C11/artifact-audit-manifest.json)
+is clean-certified at `80abaa6`: 1,373 cases, 30 real-D1 checks, retained C10/C08,
+exact X05 acceptance and full verification with 3,714 TypeScript cases, Go and
+all 16 Swift cases. Nine artifact actions and strict paired dispatch wrappers
+resolve exact current shared parents, typed source fields and matching grant
+provenance before page/count/anchor selection. Current Owner scope is rechecked
+even for empty pages; NUL-suffixed metadata and serialized object envelopes are
+rejected. Historical payloads are reconstructed without rewriting stored rows.
+Three stored upload-recovery retry races extend the earlier regression proof.
+Other audit families, global positions, aggregate/diagnostic privacy and full
+C11 acceptance remain open. The next bounded audit repair is stuck-upload
+recovery receipt delivery, without changing command execution.
