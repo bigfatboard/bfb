@@ -130,7 +130,7 @@ func (authority *resultAuthority) invalidateOnDenial(err error) {
 		return
 	}
 	switch daemon.AsFailure(err).Code {
-	case "revoked", "assignment_ended", "capability_closed", "session_not_bound", "session_conflict", "policy_rejected", "forbidden", "not_found", "boundary_escape", "capture_invalid", "containment_unknown", "storage_failed", "peer_denied":
+	case "revoked", "assignment_unknown", "assignment_ended", "correlation_rejected", "capability_closed", "session_not_bound", "session_conflict", "policy_rejected", "forbidden", "not_found", "boundary_escape", "capture_invalid", "containment_unknown", "storage_failed", "peer_denied":
 		authority.invalidate()
 	}
 }

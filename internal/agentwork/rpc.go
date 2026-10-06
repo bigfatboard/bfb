@@ -25,11 +25,15 @@ func RegisterRPC(registry *daemon.Registry, manager *runner.Manager, ownership O
 	if ownership == nil || manager == nil {
 		return &daemon.Failure{Code: "invalid_request"}
 	}
-	connection := manager.Connection
 	work := newWorkService(manager, ownership)
 	if err := registry.RegisterService("agent.work", work.start); err != nil {
 		return err
 	}
+	return registerWorkRPC(registry, work)
+}
+
+func registerWorkRPC(registry *daemon.Registry, work *workService) error {
+	connection, ownership := work.connection, work.ownership
 	actions := map[string]struct{ action, inputDocument, inputField, document, field string }{
 		"mcp.authority":          {"authority", "agent-local-request", "agent_request", "agent-authority-result", "agent_authority"},
 		"mcp.get_context":        {"context", "agent-local-request", "agent_request", "agent-context-result", "agent_context"},
@@ -49,7 +53,8 @@ func RegisterRPC(registry *daemon.Registry, manager *runner.Manager, ownership O
 		"mcp.v3.propose_task":    {"proposal", "agent-proposal-local-request", "agent_proposal_request", "agent-proposal-result", "agent_proposal"},
 	}
 	for method, action := range actions {
-		if err := registry.Register(method, func(ctx context.Context, request daemon.Request) (map[string]any, error) {
+		if err := registry.Register(method, func(ctx context.Context, request daemon.Request) (output map[string]any, failure error) {
+			defer func() { work.results.invalidateOnDenial(failure) }()
 			data, err := json.Marshal(request.Envelope.Payload[action.inputField])
 			if err != nil || len(request.Envelope.Payload) != 1 || !protocol.DecodeWireDocument(action.inputDocument, data).OK {
 				return nil, &daemon.Failure{Code: "invalid_request"}

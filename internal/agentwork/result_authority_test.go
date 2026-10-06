@@ -232,7 +232,7 @@ func TestResultAuthorityOutagePostflightDenialInvalidatesProof(t *testing.T) {
 }
 
 func TestResultAuthorityTaskDenialInvalidatesButTransientFailureDoesNot(t *testing.T) {
-	for _, reason := range []string{"revoked", "policy_rejected", "offline_rejected"} {
+	for _, reason := range []string{"revoked", "policy_rejected", "assignment_unknown", "correlation_rejected", "offline_rejected"} {
 		t.Run(reason, func(t *testing.T) {
 			f := newResultServiceFixture(t, true)
 			authority := f.service.results
