@@ -50,7 +50,7 @@
   "artifacts": [
     "docs/work-packages/evidence/WP-C10/command-result.json",
     "docs/work-packages/evidence/WP-C10/acceptance.md",
-    "docs/adr/0014-private-work-authorization.md",
+    "docs/adr/0015-private-work-authorization.md",
     "docs/contracts/task-access.md",
     "migrations/d1/0045_private_task_authority.sql",
     "packages/domain/src/task-access.ts",

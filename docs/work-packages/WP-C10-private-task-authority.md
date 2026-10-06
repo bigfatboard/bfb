@@ -40,7 +40,7 @@ No provider execution, administrator override, agent identity or credential.
 
 C04 memberships/epochs/project grants; C08 task records; migration head
 `0044_agent_profile_permissions`; protocol v1 unchanged; async SqlDatabase;
-WorkspaceHub mutation ownership; [ADR 0014](../adr/0014-private-work-authorization.md).
+WorkspaceHub mutation ownership; [ADR 0015](../adr/0015-private-work-authorization.md).
 
 ### Produces
 

@@ -1,4 +1,4 @@
-# ADR 0014 — Creator-private work and explicit sharing
+# ADR 0015 — Creator-private work and explicit sharing
 
 Status: accepted direction, 6 October 2026; implementation gated by C10–C12.
 

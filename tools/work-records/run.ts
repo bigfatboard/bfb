@@ -294,9 +294,17 @@ async function main(): Promise<void> {
          (workspace_id, id, human_id, client_id, resource, project_id, task_id,
           scopes_json, authorization_epoch, expires_at, created_at)
          VALUES (?, ?, ?, 'c08-client', 'https://bfb.example.test/mcp', ?, ?,
-                 '["bfb:read"]', 1, '2026-08-12T08:10:00Z', ?)`,
+                 '["bfb:read"]', 1, ?, ?)`,
       )
-      .run(workspaceId, delegationId, humanId, project.result.id, task.result.id, now);
+      .run(
+        workspaceId,
+        delegationId,
+        humanId,
+        project.result.id,
+        task.result.id,
+        new Date(Date.now() + 600_000).toISOString(),
+        now,
+      );
     const delivered = await execute<AgentContextItem[]>("bfb-work-records-b", workspaceId, {
       commandName: "context.deliver.delegation",
       request: {

@@ -3,7 +3,7 @@
 
 import { createHash } from "node:crypto";
 
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { WorkspaceHub } from "../src/hub.js";
 import { randomUlid } from "../src/ids.js";
@@ -38,6 +38,12 @@ import { openDomainDb } from "./helpers.js";
 
 const NOW = "2026-08-12T08:00:00Z";
 const LATER = "2026-08-12T09:00:00Z";
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(NOW));
+});
+afterEach(() => vi.useRealTimers());
 
 function humanRequest<T>(idempotencyKey: string, input: T) {
   return {

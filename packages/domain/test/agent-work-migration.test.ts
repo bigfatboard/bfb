@@ -19,7 +19,6 @@ import { agentWorkKey } from "../src/agent-work.js";
 import { FIX } from "../src/fixtures.js";
 import { randomUlid } from "../src/ids.js";
 import { authorizeLaunchCommand } from "../src/launches.js";
-import { addCommentCommand } from "../src/work-commands.js";
 import { createProviderSessionCommand } from "../src/work-records.js";
 import { LAUNCH_NOW, launchFixture, success } from "./launch-fixture.js";
 
@@ -159,13 +158,13 @@ function nextBinding(raw: Database.Database, generation: number) {
 describe("agent-work migration relationships", () => {
   it("upgrades populated immediate previous head without rewriting legacy records", async () => {
     const f = await fixture(true);
-    success(
-      await f.human(addCommentCommand, {
-        taskId: f.task.id,
-        body: "Synthetic legacy human comment",
-        kind: "discussion",
-      }),
-    );
+    f.raw
+      .prepare(
+        `INSERT INTO comments
+         (workspace_id, id, task_id, author_human_id, author_delegation_id, body, kind, created_at)
+         VALUES (?, ?, ?, ?, NULL, 'Synthetic legacy human comment', 'discussion', ?)`,
+      )
+      .run(FIX.workspace, randomUlid(), f.task.id, FIX.owner, LAUNCH_NOW);
     const session = success(
       await f.human(createProviderSessionCommand, {
         runId: f.claimed.specification.run_id,

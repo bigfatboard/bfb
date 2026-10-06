@@ -5,6 +5,7 @@ import type { SqlDatabase } from "@bfb/db";
 
 import type { TaskRecord } from "./work-commands.js";
 import { listTasks } from "./work-commands.js";
+import { sharedTaskPredicate, taskAccessPredicate, type TaskAccessContext } from "./task-access.js";
 
 export interface ProjectLane {
   projectId: string;
@@ -82,6 +83,7 @@ export async function buildProjectLanes(
   db: SqlDatabase,
   workspaceId: string,
   projectIds: string[],
+  access?: TaskAccessContext,
 ): Promise<ProjectLane[]> {
   const projects = (
     (await db
@@ -109,7 +111,7 @@ export async function buildProjectLanes(
     }>
   ).filter((project) => projectIds.includes(project.id));
 
-  const tasks = await listTasks(db, workspaceId, projectIds);
+  const tasks = await listTasks(db, workspaceId, projectIds, access ? { access } : {});
   const humanOwners = new Map<string, string>();
   const humanRows = (await db
     .prepare(
@@ -130,16 +132,17 @@ export async function buildProjectLanes(
       ? []
       : await db
           .prepare(
-            `SELECT kind, payload_json, created_at
+            `WITH visible_tasks(id) AS (VALUES ${tasks.map(() => "(?)").join(", ")})
+           SELECT kind, payload_json, created_at
            FROM semantic_events
            WHERE workspace_id = ? AND (
-             json_extract(payload_json, '$.input.taskId') IN (${taskPlaceholders})
-             OR json_extract(payload_json, '$.result.task_id') IN (${taskPlaceholders})
-             OR (kind = 'task.create' AND json_extract(payload_json, '$.result.id') IN (${taskPlaceholders}))
+             json_extract(payload_json, '$.input.taskId') IN (SELECT id FROM visible_tasks)
+             OR json_extract(payload_json, '$.result.task_id') IN (SELECT id FROM visible_tasks)
+             OR (kind = 'task.create' AND json_extract(payload_json, '$.result.id') IN (SELECT id FROM visible_tasks))
            )
            ORDER BY workspace_cursor DESC`,
           )
-          .all(workspaceId, ...taskIds, ...taskIds, ...taskIds)
+          .all(...taskIds, workspaceId)
   ) as Array<{
     kind: string;
     payload_json: string;
@@ -156,14 +159,18 @@ export async function buildProjectLanes(
     }
   }
   const latestRuns = new Map<string, { resultState: string; activity: string }>();
-  const runRows = (await db
-    .prepare(
-      `SELECT task_id, result_state, activity
+  const runRows = (
+    tasks.length === 0
+      ? []
+      : await db
+          .prepare(
+            `SELECT task_id, result_state, activity
        FROM runs
-       WHERE workspace_id = ? AND purpose = 'work'
+       WHERE workspace_id = ? AND purpose = 'work' AND task_id IN (${taskPlaceholders})
        ORDER BY created_at DESC, id ASC`,
-    )
-    .all(workspaceId)) as Array<{
+          )
+          .all(workspaceId, ...taskIds)
+  ) as Array<{
     task_id: string;
     result_state: string;
     activity: string;
@@ -206,20 +213,25 @@ export async function buildNeedsNowDeck(
   humanId: string,
   projectIds: string[],
   nowIso: string,
+  access?: TaskAccessContext,
 ): Promise<AttentionDeckItem[]> {
   if (projectIds.length === 0) {
     return [];
   }
   const placeholders = projectIds.map(() => "?").join(", ");
+  const predicate = access
+    ? taskAccessPredicate(access, "read")
+    : { sql: sharedTaskPredicate(), parameters: [] };
   const now = Date.parse(nowIso);
   if (!Number.isFinite(now)) {
     return [];
   }
   const eligible = (await db
     .prepare(
-      `SELECT id, project_id, title, priority, punchline, next_action_reason
-       FROM tasks
+      `SELECT task.id, task.project_id, task.title, task.priority, task.punchline, task.next_action_reason
+       FROM tasks AS task
        WHERE workspace_id = ? AND project_id IN (${placeholders})
+         AND ${predicate.sql}
          AND next_owner_type = 'human' AND next_owner_id = ?
          AND priority IN ('P0', 'P1')
          AND (state = 'blocked' OR (due_at IS NOT NULL AND due_at <= ?))
@@ -228,7 +240,7 @@ export async function buildNeedsNowDeck(
                 due_at ASC, id ASC
        LIMIT 3`,
     )
-    .all(workspaceId, ...projectIds, humanId, nowIso)) as Array<{
+    .all(workspaceId, ...projectIds, ...predicate.parameters, humanId, nowIso)) as Array<{
     id: string;
     project_id: string;
     title: string;

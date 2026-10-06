@@ -87,7 +87,7 @@ Timo answered **“defaults”** to the three proposed choices:
 - Core UI: electric lime/cyan accents and neutral light/dark themes. Palette
   approval is not a completed design or accessibility certificate.
 
-[ADR 0014](adr/0014-private-work-authorization.md) fixes the privacy boundary.
+[ADR 0015](adr/0015-private-work-authorization.md) fixes the privacy boundary.
 C10 establishes its dormant authorization kernel; C11 gates activation on
 cross-surface delivery and sharing enforcement. C12 separately owns immutable
 selected-content publication. Knowledge precedence and skill enablement remain
@@ -123,4 +123,7 @@ manifests; current runtime proof must have its own explicit scope.
   real-D1 checks; C08/X03 regressions stay green. Full verification passes
   2,987 TypeScript cases, Go and all 16 Swift cases. Existing task records are
   unchanged by migration `0045_private_task_authority`. Private policies/grants
-  are dormant until C11's complete delivery gate passes; C11/C12 remain planned.
+  are dormant until C11's complete delivery gate passes. C11 is in progress:
+  stage 1 fences human task/board/deck and delegated task reads, work actions
+  and cached responses. Child/artifact delivery, metadata/realtime, private
+  creation/sharing and the full certificate remain open. C12 remains planned.

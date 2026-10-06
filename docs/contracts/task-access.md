@@ -1,6 +1,6 @@
 # Task-access kernel v1
 
-Owner: C10. Activation owner: C11. [ADR 0014](../adr/0014-private-work-authorization.md).
+Owner: C10. Activation owner: C11. [ADR 0015](../adr/0015-private-work-authorization.md).
 
 Dormant kernel, **not shipped private-task behavior**. No product command inserts
 private policies/grants. All future mutations serialize through WorkspaceHub.

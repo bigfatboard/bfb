@@ -980,7 +980,7 @@ Generated protocol code is checked for drift in CI. Handwritten TypeScript and G
 
 ## Observability, privacy, and audit
 
-[ADR 0014](docs/adr/0014-private-work-authorization.md) adds creator-private tasks
+[ADR 0015](docs/adr/0015-private-work-authorization.md) adds creator-private tasks
 and named-human sharing without a workspace-owner exception. Existing tasks
 stay project-shared. C10 is a dormant kernel; C11 must fence all delivery,
 projection, cache and private-existence paths before enabling creation. C12

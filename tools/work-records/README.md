@@ -9,6 +9,13 @@ against real workerd D1. It verifies current authority, role/grant intersection,
 pagination/counts, policy retention and atomic batch failure. It does not certify
 private task creation, MCP/HTTP delivery, realtime, artifact access or a provider.
 
-Both use the checked-in ordered migrations in a disposable local harness. No
+`pnpm test:c11` adds `delivery.ts`: staged human task selection/board/deck SQL,
+exact-input command idempotency and revoked cached comment/context replies are
+checked against real D1 and the production Hub behind independent Workers.
+Mounted HTTP/MCP tests are separate synthetic-auth proofs. This stage is not a
+full delivery certificate: creation/sharing, local agent authority, artifact
+redemption, realtime positions and the remaining matrix stay gated.
+
+All use the checked-in ordered migrations in a disposable local harness. No
 pilot enrollment, persistent local database, real user, credential or Terminal
 session is touched. No extra dependencies or generated fixtures are introduced.

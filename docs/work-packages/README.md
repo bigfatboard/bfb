@@ -397,7 +397,7 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 | C08 | [Tasks, runs, context, and work APIs](WP-C08-work-records.md) | `done` | High |
 | C09 | [Durable launch orchestration](WP-C09-launch-orchestration.md) | `done` | Very high |
 | C10 | [Private-task authorization kernel](WP-C10-private-task-authority.md) | `done` | Very high |
-| C11 | [Private-task delivery and sharing](WP-C11-private-task-delivery.md) | `planned` | Very high |
+| C11 | [Private-task delivery and sharing](WP-C11-private-task-delivery.md) | `in_progress` | Very high |
 | C12 | [Selected-content publication](WP-C12-selected-content-publication.md) | `planned` | Very high |
 
 ### Local execution

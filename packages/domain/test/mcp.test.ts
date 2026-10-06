@@ -1,7 +1,7 @@
 // ABOUTME: Covers X03A MCP routing metadata, tool map, and delegated tool parity with C08.
 // ABOUTME: Legacy transport and mismatched headers fail closed before domain commands run.
 
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { WorkspaceHub } from "../src/hub.js";
 import { MCP_TOOL_NAMES, validateMcpRouting } from "../src/mcp-routing.js";
@@ -15,6 +15,12 @@ const policy = {
   allowedHostnames: ["bfb.example.test"],
   appOrigin: "https://bfb.example.test",
 };
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-08-07T12:01:00Z"));
+});
+afterEach(() => vi.useRealTimers());
 
 describe("mcp routing and tools", () => {
   it("accepts 2026-07-28 tools/list without Mcp-Name and requires name for tools/call", async () => {

@@ -1,8 +1,12 @@
 # WP-C11 — Private-task delivery and sharing
 
-Status: `planned`
+Status: `in_progress`
 
 Risk: Very high
+
+Test target: `pnpm test:c11`
+
+Evidence manifest: `docs/work-packages/evidence/WP-C11/manifest.json`
 
 ## Outcome
 
@@ -17,7 +21,7 @@ through another BFB surface.
 
 ## Scope
 
-ADR 0014's full delivery matrix, private child/internal-content and agent-view
+ADR 0015's full delivery matrix, private child/internal-content and agent-view
 authority, creator-only ACL commands, named-human read/contribute/edit grants,
 opaque principal-scoped cursors and revocation. Uncertified notification/external
 integrations fail closed for private resources. Coordinate launch/discussion
@@ -27,19 +31,42 @@ consumers with the other lane without implementing provider execution here.
 
 Publication, provider adapters/remote start, vault values and owner override.
 
+## Contracts
+
+### Consumes
+
+- C10 task-access kernel v1 and migration 0045.
+- Current human, CLI, delegation and run-scoped credential contracts as
+  independent authority ceilings; no provider/runner acknowledgement wire changes.
+
+### Produces
+
+- [Private task delivery v1](../contracts/private-task-delivery.md), including
+  full surface inventory, staged activation, typed commands, internal author
+  authority and the opaque recipient-position contract.
+- `pnpm test:c11` and its stage-labelled stable evidence manifest.
+
+## Work plan
+
+1. Fence human/delegated task reads and shared work-command cache returns.
+2. Fence child records, local agent/pending operations and artifact bytes.
+3. Fence metadata/replay/notifications/integrations and coordination consumers.
+4. Add creation/sharing/internal-progress controls and certify all stages.
+
 ## Acceptance
 
-Before `ready`, freeze complete surface inventory, command/route shapes,
-internal-content author authority, opaque cursor contract, activation switch,
-exact clean target and evidence path. Prove denied/cached/revoked/concurrent
+The delivery contract freezes the complete surface inventory, command shapes,
+internal author authority, opaque cursor contract and activation gate.
+Prove denied/cached/revoked/concurrent
 delivery and existence/count metadata. Every existing surface enforces current
 task access or rejects private records. C10 tests alone cannot activate privacy.
 
 ## Evidence
 
-Not run. Before readiness, assign a stable manifest for the complete surface
-matrix, committed source, exact commands and redacted deny/revoke/race results.
-Kernel evidence is a dependency, not a delivery certificate.
+The manifest must identify completed stages separately from the complete matrix,
+committed source, exact commands and redacted deny/revoke/race results. Kernel
+evidence is a dependency, not a delivery certificate. Current baseline:
+`pnpm test:c10` passes 86 cases and nine real-D1 checks before C11 code changes.
 
 ## Risks and decisions
 
@@ -49,5 +76,6 @@ Coordinate shared contracts without changing the other lane's execution work.
 
 ## Handoff
 
-Planned. No activation command, test target or delivery certificate exists.
-The scope and unresolved contracts above must be frozen before readiness.
+In progress. Contracts and exact target are assigned; private creation remains
+unavailable. No full delivery certificate or deployment exists yet. Downstream
+C12 remains planned until all stages pass from one clean committed checkout.

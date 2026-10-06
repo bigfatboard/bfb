@@ -22,19 +22,15 @@ export interface TaskAccessMetadata {
   accessVersion: number | null;
 }
 
-/** Apply before pagination/aggregation; join every child to this exact parent task alias. */
-export function taskAccessPredicate(
-  context: TaskAccessContext,
-  action: TaskAccessAction,
-  taskAlias = "task",
-): { sql: string; parameters: Array<string | number> } {
+/** Uncertified internal consumers must not treat absent human authority as private access. */
+export function sharedTaskPredicate(taskAlias = "task"): string {
+  const task = checkedTaskAlias(taskAlias);
+  return `NOT EXISTS (SELECT 1 FROM task_privacy AS task_policy
+    WHERE task_policy.workspace_id = ${task}.workspace_id AND task_policy.task_id = ${task}.id)`;
+}
+
+function checkedTaskAlias(taskAlias: string): string {
   if (
-    !context ||
-    !isUlid(context.workspaceId) ||
-    !isUlid(context.humanId) ||
-    !Number.isSafeInteger(context.authorizationEpoch) ||
-    context.authorizationEpoch < 1 ||
-    !TASK_ACCESS_ACTIONS.includes(action) ||
     typeof taskAlias !== "string" ||
     !/^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(taskAlias) ||
     [
@@ -48,7 +44,26 @@ export function taskAccessPredicate(
   ) {
     throw new DomainError("invalid_argument", "invalid task access query");
   }
-  const task = `"${taskAlias}"`;
+  return `"${taskAlias}"`;
+}
+
+/** Apply before pagination/aggregation; join every child to this exact parent task alias. */
+export function taskAccessPredicate(
+  context: TaskAccessContext,
+  action: TaskAccessAction,
+  taskAlias = "task",
+): { sql: string; parameters: Array<string | number> } {
+  if (
+    !context ||
+    !isUlid(context.workspaceId) ||
+    !isUlid(context.humanId) ||
+    !Number.isSafeInteger(context.authorizationEpoch) ||
+    context.authorizationEpoch < 1 ||
+    !TASK_ACCESS_ACTIONS.includes(action)
+  ) {
+    throw new DomainError("invalid_argument", "invalid task access query");
+  }
+  const task = checkedTaskAlias(taskAlias);
   const roles =
     action === "edit" || action === "manage_sharing"
       ? "'owner', 'member'"

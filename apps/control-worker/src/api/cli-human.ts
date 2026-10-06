@@ -25,6 +25,7 @@ import {
   resolveAttentionCommand,
   resolveCliPrincipal,
   revokeBindingCommand,
+  taskAccessPredicate,
   type AttentionState,
   type CliPrincipal,
   type HubCommand,
@@ -298,7 +299,12 @@ export async function handleCliHumanApi(request: Request, deps: CliHumanDeps): P
     }
 
     if (request.method === "GET" && path === "/api/v1/cli/tasks") {
-      return json(await listTasksPage(deps.db, workspaceId, principal.projectIds, page(url)));
+      return json(
+        await listTasksPage(deps.db, workspaceId, principal.projectIds, {
+          ...page(url),
+          access: principal,
+        }),
+      );
     }
     if (request.method === "POST" && path === "/api/v1/cli/tasks") {
       const record = objectBody(await readBoundedJson(request, BODY_LIMIT), [
@@ -332,7 +338,7 @@ export async function handleCliHumanApi(request: Request, deps: CliHumanDeps): P
         }
         throw error;
       }
-      const task = await getTask(deps.db, workspaceId, taskId);
+      const task = await getTask(deps.db, workspaceId, taskId, principal);
       return task ? json({ task }) : json({ error: "not_found" }, 404);
     }
 
@@ -354,17 +360,21 @@ export async function handleCliHumanApi(request: Request, deps: CliHumanDeps): P
       // observes identical run state on both surfaces.
       const pagination = page(url);
       const limit = pagination.limit ?? 50;
+      const predicate = taskAccessPredicate(principal, "read", "run_task");
       const rows = (await deps.db
         .prepare(
-          `SELECT id, project_id, task_id, requested_by_human_id, agent_profile_id,
-                  result_state, activity, resource_version, created_at
-           FROM runs WHERE workspace_id = ? AND task_id = ? AND purpose = 'work'
-             ${pagination.cursor ? "AND id > ?" : ""}
-           ORDER BY id ASC LIMIT ?`,
+          `SELECT run.id, run.project_id, run.task_id, run.requested_by_human_id, run.agent_profile_id,
+                  run.result_state, run.activity, run.resource_version, run.created_at
+           FROM runs AS run JOIN tasks AS run_task
+             ON run_task.workspace_id = run.workspace_id AND run_task.id = run.task_id
+           WHERE run.workspace_id = ? AND run.task_id = ? AND run.purpose = 'work' AND ${predicate.sql}
+             ${pagination.cursor ? "AND run.id > ?" : ""}
+           ORDER BY run.id ASC LIMIT ?`,
         )
         .all(
           workspaceId,
           taskId,
+          ...predicate.parameters,
           ...(pagination.cursor ? [pagination.cursor] : []),
           limit + 1,
         )) as Array<{ id: string }>;
@@ -381,13 +391,16 @@ export async function handleCliHumanApi(request: Request, deps: CliHumanDeps): P
     if (runMatch) {
       const runId = runMatch[1] ?? "";
       const rest = runMatch[2] ?? "";
+      const predicate = taskAccessPredicate(principal, "read", "run_task");
       const run = (await deps.db
         .prepare(
-          `SELECT id, project_id, task_id, requested_by_human_id, agent_profile_id,
-                  result_state, activity, resource_version, created_at
-           FROM runs WHERE workspace_id = ? AND id = ? AND purpose = 'work'`,
+          `SELECT run.id, run.project_id, run.task_id, run.requested_by_human_id, run.agent_profile_id,
+                  run.result_state, run.activity, run.resource_version, run.created_at
+           FROM runs AS run JOIN tasks AS run_task
+             ON run_task.workspace_id = run.workspace_id AND run_task.id = run.task_id
+           WHERE run.workspace_id = ? AND run.id = ? AND run.purpose = 'work' AND ${predicate.sql}`,
         )
-        .get(workspaceId, runId)) as
+        .get(workspaceId, runId, ...predicate.parameters)) as
         { id: string; task_id: string; project_id: string } | undefined;
       if (!run || !principal.projectIds.includes(run.project_id)) {
         return json({ error: "not_found" }, 404);

@@ -14,6 +14,14 @@ import {
 } from "./authorization.js";
 import { DomainError, type HubCommand, type HubContext } from "./hub.js";
 import { isUlid, randomUlid } from "./ids.js";
+import { canonicalLaunchJson } from "./launch-state.js";
+import {
+  assertTaskAccess,
+  sharedTaskPredicate,
+  taskAccessPredicate,
+  type TaskAccessAction,
+  type TaskAccessContext,
+} from "./task-access.js";
 
 export const TASK_STATES = [
   "proposed",
@@ -56,6 +64,140 @@ interface DelegationRow {
 interface WorkAuthority {
   principal: AuthzPrincipal;
   delegation?: DelegationRow;
+}
+
+function workInputFingerprint(input: unknown): string {
+  return createHash("sha256")
+    .update(canonicalLaunchJson(JSON.parse(JSON.stringify(input))))
+    .digest("hex");
+}
+
+async function authorizeWorkTask(
+  ctx: HubContext,
+  taskId: string,
+  action: TaskAccessAction,
+  allowDelegation = true,
+): Promise<WorkAuthority> {
+  const authority = await requireAuthority(ctx);
+  assertRole(
+    authority.principal,
+    action === "edit" ? ["owner", "member"] : ["owner", "member", "reviewer"],
+  );
+  if (!allowDelegation && authority.delegation) {
+    throw new DomainError("forbidden", "delegated agents cannot change this task resource");
+  }
+  assertDelegationScope(authority.delegation, action === "read" ? "bfb:read" : "bfb:task:write");
+  const task = await assertTaskAccess(ctx.db, authority.principal, taskId, action);
+  await assertDelegationBoundary(
+    ctx.db,
+    ctx.workspaceId,
+    authority.delegation,
+    task.projectId,
+    taskId,
+  );
+  return authority;
+}
+
+function taskReceipt(task: TaskRecord) {
+  return {
+    id: task.id,
+    project_id: task.project_id,
+    parent_task_id: task.parent_task_id,
+    resource_version: task.resource_version,
+  };
+}
+
+export interface TaskReadAccess extends TaskAccessContext {
+  /** Additional authenticated delegation boundary, never supplied by the tool caller. */
+  taskBoundaryId?: string;
+  /** Authenticated credential identity rechecked at the task selection query. */
+  delegationId?: string;
+}
+
+function workReadAccess(authority: WorkAuthority): TaskReadAccess {
+  return {
+    ...authority.principal,
+    ...(authority.delegation ? { delegationId: authority.delegation.id } : {}),
+    ...(authority.delegation?.task_id ? { taskBoundaryId: authority.delegation.task_id } : {}),
+  };
+}
+
+async function replayTaskResult(result: TaskRecord, ctx: HubContext): Promise<TaskRecord> {
+  const authority = await requireAuthority(ctx);
+  const access = workReadAccess(authority);
+  if (!(await getTask(ctx.db, ctx.workspaceId, result.id, access))) {
+    throw new DomainError("not_found", "task not found");
+  }
+  const parent = result.parent_task_id
+    ? await getTask(ctx.db, ctx.workspaceId, result.parent_task_id, access)
+    : undefined;
+  return { ...result, parent_task_id: parent?.id ?? null };
+}
+
+function readTaskPredicate(access: TaskReadAccess | undefined, alias = "task") {
+  let predicate: { sql: string; parameters: Array<string | number | null> } = access
+    ? taskAccessPredicate(access, "read", alias)
+    : { sql: sharedTaskPredicate(alias), parameters: [] };
+  if (access?.delegationId) {
+    if (!isUlid(access.delegationId))
+      throw new DomainError("invalid_argument", "invalid task access query");
+    predicate = {
+      sql: `(${predicate.sql} AND EXISTS (
+        SELECT 1 FROM oauth_delegations AS task_delegation
+        WHERE task_delegation.workspace_id = "${alias}".workspace_id
+          AND task_delegation.id = ? AND task_delegation.human_id = ?
+          AND task_delegation.authorization_epoch = ? AND task_delegation.revoked_at IS NULL
+          AND julianday(task_delegation.expires_at) > julianday(?)
+          AND (task_delegation.project_id IS NULL OR task_delegation.project_id = "${alias}".project_id)
+          AND task_delegation.task_id IS ?
+      ))`,
+      parameters: [
+        ...predicate.parameters,
+        access.delegationId,
+        access.humanId,
+        access.authorizationEpoch,
+        new Date().toISOString(),
+        access.taskBoundaryId ?? null,
+      ],
+    };
+  }
+  if (!access?.taskBoundaryId) return predicate;
+  if (!isUlid(access.taskBoundaryId))
+    throw new DomainError("invalid_argument", "invalid task access query");
+  return {
+    sql: `(${predicate.sql} AND EXISTS (
+    WITH RECURSIVE scoped_tasks(id) AS (
+      SELECT id FROM tasks WHERE workspace_id = ? AND id = ?
+      UNION SELECT scoped_child.id FROM tasks AS scoped_child JOIN scoped_tasks
+        ON scoped_child.parent_task_id = scoped_tasks.id WHERE scoped_child.workspace_id = ?
+    ) SELECT 1 FROM scoped_tasks WHERE scoped_tasks.id = "${alias}".id
+  ))`,
+    parameters: [
+      ...predicate.parameters,
+      access.workspaceId,
+      access.taskBoundaryId,
+      access.workspaceId,
+    ],
+  };
+}
+
+function taskProjection(access?: TaskReadAccess) {
+  const parent = readTaskPredicate(access, "task_parent");
+  return {
+    sql: `task.id, task.project_id,
+      CASE WHEN EXISTS (SELECT 1 FROM tasks AS task_parent
+        WHERE task_parent.workspace_id = task.workspace_id AND task_parent.id = task.parent_task_id
+          AND ${parent.sql}) THEN task.parent_task_id ELSE NULL END AS parent_task_id,
+      task.title, task.state, task.priority, task.due_at, task.next_owner_type,
+      task.next_owner_id, task.next_action_reason, task.punchline, task.resource_version`,
+    parameters: parent.parameters,
+  };
+}
+
+export interface TaskReadOptions {
+  limit?: number;
+  cursor?: string;
+  access?: TaskReadAccess;
 }
 
 function boundedText(value: unknown, field: string, maximum: number): string {
@@ -452,6 +594,30 @@ export async function persistTaskCreation(
 
 export const createTaskCommand: HubCommand<CreateTaskInput, TaskRecord> = {
   name: "task.create",
+  replayResult: replayTaskResult,
+  inputFingerprint: workInputFingerprint,
+  auditInput: (input) => ({ projectId: input.projectId, parentTaskId: input.parentTaskId }),
+  auditResult: taskReceipt,
+  async authorize(input, ctx) {
+    const authority = await requireAuthority(ctx);
+    assertRole(authority.principal, ["owner", "member"]);
+    assertProjectAccess(authority.principal, input.projectId);
+    assertDelegationScope(authority.delegation, "bfb:task:write");
+    if (input.parentTaskId) {
+      // Inherited agent/human children are not certified; never create a shared child of private work.
+      const parent = await getTask(ctx.db, ctx.workspaceId, input.parentTaskId);
+      if (!parent || parent.project_id !== input.projectId)
+        throw new DomainError("not_found", "task not found");
+      await authorizeWorkTask(ctx, parent.id, "edit");
+    }
+    await assertDelegationBoundary(
+      ctx.db,
+      ctx.workspaceId,
+      authority.delegation,
+      input.projectId,
+      input.parentTaskId,
+    );
+  },
   async run(input, ctx) {
     const authority = await requireAuthority(ctx);
     assertRole(authority.principal, ["owner", "member"]);
@@ -581,9 +747,16 @@ export async function persistTaskUpdate(
 
 export const updateTaskCommand: HubCommand<UpdateTaskInput, TaskRecord> = {
   name: "task.update",
+  replayResult: replayTaskResult,
+  inputFingerprint: workInputFingerprint,
+  auditInput: (input) => ({ taskId: input.taskId, expectedVersion: input.expectedVersion }),
+  auditResult: taskReceipt,
+  async authorize(input, ctx) {
+    await authorizeWorkTask(ctx, input.taskId, "edit");
+  },
   async run(input, ctx) {
-    const authority = await requireAuthority(ctx);
-    const task = await getTask(ctx.db, ctx.workspaceId, input.taskId);
+    const authority = await authorizeWorkTask(ctx, input.taskId, "edit");
+    const task = await getTask(ctx.db, ctx.workspaceId, input.taskId, workReadAccess(authority));
     if (!task) {
       throw new DomainError("not_found", "task not found");
     }
@@ -631,9 +804,14 @@ function commentCommand(
 ): HubCommand<AddCommentInput, { id: string }> {
   return {
     name,
+    inputFingerprint: workInputFingerprint,
+    auditInput: (input) => ({ taskId: input.taskId, kind: input.kind }),
+    async authorize(input, ctx) {
+      await authorizeWorkTask(ctx, input.taskId, "contribute");
+    },
     async run(input, ctx) {
-      const authority = await requireAuthority(ctx);
-      const task = await getTask(ctx.db, ctx.workspaceId, input.taskId);
+      const authority = await authorizeWorkTask(ctx, input.taskId, "contribute");
+      const task = await getTask(ctx.db, ctx.workspaceId, input.taskId, workReadAccess(authority));
       if (!task) {
         throw new DomainError("not_found", "task not found");
       }
@@ -702,13 +880,18 @@ export const addContextCommand: HubCommand<
   { id: string; version: number; contentHash: string }
 > = {
   name: "context.add",
+  inputFingerprint: workInputFingerprint,
+  auditInput: (input) => ({ taskId: input.taskId, kind: input.kind, audience: input.audience }),
+  async authorize(input, ctx) {
+    await authorizeWorkTask(ctx, input.taskId, "edit", false);
+  },
   async run(input, ctx) {
-    const authority = await requireAuthority(ctx);
+    const authority = await authorizeWorkTask(ctx, input.taskId, "edit", false);
     if (authority.delegation) {
       throw new DomainError("forbidden", "delegated agents cannot edit task context");
     }
     assertRole(authority.principal, ["owner", "member"]);
-    const task = await getTask(ctx.db, ctx.workspaceId, input.taskId);
+    const task = await getTask(ctx.db, ctx.workspaceId, input.taskId, workReadAccess(authority));
     if (!task) {
       throw new DomainError("not_found", "task not found");
     }
@@ -772,6 +955,18 @@ export interface AddTaskDependencyInput {
 export const addTaskDependencyCommand: HubCommand<AddTaskDependencyInput, AddTaskDependencyInput> =
   {
     name: "task.dependency.add",
+    inputFingerprint: workInputFingerprint,
+    async authorize(input, ctx) {
+      await authorizeWorkTask(ctx, input.taskId, "edit", false);
+      await authorizeWorkTask(ctx, input.dependsOnTaskId, "read", false);
+      // Cross-visibility dependency graphs remain unavailable until their complete delivery proof.
+      if (
+        !(await getTask(ctx.db, ctx.workspaceId, input.taskId)) ||
+        !(await getTask(ctx.db, ctx.workspaceId, input.dependsOnTaskId))
+      ) {
+        throw new DomainError("not_found", "task not found");
+      }
+    },
     async run(input, ctx) {
       const authority = await requireAuthority(ctx);
       if (authority.delegation) {
@@ -829,9 +1024,14 @@ export interface AddTaskLinkInput {
 
 export const addTaskLinkCommand: HubCommand<AddTaskLinkInput, { id: string }> = {
   name: "task.link.add",
+  inputFingerprint: workInputFingerprint,
+  auditInput: (input) => ({ taskId: input.taskId, kind: input.kind }),
+  async authorize(input, ctx) {
+    await authorizeWorkTask(ctx, input.taskId, "edit");
+  },
   async run(input, ctx) {
-    const authority = await requireAuthority(ctx);
-    const task = await getTask(ctx.db, ctx.workspaceId, input.taskId);
+    const authority = await authorizeWorkTask(ctx, input.taskId, "edit");
+    const task = await getTask(ctx.db, ctx.workspaceId, input.taskId, workReadAccess(authority));
     if (!task) {
       throw new DomainError("not_found", "task not found");
     }
@@ -882,17 +1082,40 @@ export async function getTask(
   db: SqlDatabase,
   workspaceId: string,
   taskId: string,
+  access?: TaskReadAccess,
 ): Promise<TaskRecord | undefined> {
   if (!isUlid(taskId)) {
     return undefined;
   }
-  return (await db
+  // Pre-0045 schemas contain only shared tasks. Recheck after the legacy read so
+  // a concurrent migration cannot deliver a row that acquired a privacy policy.
+  const privacySchemaExists = async () =>
+    Boolean(
+      await db
+        .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'task_privacy'")
+        .get(),
+    );
+  if (!access && !(await privacySchemaExists())) {
+    const legacy = (await db
+      .prepare(
+        `SELECT task.id, task.project_id, task.parent_task_id, task.title, task.state,
+          task.priority, task.due_at, task.next_owner_type, task.next_owner_id,
+          task.next_action_reason, task.punchline, task.resource_version
+         FROM tasks AS task WHERE task.workspace_id = ? AND task.id = ?`,
+      )
+      .get(workspaceId, taskId)) as TaskRecord | null | undefined;
+    if (!(await privacySchemaExists())) return legacy ?? undefined;
+  }
+  const predicate = readTaskPredicate(access);
+  const projection = taskProjection(access);
+  const row = (await db
     .prepare(
-      `SELECT id, project_id, parent_task_id, title, state, priority, due_at,
-              next_owner_type, next_owner_id, next_action_reason, punchline, resource_version
-       FROM tasks WHERE workspace_id = ? AND id = ?`,
+      `SELECT ${projection.sql}
+       FROM tasks AS task WHERE task.workspace_id = ? AND task.id = ? AND ${predicate.sql}`,
     )
-    .get(workspaceId, taskId)) as TaskRecord | undefined;
+    .get(...projection.parameters, workspaceId, taskId, ...predicate.parameters)) as
+    TaskRecord | null | undefined;
+  return row ?? undefined;
 }
 
 export interface TaskPage {
@@ -906,7 +1129,7 @@ export async function listTasks(
   db: SqlDatabase,
   workspaceId: string,
   projectIds: string[],
-  options: { limit?: number; cursor?: string } = {},
+  options: TaskReadOptions = {},
 ): Promise<TaskRecord[]> {
   return (await listTasksPage(db, workspaceId, projectIds, options)).tasks;
 }
@@ -915,7 +1138,7 @@ export async function listTasksPage(
   db: SqlDatabase,
   workspaceId: string,
   projectIds: string[],
-  options: { limit?: number; cursor?: string } = {},
+  options: TaskReadOptions = {},
 ): Promise<TaskPage> {
   if (projectIds.length === 0) {
     return { tasks: [], limit: options.limit ?? 50, has_more: false };
@@ -925,19 +1148,25 @@ export async function listTasksPage(
   }
   const limit = Math.min(Math.max(options.limit ?? 50, 1), 100);
   const placeholders = projectIds.map(() => "?").join(", ");
-  const params: unknown[] = [workspaceId, ...projectIds];
-  const cursorClause = options.cursor ? " AND id > ?" : "";
+  const predicate = readTaskPredicate(options.access);
+  const projection = taskProjection(options.access);
+  const params: unknown[] = [
+    ...projection.parameters,
+    workspaceId,
+    ...projectIds,
+    ...predicate.parameters,
+  ];
+  const cursorClause = options.cursor ? " AND task.id > ?" : "";
   if (options.cursor) {
     params.push(options.cursor);
   }
   params.push(limit + 1);
   const rows = (await db
     .prepare(
-      `SELECT id, project_id, parent_task_id, title, state, priority, due_at,
-              next_owner_type, next_owner_id, next_action_reason, punchline, resource_version
-       FROM tasks
-       WHERE workspace_id = ? AND project_id IN (${placeholders})${cursorClause}
-       ORDER BY id ASC
+      `SELECT ${projection.sql}
+       FROM tasks AS task
+       WHERE task.workspace_id = ? AND task.project_id IN (${placeholders}) AND ${predicate.sql}${cursorClause}
+       ORDER BY task.id ASC
        LIMIT ?`,
     )
     .all(...params)) as TaskRecord[];
@@ -954,7 +1183,7 @@ export async function listTaskSubtreePage(
   db: SqlDatabase,
   workspaceId: string,
   rootTaskId: string,
-  options: { limit?: number; cursor?: string } = {},
+  options: TaskReadOptions = {},
 ): Promise<TaskPage> {
   if (!isUlid(rootTaskId)) {
     return { tasks: [], limit: options.limit ?? 50, has_more: false };
@@ -964,28 +1193,35 @@ export async function listTaskSubtreePage(
   }
   const limit = Math.min(Math.max(options.limit ?? 50, 1), 100);
   const cursorClause = options.cursor ? "AND task.id > ?" : "";
+  const predicate = readTaskPredicate(options.access);
+  const root = readTaskPredicate(options.access, "subtree_root");
+  const child = readTaskPredicate(options.access, "subtree_child");
+  const projection = taskProjection(options.access);
   const rows = (await db
     .prepare(
       `WITH RECURSIVE subtree(id) AS (
-         SELECT id FROM tasks WHERE workspace_id = ? AND id = ?
+         SELECT subtree_root.id FROM tasks AS subtree_root
+         WHERE subtree_root.workspace_id = ? AND subtree_root.id = ? AND ${root.sql}
          UNION
-         SELECT child.id FROM tasks AS child
-         JOIN subtree AS parent ON child.parent_task_id = parent.id
-         WHERE child.workspace_id = ?
+         SELECT subtree_child.id FROM tasks AS subtree_child
+         JOIN subtree AS parent ON subtree_child.parent_task_id = parent.id
+         WHERE subtree_child.workspace_id = ? AND ${child.sql}
        )
-       SELECT task.id, task.project_id, task.parent_task_id, task.title, task.state,
-              task.priority, task.due_at, task.next_owner_type, task.next_owner_id,
-              task.next_action_reason, task.punchline, task.resource_version
+       SELECT ${projection.sql}
        FROM tasks AS task
        JOIN subtree ON subtree.id = task.id
-       WHERE task.workspace_id = ? ${cursorClause}
+       WHERE task.workspace_id = ? AND ${predicate.sql} ${cursorClause}
        ORDER BY task.id ASC LIMIT ?`,
     )
     .all(
       workspaceId,
       rootTaskId,
+      ...root.parameters,
       workspaceId,
+      ...child.parameters,
+      ...projection.parameters,
       workspaceId,
+      ...predicate.parameters,
       ...(options.cursor ? [options.cursor] : []),
       limit + 1,
     )) as TaskRecord[];
@@ -1013,15 +1249,19 @@ export async function getAgentContext(
   db: SqlDatabase,
   workspaceId: string,
   taskId: string,
+  access?: TaskReadAccess,
 ): Promise<AgentContextItem[]> {
+  const predicate = readTaskPredicate(access);
   return (await db
     .prepare(
-      `SELECT id, kind, body, version, audience, content_hash, created_at
-       FROM task_context_items
-       WHERE workspace_id = ? AND task_id = ? AND audience IN ('agent', 'both')
-       ORDER BY version ASC`,
+      `SELECT item.id, item.kind, item.body, item.version, item.audience, item.content_hash, item.created_at
+       FROM task_context_items AS item JOIN tasks AS task
+         ON task.workspace_id = item.workspace_id AND task.id = item.task_id
+       WHERE item.workspace_id = ? AND item.task_id = ? AND item.audience IN ('agent', 'both')
+         AND ${predicate.sql}
+       ORDER BY item.version ASC`,
     )
-    .all(workspaceId, taskId)) as AgentContextItem[];
+    .all(workspaceId, taskId, ...predicate.parameters)) as AgentContextItem[];
 }
 
 type AgentContextAuthority =
@@ -1055,7 +1295,15 @@ export async function deliverAgentContext(
   now: string,
   maximumResultBytes?: number,
 ): Promise<RunContextResult> {
-  const task = await getTask(db, workspaceId, taskId);
+  const access =
+    authority.kind === "delegation"
+      ? {
+          workspaceId,
+          humanId: authority.humanId,
+          authorizationEpoch: authority.authorizationEpoch,
+        }
+      : undefined;
+  const task = await getTask(db, workspaceId, taskId, access);
   if (!task) {
     throw new DomainError("not_found", "task not found");
   }
@@ -1093,7 +1341,7 @@ export async function deliverAgentContext(
     }
     await assertDelegationBoundary(db, workspaceId, delegation, task.project_id, task.id);
   }
-  const items = await getAgentContext(db, workspaceId, taskId);
+  const items = await getAgentContext(db, workspaceId, taskId, access);
   const rows = items.map((item) => ({
     id: randomUlid(),
     context_version: item.version,
@@ -1141,13 +1389,20 @@ export const deliverDelegatedAgentContextCommand: HubCommand<
   AgentContextItem[]
 > = {
   name: "context.deliver.delegation",
+  inputFingerprint: workInputFingerprint,
+  auditResult: (items) =>
+    items.map((item) => ({ id: item.id, version: item.version, content_hash: item.content_hash })),
+  async authorize(input, ctx) {
+    const authority = await authorizeWorkTask(ctx, input.taskId, "read");
+    if (!authority.delegation) throw new DomainError("forbidden", "delegated authority required");
+  },
   async run(input, ctx) {
-    const authority = await requireAuthority(ctx);
+    const authority = await authorizeWorkTask(ctx, input.taskId, "read");
     if (!authority.delegation) {
       throw new DomainError("forbidden", "delegated authority required");
     }
     assertDelegationScope(authority.delegation, "bfb:read");
-    const task = await getTask(ctx.db, ctx.workspaceId, input.taskId);
+    const task = await getTask(ctx.db, ctx.workspaceId, input.taskId, authority.principal);
     if (!task) {
       throw new DomainError("not_found", "task not found");
     }

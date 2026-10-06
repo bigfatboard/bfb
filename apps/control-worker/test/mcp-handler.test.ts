@@ -1,7 +1,7 @@
 // ABOUTME: Drives strict authenticated MCP requests through the real stateless SDK handler.
 // ABOUTME: Routing metadata, body envelopes, delegation boundaries, and mutations fail closed.
 
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FIX } from "../../../packages/domain/src/fixtures.js";
 import { WorkspaceHub } from "../../../packages/domain/src/hub.js";
@@ -19,6 +19,12 @@ const handlerEnv = {
   jurisdiction: "eu" as const,
   now: "2026-08-07T12:01:00.000Z",
 };
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(handlerEnv.now));
+});
+afterEach(() => vi.useRealTimers());
 
 describe("mcp handler", () => {
   it("requires bearer auth for discovery and rejects browser cookies", async () => {

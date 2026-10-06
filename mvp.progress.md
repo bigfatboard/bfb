@@ -12,13 +12,16 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
   without owner bypass, a BFB-managed encrypted business vault, and lime/cyan
   light/dark UI. V02/V03/X03 current runtime certificates are committed on the
   isolated product branch; nothing is deployed or enabled on the pilot.
-  [ADR 0014](docs/adr/0014-private-work-authorization.md) and C10–C12 sequence
+  [ADR 0015](docs/adr/0015-private-work-authorization.md) and C10–C12 sequence
   the dormant privacy kernel, complete delivery/sharing gate and selected-content
   publication. C10 is clean-certified at `a7edf14`: 86 exact cases, nine real-D1
   checks and retained C08/X03 regressions pass; full verification passes 2,987
   TypeScript cases, Go and all 16 Swift cases. Evidence is committed with its
-  dormant-only scope. C11/C12 remain planned; private creation is unavailable
-  until cross-surface delivery enforcement passes.
+  dormant-only scope. C11 is in progress: its first delivery stage fences human
+  task/board/deck reads and delegated MCP, action-specific work commands and
+  cached replies. Child/artifact delivery, metadata/realtime, sharing controls
+  and the complete certificate remain open. C12 remains planned; private
+  creation is unavailable until cross-surface delivery enforcement passes.
 
 - The [launch-selection checkpoint](docs/work-packages/evidence/WP-L07/launch-selection-checkpoint.json)
   records a separate retry blocker: the browser made the sole non-default
