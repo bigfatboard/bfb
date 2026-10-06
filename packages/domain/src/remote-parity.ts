@@ -19,10 +19,18 @@ import {
   type AttentionRecord,
   type AttentionState,
 } from "./attention.js";
-import { assertEpoch, assertProjectAccess, assertRole, loadPrincipal } from "./authorization.js";
+import {
+  assertEpoch,
+  assertProjectAccess,
+  assertRole,
+  loadPrincipal,
+  type WorkspaceRole,
+} from "./authorization.js";
 import { DomainError, type HubCommand, type HubContext } from "./hub.js";
 import { isUlid, randomUlid } from "./ids.js";
 import { enforceDelegationAccess, type ActiveDelegation } from "./oauth.js";
+import { canonicalLaunchJson } from "./launch-state.js";
+import { runnerHash } from "./runner-crypto.js";
 import {
   MAX_EVIDENCE_REFS,
   MAX_RESULT_LIMITATIONS_CHARS,
@@ -265,6 +273,64 @@ async function insertAttentionObservation(
     .run(workspaceId, randomUlid(), attentionId, actorId, now);
 }
 
+async function delegatedRunAuthority(runId: string, ctx: HubContext, roles: WorkspaceRole[]) {
+  const authority = await requireDelegationAuthority(ctx, "bfb:task:write");
+  assertRole(authority.principal, roles);
+  if (!isUlid(runId)) throw new DomainError("not_found", "run not found");
+  const run = (await ctx.db
+    .prepare(
+      `SELECT id, project_id, task_id, result_state, resource_version FROM runs
+     WHERE workspace_id = ? AND id = ? AND purpose = 'work'`,
+    )
+    .get(ctx.workspaceId, runId)) as
+    | {
+        id: string;
+        project_id: string;
+        task_id: string;
+        result_state: string;
+        resource_version: number;
+      }
+    | undefined;
+  if (!run) throw new DomainError("not_found", "run not found");
+  const task = await getTask(ctx.db, ctx.workspaceId, run.task_id);
+  if (!task || task.project_id !== run.project_id)
+    throw new DomainError("not_found", "run task not found");
+  assertProjectAccess(authority.principal, task.project_id);
+  await enforceDelegationAccess(ctx.db, authority.delegation, task.project_id, task.id);
+  return { authority, run, task };
+}
+
+function delegatedFingerprint(input: unknown): string {
+  // Omit absent optional fields exactly as the transport JSON does; retain supplied input.
+  return runnerHash(canonicalLaunchJson(JSON.parse(JSON.stringify(input))));
+}
+
+async function delegatedAttentionAuthority(input: RequestDelegatedAttentionInput, ctx: HubContext) {
+  exactKeys(
+    input,
+    ["runId", "kind", "question", "referenceKind", "referenceId", "blocking"],
+    "invalid_argument",
+  );
+  const state = await delegatedRunAuthority(input.runId, ctx, ["owner", "member", "reviewer"]);
+  if (!["open", "changes_requested", "submitted"].includes(state.run.result_state)) {
+    throw new DomainError(
+      "invalid_transition",
+      `run in state ${state.run.result_state} cannot request attention`,
+    );
+  }
+  return state;
+}
+
+async function delegatedResultAuthority(input: SubmitDelegatedResultInput, ctx: HubContext) {
+  exactKeys(
+    input,
+    ["runId", "summary", "limitations", "evidenceRefs", "gitBranch", "gitCommit", "gitDirty"],
+    "invalid_argument",
+  );
+  // A historical result retry may replay after submission; transition validation stays in run().
+  return delegatedRunAuthority(input.runId, ctx, ["owner", "member"]);
+}
+
 export interface RequestDelegatedAttentionInput {
   runId: string;
   kind: AttentionKind;
@@ -288,6 +354,10 @@ export const requestDelegatedAttentionCommand: HubCommand<
   AttentionRecord
 > = {
   name: "attention.request.delegation",
+  authorize: async (input, ctx) => {
+    await delegatedAttentionAuthority(input, ctx);
+  },
+  inputFingerprint: delegatedFingerprint,
   auditInput: (input) => ({
     runId: (input as RequestDelegatedAttentionInput)?.runId,
     kind: (input as RequestDelegatedAttentionInput)?.kind,
@@ -295,39 +365,19 @@ export const requestDelegatedAttentionCommand: HubCommand<
     questionChars: [...(((input as RequestDelegatedAttentionInput)?.question as string) ?? "")]
       .length,
   }),
+  auditResult: (record) => ({
+    id: record.id,
+    kind: record.kind,
+    state: record.state,
+    resource_version: record.resource_version,
+    project_id: record.project_id,
+    task_id: record.task_id,
+    run_id: record.run_id,
+    run_execution_id: record.run_execution_id,
+    assignment_generation: record.assignment_generation,
+  }),
   async run(input, ctx) {
-    const authority = await requireDelegationAuthority(ctx, "bfb:task:write");
-    assertRole(authority.principal, ["owner", "member", "reviewer"]);
-    exactKeys(
-      input,
-      ["runId", "kind", "question", "referenceKind", "referenceId", "blocking"],
-      "invalid_argument",
-    );
-    if (!isUlid(input.runId)) {
-      throw new DomainError("not_found", "run not found");
-    }
-    const run = (await ctx.db
-      .prepare(
-        `SELECT id, project_id, task_id, result_state FROM runs
-         WHERE workspace_id = ? AND id = ? AND purpose = 'work'`,
-      )
-      .get(ctx.workspaceId, input.runId)) as
-      { id: string; project_id: string; task_id: string; result_state: string } | undefined;
-    if (!run) {
-      throw new DomainError("not_found", "run not found");
-    }
-    const task = await getTask(ctx.db, ctx.workspaceId, run.task_id);
-    if (!task || task.project_id !== run.project_id) {
-      throw new DomainError("not_found", "run task not found");
-    }
-    assertProjectAccess(authority.principal, task.project_id);
-    await enforceDelegationAccess(ctx.db, authority.delegation, task.project_id, task.id);
-    if (run.result_state !== "open" && run.result_state !== "changes_requested") {
-      throw new DomainError(
-        "invalid_transition",
-        `run in state ${run.result_state} cannot request attention`,
-      );
-    }
+    const { authority, run, task } = await delegatedAttentionAuthority(input, ctx);
     if (typeof input.kind !== "string" || !ATTENTION_KINDS.includes(input.kind)) {
       throw new DomainError("invalid_argument", "attention kind is invalid");
     }
@@ -434,6 +484,10 @@ export const submitDelegatedResultCommand: HubCommand<
   SubmitDelegatedResultResult
 > = {
   name: "result.submit.delegation",
+  authorize: async (input, ctx) => {
+    await delegatedResultAuthority(input, ctx);
+  },
+  inputFingerprint: delegatedFingerprint,
   auditInput: (input) => ({
     runId: (input as SubmitDelegatedResultInput)?.runId,
     summaryLength:
@@ -448,35 +502,21 @@ export const submitDelegatedResultCommand: HubCommand<
         ? (input as SubmitDelegatedResultInput).gitCommit
         : null,
   }),
+  auditResult: (result) => ({
+    submission_id: result.submission.id,
+    run_id: result.submission.run_id,
+    submission_version: result.submission.version,
+    submitted_by_kind: result.submission.submitted_by_kind,
+    submitted_by_id: result.submission.submitted_by_id,
+    submitted_at: result.submission.submitted_at,
+    evidence_count: result.submission.evidence_refs.length,
+    run_state: result.runResultState,
+    task_state: result.taskState,
+    run_version: result.runVersion,
+    task_version: result.taskVersion,
+  }),
   async run(input, ctx) {
-    const authority = await requireDelegationAuthority(ctx, "bfb:task:write");
-    assertRole(authority.principal, ["owner", "member"]);
-    if (!isUlid(input.runId)) {
-      throw new DomainError("not_found", "run not found");
-    }
-    const run = (await ctx.db
-      .prepare(
-        `SELECT id, project_id, task_id, result_state, resource_version
-         FROM runs WHERE workspace_id = ? AND id = ? AND purpose = 'work'`,
-      )
-      .get(ctx.workspaceId, input.runId)) as
-      | {
-          id: string;
-          project_id: string;
-          task_id: string;
-          result_state: string;
-          resource_version: number;
-        }
-      | undefined;
-    if (!run) {
-      throw new DomainError("not_found", "run not found");
-    }
-    const task = await getTask(ctx.db, ctx.workspaceId, run.task_id);
-    if (!task) {
-      throw new DomainError("not_found", "task not found");
-    }
-    assertProjectAccess(authority.principal, task.project_id);
-    await enforceDelegationAccess(ctx.db, authority.delegation, task.project_id, task.id);
+    const { authority, run, task } = await delegatedResultAuthority(input, ctx);
     const summary = boundedText(input.summary, "result summary", 1, MAX_RESULT_SUMMARY_CHARS);
     const limitations =
       input.limitations === undefined ||
@@ -630,6 +670,9 @@ export const createDelegatedArtifactCommand: HubCommand<
 > = {
   name: "artifact.create_version.delegation",
   replay: "reject",
+  authorize: async (_input, ctx) => {
+    await requireDelegationAuthority(ctx, "bfb:task:write");
+  },
   auditInput: () => ({ action: "artifact.create_version.delegation" }),
   async run(input, ctx) {
     const authority = await requireDelegationAuthority(ctx, "bfb:task:write");
@@ -811,6 +854,9 @@ export const finalizeDelegatedArtifactCommand: HubCommand<
 > = {
   name: "artifact.finalize_version.delegation",
   replay: "reject",
+  authorize: async (_input, ctx) => {
+    await requireDelegationAuthority(ctx, "bfb:task:write");
+  },
   auditInput: () => ({ action: "artifact.finalize_version.delegation" }),
   async run(input, ctx) {
     const authority = await requireDelegationAuthority(ctx, "bfb:task:write");

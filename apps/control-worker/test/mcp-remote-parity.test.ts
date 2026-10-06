@@ -1,7 +1,7 @@
 // ABOUTME: Drives the five X03 extension tools through the real stateless MCP handler.
 // ABOUTME: Parity outcomes, boundaries, idempotency, revocation, and the privilege attack matrix fail closed.
 
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   markArtifactFailedCommand,
@@ -46,6 +46,12 @@ const handlerEnv = {
   jurisdiction: "eu" as const,
   now: "2026-08-07T12:01:00.000Z",
 };
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(handlerEnv.now));
+});
+afterEach(() => vi.useRealTimers());
 
 const TOOL_NAMES = [
   "bfb_list_projects",
@@ -167,11 +173,20 @@ describe("remote mcp parity extensions", () => {
     const retry = (await call(db, accessToken, "bfb_request_human", {
       run_id: runId,
       kind: "clarification",
-      question: "Synthetic changed retry",
+      question: "Synthetic delegated question",
       blocking: true,
       request_id: "attention-request-1",
     })) as { result: { id: string } };
     expect(retry.result.id).toBe(attentionId);
+    expect(
+      await call(db, accessToken, "bfb_request_human", {
+        run_id: runId,
+        kind: "clarification",
+        question: "Synthetic changed retry",
+        blocking: true,
+        request_id: "attention-request-1",
+      }),
+    ).toMatchObject({ ok: false, error: { code: "request_rejected" } });
     const read = (await call(db, accessToken, "bfb_get_attention", {
       attention_id: attentionId,
     })) as { attention: { id: string; state: string; question: string } };
@@ -223,10 +238,22 @@ describe("remote mcp parity extensions", () => {
     expect(stored).toEqual([{ submitted_by_kind: "human" }]);
     const rerun = (await call(db, accessToken, "bfb_submit_result", {
       run_id: runId,
-      summary: "Synthetic changed retry",
+      summary: "Synthetic delegated result",
+      limitations: "Synthetic limits",
+      evidence_refs: [{ kind: "comment", ref: "synthetic-comment", version: "1" }],
+      git_branch: "synthetic",
+      git_commit: COMMIT,
+      git_dirty: false,
       request_id: "submit-request-1",
     })) as { result: { submission: { version: number } } };
     expect(rerun.result.submission.version).toBe(1);
+    expect(
+      await call(db, accessToken, "bfb_submit_result", {
+        run_id: runId,
+        summary: "Synthetic changed retry",
+        request_id: "submit-request-1",
+      }),
+    ).toMatchObject({ ok: false, error: { code: "request_rejected" } });
   });
 
   it("publishes and finalizes a delegated artifact without storing the grant secret", async () => {
@@ -426,7 +453,6 @@ describe("remote mcp parity extensions", () => {
   it("proves no persistent MCP session state across isolated requests", async () => {
     const db = await openDomainDb();
     const first = await seedRun(db, "stateless-a");
-    const second = await seedRun(db, "stateless-b");
     const alpha = await issueSyntheticMcpAccess(db);
     const beta = await issueSyntheticMcpAccess(db);
     const alphaSubmit = (await call(db, alpha.accessToken, "bfb_submit_result", {
@@ -440,8 +466,8 @@ describe("remote mcp parity extensions", () => {
       "tools/call",
       "bfb_submit_result",
       {
-        run_id: second.runId,
-        summary: "Synthetic beta submission",
+        run_id: first.runId,
+        summary: "Synthetic alpha submission",
         request_id: "shared-request-key",
       },
       beta.accessToken,
@@ -453,7 +479,7 @@ describe("remote mcp parity extensions", () => {
     expect(JSON.stringify(betaBody.result.content)).toContain("idempotency_authority_mismatch");
     const alphaReread = (await call(db, alpha.accessToken, "bfb_submit_result", {
       run_id: first.runId,
-      summary: "Synthetic changed retry",
+      summary: "Synthetic alpha submission",
       request_id: "shared-request-key",
     })) as { result: { submission: { version: number } } };
     expect(alphaReread.result.submission.version).toBe(1);

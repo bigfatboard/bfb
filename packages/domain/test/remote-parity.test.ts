@@ -2,7 +2,7 @@
 // ABOUTME: Delegation acceptance, boundary, revocation, and idempotency fail closed without new scopes.
 
 import type { SqlDatabase } from "@bfb/db";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { requestAttentionCommand } from "../src/attention.js";
 import { bumpMemberEpoch } from "../src/authorization.js";
@@ -38,6 +38,10 @@ afterEach(() => vi.useRealTimers());
 
 const NOW = "2026-08-12T08:00:00Z";
 const LATER = "2026-08-12T09:00:00Z";
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(NOW));
+});
 const COMMIT = "a".repeat(40);
 const TREE_HASH = `sha256:${"c".repeat(64)}`;
 const DIGEST = artifactHash("synthetic-remote-artifact");
@@ -427,6 +431,9 @@ describe("delegated attention request", () => {
         human("terminal-submit", { runId, summary: "Synthetic terminal submission" }),
       ),
     );
+    await db
+      .prepare(`UPDATE runs SET result_state='accepted' WHERE workspace_id=? AND id=?`)
+      .run(FIX.workspace, runId);
     expect(
       err(
         await hub.execute(
@@ -458,10 +465,18 @@ describe("delegated attention request", () => {
     const second = ok(
       await hub.execute(
         requestDelegatedAttentionCommand,
-        delegated("replay-key", delegationId, { ...input, question: "Synthetic changed retry" }),
+        delegated("replay-key", delegationId, input),
       ),
     );
     expect(second.id).toBe(first.id);
+    expect(
+      err(
+        await hub.execute(
+          requestDelegatedAttentionCommand,
+          delegated("replay-key", delegationId, { ...input, question: "Synthetic changed retry" }),
+        ),
+      ),
+    ).toBe("request_rejected");
     const count = (await db
       .prepare(`SELECT COUNT(*) AS count FROM attention_requests WHERE workspace_id = ?`)
       .get(FIX.workspace)) as { count: number };
@@ -664,10 +679,18 @@ describe("delegated result submission", () => {
     const second = ok(
       await hub.execute(
         submitDelegatedResultCommand,
-        delegated("submit-once", delegationId, { ...input, summary: "Synthetic changed retry" }),
+        delegated("submit-once", delegationId, input),
       ),
     );
     expect(second.submission.id).toBe(first.submission.id);
+    expect(
+      err(
+        await hub.execute(
+          submitDelegatedResultCommand,
+          delegated("submit-once", delegationId, { ...input, summary: "Synthetic changed retry" }),
+        ),
+      ),
+    ).toBe("request_rejected");
     const count = (await db
       .prepare(
         `SELECT COUNT(*) AS count FROM result_submissions WHERE workspace_id = ? AND run_id = ?`,
@@ -724,6 +747,121 @@ describe("delegated result submission", () => {
         ),
       ),
     ).toBe("forbidden");
+  });
+});
+
+describe.each(["attention", "result"] as const)("delegated %s private replies", (kind) => {
+  async function setup() {
+    const db = await openDomainDb();
+    const hub = new WorkspaceHub(db);
+    const { runId, taskId } = await createTaskAndRun(db, hub, `private-${kind}`);
+    await seedExecution(db, hub, `private-${kind}`, runId, taskId);
+    const delegationId = await seedDelegation(db);
+    const canary = `synthetic-private-${kind}-canary`;
+    const command = (
+      kind === "attention" ? requestDelegatedAttentionCommand : submitDelegatedResultCommand
+    ) as import("../src/hub.js").HubCommand<unknown, unknown>;
+    const input =
+      kind === "attention"
+        ? { runId, kind: "clarification", question: canary, blocking: false }
+        : {
+            runId,
+            summary: canary,
+            limitations: `${canary}-limits`,
+            evidenceRefs: [{ kind: "comment", ref: `${canary}-ref` }],
+          };
+    const request = delegated(`private-${kind}-key`, delegationId, input);
+    const first = ok(await hub.execute(command, request));
+    return { db, hub, command, request, first, delegationId, canary };
+  }
+
+  it("stores private content only in canonical state and the authorized retry result", async () => {
+    const { db, hub, command, request, first, canary } = await setup();
+    expect(JSON.stringify(first)).toContain(canary);
+    expect(ok(await hub.execute(command, request))).toEqual(first);
+    for (const table of ["semantic_events", "audit_events", "outbox_records"]) {
+      const rows = await db.prepare(`SELECT payload_json FROM ${table}`).all();
+      expect(JSON.stringify(rows)).not.toContain(canary);
+    }
+  });
+
+  it.each(["delegation", "project", "boundary", "scope", "epoch", "expiry"] as const)(
+    "fences a cached reply after %s authority changes",
+    async (fence) => {
+      const { db, hub, command, request, delegationId, canary } = await setup();
+      if (fence === "delegation") await revokeDelegation(db, FIX.workspace, delegationId, NOW);
+      if (fence === "project") {
+        await db
+          .prepare(`UPDATE projects SET access_mode='restricted' WHERE workspace_id=? AND id=?`)
+          .run(FIX.workspace, FIX.projectA);
+        await db
+          .prepare(
+            `DELETE FROM project_access WHERE workspace_id=? AND human_id=? AND project_id=?`,
+          )
+          .run(FIX.workspace, FIX.owner, FIX.projectA);
+      }
+      if (fence === "boundary")
+        await db
+          .prepare(`UPDATE oauth_delegations SET project_id=? WHERE workspace_id=? AND id=?`)
+          .run(FIX.projectB, FIX.workspace, delegationId);
+      if (fence === "scope")
+        await db
+          .prepare(`UPDATE oauth_delegations SET scopes_json=? WHERE workspace_id=? AND id=?`)
+          .run(JSON.stringify(["bfb:read"]), FIX.workspace, delegationId);
+      if (fence === "epoch") await bumpMemberEpoch(db, FIX.workspace, FIX.owner);
+      if (fence === "expiry") vi.setSystemTime(new Date(LATER));
+      const outcome = await hub.execute(command, request);
+      expect(outcome.ok).toBe(false);
+      expect(JSON.stringify(outcome)).not.toContain(canary);
+      expect(err(outcome)).toBe(
+        fence === "scope"
+          ? "insufficient_scope"
+          : fence === "epoch"
+            ? "stale_authorization"
+            : "forbidden",
+      );
+    },
+  );
+});
+
+describe("delegated attention current A02 parity", () => {
+  it("allows review questions after submission while denying terminal runs", async () => {
+    const db = await openDomainDb();
+    const hub = new WorkspaceHub(db);
+    const { taskId, runId } = await createTaskAndRun(db, hub, "submitted-attention");
+    await seedExecution(db, hub, "submitted-attention", runId, taskId);
+    const delegationId = await seedDelegation(db);
+    ok(
+      await hub.execute(
+        submitDelegatedResultCommand,
+        delegated("submitted-result", delegationId, { runId, summary: "Synthetic pending review" }),
+      ),
+    );
+    const input = {
+      runId,
+      kind: "review" as const,
+      question: "Synthetic review question",
+      blocking: false,
+    };
+    expect(
+      ok(
+        await hub.execute(
+          requestDelegatedAttentionCommand,
+          delegated("submitted-question", delegationId, input),
+        ),
+      ),
+    ).toMatchObject({ state: "open", run_id: runId });
+    await db
+      .prepare(`UPDATE runs SET result_state='accepted' WHERE workspace_id=? AND id=?`)
+      .run(FIX.workspace, runId);
+    expect(
+      err(
+        await hub.execute(
+          requestDelegatedAttentionCommand,
+          delegated("accepted-question", delegationId, input),
+        ),
+      ),
+    ).toBe("invalid_transition");
   });
 });
 

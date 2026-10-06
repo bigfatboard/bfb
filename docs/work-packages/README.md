@@ -437,7 +437,7 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 | --- | --- | --- | --- |
 | X01 | [Actionable notifications](WP-X01-notifications.md) | `blocked` | Medium |
 | X02 | [Human CLI parity](WP-X02-human-cli.md) | `planned` | High |
-| X03 | [Remote MCP parity extensions](WP-X03-remote-mcp.md) | `blocked` | Very high |
+| X03 | [Remote MCP parity extensions](WP-X03-remote-mcp.md) | `in_progress` | Very high |
 | X03A | [Remote OAuth MCP core](WP-X03A-remote-mcp-core.md) | `done` | Very high |
 | X04 | [GitHub evidence integration](WP-X04-github.md) | `blocked` | High |
 | X05 | [Operations, audit and retention](WP-X05-operations.md) | `blocked` | High |
