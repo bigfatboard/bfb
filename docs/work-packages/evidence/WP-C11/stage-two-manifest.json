@@ -1,0 +1,67 @@
+{
+  "$schema": "../manifest.schema.json",
+  "package": "C11",
+  "tested_commit": "21e6d8b9b1b663e5ddee7ec9397194ac714f1e1c",
+  "protocol_version": "bfb-wire/1 unchanged",
+  "schema_version": "private-task-delivery/1 stages 1 and 2 checkpoint only; activation unavailable",
+  "migration_head": "0045_private_task_authority",
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "xcode": "26.0.1",
+    "wrangler": "4.120.1",
+    "playwright": "1.55.1"
+  },
+  "environment": { "kind": "clean_checkout", "os": "macOS 26.2 (25C56)", "architecture": "arm64" },
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/stage-two-command-result.json"
+    },
+    {
+      "command": "pnpm test:c11",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/stage-two-command-result.json"
+    },
+    {
+      "command": "pnpm test:x03",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/stage-two-command-result.json"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/stage-two-command-result.json"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/stage-two-command-result.json"
+    }
+  ],
+  "outcome": "passed",
+  "artifacts": [
+    "docs/work-packages/evidence/WP-C11/stage-two-command-result.json",
+    "docs/work-packages/evidence/WP-C11/stage-two-acceptance.md",
+    "docs/contracts/private-task-delivery.md",
+    "docs/adr/0015-private-work-authorization.md",
+    "packages/domain/test/private-agent-work.test.ts",
+    "packages/domain/test/private-run-receipts.test.ts",
+    "packages/domain/test/private-child-delivery.test.ts",
+    "packages/domain/test/private-artifacts.test.ts",
+    "packages/domain/test/private-artifact-agents.test.ts",
+    "packages/domain/test/private-measurements.test.ts",
+    "apps/control-worker/test/private-child-routes.test.ts",
+    "apps/control-worker/test/private-child-mcp.test.ts",
+    "apps/control-worker/test/cli-human.test.ts",
+    "apps/control-worker/test/artifact-review-routes.test.ts",
+    "apps/artifact-worker/test/private-view.test.ts",
+    "apps/artifact-worker/test/private-upload.test.ts",
+    "tools/work-records/delivery.ts",
+    "tools/work-records/README.md"
+  ],
+  "redaction": { "status": "passed", "prohibited_content": [] },
+  "ci": { "status": "not_run" }
+}

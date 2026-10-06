@@ -79,7 +79,13 @@ Coordinate shared contracts without changing the other lane's execution work.
 In progress. Contracts and exact target are assigned; private creation remains
 unavailable. Stage 1 is clean-certified at `02dffa6`: 121 focused cases, nine
 real-D1 checks, C10/C08/X03 regressions and full repository/platform verification
-pass. Its manifest explicitly excludes complete package acceptance. Child/artifact
-delivery, metadata/realtime and creation/sharing/internal-progress controls are
-next. No full delivery certificate or deployment exists. Downstream C12 remains
-planned until all stages pass from one clean committed checkout.
+pass. Its manifest explicitly excludes complete package acceptance. The
+[child-delivery checkpoint](evidence/WP-C11/stage-two-manifest.json) is
+clean-certified at `21e6d8b`: 821 focused cases, 14 real-D1 checks, retained
+C10/C08/X03 regressions and full verification with 3,296 TypeScript cases, Go
+and all 16 Swift cases. Synthetic task-parent child/content and artifact
+authority are fenced; reference-existence privacy, metadata/realtime,
+notifications/integrations and creation/sharing/internal-progress controls
+remain open. No full delivery certificate, live private R2 byte certificate or
+deployment exists. Downstream C12 remains planned until all stages pass from
+one clean committed checkout.

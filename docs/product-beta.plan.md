@@ -144,5 +144,13 @@ manifests; current runtime proof must have its own explicit scope.
   is clean-certified at `02dffa6`: 121 focused cases, nine real-D1 checks and
   retained C10/C08/X03 regressions; full verification passes 3,089 TypeScript
   cases, Go and 16 Swift cases. Strict task-tool schemas reject unsupported
-  private intent without shared insertion. Child/artifact delivery, metadata/realtime, private
-  creation/sharing and the full certificate remain open. C12 remains planned.
+  private intent without shared insertion. The
+  [child-delivery checkpoint](work-packages/evidence/WP-C11/stage-two-manifest.json)
+  is clean-certified at `21e6d8b`: 821 focused cases, 14 real-D1 checks and
+  retained C10/C08/X03 regressions; full verification passes 3,296 TypeScript
+  cases, Go and all 16 Swift cases. Current task-parent child/content and
+  artifact authority are fenced through synthetic domain and authenticated
+  transport proofs, including fake-R2 revoke/expiry races and real-D1 atomic
+  receipt rollback. Reference-existence privacy, metadata/realtime,
+  notifications/integrations, private creation/sharing and the full certificate
+  remain open. Live private R2 byte delivery is not certified. C12 remains planned.
