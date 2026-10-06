@@ -1,6 +1,6 @@
 # WP-W03 — Clean board and task interface
 
-Status: `in_progress`
+Status: `done`
 
 Risk: Medium
 
@@ -136,7 +136,7 @@ secondary command by default.
   [the redesign brief](../ui-redesign-brief.md). They do not certify shipped UI.
 - No secrets, real task content, raw terminal output or local absolute paths
   belong in committed evidence. Existing package certificates remain intact.
-- `BFB_CAPTURE_W03_EVIDENCE=1 pnpm test:w03:browser` owns the deterministic
+- `BFB_CAPTURE_W03_EVIDENCE=1 pnpm test:w03:browser` owns the bounded
   synthetic viewport captures and bounded `browser/ui-checks.json` report.
 
 ## Risks and decisions
@@ -157,3 +157,8 @@ secondary command by default.
   brief and approved defaults, not a new-brand or raster-mock workflow. The
   previous planning checkpoint added an unnecessary visual approval gate;
   that gate is removed. No release or pilot change is implied by this work.
+- Certified from committed source `ebc8da0` in a fresh checkout:
+  exact W03 acceptance passed 178 focused unit checks and all 85 shared browser
+  cases; full verification passed 3,130 TypeScript tests, Go and 16 Swift tests.
+  The committed manifest and synthetic captures index that proof. No deployment
+  or remaining privacy/MCP product package is implied by this UI completion.

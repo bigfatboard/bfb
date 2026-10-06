@@ -1,0 +1,57 @@
+{
+  "$schema": "../manifest.schema.json",
+  "package": "W03",
+  "tested_commit": "ebc8da0575202d7fdc882d86088909b22ab477d4",
+  "protocol_version": "bfb-wire/1",
+  "schema_version": "1",
+  "migration_head": "0045_private_task_authority",
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "playwright": "1.55.1",
+    "xcode": "26.0.1"
+  },
+  "environment": { "kind": "clean_checkout", "os": "macOS 26.2", "architecture": "arm64" },
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-W03/command-result.json"
+    },
+    {
+      "command": "pnpm test:w03",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-W03/command-result.json"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-W03/command-result.json"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-W03/command-result.json"
+    }
+  ],
+  "outcome": "passed",
+  "artifacts": [
+    "docs/work-packages/evidence/WP-W03/manifest.json",
+    "docs/work-packages/evidence/WP-W03/command-result.json",
+    "docs/work-packages/evidence/WP-W03/verification.md",
+    "docs/work-packages/evidence/WP-W03/browser/ui-checks.json",
+    "docs/work-packages/evidence/WP-W03/browser/board-light.png",
+    "docs/work-packages/evidence/WP-W03/browser/board-dark.png",
+    "docs/work-packages/evidence/WP-W03/browser/board-lanes-light.png",
+    "docs/work-packages/evidence/WP-W03/browser/board-lanes-dark.png",
+    "docs/work-packages/evidence/WP-W03/browser/task-light.png",
+    "docs/work-packages/evidence/WP-W03/browser/task-dark.png",
+    "docs/work-packages/evidence/WP-W03/browser/attention.png",
+    "docs/work-packages/evidence/WP-W03/browser/task-320.png",
+    "docs/work-packages/evidence/WP-W03/browser/task-390.png",
+    "docs/work-packages/evidence/WP-W03/browser/task-768.png",
+    "docs/work-packages/evidence/WP-W03/browser/task-1440.png"
+  ],
+  "redaction": { "status": "passed", "prohibited_content": [] }
+}

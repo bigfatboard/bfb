@@ -1,0 +1,96 @@
+{
+  "fixture": "synthetic",
+  "observations": [
+    {
+      "surface": "task-default",
+      "role": "owner",
+      "cardActions": 2,
+      "taskActions": 2,
+      "revealedComposerActions": 2
+    },
+    {
+      "surface": "task-default",
+      "role": "member",
+      "cardActions": 2,
+      "taskActions": 2,
+      "revealedComposerActions": 2
+    },
+    {
+      "surface": "task-default",
+      "role": "restricted",
+      "cardActions": 2,
+      "taskActions": 2,
+      "revealedComposerActions": 2
+    },
+    {
+      "surface": "comments",
+      "draftRetention": "section/cancel/close/failure",
+      "success": "server-confirmed",
+      "escaped": true
+    },
+    {
+      "surface": "attention",
+      "defaultActions": [2, 2, 2, 2],
+      "draftRetained": true,
+      "nativePermissionSeparation": true
+    },
+    {
+      "surface": "theme",
+      "theme": "light",
+      "minimumTextContrast": 6.21,
+      "sampledTextNodes": 90
+    },
+    {
+      "surface": "theme",
+      "theme": "dark",
+      "minimumTextContrast": 7.09,
+      "sampledTextNodes": 90
+    },
+    {
+      "surface": "responsive",
+      "width": 320,
+      "viewport": 320,
+      "document": 320,
+      "laneScrollable": true,
+      "sheetFits": true,
+      "accountControls": true,
+      "reducedMotion": true
+    },
+    {
+      "surface": "responsive",
+      "width": 390,
+      "viewport": 390,
+      "document": 390,
+      "laneScrollable": true,
+      "sheetFits": true,
+      "accountControls": true,
+      "reducedMotion": true
+    },
+    {
+      "surface": "responsive",
+      "width": 768,
+      "viewport": 768,
+      "document": 768,
+      "laneScrollable": true,
+      "sheetFits": true,
+      "accountControls": true,
+      "reducedMotion": true
+    },
+    {
+      "surface": "responsive",
+      "width": 1440,
+      "viewport": 1440,
+      "document": 1440,
+      "laneScrollable": false,
+      "sheetFits": true,
+      "accountControls": true,
+      "reducedMotion": true
+    },
+    {
+      "surface": "zoom",
+      "factor": 2,
+      "closeVisible": true,
+      "sectionVisible": true
+    }
+  ]
+}

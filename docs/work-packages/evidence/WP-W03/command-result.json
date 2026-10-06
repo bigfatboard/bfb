@@ -1,0 +1,32 @@
+{
+  "package": "W03",
+  "tested_commit": "ebc8da0575202d7fdc882d86088909b22ab477d4",
+  "captured_at": "2026-10-06",
+  "environment": "fresh detached checkout on macOS 26.2, arm64",
+  "runs": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "details": "Installed the pinned lockfile in a fresh checkout with no existing workspace build output."
+    },
+    {
+      "command": "pnpm test:w03",
+      "outcome": "passed",
+      "details": "Built the web bundle and workspace, passed 178 focused unit checks across 27 files, and passed every shared Chromium scenario: 85 passed, none skipped. Includes all 15 W03 cases. BFB_CAPTURE_W03_EVIDENCE=1 retained bounded synthetic screenshots and the UI report; an isolated disposable fixture port was selected."
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "details": "Passed pinned tools/lockfile, formatting, lint, typecheck, protocol/provider drift, 3130 TypeScript tests across 157 files, headers, documentation, roadmap, Go tidy/vet/tests and Swift build/16 native tests. GOFLAGS=-p=1 limited package build concurrency; no platform check was skipped."
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "details": "Passed before acceptance and after verification. Newly generated W03 captures were moved to this evidence directory and only the browser-generated G01 historical counter was restored; implementation and prior certificates remained unchanged."
+    }
+  ],
+  "production_or_shared_state_used": false,
+  "live_pilot_or_provider_used": false,
+  "raw_logs_committed": false,
+  "redaction": "passed"
+}
