@@ -508,12 +508,17 @@ export async function handleGitHubBrowserApi(
       if (projectId) {
         assertProjectAccess(principal, projectId);
       }
-      const evidence = await listGitHubEvidence(deps.db, workspaceId, {
-        ...(projectId === undefined ? {} : { projectId }),
-        ...(taskId === undefined ? {} : { taskId }),
-        ...(repositoryId === undefined ? {} : { repositoryId }),
-        ...(limitRaw === null ? {} : { limit: Number(limitRaw) }),
-      });
+      const evidence = await listGitHubEvidence(
+        deps.db,
+        workspaceId,
+        {
+          ...(projectId === undefined ? {} : { projectId }),
+          ...(taskId === undefined ? {} : { taskId }),
+          ...(repositoryId === undefined ? {} : { repositoryId }),
+          ...(limitRaw === null ? {} : { limit: Number(limitRaw) }),
+        },
+        principal,
+      );
       return json({ ok: true, evidence });
     }
     if (request.method !== "POST") {
@@ -565,6 +570,7 @@ export async function handleGitHubBrowserApi(
         workspaceId,
         body.refs as Array<{ kind: string; ref: string; version?: string }>,
         { projectId },
+        principal,
       );
       return json({ ok: true, statuses });
     }

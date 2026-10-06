@@ -1,7 +1,7 @@
 // ABOUTME: Owns GitHub App installation, repository link, delivery, outbox, and evidence records.
 // ABOUTME: Owner step-up gates management; reconcile converges duplicates with per-object latest-wins guards.
 
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
 import type { SqlDatabase } from "@bfb/db";
 
@@ -9,6 +9,8 @@ import { assertEpoch, assertProjectAccess, assertRole, loadPrincipal } from "./a
 import { DomainError, type HubCommand, type HubContext } from "./hub.js";
 import { isUlid, randomUlid, syntheticUlid } from "./ids.js";
 import { validateStepUpProof, type StepUpAction } from "./step-up.js";
+import { canonicalLaunchJson } from "./launch-state.js";
+import { sharedTaskPredicate, taskAccessPredicate, type TaskAccessContext } from "./task-access.js";
 
 /** System actor for unauthenticated webhook ingest (HMAC is the credential). */
 export const GITHUB_WEBHOOK_SYSTEM_ID = syntheticUlid("GITHUBWEBHOOK");
@@ -1620,6 +1622,105 @@ export interface GitHubEvidenceRecord {
   resource_version: number;
 }
 
+/** Task associations are shared-only; project-only observations retain project authority. */
+function evidenceDeliveryPredicate(access?: TaskAccessContext, alias = "evidence", write = false) {
+  const lineage = `(${alias}.task_id IS NULL OR EXISTS (
+    SELECT 1 FROM tasks AS task WHERE task.workspace_id = ${alias}.workspace_id
+      AND task.id = ${alias}.task_id AND task.project_id = ${alias}.project_id
+      AND ${sharedTaskPredicate("task")}))`;
+  if (!access) return { sql: lineage, parameters: [] as Array<string | number> };
+  // Validate the authenticated identity with the kernel even for project-only rows.
+  taskAccessPredicate(access, "read");
+  return {
+    sql: `(${lineage} AND ${alias}.workspace_id = ? AND EXISTS (
+      SELECT 1 FROM workspace_members AS evidence_member
+      JOIN workspace_authorization_epochs AS evidence_epoch
+        ON evidence_epoch.workspace_id = evidence_member.workspace_id
+       AND evidence_epoch.human_id = evidence_member.human_id
+       AND evidence_epoch.authorization_epoch = evidence_member.authorization_epoch
+       AND evidence_epoch.revoked_at IS NULL
+      JOIN projects AS evidence_project ON evidence_project.workspace_id = evidence_member.workspace_id
+       AND evidence_project.id = ${alias}.project_id
+      WHERE evidence_member.workspace_id = ${alias}.workspace_id AND evidence_member.human_id = ?
+        AND evidence_epoch.authorization_epoch = ?
+        AND evidence_member.role IN (${write ? "'owner', 'member'" : "'owner', 'member', 'reviewer'"})
+        AND (evidence_project.access_mode = 'workspace' OR EXISTS (
+          SELECT 1 FROM project_access AS evidence_grant
+          WHERE evidence_grant.workspace_id = evidence_project.workspace_id
+            AND evidence_grant.project_id = evidence_project.id
+            AND evidence_grant.human_id = evidence_member.human_id))))`,
+    parameters: [access.workspaceId, access.humanId, access.authorizationEpoch],
+  };
+}
+
+async function requireSharedEvidenceTask(ctx: HubContext, taskId: string, projectId: string) {
+  if (!isUlid(taskId)) fail("invalid_argument", "task id is invalid");
+  const access = taskAccessPredicate(
+    {
+      workspaceId: ctx.workspaceId,
+      humanId: ctx.actorHumanId!,
+      authorizationEpoch: ctx.authorizationEpoch,
+    },
+    "contribute",
+  );
+  const task = (await ctx.db
+    .prepare(
+      `SELECT task.project_id FROM tasks AS task
+    WHERE task.workspace_id = ? AND task.id = ? AND ${sharedTaskPredicate("task")} AND ${access.sql}`,
+    )
+    .get(ctx.workspaceId, taskId, ...access.parameters)) as { project_id: string } | undefined;
+  if (!task) fail("not_found", "task not found");
+  if (task.project_id !== projectId)
+    fail("invalid_argument", "task does not belong to the project");
+}
+
+async function authorizeEvidenceLink(input: LinkGitHubEvidenceInput, ctx: HubContext) {
+  closedObject(
+    input,
+    ["projectId", "taskId", "repositoryId", "kind", "ref", "versionToken", "state", "observedBy"],
+    "github evidence link",
+  );
+  if (ctx.actorDelegationId) fail("forbidden", "direct authorized human required");
+  if (!ctx.actorHumanId) fail("unauthenticated", "human actor required");
+  const principal = await loadPrincipal(ctx.db, ctx.workspaceId, ctx.actorHumanId);
+  assertEpoch(principal, ctx.authorizationEpoch);
+  assertRole(principal, ["owner", "member"]);
+  if (!isUlid(input.projectId)) fail("invalid_argument", "project id is invalid");
+  assertProjectAccess(principal, input.projectId);
+  if (input.taskId !== undefined)
+    await requireSharedEvidenceTask(ctx, input.taskId, input.projectId);
+  const prior = (await ctx.db
+    .prepare(
+      `SELECT project_id, task_id FROM github_evidence
+    WHERE workspace_id = ? AND repository_id = ? AND kind = ? AND ref = ? AND observed_by = ?`,
+    )
+    .get(
+      ctx.workspaceId,
+      numericId(input.repositoryId, "repository id"),
+      input.kind,
+      boundedText(input.ref, "evidence ref", 512),
+      input.observedBy,
+    )) as { project_id: string; task_id: string | null } | undefined;
+  if (prior) {
+    if (prior.project_id !== input.projectId) fail("not_found", "task not found");
+    if (prior.task_id !== null)
+      await requireSharedEvidenceTask(ctx, prior.task_id, prior.project_id);
+  }
+  return principal;
+}
+
+function evidenceReceipt(row: GitHubEvidenceRecord) {
+  return {
+    id: row.id,
+    project_id: row.project_id,
+    task_id: row.task_id,
+    repository_id: row.repository_id,
+    kind: row.kind,
+    observed_by: row.observed_by,
+    resource_version: row.resource_version,
+  };
+}
+
 /**
  * Links issue/branch/commit/PR/check/deployment evidence to BFB work. The
  * `github` observer is reserved for webhook reconcile; human and runner
@@ -1628,51 +1729,44 @@ export interface GitHubEvidenceRecord {
 export const linkGitHubEvidenceCommand: HubCommand<LinkGitHubEvidenceInput, GitHubEvidenceRecord> =
   {
     name: "github.evidence.link",
-    auditInput: (input) => ({ projectId: input.projectId, kind: input.kind, ref: input.ref }),
-    async run(input, ctx) {
-      closedObject(
-        input,
-        [
-          "projectId",
-          "taskId",
-          "repositoryId",
-          "kind",
-          "ref",
-          "versionToken",
-          "state",
-          "observedBy",
-        ],
-        "github evidence link",
+    async authorize(input, ctx) {
+      await authorizeEvidenceLink(input, ctx);
+    },
+    inputFingerprint: (input) =>
+      createHash("sha256")
+        .update(canonicalLaunchJson(JSON.parse(JSON.stringify(input))))
+        .digest("hex"),
+    auditInput: (input) => ({
+      projectId: input.projectId,
+      taskId: input.taskId,
+      repositoryId: input.repositoryId,
+      kind: input.kind,
+    }),
+    auditResult: evidenceReceipt,
+    async replayResult(result, ctx) {
+      const predicate = evidenceDeliveryPredicate(
+        {
+          workspaceId: ctx.workspaceId,
+          humanId: ctx.actorHumanId!,
+          authorizationEpoch: ctx.authorizationEpoch,
+        },
+        "evidence",
+        true,
       );
-      if (ctx.actorDelegationId) {
-        fail("forbidden", "direct authorized human required");
-      }
-      if (!ctx.actorHumanId) {
-        fail("unauthenticated", "human actor required");
-      }
-      const principal = await loadPrincipal(ctx.db, ctx.workspaceId, ctx.actorHumanId);
-      assertEpoch(principal, ctx.authorizationEpoch);
-      assertRole(principal, ["owner", "member"]);
-      if (!isUlid(input.projectId)) {
-        fail("invalid_argument", "project id is invalid");
-      }
-      assertProjectAccess(principal, input.projectId);
-      let taskId: string | null = null;
-      if (input.taskId !== undefined) {
-        if (!isUlid(input.taskId)) {
-          fail("invalid_argument", "task id is invalid");
-        }
-        const task = (await ctx.db
-          .prepare(`SELECT project_id FROM tasks WHERE workspace_id = ? AND id = ?`)
-          .get(ctx.workspaceId, input.taskId)) as { project_id: string } | undefined;
-        if (!task) {
-          fail("not_found", "task not found");
-        }
-        if (task.project_id !== input.projectId) {
-          fail("invalid_argument", "task does not belong to the project");
-        }
-        taskId = input.taskId;
-      }
+      const current = await ctx.db
+        .prepare(
+          `SELECT evidence.id FROM github_evidence AS evidence
+        WHERE evidence.workspace_id = ? AND evidence.id = ? AND ${predicate.sql}`,
+        )
+        .get(ctx.workspaceId, result.id, ...predicate.parameters);
+      if (!current) fail("not_found", "task not found");
+      if (result.task_id !== null)
+        await requireSharedEvidenceTask(ctx, result.task_id, result.project_id);
+      return result;
+    },
+    async run(input, ctx) {
+      const principal = await authorizeEvidenceLink(input, ctx);
+      const taskId = input.taskId ?? null;
       const repositoryId = numericId(input.repositoryId, "repository id");
       if (
         !["issue", "branch", "commit", "pull_request", "check", "deployment"].includes(input.kind)
@@ -1706,12 +1800,13 @@ export const linkGitHubEvidenceCommand: HubCommand<LinkGitHubEvidenceInput, GitH
       // Read-first upsert: D1 batches forbid reads after a queued write.
       const prior = (await ctx.db
         .prepare(
-          `SELECT id, task_id, resource_version FROM github_evidence
+          `SELECT id, project_id, task_id, resource_version FROM github_evidence
          WHERE workspace_id = ? AND repository_id = ? AND kind = ? AND ref = ? AND observed_by = ?`,
         )
         .get(ctx.workspaceId, repositoryId, input.kind, ref, input.observedBy)) as
         | {
             id: string;
+            project_id: string;
             task_id: string | null;
             resource_version: number;
           }
@@ -1720,6 +1815,24 @@ export const linkGitHubEvidenceCommand: HubCommand<LinkGitHubEvidenceInput, GitH
       if (ref.length > 512 || versionToken.length > 128 || stateJson.length > 2048) {
         fail("invalid_argument", "github evidence exceeds its bounds");
       }
+      const access = principal;
+      const candidate = evidenceDeliveryPredicate(access, "candidate", true);
+      const priorAccess = evidenceDeliveryPredicate(access, "evidence", true);
+      // Evaluated by the committing D1 batch, including the retained association.
+      await guard(
+        ctx.db,
+        `EXISTS (SELECT 1 FROM (SELECT ? AS workspace_id, ? AS project_id, ? AS task_id) AS candidate
+        WHERE ${candidate.sql}) AND ${prior ? `EXISTS (SELECT 1 FROM github_evidence AS evidence WHERE evidence.workspace_id = ? AND evidence.id = ? AND evidence.resource_version = ? AND ${priorAccess.sql})` : "NOT EXISTS (SELECT 1 FROM github_evidence WHERE workspace_id = ? AND repository_id = ? AND kind = ? AND ref = ? AND observed_by = ?)"}`,
+        [
+          ctx.workspaceId,
+          input.projectId,
+          taskId,
+          ...candidate.parameters,
+          ...(prior
+            ? [ctx.workspaceId, prior.id, prior.resource_version, ...priorAccess.parameters]
+            : [ctx.workspaceId, repositoryId, input.kind, ref, input.observedBy]),
+        ],
+      );
       if (!prior) {
         const id = randomUlid();
         await ctx.db
@@ -1866,13 +1979,15 @@ export async function listGitHubEvidence(
   db: SqlDatabase,
   workspaceId: string,
   filter: ListGitHubEvidenceFilter = {},
+  access?: TaskAccessContext,
 ): Promise<GitHubEvidenceRecord[]> {
   const limit = filter.limit ?? 50;
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
     fail("invalid_argument", "evidence limit is invalid");
   }
-  const clauses = ["workspace_id = ?"];
-  const params: unknown[] = [workspaceId];
+  const predicate = evidenceDeliveryPredicate(access, "github_evidence");
+  const clauses = ["workspace_id = ?", predicate.sql];
+  const params: unknown[] = [workspaceId, ...predicate.parameters];
   if (filter.projectId !== undefined) {
     if (!isUlid(filter.projectId)) {
       fail("invalid_argument", "project id is invalid");
@@ -1960,6 +2075,7 @@ export async function getEvidenceVerificationStatus(
   workspaceId: string,
   refs: EvidenceRefInput[],
   options: { projectId?: string | undefined } = {},
+  access?: TaskAccessContext,
 ): Promise<EvidenceVerification[]> {
   if (!Array.isArray(refs) || refs.length > 20) {
     fail("invalid_argument", "evidence refs must be a bounded list");
@@ -1969,7 +2085,8 @@ export async function getEvidenceVerificationStatus(
     fail("invalid_argument", "project id is invalid");
   }
   const out: EvidenceVerification[] = [];
-  for (const item of refs) {
+  const requested: Array<{ index: number; repositoryId: string; kind: string; name: string }> = [];
+  for (const [index, item] of refs.entries()) {
     if (!item || typeof item.kind !== "string" || typeof item.ref !== "string") {
       fail("invalid_argument", "evidence ref is invalid");
     }
@@ -1982,32 +2099,48 @@ export async function getEvidenceVerificationStatus(
       out.push({ kind: item.kind, ref: item.ref, provenance: "unverified" });
       continue;
     }
-    const rows = (await db
-      .prepare(
-        `SELECT observed_by, version_token FROM github_evidence
-         WHERE workspace_id = ? AND repository_id = ? AND kind = ? AND ref = ?${
-           projectId === undefined ? "" : " AND project_id = ?"
-         }`,
-      )
-      .all(
-        ...(projectId === undefined
-          ? [workspaceId, parsed.repositoryId, parsed.kind, parsed.name]
-          : [workspaceId, parsed.repositoryId, parsed.kind, parsed.name, projectId]),
-      )) as Array<{
-      observed_by: GitHubObserver;
-      version_token: string;
-    }>;
-    const verified = rows.some(
+    requested.push({ index, ...parsed });
+    out.push({ kind: item.kind, ref: item.ref, provenance: "unverified" });
+  }
+  if (requested.length === 0) return out;
+  const predicate = evidenceDeliveryPredicate(access, "evidence");
+  // One current-authority snapshot for every reference. Per-ref awaits can retain
+  // earlier provenance after its parent or recipient loses authority during a later lookup.
+  const rows = (await db
+    .prepare(
+      `SELECT json_extract(requested.value, '$.index') AS ref_index,
+              evidence.observed_by, evidence.version_token
+       FROM github_evidence AS evidence JOIN json_each(?) AS requested
+         ON evidence.repository_id = json_extract(requested.value, '$.repositoryId')
+        AND evidence.kind = json_extract(requested.value, '$.kind')
+        AND evidence.ref = json_extract(requested.value, '$.name')
+       WHERE ${predicate.sql} AND evidence.workspace_id = ?${
+         projectId === undefined ? "" : " AND evidence.project_id = ?"
+       }`,
+    )
+    .all(
+      JSON.stringify(requested),
+      ...predicate.parameters,
+      workspaceId,
+      ...(projectId === undefined ? [] : [projectId]),
+    )) as Array<{
+    ref_index: number;
+    observed_by: GitHubObserver;
+    version_token: string;
+  }>;
+  // No awaited reads after the authorized selection: preserve order and duplicates synchronously.
+  for (const reference of requested) {
+    const item = refs[reference.index]!;
+    const observations = rows.filter((row) => row.ref_index === reference.index);
+    const verified = observations.some(
       (row) =>
         row.observed_by === "github" &&
         (item.version === undefined || row.version_token === item.version),
     );
     if (verified) {
-      out.push({ kind: item.kind, ref: item.ref, provenance: "github_verified" });
-    } else if (rows.some((row) => row.observed_by === "runner")) {
-      out.push({ kind: item.kind, ref: item.ref, provenance: "runner_observed" });
-    } else {
-      out.push({ kind: item.kind, ref: item.ref, provenance: "unverified" });
+      out[reference.index]!.provenance = "github_verified";
+    } else if (observations.some((row) => row.observed_by === "runner")) {
+      out[reference.index]!.provenance = "runner_observed";
     }
   }
   return out;
