@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "package": "L07",
+  "checkpoint": "pollable-provider-terminal-streams",
+  "date": "2026-10-06",
+  "implementation_commit": "fd9046f10d1a0b8f195942319746f73d503613d0",
+  "checkout_scope": "Source-equivalent implementation checkout; not clean-checkout package acceptance",
+  "package_status": "in_progress",
+  "environment": {
+    "os": "macOS 26.2",
+    "architecture": "arm64",
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "xcode": "26.0.1",
+    "candidate_provider": "Claude Code 2.1.291",
+    "human_observed_bundled_runtime": "Bun 1.4.3",
+    "protocol_schema": "v1",
+    "d1_migration_head": "0043_agent_artifact_publications.sql",
+    "local_storage_version": 11
+  },
+  "diagnosis": {
+    "human_observation": "The background Terminal showed the provider runtime failing with EINVAL from kqueue",
+    "native_reproducer": "Registering read/write kqueue filters rejects the controlling-terminal alias with EINVAL and accepts original PTY descriptors",
+    "production_path_before_repair": "The real gated child inherited the alias as standard input/output/error; the new success-case regression failed at child fd0",
+    "source_repair": "Inherit original terminal streams only after exact kernel controlling-device, process-identity, access-mode and foreground validation, repeated before spawn",
+    "job_control": "The controlling-terminal alias remains used only for existing foreground handoff/restoration",
+    "upstream_reference": "https://github.com/oven-sh/bun/issues/24158"
+  },
+  "checks": [
+    {
+      "command": "go test -race -count=1 ./internal/supervisor -run '^TestNativeGatedPTY$/success$'",
+      "outcome": "failed_as_expected",
+      "failure": "Actual child fd0 kqueue registration returned EINVAL"
+    },
+    {
+      "command": "go test -race -count=1 ./internal/supervisor -run '^TestNativeGatedPTY$/(success|redirected_stdout|stdio_changed_after_authorization)$'",
+      "outcome": "passed",
+      "duration_seconds": 6.281,
+      "negative_cases": [
+        "Each standard stream rejects a missing descriptor, regular file, alias, pipe, foreign PTY or wrong access mode",
+        "Stale owner identity and unexpected foreground group are rejected",
+        "Redirected stdout is rejected before first authorization",
+        "Descriptor replacement after first authorization is rejected before child creation"
+      ],
+      "child_polling": "Both read and write filters succeed on all three actual gated-child standard descriptors immediately before exec"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "typescript_cases": 2841,
+      "typescript_files": 142,
+      "go": "passed including native supervisor checks",
+      "swift_cases": 16
+    },
+    {
+      "command": "pnpm test:l07",
+      "outcome": "passed_on_unchanged_retry",
+      "protocol_cases": 1123,
+      "candidate_preparation_cases": 4,
+      "go_race": "passed including native supervisor checks",
+      "pilot_cases": 126,
+      "browser_cases": 6,
+      "first_attempt": "Two unexplained five-second synthetic version-inspection failures; both affected packages pass on unchanged retry. Retained timestamps do not support signed-build overlap as the cause"
+    },
+    {
+      "command": "Separate signed candidate replacement build",
+      "outcome": "passed",
+      "existing_binding": "Byte-identical state, home, provider version and executable pin",
+      "signatures": "Both old and new bundles pass deep strict verification",
+      "previous_bundle": "Preserved unchanged",
+      "activated": true
+    }
+  ],
+  "local_activation": {
+    "previous_runtime": "Exact previous daemon stopped through its normal CLI and app identity checked before termination; no active execution or pending control effect",
+    "signature_identity": "Old and replacement app/helper designated requirements match",
+    "new_runtime": "Exact replacement daemon and native app process paths verified; daemon reports running with no recovery pending",
+    "enrollment": "Existing Mac enrollment retained and online after explicit wake; inventory revision advances",
+    "configuration": "Normal reviewed setup proposals update only BFB hook and MCP helper paths; unrelated settings semantics preserved and final preview current",
+    "unscoped_hook_regression": "Actual signed helper exits zero silently on synthetic valid and malformed unscoped vendor-hook input",
+    "ordinary_doctor": "Still returns provider_unsupported for the uncertified candidate version, as designed",
+    "services": "Existing app and artifact HTTPS health checks pass; no persistent service installed",
+    "native_ui": "App selection accessibility read timed out; process identity verified independently, without Terminal UI automation",
+    "live_retry": "Not attempted; awaiting human board controls and Terminal observation"
+  },
+  "retained_failures": [
+    "The original synthetic success regression failed with EINVAL before the production fix",
+    "The first repaired test compile used an int instead of uint for a Darwin ioctl request; only the fixture type was corrected before the passing retry",
+    "First full L07 attempt failed Claude local_mcp and Grok TestDoctor at bounded synthetic version inspection; the exact unchanged target passed without changing production or test deadlines",
+    "The local replacement guard initially read the codesign requirement from stderr only and stopped before mutation; reading both output channels established the exact matching requirement before activation"
+  ],
+  "independent_review": "No blocking findings in the two-file descriptor repair; launch authorization, private gate, owned groups, locks and restoration remain unchanged",
+  "unverified": [
+    "Live provider startup, trusted session binding and scoped MCP after replacement",
+    "Human attention, explicit result and same-run resume through the real provider",
+    "Foreground presentation on first launch and retained provider-exit diagnostics",
+    "Clean-checkout L07 completion and full MVP acceptance"
+  ],
+  "production_provider_support_changed": false,
+  "provider_installation_changed": false,
+  "deployment_performed": false,
+  "redaction": "No credentials, human or execution identifiers, task content, local absolute paths or raw terminal transcript"
+}

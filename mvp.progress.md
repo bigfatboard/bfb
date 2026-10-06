@@ -8,6 +8,16 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 
 ## Current checkpoint
 
+- The [terminal-descriptor checkpoint](docs/work-packages/evidence/WP-L07/terminal-descriptor-checkpoint.json)
+  identifies the first launch failure: Claude's Bun runtime rejected polling
+  the `/dev/tty` handles supplied by BFB. A failing-first native regression
+  reproduces the exact error; `fd9046f` preserves verified original PTY streams
+  while retaining job control and all launch authority checks. Focused and full
+  repository verification pass; the exact L07 target passes on unchanged retry
+  after two transient synthetic inspection failures. The signed repair is active
+  and the existing Mac enrollment is online, with only BFB integration paths
+  updated. Live Claude session binding, scoped MCP and the human loop still need
+  a real retry; they are not implied by the kernel test.
 - The [runner-integration checkpoint](docs/work-packages/evidence/WP-L07/runner-integration-checkpoint.json)
   records real Mac approval and exact checkout registration. The replacement
   signed pilot daemon preserves enrollment and publishes real inventory after
@@ -22,7 +32,8 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
   but ended before a provider session was observed. A later local Wrangler
   failure stopped both Workers; their existing persistent runtime was restarted
   and both HTTPS health checks pass. Live tracked Claude work and L07 completion
-  remain unverified; the next diagnostic is the human-visible Terminal error.
+  remain unverified. The subsequently supplied Terminal error and repair are
+  recorded above.
 - The [owner-onboarding checkpoint](docs/work-packages/evidence/WP-L07/owner-onboarding-checkpoint.json)
   records the source-equivalent `c0f00b7` integration: full verification passes
   2,841 TypeScript cases, Go and 16 Swift cases; expanded L07 passes 1,123

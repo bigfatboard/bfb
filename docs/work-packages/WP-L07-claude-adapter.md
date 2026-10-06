@@ -94,6 +94,10 @@ A card can open a supported Claude Code version in the exact checkout, bind the 
 
 ## Evidence
 
+- [Terminal-descriptor checkpoint](evidence/WP-L07/terminal-descriptor-checkpoint.json)
+  records the human-supplied Bun startup error, failing-first native kqueue
+  reproduction and validated original-PTY handoff repair at `fd9046f`.
+  Synthetic polling proof is not a replacement for the live provider chain.
 - [Runner-integration checkpoint](evidence/WP-L07/runner-integration-checkpoint.json)
   records real runner approval, checkout publication, signed-helper regression
   checks and passing full/L07 gates at source-equivalent `e8925d0`. The first
@@ -154,6 +158,26 @@ A card can open a supported Claude Code version in the exact checkout, bind the 
 
 ## Handoff
 
+- Terminal-startup continuation, 6 October: Timo found the background Terminal
+  and supplied Claude's bundled Bun `EINVAL`/`kqueue` error. The real provider
+  runtime had started, but it exited before BFB observed or bound a session.
+  A native synthetic PTY reproducer proved that the production gate passed
+  unpollable `/dev/tty` handles while original PTY streams were pollable.
+  Commit `fd9046f` retains `/dev/tty` for job control only and inherits the
+  original streams after exact controlling-device, process-identity, access-mode
+  and foreground checks before authorization and immediately before spawn.
+  Failing-first and repaired regressions are retained separately. No provider
+  update, environment bypass, capability promotion or authority change is used.
+  Full repository verification passes 2,841 TypeScript and 16 Swift cases plus
+  Go checks. The exact L07 target passes on unchanged retry after two unexplained
+  five-second synthetic inspection failures; deadlines were not relaxed. The
+  separately signed replacement is active, keeps the existing enrollment online,
+  and uses reviewed BFB-only hook/MCP path updates with unrelated settings intact.
+  The normal doctor still rejects the uncertified candidate version as designed.
+  First launch can still remain behind other apps; foreground presentation is
+  separate from this repair. The helper's empty-object output and discarded
+  child wait status do not prove successful provider startup or business
+  completion. The live session/MCP/human loop remains unverified.
 - Enrolled-runner continuation, 6 October: real passkey approval is saved and a
   clean existing checkout is registered. The first sync exposed nanosecond
   inventory clocks outside the frozen microsecond wire grammar and a local-only
