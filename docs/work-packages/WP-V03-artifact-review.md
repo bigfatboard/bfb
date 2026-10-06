@@ -1,12 +1,12 @@
 # WP-V03 — Immutable artifact review
 
-Status: `in_progress`
+Status: `done`
 
 Risk: High
 
 Test target: `pnpm test:v03`
 
-Evidence manifest: `docs/work-packages/evidence/WP-V03/manifest.json`
+Evidence manifest: `docs/work-packages/evidence/WP-V03/runtime-manifest.json`
 
 ## Outcome
 
@@ -93,12 +93,25 @@ A human reviews an exact artifact version and records approval, changes requeste
 
 ## Handoff
 
+- Current product-lane certificate, 6 October: `done` at committed source
+  `c20648a`, with separate `runtime-manifest.json`. Frozen install, exact V03
+  acceptance (62 focused cases, 14 real-D1 checks, nine browser scenarios), V02
+  regression (16 browser scenarios), full verification (2,908 TypeScript cases,
+  Go and 16 Swift cases) and clean-worktree checks pass from the same clean
+  checkout. Current access and exact input fence private cached replies;
+  metadata-only receipts and review-audit dispatch exclude note bodies. The
+  compiled review surface loads real preview bytes and proves stale recovery,
+  explicit timer separation, reload persistence and narrow-screen reflow.
+  Historical evidence remains intact. Older un-fingerprinted cache replies
+  fail closed; canonical review history is preserved. Pilot flags and provider
+  operation were not changed. The historical shared-fixture unloaded-preview
+  limitation below is superseded only by this separate runtime certificate.
 - Product lane, 6 October: all direct dependencies are `done`, including the
   current V02 certificate. Re-certification checks current authority before
   cached review replies, exact retry input, metadata-only Hub audit receipts,
   review-audit dispatch and the compiled review surface with real preview bytes.
-  Historical evidence stays intact; no current V03 certificate or live flag
-  enablement is claimed yet.
+  Historical evidence stays intact; this earlier checkpoint preceded the
+  current certificate above. Live flag enablement remains unclaimed.
   `pnpm test:v03` now includes the compiled two-origin runtime proof. The D1
   harness writes temporary evidence by default (`BFB_V03_EVIDENCE_DIR` selects
   an explicit destination); it no longer overwrites historical captures. Its

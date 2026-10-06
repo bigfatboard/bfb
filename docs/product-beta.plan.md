@@ -31,6 +31,9 @@ and certificates. Package metadata remains the source of truth for completion.
 2. Re-certify V03 immutable review after V02 is `done`. A new artifact version
    must not inherit approval; authorized review, rejection and explicit timers
    must survive reload without implying task acceptance.
+   Then re-certify X03's existing authenticated MCP extensions: exact retries,
+   current authority before cached replies, metadata-only audit and current
+   attention/result/artifact parity, without widening OAuth scopes.
 3. Formalize privacy/publication and cloud project knowledge in ADRs and scoped
    packages. Freeze ownership, ACL, sharing audience, instruction precedence
    and immutable delivery lineage before consumers change.
@@ -74,7 +77,11 @@ manifests; current runtime proof must have its own explicit scope.
 - V02 is re-certified at `4e4fb70`: exact clean acceptance passes 141 focused
   and 16 browser cases; full verification passes 2,905 TypeScript cases, Go
   and 16 Swift cases. The separate current viewer certificate closes its
-  recorded gaps without altering historical evidence. V03 is next; downstream
-  features retain their own certification boundaries.
+  recorded gaps without altering historical evidence.
+- V03 is re-certified at `c20648a`: clean exact acceptance passes 62 focused
+  cases, 14 real-D1 checks and nine browser scenarios. V02 regression stays
+  green; full verification passes 2,908 TypeScript cases, Go and 16 Swift
+  cases. The review surface wraps at narrow widths. X03 existing MCP parity
+  is next; mandatory new product features retain their own boundaries.
 - No pilot configuration, production deployment or live-provider outcome is
   changed or claimed by this lane.
