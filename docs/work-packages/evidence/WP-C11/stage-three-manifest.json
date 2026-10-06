@@ -72,7 +72,7 @@
     "packages/domain/test/private-notifications.test.ts",
     "packages/domain/test/private-github.test.ts",
     "packages/domain/test/private-operations.test.ts",
-    "apps/control-worker/test/private-notification-routes.test.ts",
+    "apps/control-worker/test/private-notification-delivery.test.ts",
     "apps/control-worker/test/private-github-routes.test.ts",
     "apps/control-worker/test/operations-routes.test.ts",
     "tools/work-records/delivery.ts",
