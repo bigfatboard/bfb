@@ -26,6 +26,11 @@ import (
 )
 
 func main() {
+	if cli.IsUnscopedClaudeHook(os.Args[1:]) {
+		// Global Claude hooks outside tracked executions do not initialize
+		// BFB services or resolve the ordinary per-user state directory.
+		return
+	}
 	syscall.Umask(0077)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

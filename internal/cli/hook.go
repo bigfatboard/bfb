@@ -44,7 +44,31 @@ type hookOutcome struct {
 	bootstrap bool
 }
 
+// IsUnscopedClaudeHook identifies only the installed vendor hook outside a
+// tracked execution. Even an empty or partial binding must fail closed rather
+// than being mistaken for an unrelated Claude session.
+func IsUnscopedClaudeHook(arguments []string) bool {
+	if len(arguments) != 4 || arguments[0] != "hook" || arguments[1] != "ingest" || arguments[2] != "--provider" || arguments[3] != "claude" {
+		return false
+	}
+	for _, key := range []string{
+		"BFB_WORKSPACE_ID", "BFB_PROJECT_ID", "BFB_TASK_ID", "BFB_RUN_ID",
+		"BFB_RUN_EXECUTION_ID", "BFB_ASSIGNMENT_GENERATION", "BFB_CHECKOUT_ID",
+		"BFB_CORRELATION_TOKEN", "BFB_ARTIFACTS_DIR",
+	} {
+		if _, present := os.LookupEnv(key); present {
+			return false
+		}
+	}
+	return true
+}
+
 func runHook(ctx context.Context, invocation Invocation, providers *provider.Registry, backend BackendFactory) (map[string]any, error) {
+	if !invocation.JSON && IsUnscopedClaudeHook(append([]string{"hook", "ingest"}, invocation.Args...)) {
+		// User-level hooks also run in ordinary Claude sessions. They have no
+		// BFB authority and must not read input, open state or affect tool use.
+		return nil, nil
+	}
 	outcome, err := ingestHook(ctx, invocation, providers, backend)
 	output := invocation.Output
 	if output == nil {

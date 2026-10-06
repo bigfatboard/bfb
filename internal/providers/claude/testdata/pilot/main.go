@@ -24,6 +24,11 @@ import (
 )
 
 func main() {
+	if cli.IsUnscopedClaudeHook(os.Args[1:]) {
+		// An unrelated user-level Claude hook needs neither candidate pins nor
+		// private state. Every other entry point retains the signed binding.
+		return
+	}
 	syscall.Umask(0077)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
