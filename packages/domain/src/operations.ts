@@ -6,10 +6,16 @@ import { createHash } from "node:crypto";
 import type { SqlDatabase } from "@bfb/db";
 
 import { assertEpoch, assertRole, loadPrincipal } from "./authorization.js";
+import { ARTIFACT_ABANDON_GRACE_MS, ARTIFACT_GRANT_TTL_MS } from "./artifacts.js";
 import { DomainError, type HubCommand, type HubContext } from "./hub.js";
 import { isUlid, randomUlid } from "./ids.js";
 import { validateStepUpProof, type StepUpAction } from "./step-up.js";
-import { sharedTaskPredicate, taskAccessPredicate, type TaskAccessContext } from "./task-access.js";
+import {
+  sharedTaskPredicate,
+  taskAccessPredicate,
+  type TaskAccessContext,
+  type TaskAccessAction,
+} from "./task-access.js";
 
 /** D1 migration that owns the X05 operations tables. Asserted registered, never as newest head. */
 export const OPS_MIGRATION_ID = "0034_operations";
@@ -44,10 +50,10 @@ export const OPS_MAX_TARGETS = 50;
 export const OPS_MAX_PAGE = 100;
 
 /** Operations task projections remain shared-only even for a private creator. */
-function operationsTaskPredicate(access?: TaskAccessContext) {
+function operationsTaskPredicate(access?: TaskAccessContext, action: TaskAccessAction = "read") {
   const shared = sharedTaskPredicate("ops_task");
   if (!access) return { sql: shared, parameters: [] };
-  const current = taskAccessPredicate(access, "read", "ops_task");
+  const current = taskAccessPredicate(access, action, "ops_task");
   return { sql: `(${shared} AND ${current.sql})`, parameters: current.parameters };
 }
 
@@ -55,6 +61,7 @@ function operationsTaskPredicate(access?: TaskAccessContext) {
 function operationsWorkspacePredicate(
   access: TaskAccessContext | undefined,
   alias: "v" | "launch" | "ops_scope",
+  ownerOnly = false,
 ) {
   if (!access) return { sql: "1", parameters: [] };
   return {
@@ -66,7 +73,7 @@ function operationsWorkspacePredicate(
           AND ops_epoch.authorization_epoch = ops_member.authorization_epoch
           AND ops_epoch.revoked_at IS NULL
       WHERE ops_member.workspace_id = ${alias}.workspace_id AND ops_member.human_id = ?
-        AND ops_epoch.authorization_epoch = ? AND ops_member.role IN ('owner', 'member')
+        AND ops_epoch.authorization_epoch = ? AND ops_member.role IN (${ownerOnly ? "'owner'" : "'owner', 'member'"})
     )`,
     parameters: [access.workspaceId, access.humanId, access.authorizationEpoch],
   };
@@ -262,27 +269,80 @@ export interface RetentionCandidate {
  * A purged chunk moves to `retained` (see `markVersionRetained`), so it
  * never appears here again and its bytes are never counted twice.
  */
+export interface RetentionSelection {
+  policy: RetentionPolicy | null;
+  cutoff: string;
+  days: number;
+  examined: number;
+  eligible: RetentionCandidate[];
+}
+
 export async function listRetentionEligibleChunks(
   db: SqlDatabase,
   workspaceId: string,
   nowIso: string,
-): Promise<{ cutoff: string; days: number; examined: number; eligible: RetentionCandidate[] }> {
+  access: TaskAccessContext,
+): Promise<RetentionSelection> {
+  if (!access) fail("invalid_argument", "human retention access is required");
+  return selectRetentionChunks(db, workspaceId, nowIso, access, false);
+}
+
+/** Configured policy is system authority, never inferred human Owner authority. */
+export async function listSystemRetentionEligibleChunks(
+  db: SqlDatabase,
+  workspaceId: string,
+  nowIso: string,
+): Promise<RetentionSelection> {
+  return selectRetentionChunks(db, workspaceId, nowIso, undefined, true);
+}
+
+async function selectRetentionChunks(
+  db: SqlDatabase,
+  workspaceId: string,
+  nowIso: string,
+  access: TaskAccessContext | undefined,
+  configuredSystem: boolean,
+): Promise<RetentionSelection> {
   const policy = await getRetentionPolicy(db, workspaceId);
   const days = policy?.raw_log_retention_days ?? RETENTION_DEFAULT_DAYS;
   const cutoff = retentionCutoff(nowIso, days);
-  const rows = (await db
+  if (configuredSystem && !policy) return { policy, cutoff, days, examined: 0, eligible: [] };
+  const parent = configuredSystem ? { sql: "1", parameters: [] } : operationsTaskPredicate(access);
+  const human = configuredSystem
+    ? { sql: "1", parameters: [] }
+    : operationsWorkspacePredicate(access, "v");
+  const current = (await db
     .prepare(
-      `SELECT v.id AS version_id, v.artifact_id, a.run_id, v.r2_key, v.declared_size, v.available_at
+      `SELECT * FROM (WITH current_scope AS MATERIALIZED (
+       SELECT v.workspace_id, ${human.sql} AS authorized FROM (SELECT ? AS workspace_id) AS v
+       ), current_candidates AS MATERIALIZED (
+       SELECT v.id AS version_id, v.artifact_id, a.run_id, v.r2_key, v.declared_size, v.available_at
        FROM artifact_versions AS v
+       JOIN current_scope AS scope ON scope.workspace_id = v.workspace_id AND scope.authorized
        JOIN artifacts AS a ON a.workspace_id = v.workspace_id AND a.id = v.artifact_id
+       JOIN runs AS ops_run ON ops_run.workspace_id = a.workspace_id AND ops_run.id = a.run_id
+       JOIN tasks AS ops_task ON ops_task.workspace_id = ops_run.workspace_id AND ops_task.id = ops_run.task_id
+         AND ops_task.project_id = ops_run.project_id
        WHERE v.workspace_id = ?
          AND a.role = 'log'
          AND v.state = 'available'
-         AND v.r2_key IS NOT NULL
-         AND v.r2_key LIKE 'workspaces/%/runs/%/logs/%'
-         AND v.r2_key NOT LIKE '%artifacts/sha256/%'`,
+         AND v.r2_key = 'workspaces/' || v.workspace_id || '/runs/' || ops_run.id || '/logs/' || v.id || '.jsonl.zst'
+         AND ${parent.sql}
+         ${configuredSystem ? "AND EXISTS (SELECT 1 FROM retention_policies AS policy WHERE policy.workspace_id = v.workspace_id AND policy.version = ? AND policy.raw_log_retention_days = ?)" : ""}
+       ) SELECT scope.authorized, (SELECT json_group_array(json_object(
+         'version_id',version_id,'artifact_id',artifact_id,'run_id',run_id,'r2_key',r2_key,
+         'declared_size',declared_size,'available_at',available_at)) FROM current_candidates) AS candidates_json
+       FROM current_scope AS scope)`,
     )
-    .all(workspaceId)) as Array<{
+    .get(
+      ...human.parameters,
+      workspaceId,
+      workspaceId,
+      ...parent.parameters,
+      ...(configuredSystem ? [policy!.version, days] : []),
+    )) as { authorized: number; candidates_json: string };
+  if (!current.authorized) fail("not_found", "operations scope not found");
+  const rows = JSON.parse(current.candidates_json) as Array<{
     version_id: string;
     artifact_id: string;
     run_id: string | null;
@@ -294,6 +354,7 @@ export async function listRetentionEligibleChunks(
     (row) => row.available_at !== null && (row.available_at as string) <= cutoff,
   );
   return {
+    policy,
     cutoff,
     days,
     examined: rows.length,
@@ -782,6 +843,15 @@ export interface StuckUpload {
   age_ms: number;
 }
 
+function uploadRecoveryCutoffs(nowIso: string) {
+  const now = Date.parse(nowIso);
+  if (!Number.isFinite(now)) fail("invalid_argument", "now must be a timestamp");
+  return {
+    created: new Date(now - ARTIFACT_GRANT_TTL_MS - ARTIFACT_ABANDON_GRACE_MS).toISOString(),
+    expiry: new Date(now - ARTIFACT_ABANDON_GRACE_MS).toISOString(),
+  };
+}
+
 /** Uploading versions with no live grant past the grant TTL plus grace. */
 export async function listStuckUploads(
   db: SqlDatabase,
@@ -795,6 +865,7 @@ export async function listStuckUploads(
   }
   const parent = operationsTaskPredicate(access);
   const human = operationsWorkspacePredicate(access, "v");
+  const cutoffs = uploadRecoveryCutoffs(nowIso);
   const rows = (await db
     .prepare(
       `SELECT v.id AS version_id, v.artifact_id, v.created_at
@@ -802,13 +873,12 @@ export async function listStuckUploads(
        JOIN artifacts AS artifact ON artifact.workspace_id = v.workspace_id AND artifact.id = v.artifact_id
        WHERE v.workspace_id = ?
          AND v.state = 'uploading'
-         AND datetime(v.created_at) <= datetime(?, '-1200 seconds')
+         AND v.created_at <= ?
          AND NOT EXISTS (
            SELECT 1 FROM artifact_upload_grants AS g
            WHERE g.workspace_id = v.workspace_id
              AND g.version_id = v.id
-             AND g.consumed_at IS NULL
-             AND datetime(g.expires_at) > datetime(?)
+             AND g.expires_at > ?
          )
          AND (artifact.run_id IS NULL OR EXISTS (
            SELECT 1 FROM runs AS ops_run JOIN tasks AS ops_task
@@ -819,7 +889,13 @@ export async function listStuckUploads(
          )) AND ${human.sql}
        ORDER BY v.created_at ASC`,
     )
-    .all(workspaceId, nowIso, nowIso, ...parent.parameters, ...human.parameters)) as Array<{
+    .all(
+      workspaceId,
+      cutoffs.created,
+      cutoffs.expiry,
+      ...parent.parameters,
+      ...human.parameters,
+    )) as Array<{
     version_id: string;
     artifact_id: string;
     created_at: string;
@@ -897,16 +973,23 @@ export interface QueueState {
   ops_recovery: { applied: number; failed: number };
 }
 
-/** Rechecks both hydrated lists together after composite health/queue awaits. */
+export interface OperationsStuckWork {
+  uploads: StuckUpload[];
+  launches: StuckLaunch[];
+  retention?: RetentionCandidate[];
+}
+
+/** Rechecks all hydrated references and the workspace scope in one final selection. */
 export async function filterOperationsStuckWork(
   db: SqlDatabase,
   workspaceId: string,
   nowIso: string,
-  work: { uploads: StuckUpload[]; launches: StuckLaunch[] },
+  work: OperationsStuckWork,
   access?: TaskAccessContext,
-): Promise<{ uploads: StuckUpload[]; launches: StuckLaunch[] }> {
+): Promise<OperationsStuckWork> {
   const parent = operationsTaskPredicate(access);
   const human = operationsWorkspacePredicate(access, "ops_scope");
+  const cutoffs = uploadRecoveryCutoffs(nowIso);
   const refs = [
     ...work.uploads.map((row) => ({
       kind: "upload",
@@ -914,50 +997,82 @@ export async function filterOperationsStuckWork(
       parent_id: row.artifact_id,
     })),
     ...work.launches.map((row) => ({ kind: "launch", id: row.command_id, parent_id: row.run_id })),
+    ...(work.retention ?? []).map((row) => ({
+      kind: "retention",
+      id: row.version_id,
+      parent_id: row.artifact_id,
+      run_id: row.run_id,
+      r2_key: row.r2_key,
+    })),
   ];
-  if (refs.length === 0) return { uploads: [], launches: [] };
-  const rows = (await db
+  const current = (await db
     .prepare(
-      `SELECT json_extract(ref.value, '$.kind') AS kind, json_extract(ref.value, '$.id') AS id
-     FROM json_each(?) AS ref JOIN (SELECT ? AS workspace_id) AS ops_scope
-     LEFT JOIN artifact_versions AS version ON version.workspace_id = ops_scope.workspace_id
-       AND json_extract(ref.value, '$.kind') = 'upload' AND version.id = json_extract(ref.value, '$.id')
+      `SELECT * FROM (WITH current_scope AS MATERIALIZED (
+       SELECT ops_scope.workspace_id, ${human.sql} AS authorized FROM (SELECT ? AS workspace_id) AS ops_scope
+     ), requested AS MATERIALIZED (
+       SELECT json_extract(ref.value,'$.kind') AS kind,json_extract(ref.value,'$.id') AS id,
+         json_extract(ref.value,'$.parent_id') AS parent_id,json_extract(ref.value,'$.run_id') AS run_id,
+         json_extract(ref.value,'$.r2_key') AS r2_key FROM json_each(?) AS ref
+     ), resolved AS MATERIALIZED (
+       SELECT ref.*, version.state AS version_state,version.created_at,version.available_at,version.r2_key AS version_key,
+         artifact.id AS artifact_id,artifact.run_id AS artifact_run_id,artifact.role AS artifact_role,
+         launch.id AS launch_id,launch.state AS launch_state,launch.expires_at,launch.final_authorized_at,
+         COALESCE(launch.claimed_at,launch.created_at) AS launch_since,ops_task.id AS task_id,
+         scope.workspace_id
+       FROM requested AS ref JOIN current_scope AS scope ON scope.authorized
+     LEFT JOIN artifact_versions AS version ON version.workspace_id = scope.workspace_id
+       AND ref.kind IN ('upload','retention') AND version.id = ref.id
      LEFT JOIN artifacts AS artifact ON artifact.workspace_id = version.workspace_id
-       AND artifact.id = version.artifact_id AND artifact.id = json_extract(ref.value, '$.parent_id')
-     LEFT JOIN launch_commands AS launch ON launch.workspace_id = ops_scope.workspace_id
-       AND json_extract(ref.value, '$.kind') = 'launch' AND launch.id = json_extract(ref.value, '$.id')
-       AND launch.run_id = json_extract(ref.value, '$.parent_id')
-     LEFT JOIN runs AS ops_run ON ops_run.workspace_id = ops_scope.workspace_id
-       AND ops_run.id = CASE json_extract(ref.value, '$.kind') WHEN 'upload' THEN artifact.run_id ELSE launch.run_id END
+       AND artifact.id = version.artifact_id AND artifact.id = ref.parent_id
+     LEFT JOIN launch_commands AS launch ON launch.workspace_id = scope.workspace_id
+       AND ref.kind = 'launch' AND launch.id = ref.id AND launch.run_id = ref.parent_id
+     LEFT JOIN runs AS ops_run ON ops_run.workspace_id = scope.workspace_id
+       AND ops_run.id = CASE WHEN ref.kind = 'launch' THEN launch.run_id ELSE artifact.run_id END
      LEFT JOIN tasks AS ops_task ON ops_task.workspace_id = ops_run.workspace_id
        AND ops_task.id = ops_run.task_id AND ops_task.project_id = ops_run.project_id
-     WHERE ((json_extract(ref.value, '$.kind') = 'upload' AND artifact.id IS NOT NULL
-         AND version.state = 'uploading' AND datetime(version.created_at) <= datetime(?, '-1200 seconds')
+     ), current_tasks AS MATERIALIZED (
+       SELECT ops_task.workspace_id,ops_task.id FROM tasks AS ops_task
+       JOIN (SELECT DISTINCT workspace_id,task_id FROM resolved) AS candidate
+         ON candidate.workspace_id = ops_task.workspace_id AND candidate.task_id = ops_task.id
+       WHERE ${parent.sql}
+     ), permitted AS MATERIALIZED (
+       SELECT ref.kind,ref.id FROM resolved AS ref
+       LEFT JOIN current_tasks AS task ON task.workspace_id = ref.workspace_id AND task.id = ref.task_id
+       WHERE ((ref.kind = 'upload' AND ref.artifact_id IS NOT NULL
+         AND ref.version_state = 'uploading' AND ref.created_at <= ?
          AND NOT EXISTS (SELECT 1 FROM artifact_upload_grants AS upload_grant
-           WHERE upload_grant.workspace_id = version.workspace_id AND upload_grant.version_id = version.id
-             AND upload_grant.consumed_at IS NULL AND datetime(upload_grant.expires_at) > datetime(?)))
-       OR (json_extract(ref.value, '$.kind') = 'launch' AND launch.id IS NOT NULL
-         AND ((launch.state = 'pending' AND datetime(launch.expires_at) <= datetime(?))
-           OR (launch.state = 'claimed' AND launch.final_authorized_at IS NULL
-             AND datetime(COALESCE(launch.claimed_at, launch.created_at)) <= datetime(?, '-600 seconds')))))
-       AND ((json_extract(ref.value, '$.kind') = 'upload' AND artifact.run_id IS NULL)
-         OR (ops_task.id IS NOT NULL AND ${parent.sql}))
-       AND ${human.sql}`,
+           WHERE upload_grant.workspace_id = ref.workspace_id AND upload_grant.version_id = ref.id AND upload_grant.expires_at > ?))
+       OR (ref.kind = 'launch' AND ref.launch_id IS NOT NULL
+         AND ((ref.launch_state = 'pending' AND datetime(ref.expires_at) <= datetime(?))
+           OR (ref.launch_state = 'claimed' AND ref.final_authorized_at IS NULL AND datetime(ref.launch_since) <= datetime(?, '-600 seconds'))))
+       OR (ref.kind = 'retention' AND ${access ? "1" : "0"} AND ref.artifact_id IS NOT NULL AND ref.artifact_role = 'log'
+         AND ref.version_state = 'available' AND ref.artifact_run_id = ref.run_id AND ref.version_key = ref.r2_key
+         AND ref.version_key = 'workspaces/' || ref.workspace_id || '/runs/' || ref.run_id || '/logs/' || ref.id || '.jsonl.zst'
+         AND ref.available_at <= strftime('%Y-%m-%dT%H:%M:%fZ',?, '-' || COALESCE((SELECT raw_log_retention_days FROM retention_policies WHERE workspace_id=ref.workspace_id),${RETENTION_DEFAULT_DAYS}) || ' days')))
+       AND ((ref.kind = 'upload' AND ref.artifact_run_id IS NULL) OR task.id IS NOT NULL)
+     ) SELECT scope.authorized,(SELECT json_group_array(json_object('kind',kind,'id',id)) FROM permitted) AS refs_json
+     FROM current_scope AS scope)`,
     )
-    .all(
-      JSON.stringify(refs),
-      workspaceId,
-      nowIso,
-      nowIso,
-      nowIso,
-      nowIso,
-      ...parent.parameters,
+    .get(
       ...human.parameters,
-    )) as Array<{ kind: string; id: string }>;
+      workspaceId,
+      JSON.stringify(refs),
+      ...parent.parameters,
+      cutoffs.created,
+      cutoffs.expiry,
+      nowIso,
+      nowIso,
+      nowIso,
+    )) as { authorized: number; refs_json: string };
+  if (!current.authorized) fail("not_found", "operations scope not found");
+  const rows = JSON.parse(current.refs_json) as Array<{ kind: string; id: string }>;
   const allowed = new Set(rows.map((row) => `${row.kind}:${row.id}`));
   return {
     uploads: work.uploads.filter((row) => allowed.has(`upload:${row.version_id}`)),
     launches: work.launches.filter((row) => allowed.has(`launch:${row.command_id}`)),
+    ...(work.retention === undefined
+      ? {}
+      : { retention: work.retention.filter((row) => allowed.has(`retention:${row.version_id}`)) }),
   };
 }
 
@@ -1032,8 +1147,11 @@ export async function collectWorkspaceHealth(
   access?: TaskAccessContext,
 ): Promise<WorkspaceHealth> {
   const nowMs = Date.parse(nowIso);
-  const policy = await getRetentionPolicy(db, workspaceId);
-  const retentionList = await listRetentionEligibleChunks(db, workspaceId, nowIso);
+  const retentionList = access
+    ? await listRetentionEligibleChunks(db, workspaceId, nowIso, access)
+    : undefined;
+  const policy =
+    retentionList?.policy ?? (access ? null : await getRetentionPolicy(db, workspaceId));
   const queues = await readQueueState(db, workspaceId, nowIso);
   const stuckUploads = await listStuckUploads(db, workspaceId, nowIso, access);
   const stuckLaunches = await listStuckLaunches(db, workspaceId, nowIso, access);
@@ -1115,6 +1233,7 @@ export async function collectWorkspaceHealth(
     {
       uploads: stuckUploads,
       launches: stuckLaunches,
+      retention: retentionList?.eligible ?? [],
     },
     access,
   );
@@ -1126,7 +1245,7 @@ export async function collectWorkspaceHealth(
       configured: policy !== null,
       days: policy?.raw_log_retention_days ?? RETENTION_DEFAULT_DAYS,
       version: policy?.version ?? null,
-      eligible_chunks: retentionList.eligible.length,
+      eligible_chunks: currentStuck.retention?.length ?? 0,
     },
     queues,
     launches: { stuck: currentStuck.launches },
@@ -1191,13 +1310,247 @@ export interface OpsRecoveryResult {
   detail: Record<string, number | string>;
 }
 
+export interface ResolveStuckUploadInput {
+  versionIds: string[];
+  stepUpProofId: string;
+}
+
+function uploadRecoverySelection(
+  workspaceId: string,
+  ids: string[],
+  access: TaskAccessContext,
+  state: "uploading" | "failed",
+  now: string,
+) {
+  const human = operationsWorkspacePredicate(access, "ops_scope", true);
+  const parent = operationsTaskPredicate(access, "contribute");
+  const cutoffs = uploadRecoveryCutoffs(now);
+  return {
+    sql: `SELECT * FROM (WITH current_owner AS MATERIALIZED (
+      SELECT ops_scope.workspace_id FROM (SELECT ? AS workspace_id) AS ops_scope WHERE ${human.sql}
+    ), requested AS MATERIALIZED (SELECT key AS ref_index,value AS id FROM json_each(?)),
+    resolved AS MATERIALIZED (
+      SELECT requested.ref_index,v.id,v.artifact_id,v.state,v.created_at,artifact.run_id,
+        ops_task.id AS task_id,ops_run.project_id,owner.workspace_id
+      FROM requested JOIN current_owner AS owner ON 1
+      JOIN artifact_versions AS v ON v.workspace_id=owner.workspace_id AND v.id=requested.id
+      JOIN artifacts AS artifact ON artifact.workspace_id=v.workspace_id AND artifact.id=v.artifact_id
+      LEFT JOIN runs AS ops_run ON ops_run.workspace_id=artifact.workspace_id AND ops_run.id=artifact.run_id
+      LEFT JOIN tasks AS ops_task ON ops_task.workspace_id=ops_run.workspace_id AND ops_task.id=ops_run.task_id
+        AND ops_task.project_id=ops_run.project_id
+    ), current_tasks AS MATERIALIZED (
+      SELECT ops_task.workspace_id,ops_task.id FROM tasks AS ops_task
+      JOIN (SELECT DISTINCT workspace_id,task_id FROM resolved) AS candidate
+        ON candidate.workspace_id=ops_task.workspace_id AND candidate.task_id=ops_task.id
+      WHERE ${parent.sql}
+    ), selected AS MATERIALIZED (
+      SELECT target.* FROM resolved AS target LEFT JOIN current_tasks AS task
+        ON task.workspace_id=target.workspace_id AND task.id=target.task_id
+      WHERE target.state=? AND (target.run_id IS NULL OR task.id IS NOT NULL)
+        ${
+          state === "uploading"
+            ? `AND target.created_at <= ? AND NOT EXISTS (
+          SELECT 1 FROM artifact_upload_grants AS upload_grant WHERE upload_grant.workspace_id=target.workspace_id
+            AND upload_grant.version_id=target.id AND upload_grant.expires_at > ?)`
+            : ""
+        }
+    ) SELECT (SELECT json_group_array(json_array(id,artifact_id,run_id,task_id,project_id,state,created_at))
+      FROM (SELECT * FROM selected ORDER BY ref_index)) AS witness
+    FROM current_owner WHERE (SELECT COUNT(*) FROM selected) = ?)`,
+    parameters: [
+      workspaceId,
+      ...human.parameters,
+      JSON.stringify(ids),
+      ...parent.parameters,
+      state,
+      ...(state === "uploading" ? [cutoffs.created, cutoffs.expiry] : []),
+      ids.length,
+    ],
+  };
+}
+
+/** Final browser delivery requires current Owner/shared-parent access to failed targets. */
+export async function assertOperationsUploadRecoveryAccess(
+  db: SqlDatabase,
+  workspaceId: string,
+  versionIds: string[],
+  access: TaskAccessContext,
+): Promise<void> {
+  if (!access) fail("not_found", "upload recovery target not found");
+  const ids = ulidList(versionIds, "versionIds");
+  const selection = uploadRecoverySelection(
+    workspaceId,
+    ids,
+    access,
+    "failed",
+    new Date().toISOString(),
+  );
+  if (!(await db.prepare(selection.sql).get(...selection.parameters)))
+    fail("not_found", "upload recovery target not found");
+}
+
+const recoveryLedgerWitness = `json_array(kind,target_json,state,attempt_count,result_json,created_by_human_id,created_at,updated_at)`;
+const recoveryProofWitness = `json_array(human_id,action,client_id,resource,boundary_json,scopes_json,authorization_epoch,expires_at,created_at,consumed_at)`;
+
+async function prepareUploadRecovery(input: ResolveStuckUploadInput, ctx: HubContext) {
+  closedObject(input, ["versionIds", "stepUpProofId"], "upload recovery");
+  const ids = ulidList(input.versionIds, "versionIds");
+  if (ctx.actorRunnerId || ctx.actorSystemId) fail("forbidden", "direct authorized human required");
+  const principal = await requireOwner(ctx);
+  const targetJson = JSON.stringify({ version_ids: ids });
+  const actionId = recoveryActionId("resolve_stuck_upload", { version_ids: ids });
+  const stored = (await ctx.db
+    .prepare(
+      `SELECT kind,target_json,state,result_json,${recoveryLedgerWitness} AS witness
+    FROM ops_recovery_ledger WHERE workspace_id=? AND action_id=?`,
+    )
+    .get(ctx.workspaceId, actionId)) as
+    | { kind: string; target_json: string; state: string; result_json: string; witness: string }
+    | undefined;
+  if (stored) {
+    let result: unknown;
+    try {
+      result = JSON.parse(stored.result_json);
+    } catch {
+      fail("not_found", "upload recovery target not found");
+    }
+    if (
+      stored.kind !== "resolve_stuck_upload" ||
+      stored.target_json !== targetJson ||
+      stored.state !== "applied" ||
+      !result ||
+      typeof result !== "object" ||
+      Array.isArray(result) ||
+      Object.keys(result).length !== 1 ||
+      !Object.hasOwn(result, "resolved") ||
+      (result as { resolved: unknown }).resolved !== ids.length
+    )
+      fail("not_found", "upload recovery target not found");
+  }
+  const proof = (await ctx.db
+    .prepare(
+      `SELECT ${recoveryProofWitness} AS witness FROM passkey_step_up_proofs WHERE proof_id=?`,
+    )
+    .get(input.stepUpProofId)) as { witness: string } | undefined;
+  const consume = await prepareStepUp(
+    ctx,
+    input.stepUpProofId,
+    "ops.recover",
+    `ops-recover:resolve_stuck_upload:${ctx.workspaceId}`,
+  );
+  const access: TaskAccessContext = {
+    workspaceId: ctx.workspaceId,
+    humanId: principal.humanId,
+    authorizationEpoch: ctx.authorizationEpoch,
+  };
+  const selection = uploadRecoverySelection(
+    ctx.workspaceId,
+    ids,
+    access,
+    stored ? "failed" : "uploading",
+    ctx.now,
+  );
+  const targets = (await ctx.db.prepare(selection.sql).get(...selection.parameters)) as
+    { witness: string } | undefined;
+  if (!targets) fail("not_found", "upload recovery target not found");
+  return { ids, principal, actionId, targetJson, stored, consume, selection, targets, proof };
+}
+
+async function guardRecovery(ctx: HubContext, predicate: string, parameters: unknown[]) {
+  const id = randomUlid();
+  await ctx.db
+    .prepare(
+      `INSERT INTO artifact_mutation_guards (id,valid) SELECT ?,CASE WHEN (${predicate}) THEN 1 ELSE 0 END`,
+    )
+    .run(id, ...parameters);
+  await ctx.db.prepare("DELETE FROM artifact_mutation_guards WHERE id=?").run(id);
+}
+
+/** Current authority, proof, targets, abandonment and receipts commit through the Hub lane. */
+export const resolveStuckUploadCommand: HubCommand<ResolveStuckUploadInput, OpsRecoveryResult> = {
+  name: "ops.recovery.resolve_stuck_upload",
+  replay: "reject",
+  auditInput: (input) => ({ version_ids: input.versionIds }),
+  auditResult: (result) => ({
+    action_id: result.action_id,
+    kind: result.kind,
+    replayed: result.replayed,
+    resolved: result.detail.resolved,
+  }),
+  async authorize(input, ctx) {
+    await prepareUploadRecovery(input, { ...ctx, now: new Date().toISOString() });
+  },
+  async run(input, ctx) {
+    const prepared = await prepareUploadRecovery(input, ctx);
+    // Every source is selected together; compare its exact association/state
+    // witness again inside the same batch, before consuming proof or changing rows.
+    await guardRecovery(ctx, `(SELECT witness FROM (${prepared.selection.sql})) = ?`, [
+      ...prepared.selection.parameters,
+      prepared.targets.witness,
+    ]);
+    await guardRecovery(
+      ctx,
+      prepared.stored
+        ? `EXISTS (SELECT 1 FROM ops_recovery_ledger WHERE workspace_id=? AND action_id=? AND ${recoveryLedgerWitness}=?)`
+        : `NOT EXISTS (SELECT 1 FROM ops_recovery_ledger WHERE workspace_id=? AND action_id=?)`,
+      [ctx.workspaceId, prepared.actionId, ...(prepared.stored ? [prepared.stored.witness] : [])],
+    );
+    await guardRecovery(
+      ctx,
+      `EXISTS (SELECT 1 FROM passkey_step_up_proofs WHERE proof_id=? AND ${recoveryProofWitness}=?)`,
+      [input.stepUpProofId, prepared.proof!.witness],
+    );
+    await prepared.consume();
+    if (!prepared.stored) {
+      for (const versionId of prepared.ids) {
+        await ctx.db
+          .prepare(
+            "UPDATE artifact_versions SET state='failed' WHERE workspace_id=? AND id=? AND state='uploading'",
+          )
+          .run(ctx.workspaceId, versionId);
+        await ctx.db
+          .prepare(
+            `INSERT INTO artifact_audit_outbox (workspace_id,id,version_id,grant_id,action,payload_json,created_at)
+          VALUES (?,?,?,NULL,'artifact.abandoned',?,?)`,
+          )
+          .run(
+            ctx.workspaceId,
+            randomUlid(),
+            versionId,
+            JSON.stringify({ version_id: versionId }),
+            ctx.now,
+          );
+      }
+      await ctx.db
+        .prepare(
+          `INSERT INTO ops_recovery_ledger (workspace_id,action_id,kind,target_json,state,attempt_count,result_json,created_by_human_id,created_at,updated_at)
+        VALUES (?,?,'resolve_stuck_upload',?,'applied',1,?,?,?,?)`,
+        )
+        .run(
+          ctx.workspaceId,
+          prepared.actionId,
+          prepared.targetJson,
+          JSON.stringify({ resolved: prepared.ids.length }),
+          prepared.principal.humanId,
+          ctx.now,
+          ctx.now,
+        );
+    }
+    return {
+      action_id: prepared.actionId,
+      kind: "resolve_stuck_upload",
+      replayed: !!prepared.stored,
+      detail: { resolved: prepared.ids.length },
+    };
+  },
+};
+
 /**
  * Applies one privileged recovery idempotently. Retries with an identical
  * target return the stored outcome without touching domain state again.
- * Every effect reuses the owning package's own convergence mechanism:
- * notification redispatch rewinds the X01 watermark, GitHub requeue resets
- * rows the X04 reconciler already converges, and stuck-upload resolution
- * applies the exact V01 abandonment predicate.
+ * Notification redispatch rewinds the X01 watermark and GitHub requeue resets
+ * rows the X04 reconciler already converges. Upload resolution is rejected
+ * here and uses the explicit proof-bound WorkspaceHub command instead.
  */
 export async function applyOpsRecovery(input: {
   db: SqlDatabase;
@@ -1211,6 +1564,8 @@ export async function applyOpsRecovery(input: {
   if (!OPS_RECOVERY_KINDS.includes(input.kind)) {
     fail("invalid_argument", `unknown recovery kind ${input.kind}`);
   }
+  if (input.kind === "resolve_stuck_upload")
+    fail("request_rejected", "upload recovery requires WorkspaceHub");
   const actionId = recoveryActionId(input.kind, input.target);
   const stored = (await db
     .prepare(
@@ -1349,30 +1704,7 @@ async function runRecoveryEffect(
       return { requeued };
     }
     case "resolve_stuck_upload": {
-      const body = closedObject(target, ["version_ids"], "stuck upload resolution");
-      const ids = ulidList(body.version_ids, "version_ids");
-      const stuck = await listStuckUploads(db, workspaceId, now);
-      const stuckIds = new Set(stuck.map((entry) => entry.version_id));
-      for (const id of ids) {
-        if (!stuckIds.has(id)) {
-          fail("invalid_argument", `artifact version ${id} is not a stuck upload`);
-        }
-      }
-      for (const id of ids) {
-        await db
-          .prepare(
-            `UPDATE artifact_versions SET state = 'failed'
-             WHERE workspace_id = ? AND id = ? AND state = 'uploading'`,
-          )
-          .run(workspaceId, id);
-        await db
-          .prepare(
-            `INSERT INTO artifact_audit_outbox (workspace_id, id, version_id, grant_id, action, payload_json, created_at)
-             VALUES (?, ?, ?, NULL, 'artifact.abandoned', ?, ?)`,
-          )
-          .run(workspaceId, randomUlid(), id, JSON.stringify({ version_id: id }), now);
-      }
-      return { resolved: ids.length };
+      fail("request_rejected", "upload recovery requires WorkspaceHub");
     }
     case "clear_recovery_state": {
       const body = closedObject(target, ["action_ids"], "recovery clearing");

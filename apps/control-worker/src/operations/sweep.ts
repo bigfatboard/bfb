@@ -2,7 +2,7 @@
 // ABOUTME: Each step is isolated; an operations failure never blocks artifact, GitHub, or notify sweeps.
 
 import type { SqlDatabase } from "@bfb/db";
-import { listRetentionEligibleChunks, markVersionRetained, randomUlid } from "@bfb/domain";
+import { listSystemRetentionEligibleChunks, markVersionRetained, randomUlid } from "@bfb/domain";
 
 export interface RetentionR2 {
   delete(key: string): Promise<unknown>;
@@ -53,7 +53,7 @@ export async function runRetentionSweep(
       if (!policy) {
         continue;
       }
-      const listed = await listRetentionEligibleChunks(db, workspace.id, now);
+      const listed = await listSystemRetentionEligibleChunks(db, workspace.id, now);
       examined = listed.examined;
       for (const chunk of listed.eligible) {
         try {

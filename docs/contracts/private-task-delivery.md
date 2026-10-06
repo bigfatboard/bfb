@@ -207,9 +207,53 @@ in one final query after other awaited reads; an earlier list cannot survive
 parent or credential loss during later hydration.
 Do not operate providers or change launch lifecycle through these read repairs.
 These content selectors do not certify queue/audit totals, frozen diagnostic
-snapshots, retention/recovery targets or raw positions; those remain activation
-barriers with separate lineage and count proofs. Never disable a route merely
-because a private record exists, since that response would expose its presence.
+snapshots or raw positions; those remain activation barriers with separate
+lineage and count proofs. Never disable a route merely because a private record
+exists, since that response would expose its presence.
+
+The next bounded retention/recovery slice has the following contract; its
+implementation requires a separate clean checkpoint before it is certified:
+
+- Human retention selection requires an explicit retained human access context,
+  current owner/member membership, epoch and project authority. It remains
+  shared-only even for private creators and grantees. Resolve the exact version,
+  artifact, run and task with matching workspace/project; a run-free log or
+  dangling parent is unavailable. The key must exactly equal
+  `workspaces/<workspace>/runs/<run>/logs/<version>.jsonl.zst`. Both `examined`
+  and `eligible` count only authorized canonical candidates. Composite health
+  delivery rechecks eligible references with its stuck-work references in one
+  final selection after other awaits.
+- Configured system retention has a separately named internal selector with
+  the same exact lineage/key requirement and an explicit configured policy.
+  Missing human context never means owner authority. Its existing workspace
+  policy semantics are distinct from human read authority; private destructive
+  retention and its lifecycle/count projections remain uncertified. This slice
+  does not change R2 deletion or version-marking policy.
+- `ops.recovery.resolve_stuck_upload` is a direct-human, current-Owner Hub
+  command. It accepts `versionIds` and `stepUpProofId`; the existing browser
+  recovery body and nested `result.replayed` remain unchanged. Shared task
+  targets require current contribution authority; genuine run-free uploads
+  retain workspace authority. Private, missing and non-stuck targets have one
+  fixed resource denial. Duplicate or malformed input rejects before effects.
+- Every invocation needs a fresh action-bound `ops.recover` proof for target
+  `ops-recover:resolve_stuck_upload:<workspace>`. Hub replay is rejected; the
+  browser uses a bounded request/proof-bound key. Target-ledger replay happens
+  within the command only after current authority checks, matching kind/target,
+  a closed `{resolved: number}` result and failed terminal targets. Historical
+  creator metadata cannot supply current authority.
+- Reads precede writes. One batch repeats current Owner/epoch, exact parent,
+  expected ledger state and every target's exact V01 abandonment witnesses
+  (uploading, created beyond the 15-minute TTL plus five-minute grace, with no
+  grant expiring within that grace even when consumed),
+  then commits proof consumption, abandonment effects, target ledger and safe
+  Hub audit together. Failure rolls back the complete batch. Final browser
+  delivery rechecks current target authority after the awaited Hub response;
+  later revocation can hide the response without undoing a valid prior commit.
+  The old unguarded resolution path is unavailable. The other recovery kinds
+  keep their existing contract until their own privacy slices are implemented.
+
+These checks preserve the shared authorization-clock semantics and do not
+certify natural expiry during an in-flight batch or complete operations privacy.
 
 ## Delivery inventory and required proof
 

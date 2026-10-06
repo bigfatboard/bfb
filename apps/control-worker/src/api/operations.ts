@@ -1,12 +1,13 @@
 // ABOUTME: Serves Owner-gated operations reads, privileged recovery, retention, and diagnostics.
-// ABOUTME: Recovery runs outside hub transactions; audit rows carry only sanitized fields.
+// ABOUTME: Stuck-upload recovery commits through the Hub; historical recovery retains sanitized audit rows.
 
-import { createHmac } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 
 import { createAuthorizationContext, type SqlDatabase } from "@bfb/db";
 import {
   abuseBucketKey,
   applyOpsRecovery,
+  assertOperationsUploadRecoveryAccess,
   assertRole,
   checkOperationsTables,
   collectWorkspaceHealth,
@@ -16,7 +17,6 @@ import {
   diagnosticR2Key,
   DomainError,
   filterOperationsStuckWork,
-  getRetentionPolicy,
   listRetentionEligibleChunks,
   listStuckLaunches,
   listStuckUploads,
@@ -26,6 +26,7 @@ import {
   readActivityFeed,
   readQueueState,
   readSecurityAudit,
+  resolveStuckUploadCommand,
   sanitizeDiagnosticValue,
   setRetentionPolicyCommand,
   validateStepUpProof,
@@ -323,8 +324,12 @@ export async function handleOperationsApi(
     }
     if (request.method === "GET" && (tail === "/retention" || tail === "/retention/")) {
       assertRole(principal, ["owner", "member"]);
-      const policy = await getRetentionPolicy(deps.db, workspaceId);
-      const candidates = await listRetentionEligibleChunks(deps.db, workspaceId, deps.now);
+      const { policy, ...candidates } = await listRetentionEligibleChunks(
+        deps.db,
+        workspaceId,
+        deps.now,
+        principal,
+      );
       return json({ ok: true, policy, eligible: candidates });
     }
     if (request.method === "GET" && (tail === "/diagnostics" || tail === "/diagnostics/")) {
@@ -382,9 +387,47 @@ export async function handleOperationsApi(
         throw new DomainError("invalid_argument", "recovery target is required");
       }
       const typedTarget = target as Record<string, unknown>;
+      const recoveryRequestId = requestId(body);
+      const proofId = requiredString(body, "step_up_proof_id");
+      if (kind === "resolve_stuck_upload") {
+        const uploadTarget = objectBody(typedTarget, ["version_ids"]);
+        if (!Array.isArray(uploadTarget.version_ids)) {
+          throw new DomainError("invalid_argument", "version_ids must be an array");
+        }
+        const versionIds = uploadTarget.version_ids as string[];
+        const key = createHash("sha256")
+          .update(JSON.stringify([recoveryRequestId, proofId]))
+          .digest("hex");
+        const outcome = await executeWorkspaceCommand(
+          {
+            db: deps.db,
+            workspaceHubNs: deps.workspaceHubNs,
+            authorization: createAuthorizationContext({
+              workspaceId,
+              principalId: principal.humanId,
+              authorizationEpoch: principal.authorizationEpoch,
+              jurisdiction: deps.jurisdiction,
+            }),
+          },
+          resolveStuckUploadCommand,
+          {
+            workspaceId,
+            idempotencyKey: `ops.recovery.${key}`,
+            actorHumanId: principal.humanId,
+            authorizationEpoch: principal.authorizationEpoch,
+            now: deps.now,
+            input: { versionIds, stepUpProofId: proofId },
+          },
+        );
+        if (!outcome.ok) {
+          return failure(new DomainError(outcome.error.code, outcome.error.message));
+        }
+        await assertOperationsUploadRecoveryAccess(deps.db, workspaceId, versionIds, principal);
+        return json({ ok: true, result: outcome.result });
+      }
       await consumeRecoveryProof(
         deps,
-        requiredString(body, "step_up_proof_id"),
+        proofId,
         "ops.recover",
         `ops-recover:${kind}:${workspaceId}`,
         principal.humanId,
@@ -400,7 +443,6 @@ export async function handleOperationsApi(
       });
       // Audit ids are server-generated: a replayed recovery shares the
       // caller's request_id, so the id must be unique per call.
-      requestId(body);
       await deps.db
         .prepare(
           `INSERT INTO audit_events (workspace_id, audit_id, actor_principal_id, action, payload_json, created_at)

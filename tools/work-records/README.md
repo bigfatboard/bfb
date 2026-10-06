@@ -16,8 +16,16 @@ It also checks run-bound artifact metadata, conditional view-grant redemption,
 measurements and review-timer permissions/cache revocation. Artifact bytes are
 not uploaded to R2 by this harness. The partial metadata slice also proves
 shared-only stuck-upload selection and retained-epoch denial on real D1,
-including run-free workspace uploads. It does not certify diagnostic snapshots,
-audit/queue totals or recovery targets. Exact artifact-version evidence is checked
+including run-free workspace uploads. Human retention reads prove visible-only
+canonical log parents/keys and a separate configured-system selector. Exact
+upload recovery runs through the production Hub on two independent Workers;
+fresh-proof target-ledger retries converge without duplicate abandonment effects.
+An independent consumed live grant inserted before the real D1 batch rolls back
+proof consumption, version changes, recovery ledger, outbox and audit effects.
+Current-scope sentinels reject stale membership epochs even when a final composite
+has no references. These bounded checks do not certify diagnostic snapshots,
+audit/queue totals, other recovery kinds or private destructive retention.
+Exact artifact-version evidence is checked
 with human, originating-run and task-bound delegation ceilings, including current
 scope denial. Independent source privatization before a real D1 result batch
 rolls back submission, state, receipt and audit effects. Historical malformed

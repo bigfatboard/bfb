@@ -25,6 +25,8 @@ import { createTestHarness } from "wrangler";
 
 /** Evidence JSON must match the repository Prettier style so regeneration stays byte-identical. */
 async function writeJson(path: string, value: unknown): Promise<void> {
+  // Dated package evidence belongs to its original migration-head drill.
+  if (manifest.migration_head !== "0034_operations") return;
   const options = (await resolveConfig(path)) ?? {};
   await writeFile(
     path,
@@ -792,7 +794,7 @@ async function main(): Promise<void> {
         target: { version_ids: [randomUlid()] },
         step_up_proof_id: liveProof,
       });
-      assert.equal(liveDenied.status, 400);
+      assert.equal(liveDenied.status, 404);
       note("D5", "stuck upload resolved once, replayed on retry, live versions rejected");
       pass("D5-stuck-upload");
     }
@@ -867,20 +869,26 @@ async function main(): Promise<void> {
     {
       const oldAt = new Date(Date.parse(now) - 60 * 24 * 60 * 60_000).toISOString();
       const freshAt = new Date(Date.parse(now) - 24 * 60 * 60_000).toISOString();
+      const logParent = (await db
+        .prepare(
+          `SELECT run.id FROM runs AS run JOIN tasks AS task
+           ON task.workspace_id = run.workspace_id AND task.id = run.task_id
+             AND task.project_id = run.project_id
+           WHERE run.workspace_id = ? AND run.project_id = ? ORDER BY run.id LIMIT 1`,
+        )
+        .get(FIX.workspace, FIX.projectA)) as { id: string } | undefined;
+      assert.ok(logParent, "retention fixture has an exact synthetic task/run parent");
       const chunks: Array<{ version: string; key: string }> = [];
-      for (const [at, run] of [
-        [oldAt, "01JX05OLD00000000000000001"],
-        [freshAt, "01JX05FRESH000000000000001"],
-      ] as const) {
+      for (const at of [oldAt, freshAt]) {
         const artifact = randomUlid();
         const version = randomUlid();
-        const key = `workspaces/${FIX.workspace}/runs/${run}/logs/${version}.jsonl.zst`;
+        const key = `workspaces/${FIX.workspace}/runs/${logParent.id}/logs/${version}.jsonl.zst`;
         await db
           .prepare(
             `INSERT INTO artifacts (workspace_id, id, run_id, format, role, created_by_human_id, created_at)
-             VALUES (?, ?, NULL, 'log', 'log', ?, ?)`,
+             VALUES (?, ?, ?, 'log', 'log', ?, ?)`,
           )
-          .run(FIX.workspace, artifact, FIX.owner, at);
+          .run(FIX.workspace, artifact, logParent.id, FIX.owner, at);
         await db
           .prepare(
             `INSERT INTO artifact_versions (workspace_id, id, artifact_id, state, format, declared_size, expected_digest, content_hash, r2_key, created_at, available_at)
@@ -1164,7 +1172,24 @@ async function main(): Promise<void> {
       pass("D11-redaction");
     }
 
-    await writeFile(resolve(evidenceDir, "drill.jsonl"), `${traces.join("\n")}\n`);
+    if (manifest.migration_head === "0034_operations") {
+      await writeFile(resolve(evidenceDir, "drill.jsonl"), `${traces.join("\n")}\n`);
+    } else {
+      console.log(
+        JSON.stringify({
+          package: "X05",
+          stage: "current_migration_runtime_regression",
+          migration_head: manifest.migration_head,
+          scenarios: scenarioResults,
+          outcome: "passed",
+          limits: [
+            "synthetic Worker/D1/R2/Queue drill, not deployed operations",
+            "not complete C11 operations privacy",
+            "historical package dependency hold unchanged",
+          ],
+        }),
+      );
+    }
     console.log("X05_DRILL_OK all scenarios passed");
   } catch (error) {
     for (const entry of server.getLogs().slice(-15)) {

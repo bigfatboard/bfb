@@ -63,16 +63,33 @@ interprets provider-specific capability fields.
     validated before the first write, so a rejected target leaves all rows
     untouched and writes no ledger row.
   - `resolve_stuck_upload` `{version_ids: ULID[1..50]}` — only versions in
-    `uploading` with no live grant past TTL plus grace move to `failed`,
+    `uploading` beyond TTL plus grace, with no grant expiry within the
+    five-minute grace even when consumed, move to `failed`,
     with an `artifact.abandoned` audit-outbox row (the exact V01
     abandonment predicate). Anything else is rejected.
   - `clear_recovery_state` `{action_ids: string[1..50]}` — deletes ledger
     rows so a failed recovery can be attempted again.
-- Every recovery writes one `audit_events` row (`ops.recover`) with the
-  sanitized kind, action id, and replay flag.
-- Recovery runs outside hub transactions (D1 batches forbid reads after a
-  queued write); the step-up consume uses the same single-winner guarded
-  UPDATE the hub commands use.
+- Each historical recovery writes one `audit_events` row (`ops.recover`) with
+  the sanitized kind, action id, and replay flag. The C11 Hub command writes
+  its safe command-named audit receipt in the atomic batch instead.
+- Historical recovery runs outside hub transactions because its effects
+  interleave reads and writes. C11 narrows this exception for stuck-upload
+  resolution: `ops.recovery.resolve_stuck_upload` reads all targets before
+  queuing writes, and serializes through WorkspaceHub. Its proof, current
+  authority/state guards, artifact effects, target ledger and safe Hub audit
+  commit atomically. The other three kinds retain the historical path.
+- The C11 command accepts `{versionIds, stepUpProofId}` while the browser keeps
+  the existing recovery body and nested result shape. It rejects Hub cache
+  replay, uses a request/proof-bound key and requires a fresh proof for each
+  target-ledger retry. Current Owner/retained epoch and shared-parent contribution
+  authority apply on fresh and stored outcomes; genuine run-free uploads use
+  workspace authority. The old unguarded resolution branch is unavailable.
+  Private, absent and non-stuck targets have one resource denial. A stored
+  outcome must match kind/target and a closed resolved-count result, with current
+  failed targets, before delivery. The browser rechecks after Hub response
+  hydration. Later revocation hides stale success without reversing valid
+  committed work. See the [C11 contract](private-task-delivery.md) for the
+  checkpoint and remaining activation limits.
 
 ## Retention policy and sweep
 
@@ -88,6 +105,17 @@ interprets provider-specific capability fields.
   Review artifacts, shared content-addressed bytes, D1 rows, hashes, and
   metadata are never eligible. Already purged versions (state `retained`)
   are never eligible again.
+- C11 tightens human retention reads to an explicit current owner/member access
+  context and shared-only exact version→artifact→run→task/project lineage. Keys
+  must equal `workspaces/<ws>/runs/<run>/logs/<version>.jsonl.zst`; run-free logs,
+  dangling parents and mismatched keys are omitted before read counts. Health
+  rechecks eligible references with stuck work in its final selection.
+- Configured system selection is separately named and requires a configured
+  policy plus exact lineage/key binding; no missing human context implies Owner
+  read access. Existing configured workspace-policy authority is not human
+  authority. Private destructive retention, its lifecycle/count projections and
+  full operations privacy remain uncertified; this slice does not change R2
+  deletion or version marking.
 - The Cron sweep (`runRetentionSweep`, also deliverable as an OPS queue
   `retention.sweep` message) deletes only eligible R2 objects, moves each
   purged version to `retained` with its hash, key, and metadata preserved
@@ -134,8 +162,9 @@ interprets provider-specific capability fields.
     recovery ledger rows.
   - `launches.stuck`: pending commands past expiry; claimed commands
     without final authorization older than 10 minutes.
-  - `uploads.stuck`: uploading versions with no live grant past the
-    15-minute grant TTL plus 5-minute grace (same predicate as the V01 sweep).
+  - `uploads.stuck`: uploading versions older than the 15-minute TTL plus
+    five-minute grace, with no grant expiry within that grace even when consumed
+    (the same predicate as the V01 sweep).
   - `tokens`: runner tokens revoked-null and expiring within 24h; active
     API key bindings. Secret/key presence (VAPID, webhook, auth keys) is
     reported as configured flags by the Worker, never values.
@@ -159,3 +188,6 @@ interprets provider-specific capability fields.
 
 - Test target: `pnpm test:x05`.
 - Evidence manifest: `docs/work-packages/evidence/WP-X05/manifest.json`.
+- The drill retains dated evidence only at its original `0034_operations`
+  migration head. Current-head regression runs report bounded scenario outcomes
+  to their command log; they do not replace the historical package certificate.

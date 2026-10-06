@@ -1,7 +1,7 @@
 // ABOUTME: Proves X05 retention, redaction, audit/activity, recovery, and health behavior.
 // ABOUTME: Stale, replayed, missing, and action-mismatched step-up proofs fail privileged operations.
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { SqlDatabase } from "@bfb/db";
 
@@ -24,12 +24,15 @@ import {
   readActivityFeed,
   readQueueState,
   readSecurityAudit,
+  resolveStuckUploadCommand,
   renderDiagnosticInventory,
   sanitizeDiagnosticValue,
   scanDiagnosticText,
   setRetentionPolicyCommand,
 } from "../src/operations.js";
 import { issueStepUpProof } from "../src/step-up.js";
+import { createTaskCommand } from "../src/work-commands.js";
+import { createRunCommand } from "../src/work-records.js";
 import { randomUlid } from "../src/ids.js";
 import { openDomainDb } from "./helpers.js";
 import { launchFixture, success } from "./launch-fixture.js";
@@ -39,6 +42,7 @@ import { fileURLToPath } from "node:url";
 
 const NOW = "2026-09-18T12:00:00.000Z";
 const LATER = "2026-09-18T12:20:00.000Z";
+const ACCESS = { workspaceId: FIX.workspace, humanId: FIX.owner, authorizationEpoch: 1 };
 
 function hub(db: SqlDatabase): WorkspaceHub {
   return new WorkspaceHub(db);
@@ -187,20 +191,50 @@ describe("retention eligibility", () => {
   async function seedArtifacts(db: SqlDatabase) {
     const old = "2026-07-01T12:00:00.000Z";
     const fresh = "2026-09-17T12:00:00.000Z";
+    const task = success(
+      await hub(db).execute(createTaskCommand, {
+        workspaceId: FIX.workspace,
+        actorHumanId: FIX.member,
+        authorizationEpoch: 1,
+        idempotencyKey: randomUlid(),
+        now: NOW,
+        input: { projectId: FIX.projectA, title: "Synthetic retention parent", priority: "P2" },
+      }),
+    );
+    const run = success(
+      await hub(db).execute(createRunCommand, {
+        workspaceId: FIX.workspace,
+        actorHumanId: FIX.owner,
+        authorizationEpoch: 1,
+        idempotencyKey: randomUlid(),
+        now: NOW,
+        input: {
+          taskId: task.id,
+          expectedTaskVersion: 1,
+          agentProfileId: FIX.profileCodex,
+          workspacePolicyVersion: 1,
+          projectPolicyVersion: 1,
+          repositoryConfigVersion: 1,
+          agentProfileVersion: 1,
+        },
+      }),
+    );
+    const oldVersion = randomUlid();
+    const freshVersion = randomUlid();
     const rows = [
       {
-        id: randomUlid(),
+        id: oldVersion,
         role: "log",
         format: "log",
-        key: `workspaces/${FIX.workspace}/runs/01JRUN00000000000000000001/logs/v1.jsonl.zst`,
+        key: `workspaces/${FIX.workspace}/runs/${run.run.id}/logs/${oldVersion}.jsonl.zst`,
         at: old,
         eligible: true,
       },
       {
-        id: randomUlid(),
+        id: freshVersion,
         role: "log",
         format: "log",
-        key: `workspaces/${FIX.workspace}/runs/01JRUN00000000000000000001/logs/v2.jsonl.zst`,
+        key: `workspaces/${FIX.workspace}/runs/${run.run.id}/logs/${freshVersion}.jsonl.zst`,
         at: fresh,
         eligible: false,
       },
@@ -226,9 +260,9 @@ describe("retention eligibility", () => {
       await db
         .prepare(
           `INSERT INTO artifacts (workspace_id, id, run_id, format, role, created_by_human_id, created_at)
-           VALUES (?, ?, NULL, ?, ?, ?, ?)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
         )
-        .run(FIX.workspace, artifact, row.format, row.role, FIX.owner, row.at);
+        .run(FIX.workspace, artifact, run.run.id, row.format, row.role, FIX.owner, row.at);
       await db
         .prepare(
           `INSERT INTO artifact_versions (workspace_id, id, artifact_id, state, format, declared_size, expected_digest, content_hash, r2_key, created_at, available_at)
@@ -259,7 +293,7 @@ describe("retention eligibility", () => {
       `ops-retention:${FIX.workspace}`,
     );
     expect((await setRetention(db, 30, proof)).ok).toBe(true);
-    const found = await listRetentionEligibleChunks(db, FIX.workspace, NOW);
+    const found = await listRetentionEligibleChunks(db, FIX.workspace, NOW, ACCESS);
     expect(found.days).toBe(30);
     expect(found.examined).toBe(2);
     expect(found.eligible.map((entry) => entry.version_id)).toEqual([
@@ -270,7 +304,7 @@ describe("retention eligibility", () => {
   it("keeps every D1 row, hash, and metadata intact after the sweep window", async () => {
     const db = await openDomainDb();
     await seedArtifacts(db);
-    const found = await listRetentionEligibleChunks(db, FIX.workspace, NOW);
+    const found = await listRetentionEligibleChunks(db, FIX.workspace, NOW, ACCESS);
     expect(found.eligible.length).toBe(1);
     const versions = (await db
       .prepare(`SELECT COUNT(*) AS count FROM artifact_versions`)
@@ -293,7 +327,7 @@ describe("retention eligibility", () => {
     expect(
       await markVersionRetained(db, { workspaceId: FIX.workspace, versionId: randomUlid() }),
     ).toBe(false);
-    const found = await listRetentionEligibleChunks(db, FIX.workspace, NOW);
+    const found = await listRetentionEligibleChunks(db, FIX.workspace, NOW, ACCESS);
     expect(found.eligible).toEqual([]);
     expect(found.examined).toBe(1);
     const row = (await db
@@ -732,27 +766,41 @@ describe("privileged recovery", () => {
       .run(FIX.workspace, version, artifact, "f".repeat(64), "2026-09-18T10:00:00.000Z");
     const stuck = await listStuckUploads(db, FIX.workspace, NOW);
     expect(stuck.map((entry) => entry.version_id)).toEqual([version]);
-    const resolved = await applyOpsRecovery({
-      db,
-      workspaceId: FIX.workspace,
-      kind: "resolve_stuck_upload",
-      target: { version_ids: [version] },
-      actorHumanId: FIX.owner,
-      now: NOW,
-    });
+    // Authorization observes server Date, independent of the command's observed time.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(NOW));
+    const resolve = async () =>
+      success(
+        await hub(db).execute(resolveStuckUploadCommand, {
+          workspaceId: FIX.workspace,
+          actorHumanId: FIX.owner,
+          authorizationEpoch: 1,
+          idempotencyKey: randomUlid(),
+          now: NOW,
+          input: {
+            versionIds: [version],
+            stepUpProofId: await stepUp(
+              db,
+              FIX.owner,
+              OPS_STEP_UP_ACTIONS.recover,
+              `ops-recover:resolve_stuck_upload:${FIX.workspace}`,
+            ),
+          },
+        }),
+      );
+    let resolved;
+    let replay;
+    try {
+      resolved = await resolve();
+      replay = await resolve();
+    } finally {
+      vi.useRealTimers();
+    }
     expect(resolved.detail).toEqual({ resolved: 1 });
     const state = (await db
       .prepare(`SELECT state FROM artifact_versions WHERE workspace_id = ? AND id = ?`)
       .get(FIX.workspace, version)) as { state: string };
     expect(state.state).toBe("failed");
-    const replay = await applyOpsRecovery({
-      db,
-      workspaceId: FIX.workspace,
-      kind: "resolve_stuck_upload",
-      target: { version_ids: [version] },
-      actorHumanId: FIX.owner,
-      now: NOW,
-    });
     expect(replay.replayed).toBe(true);
     const cleared = await applyOpsRecovery({
       db,

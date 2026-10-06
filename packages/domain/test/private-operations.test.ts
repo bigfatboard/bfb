@@ -294,17 +294,17 @@ describe("private operations content selectors", () => {
     expect(work.uploads).toHaveLength(2);
     expect(work.launches).toHaveLength(1);
     await rotate(f.db);
-    expect(await filterOperationsStuckWork(f.db, FIX.workspace, NOW, work, access())).toEqual({
-      uploads: [],
-      launches: [],
-    });
+    await expect(
+      filterOperationsStuckWork(f.db, FIX.workspace, NOW, work, access()),
+    ).rejects.toMatchObject({ code: "not_found", message: "operations scope not found" });
   });
 
   it("does not return stale stuck identifiers from composite health hydration", async () => {
     const f = await fixture();
     const db = beforeRead(f.db, /SELECT id FROM runners/, () => rotate(f.db));
-    const health = await collectWorkspaceHealth(db, FIX.workspace, NOW, access());
-    expect(health.uploads.stuck).toEqual([]);
-    expect(health.launches.stuck).toEqual([]);
+    await expect(collectWorkspaceHealth(db, FIX.workspace, NOW, access())).rejects.toMatchObject({
+      code: "not_found",
+      message: "operations scope not found",
+    });
   });
 });

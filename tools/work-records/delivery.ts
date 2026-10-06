@@ -28,6 +28,12 @@ import {
   listReviewTimers,
   listStuckUploads,
   filterOperationsStuckWork,
+  listRetentionEligibleChunks,
+  listSystemRetentionEligibleChunks,
+  resolveStuckUploadCommand,
+  issueStepUpProof,
+  recoveryActionId,
+  OPS_STEP_UP_ACTIONS,
   authorizeResultEvidence,
   listResultSubmissions,
   fanoutNotificationEvent,
@@ -67,6 +73,7 @@ async function execute<T>(
   humanId = FIX.owner,
   key = randomUlid(),
   delegationId?: string,
+  authorizationEpoch = 1,
 ): Promise<CommandOutcome<T>> {
   const response = await server
     .getWorker(`bfb-work-records-${worker}`)
@@ -79,7 +86,7 @@ async function execute<T>(
           workspaceId: FIX.workspace,
           actorHumanId: humanId,
           actorDelegationId: delegationId,
-          authorizationEpoch: 1,
+          authorizationEpoch,
           idempotencyKey: key,
           now,
           input,
@@ -544,8 +551,8 @@ try {
     )
     .run(FIX.workspace, FIX.owner);
   assert.deepEqual(await listStuckUploads(db, FIX.workspace, operationsNow, access()), []);
-  assert.deepEqual(
-    await filterOperationsStuckWork(
+  await assert.rejects(
+    filterOperationsStuckWork(
       db,
       FIX.workspace,
       operationsNow,
@@ -555,7 +562,7 @@ try {
       },
       access(),
     ),
-    { uploads: [], launches: [] },
+    { code: "not_found", message: "operations scope not found" },
   );
   assert.deepEqual(
     (
@@ -916,6 +923,244 @@ try {
   check(
     "real_d1_notification_fanout_contact_and_history_keep_current_shared_parent_and_preference",
   );
+  // Operations proof uses genuine synthetic task/run parents, not provider
+  // execution. Artifact byte state is fixture-only and no R2 is contacted.
+  const ownerAccess = { ...access(), authorizationEpoch: 2 };
+  const oldLogAt = new Date(Date.parse(now) - 40 * 24 * 60 * 60_000).toISOString();
+  const oldUploadAt = new Date(Date.parse(now) - 60 * 60_000).toISOString();
+  const operationsRun = evidenceTargetRun.result.run.id;
+  async function seedOperationsVersion(
+    parentRun: string | null,
+    state: "available" | "uploading",
+    wrongKey = false,
+  ) {
+    const artifactId = randomUlid();
+    const versionId = randomUlid();
+    const createdAt = state === "available" ? oldLogAt : oldUploadAt;
+    const key = `workspaces/${FIX.workspace}/runs/${wrongKey ? randomUlid() : (parentRun ?? randomUlid())}/logs/${versionId}.jsonl.zst`;
+    await db
+      .prepare(
+        `INSERT INTO artifacts
+         (workspace_id, id, run_id, format, role, created_by_human_id, created_at)
+         VALUES (?, ?, ?, 'log', 'log', ?, ?)`,
+      )
+      .run(FIX.workspace, artifactId, parentRun, FIX.owner, createdAt);
+    await db
+      .prepare(
+        `INSERT INTO artifact_versions
+         (workspace_id, id, artifact_id, state, format, declared_size, expected_digest,
+          content_hash, r2_key, created_at, available_at)
+         VALUES (?, ?, ?, ?, 'log', 64, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        FIX.workspace,
+        versionId,
+        artifactId,
+        state,
+        digest,
+        state === "available" ? digest : null,
+        state === "available" ? key : null,
+        createdAt,
+        state === "available" ? createdAt : null,
+      );
+    return versionId;
+  }
+  const canonicalLog = await seedOperationsVersion(operationsRun, "available");
+  const privateLog = await seedOperationsVersion(runId, "available");
+  await seedOperationsVersion(operationsRun, "available", true);
+  await seedOperationsVersion(null, "available");
+  const humanRetention = await listRetentionEligibleChunks(db, FIX.workspace, now, ownerAccess);
+  assert.equal(humanRetention.examined, 1);
+  assert.deepEqual(
+    humanRetention.eligible.map((row) => row.version_id),
+    [canonicalLog],
+  );
+  assert.deepEqual((await listSystemRetentionEligibleChunks(db, FIX.workspace, now)).eligible, []);
+  await db
+    .prepare(
+      `INSERT INTO retention_policies
+       (workspace_id, raw_log_retention_days, version, updated_by_human_id, updated_at)
+       VALUES (?, 30, 1, ?, ?)`,
+    )
+    .run(FIX.workspace, FIX.owner, now);
+  // Internal configured policy and human authority remain separate. This is
+  // selector proof only, not private destructive-retention certification.
+  const systemRetention = await listSystemRetentionEligibleChunks(db, FIX.workspace, now);
+  assert.equal(systemRetention.examined, 2);
+  assert.deepEqual(
+    systemRetention.eligible.map((row) => row.version_id).sort(),
+    [canonicalLog, privateLog].sort(),
+  );
+  check(
+    "real_d1_human_retention_uses_visible_canonical_parents_and_separate_configured_system_scope",
+  );
+  const sharedRecovery = await seedOperationsVersion(operationsRun, "uploading");
+  const runFreeRecovery = await seedOperationsVersion(null, "uploading");
+  const recoveryVersions = [sharedRecovery, runFreeRecovery];
+  const recoveryTarget = `ops-recover:resolve_stuck_upload:${FIX.workspace}`;
+  const makeRecoveryProof = () =>
+    issueStepUpProof(
+      db,
+      FIX.owner,
+      {
+        action: OPS_STEP_UP_ACTIONS.recover,
+        workspaceId: FIX.workspace,
+        targetId: recoveryTarget,
+        scopes: [],
+        authorizationEpoch: 2,
+        expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+      },
+      new Date().toISOString(),
+    );
+  const firstRecoveryProof = await makeRecoveryProof();
+  const firstRecovery = await execute<{ replayed: boolean; detail: { resolved: number } }>(
+    "a",
+    resolveStuckUploadCommand.name,
+    { versionIds: recoveryVersions, stepUpProofId: firstRecoveryProof },
+    FIX.owner,
+    randomUlid(),
+    undefined,
+    2,
+  );
+  assert(firstRecovery.ok && !firstRecovery.result.replayed);
+  assert.deepEqual(firstRecovery.result.detail, { resolved: 2 });
+  const secondRecovery = await execute<{ replayed: boolean; detail: { resolved: number } }>(
+    "b",
+    resolveStuckUploadCommand.name,
+    { versionIds: recoveryVersions, stepUpProofId: await makeRecoveryProof() },
+    FIX.owner,
+    randomUlid(),
+    undefined,
+    2,
+  );
+  assert(secondRecovery.ok && secondRecovery.result.replayed);
+  assert.deepEqual(secondRecovery.result.detail, { resolved: 2 });
+  for (const id of recoveryVersions) {
+    assert.deepEqual(
+      await db
+        .prepare("SELECT state FROM artifact_versions WHERE workspace_id = ? AND id = ?")
+        .get(FIX.workspace, id),
+      { state: "failed" },
+    );
+    assert.deepEqual(
+      await db
+        .prepare(
+          "SELECT COUNT(*) AS n FROM artifact_audit_outbox WHERE workspace_id = ? AND version_id = ? AND action = 'artifact.abandoned'",
+        )
+        .get(FIX.workspace, id),
+      { n: 1 },
+    );
+  }
+  check("real_production_hub_upload_recovery_and_fresh_proof_ledger_retry_converge_once");
+  const raceRecovery = await seedOperationsVersion(operationsRun, "uploading");
+  const racingRecoveryProof = await makeRecoveryProof();
+  const recoveryTables = [...effectTables, "ops_recovery_ledger", "artifact_audit_outbox"];
+  const recoveryEffectsBefore = await Promise.all(
+    recoveryTables.map((table) =>
+      db.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE workspace_id = ?`).get(FIX.workspace),
+    ),
+  );
+  let liveGrantInserted = false;
+  const recoveryRacingDb = adaptD1({
+    prepare: (query) => binding.prepare(query),
+    async batch(statements) {
+      // Even a consumed grant is protected until its owning V01 grace elapses.
+      await db
+        .prepare(
+          `INSERT INTO artifact_upload_grants
+           (workspace_id, id, version_id, grant_hash, human_id, authorization_epoch,
+            run_id, format, declared_size, expected_digest, expires_at, consumed_at, created_at)
+           VALUES (?, ?, ?, ?, ?, 2, ?, 'log', 64, ?, ?, ?, ?)`,
+        )
+        .run(
+          FIX.workspace,
+          randomUlid(),
+          raceRecovery,
+          artifactHash(randomUlid()),
+          FIX.owner,
+          operationsRun,
+          digest,
+          new Date(Date.now() + 60_000).toISOString(),
+          now,
+          oldUploadAt,
+        );
+      liveGrantInserted = true;
+      return binding.batch(statements);
+    },
+  });
+  const recoveryRaceOutcome = await new WorkspaceHub(recoveryRacingDb).execute(
+    resolveStuckUploadCommand,
+    {
+      workspaceId: FIX.workspace,
+      actorHumanId: FIX.owner,
+      authorizationEpoch: 2,
+      idempotencyKey: randomUlid(),
+      input: { versionIds: [raceRecovery], stepUpProofId: racingRecoveryProof },
+    },
+  );
+  assert(liveGrantInserted);
+  assert(!recoveryRaceOutcome.ok && recoveryRaceOutcome.error.code === "command_failed");
+  assert.deepEqual(
+    await db
+      .prepare("SELECT state FROM artifact_versions WHERE workspace_id = ? AND id = ?")
+      .get(FIX.workspace, raceRecovery),
+    { state: "uploading" },
+  );
+  assert.deepEqual(
+    await db
+      .prepare("SELECT consumed_at FROM passkey_step_up_proofs WHERE proof_id = ?")
+      .get(racingRecoveryProof),
+    { consumed_at: null },
+  );
+  for (const [index, table] of recoveryTables.entries())
+    assert.deepEqual(
+      await db
+        .prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE workspace_id = ?`)
+        .get(FIX.workspace),
+      recoveryEffectsBefore[index],
+    );
+  assert.deepEqual(
+    await db
+      .prepare(
+        "SELECT COUNT(*) AS n FROM ops_recovery_ledger WHERE workspace_id = ? AND action_id = ?",
+      )
+      .get(
+        FIX.workspace,
+        recoveryActionId("resolve_stuck_upload", { version_ids: [raceRecovery] }),
+      ),
+    { n: 0 },
+  );
+  check(
+    "real_d1_recovery_consumed_live_grant_before_batch_rolls_back_proof_effects_ledger_and_audit",
+  );
+  await db
+    .prepare(
+      "UPDATE workspace_members SET authorization_epoch = 3 WHERE workspace_id = ? AND human_id = ?",
+    )
+    .run(FIX.workspace, FIX.owner);
+  await db
+    .prepare(
+      "UPDATE workspace_authorization_epochs SET authorization_epoch = 3 WHERE workspace_id = ? AND human_id = ?",
+    )
+    .run(FIX.workspace, FIX.owner);
+  await assert.rejects(listRetentionEligibleChunks(db, FIX.workspace, now, ownerAccess), {
+    code: "not_found",
+    message: "operations scope not found",
+  });
+  await assert.rejects(
+    filterOperationsStuckWork(
+      db,
+      FIX.workspace,
+      now,
+      { uploads: [], launches: [], retention: [] },
+      ownerAccess,
+    ),
+    {
+      code: "not_found",
+      message: "operations scope not found",
+    },
+  );
+  check("real_d1_empty_composite_scope_rechecks_epoch_before_hydrated_workspace_metadata");
   console.log(
     JSON.stringify({
       schema_version: 1,
@@ -926,7 +1171,7 @@ try {
       limits: [
         "synthetic policies only",
         "no full C11 delivery certificate",
-        "partial metadata fences, not opaque positions or diagnostic/recovery privacy",
+        "partial metadata/retention/upload-recovery fences, not opaque positions or complete operations privacy",
         "natural credential expiry in flight remains uncertified",
         "real D1/domain/Hub proof, not real HTTP OAuth or provider execution",
         "grant-consumption proof, not live R2 or private browser-byte delivery",

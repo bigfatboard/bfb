@@ -3,8 +3,14 @@
 
 import { describe, expect, it } from "vitest";
 
-import { FIX } from "@bfb/domain";
-import { listRetentionEligibleChunks, randomUlid } from "@bfb/domain";
+import {
+  createRunCommand,
+  createTaskCommand,
+  FIX,
+  listSystemRetentionEligibleChunks,
+  randomUlid,
+  WorkspaceHub,
+} from "@bfb/domain";
 
 import Database from "better-sqlite3";
 import path from "node:path";
@@ -239,17 +245,44 @@ describe("retention sweep", () => {
   async function seedLogChunk(
     db: SqlDatabase,
     at: string,
+    binding: { wrongKeyRun?: boolean; runFree?: boolean } = {},
   ): Promise<{ version: string; key: string; hash: string }> {
     const artifact = randomUlid();
     const version = randomUlid();
     const hash = "e".repeat(64);
-    const key = `workspaces/${FIX.workspace}/runs/01JRUN00000000000000000001/logs/${version}.jsonl.zst`;
+    const hub = new WorkspaceHub(db);
+    const task = await hub.execute(createTaskCommand, {
+      workspaceId: FIX.workspace,
+      actorHumanId: FIX.owner,
+      authorizationEpoch: 1,
+      idempotencyKey: randomUlid(),
+      input: { projectId: FIX.projectA, title: "Synthetic retention parent", priority: "P2" },
+    });
+    if (!task.ok) throw new Error(task.error.code);
+    const run = await hub.execute(createRunCommand, {
+      workspaceId: FIX.workspace,
+      actorHumanId: FIX.owner,
+      authorizationEpoch: 1,
+      idempotencyKey: randomUlid(),
+      input: {
+        taskId: task.result.id,
+        expectedTaskVersion: 1,
+        agentProfileId: FIX.profileCodex,
+        workspacePolicyVersion: 1,
+        projectPolicyVersion: 1,
+        repositoryConfigVersion: 1,
+        agentProfileVersion: 1,
+      },
+    });
+    if (!run.ok) throw new Error(run.error.code);
+    const keyRun = binding.wrongKeyRun ? randomUlid() : run.result.run.id;
+    const key = `workspaces/${FIX.workspace}/runs/${keyRun}/logs/${version}.jsonl.zst`;
     await db
       .prepare(
         `INSERT INTO artifacts (workspace_id, id, run_id, format, role, created_by_human_id, created_at)
-         VALUES (?, ?, NULL, 'log', 'log', ?, ?)`,
+         VALUES (?, ?, ?, 'log', 'log', ?, ?)`,
       )
-      .run(FIX.workspace, artifact, FIX.owner, at);
+      .run(FIX.workspace, artifact, binding.runFree ? null : run.result.run.id, FIX.owner, at);
     await db
       .prepare(
         `INSERT INTO artifact_versions (workspace_id, id, artifact_id, state, format, declared_size, expected_digest, content_hash, r2_key, created_at, available_at)
@@ -316,7 +349,7 @@ describe("retention sweep", () => {
     expect(second.deleted_bytes).toBe(0);
     expect(second.examined).toBe(0);
     expect(r2.deleted).toEqual([old.key]);
-    const listed = await listRetentionEligibleChunks(db, FIX.workspace, NOW);
+    const listed = await listSystemRetentionEligibleChunks(db, FIX.workspace, NOW);
     expect(listed.eligible).toEqual([]);
     const totals = (await db
       .prepare(`SELECT SUM(deleted_bytes) AS bytes FROM retention_runs WHERE workspace_id = ?`)
@@ -357,5 +390,29 @@ describe("retention sweep", () => {
       count: number;
     };
     expect(runs.count).toBe(0);
+  });
+
+  it("does not delete misbound log keys or run-free log objects", async () => {
+    const db = await openDomainDb();
+    const wrongRun = await seedLogChunk(db, "2026-07-01T12:00:00.000Z", { wrongKeyRun: true });
+    const runFree = await seedLogChunk(db, "2026-07-01T12:00:00.000Z", { runFree: true });
+    await db
+      .prepare(
+        `INSERT INTO retention_policies (workspace_id, raw_log_retention_days, version, updated_by_human_id, updated_at)
+         VALUES (?, 30, 1, ?, ?)`,
+      )
+      .run(FIX.workspace, FIX.owner, NOW);
+    const r2 = fakeR2();
+    r2.objects.set(wrongRun.key, "misbound synthetic bytes");
+    r2.objects.set(runFree.key, "run-free synthetic bytes");
+    const result = await runRetentionSweep(db, r2, NOW);
+    expect(result).toMatchObject({ examined: 0, deleted_objects: 0, deleted_bytes: 0, errors: [] });
+    expect(r2.deleted).toEqual([]);
+    expect(r2.objects.size).toBe(2);
+    expect(
+      await db
+        .prepare("SELECT COUNT(*) AS count FROM artifact_versions WHERE state = 'available'")
+        .get(),
+    ).toEqual({ count: 2 });
   });
 });
