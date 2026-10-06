@@ -37,7 +37,8 @@ function laneTaskCount(count: number): string {
 }
 
 export function WorkBoard(props: WorkBoardProps) {
-  const projected = new Set(props.needsNow.map((item) => item.taskId));
+  const needsNow = props.needsNow.slice(0, 3);
+  const projected = new Set(needsNow.map((item) => item.taskId));
 
   return (
     <div className="work-board" data-testid="work-board">
@@ -49,23 +50,23 @@ export function WorkBoard(props: WorkBoardProps) {
       >
         <div className="section-heading needs-now-heading">
           <div>
-            <p className="section-label">ATTENTION ROUTER</p>
             <h2 id="needs-now-title">{`Needs ${props.humanDisplayName} now`}</h2>
           </div>
-          <p className="section-summary">Only persisted P0/P1 work that is blocked or due.</p>
+          <p className="section-summary">Blocked or due, assigned to you.</p>
         </div>
-        {props.needsNow.length === 0 ? (
+        {needsNow.length === 0 ? (
           <div className="attention-empty" data-testid="needs-now-empty">
             <strong>Nothing needs you right now.</strong>
             <span>Enjoy the suspicious silence.</span>
           </div>
         ) : (
           <ol className="attention-list">
-            {props.needsNow.map((item) => (
+            {needsNow.map((item) => (
               <li key={item.taskId} className="attention-item" data-priority={item.priority}>
                 <button
                   type="button"
                   className="attention-open"
+                  aria-label={`Open ${item.title}`}
                   onClick={() => props.onSelectTask?.(item.taskId)}
                 >
                   <span className="attention-priority">
@@ -89,12 +90,9 @@ export function WorkBoard(props: WorkBoardProps) {
       >
         <div className="section-heading board-heading">
           <div>
-            <p className="section-label">PROJECT LANES</p>
-            <h2 id="project-board-title">Where the work is</h2>
+            <h2 id="project-board-title">Projects</h2>
           </div>
-          <p className="section-summary">
-            Lanes are projects. Status-column theater remains unavailable.
-          </p>
+          <p className="section-summary">Open a task for details and next steps.</p>
         </div>
 
         <nav className="project-jump" aria-label="Jump to project">
@@ -179,51 +177,74 @@ export function WorkBoard(props: WorkBoardProps) {
                               ) : null}
                             </button>
 
-                            {card.whyHuman ? (
-                              <p className="routing-reason">
-                                <span>{`Why ${card.humanOwnerName ?? "human"}`}</span>
-                                {card.whyHuman}
-                              </p>
-                            ) : null}
-                            {card.whyDelegable ? (
-                              <p className="routing-reason is-delegable">
-                                <span>Why delegable</span>
-                                {card.whyDelegable}
-                              </p>
-                            ) : null}
-                            {assignedProfile ? (
-                              <div className="task-handoff">
-                                <span>{`Intended owner: ${assignedProfile}`}</span>
-                                {props.canManageTasks && card.passToAgentProfileId ? (
-                                  <button
-                                    type="button"
-                                    className="button-link"
-                                    data-testid="pass-to-agent"
-                                    onClick={() =>
-                                      props.onPassToAgent?.(card.taskId, card.passToAgentProfileId!)
-                                    }
-                                  >
-                                    {`Pass to ${assignedProfile}`}
-                                  </button>
+                            <details
+                              className="card-details"
+                              onKeyDown={(event) => {
+                                if (event.key === "Escape") {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  event.currentTarget.open = false;
+                                  event.currentTarget.querySelector("summary")?.focus();
+                                }
+                              }}
+                            >
+                              <summary role="button" aria-label={`Details for ${card.title}`}>
+                                Details
+                              </summary>
+                              <div className="card-details-content">
+                                {card.whyHuman ? (
+                                  <p className="routing-reason">
+                                    <span>{`Why ${card.humanOwnerName ?? "human"}`}</span>
+                                    {card.whyHuman}
+                                  </p>
+                                ) : null}
+                                {card.whyDelegable ? (
+                                  <p className="routing-reason is-delegable">
+                                    <span>Why delegable</span>
+                                    {card.whyDelegable}
+                                  </p>
+                                ) : null}
+                                {assignedProfile ? (
+                                  <div className="task-handoff">
+                                    <span>{`Intended owner: ${assignedProfile}`}</span>
+                                    {props.canManageTasks && card.passToAgentProfileId ? (
+                                      <button
+                                        type="button"
+                                        className="button-link"
+                                        data-testid="pass-to-agent"
+                                        onClick={() =>
+                                          props.onPassToAgent?.(
+                                            card.taskId,
+                                            card.passToAgentProfileId!,
+                                          )
+                                        }
+                                      >
+                                        {`Pass to ${assignedProfile}`}
+                                      </button>
+                                    ) : null}
+                                  </div>
+                                ) : null}
+                                {card.latestEvent ? (
+                                  <p className="card-record" data-testid="latest-event">
+                                    {`Latest · ${card.latestEvent.kind} · ${card.latestEvent.createdAt}`}
+                                  </p>
+                                ) : null}
+                                {card.runSummary ? (
+                                  <p className="card-record" data-testid="run-summary">
+                                    {`Run · ${card.runSummary.resultState} · ${card.runSummary.activity}`}
+                                  </p>
+                                ) : null}
+                                {!card.whyHuman &&
+                                !card.whyDelegable &&
+                                !assignedProfile &&
+                                !card.latestEvent &&
+                                !card.runSummary ? (
+                                  <p className="compact-empty">
+                                    No additional routing or run details.
+                                  </p>
                                 ) : null}
                               </div>
-                            ) : null}
-                            {card.latestEvent ? (
-                              <p className="card-record" data-testid="latest-event">
-                                {`Latest · ${card.latestEvent.kind} · ${card.latestEvent.createdAt}`}
-                              </p>
-                            ) : null}
-                            {card.runSummary ? (
-                              <p className="card-record" data-testid="run-summary">
-                                {`Run · ${card.runSummary.resultState} · ${card.runSummary.activity}`}
-                              </p>
-                            ) : null}
-                            <p className="agent-truth" data-testid="agent-work-state">
-                              <span aria-hidden="true">○</span>
-                              {props.agentWorkAvailable
-                                ? "Committed agent work is available"
-                                : "Agent work unavailable"}
-                            </p>
+                            </details>
                           </article>
                         </li>
                       );

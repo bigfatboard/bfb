@@ -29,7 +29,7 @@ Current priority, 6 October: Timo requested the clean UI redesign as a dedicated
 goal. [W03](work-packages/WP-W03-progressive-disclosure-ui.md) owns the board,
 attention, task detail and comment presentation, with details on demand and
 one or at most two item commands visible by default. The
-[draft brief](ui-redesign-brief.md) records the visual-direction checkpoint.
+[redesign brief](ui-redesign-brief.md) records the implementation direction.
 This does not consume unfinished C11 behavior: its stage-one certificate is
 retained, private creation remains disabled and the remaining privacy gate
 resumes separately. The sequence below still records the broader product work.
@@ -73,7 +73,7 @@ foundation tests.
 | Authenticated MCP and private work | Scoped OAuth/local run authority, retry/audit repairs and clean-certified dormant C10 creator/grant kernel | C11 enforcement on every delivery/projection/transport before private creation; C12 immutable selected-content publication |
 | Project-root prompts and documentation | Task-local context and immutable delivery lineage, not project-wide knowledge | Canonical BFB project instructions/docs/artifacts, versioning and explicit precedence without overwriting local instructions |
 | Workspace/project Git skills | Configuration snapshot foundation only | Pinned catalogs, sync, collision resolution and explicit enablement without automatic code execution |
-| Clean neon UI, light/dark | Core board and review-control repair; lime/cyan palette approved; W03 redesign brief and action budget planned | Confirmed composition, progressive disclosure, tokens/preferences, content navigation and both-theme accessibility/state acceptance |
+| Clean neon UI, light/dark | Core board and review-control repair; lime/cyan palette approved; W03 redesign and action budget in progress | Verified composition, progressive disclosure, tokens/preferences, content navigation and both-theme accessibility/state acceptance |
 | Workspace/project business secrets | Infrastructure/Keychain credentials only; BFB-encrypted vault direction approved, not built | Encryption/key lifecycle, scoped grants/revisions, recovery, revocation and value-redaction proof |
 | Reminders to update BFB | Constant launch bootstrap and telemetry-only hooks, not checkpoint reminders | Explicit checkpoint cadence, suppression, acknowledgement/expiry and dedupe; no automatic publication or model turn |
 | Minimal human contribution history | Attributed comments, attention and result/artifact decisions; explicit timers remain measurements | Compact privacy-aware cross-record projection/view with source dedupe; no presence-derived contribution or labor |

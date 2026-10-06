@@ -31,6 +31,7 @@ export async function openTaskCard(page: Page, taskId: string, title: string): P
   await expect(card).toBeVisible();
   await card.getByRole("button", { name: `Open ${title}` }).click();
   await expect(page.getByTestId("task-detail")).toBeVisible();
+  await page.getByTestId("task-section").selectOption("launch");
   await expect(page.getByTestId("launch-section")).toBeVisible();
 }
 

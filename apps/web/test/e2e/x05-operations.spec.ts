@@ -34,6 +34,7 @@ test.afterAll(async () => {
 });
 
 async function openOperations(page: Parameters<typeof signInAndOpenBoard>[0]): Promise<void> {
+  await page.getByRole("button", { name: "More navigation" }).click();
   await page.getByRole("button", { name: "Operations" }).click();
   await expect(page.getByTestId("operations-page")).toBeVisible();
 }

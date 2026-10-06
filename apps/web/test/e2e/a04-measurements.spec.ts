@@ -67,6 +67,7 @@ async function openDelegableSheet(page: Page): Promise<void> {
     .locator(`#task-${FIX.taskDelegable}`)
     .getByRole("button", { name: /Open Map the remaining webhook edge cases/ })
     .click();
+  await page.getByTestId("task-section").selectOption("measurements");
   await expect(page.getByTestId("measurements-panel")).toBeVisible();
 }
 

@@ -38,7 +38,9 @@ test.describe.configure({ mode: "serial" });
 for (const role of Object.keys(ROLES) as RoleKey[]) {
   test(`${role} signs in and sees role-appropriate project lanes`, async ({ page }) => {
     await signInAndOpenBoard(page, role);
+    await page.getByRole("button", { name: "Account menu" }).click();
     const roleText = await page.getByTestId("current-role").innerText();
+    await page.keyboard.press("Escape");
     expect(roleText.trim().toLowerCase()).toBe(ROLES[role].roleText);
 
     await expect(page.getByTestId("project-lanes")).toBeVisible();
@@ -58,6 +60,7 @@ for (const role of Object.keys(ROLES) as RoleKey[]) {
         .locator(`#task-${FIX.taskAttention}`)
         .getByRole("button", { name: /Open Approve the release boundary/ })
         .click();
+      await page.getByTestId("comment-compose-toggle").click();
       await expect(page.getByTestId("comment-form")).toBeVisible();
       await expect(page.getByTestId("stale-edit-form")).toHaveCount(0);
       await expect(page.getByTestId("handoff-form")).toHaveCount(0);
@@ -72,7 +75,11 @@ for (const role of Object.keys(ROLES) as RoleKey[]) {
         .evaluateAll((nodes) => nodes.map((node) => (node as HTMLOptionElement).value));
       expect(optionValues.sort()).toEqual([FIX.projectA, FIX.projectB].sort());
       if (role === "owner") {
+        await page.getByRole("button", { name: "Cancel" }).click();
+        await page.getByRole("button", { name: "More navigation" }).click();
         await expect(page.getByRole("button", { name: "Projects & policy" })).toBeVisible();
+        await page.getByRole("button", { name: "More navigation" }).click();
+        await page.getByRole("button", { name: "New task" }).click();
       } else {
         await expect(page.getByRole("button", { name: "Projects & policy" })).toHaveCount(0);
       }
@@ -166,6 +173,7 @@ test("stale edit shows recoverable version conflict", async ({ page }) => {
     },
     { workspaceId: FIX.workspace, selectedTaskId: taskId },
   );
+  await page.getByTestId("task-section").selectOption("edit");
   await page.getByTestId("stale-edit-title").fill("should-not-apply");
   await page
     .getByTestId("stale-edit-form")
@@ -212,6 +220,7 @@ test("agent preview excludes human-only context", async ({ page }) => {
     .locator(`#task-${FIX.taskDelegable}`)
     .getByRole("button", { name: /Open Map the remaining webhook edge cases/ })
     .click();
+  await page.getByTestId("task-section").selectOption("context");
   await expect(page.getByTestId("context-list")).toContainText(
     "Private release rationale for the human reviewer.",
   );
@@ -228,6 +237,7 @@ test("owner policy update completes through action-bound passkey UI", async ({ p
   await signInAndOpenBoard(page, "owner");
   const { cleanup } = await enrollVirtualPasskey(page);
   try {
+    await page.getByRole("button", { name: "More navigation" }).click();
     await page.getByRole("button", { name: "Projects & policy" }).click();
     await expect(page.getByTestId("settings-surface")).toBeVisible();
     await expect(page.getByText("Codex Refactor")).toBeVisible();
@@ -237,14 +247,18 @@ test("owner policy update completes through action-bound passkey UI", async ({ p
     await projectForm.getByLabel("Slug").fill("gamma-ui");
     await projectForm.getByLabel("Hosted repository ID").fill("987654321");
     await projectForm.getByRole("button", { name: "Add project" }).click();
-    await expect(page.getByRole("status")).toContainText("Restricted project created");
+    await expect(page.getByTestId("settings-surface").getByRole("status")).toContainText(
+      "Restricted project created",
+    );
     await expect(page.getByText("Gamma UI")).toBeVisible();
 
     const profileForm = page.getByTestId("create-profile-form");
     await profileForm.getByLabel("Name").fill("Claude UI Review");
     await profileForm.getByLabel("Provider").selectOption("claude");
     await profileForm.getByRole("button", { name: "Add profile" }).click();
-    await expect(page.getByRole("status")).toContainText("Agent profile created");
+    await expect(page.getByTestId("settings-surface").getByRole("status")).toContainText(
+      "Agent profile created",
+    );
     await expect(page.getByText("Claude UI Review")).toBeVisible();
 
     await page.getByLabel("Run overrides allowed").uncheck();
@@ -427,12 +441,14 @@ test("owner can pass intended ownership to another permitted human", async ({ pa
     .locator(`#task-${FIX.taskAttention}`)
     .getByRole("button", { name: /Open Approve the release boundary/ })
     .click();
+  await page.getByTestId("task-section").selectOption("handoff");
   const form = page.getByTestId("handoff-form");
   await form.getByTestId("handoff-kind").selectOption("human");
   await form.getByTestId("handoff-human").selectOption(FIX.member);
   await form.getByLabel("Why this handoff").fill("Member owns the release checklist.");
   await form.getByRole("button", { name: "Pass work" }).click();
   await expect(page.getByTestId("mutation-status")).toContainText("No run was started");
+  await page.getByTestId("task-section").selectOption("measurements");
   await expect(page.getByTestId("measurements-panel")).toBeVisible();
   await expect(page.getByTestId("measurements-human")).toBeVisible();
 });

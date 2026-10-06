@@ -93,6 +93,7 @@ async function api(
 
 async function openReviewSheet(page: Page): Promise<void> {
   await page.locator(`#task-${V03_TASK}`).getByRole("button", { name: /Open / }).click();
+  await page.getByTestId("task-section").selectOption("artifacts");
   await expect(page.getByTestId("review-panel")).toBeVisible();
 }
 

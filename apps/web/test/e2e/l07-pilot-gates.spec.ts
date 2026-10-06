@@ -39,9 +39,13 @@ for (const scenario of ["disabled", "pending", "malformed", "unavailable"] as co
     });
     await signInAndOpenBoard(page, "owner");
     await page.locator(`#task-${V03_TASK}`).getByRole("button", { name: /Open / }).click();
+    await page.getByTestId("task-section").selectOption("artifacts");
     await expect(page.getByTestId("artifact-features-unavailable")).toContainText("Not enabled");
+    await page.getByTestId("task-section").selectOption("discussion");
     await expect(page.getByTestId("discussions-unavailable")).toContainText("Not enabled");
+    await page.getByTestId("task-section").selectOption("results");
     await expect(page.getByTestId("result-panel")).toBeVisible();
+    await page.getByTestId("task-section").selectOption("measurements");
     await expect(page.getByTestId("measurements-panel")).toBeVisible();
     await expect(page.getByTestId("review-panel")).toHaveCount(0);
     await expect(page.locator("iframe")).toHaveCount(0);

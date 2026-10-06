@@ -1,7 +1,7 @@
 // ABOUTME: Authenticated W01 shell with URL-resolved workspaces and role-aware Work navigation.
 // ABOUTME: Keeps attention, project lanes, task detail, and honest unavailable routes in one app.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { AttentionDeckItem, ProjectLane } from "@bfb/domain";
 
@@ -13,6 +13,7 @@ import { RunnerOperations } from "./launch/operations.js";
 import { WorkspaceSettings } from "./settings.js";
 import { RunnerEnrollmentPage } from "./runner-enrollment.js";
 import { OnboardingPage, SecurityPage } from "./auth/onboarding.js";
+import { useThemePreference, type ThemePreference } from "./theme.js";
 
 export interface AppShellProps {
   /** Test injection; production loads from /auth/session + browser APIs. */
@@ -72,8 +73,64 @@ function titleCase(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
+function ShellMenu(props: {
+  label: React.ReactNode;
+  name: string;
+  children: React.ReactNode;
+  active?: boolean;
+}) {
+  const menu = useRef<HTMLDetailsElement>(null);
+
+  useEffect(() => {
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Node && !menu.current?.contains(event.target) && menu.current) {
+        menu.current.open = false;
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, []);
+
+  function closeMenu(): void {
+    if (!menu.current) return;
+    menu.current.open = false;
+    menu.current.querySelector("summary")?.focus();
+  }
+
+  return (
+    <details
+      ref={menu}
+      className="shell-menu"
+      name="shell-menu"
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          event.stopPropagation();
+          closeMenu();
+        }
+      }}
+      onClick={(event) => {
+        if (event.target instanceof Element && event.target.closest("button")) closeMenu();
+      }}
+    >
+      <summary
+        role="button"
+        aria-label={props.name}
+        aria-current={props.active ? "page" : undefined}
+      >
+        {props.label}
+        <span className="menu-chevron" aria-hidden="true">
+          ⌄
+        </span>
+      </summary>
+      <div className="shell-menu-content">{props.children}</div>
+    </details>
+  );
+}
+
 export function AppShell(props: AppShellProps = {}) {
   const fetchFn = props.fetchImpl ?? fetch;
+  const [themePreference, chooseTheme] = useThemePreference();
   const [path, setPath] = useState(
     () =>
       props.initialPath?.split("?")[0] ??
@@ -375,33 +432,63 @@ export function AppShell(props: AppShellProps = {}) {
           </select>
         </label>
         <div className="topbar-spacer" />
-        <span className={`truth-status${offline ? " is-offline" : ""}`}>
-          {offline ? "Control plane offline" : "Committed state"}
+        <span
+          className={`workspace-status${offline || error || !board?.agent_work_available ? " is-unavailable" : ""}`}
+          data-testid="agent-work-state"
+          role="status"
+        >
+          {offline
+            ? "Control plane offline"
+            : error
+              ? "Workspace unavailable"
+              : boardLoading
+                ? "Reading workspace…"
+                : board
+                  ? board.agent_work_available
+                    ? "Agent work available"
+                    : "Agent work unavailable"
+                  : "Choose a workspace"}
         </span>
         <div className="human-menu">
-          <div>
-            <strong data-testid="current-human">{human.display_name}</strong>
-            <span data-testid="current-role">{board?.role ?? workspace?.role ?? "member"}</span>
-          </div>
-          <button
-            type="button"
-            className="button-quiet"
-            onClick={() =>
-              navigate(
-                `/settings/security${workspace ? `?workspace=${encodeURIComponent(workspace.slug)}` : ""}`,
-              )
-            }
+          <ShellMenu
+            name="Account menu"
+            label={<strong data-testid="current-human">{human.display_name}</strong>}
           >
-            Account security
-          </button>
-          <button type="button" className="button-quiet" onClick={() => void signOut()}>
-            Sign out
-          </button>
+            <p className="account-role" data-testid="current-role">
+              {board?.role ?? workspace?.role ?? "member"}
+            </p>
+            <label className="theme-picker">
+              <span>Appearance</span>
+              <select
+                value={themePreference}
+                data-testid="theme-preference"
+                onChange={(event) => chooseTheme(event.target.value as ThemePreference)}
+              >
+                <option value="system">System</option>
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+              </select>
+            </label>
+            <button
+              type="button"
+              className="button-quiet"
+              onClick={() =>
+                navigate(
+                  `/settings/security${workspace ? `?workspace=${encodeURIComponent(workspace.slug)}` : ""}`,
+                )
+              }
+            >
+              Account security
+            </button>
+            <button type="button" className="button-quiet" onClick={() => void signOut()}>
+              Sign out
+            </button>
+          </ShellMenu>
         </div>
       </header>
 
       <nav className="route-nav" aria-label="Product">
-        {(["work", "attention", "latest", "load", "runners"] as const).map((view) => (
+        {(["work", "attention"] as const).map((view) => (
           <button
             key={view}
             type="button"
@@ -412,24 +499,43 @@ export function AppShell(props: AppShellProps = {}) {
             {titleCase(view)}
           </button>
         ))}
-        {board?.role === "owner" ? (
-          <button
-            type="button"
-            aria-current={route.view === "settings" ? "page" : undefined}
-            onClick={() => navigateToView("settings")}
-          >
-            Projects &amp; policy
-          </button>
-        ) : null}
-        {board?.role === "owner" || board?.role === "member" ? (
-          <button
-            type="button"
-            aria-current={route.view === "operations" ? "page" : undefined}
-            onClick={() => navigateToView("operations")}
-          >
-            Operations
-          </button>
-        ) : null}
+        <ShellMenu
+          name="More navigation"
+          active={!["work", "attention"].includes(route.view)}
+          label={
+            !["work", "attention"].includes(route.view) ? `More · ${titleCase(route.view)}` : "More"
+          }
+        >
+          {(["latest", "load", "runners"] as const).map((view) => (
+            <button
+              key={view}
+              type="button"
+              aria-current={route.view === view ? "page" : undefined}
+              disabled={!workspace}
+              onClick={() => navigateToView(view)}
+            >
+              {titleCase(view)}
+            </button>
+          ))}
+          {board?.role === "owner" ? (
+            <button
+              type="button"
+              aria-current={route.view === "settings" ? "page" : undefined}
+              onClick={() => navigateToView("settings")}
+            >
+              Projects &amp; policy
+            </button>
+          ) : null}
+          {board?.role === "owner" || board?.role === "member" ? (
+            <button
+              type="button"
+              aria-current={route.view === "operations" ? "page" : undefined}
+              onClick={() => navigateToView("operations")}
+            >
+              Operations
+            </button>
+          ) : null}
+        </ShellMenu>
       </nav>
 
       {!workspace ? (
@@ -468,7 +574,7 @@ export function AppShell(props: AppShellProps = {}) {
             <div>
               <p className="section-label">{workspace.slug.toUpperCase()} / WORK</p>
               <h1>Current work</h1>
-              <p>What needs you, what can move, and what BFB can actually prove.</p>
+              <p>Scan the work. Open a task for the details.</p>
             </div>
             {canManageTasks ? (
               <button
@@ -540,10 +646,8 @@ export function AppShell(props: AppShellProps = {}) {
           <div className="work-titlebar">
             <div>
               <p className="section-label">{workspace.slug.toUpperCase()} / ATTENTION</p>
-              <h1>What needs a person now</h1>
-              <p>
-                Ranked agent requests with committed answers. Newest truth is polled, never pushed.
-              </p>
+              <h1>Needs attention</h1>
+              <p>Questions and decisions that need a person.</p>
             </div>
           </div>
           <AttentionHome

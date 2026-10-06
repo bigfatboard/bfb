@@ -50,6 +50,7 @@ test("release attention home renders ranked requests read-only", async ({ page }
 test("release review surface binds the exact artifact version read-only", async ({ page }) => {
   await signInAndOpenBoard(page, "owner");
   await page.locator(`#task-${V03_TASK}`).getByRole("button", { name: /Open / }).click();
+  await page.getByTestId("task-section").selectOption("artifacts");
   await expect(page.getByTestId("review-panel")).toBeVisible();
   await expect(page.getByTestId("review-hash")).not.toBeEmpty();
   note("review", "review panel binds the exact artifact version hash");

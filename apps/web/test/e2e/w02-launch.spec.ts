@@ -45,6 +45,7 @@ const trace: {
 } = {};
 
 async function openRunners(page: Parameters<typeof openTaskCard>[0]): Promise<void> {
+  await page.getByRole("button", { name: "More navigation" }).click();
   await page.getByRole("button", { name: "Runners" }).click();
   await expect(page.getByTestId("runner-operations")).toBeVisible();
 }
@@ -597,7 +598,9 @@ test("runner operations show checkouts, capability, and step-up sharing", async 
     await grantsForm.getByText(/Synthetic Member/).click();
     await grantsForm.getByText("I recognize every named launcher.").click();
     await grantsForm.getByRole("button", { name: "Verify passkey & save sharing" }).click();
-    await expect(page.getByRole("status")).toContainText("Sharing updated");
+    await expect(page.getByTestId("runner-operations").getByRole("status")).toContainText(
+      "Sharing updated",
+    );
     await memberPage.goto("/__test/session/member");
     const memberGone = await apiFetch(
       memberPage,
@@ -645,7 +648,9 @@ test("runner operations show checkouts, capability, and step-up sharing", async 
     await grantsForm.getByText(/Synthetic Member/).click();
     await grantsForm.getByText("I recognize every named launcher.").click();
     await grantsForm.getByRole("button", { name: "Verify passkey & save sharing" }).click();
-    await expect(page.getByRole("status")).toContainText("Sharing updated");
+    await expect(page.getByTestId("runner-operations").getByRole("status")).toContainText(
+      "Sharing updated",
+    );
     const memberBack = await apiFetch(
       memberPage,
       "GET",

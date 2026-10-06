@@ -1,6 +1,6 @@
 # WP-W03 — Clean board and task interface
 
-Status: `planned`
+Status: `in_progress`
 
 Risk: Medium
 
@@ -71,15 +71,17 @@ secondary command by default.
   with a confirmed visual direction and updated product design guidance.
 - Accessible disclosure, selection, menus, comment entry and theme preference
   behavior without changing the domain or authorization contracts.
-- Stable acceptance target `pnpm test:w03`, to be registered before this
-  package advances to `ready`, and bounded evidence at the declared manifest
-  path. Planning and baseline checks are not an implementation certificate.
+- Stable acceptance target `pnpm test:w03` covers the web build, all web unit
+  tests and the complete shared browser suite, including the W03 interaction
+  cases. Bounded evidence belongs at the declared manifest path; planning and
+  baseline checks are not an implementation certificate.
 
 ## Work plan
 
 1. Compare official Linear, YouTrack and comparable-tool patterns with the
-   existing BFB screens. Confirm the brief, palette and representative visual
-   direction before frontend implementation.
+   existing BFB screens. Use Timo's requested progressive-disclosure brief and
+   approved lime/cyan defaults for an existing-UI simplification, preserving
+   business behavior and rendering semantic, editable controls.
 2. Implement shell/theme and compact board presentation against that direction;
    check role access, project identity, unavailable states and action counts.
 3. Implement focused task details, on-demand forms and pending-decision/comment
@@ -98,14 +100,22 @@ secondary command by default.
   is counted separately and cannot conceal a second business toolbar.
 - A revealed form or explicit review decision may expose necessary Save/Cancel
   or Accept/Request changes controls. Every exception is named and tested.
+- An error arriving in a hidden mounted section surfaces a label-only notice
+  and one explicit reveal action. It never copies private failure bodies into
+  the overview or automatically expands new activity.
 - Details and secondary commands remain discoverable with mouse, touch and
   keyboard, never only on hover or through an undocumented shortcut.
 - Opening, closing or changing a displayed section never launches, completes,
   approves, publishes or edits work. Drafts survive non-destructive section
   changes; successful submission and failures follow the actual API outcome.
+- Unsaved edit/handoff drafts retain their base version across unrelated saves.
+  An explicit conflict reload replaces those drafts with canonical state;
+  background refresh never silently rebases an old edit onto a newer version.
 - Closing task detail restores the originating focus and preserves board
   position. New activity does not automatically expand hidden sections. Rapid
   selection cannot replace the selected task with an older read response.
+- Narrow sheets use modal semantics and bounded keyboard focus; background
+  controls are inert until close. Wide sheets remain contextual/non-modal.
 - Owner/member/reviewer actions, current access, context audiences, feature
   flags and stale-version recovery retain their existing behavior.
 - Titles, questions, comments and metadata render as escaped text. Artifact
@@ -126,6 +136,8 @@ secondary command by default.
   [the redesign brief](../ui-redesign-brief.md). They do not certify shipped UI.
 - No secrets, real task content, raw terminal output or local absolute paths
   belong in committed evidence. Existing package certificates remain intact.
+- `BFB_CAPTURE_W03_EVIDENCE=1 pnpm test:w03:browser` owns the deterministic
+  synthetic viewport captures and bounded `browser/ui-checks.json` report.
 
 ## Risks and decisions
 
@@ -141,6 +153,7 @@ secondary command by default.
 - Requested 6 October: simple, clean UI inspired by Linear and YouTrack, details
   on demand and one or at most two default actions for tasks, pending work and
   comments. Lime/cyan and neutral light/dark are already approved defaults.
-- This package is planned; the visual brief/direction checkpoint and dedicated
-  test target precede frontend implementation. No release or pilot change is
-  implied by this planning checkpoint.
+- Implementation uses the existing-product distill workflow against the stated
+  brief and approved defaults, not a new-brand or raster-mock workflow. The
+  previous planning checkpoint added an unnecessary visual approval gate;
+  that gate is removed. No release or pilot change is implied by this work.

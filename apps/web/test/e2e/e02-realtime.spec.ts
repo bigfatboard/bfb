@@ -47,6 +47,7 @@ async function openTaskTimeline(page: Page, taskId: string): Promise<void> {
   await expect(page.locator(`#task-${taskId}`)).toBeVisible();
   await page.locator(`#task-${taskId}`).getByRole("button", { name: /Open / }).click();
   await expect(page.getByTestId("task-detail")).toBeVisible();
+  await page.getByTestId("task-section").selectOption("activity");
   await expect(page.getByTestId("run-timeline-section")).toBeVisible();
 }
 

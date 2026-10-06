@@ -1,7 +1,7 @@
 // ABOUTME: Renders the ranked cross-project Attention home with answer and resolve actions.
 // ABOUTME: Provider-native permission dialogs stay visibly separate; answers never grant authority.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export type AttentionKind =
   "clarification" | "review" | "credential" | "capability" | "destructive_action" | "blocker";
@@ -53,18 +53,26 @@ export function requiredRoleLabel(role: AttentionHomeItem["required_role"]): str
 }
 
 export const NATIVE_PERMISSION_NOTICE =
-  "Provider-native permission dialogs stay separate. A Claude Code, Codex, or Grok prompt " +
-  "inside the terminal can only be answered there; an attention answer never approves a " +
-  "native provider permission and never grants workspace authority.";
+  "Provider-native permission dialogs stay separate. Answer terminal prompts in the terminal; " +
+  "an attention answer never approves native provider permissions and never grants workspace authority.";
 
 export function AttentionList(props: {
   items: AttentionHomeItem[];
-  onAnswer: (id: string, expectedVersion: number, answer: string) => void;
+  onAnswer: (id: string, expectedVersion: number, answer: string) => void | Promise<boolean>;
   onResolve: (id: string, expectedVersion: number) => void;
   actionError: string | null;
   pendingId: string | null;
 }) {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [answeringId, setAnsweringId] = useState<string | null>(null);
+  const [details, setDetails] = useState<Record<string, boolean>>({});
+  const answerButtons = useRef(new Map<string, HTMLButtonElement>());
+  const returnFocusId = useRef<string | null>(null);
+  useEffect(() => {
+    if (answeringId !== null || returnFocusId.current === null) return;
+    answerButtons.current.get(returnFocusId.current)?.focus();
+    returnFocusId.current = null;
+  }, [answeringId]);
   if (props.items.length === 0) {
     return (
       <div className="attention-empty" data-testid="attention-empty">
@@ -79,16 +87,16 @@ export function AttentionList(props: {
         <li
           key={item.id}
           id={`attention-${item.id}`}
-          className="attention-item"
+          className="attention-item attention-request"
           data-testid="attention-item"
           data-kind={item.kind}
           data-state={item.state}
           data-blocking={item.blocking ? "yes" : "no"}
           data-rank={index + 1}
         >
-          <div className="attention-rank">
-            <span>{`#${index + 1}`}</span>
-            <span>{item.rank_reason}</span>
+          <div className="attention-request-heading">
+            <p className="attention-question">{item.question}</p>
+            <p className="attention-request-context">{`${item.project_name} · ${item.task_title}`}</p>
           </div>
           <p className="attention-kind">
             <strong>{KIND_LABELS[item.kind]}</strong>
@@ -96,27 +104,85 @@ export function AttentionList(props: {
             <span>{requiredRoleLabel(item.required_role)}</span>
             <span>{STATE_LABELS[item.state]}</span>
           </p>
-          <p className="attention-question">{item.question}</p>
           {item.answer ? <p className="attention-answer">{`Answer: ${item.answer}`}</p> : null}
-          <p className="attention-context">
-            {`${item.project_name} · ${item.task_title} · run ${item.run_result_state} · ${item.run_activity}`}
-          </p>
-          <p className="attention-times">
-            {`Requested ${item.requested_at}`}
-            {item.answered_at ? ` · answered ${item.answered_at}` : ""}
-            {item.resolved_at ? ` · resolved ${item.resolved_at}` : ""}
-          </p>
-          {item.state === "open" ? (
+          <div className="attention-request-actions">
+            {item.state === "open" && answeringId !== item.id ? (
+              <button
+                type="button"
+                className="button-primary"
+                data-testid={`answer-trigger-${item.id}`}
+                ref={(button) => {
+                  if (button) answerButtons.current.set(item.id, button);
+                  else answerButtons.current.delete(item.id);
+                }}
+                aria-expanded={false}
+                aria-controls={`answer-form-${item.id}`}
+                onClick={() => setAnsweringId(item.id)}
+              >
+                Answer
+              </button>
+            ) : null}
+            {item.state === "answered" ? (
+              <button
+                type="button"
+                className="button-primary"
+                data-testid={`resolve-button-${item.id}`}
+                disabled={props.pendingId === item.id}
+                onClick={() => props.onResolve(item.id, item.resource_version)}
+              >
+                Mark resolved
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="button-quiet"
+              aria-expanded={details[item.id] === true}
+              aria-controls={`attention-details-${item.id}`}
+              onClick={() =>
+                setDetails((current) => ({ ...current, [item.id]: !current[item.id] }))
+              }
+            >
+              Details
+            </button>
+          </div>
+          {details[item.id] ? (
+            <div id={`attention-details-${item.id}`} className="attention-details">
+              <p className="attention-rank">{`#${index + 1} · ${item.rank_reason}`}</p>
+              <p className="attention-context">
+                {`Run ${item.run_result_state} · ${item.run_activity} · version ${item.resource_version}`}
+              </p>
+              <p className="attention-times">
+                {`Requested ${item.requested_at}`}
+                {item.answered_at ? ` · answered ${item.answered_at}` : ""}
+                {item.resolved_at ? ` · resolved ${item.resolved_at}` : ""}
+              </p>
+            </div>
+          ) : null}
+          {item.state === "open" && answeringId === item.id ? (
             <form
+              id={`answer-form-${item.id}`}
+              className="attention-answer-form"
               data-testid={`answer-form-${item.id}`}
               onSubmit={(event) => {
                 event.preventDefault();
-                props.onAnswer(item.id, item.resource_version, drafts[item.id] ?? "");
+                void (async () => {
+                  const succeeded = await props.onAnswer(
+                    item.id,
+                    item.resource_version,
+                    drafts[item.id] ?? "",
+                  );
+                  if (succeeded !== true) return;
+                  setDrafts((current) => ({ ...current, [item.id]: "" }));
+                  setAnsweringId((current) => (current === item.id ? null : current));
+                })();
               }}
             >
+              <p className="section-help attention-decision-notice">{NATIVE_PERMISSION_NOTICE}</p>
               <label>
-                {`Answer as a human decision (version ${item.resource_version})`}
+                Your human decision
                 <textarea
+                  autoFocus
+                  required
                   data-testid={`answer-input-${item.id}`}
                   value={drafts[item.id] ?? ""}
                   onChange={(event) =>
@@ -124,20 +190,27 @@ export function AttentionList(props: {
                   }
                 />
               </label>
-              <button type="submit" disabled={props.pendingId === item.id}>
-                Answer
-              </button>
+              <div className="attention-request-actions">
+                <button
+                  type="submit"
+                  className="button-primary"
+                  disabled={props.pendingId === item.id}
+                >
+                  Answer
+                </button>
+                <button
+                  type="button"
+                  className="button-quiet"
+                  disabled={props.pendingId === item.id}
+                  onClick={() => {
+                    returnFocusId.current = item.id;
+                    setAnsweringId(null);
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
             </form>
-          ) : null}
-          {item.state === "answered" ? (
-            <button
-              type="button"
-              data-testid={`resolve-button-${item.id}`}
-              disabled={props.pendingId === item.id}
-              onClick={() => props.onResolve(item.id, item.resource_version)}
-            >
-              Mark resolved
-            </button>
           ) : null}
         </li>
       ))}
@@ -188,7 +261,7 @@ export function AttentionHome(props: {
     id: string,
     path: "answer" | "resolve",
     body: Record<string, unknown>,
-  ): Promise<void> {
+  ): Promise<boolean> {
     setPendingId(id);
     setActionError(null);
     try {
@@ -218,8 +291,10 @@ export function AttentionHome(props: {
         );
       }
       await reload();
+      return response.ok;
     } catch {
       setActionError("The action failed.");
+      return false;
     } finally {
       setPendingId(null);
     }
@@ -239,19 +314,19 @@ export function AttentionHome(props: {
           </button>
         </section>
       ) : null}
-      {items ? (
+      <div hidden={items === null}>
         <AttentionList
-          items={items}
+          items={items ?? []}
           actionError={actionError}
           pendingId={pendingId}
           onAnswer={(id, expectedVersion, answer) =>
-            void act(id, "answer", { expected_version: expectedVersion, answer })
+            act(id, "answer", { expected_version: expectedVersion, answer })
           }
           onResolve={(id, expectedVersion) =>
             void act(id, "resolve", { expected_version: expectedVersion })
           }
         />
-      ) : null}
+      </div>
       {actionError && items ? (
         <p role="alert" className="inline-error" data-testid="attention-action-error">
           {actionError}
@@ -259,7 +334,7 @@ export function AttentionHome(props: {
       ) : null}
       <p className="attention-poll" data-testid="attention-poll">
         {updatedAt
-          ? `Committed state as of ${updatedAt}. Refreshes automatically; realtime sockets arrive with E02.`
+          ? `Committed state as of ${updatedAt}. Refreshes automatically.`
           : "Loading committed attention…"}
       </p>
       <span data-testid="attention-role" hidden>

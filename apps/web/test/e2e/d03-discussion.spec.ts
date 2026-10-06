@@ -51,6 +51,7 @@ async function openDiscussionTask(page: Page, taskId: string, title: string): Pr
   await expect(card).toBeVisible();
   await card.getByRole("button", { name: `Open ${title}` }).click();
   await expect(page.getByTestId("task-detail")).toBeVisible();
+  await page.getByTestId("task-section").selectOption("discussion");
   await expect(page.getByTestId("discussion-section")).toBeVisible();
 }
 
@@ -101,6 +102,7 @@ test("six-turn exchange renders attributed history and survives close and reopen
   await page.reload();
   await expect(page.getByTestId("work-board")).toBeVisible();
   await openTaskCard(page, tasks.taskSix, "Synthetic discussion exchange card");
+  await page.getByTestId("task-section").selectOption("discussion");
   await expect(page.getByTestId("discussion-section")).toBeVisible();
   const reopened = page.getByTestId("discussion-panel");
   await expect(reopened.getByTestId("discussion-state")).toContainText("concluded");
@@ -163,6 +165,7 @@ test("intervention is attributed to the acting human and cancel stops dispatch",
   await page.screenshot({ path: path.join(EVIDENCE_DIR, "cancel.png"), fullPage: true });
 
   await openTaskCard(page, tasks.taskCancel, "Synthetic discussion stopped card");
+  await page.getByTestId("task-section").selectOption("discussion");
   await expect(page.getByTestId("discussion-section")).toBeVisible();
   await expect(page.getByTestId("discussion-panel")).toContainText("Cancelled by the human");
 });
@@ -267,6 +270,11 @@ test("keyboard, empty, loading, error, and narrow-layout cases pass", async ({ p
   await openDiscussionTask(page, tasks.taskEmpty, "Synthetic discussion empty card");
   const section = page.getByTestId("discussion-section");
   // Every interactive discussion control is a native keyboard-operable element.
+  await expect(
+    section
+      .locator('[data-testid="discussion-start-form"], [data-testid="discussion-panel"]')
+      .first(),
+  ).toBeVisible();
   const nativeControls = await section.evaluate(
     (root) => [...root.querySelectorAll("button, select, input, textarea, a")].length,
   );
@@ -283,6 +291,7 @@ test("keyboard, empty, loading, error, and narrow-layout cases pass", async ({ p
     /\/api\/v1\/workspaces\/[^/]+\/tasks\/[^/]+\/discussions\?/.test(response.url()),
   );
   await openTaskCard(page, tasks.taskCancel, "Synthetic discussion stopped card");
+  await page.getByTestId("task-section").selectOption("discussion");
   await expect(page.getByTestId("discussion-section")).toBeVisible();
   // The delayed read must settle before the route goes away, or its handler
   // continues a request the next reload has already cancelled.
@@ -294,6 +303,7 @@ test("keyboard, empty, loading, error, and narrow-layout cases pass", async ({ p
   await page.reload();
   await expect(page.getByTestId("work-board")).toBeVisible();
   await openTaskCard(page, tasks.taskCancel, "Synthetic discussion stopped card");
+  await page.getByTestId("task-section").selectOption("discussion");
   await expect(page.getByTestId("discussion-error").first()).toBeVisible();
   await page.unroute("**/api/v1/workspaces/*/discussions/*");
   await page.getByTestId("discussion-error").first().getByRole("button", { name: "Retry" }).click();

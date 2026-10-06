@@ -1,14 +1,14 @@
 # BFB UI redesign brief
 
-Draft for direction confirmation, 6 October 2026.
+Implementation direction from Timo's brief, 6 October 2026.
 
 BFB should present a quiet overview and reveal rich detail only when requested.
-The proposed first delivery covers the authenticated shell, project board,
+This delivery covers the authenticated shell, project board,
 pending human decisions, task detail and comments. It preserves existing
 business actions and authorization; remote start and agent-to-agent execution
 remain outside this lane.
 
-## Direction proposed for confirmation
+## Direction
 
 Use compact project lanes and one focused task panel, with neutral light/dark
 surfaces, a single familiar sans-serif family and restrained electric lime/cyan
@@ -22,9 +22,9 @@ context visible, but do not open every answer form by default. Comment history
 and the composer appear when requested.
 
 The task-specific scope is production-ready interaction, not a static mock.
-Confirm the brief first, then lock the palette and a representative visual
-direction before frontend changes. The existing palette approval does not
-certify a finished composition or contrast.
+The existing-UI simplification uses Timo's stated references, progressive
+disclosure and approved palette without an additional design approval gate.
+The palette approval does not certify a finished composition or contrast.
 
 ## Reference patterns
 
@@ -47,7 +47,7 @@ products implement its complete action limit or architecture.
 | --- | --- | --- |
 | Project task | Title, state/priority, next-action summary; one Open action and at most one secondary entry. | Ownership reasons, events, run details and secondary commands. |
 | Pending human decision | Question, blocking/permission distinction and answer state; one Answer/Review action and optional Details. | Answer editor, timestamps, rank explanation and operational provenance. |
-| Task panel | Title, current state and next action; one contextual command and a More entry. | Editing, handoff, comments, context, measurements, history and existing review surfaces. |
+| Task panel | Title, current state and next action; one contextual command and the Task section selector. | Editing, handoff, comments, context, measurements, history and existing review surfaces. |
 | Comment | Author and text when conversation is opened; no permanent management toolbar. | Composer, attribution/progress detail and supported secondary commands. |
 | Active form or review | Only controls necessary for the explicit action. | Save/Cancel or Accept/Request changes are documented exceptions, not always-visible default toolbars. |
 
@@ -56,7 +56,7 @@ quiet. “More” must have an accessible name and work without hover. Safety an
 authorization context must appear before the corresponding decision. Opening a
 view never mutates business state or loads executable artifact bytes.
 
-## Current UI findings
+## Pre-redesign UI findings
 
 Source-derived rendered-control counts, including disabled controls, show
 eleven owner Work-shell buttons plus the workspace selector before item
@@ -87,6 +87,11 @@ field. E02 remains connected while history is unavailable; test HTTP/socket
 origins follow the selected port. Acceptance must resolve or isolate these
 fixtures and preserve the related user-facing security behavior rather than
 silently skipping the cases.
+
+W03 corrects those fixtures with valid linked ledger identities and a replay
+assertion. A fresh passkey enrollment flow remains reachable when keys already
+exist; a confirmed ceremony removes the consumed query so reload shows the
+registered keys. Neither correction expands identity or authorization.
 
 ## Completion checks
 

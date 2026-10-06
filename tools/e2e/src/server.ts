@@ -20,6 +20,7 @@ import {
   createDiscussionCommand,
   FIX,
   launchDeadline,
+  listLedgerEvents,
   observeCheckoutLeaseCommand,
   randomUlid,
   createTaskCommand,
@@ -28,7 +29,9 @@ import {
   replaceRunnerInventoryCommand,
   reportRepositoryConfigCommand,
   runnerHash,
+  readLedgerHighWater,
   seedSyntheticWorkspace,
+  syntheticUlid,
   startLaunchCommand,
   updateProjectPolicyCommand,
   updateWorkspacePolicyCommand,
@@ -62,7 +65,7 @@ import {
 } from "../../../apps/control-worker/src/env.js";
 import { createTestWorkspaceHubNamespace } from "../../../apps/control-worker/src/hub-client.js";
 import { createControlApp } from "../../../apps/control-worker/src/routes.js";
-import type { SqlDatabase } from "@bfb/db";
+import { createAuthorizationContext, type SqlDatabase } from "@bfb/db";
 import {
   AUTH_TEST_ENV,
   openAuthTestContext,
@@ -185,10 +188,10 @@ async function seedWorkSurface(db: SqlDatabase): Promise<void> {
 
 /** Seeds one claimed execution per attention run plus four ranked open requests. */
 async function seedAttentionSurface(db: SqlDatabase): Promise<void> {
-  const runner = "01SYNTHETICATNRUNNER0000001";
-  const executionA = "01SYNTHETICATNEXECA0000001";
-  const executionB = "01SYNTHETICATNEXECB0000001";
-  const runA = "01SYNTHETICATNRUNA0000001";
+  const runner = syntheticUlid("ATNRUNNER");
+  const executionA = syntheticUlid("ATNEXECA");
+  const executionB = syntheticUlid("ATNEXECB");
+  const runA = syntheticUlid("ATNRUNA");
   await db
     .prepare(
       `INSERT INTO tasks (
@@ -653,7 +656,7 @@ async function seedE02Chains(db: SqlDatabase): Promise<E02State> {
  * supplies the visible attention wait.
  */
 async function seedMeasurementSurface(db: SqlDatabase): Promise<void> {
-  const executionB = "01SYNTHETICATNEXECB0000001";
+  const executionB = syntheticUlid("ATNEXECB");
   const tokenA = `${FIX.runDelegable.slice(0, 24)}M1`;
   const tokenB = `${FIX.runDelegable.slice(0, 24)}M2`;
   const tokenC = `${FIX.runDelegable.slice(0, 24)}M3`;
@@ -791,8 +794,8 @@ async function seedMeasurementSurface(db: SqlDatabase): Promise<void> {
 
 /** Bounded display-only fixture; connected possession-authenticated ingestion is proven by A04 native. */
 async function seedA04ObservedSurface(db: SqlDatabase): Promise<string[]> {
-  const execution = "01SYNTHETICATNEXECB0000001";
-  const runner = "01SYNTHETICATNRUNNER0000001";
+  const execution = syntheticUlid("ATNEXECB");
+  const runner = syntheticUlid("ATNRUNNER");
   const session = "synthetic-a04-browser-session";
   const stream = randomUlid();
   const cursor = (await db
@@ -981,6 +984,24 @@ async function seedA04ObservedSurface(db: SqlDatabase): Promise<string[]> {
       NOW,
       NOW,
     );
+  // Display fixtures share the workspace ledger with realtime tests. Validate
+  // the same complete replay that browsers consume before filtering by run.
+  const authorization = createAuthorizationContext({
+    workspaceId: FIX.workspace,
+    principalId: FIX.owner,
+    authorizationEpoch: 1,
+    jurisdiction: "eu",
+  });
+  const throughCursor = await readLedgerHighWater(db, authorization);
+  let afterCursor = 0;
+  while (afterCursor < throughCursor) {
+    const page = await listLedgerEvents(db, authorization, {
+      afterCursor,
+      throughCursor,
+      limit: 100,
+    });
+    afterCursor = page.at(-1)?.workspace_cursor ?? throughCursor;
+  }
   return sourceIds;
 }
 

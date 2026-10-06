@@ -45,6 +45,7 @@ test("reviewer answers a review request but cannot satisfy an owner-only credent
   );
   expect(kinds).toEqual(["blocker", "credential", "review"]);
 
+  await page.getByTestId(`answer-trigger-${FIX.attentionReview}`).click();
   await page.getByTestId(`answer-input-${FIX.attentionReview}`).fill("Synthetic reviewer decision");
   await page
     .getByTestId(`answer-form-${FIX.attentionReview}`)
@@ -54,6 +55,7 @@ test("reviewer answers a review request but cannot satisfy an owner-only credent
   await expect(answered).toHaveAttribute("data-state", "answered");
   await expect(answered).toContainText("Synthetic reviewer decision");
 
+  await page.getByTestId(`answer-trigger-${FIX.attentionCredential}`).click();
   await page.getByTestId(`answer-input-${FIX.attentionCredential}`).fill("Synthetic overreach");
   await page
     .getByTestId(`answer-form-${FIX.attentionCredential}`)
@@ -71,6 +73,7 @@ test("reviewer answers a review request but cannot satisfy an owner-only credent
 test("committed answers survive a full reload without any socket delivery", async ({ page }) => {
   await signInAndOpenBoard(page, "owner");
   await openAttention(page);
+  await page.getByTestId(`answer-trigger-${FIX.attentionCredential}`).click();
   await page
     .getByTestId(`answer-input-${FIX.attentionCredential}`)
     .fill("Synthetic reload decision");

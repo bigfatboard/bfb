@@ -74,6 +74,7 @@ async function settle(page: Page): Promise<void> {
 
 async function openTaskSheet(page: Page, taskId: string): Promise<void> {
   await page.locator(`#task-${taskId}`).getByRole("button", { name: /Open / }).click();
+  await page.getByTestId("task-section").selectOption("results");
   await expect(page.getByTestId("result-panel")).toBeVisible();
 }
 

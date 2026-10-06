@@ -245,6 +245,13 @@ export function SecurityPage(props: PageProps) {
     const name = String(new FormData(event.currentTarget).get("name") ?? "");
     try {
       await registerPasskey(props.fetchImpl, props.csrfToken, flow, name);
+      const location = new URL(window.location.href);
+      location.searchParams.delete("passkey_enrollment");
+      window.history.replaceState(
+        null,
+        "",
+        `${location.pathname}${location.search}${location.hash}`,
+      );
       setRegistered(true);
     } catch (error) {
       setError(error instanceof Error ? error.message : "Passkey was not registered.");
@@ -260,16 +267,6 @@ export function SecurityPage(props: PageProps) {
         <p role="status">Passkey registered. You can now connect your Mac.</p>
       ) : passkeys === null ? (
         <p role="status">Loading passkeys…</p>
-      ) : passkeys.length ? (
-        <>
-          <h2>Registered passkeys</h2>
-          <ul>
-            {passkeys.map((key) => (
-              <li key={key.id}>{key.name || "Passkey"}</li>
-            ))}
-          </ul>
-          <p>Your account is ready for passkey checks.</p>
-        </>
       ) : flow ? (
         <form className="stacked-form" onSubmit={(event) => void enroll(event)}>
           <label>
@@ -288,6 +285,16 @@ export function SecurityPage(props: PageProps) {
             Restart GitHub verification
           </button>
         </form>
+      ) : passkeys.length ? (
+        <>
+          <h2>Registered passkeys</h2>
+          <ul>
+            {passkeys.map((key) => (
+              <li key={key.id}>{key.name || "Passkey"}</li>
+            ))}
+          </ul>
+          <p>Your account is ready for passkey checks.</p>
+        </>
       ) : (
         <button
           type="button"
