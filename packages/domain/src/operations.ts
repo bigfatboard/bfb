@@ -9,6 +9,7 @@ import { assertEpoch, assertRole, loadPrincipal } from "./authorization.js";
 import { DomainError, type HubCommand, type HubContext } from "./hub.js";
 import { isUlid, randomUlid } from "./ids.js";
 import { validateStepUpProof, type StepUpAction } from "./step-up.js";
+import { sharedTaskPredicate, taskAccessPredicate, type TaskAccessContext } from "./task-access.js";
 
 /** D1 migration that owns the X05 operations tables. Asserted registered, never as newest head. */
 export const OPS_MIGRATION_ID = "0034_operations";
@@ -41,6 +42,35 @@ export const TOKEN_ROTATION_WARN_MS = 24 * 60 * 60_000;
 /** Recovery and read-model page bounds. */
 export const OPS_MAX_TARGETS = 50;
 export const OPS_MAX_PAGE = 100;
+
+/** Operations task projections remain shared-only even for a private creator. */
+function operationsTaskPredicate(access?: TaskAccessContext) {
+  const shared = sharedTaskPredicate("ops_task");
+  if (!access) return { sql: shared, parameters: [] };
+  const current = taskAccessPredicate(access, "read", "ops_task");
+  return { sql: `(${shared} AND ${current.sql})`, parameters: current.parameters };
+}
+
+/** Run-free work and task-bound operator lists retain the owner/member ceiling. */
+function operationsWorkspacePredicate(
+  access: TaskAccessContext | undefined,
+  alias: "v" | "launch" | "ops_scope",
+) {
+  if (!access) return { sql: "1", parameters: [] };
+  return {
+    sql: `${alias}.workspace_id = ? AND EXISTS (
+      SELECT 1 FROM workspace_members AS ops_member
+      JOIN workspace_authorization_epochs AS ops_epoch
+        ON ops_epoch.workspace_id = ops_member.workspace_id
+          AND ops_epoch.human_id = ops_member.human_id
+          AND ops_epoch.authorization_epoch = ops_member.authorization_epoch
+          AND ops_epoch.revoked_at IS NULL
+      WHERE ops_member.workspace_id = ${alias}.workspace_id AND ops_member.human_id = ?
+        AND ops_epoch.authorization_epoch = ? AND ops_member.role IN ('owner', 'member')
+    )`,
+    parameters: [access.workspaceId, access.humanId, access.authorizationEpoch],
+  };
+}
 
 function fail(code: string, message: string): never {
   throw new DomainError(code, message);
@@ -702,32 +732,46 @@ export interface ActivityEntry {
 export async function readActivityFeed(
   db: SqlDatabase,
   workspaceId: string,
-  options: { limit?: number; afterCursor?: number; projectIds?: string[] } = {},
+  options: {
+    limit?: number;
+    afterCursor?: number;
+    projectIds?: string[];
+    access?: TaskAccessContext;
+  } = {},
 ): Promise<{ entries: ActivityEntry[]; has_more: boolean }> {
   const limit = Math.min(Math.max(options.limit ?? 50, 1), OPS_MAX_PAGE);
+  const parent = operationsTaskPredicate(options.access);
   const params: unknown[] = [workspaceId];
   let extra = "";
   if (options.afterCursor !== undefined) {
-    extra += " AND workspace_cursor > ?";
+    extra += " AND event.workspace_cursor > ?";
     params.push(options.afterCursor);
   }
   if (options.projectIds !== undefined) {
     if (options.projectIds.length === 0) {
       return { entries: [], has_more: false };
     }
-    extra += ` AND project_id IN (${options.projectIds.map(() => "?").join(",")})`;
+    extra += ` AND event.project_id IN (${options.projectIds.map(() => "?").join(",")})`;
     params.push(...options.projectIds);
   }
   const rows = (await db
     .prepare(
-      `SELECT workspace_cursor, kind, actor_type, actor_id, source_id, source_provider,
-              project_id, task_id, run_id, occurred_at, received_at
-       FROM event_ledger
-       WHERE workspace_id = ? ${extra}
-       ORDER BY workspace_cursor ASC
+      `SELECT event.workspace_cursor, event.kind, event.actor_type, event.actor_id,
+              event.source_id, event.source_provider, event.project_id, event.task_id,
+              event.run_id, event.occurred_at, event.received_at
+       FROM event_ledger AS event
+       WHERE event.workspace_id = ? ${extra} AND EXISTS (
+         SELECT 1 FROM runs AS ops_run JOIN tasks AS ops_task
+           ON ops_task.workspace_id = ops_run.workspace_id AND ops_task.id = ops_run.task_id
+             AND ops_task.project_id = ops_run.project_id
+         WHERE ops_run.workspace_id = event.workspace_id AND ops_run.id = event.run_id
+           AND ops_run.task_id = event.task_id AND ops_run.project_id = event.project_id
+           AND ${parent.sql}
+       )
+       ORDER BY event.workspace_cursor ASC
        LIMIT ?`,
     )
-    .all(...params, limit + 1)) as ActivityEntry[];
+    .all(...params, ...parent.parameters, limit + 1)) as ActivityEntry[];
   return { entries: rows.slice(0, limit), has_more: rows.length > limit };
 }
 
@@ -743,15 +787,19 @@ export async function listStuckUploads(
   db: SqlDatabase,
   workspaceId: string,
   nowIso: string,
+  access?: TaskAccessContext,
 ): Promise<StuckUpload[]> {
   const nowMs = Date.parse(nowIso);
   if (!Number.isFinite(nowMs)) {
     return [];
   }
+  const parent = operationsTaskPredicate(access);
+  const human = operationsWorkspacePredicate(access, "v");
   const rows = (await db
     .prepare(
       `SELECT v.id AS version_id, v.artifact_id, v.created_at
        FROM artifact_versions AS v
+       JOIN artifacts AS artifact ON artifact.workspace_id = v.workspace_id AND artifact.id = v.artifact_id
        WHERE v.workspace_id = ?
          AND v.state = 'uploading'
          AND datetime(v.created_at) <= datetime(?, '-1200 seconds')
@@ -762,9 +810,16 @@ export async function listStuckUploads(
              AND g.consumed_at IS NULL
              AND datetime(g.expires_at) > datetime(?)
          )
+         AND (artifact.run_id IS NULL OR EXISTS (
+           SELECT 1 FROM runs AS ops_run JOIN tasks AS ops_task
+             ON ops_task.workspace_id = ops_run.workspace_id AND ops_task.id = ops_run.task_id
+               AND ops_task.project_id = ops_run.project_id
+           WHERE ops_run.workspace_id = artifact.workspace_id AND ops_run.id = artifact.run_id
+             AND ${parent.sql}
+         )) AND ${human.sql}
        ORDER BY v.created_at ASC`,
     )
-    .all(workspaceId, nowIso, nowIso)) as Array<{
+    .all(workspaceId, nowIso, nowIso, ...parent.parameters, ...human.parameters)) as Array<{
     version_id: string;
     artifact_id: string;
     created_at: string;
@@ -794,23 +849,33 @@ export async function listStuckLaunches(
   db: SqlDatabase,
   workspaceId: string,
   nowIso: string,
+  access?: TaskAccessContext,
 ): Promise<StuckLaunch[]> {
   const nowMs = Date.parse(nowIso);
   if (!Number.isFinite(nowMs)) {
     return [];
   }
+  const parent = operationsTaskPredicate(access);
+  const human = operationsWorkspacePredicate(access, "launch");
   const rows = (await db
     .prepare(
-      `SELECT id AS command_id, run_id, state, expires_at,
-              COALESCE(claimed_at, created_at) AS since
-       FROM launch_commands
-       WHERE workspace_id = ?
-         AND ((state = 'pending' AND datetime(expires_at) <= datetime(?))
-           OR (state = 'claimed' AND final_authorized_at IS NULL
-               AND datetime(COALESCE(claimed_at, created_at)) <= datetime(?, '-600 seconds')))
+      `SELECT launch.id AS command_id, launch.run_id, launch.state, launch.expires_at,
+              COALESCE(launch.claimed_at, launch.created_at) AS since
+       FROM launch_commands AS launch
+       WHERE launch.workspace_id = ?
+         AND ((launch.state = 'pending' AND datetime(launch.expires_at) <= datetime(?))
+           OR (launch.state = 'claimed' AND launch.final_authorized_at IS NULL
+               AND datetime(COALESCE(launch.claimed_at, launch.created_at)) <= datetime(?, '-600 seconds')))
+         AND EXISTS (
+           SELECT 1 FROM runs AS ops_run JOIN tasks AS ops_task
+             ON ops_task.workspace_id = ops_run.workspace_id AND ops_task.id = ops_run.task_id
+               AND ops_task.project_id = ops_run.project_id
+           WHERE ops_run.workspace_id = launch.workspace_id AND ops_run.id = launch.run_id
+             AND ${parent.sql}
+         ) AND ${human.sql}
        ORDER BY since ASC`,
     )
-    .all(workspaceId, nowIso, nowIso)) as Array<{
+    .all(workspaceId, nowIso, nowIso, ...parent.parameters, ...human.parameters)) as Array<{
     command_id: string;
     run_id: string;
     state: string;
@@ -830,6 +895,70 @@ export interface QueueState {
   notifications: { pending: number; dead_lettered: number; failed: number };
   github_outbox: { pending: number; dispatched_stale: number; dlq: number };
   ops_recovery: { applied: number; failed: number };
+}
+
+/** Rechecks both hydrated lists together after composite health/queue awaits. */
+export async function filterOperationsStuckWork(
+  db: SqlDatabase,
+  workspaceId: string,
+  nowIso: string,
+  work: { uploads: StuckUpload[]; launches: StuckLaunch[] },
+  access?: TaskAccessContext,
+): Promise<{ uploads: StuckUpload[]; launches: StuckLaunch[] }> {
+  const parent = operationsTaskPredicate(access);
+  const human = operationsWorkspacePredicate(access, "ops_scope");
+  const refs = [
+    ...work.uploads.map((row) => ({
+      kind: "upload",
+      id: row.version_id,
+      parent_id: row.artifact_id,
+    })),
+    ...work.launches.map((row) => ({ kind: "launch", id: row.command_id, parent_id: row.run_id })),
+  ];
+  if (refs.length === 0) return { uploads: [], launches: [] };
+  const rows = (await db
+    .prepare(
+      `SELECT json_extract(ref.value, '$.kind') AS kind, json_extract(ref.value, '$.id') AS id
+     FROM json_each(?) AS ref JOIN (SELECT ? AS workspace_id) AS ops_scope
+     LEFT JOIN artifact_versions AS version ON version.workspace_id = ops_scope.workspace_id
+       AND json_extract(ref.value, '$.kind') = 'upload' AND version.id = json_extract(ref.value, '$.id')
+     LEFT JOIN artifacts AS artifact ON artifact.workspace_id = version.workspace_id
+       AND artifact.id = version.artifact_id AND artifact.id = json_extract(ref.value, '$.parent_id')
+     LEFT JOIN launch_commands AS launch ON launch.workspace_id = ops_scope.workspace_id
+       AND json_extract(ref.value, '$.kind') = 'launch' AND launch.id = json_extract(ref.value, '$.id')
+       AND launch.run_id = json_extract(ref.value, '$.parent_id')
+     LEFT JOIN runs AS ops_run ON ops_run.workspace_id = ops_scope.workspace_id
+       AND ops_run.id = CASE json_extract(ref.value, '$.kind') WHEN 'upload' THEN artifact.run_id ELSE launch.run_id END
+     LEFT JOIN tasks AS ops_task ON ops_task.workspace_id = ops_run.workspace_id
+       AND ops_task.id = ops_run.task_id AND ops_task.project_id = ops_run.project_id
+     WHERE ((json_extract(ref.value, '$.kind') = 'upload' AND artifact.id IS NOT NULL
+         AND version.state = 'uploading' AND datetime(version.created_at) <= datetime(?, '-1200 seconds')
+         AND NOT EXISTS (SELECT 1 FROM artifact_upload_grants AS upload_grant
+           WHERE upload_grant.workspace_id = version.workspace_id AND upload_grant.version_id = version.id
+             AND upload_grant.consumed_at IS NULL AND datetime(upload_grant.expires_at) > datetime(?)))
+       OR (json_extract(ref.value, '$.kind') = 'launch' AND launch.id IS NOT NULL
+         AND ((launch.state = 'pending' AND datetime(launch.expires_at) <= datetime(?))
+           OR (launch.state = 'claimed' AND launch.final_authorized_at IS NULL
+             AND datetime(COALESCE(launch.claimed_at, launch.created_at)) <= datetime(?, '-600 seconds')))))
+       AND ((json_extract(ref.value, '$.kind') = 'upload' AND artifact.run_id IS NULL)
+         OR (ops_task.id IS NOT NULL AND ${parent.sql}))
+       AND ${human.sql}`,
+    )
+    .all(
+      JSON.stringify(refs),
+      workspaceId,
+      nowIso,
+      nowIso,
+      nowIso,
+      nowIso,
+      ...parent.parameters,
+      ...human.parameters,
+    )) as Array<{ kind: string; id: string }>;
+  const allowed = new Set(rows.map((row) => `${row.kind}:${row.id}`));
+  return {
+    uploads: work.uploads.filter((row) => allowed.has(`upload:${row.version_id}`)),
+    launches: work.launches.filter((row) => allowed.has(`launch:${row.command_id}`)),
+  };
 }
 
 export async function readQueueState(
@@ -900,13 +1029,14 @@ export async function collectWorkspaceHealth(
   db: SqlDatabase,
   workspaceId: string,
   nowIso: string,
+  access?: TaskAccessContext,
 ): Promise<WorkspaceHealth> {
   const nowMs = Date.parse(nowIso);
   const policy = await getRetentionPolicy(db, workspaceId);
   const retentionList = await listRetentionEligibleChunks(db, workspaceId, nowIso);
   const queues = await readQueueState(db, workspaceId, nowIso);
-  const stuckUploads = await listStuckUploads(db, workspaceId, nowIso);
-  const stuckLaunches = await listStuckLaunches(db, workspaceId, nowIso);
+  const stuckUploads = await listStuckUploads(db, workspaceId, nowIso, access);
+  const stuckLaunches = await listStuckLaunches(db, workspaceId, nowIso, access);
   const expiring = (await db
     .prepare(
       `SELECT COUNT(*) AS count FROM runner_tokens
@@ -978,6 +1108,16 @@ export async function collectWorkspaceHealth(
       }),
     });
   }
+  const currentStuck = await filterOperationsStuckWork(
+    db,
+    workspaceId,
+    nowIso,
+    {
+      uploads: stuckUploads,
+      launches: stuckLaunches,
+    },
+    access,
+  );
   return {
     schema_version: 1,
     workspace_id: workspaceId,
@@ -989,8 +1129,8 @@ export async function collectWorkspaceHealth(
       eligible_chunks: retentionList.eligible.length,
     },
     queues,
-    launches: { stuck: stuckLaunches },
-    uploads: { stuck: stuckUploads },
+    launches: { stuck: currentStuck.launches },
+    uploads: { stuck: currentStuck.uploads },
     tokens: { expiring_runner_tokens: expiring.count, active_api_bindings: bindings.count },
     providers,
   };

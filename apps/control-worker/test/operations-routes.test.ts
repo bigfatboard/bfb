@@ -3,7 +3,15 @@
 
 import { describe, expect, it } from "vitest";
 
-import { FIX, issueStepUpProof, OPS_STEP_UP_ACTIONS, seedSyntheticWorkspace } from "@bfb/domain";
+import {
+  FIX,
+  issueStepUpProof,
+  OPS_STEP_UP_ACTIONS,
+  randomUlid,
+  seedSyntheticWorkspace,
+} from "@bfb/domain";
+
+import { LAUNCH_NOW, launchFixture } from "../../../packages/domain/test/launch-fixture.js";
 
 import { parseAuthKeys } from "../src/auth/better-auth.js";
 import { validateControlEnv, type ControlBindings } from "../src/env.js";
@@ -146,7 +154,129 @@ async function proofFor(
 
 const OPS = `/api/v1/workspaces/${FIX.workspace}/operations`;
 
+async function activityContextWithSession() {
+  const context = openAuthTestContext(LAUNCH_NOW);
+  const f = await launchFixture(context.db, { taskCreatorHumanId: FIX.member });
+  const { launch, claimed } = await f.claim();
+  // A bounded historical ledger fixture uses the genuine synthetic assignment;
+  // these route tests certify read delivery, not live runner ingest.
+  await context.db
+    .prepare(
+      `INSERT INTO event_ledger
+     (workspace_id, event_id, workspace_cursor, source_stream_id, source_sequence,
+      run_execution_id, assignment_generation, project_id, task_id, run_id,
+      actor_type, actor_id, source_type, source_id, source_provider, capture_origin,
+      kind, occurred_at, received_at, payload_json)
+     VALUES (?, ?, 100, ?, 1, ?, ?, ?, ?, ?, 'runner', ?, 'runner', ?, 'fake',
+             'runner_observed', 'heartbeat', ?, ?, '{}')`,
+    )
+    .run(
+      FIX.workspace,
+      randomUlid(),
+      randomUlid(),
+      claimed.specification.run_execution_id,
+      claimed.specification.assignment_generation,
+      FIX.projectA,
+      f.task.id,
+      launch.run_id,
+      f.runner,
+      f.runner,
+      LAUNCH_NOW,
+      LAUNCH_NOW,
+    );
+  const owner = await seedAuthSession(context, {
+    humanId: FIX.owner,
+    email: "owner@synthetic.test",
+    now: LAUNCH_NOW,
+  });
+  return { context, f, launch, owner };
+}
+
 describe("operations browser routes", () => {
+  it("does not expose private activity or stuck launch IDs to the workspace owner", async () => {
+    const { context, f, launch, owner } = await activityContextWithSession();
+    try {
+      const { app, currentBindings } = appFor(context);
+      const initial = await app.request(
+        get(`${OPS}/activity`, owner.cookie),
+        undefined,
+        currentBindings,
+      );
+      expect(initial.status).toBe(200);
+      expect(await initial.json()).toMatchObject({ entries: [{ task_id: f.task.id }] });
+      await context.db
+        .prepare(
+          "INSERT INTO task_privacy (workspace_id, task_id, owner_human_id, created_at) VALUES (?, ?, ?, ?)",
+        )
+        .run(FIX.workspace, f.task.id, FIX.member, NOW);
+      const activity = await app.request(
+        get(`${OPS}/activity?limit=1`, owner.cookie),
+        undefined,
+        currentBindings,
+      );
+      expect(activity.status).toBe(200);
+      expect(await activity.json()).toEqual({ ok: true, entries: [], has_more: false });
+      for (const tail of ["queues", "health"]) {
+        const response = await app.request(
+          get(`${OPS}/${tail}`, owner.cookie),
+          undefined,
+          currentBindings,
+        );
+        expect(response.status).toBe(200);
+        const body = await response.text();
+        expect(body).not.toContain(launch.launch_id);
+        expect(body).not.toContain(f.task.id);
+      }
+    } finally {
+      context.raw.close();
+    }
+  });
+
+  it("rechecks project access inside selection after authenticated route admission", async () => {
+    const { context, owner } = await activityContextWithSession();
+    try {
+      const db = context.db;
+      let fired = false;
+      context.db = {
+        ...db,
+        prepare(sql) {
+          const statement = db.prepare(sql);
+          if (!/FROM event_ledger/.test(sql)) return statement;
+          return {
+            ...statement,
+            async all(...params) {
+              if (!fired) {
+                fired = true;
+                await db
+                  .prepare(
+                    "UPDATE projects SET access_mode = 'restricted' WHERE workspace_id = ? AND id = ?",
+                  )
+                  .run(FIX.workspace, FIX.projectA);
+                await db
+                  .prepare(
+                    "DELETE FROM project_access WHERE workspace_id = ? AND project_id = ? AND human_id = ?",
+                  )
+                  .run(FIX.workspace, FIX.projectA, FIX.owner);
+              }
+              return statement.all(...params);
+            },
+          };
+        },
+      };
+      const { app, currentBindings } = appFor(context);
+      const response = await app.request(
+        get(`${OPS}/activity`, owner.cookie),
+        undefined,
+        currentBindings,
+      );
+      expect(response.status).toBe(200);
+      expect(fired).toBe(true);
+      expect(await response.json()).toEqual({ ok: true, entries: [], has_more: false });
+    } finally {
+      context.raw.close();
+    }
+  });
+
   it("keeps security audit Owner-only while activity stays role-scoped", async () => {
     const { context, owner, member, reviewer } = await contextWithSessions();
     const { app, currentBindings } = appFor(context);

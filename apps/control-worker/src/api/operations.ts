@@ -15,6 +15,7 @@ import {
   createDiagnosticBundleCommand,
   diagnosticR2Key,
   DomainError,
+  filterOperationsStuckWork,
   getRetentionPolicy,
   listRetentionEligibleChunks,
   listStuckLaunches,
@@ -278,7 +279,8 @@ export async function handleOperationsApi(
       const feed = await readActivityFeed(deps.db, workspaceId, {
         limit: Number.isSafeInteger(limit) ? limit : 50,
         ...(afterRaw === null ? {} : { afterCursor: Number(afterRaw) }),
-        ...(principal.role === "reviewer" ? { projectIds: principal.projectIds } : {}),
+        projectIds: principal.projectIds,
+        access: principal,
       });
       return json({ ok: true, ...feed });
     }
@@ -293,17 +295,30 @@ export async function handleOperationsApi(
     }
     if (request.method === "GET" && (tail === "/queues" || tail === "/queues/")) {
       assertRole(principal, ["owner", "member"]);
+      const queues = await readQueueState(deps.db, workspaceId, deps.now);
+      const uploads = await listStuckUploads(deps.db, workspaceId, deps.now, principal);
+      const launches = await listStuckLaunches(deps.db, workspaceId, deps.now, principal);
+      const currentStuck = await filterOperationsStuckWork(
+        deps.db,
+        workspaceId,
+        deps.now,
+        {
+          uploads,
+          launches,
+        },
+        principal,
+      );
       return json({
         ok: true,
-        queues: await readQueueState(deps.db, workspaceId, deps.now),
-        stuck_uploads: await listStuckUploads(deps.db, workspaceId, deps.now),
-        stuck_launches: await listStuckLaunches(deps.db, workspaceId, deps.now),
+        queues,
+        stuck_uploads: currentStuck.uploads,
+        stuck_launches: currentStuck.launches,
       });
     }
     if (request.method === "GET" && (tail === "/health" || tail === "/health/")) {
       assertRole(principal, ["owner", "member"]);
       const tables = await checkOperationsTables(deps.db);
-      const health = await collectWorkspaceHealth(deps.db, workspaceId, deps.now);
+      const health = await collectWorkspaceHealth(deps.db, workspaceId, deps.now, principal);
       return json({ ok: true, health, migrations: tables });
     }
     if (request.method === "GET" && (tail === "/retention" || tail === "/retention/")) {
