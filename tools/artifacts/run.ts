@@ -927,6 +927,120 @@ try {
   assert.equal(byId.get(created.version_id), "available");
   note("sweep_marked", 1);
 
+  // Original outbox IDs survive concurrent dispatch, lost replies and transient
+  // Hub cache loss. Only finite metadata may enter projected events and audit.
+  async function auditSource() {
+    const id = randomUlid();
+    await db
+      .prepare(
+        `INSERT INTO artifact_audit_outbox
+      (workspace_id,id,version_id,grant_id,action,payload_json,created_at,dispatched_at)
+      VALUES (?,?,?,NULL,'artifact.upload_verified',?,?,NULL)`,
+      )
+      .run(
+        FIX.workspace,
+        id,
+        created.version_id,
+        JSON.stringify({ private_body: "V01-PRIVATE-AUDIT-CANARY" }),
+        T0,
+      );
+    return id;
+  }
+  const dispatchAudit = (id: string, index = 0, drop = false) =>
+    server
+      .getWorker(index % 2 ? "bfb-v01-b" : "bfb-v01-a")
+      .fetch(`${ORIGIN}/__v01/audit/${id}`, {
+        method: "POST",
+        headers: drop ? { "x-v01-drop-audit-reply": "1" } : {},
+      });
+  async function auditCounts(id: string) {
+    const events = await db
+      .prepare(`SELECT event_id,payload_json,created_at FROM semantic_events WHERE event_id=?`)
+      .all(id);
+    const audit = await db
+      .prepare(`SELECT audit_id,payload_json FROM audit_events WHERE audit_id=?`)
+      .all(id);
+    const stamp = (await db
+      .prepare(`SELECT dispatched_at FROM artifact_audit_outbox WHERE id=?`)
+      .get(id)) as { dispatched_at: string | null };
+    return { events, audit, stamp };
+  }
+  const concurrentSource = await auditSource();
+  const concurrentAudits = await Promise.all([
+    dispatchAudit(concurrentSource, 0),
+    dispatchAudit(concurrentSource, 1),
+  ]);
+  const concurrentResults = await Promise.all(
+    concurrentAudits.map((response) => accepted<{ ok: boolean; replayed: boolean }>(response)),
+  );
+  assert(concurrentResults.every((result) => result.ok));
+  assert.equal(concurrentResults.filter((result) => result.replayed).length, 1);
+  const concurrentCounts = await auditCounts(concurrentSource);
+  assert.equal(concurrentCounts.events.length, 1);
+  assert.equal(concurrentCounts.audit.length, 1);
+  assert(concurrentCounts.stamp.dispatched_at);
+  const projected = concurrentCounts.events[0] as { payload_json: string; created_at: string };
+  assert.deepEqual(JSON.parse(projected.payload_json), {
+    schema_version: 1,
+    outbox_id: concurrentSource,
+    version_id: created.version_id,
+    grant_id: null,
+    source_action: "artifact.upload_verified",
+    occurred_at: T0,
+  });
+  assert.equal(projected.created_at, concurrentCounts.stamp.dispatched_at);
+  note("audit_concurrent_single_projection");
+
+  const lostAuditSource = await auditSource();
+  const lostAuditResponse = await dispatchAudit(lostAuditSource, 0, true);
+  assert.equal(lostAuditResponse.status, 503);
+  await lostAuditResponse.arrayBuffer();
+  const recoveredAudit = await accepted<{ ok: boolean; replayed: boolean }>(
+    await dispatchAudit(lostAuditSource, 1),
+  );
+  assert.equal(recoveredAudit.ok, true);
+  assert.equal(recoveredAudit.replayed, true);
+  await db
+    .prepare(`DELETE FROM idempotency_records WHERE workspace_id=? AND idempotency_key=?`)
+    .run(FIX.workspace, `artifact-audit:${lostAuditSource}`);
+  const uncachedAudit = await accepted<{ ok: boolean }>(await dispatchAudit(lostAuditSource));
+  assert.equal(uncachedAudit.ok, false);
+  const lostCounts = await auditCounts(lostAuditSource);
+  assert.equal(lostCounts.events.length, 1);
+  assert.equal(lostCounts.audit.length, 1);
+  note("audit_lost_reply_cache_loss_single_projection");
+
+  const failedAuditSource = await auditSource();
+  await db
+    .prepare(
+      `CREATE TRIGGER synthetic_v01_audit_failure BEFORE INSERT ON outbox_records
+    WHEN NEW.kind = 'artifact.dispatch_audit'
+    BEGIN SELECT RAISE(ABORT,'synthetic late audit failure'); END`,
+    )
+    .run();
+  const failedAudit = await accepted<{ ok: boolean }>(await dispatchAudit(failedAuditSource));
+  assert.equal(failedAudit.ok, false);
+  assert.deepEqual(await auditCounts(failedAuditSource), {
+    events: [],
+    audit: [],
+    stamp: { dispatched_at: null },
+  });
+  await db.prepare(`DROP TRIGGER synthetic_v01_audit_failure`).run();
+  const retriedAudit = await accepted<{ ok: boolean }>(await dispatchAudit(failedAuditSource, 1));
+  assert.equal(retriedAudit.ok, true);
+  const retriedCounts = await auditCounts(failedAuditSource);
+  assert.equal(retriedCounts.events.length, 1);
+  assert.equal(retriedCounts.audit.length, 1);
+  note("audit_late_fault_atomic_retry");
+  const auditProjectionDump = JSON.stringify({
+    semantic: await db.prepare(`SELECT payload_json FROM semantic_events`).all(),
+    audit: await db.prepare(`SELECT payload_json FROM audit_events`).all(),
+    hubOutbox: await db.prepare(`SELECT payload_json FROM outbox_records`).all(),
+    cache: await db.prepare(`SELECT result_json FROM idempotency_records`).all(),
+  });
+  assert(!auditProjectionDump.includes("V01-PRIVATE-AUDIT-CANARY"));
+  note("audit_private_payload_excluded");
+
   // Capability scan: no secret, bearer, or byte payload survives in D1 or R2 keys.
   const dump = JSON.stringify({
     grants: await db.prepare(`SELECT * FROM artifact_upload_grants`).all(),
