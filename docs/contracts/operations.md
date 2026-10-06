@@ -56,6 +56,8 @@ interprets provider-specific capability fields.
   and target-ledger retry history have distinct actor/time rules. The
   [C11 contract](private-task-delivery.md) freezes normalization and delivery
   boundaries; this is not yet a certificate or a recovery-execution change.
+  Its chronology repair uses a normalized internal UTC key in both page and
+  anchor comparison, preserving raw display timestamps and insertion-order ties.
 
 ## Activity read model
 

@@ -338,6 +338,11 @@ it requires a separate clean checkpoint and does not change recovery execution:
   and anchors; scope loss precedes the same hidden/unknown cursor denial, even
   for empty pages. Normalize JSON through materialized boundaries within actual
   D1 limits, then reconstruct synchronously without later awaited hydration.
+  Valid UTC timestamps use an internal six-fraction-digit sort key for both page
+  and anchor comparison, including the existing recognized artifact receipts and
+  valid UTC legacy rows; insertion order breaks equal-instant ties. Original
+  displayed timestamps and cursor IDs stay unchanged. Malformed legacy timestamp
+  strings retain their historical raw sort key and remain outside certification.
 - Reconstruct typed actor/result fields and keep `input.version_ids` displayed
   as the existing literal `[redacted]`, while validating the complete source array
   internally. This avoids expanding the current nested-array outward payload.
