@@ -54,7 +54,10 @@ export function createFetchHandler(options: ControlFetchOptions = {}) {
           };
         },
       });
-      return await app.fetch(request, env);
+      return await app.fetch(request, {
+        ...env,
+        WORKSPACE_HUB: validated.bindings.WORKSPACE_HUB,
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : "invalid_environment";
       return new Response(JSON.stringify({ ok: false, error: "config_invalid", message }), {
@@ -156,7 +159,7 @@ export default {
       jurisdiction: validated.jurisdiction,
       appOrigin: validated.origins.appOrigin,
       abuseSecret: env.AUTH_ABUSE_SECRET ?? "",
-      workspaceHubNs: env.WORKSPACE_HUB,
+      workspaceHubNs: validated.bindings.WORKSPACE_HUB,
       jobs: env.JOBS,
       githubWebhookSecret: env.GITHUB_WEBHOOK_SECRET,
       githubApiBase: env.GITHUB_API_BASE,
@@ -170,16 +173,20 @@ export default {
     env: ControlBindings,
     _ctx: ExecutionContext,
   ): Promise<void> {
-    validateControlEnv(env);
+    const validated = validateControlEnv(env);
     try {
       const { runArtifactSweep } = await import("./artifacts/maintenance.js");
-      await runArtifactSweep(adaptD1(env.DB), new Date().toISOString(), env.WORKSPACE_HUB);
+      await runArtifactSweep(
+        adaptD1(env.DB),
+        new Date().toISOString(),
+        validated.bindings.WORKSPACE_HUB,
+      );
     } catch {
       // The sweep is idempotent and retried on the next Cron tick.
     }
     try {
       const { runArtifactAuditDispatch } = await import("./artifacts/maintenance.js");
-      await runArtifactAuditDispatch(adaptD1(env.DB), env.WORKSPACE_HUB);
+      await runArtifactAuditDispatch(adaptD1(env.DB), validated.bindings.WORKSPACE_HUB);
     } catch {
       // The source-identified audit projection and stamp retry atomically.
     }

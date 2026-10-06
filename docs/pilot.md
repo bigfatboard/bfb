@@ -6,6 +6,13 @@ real GitHub authentication and passkeys. It does not use the disposable browser
 fixture server or a test-login route. Installed-provider certification and the
 complete browser-to-Claude human loop remain separate acceptance requirements.
 
+The dedicated pilot explicitly emulates jurisdiction-specific workspace Hub
+names because local Workerd does not implement geographic jurisdiction
+restrictions. EU and US workspace names remain logically distinct, using real
+Durable Objects and the existing D1 command path. This is not EU residency or
+deployed-placement evidence. The emulation setting is rejected outside the
+local environment; see [ADR 0012](adr/0012-local-pilot-hub-jurisdiction.md).
+
 ## Prepare once
 
 Use the repository's pinned Node, pnpm, Go and Xcode versions. From the checkout:

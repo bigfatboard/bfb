@@ -8,6 +8,7 @@ compatibility_flags = ["nodejs_compat"]
 
 [vars]
 ENVIRONMENT = "local"
+LOCAL_HUB_JURISDICTION_EMULATION = "true"
 JURISDICTION = "eu"
 APP_ORIGIN = "https://localhost:8787"
 ARTIFACT_ORIGIN = "https://artifacts.localhost:8788"

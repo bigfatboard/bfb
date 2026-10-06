@@ -1,6 +1,8 @@
 // ABOUTME: Validates Control Worker bindings and canonical host configuration before serving.
 // ABOUTME: Missing D1, R2, Queue, DO, origin, or jurisdiction configuration fails closed.
 
+import { localWorkspaceHubNamespace } from "./local-workspace-hub.js";
+
 export type Jurisdiction = "eu" | "us" | "global";
 
 export interface ControlOrigins {
@@ -31,6 +33,7 @@ export interface ControlBindings {
   LAUNCH_ORIGIN: string;
   JURISDICTION: string;
   ENVIRONMENT: string;
+  LOCAL_HUB_JURISDICTION_EMULATION?: string;
   ARTIFACT_VIEWER_ENABLED?: string;
   ARTIFACT_REVIEW_ENABLED?: string;
   DISCUSSIONS_ENABLED?: string;
@@ -168,6 +171,12 @@ export function validateControlEnv(env: Partial<ControlBindings>): ValidatedCont
   const artifact = parseOrigin(ARTIFACT_ORIGIN, "ARTIFACT_ORIGIN");
   const launch = parseOrigin(LAUNCH_ORIGIN, "LAUNCH_ORIGIN");
   const environment = parseEnvironment(ENVIRONMENT);
+  const localHubEmulation = parseEnabled(
+    env.LOCAL_HUB_JURISDICTION_EMULATION,
+    "LOCAL_HUB_JURISDICTION_EMULATION",
+  );
+  if (localHubEmulation && environment !== "local")
+    throw new Error("local Hub jurisdiction emulation requires ENVIRONMENT=local");
   const features = {
     artifactViewer: parseEnabled(env.ARTIFACT_VIEWER_ENABLED, "ARTIFACT_VIEWER_ENABLED"),
     artifactReview: parseEnabled(env.ARTIFACT_REVIEW_ENABLED, "ARTIFACT_REVIEW_ENABLED"),
@@ -204,12 +213,13 @@ export function validateControlEnv(env: Partial<ControlBindings>): ValidatedCont
       VAPID_PUBLIC_KEY: env.VAPID_PUBLIC_KEY,
       VAPID_PRIVATE_KEY: env.VAPID_PRIVATE_KEY,
       VAPID_SUBJECT: env.VAPID_SUBJECT,
-      WORKSPACE_HUB,
+      WORKSPACE_HUB: localHubEmulation ? localWorkspaceHubNamespace(WORKSPACE_HUB) : WORKSPACE_HUB,
       APP_ORIGIN: app.origin,
       ARTIFACT_ORIGIN: artifact.origin,
       LAUNCH_ORIGIN: launch.origin,
       JURISDICTION,
       ENVIRONMENT,
+      LOCAL_HUB_JURISDICTION_EMULATION: String(localHubEmulation),
       ARTIFACT_VIEWER_ENABLED: String(features.artifactViewer),
       ARTIFACT_REVIEW_ENABLED: String(features.artifactReview),
       DISCUSSIONS_ENABLED: String(features.discussions),
