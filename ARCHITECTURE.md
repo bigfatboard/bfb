@@ -354,7 +354,7 @@ The `bfb` Go binary has several entry points but one implementation:
 - `bfb mcp stdio` exposes run-scoped MCP to a local agent.
 - `bfb __launch <local-intent-id>` is the fixed terminal bootstrap command.
 
-The daemon listens on a user-only Unix domain socket with mode `0600`. Its SQLite database uses WAL mode and stores checkout records, active sessions, process observations, unacknowledged events, pending artifacts, and cached non-secret metadata. OAuth/API credentials and the runner private key live in macOS Keychain; provider credentials stay in their provider’s normal local store.
+The daemon listens on a user-only Unix domain socket with mode `0600`. Its SQLite database uses WAL mode and stores checkout records, active sessions, process observations, unacknowledged events, and cached non-secret metadata. Protected pending agent work uses its separate daemon-owned journal; artifact publication has no local durable queue under ADR 0010. OAuth/API credentials and the runner private key live in macOS Keychain; provider credentials stay in their provider’s normal local store.
 
 `BFB.app` is a small signed/notarized SwiftUI menu-bar application. It owns Universal Link handling, first-run/browser pairing, runner status, native notifications, and opening the terminal bootstrap. It delegates all BFB protocol and provider logic to the Go daemon.
 
@@ -828,13 +828,20 @@ A plan is not approved because a similarly named file was approved earlier. Revi
 
 A newer version does not erase the historical review, but that decision applies only to the reviewed hash. The current artifact is visibly unapproved until its own version is reviewed.
 
-Publishing paths, in preference order, are:
+Connected run-scoped publication uses `bfb_publish_artifact` or bound
+`bfb artifact publish`, with an explicit request ID, relative file path, format,
+role and optional existing artifact ID. The daemon derives task/run/session
+association; callers cannot select scope or credentials. Browser publication
+uses the separate authenticated human routes. Human CLI credential parity is
+owned by X02, not implied by the bound agent path.
 
-1. `bfb_publish_artifact` with explicit format, role, title, and task/run association.
-2. `bfb artifact publish` for a human or script.
-3. A file written into the run-specific outbox supplied through `BFB_ARTIFACTS_DIR`.
-
-The outbox is not `.bfb/artifacts` in the repository. Keeping generated review material outside the checkout avoids accidental commits, repository noise, and provider-specific file conventions.
+`BFB_ARTIFACTS_DIR` identifies the supervisor-prepared run-specific directory
+outside the checkout, not an automatic outbox. Writing a file alone neither
+publishes nor queues it. The daemon revalidates the pinned directory and reads
+one bounded snapshot only after an explicit call; no local durable artifact
+queue or watcher exists under [ADR 0010](docs/adr/0010-connected-artifact-publication.md).
+Keeping generated review material outside the checkout avoids accidental
+commits, repository noise, and provider-specific file conventions.
 
 HTML artifacts are a single self-contained file with inline CSS/JavaScript and no external dependencies. BFB does not bundle React/JSX, resolve packages, or execute a build. The fixed redemption bootstrap uses iframe `sandbox="allow-scripts allow-forms"` only so its own script can submit the secret; the redeemed artifact response applies a second, stricter CSP sandbox equivalent to:
 

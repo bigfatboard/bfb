@@ -281,7 +281,37 @@ A02 above; the [A03 result contract](results.md) extends this same server.
 A03 adds its separate v5 protected result family to this same daemon and journal;
 it does not add a credential or endpoint. Its separate
 [clean runtime certificate](../work-packages/evidence/WP-A03/runtime-manifest.json)
-is at `9077a08`. V01's rules alone do not establish an online bridge.
+is at `9077a08`. V01 adds the separately negotiated v6 publication lane below;
+its current acceptance is tracked independently in the active V01 package.
+
+## Online artifact publication
+
+`bfb_publish_artifact` accepts only `request_id`, relative `path`, `format`,
+`role`, and optional `artifact_id`. The bound CLI exposes the same operation
+through `bfb artifact publish --request-id --file <relative> --format --role`
+and optional `--artifact-id`; mixing legacy scope or credential flags rejects.
+Neither surface accepts endpoints, credentials, digest, version, storage key or
+execution scope. The daemon derives current canonical session and assignment
+authority before reading one bounded snapshot from the supervisor's pinned
+artifact directory.
+
+The separate `local-agent-artifact-rpc` schema version 6 negotiates exactly
+`mcp.v6.publish_artifact` through the v1 daemon-status method list. Unsupported
+peers fail without sending private data or downgrading to the historical
+general publication RPC. Prepare/upload/finalize use fixed authenticated
+cloud actions and return only the closed final `AgentArtifactResult`.
+
+Publication is online-only and has no local journal, spool, pending-sync
+permission or automatic replay. An unavailable response may follow a committed
+phase; an explicit same-ID retry securely rereads the file and resolves the
+canonical cloud operation. Changed bytes or metadata conflict only after
+current authorization. Restart, ordinary token renewal and an equivalent safe
+file path do not change business identity. Current authority is rechecked
+before private delivery, including a cached available result. Active Submitted
+runs remain eligible; accepted/failed/cancelled or otherwise ended authority
+does not. See [the artifact contract](artifacts.md) and
+[ADR 0010](../adr/0010-connected-artifact-publication.md) for limits, immutable
+recovery identity, safe file access and the storage/audit boundaries.
 
 ## Per-item context result
 
@@ -323,7 +353,7 @@ unsigned pending history is quarantined, never granted new capture authority.
 This is not encryption, same-user deletion resistance or cryptographic rollback
 protection.
 
-Every new write obtains a complete cloud confirmation of its canonical session,
+Every new A01/A03 journaled write obtains a complete cloud confirmation of its canonical session,
 assignment, native checkout fence, exact snapshot/policy versions, requesting
 human and runner epochs, key identity and server deadlines. New capture lasts
 at most 45 seconds from the original request send, bounded further by confirmed

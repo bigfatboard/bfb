@@ -63,8 +63,9 @@ daemon-owned authority and scoped files, not caller-selected cloud credentials.
 
 ### Consumes
 
-- `docs/contracts/workspace-hub.md` — every workspace mutation serializes
-  through `WorkspaceHub`; Cron recovery uses the system actor.
+- [Architecture: WorkspaceHub](../../ARCHITECTURE.md#workspacehub-durable-object)
+  — every workspace mutation serializes through `WorkspaceHub`; Cron recovery
+  uses the system actor.
 - C01 `WorkspaceHub`/durable abuse controls and C04 authorization
   (`packages/domain`: principal load, role/epoch fences, budget buckets).
 - F03 Artifact Worker + R2 substrate (`apps/artifact-worker`,
@@ -162,8 +163,10 @@ exact-gate certification. Historical manifests are retained without relabelling.
   `fault-matrix.md` (every acceptance bullet mapped to its failing-first
   proof), `docs/contracts/artifacts.md`, migration 0020, domain/worker/
   route/harness/Go sources listed as artifacts.
-- `pnpm test:v01` output ends with `V01_D1_OK` (harness) and green Go race
-  tests; no secret, grant, byte, or local-path content in evidence.
+- `pnpm test:v01` includes `V01_D1_OK` (storage harness), green Go race
+  tests and `V01_NATIVE_PROOF_COMPLETE` (signed compiled path). Missing or
+  skipped native proof is not acceptance. Retained evidence contains no
+  secret, grant, byte, or local-path content.
 
 ## Risks and decisions
 
@@ -180,8 +183,9 @@ exact-gate certification. Historical manifests are retained without relabelling.
 - Risk: the historical transport-free `ToolDefinition`/`InvokePublish` seam
   was mistaken for local integration. The registration in
   `apps/control-worker/src/mcp/server-factory.ts` is delegated remote OAuth,
-  not local native-run authority; the local Host currently rejects publication.
-  Current V01 owns the missing connected local path and its acceptance.
+  not local native-run authority. Current V01 adds the separate connected v6
+  path and owns its signed compiled acceptance; the general seam is not a
+  substitute for that proof.
 
 ## Handoff
 
