@@ -86,6 +86,20 @@ Its runner map prevents overlapping local session loops but is in-memory, not du
 - [Daemon composition](../../cmd/bfb/main.go) registers `launch` and `run_control` consumers, not `discussion_turn`. Existing [discussion delivery components](../../internal/discussion) and synthetic tests are not an operating end-to-end discussion path.
 - [A01's handoff](../work-packages/WP-A01-local-mcp-context.md#handoff) records the remaining runtime work-transport seam. Connect and verify this run-scoped bridge before provider discussion experiments. [D02](../work-packages/WP-D02-discussion-delivery.md) remains `planned`; package-local implementation/evidence does not waive unfinished dependencies or DG-02.
 
+## 6 October runtime reconciliation
+
+The integration-gap observations above retain the inspected 5 October source
+baseline. A01's missing bridge has since been connected and clean-certified at
+`adbf740` ([runtime evidence](../work-packages/evidence/WP-A01/runtime-manifest.json));
+A02's attention lane is clean-certified at `891fbcc`
+([runtime evidence](../work-packages/evidence/WP-A02/runtime-manifest.json)).
+A03's protected MCP/CLI result runtime is connected at `9077a08` and undergoing
+its own clean certification. These changes satisfy the A01 synthetic runtime
+prerequisite below, not current-version provider isolation, model-backed
+discussion or Terminal acceptance. D02 still lacks the production scheduler/
+consumer/Claude-turn path. No new provider experiment or external research was
+performed by this reconciliation.
+
 ## Recommendation: ordered bounded acceptance experiments
 
 Keep the Go runner, D1/WorkspaceHub commands, owned CLI processes, and ADR 0002 boundaries. Start with stable CLI continuation plus a fixed trusted instruction and attributed bounded peer context. Native delivery remains optional; neither app-server transport nor a new SDK/runtime becomes a production dependency through this research.

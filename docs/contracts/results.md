@@ -45,6 +45,9 @@ One immutable `result_submissions` row per version, introduced by
   serialized hub lane with a uniqueness backstop.
 - `summary`: 1-2048 characters of agent-written result text.
 - `limitations`: 0-2048 characters of known limitations.
+  The retained MCP descriptor advertises nonempty text when supplied; MCP
+  clients can omit an empty limitation. The result wire and CLI accept empty
+  or omitted text with the same business meaning.
 - `evidence_refs_json`: 0-20 generic evidence references (shape below).
 - Git facts, when the submitter observes them: `git_branch` (1-256 chars),
   `git_commit` (40 lowercase hex characters), `git_dirty` (boolean). They are
