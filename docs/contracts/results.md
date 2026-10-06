@@ -7,10 +7,13 @@ outdated detection, and capability revocation for runs. It extends the
 run-scoped local MCP server defined in [local MCP](local-mcp.md); it does
 not introduce another agent credential or a second local tool endpoint.
 
-A03 runtime integration is held while A01 is re-certified. The result MCP
-tool is not advertised by the production host, and the reserved CLI command
-returns `not_implemented`. The domain and review contracts below do not
-certify those local submission paths.
+A03 runtime integration is active under
+[ADR 0008](../adr/0008-protected-agent-result-submission.md), after A01/A02
+clean certification. The result MCP tool is not yet advertised by the production
+host, and the reserved CLI command returns `not_implemented`. The domain and
+review contracts below do not certify those local submission paths. The new
+default-denied result policy, v5 transport and protected journal family require
+their own connected and clean-checkout evidence.
 
 ## State coupling
 
@@ -140,9 +143,10 @@ attestation source is certified.
 
 Acceptance, failure, and cancellation are terminal: every run-scoped agent
 capability closes and every later local MCP call fails closed. Acceptance
-touches no checkout-lease state: a live local lock and its cloud lease stay
-until verified process end or explicit local recovery. Result commands never
-read or write `checkout_leases`.
+does not mutate checkout-lease state: a live local lock and its cloud lease stay
+until verified process end or explicit local recovery. Agent submission and
+reconciliation must read current lease authority; neither result nor review
+commands release or rewrite `checkout_leases`.
 
 ## Surfaces
 
