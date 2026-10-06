@@ -158,6 +158,67 @@ async function contextWithSessions() {
 }
 
 describe("project browser API", () => {
+  it("exposes explicit autonomous permission mode and preserves it when PATCH omits the field", async () => {
+    const { context, owner } = await contextWithSessions();
+    const app = appFor(context),
+      env = bindings(context),
+      csrf = await csrfFor(app, owner.cookie, env);
+    const base = `/api/v1/workspaces/${FIX.workspace}/agent-profiles`;
+    const input = {
+      name: "Autonomous API Claude",
+      provider: "claude",
+      model: "sonnet",
+      execution_mode: "interactive",
+      harness_mode: "standard",
+    };
+    const created = await app.request(
+      mutation(base, "POST", owner.cookie, csrf, {
+        ...input,
+        permission_mode: "autonomous",
+        request_id: "profile-autonomous",
+      }),
+      undefined,
+      env,
+    );
+    expect(created.status, await created.clone().text()).toBe(200);
+    const body = (await created.json()) as { result: { id: string; permission_mode: string } };
+    expect(body.result.permission_mode).toBe("autonomous");
+    const updated = await app.request(
+      mutation(`${base}/${body.result.id}`, "PATCH", owner.cookie, csrf, {
+        ...input,
+        expected_version: 1,
+        request_id: "profile-autonomous-omission",
+      }),
+      undefined,
+      env,
+    );
+    expect(updated.status, await updated.clone().text()).toBe(200);
+    expect(await updated.json()).toMatchObject({
+      result: { permission_mode: "autonomous", resource_version: 2 },
+    });
+    const invalid = await app.request(
+      mutation(base, "POST", owner.cookie, csrf, {
+        ...input,
+        permission_mode: "autonomous",
+        harness_mode: "restricted",
+        request_id: "profile-restricted-autonomous",
+      }),
+      undefined,
+      env,
+    );
+    expect(invalid.status).toBe(400);
+    const malformed = await app.request(
+      mutation(base, "POST", owner.cookie, csrf, {
+        ...input,
+        permission_mode: true,
+        request_id: "profile-malformed-mode",
+      }),
+      undefined,
+      env,
+    );
+    expect(malformed.status).toBe(400);
+  });
+
   it("creates and updates canonical projects with pagination and request bounds", async () => {
     const { context, owner } = await contextWithSessions();
     const app = appFor(context);

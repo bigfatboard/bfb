@@ -35,10 +35,11 @@ type nativeHistory struct {
 	ReleasedGroupHash  string `json:"released_group_hash"`
 	PreflightStoppedAt string `json:"preflight_stopped_at"`
 	Group              *struct {
-		Leader     nativeProcess `json:"leader"`
-		Unknown    bool          `json:"unknown"`
-		HadEscape  bool          `json:"had_escape"`
-		Incomplete bool          `json:"incomplete"`
+		Leader          nativeProcess `json:"leader"`
+		Unknown         bool          `json:"unknown"`
+		HadEscape       bool          `json:"had_escape"`
+		Incomplete      bool          `json:"incomplete"`
+		SupervisionMode string        `json:"supervision_mode"`
 	} `json:"group"`
 }
 
@@ -112,6 +113,9 @@ WHERE assignment.execution_id = ? AND assignment.assignment_generation = ?`,
 				history.Group.Leader.PID != record.ProviderPID || history.Group.Leader.GroupID != record.OwnedGroupID ||
 				history.Group.Leader.StartIdentity != record.ProviderStart)) {
 			record.Active = false
+		}
+		if history.Group != nil {
+			record.RootSupervision = history.Group.SupervisionMode == "root"
 		}
 	}
 	return record, nil
@@ -191,7 +195,8 @@ func decodeNativeHistory(data []byte, history *nativeHistory) bool {
 			return true
 		}
 		groupFields, ok := projectedObject(group)
-		if !ok || !nonnullFields(groupFields, "unknown", "had_escape", "incomplete", "leader") {
+		if !ok || !nonnullFields(groupFields, "unknown", "had_escape", "incomplete", "leader", "supervision_mode") ||
+			(history.Group != nil && history.Group.SupervisionMode != "" && history.Group.SupervisionMode != "root") {
 			return false
 		}
 		leader, present := groupFields["leader"]

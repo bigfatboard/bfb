@@ -37,7 +37,7 @@ var failures = map[string]struct {
 	"consent_denied":                 {"authorization_denied", "Allow BFB to control Terminal in macOS Automation settings.", 3},
 	"notification_denied":            {"authorization_denied", "Allow BFB notifications in macOS settings.", 3},
 	"expired_intent":                 {"conflict", "This local app delivery or Terminal intent has expired.", 6},
-	"containment_unknown":            {"conflict", "Process containment is not verified. Keep this checkout blocked until explicit local recovery proves absence.", 6},
+	"containment_unknown":            {"conflict", "Process ownership or cleanup is unverified. Keep this checkout blocked. Root-supervised runs do not yet support local recovery.", 6},
 	"execution_signal_failed":        {"operation_failed", "The verified provider group could not be signalled.", 5},
 	"execution_authorization_failed": {"authorization_denied", "Fresh online execution authorization could not be verified.", 3},
 	"execution_terminal_lost":        {"unavailable", "The owned terminal is unavailable; its foreground was not changed.", 4},

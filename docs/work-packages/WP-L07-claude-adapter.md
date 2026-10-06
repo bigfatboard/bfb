@@ -36,6 +36,11 @@ A card can open a supported Claude Code version in the exact checkout, bind the 
 - Keep uncertified artifact viewing/review and discussion launch disabled at
   server boundaries and visibly unavailable in the pilot UI. Preserve certified
   context, progress, attention, explicit results and artifact publication.
+- Implement the explicitly approved autonomous permission profile and
+  experimental root-supervision correction under
+  [ADR 0013](../adr/0013-claude-autonomy-and-root-supervision.md). Preserve
+  manual defaults, historical provider certification, independent MCP
+  authority, and durable occupancy when family cleanup remains unproven.
 
 ## Non-goals
 
@@ -48,7 +53,8 @@ A card can open a supported Claude Code version in the exact checkout, bind the 
 - L03 provider kit (`done` at `32f1354`): immutable probes/plans, capability
   ceilings, exact-session `PlanResume`, semantic interrupt/terminate, bounded
   hook candidates, and the setup proposal/approval/hash-CAS/atomic/rollback
-  transaction. The shared L03 contract is frozen and unchanged by this package.
+  transaction. The baseline contract remains intact; the explicit private-pilot
+  permission and supervision extensions are recorded in ADR 0013.
 - L05 local execution supervision contract (`done`): the
   `LaunchPlan` and exact-session resume-plan shape the supervisor consumes,
   including pre-exec identity revalidation and the owned-process-group signal
@@ -57,7 +63,9 @@ A card can open a supported Claude Code version in the exact checkout, bind the 
   semantic candidates with content-derived duplicate identities; correlation
   validation, envelopes, sequencing, and persistence stay with L06.
 - F02 local-RPC diagnostics: the existing failure-code table and the
-  `log_entries` payload shape; no shared schema or registry change.
+  `log_entries` payload shape. ADR 0013 separately records the bounded
+  permission-enum exception and versioned root-lease document; neither changes
+  existing strict lease semantics.
 
 ### Produces
 
@@ -162,6 +170,14 @@ A card can open a supported Claude Code version in the exact checkout, bind the 
 
 ## Handoff
 
+- Autonomy/supervision correction, 6 October: Timo approved explicit Claude
+  bypass permissions and the independent runner-design correction. ADR 0013
+  records the contract before implementation: full-access profile opt-in,
+  exact-candidate capability gates, root-only signal authority, independent
+  live-root MCP authentication, and no automatic release based on incomplete
+  detached-family observations. Existing closed executions are not upgraded
+  or revived. Implementation and synthetic acceptance are in progress; no
+  fresh live launch, automatic cleanup proof or package completion is claimed.
 - Retry-UI continuation, 6 October: the enrolled runner remained online but
   received no new command after a human retry click. A synthetic browser test
   reproduced a non-default checkout displayed as selected while application

@@ -16,6 +16,7 @@ func TestResultAdmissionJSONRPCErrors(t *testing.T) {
 		code    int
 		message string
 	}{
+		{"assignment_ended", -32003, "Access to this local execution is closed. The provider process may still be running."},
 		{"invalid_transition", -32021, "The current state does not permit a new result submission."},
 		{"request_conflict", -32022, "This operation identity is already bound to different input."},
 		{"capture_invalid", -32023, "Complete current capture authority could not be verified."},

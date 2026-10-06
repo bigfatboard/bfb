@@ -56,6 +56,7 @@ import {
 } from "./launches.js";
 import { issueLaunchWakeCommand, redeemLaunchWakeCommand } from "./launch-wake.js";
 import { observeCheckoutLeaseCommand } from "./checkout-leases.js";
+import { observeCheckoutRootLeaseCommand } from "./checkout-root-leases.js";
 import {
   createRunControlCommand,
   claimRunControlCommand,
@@ -181,6 +182,10 @@ const commands = new Map<string, HubCommand<unknown, unknown>>([
   [issueLaunchWakeCommand.name, issueLaunchWakeCommand as HubCommand<unknown, unknown>],
   [redeemLaunchWakeCommand.name, redeemLaunchWakeCommand as HubCommand<unknown, unknown>],
   [observeCheckoutLeaseCommand.name, observeCheckoutLeaseCommand as HubCommand<unknown, unknown>],
+  [
+    observeCheckoutRootLeaseCommand.name,
+    observeCheckoutRootLeaseCommand as HubCommand<unknown, unknown>,
+  ],
   [createRunControlCommand.name, createRunControlCommand as HubCommand<unknown, unknown>],
   [claimRunControlCommand.name, claimRunControlCommand as HubCommand<unknown, unknown>],
   [acknowledgeRunControlCommand.name, acknowledgeRunControlCommand as HubCommand<unknown, unknown>],

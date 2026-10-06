@@ -26,6 +26,7 @@ interface AgentProfileRecord {
   model: string | null;
   execution_mode: "interactive" | "headless";
   harness_mode: "restricted" | "standard";
+  permission_mode: "manual" | "autonomous";
   resource_version: number;
 }
 
@@ -302,7 +303,7 @@ export function WorkspaceSettings(props: WorkspaceSettingsProps) {
               <li key={profile.id}>
                 <div>
                   <strong>{profile.name}</strong>
-                  <span>{`${profile.provider} · ${profile.execution_mode} · ${profile.harness_mode}`}</span>
+                  <span>{`${profile.provider} · ${profile.execution_mode} · ${profile.harness_mode} · ${profile.permission_mode === "autonomous" ? "Autonomous — full local-user access" : "Manual permissions"}`}</span>
                   <code>{profile.model ?? "Provider default model"}</code>
                 </div>
               </li>
@@ -328,6 +329,7 @@ export function WorkspaceSettings(props: WorkspaceSettingsProps) {
                       model: String(form.get("model") ?? "") || undefined,
                       execution_mode: form.get("execution_mode"),
                       harness_mode: form.get("harness_mode"),
+                      permission_mode: form.get("permission_mode"),
                       request_id: requestId("web-profile"),
                     }),
                   }),
@@ -366,6 +368,23 @@ export function WorkspaceSettings(props: WorkspaceSettingsProps) {
                 <option value="restricted">Restricted</option>
               </select>
             </label>
+            <label>
+              Permission mode
+              <select
+                name="permission_mode"
+                defaultValue="manual"
+                aria-describedby="profile-permission-help"
+              >
+                <option value="manual">Manual permissions</option>
+                <option value="autonomous">Autonomous — full local-user access</option>
+              </select>
+            </label>
+            <p id="profile-permission-help">
+              Autonomous mode is available only for interactive, standard Claude profiles on a
+              supported runner. It skips provider permission prompts and can access files and tools
+              available to the local OS user, subject to OS and provider-managed restrictions. It is
+              not a workspace sandbox and does not grant deployment approval or BFB administration.
+            </p>
             <button type="submit" className="button-secondary" disabled={saving}>
               Add profile
             </button>

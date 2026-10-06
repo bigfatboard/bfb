@@ -11,6 +11,7 @@ import (
 	"syscall"
 
 	"github.com/qdis/bfb/internal/daemon"
+	"github.com/qdis/bfb/internal/provider"
 )
 
 const maxObservedProcesses = 256
@@ -31,11 +32,12 @@ func (process Process) Same(other Process) bool {
 type ProcessTable map[int]Process
 
 type Group struct {
-	Leader     Process         `json:"leader"`
-	Observed   map[int]Process `json:"observed"`
-	Unknown    bool            `json:"unknown"`
-	HadEscape  bool            `json:"had_escape"`
-	Incomplete bool            `json:"incomplete"`
+	Leader          Process         `json:"leader"`
+	Observed        map[int]Process `json:"observed"`
+	Unknown         bool            `json:"unknown"`
+	HadEscape       bool            `json:"had_escape"`
+	Incomplete      bool            `json:"incomplete"`
+	SupervisionMode string          `json:"supervision_mode,omitempty"`
 }
 
 type GroupObservation struct {
@@ -105,7 +107,8 @@ func compareStartIdentity(first, second string) (order int, ok bool) {
 // supported adapter contract forbids daemonizing; polling is not a sandbox
 // for evasive code.
 func (group *Group) Observe(table ProcessTable) GroupObservation {
-	if group.Leader.GroupID != group.Leader.PID || group.Leader.UID != os.Getuid() || !group.Leader.Same(group.Observed[group.Leader.PID]) {
+	root := group.SupervisionMode == provider.RootSupervision
+	if group.SupervisionMode != "" && !root || group.Leader.GroupID != group.Leader.PID || group.Leader.UID != os.Getuid() || !group.Leader.Same(group.Observed[group.Leader.PID]) {
 		group.Unknown = true
 	}
 	for changed := true; changed; {
@@ -121,6 +124,10 @@ func (group *Group) Observe(table ProcessTable) GroupObservation {
 			if !known || !parent.Same(table[current.ParentPID]) {
 				continue
 			}
+			if root && !validRecordedProcess(current) {
+				group.Unknown = true
+				continue
+			}
 			if len(group.Observed) == maxObservedProcesses {
 				group.Unknown, group.Incomplete = true, true
 				continue
@@ -133,6 +140,11 @@ func (group *Group) Observe(table ProcessTable) GroupObservation {
 				continue
 			}
 			if _, exists := group.Observed[pid]; exists {
+				continue
+			}
+			if root {
+				// A root-compatible execution makes no orphan-adoption claim.
+				// Only ancestry seen while its recorded parent is live is usable.
 				continue
 			}
 			if process.GroupID != group.Leader.GroupID {
@@ -175,7 +187,16 @@ func (group *Group) Observe(table ProcessTable) GroupObservation {
 			continue
 		}
 		observation.Live = append(observation.Live, current)
-		if current.GroupID != group.Leader.GroupID {
+		if root && current.ParentPID != previous.ParentPID {
+			parent, parentPresent := table[previous.ParentPID]
+			// Previously proved descendant identity survives ordinary orphaning.
+			// It is only lifetime evidence: MCP independently needs live root
+			// ancestry, and no secondary group receives a signal.
+			if pid == group.Leader.PID || current.ParentPID != 1 || parentPresent && !parent.Zombie {
+				group.Unknown = true
+			}
+		}
+		if root && current.GroupID != previous.GroupID || !root && current.GroupID != group.Leader.GroupID {
 			group.Unknown, group.HadEscape = true, true
 		}
 	}
@@ -201,6 +222,12 @@ func (group *Group) Observe(table ProcessTable) GroupObservation {
 	slices.SortFunc(observation.Live, func(a, b Process) int { return a.PID - b.PID })
 	if len(observation.Live) > 0 {
 		observation.State = "live"
+	}
+	if root {
+		leader, present := table[group.Leader.PID]
+		if !present || leader.Zombie {
+			observation.State = "root_ended"
+		}
 	}
 	if group.Unknown {
 		observation.State = "containment_unknown"
@@ -245,6 +272,17 @@ func (group *Group) signal(signal syscall.Signal, authorize func() error) error 
 // ProveGone is only an inspection result. It never clears the sticky marker;
 // the explicit local recovery transaction owns that state transition.
 func (group *Group) ProveGone(table ProcessTable) bool {
+	if group.SupervisionMode != "" {
+		// Root-compatible polling never certifies a complete detached family,
+		// even when the current snapshot contains none of its known processes.
+		return false
+	}
+	return group.KnownProcessesAbsent(table)
+}
+
+// KnownProcessesAbsent describes retained identities and the original group,
+// not an unseen detached family. It grants no automatic recovery authority.
+func (group *Group) KnownProcessesAbsent(table ProcessTable) bool {
 	if group.Leader.PID <= 1 || len(group.Observed) == 0 || group.Incomplete {
 		return false
 	}
@@ -255,6 +293,15 @@ func (group *Group) ProveGone(table ProcessTable) bool {
 	}
 	for _, current := range table {
 		if current.GroupID == group.Leader.GroupID && !current.Zombie {
+			return false
+		}
+	}
+	return true
+}
+
+func (group *Group) rootGroupAbsent(table ProcessTable) bool {
+	for _, process := range table {
+		if !process.Zombie && (process.PID == group.Leader.PID || process.GroupID == group.Leader.GroupID) {
 			return false
 		}
 	}

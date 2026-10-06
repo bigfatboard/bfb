@@ -482,6 +482,7 @@ interface ProfileRecord {
   provider: string;
   model: string | null;
   execution_mode: string;
+  permission_mode?: "manual" | "autonomous";
   resource_version: number;
 }
 
@@ -931,7 +932,7 @@ export function LaunchSection(props: LaunchSectionProps) {
             >
               {profiles.map((profile) => (
                 <option key={profile.id} value={profile.id} disabled={!profile.model}>
-                  {`${profile.name} · ${profile.provider}${profile.model ? ` · ${profile.model}` : " · no model set"}`}
+                  {`${profile.name} · ${profile.provider}${profile.model ? ` · ${profile.model}` : " · no model set"}${profile.permission_mode === "autonomous" ? " · Autonomous — full local-user access" : ""}`}
                 </option>
               ))}
             </select>

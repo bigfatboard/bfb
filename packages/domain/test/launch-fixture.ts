@@ -40,7 +40,10 @@ export function success<T>(outcome: CommandOutcome<T>): T {
 
 export async function launchFixture(
   database?: SqlDatabase,
-  options: { policySchema?: "pre-offline-agent-work" } = {},
+  options: {
+    policySchema?: "pre-offline-agent-work";
+    profileSchema?: "pre-permission-mode";
+  } = {},
 ) {
   const db = database ?? (await openDomainDb()),
     hub = new WorkspaceHub(db);
@@ -195,30 +198,6 @@ export async function launchFixture(
        WHERE workspace_id = ? AND project_id = ?`,
       )
       .run(FIX.owner, LAUNCH_NOW, FIX.workspace, FIX.projectA);
-    profile = {
-      id: randomUlid(),
-      name: profileInput.name,
-      provider: profileInput.provider,
-      model: profileInput.model,
-      execution_mode: profileInput.executionMode,
-      harness_mode: profileInput.harnessMode,
-      resource_version: 1,
-    };
-    await db
-      .prepare(
-        `INSERT INTO agent_profiles
-      (workspace_id, id, name, provider, model, execution_mode, harness_mode, resource_version)
-      VALUES (?, ?, ?, 'fake', 'synthetic', 'interactive', 'restricted', 1)`,
-      )
-      .run(FIX.workspace, profile.id, profileInput.name);
-    await db
-      .prepare(
-        `INSERT INTO agent_profile_versions
-      (workspace_id, profile_id, version, name, provider, model, execution_mode, harness_mode,
-       created_by_human_id, created_at)
-      VALUES (?, ?, 1, ?, 'fake', 'synthetic', 'interactive', 'restricted', ?, ?)`,
-      )
-      .run(FIX.workspace, profile.id, profileInput.name, FIX.owner, LAUNCH_NOW);
   } else {
     success(
       await human(
@@ -263,6 +242,42 @@ export async function launchFixture(
         contentHash: EMPTY_CONFIG_HASH,
       }),
     );
+  }
+  if (
+    options.policySchema === "pre-offline-agent-work" ||
+    options.profileSchema === "pre-permission-mode"
+  ) {
+    // Historical migration proofs seed the schema that actually existed, not today's profile writer.
+    const columns = await db.prepare("PRAGMA table_info(agent_profiles)").all();
+    expect(columns.map((column) => (column as { name: string }).name)).not.toContain(
+      "permission_mode",
+    );
+    profile = {
+      id: randomUlid(),
+      name: profileInput.name,
+      provider: profileInput.provider,
+      model: profileInput.model,
+      execution_mode: profileInput.executionMode,
+      harness_mode: profileInput.harnessMode,
+      permission_mode: "manual",
+      resource_version: 1,
+    };
+    await db
+      .prepare(
+        `INSERT INTO agent_profiles
+      (workspace_id, id, name, provider, model, execution_mode, harness_mode, resource_version)
+      VALUES (?, ?, ?, 'fake', 'synthetic', 'interactive', 'restricted', 1)`,
+      )
+      .run(FIX.workspace, profile.id, profileInput.name);
+    await db
+      .prepare(
+        `INSERT INTO agent_profile_versions
+      (workspace_id, profile_id, version, name, provider, model, execution_mode, harness_mode,
+       created_by_human_id, created_at)
+      VALUES (?, ?, 1, ?, 'fake', 'synthetic', 'interactive', 'restricted', ?, ?)`,
+      )
+      .run(FIX.workspace, profile.id, profileInput.name, FIX.owner, LAUNCH_NOW);
+  } else {
     profile = success(await human(createAgentProfileCommand, profileInput));
   }
   const task = success(

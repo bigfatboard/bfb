@@ -55,23 +55,28 @@ func Descriptor() provider.Descriptor {
 // session, so the adapter requires the UUID shape observed on this version.
 var uuidPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 
-type Adapter struct{}
+// AllowAutonomousPermissions is a locally compiled candidate choice, not a
+// remotely supplied option. The production descriptor leaves it disabled.
+type Adapter struct{ AllowAutonomousPermissions bool }
 
-func baseArguments(config configView) ([]string, error) {
+func baseArguments(config configView, allowAutonomous bool) ([]string, error) {
 	if config.Mode != "interactive" {
 		return nil, provider.Failure("provider_unsupported")
 	}
-	if config.ApprovalPolicy != "on_request" {
+	args := []string{"--model", config.Model, "--effort", config.Effort}
+	switch {
+	case config.ApprovalPolicy == "on_request" && config.FilesystemPolicy == "workspace_write":
+		args = append(args, "--permission-mode", "default")
+	case allowAutonomous && config.ApprovalPolicy == "never" && config.FilesystemPolicy == "full_access":
+		// Permission bypass grants access available to the local user; it is
+		// not a workspace sandbox and cannot override provider-managed policy.
+		args = append(args, "--dangerously-skip-permissions")
+	default:
 		return nil, provider.Failure("provider_unsupported")
 	}
-	if config.FilesystemPolicy != "workspace_write" {
-		return nil, provider.Failure("provider_unsupported")
-	}
-	// Explicit manual permission mode: prompts stay interactive and neither
-	// bypassPermissions nor the dangerous-skip flag may ever appear here.
 	// Keep the approved user integration, not repository/local overrides.
 	// Claude's managed policy remains in force above these selected sources.
-	return []string{"--model", config.Model, "--effort", config.Effort, "--permission-mode", "default", "--setting-sources", "user"}, nil
+	return append(args, "--setting-sources", "user"), nil
 }
 
 type configView struct {
@@ -95,9 +100,9 @@ func (Adapter) Inspect(_ context.Context, installation provider.Installation) (p
 	return health, nil
 }
 
-func (Adapter) Launch(input provider.LaunchInput) (provider.Invocation, error) {
+func (adapter Adapter) Launch(input provider.LaunchInput) (provider.Invocation, error) {
 	config := input.Config
-	args, err := baseArguments(configView{Mode: config.Mode, Model: config.Model, Effort: config.Effort, ApprovalPolicy: config.ApprovalPolicy, FilesystemPolicy: config.FilesystemPolicy})
+	args, err := baseArguments(configView{Mode: config.Mode, Model: config.Model, Effort: config.Effort, ApprovalPolicy: config.ApprovalPolicy, FilesystemPolicy: config.FilesystemPolicy}, adapter.AllowAutonomousPermissions)
 	if err != nil {
 		return provider.Invocation{}, err
 	}
@@ -117,9 +122,9 @@ func (Adapter) Launch(input provider.LaunchInput) (provider.Invocation, error) {
 	return provider.Invocation{Arguments: args}, nil
 }
 
-func (Adapter) Resume(input provider.ResumeInput) (provider.Invocation, error) {
+func (adapter Adapter) Resume(input provider.ResumeInput) (provider.Invocation, error) {
 	config := input.LaunchInput.Config
-	args, err := baseArguments(configView{Mode: config.Mode, Model: config.Model, Effort: config.Effort, ApprovalPolicy: config.ApprovalPolicy, FilesystemPolicy: config.FilesystemPolicy})
+	args, err := baseArguments(configView{Mode: config.Mode, Model: config.Model, Effort: config.Effort, ApprovalPolicy: config.ApprovalPolicy, FilesystemPolicy: config.FilesystemPolicy}, adapter.AllowAutonomousPermissions)
 	if err != nil {
 		return provider.Invocation{}, err
 	}

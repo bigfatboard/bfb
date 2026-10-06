@@ -18,6 +18,7 @@ import {
   LAUNCH_BODY_LIMIT,
   loadPrincipal,
   observeCheckoutLeaseCommand,
+  observeCheckoutRootLeaseCommand,
   randomUlid,
   readRunnerControl,
   reconcileLaunchCommand,
@@ -32,6 +33,7 @@ import {
 import {
   decodeWireDocument,
   type CheckoutLeaseObservation,
+  type CheckoutRootLeaseObservation,
   type LaunchClaim,
   type LaunchFinalRequest,
   type LaunchRejectRequest,
@@ -57,7 +59,7 @@ import {
 } from "./runners.js";
 
 const nativePattern =
-  /^\/runner\/workspaces\/([^/]+)\/runners\/([^/]+)\/(launch\/(?:claim|reconcile|authorize|reject|tighten)|wake\/redeem|controls\/(?:read|claim|acknowledge)|leases\/observe)$/;
+  /^\/runner\/workspaces\/([^/]+)\/runners\/([^/]+)\/(launch\/(?:claim|reconcile|authorize|reject|tighten)|wake\/redeem|controls\/(?:read|claim|acknowledge)|leases\/(?:observe|observe-root))$/;
 
 export function isRunnerLaunchPath(path: string): boolean {
   return nativePattern.test(path);
@@ -251,6 +253,16 @@ export async function handleLaunchNativeApi(
           await run(observeCheckoutLeaseCommand, {
             principal,
             observation: decode<CheckoutLeaseObservation>("checkout-lease-observation", bytes),
+          }),
+        );
+      case "leases/observe-root":
+        return response(
+          await run(observeCheckoutRootLeaseCommand, {
+            principal,
+            observation: decode<CheckoutRootLeaseObservation>(
+              "checkout-root-lease-observation",
+              bytes,
+            ),
           }),
         );
       case "controls/read":

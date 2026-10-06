@@ -430,6 +430,23 @@ func TestControlsAndUnsupportedTurn(t *testing.T) {
 	}
 }
 
+func TestProductionAdapterNeverPromotesAutonomousPermissions(t *testing.T) {
+	for _, version := range claude.TestedVersions {
+		registry := registry(t)
+		home, launcher := t.TempDir(), stubLauncher(t)
+		writeSettings(t, home, launcher)
+		probe := mustProbe(t, registry, installation(t, stubBinary(t, version), home, launcher))
+		input := launchInput(t.TempDir())
+		input.Config.ApprovalPolicy, input.Config.FilesystemPolicy = "never", "full_access"
+		policy := provider.Policy{AllowedCapabilities: append(claude.Capabilities(), "approval.never", "filesystem.full_access")}
+		_, err := registry.PlanLaunch(probe, input, policy, time.Now())
+		requireCode(t, err, "provider_capability_denied")
+		if _, err := (claude.Adapter{}).Launch(input); err == nil {
+			t.Fatal("default adapter opted into bypass", version)
+		}
+	}
+}
+
 func TestTightenEnvironment(t *testing.T) {
 	got := claude.TightenEnvironment([]string{
 		"HOME=/Users/synthetic", "PATH=/usr/bin:/bin", "TERM=xterm-256color",

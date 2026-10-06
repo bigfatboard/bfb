@@ -108,7 +108,7 @@
         },
         "filesystem_policy": {
           "type": "string",
-          "enum": ["read_only", "workspace_write"]
+          "enum": ["read_only", "workspace_write", "full_access"]
         },
         "context_injection": {
           "type": "string",

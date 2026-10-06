@@ -60,6 +60,7 @@ export interface AgentProfileRecord {
   model: string | null;
   execution_mode: "interactive" | "headless";
   harness_mode: "restricted" | "standard";
+  permission_mode: "manual" | "autonomous";
   resource_version: number;
 }
 
@@ -1179,6 +1180,7 @@ export interface CreateAgentProfileInput {
   model?: string;
   executionMode: "interactive" | "headless";
   harnessMode: "restricted" | "standard";
+  permissionMode?: "manual" | "autonomous";
 }
 
 function normalizedProfile(
@@ -1196,12 +1198,26 @@ function normalizedProfile(
   if (input.harnessMode !== "restricted" && input.harnessMode !== "standard") {
     throw new DomainError("invalid_argument", "profile harness mode is invalid");
   }
+  const permissionMode = input.permissionMode === undefined ? "manual" : input.permissionMode;
+  if (
+    (permissionMode !== "manual" && permissionMode !== "autonomous") ||
+    (permissionMode === "autonomous" &&
+      (input.provider !== "claude" ||
+        input.executionMode !== "interactive" ||
+        input.harnessMode !== "standard"))
+  ) {
+    throw new DomainError(
+      "invalid_argument",
+      "autonomous permissions require an interactive standard Claude profile",
+    );
+  }
   return {
     name: boundedText(input.name, "profile name", 128),
     provider: input.provider,
     model: input.model === undefined ? null : boundedText(input.model, "profile model", 128),
     execution_mode: input.executionMode,
     harness_mode: input.harnessMode,
+    permission_mode: permissionMode,
   };
 }
 
@@ -1218,8 +1234,8 @@ export const createAgentProfileCommand: HubCommand<CreateAgentProfileInput, Agen
     await ctx.db
       .prepare(
         `INSERT INTO agent_profiles
-         (workspace_id, id, name, provider, model, execution_mode, harness_mode, resource_version)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
+         (workspace_id, id, name, provider, model, execution_mode, harness_mode, permission_mode, resource_version)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
       )
       .run(
         ctx.workspaceId,
@@ -1229,13 +1245,14 @@ export const createAgentProfileCommand: HubCommand<CreateAgentProfileInput, Agen
         profile.model,
         profile.execution_mode,
         profile.harness_mode,
+        profile.permission_mode,
       );
     await ctx.db
       .prepare(
         `INSERT INTO agent_profile_versions
          (workspace_id, profile_id, version, name, provider, model,
-          execution_mode, harness_mode, created_by_human_id, created_at)
-         VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, ?)`,
+          execution_mode, harness_mode, permission_mode, created_by_human_id, created_at)
+         VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         ctx.workspaceId,
@@ -1245,6 +1262,7 @@ export const createAgentProfileCommand: HubCommand<CreateAgentProfileInput, Agen
         profile.model,
         profile.execution_mode,
         profile.harness_mode,
+        profile.permission_mode,
         principal.humanId,
         ctx.now,
       );
@@ -1263,7 +1281,7 @@ export const updateAgentProfileCommand: HubCommand<UpdateAgentProfileInput, Agen
     const principal = await requireOwner(ctx);
     const current = (await ctx.db
       .prepare(
-        `SELECT id, name, provider, model, execution_mode, harness_mode, resource_version
+        `SELECT id, name, provider, model, execution_mode, harness_mode, permission_mode, resource_version
          FROM agent_profiles WHERE workspace_id = ? AND id = ?`,
       )
       .get(ctx.workspaceId, input.profileId)) as AgentProfileRecord | undefined;
@@ -1273,7 +1291,11 @@ export const updateAgentProfileCommand: HubCommand<UpdateAgentProfileInput, Agen
     if (current.resource_version !== input.expectedVersion) {
       throw new DomainError("stale_version", "agent profile version conflict");
     }
-    const profile = normalizedProfile(input);
+    const profile = normalizedProfile({
+      ...input,
+      permissionMode:
+        input.permissionMode === undefined ? current.permission_mode : input.permissionMode,
+    });
     const policy = policyFromRow(await workspacePolicy(ctx.db, ctx.workspaceId));
     if (!policy.allowedProviders.includes(profile.provider)) {
       throw new DomainError("provider_forbidden", "profile provider exceeds workspace policy");
@@ -1282,7 +1304,7 @@ export const updateAgentProfileCommand: HubCommand<UpdateAgentProfileInput, Agen
     await ctx.db
       .prepare(
         `UPDATE agent_profiles
-         SET name = ?, provider = ?, model = ?, execution_mode = ?, harness_mode = ?,
+         SET name = ?, provider = ?, model = ?, execution_mode = ?, harness_mode = ?, permission_mode = ?,
              resource_version = ?
          WHERE workspace_id = ? AND id = ? AND resource_version = ?`,
       )
@@ -1292,6 +1314,7 @@ export const updateAgentProfileCommand: HubCommand<UpdateAgentProfileInput, Agen
         profile.model,
         profile.execution_mode,
         profile.harness_mode,
+        profile.permission_mode,
         next,
         ctx.workspaceId,
         current.id,
@@ -1301,8 +1324,8 @@ export const updateAgentProfileCommand: HubCommand<UpdateAgentProfileInput, Agen
       .prepare(
         `INSERT INTO agent_profile_versions
          (workspace_id, profile_id, version, name, provider, model,
-          execution_mode, harness_mode, created_by_human_id, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          execution_mode, harness_mode, permission_mode, created_by_human_id, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         ctx.workspaceId,
@@ -1313,6 +1336,7 @@ export const updateAgentProfileCommand: HubCommand<UpdateAgentProfileInput, Agen
         profile.model,
         profile.execution_mode,
         profile.harness_mode,
+        profile.permission_mode,
         principal.humanId,
         ctx.now,
       );
@@ -1385,7 +1409,7 @@ export async function listAgentProfilesPage(
   values.push(limit + 1);
   const rows = (await db
     .prepare(
-      `SELECT id, name, provider, model, execution_mode, harness_mode, resource_version
+      `SELECT id, name, provider, model, execution_mode, harness_mode, permission_mode, resource_version
        FROM agent_profiles WHERE workspace_id = ?${cursor} ORDER BY id ASC LIMIT ?`,
     )
     .all(...values)) as AgentProfileRecord[];

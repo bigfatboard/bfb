@@ -49,7 +49,7 @@ func (service *Service) controlOwner(ctx context.Context, peer daemon.Peer, inte
 		return LocalAssignment{}, failure("execution_assignment_invalid")
 	}
 	facts, _, err := service.inspectNative(ctx, service.store, service.nativeInspector(service.paths, service.files), assignment)
-	if err != nil || facts.SupervisorState != "verified" || facts.GroupState != "live" || facts.LockState != "held" || facts.Descendants != "contained" ||
+	if err != nil || facts.Capture.State != "live" || facts.SupervisorState != "verified" || facts.GroupState != "live" || facts.LockState != "held" || (!facts.RootAuthority && facts.Descendants != "contained") ||
 		facts.History.Uncertain || facts.History.LocalReleasedAt != "" || facts.History.Group == nil || facts.History.Group.Unknown || facts.History.Group.HadEscape || facts.History.Group.Incomplete {
 		return LocalAssignment{}, failure("containment_unknown")
 	}

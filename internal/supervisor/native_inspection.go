@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/qdis/bfb/internal/daemon"
+	"github.com/qdis/bfb/internal/provider"
 	"golang.org/x/sys/unix"
 )
 
@@ -78,6 +79,8 @@ type nativeFacts struct {
 	RecoveryLocal   bool
 	LocalReleased   bool
 	ObservedAt      time.Time
+	RootAuthority   bool
+	FamilyUnproven  bool
 }
 
 func unknownNative(history nativeHistory) nativeFacts {
@@ -141,8 +144,12 @@ func (inspector nativeInspector) inspect(assignment LocalAssignment, history nat
 	}
 	group := facts.History.Group
 	if group != nil {
+		facts.FamilyUnproven = group.SupervisionMode == provider.RootSupervision
 		observation := group.Observe(table)
 		facts.GroupState, facts.Descendants = observation.State, "contained"
+		if facts.FamilyUnproven {
+			facts.Descendants = "unproven"
+		}
 		if group.ProveGone(table) {
 			facts.GroupState, facts.Descendants = "gone", "gone"
 		} else if group.HadEscape {
@@ -215,6 +222,10 @@ func (inspector nativeInspector) inspect(assignment LocalAssignment, history nat
 	if facts.History.Uncertain && facts.Capture.State != "gone" {
 		facts.Capture = processCapture{State: "unknown"}
 	}
+	if facts.FamilyUnproven {
+		facts.RootAuthority = facts.Capture.State == "live" && facts.SupervisorState == "verified" && facts.LockState == "held" && !facts.History.Uncertain
+		facts.Descendants = "unproven"
+	}
 	// A recovered marker must include every daemon-retained identity. An old
 	// local recovery flag cannot clear a descendant discovered afterward.
 	if ownerState == "gone" && !locked.Held && locked.Record.State == "released" &&
@@ -229,7 +240,7 @@ func groupCovers(record, observed *Group) bool {
 	if observed == nil {
 		return record == nil
 	}
-	if record == nil || record.Leader != observed.Leader || (observed.Unknown && !record.Unknown) ||
+	if record == nil || record.Leader != observed.Leader || record.SupervisionMode != observed.SupervisionMode || (observed.Unknown && !record.Unknown) ||
 		(observed.HadEscape && !record.HadEscape) || (observed.Incomplete && !record.Incomplete) {
 		return false
 	}

@@ -1,4 +1,4 @@
-// ABOUTME: Keeps the foreground supervisor alive until its whole owned provider group has ended.
+// ABOUTME: Keeps the foreground supervisor alive until its original provider group has ended.
 // ABOUTME: Serializes verified local shutdown, lock disposition, foreground restoration and final child reaping.
 
 package supervisor
@@ -11,6 +11,7 @@ import (
 
 	"github.com/qdis/bfb/internal/daemon"
 	"github.com/qdis/bfb/internal/protocol/generated"
+	"github.com/qdis/bfb/internal/provider"
 )
 
 const processInspectionInterval = 100 * time.Millisecond
@@ -53,6 +54,12 @@ func superviseOwnedControls(ctx context.Context, process *gatedProcess, terminal
 	}()
 	for {
 		observation, err := lock.Observe()
+		if rootSupervisionEnded(lock) {
+			// Only the original group is absent. Closing the held descriptor
+			// and reaping its reserved leader leaves durable occupancy intact;
+			// detached-compatible execution has no automatic family release.
+			return finishOwned(process, terminal, foreground, failure("containment_unknown"), false)
+		}
 		if err == nil && observation.State == "gone" {
 			return finishOwned(process, terminal, foreground, startErr, true)
 		}
@@ -65,7 +72,7 @@ func superviseOwnedControls(ctx context.Context, process *gatedProcess, terminal
 			if ctx.Err() != nil {
 				return failure("containment_unknown")
 			}
-		} else if observation.State != "live" {
+		} else if observation.State != "live" && observation.State != "root_ended" {
 			return failure("containment_unknown")
 		}
 		if ctx.Err() != nil && stopping.IsZero() {
@@ -161,6 +168,16 @@ func superviseOwnedControls(ctx context.Context, process *gatedProcess, terminal
 	}
 }
 
+func rootSupervisionEnded(lock *WorktreeLock) bool {
+	lock.mu.Lock()
+	defer lock.mu.Unlock()
+	if lock.record.SupervisionMode != provider.RootSupervision || lock.record.Group == nil {
+		return false
+	}
+	table, err := InspectProcesses()
+	return err == nil && lock.record.Group.rootGroupAbsent(table)
+}
+
 func ownedProcessesGone(lock *WorktreeLock) bool {
 	lock.mu.Lock()
 	defer lock.mu.Unlock()
@@ -171,7 +188,7 @@ func ownedProcessesGone(lock *WorktreeLock) bool {
 	return err == nil && lock.record.Group.ProveGone(table)
 }
 
-// finishOwned runs only after whole-group absence. Foreground restoration takes
+// finishOwned runs only after original-group absence. Foreground restoration takes
 // place while the original child PID is still reserved; no concurrent goroutine
 // may signal or reap this child. A closed terminal cannot stop final reaping.
 func finishOwned(process *gatedProcess, terminal *os.File, foreground int, prior error, release bool) error {

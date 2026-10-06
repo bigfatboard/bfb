@@ -24,6 +24,9 @@ type Boundary struct {
 // AssignmentRecord is the daemon-local view of one immutable execution
 // assignment: identity, containment evidence, correlation, and liveness.
 type AssignmentRecord struct {
+	// RootSupervision keeps detached lifetime evidence separate from live peer
+	// checks. The daemon still requires a fresh native ownership barrier.
+	RootSupervision  bool
 	Known            bool
 	Active           bool
 	Boundary         Boundary

@@ -20,6 +20,10 @@ const DiscussionInstruction = "Evaluate the supplied BFB discussion brief and at
 const MaxHookBytes = 64 * 1024
 const MaxTurnBytes = 64 * 1024
 
+// RootSupervision is a locally compiled experimental lifecycle choice. It is
+// not a cloud execution setting and never grants whole-family signal authority.
+const RootSupervision = "root"
+
 var namePattern = regexp.MustCompile("^[a-z][a-z0-9_.]{0,63}$")
 var versionPattern = regexp.MustCompile("^[0-9]+\\.[0-9]+\\.[0-9]+$")
 var modelPattern = regexp.MustCompile("^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$")
@@ -116,6 +120,7 @@ type Invocation struct {
 	WorkingDirectory string   `json:"-"`
 	Environment      []string `json:"-"`
 	Stdin            []byte   `json:"-"`
+	SupervisionMode  string   `json:"-"`
 }
 
 type Candidate struct {
@@ -223,6 +228,8 @@ type Plan struct {
 	probe        Probe
 	invocation   Invocation
 }
+
+func (plan Plan) SupervisionMode() string { return plan.invocation.SupervisionMode }
 
 func (plan Plan) Invocation() Invocation {
 	invocation := plan.invocation

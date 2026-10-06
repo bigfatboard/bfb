@@ -57,7 +57,8 @@ func (service *Service) checkAgentOwnership(ctx context.Context, executionID str
 		return err
 	}
 	if checkpoint.ProcessAbsent != "" || checkpoint.EventWindowEndsAt != "" || facts.Capture.State != "live" ||
-		facts.SupervisorState != "verified" || facts.GroupState != "live" || facts.LockState != "held" || facts.Descendants != "contained" ||
+		facts.SupervisorState != "verified" || facts.GroupState != "live" || facts.LockState != "held" ||
+		(!facts.RootAuthority && facts.Descendants != "contained") ||
 		facts.History.Uncertain || facts.History.LocalReleasedAt != "" || facts.History.ReleasedGroupHash != "" || facts.History.PreflightStoppedAt != "" ||
 		facts.History.Group == nil || facts.History.Group.Unknown || facts.History.Group.HadEscape || facts.History.Group.Incomplete {
 		return failure("containment_unknown")

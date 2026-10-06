@@ -10,6 +10,7 @@ import (
 
 	"github.com/qdis/bfb/internal/daemon"
 	"github.com/qdis/bfb/internal/protocol/generated"
+	"github.com/qdis/bfb/internal/provider"
 )
 
 func (service *Service) runLeases(ctx context.Context, store *IntentStore, files *AssignmentFiles, paths daemon.Paths) {
@@ -105,11 +106,39 @@ func (service *Service) maintainLease(ctx context.Context, store *IntentStore, i
 	if err != nil {
 		return err
 	}
-	observation := leaseObservation(assignment, facts, checkpoint.ProviderObserved != "", receipt.ReservationState)
-	if observation == nil {
+	// A failed early inspection can omit its convenience mode flag. Select
+	// the wire contract from durable history or the authenticated marker, never
+	// downgrade a root lease to strict v1 because fresh inspection failed.
+	if facts.History.Group == nil && assignment.Group != nil {
+		locked, lockErr := inspector.lock(assignment)
+		if lockErr != nil || locked.Record.Group == nil {
+			return failure("containment_unknown")
+		}
+		facts.History.Group = mergeGroups(nil, locked.Record.Group)
+		facts.History, err = store.rememberNative(ctx, assignment, facts.History)
+		if err != nil {
+			return err
+		}
+	}
+	rootMode := facts.History.Group != nil && facts.History.Group.SupervisionMode == provider.RootSupervision
+	operation := ""
+	var strict *generated.CheckoutLeaseObservation
+	var root *generated.CheckoutRootLeaseObservation
+	if rootMode {
+		root = rootLeaseObservation(assignment, facts, checkpoint.ProviderObserved != "", receipt.ReservationState)
+		if root != nil {
+			operation = root.Operation
+		}
+	} else {
+		strict = leaseObservation(assignment, facts, checkpoint.ProviderObserved != "", receipt.ReservationState)
+		if strict != nil {
+			operation = strict.Operation
+		}
+	}
+	if operation == "" {
 		return nil
 	}
-	if observation.Operation == "renew" && checkpoint.ProviderObserved == "" {
+	if operation == "renew" && checkpoint.ProviderObserved == "" {
 		// This inspection may be the only one to see the provider image before
 		// its parent exits. Persist startup before C09 attaches the execution;
 		// later child-only renewal must not depend on seeing that image again.
@@ -117,12 +146,19 @@ func (service *Service) maintainLease(ctx context.Context, store *IntentStore, i
 			return err
 		}
 	}
-	observation.Sequence, err = store.nextLeaseSequence(ctx, assignment, *receipt.ObservationSequence)
+	sequence, err := store.nextLeaseSequence(ctx, assignment, *receipt.ObservationSequence)
 	if err != nil {
 		return err
 	}
-	observation.ObservedAt = localTimestamp(facts.ObservedAt)
-	encoded, err := wireJSON("checkout-lease-observation", observation)
+	document, path := "checkout-lease-observation", "leases/observe"
+	var observation any = strict
+	if rootMode {
+		root.Sequence, root.ObservedAt = sequence, localTimestamp(facts.ObservedAt)
+		document, path, observation = "checkout-root-lease-observation", "leases/observe-root", root
+	} else {
+		strict.Sequence, strict.ObservedAt = sequence, localTimestamp(facts.ObservedAt)
+	}
+	encoded, err := wireJSON(document, observation)
 	if err != nil {
 		return err
 	}
@@ -130,10 +166,10 @@ func (service *Service) maintainLease(ctx context.Context, store *IntentStore, i
 	if now.Before(facts.ObservedAt) || now.Sub(facts.ObservedAt) > finalRequestLimit {
 		return failure("containment_unknown")
 	}
-	if _, err = requestLaunch(ctx, connection, "leases/observe", encoded); err != nil {
+	if _, err = requestLaunch(ctx, connection, path, encoded); err != nil {
 		return err
 	}
-	if observation.Operation != "release" && observation.Operation != "recover" {
+	if operation != "release" && operation != "recover" {
 		return nil
 	}
 	// HTTP success (including a containment_unknown reply) is not release.
@@ -153,6 +189,9 @@ func (service *Service) maintainLease(ctx context.Context, store *IntentStore, i
 }
 
 func leaseObservation(assignment LocalAssignment, facts nativeFacts, providerObserved bool, reservation string) *generated.CheckoutLeaseObservation {
+	if facts.History.Group != nil && facts.History.Group.SupervisionMode != "" {
+		return nil // Root family coverage can never be represented as strict v1.
+	}
 	if facts.ObservedAt.IsZero() || facts.SupervisorState == "" || facts.GroupState == "" || facts.LockState == "" {
 		return nil
 	}
@@ -194,6 +233,30 @@ func leaseObservation(assignment LocalAssignment, facts nativeFacts, providerObs
 		observation.OwnedGroupId, observation.OwnedGroupStartIdentity = int64(leader.GroupID), leader.StartIdentity
 	}
 	return observation
+}
+
+func rootLeaseObservation(assignment LocalAssignment, facts nativeFacts, providerObserved bool, reservation string) *generated.CheckoutRootLeaseObservation {
+	group := facts.History.Group
+	if group == nil || group.SupervisionMode != provider.RootSupervision || assignment.Group == nil ||
+		facts.ObservedAt.IsZero() || facts.SupervisorState == "" || facts.GroupState == "" || facts.LockState == "" {
+		return nil
+	}
+	operation := "unknown"
+	if facts.RootAuthority && !facts.History.Uncertain && !group.Unknown && !group.HadEscape && !group.Incomplete && reservation != "containment_unknown" {
+		if !providerObserved && !facts.Capture.ProviderImage {
+			return nil // The signed waiting wrapper has not become the provider.
+		}
+		operation = "renew"
+	}
+	owner := assignment.Supervisor.wire()
+	return &generated.CheckoutRootLeaseObservation{
+		SchemaVersion: 2, RunExecutionId: assignment.Claim.Assignment.RunExecutionId,
+		AssignmentGeneration: assignment.Claim.Assignment.AssignmentGeneration, FencingGeneration: assignment.Claim.FencingGeneration,
+		Operation: operation, Supervisor: &owner, LocalLockId: assignment.LockID,
+		OwnedGroupId: int64(group.Leader.GroupID), OwnedGroupStartIdentity: group.Leader.StartIdentity,
+		SupervisorState: facts.SupervisorState, GroupState: facts.GroupState, LockState: facts.LockState,
+		DescendantsState: "unproven", SupervisionMode: provider.RootSupervision, FamilyCoverage: "unproven",
+	}
 }
 
 func (service *Service) settleRegistered(ctx context.Context, store *IntentStore, inspector nativeInspector, assignment LocalAssignment) error {

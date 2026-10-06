@@ -475,6 +475,13 @@ export const DOCUMENTS: DocumentSpec[] = [
     tsType: "CheckoutLeaseObservation",
   },
   {
+    name: "checkout-root-lease-observation",
+    schemaFile: "checkout-root-lease-observation.json",
+    schemaVersion: 2,
+    goType: "CheckoutRootLeaseObservation",
+    tsType: "CheckoutRootLeaseObservation",
+  },
+  {
     name: "run-control-request",
     schemaFile: "run-control-request.json",
     goType: "RunControlRequest",

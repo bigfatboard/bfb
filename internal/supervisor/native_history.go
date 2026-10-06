@@ -51,7 +51,7 @@ func (history nativeHistory) valid(assignment LocalAssignment) bool {
 	if assignment.LockID == "" || (assignment.Group != nil && group.Leader != *assignment.Group) {
 		return false
 	}
-	record := LockRecord{Version: 1, LockID: assignment.LockID, Binding: assignment.lockBinding(), Owner: assignment.Supervisor.Process, Group: group, State: "containment_unknown"}
+	record := LockRecord{Version: 1, LockID: assignment.LockID, Binding: assignment.lockBinding(), Owner: assignment.Supervisor.Process, Group: group, State: "containment_unknown", SupervisionMode: group.SupervisionMode}
 	return record.valid()
 }
 
@@ -85,12 +85,12 @@ func mergeGroups(prior, current *Group) *Group {
 	merged.Unknown = merged.Unknown || current.Unknown
 	merged.HadEscape = merged.HadEscape || current.HadEscape
 	merged.Incomplete = merged.Incomplete || current.Incomplete
-	if merged.Leader != current.Leader {
+	if merged.Leader != current.Leader || merged.SupervisionMode != current.SupervisionMode {
 		merged.Unknown, merged.Incomplete = true, true
 	}
 	for pid, process := range current.Observed {
 		if previous, exists := merged.Observed[pid]; exists {
-			if !previous.Same(process) {
+			if !previous.Same(process) || merged.SupervisionMode != "" && (previous.GroupID != process.GroupID || previous.ParentPID != process.ParentPID) {
 				merged.Unknown = true
 			}
 			continue

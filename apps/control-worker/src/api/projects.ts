@@ -351,6 +351,7 @@ export async function handleProjectApi(request: Request, deps: ProjectApiDeps): 
       "model",
       "execution_mode",
       "harness_mode",
+      "permission_mode",
       "request_id",
     ]);
     const model = optionalString(body, "model");
@@ -360,6 +361,9 @@ export async function handleProjectApi(request: Request, deps: ProjectApiDeps): 
       ...(model === undefined ? {} : { model }),
       executionMode: requiredString(body, "execution_mode") as "interactive" | "headless",
       harnessMode: requiredString(body, "harness_mode") as "restricted" | "standard",
+      ...(body.permission_mode === undefined
+        ? {}
+        : { permissionMode: optionalString(body, "permission_mode") as "manual" | "autonomous" }),
     });
     return outcomeResponse(outcome);
   }
@@ -386,6 +390,7 @@ export async function handleProjectApi(request: Request, deps: ProjectApiDeps): 
         "model",
         "execution_mode",
         "harness_mode",
+        "permission_mode",
         "request_id",
       ]);
       const model = optionalString(body, "model");
@@ -397,6 +402,9 @@ export async function handleProjectApi(request: Request, deps: ProjectApiDeps): 
         ...(model === undefined ? {} : { model }),
         executionMode: requiredString(body, "execution_mode") as "interactive" | "headless",
         harnessMode: requiredString(body, "harness_mode") as "restricted" | "standard",
+        ...(body.permission_mode === undefined
+          ? {}
+          : { permissionMode: optionalString(body, "permission_mode") as "manual" | "autonomous" }),
       });
       return outcomeResponse(outcome);
     }

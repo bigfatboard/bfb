@@ -665,7 +665,9 @@ function categorize(
             ? 4
             : document === "local-agent-work-rpc"
               ? 3
-              : document === "local-agent-rpc" || document === "runner-telemetry-submission"
+              : document === "local-agent-rpc" ||
+                  document === "runner-telemetry-submission" ||
+                  document === "checkout-root-lease-observation"
                 ? 2
                 : 1;
     if (rootVersion?.integer !== undefined && rootVersion.integer !== String(expectedVersion)) {

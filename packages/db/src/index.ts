@@ -27,4 +27,4 @@ export { assertUtcTimestamp } from "./timestamps.js";
 export { assertAuthorizationEpoch, assertUlid } from "./primitives.js";
 export { tenantFixtureChildren, tenantFixtureItems, workspaces } from "./schema.js";
 
-export const MIGRATION_HEAD = "0043_agent_artifact_publications";
+export const MIGRATION_HEAD = "0044_agent_profile_permissions";

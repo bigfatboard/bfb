@@ -20,8 +20,85 @@ import { pullRunnerCommands } from "../src/runner-channel.js";
 import { runnerHash } from "../src/runner-crypto.js";
 import { removeMemberCommand } from "../src/workspace-authorization.js";
 import { LAUNCH_NOW, launchFixture, success } from "./launch-fixture.js";
+import { createAgentProfileCommand, updateAgentProfileCommand } from "../src/projects.js";
+import { launchHash } from "../src/launch-state.js";
 
 describe("durable launch orchestration", () => {
+  it("requires advertised autonomy and keeps permission snapshots immutable across profile edits", async () => {
+    const f = await launchFixture();
+    const profileInput = {
+      name: "Synthetic autonomous Claude",
+      provider: "claude" as const,
+      model: "sonnet",
+      executionMode: "interactive" as const,
+      harnessMode: "standard" as const,
+      permissionMode: "autonomous" as const,
+    };
+    const profile = success(await f.human(createAgentProfileCommand, profileInput));
+    const provider = {
+      ...f.inventory().providers[0]!,
+      provider: "claude" as const,
+      version: "2.1.291",
+      capabilities: [
+        "launch.interactive",
+        "approval.never",
+        "context.session_start",
+        "prompt.initial_constant",
+        "hooks.session_start",
+        "mcp.stdio",
+      ] as const,
+    };
+    const start = { ...f.start, agent_profile_id: profile.id };
+    await f.refresh(LAUNCH_NOW, {
+      providers: [{ ...provider, capabilities: [...provider.capabilities] }],
+    });
+    expect((await f.human(startLaunchCommand, start)).ok).toBe(false);
+    await f.refresh(LAUNCH_NOW, {
+      providers: [
+        { ...provider, capabilities: [...provider.capabilities, "filesystem.full_access"] },
+      ],
+    });
+    const launch = success(await f.human(startLaunchCommand, start));
+    const before = (await f.db
+      .prepare(
+        `SELECT snapshot.canonical_json, snapshot.content_hash FROM run_configuration_snapshots snapshot JOIN launch_commands launch ON launch.workspace_id = snapshot.workspace_id AND launch.snapshot_id = snapshot.id WHERE launch.id = ?`,
+      )
+      .get(launch.launch_id)) as { canonical_json: string; content_hash: string };
+    const snapshot = JSON.parse(before.canonical_json);
+    expect(snapshot.execution_config).toMatchObject({
+      approval_policy: "never",
+      filesystem_policy: "full_access",
+    });
+    expect(snapshot.execution_config.required_capabilities).toContain("filesystem.full_access");
+    expect(before.content_hash).toBe(`sha256:${launchHash(snapshot)}`);
+    success(
+      await f.human(updateAgentProfileCommand, {
+        ...profileInput,
+        profileId: profile.id,
+        expectedVersion: 1,
+        permissionMode: "manual",
+      }),
+    );
+    expect(
+      await f.db
+        .prepare(
+          `SELECT canonical_json, content_hash FROM run_configuration_snapshots WHERE content_hash = ?`,
+        )
+        .get(before.content_hash),
+    ).toEqual(before);
+    const claim = await f.native(claimLaunchCommand, {
+      principal: f.principal,
+      claim: {
+        schema_version: 1,
+        launch_id: launch.launch_id,
+        runner_id: f.runner,
+        idempotency_key: randomUlid(),
+        claimed_at: LAUNCH_NOW,
+      },
+    });
+    expect(claim.ok && claim.result.state === "claimed").toBe(false);
+  });
+
   it("deduplicates identical Start and rejects changed input or a different human", async () => {
     const f = await launchFixture();
     const results = await Promise.all(

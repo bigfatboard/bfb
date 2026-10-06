@@ -142,6 +142,9 @@ func TestLeaseUnknownPreservesOriginalIdentityAfterNativeFailure(t *testing.T) {
 			f, inspector := inspectionFixture(t, assignment)
 			f.image = true
 			captureFixture(t, store, assignment, processCapture{State: "live", ProviderImage: true}, now, "execution_attached")
+			if _, err := store.rememberNative(ctx, assignment, nativeHistory{Group: f.locked.Record.Group}); err != nil {
+				t.Fatal(err)
+			}
 			observations := 0
 			connection := &finalConnection{request: func(_ context.Context, _, path string, body []byte) ([]byte, error) {
 				if path == "launch/reconcile" {

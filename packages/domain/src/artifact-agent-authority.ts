@@ -65,7 +65,7 @@ const authoritySql = `SELECT json_array(
   json_array(workspace_policy.allowed_providers_json,workspace_policy.allow_agent_root_propose,workspace_policy.allow_pass_to_agent,workspace_policy.allow_run_overrides,workspace_policy.resource_version),
   json_array(project_policy.allowed_providers_json,project_policy.allow_agent_root_propose,project_policy.allow_pass_to_agent,project_policy.allow_run_overrides,project_policy.resource_version),
   json_array(repository.allowed_providers_json,repository.allow_agent_root_propose,repository.allow_pass_to_agent,repository.allow_run_overrides,repository.resource_version,repository.content_hash),
-  json_array(profile.provider,profile.model,profile.execution_mode,profile.harness_mode,profile.resource_version),
+  json_array(profile.provider,profile.model,profile.execution_mode,profile.harness_mode,profile.permission_mode,profile.resource_version),
   json_array(inventory.inventory_json,inventory.received_at),
   json_array(binding.run_id,binding.runner_id,binding.project_id,binding.source_task_id,binding.provider_session_id,binding.provider,binding.observed_session_id,
     session.run_id,session.provider,session.observed_session_id,session.state),

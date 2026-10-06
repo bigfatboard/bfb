@@ -44,7 +44,43 @@ func VerifyDaemonCaller(ctx context.Context, request daemon.Request, input gener
 	if err != nil || parent.UID != caller.UID || !peerInOwnedGroup(parent, assignment) {
 		return AssignmentRecord{}, PeerFacts{}, fail("peer_denied")
 	}
+	if assignment.RootSupervision && !rootPeerAncestry(caller, assignment, inspectProcess) {
+		return AssignmentRecord{}, PeerFacts{}, fail("peer_denied")
+	}
 	return assignment, caller, nil
+}
+
+func rootPeerAncestry(caller PeerFacts, assignment AssignmentRecord, inspect func(int) (PeerFacts, error)) bool {
+	seen := map[int]bool{}
+	ancestors := []PeerFacts{}
+	current := caller
+	for range 256 {
+		if current.PID <= 1 || current.UID != caller.UID || current.GroupID != assignment.OwnedGroupID || current.StartIdentity == "" || seen[current.PID] {
+			return false
+		}
+		ancestors = append(ancestors, current)
+		if current.PID == assignment.ProviderPID {
+			if current.StartIdentity != assignment.ProviderStart {
+				return false
+			}
+			// An ancestor can exit or be reparented during the walk. Repeat each
+			// exact identity/link before granting authority from that ancestry.
+			for _, prior := range ancestors {
+				fresh, err := inspect(prior.PID)
+				if err != nil || fresh != prior {
+					return false
+				}
+			}
+			return true
+		}
+		seen[current.PID] = true
+		var err error
+		current, err = inspect(current.ParentPID)
+		if err != nil {
+			return false
+		}
+	}
+	return false
 }
 
 // RPCTransport contains only local paths and correlation, never runner credentials.

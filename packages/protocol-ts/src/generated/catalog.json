@@ -1,7 +1,7 @@
 {
   "protocol": "bfb-wire/1",
   "schema_version": 1,
-  "schema_hash": "4035fc6c49e7b5ff7de6313c5d8d586ee3391a5459edb8f637c6671996c912be",
+  "schema_hash": "7e13c2d7f48743ee4b6a8cd91d52fda18bf7511f44b05b61c4e6f090c65240c1",
   "documents": [
     {
       "name": "agent-artifact-request",
@@ -382,6 +382,11 @@
       "name": "checkout-lease-observation",
       "schema": "checkout-lease-observation.json",
       "schema_version": 1
+    },
+    {
+      "name": "checkout-root-lease-observation",
+      "schema": "checkout-root-lease-observation.json",
+      "schema_version": 2
     },
     {
       "name": "run-control-request",

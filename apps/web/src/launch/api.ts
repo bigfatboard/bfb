@@ -416,10 +416,10 @@ export function describeLaunchStatus(launch: LaunchStatus): LaunchPresentation {
   if (launch.lease_state === "containment_unknown") {
     return {
       headline: "Containment unknown",
-      detail: `The Mac reported ${launch.containment_reason?.replaceAll("_", " ") ?? "an unclear"} process state. Launches stay blocked until the Mac inspects and recovers locally.`,
+      detail: `The Mac reported ${launch.containment_reason?.replaceAll("_", " ") ?? "an unclear"} process state. The checkout remains reserved; background work may still be running.`,
       tone: "blocked",
       nextAction:
-        "Open the BFB app on the Mac and run explicit local recovery. This page cannot clear containment.",
+        "Inspect this execution locally on the Mac. This page cannot clear containment. Experimental root-supervised runs do not yet support recovery; do not delete their lock records.",
       actions: [],
       needsLocalRecovery: true,
     };

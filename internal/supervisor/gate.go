@@ -211,6 +211,10 @@ func runExecChild(ctx context.Context, paths daemon.Paths, intent string, regist
 	if err := verifyGateLock(paths, assignment, permit); err != nil {
 		return err
 	}
+	record, err := readHeldLock(paths, assignment, permit.LockID)
+	if err != nil || record.SupervisionMode != execution.plan.SupervisionMode() {
+		return failure("containment_unknown")
+	}
 	current, err := gateParent(assignment, inspect)
 	if err != nil || current != child || !permit.valid(ready, current, assignment, time.Now()) || ctx.Err() != nil {
 		return failure("peer_denied")
@@ -303,6 +307,9 @@ func startGated(ctx context.Context, execution *preparedExecution, lock *Worktre
 		return nil, failure("invalid_request")
 	}
 	if err := execution.revalidate(ctx); err != nil {
+		return nil, err
+	}
+	if err := lock.configureSupervision(execution.plan.SupervisionMode()); err != nil {
 		return nil, err
 	}
 	lock.mu.Lock()

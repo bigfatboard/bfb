@@ -385,6 +385,19 @@ The cloud preflight is advisory; those two acquisitions are authoritative. The d
 
 Supported interactive adapters have a tested no-daemonize/no-session-escape contract. The supervisor also watches observed descendants. If one escapes the owned process group, or process identity becomes ambiguous, it retains the lock, reports `containment_unknown`, and requires explicit local recovery after inspection; a persistent recovery marker continues to block BFB launches if the supervisor crashes. This is collision prevention among managed launches, not a macOS sandbox or a guarantee against deliberately evasive local code.
 
+[ADR 0013](docs/adr/0013-claude-autonomy-and-root-supervision.md) revises this
+single-group assumption for newly launched, exact-pinned experimental Claude
+executions. Root supervision authenticates the live root and MCP peer separately
+from whole-family lifetime coverage. Detached descendants are retained as
+evidence, not additional signal targets. Only the original retained root group
+may receive a lifecycle signal. Family coverage is unproven from spawn, so root
+exit revokes run authority but never automatically releases the checkout lock.
+Explicit operator-authorized recovery is distinct from kernel-proven cleanup;
+until its acknowledgement path is verified, this mode cannot be recovered by
+the existing automatic absence checks. Strict mode and old unknown executions
+retain their original behavior. This experimental mode does not claim complete
+family cleanup or full provider acceptance.
+
 ### One-click launch
 
 The primary path is a durable server command plus a realtime nudge:
@@ -499,6 +512,16 @@ normalize_hook_event
 | Grok | Owned CLI with its documented working-directory support | Interactive mode may require the human to submit the first prompt where the installed version lacks a safe auto-submit contract; unattended starts use documented headless mode. See the [Grok CLI reference](https://docs.x.ai/build/cli/reference) and [headless scripting](https://docs.x.ai/build/cli/headless-scripting). |
 
 No adapter simulates keystrokes. If a provider cannot safely accept the initial task automatically, BFB opens it in the exact checkout, shows the prepared context, and reports `waiting_user_submit` honestly.
+
+An owner may explicitly choose the `autonomous` permission mode for a standard,
+interactive Claude profile under ADR 0013. Existing profiles default to
+`manual`; restricted, headless and other-provider autonomous combinations are
+rejected until separately supported. The immutable autonomous launch snapshot
+requires `approval.never` and `filesystem.full_access`, and the exact-pinned
+experimental adapter maps it to `--dangerously-skip-permissions`. This means
+access allowed to the local OS user, not workspace-only filesystem isolation.
+Provider-managed restrictions, BFB authorization and local capability ceilings
+remain independent. No global Claude setting or existing run snapshot changes.
 
 `bfb provider setup <provider>` installs or updates only BFB’s supported user-level hook/MCP integration after explicit human approval; it preserves unrelated provider configuration and never rewrites project instructions. Hook commands point to a stable, signed app-owned launcher path rather than a versioned application-bundle path. Provider-specific provisioning registers the stdio MCP server, hook events, trust/review state, integration version, and configuration hash.
 

@@ -315,6 +315,8 @@ describe("w02 launch presentation", () => {
     expect(shown.actions).toEqual([]);
     expect(shown.needsLocalRecovery).toBe(true);
     expect(shown.nextAction).toMatch(/cannot clear/i);
+    expect(shown.detail).toContain("background work may still be running");
+    expect(shown.nextAction).toContain("root-supervised runs do not yet support recovery");
   });
 
   it("keeps result state out of the execution headline", () => {

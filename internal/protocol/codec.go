@@ -557,7 +557,7 @@ func preflightDiagnostic(document string, object map[string]any) *generated.Type
 
 	if rawVersion, exists := object["schema_version"]; exists {
 		expectedVersion := "1"
-		if document == "local-agent-rpc" || document == "runner-telemetry-submission" {
+		if document == "local-agent-rpc" || document == "runner-telemetry-submission" || document == "checkout-root-lease-observation" {
 			expectedVersion = "2"
 		}
 		if document == "local-agent-work-rpc" {

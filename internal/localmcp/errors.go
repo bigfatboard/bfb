@@ -43,7 +43,7 @@ func jsonRPCCode(code string) (int, string) {
 	case "assignment_unknown":
 		return -32002, "No active local execution assignment matches this server."
 	case "assignment_ended":
-		return -32003, "The local execution has ended."
+		return -32003, "Access to this local execution is closed. The provider process may still be running."
 	case "correlation_rejected":
 		return -32004, "The correlation value does not match the assignment."
 	case "session_not_bound":

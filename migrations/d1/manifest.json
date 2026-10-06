@@ -1,5 +1,5 @@
 {
-  "migration_head": "0043_agent_artifact_publications",
+  "migration_head": "0044_agent_profile_permissions",
   "migrations": [
     {
       "id": "0001_workspace_registry",
@@ -152,6 +152,10 @@
     {
       "id": "0043_agent_artifact_publications",
       "file": "0043_agent_artifact_publications.sql"
+    },
+    {
+      "id": "0044_agent_profile_permissions",
+      "file": "0044_agent_profile_permissions.sql"
     }
   ]
 }

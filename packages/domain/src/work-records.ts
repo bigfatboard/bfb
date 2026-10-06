@@ -107,6 +107,7 @@ interface ProfileVersionRow {
   model: string | null;
   execution_mode: "interactive" | "headless";
   harness_mode: "restricted" | "standard";
+  permission_mode?: "manual" | "autonomous";
   current_version: number;
 }
 
@@ -237,8 +238,7 @@ async function preparePurposeRun(
     PolicyVersionRow | undefined;
   const profile = (await ctx.db
     .prepare(
-      `SELECT version.name, version.provider, version.model,
-                version.execution_mode, version.harness_mode,
+      `SELECT version.*,
                 current.resource_version AS current_version
          FROM agent_profile_versions AS version
          JOIN agent_profiles AS current
@@ -278,7 +278,17 @@ async function preparePurposeRun(
     agent_profile: {
       id: input.agentProfileId,
       version: agentProfileVersion,
-      ...profile,
+      name: profile.name,
+      provider: profile.provider,
+      model: profile.model,
+      execution_mode: profile.execution_mode,
+      harness_mode: profile.harness_mode,
+      // Historical migration fixtures predate this column; their original
+      // snapshot shape and content hash must remain reproducible.
+      ...(profile.permission_mode === undefined
+        ? {}
+        : { permission_mode: profile.permission_mode }),
+      current_version: profile.current_version,
     },
     project_id: task.project_id,
     project_policy: { version: projectPolicyVersion, ...project },

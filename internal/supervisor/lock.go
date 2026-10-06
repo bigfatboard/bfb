@@ -13,6 +13,7 @@ import (
 	"syscall"
 
 	"github.com/qdis/bfb/internal/daemon"
+	"github.com/qdis/bfb/internal/provider"
 	"golang.org/x/sys/unix"
 )
 
@@ -32,14 +33,15 @@ func (binding LockBinding) valid() bool {
 }
 
 type LockRecord struct {
-	Version       int         `json:"version"`
-	LockID        string      `json:"lock_id"`
-	Binding       LockBinding `json:"binding"`
-	Owner         Process     `json:"owner"`
-	Group         *Group      `json:"group"`
-	State         string      `json:"state"`
-	RecoveryLocal bool        `json:"recovery_local"`
-	SpawnPending  bool        `json:"spawn_pending,omitempty"`
+	Version         int         `json:"version"`
+	LockID          string      `json:"lock_id"`
+	Binding         LockBinding `json:"binding"`
+	Owner           Process     `json:"owner"`
+	Group           *Group      `json:"group"`
+	State           string      `json:"state"`
+	RecoveryLocal   bool        `json:"recovery_local"`
+	SpawnPending    bool        `json:"spawn_pending,omitempty"`
+	SupervisionMode string      `json:"supervision_mode,omitempty"`
 }
 
 func validRecordedProcess(process Process) bool {
@@ -56,6 +58,9 @@ func (record LockRecord) valid() bool {
 	if record.RecoveryLocal && record.State != "released" {
 		return false
 	}
+	if record.SupervisionMode != "" && record.SupervisionMode != provider.RootSupervision || record.SupervisionMode == provider.RootSupervision && record.State == "released" {
+		return false
+	}
 	group := record.Group
 	if record.SpawnPending && (record.State != "reserved" || group != nil || record.RecoveryLocal) {
 		return false
@@ -63,7 +68,7 @@ func (record LockRecord) valid() bool {
 	if group == nil {
 		return record.State != "owned"
 	}
-	if record.State == "reserved" || !validRecordedProcess(group.Leader) || group.Leader.GroupID != group.Leader.PID || group.Leader.ParentPID != record.Owner.PID || len(group.Observed) == 0 || len(group.Observed) > maxObservedProcesses || !group.Leader.Same(group.Observed[group.Leader.PID]) {
+	if group.SupervisionMode != record.SupervisionMode || record.State == "reserved" || !validRecordedProcess(group.Leader) || group.Leader.GroupID != group.Leader.PID || group.Leader.ParentPID != record.Owner.PID || len(group.Observed) == 0 || len(group.Observed) > maxObservedProcesses || !group.Leader.Same(group.Observed[group.Leader.PID]) {
 		return false
 	}
 	for pid, process := range group.Observed {
@@ -182,6 +187,19 @@ func (lock *WorktreeLock) persist() error {
 	return nil
 }
 
+// configureSupervision binds only a locally compiled plan before any child
+// exists. Reopening or upgrading a spawned/sticky execution is not permitted.
+func (lock *WorktreeLock) configureSupervision(mode string) error {
+	lock.mu.Lock()
+	defer lock.mu.Unlock()
+	if mode != "" && mode != provider.RootSupervision || lock.check() != nil || lock.record.State != "reserved" || lock.record.Group != nil || lock.record.SpawnPending ||
+		(lock.record.SupervisionMode != "" && lock.record.SupervisionMode != mode) {
+		return failure("containment_unknown")
+	}
+	lock.record.SupervisionMode = mode
+	return lock.persist()
+}
+
 // beginSpawn closes the crash window before process creation. If the owner
 // disappears before recording a native child identity, absence is unprovable;
 // recovery must not reinterpret the old reservation as never having spawned.
@@ -258,6 +276,7 @@ func (lock *WorktreeLock) Attach(leader Process) error {
 	if err != nil {
 		return err
 	}
+	group.SupervisionMode = lock.record.SupervisionMode
 	lock.record.Group, lock.record.State, lock.record.SpawnPending = group, "owned", false
 	return lock.persist()
 }
@@ -280,12 +299,13 @@ func (lock *WorktreeLock) observe() (GroupObservation, error) {
 		return GroupObservation{State: "containment_unknown"}, failure("containment_unknown")
 	}
 	before, _ := json.Marshal(lock.record.Group)
+	beforeState := lock.record.State
 	observation := lock.record.Group.Observe(table)
-	if observation.State == "containment_unknown" {
+	if observation.State == "containment_unknown" || observation.State == "root_ended" {
 		lock.record.State = "containment_unknown"
 	}
 	after, _ := json.Marshal(lock.record.Group)
-	if string(before) != string(after) {
+	if string(before) != string(after) || beforeState != lock.record.State {
 		if err = lock.persist(); err != nil {
 			return GroupObservation{State: "containment_unknown"}, err
 		}
@@ -324,7 +344,7 @@ func (lock *WorktreeLock) Release() error {
 	lock.mu.Lock()
 	defer lock.mu.Unlock()
 	observation, err := lock.observe()
-	if err != nil || (observation.State != "gone" && observation.State != "never_started") || lock.record.State == "containment_unknown" {
+	if err != nil || lock.record.SupervisionMode != "" || (observation.State != "gone" && observation.State != "never_started") || lock.record.State == "containment_unknown" {
 		return failure("containment_unknown")
 	}
 	lock.record.State = "released"
@@ -359,7 +379,7 @@ func (store *LockStore) recoverLocal(binding LockBinding, observed *Group) error
 	}
 	defer file.Close()
 	record, err := store.read(binding.PhysicalWorktreeHash)
-	if err != nil || record.Binding != binding || record.SpawnPending {
+	if err != nil || record.Binding != binding || record.SpawnPending || record.SupervisionMode != "" || observed != nil && observed.SupervisionMode != "" {
 		return failure("containment_unknown")
 	}
 	record.Group = mergeGroups(record.Group, observed)

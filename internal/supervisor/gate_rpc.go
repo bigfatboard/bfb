@@ -11,6 +11,7 @@ import (
 	"github.com/qdis/bfb/internal/daemon"
 	"github.com/qdis/bfb/internal/protocol"
 	"github.com/qdis/bfb/internal/protocol/generated"
+	"github.com/qdis/bfb/internal/provider"
 )
 
 const finalRequestLimit = 5 * time.Second
@@ -176,8 +177,18 @@ func (service *Service) recordGroup(ctx context.Context, request daemon.Request)
 	if lock.Group == nil || lock.Group.Leader.GroupID != input.GroupID {
 		return nil, failure("containment_unknown")
 	}
-	if _, err := service.store.PinOwnership(ctx, input.IntentID, *assignment.Supervisor, input.LockID, &lock.Group.Leader, service.options.Now()); err != nil {
+	service.nativeMu.Lock()
+	defer service.nativeMu.Unlock()
+	assignment, err = service.store.PinOwnership(ctx, input.IntentID, *assignment.Supervisor, input.LockID, &lock.Group.Leader, service.options.Now())
+	if err != nil {
 		return nil, err
+	}
+	if lock.SupervisionMode == provider.RootSupervision {
+		// Seal the daemon's mirrored mode before acknowledging the exec gate.
+		// A provider's first MCP call must not see an absent history as strict.
+		if _, err := service.store.rememberNative(ctx, assignment, nativeHistory{Group: lock.Group}); err != nil {
+			return nil, err
+		}
 	}
 	return map[string]any{}, nil
 }

@@ -17,6 +17,19 @@ ABOUTME: Applies to JSON Schema under protocol/schema and generated codecs.
 - Required fields cannot be removed or retyped without a new wire version.
 - Deprecation requires an explicit version transition; v1 producers and readers do not silently accept deprecated values.
 
+### Explicit private-pilot exception
+
+[ADR 0013](../../docs/adr/0013-claude-autonomy-and-root-supervision.md) permits
+exactly two capability-gated enum additions before release:
+`filesystem_policy: full_access` and inventory capability
+`filesystem.full_access`. All existing values retain their meaning; an
+autonomous launch requires the new capability at both cloud admission and
+local planning. Older readers reject these values, and producers must never
+rewrite them as `workspace_write` to obtain compatibility. Schema, generated
+code and fixtures are deployed together for the private pilot. This exception
+does not authorize other in-place changes, production rollout, or promotion of
+historical provider capability evidence.
+
 ### Local agent-work transition
 
 [ADR 0005](../../docs/adr/0005-agent-work-session-and-attribution.md) defines a separate closed `local-agent-rpc` envelope at schema version 2. The general `local-rpc` envelope and Swift app calls remain version 1. Fixed `mcp.v2.` methods are negotiated through the already-declared `methods` field of a v1 `daemon.status` response before private input is sent. Unsupported versions or missing methods fail visibly; no automatic downgrade is allowed. Version 2 is accepted only for the named agent document, and replies must match the selected version, method and request ID. The unchanged nested cloud operation reference remains version 1, preserving its idempotency hashes. This is a document-specific transition, not a global upgrade of existing `bfb-wire/1` records.

@@ -44,7 +44,7 @@ func (registry *Registry) validatePlan(probe Probe, input LaunchInput, policy Po
 	config := input.Config
 	if string(config.Provider) != probe.Provider || !slices.Contains(descriptor.Manifest.Models, config.Model) ||
 		!slices.Contains([]string{"interactive", "headless"}, config.Mode) || !slices.Contains([]string{"low", "medium", "high"}, config.Effort) ||
-		!slices.Contains([]string{"never", "on_request", "always"}, config.ApprovalPolicy) || !slices.Contains([]string{"read_only", "workspace_write"}, config.FilesystemPolicy) ||
+		!slices.Contains([]string{"never", "on_request", "always"}, config.ApprovalPolicy) || !slices.Contains([]string{"read_only", "workspace_write", "full_access"}, config.FilesystemPolicy) ||
 		!slices.Contains([]string{"none", "session_start_additional_context"}, config.ContextInjection) ||
 		!slices.Contains([]string{"none", "waiting_user_submit", "provider_prompt"}, config.InitialTurnTransport) ||
 		len(config.RequiredCapabilities) == 0 || len(config.RequiredCapabilities) > 32 {
@@ -79,6 +79,9 @@ func (registry *Registry) validatePlan(probe Probe, input LaunchInput, policy Po
 }
 
 func makePlan(probe Probe, input LaunchInput, invocation Invocation) (Plan, error) {
+	if invocation.SupervisionMode != "" && (invocation.SupervisionMode != RootSupervision || input.Config.Mode != "interactive") {
+		return Plan{}, Failure("provider_config_invalid")
+	}
 	// Adapters cannot replace installation identity, ambient environment, or verified checkout.
 	if invocation.Executable != "" || invocation.WorkingDirectory != "" || len(invocation.Environment) != 0 || len(invocation.Arguments) > 128 || len(invocation.Stdin) > MaxTurnBytes {
 		return Plan{}, Failure("provider_config_invalid")

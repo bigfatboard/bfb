@@ -338,15 +338,14 @@ export async function readLaunchEnvironment(
     .prepare(`SELECT * FROM repository_configs WHERE workspace_id = ? AND project_id = ?`)
     .get(ctx.workspaceId, input.projectId)) as PolicyRow & { content_hash: string };
   const profile = (await ctx.db
-    .prepare(
-      `SELECT provider, model, execution_mode, harness_mode, resource_version FROM agent_profiles WHERE workspace_id = ? AND id = ?`,
-    )
+    .prepare(`SELECT * FROM agent_profiles WHERE workspace_id = ? AND id = ?`)
     .get(ctx.workspaceId, input.profileId)) as
     | {
         provider: LaunchSnapshot["execution_config"]["provider"];
         model: string | null;
         execution_mode: "interactive" | "headless";
         harness_mode: "restricted" | "standard";
+        permission_mode?: "manual" | "autonomous";
         resource_version: number;
       }
     | undefined;
@@ -374,8 +373,16 @@ export async function readLaunchEnvironment(
     model: profile.model,
     mode: profile.execution_mode,
     effort: "high",
-    approval_policy: profile.harness_mode === "restricted" ? "never" : "on_request",
-    filesystem_policy: profile.harness_mode === "restricted" ? "read_only" : "workspace_write",
+    approval_policy:
+      profile.permission_mode === "autonomous" || profile.harness_mode === "restricted"
+        ? "never"
+        : "on_request",
+    filesystem_policy:
+      profile.permission_mode === "autonomous"
+        ? "full_access"
+        : profile.harness_mode === "restricted"
+          ? "read_only"
+          : "workspace_write",
     context_injection: "session_start_additional_context",
     initial_turn_transport: "provider_prompt",
     required_capabilities: [],

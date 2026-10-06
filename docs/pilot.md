@@ -92,6 +92,43 @@ hostname. These are loopback addresses: this setup alone is not proof of access
 from a phone or another machine. Independently reachable HTTPS and an actual
 second-client test remain required for the remote pilot.
 
+## Experimental Claude permissions and supervision
+
+[ADR 0013](adr/0013-claude-autonomy-and-root-supervision.md) separates two
+independent choices in the exact-pinned Claude candidate. Neither changes
+historical production-provider certification.
+
+- **Manual permissions** remain the default for existing and new profiles.
+- **Autonomous — full local-user access** must be selected explicitly on an
+  interactive, standard Claude profile. It requests
+  `--dangerously-skip-permissions`, including exact-session resume. It is not
+  workspace confinement: Claude can use the files and tools available to the
+  local OS user, subject to OS and provider-managed restrictions. Existing
+  project policies, runner grants and BFB business-action authorization still
+  apply. The new runner capability must be advertised; an older runner rejects
+  the launch instead of silently reducing or expanding permissions.
+
+Separately, the candidate's root-supervision mode accommodates Claude's
+legitimate detached children. BFB still verifies the signed supervisor, exact
+live provider root, authenticated checkout lock and current MCP caller before
+granting run access. Unrelated callers, replaced processes and previously
+closed executions do not regain access. Skipping permission prompts alone
+does not repair a containment error.
+
+Interrupt and terminate address only the original provider process group.
+They do not prove that every background child stopped. When the root exits,
+MCP authority closes and the checkout remains occupied because polling cannot
+prove the absence of unobserved descendants. **Automatic release and legacy
+local recovery are deliberately denied for root-supervised executions.** The
+separate operator-acknowledged recovery path is not yet implemented. Do not
+delete lock records, edit the database, or retry recovery to bypass this hold.
+A fresh test requires a separately registered checkout and a new execution;
+never revive the old run.
+
+This is an experimental compatibility mode, not a macOS sandbox or completed
+live-provider acceptance. Keep these cleanup limits visible when testing the
+candidate, whether its permission profile is manual or autonomous.
+
 ## Stop, recover and test
 
 ```sh

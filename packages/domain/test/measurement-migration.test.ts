@@ -33,7 +33,9 @@ describe("measurement source migration", () => {
     expect(sourceIndex).toBeGreaterThan(0);
     expect(migrations[sourceIndex - 1]?.id).toBe("0040_offline_result_policy");
     for (const migration of migrations.slice(0, sourceIndex)) raw.exec(migration.sql);
-    const f = await launchFixture(adaptBetterSqlite3(raw)),
+    const f = await launchFixture(adaptBetterSqlite3(raw), {
+        profileSchema: "pre-permission-mode",
+      }),
       { claimed } = await f.claim(),
       spec = claimed.specification;
     success(

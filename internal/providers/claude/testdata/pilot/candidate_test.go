@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/qdis/bfb/internal/protocol/generated"
 	"github.com/qdis/bfb/internal/provider"
 	"github.com/qdis/bfb/internal/providers/claude"
 )
@@ -77,8 +78,72 @@ func TestCandidateRegistryDoesNotPromoteProduction(t *testing.T) {
 	if err != nil || closed.Status != "unknown_version" || len(closed.Capabilities) != 0 || closed.ManifestID == probe.ManifestID {
 		t.Fatal("candidate escaped production registry", closed, err)
 	}
-	if slices.Contains(claude.TestedVersions, candidateVersion) || slices.Contains(claude.Capabilities(), "mcp.stdio") {
+	if slices.Contains(claude.TestedVersions, candidateVersion) || slices.Contains(claude.Capabilities(), "mcp.stdio") || slices.Contains(claude.Capabilities(), "approval.never") || slices.Contains(claude.Capabilities(), "filesystem.full_access") {
 		t.Fatal("mutated production descriptor")
+	}
+}
+
+func TestCandidateAutonomyRequiresExplicitConfigurationAndLocalCeilings(t *testing.T) {
+	binding, installation := candidateFixture(t)
+	registry, err := candidateRegistry(binding)
+	if err != nil {
+		t.Fatal(err)
+	}
+	probe, err := registry.Probe(context.Background(), "claude", installation, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := provider.LaunchInput{WorkingDirectory: t.TempDir(), Config: generated.ExecutionConfig{
+		Provider: "claude", Mode: "interactive", Model: "sonnet", Effort: "high",
+		ApprovalPolicy: "on_request", FilesystemPolicy: "workspace_write",
+		ContextInjection: "session_start_additional_context", InitialTurnTransport: "provider_prompt",
+		RequiredCapabilities: []string{"hooks.session_start", "mcp.stdio"},
+	}}
+	policy := provider.Policy{AllowedCapabilities: slices.Clone(probe.Capabilities)}
+	manual, err := registry.PlanLaunch(probe, input, policy, time.Now())
+	if err != nil || slices.Contains(manual.Invocation().Arguments, "--dangerously-skip-permissions") || manual.SupervisionMode() != provider.RootSupervision {
+		t.Fatal("manual candidate permission or supervision mismatch", err)
+	}
+	input.Config.ApprovalPolicy, input.Config.FilesystemPolicy = "never", "full_access"
+	plan, err := registry.PlanLaunch(probe, input, policy, time.Now())
+	if err != nil || plan.SupervisionMode() != provider.RootSupervision {
+		t.Fatal("autonomous candidate supervision mismatch", err)
+	}
+	argv := plan.Invocation().Arguments
+	if !slices.Contains(argv, "--dangerously-skip-permissions") || slices.Contains(argv, "--permission-mode") || slices.Contains(argv, "--allow-dangerously-skip-permissions") {
+		t.Fatal("autonomous argv did not select explicit bypass", argv)
+	}
+	for _, capability := range autonomousCapabilities {
+		ceiling := provider.Policy{AllowedCapabilities: slices.DeleteFunc(slices.Clone(policy.AllowedCapabilities), func(value string) bool { return value == capability })}
+		if _, err := registry.PlanLaunch(probe, input, ceiling, time.Now()); err == nil {
+			t.Fatal("missing local ceiling accepted", capability)
+		}
+	}
+	resume := provider.ResumeInput{LaunchInput: input, Session: provider.SessionBinding{Provider: "claude", ObservedID: "33333333-3333-4333-8333-333333333333", RunID: "01J9Z8X1MNWT8YQ2R4S3V6K0P7", ExecutionID: "01J9Z8X1MNWT8YQ2R4S3V6K0Q9", Generation: 1}}
+	continued, err := registry.PlanResume(probe, resume, policy, time.Now())
+	if err != nil || continued.SupervisionMode() != provider.RootSupervision {
+		t.Fatal("candidate resume supervision mismatch", err)
+	}
+	continuedArgs := continued.Invocation().Arguments
+	if !slices.Contains(continuedArgs, "--dangerously-skip-permissions") || !slices.Contains(continuedArgs, resume.Session.ObservedID) || slices.Contains(continuedArgs, provider.InitialInstruction) || slices.Contains(continuedArgs, "--continue") || slices.Contains(continuedArgs, "--fork-session") {
+		t.Fatal("autonomous resume changed exact session", continuedArgs)
+	}
+	input.Config.FilesystemPolicy, input.Config.ApprovalPolicy = "workspace_write", "on_request"
+	input.Config.RequiredCapabilities[0] = "untrusted.changed"
+	if !slices.Equal(plan.Invocation().Arguments, argv) {
+		t.Fatal("caller mutation changed immutable plan")
+	}
+	for _, mutate := range []func(*provider.LaunchInput){
+		func(value *provider.LaunchInput) { value.Config.ApprovalPolicy = "on_request" },
+		func(value *provider.LaunchInput) { value.Config.FilesystemPolicy = "workspace_write" },
+		func(value *provider.LaunchInput) { value.Config.Mode = "headless" },
+	} {
+		invalid := resume.LaunchInput
+		invalid.Config.RequiredCapabilities = []string{"hooks.session_start", "mcp.stdio"}
+		mutate(&invalid)
+		if _, err := registry.PlanLaunch(probe, invalid, policy, time.Now()); err == nil {
+			t.Fatal("permission mismatch was accepted", invalid.Config)
+		}
 	}
 }
 
@@ -101,16 +166,29 @@ func TestCandidateRegistryRequiresCurrentIntegrationAndBinary(t *testing.T) {
 }
 
 func TestCandidateRegistryRejectsOtherExactVersions(t *testing.T) {
-	binding, installation := candidateFixture(t)
-	if err := os.WriteFile(binding.BinaryPath, []byte("#!/bin/sh\nprintf '2.1.292 (Claude Code)\\n'\n"), 0700); err != nil {
-		t.Fatal(err)
-	}
-	stamp, _ := provider.FingerprintExecutable(binding.BinaryPath)
-	binding.BinaryHash = stamp.Hash
-	registry, _ := candidateRegistry(binding)
-	probe, err := registry.Probe(context.Background(), "claude", installation, time.Now())
-	if err != nil || probe.Status != "unknown_version" || len(probe.Capabilities) != 0 {
-		t.Fatal(probe, err)
+	for _, version := range []string{"2.1.274", "2.1.275", "2.1.292"} {
+		t.Run(version, func(t *testing.T) {
+			binding, installation := candidateFixture(t)
+			if err := os.WriteFile(binding.BinaryPath, []byte("#!/bin/sh\nprintf '"+version+" (Claude Code)\\n'\n"), 0700); err != nil {
+				t.Fatal(err)
+			}
+			stamp, _ := provider.FingerprintExecutable(binding.BinaryPath)
+			binding.BinaryHash = stamp.Hash
+			registry, _ := candidateRegistry(binding)
+			probe, err := registry.Probe(context.Background(), "claude", installation, time.Now())
+			if err != nil || probe.Status != "unknown_version" || len(probe.Capabilities) != 0 {
+				t.Fatal(probe, err)
+			}
+			input := provider.LaunchInput{WorkingDirectory: t.TempDir(), Config: generated.ExecutionConfig{
+				Provider: "claude", Mode: "interactive", Model: "sonnet", Effort: "high",
+				ApprovalPolicy: "never", FilesystemPolicy: "full_access",
+				ContextInjection: "none", InitialTurnTransport: "none",
+				RequiredCapabilities: []string{"launch.interactive"},
+			}}
+			if _, err := registry.PlanLaunch(probe, input, provider.Policy{AllowedCapabilities: autonomousCapabilities}, time.Now()); err == nil {
+				t.Fatal("unsupported exact version produced a root or autonomous plan")
+			}
+		})
 	}
 }
 

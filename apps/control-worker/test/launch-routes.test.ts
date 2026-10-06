@@ -4,6 +4,7 @@
 import { describe, expect, it } from "vitest";
 import {
   FIX,
+  authorizeLaunchCommand,
   canonicalRunnerKey,
   encodeRunnerToken,
   randomUlid,
@@ -19,8 +20,13 @@ import type { LaunchClaimResult } from "@bfb/protocol";
 import {
   launchFixture,
   LAUNCH_NOW,
+  success,
   SYNTHETIC_DIGEST,
 } from "../../../packages/domain/test/launch-fixture.js";
+import {
+  configureRootLaunchFixture,
+  rootLeaseObservation,
+} from "../../../packages/domain/test/checkout-root-lease-fixture.js";
 import { parseAuthKeys } from "../src/auth/better-auth.js";
 import { validateControlEnv, type ControlBindings } from "../src/env.js";
 import { createTestWorkspaceHubNamespace } from "../src/hub-client.js";
@@ -86,6 +92,7 @@ async function fixture() {
   await context.db
     .prepare(`UPDATE runner_tokens SET claims_json = ?, token_hash = ? WHERE id = ?`)
     .run(JSON.stringify(claims), runnerHash(secret), f.principal.tokenId);
+  f.principal.keyThumbprint = thumbprint;
   const token = encodeRunnerToken(claims, secret);
   const nativePrefix = `/runner/workspaces/${FIX.workspace}/runners/${f.runner}`;
   async function browser(
@@ -154,6 +161,53 @@ async function fixture() {
 }
 
 describe("launch browser and native routes", () => {
+  it("keeps root observations on their versioned possession route without release or fallback", async () => {
+    const f = await fixture();
+    await configureRootLaunchFixture(f);
+    const c = await f.claim();
+    success(
+      await f.native(authorizeLaunchCommand, { principal: f.principal, authorization: c.final }),
+    );
+    const live = rootLeaseObservation(c.final);
+    const request = await f.signed("leases/observe-root", live);
+    const renewal = await f.send(request.clone());
+    expect(renewal.status, await renewal.clone().text()).toBe(200);
+    expect(await renewal.json()).toMatchObject({
+      state: "live",
+      supervision_mode: "root",
+      family_coverage: "unproven",
+    });
+    expect((await f.send(request.clone())).status).toBe(403);
+    expect((await f.send(await f.signed("leases/observe", { ...live, sequence: 2 }))).status).toBe(
+      403,
+    );
+    for (const operation of ["release", "recover"])
+      expect(
+        (await f.send(await f.signed("leases/observe-root", { ...live, sequence: 2, operation })))
+          .status,
+      ).toBe(403);
+    const cookie = await f.signed("leases/observe-root", { ...live, sequence: 2 });
+    cookie.headers.set("cookie", "synthetic-cookie");
+    expect((await f.send(cookie)).status).toBe(403);
+    const loss = await f.send(
+      await f.signed("leases/observe-root", {
+        ...live,
+        sequence: 2,
+        operation: "unknown",
+        group_state: "gone",
+      }),
+    );
+    expect(loss.status, await loss.clone().text()).toBe(200);
+    expect(await loss.json()).toMatchObject({
+      state: "containment_unknown",
+      family_coverage: "unproven",
+    });
+    expect(await f.db.prepare(`SELECT state, released_at FROM checkout_leases`).get()).toEqual({
+      state: "containment_unknown",
+      released_at: null,
+    });
+  });
+
   it("starts, wakes, claims and authorizes through mounted browser and possession routes", async () => {
     const f = await fixture();
     const start = await f.browser("launches", f.start);
