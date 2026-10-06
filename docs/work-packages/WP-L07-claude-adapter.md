@@ -190,6 +190,11 @@ A card can open a supported Claude Code version in the exact checkout, bind the 
   executions are not upgraded or revived. Root-supervised automatic release and
   local recovery remain denied; no complete-family cleanup, production rollout
   or package completion is claimed.
+  A later Wrangler `Network connection lost` diagnostic accompanied another
+  clean pilot shutdown before a new profile/run was created. Restarting the same
+  persistent pilot restored both health checks and online enrollment; the
+  underlying local-runtime failure and its relationship to an earlier reload
+  remain unproven.
 - Retry-UI continuation, 6 October: the enrolled runner remained online but
   received no new command after a human retry click. A synthetic browser test
   reproduced a non-default checkout displayed as selected while application

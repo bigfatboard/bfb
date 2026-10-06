@@ -132,11 +132,19 @@
   "replacement_app_activation_verified": true,
   "same_enrollment_reconnection_verified": true,
   "fresh_proof_checkout_registered": true,
+  "pilot_follow_through": {
+    "later_failure": "Wrangler control diagnostics recorded Network connection lost; the pilot supervisor and both Workers exited, with stale control metadata cleaned normally",
+    "reload_attribution": "A prior hot reload completed about fifteen minutes before the error; direct causation is unproven",
+    "recovery": "Restarted the same stock persistent pilot; both HTTPS health checks pass and existing runner enrollment reconnects online",
+    "business_effects": "No autonomous profile or new execution had been created at this observation",
+    "underlying_failure_fixed": false
+  },
   "deployment_performed": false,
   "unverified": [
     "Fresh authorized Claude launch on a separately registered checkout",
     "Canonical provider-session binding, scoped MCP context, human attention, explicit result and same-run resume",
     "Operator-acknowledged recovery for root-supervised occupancy",
+    "Local pilot longevity across the unresolved Wrangler network failure",
     "Separate frozen-install clean-checkout package completion, production certification and full MVP acceptance",
     "Codex live provider integration"
   ],
