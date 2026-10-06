@@ -119,5 +119,16 @@ even for empty pages; NUL-suffixed metadata and serialized object envelopes are
 rejected. Historical payloads are reconstructed without rewriting stored rows.
 Three stored upload-recovery retry races extend the earlier regression proof.
 Other audit families, global positions, aggregate/diagnostic privacy and full
-C11 acceptance remain open. The next bounded audit repair is stuck-upload
-recovery receipt delivery, without changing command execution.
+C11 acceptance remain open.
+
+The [upload-recovery audit checkpoint](evidence/WP-C11/recovery-audit-manifest.json)
+is clean-certified at `ac3f86e`: 1,574 cases, 37 real-D1 checks, retained C10/C08,
+exact X05 acceptance and full verification with 3,915 TypeScript cases, Go and
+all 16 Swift cases. Strict receipts bind applied ledger history and every current
+failed shared/run-free target; mixed hidden targets omit the whole receipt.
+Typed reconstruction preserves redacted arrays and legitimate older/retry history.
+Valid UTC pages and anchors share microsecond-preserving normalized ordering,
+with insertion-order ties and unchanged display timestamps. Recovery execution
+is unchanged. Other audit families, live queue/health aggregates, frozen diagnostics,
+opaque positions and complete delivery/creation/sharing remain open; the prior
+in-flight credential/lease expiry reproducer is unresolved. C11 stays in progress.

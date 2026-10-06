@@ -300,8 +300,9 @@ This slice preserves the historical audit-ID cursor wire form, not a new opaque
 recipient position. Complete audit families, global positions, diagnostics and
 operations aggregates remain activation barriers.
 
-The next bounded audit slice covers `ops.recovery.resolve_stuck_upload` only;
-it requires a separate clean checkpoint and does not change recovery execution:
+The bounded `ops.recovery.resolve_stuck_upload` audit slice has its
+[separate clean checkpoint](../work-packages/evidence/WP-C11/recovery-audit-manifest.json).
+It does not change recovery execution or complete C11:
 
 - Quarantine `ops.recovery.*` case-insensitively. Recognize only the exact
   lowercase registered action. Legacy `ops.recover` and unrelated families

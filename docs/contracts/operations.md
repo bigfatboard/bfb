@@ -48,14 +48,15 @@ interprets provider-specific capability fields.
   the browser response/cursor envelope remain unchanged.
   Its [clean checkpoint](../work-packages/evidence/WP-C11/artifact-audit-manifest.json)
   certifies the canonical artifact subset, not the entire audit feed.
-- The next bounded C11 read projection covers only
+- The bounded C11 read projection covers only
   `ops.recovery.resolve_stuck_upload`. Its strict Hub receipt resolves an applied
   same-workspace ledger and every current failed shared/run-free target before
   page, count and anchor delivery. Mixed hidden targets omit the whole receipt;
   reconstructed input arrays retain the current `[redacted]` display. Original
   and target-ledger retry history have distinct actor/time rules. The
   [C11 contract](private-task-delivery.md) freezes normalization and delivery
-  boundaries; this is not yet a certificate or a recovery-execution change.
+  boundaries. Its [clean checkpoint](../work-packages/evidence/WP-C11/recovery-audit-manifest.json)
+  certifies this subset, not recovery execution or the complete audit feed.
   Its chronology repair uses a normalized internal UTC key in both page and
   anchor comparison, preserving raw display timestamps and insertion-order ties.
 

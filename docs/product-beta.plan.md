@@ -177,7 +177,13 @@ manifests; current runtime proof must have its own explicit scope.
   wrappers use exact current shared parents and typed reconstructed sources
   before page/count/anchor delivery. Owner/epoch loss denies even empty pages;
   NUL-suffixed typed fields and serialized object envelopes are rejected.
-  The next bounded audit slice is stuck-upload recovery receipt delivery,
-  without changing command execution. Other audit families, live operations
-  aggregates and frozen diagnostics remain open. Live private R2 byte delivery
-  remains uncertified; C12 stays planned.
+  The [upload-recovery audit checkpoint](work-packages/evidence/WP-C11/recovery-audit-manifest.json)
+  is clean-certified at `ac3f86e`: 1,574 C11 cases, 37 real-D1 checks and exact
+  X05 acceptance; full verification passes 3,915 TypeScript cases, Go and all
+  16 Swift cases. Strict receipt/ledger/failed-target lineage omits mixed hidden
+  targets, preserves legitimate older/retry history and reconstructs redacted
+  metadata. Valid UTC pages/anchors normalize microseconds and equal-instant
+  insertion ties without changing display timestamps or recovery execution.
+  Other audit families, live queue/health aggregates and frozen diagnostics
+  remain open. The prior in-flight credential/lease expiry reproducer remains
+  unresolved; live private R2 byte delivery remains uncertified. C12 stays planned.

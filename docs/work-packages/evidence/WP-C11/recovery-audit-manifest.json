@@ -1,0 +1,68 @@
+{
+  "$schema": "../manifest.schema.json",
+  "package": "C11",
+  "tested_commit": "ac3f86e7ef58aeae07a2edae4bbfe6a849afb81a",
+  "protocol_version": "bfb-wire/1 unchanged",
+  "schema_version": "private-task-delivery/1 stages 1 and 2 plus partial stage 3 artifact and upload-recovery audit; activation unavailable",
+  "migration_head": "0045_private_task_authority",
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "xcode": "26.0.1",
+    "wrangler": "4.120.1",
+    "playwright": "1.55.1"
+  },
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56)",
+    "architecture": "arm64"
+  },
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/recovery-audit-command-result.json"
+    },
+    {
+      "command": "pnpm test:c11",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/recovery-audit-command-result.json"
+    },
+    {
+      "command": "pnpm test:x05",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/recovery-audit-command-result.json"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/recovery-audit-command-result.json"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/recovery-audit-command-result.json"
+    }
+  ],
+  "outcome": "passed",
+  "artifacts": [
+    "docs/work-packages/evidence/WP-C11/recovery-audit-command-result.json",
+    "docs/work-packages/evidence/WP-C11/recovery-audit-acceptance.md",
+    "docs/contracts/private-task-delivery.md",
+    "docs/contracts/operations.md",
+    "packages/domain/test/private-operations-upload-recovery-audit.test.ts",
+    "apps/control-worker/test/private-operations-recovery-audit-routes.test.ts",
+    "packages/domain/test/private-artifact-security-audit.test.ts",
+    "apps/control-worker/test/private-operations-audit-routes.test.ts",
+    "tools/work-records/delivery.ts",
+    "tools/work-records/README.md"
+  ],
+  "redaction": {
+    "status": "passed",
+    "prohibited_content": []
+  },
+  "ci": {
+    "status": "not_run"
+  }
+}
