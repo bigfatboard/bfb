@@ -36,6 +36,7 @@ export async function checkProtocolDrift(root: string): Promise<string[]> {
       "protocol/fixtures/v3/local-agent-work-rpc.json",
       "protocol/fixtures/v4/local-agent-attention-rpc.json",
       "protocol/fixtures/v5/local-agent-result-rpc.json",
+      "protocol/fixtures/v6/local-agent-artifact-rpc.json",
     ];
     const issues: string[] = [];
     for (const relativePath of paths) {

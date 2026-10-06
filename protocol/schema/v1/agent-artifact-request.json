@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/agent-artifact-request.json",
+  "title": "AgentArtifactRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "reference",
+    "binding",
+    "format",
+    "role",
+    "declared_size",
+    "expected_digest"
+  ],
+  "properties": {
+    "reference": {
+      "$ref": "agent-work-request.json"
+    },
+    "binding": {
+      "$ref": "agent-session-reference.json"
+    },
+    "artifact_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "format": {
+      "type": "string",
+      "enum": [
+        "markdown",
+        "mermaid",
+        "diff",
+        "svg",
+        "png",
+        "jpeg",
+        "html",
+        "log",
+        "json"
+      ]
+    },
+    "role": {
+      "type": "string",
+      "enum": [
+        "review",
+        "log"
+      ]
+    },
+    "declared_size": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5242880
+    },
+    "expected_digest": {
+      "type": "string",
+      "minLength": 64,
+      "maxLength": 64,
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "type": "object",
+        "required": [
+          "role"
+        ],
+        "properties": {
+          "role": {
+            "const": "log"
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "declared_size": {
+            "type": "integer",
+            "maximum": 1048576
+          }
+        }
+      }
+    }
+  ]
+}

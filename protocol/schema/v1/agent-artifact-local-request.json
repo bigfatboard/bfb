@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/agent-artifact-local-request.json",
+  "title": "AgentArtifactLocalRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "correlation",
+    "request"
+  ],
+  "properties": {
+    "correlation": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reference",
+        "path",
+        "format",
+        "role"
+      ],
+      "properties": {
+        "reference": {
+          "$ref": "agent-work-request.json"
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096,
+          "pattern": "^[^\\x00-\\x1f\\x7f]+$"
+        },
+        "artifact_id": {
+          "$ref": "primitives.json#/$defs/Ulid"
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "markdown",
+            "mermaid",
+            "diff",
+            "svg",
+            "png",
+            "jpeg",
+            "html",
+            "log",
+            "json"
+          ]
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "review",
+            "log"
+          ]
+        }
+      }
+    },
+    "expected_binding": {
+      "$ref": "agent-session-reference.json"
+    }
+  }
+}

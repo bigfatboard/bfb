@@ -657,15 +657,17 @@ function categorize(
 
   if (data && data.schema_version !== undefined) {
     const expectedVersion =
-      document === "local-agent-result-rpc"
-        ? 5
-        : document === "local-agent-attention-rpc"
-          ? 4
-          : document === "local-agent-work-rpc"
-            ? 3
-            : document === "local-agent-rpc" || document === "runner-telemetry-submission"
-              ? 2
-              : 1;
+      document === "local-agent-artifact-rpc"
+        ? 6
+        : document === "local-agent-result-rpc"
+          ? 5
+          : document === "local-agent-attention-rpc"
+            ? 4
+            : document === "local-agent-work-rpc"
+              ? 3
+              : document === "local-agent-rpc" || document === "runner-telemetry-submission"
+                ? 2
+                : 1;
     if (rootVersion?.integer !== undefined && rootVersion.integer !== String(expectedVersion)) {
       return {
         schema_version: 1,
@@ -966,6 +968,11 @@ function stableStringify(value: unknown, escapeSeparators = true): string {
 }
 
 const captureByteLimits: Partial<Record<WireDocumentName, number>> = {
+  "agent-artifact-request": 4_096,
+  "agent-artifact-local-request": 12_288,
+  "agent-artifact-prepare-result": 4_096,
+  "agent-artifact-result": 2_048,
+  "local-agent-artifact-rpc": 16_384,
   "runner-telemetry-submission": 8_192,
   "runner-event-capabilities": 256,
   "runner-event-ingest-result": 65_536,
@@ -1018,6 +1025,12 @@ function captureDocumentBound(
     );
   };
   let valid = encoder.encode(json).byteLength <= wireByteLimit(document);
+  if (document === "local-agent-artifact-rpc") {
+    valid &&= encoder.encode(json).byteLength + 1 <= 16_384;
+    const payload = root.payload as Record<string, unknown> | undefined;
+    if (payload?.agent_artifact_request) valid &&= bounded(payload.agent_artifact_request, 12_288);
+    if (payload?.agent_artifact) valid &&= bounded(payload.agent_artifact, 2_048);
+  }
   if (document === "agent-result-local-request") valid &&= bounded(root.request, 32_768);
   if (document === "agent-result-capture")
     valid &&= captureBounded(root, "BFB-AGENT-RESULT-CAPTURE-V1");

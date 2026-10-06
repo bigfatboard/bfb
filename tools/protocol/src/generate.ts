@@ -19,6 +19,7 @@ import { generateCaptureFixtures } from "./capture-fixtures.js";
 import { generateAttentionFixtures } from "./attention-fixtures.js";
 import { generateResultFixtures } from "./result-fixtures.js";
 import { generateTelemetryFixtures } from "./telemetry-fixtures.js";
+import { generateArtifactFixtures } from "./artifact-fixtures.js";
 
 export interface JsonSchema {
   $id?: string;
@@ -660,6 +661,7 @@ export async function generateProtocol(
   await generateAttentionFixtures(root);
   await generateResultFixtures(root);
   await generateTelemetryFixtures(root);
+  await generateArtifactFixtures(root);
 
   // Catalog stamp for drift checks
   await writeFile(

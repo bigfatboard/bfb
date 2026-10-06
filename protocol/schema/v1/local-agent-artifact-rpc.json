@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/local-agent-artifact-rpc.json",
+  "title": "LocalAgentArtifactRpcEnvelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "request_id",
+    "method",
+    "direction"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 6
+    },
+    "request_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "method": {
+      "type": "string",
+      "const": "mcp.v6.publish_artifact"
+    },
+    "direction": {
+      "type": "string",
+      "enum": [
+        "request",
+        "response"
+      ]
+    },
+    "error": {
+      "$ref": "primitives.json#/$defs/TypedError"
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "agent_artifact_request": {
+          "$ref": "agent-artifact-local-request.json"
+        },
+        "agent_artifact": {
+          "$ref": "agent-artifact-result.json"
+        }
+      },
+      "maxProperties": 1
+    }
+  },
+  "oneOf": [
+    {
+      "type": "object",
+      "required": [
+        "payload"
+      ],
+      "properties": {
+        "direction": {
+          "const": "request"
+        },
+        "payload": {
+          "type": "object",
+          "required": [
+            "agent_artifact_request"
+          ],
+          "properties": {
+            "agent_artifact_request": {}
+          }
+        }
+      },
+      "not": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {}
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "payload"
+      ],
+      "properties": {
+        "direction": {
+          "const": "response"
+        },
+        "payload": {
+          "type": "object",
+          "required": [
+            "agent_artifact"
+          ],
+          "properties": {
+            "agent_artifact": {}
+          }
+        }
+      },
+      "not": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {}
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "error"
+      ],
+      "properties": {
+        "direction": {
+          "const": "response"
+        },
+        "error": {}
+      },
+      "not": {
+        "type": "object",
+        "required": [
+          "payload"
+        ],
+        "properties": {
+          "payload": {}
+        }
+      }
+    }
+  ]
+}

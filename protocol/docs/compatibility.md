@@ -21,6 +21,18 @@ ABOUTME: Applies to JSON Schema under protocol/schema and generated codecs.
 
 [ADR 0005](../../docs/adr/0005-agent-work-session-and-attribution.md) defines a separate closed `local-agent-rpc` envelope at schema version 2. The general `local-rpc` envelope and Swift app calls remain version 1. Fixed `mcp.v2.` methods are negotiated through the already-declared `methods` field of a v1 `daemon.status` response before private input is sent. Unsupported versions or missing methods fail visibly; no automatic downgrade is allowed. Version 2 is accepted only for the named agent document, and replies must match the selected version, method and request ID. The unchanged nested cloud operation reference remains version 1, preserving its idempotency hashes. This is a document-specific transition, not a global upgrade of existing `bfb-wire/1` records.
 
+### Local artifact transition
+
+[ADR 0010](../../docs/adr/0010-connected-artifact-publication.md) defines the
+separate closed `local-agent-artifact-rpc` v6 envelope and the sole fixed
+`mcp.v6.publish_artifact` method. Existing v1–v5 documents remain unchanged.
+The nested operation reference stays version 1; cloud metadata contains no
+local path, caller scope, credential or storage key. Prepare phases bind
+upload secrets and nullable availability fields to their exact stage. Only
+the final available projection reaches MCP/CLI. This online-only lane has
+no capture or offline receipt family. Shared synthetic fixtures are owned by
+`pnpm protocol:generate` at `protocol/fixtures/v6/local-agent-artifact-rpc.json`.
+
 ## Bounds
 
 - Every string, array, object map, and payload has explicit max length or max items in schema.

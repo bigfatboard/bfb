@@ -9,6 +9,11 @@ import (
 )
 
 var captureByteLimits = map[string]int{
+	"agent-artifact-request":             4096,
+	"agent-artifact-local-request":       12288,
+	"agent-artifact-prepare-result":      4096,
+	"agent-artifact-result":              2048,
+	"local-agent-artifact-rpc":           16384,
 	"runner-telemetry-submission":        8192,
 	"runner-event-capabilities":          256,
 	"runner-event-ingest-result":         65536,
@@ -70,6 +75,17 @@ func captureDocumentBound(document string, root map[string]any, encoded string) 
 		return false
 	}
 	switch document {
+	case "local-agent-artifact-rpc":
+		if len(encoded)+1 > 16384 {
+			return false
+		}
+		payload, _ := root["payload"].(map[string]any)
+		if request, ok := payload["agent_artifact_request"]; ok && !bounded(request, 12288) {
+			return false
+		}
+		if result, ok := payload["agent_artifact"]; ok && !bounded(result, 2048) {
+			return false
+		}
 	case "agent-result-local-request":
 		return bounded(root["request"], 32768)
 	case "agent-result-capture":

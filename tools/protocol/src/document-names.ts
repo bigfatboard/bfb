@@ -14,6 +14,37 @@ export const SCHEMA_VERSION = 1;
 
 export const DOCUMENTS: DocumentSpec[] = [
   {
+    name: "agent-artifact-request",
+    schemaFile: "agent-artifact-request.json",
+    goType: "AgentArtifactRequest",
+    tsType: "AgentArtifactRequest",
+  },
+  {
+    name: "agent-artifact-local-request",
+    schemaFile: "agent-artifact-local-request.json",
+    goType: "AgentArtifactLocalRequest",
+    tsType: "AgentArtifactLocalRequest",
+  },
+  {
+    name: "agent-artifact-prepare-result",
+    schemaFile: "agent-artifact-prepare-result.json",
+    goType: "AgentArtifactPrepareResult",
+    tsType: "AgentArtifactPrepareResult",
+  },
+  {
+    name: "agent-artifact-result",
+    schemaFile: "agent-artifact-result.json",
+    goType: "AgentArtifactResult",
+    tsType: "AgentArtifactResult",
+  },
+  {
+    name: "local-agent-artifact-rpc",
+    schemaFile: "local-agent-artifact-rpc.json",
+    goType: "LocalAgentArtifactRpcEnvelope",
+    tsType: "LocalAgentArtifactRpcEnvelope",
+    schemaVersion: 6,
+  },
+  {
     name: "runner-telemetry-submission",
     schemaFile: "runner-telemetry-submission.json",
     goType: "RunnerTelemetrySubmission",

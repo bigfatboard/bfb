@@ -1,8 +1,33 @@
 {
   "protocol": "bfb-wire/1",
   "schema_version": 1,
-  "schema_hash": "ddfa28ac18edd5f01455e6155e94e9809a278031c000d0043c577e03bb36c34f",
+  "schema_hash": "04b7329d67fea95c01518d74dc06395eaf833f4bf3f150797c53c106b63938fe",
   "documents": [
+    {
+      "name": "agent-artifact-request",
+      "schema": "agent-artifact-request.json",
+      "schema_version": 1
+    },
+    {
+      "name": "agent-artifact-local-request",
+      "schema": "agent-artifact-local-request.json",
+      "schema_version": 1
+    },
+    {
+      "name": "agent-artifact-prepare-result",
+      "schema": "agent-artifact-prepare-result.json",
+      "schema_version": 1
+    },
+    {
+      "name": "agent-artifact-result",
+      "schema": "agent-artifact-result.json",
+      "schema_version": 1
+    },
+    {
+      "name": "local-agent-artifact-rpc",
+      "schema": "local-agent-artifact-rpc.json",
+      "schema_version": 6
+    },
     {
       "name": "runner-telemetry-submission",
       "schema": "runner-telemetry-submission.json",

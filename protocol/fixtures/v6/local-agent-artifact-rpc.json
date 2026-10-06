@@ -1,0 +1,802 @@
+{
+  "owner_command": "pnpm protocol:generate",
+  "document": "local-agent-artifact-rpc",
+  "schema_version": 6,
+  "synthetic": true,
+  "operation_key": "agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5",
+  "canonical_request_sha256": "e1847f8631dc8651da3f3abcba1d6c7799718c65090588283db087318374f418",
+  "fixtures": [
+    {
+      "name": "agent-artifact-request-minimal",
+      "document": "agent-artifact-request",
+      "json": "{\"binding\":{\"observed_session_id\":\"synthetic-artifact-session\",\"provider\":\"fake\",\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"declared_size\":16,\"expected_digest\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}",
+      "accept": true,
+      "canonical_sha256": "e1847f8631dc8651da3f3abcba1d6c7799718c65090588283db087318374f418"
+    },
+    {
+      "name": "agent-artifact-request-missing-reference",
+      "document": "agent-artifact-request",
+      "json": "{\"binding\":{\"observed_session_id\":\"synthetic-artifact-session\",\"provider\":\"fake\",\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"declared_size\":16,\"expected_digest\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"role\":\"review\"}",
+      "accept": false
+    },
+    {
+      "name": "agent-artifact-request-missing-binding",
+      "document": "agent-artifact-request",
+      "json": "{\"declared_size\":16,\"expected_digest\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}",
+      "accept": false
+    },
+    {
+      "name": "agent-artifact-request-missing-format",
+      "document": "agent-artifact-request",
+      "json": "{\"binding\":{\"observed_session_id\":\"synthetic-artifact-session\",\"provider\":\"fake\",\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"declared_size\":16,\"expected_digest\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}",
+      "accept": false
+    },
+    {
+      "name": "agent-artifact-request-missing-role",
+      "document": "agent-artifact-request",
+      "json": "{\"binding\":{\"observed_session_id\":\"synthetic-artifact-session\",\"provider\":\"fake\",\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"declared_size\":16,\"expected_digest\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1}}",
+      "accept": false
+    },
+    {
+      "name": "agent-artifact-request-missing-declared_size",
+      "document": "agent-artifact-request",
+      "json": "{\"binding\":{\"observed_session_id\":\"synthetic-artifact-session\",\"provider\":\"fake\",\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"expected_digest\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}",
+      "accept": false
+    },
+    {
+      "name": "agent-artifact-request-missing-expected_digest",
+      "document": "agent-artifact-request",
+      "json": "{\"binding\":{\"observed_session_id\":\"synthetic-artifact-session\",\"provider\":\"fake\",\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"declared_size\":16,\"format\":\"markdown\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}",
+      "accept": false
+    },
+    {
+      "name": "agent-artifact-request-unknown-field",
+      "document": "agent-artifact-request",
+      "json": "{\"binding\":{\"observed_session_id\":\"synthetic-artifact-session\",\"provider\":\"fake\",\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"declared_size\":16,\"expected_digest\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\",\"unexpected\":true}",
+      "accept": false
+    },
+    {
+      "name": "agent-artifact-request-duplicate-key",
+      "document": "agent-artifact-request",
+      "json": "{\"unexpected\":1,\"unexpected\":2,\"binding\":{\"observed_session_id\":\"synthetic-artifact-session\",\"provider\":\"fake\",\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"declared_size\":16,\"expected_digest\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}",
+      "accept": false
+    },
+    {
+      "name": "agent-artifact-local-request-minimal",
+      "document": "agent-artifact-local-request",
+      "json": "{\"correlation\":\"synthetic-artifact-correlation\",\"request\":{\"format\":\"markdown\",\"path\":\"review/plan.md\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}}",
+      "accept": true,
+      "canonical_sha256": "0ec6da5e2116b730ae487cf6c6cf5edf9437792b4f6953c9eba589ebd38df53d"
+    },
+    {
+      "name": "agent-artifact-local-request-missing-correlation",
+      "document": "agent-artifact-local-request",
+      "json": "{\"request\":{\"format\":\"markdown\",\"path\":\"review/plan.md\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}}",
+      "accept": false
+    },
+    {
+      "name": "agent-artifact-local-request-missing-request",
+      "document": "agent-artifact-local-request",
+      "json": "{\"correlation\":\"synthetic-artifact-correlation\"}",
+      "accept": false
+    },
+    {
+      "name": "agent-artifact-local-request-unknown-field",
+      "document": "agent-artifact-local-request",
+      "json": "{\"correlation\":\"synthetic-artifact-correlation\",\"request\":{\"format\":\"markdown\",\"path\":\"review/plan.md\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"},\"unexpected\":true}",
+      "accept": false
+    },
+    {
+      "name": "agent-artifact-local-request-duplicate-key",
+      "document": "agent-artifact-local-request",
+      "json": "{\"unexpected\":1,\"unexpected\":2,\"correlation\":\"synthetic-artifact-correlation\",\"request\":{\"format\":\"markdown\",\"path\":\"review/plan.md\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}}",
+      "accept": false
+    },
+    {
+      "name": "agent-artifact-prepare-result-minimal",
+      "document": "agent-artifact-prepare-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":null,\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"stage\":\"upload_required\",\"upload\":{\"expires_at\":\"2026-10-06T12:15:00.000Z\",\"grant_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":\"https://artifacts.synthetic.example\",\"secret\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"},\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": true,
+      "canonical_sha256": "18fa9d29632db57c5d8036195b8647408d5391a248442fe202ca6e98aa4ee33b"
+    },
+    {
+      "name": "agent-artifact-prepare-result-missing-schema_version",
+      "document": "agent-artifact-prepare-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":null,\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"size\":16,\"stage\":\"upload_required\",\"upload\":{\"expires_at\":\"2026-10-06T12:15:00.000Z\",\"grant_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":\"https://artifacts.synthetic.example\",\"secret\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"},\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "agent-artifact-prepare-result-missing-operation_key",
+      "document": "agent-artifact-prepare-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":null,\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"stage\":\"upload_required\",\"upload\":{\"expires_at\":\"2026-10-06T12:15:00.000Z\",\"grant_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":\"https://artifacts.synthetic.example\",\"secret\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"},\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "agent-artifact-prepare-result-missing-artifact_id",
+      "document": "agent-artifact-prepare-result",
+      "json": "{\"available_at\":null,\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"stage\":\"upload_required\",\"upload\":{\"expires_at\":\"2026-10-06T12:15:00.000Z\",\"grant_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":\"https://artifacts.synthetic.example\",\"secret\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"},\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "agent-artifact-prepare-result-missing-version_id",
+      "document": "agent-artifact-prepare-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":null,\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"stage\":\"upload_required\",\"upload\":{\"expires_at\":\"2026-10-06T12:15:00.000Z\",\"grant_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":\"https://artifacts.synthetic.example\",\"secret\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"}}",
+      "accept": false
+    },
+    {
+      "name": "agent-artifact-prepare-result-missing-format",
+      "document": "agent-artifact-prepare-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":null,\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"stage\":\"upload_required\",\"upload\":{\"expires_at\":\"2026-10-06T12:15:00.000Z\",\"grant_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":\"https://artifacts.synthetic.example\",\"secret\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"},\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "agent-artifact-prepare-result-missing-role",
+      "document": "agent-artifact-prepare-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":null,\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"schema_version\":1,\"size\":16,\"stage\":\"upload_required\",\"upload\":{\"expires_at\":\"2026-10-06T12:15:00.000Z\",\"grant_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":\"https://artifacts.synthetic.example\",\"secret\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"},\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "agent-artifact-prepare-result-missing-content_hash",
+      "document": "agent-artifact-prepare-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":null,\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"stage\":\"upload_required\",\"upload\":{\"expires_at\":\"2026-10-06T12:15:00.000Z\",\"grant_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":\"https://artifacts.synthetic.example\",\"secret\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"},\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "agent-artifact-prepare-result-missing-size",
+      "document": "agent-artifact-prepare-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":null,\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"stage\":\"upload_required\",\"upload\":{\"expires_at\":\"2026-10-06T12:15:00.000Z\",\"grant_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":\"https://artifacts.synthetic.example\",\"secret\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"},\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "agent-artifact-prepare-result-missing-origin",
+      "document": "agent-artifact-prepare-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":null,\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"role\":\"review\",\"schema_version\":1,\"size\":16,\"stage\":\"upload_required\",\"upload\":{\"expires_at\":\"2026-10-06T12:15:00.000Z\",\"grant_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":\"https://artifacts.synthetic.example\",\"secret\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"},\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "agent-artifact-prepare-result-missing-stage",
+      "document": "agent-artifact-prepare-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":null,\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"upload\":{\"expires_at\":\"2026-10-06T12:15:00.000Z\",\"grant_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":\"https://artifacts.synthetic.example\",\"secret\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"},\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "agent-artifact-prepare-result-missing-upload",
+      "document": "agent-artifact-prepare-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":null,\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"stage\":\"upload_required\",\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "agent-artifact-prepare-result-missing-available_at",
+      "document": "agent-artifact-prepare-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"stage\":\"upload_required\",\"upload\":{\"expires_at\":\"2026-10-06T12:15:00.000Z\",\"grant_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":\"https://artifacts.synthetic.example\",\"secret\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"},\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "agent-artifact-prepare-result-unknown-field",
+      "document": "agent-artifact-prepare-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":null,\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"stage\":\"upload_required\",\"unexpected\":true,\"upload\":{\"expires_at\":\"2026-10-06T12:15:00.000Z\",\"grant_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":\"https://artifacts.synthetic.example\",\"secret\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"},\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "agent-artifact-prepare-result-duplicate-key",
+      "document": "agent-artifact-prepare-result",
+      "json": "{\"unexpected\":1,\"unexpected\":2,\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":null,\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"stage\":\"upload_required\",\"upload\":{\"expires_at\":\"2026-10-06T12:15:00.000Z\",\"grant_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":\"https://artifacts.synthetic.example\",\"secret\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"},\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "agent-artifact-result-minimal",
+      "document": "agent-artifact-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":\"2026-10-06T12:00:01.000Z\",\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"state\":\"available\",\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": true,
+      "canonical_sha256": "f94744cbc6d743836f3dc953f2a20c8d67e6d11a258f9d2f3ce0950bc0739c12"
+    },
+    {
+      "name": "agent-artifact-result-missing-schema_version",
+      "document": "agent-artifact-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":\"2026-10-06T12:00:01.000Z\",\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"size\":16,\"state\":\"available\",\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "agent-artifact-result-missing-operation_key",
+      "document": "agent-artifact-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":\"2026-10-06T12:00:01.000Z\",\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"state\":\"available\",\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "agent-artifact-result-missing-artifact_id",
+      "document": "agent-artifact-result",
+      "json": "{\"available_at\":\"2026-10-06T12:00:01.000Z\",\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"state\":\"available\",\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "agent-artifact-result-missing-version_id",
+      "document": "agent-artifact-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":\"2026-10-06T12:00:01.000Z\",\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"state\":\"available\"}",
+      "accept": false
+    },
+    {
+      "name": "agent-artifact-result-missing-format",
+      "document": "agent-artifact-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":\"2026-10-06T12:00:01.000Z\",\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"state\":\"available\",\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "agent-artifact-result-missing-role",
+      "document": "agent-artifact-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":\"2026-10-06T12:00:01.000Z\",\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"schema_version\":1,\"size\":16,\"state\":\"available\",\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "agent-artifact-result-missing-content_hash",
+      "document": "agent-artifact-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":\"2026-10-06T12:00:01.000Z\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"state\":\"available\",\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "agent-artifact-result-missing-size",
+      "document": "agent-artifact-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":\"2026-10-06T12:00:01.000Z\",\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"state\":\"available\",\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "agent-artifact-result-missing-origin",
+      "document": "agent-artifact-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":\"2026-10-06T12:00:01.000Z\",\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"role\":\"review\",\"schema_version\":1,\"size\":16,\"state\":\"available\",\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "agent-artifact-result-missing-state",
+      "document": "agent-artifact-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":\"2026-10-06T12:00:01.000Z\",\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "agent-artifact-result-missing-available_at",
+      "document": "agent-artifact-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"state\":\"available\",\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "agent-artifact-result-unknown-field",
+      "document": "agent-artifact-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":\"2026-10-06T12:00:01.000Z\",\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"state\":\"available\",\"unexpected\":true,\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "agent-artifact-result-duplicate-key",
+      "document": "agent-artifact-result",
+      "json": "{\"unexpected\":1,\"unexpected\":2,\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":\"2026-10-06T12:00:01.000Z\",\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"state\":\"available\",\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "local-agent-artifact-rpc-minimal",
+      "document": "local-agent-artifact-rpc",
+      "json": "{\"direction\":\"request\",\"method\":\"mcp.v6.publish_artifact\",\"payload\":{\"agent_artifact_request\":{\"correlation\":\"synthetic-artifact-correlation\",\"request\":{\"format\":\"markdown\",\"path\":\"review/plan.md\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}}},\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":6}",
+      "accept": true,
+      "canonical_sha256": "c592a50896babc4c1f9efea43042d14c76333c83641a57d17a7d73b455540a8e"
+    },
+    {
+      "name": "local-agent-artifact-rpc-missing-schema_version",
+      "document": "local-agent-artifact-rpc",
+      "json": "{\"direction\":\"request\",\"method\":\"mcp.v6.publish_artifact\",\"payload\":{\"agent_artifact_request\":{\"correlation\":\"synthetic-artifact-correlation\",\"request\":{\"format\":\"markdown\",\"path\":\"review/plan.md\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}}},\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "local-agent-artifact-rpc-missing-request_id",
+      "document": "local-agent-artifact-rpc",
+      "json": "{\"direction\":\"request\",\"method\":\"mcp.v6.publish_artifact\",\"payload\":{\"agent_artifact_request\":{\"correlation\":\"synthetic-artifact-correlation\",\"request\":{\"format\":\"markdown\",\"path\":\"review/plan.md\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}}},\"schema_version\":6}",
+      "accept": false
+    },
+    {
+      "name": "local-agent-artifact-rpc-missing-method",
+      "document": "local-agent-artifact-rpc",
+      "json": "{\"direction\":\"request\",\"payload\":{\"agent_artifact_request\":{\"correlation\":\"synthetic-artifact-correlation\",\"request\":{\"format\":\"markdown\",\"path\":\"review/plan.md\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}}},\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":6}",
+      "accept": false
+    },
+    {
+      "name": "local-agent-artifact-rpc-missing-direction",
+      "document": "local-agent-artifact-rpc",
+      "json": "{\"method\":\"mcp.v6.publish_artifact\",\"payload\":{\"agent_artifact_request\":{\"correlation\":\"synthetic-artifact-correlation\",\"request\":{\"format\":\"markdown\",\"path\":\"review/plan.md\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}}},\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":6}",
+      "accept": false
+    },
+    {
+      "name": "local-agent-artifact-rpc-missing-payload",
+      "document": "local-agent-artifact-rpc",
+      "json": "{\"direction\":\"request\",\"method\":\"mcp.v6.publish_artifact\",\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":6}",
+      "accept": false
+    },
+    {
+      "name": "local-agent-artifact-rpc-unknown-field",
+      "document": "local-agent-artifact-rpc",
+      "json": "{\"direction\":\"request\",\"method\":\"mcp.v6.publish_artifact\",\"payload\":{\"agent_artifact_request\":{\"correlation\":\"synthetic-artifact-correlation\",\"request\":{\"format\":\"markdown\",\"path\":\"review/plan.md\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}}},\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":6,\"unexpected\":true}",
+      "accept": false
+    },
+    {
+      "name": "local-agent-artifact-rpc-duplicate-key",
+      "document": "local-agent-artifact-rpc",
+      "json": "{\"unexpected\":1,\"unexpected\":2,\"direction\":\"request\",\"method\":\"mcp.v6.publish_artifact\",\"payload\":{\"agent_artifact_request\":{\"correlation\":\"synthetic-artifact-correlation\",\"request\":{\"format\":\"markdown\",\"path\":\"review/plan.md\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}}},\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":6}",
+      "accept": false
+    },
+    {
+      "name": "prepare-finalize-required",
+      "document": "agent-artifact-prepare-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":null,\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"stage\":\"finalize_required\",\"upload\":null,\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": true,
+      "canonical_sha256": "f107b39ab3038c590edc8ec9be85468cfa2349ccba8c3eb29b1bf8817b3821f3"
+    },
+    {
+      "name": "prepare-available",
+      "document": "agent-artifact-prepare-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":\"2026-10-06T12:00:01.000Z\",\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"stage\":\"available\",\"upload\":null,\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": true,
+      "canonical_sha256": "27a1b80c7ad6f864e8096e81c6c3580d735f2a9159f1289dfa548789d11a650e"
+    },
+    {
+      "name": "envelope-success",
+      "document": "local-agent-artifact-rpc",
+      "json": "{\"direction\":\"response\",\"method\":\"mcp.v6.publish_artifact\",\"payload\":{\"agent_artifact\":{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":\"2026-10-06T12:00:01.000Z\",\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"state\":\"available\",\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}},\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":6}",
+      "accept": true,
+      "canonical_sha256": "f24648196007626a10ddd2a7436d350a9179b017bffdfe5b7fdee1cdcdcf0b9c"
+    },
+    {
+      "name": "envelope-error",
+      "document": "local-agent-artifact-rpc",
+      "json": "{\"direction\":\"response\",\"error\":{\"category\":\"unavailable\",\"code\":\"work_unavailable\",\"message\":\"Publication may have applied; retry the same request identity.\",\"schema_version\":1},\"method\":\"mcp.v6.publish_artifact\",\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":6}",
+      "accept": true,
+      "canonical_sha256": "beea77b1ae6b177611a2c05b233506ad013292d995d0ce1c05dfc3512563c6cd"
+    },
+    {
+      "name": "request-existing-artifact",
+      "document": "agent-artifact-request",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"binding\":{\"observed_session_id\":\"synthetic-artifact-session\",\"provider\":\"fake\",\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"declared_size\":16,\"expected_digest\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}",
+      "accept": true,
+      "canonical_sha256": "c854b32509ef8bc72829c0852676726485b760562beda67d24b183000d02a464"
+    },
+    {
+      "name": "local-expected-binding",
+      "document": "agent-artifact-local-request",
+      "json": "{\"correlation\":\"synthetic-artifact-correlation\",\"expected_binding\":{\"observed_session_id\":\"synthetic-artifact-session\",\"provider\":\"fake\",\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"request\":{\"format\":\"markdown\",\"path\":\"review/plan.md\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}}",
+      "accept": true,
+      "canonical_sha256": "4544a6a9a99c28cb01adfe274d89dfa3a903d0bfb04753d09881cf66ca7f0be0"
+    },
+    {
+      "name": "local-equivalent-safe-file",
+      "document": "agent-artifact-local-request",
+      "json": "{\"correlation\":\"synthetic-artifact-correlation\",\"request\":{\"format\":\"markdown\",\"path\":\"other/same-bytes.md\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}}",
+      "accept": true,
+      "canonical_sha256": "71ef42b2b20ea8b256a61ddaf3c619a5832fa0eaf8573d669d86e34add07342e"
+    },
+    {
+      "name": "request-log-at-limit",
+      "document": "agent-artifact-request",
+      "json": "{\"binding\":{\"observed_session_id\":\"synthetic-artifact-session\",\"provider\":\"fake\",\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"declared_size\":1048576,\"expected_digest\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"log\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"log\"}",
+      "accept": true,
+      "canonical_sha256": "4f4cc40a600816312a9de8e33a0d3dff90fbc70cb8de625f61ebb8c1d4473e90"
+    },
+    {
+      "name": "request-review-at-limit",
+      "document": "agent-artifact-request",
+      "json": "{\"binding\":{\"observed_session_id\":\"synthetic-artifact-session\",\"provider\":\"fake\",\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"declared_size\":5242880,\"expected_digest\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}",
+      "accept": true,
+      "canonical_sha256": "10e4150a2e0b13b1834369eea28d4a119c24bdde315e50df05f61258f04f9e15"
+    },
+    {
+      "name": "request-size-0",
+      "document": "agent-artifact-request",
+      "json": "{\"binding\":{\"observed_session_id\":\"synthetic-artifact-session\",\"provider\":\"fake\",\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"declared_size\":0,\"expected_digest\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}",
+      "accept": false
+    },
+    {
+      "name": "request-size--1",
+      "document": "agent-artifact-request",
+      "json": "{\"binding\":{\"observed_session_id\":\"synthetic-artifact-session\",\"provider\":\"fake\",\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"declared_size\":-1,\"expected_digest\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}",
+      "accept": false
+    },
+    {
+      "name": "request-size-1.5",
+      "document": "agent-artifact-request",
+      "json": "{\"binding\":{\"observed_session_id\":\"synthetic-artifact-session\",\"provider\":\"fake\",\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"declared_size\":1.5,\"expected_digest\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}",
+      "accept": false
+    },
+    {
+      "name": "request-size-5242881",
+      "document": "agent-artifact-request",
+      "json": "{\"binding\":{\"observed_session_id\":\"synthetic-artifact-session\",\"provider\":\"fake\",\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"declared_size\":5242881,\"expected_digest\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}",
+      "accept": false
+    },
+    {
+      "name": "request-size-9007199254740992",
+      "document": "agent-artifact-request",
+      "json": "{\"binding\":{\"observed_session_id\":\"synthetic-artifact-session\",\"provider\":\"fake\",\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"declared_size\":9007199254740992,\"expected_digest\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}",
+      "accept": false
+    },
+    {
+      "name": "request-log-over-limit",
+      "document": "agent-artifact-request",
+      "json": "{\"binding\":{\"observed_session_id\":\"synthetic-artifact-session\",\"provider\":\"fake\",\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"declared_size\":1048577,\"expected_digest\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"log\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"log\"}",
+      "accept": false
+    },
+    {
+      "name": "request-integral-number-spelling",
+      "document": "agent-artifact-request",
+      "json": "{\"binding\":{\"observed_session_id\":\"synthetic-artifact-session\",\"provider\":\"fake\",\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"declared_size\":1.6e1,\"expected_digest\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}",
+      "accept": true,
+      "canonical_sha256": "e1847f8631dc8651da3f3abcba1d6c7799718c65090588283db087318374f418"
+    },
+    {
+      "name": "request-fraction-before-rounding",
+      "document": "agent-artifact-request",
+      "json": "{\"binding\":{\"observed_session_id\":\"synthetic-artifact-session\",\"provider\":\"fake\",\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"declared_size\":16.000000000000000001,\"expected_digest\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}",
+      "accept": false
+    },
+    {
+      "name": "request-underflow",
+      "document": "agent-artifact-request",
+      "json": "{\"binding\":{\"observed_session_id\":\"synthetic-artifact-session\",\"provider\":\"fake\",\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"declared_size\":1e-10000,\"expected_digest\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}",
+      "accept": false
+    },
+    {
+      "name": "request-forbids-workspace_id",
+      "document": "agent-artifact-request",
+      "json": "{\"binding\":{\"observed_session_id\":\"synthetic-artifact-session\",\"provider\":\"fake\",\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"declared_size\":16,\"expected_digest\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\",\"workspace_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "local-forbids-workspace_id",
+      "document": "agent-artifact-local-request",
+      "json": "{\"correlation\":\"synthetic-artifact-correlation\",\"request\":{\"format\":\"markdown\",\"path\":\"review/plan.md\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\",\"workspace_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}}",
+      "accept": false
+    },
+    {
+      "name": "request-forbids-run_id",
+      "document": "agent-artifact-request",
+      "json": "{\"binding\":{\"observed_session_id\":\"synthetic-artifact-session\",\"provider\":\"fake\",\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"declared_size\":16,\"expected_digest\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "local-forbids-run_id",
+      "document": "agent-artifact-local-request",
+      "json": "{\"correlation\":\"synthetic-artifact-correlation\",\"request\":{\"format\":\"markdown\",\"path\":\"review/plan.md\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}}",
+      "accept": false
+    },
+    {
+      "name": "request-forbids-version_id",
+      "document": "agent-artifact-request",
+      "json": "{\"binding\":{\"observed_session_id\":\"synthetic-artifact-session\",\"provider\":\"fake\",\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"declared_size\":16,\"expected_digest\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\",\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "local-forbids-version_id",
+      "document": "agent-artifact-local-request",
+      "json": "{\"correlation\":\"synthetic-artifact-correlation\",\"request\":{\"format\":\"markdown\",\"path\":\"review/plan.md\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\",\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}}",
+      "accept": false
+    },
+    {
+      "name": "request-forbids-control_url",
+      "document": "agent-artifact-request",
+      "json": "{\"binding\":{\"observed_session_id\":\"synthetic-artifact-session\",\"provider\":\"fake\",\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"control_url\":\"https://other.example\",\"declared_size\":16,\"expected_digest\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}",
+      "accept": false
+    },
+    {
+      "name": "local-forbids-control_url",
+      "document": "agent-artifact-local-request",
+      "json": "{\"correlation\":\"synthetic-artifact-correlation\",\"request\":{\"control_url\":\"https://other.example\",\"format\":\"markdown\",\"path\":\"review/plan.md\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}}",
+      "accept": false
+    },
+    {
+      "name": "request-forbids-path",
+      "document": "agent-artifact-request",
+      "json": "{\"binding\":{\"observed_session_id\":\"synthetic-artifact-session\",\"provider\":\"fake\",\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"declared_size\":16,\"expected_digest\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"path\":\"private.md\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}",
+      "accept": false
+    },
+    {
+      "name": "local-forbids-path",
+      "document": "agent-artifact-local-request",
+      "json": "{\"correlation\":\"synthetic-artifact-correlation\",\"request\":{\"format\":\"markdown\",\"path\":\"private.md\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}}",
+      "accept": true,
+      "canonical_sha256": "c388a347e6c762c200ea2e6a7afec91a711479c1fabf3bee73339a83c5ab13f2"
+    },
+    {
+      "name": "request-forbids-grant_id",
+      "document": "agent-artifact-request",
+      "json": "{\"binding\":{\"observed_session_id\":\"synthetic-artifact-session\",\"provider\":\"fake\",\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"declared_size\":16,\"expected_digest\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"grant_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}",
+      "accept": false
+    },
+    {
+      "name": "local-forbids-grant_id",
+      "document": "agent-artifact-local-request",
+      "json": "{\"correlation\":\"synthetic-artifact-correlation\",\"request\":{\"format\":\"markdown\",\"grant_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"path\":\"review/plan.md\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}}",
+      "accept": false
+    },
+    {
+      "name": "request-forbids-secret",
+      "document": "agent-artifact-request",
+      "json": "{\"binding\":{\"observed_session_id\":\"synthetic-artifact-session\",\"provider\":\"fake\",\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"declared_size\":16,\"expected_digest\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\",\"secret\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "local-forbids-secret",
+      "document": "agent-artifact-local-request",
+      "json": "{\"correlation\":\"synthetic-artifact-correlation\",\"request\":{\"format\":\"markdown\",\"path\":\"review/plan.md\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\",\"secret\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"}}",
+      "accept": false
+    },
+    {
+      "name": "request-forbids-r2_key",
+      "document": "agent-artifact-request",
+      "json": "{\"binding\":{\"observed_session_id\":\"synthetic-artifact-session\",\"provider\":\"fake\",\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"declared_size\":16,\"expected_digest\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"r2_key\":\"forbidden\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}",
+      "accept": false
+    },
+    {
+      "name": "local-forbids-r2_key",
+      "document": "agent-artifact-local-request",
+      "json": "{\"correlation\":\"synthetic-artifact-correlation\",\"request\":{\"format\":\"markdown\",\"path\":\"review/plan.md\",\"r2_key\":\"forbidden\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}}",
+      "accept": false
+    },
+    {
+      "name": "result-forbids-upload",
+      "document": "agent-artifact-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":\"2026-10-06T12:00:01.000Z\",\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"state\":\"available\",\"upload\":{\"expires_at\":\"2026-10-06T12:15:00.000Z\",\"grant_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":\"https://artifacts.synthetic.example\",\"secret\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"},\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "result-forbids-r2_key",
+      "document": "agent-artifact-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":\"2026-10-06T12:00:01.000Z\",\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"r2_key\":\"forbidden\",\"role\":\"review\",\"schema_version\":1,\"size\":16,\"state\":\"available\",\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "result-forbids-path",
+      "document": "agent-artifact-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":\"2026-10-06T12:00:01.000Z\",\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"path\":\"private.md\",\"role\":\"review\",\"schema_version\":1,\"size\":16,\"state\":\"available\",\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "result-forbids-credential",
+      "document": "agent-artifact-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":\"2026-10-06T12:00:01.000Z\",\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"credential\":\"synthetic\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"state\":\"available\",\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "optional-artifact-null",
+      "document": "agent-artifact-request",
+      "json": "{\"artifact_id\":null,\"binding\":{\"observed_session_id\":\"synthetic-artifact-session\",\"provider\":\"fake\",\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"declared_size\":16,\"expected_digest\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}",
+      "accept": false
+    },
+    {
+      "name": "optional-binding-null",
+      "document": "agent-artifact-local-request",
+      "json": "{\"correlation\":\"synthetic-artifact-correlation\",\"expected_binding\":null,\"request\":{\"format\":\"markdown\",\"path\":\"review/plan.md\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}}",
+      "accept": false
+    },
+    {
+      "name": "local-control-character",
+      "document": "agent-artifact-local-request",
+      "json": "{\"correlation\":\"synthetic-artifact-correlation\",\"request\":{\"format\":\"markdown\",\"path\":\"bad\\nname.md\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}}",
+      "accept": false
+    },
+    {
+      "name": "local-max-path",
+      "document": "agent-artifact-local-request",
+      "json": "{\"correlation\":\"synthetic-artifact-correlation\",\"request\":{\"format\":\"markdown\",\"path\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}}",
+      "accept": true,
+      "canonical_sha256": "768318f7feaeae205eaa65bb9c1b7ef3a2cda9bb0cba5cd5478bcff505db3d2c"
+    },
+    {
+      "name": "local-path-over-limit",
+      "document": "agent-artifact-local-request",
+      "json": "{\"correlation\":\"synthetic-artifact-correlation\",\"request\":{\"format\":\"markdown\",\"path\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}}",
+      "accept": false
+    },
+    {
+      "name": "local-utf8-byte-bound",
+      "document": "agent-artifact-local-request",
+      "json": "{\"correlation\":\"synthetic-artifact-correlation\",\"request\":{\"format\":\"markdown\",\"path\":\"😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}}",
+      "accept": false
+    },
+    {
+      "name": "upload_required-wrong-upload-branch",
+      "document": "agent-artifact-prepare-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":null,\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"stage\":\"upload_required\",\"upload\":null,\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "upload_required-wrong-time-branch",
+      "document": "agent-artifact-prepare-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":\"2026-10-06T12:00:01.000Z\",\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"stage\":\"upload_required\",\"upload\":{\"expires_at\":\"2026-10-06T12:15:00.000Z\",\"grant_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":\"https://artifacts.synthetic.example\",\"secret\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"},\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "finalize_required-wrong-upload-branch",
+      "document": "agent-artifact-prepare-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":null,\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"stage\":\"finalize_required\",\"upload\":{\"expires_at\":\"2026-10-06T12:15:00.000Z\",\"grant_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":\"https://artifacts.synthetic.example\",\"secret\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"},\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "finalize_required-wrong-time-branch",
+      "document": "agent-artifact-prepare-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":\"2026-10-06T12:00:01.000Z\",\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"stage\":\"finalize_required\",\"upload\":null,\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "available-wrong-upload-branch",
+      "document": "agent-artifact-prepare-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":\"2026-10-06T12:00:01.000Z\",\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"stage\":\"available\",\"upload\":{\"expires_at\":\"2026-10-06T12:15:00.000Z\",\"grant_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":\"https://artifacts.synthetic.example\",\"secret\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"},\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "available-wrong-time-branch",
+      "document": "agent-artifact-prepare-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":null,\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"stage\":\"available\",\"upload\":null,\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "upload-origin-https://user@host.example",
+      "document": "agent-artifact-prepare-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":null,\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"stage\":\"upload_required\",\"upload\":{\"expires_at\":\"2026-10-06T12:15:00.000Z\",\"grant_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":\"https://user@host.example\",\"secret\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"},\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "upload-origin-https://host.example/",
+      "document": "agent-artifact-prepare-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":null,\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"stage\":\"upload_required\",\"upload\":{\"expires_at\":\"2026-10-06T12:15:00.000Z\",\"grant_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":\"https://host.example/\",\"secret\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"},\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "upload-origin-https://host.example?secret=x",
+      "document": "agent-artifact-prepare-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":null,\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"stage\":\"upload_required\",\"upload\":{\"expires_at\":\"2026-10-06T12:15:00.000Z\",\"grant_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":\"https://host.example?secret=x\",\"secret\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"},\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "upload-origin-https://host.example#fragment",
+      "document": "agent-artifact-prepare-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":null,\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"stage\":\"upload_required\",\"upload\":{\"expires_at\":\"2026-10-06T12:15:00.000Z\",\"grant_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":\"https://host.example#fragment\",\"secret\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"},\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "upload-origin-file://private",
+      "document": "agent-artifact-prepare-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":null,\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"stage\":\"upload_required\",\"upload\":{\"expires_at\":\"2026-10-06T12:15:00.000Z\",\"grant_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":\"file://private\",\"secret\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"},\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "upload-origin-https://host.example bad",
+      "document": "agent-artifact-prepare-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":null,\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"stage\":\"upload_required\",\"upload\":{\"expires_at\":\"2026-10-06T12:15:00.000Z\",\"grant_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":\"https://host.example bad\",\"secret\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"},\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "upload-local-loopback",
+      "document": "agent-artifact-prepare-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":null,\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"stage\":\"upload_required\",\"upload\":{\"expires_at\":\"2026-10-06T12:15:00.000Z\",\"grant_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":\"http://127.0.0.1:4187\",\"secret\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"},\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": true,
+      "canonical_sha256": "d3c9595f6dd455bf3678e0ad5e8c72b61beb8b66cd5bb17e10e4e96345ad5050"
+    },
+    {
+      "name": "upload-short-secret",
+      "document": "agent-artifact-prepare-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":null,\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"stage\":\"upload_required\",\"upload\":{\"expires_at\":\"2026-10-06T12:15:00.000Z\",\"grant_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":\"https://artifacts.synthetic.example\",\"secret\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"},\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "upload-expiry-offset",
+      "document": "agent-artifact-prepare-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":null,\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"stage\":\"upload_required\",\"upload\":{\"expires_at\":\"2026-10-06T12:15:00+03:00\",\"grant_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":\"https://artifacts.synthetic.example\",\"secret\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"},\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "result-missing-session-origin",
+      "document": "agent-artifact-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":\"2026-10-06T12:00:01.000Z\",\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"state\":\"available\",\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}",
+      "accept": false
+    },
+    {
+      "name": "digest-prefixed",
+      "document": "agent-artifact-request",
+      "json": "{\"binding\":{\"observed_session_id\":\"synthetic-artifact-session\",\"provider\":\"fake\",\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"declared_size\":16,\"expected_digest\":\"sha256:a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}",
+      "accept": false
+    },
+    {
+      "name": "digest-uppercase",
+      "document": "agent-artifact-request",
+      "json": "{\"binding\":{\"observed_session_id\":\"synthetic-artifact-session\",\"provider\":\"fake\",\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"declared_size\":16,\"expected_digest\":\"A002FD0595C559505437CE754971D911B703373ADDF2B59E425EC057D631614F\",\"format\":\"markdown\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}",
+      "accept": false
+    },
+    {
+      "name": "envelope-old-version",
+      "document": "local-agent-artifact-rpc",
+      "json": "{\"direction\":\"request\",\"method\":\"mcp.v6.publish_artifact\",\"payload\":{\"agent_artifact_request\":{\"correlation\":\"synthetic-artifact-correlation\",\"request\":{\"format\":\"markdown\",\"path\":\"review/plan.md\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}}},\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":5}",
+      "accept": false
+    },
+    {
+      "name": "envelope-old-method",
+      "document": "local-agent-artifact-rpc",
+      "json": "{\"direction\":\"request\",\"method\":\"artifact.publish\",\"payload\":{\"agent_artifact_request\":{\"correlation\":\"synthetic-artifact-correlation\",\"request\":{\"format\":\"markdown\",\"path\":\"review/plan.md\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}}},\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":6}",
+      "accept": false
+    },
+    {
+      "name": "envelope-wrong-direction",
+      "document": "local-agent-artifact-rpc",
+      "json": "{\"direction\":\"response\",\"method\":\"mcp.v6.publish_artifact\",\"payload\":{\"agent_artifact_request\":{\"correlation\":\"synthetic-artifact-correlation\",\"request\":{\"format\":\"markdown\",\"path\":\"review/plan.md\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}}},\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":6}",
+      "accept": false
+    },
+    {
+      "name": "envelope-mixed-response",
+      "document": "local-agent-artifact-rpc",
+      "json": "{\"direction\":\"response\",\"error\":{\"category\":\"unavailable\",\"code\":\"work_unavailable\",\"message\":\"Publication may have applied; retry the same request identity.\",\"schema_version\":1},\"method\":\"mcp.v6.publish_artifact\",\"payload\":{\"agent_artifact\":{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":\"2026-10-06T12:00:01.000Z\",\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"state\":\"available\",\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}},\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":6}",
+      "accept": false
+    },
+    {
+      "name": "envelope-mixed-payload",
+      "document": "local-agent-artifact-rpc",
+      "json": "{\"direction\":\"response\",\"method\":\"mcp.v6.publish_artifact\",\"payload\":{\"agent_artifact\":{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":\"2026-10-06T12:00:01.000Z\",\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"state\":\"available\",\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"agent_artifact_request\":{\"correlation\":\"synthetic-artifact-correlation\",\"request\":{\"format\":\"markdown\",\"path\":\"review/plan.md\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}}},\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":6}",
+      "accept": false
+    },
+    {
+      "name": "envelope-no-offline-receipt",
+      "document": "local-agent-artifact-rpc",
+      "json": "{\"direction\":\"response\",\"method\":\"mcp.v6.publish_artifact\",\"payload\":{\"agent_artifact_receipt\":{\"delivery_state\":\"pending_sync\"}},\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":6}",
+      "accept": false
+    },
+    {
+      "name": "frozen-local-rpc-rejects-artifact-v6",
+      "document": "local-rpc",
+      "json": "{\"direction\":\"request\",\"method\":\"mcp.v6.publish_artifact\",\"payload\":{\"agent_artifact_request\":{\"correlation\":\"synthetic-artifact-correlation\",\"request\":{\"format\":\"markdown\",\"path\":\"review/plan.md\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}}},\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":6}",
+      "accept": false
+    },
+    {
+      "name": "frozen-local-agent-rpc-rejects-artifact-v6",
+      "document": "local-agent-rpc",
+      "json": "{\"direction\":\"request\",\"method\":\"mcp.v6.publish_artifact\",\"payload\":{\"agent_artifact_request\":{\"correlation\":\"synthetic-artifact-correlation\",\"request\":{\"format\":\"markdown\",\"path\":\"review/plan.md\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}}},\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":6}",
+      "accept": false
+    },
+    {
+      "name": "frozen-local-agent-work-rpc-rejects-artifact-v6",
+      "document": "local-agent-work-rpc",
+      "json": "{\"direction\":\"request\",\"method\":\"mcp.v6.publish_artifact\",\"payload\":{\"agent_artifact_request\":{\"correlation\":\"synthetic-artifact-correlation\",\"request\":{\"format\":\"markdown\",\"path\":\"review/plan.md\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}}},\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":6}",
+      "accept": false
+    },
+    {
+      "name": "frozen-local-agent-attention-rpc-rejects-artifact-v6",
+      "document": "local-agent-attention-rpc",
+      "json": "{\"direction\":\"request\",\"method\":\"mcp.v6.publish_artifact\",\"payload\":{\"agent_artifact_request\":{\"correlation\":\"synthetic-artifact-correlation\",\"request\":{\"format\":\"markdown\",\"path\":\"review/plan.md\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}}},\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":6}",
+      "accept": false
+    },
+    {
+      "name": "frozen-local-agent-result-rpc-rejects-artifact-v6",
+      "document": "local-agent-result-rpc",
+      "json": "{\"direction\":\"request\",\"method\":\"mcp.v6.publish_artifact\",\"payload\":{\"agent_artifact_request\":{\"correlation\":\"synthetic-artifact-correlation\",\"request\":{\"format\":\"markdown\",\"path\":\"review/plan.md\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}}},\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":6}",
+      "accept": false
+    },
+    {
+      "name": "agent-artifact-request-raw-byte-bound",
+      "document": "agent-artifact-request",
+      "json": "{\"binding\":{\"observed_session_id\":\"synthetic-artifact-session\",\"provider\":\"fake\",\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"declared_size\":16,\"expected_digest\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                ",
+      "accept": false
+    },
+    {
+      "name": "agent-artifact-local-request-raw-byte-bound",
+      "document": "agent-artifact-local-request",
+      "json": "{\"correlation\":\"synthetic-artifact-correlation\",\"request\":{\"format\":\"markdown\",\"path\":\"review/plan.md\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}}                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                ",
+      "accept": false
+    },
+    {
+      "name": "agent-artifact-prepare-result-raw-byte-bound",
+      "document": "agent-artifact-prepare-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":null,\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"stage\":\"upload_required\",\"upload\":{\"expires_at\":\"2026-10-06T12:15:00.000Z\",\"grant_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":\"https://artifacts.synthetic.example\",\"secret\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"},\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                ",
+      "accept": false
+    },
+    {
+      "name": "agent-artifact-result-raw-byte-bound",
+      "document": "agent-artifact-result",
+      "json": "{\"artifact_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"available_at\":\"2026-10-06T12:00:01.000Z\",\"content_hash\":\"a002fd0595c559505437ce754971d911b703373addf2b59e425ec057d631614f\",\"format\":\"markdown\",\"operation_key\":\"agent:9c38d6b40837c8689ec3643e3f9e43f94368edf2ea53c44ecffd81a6487f74e5\",\"origin\":{\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"role\":\"review\",\"schema_version\":1,\"size\":16,\"state\":\"available\",\"version_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"}                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                ",
+      "accept": false
+    },
+    {
+      "name": "local-agent-artifact-rpc-raw-byte-bound",
+      "document": "local-agent-artifact-rpc",
+      "json": "{\"direction\":\"request\",\"method\":\"mcp.v6.publish_artifact\",\"payload\":{\"agent_artifact_request\":{\"correlation\":\"synthetic-artifact-correlation\",\"request\":{\"format\":\"markdown\",\"path\":\"review/plan.md\",\"reference\":{\"assignment_generation\":1,\"request_id\":\"artifact-fixture-001\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":1},\"role\":\"review\"}}},\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"schema_version\":6}                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                ",
+      "accept": false
+    }
+  ]
+}
