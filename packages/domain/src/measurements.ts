@@ -1458,6 +1458,19 @@ export async function getRunMeasurements(
     (processWindows.get(executionId) ?? []).flatMap((window) => clipIntervals(spans, window));
 
   const pairedActive: IntervalMs[] = [];
+  let observedTypedPairs = 0;
+  const includeActivePair = (executionId: string, start: number, end: number): boolean => {
+    const spans = clipToProcess(executionId, [{ start, end }]);
+    pairedActive.push(...spans);
+    // A complete pair can observe zero elapsed time without contributing a positive span.
+    return (
+      spans.length > 0 ||
+      (start === end &&
+        (processWindows.get(executionId) ?? []).some(
+          (window) => start >= window.start && start <= window.end,
+        ))
+    );
+  };
   let openIntervals = 0;
   let legacyPairs = 0;
   let ambiguousLegacyEvents = 0;
@@ -1478,7 +1491,7 @@ export async function getRunMeasurements(
   }
   for (const pair of identified.values()) {
     if (pair.start !== undefined && pair.end !== undefined && pair.end >= pair.start) {
-      pairedActive.push(...clipToProcess(pair.execution, [{ start: pair.start, end: pair.end }]));
+      if (includeActivePair(pair.execution, pair.start, pair.end)) observedTypedPairs += 1;
     } else {
       openIntervals += 1;
     }
@@ -1508,9 +1521,7 @@ export async function getRunMeasurements(
       } else if (row.kind === "turn_stopped" || row.kind === "turn_failed") {
         const start = openTurns.shift();
         if (start !== undefined && row.at >= start && !ambiguousTurns) {
-          const spans = clipToProcess(executionId, [{ start, end: row.at }]);
-          pairedActive.push(...spans);
-          if (spans.length > 0) legacyPairs += 1;
+          if (includeActivePair(executionId, start, row.at)) legacyPairs += 1;
         }
         if (openTurns.length === 0) ambiguousTurns = false;
       } else if (row.kind === "tool_started") {
@@ -1520,9 +1531,7 @@ export async function getRunMeasurements(
       } else if (row.kind === "tool_finished" || row.kind === "tool_failed") {
         const start = openTools.shift();
         if (start !== undefined && row.at >= start && !ambiguousTools) {
-          const spans = clipToProcess(executionId, [{ start, end: row.at }]);
-          pairedActive.push(...spans);
-          if (spans.length > 0) legacyPairs += 1;
+          if (includeActivePair(executionId, start, row.at)) legacyPairs += 1;
         }
         if (openTools.length === 0) ambiguousTools = false;
       }
@@ -1669,7 +1678,7 @@ export async function getRunMeasurements(
       active_quality:
         legacyPairs > 0
           ? "includes_legacy_estimates"
-          : pairedActive.length + reportedActive.length > 0
+          : observedTypedPairs + reportedActive.length > 0
             ? "observed"
             : "unavailable",
       ambiguous_legacy_events: ambiguousLegacyEvents,

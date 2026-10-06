@@ -234,6 +234,61 @@ describe("connected measurement derivation regressions", () => {
     });
   });
 
+  it("retains observed zero for a complete typed activity at one timestamp", async () => {
+    const f = await fixture();
+    await f.event("execution_attached", 0);
+    await f.activity("tool_started", 10, "zero-duration");
+    await f.activity("tool_finished", 10, "zero-duration");
+    expect((await f.read()).times).toMatchObject({
+      active_ms: 0,
+      active_quality: "observed",
+      open_intervals: 0,
+    });
+    const task = await getTaskMeasurements(f.db, FIX.workspace, f.spec.task_id, at(120));
+    expect(task.totals.unknown_run_counts.active).toBe(0);
+    const aggregate = await aggregateMeasurements(f.db, FIX.workspace, {}, at(120));
+    expect(aggregate.cells[0]?.active_unavailable_runs).toBe(0);
+  });
+
+  it("retains lower confidence for a complete zero-duration legacy activity", async () => {
+    const f = await fixture();
+    await f.event("execution_attached", 0);
+    await f.event("turn_started", 10);
+    await f.event("turn_stopped", 10);
+    expect((await f.read()).times).toMatchObject({
+      active_ms: 0,
+      active_quality: "includes_legacy_estimates",
+      open_intervals: 0,
+    });
+  });
+
+  it("does not infer a process window from a zero-duration activity pair", async () => {
+    const f = await fixture();
+    await f.activity("tool_started", 10, "unattached-zero");
+    await f.activity("tool_finished", 10, "unattached-zero");
+    expect((await f.read()).times).toMatchObject({
+      process_elapsed_ms: null,
+      active_ms: 0,
+      active_quality: "unavailable",
+    });
+  });
+
+  it.each([
+    ["before attachment", 5],
+    ["after execution end", 95],
+    ["after read time", 130],
+  ])("does not treat a zero-duration pair %s as observed", async (_description, seconds) => {
+    const f = await fixture();
+    await f.event("execution_attached", 10);
+    await f.state("ended", 90);
+    await f.activity("tool_started", seconds, "outside-window");
+    await f.activity("tool_finished", seconds, "outside-window");
+    expect((await f.read()).times).toMatchObject({
+      active_ms: 0,
+      active_quality: "unavailable",
+    });
+  });
+
   it("marks identity-free unambiguous activity as a legacy estimate", async () => {
     const f = await fixture();
     await f.event("execution_attached", 0);
