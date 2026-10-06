@@ -4,7 +4,10 @@
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
-  "exports": "./dist/index.js",
+  "exports": {
+    ".": "./dist/index.js",
+    "./view": "./dist/view.js"
+  },
   "dependencies": {
     "@bfb/db": "workspace:*",
     "@bfb/domain": "workspace:*",

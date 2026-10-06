@@ -616,6 +616,7 @@ describe("artifact upload", () => {
       ARTIFACT_ORIGIN: ORIGIN,
       APP_ORIGIN: "https://bfb.example.test",
       ENVIRONMENT: "local",
+      ARTIFACT_VIEWER_ENABLED: "true",
       UPLOAD_ABUSE_SECRET: ABUSE_SECRET,
     });
     // V02 owns the view path: malformed view IDs fail uniformly, not as unimplemented.

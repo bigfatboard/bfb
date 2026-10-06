@@ -31,6 +31,9 @@ export interface ControlBindings {
   LAUNCH_ORIGIN: string;
   JURISDICTION: string;
   ENVIRONMENT: string;
+  ARTIFACT_VIEWER_ENABLED?: string;
+  ARTIFACT_REVIEW_ENABLED?: string;
+  DISCUSSIONS_ENABLED?: string;
   BETTER_AUTH_SECRETS?: string;
   GITHUB_CLIENT_ID?: string;
   GITHUB_CLIENT_SECRET?: string;
@@ -46,6 +49,7 @@ export interface ValidatedControlEnv {
   origins: ControlOrigins;
   jurisdiction: Jurisdiction;
   environment: "local" | "staging" | "production";
+  features: { artifactViewer: boolean; artifactReview: boolean; discussions: boolean };
 }
 
 const workerFirstPrefixes = [
@@ -141,6 +145,12 @@ function parseEnvironment(value: string): "local" | "staging" | "production" {
   throw new Error("invalid environment: " + value);
 }
 
+function parseEnabled(value: string | undefined, name: string): boolean {
+  if (value === undefined || value === "false") return false;
+  if (value === "true") return true;
+  throw new Error("invalid boolean: " + name);
+}
+
 export function validateControlEnv(env: Partial<ControlBindings>): ValidatedControlEnv {
   const DB = requireBinding(env.DB, "DB");
   const ARTIFACTS = requireBinding(env.ARTIFACTS, "ARTIFACTS");
@@ -158,6 +168,11 @@ export function validateControlEnv(env: Partial<ControlBindings>): ValidatedCont
   const artifact = parseOrigin(ARTIFACT_ORIGIN, "ARTIFACT_ORIGIN");
   const launch = parseOrigin(LAUNCH_ORIGIN, "LAUNCH_ORIGIN");
   const environment = parseEnvironment(ENVIRONMENT);
+  const features = {
+    artifactViewer: parseEnabled(env.ARTIFACT_VIEWER_ENABLED, "ARTIFACT_VIEWER_ENABLED"),
+    artifactReview: parseEnabled(env.ARTIFACT_REVIEW_ENABLED, "ARTIFACT_REVIEW_ENABLED"),
+    discussions: parseEnabled(env.DISCUSSIONS_ENABLED, "DISCUSSIONS_ENABLED"),
+  };
 
   if (app.hostname === artifact.hostname) {
     throw new Error("artifact hostname must differ from app hostname");
@@ -195,6 +210,9 @@ export function validateControlEnv(env: Partial<ControlBindings>): ValidatedCont
       LAUNCH_ORIGIN: launch.origin,
       JURISDICTION,
       ENVIRONMENT,
+      ARTIFACT_VIEWER_ENABLED: String(features.artifactViewer),
+      ARTIFACT_REVIEW_ENABLED: String(features.artifactReview),
+      DISCUSSIONS_ENABLED: String(features.discussions),
     },
     origins: {
       appOrigin: app.origin,
@@ -206,5 +224,6 @@ export function validateControlEnv(env: Partial<ControlBindings>): ValidatedCont
     },
     jurisdiction: parseJurisdiction(JURISDICTION),
     environment,
+    features,
   };
 }

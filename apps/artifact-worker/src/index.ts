@@ -12,13 +12,7 @@ import {
 import { handleUpload } from "./upload.js";
 import { handleViewBootstrap, handleViewRedeem } from "./view.js";
 
-export {
-  buildViewBootstrap,
-  VIEW_BOOTSTRAP_SCRIPT,
-  VIEW_PERMISSIONS_POLICY,
-  viewBootstrapCsp,
-  viewFinalCsp,
-} from "./view.js";
+export { buildViewBootstrap, viewBootstrapCsp, viewFinalCsp } from "./view.js";
 export { buildTextDocument, buildViewerFallback, isViewerTextFormat } from "./renderers.js";
 
 export interface ArtifactFetchOptions {
@@ -88,6 +82,18 @@ export function createArtifactFetchHandler(options: ArtifactFetchOptions = {}) {
       }
 
       const redeem = /^\/view\/([^/]+)\/redeem$/.exec(url.pathname);
+      if (
+        !validated.artifactViewerEnabled &&
+        (url.pathname === "/view" || url.pathname.startsWith("/view/"))
+      ) {
+        return Response.json(
+          { ok: false, error: "feature_unavailable" },
+          {
+            status: 404,
+            headers: { "cache-control": "no-store", "referrer-policy": "no-referrer" },
+          },
+        );
+      }
       if (redeem?.[1]) {
         return handleViewRedeem(request, redeem[1], {
           db,

@@ -249,6 +249,7 @@ export async function startV02E2EFixture(options: {
     ARTIFACT_ORIGIN: artUrl,
     APP_ORIGIN: appUrl,
     ENVIRONMENT: "local",
+    ARTIFACT_VIEWER_ENABLED: "true",
     UPLOAD_ABUSE_SECRET: ABUSE_SECRET,
   };
 

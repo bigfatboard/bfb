@@ -22,6 +22,24 @@ function env(overrides: Partial<ArtifactBindings> = {}): ArtifactBindings {
 }
 
 describe("artifact env", () => {
+  it("requires an explicit viewer enable in every environment", () => {
+    for (const ENVIRONMENT of ["local", "staging", "production"] as const) {
+      expect(validateArtifactEnv(env({ ENVIRONMENT })).artifactViewerEnabled).toBe(false);
+    }
+    expect(
+      validateArtifactEnv(env({ ARTIFACT_VIEWER_ENABLED: "false" })).artifactViewerEnabled,
+    ).toBe(false);
+    expect(
+      validateArtifactEnv(env({ ARTIFACT_VIEWER_ENABLED: "true" })).artifactViewerEnabled,
+    ).toBe(true);
+  });
+
+  it.each(["TRUE", "1", "", " true "])("rejects malformed viewer enable %j", (value) => {
+    expect(() => validateArtifactEnv(env({ ARTIFACT_VIEWER_ENABLED: value }))).toThrow(
+      "invalid boolean: ARTIFACT_VIEWER_ENABLED",
+    );
+  });
+
   it("validates a complete artifact environment", () => {
     const validated = validateArtifactEnv(env());
     expect(validated.artifactOrigin).toBe("https://artifacts.bfb.example.test");

@@ -34,7 +34,7 @@ function digest(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
-async function fixture() {
+async function fixture(overrides: Partial<ControlBindings> = {}) {
   const context = openAuthTestContext(NOW);
   await seedSyntheticWorkspace(context.db, NOW, "global");
   async function session(
@@ -80,6 +80,8 @@ async function fixture() {
     LAUNCH_ORIGIN: "https://launch.bfb.example.test",
     JURISDICTION: "global",
     ENVIRONMENT: "local",
+    ARTIFACT_VIEWER_ENABLED: "true",
+    ...overrides,
   } as unknown as ControlBindings;
   function app() {
     return createControlApp(validateControlEnv(env), {
@@ -253,6 +255,29 @@ async function fixture() {
 }
 
 describe("artifact view grant routes", () => {
+  it.each([undefined, "false"])(
+    "blocks view issuance when the viewer enable is %j",
+    async (enabled) => {
+      const f = await fixture({ ARTIFACT_VIEWER_ENABLED: enabled });
+      const versionId = await f.available();
+      const before = await f.db
+        .prepare("SELECT COUNT(*) AS count FROM artifact_audit_outbox")
+        .get();
+      for (const id of [versionId, randomUlid()]) {
+        const response = await f.post(`${f.prefix}/${id}/views`, {});
+        expect(response.status).toBe(404);
+        expect(response.headers.get("cache-control")).toBe("no-store");
+        expect(await response.json()).toEqual({ ok: false, error: "feature_unavailable" });
+      }
+      expect(
+        await f.db.prepare("SELECT COUNT(*) AS count FROM artifact_view_grants").get(),
+      ).toEqual({ count: 0 });
+      expect(
+        await f.db.prepare("SELECT COUNT(*) AS count FROM artifact_audit_outbox").get(),
+      ).toEqual(before);
+    },
+  );
+
   it("issues a one-time grant and returns the secret once", async () => {
     const { db, post, prefix, available } = await fixture();
     const versionId = await available();

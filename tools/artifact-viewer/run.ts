@@ -8,12 +8,8 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import {
-  buildViewBootstrap,
-  viewBootstrapCsp,
-  viewFinalCsp,
-  VIEW_PERMISSIONS_POLICY,
-} from "@bfb/artifact-worker";
+import { buildViewBootstrap, viewBootstrapCsp, viewFinalCsp } from "@bfb/artifact-worker";
+import { VIEW_PERMISSIONS_POLICY } from "@bfb/artifact-worker/view";
 import { adaptD1, type D1Like, type SqlDatabase } from "@bfb/db";
 import { FIX, bumpMemberEpoch, seedSyntheticWorkspace, syntheticUlid } from "@bfb/domain";
 import { createTestHarness } from "wrangler";
@@ -104,6 +100,7 @@ const control = {
   main: resolve(root, "tools/artifact-viewer/control.ts"),
   vars: {
     ENVIRONMENT: "local",
+    ARTIFACT_VIEWER_ENABLED: "true",
     JURISDICTION: "global",
     APP_ORIGIN: ORIGIN,
     ARTIFACT_ORIGIN,
@@ -146,6 +143,7 @@ const server = createTestHarness({
         main: resolve(root, "tools/artifact-viewer/artifact.ts"),
         vars: {
           ENVIRONMENT: "local",
+          ARTIFACT_VIEWER_ENABLED: "true",
           ARTIFACT_ORIGIN,
           APP_ORIGIN: ORIGIN,
           UPLOAD_ABUSE_SECRET: "v02-harness-upload-abuse-secret-8e13d2axx-long",

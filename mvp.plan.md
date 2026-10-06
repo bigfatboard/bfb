@@ -26,7 +26,7 @@ The goal remains the fully working and verified local MVP described here, includ
 
 ## Where we are
 
-The integrated feature branch includes the reviewed fixes history at `472f007`. The reconciliation reopened A01 for missing runtime integration and held its previously certified descendants. A01 is now re-certified at `adbf740`, A02 at `891fbcc`, and A03 at `9077a08` under [ADR 0008](docs/adr/0008-protected-agent-result-submission.md). A04 is re-certified at `a7a763c` under [ADR 0009](docs/adr/0009-connected-measurement-telemetry.md); V01's connected artifact publication is re-certified at `663dbdb` under [ADR 0010](docs/adr/0010-connected-artifact-publication.md). Package metadata records 31 done, seven blocked and seven planned. These counts are not an end-to-end MVP completion percentage. Historical component evidence remains intact. The current implementation/verification/running distinction and next closure sequence are maintained in [MVP progress](mvp.progress.md).
+The integrated feature branch includes the reviewed fixes history at `472f007`. The reconciliation reopened A01 for missing runtime integration and held its previously certified descendants. A01 is now re-certified at `adbf740`, A02 at `891fbcc`, and A03 at `9077a08` under [ADR 0008](docs/adr/0008-protected-agent-result-submission.md). A04 is re-certified at `a7a763c` under [ADR 0009](docs/adr/0009-connected-measurement-telemetry.md); V01's connected artifact publication is re-certified at `663dbdb` under [ADR 0010](docs/adr/0010-connected-artifact-publication.md). Package metadata records 31 done, L07 in progress, six blocked and seven planned. These counts are not an end-to-end MVP completion percentage. Historical component evidence remains intact. The current implementation/verification/running distinction and next closure sequence are maintained in [MVP progress](mvp.progress.md).
 
 The 5 October audit found production gaps in A01's online MCP/replay path and D02's discussion scheduling/provider execution, beyond missing live acceptance. A01's [runtime certificate](docs/work-packages/evidence/WP-A01/runtime-manifest.json) at `adbf740` now proves reads, canonical session binding, all four attributed writes, protected capture and daemon recovery through the compiled stdio binary, signed daemon and real local Worker/Hub/D1. A02's [runtime certificate](docs/work-packages/evidence/WP-A02/runtime-manifest.json) at `891fbcc` proves the connected human attention loop; A03's [runtime certificate](docs/work-packages/evidence/WP-A03/runtime-manifest.json) at `9077a08` proves protected explicit results and human review. A04's [runtime certificate](docs/work-packages/evidence/WP-A04/runtime-manifest.json) at `a7a763c` proves connected typed telemetry and truthful measurement provenance. V01's [runtime certificate](docs/work-packages/evidence/WP-V01/runtime-manifest.json) at `663dbdb` proves online bound-agent artifact publication, current authority and explicit restart/reply-loss recovery through real local D1/R2. These synthetic native proofs do not certify Terminal or live providers. Next, revalidate held dependents, re-prove provider capabilities, connect D02's scheduling/turn delivery, and prove the end-to-end pilot. The [current agent-to-agent research](docs/research/agent-to-agent.md) informs provider experiments without replacing BFB's authority or durable turn model.
 
@@ -43,6 +43,28 @@ The three original gaps were:
 The product direction remains sound: help humans understand, start, redirect, and decide work across agents and projects.
 
 ## Proposed delivery sequence
+
+### Approved private-pilot priority — 6 October
+
+Timo approved delivering a persistent, real-authenticated private pilot first:
+one workspace, one project and one enrolled Mac, using the existing UI. L07 is
+the single active package. First prove browser Start → real Claude in the exact
+checkout → trusted session and scoped MCP context/progress → human attention →
+explicit result → human acceptance, including cancellation, same-run resume and
+restart/reconnect. Provide start, stop and health commands and leave the usable
+stack running. Then close Codex parity and production discussion delivery in
+dependency order, followed by an actual independent-device pilot.
+
+Uncertified artifact viewing/review and discussions must be disabled on the
+server as well as unavailable in the UI until their packages are certified;
+ordinary results, attention, progress and artifact publication remain available.
+Grok, GitHub integration, public onboarding and general self-host release are
+outside this first pilot. This delivery order does not remove any of the eight
+mandatory beta requirements below or claim a complete MVP at the Claude-only
+checkpoint. Parallel agents may implement disjoint L07 integration slices and
+review/preparation; they must not consume uncertified downstream packages.
+
+### Full MVP sequence
 
 First, record the discussion design in an ADR and amend the affected planned packages. In particular, extend [L03's provider contract](docs/work-packages/WP-L03-provider-kit.md) before it freezes: launching and resuming a session are insufficient without a tested way to deliver another turn and identify its response. L03 includes an early, bounded provider-capability experiment covering fresh sessions, exact-session resume, fork, structured identity/output, cancellation, read-only enforcement, and native external-message delivery. Record support against exact installed versions; CLI help and upstream feature announcements are discovery evidence, not acceptance proof.
 

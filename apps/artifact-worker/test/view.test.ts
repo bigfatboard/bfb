@@ -112,6 +112,7 @@ function env(r2: R2Bucket) {
     ARTIFACT_ORIGIN: ORIGIN,
     APP_ORIGIN,
     ENVIRONMENT: "local",
+    ARTIFACT_VIEWER_ENABLED: "true",
     UPLOAD_ABUSE_SECRET: ABUSE_SECRET,
   };
 }
@@ -242,6 +243,45 @@ function expectNoCookie(response: Response): void {
 }
 
 describe("artifact view bootstrap", () => {
+  it.each([undefined, "false"])(
+    "blocks previously issued grants when the viewer enable is %j",
+    async (enabled) => {
+      const db = await openDb();
+      const r2 = fakeR2();
+      const version = await publish(db, r2, { format: "html", bytes: HTML });
+      const grant = await issue(db, version.version_id);
+      const bindings = env(r2.bucket);
+      if (enabled === undefined) Reflect.deleteProperty(bindings, "ARTIFACT_VIEWER_ENABLED");
+      else bindings.ARTIFACT_VIEWER_ENABLED = enabled;
+      const before = await db.prepare("SELECT COUNT(*) AS count FROM artifact_audit_outbox").get();
+      const calls = r2.calls.length;
+      for (const request of [
+        bootstrapRequest(grant.view_id),
+        redeemRequest(grant.view_id, grant.secret, grant.nonce),
+        bootstrapRequest(randomUlid()),
+        new Request(`${ORIGIN}/view/${grant.view_id}/redeem/deeper`, { method: "POST" }),
+      ]) {
+        const response = await createArtifactFetchHandler({ db, now: NOW })(request, bindings);
+        expect(response.status).toBe(404);
+        expect(response.headers.get("cache-control")).toBe("no-store");
+        expect(response.headers.get("set-cookie")).toBeNull();
+        expect(await response.json()).toEqual({ ok: false, error: "feature_unavailable" });
+      }
+      expect(r2.calls.length).toBe(calls);
+      expect(
+        await db
+          .prepare("SELECT consumed_at FROM artifact_view_grants WHERE id = ?")
+          .get(grant.view_id),
+      ).toEqual({ consumed_at: null });
+      expect(await db.prepare("SELECT COUNT(*) AS count FROM artifact_audit_outbox").get()).toEqual(
+        before,
+      );
+      expect(
+        (await call(db, r2.bucket, redeemRequest(grant.view_id, grant.secret, grant.nonce))).status,
+      ).toBe(200);
+    },
+  );
+
   it("serves a fixed byte-identical document with the bootstrap policy", async () => {
     const db = await openDb();
     const r2 = fakeR2();

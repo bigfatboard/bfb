@@ -99,22 +99,31 @@ export function createControlApp(
 
   app.get("/api/v1/_substrate", (c) => {
     const current = c.get("validated");
-    return c.json({
-      ok: true,
-      app_origin: current?.origins.appOrigin,
-      artifact_origin: current?.origins.artifactOrigin,
-      launch_origin: current?.origins.launchOrigin,
-      worker_first_prefixes: [
-        "/api",
-        "/auth",
-        "/mcp",
-        "/oauth",
-        "/realtime",
-        "/runner",
-        "/webhooks",
-        "/.well-known",
-      ],
-    });
+    return c.json(
+      {
+        ok: true,
+        app_origin: current?.origins.appOrigin,
+        artifact_origin: current?.origins.artifactOrigin,
+        launch_origin: current?.origins.launchOrigin,
+        features: {
+          artifact_viewer: current?.features.artifactViewer ?? false,
+          artifact_review: current?.features.artifactReview ?? false,
+          discussions: current?.features.discussions ?? false,
+        },
+        worker_first_prefixes: [
+          "/api",
+          "/auth",
+          "/mcp",
+          "/oauth",
+          "/realtime",
+          "/runner",
+          "/webhooks",
+          "/.well-known",
+        ],
+      },
+      200,
+      { "cache-control": "no-store" },
+    );
   });
 
   app.all("/mcp", async (c) => {
@@ -494,8 +503,13 @@ export function createControlApp(
         /^\/api\/v1\/workspaces\/[^/]+\/(?:discussions(?:\/|$)|tasks\/[^/]+\/discussions(?:\/|$))/.test(
           c.req.path,
         )
-      )
+      ) {
+        if (!current.features.discussions)
+          return c.json({ ok: false, error: "feature_unavailable" }, 404, {
+            "cache-control": "no-store",
+          });
         return await handleDiscussionApi(c.req.raw, apiDeps);
+      }
       if (
         c.req.path === `${projectPrefix}/artifacts` ||
         c.req.path.startsWith(`${projectPrefix}/artifacts/`)
@@ -506,6 +520,8 @@ export function createControlApp(
           auth: runtime.auth,
           appOrigin: current.origins.appOrigin,
           abuseSecret: runtime.abuseSecret,
+          artifactViewerEnabled: current.features.artifactViewer,
+          artifactReviewEnabled: current.features.artifactReview,
         });
       }
       if (

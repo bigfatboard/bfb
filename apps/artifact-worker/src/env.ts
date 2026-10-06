@@ -7,6 +7,7 @@ export interface ArtifactBindings {
   ARTIFACT_ORIGIN: string;
   APP_ORIGIN: string;
   ENVIRONMENT: string;
+  ARTIFACT_VIEWER_ENABLED?: string;
   UPLOAD_ABUSE_SECRET?: string;
 }
 
@@ -17,6 +18,7 @@ export interface ValidatedArtifactEnv {
   appOrigin: string;
   environment: "local" | "staging" | "production";
   uploadAbuseSecret: string;
+  artifactViewerEnabled: boolean;
 }
 
 function requireBinding<T>(value: T | undefined, name: string): T {
@@ -51,6 +53,13 @@ export function validateArtifactEnv(env: Partial<ArtifactBindings>): ValidatedAr
   if (ENVIRONMENT !== "local" && ENVIRONMENT !== "staging" && ENVIRONMENT !== "production") {
     throw new Error("invalid environment: " + ENVIRONMENT);
   }
+  if (
+    env.ARTIFACT_VIEWER_ENABLED !== undefined &&
+    env.ARTIFACT_VIEWER_ENABLED !== "false" &&
+    env.ARTIFACT_VIEWER_ENABLED !== "true"
+  ) {
+    throw new Error("invalid boolean: ARTIFACT_VIEWER_ENABLED");
+  }
   const artifact = parseOrigin(ARTIFACT_ORIGIN, "ARTIFACT_ORIGIN");
   const app = parseOrigin(APP_ORIGIN, "APP_ORIGIN");
   if (artifact.hostname === app.hostname) {
@@ -65,6 +74,7 @@ export function validateArtifactEnv(env: Partial<ArtifactBindings>): ValidatedAr
     artifactOrigin: artifact.origin,
     appOrigin: app.origin,
     environment: ENVIRONMENT,
+    artifactViewerEnabled: env.ARTIFACT_VIEWER_ENABLED === "true",
     // Staging/production set this with `wrangler secret put UPLOAD_ABUSE_SECRET`.
     // Uploads fail closed while it is missing or short.
     uploadAbuseSecret: typeof env.UPLOAD_ABUSE_SECRET === "string" ? env.UPLOAD_ABUSE_SECRET : "",

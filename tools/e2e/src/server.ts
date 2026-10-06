@@ -2162,6 +2162,9 @@ function controlBindings(db: SqlDatabase): ControlBindings {
     LAUNCH_ORIGIN: "https://launch.bfb.example.test",
     JURISDICTION: "eu",
     ENVIRONMENT: "local",
+    ARTIFACT_VIEWER_ENABLED: "true",
+    ARTIFACT_REVIEW_ENABLED: "true",
+    DISCUSSIONS_ENABLED: "true",
   };
 }
 

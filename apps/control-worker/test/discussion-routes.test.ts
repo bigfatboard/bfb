@@ -26,7 +26,7 @@ afterEach(() => {
   for (const context of contexts.splice(0)) context.raw.close();
 });
 
-async function setup() {
+async function setup(overrides: Partial<ControlBindings> = {}) {
   const context = openAuthTestContext(LAUNCH_NOW);
   contexts.push(context);
   const f = await discussionFixture(context.db);
@@ -57,6 +57,8 @@ async function setup() {
     LAUNCH_ORIGIN: "https://launch.bfb.example.test",
     JURISDICTION: "eu",
     ENVIRONMENT: "local",
+    DISCUSSIONS_ENABLED: "true",
+    ...overrides,
   };
   const app = createControlApp(validateControlEnv(bindings), {
     db: context.db,
@@ -102,6 +104,29 @@ async function setup() {
 }
 
 describe("D01 authenticated discussion API", () => {
+  it.each([undefined, "false"])(
+    "blocks discussion creation and history when the enable is %j",
+    async (enabled) => {
+      const s = await setup({ DISCUSSIONS_ENABLED: enabled });
+      const before = await s.f.db.prepare("SELECT COUNT(*) AS count FROM runs").get();
+      for (const response of [
+        await s.post(s.collection, s.f.input),
+        await s.get(s.collection),
+        await s.get(`${s.base}/discussions/${randomUlid()}`),
+        await s.post(`${s.base}/discussions/${randomUlid()}`, {}),
+      ]) {
+        expect(response.status).toBe(404);
+        expect(response.headers.get("cache-control")).toBe("no-store");
+        expect(await response.json()).toEqual({ ok: false, error: "feature_unavailable" });
+      }
+      expect(await s.f.db.prepare("SELECT COUNT(*) AS count FROM discussions").get()).toEqual({
+        count: 0,
+      });
+      expect(await s.f.db.prepare("SELECT COUNT(*) AS count FROM runs").get()).toEqual(before);
+      expect((await s.get(`${s.base}/tasks/${s.f.task.id}`)).status).toBe(200);
+    },
+  );
+
   it("creates and replays one discussion, reads frozen human history and leaves normal work untouched", async () => {
     const s = await setup(),
       first = await s.created(),

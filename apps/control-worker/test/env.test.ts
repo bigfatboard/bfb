@@ -32,6 +32,36 @@ function validEnv(overrides: Partial<ControlBindings> = {}): ControlBindings {
 }
 
 describe("validateControlEnv", () => {
+  it("keeps uncertified features disabled in every environment unless explicitly enabled", () => {
+    for (const ENVIRONMENT of ["local", "staging", "production"] as const) {
+      expect(validateControlEnv(validEnv({ ENVIRONMENT })).features).toEqual({
+        artifactViewer: false,
+        artifactReview: false,
+        discussions: false,
+      });
+    }
+    expect(
+      validateControlEnv(
+        validEnv({
+          ARTIFACT_VIEWER_ENABLED: "true",
+          ARTIFACT_REVIEW_ENABLED: "false",
+          DISCUSSIONS_ENABLED: "true",
+        }),
+      ).features,
+    ).toEqual({ artifactViewer: true, artifactReview: false, discussions: true });
+  });
+
+  it.each(["ARTIFACT_VIEWER_ENABLED", "ARTIFACT_REVIEW_ENABLED", "DISCUSSIONS_ENABLED"] as const)(
+    "rejects malformed %s instead of enabling it",
+    (name) => {
+      for (const value of ["TRUE", "1", "", " true "]) {
+        expect(() => validateControlEnv(validEnv({ [name]: value }))).toThrow(
+          `invalid boolean: ${name}`,
+        );
+      }
+    },
+  );
+
   it("accepts a complete local environment", () => {
     const validated = validateControlEnv(validEnv());
     expect(validated.environment).toBe("local");

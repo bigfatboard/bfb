@@ -33,7 +33,7 @@ function digest(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
-async function fixture() {
+async function fixture(overrides: Partial<ControlBindings> = {}) {
   const context = openAuthTestContext(NOW);
   await seedSyntheticWorkspace(context.db, NOW, "global");
   async function session(
@@ -71,6 +71,8 @@ async function fixture() {
     LAUNCH_ORIGIN: "https://launch.bfb.example.test",
     JURISDICTION: "global",
     ENVIRONMENT: "local",
+    ARTIFACT_REVIEW_ENABLED: "true",
+    ...overrides,
   } as unknown as ControlBindings;
   function app() {
     return createControlApp(validateControlEnv(env), {
@@ -226,6 +228,44 @@ async function fixture() {
 }
 
 describe("artifact review routes", () => {
+  it.each([undefined, "false"])(
+    "blocks review reads and decisions when the enable is %j",
+    async (enabled) => {
+      const f = await fixture({ ARTIFACT_REVIEW_ENABLED: enabled });
+      const scoped = await f.taskAndRun(FIX.projectA);
+      const version = await f.available("disabled", scoped.runId);
+      const before = await f.context.db
+        .prepare("SELECT COUNT(*) AS count FROM semantic_events")
+        .get();
+      for (const [path, method, body] of [
+        [`${f.prefix}?run_id=${scoped.runId}`, "GET", undefined],
+        [`${f.prefix}/${version.artifact_id}/reviews`, "GET", undefined],
+        [`${f.prefix}/${version.artifact_id}/reviews`, "POST", f.reviewBody(version)],
+      ] as const) {
+        const response = await f.request(path, body, undefined, method);
+        expect(response.status).toBe(404);
+        expect(response.headers.get("cache-control")).toBe("no-store");
+        expect(await response.json()).toEqual({ ok: false, error: "feature_unavailable" });
+      }
+      expect(
+        await f.context.db.prepare("SELECT COUNT(*) AS count FROM artifact_reviews").get(),
+      ).toEqual({ count: 0 });
+      expect(
+        await f.context.db.prepare("SELECT COUNT(*) AS count FROM semantic_events").get(),
+      ).toEqual(before);
+      expect(
+        (
+          await f.request(
+            `/api/v1/workspaces/${FIX.workspace}/runs/${scoped.runId}/results`,
+            undefined,
+            undefined,
+            "GET",
+          )
+        ).status,
+      ).toBe(200);
+    },
+  );
+
   it("records a review and reports approval on read", async () => {
     const f = await fixture();
     const version = await f.available("route-approve");

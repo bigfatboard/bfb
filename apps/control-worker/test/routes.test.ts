@@ -77,6 +77,21 @@ function appFor(context: AuthTestContext) {
 }
 
 describe("control routes", () => {
+  it("publishes effective default-off feature booleans without requiring an authenticated session", async () => {
+    const bindings = env();
+    for (const enabled of [false, true]) {
+      bindings.ARTIFACT_VIEWER_ENABLED = String(enabled);
+      bindings.ARTIFACT_REVIEW_ENABLED = String(enabled);
+      bindings.DISCUSSIONS_ENABLED = String(enabled);
+      const app = createControlApp(validateControlEnv(bindings));
+      const response = await app.request("/api/v1/_substrate", {}, bindings);
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({
+        features: { artifact_viewer: enabled, artifact_review: enabled, discussions: enabled },
+      });
+    }
+  });
+
   it("serves healthz with substrate metadata", async () => {
     const context = await openRouteContext();
     const app = appFor(context);

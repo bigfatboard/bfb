@@ -1,6 +1,6 @@
 # WP-L07 — Claude Code reference adapter
 
-Status: `blocked`
+Status: `in_progress`
 
 Risk: High
 
@@ -30,6 +30,12 @@ A card can open a supported Claude Code version in the exact checkout, bind the 
 - Register through Claude's provider-local descriptor without editing a shared provider registry.
 - Implement `provider setup/doctor claude`, integration hash, drift, unknown-version, concurrent-config-edit, rollback, and duplicate-hook diagnostics.
 - Capture start/turn/tool/error/Stop/resume/interrupt/session-end fixtures.
+- Deliver the approved private-pilot runtime using persistent real Worker/D1/R2
+  state and real authentication, with start/stop/health instructions. Test-login
+  and disposable fixture servers are not pilot delivery.
+- Keep uncertified artifact viewing/review and discussion launch disabled at
+  server boundaries and visibly unavailable in the pilot UI. Preserve certified
+  context, progress, attention, explicit results and artifact publication.
 
 ## Non-goals
 
@@ -88,6 +94,13 @@ A card can open a supported Claude Code version in the exact checkout, bind the 
 
 ## Evidence
 
+- [Private pilot guide](../pilot.md) documents the real-auth persistent Worker
+  runtime, private configuration, TLS and start/stop/health commands.
+  `pnpm test:l07` now includes native MCP/runner/supervisor regression and the
+  `pnpm test:pilot` configuration, server-denial and mounted first-run UI checks.
+  `pnpm pilot:smoke` checks stock Worker startup and restart persistence with
+  isolated synthetic bindings; `pnpm probe:claude-mcp` is a separately invoked,
+  bounded live protocol experiment, not a tracked-launch acceptance substitute.
 - `docs/work-packages/evidence/WP-L07/manifest.json` indexes the tested commit,
   toolchain, commands, and redaction status for this package.
 - `docs/work-packages/evidence/WP-L07/version-matrix.json` records the
@@ -123,6 +136,22 @@ A card can open a supported Claude Code version in the exact checkout, bind the 
 
 ## Handoff
 
+- Active 6 October: Timo approved the Claude-first private-pilot delivery path.
+  A01–A04 and V01 now have connected runtime certificates, and every L07
+  dependency is `done`. The unchanged `pnpm test:l07` baseline passes before
+  this integration work (1,123 protocol tests and the native race suites).
+  Installed Claude `2.1.291` is signed in but remains uncertified. Current
+  repairs include provider-aware inventory, helper environment preservation,
+  trusted SessionStart bootstrap and actual local-MCP protocol interoperability.
+  The bounded isolated `2.1.291` probe passed its real `2025-11-25` MCP handshake
+  and seven exec-form hooks without widening the tested-version manifest.
+  Stock Worker smoke proves trusted loopback HTTPS, denied unauthenticated
+  access, exact bootstrap retry and D1/R2 persistence across restart. Real
+  GitHub OAuth configuration, human login and the tracked provider chain remain
+  open; the isolated smoke creates no fake human or browser session.
+  A passing synthetic certificate does not prove any live acceptance below.
+  Bounded BFB-owned live tests are part of the approved pilot; existing provider
+  sessions, non-BFB settings, macOS consent and user authority remain protected.
 - Dependency hold, 5 October: A01 is reopened for its missing production online/replay path. The adapter implementation and historical fixture acceptance are retained, but the remaining live chain is not only a credentials/consent issue. Close A01 and certify the exact installed provider version before proving live launch and resume. The dated status below is historical, not the current package state.
 - Settled 18 September: `review`. A01, E01, L05, and L06 are `done`, and
   `pnpm test:l07` passed from a detached clean checkout at the commit recorded

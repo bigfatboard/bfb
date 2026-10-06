@@ -315,6 +315,39 @@ export function WorkMutations(props: WorkMutationsProps) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<RequestError | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  const [features, setFeatures] = useState({
+    artifactViewer: false,
+    artifactReview: false,
+    discussions: false,
+  });
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setFeatures({ artifactViewer: false, artifactReview: false, discussions: false });
+    void (async () => {
+      try {
+        const response = await fetchFn("/api/v1/_substrate", { signal: controller.signal });
+        if (!response.ok) return;
+        const body = (await response.json()) as {
+          ok?: unknown;
+          features?: {
+            artifact_viewer?: unknown;
+            artifact_review?: unknown;
+            discussions?: unknown;
+          };
+        };
+        if (controller.signal.aborted || body?.ok !== true) return;
+        setFeatures({
+          artifactViewer: body.features?.artifact_viewer === true,
+          artifactReview: body.features?.artifact_review === true,
+          discussions: body.features?.discussions === true,
+        });
+      } catch {
+        // Unavailable configuration must not mount uncertified surfaces.
+      }
+    })();
+    return () => controller.abort();
+  }, [fetchFn]);
 
   const loadTask = useCallback(async () => {
     if (!props.selectedTaskId) {
@@ -466,7 +499,7 @@ export function WorkMutations(props: WorkMutationsProps) {
               }}
             />
           ) : null}
-          {task ? (
+          {features.artifactViewer && features.artifactReview ? (
             <ReviewPanel
               key={`review-${task.id}:${task.resource_version}`}
               workspaceId={props.workspaceId}
@@ -479,7 +512,15 @@ export function WorkMutations(props: WorkMutationsProps) {
                 props.onChanged();
               }}
             />
-          ) : null}
+          ) : (
+            <section data-testid="artifact-features-unavailable">
+              <h3>Artifact preview and approval</h3>
+              <p className="section-help">
+                Not enabled in this private pilot. Artifact publication remains available through
+                the run-scoped MCP or CLI.
+              </p>
+            </section>
+          )}
           {task ? (
             <RunTimeline
               workspaceId={props.workspaceId}
@@ -581,17 +622,24 @@ export function WorkMutations(props: WorkMutationsProps) {
             fetchImpl={fetchFn}
           />
 
-          <DiscussionSection
-            workspaceId={props.workspaceId}
-            taskId={task.id}
-            taskVersion={task.resource_version}
-            projectId={task.project_id}
-            humanId={props.humanId}
-            humanDisplayName={props.humanDisplayName ?? "the signed-in human"}
-            role={props.role}
-            fetchImpl={props.fetchImpl}
-            csrfToken={props.csrfToken}
-          />
+          {features.discussions ? (
+            <DiscussionSection
+              workspaceId={props.workspaceId}
+              taskId={task.id}
+              taskVersion={task.resource_version}
+              projectId={task.project_id}
+              humanId={props.humanId}
+              humanDisplayName={props.humanDisplayName ?? "the signed-in human"}
+              role={props.role}
+              fetchImpl={props.fetchImpl}
+              csrfToken={props.csrfToken}
+            />
+          ) : (
+            <section data-testid="discussions-unavailable">
+              <h3>Agent discussions</h3>
+              <p className="section-help">Not enabled in this private pilot.</p>
+            </section>
+          )}
 
           {canManage ? (
             <section aria-labelledby="handoff-heading">

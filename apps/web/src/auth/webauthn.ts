@@ -112,3 +112,81 @@ export async function requestStepUpProof(
   }
   return result.proof_id;
 }
+
+interface CreationOptionsJSON extends Omit<
+  PublicKeyCredentialCreationOptions,
+  "challenge" | "user" | "excludeCredentials"
+> {
+  challenge: string;
+  user: Omit<PublicKeyCredentialUserEntity, "id"> & { id: string };
+  excludeCredentials?: CredentialDescriptorJSON[];
+}
+
+/** The server owns enrollment eligibility and verifies the authenticator response. */
+export async function registerPasskey(
+  fetchImpl: typeof fetch,
+  csrfToken: string,
+  flowId: string,
+  name: string,
+): Promise<void> {
+  if (!globalThis.PublicKeyCredential || !navigator.credentials) {
+    throw new Error("This browser cannot register a passkey.");
+  }
+  const headers = { "content-type": "application/json", "x-bfb-csrf": csrfToken };
+  const optionsResponse = await fetchImpl("/auth/passkeys/enroll/options", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ flow_id: flowId, name }),
+  });
+  if (!optionsResponse.ok) {
+    throw new Error(
+      await errorMessage(optionsResponse, "Passkey enrollment expired. Start again."),
+    );
+  }
+  const payload = (await optionsResponse.json()) as { options: CreationOptionsJSON };
+  const { excludeCredentials, ...options } = payload.options;
+  const publicKey = {
+    ...options,
+    challenge: decodeBase64Url(payload.options.challenge),
+    user: { ...payload.options.user, id: decodeBase64Url(payload.options.user.id) },
+    ...(excludeCredentials
+      ? {
+          excludeCredentials: excludeCredentials.map((credential) => ({
+            ...credential,
+            id: decodeBase64Url(credential.id),
+          })),
+        }
+      : {}),
+  };
+  const credential = (await navigator.credentials.create({
+    publicKey,
+  })) as PublicKeyCredential | null;
+  if (!credential) throw new Error("Passkey registration was cancelled.");
+  const attestation = credential.response as AuthenticatorAttestationResponse;
+  const verification = await fetchImpl("/auth/passkeys/enroll/verify", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      flow_id: flowId,
+      response: {
+        id: credential.id,
+        rawId: encodeBase64Url(credential.rawId),
+        type: credential.type,
+        authenticatorAttachment: credential.authenticatorAttachment,
+        clientExtensionResults: credential.getClientExtensionResults(),
+        response: {
+          clientDataJSON: encodeBase64Url(attestation.clientDataJSON),
+          attestationObject: encodeBase64Url(attestation.attestationObject),
+          transports: attestation.getTransports?.() ?? [],
+        },
+      },
+    }),
+  });
+  if (!verification.ok) {
+    throw new Error(await errorMessage(verification, "Passkey was not registered. Start again."));
+  }
+  const result = (await verification.json()) as { passkey?: { id?: string } };
+  if (typeof result.passkey?.id !== "string" || !result.passkey.id) {
+    throw new Error("The server did not confirm passkey registration.");
+  }
+}

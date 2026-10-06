@@ -12,6 +12,7 @@ import { TaskComposer, WorkMutations } from "./work/mutations.js";
 import { RunnerOperations } from "./launch/operations.js";
 import { WorkspaceSettings } from "./settings.js";
 import { RunnerEnrollmentPage } from "./runner-enrollment.js";
+import { OnboardingPage, SecurityPage } from "./auth/onboarding.js";
 
 export interface AppShellProps {
   /** Test injection; production loads from /auth/session + browser APIs. */
@@ -74,7 +75,16 @@ function titleCase(value: string): string {
 export function AppShell(props: AppShellProps = {}) {
   const fetchFn = props.fetchImpl ?? fetch;
   const [path, setPath] = useState(
-    () => props.initialPath ?? (typeof window !== "undefined" ? window.location.pathname : "/"),
+    () =>
+      props.initialPath?.split("?")[0] ??
+      (typeof window !== "undefined" ? window.location.pathname : "/"),
+  );
+  const [search, setSearch] = useState(() =>
+    props.initialPath?.includes("?")
+      ? props.initialPath.slice(props.initialPath.indexOf("?"))
+      : typeof window === "undefined"
+        ? ""
+        : window.location.search,
   );
   const [hash, setHash] = useState(() =>
     typeof window === "undefined" ? "" : window.location.hash,
@@ -106,6 +116,7 @@ export function AppShell(props: AppShellProps = {}) {
     const onPopState = () => {
       setPath(window.location.pathname);
       setHash(window.location.hash);
+      setSearch(window.location.search);
     };
     window.addEventListener("popstate", onPopState);
     window.addEventListener("hashchange", onPopState);
@@ -205,7 +216,8 @@ export function AppShell(props: AppShellProps = {}) {
   }, [reloadBoard, route.workspaceSlug, workspace, workspaces.length]);
 
   function navigate(nextPath: string): void {
-    setPath(nextPath);
+    setPath(nextPath.split("?")[0]!);
+    setSearch(nextPath.includes("?") ? nextPath.slice(nextPath.indexOf("?")) : "");
     setSelectedTaskId(null);
     setShowComposer(false);
     if (typeof window !== "undefined") {
@@ -298,6 +310,42 @@ export function AppShell(props: AppShellProps = {}) {
     );
   }
 
+  if (path === "/onboarding") {
+    return (
+      <OnboardingPage
+        fetchImpl={fetchFn}
+        csrfToken={csrfToken}
+        search={search}
+        navigate={navigate}
+      />
+    );
+  }
+  if (path === "/settings/security") {
+    return (
+      <SecurityPage fetchImpl={fetchFn} csrfToken={csrfToken} search={search} navigate={navigate} />
+    );
+  }
+  if (workspaces.length === 0 && !offline) {
+    return (
+      <main className="sign-in-shell">
+        <section className="sign-in-panel">
+          <p className="brand-mark">BFB</p>
+          <h1>No workspace access yet</h1>
+          <p>
+            Accept an invitation from your team, or use the operator’s one-time code to create the
+            first workspace.
+          </p>
+          <button type="button" className="button-primary" onClick={() => navigate("/onboarding")}>
+            Set up first workspace
+          </button>
+          <button type="button" className="button-quiet" onClick={() => void signOut()}>
+            Sign out
+          </button>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className={`app-shell${selectedTaskId ? " has-sheet" : ""}`}>
       <a className="skip-link" href="#needs-now">
@@ -335,6 +383,17 @@ export function AppShell(props: AppShellProps = {}) {
             <strong data-testid="current-human">{human.display_name}</strong>
             <span data-testid="current-role">{board?.role ?? workspace?.role ?? "member"}</span>
           </div>
+          <button
+            type="button"
+            className="button-quiet"
+            onClick={() =>
+              navigate(
+                `/settings/security${workspace ? `?workspace=${encodeURIComponent(workspace.slug)}` : ""}`,
+              )
+            }
+          >
+            Account security
+          </button>
           <button type="button" className="button-quiet" onClick={() => void signOut()}>
             Sign out
           </button>

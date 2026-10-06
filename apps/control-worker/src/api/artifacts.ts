@@ -39,6 +39,8 @@ export interface ArtifactApiDeps {
   appOrigin: string;
   abuseSecret: string;
   workspaceHubNs?: DurableObjectNamespace | undefined;
+  artifactViewerEnabled?: boolean;
+  artifactReviewEnabled?: boolean;
 }
 
 function response(body: unknown, status = 200): Response {
@@ -112,12 +114,16 @@ export async function handleArtifactBrowserApi(
     const prefix = `/api/v1/workspaces/${deps.workspaceId}/artifacts`;
     if (!path.startsWith(prefix)) return rejected();
     if (/^\/api\/v1\/workspaces\/[^/]+\/artifacts\/[^/]+\/views$/.test(path)) {
+      if (deps.artifactViewerEnabled !== true)
+        return response({ ok: false, error: "feature_unavailable" }, 404);
       return handleArtifactViewGrantApi(request, deps);
     }
     if (
       /^\/api\/v1\/workspaces\/[^/]+\/artifacts\/[^/]+\/reviews$/.test(path) ||
       (request.method === "GET" && (path === prefix || path === `${prefix}/`))
     ) {
+      if (deps.artifactReviewEnabled !== true)
+        return response({ ok: false, error: "feature_unavailable" }, 404);
       return handleArtifactReviewApi(request, deps);
     }
     const principal = await loadPrincipal(deps.db, deps.workspaceId, deps.principal.humanId);
