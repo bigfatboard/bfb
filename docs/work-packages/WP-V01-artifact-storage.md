@@ -1,12 +1,12 @@
 # WP-V01 — Artifact storage state machine
 
-Status: `in_progress`
+Status: `done`
 
 Risk: High
 
 Test target: `pnpm test:v01`
 
-Evidence manifest: `docs/work-packages/evidence/WP-V01/manifest.json`
+Evidence manifest: `docs/work-packages/evidence/WP-V01/runtime-manifest.json`
 
 ## Outcome
 
@@ -84,8 +84,9 @@ daemon-owned authority and scoped files, not caller-selected cloud credentials.
 - `pnpm test:v01`: domain authority/recovery/audit tests, mounted routes,
   real-Worker D1/R2 fault harness, migration/protocol checks, Go race tests,
   compiled MCP/fresh CLI and signed native runtime proof on macOS.
-- `docs/work-packages/evidence/WP-V01/manifest.json`: bounded, redacted
-  evidence for the tested commit.
+- `docs/work-packages/evidence/WP-V01/runtime-manifest.json`: bounded,
+  redacted current-runtime evidence for the tested commit. Historical
+  `manifest.json` remains unchanged and separately scoped.
 
 ## Work plan
 
@@ -157,7 +158,19 @@ exact-gate certification. Historical manifests are retained without relabelling.
 
 ## Evidence
 
-- `docs/work-packages/evidence/WP-V01/manifest.json` (schema-conformant):
+- [Current runtime manifest](evidence/WP-V01/runtime-manifest.json) at
+  `663dbdb9362cbc4f941bc052403f42b0bcd725e1`:
+  [command outcomes](evidence/WP-V01/runtime-command-result.json) and
+  [acceptance boundaries](evidence/WP-V01/runtime-acceptance.md).
+  Clean exact V01 passes 1,123 protocol cases, 213 focused cases, nine Go
+  race-tested packages, real two-isolate D1/R2 proof and signed compiled
+  native proof. Full verification passes 2,814 TypeScript tests in 141
+  files, Go checks and 16 Swift tests without platform skips. Exact
+  A01–A04/L08, Linux cross-build and clean-worktree checks also pass on
+  the same source. Initial stale migration-fixture and missing shared
+  cache failures, scoped repair/retry and final outcomes are retained.
+- Historical `docs/work-packages/evidence/WP-V01/manifest.json`
+  (schema-conformant, unchanged):
   `command-result.json` (install, build, `test:v01`, `verify`,
   `worktree:check` outcomes for the tested commit),
   `fault-matrix.md` (every acceptance bullet mapped to its failing-first
@@ -189,14 +202,24 @@ exact-gate certification. Historical manifests are retained without relabelling.
 
 ## Handoff
 
-- Runtime integration active 6 October after A04 certification at `a7a763c`.
+- Runtime certified 6 October at `663dbdb`: all eleven clean candidate
+  commands pass, with evidence committed separately from the tested source.
+  `V01_NATIVE_PROOF_COMPLETE` took 137.80 seconds; actual compiled MCP and
+  fresh bound CLI verify exact publication, lost-reply/restart recovery,
+  offline refusal and current authority. A04's shared Go-cache and Chromium
+  failures were environmental: a dedicated cache/browser installation and
+  complete unchanged-source rerun pass. Their causes are not attributed to
+  a particular external actor. No Terminal, live provider, viewer/review,
+  human-CLI parity, remote parity, running MVP or deployment is certified.
+- Historical activation, 6 October after A04 certification at `a7a763c`:
   Required A01/C01/C04/F03 packages are `done`. Reproduced or code-confirmed
   gaps include restricted-project regrant/finalize access, timestamp-based
   consume correlation, ignored R2 conditional `null`, absent local MCP
   publication and incompatible historical browser-auth client assumptions.
   Direct upload-grant consumption is an explicit architecture exception;
   immutable upload bookkeeping and audit projection need precise documentation.
-  No new V01 runtime acceptance or downstream certification is claimed yet.
+  Runtime acceptance was pending at that checkpoint; the certificate above
+  closes V01 only. Downstream packages require their own revalidation.
 - Dependency hold, 5 October: A01 is reopened for its missing production online/replay path. This implementation and historical isolated acceptance are retained; their tests have not been declared failed. Re-certification and settlement wait for A01 runtime acceptance and affected integration checks. The dated status below is historical, not the current package state.
 - Settled 18 September: `done`. A01 is `done`, and `pnpm test:v01` passed in a detached clean checkout at `9372c0f` (install, build, exact target ending `V01_D1_OK` with Go race tests).
 - Run `pnpm test:v01` (toolchain: Node 24.19.0, pnpm 11.21.0, Go 1.26.5;

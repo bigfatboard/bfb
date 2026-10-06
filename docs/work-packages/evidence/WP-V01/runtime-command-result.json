@@ -1,0 +1,256 @@
+{
+  "package": "V01",
+  "recorded_on": "2026-10-06",
+  "tested_commit": "663dbdb9362cbc4f941bc052403f42b0bcd725e1",
+  "outcome": "passed",
+  "package_acceptance_complete": true,
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56)",
+    "architecture": "arm64",
+    "cloud": "Local real Control and Artifact Workers, WorkspaceHub, D1 and disposable R2",
+    "native": "Compiled MCP/fresh bound CLI, development-signed daemon, Keychain enrollment, synthetic provider-shaped process, genuine held flock and request-bound runner possession"
+  },
+  "migrations": {
+    "d1": "0043_agent_artifact_publications",
+    "daemon": "011_measurement_telemetry",
+    "agent_journal": "014_result_journal"
+  },
+  "clean_commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "exit_code": 0,
+      "tested_commit": "663dbdb9362cbc4f941bc052403f42b0bcd725e1"
+    },
+    {
+      "command": "pnpm exec tsc -b --force --pretty false",
+      "exit_code": 0,
+      "tested_commit": "663dbdb9362cbc4f941bc052403f42b0bcd725e1"
+    },
+    {
+      "command": "pnpm test:v01",
+      "exit_code": 0,
+      "tested_commit": "663dbdb9362cbc4f941bc052403f42b0bcd725e1",
+      "protocol_cases": 1123,
+      "protocol_files": 10,
+      "focused_cases": 213,
+      "focused_files": 12,
+      "native_seconds": 137.8,
+      "proof": "V01_NATIVE_PROOF_COMPLETE",
+      "real_storage": "V01_D1_OK",
+      "go_race_checks": "passed"
+    },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "tested_commit": "663dbdb9362cbc4f941bc052403f42b0bcd725e1",
+      "typescript_cases": 2814,
+      "typescript_files": 141,
+      "go": "passed",
+      "swift": "passed",
+      "platform_checks_skipped": false,
+      "swift_cases": 16
+    },
+    {
+      "command": "pnpm test:a01",
+      "exit_code": 0,
+      "tested_commit": "663dbdb9362cbc4f941bc052403f42b0bcd725e1",
+      "protocol_cases": 1123,
+      "focused_cases": 435,
+      "focused_files": 12,
+      "go_race_checks": "passed",
+      "compiled_stdio": "passed",
+      "native_proof": "A01_NATIVE_PROOF_COMPLETE",
+      "native_test_seconds": 205.04,
+      "browser_cases": 1
+    },
+    {
+      "command": "pnpm test:a02",
+      "exit_code": 0,
+      "tested_commit": "663dbdb9362cbc4f941bc052403f42b0bcd725e1",
+      "protocol_cases": 1123,
+      "focused_cases": 85,
+      "focused_files": 6,
+      "go_race_checks": "passed",
+      "real_d1": "passed",
+      "deterministic_evidence_cases": 7,
+      "compiled_stdio": "passed",
+      "native_proof": "A02_NATIVE_PROOF_COMPLETE",
+      "native_test_seconds": 93.26,
+      "browser_cases": 3,
+      "full_wait_seconds": 30,
+      "full_wait_actual_reads": 26
+    },
+    {
+      "command": "pnpm test:a03",
+      "exit_code": 0,
+      "tested_commit": "663dbdb9362cbc4f941bc052403f42b0bcd725e1",
+      "protocol_cases": 1123,
+      "focused_cases": 177,
+      "focused_files": 12,
+      "go_race_checks": "passed",
+      "real_d1_human_command_checks": 10,
+      "deterministic_evidence_cases": 8,
+      "actual_binary_cli": "passed",
+      "native_proof": "A03_NATIVE_PROOF_COMPLETE",
+      "native_test_seconds": 195.37,
+      "browser_cases": 1,
+      "historical_evidence": "0040 certified artifacts preserved; current harness validates applied0043 schema"
+    },
+    {
+      "command": "pnpm test:a04",
+      "exit_code": 0,
+      "tested_commit": "663dbdb9362cbc4f941bc052403f42b0bcd725e1",
+      "protocol_cases": 1123,
+      "focused_cases": 138,
+      "focused_files": 11,
+      "go_race_checks": "passed",
+      "real_d1_steps": 13,
+      "deterministic_evidence_cases": 5,
+      "native_proof": "A04_NATIVE_PROOF_COMPLETE",
+      "native_test_seconds": 75.41,
+      "browser_cases": 3
+    },
+    {
+      "command": "pnpm test:l08",
+      "exit_code": 0,
+      "tested_commit": "663dbdb9362cbc4f941bc052403f42b0bcd725e1",
+      "protocol_cases": 1123,
+      "focused_cases": 59,
+      "focused_files": 4,
+      "go_race_checks": "passed",
+      "signed_two_workspace_channel": "passed",
+      "native_test_seconds": 46.69,
+      "enrollment_browser_cases": 1
+    },
+    {
+      "command": "GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./...",
+      "exit_code": 0,
+      "tested_commit": "663dbdb9362cbc4f941bc052403f42b0bcd725e1"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "exit_code": 0,
+      "tested_commit": "663dbdb9362cbc4f941bc052403f42b0bcd725e1"
+    }
+  ],
+  "storage_checks": {
+    "created": 1,
+    "uploaded": 1,
+    "r2_confirmed": 1,
+    "finalized": 1,
+    "current_project_authority_rejected": 1,
+    "replay_rejected": 1,
+    "wrong_secret_rejected": 1,
+    "unknown_grant_rejected": 1,
+    "missing_auth_rejected": 1,
+    "expiry_rejected": 1,
+    "revoked_upload_rejected": 1,
+    "revoked_finalize_rejected": 1,
+    "reviewer_create_rejected": 1,
+    "reviewer_finalize_rejected": 1,
+    "foreign_workspace_rejected": 1,
+    "size_rejected": 1,
+    "digest_rejected": 1,
+    "mime_rejected": 1,
+    "oversize_rejected": 1,
+    "log_role_rejected": 1,
+    "log_chunk_uploaded": 1,
+    "log_chunk_finalized": 1,
+    "same_hash_race_converged": 1,
+    "two_grant_receipt_single_source_outbox": 1,
+    "same_timestamp_single_consume": 1,
+    "same_timestamp_body_reads": 1,
+    "same_timestamp_r2_puts": 1,
+    "r2_null_checksum_conflict_rejected": 1,
+    "budget_exhausted": 1,
+    "budget_isolated_by_ip": 1,
+    "consumed_fresh_grant_protected": 1,
+    "sweep_marked": 1,
+    "audit_concurrent_single_projection": 1,
+    "audit_lost_reply_cache_loss_single_projection": 1,
+    "audit_late_fault_atomic_retry": 1,
+    "audit_private_payload_excluded": 1,
+    "scan_clean": 1,
+    "r2Objects": 4,
+    "abuseBuckets": 104
+  },
+  "proof_markers": ["V01_D1_OK", "V01_NATIVE_PROOF_COMPLETE"],
+  "evidence_scopes": {
+    "protocol": "Separate closed local-agent-artifact-rpc/6; global bfb-wire/1 and frozen v1-v5 fixtures unchanged",
+    "native": "Actual compiled MCP/fresh bound CLI to signed daemon and real local Worker/Hub/D1/R2; exact bytes, current authority and explicit recovery",
+    "file_races": "Focused secure-reader tests complement native path/alias negatives",
+    "connection_fences": "Connected TLS unit tests distinguish actual RunnerConnection identity and protected epochs from ordinary token renewal; not a live-WebSocket revocation-event proof",
+    "storage": "Real two-isolate upload proof plus mounted/domain boundary faults and additive migration checks",
+    "audit": "Bounded upload-only actions through Hub; atomic redacted source-bound projection, late rollback and lost-reply/cache-loss convergence",
+    "downstream": "Existing non-available viewer/review unit negatives pass in full verification; no descendant browser certificate",
+    "offline": "No artifact journal, spool or automatic replay; bounded 4.2-second native no-auto-send observation plus source and regression tests"
+  },
+  "resolved_regressions": [
+    {
+      "issue": "The first native integration fixture exceeded the existing 20-per-minute session-bind budget",
+      "resolution": "Fixture-only real-clock pacing preserves the production budget and the signed-route 20/21 boundary test",
+      "fix_commit": "55387bf",
+      "passing_development_native_seconds": 138.74
+    },
+    {
+      "issue": "Full verification on the initial clean candidate assumed measurements migration 0041 was still the latest migration",
+      "failed_commit": "ba2c4bde564acf592133bf764d78a9db0c1a32bf",
+      "resolution": "Test-only fix explicitly proves 0040-to-0041 preservation, applies all later migrations and repeats preserved-row/foreign-key checks; fresh-current comparison remains",
+      "fix_commit": "663dbdb",
+      "failing_first_reproduced": true
+    },
+    {
+      "issue": "Initial exact A04 regression failed during nested fixture compilation because shared Go build-cache entries disappeared",
+      "failed_commit": "663dbdb9362cbc4f941bc052403f42b0bcd725e1",
+      "resolution": "Fresh dedicated GOCACHE; seven formerly failing supervisor tests passed uncached in 16.671 seconds, followed by the complete exact A04 and remaining gates on unchanged source",
+      "source_change": false,
+      "shared_cache_removal_cause": "not determined"
+    },
+    {
+      "issue": "The isolated-Go retry passed its native proof but the browser stage could not launch because the shared pinned Chromium executable was absent",
+      "failed_commit": "663dbdb9362cbc4f941bc052403f42b0bcd725e1",
+      "resolution": "Restored Playwright 1.55.1 pinned Chromium revision 1193 into a task-local browser directory; all three browser reproducer cases and the complete exact A04 gate passed on unchanged source",
+      "source_change": false,
+      "passed_native_seconds_before_browser_failure": 75.58
+    }
+  ],
+  "not_claimed": [
+    "Terminal automation, AppleScript, System Events or a new full L05 launch/PTY handoff certificate",
+    "Live Claude/Codex turns, current provider-version capabilities or production agent-to-agent delivery",
+    "Enabling offline business permission in any real workspace",
+    "Human CLI credential publication parity, remote MCP parity, viewer or immutable review recertification",
+    "Private-task ACLs, canonical project knowledge, skill catalogs, shared business secrets or core light/dark redesign",
+    "Cross-device pilot, complete running MVP, release readiness, push or deployment"
+  ],
+  "redaction": {
+    "status": "passed",
+    "raw_logs_committed": false,
+    "prohibited_content": []
+  },
+  "supplemental_checks": [
+    {
+      "command": "go test -count=1 ./internal/supervisor -run '^(TestNativeProviderImageAcrossExec|TestImageRejectsProcessAndSourceRaces|TestLaunchQueueOffersOnlyOnceAcrossRestartAndExpiredCleanup|TestLaunchQueueLostClaimReplyUsesOriginalRequestWithoutLocalEffect|TestExecutionCheckoutReturnsFreshGitFactsWithoutPersistingThem|TestLaunchPreflightFailuresBlockBeforeExecution|TestLaunchRestartRevalidatesFrozenSourcesBeforeProbing)$'",
+      "exit_code": 0,
+      "tested_commit": "663dbdb9362cbc4f941bc052403f42b0bcd725e1",
+      "cases": 7,
+      "seconds": 16.671,
+      "environment": "Fresh task-local GOCACHE"
+    },
+    {
+      "command": "pnpm exec playwright install chromium",
+      "exit_code": 0,
+      "tested_commit": "663dbdb9362cbc4f941bc052403f42b0bcd725e1",
+      "playwright": "1.55.1",
+      "chromium": "140.0.7339.186",
+      "chromium_revision": "1193",
+      "environment": "Task-local PLAYWRIGHT_BROWSERS_PATH"
+    },
+    {
+      "command": "BFB_E2E_PORT=4187 pnpm exec playwright test apps/web/test/e2e/a04-measurements.spec.ts --config tools/e2e/playwright.config.ts",
+      "exit_code": 0,
+      "tested_commit": "663dbdb9362cbc4f941bc052403f42b0bcd725e1",
+      "browser_cases": 3
+    }
+  ]
+}
