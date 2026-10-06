@@ -16,6 +16,7 @@ import {
   encodeRunnerToken,
   FIX,
   notificationJobId,
+  prepareSyntheticAttentionClaim,
   purgeRevokedNotificationState,
   randomUlid,
   runnerChallengeTranscript,
@@ -31,6 +32,7 @@ import {
   type RunnerTokenClaims,
 } from "@bfb/domain";
 import { createTestHarness } from "wrangler";
+import type { AgentBoundRequest, LaunchClaimResult } from "@bfb/protocol";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const now = new Date().toISOString();
@@ -355,7 +357,7 @@ async function execute<T>(
         workspaceId: FIX.workspace,
         idempotencyKey: `x01-${sequence++}-${Date.now()}`,
         authorizationEpoch: 1,
-        now,
+        now: new Date().toISOString(),
         ...actor,
         input,
       },
@@ -584,13 +586,14 @@ function checkoutEntry(id: string, worktreeHash: string, isDefault: boolean) {
 }
 
 function providerEntry() {
+  const observedAt = new Date().toISOString();
   return {
     provider: "fake",
     version: "1.0.0",
     manifest_id: digest,
     status: "healthy",
-    observed_at: now,
-    expires_at: new Date(Date.parse(now) + 30_000).toISOString(),
+    observed_at: observedAt,
+    expires_at: new Date(Date.parse(observedAt) + 30_000).toISOString(),
     capabilities: [
       "launch.interactive",
       "filesystem.read_only",
@@ -708,10 +711,19 @@ interface ClaimedRun {
   runId: string;
   executionId: string;
   generation: number;
+  bound: AgentBoundRequest | undefined;
+}
+
+function boundRequest(run: ClaimedRun): AgentBoundRequest {
+  assert(run.bound, "synthetic request requires a confirmed session");
+  return {
+    ...run.bound,
+    reference: { ...run.bound.reference, request_id: randomUlid() },
+  };
 }
 
 let runSequence = 0;
-async function newClaimedRun(title: string): Promise<ClaimedRun> {
+async function newClaimedRun(title: string, bindSession = true): Promise<ClaimedRun> {
   runSequence += 1;
   const task = await human<{ id: string }>("task.create", {
     projectId: FIX.projectA,
@@ -741,9 +753,7 @@ async function newClaimedRun(title: string): Promise<ClaimedRun> {
   });
   const claimed = await native<{
     state: string;
-    claim: {
-      specification: { run_id: string; run_execution_id: string; assignment_generation: number };
-    };
+    claim: LaunchClaimResult;
   }>(
     "launch.claim",
     {
@@ -753,18 +763,29 @@ async function newClaimedRun(title: string): Promise<ClaimedRun> {
         launch_id: launch.launch_id,
         runner_id: runnerId,
         idempotency_key: randomUlid(),
-        claimed_at: now,
+        claimed_at: new Date().toISOString(),
       },
     },
     runnerId,
   );
   assert.equal(claimed.state, "claimed");
+  // This existing fixture executes domain transitions only. No native process,
+  // provider credential, real checkout or possession proof is involved.
+  const bound = bindSession
+    ? await prepareSyntheticAttentionClaim(
+        (name, input) => native(name, input, runnerId),
+        principal,
+        claimed.claim,
+        new Date().toISOString(),
+      )
+    : undefined;
   return {
     taskId: task.id,
     launchId: launch.launch_id,
     runId: claimed.claim.specification.run_id,
     executionId: claimed.claim.specification.run_execution_id,
     generation: claimed.claim.specification.assignment_generation,
+    bound,
   };
 }
 
@@ -922,12 +943,12 @@ try {
     "attention.request",
     {
       principal,
-      runId: runA.runId,
-      executionId: runA.executionId,
-      assignmentGeneration: runA.generation,
-      kind: "clarification",
-      question: `Synthetic X01 question ${CANARIES[0]} ${CANARIES[1]}`,
-      blocking: true,
+      request: {
+        ...boundRequest(runA),
+        kind: "clarification",
+        question: `Synthetic X01 question ${CANARIES[0]} ${CANARIES[1]}`,
+        blocking: true,
+      },
     },
     runnerId,
   );
@@ -1008,7 +1029,13 @@ try {
   const runB = await newClaimedRun("Synthetic X01 review flow");
   await native(
     "result.submit",
-    { runId: runB.runId, summary: `Synthetic X01 summary ${CANARIES[2]} ${CANARIES[3]}` },
+    {
+      principal,
+      request: {
+        ...boundRequest(runB),
+        summary: `Synthetic X01 summary ${CANARIES[2]} ${CANARIES[3]}`,
+      },
+    },
     runnerId,
   );
   const submitBefore = pushPosts.length;
@@ -1057,7 +1084,10 @@ try {
   const runD = await newClaimedRun("Synthetic X01 changes flow");
   await native(
     "result.submit",
-    { runId: runD.runId, summary: "Synthetic X01 changes summary" },
+    {
+      principal,
+      request: { ...boundRequest(runD), summary: "Synthetic X01 changes summary" },
+    },
     runnerId,
   );
   await dispatchNew();
@@ -1096,7 +1126,7 @@ try {
   console.log("X01_RESULTS_OK submit, accept, fail, changes, and cancelled defaults");
 
   // S5: launch blocked notifies with a run deep link.
-  const runF = await newClaimedRun("Synthetic X01 blocked flow");
+  const runF = await newClaimedRun("Synthetic X01 blocked flow", false);
   await native(
     "launch.reject",
     {
@@ -1176,12 +1206,12 @@ try {
     "attention.request",
     {
       principal,
-      runId: runG.runId,
-      executionId: runG.executionId,
-      assignmentGeneration: runG.generation,
-      kind: "blocker",
-      question: "Synthetic X01 post-revocation question",
-      blocking: true,
+      request: {
+        ...boundRequest(runG),
+        kind: "blocker",
+        question: "Synthetic X01 post-revocation question",
+        blocking: true,
+      },
     },
     runnerId,
   );
@@ -1208,12 +1238,12 @@ try {
     "attention.request",
     {
       principal,
-      runId: runH.runId,
-      executionId: runH.executionId,
-      assignmentGeneration: runH.generation,
-      kind: "blocker",
-      question: "Synthetic X01 poison question",
-      blocking: true,
+      request: {
+        ...boundRequest(runH),
+        kind: "blocker",
+        question: "Synthetic X01 poison question",
+        blocking: true,
+      },
     },
     runnerId,
   );
@@ -1254,12 +1284,12 @@ try {
     "attention.request",
     {
       principal,
-      runId: runI.runId,
-      executionId: runI.executionId,
-      assignmentGeneration: runI.generation,
-      kind: "blocker",
-      question: "Synthetic X01 expired question",
-      blocking: true,
+      request: {
+        ...boundRequest(runI),
+        kind: "blocker",
+        question: "Synthetic X01 expired question",
+        blocking: true,
+      },
     },
     runnerId,
   );
@@ -1295,26 +1325,29 @@ try {
   }
   console.log("X01_REDACTION_OK no prohibited content in payloads, links, or DLQ copies");
 
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(
-    path.resolve(evidenceDir, "recording.jsonl"),
-    `${recording.join("\n")}\n`,
-    "utf8",
-  );
-  record("harness_complete", {});
-  console.log("X01_HARNESS_OK all notification scenarios passed");
-} catch (error) {
-  recording.push(JSON.stringify({ event: "harness_failed", error: String(error).slice(0, 500) }));
-  try {
+  // A current-schema regression must not replace the dated X01 certificate.
+  // Its owning package records separate bounded acceptance evidence instead.
+  if (manifest.migration_head === "0030_notifications") {
     await mkdir(evidenceDir, { recursive: true });
     await writeFile(
       path.resolve(evidenceDir, "recording.jsonl"),
       `${recording.join("\n")}\n`,
       "utf8",
     );
-  } catch {
-    // Evidence best-effort on failure; the thrown error stays authoritative.
   }
+  record("harness_complete", {});
+  console.log(
+    JSON.stringify({
+      schema_version: 1,
+      migration_head: manifest.migration_head,
+      checks: recording.map((entry) => JSON.parse(entry).event),
+      outcome: "passed",
+    }),
+  );
+  console.log("X01_HARNESS_OK all notification scenarios passed");
+} catch (error) {
+  recording.push(JSON.stringify({ event: "harness_failed", error: String(error).slice(0, 500) }));
+  // Failure is logged by the command runner; never overwrite settled evidence.
   throw error;
 } finally {
   server.close();

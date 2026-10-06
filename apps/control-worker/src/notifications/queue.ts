@@ -144,8 +144,10 @@ export async function handleNotifyMessage(
     const plaintext = new TextEncoder().encode(JSON.stringify(payload));
     let delivered = false;
     let retryableCode: string | null = null;
+    let deniedOutcome: DeliveryOutcome | null = null;
     for (const target of loaded.endpoints) {
       let status: number;
+      let endpointGone = false;
       try {
         const sent = await sendPushMessage(
           {
@@ -157,12 +159,42 @@ export async function handleNotifyMessage(
             ttlSeconds: PUSH_TTL_SECONDS,
             nowMs: Date.parse(now),
           },
-          fetchImpl,
+          (async (url, init) => {
+            // Encryption/signing await WebCrypto; authority must be fresh at the actual contact boundary.
+            const fresh = await loadPushAttempt(db, {
+              workspaceId: body.workspace_id,
+              deliveryId: row.delivery_id,
+              access: loaded.access,
+            });
+            if (!fresh.ok) {
+              deniedOutcome = fresh.outcome;
+              throw new Error("notification contact denied");
+            }
+            if (JSON.stringify(fresh.subject) !== JSON.stringify(loaded.subject)) {
+              deniedOutcome = { terminal: true, state: "suppressed", code: "out_of_scope" };
+              throw new Error("notification contact denied");
+            }
+            if (
+              !fresh.endpoints.some(
+                (endpoint) =>
+                  endpoint.endpoint_hash === target.endpoint_hash &&
+                  endpoint.endpoint === target.endpoint &&
+                  endpoint.p256dh === target.p256dh &&
+                  endpoint.auth === target.auth,
+              )
+            ) {
+              endpointGone = true;
+              throw new Error("notification endpoint changed");
+            }
+            return fetchImpl(url, init);
+          }) as typeof fetch,
         );
         status = sent.status;
       } catch {
         status = 0;
       }
+      if (deniedOutcome) break;
+      if (endpointGone) continue;
       if (status === 200 || status === 201) {
         delivered = true;
         break;
@@ -185,6 +217,15 @@ export async function handleNotifyMessage(
           now,
         });
       }
+    }
+    if (deniedOutcome) {
+      await recordDeliveryOutcome(db, {
+        workspaceId: body.workspace_id,
+        deliveryId: row.delivery_id,
+        outcome: deniedOutcome,
+        now,
+      });
+      continue;
     }
     if (delivered) {
       await recordDeliveryOutcome(db, {

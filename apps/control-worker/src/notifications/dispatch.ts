@@ -2,7 +2,11 @@
 // ABOUTME: Sends carry stable job IDs over an idempotent consumer, so redelivery converges safely.
 
 import type { SqlDatabase } from "@bfb/db";
-import { notificationJobId, selectNotificationEvent } from "@bfb/domain";
+import {
+  notificationJobId,
+  resolveNotificationSubject,
+  selectNotificationEvent,
+} from "@bfb/domain";
 
 import type { NotifyMessage } from "./queue.js";
 
@@ -57,7 +61,7 @@ export async function dispatchNotificationOutbox(
         payload = null;
       }
       const selected = payload ? selectNotificationEvent(row.kind, payload) : null;
-      if (selected) {
+      if (selected && (await resolveNotificationSubject(db, workspace.id, selected))) {
         const message: NotifyMessage = {
           schema_version: 1,
           job_id: notificationJobId(workspace.id, row.workspace_cursor),

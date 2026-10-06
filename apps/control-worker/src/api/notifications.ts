@@ -191,7 +191,13 @@ async function handleNotificationApiInner(
       throw new DomainError("invalid_argument", "limit is invalid");
     }
     return json({
-      deliveries: await listDeliveries(deps.db, deps.workspaceId, deps.principal.humanId, limit),
+      deliveries: await listDeliveries(
+        deps.db,
+        deps.workspaceId,
+        deps.principal.humanId,
+        limit,
+        principal,
+      ),
     });
   }
 

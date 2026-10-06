@@ -9,6 +9,7 @@ import { DomainError, type HubCommand } from "./hub.js";
 import { isUlid } from "./ids.js";
 import { loadPrincipal } from "./authorization.js";
 import { assertCurrentRunnerPrincipal, type RunnerPrincipal } from "./runners.js";
+import { sharedTaskPredicate, taskAccessPredicate, type TaskAccessContext } from "./task-access.js";
 
 export const NOTIFICATION_CHANNELS = ["browser_push", "macos"] as const;
 export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
@@ -180,7 +181,8 @@ export function selectNotificationEvent(
 /**
  * Stable delivery identity: retries of one queue message re-derive the same
  * ID, so redelivery converges on one logical effect per channel. The ID is
- * opaque and ULID-shaped so it passes the existing app-bridge validator.
+ * ULID-shaped for the existing app-bridge validator, but remains cursor-derived;
+ * it is not the recipient-safe opaque position required before private activation.
  */
 export function deriveDeliveryId(
   workspaceId: string,
@@ -547,27 +549,188 @@ export interface DeliveryRecord {
   delivered_at: string | null;
 }
 
+/** Project overrides precede workspace/default preferences in the current delivery selector. */
+function effectivePreferencePredicate(alias: string, projectSql: string) {
+  const defaults = NOTIFICATION_CATEGORIES.map(
+    (category) => `WHEN '${category}' THEN ${defaultPreference(category) ? 1 : 0}`,
+  ).join(" ");
+  return `COALESCE(
+    (SELECT enabled FROM notification_preferences AS notification_preference
+      WHERE (notification_preference.workspace_id = ${alias}.workspace_id AND notification_preference.human_id = ${alias}.human_id)
+        AND (notification_preference.project_id = ${projectSql} AND notification_preference.channel = ${alias}.channel
+        AND notification_preference.category = ${alias}.category)),
+    (SELECT enabled FROM notification_preferences AS notification_preference
+      WHERE (notification_preference.workspace_id = ${alias}.workspace_id AND notification_preference.human_id = ${alias}.human_id)
+        AND (notification_preference.project_id = '*' AND notification_preference.channel = ${alias}.channel
+        AND notification_preference.category = ${alias}.category)),
+    CASE ${alias}.category ${defaults} ELSE 0 END) = 1`;
+}
+
+/** Re-resolve stored receipts through the exact current run/task/project before delivery or LIMIT. */
+function deliveryPredicate(
+  alias: string,
+  access?: TaskAccessContext,
+  requireOpen = false,
+  runner?: RunnerPrincipal,
+  requirePreference = false,
+) {
+  const payload =
+    "CASE WHEN json_valid(notification_event.payload_json) THEN notification_event.payload_json ELSE '{}' END";
+  const field = (path: string) => `json_extract(${payload}, '$.${path}')`;
+  const taskAccess = access ? taskAccessPredicate(access, "read", "notification_task") : null;
+  // Private tasks are denied independently, including creator/grant recipients.
+  // Use the shared-only membership/project witness rather than nesting the
+  // kernel's inapplicable private-owner/grant branch under each delivery child.
+  const recipient = `EXISTS (
+    SELECT 1 FROM workspace_members AS notification_member
+    JOIN workspace_authorization_epochs AS notification_epoch
+      ON notification_epoch.workspace_id = notification_member.workspace_id
+     AND notification_epoch.human_id = notification_member.human_id
+     AND notification_epoch.authorization_epoch = notification_member.authorization_epoch
+     AND notification_epoch.revoked_at IS NULL
+    JOIN projects AS notification_project ON notification_project.workspace_id = notification_member.workspace_id
+     AND notification_project.id = notification_task.project_id
+    WHERE notification_member.workspace_id = ${alias}.workspace_id
+      AND notification_member.human_id = ${alias}.human_id
+      ${taskAccess ? `AND (notification_member.workspace_id = ? AND notification_member.human_id = ? AND notification_epoch.authorization_epoch = ?)` : ""}
+      AND notification_member.role IN ('owner', 'member', 'reviewer')
+      AND (notification_project.access_mode = 'workspace' OR EXISTS (
+        SELECT 1 FROM project_access AS notification_project_grant
+        WHERE notification_project_grant.workspace_id = notification_project.workspace_id
+          AND notification_project_grant.project_id = notification_project.id
+          AND notification_project_grant.human_id = notification_member.human_id)))`;
+  return {
+    sql: `EXISTS (
+      SELECT 1 FROM semantic_events AS notification_event
+      LEFT JOIN attention_requests AS notification_attention
+        ON notification_attention.workspace_id = notification_event.workspace_id
+       AND notification_event.kind = 'attention.request'
+       AND notification_attention.id = ${field("result.id")}
+      LEFT JOIN launch_commands AS notification_launch
+        ON notification_launch.workspace_id = notification_event.workspace_id
+       AND notification_event.kind IN ('launch.reject', 'launch.claim', 'launch.authorize')
+       AND notification_launch.id = CASE WHEN notification_event.kind = 'launch.authorize'
+         THEN ${field("result.launch_id")} ELSE ${field("input.launchId")} END
+      JOIN runs AS notification_run ON notification_run.workspace_id = notification_event.workspace_id
+       AND notification_run.id = CASE
+         WHEN notification_event.kind = 'attention.request' THEN notification_attention.run_id
+         WHEN notification_event.kind IN ('launch.reject', 'launch.claim', 'launch.authorize') THEN notification_launch.run_id
+         WHEN notification_event.kind = 'result.submit' THEN ${field("result.submission.run_id")}
+         ELSE COALESCE(${field("result.run_id")}, ${field("input.runId")}) END
+      JOIN tasks AS notification_task ON notification_task.workspace_id = notification_run.workspace_id
+       AND notification_task.id = notification_run.task_id AND notification_task.project_id = notification_run.project_id
+      WHERE (notification_event.workspace_id = ${alias}.workspace_id
+        AND notification_event.workspace_cursor = ${alias}.event_cursor AND notification_event.kind = ${alias}.event_kind)
+        AND (${sharedTaskPredicate("notification_task")} AND ${recipient})
+        ${requirePreference ? `AND ${effectivePreferencePredicate(alias, "notification_task.project_id")}` : ""}
+        ${
+          runner
+            ? `AND notification_task.project_id IN (SELECT value FROM json_each(?))
+          AND EXISTS (SELECT 1 FROM runner_project_grants AS notification_runner_grant
+            WHERE notification_runner_grant.workspace_id = notification_task.workspace_id
+              AND notification_runner_grant.runner_id = ?
+              AND notification_runner_grant.project_id = notification_task.project_id)`
+            : ""
+        }
+        AND (
+          (${alias}.category = 'attention' AND notification_event.kind = 'attention.request'
+            AND ${field("result.state")} = 'open'
+            AND notification_attention.task_id = notification_task.id
+            AND notification_attention.project_id = notification_task.project_id
+            ${requireOpen ? "AND notification_attention.state = 'open'" : ""})
+          OR (${alias}.category = 'launch_blocked' AND (
+            (notification_event.kind = 'launch.reject' AND ${field("result.state")} IN ('rejected', 'expired'))
+            OR (notification_event.kind = 'launch.claim' AND ${field("result.state")} IN ('rejected', 'expired')
+              AND ${field("result.reason")} IN ('launch_blocked', 'launch_expired'))
+            OR (notification_event.kind = 'launch.authorize' AND ${field("result.decision")} = 'rejected'
+              AND ${field("result.rejection.code")} IN ('launch_blocked', 'launch_expired'))))
+          OR (${alias}.category = 'result_submitted' AND notification_event.kind = 'result.submit'
+            AND ${field("result.taskState")} = 'review' AND ${field("result.submission.version")} >= 1)
+          OR (${alias}.category = 'result_changes_requested' AND notification_event.kind = 'result.request_changes'
+            AND ${field("result.runResultState")} = 'changes_requested')
+          OR (${alias}.category = 'result_accepted' AND notification_event.kind = 'result.accept'
+            AND ${field("result.runResultState")} = 'accepted')
+          OR (${alias}.category = 'run_failed' AND notification_event.kind = 'result.fail'
+            AND ${field("result.runResultState")} = 'failed')
+          OR (${alias}.category = 'run_cancelled' AND notification_event.kind = 'result.cancel'
+            AND ${field("result.runResultState")} = 'cancelled')
+        ))`,
+    parameters: [
+      ...(taskAccess?.parameters ?? []),
+      ...(runner ? [JSON.stringify(runner.projectIds), runner.runnerId] : []),
+    ],
+  };
+}
+
+/** The possessed principal is a ceiling; recheck its current token, runner, owner and project in SQL. */
+function nativeDeliveryPredicate(principal: RunnerPrincipal, now: string, alias: string) {
+  return {
+    sql: `((${alias}.channel = 'macos' AND ${alias}.human_id = ? AND ${alias}.runner_id = ?) AND EXISTS (
+      SELECT 1 FROM runners AS notification_runner
+      JOIN runner_tokens AS notification_token ON notification_token.workspace_id = notification_runner.workspace_id
+       AND notification_token.runner_id = notification_runner.id
+      WHERE ((notification_runner.workspace_id = ${alias}.workspace_id AND notification_runner.id = ${alias}.runner_id
+        AND notification_runner.owner_human_id = ${alias}.human_id AND notification_runner.revoked_at IS NULL)
+        AND (notification_runner.authorization_epoch = ? AND notification_runner.grant_epoch = ?
+        AND notification_runner.token_epoch = ? AND notification_runner.key_thumbprint = ?)
+        AND (notification_token.id = ? AND notification_token.revoked_at IS NULL
+        AND notification_token.expires_at = ? AND notification_token.expires_at > ?))
+        AND ((json_extract(notification_token.claims_json, '$.v') = 1
+        AND json_extract(notification_token.claims_json, '$.sub') = notification_runner.id
+        AND json_extract(notification_token.claims_json, '$.workspace_id') = notification_runner.workspace_id
+        AND json_extract(notification_token.claims_json, '$.aud') = 'bfb-runner'
+        AND json_extract(notification_token.claims_json, '$.jti') = notification_token.id)
+        AND (json_extract(notification_token.claims_json, '$.exp') = CAST(strftime('%s', notification_token.expires_at) AS INTEGER)
+        AND json_extract(notification_token.claims_json, '$.iat') <= CAST(strftime('%s', ?) AS INTEGER)
+        AND EXISTS (SELECT 1 FROM workspace_members AS native_member
+          WHERE native_member.workspace_id = notification_runner.workspace_id
+            AND native_member.human_id = notification_runner.owner_human_id AND native_member.role IN ('owner', 'member')))
+        AND (json_extract(notification_token.claims_json, '$.authorization_epoch') = notification_runner.authorization_epoch
+        AND json_extract(notification_token.claims_json, '$.owner_authorization_epoch') = ?
+        AND json_extract(notification_token.claims_json, '$.grant_epoch') = notification_runner.grant_epoch
+        AND json_extract(notification_token.claims_json, '$.token_epoch') = notification_runner.token_epoch
+        AND json_extract(notification_token.claims_json, '$.cnf.jkt') = notification_runner.key_thumbprint))))`,
+    parameters: [
+      principal.ownerHumanId,
+      principal.runnerId,
+      principal.authorizationEpoch,
+      principal.grantEpoch,
+      principal.tokenEpoch,
+      principal.keyThumbprint,
+      principal.tokenId,
+      principal.authExpiresAt,
+      now,
+      now,
+      principal.ownerAuthorizationEpoch,
+    ],
+  };
+}
+
 export async function listDeliveries(
   db: SqlDatabase,
   workspaceId: string,
   humanId: string,
   limit = 50,
+  access?: TaskAccessContext,
 ): Promise<DeliveryRecord[]> {
   const bounded = Number.isSafeInteger(limit) && limit >= 1 && limit <= 100 ? limit : 50;
+  if (access && (access.workspaceId !== workspaceId || access.humanId !== humanId)) return [];
+  const predicate = deliveryPredicate("notification_deliveries", access);
   const rows = (await db
     .prepare(
       `SELECT delivery_id, channel, human_id, runner_id, event_cursor, event_kind,
               category, state, attempt_count, last_error, created_at, updated_at, delivered_at
        FROM notification_deliveries
-       WHERE workspace_id = ? AND human_id = ? ORDER BY event_cursor DESC LIMIT ?`,
+       WHERE workspace_id = ? AND human_id = ? AND ${predicate.sql} ORDER BY event_cursor DESC LIMIT ?`,
     )
-    .all(workspaceId, humanId, bounded)) as DeliveryRecord[];
+    .all(workspaceId, humanId, ...predicate.parameters, bounded)) as DeliveryRecord[];
   return rows;
 }
 
 interface EligibleHuman {
   human_id: string;
   role: string;
+  authorization_epoch: number;
 }
 
 async function eligibleHumans(
@@ -577,7 +740,7 @@ async function eligibleHumans(
 ): Promise<EligibleHuman[]> {
   const rows = (await db
     .prepare(
-      `SELECT DISTINCT membership.human_id AS human_id, membership.role AS role
+      `SELECT DISTINCT membership.human_id AS human_id, membership.role AS role, epoch.authorization_epoch
        FROM workspace_members AS membership
        JOIN workspace_authorization_epochs AS epoch
          ON epoch.workspace_id = membership.workspace_id
@@ -599,20 +762,20 @@ async function eligibleHumans(
   return rows.slice(0, NOTIFICATION_MAX_RECIPIENTS);
 }
 
-async function humanProjectIds(
+async function humanAccess(
   db: SqlDatabase,
   workspaceId: string,
   humanId: string,
-): Promise<string[] | null> {
+): Promise<Awaited<ReturnType<typeof loadPrincipal>> | null> {
   try {
     const principal = await loadPrincipal(db, workspaceId, humanId);
-    return principal.projectIds;
+    return principal;
   } catch {
     return null;
   }
 }
 
-async function resolveSubject(
+export async function resolveNotificationSubject(
   db: SqlDatabase,
   workspaceId: string,
   selected: NotificationSubject,
@@ -620,8 +783,11 @@ async function resolveSubject(
   if (selected.category === "attention" && selected.attentionId) {
     const row = (await db
       .prepare(
-        `SELECT id, project_id, task_id, run_id FROM attention_requests
-         WHERE workspace_id = ? AND id = ? AND state = 'open'`,
+        `SELECT attention.id, attention.project_id, attention.task_id, attention.run_id FROM attention_requests AS attention
+         JOIN runs AS run ON run.workspace_id = attention.workspace_id AND run.id = attention.run_id
+          AND run.task_id = attention.task_id AND run.project_id = attention.project_id
+         JOIN tasks AS task ON task.workspace_id = run.workspace_id AND task.id = run.task_id AND task.project_id = run.project_id
+         WHERE attention.workspace_id = ? AND attention.id = ? AND attention.state = 'open' AND ${sharedTaskPredicate("task")}`,
       )
       .get(workspaceId, selected.attentionId)) as
       { id: string; project_id: string; task_id: string; run_id: string } | undefined;
@@ -639,7 +805,8 @@ async function resolveSubject(
         `SELECT command.run_id AS run_id, run.project_id AS project_id, run.task_id AS task_id
          FROM launch_commands AS command
          JOIN runs AS run ON run.workspace_id = command.workspace_id AND run.id = command.run_id
-         WHERE command.workspace_id = ? AND command.id = ?`,
+         JOIN tasks AS task ON task.workspace_id = run.workspace_id AND task.id = run.task_id AND task.project_id = run.project_id
+         WHERE command.workspace_id = ? AND command.id = ? AND ${sharedTaskPredicate("task")}`,
       )
       .get(workspaceId, selected.launchId)) as
       { run_id: string; project_id: string; task_id: string } | undefined;
@@ -653,7 +820,11 @@ async function resolveSubject(
   }
   if (selected.runId) {
     const row = (await db
-      .prepare(`SELECT id, project_id, task_id FROM runs WHERE workspace_id = ? AND id = ?`)
+      .prepare(
+        `SELECT run.id, run.project_id, run.task_id FROM runs AS run
+        JOIN tasks AS task ON task.workspace_id = run.workspace_id AND task.id = run.task_id AND task.project_id = run.project_id
+        WHERE run.workspace_id = ? AND run.id = ? AND ${sharedTaskPredicate("task")}`,
+      )
       .get(workspaceId, selected.runId)) as
       { id: string; project_id: string; task_id: string } | undefined;
     if (!row) return null;
@@ -701,32 +872,54 @@ async function insertDelivery(
     eventKind: string;
     category: NotificationCategory;
     now: string;
+    authorizationEpoch: number;
+    projectId: string;
   },
 ): Promise<boolean> {
   const existing = (await db
     .prepare(`SELECT state FROM notification_deliveries WHERE workspace_id = ? AND delivery_id = ?`)
     .get(input.workspaceId, input.deliveryId)) as { state: string } | undefined;
   if (existing) return false;
-  await db
+  const access = {
+    workspaceId: input.workspaceId,
+    humanId: input.humanId,
+    authorizationEpoch: input.authorizationEpoch,
+  };
+  const predicate = deliveryPredicate("candidate", access, true, undefined, true);
+  const result = await db
     .prepare(
-      `INSERT INTO notification_deliveries
+      `INSERT OR IGNORE INTO notification_deliveries
        (workspace_id, delivery_id, channel, human_id, runner_id, event_cursor,
         event_kind, category, state, attempt_count, last_error, created_at, updated_at, delivered_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, NULL, ?, ?, NULL)`,
+       SELECT candidate.workspace_id, ?, ?, candidate.human_id, ?, candidate.event_cursor,
+         candidate.event_kind, candidate.category, 'pending', 0, NULL, ?, ?, NULL
+       FROM (SELECT ? AS workspace_id, ? AS human_id, ? AS event_cursor, ? AS event_kind, ? AS category, ? AS channel) AS candidate
+       WHERE ${predicate.sql}
+         AND ${
+           input.channel === "browser_push"
+             ? `EXISTS (SELECT 1 FROM notification_push_endpoints WHERE workspace_id = candidate.workspace_id AND human_id = candidate.human_id)`
+             : `EXISTS (SELECT 1 FROM runners AS candidate_runner JOIN runner_project_grants AS candidate_grant
+           ON candidate_grant.workspace_id = candidate_runner.workspace_id AND candidate_grant.runner_id = candidate_runner.id
+           WHERE candidate_runner.workspace_id = candidate.workspace_id AND candidate_runner.id = ? AND candidate_runner.owner_human_id = candidate.human_id
+             AND candidate_runner.revoked_at IS NULL AND candidate_grant.project_id = ?)`
+         }`,
     )
     .run(
-      input.workspaceId,
       input.deliveryId,
       input.channel,
-      input.humanId,
       input.runnerId,
+      input.now,
+      input.now,
+      input.workspaceId,
+      input.humanId,
       input.eventCursor,
       input.eventKind,
       input.category,
-      input.now,
-      input.now,
+      input.channel,
+      ...predicate.parameters,
+      ...(input.channel === "macos" ? [input.runnerId, input.projectId] : []),
     );
-  return true;
+  return (result.changes ?? 0) > 0;
 }
 
 /**
@@ -755,7 +948,7 @@ export async function fanoutNotificationEvent(
   }
   const selected = selectNotificationEvent(stored.kind, payload);
   if (!selected) return { status: "not_actionable" };
-  const subject = await resolveSubject(db, input.workspaceId, selected);
+  const subject = await resolveNotificationSubject(db, input.workspaceId, selected);
   if (!subject) return { status: "subject_gone" };
   const humans = await eligibleHumans(db, input.workspaceId, subject.projectId);
   let push = 0;
@@ -785,6 +978,8 @@ export async function fanoutNotificationEvent(
           eventKind: stored.kind,
           category: selected.category,
           now: input.now,
+          authorizationEpoch: human.authorization_epoch,
+          projectId: subject.projectId,
         });
         if (created) push += 1;
       }
@@ -820,22 +1015,49 @@ export async function fanoutNotificationEvent(
           eventKind: stored.kind,
           category: selected.category,
           now: input.now,
+          authorizationEpoch: human.authorization_epoch,
+          projectId: subject.projectId,
         });
         if (created) {
-          macos += 1;
-          await db
+          const predicate = deliveryPredicate(
+            "delivery",
+            {
+              workspaceId: input.workspaceId,
+              humanId: human.human_id,
+              authorizationEpoch: human.authorization_epoch,
+            },
+            true,
+            undefined,
+            true,
+          );
+          const inserted = await db
             .prepare(
               `INSERT OR IGNORE INTO notification_macos_inbox
                (workspace_id, runner_id, delivery_id, created_at, acked_at)
-               VALUES (?, ?, ?, ?, NULL)`,
+               SELECT ?, ?, ?, ?, NULL FROM notification_deliveries AS delivery
+               WHERE delivery.workspace_id = ? AND delivery.delivery_id = ? AND ${predicate.sql}
+                 AND EXISTS (SELECT 1 FROM runners AS runner JOIN runner_project_grants AS grant
+                   ON grant.workspace_id = runner.workspace_id AND grant.runner_id = runner.id
+                   WHERE runner.workspace_id = delivery.workspace_id AND runner.id = delivery.runner_id
+                     AND runner.owner_human_id = delivery.human_id AND runner.revoked_at IS NULL AND grant.project_id = ?)`,
             )
-            .run(input.workspaceId, runner.runner_id, deliveryId, input.now);
+            .run(
+              input.workspaceId,
+              runner.runner_id,
+              deliveryId,
+              input.now,
+              input.workspaceId,
+              deliveryId,
+              ...predicate.parameters,
+              subject.projectId,
+            );
+          macos += inserted.changes ?? 0;
           await db
             .prepare(
               `UPDATE notification_deliveries SET state = 'delivered', updated_at = ?, delivered_at = ?
-               WHERE workspace_id = ? AND delivery_id = ? AND state = 'pending'`,
+               WHERE workspace_id = ? AND delivery_id = ? AND state = 'pending' AND ${deliveryPredicate("notification_deliveries", { workspaceId: input.workspaceId, humanId: human.human_id, authorizationEpoch: human.authorization_epoch }, true, undefined, true).sql}`,
             )
-            .run(input.now, input.now, input.workspaceId, deliveryId);
+            .run(input.now, input.now, input.workspaceId, deliveryId, ...predicate.parameters);
         }
       }
     }
@@ -862,13 +1084,14 @@ export interface PushAttemptEndpoint {
 
 export async function loadPushAttempt(
   db: SqlDatabase,
-  input: { workspaceId: string; deliveryId: string },
+  input: { workspaceId: string; deliveryId: string; access?: TaskAccessContext },
 ): Promise<
   | {
       ok: true;
       delivery: DeliveryRecord;
       endpoints: PushAttemptEndpoint[];
       subject: ResolvedSubject;
+      access: TaskAccessContext;
     }
   | { ok: false; outcome: DeliveryOutcome }
 > {
@@ -885,8 +1108,14 @@ export async function loadPushAttempt(
   if (!isCategory(delivery.category)) {
     return { ok: false, outcome: { terminal: true, state: "failed", code: "unknown_category" } };
   }
-  const projects = await humanProjectIds(db, input.workspaceId, delivery.human_id);
-  if (!projects) {
+  const principal = await humanAccess(db, input.workspaceId, delivery.human_id);
+  if (
+    !principal ||
+    (input.access &&
+      (input.access.workspaceId !== input.workspaceId ||
+        input.access.humanId !== delivery.human_id ||
+        input.access.authorizationEpoch !== principal.authorizationEpoch))
+  ) {
     return { ok: false, outcome: { terminal: true, state: "suppressed", code: "not_member" } };
   }
   const stored = (await db
@@ -909,20 +1138,30 @@ export async function loadPushAttempt(
   if (!selected || selected.category !== delivery.category) {
     return { ok: false, outcome: { terminal: true, state: "failed", code: "event_gone" } };
   }
-  const subject = await resolveSubject(db, input.workspaceId, selected);
-  if (!subject || !projects.includes(subject.projectId)) {
+  const subject = await resolveNotificationSubject(db, input.workspaceId, selected);
+  if (!subject || !principal.projectIds.includes(subject.projectId)) {
     return { ok: false, outcome: { terminal: true, state: "suppressed", code: "out_of_scope" } };
   }
   const overrides = await getPreferenceOverrides(db, input.workspaceId, delivery.human_id);
   if (!resolvePreference(overrides, subject.projectId, "browser_push", delivery.category)) {
     return { ok: false, outcome: { terminal: true, state: "suppressed", code: "opted_out" } };
   }
+  const predicate = deliveryPredicate("delivery", principal, true, undefined, true);
   const endpoints = (await db
     .prepare(
       `SELECT endpoint_hash, endpoint, p256dh, auth FROM notification_push_endpoints
-       WHERE workspace_id = ? AND human_id = ? ORDER BY created_at ASC`,
+       WHERE workspace_id = ? AND human_id = ? AND EXISTS (
+         SELECT 1 FROM notification_deliveries AS delivery WHERE delivery.workspace_id = notification_push_endpoints.workspace_id
+           AND delivery.human_id = notification_push_endpoints.human_id AND delivery.delivery_id = ?
+           AND delivery.state = 'pending' AND delivery.channel = 'browser_push' AND ${predicate.sql})
+       ORDER BY created_at ASC`,
     )
-    .all(input.workspaceId, delivery.human_id)) as PushAttemptEndpoint[];
+    .all(
+      input.workspaceId,
+      delivery.human_id,
+      delivery.delivery_id,
+      ...predicate.parameters,
+    )) as PushAttemptEndpoint[];
   if (endpoints.length === 0) {
     return { ok: false, outcome: { terminal: true, state: "failed", code: "endpoint_gone" } };
   }
@@ -931,6 +1170,7 @@ export async function loadPushAttempt(
     delivery,
     endpoints,
     subject,
+    access: principal,
   };
 }
 
@@ -1015,7 +1255,19 @@ export async function pullMacosNotifications(
   deliveries: MacosPullItem[];
 }> {
   const active = await assertCurrentRunnerPrincipal(db, principal, now);
+  active.projectIds = active.projectIds.filter((id) => principal.projectIds.includes(id));
   const bounded = Number.isSafeInteger(limit) && limit >= 1 && limit <= 25 ? limit : 25;
+  const predicate = deliveryPredicate(
+    "delivery",
+    {
+      workspaceId: active.workspaceId,
+      humanId: active.ownerHumanId,
+      authorizationEpoch: active.ownerAuthorizationEpoch,
+    },
+    false,
+    active,
+  );
+  const native = nativeDeliveryPredicate(active, now, "delivery");
   const rows = (await db
     .prepare(
       `SELECT inbox.delivery_id AS delivery_id
@@ -1024,9 +1276,16 @@ export async function pullMacosNotifications(
          ON delivery.workspace_id = inbox.workspace_id AND delivery.delivery_id = inbox.delivery_id
        WHERE inbox.workspace_id = ? AND inbox.runner_id = ? AND inbox.acked_at IS NULL
          AND delivery.state = 'delivered'
+         AND ${predicate.sql} AND ${native.sql}
        ORDER BY inbox.created_at ASC, inbox.delivery_id ASC LIMIT ?`,
     )
-    .all(active.workspaceId, active.runnerId, bounded)) as MacosPullItem[];
+    .all(
+      active.workspaceId,
+      active.runnerId,
+      ...predicate.parameters,
+      ...native.parameters,
+      bounded,
+    )) as MacosPullItem[];
   return {
     schema_version: 1,
     workspace_id: active.workspaceId,
@@ -1042,6 +1301,18 @@ export async function ackMacosNotifications(
   now: string,
 ): Promise<{ schema_version: 1; acked: number }> {
   const active = await assertCurrentRunnerPrincipal(db, principal, now);
+  active.projectIds = active.projectIds.filter((id) => principal.projectIds.includes(id));
+  const predicate = deliveryPredicate(
+    "delivery",
+    {
+      workspaceId: active.workspaceId,
+      humanId: active.ownerHumanId,
+      authorizationEpoch: active.ownerAuthorizationEpoch,
+    },
+    false,
+    active,
+  );
+  const native = nativeDeliveryPredicate(active, now, "delivery");
   if (!Array.isArray(deliveryIds) || deliveryIds.length > 25) {
     throw new DomainError("invalid_argument", "notification acknowledgement batch is invalid");
   }
@@ -1053,9 +1324,21 @@ export async function ackMacosNotifications(
     const result = await db
       .prepare(
         `UPDATE notification_macos_inbox SET acked_at = ?
-         WHERE workspace_id = ? AND runner_id = ? AND delivery_id = ? AND acked_at IS NULL`,
+         WHERE workspace_id = ? AND runner_id = ? AND delivery_id = ? AND acked_at IS NULL
+           AND EXISTS (SELECT 1 FROM notification_deliveries AS delivery
+             WHERE delivery.workspace_id = notification_macos_inbox.workspace_id
+               AND delivery.delivery_id = notification_macos_inbox.delivery_id
+               AND delivery.runner_id = notification_macos_inbox.runner_id
+               AND delivery.state = 'delivered' AND ${predicate.sql} AND ${native.sql})`,
       )
-      .run(now, active.workspaceId, active.runnerId, id);
+      .run(
+        now,
+        active.workspaceId,
+        active.runnerId,
+        id,
+        ...predicate.parameters,
+        ...native.parameters,
+      );
     acked += typeof result?.changes === "number" ? (result.changes ?? 0) : 0;
   }
   return { schema_version: 1, acked };
