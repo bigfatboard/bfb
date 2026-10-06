@@ -67,7 +67,8 @@ func confirmationMatchesClaim(value generated.AgentCaptureConfirmationResult, cl
 
 // A failed contact can reuse only this process's still-valid original receipt.
 // A known denial invalidates it. No persisted confirmation recreates an anchor.
-func (service *workService) confirmation(ctx context.Context, reference generated.AgentWorkRequest, binding generated.AgentSessionReference, allowCached bool) (workConfirmation, bool, error) {
+func (service *workService) confirmation(ctx context.Context, reference generated.AgentWorkRequest, binding generated.AgentSessionReference, allowCached bool) (output workConfirmation, online bool, failure error) {
+	defer func() { service.results.invalidateOnDenial(failure) }()
 	key := confirmationKey(reference, binding)
 	claim, err := service.inspect(ctx, reference, binding)
 	if err != nil {
@@ -134,6 +135,9 @@ func (service *workService) confirmation(ctx context.Context, reference generate
 		clear(service.confirmations)
 	}
 	service.confirmations[key] = confirmation
+	if service.results != nil {
+		service.results.schedule(reference, binding)
+	}
 	return confirmation, true, nil
 }
 

@@ -15,12 +15,13 @@ import (
 	"github.com/qdis/bfb/internal/protocol/generated"
 )
 
-func registerAttentionRPC(registry *daemon.Registry, connection ConnectionLookup, ownership OwnershipCheck) error {
+func registerAttentionRPC(registry *daemon.Registry, connection ConnectionLookup, ownership OwnershipCheck, resultAuthority *resultAuthority) error {
 	for method, action := range map[string]struct{ path, document, field string }{
 		"mcp.v4.request_human": {"attention-request", "agent-attention-local-request", "agent_attention_request"},
 		"mcp.v4.get_attention": {"attention-get", "agent-attention-read-local-request", "agent_attention_read_request"},
 	} {
-		if err := registry.Register(method, func(ctx context.Context, request daemon.Request) (map[string]any, error) {
+		if err := registry.Register(method, func(ctx context.Context, request daemon.Request) (output map[string]any, failure error) {
+			defer func() { resultAuthority.invalidateOnDenial(failure) }()
 			data, err := json.Marshal(request.Envelope.Payload[action.field])
 			if err != nil || request.Envelope.SchemaVersion != 4 || len(request.Envelope.Payload) != 1 || !protocol.DecodeWireDocument(action.document, data).OK || request.Store == nil {
 				return nil, &daemon.Failure{Code: "invalid_request"}

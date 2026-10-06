@@ -44,6 +44,8 @@ type journalIntent struct {
 	RequestJSON      string
 	ConfirmationJSON string
 	CaptureJSON      string
+	CaptureFamily    string
+	CaptureVersion   int
 }
 
 type journalClaim struct {
@@ -65,7 +67,7 @@ type journalRecord struct {
 }
 
 func journalCommand(tool string) (workCommand, bool) {
-	for _, name := range []string{"agent_run.comment", "agent_run.update", "agent_run.progress", "agent_run.proposal"} {
+	for _, name := range []string{"agent_run.comment", "agent_run.update", "agent_run.progress", "agent_run.proposal", "result.submit"} {
 		command, known := agentWorkCommand(name)
 		if known && command.tool == tool {
 			return command, true
@@ -80,7 +82,8 @@ func validJournalOperationKey(key string) bool {
 
 func validateJournalRequest(intent journalIntent) error {
 	command, known := journalCommand(intent.Tool)
-	if !known || len(intent.RequestJSON) < 1 || len(intent.RequestJSON) > 16_384 ||
+	family, _, _, _, maxRequest := journalFamily(intent.Tool)
+	if !known || intent.CaptureFamily != family || intent.CaptureVersion != 1 || len(intent.RequestJSON) < 1 || len(intent.RequestJSON) > maxRequest ||
 		!validJournalOperationKey(intent.OperationKey) ||
 		!workHexPattern.MatchString(intent.Fingerprint) || !protocol.DecodeWireDocument(command.requestDocument, []byte(intent.RequestJSON)).OK {
 		return errWorkInvalid
@@ -107,23 +110,23 @@ func validateJournalRequest(intent journalIntent) error {
 }
 
 func validateJournalIntent(intent journalIntent) error {
+	_, confirmationDocument, captureDocument, _, _ := journalFamily(intent.Tool)
 	if validateJournalRequest(intent) != nil || len(intent.ConfirmationJSON) < 1 || len(intent.ConfirmationJSON) > 4096 ||
 		len(intent.CaptureJSON) < 1 || len(intent.CaptureJSON) > 8192 ||
-		!protocol.DecodeWireDocument("agent-capture-confirmation-result", []byte(intent.ConfirmationJSON)).OK ||
-		!protocol.DecodeWireDocument("agent-work-capture", []byte(intent.CaptureJSON)).OK {
+		!protocol.DecodeWireDocument(confirmationDocument, []byte(intent.ConfirmationJSON)).OK ||
+		!protocol.DecodeWireDocument(captureDocument, []byte(intent.CaptureJSON)).OK {
 		return errWorkInvalid
 	}
-	var capture generated.AgentWorkCapture
+	var capture journalCapture
 	var confirmation generated.AgentCaptureConfirmationResult
 	if json.Unmarshal([]byte(intent.CaptureJSON), &capture) != nil || json.Unmarshal([]byte(intent.ConfirmationJSON), &confirmation) != nil {
 		return errWorkInvalid
 	}
-	left, err := json.Marshal(capture.Confirmation)
-	if err != nil {
-		return errWorkInvalid
-	}
-	right, err := json.Marshal(confirmation)
-	if err != nil || string(left) != string(right) || capture.Confirmation.RunId != intent.RunID ||
+	// Compare complete canonical confirmation bytes, including result-only
+	// eligibility and permission fields, before reading their common scope.
+	left, err := protocol.NormalizeJSON(capture.Confirmation)
+	right, rightErr := protocol.NormalizeJSON([]byte(intent.ConfirmationJSON))
+	if err != nil || rightErr != nil || left != right || confirmation.RunId != intent.RunID ||
 		capture.AdmissionMode != intent.AdmissionMode || capture.Operation["operation_key"] != intent.OperationKey ||
 		capture.Operation["payload_hash"] != "sha256:"+intent.Fingerprint || capture.Operation["tool"] != intent.Tool {
 		return errWorkInvalid
@@ -185,8 +188,8 @@ func (journal *workJournal) admit(ctx context.Context, intent journalIntent, imm
 	if err = journalCapacity(ctx, tx, intent.RunID); err != nil {
 		return journalRecord{}, false, err
 	}
-	if _, err = tx.ExecContext(ctx, `INSERT INTO work_intents(operation_key,fingerprint,tool,run_id,admission_mode,request_json,confirmation_json,capture_json)
-VALUES(?,?,?,?,?,?,?,?)`, intent.OperationKey, intent.Fingerprint, intent.Tool, intent.RunID, intent.AdmissionMode, intent.RequestJSON, intent.ConfirmationJSON, intent.CaptureJSON); err != nil {
+	if _, err = tx.ExecContext(ctx, `INSERT INTO work_intents(operation_key,fingerprint,tool,run_id,admission_mode,request_json,confirmation_json,capture_json,capture_family,capture_schema_version)
+VALUES(?,?,?,?,?,?,?,?,?,?)`, intent.OperationKey, intent.Fingerprint, intent.Tool, intent.RunID, intent.AdmissionMode, intent.RequestJSON, intent.ConfirmationJSON, intent.CaptureJSON, intent.CaptureFamily, intent.CaptureVersion); err != nil {
 		return journalRecord{}, false, errWorkStorage
 	}
 	if _, err = tx.ExecContext(ctx, "INSERT INTO work_delivery(operation_key,state,effect) VALUES(?,'open','never_sent')", intent.OperationKey); err != nil {
@@ -248,7 +251,7 @@ policy_decision || state || coalesce(outcome_json,'') AS BLOB)) > 32768),0) FROM
 type workRowScanner interface{ Scan(...any) error }
 
 func lookupJournalRecord(ctx context.Context, db workSchemaReader, key string) (journalRecord, bool, error) {
-	row := db.QueryRowContext(ctx, `SELECT i.operation_key,i.fingerprint,i.tool,i.run_id,i.admission_mode,i.request_json,i.confirmation_json,i.capture_json,
+	row := db.QueryRowContext(ctx, `SELECT i.operation_key,i.fingerprint,i.tool,i.run_id,i.admission_mode,i.request_json,i.confirmation_json,i.capture_json,i.capture_family,i.capture_schema_version,
 d.state,d.effect,d.ever_dispatched_ns,d.reason_code,d.outcome_json,d.receipt_json,d.claim_token,d.claim_incarnation,d.claim_deadline_ns
 FROM work_intents i LEFT JOIN work_delivery d USING(operation_key) WHERE i.operation_key=?`, key)
 	return scanJournalRecord(row)
@@ -263,6 +266,7 @@ func scanJournalRecord(row workRowScanner) (journalRecord, bool, error) {
 	var dispatched, deadline sql.NullInt64
 	if err := row.Scan(&record.Intent.OperationKey, &record.Intent.Fingerprint, &record.Intent.Tool, &record.Intent.RunID,
 		&record.Intent.AdmissionMode, &record.Intent.RequestJSON, &record.Intent.ConfirmationJSON, &record.Intent.CaptureJSON,
+		&record.Intent.CaptureFamily, &record.Intent.CaptureVersion,
 		&state, &effect, &dispatched, &reason, &outcome, &receipt, &token, &incarnation, &deadline); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return record, false, nil
@@ -305,7 +309,7 @@ func validJournalDisposition(record journalRecord) bool {
 	if record.OutcomeJSON != "" && !journalOutcomeBound(record.Intent, record.OutcomeJSON) {
 		return false
 	}
-	if record.ReceiptJSON != "" && (len(record.ReceiptJSON) > 2048 || !protocol.DecodeWireDocument("agent-work-receipt", []byte(record.ReceiptJSON)).OK) {
+	if record.ReceiptJSON != "" && (len(record.ReceiptJSON) > 2048 || !protocol.DecodeWireDocument(journalReceiptDocument(record.Intent), []byte(record.ReceiptJSON)).OK) {
 		return false
 	}
 	switch record.State {
@@ -567,13 +571,15 @@ WHERE operation_key=? AND state='open' AND claim_token=? AND claim_incarnation=?
 }
 
 func journalOutcomeBound(intent journalIntent, outcome string) bool {
-	var capture generated.AgentWorkCapture
+	var confirmation generated.AgentCaptureConfirmationResult
 	var result struct {
 		Origin generated.AgentEffectOrigin `json:"origin"`
 	}
-	return json.Unmarshal([]byte(intent.CaptureJSON), &capture) == nil && json.Unmarshal([]byte(outcome), &result) == nil &&
-		result.Origin.RunId == capture.Confirmation.RunId && result.Origin.RunExecutionId == capture.Confirmation.RunExecutionId &&
-		result.Origin.AssignmentGeneration == capture.Confirmation.AssignmentGeneration && result.Origin.ProviderSessionId == capture.Confirmation.Binding.ProviderSessionId
+	// Full family shape and capture/confirmation equality are checked before this
+	// common origin projection is consumed. Result eligibility is not read here.
+	return json.Unmarshal([]byte(intent.ConfirmationJSON), &confirmation) == nil && json.Unmarshal([]byte(outcome), &result) == nil &&
+		result.Origin.RunId == confirmation.RunId && result.Origin.RunExecutionId == confirmation.RunExecutionId &&
+		result.Origin.AssignmentGeneration == confirmation.AssignmentGeneration && result.Origin.ProviderSessionId == confirmation.Binding.ProviderSessionId
 }
 
 // A transient failure releases only this claim; uncertainty and the original
@@ -611,7 +617,7 @@ func journalReceipt(record journalRecord) (string, error) {
 	if !validJournalDisposition(record) {
 		return "", errWorkCorrupt
 	}
-	var capture generated.AgentWorkCapture
+	var capture journalCapture
 	if json.Unmarshal([]byte(record.Intent.CaptureJSON), &capture) != nil {
 		return "", errWorkCorrupt
 	}
@@ -642,7 +648,7 @@ func journalReceipt(record journalRecord) (string, error) {
 	}
 	encoded, err := json.Marshal(generated.AgentWorkReceipt{SchemaVersion: 1, OperationKey: record.Intent.OperationKey, RequestId: requestID, Tool: record.Intent.Tool,
 		AdmissionMode: record.Intent.AdmissionMode, DeliveryState: state, EffectCertainty: effect, CapturedAt: capture.CapturedAt, IntentExpiresAt: capture.IntentExpiresAt, ReasonCode: reason})
-	if err != nil || len(encoded) > 2048 || !protocol.DecodeWireDocument("agent-work-receipt", encoded).OK {
+	if err != nil || len(encoded) > 2048 || !protocol.DecodeWireDocument(journalReceiptDocument(record.Intent), encoded).OK {
 		return "", errWorkInvalid
 	}
 	return string(encoded), nil

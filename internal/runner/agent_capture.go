@@ -33,7 +33,11 @@ func (manager *Manager) SignAgentWorkCapture(ctx context.Context, capture genera
 	if err != nil {
 		return "", err
 	}
-	enrollment, err := manager.captureEnrollment(ctx, capture)
+	return manager.signCapture(ctx, capture.Confirmation.WorkspaceId, capture.Confirmation.RunnerId, capture.Confirmation.RunnerKeyThumbprint, transcript)
+}
+
+func (manager *Manager) signCapture(ctx context.Context, workspaceID, runnerID, thumbprint string, transcript []byte) (string, error) {
+	enrollment, err := manager.captureEnrollment(ctx, workspaceID, runnerID, thumbprint)
 	if err != nil {
 		return "", err
 	}
@@ -47,7 +51,7 @@ func (manager *Manager) SignAgentWorkCapture(ctx context.Context, capture genera
 	}
 	// Key access may block. Do not return a signature after observing a changed
 	// enrollment or known local authorization denial during that wait.
-	current, err := manager.captureEnrollment(ctx, capture)
+	current, err := manager.captureEnrollment(ctx, workspaceID, runnerID, thumbprint)
 	if err != nil {
 		return "", err
 	}
@@ -67,25 +71,32 @@ func (manager *Manager) VerifyAgentWorkCapture(ctx context.Context, capture gene
 	if err != nil {
 		return err
 	}
-	enrollment, err := manager.captureEnrollment(ctx, capture)
+	return manager.verifyCapture(ctx, capture.Confirmation.WorkspaceId, capture.Confirmation.RunnerId, capture.Confirmation.RunnerKeyThumbprint, transcript, capture.Signature)
+}
+
+func (manager *Manager) verifyCapture(ctx context.Context, workspaceID, runnerID, thumbprint string, transcript []byte, encodedSignature string) error {
+	if !base64Length(encodedSignature, 64) {
+		return ErrProtocol
+	}
+	enrollment, err := manager.captureEnrollment(ctx, workspaceID, runnerID, thumbprint)
 	if err != nil {
 		return err
 	}
-	signature, _ := base64.RawURLEncoding.DecodeString(capture.Signature)
+	signature, _ := base64.RawURLEncoding.DecodeString(encodedSignature)
 	if !verifyAgentCaptureSignature(enrollment, transcript, signature) {
 		return ErrProtocol
 	}
 	return nil
 }
 
-func (manager *Manager) captureEnrollment(ctx context.Context, capture generated.AgentWorkCapture) (Enrollment, error) {
+func (manager *Manager) captureEnrollment(ctx context.Context, workspaceID, runnerID, thumbprint string) (Enrollment, error) {
 	manager.mu.Lock()
 	store, lifetime := manager.store, manager.ctx
 	manager.mu.Unlock()
 	if store == nil || lifetime == nil || lifetime.Err() != nil {
 		return Enrollment{}, ErrOffline
 	}
-	enrollment, err := store.Get(ctx, capture.Confirmation.RunnerId)
+	enrollment, err := store.Get(ctx, runnerID)
 	if err != nil {
 		if ctx.Err() != nil {
 			return Enrollment{}, ErrOffline
@@ -99,7 +110,7 @@ func (manager *Manager) captureEnrollment(ctx context.Context, capture generated
 	default:
 		return Enrollment{}, ErrAuthorization
 	}
-	if enrollment.validate() != nil || enrollment.WorkspaceID != capture.Confirmation.WorkspaceId || enrollment.Thumbprint != capture.Confirmation.RunnerKeyThumbprint {
+	if enrollment.validate() != nil || enrollment.WorkspaceID != workspaceID || enrollment.Thumbprint != thumbprint {
 		return Enrollment{}, ErrProtocol
 	}
 	return enrollment, nil
@@ -111,11 +122,17 @@ func agentCaptureTranscript(capture generated.AgentWorkCapture) ([]byte, error) 
 	if capture.Signature == "" {
 		capture.Signature = strings.Repeat("A", 86)
 	}
+	return captureTranscript(capture, "agent-work-capture", agentCapturePrefix)
+}
+
+// Callers select fixed capture families; this helper is not an RPC or signer
+// service and accepts no unvalidated caller-selected transcript or key.
+func captureTranscript(capture any, document, prefix string) ([]byte, error) {
 	encoded, err := json.Marshal(capture)
 	if err != nil || len(encoded) > maxAgentCaptureBytes {
 		return nil, ErrProtocol
 	}
-	decoded := protocol.DecodeWireDocument("agent-work-capture", encoded)
+	decoded := protocol.DecodeWireDocument(document, encoded)
 	if !decoded.OK {
 		return nil, ErrProtocol
 	}
@@ -128,7 +145,7 @@ func agentCaptureTranscript(capture generated.AgentWorkCapture) ([]byte, error) 
 	if err != nil {
 		return nil, ErrProtocol
 	}
-	transcript := []byte(agentCapturePrefix + canonical + "\n")
+	transcript := []byte(prefix + canonical + "\n")
 	if len(transcript) > maxAgentCaptureBytes {
 		return nil, ErrProtocol
 	}

@@ -126,6 +126,9 @@ func RegisterRPC(registry *daemon.Registry, manager *runner.Manager, ownership O
 			}
 			result, err := channel.Request(ctx, "POST", "work/"+action.action, body)
 			if err != nil {
+				if !transientWorkError(err) {
+					work.results.invalidate()
+				}
 				return nil, channelError(err, result)
 			}
 			if !protocol.DecodeWireDocument(action.document, result).OK {
@@ -158,12 +161,31 @@ func RegisterRPC(registry *daemon.Registry, manager *runner.Manager, ownership O
 			if _, err := daemon.EncodeEnvelope(daemon.ResponseVersion(request.Envelope.SchemaVersion, method, request.Envelope.RequestId, payload, nil)); err != nil {
 				return nil, &daemon.Failure{Code: "request_rejected"}
 			}
+			if action.action == "session-bind" {
+				var confirmed generated.AgentSessionBindResult
+				if json.Unmarshal(result, &confirmed) != nil || confirmed.Origin.RunId != assignment.Boundary.RunID ||
+					confirmed.Origin.RunExecutionId != input.Request.RunExecutionId || confirmed.Origin.AssignmentGeneration != input.Request.AssignmentGeneration ||
+					confirmed.Origin.ProviderSessionId != confirmed.Binding.ProviderSessionId || confirmed.Binding.Provider != observed.Provider || confirmed.Binding.ObservedSessionId != observed.ObservedSessionID {
+					work.results.invalidate()
+					return nil, &daemon.Failure{Code: "session_conflict"}
+				}
+				work.results.schedule(input.Request, confirmed.Binding)
+			}
+			if action.action == "authority" || action.action == "bound-authority" {
+				var authority generated.AgentAuthorityResult
+				if json.Unmarshal(result, &authority) == nil && (authority.Revoked || authority.ExecutionEnded || authority.ResultTerminal) {
+					work.results.invalidate()
+				}
+			}
 			return payload, nil
 		}); err != nil {
 			return err
 		}
 	}
-	return registerAttentionRPC(registry, connection, ownership)
+	if err := registerAttentionRPC(registry, connection, ownership, work.results); err != nil {
+		return err
+	}
+	return registerResultRPC(registry, work)
 }
 
 func ownershipError(err error) error {
@@ -190,7 +212,7 @@ func channelError(err error, data []byte) error {
 		}
 		if json.Unmarshal(data, &denial) == nil {
 			switch denial.Error {
-			case "revoked", "assignment_ended", "capability_closed", "boundary_escape", "forbidden", "not_found", "request_rejected", "session_not_bound", "session_conflict", "stale_version", "policy_rejected", "invalid_argument", "child_limit", "capture_invalid", "intent_expired":
+			case "revoked", "assignment_ended", "capability_closed", "boundary_escape", "forbidden", "not_found", "request_rejected", "session_not_bound", "session_conflict", "stale_version", "policy_rejected", "invalid_argument", "invalid_transition", "child_limit", "capture_invalid", "intent_expired":
 				code = denial.Error
 			}
 		}

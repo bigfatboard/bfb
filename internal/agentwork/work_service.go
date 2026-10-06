@@ -1,4 +1,4 @@
-// ABOUTME: Owns daemon-only durable admission and bounded recovery for the four fixed agent work commands.
+// ABOUTME: Owns daemon-only durable admission and bounded recovery for fixed task and result commands.
 // ABOUTME: Separates proven effects from delivery permission and checks every write-ahead disposition.
 
 package agentwork
@@ -30,6 +30,9 @@ type workService struct {
 	inspect       func(context.Context, generated.AgentWorkRequest, generated.AgentSessionReference) (generated.LaunchClaimResult, error)
 	sign          captureSigner
 	verify        func(context.Context, generated.AgentWorkCapture) error
+	resultSign    resultCaptureSigner
+	resultVerify  func(context.Context, generated.AgentResultCapture) error
+	results       *resultAuthority
 	clock         captureClock
 	confirmations map[string]workConfirmation
 	afterKey      string
@@ -40,6 +43,8 @@ func newWorkService(manager *runner.Manager, ownership OwnershipCheck) *workServ
 	service := &workService{connection: manager.Connection, ownership: ownership, sign: manager.SignAgentWorkCapture,
 		verify: manager.VerifyAgentWorkCapture, clock: readCaptureClock, confirmations: make(map[string]workConfirmation)}
 	service.inspect = service.localAuthority
+	service.resultSign, service.resultVerify = manager.SignAgentResultCapture, manager.VerifyAgentResultCapture
+	service.results = newResultAuthority(service.connection, service.inspect, service.clock)
 	return service
 }
 
@@ -56,6 +61,9 @@ func (service *workService) start(ctx context.Context, store *daemon.Store) (fun
 	service.store, service.journal = store, journal
 	service.logger = daemon.NewLogger(store.Paths)
 	lifetime, cancel := context.WithCancel(ctx)
+	if service.results != nil {
+		service.results.start(lifetime)
+	}
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
@@ -75,6 +83,10 @@ func (service *workService) start(ctx context.Context, store *daemon.Store) (fun
 		once.Do(func() {
 			cancel()
 			<-done
+			if service.results != nil {
+				<-service.results.done
+				service.results.invalidate()
+			}
 			service.mu.Lock()
 			defer service.mu.Unlock()
 			if err := journal.close(); err != nil {
@@ -100,6 +112,9 @@ func (service *workService) storageFailure(err error) error {
 }
 
 func (service *workService) authorityError(err error) error {
+	if service.results != nil && workFailureReason(err) != "work_unavailable" {
+		service.results.invalidate()
+	}
 	if daemon.AsFailure(err).Code == "storage_failed" {
 		return service.storageFailure(errWorkStorage)
 	}
@@ -120,6 +135,7 @@ func (service *workService) write(ctx context.Context, command workCommand, orig
 		return nil, &daemon.Failure{Code: "request_rejected"}
 	}
 	if err := peerCheck(ctx); err != nil {
+		service.results.invalidateOnDenial(err)
 		return nil, err
 	}
 	if _, err := service.inspect(ctx, request.Reference, request.Binding); err != nil {
@@ -177,6 +193,7 @@ func (service *workService) write(ctx context.Context, command workCommand, orig
 		return nil, &daemon.Failure{Code: "offline_rejected"}
 	}
 	if err := peerCheck(ctx); err != nil {
+		service.results.invalidateOnDenial(err)
 		return nil, err
 	}
 	current, err := service.inspect(ctx, request.Reference, request.Binding)
@@ -219,6 +236,9 @@ func mustCapture(intent journalIntent) generated.AgentWorkCapture {
 }
 
 func (service *workService) retry(ctx context.Context, record journalRecord, request capturedWriteReference, explicit bool, peerCheck func(context.Context) error) (journalRecord, error) {
+	if record.Intent.CaptureFamily == "agent_result" {
+		return service.retryResult(ctx, record, request, explicit, peerCheck)
+	}
 	capture := mustCapture(record.Intent)
 	if err := service.verify(ctx, capture); err != nil {
 		if errors.Is(err, runner.ErrProtocol) {
@@ -269,11 +289,19 @@ func (service *workService) retry(ctx context.Context, record journalRecord, req
 }
 
 func (service *workService) dispatch(ctx context.Context, command workCommand, record journalRecord, replay bool, peerCheck func(context.Context) error) (journalRecord, error) {
-	capture := mustCapture(record.Intent)
+	var resultGeneration uint64
+	if record.Intent.CaptureFamily == "agent_result" {
+		resultGeneration = service.results.currentGeneration()
+	}
+	// Permission and signature were checked by the family-specific retry or
+	// admission. Dispatch uses only their common immutable native scope here.
+	var scope generated.AgentCaptureConfirmationResult
+	_ = json.Unmarshal([]byte(record.Intent.ConfirmationJSON), &scope)
 	var request capturedWriteReference
 	_ = json.Unmarshal([]byte(record.Intent.RequestJSON), &request)
 	if peerCheck != nil {
 		if err := peerCheck(ctx); err != nil {
+			service.results.invalidateOnDenial(err)
 			return journalRecord{}, err
 		}
 	}
@@ -281,10 +309,10 @@ func (service *workService) dispatch(ctx context.Context, command workCommand, r
 	if err != nil {
 		return service.deny(ctx, record, workFailureReason(err))
 	}
-	if !confirmationMatchesClaim(capture.Confirmation, current, request.Binding) {
+	if !confirmationMatchesClaim(scope, current, request.Binding) {
 		return service.deny(ctx, record, "assignment_ended")
 	}
-	channel, err := service.connection(capture.Confirmation.RunnerId)
+	channel, err := service.connection(scope.RunnerId)
 	if err != nil {
 		if !transientWorkError(err) {
 			return service.deny(ctx, record, workFailureReason(channelError(err, nil)))
@@ -292,14 +320,25 @@ func (service *workService) dispatch(ctx context.Context, command workCommand, r
 		return service.unavailable(ctx, record)
 	}
 	body, action := []byte(record.Intent.RequestJSON), "work/"+command.action
+	if record.Intent.CaptureFamily == "agent_result" {
+		action = "work/result-submit"
+	}
 	if replay {
 		var original map[string]any
 		_ = json.Unmarshal(body, &original)
-		body, err = json.Marshal(generated.AgentWorkReplayRequest{SchemaVersion: 1, CommandName: command.name, OriginalRequest: original, Capture: capture})
-		if err != nil || len(body) > 32768 || !protocol.DecodeWireDocument("agent-work-replay-request", body).OK {
+		document, bound := "agent-work-replay-request", 32768
+		action = "work/replay"
+		if record.Intent.CaptureFamily == "agent_result" {
+			var capture generated.AgentResultCapture
+			_ = json.Unmarshal([]byte(record.Intent.CaptureJSON), &capture)
+			body, err = json.Marshal(map[string]any{"schema_version": 1, "command_name": command.name, "original_request": original, "capture": capture})
+			document, bound, action = "agent-result-replay-request", 49152, "work/result-replay"
+		} else {
+			body, err = json.Marshal(generated.AgentWorkReplayRequest{SchemaVersion: 1, CommandName: command.name, OriginalRequest: original, Capture: mustCapture(record.Intent)})
+		}
+		if err != nil || len(body) > bound || !protocol.DecodeWireDocument(document, body).OK {
 			return service.deny(ctx, record, "capture_invalid")
 		}
-		action = "work/replay"
 	}
 	if record.State != "applied" {
 		if record.Claim == nil {
@@ -313,6 +352,9 @@ func (service *workService) dispatch(ctx context.Context, command workCommand, r
 	if err != nil {
 		if !transientWorkError(err) {
 			delete(service.confirmations, confirmationKey(request.Reference, request.Binding))
+			if service.results != nil {
+				service.results.invalidate()
+			}
 			return service.deny(ctx, record, workFailureReason(channelError(err, result)))
 		}
 		return service.unavailable(ctx, record)
@@ -343,13 +385,17 @@ func (service *workService) dispatch(ctx context.Context, command workCommand, r
 	if err != nil {
 		return service.deny(ctx, record, workFailureReason(err))
 	}
-	if !confirmationMatchesClaim(capture.Confirmation, current, request.Binding) {
+	if !confirmationMatchesClaim(scope, current, request.Binding) {
 		return service.deny(ctx, record, "assignment_ended")
 	}
 	if peerCheck != nil {
 		if err := peerCheck(ctx); err != nil {
+			service.results.invalidateOnDenial(err)
 			return journalRecord{}, err
 		}
+	}
+	if record.Intent.CaptureFamily == "agent_result" && resultGeneration != service.results.currentGeneration() {
+		return service.unavailable(ctx, record)
 	}
 	return record, nil
 }
@@ -385,6 +431,7 @@ func (service *workService) unavailable(ctx context.Context, record journalRecor
 }
 
 func (service *workService) deny(ctx context.Context, record journalRecord, reason string) (journalRecord, error) {
+	service.results.invalidateOnDenial(&daemon.Failure{Code: reason})
 	if reason == "storage_failed" {
 		return journalRecord{}, service.storageFailure(errWorkStorage)
 	}
@@ -429,7 +476,7 @@ func withheldWorkReceipt(record journalRecord, reason string) (journalRecord, er
 	}
 	receipt.ReasonCode = &reason
 	data, err := json.Marshal(receipt)
-	if err != nil || !protocol.DecodeWireDocument("agent-work-receipt", data).OK {
+	if err != nil || !protocol.DecodeWireDocument(journalReceiptDocument(record.Intent), data).OK {
 		return journalRecord{}, &daemon.Failure{Code: "storage_failed"}
 	}
 	// Expose the current denial without rewriting the durable original effect
@@ -471,13 +518,17 @@ func workResponse(command workCommand, record journalRecord, receipts bool) (map
 	if json.Unmarshal([]byte(encoded), &value) != nil {
 		return nil, &daemon.Failure{Code: "storage_failed"}
 	}
-	return map[string]any{"agent_work_receipt": value}, nil
+	field := "agent_work_receipt"
+	if record.Intent.CaptureFamily == "agent_result" {
+		field = "agent_result_receipt"
+	}
+	return map[string]any{field: value}, nil
 }
 
 func workFailureReason(err error) string {
 	code := daemon.AsFailure(err).Code
 	switch code {
-	case "revoked", "assignment_ended", "capability_closed", "session_not_bound", "session_conflict", "policy_rejected", "forbidden", "stale_version", "child_limit", "boundary_escape", "request_rejected", "invalid_argument", "intent_expired", "capture_invalid", "containment_unknown", "storage_failed":
+	case "revoked", "assignment_ended", "capability_closed", "session_not_bound", "session_conflict", "policy_rejected", "forbidden", "stale_version", "child_limit", "boundary_escape", "request_rejected", "invalid_argument", "invalid_transition", "intent_expired", "capture_invalid", "containment_unknown", "storage_failed":
 		return code
 	case "not_found":
 		return "forbidden"

@@ -123,6 +123,7 @@ func prepareWorkIntent(ctx context.Context, commandName string, original []byte,
 		OperationKey: key, Fingerprint: fingerprint, Tool: command.tool, RunID: confirmation.RunId,
 		AdmissionMode: capture.AdmissionMode, RequestJSON: canonical,
 		ConfirmationJSON: string(confirmationJSON), CaptureJSON: string(captureJSON),
+		CaptureFamily: "agent_work", CaptureVersion: 1,
 	}
 	if validateJournalIntent(intent) != nil {
 		return journalIntent{}, errWorkInvalid
@@ -131,6 +132,10 @@ func prepareWorkIntent(ctx context.Context, commandName string, original []byte,
 }
 
 func matchingCaptureTiming(timing *captureTiming, confirmation generated.AgentCaptureConfirmationResult) error {
+	return matchingCaptureTimes(timing, confirmation.ConfirmationId, confirmation.ConfirmedAt, confirmation.LeaseExpiresAt, confirmation.CredentialExpiresAt)
+}
+
+func matchingCaptureTimes(timing *captureTiming, requestID, confirmedAt, leaseExpiresAt, credentialExpiresAt string) error {
 	timing.mu.Lock()
 	defer timing.mu.Unlock()
 	if timing.failure != nil {
@@ -139,10 +144,10 @@ func matchingCaptureTiming(timing *captureTiming, confirmation generated.AgentCa
 	if !timing.hasSend || !timing.hasReceipt {
 		return timing.invalidate(errCaptureTimingMissing)
 	}
-	confirmed, err := time.Parse(time.RFC3339Nano, confirmation.ConfirmedAt)
-	lease, leaseErr := time.Parse(time.RFC3339Nano, confirmation.LeaseExpiresAt)
-	credential, credentialErr := time.Parse(time.RFC3339Nano, confirmation.CredentialExpiresAt)
-	if err != nil || leaseErr != nil || credentialErr != nil || timing.requestID != confirmation.ConfirmationId ||
+	confirmed, err := time.Parse(time.RFC3339Nano, confirmedAt)
+	lease, leaseErr := time.Parse(time.RFC3339Nano, leaseExpiresAt)
+	credential, credentialErr := time.Parse(time.RFC3339Nano, credentialExpiresAt)
+	if err != nil || leaseErr != nil || credentialErr != nil || timing.requestID != requestID ||
 		!timing.confirmedAt.Equal(confirmed) || !timing.leaseExpiresAt.Equal(lease) || !timing.credentialExpiresAt.Equal(credential) {
 		return timing.invalidate(errCaptureTimingInvalid)
 	}
@@ -150,12 +155,16 @@ func matchingCaptureTiming(timing *captureTiming, confirmation generated.AgentCa
 }
 
 func checkAdmissionDeadline(timing *captureTiming, capture generated.AgentWorkCapture) error {
+	return checkCaptureExpiry(timing, capture.IntentExpiresAt)
+}
+
+func checkCaptureExpiry(timing *captureTiming, intentExpiresAt *string) error {
 	now, err := timing.captureTime()
 	if err != nil {
 		return err
 	}
-	if capture.IntentExpiresAt != nil {
-		expires, err := time.Parse(time.RFC3339Nano, *capture.IntentExpiresAt)
+	if intentExpiresAt != nil {
+		expires, err := time.Parse(time.RFC3339Nano, *intentExpiresAt)
 		if err != nil || !now.Before(expires) {
 			return errCaptureTimingExpired
 		}

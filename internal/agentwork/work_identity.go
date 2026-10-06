@@ -1,4 +1,4 @@
-// ABOUTME: Maps the four fixed agent writes to their original business operation identities.
+// ABOUTME: Maps fixed task writes and result submission to their original business operation identities.
 // ABOUTME: Keeps IPC and capture envelope versions separate from the immutable request schema and key.
 
 package agentwork
@@ -31,6 +31,8 @@ func agentWorkCommand(name string) (workCommand, bool) {
 		return workCommand{name, "progress", "bfb_report_progress", "mcp.v3.report_progress", "agent-progress-request", "agent-progress-local-request", "agent_progress_request", "agent-comment-result", "agent_comment"}, true
 	case "agent_run.proposal":
 		return workCommand{name, "proposal", "bfb_propose_task", "mcp.v3.propose_task", "agent-proposal-request", "agent-proposal-local-request", "agent_proposal_request", "agent-proposal-result", "agent_proposal"}, true
+	case "result.submit":
+		return workCommand{name, "submit_result", "bfb_submit_result", "mcp.v5.submit_result", "agent-result-request", "agent-result-local-request", "agent_result_request", "agent-result-result", "agent_result"}, true
 	default:
 		return workCommand{}, false
 	}

@@ -109,7 +109,7 @@ func workTestIntent(t *testing.T, requestID, runID, mode string) journalIntent {
 		capture.AdmittedPermission = map[string]any{"allowed_tools": []string{}, "max_pending_age_seconds": 0}
 		capture.IntentExpiresAt = nil
 	}
-	intent := journalIntent{key, fingerprint, "bfb_add_comment", runID, mode, request, workTestJSON(t, confirmation), workTestJSON(t, capture)}
+	intent := journalIntent{key, fingerprint, "bfb_add_comment", runID, mode, request, workTestJSON(t, confirmation), workTestJSON(t, capture), "agent_work", 1}
 	if err = validateJournalIntent(intent); err != nil {
 		t.Fatalf("invalid fixture: %v\n%s", err, intent.CaptureJSON)
 	}

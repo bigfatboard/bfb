@@ -14,7 +14,7 @@ import (
 
 func TestAttentionRegistersOnlyFixedOnlineMethods(t *testing.T) {
 	registry := daemon.NewRegistry()
-	if err := registerAttentionRPC(registry, nil, nil); err != nil {
+	if err := registerAttentionRPC(registry, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(registry.Methods(), []string{"mcp.v4.get_attention", "mcp.v4.request_human"}) {
