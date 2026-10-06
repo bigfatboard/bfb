@@ -22,6 +22,7 @@ import {
   createAgentProfileCommand,
   replaceRunnerGrantsCommand,
   runnerGrantsTarget,
+  artifactObjectKey,
   type HubCommand,
   type PolicySettings,
 } from "@bfb/domain";
@@ -32,13 +33,23 @@ export { WorkspaceHub };
 const hash = (body: string) => `sha256:${createHash("sha256").update(body).digest("hex")}`;
 
 export default {
-  async fetch(request: Request, env: { DB: D1Like; APP_ORIGIN: string }): Promise<Response> {
+  async fetch(
+    request: Request,
+    env: {
+      DB: D1Like;
+      APP_ORIGIN: string;
+      ARTIFACTS: {
+        get(key: string): Promise<{ arrayBuffer(): Promise<ArrayBuffer>; size: number } | null>;
+      };
+    },
+  ): Promise<Response> {
     const path = new URL(request.url).pathname;
     if (
       !path.startsWith("/__a01/") &&
       !path.startsWith("/__a02/") &&
       !path.startsWith("/__a03/") &&
-      !path.startsWith("/__a04/")
+      !path.startsWith("/__a04/") &&
+      !path.startsWith("/__v01/")
     )
       return channelWorker.fetch(request, env);
     const db = adaptD1(env.DB),
@@ -181,18 +192,20 @@ export default {
           executionMode: "interactive",
           harnessMode: "restricted",
         });
-      return Response.json({ configured: true, permission });
+      return Response.json({ configured: true, permission, canonical });
     }
     if (path === "/__a01/seed") {
       const runner = runnerId(input.runner),
         task = randomUlid(),
         run = randomUlid(),
         execution = randomUlid();
-      const checkout = randomUlid(),
+      const checkout = input.v01_checkout ? runnerId(input.v01_checkout) : randomUlid(),
         snapshot = randomUlid(),
         launch = randomUlid(),
         claimKey = randomUlid(),
-        physical = hash(execution);
+        physical = input.v01_physical ?? hash(execution);
+      if (input.v01_physical && !/^sha256:[a-f0-9]{64}$/.test(input.v01_physical))
+        return new Response(null, { status: 400 });
       const enrolled = (await db
         .prepare(
           `SELECT key_thumbprint, authorization_epoch, grant_epoch FROM runners WHERE workspace_id = ? AND id = ?`,
@@ -399,6 +412,84 @@ export default {
       )
       .get(workspace, execution)) as { run_id: string; task_id: string; runner_id: string };
     if (!row) return new Response(null, { status: 404 });
+    if (path === "/__v01/artifact-observe") {
+      const operations = await db
+        .prepare(
+          `SELECT operation_key,input_fingerprint,artifact_id,version_id,run_id,execution_id,
+         assignment_generation,provider_session_id,runner_id,project_id,source_task_id
+         FROM artifact_agent_operations WHERE workspace_id=? AND execution_id=? ORDER BY operation_key LIMIT 100`,
+        )
+        .all(workspace, execution);
+      const versions = (await db
+        .prepare(
+          `SELECT version.id,version.artifact_id,version.state,version.format,artifact.role,
+         artifact.run_id,artifact.created_by_human_id,version.declared_size,version.expected_digest,
+         version.content_hash,version.available_at
+         FROM artifact_versions version JOIN artifacts artifact
+         ON artifact.workspace_id=version.workspace_id AND artifact.id=version.artifact_id
+         WHERE artifact.workspace_id=? AND artifact.run_id=? ORDER BY version.id LIMIT 100`,
+        )
+        .all(workspace, row.run_id)) as Array<{
+        id: string;
+        expected_digest: string;
+        declared_size: number;
+        role: "review" | "log";
+        run_id: string | null;
+      }>;
+      const grants = await db
+        .prepare(
+          `SELECT grant_row.id,grant_row.version_id,grant_row.grant_hash,grant_row.consumed_at,
+         consumption.attempt_id
+         FROM artifact_upload_grants grant_row LEFT JOIN artifact_upload_consumptions consumption
+         ON consumption.workspace_id=grant_row.workspace_id AND consumption.grant_id=grant_row.id
+         WHERE grant_row.workspace_id=? AND grant_row.run_id=? ORDER BY grant_row.id LIMIT 100`,
+        )
+        .all(workspace, row.run_id);
+      const receipts = await db
+        .prepare(
+          `SELECT receipt.version_id,receipt.content_hash,receipt.size,source.grant_id,source.attempt_id
+         FROM artifact_upload_receipts receipt JOIN artifact_versions version
+         ON version.workspace_id=receipt.workspace_id AND version.id=receipt.version_id
+         JOIN artifacts artifact ON artifact.workspace_id=version.workspace_id AND artifact.id=version.artifact_id
+         LEFT JOIN artifact_upload_receipt_sources source ON source.workspace_id=receipt.workspace_id AND source.version_id=receipt.version_id
+         WHERE receipt.workspace_id=? AND artifact.run_id=? ORDER BY receipt.version_id LIMIT 100`,
+        )
+        .all(workspace, row.run_id);
+      const objects = [];
+      for (const version of versions) {
+        const object = await env.ARTIFACTS.get(
+          artifactObjectKey({
+            workspaceId: workspace,
+            role: version.role,
+            runId: version.run_id,
+            versionId: version.id,
+            contentHash: version.expected_digest,
+          }),
+        );
+        if (!object) continue;
+        if (object.size > 5 * 1024 * 1024) throw new Error("synthetic object bound");
+        const bytes = new Uint8Array(await object.arrayBuffer());
+        objects.push({
+          version_id: version.id,
+          size: bytes.byteLength,
+          content_hash: createHash("sha256").update(bytes).digest("hex"),
+        });
+      }
+      const privacy = await db
+        .prepare(
+          `SELECT COUNT(*) AS total,COALESCE(SUM(CASE WHEN
+         instr(payload_json,'V01_PRIVATE_ARTIFACT_CANARY')>0 OR instr(payload_json,'V01_PATH_CANARY')>0
+         OR instr(payload_json,'"secret"')>0 OR instr(payload_json,'"upload"')>0
+         THEN 1 ELSE 0 END),0) AS private_payloads
+         FROM (
+           SELECT payload_json FROM audit_events WHERE workspace_id=?
+           UNION ALL SELECT payload_json FROM semantic_events WHERE workspace_id=?
+           UNION ALL SELECT payload_json FROM outbox_records WHERE workspace_id=?
+         )`,
+        )
+        .get(workspace, workspace, workspace);
+      return Response.json({ operations, versions, grants, receipts, objects, privacy });
+    }
     if (path === "/__a04/end") {
       await db
         .prepare(

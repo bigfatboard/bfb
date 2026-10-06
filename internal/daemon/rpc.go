@@ -161,7 +161,7 @@ func readEnvelopeContext(ctx context.Context, reader *bufio.Reader) (generated.L
 
 func decodeEnvelope(data []byte) protocol.DecodeResult {
 	decoded := protocol.DecodeWireDocument("local-rpc", data)
-	if decoded.OK && !strings.HasPrefix(decoded.Value["method"].(string), "mcp.v2.") && !strings.HasPrefix(decoded.Value["method"].(string), "mcp.v3.") && !strings.HasPrefix(decoded.Value["method"].(string), "mcp.v4.") && !strings.HasPrefix(decoded.Value["method"].(string), "mcp.v5.") {
+	if decoded.OK && !strings.HasPrefix(decoded.Value["method"].(string), "mcp.v2.") && !strings.HasPrefix(decoded.Value["method"].(string), "mcp.v3.") && !strings.HasPrefix(decoded.Value["method"].(string), "mcp.v4.") && !strings.HasPrefix(decoded.Value["method"].(string), "mcp.v5.") && !strings.HasPrefix(decoded.Value["method"].(string), "mcp.v6.") {
 		return decoded
 	}
 	if decoded = protocol.DecodeWireDocument("local-agent-rpc", data); decoded.OK {
@@ -173,7 +173,10 @@ func decodeEnvelope(data []byte) protocol.DecodeResult {
 	if decoded = protocol.DecodeWireDocument("local-agent-attention-rpc", data); decoded.OK {
 		return decoded
 	}
-	return protocol.DecodeWireDocument("local-agent-result-rpc", data)
+	if decoded = protocol.DecodeWireDocument("local-agent-result-rpc", data); decoded.OK {
+		return decoded
+	}
+	return protocol.DecodeWireDocument("local-agent-artifact-rpc", data)
 }
 
 func authorizePeer(peer Peer) error {
@@ -236,6 +239,15 @@ func CallAgentResult(ctx context.Context, paths Paths, method string, payload ma
 	return call(ctx, paths, 5, method, payload, nil)
 }
 
+// CallAgentArtifact negotiates only the online publication method on the same
+// checked socket. Private paths never fall back to a credential-bearing lane.
+func CallAgentArtifact(ctx context.Context, paths Paths, method string, payload map[string]any) (generated.LocalRpcEnvelope, error) {
+	if method != "mcp.v6.publish_artifact" {
+		return generated.LocalRpcEnvelope{}, &Failure{Code: "protocol_unsupported"}
+	}
+	return call(ctx, paths, 6, method, payload, nil)
+}
+
 func call(ctx context.Context, paths Paths, version int64, method string, payload map[string]any, extraAuthorization func(Peer) error) (generated.LocalRpcEnvelope, error) {
 	request := generated.LocalRpcEnvelope{SchemaVersion: version, RequestId: NewRequestID(), Method: method, Direction: "request", Payload: payload}
 	data, err := EncodeEnvelope(request)
@@ -275,7 +287,7 @@ func call(ctx context.Context, paths Paths, version int64, method string, payloa
 		deadline = until
 	}
 	_ = connection.SetDeadline(deadline)
-	if version == 2 || version == 3 || version == 4 || version == 5 {
+	if version == 2 || version == 3 || version == 4 || version == 5 || version == 6 {
 		// Keep negotiation and the private request on the same checked kernel peer.
 		status := generated.LocalRpcEnvelope{SchemaVersion: 1, RequestId: NewRequestID(), Method: "daemon.status", Direction: "request"}
 		statusData, encodeErr := EncodeEnvelope(status)
@@ -287,14 +299,14 @@ func call(ctx context.Context, paths Paths, version int64, method string, payloa
 			return ResponseVersion(version, method, request.RequestId, nil, failure), failure
 		}
 		var readContext context.Context
-		if version == 4 || version == 5 {
+		if version == 4 || version == 5 || version == 6 {
 			readContext = ctx
 		}
 		advertised, readErr := readEnvelopeContext(readContext, bufio.NewReaderSize(connection, MaxRPCBytes+1))
 		if errors.Is(readErr, context.Canceled) || errors.Is(readErr, context.DeadlineExceeded) {
 			return ResponseVersion(version, method, request.RequestId, nil, readErr), readErr
 		}
-		if (version == 4 || version == 5) && AsFailure(readErr).Code == "daemon_offline" {
+		if (version == 4 || version == 5 || version == 6) && AsFailure(readErr).Code == "daemon_offline" {
 			return ResponseVersion(version, method, request.RequestId, nil, readErr), readErr
 		}
 		if readErr != nil || advertised.SchemaVersion != 1 || advertised.Method != status.Method || advertised.RequestId != status.RequestId || advertised.Direction != "response" || advertised.Error != nil {
@@ -321,14 +333,14 @@ func call(ctx context.Context, paths Paths, version int64, method string, payloa
 		return ResponseVersion(version, method, request.RequestId, nil, failure), failure
 	}
 	var readContext context.Context
-	if version == 4 || version == 5 {
+	if version == 4 || version == 5 || version == 6 {
 		readContext = ctx
 	}
 	response, err := readEnvelopeContext(readContext, bufio.NewReaderSize(connection, MaxRPCBytes+1))
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return ResponseVersion(version, method, request.RequestId, nil, err), err
 	}
-	if (version == 4 || version == 5) && AsFailure(err).Code == "daemon_offline" {
+	if (version == 4 || version == 5 || version == 6) && AsFailure(err).Code == "daemon_offline" {
 		return ResponseVersion(version, method, request.RequestId, nil, err), err
 	}
 	if err != nil || response.SchemaVersion != request.SchemaVersion || response.Direction != "response" || response.RequestId != request.RequestId || response.Method != method {

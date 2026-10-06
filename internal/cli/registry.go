@@ -33,8 +33,8 @@ type Command struct {
 	Path, Method, Summary string
 	Run                   Handler
 	// RawStdio skips response rendering so the handler owns standard output
-	// framing. Only bfb mcp stdio and bfb run submit use it; every other
-	// command renders the frozen local-rpc envelope.
+	// framing. MCP and bound business commands use their named wire documents;
+	// ordinary commands render the frozen local-rpc envelope.
 	RawStdio bool
 }
 

@@ -53,7 +53,7 @@ func (service *workService) submitResult(ctx context.Context, input generated.Ag
 	} else if cached, known := service.results.binding(reference); known {
 		binding = cached
 	} else {
-		binding, err = service.bindResultSession(ctx, reference, peerCheck)
+		binding, err = service.bindCurrentAgentSession(ctx, reference, peerCheck)
 		if err != nil {
 			return nil, service.authorityError(err)
 		}
@@ -238,7 +238,7 @@ func (service *workService) dispatchResultRecord(ctx context.Context, record jou
 	return service.dispatch(ctx, command, record, record.Intent.AdmissionMode == "offline_admitted", peerCheck)
 }
 
-func (service *workService) bindResultSession(ctx context.Context, reference generated.AgentWorkRequest, peerCheck func(context.Context) error) (generated.AgentSessionReference, error) {
+func (service *workService) bindCurrentAgentSession(ctx context.Context, reference generated.AgentWorkRequest, peerCheck func(context.Context) error) (generated.AgentSessionReference, error) {
 	view, err := supervisor.NewIntentStore(service.store.DB).JournalByExecution(ctx, reference.RunExecutionId, reference.AssignmentGeneration)
 	if err != nil {
 		return generated.AgentSessionReference{}, ownershipError(err)

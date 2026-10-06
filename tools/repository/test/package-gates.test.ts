@@ -33,6 +33,7 @@ describe("done package gates", () => {
     "test:a02",
     "test:a03",
     "test:a04",
+    "test:v01",
     "test:l04",
     "test:l05",
   ]);
@@ -50,6 +51,41 @@ describe("done package gates", () => {
     expect(focusedTests).toContain("apps/control-worker/test/measurement-ingest.test.ts");
   });
 
+  test("keeps cloud authority, recovery and signed connected publication in the exact V01 target", () => {
+    const manifest = JSON.parse(
+      readFileSync(new URL("../../../package.json", import.meta.url), "utf8"),
+    ) as { scripts: Record<string, string> };
+    const commands = (manifest.scripts["test:v01"] ?? "")
+      .split("&&")
+      .map((command) => command.trim());
+    const tests = commands
+      .find((command) => command.startsWith("vitest run "))
+      ?.split(/\s+/)
+      .slice(2);
+    for (const path of [
+      "packages/domain/test/artifact-authority.test.ts",
+      "packages/domain/test/artifact-maintenance.test.ts",
+      "packages/domain/test/agent-artifacts.test.ts",
+      "apps/control-worker/test/artifact-maintenance.test.ts",
+      "apps/control-worker/test/agent-artifacts.test.ts",
+    ])
+      expect(tests).toContain(path);
+    expect(commands).toContain("tsx tools/artifacts/run.ts");
+    expect(commands).toContain("pnpm exec tsx tools/local-mcp/native.ts v01");
+    const native = commands
+      .find((command) => command.startsWith("go test -race -count=1 "))
+      ?.split(/\s+/)
+      .slice(4);
+    for (const path of [
+      "./internal/agentwork/...",
+      "./internal/supervisor/...",
+      "./internal/localmcp/...",
+      "./internal/runner/...",
+      "./internal/daemon/...",
+    ])
+      expect(native).toContain(path);
+  });
+
   test("selects exact done targets once in roadmap order", () => {
     expect(
       planPackageGates(
@@ -62,6 +98,7 @@ describe("done package gates", () => {
           workPackage("A02", "in_progress", "pnpm test:a02"),
           workPackage("A03", "in_progress", "pnpm test:a03"),
           workPackage("A04", "in_progress", "pnpm test:a04"),
+          workPackage("V01", "in_progress", "pnpm test:v01"),
         ],
         scripts,
         "darwin",
@@ -97,6 +134,7 @@ describe("done package gates", () => {
         workPackage("A02", "done", "pnpm test:a02"),
         workPackage("A03", "done", "pnpm test:a03"),
         workPackage("A04", "done", "pnpm test:a04"),
+        workPackage("V01", "done", "pnpm test:v01"),
       ],
       scripts,
       "darwin",
@@ -109,6 +147,7 @@ describe("done package gates", () => {
       { command: "pnpm", args: ["test:a02"], packages: ["A02"] },
       { command: "pnpm", args: ["test:a03"], packages: ["A03"] },
       { command: "pnpm", args: ["test:a04"], packages: ["A04"] },
+      { command: "pnpm", args: ["test:v01"], packages: ["V01"] },
     ]);
     expect(plan.skipped).toEqual([]);
   });
@@ -125,6 +164,7 @@ describe("done package gates", () => {
           workPackage("A02", "done", "pnpm test:a02"),
           workPackage("A03", "done", "pnpm test:a03"),
           workPackage("A04", "done", "pnpm test:a04"),
+          workPackage("V01", "done", "pnpm test:v01"),
         ],
         scripts,
         platform,
@@ -137,6 +177,7 @@ describe("done package gates", () => {
         { command: "pnpm", args: ["test:a02"], packages: ["A02"] },
         { command: "pnpm", args: ["test:a03"], packages: ["A03"] },
         { command: "pnpm", args: ["test:a04"], packages: ["A04"] },
+        { command: "pnpm", args: ["test:v01"], packages: ["V01"] },
       ]);
     },
   );

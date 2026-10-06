@@ -43,6 +43,7 @@ func ToolDescriptors() []ToolDescriptor {
 		{Name: "bfb_get_attention", Description: "Read the committed metadata for one of the run's attention requests.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{"attention_id": map[string]any{"type": "string", "description": "Attention request ID; must belong to the run.", "maxLength": maxIDLen}, "request_id": requestID}, "required": []string{"attention_id", "request_id"}, "additionalProperties": false}},
 		{Name: "bfb_wait_for_attention", Description: "Poll committed attention state for up to 30 seconds, then report pending.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{"attention_id": map[string]any{"type": "string", "description": "Attention request ID; must belong to the run.", "maxLength": maxIDLen}, "request_id": requestID}, "required": []string{"attention_id", "request_id"}, "additionalProperties": false}},
 		{Name: "bfb_submit_result", Description: "Submit an immutable result summary with evidence for human review.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{"summary": stringSchema("Result summary.", 1, maxSummaryLen), "limitations": stringSchema("Known limitations.", 1, maxLimitationsLen), "evidence_refs": map[string]any{"type": "array", "description": "At most 20 generic evidence references.", "maxItems": maxEvidenceRefs, "items": map[string]any{"type": "object"}}, "git_branch": stringSchema("Observed Git branch.", 1, maxBranchLen), "git_commit": stringSchema("Observed 40-character Git commit.", 40, 40), "git_dirty": map[string]any{"type": "boolean", "description": "Whether the observed worktree was dirty."}, "request_id": requestID}, "required": []string{"summary", "request_id"}, "additionalProperties": false}},
+		{Name: "bfb_publish_artifact", Description: "Publish a pinned artifact file online; retry the same request ID and unchanged bytes after an unavailable reply.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{"path": stringSchema("Relative file inside the supervisor's pinned artifact directory.", 1, 4096), "artifact_id": map[string]any{"type": "string", "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"}, "format": map[string]any{"type": "string", "enum": []string{"markdown", "mermaid", "diff", "svg", "png", "jpeg", "html", "log", "json"}}, "role": map[string]any{"type": "string", "enum": []string{"review", "log"}}, "request_id": requestID}, "required": []string{"path", "format", "role", "request_id"}, "additionalProperties": false}},
 	}
 }
 
@@ -61,11 +62,13 @@ type Host struct {
 	now         func() time.Time
 	seen        map[string]cachedOutcome
 	fingerprint string
+	tool        string
 }
 
 type cachedOutcome struct {
 	result      any
 	fingerprint string
+	tool        string
 }
 
 const maxCachedRequests = 256
@@ -117,7 +120,7 @@ func (host *Host) remember(requestID string, result any) {
 	host.mutex.Lock()
 	defer host.mutex.Unlock()
 	// CallTool admits new identities under the call seat before executing any effect.
-	host.seen[requestID] = cachedOutcome{result: result, fingerprint: host.fingerprint}
+	host.seen[requestID] = cachedOutcome{result: result, fingerprint: host.fingerprint, tool: host.tool}
 }
 
 // CallTool validates, authorizes, executes, and memoizes one tools/call.
@@ -166,8 +169,7 @@ func (host *Host) CallTool(ctx context.Context, name string, params map[string]a
 		}
 	}
 	if !known {
-		if name == "bfb_publish_artifact" ||
-			name == "bfb_list_projects" || name == "bfb_list_tasks" {
+		if name == "bfb_list_projects" || name == "bfb_list_tasks" {
 			return nil, fail("not_implemented")
 		}
 		return nil, fail("method_not_found")
@@ -177,8 +179,10 @@ func (host *Host) CallTool(ctx context.Context, name string, params map[string]a
 	daemonWrite = daemonAdmission && daemonWrite
 	_, daemonResult := host.transport.(daemonResultTransport)
 	daemonResult = daemonResult && name == "bfb_submit_result"
+	_, daemonArtifact := host.transport.(daemonArtifactTransport)
+	daemonArtifact = daemonArtifact && name == "bfb_publish_artifact"
 	_, daemonAttention := host.transport.(daemonAttentionTransport)
-	if daemonAdmission && !daemonWrite && !daemonResult && name != "bfb_get_context" && name != "bfb_get_task" && !(daemonAttention && attentionTool(name)) {
+	if daemonAdmission && !daemonWrite && !daemonResult && !daemonArtifact && name != "bfb_get_context" && name != "bfb_get_task" && !(daemonAttention && attentionTool(name)) {
 		// Later packages cannot fall back to the unsigned provider-side journal.
 		return nil, fail("not_implemented")
 	}
@@ -235,8 +239,15 @@ func (host *Host) CallTool(ctx context.Context, name string, params map[string]a
 	prior, reused := host.seen[rawRequestID]
 	full := len(host.seen) >= maxCachedRequests
 	host.fingerprint = fingerprint
+	host.tool = name
 	host.mutex.Unlock()
 	if reused && prior.fingerprint != fingerprint {
+		if daemonArtifact && prior.tool == name {
+			// The same safe path may now hold changed bytes; a different safe path
+			// may hold identical bytes. Only current daemon/cloud authority can
+			// decide the immutable canonical publication fingerprint.
+			return host.write(ctx, name, params, rawRequestID, boundary)
+		}
 		if daemonResult {
 			// Result retries have their own current authority, including Submitted.
 			// The daemon checks it before its durable original-input conflict; an
@@ -258,7 +269,7 @@ func (host *Host) CallTool(ctx context.Context, name string, params map[string]a
 		return nil, fail("request_rejected")
 	}
 	if result, ok := host.cached(rawRequestID); ok && !attentionTool(name) {
-		if daemonWrite || daemonResult {
+		if daemonWrite || daemonResult || daemonArtifact {
 			// The daemon revalidates current authority and the original durable
 			// identity before returning either an outcome or a fresh receipt.
 			return host.write(ctx, name, params, rawRequestID, boundary)
@@ -297,7 +308,7 @@ func (host *Host) CallTool(ctx context.Context, name string, params map[string]a
 		if err != nil {
 			return nil, err
 		}
-		if daemonWrite || daemonResult {
+		if daemonWrite || daemonResult || daemonArtifact {
 			// Retain input binding, never a pending receipt or private cached body.
 			host.remember(rawRequestID, nil)
 		} else {
@@ -324,6 +335,8 @@ func allowedParams(name string) map[string]bool {
 		return map[string]bool{"request_id": true, "attention_id": true}
 	case "bfb_submit_result":
 		return map[string]bool{"request_id": true, "summary": true, "limitations": true, "evidence_refs": true, "git_branch": true, "git_commit": true, "git_dirty": true}
+	case "bfb_publish_artifact":
+		return map[string]bool{"request_id": true, "path": true, "artifact_id": true, "format": true, "role": true}
 	default:
 		return common
 	}
@@ -354,6 +367,22 @@ func (host *Host) read(ctx context.Context, name string, requestID string) (any,
 }
 
 func (host *Host) write(ctx context.Context, name string, params map[string]any, requestID string, boundary Boundary) (any, error) {
+	if name == "bfb_publish_artifact" {
+		if err := ValidateArtifactInput(params); err != nil {
+			return nil, err
+		}
+		publication, ok := host.transport.(daemonArtifactTransport)
+		if !ok {
+			return nil, fail("not_implemented")
+		}
+		// Fresh callers bind online in the daemon. Already-activated callers
+		// retain their trusted local assertion; every retry still reaches v6.
+		session, err := host.capability.resultBinding(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return publication.PublishArtifact(ctx, boundary, session, params, requestID)
+	}
 	if admission, ok := host.transport.(daemonResultTransport); ok && name == "bfb_submit_result" {
 		if _, _, err := ValidateSubmitInput(params); err != nil {
 			return nil, err

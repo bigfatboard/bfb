@@ -6,12 +6,13 @@
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo",
     "types": ["node"]
   },
-  "include": ["run.ts", "native.ts", "worker.ts"],
+  "include": ["run.ts", "native.ts", "worker.ts", "artifact-worker.ts"],
   "references": [
     { "path": "../runner-channel" },
     { "path": "../../packages/domain" },
     { "path": "../../packages/db" },
     { "path": "../../packages/protocol-ts" },
-    { "path": "../../apps/control-worker" }
+    { "path": "../../apps/control-worker" },
+    { "path": "../../apps/artifact-worker" }
   ]
 }

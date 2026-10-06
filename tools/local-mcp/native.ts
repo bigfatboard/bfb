@@ -12,12 +12,17 @@ const root = process.cwd(),
   key = "l08-synthetic-current-signing-key-84d1e9";
 const scenario = process.argv[2];
 assert.ok(
-  scenario === undefined || scenario === "a02" || scenario === "a03" || scenario === "a04",
+  scenario === undefined ||
+    scenario === "a02" ||
+    scenario === "a03" ||
+    scenario === "a04" ||
+    scenario === "v01",
   "unsupported native fixture scenario",
 );
 const attention = scenario === "a02";
 const results = scenario === "a03";
 const measurements = scenario === "a04";
+const artifacts = scenario === "v01";
 assert.equal(
   process.platform,
   "darwin",
@@ -27,11 +32,14 @@ const session = "a01-synthetic-session",
   token = "a01-synthetic-session-token";
 const server = createTestHarness({
   root,
-  workers: [{ configPath: "tools/local-mcp/wrangler.toml" }],
+  workers: [
+    { configPath: "tools/local-mcp/wrangler.toml" },
+    ...(artifacts ? [{ configPath: "tools/local-mcp/wrangler-artifact.toml" }] : []),
+  ],
 });
 try {
   const { url } = await server.listen(),
-    worker = server.getWorker();
+    worker = server.getWorker("bfb-agent-work-test");
   await worker.applyD1Migrations("DB");
   const env = (await worker.getEnv()) as unknown as { DB: D1Like },
     db = adaptD1(env.DB);
@@ -86,6 +94,7 @@ try {
         BFB_A02_NATIVE_SCENARIO: attention ? "1" : "0",
         BFB_A03_NATIVE_SCENARIO: results ? "1" : "0",
         BFB_A04_NATIVE_SCENARIO: measurements ? "1" : "0",
+        BFB_V01_NATIVE_SCENARIO: artifacts ? "1" : "0",
         ...attentionEnvironment,
       },
     },
@@ -97,13 +106,15 @@ try {
     const chunk = proofTail + data.toString();
     if (
       chunk.includes(
-        measurements
-          ? "A04_NATIVE_PROOF_COMPLETE"
-          : results
-            ? "A03_NATIVE_PROOF_COMPLETE"
-            : attention
-              ? "A02_NATIVE_PROOF_COMPLETE"
-              : "A01_NATIVE_PROOF_COMPLETE",
+        artifacts
+          ? "V01_NATIVE_PROOF_COMPLETE"
+          : measurements
+            ? "A04_NATIVE_PROOF_COMPLETE"
+            : results
+              ? "A03_NATIVE_PROOF_COMPLETE"
+              : attention
+                ? "A02_NATIVE_PROOF_COMPLETE"
+                : "A01_NATIVE_PROOF_COMPLETE",
       )
     )
       proved = true;
@@ -116,7 +127,7 @@ try {
   assert.equal(code, 0, "compiled stdio / authenticated Worker integration failed");
   assert.ok(proved, "native proof did not run; skipped tests are not acceptance");
   console.log(
-    `${measurements ? "A04" : results ? "A03" : attention ? "A02" : "A01"} native compiled capture / daemon / possession / Worker / Hub / D1 proof passed`,
+    `${artifacts ? "V01" : measurements ? "A04" : results ? "A03" : attention ? "A02" : "A01"} native compiled capture / daemon / possession / Worker / Hub / D1 proof passed`,
   );
 } finally {
   await server.close();

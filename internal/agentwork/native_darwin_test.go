@@ -122,12 +122,17 @@ func TestMCPProviderProcess(t *testing.T) {
 	}
 	for scanner.Scan() {
 		line := scanner.Text()
-		if strings.HasPrefix(line, "__submit:") {
+		if strings.HasPrefix(line, "__submit:") || strings.HasPrefix(line, "__publish:") {
+			prefix := "__submit:"
+			words := []string{"run", "submit"}
+			if strings.HasPrefix(line, "__publish:") {
+				prefix, words = "__publish:", []string{"artifact", "publish"}
+			}
 			var args []string
-			if json.Unmarshal([]byte(strings.TrimPrefix(line, "__submit:")), &args) != nil {
+			if json.Unmarshal([]byte(strings.TrimPrefix(line, prefix)), &args) != nil {
 				os.Exit(2)
 			}
-			command := exec.Command(os.Getenv("BFB_A01_BINARY"), append([]string{"--data-dir", os.Getenv("BFB_A01_ROOT"), "run", "submit"}, args...)...)
+			command := exec.Command(os.Getenv("BFB_A01_BINARY"), append(append([]string{"--data-dir", os.Getenv("BFB_A01_ROOT")}, words...), args...)...)
 			for _, entry := range os.Environ() {
 				key, _, _ := strings.Cut(entry, "=")
 				if !strings.HasPrefix(key, "BFB_A01_") {
@@ -283,6 +288,7 @@ func TestNativeAgentWork(t *testing.T) {
 	attentionScenario := os.Getenv("BFB_A02_NATIVE_SCENARIO") == "1"
 	resultScenario := os.Getenv("BFB_A03_NATIVE_SCENARIO") == "1"
 	measurementScenario := os.Getenv("BFB_A04_NATIVE_SCENARIO") == "1"
+	artifactScenario := os.Getenv("BFB_V01_NATIVE_SCENARIO") == "1"
 	upstream, err := url.Parse(target)
 	if err != nil || upstream.Hostname() != "127.0.0.1" && upstream.Hostname() != "localhost" {
 		t.Fatal("Worker must be loopback")
@@ -293,6 +299,9 @@ func TestNativeAgentWork(t *testing.T) {
 		request.URL.Scheme = upstream.Scheme
 		request.URL.Host = upstream.Host
 		request.Host = "bfb.channel.test"
+		if strings.HasPrefix(request.URL.Path, "/upload/") {
+			request.Host = "artifacts.channel.test"
+		}
 	}
 	var loseReply atomic.Pointer[string]
 	var workOutage atomic.Bool
@@ -316,11 +325,19 @@ func TestNativeAgentWork(t *testing.T) {
 	}
 	var releaseDuringCloud atomic.Pointer[lockFault]
 	var challengeCount, challengeWindow atomic.Int64
+	var artifactBindCount, artifactBindWindow atomic.Int64
+	var artifactUploads atomic.Int64
 	proxy.ModifyResponse = func(response *http.Response) error {
 		if err := telemetryFaults.modify(response); err != nil {
 			return err
 		}
 		path := response.Request.URL.Path
+		if response.StatusCode == 200 && strings.HasPrefix(path, "/upload/") {
+			if action := loseReply.Load(); action != nil && *action == "artifact-upload" && loseReply.CompareAndSwap(action, nil) {
+				_ = response.Body.Close()
+				return fmt.Errorf("synthetic committed upload response loss")
+			}
+		}
 		if strings.HasSuffix(path, "/challenge") && response.StatusCode == 200 {
 			challengeWindow.CompareAndSwap(0, time.Now().UnixNano())
 			challengeCount.Add(1)
@@ -330,6 +347,10 @@ func TestNativeAgentWork(t *testing.T) {
 		}
 		if strings.Contains(path, "/work/") {
 			t.Log("synthetic work reply", filepath.Base(path), response.StatusCode)
+			if artifactScenario && strings.HasSuffix(path, "/work/session-bind") {
+				artifactBindWindow.CompareAndSwap(0, time.Now().UnixNano())
+				artifactBindCount.Add(1)
+			}
 		}
 		if response.StatusCode == 200 && strings.Contains(path, "/work/") {
 			if strings.HasSuffix(path, "/work/result-confirmation") {
@@ -393,7 +414,13 @@ func TestNativeAgentWork(t *testing.T) {
 		if strings.HasSuffix(request.URL.Path, "/work/attention-get") {
 			attentionReads.Add(1)
 		}
-		for _, action := range []string{"comment", "update", "progress", "proposal", "replay", "attention-request", "result-submit", "result-replay"} {
+		if strings.HasPrefix(request.URL.Path, "/upload/") {
+			artifactUploads.Add(1)
+			if request.Header.Get("Cookie") != "" || request.Header.Get(runner.ProofHeader) != "" {
+				t.Error("non-grant credential entered artifact origin")
+			}
+		}
+		for _, action := range []string{"comment", "update", "progress", "proposal", "replay", "attention-request", "result-submit", "result-replay", "artifact-prepare", "artifact-finalize"} {
 			if strings.HasSuffix(request.URL.Path, "/work/"+action) {
 				businessRequests.Add(1)
 			}
@@ -490,7 +517,7 @@ func TestNativeAgentWork(t *testing.T) {
 		}
 		return result
 	}
-	post("/__a01/configure", map[string]string{"offline": "deny"}, false)
+	configured := post("/__a01/configure", map[string]string{"offline": "deny"}, false)
 	response, err := daemon.Call(ctx, paths, "runner.enroll", map[string]any{"app_origin": "https://bfb.channel.test", "workspace_id": os.Getenv("BFB_A01_TEST_WORKSPACE"), "device_label": "Synthetic A01 Mac"})
 	if err != nil {
 		t.Fatal(err)
@@ -531,7 +558,23 @@ func TestNativeAgentWork(t *testing.T) {
 	}
 	templateClaim.Snapshot.ProviderManifestId, templateClaim.Snapshot.ProviderVersion = probe.ManifestID, probe.Version
 	template, _ = json.Marshal(templateClaim)
-	fixture := post("/__a01/seed", map[string]string{"runner": enrollment.RunnerID, "claim_template": string(template)}, false)
+	artifactCheckoutRoot := repo
+	artifactDirectory := ""
+	seedFixture := func() map[string]json.RawMessage {
+		t.Helper()
+		input := map[string]string{"runner": enrollment.RunnerID, "claim_template": string(template)}
+		if artifactScenario {
+			var canonical string
+			if json.Unmarshal(configured["canonical"], &canonical) != nil || canonical == "" {
+				t.Fatal("synthetic canonical repository policy missing")
+			}
+			registered := createNativeArtifactCheckout(t, ctx, paths, directory, enrollment.WorkspaceID, enrollment.RunnerID, os.Getenv("BFB_A01_TEST_PROJECT"), canonical)
+			artifactCheckoutRoot = registered.Location.GitRoot
+			input["v01_checkout"], input["v01_physical"] = registered.Summary.CheckoutId, registered.Summary.PhysicalWorktreeHash
+		}
+		return post("/__a01/seed", input, false)
+	}
+	fixture := seedFixture()
 	var claim generated.LaunchClaimResult
 	if json.Unmarshal(fixture["claim"], &claim) != nil {
 		t.Fatal("closed claim missing")
@@ -659,7 +702,12 @@ FROM work_intents i JOIN work_delivery d USING(operation_key) WHERE json_extract
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = files.Prepare(supervisor.LocalAssignment{IntentID: intent, State: "intent_ready", ProviderIdentityHash: providerIdentity, Claim: claim}, registry, probe, repo)
+		preparation, err := files.Prepare(supervisor.LocalAssignment{IntentID: intent, State: "intent_ready", ProviderIdentityHash: providerIdentity, Claim: claim}, registry, probe, artifactCheckoutRoot)
+		if err == nil && artifactScenario {
+			artifactDirectory = preparation.Artifacts.Path
+			err = files.Publish(generated.LocalExecutionAssignment{SchemaVersion: 1, TerminalIntentId: intent, Claim: claim, ProviderIdentityHash: providerIdentity, CorrelationToken: nativeCorrelation,
+				Supervisor: generated.SupervisorIdentity{Pid: int64(owned.Owner.Process.PID), StartIdentity: owned.Owner.Process.StartIdentity, ExecutableHash: owned.Owner.ExecutableHash}})
+		}
 		_ = files.Close()
 		if err != nil {
 			t.Fatal("synthetic authenticated image preparation", err)
@@ -675,7 +723,7 @@ FROM work_intents i JOIN work_delivery d USING(operation_key) WHERE json_extract
 			return json.Unmarshal(observed["inventory"], &inventory) == nil && len(inventory.Checkouts) == 1 && inventory.Checkouts[0].CheckoutId == ids["checkout"] && inventory.Checkouts[0].PhysicalWorktreeHash == ids["physical"] && inventory.Checkouts[0].RepositoryConfigHash == claim.Snapshot.RepositoryConfigHash
 		})
 	}
-	seedLocal(attentionScenario || resultScenario || measurementScenario)
+	seedLocal(attentionScenario || resultScenario || measurementScenario || artifactScenario)
 	write := func(value any) {
 		t.Helper()
 		data, _ := json.Marshal(value)
@@ -722,13 +770,13 @@ FROM work_intents i JOIN work_delivery d USING(operation_key) WHERE json_extract
 		}
 		return body, ""
 	}
-	submitCLI := func(args []string) (map[string]any, int) {
+	ownedCLI := func(prefix string, args []string) (map[string]any, int) {
 		t.Helper()
 		data, err := json.Marshal(args)
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, _ = io.WriteString(stdin, "__submit:"+string(data)+"\n")
+		_, _ = io.WriteString(stdin, prefix+string(data)+"\n")
 		line, err := reader.ReadString('\n')
 		if err != nil || !strings.HasPrefix(line, "CLI:") {
 			t.Fatal("owned fresh one-shot CLI failed", err)
@@ -742,6 +790,7 @@ FROM work_intents i JOIN work_delivery d USING(operation_key) WHERE json_extract
 		}
 		return response.Output, response.Status
 	}
+	submitCLI := func(args []string) (map[string]any, int) { return ownedCLI("__submit:", args) }
 	receipt := func(result map[string]any, code, tool, requestID, state, certainty string, reason any) {
 		t.Helper()
 		data, err := json.Marshal(result)
@@ -863,6 +912,23 @@ FROM work_intents i JOIN work_delivery d USING(operation_key) WHERE json_extract
 	freshScope := func(renewLease bool) {
 		t.Helper()
 		// Pace real traffic; never reset or bypass server budgets.
+		// V01 explicitly rebinds every publication/recovery invocation. Leave
+		// room below its existing 20/min mutation budget before the next phase.
+		if start := artifactBindWindow.Load(); artifactScenario && start != 0 && artifactBindCount.Load() >= 12 {
+			remaining := time.Until(time.Unix(0, start).Add(61 * time.Second))
+			if remaining > 0 {
+				t.Log("pacing synthetic artifact binding traffic", artifactBindCount.Load(), remaining.Round(time.Second))
+				timer := time.NewTimer(remaining)
+				select {
+				case <-timer.C:
+				case <-ctx.Done():
+					timer.Stop()
+					t.Fatal("native artifact binding pacing timed out")
+				}
+			}
+			artifactBindWindow.Store(0)
+			artifactBindCount.Store(0)
+		}
 		if start := challengeWindow.Load(); start != 0 && challengeCount.Load() >= 80 {
 			remaining := time.Until(time.Unix(0, start).Add(61 * time.Second))
 			if remaining > 0 {
@@ -884,7 +950,7 @@ FROM work_intents i JOIN work_delivery d USING(operation_key) WHERE json_extract
 		if _, err := db.Exec(`UPDATE execution_commands SET state='complete' WHERE runner_id=? AND command_id=?`, ids["runner"], ids["launch"]); err != nil {
 			t.Fatal(err)
 		}
-		fresh := post("/__a01/seed", map[string]string{"runner": enrollment.RunnerID, "claim_template": string(template)}, false)
+		fresh := seedFixture()
 		fixture = fresh
 		if json.Unmarshal(fresh["claim"], &claim) != nil {
 			t.Fatal("fresh claim missing")
@@ -927,6 +993,19 @@ FROM work_intents i JOIN work_delivery d USING(operation_key) WHERE json_extract
 				if err := waitFixtureLockFree(paths.Root, ids["physical"]); err != nil {
 					t.Fatal(err)
 				}
+			},
+		})
+		return
+	}
+	if artifactScenario {
+		runNativeArtifacts(t, nativeArtifactFixture{
+			ctx: ctx, workDB: workDB, paths: paths,
+			ids: func() map[string]string { return ids }, directory: func() string { return artifactDirectory },
+			call: call, publishCLI: func(args []string) (map[string]any, int) { return ownedCLI("__publish:", args) },
+			post: post, restart: restart, restartDaemon: restartDaemon, stopMCP: stopMCP, freshScope: freshScope, hook: hook, wait: wait,
+			outage: &workOutage, loseReply: &loseReply, businessRequests: &businessRequests, uploads: &artifactUploads,
+			postflightRelease: func(action string) {
+				releaseDuringCloud.Store(&lockFault{input: stdin, root: paths.Root, hash: ids["physical"], action: action})
 			},
 		})
 		return

@@ -190,7 +190,10 @@ func registerWorkRPC(registry *daemon.Registry, work *workService) error {
 	if err := registerAttentionRPC(registry, connection, ownership, work.results); err != nil {
 		return err
 	}
-	return registerResultRPC(registry, work)
+	if err := registerResultRPC(registry, work); err != nil {
+		return err
+	}
+	return registerArtifactRPC(registry, work)
 }
 
 func ownershipError(err error) error {

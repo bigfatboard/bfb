@@ -1,0 +1,23 @@
+# ABOUTME: Binds the native artifact origin to the same disposable D1 and private R2 as control.
+# ABOUTME: Keeps upload credentials separate from app cookies and retains production upload handling.
+
+name = "bfb-native-artifact-test"
+main = "artifact-worker.ts"
+compatibility_date = "2026-08-08"
+compatibility_flags = ["nodejs_compat"]
+routes = ["artifacts.channel.test/*"]
+[dev]
+local_protocol = "https"
+[vars]
+ENVIRONMENT = "local"
+APP_ORIGIN = "https://bfb.channel.test"
+ARTIFACT_ORIGIN = "https://artifacts.channel.test"
+UPLOAD_ABUSE_SECRET = "v01-native-upload-abuse-secret-4badefc1-long"
+[[d1_databases]]
+binding = "DB"
+database_name = "bfb-agent-work-test"
+database_id = "00000000-0000-4000-8000-000000000001"
+migrations_dir = "../../migrations/d1"
+[[r2_buckets]]
+binding = "ARTIFACTS"
+bucket_name = "bfb-agent-work-artifacts"
