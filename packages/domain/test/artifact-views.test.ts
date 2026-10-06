@@ -114,22 +114,20 @@ async function fixture() {
         { now },
       ),
     );
-    await redeemUploadGrant(db, {
+    const consumed = await redeemUploadGrant(db, {
       grantId: created.upload_grant.grant_id,
       secret: minted.secret,
       now,
     });
-    const key = `workspaces/${FIX.workspace}/artifacts/sha256/${contentDigest}`;
-    await recordVerifiedUpload(db, {
-      workspaceId: FIX.workspace,
-      versionId: created.version_id,
-      runId,
-      role: "review",
-      contentHash: contentDigest,
-      r2Key: key,
-      size: 18,
-      now,
-    });
+    await db.withTransaction((tx) =>
+      recordVerifiedUpload(tx, {
+        grantId: consumed.grantId,
+        consumeAttemptId: consumed.consumeAttemptId,
+        contentHash: contentDigest,
+        size: 18,
+        now,
+      }),
+    );
     result(
       await human(
         finalizeArtifactCommand,

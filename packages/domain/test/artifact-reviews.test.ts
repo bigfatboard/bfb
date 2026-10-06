@@ -130,21 +130,20 @@ async function fixture() {
         { now },
       ),
     );
-    await redeemUploadGrant(db, {
+    const consumed = await redeemUploadGrant(db, {
       grantId: created.upload_grant.grant_id,
       secret: minted.secret,
       now,
     });
-    await recordVerifiedUpload(db, {
-      workspaceId: FIX.workspace,
-      versionId: created.version_id,
-      runId,
-      role: "review",
-      contentHash,
-      r2Key: `workspaces/${FIX.workspace}/artifacts/sha256/${contentHash}`,
-      size: 32,
-      now,
-    });
+    await db.withTransaction((tx) =>
+      recordVerifiedUpload(tx, {
+        grantId: consumed.grantId,
+        consumeAttemptId: consumed.consumeAttemptId,
+        contentHash,
+        size: 32,
+        now,
+      }),
+    );
     result(
       await human(
         finalizeArtifactCommand,
@@ -181,21 +180,20 @@ async function fixture() {
         { now },
       ),
     );
-    await redeemUploadGrant(db, {
+    const consumed = await redeemUploadGrant(db, {
       grantId: created.upload_grant.grant_id,
       secret: minted.secret,
       now,
     });
-    await recordVerifiedUpload(db, {
-      workspaceId: FIX.workspace,
-      versionId: created.version_id,
-      runId,
-      role: "review",
-      contentHash,
-      r2Key: `workspaces/${FIX.workspace}/artifacts/sha256/${contentHash}`,
-      size: 32,
-      now,
-    });
+    await db.withTransaction((tx) =>
+      recordVerifiedUpload(tx, {
+        grantId: consumed.grantId,
+        consumeAttemptId: consumed.consumeAttemptId,
+        contentHash,
+        size: 32,
+        now,
+      }),
+    );
     result(
       await human(
         finalizeArtifactCommand,

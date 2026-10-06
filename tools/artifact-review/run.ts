@@ -190,21 +190,20 @@ async function publish(
     ),
     "artifact.create_version",
   );
-  await redeemUploadGrant(db, {
+  const consumed = await redeemUploadGrant(db, {
     grantId: (created as unknown as { upload_grant: { grant_id: string } }).upload_grant.grant_id,
     secret: minted.secret,
     now: at,
   });
-  await recordVerifiedUpload(db, {
-    workspaceId: input.workspaceId,
-    versionId: created.version_id,
-    runId: input.runId,
-    role: "review",
-    contentHash,
-    r2Key: `workspaces/${input.workspaceId}/artifacts/sha256/${contentHash}`,
-    size: bytes.byteLength,
-    now: at,
-  });
+  await db.withTransaction((tx) =>
+    recordVerifiedUpload(tx, {
+      grantId: consumed.grantId,
+      consumeAttemptId: consumed.consumeAttemptId,
+      contentHash,
+      size: bytes.byteLength,
+      now: at,
+    }),
+  );
   ok(
     await execute(
       worker === "bfb-v03-a" ? "bfb-v03-b" : "bfb-v03-a",

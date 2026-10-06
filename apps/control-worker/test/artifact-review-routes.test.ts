@@ -6,7 +6,6 @@ import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 
 import {
-  artifactObjectKey,
   createArtifactCommand,
   createTaskCommand,
   createRunCommand,
@@ -152,27 +151,20 @@ async function fixture() {
       },
     });
     if (!created.ok) throw new Error(JSON.stringify(created));
-    await redeemUploadGrant(context.db, {
+    const consumed = await redeemUploadGrant(context.db, {
       grantId: created.result.upload_grant.grant_id,
       secret: minted.secret,
       now: NOW,
     });
-    await recordVerifiedUpload(context.db, {
-      workspaceId: FIX.workspace,
-      versionId: created.result.version_id,
-      runId,
-      role: "review",
-      contentHash: hash,
-      r2Key: artifactObjectKey({
-        workspaceId: FIX.workspace,
-        role: "review",
-        runId,
-        versionId: created.result.version_id,
+    await context.db.withTransaction((tx) =>
+      recordVerifiedUpload(tx, {
+        grantId: consumed.grantId,
+        consumeAttemptId: consumed.consumeAttemptId,
         contentHash: hash,
+        size: bytes.byteLength,
+        now: NOW,
       }),
-      size: bytes.byteLength,
-      now: NOW,
-    });
+    );
     const finalized = await hub.execute(finalizeArtifactCommand, {
       workspaceId: FIX.workspace,
       actorHumanId: FIX.owner,

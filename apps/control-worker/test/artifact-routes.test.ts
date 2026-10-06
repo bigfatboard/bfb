@@ -5,7 +5,13 @@ import { createHash } from "node:crypto";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { artifactObjectKey, FIX, recordVerifiedUpload, seedSyntheticWorkspace } from "@bfb/domain";
+import {
+  artifactObjectKey,
+  FIX,
+  recordVerifiedUpload,
+  redeemUploadGrant,
+  seedSyntheticWorkspace,
+} from "@bfb/domain";
 import type { SqlDatabase } from "@bfb/db";
 import { runArtifactSweep } from "../src/api/artifacts.js";
 
@@ -269,14 +275,18 @@ describe("artifact browser routes", () => {
       versionId: created.version_id,
       contentHash: digest(TEXT),
     });
+    const redeemed = await (db as SqlDatabase).withTransaction((tx) =>
+      redeemUploadGrant(tx, {
+        grantId: grant.grant_id,
+        secret: grant.secret,
+        now: NOW,
+      }),
+    );
     await (db as SqlDatabase).withTransaction((tx) =>
       recordVerifiedUpload(tx, {
-        workspaceId: FIX.workspace,
-        versionId: created.version_id,
-        runId: null,
-        role: "review",
+        grantId: redeemed.grantId,
+        consumeAttemptId: redeemed.consumeAttemptId,
         contentHash: digest(TEXT),
-        r2Key: key,
         size: TEXT.byteLength,
         now: NOW,
       }),

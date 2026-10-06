@@ -38,7 +38,7 @@ async function awaitCandidateReads(db: D1Like, scope: string): Promise<void> {
   throw new Error("synthetic candidate-read barrier timed out");
 }
 
-function instrumentedDatabase(db: D1Like, scope: string): D1Like {
+function instrumentedDatabase(db: D1Like, scope: string, phase: "consume" | "receipt"): D1Like {
   const underlying = new WeakMap<D1StatementLike, D1StatementLike>();
   return {
     prepare(sql) {
@@ -51,7 +51,11 @@ function instrumentedDatabase(db: D1Like, scope: string): D1Like {
         },
         async first(column) {
           const result = await statement.first(column);
-          if (sql.includes("FROM artifact_upload_grants AS g"))
+          if (
+            phase === "consume"
+              ? sql.includes("g.expires_at, g.consumed_at")
+              : sql.includes("FROM artifact_upload_receipts")
+          )
             await awaitCandidateReads(db, scope);
           return result;
         },
@@ -97,7 +101,8 @@ export default {
     const read = /^\/__v01\/effects\/([0-9A-HJKMNP-TV-Z]{26})$/.exec(url.pathname);
     if (read && request.method === "GET")
       return Response.json(effects.get(read[1]!) ?? { body_reads: 0, put_calls: 0 });
-    const scope = request.headers.get("x-v01-race-scope");
+    const receiptScope = request.headers.get("x-v01-receipt-race-scope");
+    const scope = receiptScope ?? request.headers.get("x-v01-race-scope");
     if (!scope) return createArtifactFetchHandler({ now })(request, env as never);
     if (!/^[0-7][0-9A-HJKMNP-TV-Z]{25}$/.test(scope) || effects.size >= 128)
       return new Response("invalid synthetic scope", { status: 400 });
@@ -116,7 +121,7 @@ export default {
     });
     return createArtifactFetchHandler({
       now,
-      db: adaptD1(instrumentedDatabase(bindings.DB, scope)),
+      db: adaptD1(instrumentedDatabase(bindings.DB, scope, receiptScope ? "receipt" : "consume")),
     })(observedRequest(request, count), { ...bindings, ARTIFACTS: bucket } as never);
   },
 };

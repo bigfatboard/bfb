@@ -136,21 +136,19 @@ async function fixture() {
       )
       .run(FIX.workspace, FIX.projectA, FIX.member);
   }
-  async function receipt(versionId: string) {
+  async function receipt(created: Awaited<ReturnType<typeof create>>) {
+    const redeemed = await db.withTransaction((tx) =>
+      redeemUploadGrant(tx, {
+        grantId: created.upload_grant.grant_id,
+        secret: created.secret,
+        now: NOW,
+      }),
+    );
     await db.withTransaction((tx) =>
       recordVerifiedUpload(tx, {
-        workspaceId: FIX.workspace,
-        versionId,
-        runId,
-        role: "review",
+        grantId: redeemed.grantId,
+        consumeAttemptId: redeemed.consumeAttemptId,
         contentHash: DIGEST,
-        r2Key: artifactObjectKey({
-          workspaceId: FIX.workspace,
-          runId,
-          role: "review",
-          versionId,
-          contentHash: DIGEST,
-        }),
         size: 18,
         now: NOW,
       }),
@@ -223,7 +221,7 @@ describe("current artifact authority", () => {
     async (change) => {
       const f = await fixture();
       const created = await f.create();
-      await f.receipt(created.version_id);
+      await f.receipt(created);
       vi.setSystemTime(Date.parse(NOW) + ARTIFACT_GRANT_TTL_MS + ARTIFACT_ABANDON_GRACE_MS);
       const now = new Date().toISOString();
       let injected = false;
@@ -344,7 +342,7 @@ describe("current artifact authority", () => {
     async (action) => {
       const f = await fixture();
       const created = await f.create();
-      await f.receipt(created.version_id);
+      await f.receipt(created);
       f.removeProject();
       const before = f.raw.prepare("SELECT COUNT(*) n FROM artifact_audit_outbox").get();
       const minted = mintUploadGrantSecret();
@@ -624,4 +622,236 @@ describe("exact upload consumption", () => {
       ).toEqual({ n: 0 });
     },
   );
+});
+
+describe("consume-bound physical receipts", () => {
+  async function consumed(f: Awaited<ReturnType<typeof fixture>>) {
+    const created = await f.create();
+    const redeemed = await f.db.withTransaction((tx) =>
+      redeemUploadGrant(tx, {
+        grantId: created.upload_grant.grant_id,
+        secret: created.secret,
+        now: NOW,
+      }),
+    );
+    return {
+      created,
+      input: {
+        grantId: redeemed.grantId,
+        consumeAttemptId: redeemed.consumeAttemptId,
+        contentHash: DIGEST,
+        size: 18,
+        now: NOW,
+      },
+    };
+  }
+
+  it("derives exact scope/key and preserves one immutable verification source across retries", async () => {
+    const f = await fixture();
+    const { created, input } = await consumed(f);
+    const first = await f.db.withTransaction((tx) => recordVerifiedUpload(tx, input));
+    expect(first).toMatchObject({
+      workspaceId: FIX.workspace,
+      versionId: created.version_id,
+      r2Key: artifactObjectKey({
+        workspaceId: FIX.workspace,
+        role: "review",
+        runId: f.runId,
+        versionId: created.version_id,
+        contentHash: DIGEST,
+      }),
+      deduplicated: false,
+    });
+    await f.db.withTransaction((tx) => recordVerifiedUpload(tx, input));
+    expect(
+      f.raw
+        .prepare("SELECT version_id,grant_id,attempt_id FROM artifact_upload_receipt_sources")
+        .all(),
+    ).toEqual([
+      {
+        version_id: created.version_id,
+        grant_id: input.grantId,
+        attempt_id: input.consumeAttemptId,
+      },
+    ]);
+    expect(
+      f.raw
+        .prepare(
+          "SELECT COUNT(*) n FROM artifact_audit_outbox WHERE action='artifact.upload_verified'",
+        )
+        .get(),
+    ).toEqual({ n: 1 });
+    expect(() =>
+      f.raw.prepare("UPDATE artifact_upload_receipt_sources SET grant_id=?").run(randomUlid()),
+    ).toThrow();
+    expect(() => f.raw.prepare("DELETE FROM artifact_upload_receipt_sources").run()).toThrow();
+  });
+
+  it.each(["grant", "attempt", "digest", "size", "caller_scope"] as const)(
+    "rejects substituted %s without object/receipt/source writes",
+    async (field) => {
+      const f = await fixture();
+      const { input } = await consumed(f);
+      const other = await consumed(f);
+      const changed =
+        field === "grant"
+          ? { ...input, grantId: other.input.grantId }
+          : field === "attempt"
+            ? { ...input, consumeAttemptId: other.input.consumeAttemptId }
+            : field === "digest"
+              ? { ...input, contentHash: "b".repeat(64) }
+              : field === "size"
+                ? { ...input, size: 19 }
+                : { ...input, workspaceId: FIX.workspace };
+      await expect(
+        f.db.withTransaction((tx) => recordVerifiedUpload(tx, changed)),
+      ).rejects.toThrow();
+      for (const table of [
+        "artifact_objects",
+        "artifact_upload_receipts",
+        "artifact_upload_receipt_sources",
+      ])
+        expect(f.raw.prepare(`SELECT COUNT(*) n FROM ${table}`).get()).toEqual({ n: 0 });
+    },
+  );
+
+  it("rejects unconsumed grants and retains legacy receipts without invented source backfill", async () => {
+    const raw = new Database(":memory:");
+    raw.pragma("foreign_keys = ON");
+    applyMigrationsForVerification(raw, path.resolve("migrations/d1"), {
+      stopBeforeId: "0043_agent_artifact_publications",
+    });
+    const db = adaptBetterSqlite3(raw);
+    await seedSyntheticWorkspace(db, NOW);
+    const mint = mintUploadGrantSecret();
+    const created = await new WorkspaceHub(db).execute(createArtifactCommand, {
+      workspaceId: FIX.workspace,
+      actorHumanId: FIX.owner,
+      authorizationEpoch: 1,
+      idempotencyKey: randomUlid(),
+      input: {
+        format: "markdown",
+        role: "review",
+        declaredSize: 18,
+        expectedDigest: DIGEST,
+        grantSecretHash: mint.secretHash,
+      },
+    });
+    if (!created.ok) throw new Error(JSON.stringify(created));
+    raw
+      .prepare("INSERT INTO artifact_upload_receipts VALUES (?,?,?,?,?)")
+      .run(FIX.workspace, created.result.version_id, DIGEST, 18, NOW);
+    const before = raw.prepare("SELECT * FROM artifact_upload_receipts").all();
+    applyMigrationsForVerification(raw, path.resolve("migrations/d1"));
+    expect(raw.prepare("SELECT * FROM artifact_upload_receipts").all()).toEqual(before);
+    expect(raw.prepare("SELECT * FROM artifact_upload_receipt_sources").all()).toEqual([]);
+    await expect(
+      db.withTransaction((tx) =>
+        recordVerifiedUpload(tx, {
+          grantId: created.result.upload_grant.grant_id,
+          consumeAttemptId: randomUlid(),
+          contentHash: DIGEST,
+          size: 18,
+          now: NOW,
+        }),
+      ),
+    ).rejects.toThrow();
+    expect(raw.prepare("SELECT * FROM artifact_upload_receipt_sources").all()).toEqual([]);
+    expect(raw.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+  });
+
+  it("retains a verified physical fact after membership changes but does not grant finalization", async () => {
+    const f = await fixture();
+    const { created, input } = await consumed(f);
+    f.raw
+      .prepare("UPDATE workspace_authorization_epochs SET revoked_at=? WHERE human_id=?")
+      .run(NOW, FIX.owner);
+    await f.db.withTransaction((tx) => recordVerifiedUpload(tx, input));
+    expect(
+      await f.human(finalizeArtifactCommand, {
+        versionId: created.version_id,
+        contentHash: DIGEST,
+        size: 18,
+      }),
+    ).toMatchObject({ ok: false });
+    expect(
+      f.raw.prepare("SELECT state FROM artifact_versions WHERE id=?").get(created.version_id),
+    ).toEqual({ state: "uploading" });
+  });
+
+  it.each(["failed", "late_audit"] as const)(
+    "rolls back the complete staged receipt batch after %s",
+    async (change) => {
+      const f = await fixture();
+      const { created, input } = await consumed(f);
+      const db = stagedDatabase(f.raw, async () => {
+        if (change === "failed")
+          f.raw
+            .prepare("UPDATE artifact_versions SET state='failed' WHERE id=?")
+            .run(created.version_id);
+      });
+      if (change === "late_audit")
+        f.raw.exec(
+          "CREATE TRIGGER synthetic_receipt_fault BEFORE INSERT ON artifact_audit_outbox WHEN NEW.action='artifact.upload_verified' BEGIN SELECT RAISE(ABORT,'synthetic late receipt failure'); END",
+        );
+      await expect(db.withTransaction((tx) => recordVerifiedUpload(tx, input))).rejects.toThrow();
+      for (const table of [
+        "artifact_objects",
+        "artifact_upload_receipts",
+        "artifact_upload_receipt_sources",
+        "artifact_mutation_guards",
+      ])
+        expect(f.raw.prepare(`SELECT COUNT(*) n FROM ${table}`).get()).toEqual({ n: 0 });
+      expect(
+        f.raw
+          .prepare(
+            "SELECT COUNT(*) n FROM artifact_audit_outbox WHERE action='artifact.upload_verified'",
+          )
+          .get(),
+      ).toEqual({ n: 0 });
+    },
+  );
+
+  it("converges two staged consumed grants to one receipt source and verification outbox", async () => {
+    const f = await fixture();
+    const { created, input } = await consumed(f);
+    const mint = mintUploadGrantSecret();
+    const issued = await f.human(issueArtifactGrantCommand, {
+      versionId: created.version_id,
+      grantSecretHash: mint.secretHash,
+    });
+    if (!issued.ok) throw new Error(JSON.stringify(issued));
+    const second = await f.db.withTransaction((tx) =>
+      redeemUploadGrant(tx, { grantId: issued.result.grant_id, secret: mint.secret, now: NOW }),
+    );
+    let batches = 0;
+    let release!: () => void;
+    const barrier = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const db = stagedDatabase(f.raw, async () => {
+      if (++batches === 2) release();
+      await barrier;
+    });
+    const outcomes = await Promise.all(
+      [input, { ...input, grantId: second.grantId, consumeAttemptId: second.consumeAttemptId }].map(
+        (request) => db.withTransaction((tx) => recordVerifiedUpload(tx, request)),
+      ),
+    );
+    expect(outcomes).toHaveLength(2);
+    for (const table of [
+      "artifact_objects",
+      "artifact_upload_receipts",
+      "artifact_upload_receipt_sources",
+    ])
+      expect(f.raw.prepare(`SELECT COUNT(*) n FROM ${table}`).get()).toEqual({ n: 1 });
+    expect(
+      f.raw
+        .prepare(
+          "SELECT COUNT(*) n FROM artifact_audit_outbox WHERE action='artifact.upload_verified'",
+        )
+        .get(),
+    ).toEqual({ n: 1 });
+    expect(f.raw.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+  });
 });

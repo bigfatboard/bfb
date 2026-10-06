@@ -206,27 +206,20 @@ describe("artifact state machine", () => {
     );
     expect(reissued.grant_id).not.toBe(created.upload_grant.grant_id);
     expect(reissued.grant_hash).toBe(minted.secretHash);
-    await redeemUploadGrant(db, {
+    const redeemed = await redeemUploadGrant(db, {
       grantId: created.upload_grant.grant_id,
       secret: created.secret,
       now: NOW,
     });
-    await recordVerifiedUpload(db, {
-      workspaceId: FIX.workspace,
-      versionId: created.version_id,
-      runId: null,
-      role: "review",
-      contentHash: DIGEST,
-      r2Key: artifactObjectKey({
-        workspaceId: FIX.workspace,
-        role: "review",
-        runId: null,
-        versionId: created.version_id,
+    await db.withTransaction((tx) =>
+      recordVerifiedUpload(tx, {
+        grantId: redeemed.grantId,
+        consumeAttemptId: redeemed.consumeAttemptId,
         contentHash: DIGEST,
+        size: 18,
+        now: NOW,
       }),
-      size: 18,
-      now: NOW,
-    });
+    );
     result(
       await human(finalizeArtifactCommand, {
         versionId: created.version_id,
@@ -311,7 +304,7 @@ describe("artifact state machine", () => {
         }),
       ),
     ).toBe("request_rejected");
-    await redeemUploadGrant(db, {
+    const redeemed = await redeemUploadGrant(db, {
       grantId: created.upload_grant.grant_id,
       secret: created.secret,
       now: NOW,
@@ -325,38 +318,32 @@ describe("artifact state machine", () => {
     });
     await expect(
       recordVerifiedUpload(db, {
-        workspaceId: FIX.workspace,
-        versionId: created.version_id,
-        runId: null,
-        role: "review",
+        grantId: redeemed.grantId,
+        consumeAttemptId: redeemed.consumeAttemptId,
         contentHash: DIGEST,
         r2Key: "workspaces/other/artifacts/sha256/" + DIGEST,
         size: 18,
         now: NOW,
-      }),
+      } as Parameters<typeof recordVerifiedUpload>[1]),
     ).rejects.toThrow();
     await expect(
       recordVerifiedUpload(db, {
-        workspaceId: FIX.workspace,
-        versionId: created.version_id,
-        runId: null,
-        role: "review",
+        grantId: redeemed.grantId,
+        consumeAttemptId: redeemed.consumeAttemptId,
         contentHash: "b".repeat(64),
-        r2Key: key,
         size: 18,
         now: NOW,
       }),
     ).rejects.toThrow();
-    await recordVerifiedUpload(db, {
-      workspaceId: FIX.workspace,
-      versionId: created.version_id,
-      runId: null,
-      role: "review",
-      contentHash: DIGEST,
-      r2Key: key,
-      size: 18,
-      now: NOW,
-    });
+    await db.withTransaction((tx) =>
+      recordVerifiedUpload(tx, {
+        grantId: redeemed.grantId,
+        consumeAttemptId: redeemed.consumeAttemptId,
+        contentHash: DIGEST,
+        size: 18,
+        now: NOW,
+      }),
+    );
     const finalized = result(
       await human(finalizeArtifactCommand, {
         versionId: created.version_id,
@@ -382,27 +369,20 @@ describe("artifact state machine", () => {
     const first = await create();
     const second = await create();
     for (const created of [first, second]) {
-      await redeemUploadGrant(db, {
+      const redeemed = await redeemUploadGrant(db, {
         grantId: created.upload_grant.grant_id,
         secret: created.secret,
         now: NOW,
       });
-      await recordVerifiedUpload(db, {
-        workspaceId: FIX.workspace,
-        versionId: created.version_id,
-        runId: null,
-        role: "review",
-        contentHash: DIGEST,
-        r2Key: artifactObjectKey({
-          workspaceId: FIX.workspace,
-          role: "review",
-          runId: null,
-          versionId: created.version_id,
+      await db.withTransaction((tx) =>
+        recordVerifiedUpload(tx, {
+          grantId: redeemed.grantId,
+          consumeAttemptId: redeemed.consumeAttemptId,
           contentHash: DIGEST,
+          size: 18,
+          now: NOW,
         }),
-        size: 18,
-        now: NOW,
-      });
+      );
       result(
         await human(finalizeArtifactCommand, {
           versionId: created.version_id,
@@ -465,7 +445,7 @@ describe("artifact state machine", () => {
           },
         }),
       );
-      await redeemUploadGrant(db, {
+      const redeemed = await redeemUploadGrant(db, {
         grantId: created.upload_grant.grant_id,
         secret: minted.secret,
         now: NOW,
@@ -478,16 +458,15 @@ describe("artifact state machine", () => {
         contentHash: DIGEST,
       });
       keys.push(key);
-      await recordVerifiedUpload(db, {
-        workspaceId: FIX.workspace,
-        versionId: created.version_id,
-        runId,
-        role: "log",
-        contentHash: DIGEST,
-        r2Key: key,
-        size: 18,
-        now: NOW,
-      });
+      await db.withTransaction((tx) =>
+        recordVerifiedUpload(tx, {
+          grantId: redeemed.grantId,
+          consumeAttemptId: redeemed.consumeAttemptId,
+          contentHash: DIGEST,
+          size: 18,
+          now: NOW,
+        }),
+      );
       const finalized = result(
         await human(finalizeArtifactCommand, {
           versionId: created.version_id,
@@ -558,38 +537,36 @@ describe("artifact state machine", () => {
       contentHash: DIGEST,
     });
     expect(secondKey).not.toBe(firstKey);
-    await redeemUploadGrant(db, {
+    const firstRedeemed = await redeemUploadGrant(db, {
       grantId: first.upload_grant.grant_id,
       secret: first.secret,
       now: NOW,
     });
-    await redeemUploadGrant(db, {
+    const secondRedeemed = await redeemUploadGrant(db, {
       grantId: second.upload_grant.grant_id,
       secret: minted.secret,
       now: NOW,
     });
-    await recordVerifiedUpload(db, {
-      workspaceId: FIX.workspace,
-      versionId: first.version_id,
-      runId: null,
-      role: "review",
-      contentHash: DIGEST,
-      r2Key: firstKey,
-      size: 18,
-      now: NOW,
-    });
+    await db.withTransaction((tx) =>
+      recordVerifiedUpload(tx, {
+        grantId: firstRedeemed.grantId,
+        consumeAttemptId: firstRedeemed.consumeAttemptId,
+        contentHash: DIGEST,
+        size: 18,
+        now: NOW,
+      }),
+    );
     // The second workspace sees the same success: no key-mismatch rejection
     // and no signal that these bytes already exist elsewhere.
-    await recordVerifiedUpload(db, {
-      workspaceId: other,
-      versionId: second.version_id,
-      runId: null,
-      role: "review",
-      contentHash: DIGEST,
-      r2Key: secondKey,
-      size: 18,
-      now: NOW,
-    });
+    await db.withTransaction((tx) =>
+      recordVerifiedUpload(tx, {
+        grantId: secondRedeemed.grantId,
+        consumeAttemptId: secondRedeemed.consumeAttemptId,
+        contentHash: DIGEST,
+        size: 18,
+        now: NOW,
+      }),
+    );
     const finalizedFirst = result(
       await human(finalizeArtifactCommand, {
         versionId: first.version_id,

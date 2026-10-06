@@ -260,44 +260,17 @@ export async function handleUpload(
     try {
       receipt = await deps.db.withTransaction((tx) =>
         recordVerifiedUpload(tx, {
-          workspaceId: redeemed.workspaceId,
-          versionId: redeemed.versionId,
-          runId: redeemed.runId,
-          role: redeemed.role,
+          grantId: redeemed.grantId,
+          consumeAttemptId: redeemed.consumeAttemptId,
           contentHash,
-          r2Key,
           size: bytes.byteLength,
           now: deps.now,
         }),
       );
     } catch {
-      // A concurrent same-version record may have won the receipt insert;
-      // converge on the stored receipt instead of inventing a second effect.
-      const existing = (await deps.db
-        .prepare(
-          `SELECT content_hash, size FROM artifact_upload_receipts
-           WHERE workspace_id = ? AND version_id = ?`,
-        )
-        .get(redeemed.workspaceId, redeemed.versionId)) as
-        { content_hash: string; size: number } | undefined;
-      if (
-        !existing ||
-        existing.content_hash !== contentHash ||
-        existing.size !== bytes.byteLength
-      ) {
-        return new Response(JSON.stringify({ error: "upload_conflict" }), {
-          status: 409,
-          headers,
-        });
-      }
-      receipt = {
-        workspaceId: redeemed.workspaceId,
-        versionId: redeemed.versionId,
-        contentHash,
-        r2Key,
-        size: bytes.byteLength,
-        deduplicated: true,
-      };
+      // Convergence is guarded inside the atomic receipt helper. An unrelated
+      // existing receipt must not turn a failed source/commit check into success.
+      return new Response(JSON.stringify({ error: "upload_conflict" }), { status: 409, headers });
     }
     return new Response(
       JSON.stringify({

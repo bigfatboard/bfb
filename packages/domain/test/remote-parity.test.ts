@@ -14,6 +14,7 @@ import {
   finalizeArtifactCommand,
   mintUploadGrantSecret,
   recordVerifiedUpload,
+  redeemUploadGrant,
 } from "../src/artifacts.js";
 import { FIX } from "../src/fixtures.js";
 import { WorkspaceHub, type CommandOutcome } from "../src/hub.js";
@@ -871,16 +872,20 @@ describe("delegated artifact publication", () => {
         }),
       ),
     );
-    await recordVerifiedUpload(db, {
-      workspaceId: FIX.workspace,
-      versionId: humanCreated.version_id,
-      runId: null,
-      role: "review",
-      contentHash: DIGEST,
-      r2Key: `workspaces/${FIX.workspace}/artifacts/sha256/${DIGEST}`,
-      size: 18,
+    const consumed = await redeemUploadGrant(db, {
+      grantId: humanCreated.upload_grant.grant_id,
+      secret: minted.secret,
       now: NOW,
     });
+    await db.withTransaction((tx) =>
+      recordVerifiedUpload(tx, {
+        grantId: consumed.grantId,
+        consumeAttemptId: consumed.consumeAttemptId,
+        contentHash: DIGEST,
+        size: 18,
+        now: NOW,
+      }),
+    );
     expect(
       err(
         await hub.execute(
@@ -922,16 +927,20 @@ describe("delegated artifact publication", () => {
         ),
       ),
     ).toBe("request_rejected");
-    await recordVerifiedUpload(db, {
-      workspaceId: FIX.workspace,
-      versionId: created.version_id,
-      runId,
-      role: "review",
-      contentHash: DIGEST,
-      r2Key: `workspaces/${FIX.workspace}/artifacts/sha256/${DIGEST}`,
-      size: 18,
+    const consumed = await redeemUploadGrant(db, {
+      grantId: created.upload_grant.grant_id,
+      secret: minted.secret,
       now: NOW,
     });
+    await db.withTransaction((tx) =>
+      recordVerifiedUpload(tx, {
+        grantId: consumed.grantId,
+        consumeAttemptId: consumed.consumeAttemptId,
+        contentHash: DIGEST,
+        size: 18,
+        now: NOW,
+      }),
+    );
     const finalized = ok(
       await hub.execute(
         finalizeDelegatedArtifactCommand,

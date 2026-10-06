@@ -180,6 +180,7 @@ function upload(
   now: string = T0,
   index = 0,
   raceScope?: string,
+  receiptScope?: string,
 ) {
   const headers: Record<string, string> = {
     "content-type": "application/octet-stream",
@@ -188,6 +189,7 @@ function upload(
   };
   if (secret !== null) headers.authorization = `Bearer ${secret}`;
   if (raceScope) headers["x-v01-race-scope"] = raceScope;
+  if (receiptScope) headers["x-v01-receipt-race-scope"] = receiptScope;
   return server
     .getWorker(index % 2 ? "bfb-v01-artifact-b" : "bfb-v01-artifact")
     .fetch(`${ARTIFACT_ORIGIN}/upload/${grantId}`, {
@@ -671,6 +673,69 @@ try {
   assert(raceHead && raceHead.size === TEXT.byteLength);
   note("same_hash_race_converged");
 
+  // Two genuine grants for one version both read an absent receipt before
+  // either atomic batch flushes. Only its winning source may create an outbox.
+  const receiptBytes = new TextEncoder().encode("# synthetic two-grant receipt race\n");
+  const receiptVersion = await create(0, reviewBody(receiptBytes), OWNER, "192.0.2.180", T2);
+  const receiptGrant = await accepted<{ grant_id: string; secret: string }>(
+    await browser(
+      1,
+      "POST",
+      `/api/v1/workspaces/${FIX.workspace}/artifacts/${receiptVersion.version_id}/grants`,
+      { request_id: randomUlid() },
+      OWNER,
+      "192.0.2.181",
+      T2,
+    ),
+    201,
+  );
+  const receiptScope = randomUlid();
+  await db.prepare("INSERT INTO v01_read_barriers (scope,arrivals) VALUES (?,0)").run(receiptScope);
+  const receiptResponses = await Promise.all(
+    [receiptVersion.upload_grant, receiptGrant].map((grant, index) =>
+      upload(
+        grant.grant_id,
+        grant.secret,
+        receiptBytes,
+        `192.0.2.${180 + index}`,
+        T2,
+        index,
+        undefined,
+        receiptScope,
+      ),
+    ),
+  );
+  assert.deepEqual(
+    receiptResponses.map((response) => response.status),
+    [200, 200],
+  );
+  for (const response of receiptResponses) await response.arrayBuffer();
+  for (const table of ["artifact_upload_receipts", "artifact_upload_receipt_sources"])
+    assert.deepEqual(
+      await db
+        .prepare(`SELECT COUNT(*) n FROM ${table} WHERE version_id=?`)
+        .get(receiptVersion.version_id),
+      { n: 1 },
+    );
+  assert.deepEqual(
+    await db
+      .prepare(
+        "SELECT COUNT(*) n FROM artifact_audit_outbox WHERE version_id=? AND action='artifact.upload_verified'",
+      )
+      .get(receiptVersion.version_id),
+    { n: 1 },
+  );
+  const receiptSource = await db
+    .prepare(
+      `SELECT source.grant_id,source.attempt_id,outbox.id FROM artifact_upload_receipt_sources source
+    JOIN artifact_upload_consumptions consumed ON consumed.workspace_id=source.workspace_id AND consumed.grant_id=source.grant_id AND consumed.attempt_id=source.attempt_id
+    JOIN artifact_audit_outbox outbox ON outbox.workspace_id=source.workspace_id AND outbox.id=source.outbox_id
+    WHERE source.version_id=?`,
+    )
+    .get(receiptVersion.version_id);
+  assert(receiptSource, "canonical receipt lacks its exact consumed source/outbox");
+  note("two_grant_receipt_single_source_outbox");
+
   // Both real isolates finish their live candidate reads before either atomic
   // D1 consume batch commits. An exact same timestamp must still have one winner.
   const sameTimeBytes = new TextEncoder().encode("# synthetic same-time grant race\n");
@@ -947,12 +1012,10 @@ try {
     return id;
   }
   const dispatchAudit = (id: string, index = 0, drop = false) =>
-    server
-      .getWorker(index % 2 ? "bfb-v01-b" : "bfb-v01-a")
-      .fetch(`${ORIGIN}/__v01/audit/${id}`, {
-        method: "POST",
-        headers: drop ? { "x-v01-drop-audit-reply": "1" } : {},
-      });
+    server.getWorker(index % 2 ? "bfb-v01-b" : "bfb-v01-a").fetch(`${ORIGIN}/__v01/audit/${id}`, {
+      method: "POST",
+      headers: drop ? { "x-v01-drop-audit-reply": "1" } : {},
+    });
   async function auditCounts(id: string) {
     const events = await db
       .prepare(`SELECT event_id,payload_json,created_at FROM semantic_events WHERE event_id=?`)
@@ -1047,6 +1110,10 @@ try {
     versions: await db.prepare(`SELECT * FROM artifact_versions`).all(),
     objects: await db.prepare(`SELECT * FROM artifact_objects`).all(),
     receipts: await db.prepare(`SELECT * FROM artifact_upload_receipts`).all(),
+    consumption: await db.prepare(`SELECT * FROM artifact_upload_consumptions`).all(),
+    receipt_sources: await db.prepare(`SELECT * FROM artifact_upload_receipt_sources`).all(),
+    agent_operations: await db.prepare(`SELECT * FROM artifact_agent_operations`).all(),
+    agent_grants: await db.prepare(`SELECT * FROM artifact_agent_grants`).all(),
     audit: await db.prepare(`SELECT payload_json FROM artifact_audit_outbox`).all(),
     events: await db.prepare(`SELECT payload_json FROM semantic_events`).all(),
     idempotency: await db.prepare(`SELECT result_json FROM idempotency_records`).all(),
@@ -1058,6 +1125,8 @@ try {
     revoked.upload_grant.secret,
     raceA.upload_grant.secret,
     raceB.upload_grant.secret,
+    receiptVersion.upload_grant.secret,
+    receiptGrant.secret,
     protectedGrant.secret,
   ];
   for (const secret of secrets) {

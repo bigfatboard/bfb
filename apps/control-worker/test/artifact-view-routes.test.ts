@@ -7,7 +7,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   artifactHash,
-  artifactObjectKey,
   createArtifactCommand,
   createRunCommand,
   createTaskCommand,
@@ -185,28 +184,20 @@ async function fixture() {
       },
     });
     if (!created.ok) throw new Error(JSON.stringify(created));
-    await redeemUploadGrant(context.db, {
+    const consumed = await redeemUploadGrant(context.db, {
       grantId: created.result.upload_grant.grant_id,
       secret: minted.secret,
       now: NOW,
     });
-    const key = artifactObjectKey({
-      workspaceId: FIX.workspace,
-      role: "review",
-      runId,
-      versionId: created.result.version_id,
-      contentHash: digest(TEXT),
-    });
-    await recordVerifiedUpload(context.db, {
-      workspaceId: FIX.workspace,
-      versionId: created.result.version_id,
-      runId,
-      role: "review",
-      contentHash: digest(TEXT),
-      r2Key: key,
-      size: TEXT.byteLength,
-      now: NOW,
-    });
+    await context.db.withTransaction((tx) =>
+      recordVerifiedUpload(tx, {
+        grantId: consumed.grantId,
+        consumeAttemptId: consumed.consumeAttemptId,
+        contentHash: digest(TEXT),
+        size: TEXT.byteLength,
+        now: NOW,
+      }),
+    );
     const finalized = await hub.execute(finalizeArtifactCommand, {
       workspaceId: FIX.workspace,
       actorHumanId: FIX.owner,

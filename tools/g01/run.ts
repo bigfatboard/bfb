@@ -66,7 +66,10 @@ import {
   startLaunchCommand,
   submitResultCommand,
   sumTokenFields,
-  sweepAbandonedArtifactUploads,
+  ARTIFACT_RECOVERY_SYSTEM_ID,
+  listAbandonedArtifactUploads,
+  markArtifactFailedCommand,
+  syntheticUlid,
   updateProjectPolicyCommand,
   updateWorkspacePolicyCommand,
   validateStepUpProof,
@@ -2025,23 +2028,15 @@ try {
       replayCode = (error as { code?: string }).code ?? "thrown";
     }
     assert(replayCode !== "", "consumed upload grant cannot replay");
-    const r2Key = artifactObjectKey({
-      workspaceId: FIX.workspace,
-      role: "review",
-      runId: null,
-      versionId: created.version_id,
-      contentHash,
-    });
-    await recordVerifiedUpload(db, {
-      workspaceId: FIX.workspace,
-      versionId: created.version_id,
-      runId: null,
-      role: "review",
-      contentHash,
-      r2Key,
-      size: hostileBytes.byteLength,
-      now,
-    });
+    await db.withTransaction((tx) =>
+      recordVerifiedUpload(tx, {
+        grantId: redeemed.grantId,
+        consumeAttemptId: redeemed.consumeAttemptId,
+        contentHash,
+        size: hostileBytes.byteLength,
+        now,
+      }),
+    );
     // Finalize binds the verified digest; a mismatched digest finalizes nothing.
     const badFinalize = await execute(finalizeArtifactCommand.name, {
       versionId: created.version_id,
@@ -2100,18 +2095,63 @@ try {
       viewWrong = (error as { code?: string }).code ?? "thrown";
     }
     assert(viewWrong !== "", "wrong view secret must fail");
-    // The abandoned-upload sweep fails stale rows without touching live versions.
+    // Historical fixture rows qualify at the real Hub clock. The scan itself
+    // cannot mutate business state or override the command's current time.
     const staleUpload = mintUploadGrantSecret();
-    const stale = await human<{ version_id: string }>(createArtifactCommand.name, {
-      runId: shared.runId,
-      format: "log",
-      role: "log",
-      declaredSize: 12,
-      expectedDigest: artifactHash(new TextEncoder().encode("synthetic-g01-log")),
-      grantSecretHash: artifactHash(staleUpload.secret),
-    });
-    const swept = await sweepAbandonedArtifactUploads(db, launchDeadline(now, 3_600_000));
-    assert(swept.includes(stale.version_id), "abandoned upload is swept to failed");
+    const stale = { version_id: syntheticUlid("G01STALEARTIFACTVERSION") };
+    const staleArtifact = syntheticUlid("G01STALEARTIFACT");
+    const staleAt = new Date(Date.parse(now) - 3_600_000).toISOString();
+    const staleExpiry = new Date(Date.parse(staleAt) + 15 * 60_000).toISOString();
+    const staleDigest = artifactHash("synthetic-g01-log");
+    await db
+      .prepare(
+        `INSERT INTO artifacts
+      (workspace_id,id,run_id,format,role,created_by_human_id,created_at)
+      VALUES (?, ?, ?, 'log', 'log', ?, ?)`,
+      )
+      .run(FIX.workspace, staleArtifact, shared.runId, FIX.owner, staleAt);
+    await db
+      .prepare(
+        `INSERT INTO artifact_versions
+      (workspace_id,id,artifact_id,state,format,declared_size,expected_digest,created_at)
+      VALUES (?, ?, ?, 'uploading', 'log', 12, ?, ?)`,
+      )
+      .run(FIX.workspace, stale.version_id, staleArtifact, staleDigest, staleAt);
+    await db
+      .prepare(
+        `INSERT INTO artifact_upload_grants
+      (workspace_id,id,version_id,grant_hash,human_id,authorization_epoch,run_id,format,
+       declared_size,expected_digest,expires_at,consumed_at,created_at)
+      VALUES (?, ?, ?, ?, ?, 1, ?, 'log', 12, ?, ?, NULL, ?)`,
+      )
+      .run(
+        FIX.workspace,
+        syntheticUlid("G01STALEGRANT"),
+        stale.version_id,
+        staleUpload.secretHash,
+        FIX.owner,
+        shared.runId,
+        staleDigest,
+        staleExpiry,
+        staleAt,
+      );
+    const candidates = await listAbandonedArtifactUploads(db, new Date().toISOString());
+    assert(
+      candidates.some((row) => row.id === stale.version_id),
+      "expired upload is selected without mutation",
+    );
+    const swept = success(
+      await execute<{ state: string }>(
+        markArtifactFailedCommand.name,
+        { versionId: stale.version_id },
+        { actorSystemId: ARTIFACT_RECOVERY_SYSTEM_ID },
+      ),
+    );
+    assert.equal(
+      swept.state,
+      "failed",
+      "abandoned upload changes state through the system Hub command",
+    );
     const live = (await db
       .prepare(`SELECT state FROM artifact_versions WHERE workspace_id = ? AND id = ?`)
       .get(FIX.workspace, created.version_id)) as { state: string };
@@ -2644,14 +2684,17 @@ try {
     const sharedBytes = new TextEncoder().encode("synthetic-g01-sg03-shared-review-bytes");
     const sharedHash = artifactHash(sharedBytes);
     const firstSecret = mintUploadGrantSecret();
-    const first = await human<{ version_id: string }>(createArtifactCommand.name, {
-      runId: null,
-      format: "markdown",
-      role: "review",
-      declaredSize: sharedBytes.byteLength,
-      expectedDigest: sharedHash,
-      grantSecretHash: artifactHash(firstSecret.secret),
-    });
+    const first = await human<{ version_id: string; upload_grant: { grant_id: string } }>(
+      createArtifactCommand.name,
+      {
+        runId: null,
+        format: "markdown",
+        role: "review",
+        declaredSize: sharedBytes.byteLength,
+        expectedDigest: sharedHash,
+        grantSecretHash: artifactHash(firstSecret.secret),
+      },
+    );
     const sharedKey = artifactObjectKey({
       workspaceId: FIX.workspace,
       role: "review",
@@ -2660,14 +2703,17 @@ try {
       contentHash: sharedHash,
     });
     const secondSecret = mintUploadGrantSecret();
-    const second = await human<{ version_id: string }>(createArtifactCommand.name, {
-      runId: null,
-      format: "markdown",
-      role: "review",
-      declaredSize: sharedBytes.byteLength,
-      expectedDigest: sharedHash,
-      grantSecretHash: artifactHash(secondSecret.secret),
-    });
+    const second = await human<{ version_id: string; upload_grant: { grant_id: string } }>(
+      createArtifactCommand.name,
+      {
+        runId: null,
+        format: "markdown",
+        role: "review",
+        declaredSize: sharedBytes.byteLength,
+        expectedDigest: sharedHash,
+        grantSecretHash: artifactHash(secondSecret.secret),
+      },
+    );
     assert.equal(
       artifactObjectKey({
         workspaceId: FIX.workspace,
@@ -2679,17 +2725,25 @@ try {
       sharedKey,
       "same-hash review versions share one object key",
     );
-    for (const versionId of [first.version_id, second.version_id]) {
-      const recorded = await recordVerifiedUpload(db, {
-        workspaceId: FIX.workspace,
-        versionId,
-        runId: null,
-        role: "review",
-        contentHash: sharedHash,
-        r2Key: sharedKey,
-        size: sharedBytes.byteLength,
+    for (const [version, secret] of [
+      [first, firstSecret.secret],
+      [second, secondSecret.secret],
+    ] as const) {
+      const consumed = await redeemUploadGrant(db, {
+        grantId: version.upload_grant.grant_id,
+        secret,
         now,
       });
+      const recorded = await db.withTransaction((tx) =>
+        recordVerifiedUpload(tx, {
+          grantId: consumed.grantId,
+          consumeAttemptId: consumed.consumeAttemptId,
+          contentHash: sharedHash,
+          size: sharedBytes.byteLength,
+          now,
+        }),
+      );
+      assert.equal(recorded.r2Key, sharedKey, "canonical receipt uses the expected shared key");
       assert.equal(recorded.deduplicated, false, "each version records its own receipt");
     }
     const converged = (await db

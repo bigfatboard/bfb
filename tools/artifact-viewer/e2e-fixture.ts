@@ -114,7 +114,7 @@ async function publish(
     },
   });
   if (!created.ok) throw new Error(JSON.stringify(created));
-  await redeemUploadGrant(db, {
+  const consumed = await redeemUploadGrant(db, {
     grantId: created.result.upload_grant.grant_id,
     secret: minted.secret,
     now,
@@ -127,16 +127,15 @@ async function publish(
     contentHash: v02Digest(bytes),
   });
   objects.set(key, bytes);
-  await recordVerifiedUpload(db, {
-    workspaceId: FIX.workspace,
-    versionId: created.result.version_id,
-    runId: null,
-    role: "review",
-    contentHash: v02Digest(bytes),
-    r2Key: key,
-    size: bytes.byteLength,
-    now,
-  });
+  await db.withTransaction((tx) =>
+    recordVerifiedUpload(tx, {
+      grantId: consumed.grantId,
+      consumeAttemptId: consumed.consumeAttemptId,
+      contentHash: v02Digest(bytes),
+      size: bytes.byteLength,
+      now,
+    }),
+  );
   const finalized = await hub.execute(finalizeArtifactCommand, {
     workspaceId: FIX.workspace,
     actorHumanId: FIX.owner,

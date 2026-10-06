@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   markArtifactFailedCommand,
   recordVerifiedUpload,
+  redeemUploadGrant,
 } from "../../../packages/domain/src/artifacts.js";
 import {
   answerAttentionCommand,
@@ -256,16 +257,20 @@ describe("remote mcp parity extensions", () => {
       idempotency: await db.prepare(`SELECT result_json FROM idempotency_records`).all(),
     });
     expect(dump.includes(secret)).toBe(false);
-    await recordVerifiedUpload(db, {
-      workspaceId: FIX.workspace,
-      versionId: published.result.version_id,
-      runId,
-      role: "review",
-      contentHash: DIGEST,
-      r2Key: `workspaces/${FIX.workspace}/artifacts/sha256/${DIGEST}`,
-      size: 18,
+    const consumed = await redeemUploadGrant(db, {
+      grantId: published.result.upload_grant.grant_id,
+      secret,
       now: NOW,
     });
+    await db.withTransaction((tx) =>
+      recordVerifiedUpload(tx, {
+        grantId: consumed.grantId,
+        consumeAttemptId: consumed.consumeAttemptId,
+        contentHash: DIGEST,
+        size: 18,
+        now: NOW,
+      }),
+    );
     const finalized = (await call(db, accessToken, "bfb_finalize_artifact", {
       version_id: published.result.version_id,
       content_hash: DIGEST,

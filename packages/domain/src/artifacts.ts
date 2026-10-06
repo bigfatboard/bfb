@@ -631,9 +631,10 @@ export interface RedeemedGrant {
   format: ArtifactFormat;
   declaredSize: number;
   expectedDigest: string;
-  humanId: string;
+  humanId: string | null;
   authorizationEpoch: number;
   grantId: string;
+  consumeAttemptId: string;
 }
 
 /**
@@ -781,6 +782,7 @@ export async function redeemUploadGrant(
     humanId: candidate.human_id,
     authorizationEpoch: candidate.authorization_epoch,
     grantId: input.grantId,
+    consumeAttemptId: attemptId,
   };
 }
 
@@ -794,45 +796,83 @@ export interface VerifiedUpload {
 }
 
 /**
- * Records a verified upload after the Artifact Worker validated size, digest,
- * and MIME and confirmed the R2 object. Inserts the workspace-scoped object
- * row first: review re-uploads of identical bytes in one workspace converge
- * on their shared key, while another workspace or another log version stores
- * a separate row under its own key instead of conflicting.
+ * Records physically verified bytes against the exact successful consumption.
+ * Scope, role and storage key derive from canonical rows, never caller claims.
+ * This immutable bookkeeping does not authorize a business availability transition.
  */
 export async function recordVerifiedUpload(
   db: SqlDatabase,
   input: {
-    workspaceId: string;
-    versionId: string;
-    runId: string | null;
-    role: ArtifactRole;
+    grantId: string;
+    consumeAttemptId: string;
     contentHash: string;
-    r2Key: string;
     size: number;
     now: string;
   },
 ): Promise<VerifiedUpload> {
-  if (!HEX64.test(input.contentHash)) rejectArtifactRequest();
+  artifactObject(input, ["grantId", "consumeAttemptId", "contentHash", "size", "now"]);
+  if (
+    !isUlid(input.grantId) ||
+    !isUlid(input.consumeAttemptId) ||
+    !HEX64.test(input.contentHash) ||
+    !Number.isSafeInteger(input.size) ||
+    input.size < 1 ||
+    !Number.isFinite(Date.parse(input.now))
+  )
+    rejectArtifactRequest();
   // All reads precede the queued writes: D1 batches cannot read after a write.
-  const version = await versionRow(db, input.workspaceId, input.versionId);
-  if (version.state !== "uploading") rejectArtifactRequest();
-  if (version.expected_digest !== input.contentHash) rejectArtifactRequest();
-  if (version.declared_size !== input.size) rejectArtifactRequest();
-  const expectedKey = artifactObjectKey({
-    workspaceId: input.workspaceId,
-    role: input.role,
-    runId: input.runId,
-    versionId: input.versionId,
+  const source = (await db
+    .prepare(
+      `SELECT g.workspace_id, g.version_id, g.run_id, a.role, v.state,
+    v.expected_digest, v.declared_size, v.content_hash, v.r2_key
+    FROM artifact_upload_grants AS g
+    JOIN artifact_upload_consumptions AS c ON c.workspace_id=g.workspace_id AND c.grant_id=g.id
+    JOIN artifact_versions AS v ON v.workspace_id=g.workspace_id AND v.id=g.version_id
+    JOIN artifacts AS a ON a.workspace_id=v.workspace_id AND a.id=v.artifact_id
+    WHERE g.id=? AND c.attempt_id=? AND g.consumed_at IS NOT NULL AND c.consumed_at=g.consumed_at
+      AND g.run_id IS a.run_id AND g.format=v.format AND g.expected_digest=v.expected_digest
+      AND g.declared_size=v.declared_size`,
+    )
+    .get(input.grantId, input.consumeAttemptId)) as
+    | {
+        workspace_id: string;
+        version_id: string;
+        run_id: string | null;
+        role: string;
+        state: string;
+        expected_digest: string;
+        declared_size: number;
+        content_hash: string | null;
+        r2_key: string | null;
+      }
+    | undefined;
+  if (
+    !source ||
+    !["uploading", "available"].includes(source.state) ||
+    source.expected_digest !== input.contentHash ||
+    source.declared_size !== input.size
+  )
+    rejectArtifactRequest();
+  const role = artifactRole(source.role);
+  artifactSize(input.size, role);
+  const r2Key = artifactObjectKey({
+    workspaceId: source.workspace_id,
+    role,
+    runId: source.run_id,
+    versionId: source.version_id,
     contentHash: input.contentHash,
   });
-  if (input.r2Key !== expectedKey) rejectArtifactRequest();
+  if (
+    source.state === "available" &&
+    (source.content_hash !== input.contentHash || source.r2_key !== r2Key)
+  )
+    rejectArtifactRequest();
   const stored = (await db
     .prepare(
       `SELECT content_hash, size FROM artifact_objects
        WHERE workspace_id = ? AND r2_key = ?`,
     )
-    .get(input.workspaceId, input.r2Key)) as { content_hash: string; size: number } | undefined;
+    .get(source.workspace_id, r2Key)) as { content_hash: string; size: number } | undefined;
   if (stored && (stored.content_hash !== input.contentHash || stored.size !== input.size)) {
     rejectArtifactRequest();
   }
@@ -841,54 +881,105 @@ export async function recordVerifiedUpload(
       `SELECT content_hash, size FROM artifact_upload_receipts
        WHERE workspace_id = ? AND version_id = ?`,
     )
-    .get(input.workspaceId, input.versionId)) as { content_hash: string; size: number } | undefined;
+    .get(source.workspace_id, source.version_id)) as
+    { content_hash: string; size: number } | undefined;
   if (existing) {
     if (existing.content_hash !== input.contentHash || existing.size !== input.size) {
       rejectArtifactRequest();
     }
-    return {
-      workspaceId: input.workspaceId,
-      versionId: input.versionId,
-      contentHash: input.contentHash,
-      r2Key: input.r2Key,
-      size: input.size,
-      deduplicated: true,
-    };
   }
+  if (source.state === "available" && !existing) rejectArtifactRequest();
   await db
     .prepare(
       `INSERT INTO artifact_objects (workspace_id, r2_key, content_hash, size, created_at)
        VALUES (?, ?, ?, ?, ?)
        ON CONFLICT(workspace_id, r2_key) DO NOTHING`,
     )
-    .run(input.workspaceId, input.r2Key, input.contentHash, input.size, input.now);
+    .run(source.workspace_id, r2Key, input.contentHash, input.size, input.now);
   await db
     .prepare(
       `INSERT INTO artifact_upload_receipts
        (workspace_id, version_id, content_hash, size, verified_at)
-       VALUES (?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?) ON CONFLICT(workspace_id, version_id) DO NOTHING`,
     )
-    .run(input.workspaceId, input.versionId, input.contentHash, input.size, input.now);
-  await auditOutbox(db, {
-    workspaceId: input.workspaceId,
-    versionId: input.versionId,
-    grantId: null,
-    action: "artifact.upload_verified",
-    payload: {
-      version_id: input.versionId,
-      content_hash: input.contentHash,
-      size: input.size,
-      r2_key: input.r2Key,
-    },
-    now: input.now,
-  });
+    .run(source.workspace_id, source.version_id, input.contentHash, input.size, input.now);
+  const outboxId = randomUlid();
+  await db
+    .prepare(
+      `INSERT INTO artifact_upload_receipt_sources
+    (workspace_id,version_id,grant_id,attempt_id,outbox_id,verified_at) VALUES (?,?,?,?,?,?)
+    ON CONFLICT(workspace_id,version_id) DO NOTHING`,
+    )
+    .run(
+      source.workspace_id,
+      source.version_id,
+      input.grantId,
+      input.consumeAttemptId,
+      outboxId,
+      input.now,
+    );
+  // Only the winning immutable receipt source creates its outbox row. Two
+  // different consumed grants can converge without duplicate verification events.
+  await db
+    .prepare(
+      `INSERT INTO artifact_audit_outbox
+    (id,workspace_id,version_id,grant_id,action,payload_json,created_at,dispatched_at)
+    SELECT ?,workspace_id,version_id,grant_id,'artifact.upload_verified',?,?,NULL
+    FROM artifact_upload_receipt_sources WHERE workspace_id=? AND version_id=? AND outbox_id=?`,
+    )
+    .run(
+      outboxId,
+      JSON.stringify({
+        version_id: source.version_id,
+        content_hash: input.contentHash,
+        size: input.size,
+        r2_key: r2Key,
+        consume_attempt_id: input.consumeAttemptId,
+      }),
+      input.now,
+      source.workspace_id,
+      source.version_id,
+      outboxId,
+    );
+  // The committing batch must still contain the exact source and matching
+  // physical registry/receipt, including when another same-hash insert wins.
+  const guardId = randomUlid();
+  await db
+    .prepare(
+      `INSERT INTO artifact_mutation_guards (id,valid) VALUES (?,
+    (SELECT COUNT(*)=1 FROM artifact_upload_grants AS g
+     JOIN artifact_upload_consumptions AS c ON c.workspace_id=g.workspace_id AND c.grant_id=g.id
+     JOIN artifact_versions AS v ON v.workspace_id=g.workspace_id AND v.id=g.version_id
+     JOIN artifacts AS a ON a.workspace_id=v.workspace_id AND a.id=v.artifact_id
+     JOIN artifact_upload_receipts AS receipt ON receipt.workspace_id=v.workspace_id AND receipt.version_id=v.id
+     JOIN artifact_objects AS object ON object.workspace_id=v.workspace_id AND object.r2_key=?
+     JOIN artifact_upload_receipt_sources AS lineage ON lineage.workspace_id=v.workspace_id AND lineage.version_id=v.id
+     JOIN artifact_audit_outbox AS outbox ON outbox.workspace_id=lineage.workspace_id AND outbox.id=lineage.outbox_id
+     WHERE g.id=? AND c.attempt_id=? AND g.consumed_at IS NOT NULL AND c.consumed_at=g.consumed_at
+       AND g.run_id IS a.run_id AND a.role=? AND v.state IN ('uploading','available')
+       AND g.format=v.format AND g.expected_digest=v.expected_digest AND g.declared_size=v.declared_size
+       AND receipt.content_hash=? AND v.expected_digest=receipt.content_hash AND receipt.size=? AND v.declared_size=receipt.size
+       AND object.content_hash=receipt.content_hash AND object.size=receipt.size
+       AND outbox.version_id=v.id AND outbox.grant_id=lineage.grant_id AND outbox.action='artifact.upload_verified'
+       AND (v.state='uploading' OR (v.content_hash=receipt.content_hash AND v.r2_key=object.r2_key))))`,
+    )
+    .run(
+      guardId,
+      r2Key,
+      input.grantId,
+      input.consumeAttemptId,
+      role,
+      input.contentHash,
+      input.size,
+    );
+  await db.prepare(`DELETE FROM artifact_mutation_guards WHERE id=?`).run(guardId);
   return {
-    workspaceId: input.workspaceId,
-    versionId: input.versionId,
+    workspaceId: source.workspace_id,
+    versionId: source.version_id,
     contentHash: input.contentHash,
-    r2Key: input.r2Key,
+    r2Key,
     size: input.size,
-    deduplicated: false,
+    deduplicated: existing != null,
   };
 }
 

@@ -34,7 +34,6 @@ import {
   acceptResultCommand,
   authorizeSyntheticPolicyUpdate,
   answerAttentionCommand,
-  artifactObjectKey,
   canonicalRunnerKey,
   claimLaunchCommand,
   cliHash,
@@ -1044,27 +1043,20 @@ const created = ok(
     grantSecretHash: minted.secretHash,
   }),
 );
-await redeemUploadGrant(db, {
+const consumed = await redeemUploadGrant(db, {
   grantId: created.upload_grant.grant_id,
   secret: minted.secret,
   now: NOW,
 });
-await recordVerifiedUpload(db, {
-  workspaceId: FIX.workspace,
-  versionId: created.version_id,
-  runId: spec.run_id,
-  role: "review",
-  contentHash: G02_HEX,
-  r2Key: artifactObjectKey({
-    workspaceId: FIX.workspace,
-    role: "review",
-    runId: spec.run_id,
-    versionId: created.version_id,
+await db.withTransaction((tx) =>
+  recordVerifiedUpload(tx, {
+    grantId: consumed.grantId,
+    consumeAttemptId: consumed.consumeAttemptId,
     contentHash: G02_HEX,
+    size: G02_ARTIFACT_SIZE,
+    now: NOW,
   }),
-  size: G02_ARTIFACT_SIZE,
-  now: NOW,
-});
+);
 ok(
   await human(finalizeArtifactCommand, {
     versionId: created.version_id,
