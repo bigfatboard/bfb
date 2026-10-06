@@ -37,24 +37,11 @@
     },
     "format": {
       "type": "string",
-      "enum": [
-        "markdown",
-        "mermaid",
-        "diff",
-        "svg",
-        "png",
-        "jpeg",
-        "html",
-        "log",
-        "json"
-      ]
+      "enum": ["markdown", "mermaid", "diff", "svg", "png", "jpeg", "html", "log", "json"]
     },
     "role": {
       "type": "string",
-      "enum": [
-        "review",
-        "log"
-      ]
+      "enum": ["review", "log"]
     },
     "content_hash": {
       "type": "string",
@@ -72,23 +59,14 @@
     },
     "stage": {
       "type": "string",
-      "enum": [
-        "upload_required",
-        "finalize_required",
-        "available"
-      ]
+      "enum": ["upload_required", "finalize_required", "available"]
     },
     "upload": {
       "anyOf": [
         {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "origin",
-            "grant_id",
-            "secret",
-            "expires_at"
-          ],
+          "required": ["origin", "grant_id", "secret", "expires_at"],
           "properties": {
             "origin": {
               "type": "string",
@@ -130,9 +108,7 @@
     {
       "if": {
         "type": "object",
-        "required": [
-          "stage"
-        ],
+        "required": ["stage"],
         "properties": {
           "stage": {
             "const": "upload_required"
@@ -154,9 +130,7 @@
     {
       "if": {
         "type": "object",
-        "required": [
-          "stage"
-        ],
+        "required": ["stage"],
         "properties": {
           "stage": {
             "const": "finalize_required"
@@ -178,9 +152,7 @@
     {
       "if": {
         "type": "object",
-        "required": [
-          "stage"
-        ],
+        "required": ["stage"],
         "properties": {
           "stage": {
             "const": "available"
@@ -202,9 +174,7 @@
     {
       "if": {
         "type": "object",
-        "required": [
-          "role"
-        ],
+        "required": ["role"],
         "properties": {
           "role": {
             "const": "log"

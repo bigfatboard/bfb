@@ -4,14 +4,7 @@
   "title": "AgentArtifactRequest",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "reference",
-    "binding",
-    "format",
-    "role",
-    "declared_size",
-    "expected_digest"
-  ],
+  "required": ["reference", "binding", "format", "role", "declared_size", "expected_digest"],
   "properties": {
     "reference": {
       "$ref": "agent-work-request.json"
@@ -24,24 +17,11 @@
     },
     "format": {
       "type": "string",
-      "enum": [
-        "markdown",
-        "mermaid",
-        "diff",
-        "svg",
-        "png",
-        "jpeg",
-        "html",
-        "log",
-        "json"
-      ]
+      "enum": ["markdown", "mermaid", "diff", "svg", "png", "jpeg", "html", "log", "json"]
     },
     "role": {
       "type": "string",
-      "enum": [
-        "review",
-        "log"
-      ]
+      "enum": ["review", "log"]
     },
     "declared_size": {
       "type": "integer",
@@ -59,9 +39,7 @@
     {
       "if": {
         "type": "object",
-        "required": [
-          "role"
-        ],
+        "required": ["role"],
         "properties": {
           "role": {
             "const": "log"

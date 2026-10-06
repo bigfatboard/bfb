@@ -2,7 +2,7 @@
 // @ts-nocheck -- AJV emits JavaScript; the codec owns its typed facade.
 /* oxlint-disable */
 // Protocol: bfb-wire/1
-// Schema hash: 04b7329d67fea95c01518d74dc06395eaf833f4bf3f150797c53c106b63938fe
+// Schema hash: 4035fc6c49e7b5ff7de6313c5d8d586ee3391a5459edb8f637c6671996c912be
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __commonJS = (cb, mod) =>
   function __require() {

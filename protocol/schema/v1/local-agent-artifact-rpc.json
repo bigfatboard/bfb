@@ -4,12 +4,7 @@
   "title": "LocalAgentArtifactRpcEnvelope",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "schema_version",
-    "request_id",
-    "method",
-    "direction"
-  ],
+  "required": ["schema_version", "request_id", "method", "direction"],
   "properties": {
     "schema_version": {
       "type": "integer",
@@ -24,10 +19,7 @@
     },
     "direction": {
       "type": "string",
-      "enum": [
-        "request",
-        "response"
-      ]
+      "enum": ["request", "response"]
     },
     "error": {
       "$ref": "primitives.json#/$defs/TypedError"
@@ -50,18 +42,14 @@
   "oneOf": [
     {
       "type": "object",
-      "required": [
-        "payload"
-      ],
+      "required": ["payload"],
       "properties": {
         "direction": {
           "const": "request"
         },
         "payload": {
           "type": "object",
-          "required": [
-            "agent_artifact_request"
-          ],
+          "required": ["agent_artifact_request"],
           "properties": {
             "agent_artifact_request": {}
           }
@@ -69,9 +57,7 @@
       },
       "not": {
         "type": "object",
-        "required": [
-          "error"
-        ],
+        "required": ["error"],
         "properties": {
           "error": {}
         }
@@ -79,18 +65,14 @@
     },
     {
       "type": "object",
-      "required": [
-        "payload"
-      ],
+      "required": ["payload"],
       "properties": {
         "direction": {
           "const": "response"
         },
         "payload": {
           "type": "object",
-          "required": [
-            "agent_artifact"
-          ],
+          "required": ["agent_artifact"],
           "properties": {
             "agent_artifact": {}
           }
@@ -98,9 +80,7 @@
       },
       "not": {
         "type": "object",
-        "required": [
-          "error"
-        ],
+        "required": ["error"],
         "properties": {
           "error": {}
         }
@@ -108,9 +88,7 @@
     },
     {
       "type": "object",
-      "required": [
-        "error"
-      ],
+      "required": ["error"],
       "properties": {
         "direction": {
           "const": "response"
@@ -119,9 +97,7 @@
       },
       "not": {
         "type": "object",
-        "required": [
-          "payload"
-        ],
+        "required": ["payload"],
         "properties": {
           "payload": {}
         }

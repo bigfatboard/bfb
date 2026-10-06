@@ -4,10 +4,7 @@
   "title": "AgentArtifactLocalRequest",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "correlation",
-    "request"
-  ],
+  "required": ["correlation", "request"],
   "properties": {
     "correlation": {
       "type": "string",
@@ -17,12 +14,7 @@
     "request": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "reference",
-        "path",
-        "format",
-        "role"
-      ],
+      "required": ["reference", "path", "format", "role"],
       "properties": {
         "reference": {
           "$ref": "agent-work-request.json"
@@ -38,24 +30,11 @@
         },
         "format": {
           "type": "string",
-          "enum": [
-            "markdown",
-            "mermaid",
-            "diff",
-            "svg",
-            "png",
-            "jpeg",
-            "html",
-            "log",
-            "json"
-          ]
+          "enum": ["markdown", "mermaid", "diff", "svg", "png", "jpeg", "html", "log", "json"]
         },
         "role": {
           "type": "string",
-          "enum": [
-            "review",
-            "log"
-          ]
+          "enum": ["review", "log"]
         }
       }
     },
