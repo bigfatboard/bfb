@@ -42,8 +42,13 @@ version as uncertified. Hooks/MCP/lifecycle do not require a matching GUI PATH.
 Human CLI commands are deliberately unavailable in this helper: onboarding
 and human card mutations use the real authenticated browser.
 
-Every helper entry point verifies the pinned binary. If an auto-update or
-removal invalidates it, even helper `daemon status`/`daemon stop` is closed.
+Every authority-bearing helper entry point verifies the pinned binary. The
+exact user-level Claude hook invocation silently returns before input, state or
+pin inspection only when every BFB execution binding is absent. Present-empty
+or partial bindings remain failures. This keeps unrelated Claude sessions
+independent of the pilot's state and provider version without granting access.
+If an auto-update or removal invalidates the pin, even helper
+`daemon status`/`daemon stop` is closed.
 Recover only by SIGINT/SIGTERM to the exact foreground session/process owned
 by this candidate invocation; never kill by process name, install a service,
 or weaken the pin to regain lifecycle access.
@@ -56,6 +61,16 @@ private app socket/state before any launch, do not use the app's service-install
 button, and resolve any duplicate-bundle LaunchServices selection explicitly.
 Native Terminal consent must come through the normal human-visible BFB feature;
 never through UI automation or an alternate AppleScript/System Events path.
+
+A reviewed repair can use a separately built signed Debug bundle with the same
+existing test-state directory and byte-identical candidate binding. Preserve
+the original bundle, verify both signatures and unchanged provider bytes, and
+stop the previous app and foreground daemon before activating the replacement.
+Matching designated requirements and actual reconnect must prove that the
+existing enrollment remains usable; do not rewrite Keychain ACLs or re-enroll
+to hide a failed replacement. Preview any new helper path through the normal
+setup transaction. Before installing user-level hooks, exercise the actual
+signed helper without BFB bindings and require exit zero with no output.
 
 The live acceptance still needs actual card Start, exact checkout/held ownership,
 trusted session binding, genuine scoped MCP context, semantic event commit,

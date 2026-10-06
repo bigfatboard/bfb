@@ -94,11 +94,17 @@ A card can open a supported Claude Code version in the exact checkout, bind the 
 
 ## Evidence
 
+- [Runner-integration checkpoint](evidence/WP-L07/runner-integration-checkpoint.json)
+  records real runner approval, checkout publication, signed-helper regression
+  checks and passing full/L07 gates at source-equivalent `e8925d0`. The first
+  card launch ended before a provider session was observed; this is not live
+  provider acceptance or clean-checkout package completion.
 - [Owner-onboarding checkpoint](evidence/WP-L07/owner-onboarding-checkpoint.json)
   records the actual authenticated UI writes, explicit local Hub repair, pinned
   candidate build and passing full/L07 integration checks at source-equivalent
-  `c0f00b7`. Runner approval and live provider acceptance remain unverified; this
-  is not a clean-checkout completion certificate.
+  `c0f00b7`. Runner approval was pending at that checkpoint and has since passed;
+  live provider acceptance remains unverified. This is not a clean-checkout
+  completion certificate.
 - [Pilot integration checkpoint](evidence/WP-L07/pilot-integration-checkpoint.json)
   records the passing implementation checks at `d6d854d`, retained failures and
   retries, and the still-unverified real human/provider chain. It does not
@@ -148,6 +154,26 @@ A card can open a supported Claude Code version in the exact checkout, bind the 
 
 ## Handoff
 
+- Enrolled-runner continuation, 6 October: real passkey approval is saved and a
+  clean existing checkout is registered. The first sync exposed nanosecond
+  inventory clocks outside the frozen microsecond wire grammar and a local-only
+  interactive-resume capability leaking into the v1 report. The inventory
+  repair preserves freshness and local resume while the real replacement
+  daemon now reconnects and publishes the checkout without re-enrollment.
+  Initial global hook installation also blocked unrelated Claude tool calls:
+  absent BFB correlation incorrectly returned blocking exit 2. The hooks and
+  temporary MCP entry were removed, unrelated configuration was preserved, and
+  Timo confirmed recovery. The repaired normal/candidate entry points silently
+  ignore only fully unscoped exact vendor hooks; partial bindings still fail
+  closed. The old signed helper reproduces exit 2 and its signed replacement
+  returns zero with no output. Both `pnpm verify` and `pnpm test:l07` pass at
+  source-equivalent `e8925d0`, and the replacement hook/MCP configuration was
+  applied through fresh preview and hash-CAS checks. The first actual card
+  Start reached the local execution helper but ended before the provider was
+  observed; no session binding, scoped MCP, attention or result is claimed.
+  A later Wrangler proxy connection error stopped the pilot Workers; restarting
+  the same persistent pilot restored both HTTPS health checks without resetting
+  authentication or enrollment. The Terminal error and live chain remain open.
 - Real local pilot startup, 6 October: operator-supplied OAuth bindings pass
   preflight and both persistent stock Workers are healthy over browser-trusted
   HTTPS. The real sign-in reaches GitHub consent for read-only profile/email
@@ -159,9 +185,9 @@ A card can open a supported Claude Code version in the exact checkout, bind the 
   in the real in-app browser session. Actual project/profile/task/context writes
   pass after the explicit local-only Hub jurisdiction repair. An isolated signed
   Claude candidate preserves exact binary and private-state pins without
-  promoting production capabilities. Runner approval and the actual tracked
-  provider workflow remain pending. No deployment or package completion follows
-  from this local onboarding result.
+  promoting production capabilities. Runner approval was pending at this
+  checkpoint and has since passed; the actual tracked provider workflow remains
+  pending. No deployment or package completion follows from local onboarding.
 - Active 6 October: Timo approved the Claude-first private-pilot delivery path.
   A01–A04 and V01 now have connected runtime certificates, and every L07
   dependency is `done`. The unchanged `pnpm test:l07` baseline passes before

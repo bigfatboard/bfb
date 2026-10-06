@@ -8,13 +8,29 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 
 ## Current checkpoint
 
+- The [runner-integration checkpoint](docs/work-packages/evidence/WP-L07/runner-integration-checkpoint.json)
+  records real Mac approval and exact checkout registration. The replacement
+  signed pilot daemon preserves enrollment and publishes real inventory after
+  fixing timestamp precision and a local-only capability projection. A global
+  hook regression briefly blocked unrelated Claude tools; BFB-only hook/MCP
+  configuration was removed and Timo confirmed recovery. Commit `e8925d0`
+  makes completely unscoped vendor hooks silent before input/state/pin work,
+  while malformed BFB bindings remain denied. The actual signed replacement
+  passes that regression, and its hooks/MCP were installed through a fresh
+  preview and hash-CAS transaction. Both full repository verification and the
+  exact L07 test target pass. The first card Start reached the execution helper
+  but ended before a provider session was observed. A later local Wrangler
+  failure stopped both Workers; their existing persistent runtime was restarted
+  and both HTTPS health checks pass. Live tracked Claude work and L07 completion
+  remain unverified; the next diagnostic is the human-visible Terminal error.
 - The [owner-onboarding checkpoint](docs/work-packages/evidence/WP-L07/owner-onboarding-checkpoint.json)
   records the source-equivalent `c0f00b7` integration: full verification passes
   2,841 TypeScript cases, Go and 16 Swift cases; expanded L07 passes 1,123
   protocol cases, candidate/runtime race checks, the real local Hub regression,
-  126 focused cases and six browser scenarios. The signed isolated daemon is
-  running with a pending enrollment; human Mac approval and live provider
-  acceptance remain open. These are not clean-checkout completion evidence.
+  126 focused cases and six browser scenarios. The signed isolated daemon
+  was running with a pending enrollment at that checkpoint; subsequent Mac
+  approval is recorded above. Live provider acceptance remains open. These are
+  not clean-checkout completion evidence.
 - The real private-pilot Control and Artifact Workers now run with persistent
   local D1/R2 and operator-supplied GitHub OAuth bindings. Both health checks
   pass; the browser accepts HTTPS and reaches the real GitHub consent page.
@@ -30,8 +46,9 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
   jurisdiction call; [ADR 0012](docs/adr/0012-local-pilot-hub-jurisdiction.md)
   records the explicit local-only logical namespace adapter, with real Hub/D1
   regression and unchanged production placement checks. The isolated signed
-  Claude candidate is prepared; runner approval and the live provider chain
-  remain pending. Normal provider capabilities have not been widened.
+  Claude candidate is prepared; runner approval has since completed but the
+  live provider chain remains pending. Normal provider capabilities have not
+  been widened.
 - 6 October pilot continuation: Timo approved the persistent real-auth Claude-first
   path in the plan. L07 is now `in_progress`; 31 packages remain `done`, six
   `blocked` and seven `planned`. The unchanged exact L07 baseline passes with
