@@ -12,11 +12,12 @@ const root = process.cwd(),
   key = "l08-synthetic-current-signing-key-84d1e9";
 const scenario = process.argv[2];
 assert.ok(
-  scenario === undefined || scenario === "a02" || scenario === "a03",
+  scenario === undefined || scenario === "a02" || scenario === "a03" || scenario === "a04",
   "unsupported native fixture scenario",
 );
 const attention = scenario === "a02";
 const results = scenario === "a03";
+const measurements = scenario === "a04";
 assert.equal(
   process.platform,
   "darwin",
@@ -84,6 +85,7 @@ try {
         BFB_A01_TEST_CSRF: `2.${createHmac("sha256", key).update(`bfb-csrf:${session}`).digest("hex")}`,
         BFB_A02_NATIVE_SCENARIO: attention ? "1" : "0",
         BFB_A03_NATIVE_SCENARIO: results ? "1" : "0",
+        BFB_A04_NATIVE_SCENARIO: measurements ? "1" : "0",
         ...attentionEnvironment,
       },
     },
@@ -95,11 +97,13 @@ try {
     const chunk = proofTail + data.toString();
     if (
       chunk.includes(
-        results
-          ? "A03_NATIVE_PROOF_COMPLETE"
-          : attention
-            ? "A02_NATIVE_PROOF_COMPLETE"
-            : "A01_NATIVE_PROOF_COMPLETE",
+        measurements
+          ? "A04_NATIVE_PROOF_COMPLETE"
+          : results
+            ? "A03_NATIVE_PROOF_COMPLETE"
+            : attention
+              ? "A02_NATIVE_PROOF_COMPLETE"
+              : "A01_NATIVE_PROOF_COMPLETE",
       )
     )
       proved = true;
@@ -112,7 +116,7 @@ try {
   assert.equal(code, 0, "compiled stdio / authenticated Worker integration failed");
   assert.ok(proved, "native proof did not run; skipped tests are not acceptance");
   console.log(
-    `${results ? "A03" : attention ? "A02" : "A01"} native compiled stdio / daemon / possession / Worker / Hub / D1 proof passed`,
+    `${measurements ? "A04" : results ? "A03" : attention ? "A02" : "A01"} native compiled capture / daemon / possession / Worker / Hub / D1 proof passed`,
   );
 } finally {
   await server.close();

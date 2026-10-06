@@ -23,6 +23,7 @@ import {
   launchDeadline,
   listReviewTimerObservations,
   normalizeTokenFields,
+  prepareSyntheticAttentionClaim,
   randomUlid,
   recordBrowserActivityCommand,
   replaceRunnerInventoryCommand,
@@ -35,16 +36,21 @@ import {
   startLaunchCommand,
   startReviewTimerCommand,
   stopReviewTimerCommand,
+  submitResultCommand,
+  acceptResultCommand,
   unionIntervalsMs,
   updateProjectPolicyCommand,
   updateWorkspacePolicyCommand,
   type CommandOutcome,
   type PolicySettings,
   type RunnerPrincipal,
+  type SubmitResultResult,
+  type ReviewResultResult,
   type TaskRecord,
 } from "@bfb/domain";
-import type { RunnerInventory } from "@bfb/protocol";
+import type { LaunchClaimResult, RunnerInventory } from "@bfb/protocol";
 import { createTestHarness } from "wrangler";
+import { serializeRuntimeSnapshots } from "./evidence.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const now = "2026-09-12T12:00:00.000Z",
@@ -410,6 +416,38 @@ try {
   const spec = claimed.claim.specification;
   snapshot("claim", { state: claimed.state, execution_assigned: spec.run_execution_id.length > 0 });
 
+  // Historical assignments remain usable by current-authorized telemetry, not expired credentials.
+  const reportSecurityNow = new Date().toISOString();
+  principal.tokenId = randomUlid();
+  principal.authExpiresAt = launchDeadline(reportSecurityNow, 300_000);
+  await db
+    .prepare(
+      `INSERT INTO runner_tokens
+    (workspace_id,runner_id,id,token_hash,claims_json,expires_at) VALUES (?,?,?,?,?,?)`,
+    )
+    .run(
+      FIX.workspace,
+      runner,
+      principal.tokenId,
+      runnerHash("synthetic-a04-report-token"),
+      JSON.stringify({
+        v: 1,
+        sub: runner,
+        workspace_id: FIX.workspace,
+        aud: "bfb-runner",
+        iss: "https://bfb.example.test",
+        jti: principal.tokenId,
+        iat: Math.floor(Date.parse(reportSecurityNow) / 1000),
+        exp: Date.parse(principal.authExpiresAt) / 1000,
+        authorization_epoch: 1,
+        owner_authorization_epoch: 1,
+        grant_epoch: 1,
+        token_epoch: 1,
+        cnf: { jkt: principal.keyThumbprint },
+      }),
+      principal.authExpiresAt,
+    );
+
   // Provider-usage fixtures normalize without invention; missing usage stays unavailable.
   for (const fixture of ["codex-usage.json", "claude-usage.json", "missing-usage.json"]) {
     const parsed = JSON.parse(await readFile(resolve(fixturesDir, fixture), "utf8")) as {
@@ -429,10 +467,11 @@ try {
     runId: spec.run_id,
     executionId: spec.run_execution_id,
     assignmentGeneration: spec.assignment_generation,
-    provider: "codex",
+    provider: "fake",
     model: "codex-fixture-model",
     tokens: { input_tokens: 1_000_000, output_tokens: 500_000 },
     quality: "provider_reported",
+    occurredAt: now,
   };
   const firstTokens = await native<{ observation_id: string }>(
     reportTokensCommand.name,
@@ -465,18 +504,20 @@ try {
     runId: spec.run_id,
     executionId: spec.run_execution_id,
     assignmentGeneration: spec.assignment_generation,
-    provider: "claude",
+    provider: "fake",
     tokens: { input_tokens: 100, output_tokens: 50 },
     quality: "estimated",
+    occurredAt: now,
   });
   await native(reportTokensCommand.name, {
     principal,
     runId: spec.run_id,
     executionId: spec.run_execution_id,
     assignmentGeneration: spec.assignment_generation,
-    provider: "grok",
+    provider: "fake",
     tokens: {},
     quality: "unavailable",
+    occurredAt: now,
   });
   snapshot("tokens", { stored: 3, duplicate_replays: 1, conflicts: 1 });
 
@@ -519,7 +560,7 @@ try {
   assert.equal(reportedUnion.total_ms, 180_000);
   snapshot("intervals", { stored: 2, union_ms: reportedUnion.total_ms });
 
-  // Ledger-derived activity, offline gaps, launch latency, and attention wait.
+  // Fixed-date arithmetic is isolated from the fresh business-authority proof below.
   const base = { runId: spec.run_id, executionId: spec.run_execution_id, taskId: task.id };
   await insertLedger(db, {
     ...base,
@@ -542,24 +583,6 @@ try {
        WHERE workspace_id = ? AND id = ?`,
     )
     .run("2026-09-12T12:06:00.000Z", FIX.workspace, spec.run_execution_id);
-  const requested = await native<{ id: string }>(requestAttentionCommand.name, {
-    principal,
-    runId: spec.run_id,
-    executionId: spec.run_execution_id,
-    assignmentGeneration: spec.assignment_generation,
-    kind: "blocker",
-    question: "SYNTHETIC-A04-blocker",
-    blocking: true,
-  });
-  await human(
-    answerAttentionCommand.name,
-    {
-      attentionId: requested.id,
-      expectedVersion: 1,
-      answer: "SYNTHETIC-A04-answer",
-    },
-    "2026-09-12T12:02:00.000Z",
-  );
   const measured = await getRunMeasurements(
     db,
     FIX.workspace,
@@ -570,7 +593,7 @@ try {
   assert.equal(measured.times.active_ms, 50_000);
   assert.equal(measured.times.process_elapsed_ms, 330_000);
   assert(measured.times.offline_ms > 0, "offline wall time stays visible");
-  assert.equal(measured.times.attention_wait_ms, 120_000);
+  assert.equal(measured.times.attention_wait_ms, 0);
   assert.equal(measured.times.external_wait_ms, 180_000);
   assert.equal(measured.times.idle_ms, null);
   assert.deepEqual(measured.tokens.exact, {
@@ -628,31 +651,28 @@ try {
     unknown_model: unknownModel.reason,
   });
 
-  // Review-timer races across workers: one open timer, starter-only stop.
-  const timer = await human<{ id: string; resource_version: number }>(
-    startReviewTimerCommand.name,
-    {
-      taskId: task.id,
-    },
-  );
-  const doubleStart = await execute(
-    startReviewTimerCommand.name,
-    { taskId: task.id },
-    { actorHumanId: FIX.owner },
-  );
-  assert.equal(doubleStart.ok, false);
-  const foreignStop = await execute(
-    stopReviewTimerCommand.name,
-    { timerId: timer.id, expectedVersion: 1 },
-    { actorHumanId: FIX.member },
-  );
-  assert.equal(foreignStop.ok, false);
-  await human(
-    stopReviewTimerCommand.name,
-    { timerId: timer.id, expectedVersion: 1 },
-    "2026-09-12T12:04:00.000Z",
-  );
-  const timerObservations = await listReviewTimerObservations(db, FIX.workspace, timer.id);
+  // Four-minute review arithmetic is an explicitly seeded fact, not forged server command time.
+  const fixedTimerId = randomUlid();
+  await db
+    .prepare(
+      `INSERT INTO review_timers
+    (workspace_id,id,task_id,run_id,started_by_human_id,started_at,stopped_at,state,resource_version)
+    VALUES (?,?,?,NULL,?,?,?,'stopped',2)`,
+    )
+    .run(FIX.workspace, fixedTimerId, task.id, FIX.owner, now, "2026-09-12T12:04:00.000Z");
+  for (const [kind, at] of [
+    ["started", now],
+    ["stopped", "2026-09-12T12:04:00.000Z"],
+  ] as const) {
+    await db
+      .prepare(
+        `INSERT INTO review_timer_observations
+      (workspace_id,observation_id,timer_id,observed_kind,actor_type,actor_id,occurred_at)
+      VALUES (?,?,?,?,'human',?,?)`,
+      )
+      .run(FIX.workspace, randomUlid(), fixedTimerId, kind, FIX.owner, at);
+  }
+  const timerObservations = await listReviewTimerObservations(db, FIX.workspace, fixedTimerId);
   assert.deepEqual(
     timerObservations.map((entry) => entry.observed_kind),
     ["started", "stopped"],
@@ -668,8 +688,7 @@ try {
   snapshot("review_timer", {
     observations: timerObservations.length,
     stopped_total_ms: taskMeasured.review.stopped_total_ms,
-    double_start_rejected: true,
-    foreign_stop_rejected: true,
+    fixed_arithmetic_fact: true,
   });
 
   // Browser activity is capped and stays estimated.
@@ -714,16 +733,226 @@ try {
       input: exactStored[0]?.input_tokens,
       output: exactStored[0]?.output_tokens,
     },
-    { provider: "codex", input: 1_000_000, output: 500_000 },
+    { provider: "fake", input: 1_000_000, output: 500_000 },
   );
   snapshot("token_facts", { rows: storedTokens.length, exact_input: exactStored[0]?.input_tokens });
 
+  // A02/A03 authority uses a separate current-clock run, not September's calculation clock.
+  // The shared helper performs final authorization, a lease observation and canonical binding.
+  const securityNow = new Date().toISOString();
+  const freshPrincipal: RunnerPrincipal = {
+    ...principal,
+    tokenId: randomUlid(),
+    authExpiresAt: launchDeadline(securityNow, 300_000),
+  };
+  await db
+    .prepare(
+      `INSERT INTO runner_tokens (workspace_id,runner_id,id,token_hash,claims_json,expires_at)
+     VALUES (?,?,?,?,?,?)`,
+    )
+    .run(
+      FIX.workspace,
+      runner,
+      freshPrincipal.tokenId,
+      runnerHash("synthetic-a04-current-token"),
+      JSON.stringify({
+        v: 1,
+        sub: runner,
+        workspace_id: FIX.workspace,
+        aud: "bfb-runner",
+        iss: "https://bfb.example.test",
+        jti: freshPrincipal.tokenId,
+        iat: Math.floor(Date.parse(securityNow) / 1000),
+        exp: Date.parse(freshPrincipal.authExpiresAt) / 1000,
+        authorization_epoch: 1,
+        owner_authorization_epoch: 1,
+        grant_epoch: 1,
+        token_epoch: 1,
+        cnf: { jkt: freshPrincipal.keyThumbprint },
+      }),
+      freshPrincipal.authExpiresAt,
+    );
+  const currentRunner = async <T>(name: string, input: unknown) =>
+    success(await execute<T>(name, input, { actorRunnerId: runner }, securityNow));
+  const currentCheckout = randomUlid();
+  await currentRunner(replaceRunnerInventoryCommand.name, {
+    principal: freshPrincipal,
+    inventory: {
+      ...inventory,
+      revision: 2,
+      checkouts: [
+        {
+          ...inventory.checkouts[0]!,
+          checkout_id: currentCheckout,
+          physical_worktree_hash: `sha256:${"b".repeat(64)}`,
+          validated_at: securityNow,
+        },
+      ],
+      providers: inventory.providers.map((provider) => ({
+        ...provider,
+        observed_at: securityNow,
+        expires_at: launchDeadline(securityNow, 30_000),
+      })),
+    },
+  });
+  const currentTask = await human<TaskRecord>(
+    createTaskCommand.name,
+    {
+      projectId: FIX.projectA,
+      title: "Synthetic current A04 human loop",
+      priority: "P1",
+    },
+    securityNow,
+  );
+  const timer = await human<{ id: string; resource_version: number }>(
+    startReviewTimerCommand.name,
+    { taskId: currentTask.id },
+    securityNow,
+  );
+  const doubleStart = await execute(
+    startReviewTimerCommand.name,
+    { taskId: currentTask.id },
+    { actorHumanId: FIX.owner },
+    securityNow,
+  );
+  assert.equal(doubleStart.ok, false);
+  const foreignStop = await execute(
+    stopReviewTimerCommand.name,
+    { timerId: timer.id, expectedVersion: 1 },
+    { actorHumanId: FIX.member },
+    securityNow,
+  );
+  assert.equal(foreignStop.ok, false);
+  await human(stopReviewTimerCommand.name, { timerId: timer.id, expectedVersion: 1 }, securityNow);
+  const currentTimer = (await db
+    .prepare("SELECT started_at,stopped_at FROM review_timers WHERE workspace_id=? AND id=?")
+    .get(FIX.workspace, timer.id)) as { started_at: string; stopped_at: string };
+  const currentReviewMs = Date.parse(currentTimer.stopped_at) - Date.parse(currentTimer.started_at);
+  assert(
+    currentReviewMs >= 0 && currentReviewMs < 10_000,
+    "current command timer clock must be real and bounded",
+  );
+  const currentLaunch = await human<{ launch_id: string }>(
+    startLaunchCommand.name,
+    {
+      schema_version: 1,
+      idempotency_key: randomUlid(),
+      task_id: currentTask.id,
+      expected_task_version: 1,
+      runner_id: runner,
+      checkout_id: currentCheckout,
+      agent_profile_id: profile.id,
+      agent_profile_version: 1,
+      workspace_policy_version: 2,
+      project_policy_version: 2,
+      repository_config_version: 2,
+    },
+    securityNow,
+  );
+  const currentClaim = await currentRunner<{ state: string; claim: LaunchClaimResult }>(
+    claimLaunchCommand.name,
+    {
+      principal: freshPrincipal,
+      claim: {
+        schema_version: 1,
+        launch_id: currentLaunch.launch_id,
+        runner_id: runner,
+        idempotency_key: randomUlid(),
+        claimed_at: securityNow,
+      },
+    },
+  );
+  assert.equal(currentClaim.state, "claimed");
+  const bound = await prepareSyntheticAttentionClaim(
+    currentRunner,
+    freshPrincipal,
+    currentClaim.claim,
+    securityNow,
+  );
+  const attention = await currentRunner<{ id: string }>(requestAttentionCommand.name, {
+    principal: freshPrincipal,
+    request: {
+      ...bound,
+      reference: { ...bound.reference, request_id: "a04-current-attention" },
+      kind: "blocker",
+      question: "SYNTHETIC-A04-private-question",
+      blocking: true,
+    },
+  });
+  await human(
+    answerAttentionCommand.name,
+    {
+      attentionId: attention.id,
+      expectedVersion: 1,
+      answer: "SYNTHETIC-A04-private-answer",
+    },
+    securityNow,
+  );
+  const currentRun = currentClaim.claim.specification.run_id;
+  await db
+    .prepare(
+      `UPDATE run_executions SET state='ended',end_reason='process_exit',ended_at=?
+     WHERE workspace_id=? AND id=?`,
+    )
+    .run(securityNow, FIX.workspace, currentClaim.claim.specification.run_execution_id);
+  const submitted = await human<SubmitResultResult>(
+    submitResultCommand.name,
+    {
+      runId: currentRun,
+      summary: "SYNTHETIC-A04-private-result",
+      evidenceRefs: [],
+    },
+    securityNow,
+  );
+  const accepted = await human<ReviewResultResult>(
+    acceptResultCommand.name,
+    {
+      runId: currentRun,
+      submissionId: submitted.submission.id,
+      expectedRunVersion: submitted.runVersion,
+      expectedTaskVersion: submitted.taskVersion,
+    },
+    securityNow,
+  );
+  assert.equal(accepted.runResultState, "accepted");
+  const currentMeasured = await getTaskMeasurements(db, FIX.workspace, currentTask.id, securityNow);
+  assert.equal(currentMeasured.attention.length, 1);
+  const responseMs = currentMeasured.attention[0]?.first_response_ms;
+  assert(
+    typeof responseMs === "number" && responseMs >= 0 && responseMs < 10_000,
+    "attention latency uses actual current command timestamps, not the supplied fixture clock",
+  );
+  snapshot("current_human_loop", {
+    canonical_binding: true,
+    attention_before_execution_end: true,
+    answered_requests: currentMeasured.attention.length,
+    immutable_submissions: 1,
+    human_acceptance: accepted.runResultState === "accepted",
+    fixed_calculation_clock_separate: true,
+    current_review_timer_clock: true,
+    current_attention_clock: true,
+    double_start_rejected: true,
+    foreign_stop_rejected: true,
+  });
+  for (const table of ["audit_events", "semantic_events", "outbox_records"] as const) {
+    const receipts = await db
+      .prepare(`SELECT payload_json FROM ${table} WHERE workspace_id=?`)
+      .all(FIX.workspace);
+    assert(
+      !JSON.stringify(receipts).includes("SYNTHETIC-A04-private-"),
+      `${table} leaked private human-loop content`,
+    );
+  }
+  snapshot("redaction", { private_bodies_absent: true });
+
   await mkdir(evidenceDir, { recursive: true });
   await writeFile(
-    resolve(evidenceDir, "calculation-snapshots.json"),
-    `${JSON.stringify({ snapshots }, null, 2)}\n`,
+    resolve(evidenceDir, "runtime-calculation-snapshots.json"),
+    serializeRuntimeSnapshots(snapshots),
   );
-  console.log("A04_EVIDENCE_OK calculation snapshots written");
+  console.log(
+    "A04_EVIDENCE_OK bounded runtime calculation snapshots written; historical evidence preserved",
+  );
 } catch (error) {
   server.debug();
   throw error;

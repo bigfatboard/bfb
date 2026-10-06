@@ -15,7 +15,7 @@ export interface PackageGatePlan {
 }
 
 // These targets invoke native harnesses that assert process.platform === "darwin".
-// A01/A02/A03 run development-signed daemon/IPC and native ownership proof through
+// A01/A02/A03/A04 run development-signed daemon/IPC and native ownership proof through
 // tools/local-mcp/native.ts. L04/L05 additionally require managed macOS acceptance
 // signing/provisioning, and L05 requires an unlocked GUI Terminal session.
 // Scheduling skips elsewhere are not acceptance; each target still needs its own
@@ -24,6 +24,7 @@ const darwinOnlyTargets = new Set([
   "pnpm test:a01",
   "pnpm test:a02",
   "pnpm test:a03",
+  "pnpm test:a04",
   "pnpm test:l04",
   "pnpm test:l05",
 ]);

@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"net"
@@ -20,7 +21,9 @@ import (
 	"github.com/qdis/bfb/internal/auth"
 	"github.com/qdis/bfb/internal/cli"
 	"github.com/qdis/bfb/internal/daemon"
+	"github.com/qdis/bfb/internal/journal"
 	"github.com/qdis/bfb/internal/provider"
+	"github.com/qdis/bfb/internal/providers"
 	"github.com/qdis/bfb/internal/runner"
 	"github.com/qdis/bfb/internal/supervisor"
 )
@@ -52,7 +55,10 @@ func main() {
 	if err != nil {
 		os.Exit(2)
 	}
-	var config struct{ ProxyAddress, Certificate, ProviderExecutable string }
+	var config struct {
+		ProxyAddress, Certificate, ProviderExecutable string
+		EnableTelemetry                               bool
+	}
 	if json.Unmarshal(data, &config) != nil {
 		os.Exit(2)
 	}
@@ -78,6 +84,23 @@ func main() {
 	methods := daemon.NewRegistry()
 	if runner.RegisterRPC(methods, manager) != nil || supervisor.RegisterRPC(methods, executions) != nil || agentwork.RegisterRPC(methods, manager, executions.CheckAgentOwnership) != nil {
 		os.Exit(2)
+	}
+	if config.EnableTelemetry {
+		registry, err := provider.NewRegistry(providers.Descriptors())
+		if err != nil {
+			os.Exit(2)
+		}
+		backend := func(db *sql.DB) (journal.Assignments, journal.Observers) {
+			view := supervisor.JournalBackend{Intents: supervisor.NewIntentStore(db)}
+			return view, view
+		}
+		service := journal.NewService(journal.ServiceOptions{
+			Providers: registry, Backend: backend,
+			Connection: func(runnerID string) (journal.Connection, error) { return manager.Connection(runnerID) },
+		})
+		if journal.RegisterService(methods, service) != nil {
+			os.Exit(2)
+		}
 	}
 	commands := cli.NewRegistry()
 	cli.RegisterDaemon(commands, methods)

@@ -1,4 +1,4 @@
-// ABOUTME: Hosts production agent work routes and synthetic execution fixtures for A01, A02 and A03.
+// ABOUTME: Hosts production agent work and telemetry routes with synthetic A01–A04 execution fixtures.
 // ABOUTME: Exposes test-only seed, observation and authority-change endpoints on disposable local D1.
 
 import channelWorker, { WorkspaceHub } from "../runner-channel/worker.js";
@@ -20,6 +20,8 @@ import {
   issueStepUpProof,
   OFFLINE_AGENT_TOOLS,
   createAgentProfileCommand,
+  replaceRunnerGrantsCommand,
+  runnerGrantsTarget,
   type HubCommand,
   type PolicySettings,
 } from "@bfb/domain";
@@ -32,7 +34,12 @@ const hash = (body: string) => `sha256:${createHash("sha256").update(body).diges
 export default {
   async fetch(request: Request, env: { DB: D1Like; APP_ORIGIN: string }): Promise<Response> {
     const path = new URL(request.url).pathname;
-    if (!path.startsWith("/__a01/") && !path.startsWith("/__a02/") && !path.startsWith("/__a03/"))
+    if (
+      !path.startsWith("/__a01/") &&
+      !path.startsWith("/__a02/") &&
+      !path.startsWith("/__a03/") &&
+      !path.startsWith("/__a04/")
+    )
       return channelWorker.fetch(request, env);
     const db = adaptD1(env.DB),
       input = (await request.json()) as Record<string, string>;
@@ -392,6 +399,90 @@ export default {
       )
       .get(workspace, execution)) as { run_id: string; task_id: string; runner_id: string };
     if (!row) return new Response(null, { status: 404 });
+    if (path === "/__a04/end") {
+      await db
+        .prepare(
+          `UPDATE run_executions SET state='ended',end_reason='process_exit',ended_at=?
+         WHERE workspace_id=? AND id=? AND state!='ended'`,
+        )
+        .run(now, workspace, execution);
+      return Response.json({ ended: true });
+    }
+    if (path === "/__a04/profile-change") {
+      await db
+        .prepare(
+          `UPDATE agent_profiles SET provider='codex',resource_version=resource_version+1
+         WHERE workspace_id=? AND id=(SELECT agent_profile_id FROM runs WHERE workspace_id=? AND id=?)`,
+        )
+        .run(workspace, workspace, row.run_id);
+      // Preserve the changed historical profile and create an independent fake
+      // profile for the replacement execution; never restore the old provider.
+      await human(createAgentProfileCommand, {
+        name: "Synthetic A04 replacement provider",
+        provider: "fake",
+        model: "synthetic",
+        executionMode: "interactive",
+        harnessMode: "restricted",
+      });
+      return Response.json({ changed: true });
+    }
+    if (path === "/__a04/revoke-project") {
+      const runner = (await db
+        .prepare("SELECT grant_epoch FROM runners WHERE workspace_id=? AND id=?")
+        .get(workspace, row.runner_id)) as { grant_epoch: number };
+      const value = {
+        runnerId: row.runner_id,
+        expectedGrantEpoch: runner.grant_epoch,
+        projectIds: [],
+        launcherHumanIds: [FIX.owner],
+      };
+      const proof = await issueStepUpProof(
+        db,
+        FIX.owner,
+        {
+          action: replaceRunnerGrantsCommand.name,
+          workspaceId: workspace,
+          targetId: runnerGrantsTarget(value),
+          scopes: [],
+          authorizationEpoch: 1,
+          expiresAt: new Date(Date.parse(now) + 60_000).toISOString(),
+        },
+        now,
+      );
+      return Response.json(
+        await human(replaceRunnerGrantsCommand, { ...value, stepUpProofId: proof }),
+      );
+    }
+    if (path === "/__a04/measurement-observe") {
+      const tokens = await db
+        .prepare(
+          `SELECT observation_id,run_id,run_execution_id,provider,model,input_tokens,output_tokens,
+           cache_read_tokens,cache_write_tokens,reasoning_tokens,quality,provenance
+         FROM token_observations WHERE workspace_id=? AND run_execution_id=? ORDER BY observation_id LIMIT 100`,
+        )
+        .all(workspace, execution);
+      const ledger = await db
+        .prepare(
+          `SELECT event_id,workspace_cursor,source_stream_id,source_sequence,run_id,run_execution_id,
+           assignment_generation,kind,capture_origin,payload_json
+         FROM event_ledger WHERE workspace_id=? AND run_execution_id=? ORDER BY workspace_cursor LIMIT 100`,
+        )
+        .all(workspace, execution);
+      const privacy = await db
+        .prepare(
+          `SELECT COUNT(*) AS total,COALESCE(SUM(CASE WHEN
+           instr(payload_json,'A04_PRIVATE_TELEMETRY_CANARY')>0 OR
+           instr(payload_json,'/synthetic/private')>0 OR instr(payload_json,'"usage_id"')>0 OR
+           instr(payload_json,'"tokens":{')>0 THEN 1 ELSE 0 END),0) AS private_payloads
+         FROM (
+           SELECT payload_json FROM audit_events WHERE workspace_id=?
+           UNION ALL SELECT payload_json FROM semantic_events WHERE workspace_id=?
+           UNION ALL SELECT payload_json FROM outbox_records WHERE workspace_id=?
+         )`,
+        )
+        .get(workspace, workspace, workspace);
+      return Response.json({ tokens, ledger, privacy });
+    }
     if (path === "/__a03/result-observe") {
       const submissions = await db
         .prepare(

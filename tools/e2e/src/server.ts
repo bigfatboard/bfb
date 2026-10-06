@@ -15,6 +15,7 @@ import {
   changeDiscussionCommand,
   changeDiscussionTurnCommand,
   claimLaunchCommand,
+  canonicalLaunchJson,
   createAgentProfileCommand,
   createDiscussionCommand,
   FIX,
@@ -786,6 +787,201 @@ async function seedMeasurementSurface(db: SqlDatabase): Promise<void> {
       "2026-08-07T09:05:00Z",
       "2026-08-07T09:05:00Z",
     );
+}
+
+/** Bounded display-only fixture; connected possession-authenticated ingestion is proven by A04 native. */
+async function seedA04ObservedSurface(db: SqlDatabase): Promise<string[]> {
+  const execution = "01SYNTHETICATNEXECB0000001";
+  const runner = "01SYNTHETICATNRUNNER0000001";
+  const session = "synthetic-a04-browser-session";
+  const stream = randomUlid();
+  const cursor = (await db
+    .prepare(
+      "SELECT COALESCE(MAX(workspace_cursor),0) AS value FROM event_ledger WHERE workspace_id=?",
+    )
+    .get(FIX.workspace)) as { value: number };
+  const sourceIds: string[] = [];
+  const event = async (kind: string, offset: number, payload: Record<string, unknown>) => {
+    const id = randomUlid();
+    cursor.value += 1;
+    const occurredAt = new Date(Date.parse(NOW) + offset).toISOString();
+    await db
+      .prepare(
+        `INSERT INTO event_ledger
+      (workspace_id,event_id,workspace_cursor,source_stream_id,source_sequence,run_execution_id,
+       assignment_generation,project_id,task_id,run_id,actor_type,actor_id,source_type,source_id,
+       capture_origin,kind,occurred_at,received_at,provider_session_id,payload_json)
+      VALUES (?,?,?,?,?,?,1,?,?,?,'agent_run',?,'runner',?,'hook_inbox',?,?,?,?,?)`,
+      )
+      .run(
+        FIX.workspace,
+        id,
+        cursor.value,
+        stream,
+        cursor.value,
+        execution,
+        FIX.projectB,
+        FIX.taskDelegable,
+        FIX.runDelegable,
+        execution,
+        runner,
+        kind,
+        occurredAt,
+        occurredAt,
+        session,
+        JSON.stringify(payload),
+      );
+    const submission = {
+      schema_version: 2,
+      event_id: id,
+      source_stream_id: stream,
+      source_sequence: cursor.value,
+      run_execution_id: execution,
+      assignment_generation: 1,
+      kind,
+      occurred_at: occurredAt,
+      capture_origin: "hook_inbox",
+      provider_session_id: session,
+      payload,
+    };
+    return { id, kind, occurredAt, payload, submission };
+  };
+  await event("execution_attached", 0, {});
+  await event("heartbeat", 0, {});
+  await event("heartbeat", 210_000, {});
+  for (const [kind, offset] of [
+    ["turn_started", 10_000],
+    ["turn_stopped", 40_000],
+  ] as const) {
+    const entry = await event(kind, offset, { activity_id: "synthetic-a04-browser-turn" });
+    const phase = kind === "turn_started" ? "start" : "end";
+    const sourceKey = runnerHash(
+      canonicalLaunchJson({
+        run_execution_id: execution,
+        assignment_generation: 1,
+        provider_session_id: session,
+        family: "turn",
+        identity: "synthetic-a04-browser-turn",
+        phase,
+      }),
+    );
+    await db
+      .prepare(
+        `INSERT INTO measurement_sources
+      (workspace_id,source_key,event_id,run_id,run_execution_id,assignment_generation,runner_id,provider,
+       provider_session_id,family,identity,phase,parent_turn_id,semantic_fingerprint)
+      VALUES (?,?,?,?,?,1,?,'codex',?,'turn',?,?,NULL,?)`,
+      )
+      .run(
+        FIX.workspace,
+        sourceKey,
+        entry.id,
+        FIX.runDelegable,
+        execution,
+        runner,
+        session,
+        "synthetic-a04-browser-turn",
+        phase,
+        runnerHash(canonicalLaunchJson({ kind, parent_turn_id: null })),
+      );
+    await db
+      .prepare("INSERT INTO measurement_event_sources VALUES (?,?,?,?)")
+      .run(FIX.workspace, entry.id, entry.id, runnerHash(canonicalLaunchJson(entry.submission)));
+    sourceIds.push(entry.id);
+  }
+  for (const [identity, input] of [
+    ["synthetic-a04-browser-large", Number.MAX_SAFE_INTEGER],
+    ["synthetic-a04-browser-extra", 1],
+  ] as const) {
+    const tokens = {
+      input_tokens: input,
+      output_tokens: 0,
+      cache_read_tokens: null,
+      cache_write_tokens: null,
+      reasoning_tokens: null,
+    };
+    const payload = {
+      measurement: "tokens",
+      usage_id: identity,
+      basis: "turn_delta",
+      model: null,
+      quality: "provider_reported",
+      tokens,
+    };
+    const entry = await event("progress_reported", 50_000, payload);
+    const sourceKey = runnerHash(
+      canonicalLaunchJson({
+        run_execution_id: execution,
+        assignment_generation: 1,
+        provider_session_id: session,
+        family: "tokens",
+        identity,
+        phase: "turn_delta",
+      }),
+    );
+    await db
+      .prepare(
+        `INSERT INTO measurement_sources
+      (workspace_id,source_key,event_id,run_id,run_execution_id,assignment_generation,runner_id,provider,
+       provider_session_id,family,identity,phase,parent_turn_id,semantic_fingerprint)
+      VALUES (?,?,?,?,?,1,?,'codex',?,'tokens',?,'turn_delta',NULL,?)`,
+      )
+      .run(
+        FIX.workspace,
+        sourceKey,
+        entry.id,
+        FIX.runDelegable,
+        execution,
+        runner,
+        session,
+        identity,
+        runnerHash(
+          canonicalLaunchJson({
+            basis: payload.basis,
+            model: null,
+            quality: payload.quality,
+            tokens,
+          }),
+        ),
+      );
+    await db
+      .prepare("INSERT INTO measurement_event_sources VALUES (?,?,?,?)")
+      .run(FIX.workspace, entry.id, entry.id, runnerHash(canonicalLaunchJson(entry.submission)));
+    await db
+      .prepare(
+        `INSERT INTO token_observations
+      (workspace_id,observation_id,run_id,run_execution_id,provider,model,input_tokens,output_tokens,
+       cache_read_tokens,cache_write_tokens,reasoning_tokens,quality,provenance,occurred_at,committed_at)
+      VALUES (?,?,?,?,'codex',NULL,?,0,NULL,NULL,NULL,'provider_reported','hook_inbox',?,?)`,
+      )
+      .run(
+        FIX.workspace,
+        entry.id,
+        FIX.runDelegable,
+        execution,
+        input,
+        entry.occurredAt,
+        entry.occurredAt,
+      );
+    sourceIds.push(entry.id);
+  }
+  await db
+    .prepare(
+      `INSERT INTO measurement_intervals
+    (workspace_id,observation_id,run_id,run_execution_id,interval_kind,started_at,ended_at,
+     provenance,occurred_at,committed_at) VALUES (?,?,?,?,'external_wait',?,?,'runner_observed',?,?)`,
+    )
+    .run(
+      FIX.workspace,
+      randomUlid(),
+      FIX.runDelegable,
+      execution,
+      new Date(Date.parse(NOW) + 20_000).toISOString(),
+      new Date(Date.parse(NOW) + 50_000).toISOString(),
+      NOW,
+      NOW,
+    );
+  return sourceIds;
 }
 
 /**
@@ -2246,6 +2442,8 @@ async function main(): Promise<void> {
     });
   }
   const app = controlApp(NOW);
+  let a04MeasurementNow = NOW;
+  let a04SourceIds: string[] | null = null;
 
   const vite = await createViteServer({
     configFile: path.join(webRoot, "vite.config.ts"),
@@ -2288,6 +2486,21 @@ async function main(): Promise<void> {
       if (cookie.includes(fixtureSessions[role].split(";", 1)[0]!)) return role;
     }
     return null;
+  }
+
+  async function handleA04Observed(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
+    if (new URL(req.url ?? "/", ORIGIN).pathname !== "/__test/a04/observed") return false;
+    if (req.method !== "POST" || e02RoleOf(req) !== "owner" || req.headers.origin !== ORIGIN) {
+      res.statusCode = 403;
+      res.end();
+      return true;
+    }
+    a04SourceIds ??= await seedA04ObservedSurface(db);
+    // Only these measurement reads move forward; immutable work clocks and security remain unchanged.
+    a04MeasurementNow = new Date(Date.parse(NOW) + 240_000).toISOString();
+    res.setHeader("content-type", "application/json; charset=utf-8");
+    res.end(JSON.stringify({ source_ids: a04SourceIds }));
+    return true;
   }
 
   async function handleE02Commit(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
@@ -2458,6 +2671,9 @@ async function main(): Promise<void> {
         if (handleD03Task(pathname, res)) {
           return;
         }
+        if (await handleA04Observed(req, res)) {
+          return;
+        }
         if (await handleRateLimitReset(req, res)) {
           return;
         }
@@ -2485,7 +2701,16 @@ async function main(): Promise<void> {
           return;
         }
         if (shouldHandleOnControl(pathname)) {
-          const now = usesCurrentSecurityClock(pathname) ? new Date().toISOString() : NOW;
+          const measurementPath =
+            pathname ===
+              `/api/v1/workspaces/${FIX.workspace}/tasks/${FIX.taskDelegable}/measurements` ||
+            pathname ===
+              `/api/v1/workspaces/${FIX.workspace}/runs/${FIX.runDelegable}/measurements`;
+          const now = usesCurrentSecurityClock(pathname)
+            ? new Date().toISOString()
+            : measurementPath
+              ? a04MeasurementNow
+              : NOW;
           const requestApp =
             now === NOW
               ? app

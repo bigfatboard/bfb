@@ -156,7 +156,12 @@ func TestMCPProviderProcess(t *testing.T) {
 			if probe.Run() != nil {
 				os.Exit(2)
 			}
-		} else if strings.HasPrefix(line, "__hook:") {
+		} else if strings.HasPrefix(line, "__hook:") || strings.HasPrefix(line, "__telemetry:") {
+			telemetry := strings.HasPrefix(line, "__telemetry:")
+			prefix := "__hook:"
+			if telemetry {
+				prefix = "__telemetry:"
+			}
 			hook := exec.Command(os.Getenv("BFB_A01_BINARY"), "--data-dir", os.Getenv("BFB_A01_ROOT"), "hook", "ingest", "--provider", "fake")
 			for _, entry := range os.Environ() {
 				key, _, _ := strings.Cut(entry, "=")
@@ -164,8 +169,25 @@ func TestMCPProviderProcess(t *testing.T) {
 					hook.Env = append(hook.Env, entry)
 				}
 			}
-			hook.Stdin = strings.NewReader(strings.TrimPrefix(line, "__hook:"))
-			result, err := hook.CombinedOutput()
+			hook.Stdin = strings.NewReader(strings.TrimPrefix(line, prefix))
+			hook.Stderr = os.Stderr
+			result, err := hook.Output()
+			if telemetry {
+				status := 0
+				if err != nil {
+					var exit *exec.ExitError
+					if !errors.As(err, &exit) {
+						os.Exit(2)
+					}
+					status = exit.ExitCode()
+				}
+				if !json.Valid(bytes.TrimSpace(result)) {
+					os.Exit(2)
+				}
+				data, _ := json.Marshal(map[string]any{"status": status, "receipt": json.RawMessage(bytes.TrimSpace(result))})
+				fmt.Println("TELEMETRY:" + string(data))
+				continue
+			}
 			if err != nil || !bytes.Contains(result, []byte(`"hook_status":"accepted"`)) {
 				fmt.Fprintln(os.Stderr, "trusted hook failed", err, string(result))
 				os.Exit(2)
@@ -260,6 +282,7 @@ func TestNativeAgentWork(t *testing.T) {
 	defer cancel()
 	attentionScenario := os.Getenv("BFB_A02_NATIVE_SCENARIO") == "1"
 	resultScenario := os.Getenv("BFB_A03_NATIVE_SCENARIO") == "1"
+	measurementScenario := os.Getenv("BFB_A04_NATIVE_SCENARIO") == "1"
 	upstream, err := url.Parse(target)
 	if err != nil || upstream.Hostname() != "127.0.0.1" && upstream.Hostname() != "localhost" {
 		t.Fatal("Worker must be loopback")
@@ -280,6 +303,7 @@ func TestNativeAgentWork(t *testing.T) {
 	var businessRequests atomic.Int64
 	var attentionReads atomic.Int64
 	var slowAttentionRead atomic.Bool
+	telemetryFaults := &nativeMeasurementFaults{}
 	type historyFault struct {
 		db                         *sql.DB
 		execution, history, action string
@@ -293,6 +317,9 @@ func TestNativeAgentWork(t *testing.T) {
 	var releaseDuringCloud atomic.Pointer[lockFault]
 	var challengeCount, challengeWindow atomic.Int64
 	proxy.ModifyResponse = func(response *http.Response) error {
+		if err := telemetryFaults.modify(response); err != nil {
+			return err
+		}
 		path := response.Request.URL.Path
 		if strings.HasSuffix(path, "/challenge") && response.StatusCode == 200 {
 			challengeWindow.CompareAndSwap(0, time.Now().UnixNano())
@@ -355,6 +382,9 @@ func TestNativeAgentWork(t *testing.T) {
 		_, _ = writer.Write([]byte(`{"error":"work_unavailable"}`))
 	}
 	server := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if telemetryFaults.intercept(writer, request) {
+			return
+		}
 		if workOutage.Load() && strings.Contains(request.URL.Path, "/work/") || resultProofOutage.Load() && strings.HasSuffix(request.URL.Path, "/work/result-confirmation") {
 			writer.WriteHeader(503)
 			_, _ = writer.Write([]byte(`{"error":"work_unavailable"}`))
@@ -380,7 +410,7 @@ func TestNativeAgentWork(t *testing.T) {
 	if err != nil || paths.Prepare() != nil {
 		t.Fatal("private state setup failed", err)
 	}
-	config, _ := json.Marshal(map[string]string{"ProxyAddress": server.Listener.Addr().String(), "Certificate": string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw})), "ProviderExecutable": os.Args[0]})
+	config, _ := json.Marshal(map[string]any{"ProxyAddress": server.Listener.Addr().String(), "Certificate": string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw})), "ProviderExecutable": os.Args[0], "EnableTelemetry": measurementScenario})
 	if err := os.WriteFile(filepath.Join(paths.Root, "fixture.json"), config, 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -645,7 +675,7 @@ FROM work_intents i JOIN work_delivery d USING(operation_key) WHERE json_extract
 			return json.Unmarshal(observed["inventory"], &inventory) == nil && len(inventory.Checkouts) == 1 && inventory.Checkouts[0].CheckoutId == ids["checkout"] && inventory.Checkouts[0].PhysicalWorktreeHash == ids["physical"] && inventory.Checkouts[0].RepositoryConfigHash == claim.Snapshot.RepositoryConfigHash
 		})
 	}
-	seedLocal(attentionScenario || resultScenario)
+	seedLocal(attentionScenario || resultScenario || measurementScenario)
 	write := func(value any) {
 		t.Helper()
 		data, _ := json.Marshal(value)
@@ -897,6 +927,31 @@ FROM work_intents i JOIN work_delivery d USING(operation_key) WHERE json_extract
 				if err := waitFixtureLockFree(paths.Root, ids["physical"]); err != nil {
 					t.Fatal(err)
 				}
+			},
+		})
+		return
+	}
+	if measurementScenario {
+		runNativeMeasurements(t, nativeMeasurementFixture{
+			ctx: ctx, db: db, paths: paths, server: server,
+			ids: func() map[string]string { return ids }, post: post,
+			restartDaemon: restartDaemon, freshScope: freshScope, wait: wait,
+			faults: telemetryFaults,
+			hook: func(input map[string]any) nativeMeasurementHook {
+				t.Helper()
+				data, err := json.Marshal(input)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := io.WriteString(stdin, "__telemetry:"+string(data)+"\n"); err != nil {
+					t.Fatal(err)
+				}
+				line, err := reader.ReadString('\n')
+				var result nativeMeasurementHook
+				if err != nil || !strings.HasPrefix(line, "TELEMETRY:") || json.Unmarshal([]byte(strings.TrimPrefix(line, "TELEMETRY:")), &result) != nil {
+					t.Fatal("compiled hook did not return its bounded receipt", err)
+				}
+				return result
 			},
 		})
 		return
