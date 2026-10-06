@@ -97,3 +97,15 @@ during an in-flight D1 batch is explicitly uncertified and still requires a
 coordinated repair before activation. No full delivery certificate, live private
 R2 byte certificate or deployment exists. Downstream C12 remains planned until
 all stages pass from one clean committed checkout.
+
+The [retention/upload-recovery checkpoint](evidence/WP-C11/retention-recovery-manifest.json)
+is clean-certified at `de4f5fe`: 1,179 cases, 24 real-D1 checks, retained C10/C08,
+exact X05 acceptance and full verification with 3,520 TypeScript cases, Go and
+all 16 Swift cases. Human retention counts and delivery use exact shared
+parents/current scope; configured system selection is separate. Upload recovery
+commits proof, current authority/state guards, artifact effects, ledger and safe
+receipts atomically through the Hub, with a final browser authority check.
+Complete audit/aggregate/diagnostic/other-recovery privacy and destructive
+private retention remain uncertified. The next bounded repair is canonical
+artifact security-audit receipt delivery, not private activation or provider
+operation.

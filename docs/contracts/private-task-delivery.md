@@ -211,8 +211,9 @@ snapshots or raw positions; those remain activation barriers with separate
 lineage and count proofs. Never disable a route merely because a private record
 exists, since that response would expose its presence.
 
-The next bounded retention/recovery slice has the following contract; its
-implementation requires a separate clean checkpoint before it is certified:
+The bounded retention/recovery contract below has a
+[separate clean checkpoint](../work-packages/evidence/WP-C11/retention-recovery-manifest.json).
+It does not certify complete operations privacy or enable private work:
 
 - Human retention selection requires an explicit retained human access context,
   current owner/member membership, epoch and project authority. It remains

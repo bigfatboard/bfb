@@ -162,6 +162,14 @@ manifests; current runtime proof must have its own explicit scope.
   C11. Opaque positions, GitHub unbound-key collisions, operations aggregates,
   diagnostics, audit, retention/recovery, coordination consumers and
   creation/sharing remain open. Natural credential/lease expiry during an
-  in-flight D1 batch is explicitly uncertified. The next bounded slice is
-  authorized retention reads and atomic stuck-upload recovery, without provider
-  operation. Live private R2 byte delivery remains uncertified. C12 stays planned.
+  in-flight D1 batch is explicitly uncertified. The
+  [retention/upload-recovery checkpoint](work-packages/evidence/WP-C11/retention-recovery-manifest.json)
+  is clean-certified at `de4f5fe`: 1,179 C11 cases, 24 real-D1 checks and exact
+  X05 acceptance; full verification passes 3,520 TypeScript cases, Go and all
+  16 Swift cases. It closes current human shared-only retention counts/delivery
+  and atomic Owner upload recovery, with separate configured-system selection
+  and post-Hub browser checks. Destructive private retention and complete
+  operations audit, aggregates, diagnostics and other recovery remain open.
+  The next bounded slice is canonical artifact security-audit receipt delivery,
+  without provider operation. Live private R2 byte delivery remains uncertified.
+  C12 stays planned.

@@ -1,0 +1,99 @@
+{
+  "package": "C11",
+  "recorded_on": "2026-10-07",
+  "tested_commit": "de4f5fe83e725dbeaee70f5f43795d122eabe1df",
+  "outcome": "passed",
+  "stage": "partial_metadata_retention_and_upload_recovery",
+  "package_acceptance_complete": false,
+  "private_creation_available": false,
+  "scope": "Current human shared-only canonical retention reads and atomic Owner stuck-upload recovery. Not complete operations privacy, destructive private retention or full C11 acceptance.",
+  "migration_head": "0045_private_task_authority",
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56)",
+    "architecture": "arm64",
+    "runtime": "Production Hub and disposable real D1, mounted authenticated browser routes, synthetic configured retention Queue/R2 drill and operations browser regressions"
+  },
+  "clean_commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "exit_code": 0
+    },
+    {
+      "command": "pnpm test:c11",
+      "exit_code": 0,
+      "c10_cases": 86,
+      "c10_files": 8,
+      "c10_d1_checks": 9,
+      "c08_cases": 23,
+      "c08_files": 5,
+      "c08_proof": "C08_D1_OK",
+      "stage_cases": 1179,
+      "stage_files": 56,
+      "stage_d1_checks": 24,
+      "proof": "C11_TASK_D1_OK",
+      "counting": "Separate invocations overlap; counts are not a unique combined total"
+    },
+    {
+      "command": "pnpm test:x05",
+      "exit_code": 0,
+      "cases": 58,
+      "files": 6,
+      "worker_scenarios": 11,
+      "browser_cases": 4,
+      "proof": "X05_DRILL_OK",
+      "package_status_changed": false
+    },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 3520,
+      "typescript_files": 174,
+      "go": "passed",
+      "go_scheduling": "GOFLAGS=-p=1",
+      "swift": "passed",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    {
+      "command": "pnpm worktree:check",
+      "exit_code": 0,
+      "before_and_after_verify": true,
+      "committed_source_unchanged": true
+    }
+  ],
+  "real_d1_extension_checks": [
+    "real_d1_human_retention_uses_visible_canonical_parents_and_separate_configured_system_scope",
+    "real_production_hub_upload_recovery_and_fresh_proof_ledger_retry_converge_once",
+    "real_d1_recovery_consumed_live_grant_before_batch_rolls_back_proof_effects_ledger_and_audit",
+    "real_d1_empty_composite_scope_rechecks_epoch_before_hydrated_workspace_metadata"
+  ],
+  "repairs_with_regression_proof": [
+    "Explicit retained human context, current Owner/member epoch and exact shared version/artifact/run/task/project lineage govern retention content and examined/eligible counts",
+    "Canonical log keys bind the exact workspace, run and version; dangling, misbound and run-free log objects are not deleted by the synthetic configured-system sweep",
+    "Human and separately named configured-system selection cannot inherit one another's authority; health remasks retention and stuck references together after awaited hydration",
+    "Current-scope sentinels deny Owner/member or epoch loss even for empty candidate lists before hydrated policy or workspace metadata delivery",
+    "Upload selection and recovery use the exact 15-minute TTL plus five-minute grace, including consumed grants whose expiry remains inside grace",
+    "Stuck-upload recovery routes through the production Hub; current Owner, shared contribution authority, exact target state, proof and ledger witnesses guard the atomic batch",
+    "Fresh action-bound proofs are required for target-ledger retry; malformed, duplicate, private, missing, non-stuck and historical malformed targets do not consume proof or create recovery effects",
+    "A consumed future grant inserted before real D1 batch execution rolls back proof, artifact state, target ledger, semantic receipt, audit, outbox and idempotency writes",
+    "Post-Hub browser delivery rechecks retained current authority; the old unguarded upload-recovery branch rejects before historical cache lookup",
+    "Current operations runtime proof preserves the historical migration-head certificate instead of rewriting dated evidence"
+  ],
+  "activation_barriers": [
+    "Natural credential or lease expiry while a D1 batch is already in flight remains uncertified",
+    "Principal-bound opaque positions and raw notification delivery identities",
+    "Unbound GitHub evidence-key collision presence policy",
+    "Complete operations aggregate, security audit, frozen diagnostic, other recovery and private destructive-retention privacy",
+    "Coordination consumers and complete delivery matrix",
+    "Private creation, creator sharing, author-private checkpoints and downstream C12 publication"
+  ],
+  "not_claimed": [
+    "Complete C11 acceptance or private-feature activation",
+    "Private R2 destructive lifecycle or live private byte/browser delivery",
+    "Settlement of held X01, X04 or X05 dependencies",
+    "Remote start, agent discussions, enrolled pilot operation, provider configuration, deployment or external CI",
+    "New UI, project-wide knowledge, skills, encrypted vault values, checkpoint reminders or contribution UI"
+  ],
+  "redaction": "Bounded synthetic counts, proof labels, source identity and limits only; no credentials, private bodies, raw output or local absolute paths"
+}
