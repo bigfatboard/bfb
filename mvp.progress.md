@@ -2,7 +2,7 @@
 
 Updated: 6 October 2026
 
-Status: A01–A04 are complete at clean-certified runtimes: agent context/writes/protected recovery, connected human attention, protected explicit results with human review, and connected measurement telemetry/provenance. V01 online bound-agent artifact publication is also clean-certified. The persistent local control plane is running over trusted HTTPS, and real owner/passkey onboarding is verified. The live provider/discussion workflow remains unverified. The end-to-end MVP is not complete.
+Status: A01–A04 are complete at clean-certified runtimes: agent context/writes/protected recovery, connected human attention, protected explicit results with human review, and connected measurement telemetry/provenance. V01 online bound-agent artifact publication is also clean-certified. Persistent local control-plane and real owner/passkey onboarding checkpoints are recorded below; this product lane has not rechecked current pilot operation. The live provider/discussion workflow remains unverified here. The end-to-end MVP is not complete.
 
 Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 
@@ -14,8 +14,11 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
   isolated product branch; nothing is deployed or enabled on the pilot.
   [ADR 0014](docs/adr/0014-private-work-authorization.md) and C10–C12 sequence
   the dormant privacy kernel, complete delivery/sharing gate and selected-content
-  publication. C10 is in progress; the unchanged C08 checkpoint passes. Private
-  creation is unavailable until cross-surface delivery enforcement passes.
+  publication. C10 is clean-certified at `a7edf14`: 86 exact cases, nine real-D1
+  checks and retained C08/X03 regressions pass; full verification passes 2,987
+  TypeScript cases, Go and all 16 Swift cases. Evidence is committed with its
+  dormant-only scope. C11/C12 remain planned; private creation is unavailable
+  until cross-surface delivery enforcement passes.
 
 - The [launch-selection checkpoint](docs/work-packages/evidence/WP-L07/launch-selection-checkpoint.json)
   records a separate retry blocker: the browser made the sole non-default

@@ -1,6 +1,6 @@
 # WP-C10 — Private-task authorization kernel
 
-Status: `in_progress`
+Status: `done`
 
 Risk: Very high
 
@@ -84,4 +84,10 @@ its fixture contract; C11 must define private agent-child inheritance explicitly
 
 ## Handoff
 
-In progress. C11 must not consume this kernel until clean evidence is committed.
+Clean-certified 6 October at `a7edf14`. Frozen install, exact acceptance (86
+cases/eight files and nine real-D1 checks), C08/X03 regressions and full
+verification (2,987 TypeScript cases, Go and 16 Swift cases) pass at the same
+source. Both clean-worktree checks pass; evidence is committed at the declared
+manifest. The kernel is dormant: no private creation/ACL command, UI or delivery
+certificate. C11 can now freeze its activation contract without enabling the
+pilot or treating kernel tests as cross-surface proof.

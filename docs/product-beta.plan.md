@@ -61,11 +61,11 @@ foundation tests.
 | Requirement | Delivered foundation | Still to build in this lane |
 | --- | --- | --- |
 | Project board and human/agent tasks | Project lanes, typed context, routing and explicit progress records; current isolated viewer/review proofs | Distinct summary/plan/graphics/progress navigation and inherited base/project instructions |
-| Authenticated MCP and private work | Existing scoped OAuth and local run authority; current delegated retry/audit repairs | Creator-private ACLs on every read/projection/transport and explicit immutable selected-content sharing |
+| Authenticated MCP and private work | Scoped OAuth/local run authority, retry/audit repairs and clean-certified dormant C10 creator/grant kernel | C11 enforcement on every delivery/projection/transport before private creation; C12 immutable selected-content publication |
 | Project-root prompts and documentation | Task-local context and immutable delivery lineage, not project-wide knowledge | Canonical BFB project instructions/docs/artifacts, versioning and explicit precedence without overwriting local instructions |
 | Workspace/project Git skills | Configuration snapshot foundation only | Pinned catalogs, sync, collision resolution and explicit enablement without automatic code execution |
-| Clean neon UI, light/dark | Existing core board and narrow-screen review-control repair | Approved visual direction, tokens/preferences, core content navigation and both-theme accessibility/state acceptance |
-| Workspace/project business secrets | Infrastructure/Keychain credentials only; not business-secret sharing | Approved backing store, scoped grants/revisions, revocation and value-redaction proof |
+| Clean neon UI, light/dark | Core board and review-control repair; lime/cyan palette approved | Representative composition, tokens/preferences, content navigation and both-theme accessibility/state acceptance |
+| Workspace/project business secrets | Infrastructure/Keychain credentials only; BFB-encrypted vault direction approved, not built | Encryption/key lifecycle, scoped grants/revisions, recovery, revocation and value-redaction proof |
 | Reminders to update BFB | Constant launch bootstrap and telemetry-only hooks, not checkpoint reminders | Explicit checkpoint cadence, suppression, acknowledgement/expiry and dedupe; no automatic publication or model turn |
 | Minimal human contribution history | Attributed comments, attention and result/artifact decisions; explicit timers remain measurements | Compact privacy-aware cross-record projection/view with source dedupe; no presence-derived contribution or labor |
 
@@ -119,3 +119,8 @@ manifests; current runtime proof must have its own explicit scope.
   foundation integrations keep their own gates.
 - No pilot configuration, production deployment or live-provider outcome is
   changed or claimed by this lane.
+- C10 is clean-certified at `a7edf14`: exact acceptance passes 86 cases and nine
+  real-D1 checks; C08/X03 regressions stay green. Full verification passes
+  2,987 TypeScript cases, Go and all 16 Swift cases. Existing task records are
+  unchanged by migration `0045_private_task_authority`. Private policies/grants
+  are dormant until C11's complete delivery gate passes; C11/C12 remain planned.
