@@ -31,3 +31,19 @@ provider execution or secret sharing.
 Before `ready`, specify owning ADR, permission/audience matrix, exact clean
 target and evidence path. Prove exact retry, stale preview, changed content,
 cross-scope denial and revocation without source-history leaks.
+
+## Evidence
+
+Not run. Assign the bounded manifest and exact target when publisher/audience
+contracts are frozen; retain immutable selection hashes and permission results,
+not private source contents or synthetic evidence presented as live delivery.
+
+## Risks and decisions
+
+Publication can widen access irreversibly to already-delivered bytes. The UI
+must preview exact contents and explicit audience; no automatic history sharing
+or task acceptance is authorized by this planned package.
+
+## Handoff
+
+Planned. C11 is not done and no publication implementation or certificate exists.
