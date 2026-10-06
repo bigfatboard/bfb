@@ -438,6 +438,52 @@ certifies this subset only:
   No schema, mutation, recovery/notification/GitHub execution, provider operation,
   private activation or historical evidence rewrite is included.
 
+### Frozen diagnostic snapshot quarantine
+
+The next bounded C11 slice makes uncertified diagnostic delivery uniformly
+unavailable. Legacy workspace-wide counts have no immutable source manifest or
+recipient/audience provenance. A secret scan, current epoch, recount, hash or
+claimed newer body schema cannot supply that missing history. This is a frozen
+repair contract, not an implementation certificate or new diagnostic format.
+
+- Preserve authentication, role, CSRF and structural validation. After those
+  checks, list/detail/generation/consent use the fixed `request_rejected` denial
+  with `diagnostic bundles are unavailable`; browser status is 409. Do not inspect
+  bundle existence/state/body/expiry, proof validity or private-task presence to
+  choose that denial. Empty, shared-only and private workspaces behave alike.
+- Both registered Hub commands require current direct-human Owner and retained
+  epoch in a before-cache authorizer, then reject uniformly. Reject before proof
+  preparation/consumption, inventory reads, bundle writes, cursor allocation or
+  enqueue. Cached successful records remain stored and cannot be delivered.
+- Production inventory construction and diagnostic body renderers reject under
+  the same policy. Keep pure security scanners/sanitizers separate; they do not
+  grant delivery authority. Remove raw-count helpers made orphaned by the repair.
+- Validated `diagnostic.upload` jobs acknowledge terminally before bundle lookup,
+  without DB/R2/DLQ effects or state-dependent retry. Retention jobs and malformed
+  poison-message isolation keep their existing separate contracts. No live
+  queue, pilot or provider is operated by this work.
+- Omit the whole case-insensitive `diagnostic.*` namespace from security audit
+  before ordering, page/count/has-more/anchor selection. Its anchors use the
+  existing unknown-cursor denial; final Owner/epoch scope-loss priority remains.
+  Apply the same pre-limit namespace fence to exported semantic-event replay.
+  Do not claim that every genuine audit row exposes its full inventory: large
+  generated strings are normally redacted, but identity/state/hash/time and
+  short historical count copies remain uncertified. Other audit families and
+  opaque positions retain their separate activation barriers.
+- Preserve diagnostic bundles and historical audit/semantic/outbox/idempotency
+  rows and R2 objects. Do not delete, relabel, detach, rewrite or reconstruct
+  consented inventories. Existing expiry bookkeeping is separate from delivery;
+  this repair does not change its retention authority.
+- Keep the existing Owner/Member Diagnostics section with a compact accessible
+  unavailable notice and optional on-demand explanation. Remove generation and
+  consent controls, passkey prompts, diagnostic fetches and stale bundle state.
+  Do not present an empty successful inventory or loading state as availability.
+- Prove distinct boundaries with bounded domain, mounted, queue and browser
+  tests, plus fresh real-D1/Hub rejection/copy checks. Keep dated X05 evidence;
+  its current runtime D9 proves the held policy rather than a working v1 upload.
+  A future source-backed format needs a separate manifest/audience contract and
+  complete recipient delivery certificate, not a v1 schema-version relabel.
+
 ## Delivery inventory and required proof
 
 | Surface | Existing owner / entry points | C11 completion check |
