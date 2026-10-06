@@ -1,12 +1,12 @@
 # WP-A04 — Measurements and provenance
 
-Status: `in_progress`
+Status: `done`
 
 Risk: High
 
 Test target: `pnpm test:a04`
 
-Evidence manifest: `docs/work-packages/evidence/WP-A04/manifest.json`
+Evidence manifest: `docs/work-packages/evidence/WP-A04/runtime-manifest.json`
 
 ## Outcome
 
@@ -50,7 +50,7 @@ BFB shows human attention, process elapsed time, active agent work, waiting, and
 ### Produces
 
 - [Measurements and provenance v1](../contracts/measurements.md), freezing the observation, interval-union, token-quality, price-catalog, and review-timer contracts, with the ADR 0009 typed-telemetry extension at D1 head `0041_measurement_sources` and daemon `011_measurement_telemetry`. The original observation tables remain at `0027_measurements`. V03 consumes the review-timer service and creates no second timer.
-- Stable test target `pnpm test:a04` and evidence-manifest path `docs/work-packages/evidence/WP-A04/manifest.json`.
+- Stable test target `pnpm test:a04` and evidence-manifest path `docs/work-packages/evidence/WP-A04/runtime-manifest.json`.
 - `packages/domain/src/measurements.ts`: `token.report`/`interval.report` (runner actor, assignment-validated, idempotent with confusion rejection), `review_timer.start`/`stop` (starter-scoped human timer), `browser_activity.record` (capped, estimated), and read-time derivations `getRunMeasurements`/`getTaskMeasurements`/`aggregateMeasurements`.
 - `apps/control-worker/src/api/work.ts`: run/task measurement reads, review-timer start/stop, and browser-activity routes.
 - `apps/web/src/work/measurements.tsx`: separated task-sheet display with explicit review-timer controls.
@@ -88,8 +88,9 @@ the committed A02/A03 runtime contracts and E01 v1 without widening them.
 
 ## Evidence
 
-- Evidence manifest: `docs/work-packages/evidence/WP-A04/manifest.json` (conforms to `docs/work-packages/evidence/manifest.schema.json`).
-- Contents: calculation snapshots (`calculation-snapshots.json`), provider-usage fixtures (`fixtures/`), command result (`command-result.json`), acceptance matrix (`acceptance-matrix.md`), interval-property notes (`interval-property-notes.md`), review-timer trace (`review-timer.md`), browser snapshots (`browser/`).
+- Current evidence manifest: `docs/work-packages/evidence/WP-A04/runtime-manifest.json` (conforms to `docs/work-packages/evidence/manifest.schema.json`).
+- Current contents: `runtime-command-result.json`, `runtime-acceptance.md` and `runtime-calculation-snapshots.json`, with linked protocol, native, cloud and browser regression sources. Command results identify the exact tested source for every gate.
+- Historical evidence remains unchanged: `manifest.json`, `calculation-snapshots.json`, provider-usage fixtures (`fixtures/`), `command-result.json`, `acceptance-matrix.md`, `interval-property-notes.md`, `review-timer.md` and browser snapshots (`browser/`). These are not relabelled as connected runtime evidence.
 - Evidence is bounded and redacted: synthetic identities only, no secrets, no local absolute paths, no raw terminal output.
 
 ## Risks and decisions
@@ -100,6 +101,8 @@ the committed A02/A03 runtime contracts and E01 v1 without widening them.
 
 ## Handoff
 
+- Connected runtime certified 6 October at `a7a763cb5dea49089704618c54c330ac4df71f17`: clean exact A04 and A03, full verification (2,545 TypeScript tests, Go checks and 16 Swift tests), Linux build and worktree check pass. Affected E01/L06/A01/A02/L08 gates pass at production-equivalent `312a2018af409c6f474935e6f6adb22d4e0e30c2`; only test command/guard and A03 harness/evidence validation changed afterward. The initial A03 regression attempt failed its stale migration-head assertion; the repaired full gate passes without rewriting A03's historical certificate. See the current evidence for exact scope and source attribution.
+- A04 is `done` for the connected synthetic runtime, canonical provenance and honest derivations. Pinned live-provider usage remains unavailable where stable identity/delta semantics are unproven. No Terminal/live-provider run, real-workspace offline-policy enablement, descendant certification or full-MVP claim follows.
 - Runtime integration resumed 6 October after the committed A03 runtime
   certificate at `9077a08`. All required packages are done. ADR 0009 freezes
   the versioned telemetry, historical authority, atomic measurement and honest
