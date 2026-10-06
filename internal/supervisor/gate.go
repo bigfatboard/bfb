@@ -267,6 +267,34 @@ func finalRequest(assignment generated.LocalExecutionAssignment, lockID string) 
 	return generated.LaunchFinalRequest{SchemaVersion: 1, LaunchId: spec.LaunchId, RunExecutionId: spec.RunExecutionId, AssignmentGeneration: spec.AssignmentGeneration, FencingGeneration: claim.FencingGeneration, ConfigSnapshotId: spec.ConfigSnapshotId, ConfigSnapshotHash: spec.ConfigSnapshotHash, RepositoryConfigHash: claim.Snapshot.RepositoryConfigHash, PhysicalWorktreeHash: claim.Snapshot.PhysicalWorktreeHash, Supervisor: assignment.Supervisor, LocalLockId: lockID}
 }
 
+func validateTerminalStreams(terminal *os.File, owner Process, streams [3]*os.File) error {
+	if terminal == nil {
+		return failure("execution_terminal_lost")
+	}
+	path, err := controllingTTY(owner)
+	var device unix.Stat_t
+	foreground, foregroundErr := unix.IoctlGetInt(int(terminal.Fd()), unix.TIOCGPGRP)
+	if err != nil || unix.Lstat(path, &device) != nil || device.Mode&unix.S_IFMT != unix.S_IFCHR || foregroundErr != nil || foreground != owner.GroupID {
+		return failure("execution_terminal_lost")
+	}
+	for index, stream := range streams {
+		if stream == nil {
+			return failure("execution_terminal_lost")
+		}
+		var stat unix.Stat_t
+		flags, err := unix.FcntlInt(stream.Fd(), unix.F_GETFL, 0)
+		group, groupErr := unix.IoctlGetInt(int(stream.Fd()), unix.TIOCGPGRP)
+		if err != nil || unix.Fstat(int(stream.Fd()), &stat) != nil || stat.Mode&unix.S_IFMT != unix.S_IFCHR || stat.Rdev != device.Rdev || groupErr != nil || group != foreground {
+			return failure("execution_terminal_lost")
+		}
+		access := flags & unix.O_ACCMODE
+		if index == 0 && access != unix.O_RDONLY && access != unix.O_RDWR || index != 0 && access != unix.O_WRONLY && access != unix.O_RDWR {
+			return failure("execution_terminal_lost")
+		}
+	}
+	return nil
+}
+
 // startGated returns the child whenever process creation succeeded, including
 // on a later error. The supervisor must observe that child through group end
 // before reaping it; closing a gate alone is not proof of process absence.
@@ -285,6 +313,10 @@ func startGated(ctx context.Context, execution *preparedExecution, lock *Worktre
 	binding := LockBinding{ExecutionID: claim.Assignment.RunExecutionId, AssignmentGeneration: claim.Assignment.AssignmentGeneration, FencingGeneration: claim.FencingGeneration, PhysicalWorktreeHash: claim.Snapshot.PhysicalWorktreeHash}
 	if err != nil || record.Binding != binding || record.State != "reserved" || record.Group != nil || record.Owner.PID != int(execution.assignment.Supervisor.Pid) || record.Owner.StartIdentity != execution.assignment.Supervisor.StartIdentity {
 		return nil, failure("containment_unknown")
+	}
+	streams := [3]*os.File{os.Stdin, os.Stdout, os.Stderr}
+	if err := validateTerminalStreams(tty, record.Owner, streams); err != nil {
+		return nil, err
 	}
 	request := finalRequest(execution.assignment, record.LockID)
 	// Bind C09's release-proof identity before creating any owned group.
@@ -305,11 +337,16 @@ func startGated(ctx context.Context, execution *preparedExecution, lock *Worktre
 	defer readyWrite.Close()
 	command := childCommand()
 	command.ExtraFiles = []*os.File{gateRead, readyWrite}
-	command.Stdin, command.Stdout, command.Stderr = tty, tty, tty
+	// /dev/tty remains a job-control handle: Darwin cannot kqueue-poll that
+	// alias. The provider inherits only the verified original PTY streams.
+	command.Stdin, command.Stdout, command.Stderr = streams[0], streams[1], streams[2]
 	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Foreground: true, Ctty: int(tty.Fd())}
 	parent, err := inspect(daemon.Peer{UID: os.Getuid(), PID: os.Getpid()})
 	if err != nil || parent.wire() != execution.assignment.Supervisor || parent.Process != record.Owner {
 		return nil, failure("peer_denied")
+	}
+	if err := validateTerminalStreams(tty, parent.Process, streams); err != nil {
+		return nil, err
 	}
 	if err := lock.beginSpawn(); err != nil {
 		return nil, err

@@ -18,6 +18,7 @@ import (
 	"syscall"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/qdis/bfb/internal/checkout"
 	"github.com/qdis/bfb/internal/daemon"
@@ -38,6 +39,121 @@ func gateFixtureInspector(peer daemon.Peer) (SupervisorIdentity, error) {
 	return SupervisorIdentity{Process: process, ExecutableHash: provider.Hash([]byte("synthetic-helper-build"))}, nil
 }
 
+func fixtureKqueueRegistration(fd, filter int) error {
+	queue, err := unix.Kqueue()
+	if err != nil {
+		return err
+	}
+	defer unix.Close(queue)
+	var change unix.Kevent_t
+	unix.SetKevent(&change, fd, filter, unix.EV_ADD|unix.EV_RECEIPT)
+	receipts := make([]unix.Kevent_t, 1)
+	count, err := unix.Kevent(queue, []unix.Kevent_t{change}, receipts, &unix.Timespec{})
+	if err != nil {
+		return err
+	}
+	if count != 1 || receipts[0].Flags&unix.EV_ERROR == 0 {
+		return fmt.Errorf("missing kqueue registration receipt")
+	}
+	if receipts[0].Data != 0 {
+		return syscall.Errno(receipts[0].Data)
+	}
+	return nil
+}
+
+func fixtureForeignPTY(t *testing.T) *os.File {
+	t.Helper()
+	fd, err := unix.Open("/dev/ptmx", unix.O_RDWR|unix.O_NOCTTY|unix.O_CLOEXEC, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	master := os.NewFile(uintptr(fd), "synthetic-foreign-pty")
+	t.Cleanup(func() { _ = master.Close() })
+	for _, request := range []uint{unix.TIOCPTYGRANT, unix.TIOCPTYUNLK} {
+		if err := unix.IoctlSetInt(fd, request, 0); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var name [128]byte
+	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), unix.TIOCPTYGNAME, uintptr(unsafe.Pointer(&name[0]))); errno != 0 {
+		t.Fatal(errno)
+	}
+	slaveFD, err := unix.Open(strings.TrimRight(string(name[:]), "\x00"), unix.O_RDWR|unix.O_NOCTTY|unix.O_CLOEXEC|unix.O_NOFOLLOW, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	slave := os.NewFile(uintptr(slaveFD), "synthetic-foreign-pty-slave")
+	t.Cleanup(func() { _ = slave.Close() })
+	return slave
+}
+
+func requireTerminalStreamGuards(t *testing.T, terminal *os.File, owner Process) {
+	t.Helper()
+	streams := [3]*os.File{os.Stdin, os.Stdout, os.Stderr}
+	if err := validateTerminalStreams(terminal, owner, streams); err != nil {
+		t.Fatal("original controlling PTY streams rejected", err)
+	}
+	readPipe, writePipe, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer readPipe.Close()
+	defer writePipe.Close()
+	regular, err := os.CreateTemp(t.TempDir(), "synthetic-redirect-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer regular.Close()
+	path, err := controllingTTY(owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	openTTY := func(flags int) *os.File {
+		fd, err := unix.Open(path, flags|unix.O_NOCTTY|unix.O_CLOEXEC|unix.O_NOFOLLOW, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		file := os.NewFile(uintptr(fd), "synthetic-controlling-pty")
+		t.Cleanup(func() { _ = file.Close() })
+		return file
+	}
+	readOnly, writeOnly, foreign := openTTY(unix.O_RDONLY), openTTY(unix.O_WRONLY), fixtureForeignPTY(t)
+	for index := range streams {
+		for name, replacement := range map[string]*os.File{"missing": nil, "file": regular, "alias": terminal, "foreign": foreign} {
+			changed := streams
+			changed[index] = replacement
+			if err := validateTerminalStreams(terminal, owner, changed); err == nil || daemon.AsFailure(err).Code != "execution_terminal_lost" {
+				t.Fatalf("redirected fd%d (%s) accepted: %v", index, name, err)
+			}
+		}
+		changed := streams
+		changed[index] = writePipe
+		if index == 0 {
+			changed[index] = readPipe
+		}
+		if err := validateTerminalStreams(terminal, owner, changed); err == nil {
+			t.Fatalf("pipe redirected fd%d accepted", index)
+		}
+		changed[index] = readOnly
+		if index == 0 {
+			changed[index] = writeOnly
+		}
+		if err := validateTerminalStreams(terminal, owner, changed); err == nil {
+			t.Fatalf("incompatible access mode for fd%d accepted", index)
+		}
+	}
+	changedOwner := owner
+	changedOwner.GroupID++
+	if err := validateTerminalStreams(terminal, changedOwner, streams); err == nil {
+		t.Fatal("different foreground group accepted")
+	}
+	changedOwner = owner
+	changedOwner.StartIdentity += "-reused"
+	if err := validateTerminalStreams(terminal, changedOwner, streams); err == nil {
+		t.Fatal("reused controlling-terminal owner accepted")
+	}
+}
+
 func TestNativeGatedPTY(t *testing.T) {
 	binary := filepath.Join(t.TempDir(), "bfb-fake-provider")
 	if output, err := exec.Command("go", "build", "-o", binary, "../../cmd/bfb-fake-provider").CombinedOutput(); err != nil {
@@ -47,7 +163,7 @@ func TestNativeGatedPTY(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, scenario := range []string{"success", "first_authorization", "spawn_failure", "parent_source_changed", "final_authorization", "record_failure", "binary_swap", "configuration_swap", "artifact_swap", "working_directory_swap", "lock_abandoned", "child_parent_mismatch", "parent_loss"} {
+	for _, scenario := range []string{"success", "redirected_stdout", "stdio_changed_after_authorization", "first_authorization", "spawn_failure", "parent_source_changed", "final_authorization", "record_failure", "binary_swap", "configuration_swap", "artifact_swap", "working_directory_swap", "lock_abandoned", "child_parent_mismatch", "parent_loss"} {
 		t.Run(scenario, func(t *testing.T) {
 			stateRoot, err := os.MkdirTemp("/tmp", "bfb-gate-test-")
 			if err != nil {
@@ -297,7 +413,48 @@ func TestNativeGatedPTYFixture(t *testing.T) {
 	if err != nil || foreground != syscall.Getpgrp() {
 		t.Fatal("fixture is not foreground", err)
 	}
+	if scenario == "success" {
+		for _, filter := range []int{unix.EVFILT_READ, unix.EVFILT_WRITE} {
+			if err := fixtureKqueueRegistration(int(terminal.Fd()), filter); err != unix.EINVAL {
+				t.Fatalf("controlling-terminal alias kqueue failure: got %v, want EINVAL", err)
+			}
+			for _, file := range []*os.File{os.Stdin, os.Stdout, os.Stderr} {
+				if err := fixtureKqueueRegistration(int(file.Fd()), filter); err != nil {
+					t.Fatalf("original PTY %s cannot register kqueue filter %d: %v", file.Name(), filter, err)
+				}
+			}
+		}
+		fmt.Println("terminal_alias_rejected_original_pty_pollable")
+	}
 	execution, lock, configuration := gateFixture(t)
+	if scenario == "success" {
+		requireTerminalStreamGuards(t, terminal, lock.record.Owner)
+	}
+	var restoreStdout func()
+	redirectStdout := func() {
+		original, err := unix.Dup(int(os.Stdout.Fd()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := unix.Dup2(int(terminal.Fd()), int(os.Stdout.Fd())); err != nil {
+			_ = unix.Close(original)
+			t.Fatal(err)
+		}
+		restoreStdout = func() {
+			if original < 0 {
+				return
+			}
+			if err := unix.Dup2(original, int(os.Stdout.Fd())); err != nil {
+				t.Fatal(err)
+			}
+			_ = unix.Close(original)
+			original = -1
+		}
+		t.Cleanup(restoreStdout)
+	}
+	if scenario == "redirected_stdout" {
+		redirectStdout()
+	}
 	self, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)
@@ -306,6 +463,9 @@ func TestNativeGatedPTYFixture(t *testing.T) {
 	callbacks := GateCallbacks{
 		Authorize: func(_ context.Context, request generated.LaunchFinalRequest) error {
 			authorizations++
+			if scenario == "stdio_changed_after_authorization" && authorizations == 1 {
+				redirectStdout()
+			}
 			if request.LocalLockId != lock.record.LockID || request.Supervisor != execution.assignment.Supervisor {
 				t.Fatal("wrong final identity")
 			}
@@ -380,12 +540,23 @@ func TestNativeGatedPTYFixture(t *testing.T) {
 		command.Env = append(os.Environ(), "BFB_GATE_CHILD=1", "BFB_GATE_ROOT="+execution.paths.Root, "BFB_GATE_INTENT="+execution.assignment.TerminalIntentId)
 		return command
 	}, inspect)
+	if restoreStdout != nil {
+		restoreStdout()
+		restoreStdout = nil
+	}
 	if (scenario == "success") != (startErr == nil) {
 		t.Fatal("unexpected start disposition", startErr)
 	}
-	if scenario == "first_authorization" || scenario == "spawn_failure" || scenario == "parent_source_changed" {
-		if process != nil || authorizations != 1 || recordings != 0 {
+	if scenario == "first_authorization" || scenario == "spawn_failure" || scenario == "parent_source_changed" || scenario == "redirected_stdout" || scenario == "stdio_changed_after_authorization" {
+		expectedAuthorizations := 1
+		if scenario == "redirected_stdout" {
+			expectedAuthorizations = 0
+		}
+		if process != nil || authorizations != expectedAuthorizations || recordings != 0 {
 			t.Fatal("child created without first authorization")
+		}
+		if (scenario == "redirected_stdout" || scenario == "stdio_changed_after_authorization") && daemon.AsFailure(startErr).Code != "execution_terminal_lost" {
+			t.Fatal("redirected stream did not fail closed", startErr)
 		}
 		if err := lock.Release(); err != nil {
 			t.Fatal(err)
@@ -448,6 +619,14 @@ func TestNativeGatedChild(t *testing.T) {
 		}
 	}
 	err = runExecChild(context.Background(), paths, os.Getenv("BFB_GATE_INTENT"), registry, inspect, func(path string, argv, environment []string) error {
+		for _, filter := range []int{unix.EVFILT_READ, unix.EVFILT_WRITE} {
+			for _, file := range []*os.File{os.Stdin, os.Stdout, os.Stderr} {
+				if err := fixtureKqueueRegistration(int(file.Fd()), filter); err != nil {
+					fmt.Printf("gated_provider_descriptor_unpollable fd=%d filter=%d errno=%v\n", file.Fd(), filter, err)
+					return err
+				}
+			}
+		}
 		values := map[string]string{}
 		for _, entry := range environment {
 			name, value, _ := strings.Cut(entry, "=")
