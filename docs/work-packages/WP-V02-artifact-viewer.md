@@ -1,12 +1,12 @@
 # WP-V02 — Isolated artifact viewer
 
-Status: `in_progress`
+Status: `done`
 
 Risk: Very high
 
 Test target: `pnpm test:v02`
 
-Evidence manifest: `docs/work-packages/evidence/WP-V02/manifest.json`
+Evidence manifest: `docs/work-packages/evidence/WP-V02/runtime-manifest.json`
 
 ## Outcome
 
@@ -145,6 +145,15 @@ sandbox and CSP claims and live in `apps/web/test/e2e/v02-viewer.spec.ts`.
 
 ## Handoff
 
+- Settled 6 October: current viewer certificate at `4e4fb70`, with all direct
+  dependencies `done`. Exact clean `pnpm test:v02` passes 1,154 protocol cases,
+  141 focused cases, real D1/R2/Hub audit proof and 16 Chromium cases (five
+  compiled-viewer/browser-auth cases plus eleven hostile cases). Full
+  `pnpm verify` passes 2,905 TypeScript tests, Go and 16 Swift tests without
+  platform skips; clean-worktree check passes. Same-clock redemption, exact
+  body bounds and view-audit dispatch gaps are closed. See the separate
+  [runtime acceptance](evidence/WP-V02/runtime-acceptance.md); historical
+  manifest and captures remain unchanged. No deployed/pilot flag is enabled.
 - Product lane reopened, 6 October: V01 and all direct dependencies are now
   `done`. The unchanged exact V02 baseline passes at `7b8620c`, but does not
   cover the same-clock redemption race, 4096/8192-byte body mismatch, held

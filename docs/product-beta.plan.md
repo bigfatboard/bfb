@@ -71,6 +71,10 @@ manifests; current runtime proof must have its own explicit scope.
   pass at `7b8620c`: 1,154 protocol tests, 87 focused tests, real D1 harness and
   11 Chromium containment tests. This baseline does not cover the recorded
   same-clock race or compiled-viewer/browser-auth integration gaps.
-- V02 is not yet re-certified; V03 and downstream held features remain held.
+- V02 is re-certified at `4e4fb70`: exact clean acceptance passes 141 focused
+  and 16 browser cases; full verification passes 2,905 TypeScript cases, Go
+  and 16 Swift cases. The separate current viewer certificate closes its
+  recorded gaps without altering historical evidence. V03 is next; downstream
+  features retain their own certification boundaries.
 - No pilot configuration, production deployment or live-provider outcome is
   changed or claimed by this lane.
