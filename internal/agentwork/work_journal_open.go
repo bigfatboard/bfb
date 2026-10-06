@@ -131,7 +131,17 @@ func openWorkJournalWithHook(ctx context.Context, path string, clock captureCloc
 			return nil, errWorkIdentity
 		}
 	}
-	if version == workJournalVersion {
+	if version == 13 {
+		if !identityExists {
+			return nil, errWorkIdentity
+		}
+		if err = upgradeWorkJournal13(ctx, journal.db, identity, beforeCommit); err != nil {
+			return nil, err
+		}
+		if syncWorkDirectory(path) != nil {
+			return nil, errWorkStorage
+		}
+	} else if version == workJournalVersion {
 		if !identityExists {
 			return nil, errWorkIdentity
 		}

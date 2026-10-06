@@ -194,7 +194,7 @@ func TestWorkJournalRejectsForeignFutureAndInterruptedSchemas(t *testing.T) {
 			before := workLegacyEvidence(t, db)
 			switch kind {
 			case "future":
-				_, _ = db.Exec("PRAGMA user_version=14")
+				_, _ = db.Exec(fmt.Sprintf("PRAGMA user_version=%d", workJournalVersion+1))
 			case "foreign":
 				_, _ = db.Exec("PRAGMA application_id=123")
 			case "partial":

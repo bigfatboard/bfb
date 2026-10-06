@@ -13,10 +13,13 @@ import (
 	"strings"
 )
 
-const workJournalVersion = 13
+const workJournalVersion = 14
 const workJournalApplicationID = 0x4246574a
 
 //go:embed migrations/013_work_journal.sql
+var workJournalSchema13 string
+
+//go:embed migrations/014_result_journal.sql
 var workJournalSchema string
 
 // These are the exact two published legacy CHECK variants, not permission to
@@ -59,7 +62,7 @@ func inspectWorkSchema(ctx context.Context, db workSchemaReader) (int, error) {
 	if db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version) != nil || db.QueryRowContext(ctx, "PRAGMA application_id").Scan(&appID) != nil {
 		return 0, errWorkStorage
 	}
-	if version == workJournalVersion {
+	if version == workJournalVersion || version == 13 {
 		if appID != workJournalApplicationID {
 			return 0, errWorkMigration
 		}
@@ -149,7 +152,11 @@ CREATE TRIGGER legacy_work_no_delete BEFORE DELETE ON pending_operations BEGIN S
 	return nil
 }
 
-func verifyWorkIdentity(ctx context.Context, db *sql.DB, identity string) error {
+func verifyWorkIdentity(ctx context.Context, db workSchemaReader, identity string) error {
+	return verifyWorkSchemaIdentity(ctx, db, identity, workJournalSchema)
+}
+
+func verifyWorkSchemaIdentity(ctx context.Context, db workSchemaReader, identity, definition string) error {
 	var stored, schema, layout string
 	if db.QueryRowContext(ctx, "SELECT identity,schema_sha256,layout_sha256 FROM work_journal_meta WHERE singleton=1").Scan(&stored, &schema, &layout) != nil {
 		return errWorkIdentity
@@ -157,7 +164,7 @@ func verifyWorkIdentity(ctx context.Context, db *sql.DB, identity string) error 
 	if stored != identity {
 		return errWorkIdentity
 	}
-	digest := sha256.Sum256([]byte(workJournalSchema))
+	digest := sha256.Sum256([]byte(definition))
 	actualLayout, err := workLayoutDigest(ctx, db)
 	if err != nil || schema != hex.EncodeToString(digest[:]) || actualLayout != layout {
 		return errWorkMigration
