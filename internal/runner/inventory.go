@@ -29,6 +29,12 @@ type providerReport struct {
 	ExpiresAt    string   `json:"expires_at"`
 }
 
+func inventoryTimestamp(observed time.Time, offset time.Duration) string {
+	// Floor after translating the clock so the frozen microsecond wire format
+	// never rounds an observation or its expiry into the future.
+	return observed.Add(offset).UTC().Truncate(time.Microsecond).Format(time.RFC3339Nano)
+}
+
 func LocalInventory(db *sql.DB) InventorySource {
 	return LocalInventoryWithProviders(db, nil, nil)
 }
@@ -72,7 +78,7 @@ func LocalInventoryWithProviders(db *sql.DB, registry *provider.Registry, instal
 				if err != nil {
 					return nil, ErrInventory
 				}
-				record.Summary.ValidatedAt = observed.Add(offset).UTC().Format(time.RFC3339Nano)
+				record.Summary.ValidatedAt = inventoryTimestamp(observed, offset)
 				checkouts = append(checkouts, record.Summary)
 			}
 			if next == "" {
@@ -91,15 +97,20 @@ func LocalInventoryWithProviders(db *sql.DB, registry *provider.Registry, instal
 				continue
 			}
 			now := time.Now()
-			report := providerReport{Provider: name, Status: "unavailable", Capabilities: []string{}, ObservedAt: now.Add(offset).UTC().Format(time.RFC3339Nano), ExpiresAt: now.Add(offset).Add(30 * time.Second).UTC().Format(time.RFC3339Nano)}
+			report := providerReport{Provider: name, Status: "unavailable", Capabilities: []string{}, ObservedAt: inventoryTimestamp(now, offset), ExpiresAt: inventoryTimestamp(now.Add(30*time.Second), offset)}
 			localInstallation, installationErr := installation(ctx, name)
 			if installationErr == nil {
 				probe, probeErr := registry.Probe(ctx, name, localInstallation, now)
 				if probeErr == nil {
 					report.Version, report.ManifestID, report.Status = probe.Version, probe.ManifestID, probe.Status
 					report.Capabilities = append([]string{}, probe.Capabilities...)
-					report.ObservedAt = probe.ObservedAt.Add(offset).UTC().Format(time.RFC3339Nano)
-					report.ExpiresAt = probe.ExpiresAt.Add(offset).UTC().Format(time.RFC3339Nano)
+					// Interactive resume is a local planner detail, not a v1 wire
+					// capability. Keep the generic session.resume observation.
+					report.Capabilities = slices.DeleteFunc(report.Capabilities, func(capability string) bool {
+						return capability == "session.resume.interactive"
+					})
+					report.ObservedAt = inventoryTimestamp(probe.ObservedAt, offset)
+					report.ExpiresAt = inventoryTimestamp(probe.ExpiresAt, offset)
 				}
 			}
 			reports = append(reports, report)
