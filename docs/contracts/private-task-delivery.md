@@ -486,6 +486,66 @@ diagnostic format or complete C11 delivery.
   A future source-backed format needs a separate manifest/audience contract and
   complete recipient delivery certificate, not a v1 schema-version relabel.
 
+### Frozen canonical board and attention-deck delivery
+
+The next bounded C11 slice replaces multi-await board hydration with one
+canonical selection. This preserves the approved W03 design and closes current
+task/project/member access loss between task reads and later owner/run/deck
+hydration. It does not certify browser-session lifetime, opaque positions,
+coordination delivery or private creation.
+
+- Add a required-human `readWorkBoard` domain reader used once by browser
+  `GET /board`. It returns lanes and Needs Now together, plus the current viewer
+  role and retained epoch. After this selection, only synchronous parsing and
+  response projection occur; no later owner, run, policy, event or deck await.
+- The final statement includes a current Owner/Member/Reviewer membership and
+  retained-epoch sentinel even with zero requested projects/tasks. Scope loss
+  uses fixed `not_found` with `board scope not found`; browser status is 404.
+  Captured project IDs only narrow current project authority, never restore a
+  lost grant or adopt a newer member epoch.
+- Select readable tasks through the current creator/named-grant predicate
+  before any limit. Private creators and current grantees remain legitimate
+  readers; an unshared Owner is not. Source bodies, routing fields, policy
+  flags and owner names come from this same selection, not stale hydrated DTOs.
+- Lane cards retain the global 50-task bound, task-ID ordering and slug-ordered
+  accessible empty lanes. Existing required policy/configuration joins govern
+  lanes and effective pass-to-agent metadata. The deck has a separate project
+  access set: missing lane-policy rows must not silently hide urgent tasks.
+- Needs Now independently ranks all readable tasks, not the first 50 cards:
+  at most three P0/P1 items assigned to this human, blocked or due. Preserve P0
+  before P1, dated before undated, due time then task ID. Compare valid due UTC
+  instants chronologically, including equivalent fractional/seconds spellings.
+  Do not introduce a separate terminal-state filter. Invalid supplied `nowIso`
+  yields no deck items but never bypasses the human scope sentinel.
+- Current owner names require same-workspace current human membership; no
+  workspace-wide earlier name snapshot. Effective policy flags do not grant
+  execution authority. Preserve card routing, tint, top-edge and side-stripe
+  fields and the ordinary recorded run-state summary.
+- Work-run summaries require exact workspace/task/project lineage and
+  `purpose='work'`, with valid typed identifiers. Discussion, missing and
+  cross-project parents do not contribute. Preserve creation-time descending,
+  then run-ID ascending ordering; normalize valid UTC spellings for chronology.
+  Terminal historical work runs remain legitimate; infer no activity from
+  transport presence or semantic prose.
+- Uniformly hold heuristic `latestEvent` metadata for every board, independently
+  of private-work presence. Do not query or rewrite semantic snapshots to
+  manufacture a latest source. The combined response explicitly reports
+  `recent_events_available: false`; source-backed event detail needs its own
+  recipient-position/lineage contract. The web board ignores stale supplied
+  `latestEvent` fields and states unavailability inside existing task Details,
+  without another default command or an implied empty activity history.
+- Existing lane/deck helpers remain wrappers over the same selector. Omitted
+  internal human context stays shared-only; it never infers Owner authority.
+  Explicit deck human IDs must match the authenticated context. The mounted
+  combined reader never accepts absent human authority.
+- Prove meaningful pre-repair hydration races through existing wrappers and
+  the mounted cookie route; prove the final selector rechecks scope before
+  delivery, independent lane/deck limits and current-role/policy/body coherence.
+  Include genuine work-run and discussion negatives, malformed/misbound run
+  sources, semantic-decoy independence, keyboard/on-demand UI and fresh actual
+  D1 single-selection proof. Repair the existing discussion test's vacuous
+  `card.id` lookup to use `taskId`. Preserve stored history and prior evidence.
+
 ## Delivery inventory and required proof
 
 | Surface | Existing owner / entry points | C11 completion check |
