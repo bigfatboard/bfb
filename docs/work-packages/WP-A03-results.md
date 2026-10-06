@@ -1,17 +1,18 @@
 # WP-A03 — Result submission and acceptance
 
-Status: `in_progress`
+Status: `done`
 
 Risk: High
 
 Test target: `pnpm test:a03`
 
-Evidence manifest: `docs/work-packages/evidence/WP-A03/manifest.json`
+Evidence manifest: `docs/work-packages/evidence/WP-A03/runtime-manifest.json`
 
 ## Outcome
 
-A run-scoped agent submits an immutable result with evidence for human review,
-a reviewer or owner requests changes or accepts it, and acceptance revokes
+A run-scoped agent submits an immutable result with evidence for human review.
+A reviewer, member or owner may request changes; only a member or owner may
+accept it. Acceptance revokes
 the agent's write capability while the checkout lock survives until verified
 process end. Only documented unambiguous headless success may submit without
 an explicit call; every interactive ending never submits or accepts.
@@ -73,7 +74,7 @@ an explicit call; every interactive ending never submits or accepts.
   extend, the transition matrix, the authority matrix, the headless-success
   rule, outdated detection, and revocation/lease semantics.
 - Stable test target `pnpm test:a03` and evidence-manifest path
-  `docs/work-packages/evidence/WP-A03/manifest.json`.
+  `docs/work-packages/evidence/WP-A03/runtime-manifest.json`.
 
 ## Work plan
 
@@ -131,9 +132,13 @@ an explicit call; every interactive ending never submits or accepts.
 
 ## Evidence
 
-- Evidence manifest: `docs/work-packages/evidence/WP-A03/manifest.json`
+- Evidence manifest: `docs/work-packages/evidence/WP-A03/runtime-manifest.json`
   (conforms to `docs/work-packages/evidence/manifest.schema.json`).
-- Contents: transition matrix (`transition-matrix.md`), role matrix
+- Current contents: `runtime-command-result.json`, `runtime-acceptance.md`,
+  deterministic human-command `runtime-recording.jsonl` and
+  `runtime-transition-matrix.json`, and the owning runtime test sources.
+  The clean browser assertions passed; committed screenshots remain historical.
+- Historical contents, preserved unchanged: transition matrix (`transition-matrix.md`), role matrix
   (`acceptance-matrix.md`), command result (`command-result.json`),
   revocation race trace (`revocation-trace.md`), duplicate/stale fixtures
   (`fixtures/`), browser review snapshots (`browser/`).
@@ -159,6 +164,13 @@ an explicit call; every interactive ending never submits or accepts.
 
 ## Handoff
 
+- Runtime settled 6 October at `9077a085939d89d0da4709dd24cc69bdf991dee0`:
+  clean frozen install, forced build, exact A03, affected A01/A02/L08/C07/C09,
+  full repository verification, Linux cross-build and clean-worktree check pass.
+  The current runtime manifest proves explicit MCP/CLI submission, independently
+  authorized protected result capture/replay and human review. The signed native
+  test uses a synthetic provider-shaped process, not Terminal or a live provider.
+  A03 is `done`; descendants require their own acceptance.
 - Runtime integration resumed 6 October after A01 and A02 clean runtime
   certificates were committed. ADR 0008 records the independent result-policy,
   v5 transport, current authority, CLI priming and protected-recovery contract
@@ -181,8 +193,10 @@ an explicit call; every interactive ending never submits or accepts.
   `listResultSubmissions` via the generic version map; extend the generic
   evidence-reference shape without changing stored rows.
 - V03: consume reviewed submission versions; never mutate submissions.
-- L05: acceptance and review commands never read or write
-  `checkout_leases`; the live lock survives until verified process end.
+- L05: agent result commands read current checkout-lease authority; submission
+  and human review never mutate or release that lease. The live lock survives
+  until verified process end. The historical revocation trace's stronger
+  no-read claim does not describe the connected runtime.
 - A02: MCP and domain additions are additive; A02 attention tools keep
   separate names and frozen v4 wire bytes. A known attention authority denial
   also invalidates pending result-confirmation availability.
@@ -192,7 +206,9 @@ an explicit call; every interactive ending never submits or accepts.
 - X02/X03: build human CLI and remote MCP parity on the frozen contract;
   local `run submit` stays the agent-local journaling surface.
 - Current limitations: no automatic submission caller exists in v0.1 (even
-  headless runs submit explicitly); the connected production MCP/CLI result
-  draft is under verification and is not yet clean-certified. The historical unsigned CLI journal
+  headless runs submit explicitly). The connected MCP/CLI result runtime is
+  clean-certified with synthetic native execution; live-provider/Terminal
+  acceptance and remote MCP result parity remain outside this proof.
+  The historical unsigned CLI journal
   is not enabled or reinterpreted as capture authority; UI renders no artifact
   content yet.

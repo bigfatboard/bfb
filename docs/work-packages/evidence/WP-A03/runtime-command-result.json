@@ -1,0 +1,135 @@
+{
+  "package": "A03",
+  "recorded_on": "2026-10-06",
+  "tested_commit": "9077a085939d89d0da4709dd24cc69bdf991dee0",
+  "outcome": "passed",
+  "package_acceptance_complete": true,
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2",
+    "architecture": "arm64",
+    "cloud": "local real Worker, WorkspaceHub and D1 harness",
+    "native": "development-signed daemon and supervisor, Keychain enrollment, synthetic provider-shaped process, genuine L06 capture, real kernel identity and held flock"
+  },
+  "migrations": {
+    "d1": "0040_offline_result_policy",
+    "daemon": "010_hook_inbox",
+    "agent_journal": "014_result_journal"
+  },
+  "clean_commands": [
+    { "command": "pnpm install --frozen-lockfile", "exit_code": 0 },
+    { "command": "pnpm exec tsc -b --force --pretty false", "exit_code": 0 },
+    {
+      "command": "pnpm test:a03",
+      "exit_code": 0,
+      "protocol_cases": 942,
+      "domain_worker_migration_ui_cases": 177,
+      "go_race_checks": "passed, including signing, result authority, admission, journal upgrade, RPC denial fencing and supervisor",
+      "real_d1_human_command_checks": 10,
+      "deterministic_evidence_cases": 5,
+      "actual_binary_cli": "passed with synthetic v5 transport; not the signed native admission proof",
+      "native_proof": "A03_NATIVE_PROOF_COMPLETE",
+      "native_test_seconds": 192.06,
+      "browser_cases": 1
+    },
+    {
+      "command": "pnpm test:a01",
+      "exit_code": 0,
+      "protocol_cases": 942,
+      "focused_cases": 435,
+      "go_race_checks": "passed, including signing and supervisor",
+      "compiled_stdio": "passed",
+      "native_proof": "A01_NATIVE_PROOF_COMPLETE",
+      "native_test_seconds": 204.37,
+      "action_bound_policy_browser_cases": 1
+    },
+    {
+      "command": "pnpm test:a02",
+      "exit_code": 0,
+      "protocol_cases": 942,
+      "focused_cases": 85,
+      "go_race_checks": "passed",
+      "real_d1": "passed",
+      "deterministic_evidence_cases": 7,
+      "compiled_stdio": "passed",
+      "native_proof": "A02_NATIVE_PROOF_COMPLETE",
+      "native_test_seconds": 92.52,
+      "full_wait_seconds": 30,
+      "full_wait_actual_reads": 26,
+      "browser_cases": 3
+    },
+    {
+      "command": "pnpm test:l08",
+      "exit_code": 0,
+      "protocol_cases": 942,
+      "focused_cases": 59,
+      "go_race_checks": "passed",
+      "signed_two_workspace_channel": "passed",
+      "native_test_seconds": 46.82,
+      "enrollment_browser_cases": 1
+    },
+    {
+      "command": "pnpm test:c07",
+      "exit_code": 0,
+      "focused_cases": 10,
+      "real_d1": "C07_D1_OK"
+    },
+    {
+      "command": "pnpm test:c09",
+      "exit_code": 0,
+      "launch_fixtures": 73,
+      "protocol_cases": 942,
+      "focused_cases": 77,
+      "real_d1": "C09_D1_OK"
+    },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 2423,
+      "typescript_files": 129,
+      "go_checks": "passed",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    { "command": "GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./...", "exit_code": 0 },
+    { "command": "pnpm worktree:check", "exit_code": 0 }
+  ],
+  "native_sections": [
+    "A03_NATIVE_EXPLICIT_REVIEW_CYCLE_COMPLETE",
+    "A03_NATIVE_ONLINE_ONLY_COMPLETE",
+    "A03_NATIVE_OFFLINE_MCP_CLI_RESTART_COMPLETE",
+    "A03_NATIVE_DURABLE_FAULTS_COMPLETE",
+    "A03_NATIVE_UNCERTAINTY_AND_POSTFLIGHT_COMPLETE",
+    "A03_NATIVE_PROOF_COMPLETE"
+  ],
+  "evidence_scopes": {
+    "runtime_recording": "bounded deterministic isolated human-command Worker/Hub/D1 trace, not positive agent authority proof",
+    "cli_harness": "actual compiled CLI with synthetic closed v5 peer and stable output/exit checks",
+    "native_harness": "actual compiled MCP and fresh one-shot CLI through signed daemon, Keychain, trusted L06, native ownership, runner possession and real local Worker/Hub/D1",
+    "component_checks": "race tests cover injected timing/signing faults, bounded priming, shared quotas, claims, migration preservation and denial fencing",
+    "browser": "fresh result/review assertions passed; retained repository browser screenshots remain historical"
+  },
+  "resolved_regressions": [
+    {
+      "issue": "A confirmed submission could leave a pre-submit offline confirmation usable for a new request identity",
+      "proof": "Service regression and native MCP/fresh-CLI outage negatives reject new identities without a durable intent; the original submitted identity still reconciles",
+      "fix_commit": "f1a9d35"
+    },
+    {
+      "issue": "Legacy RPC local authority denial did not invalidate cached or in-flight result confirmation",
+      "proof": "Actual checked UDS/SQLite registered-handler regression covers cached and in-flight modes; late publication cannot restore denied authority",
+      "fix_commit": "9077a08"
+    }
+  ],
+  "not_claimed": [
+    "Full L05 launch, Terminal automation, AppleScript, System Events or PTY handoff certification",
+    "Live Claude/Codex/Grok turns or exact provider continuation certification",
+    "Automatic headless submission, implicit completion, self-acceptance or approval inheritance",
+    "Remote MCP result parity, artifact rendering or referent existence validation, merge or deployment",
+    "Offline policy enablement in any real workspace",
+    "Private-task ACLs, project knowledge, skill catalogs, shared business secrets or other mandatory product extensions",
+    "Cross-device pilot, full running MVP, release readiness, push or deployment",
+    "Signature protection for mutable delivery history, filesystem deletion or rollback"
+  ],
+  "redaction": { "status": "passed", "raw_logs_committed": false, "prohibited_content": [] }
+}

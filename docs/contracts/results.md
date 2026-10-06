@@ -7,13 +7,13 @@ outdated detection, and capability revocation for runs. It extends the
 run-scoped local MCP server defined in [local MCP](local-mcp.md); it does
 not introduce another agent credential or a second local tool endpoint.
 
-A03 runtime integration is active under
-[ADR 0008](../adr/0008-protected-agent-result-submission.md), after A01/A02
-clean certification. Production MCP and CLI now use the separate v5 result
-transport and daemon-owned protected journal. These connected changes are not
-yet clean-certified: the independent default-denied result policy, result
-signature and shared recovery family require the expanded A03 gate before
-the package can be marked done.
+A03's [runtime certificate](../work-packages/evidence/WP-A03/runtime-manifest.json)
+passes at `9077a085939d89d0da4709dd24cc69bdf991dee0` under
+[ADR 0008](../adr/0008-protected-agent-result-submission.md). Production MCP and
+CLI use the separate v5 result transport and daemon-owned protected journal.
+The clean proof covers independent default-denied result policy, signatures,
+shared recovery and current authorization through signed synthetic native
+execution. It does not certify Terminal, live providers or remote MCP parity.
 
 ## State coupling
 

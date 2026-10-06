@@ -93,8 +93,9 @@ baseline. A01's missing bridge has since been connected and clean-certified at
 `adbf740` ([runtime evidence](../work-packages/evidence/WP-A01/runtime-manifest.json));
 A02's attention lane is clean-certified at `891fbcc`
 ([runtime evidence](../work-packages/evidence/WP-A02/runtime-manifest.json)).
-A03's protected MCP/CLI result runtime is connected at `9077a08` and undergoing
-its own clean certification. These changes satisfy the A01 synthetic runtime
+A03's protected MCP/CLI result runtime is clean-certified at `9077a08`
+([runtime evidence](../work-packages/evidence/WP-A03/runtime-manifest.json)).
+These changes satisfy the A01 synthetic runtime
 prerequisite below, not current-version provider isolation, model-backed
 discussion or Terminal acceptance. D02 still lacks the production scheduler/
 consumer/Claude-turn path. No new provider experiment or external research was

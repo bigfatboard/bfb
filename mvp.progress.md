@@ -2,14 +2,14 @@
 
 Updated: 6 October 2026
 
-Status: A01 and A02 are complete at clean-certified runtimes: agent context/writes/protected recovery and the connected human attention loop. A03's production MCP/CLI result path is connected and awaiting clean certification; provider/discussion integration remains open. The end-to-end local MVP is not complete or running.
+Status: A01, A02 and A03 are complete at clean-certified runtimes: agent context/writes/protected recovery, connected human attention, and protected explicit results with human review. Measurement and provider/discussion integration remain open. The end-to-end local MVP is not complete or running.
 
 Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 
 ## Current checkpoint
 
 - The reviewed `muse/fix-findings` history is integrated into `codex/remote-launch-discussion-mvp` at `472f007`, together with the upstream Apache-2.0 license change. No changes were pushed or deployed during this reconciliation.
-- Reconciliation found 37 historical `done` certificates, L07 `review`, and seven `planned` packages. It reopened A01 and held ten previously certified descendants plus L07. Connected runtime certificates now close A01 and A02; A03 is active. The current total is 28 `done`, one `in_progress`, nine `blocked`, seven `planned` (P01, P02, D02, D03, X02, G01, G02). Descendant holds await their own runtime integration/revalidation, not automatic certification from A01/A02. No implementation or historical evidence was removed. Several planned packages also contain substantial implementation.
+- Reconciliation found 37 historical `done` certificates, L07 `review`, and seven `planned` packages. It reopened A01 and held ten previously certified descendants plus L07. Connected runtime certificates now close A01, A02 and A03. The current total is 29 `done`, nine `blocked`, seven `planned` (P01, P02, D02, D03, X02, G01, G02). Descendant holds await their own runtime integration/revalidation, not automatic certification from A01/A02/A03. No implementation or historical evidence was removed. Several planned packages also contain substantial implementation.
 - A01's first connected read checkpoint replaced `OfflineTransport` with credential-free typed daemon RPC for current authority, context and task reads. Its expanded exact target passes through the compiled stdio binary, signed daemon, Keychain-backed enrollment, possession-authenticated Worker, WorkspaceHub and D1. Actual per-item context deliveries, MCP-process restart deduplication, denied unbound writes and cached-request revocation/end/result/lease checks are proven. That checkpoint did not cover writes, canonical binding or daemon-restart recovery; the newer first-write progress below supersedes those limits only where explicitly tested. Production offline permission remains deny-by-default.
 - Discussion records and UI exist, but creating a discussion does not enqueue a production `discussion_turn`, the daemon registers no discussion consumer, and the Claude adapter rejects headless turns as unsupported. D03's synthetic browser tests and the smoke script that inspects an already concluded discussion are not evidence for a working two-agent exchange.
 - Installed provider discovery on 5 October found Claude Code `2.1.289` and Codex `0.159.0`. Existing adapter fixtures certify older versions; capabilities must not be enabled by broadening version checks without new evidence. No live provider turn was performed in this reconciliation.
@@ -28,7 +28,10 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 - Release remains blocked: G01 reports AG-02 and AG-04 failed, AG-10 and OG-02 not run. G02 freezes migration 0034 although the integrated schema now reaches 0040; the release workflow applies migrations before that stale check, and compatibility with the old Worker needs an explicit rollout repair. Do not deploy this candidate by merely changing the frozen migration number.
 - No running local MVP, cross-device pilot or production deployment is claimed. Terminal automation remains unavailable to this session; the earlier L05 evidence and its disclosed shutdown-observation flake have not been replaced by a new native interaction proof.
 
-Next sequence: clean-certify connected result submission, including independently authorized protected offline capture for MCP/CLI, then revalidate other dependents in dependency order, including L07 and P01 against exact installed versions; connect D02's production scheduling and supervised turns; prove D03's complete browser-to-provider flow. Keep the existing package dependency gates and fail-closed behavior. Terminal automation remains unavailable to this session, and no live provider turn is authorized by the synthetic certificate.
+- The [complete A03 runtime certificate](docs/work-packages/evidence/WP-A03/runtime-manifest.json) at `9077a08` proves the separate protected v5 MCP/CLI result path under ADR 0008. Clean frozen install, forced build, exact A03 (942 protocol and 177 focused cases, Go race suites, ten real-D1 checks, five evidence checks, actual-binary CLI, signed native proof and one browser review cycle), affected A01/A02/L08/C07/C09, full verification (2,423 TypeScript tests in 129 files, Go and 16 Swift tests), Linux build and worktree check pass. Signed native proof covers online-only explicit retry, separately permitted offline capture, daemon restart, unchanged signed identity, single-effect replay, marker/acknowledgement faults, current-authority withholding and private-body redaction. Confirmed submission closes stale offline eligibility (`f1a9d35`), and actual legacy local authority denials fence cached/late result proofs (`9077a08`). Historical evidence and screenshots remain unchanged. A03 is `done`; no Terminal/live-provider or full-MVP claim follows.
+- Read-only A04 integration review found production usage counters discarded before persistence, genuine Worker acknowledgements rejected by the journal uploader, stale attention fixtures, cached measurement commands missing current authorization/input binding, and misleading never-attached/live-offline time derivations. A04 needs connected runtime repair and new clean acceptance; its historical isolated evidence is not removed or treated as current proof.
+
+Next sequence: close A04's connected telemetry, authorization and truthful-measurement gaps, then revalidate other dependents in dependency order, including L07 and P01 against exact installed versions; connect D02's production scheduling and supervised turns; prove D03's complete browser-to-provider flow. Keep the existing package dependency gates and fail-closed behavior. Terminal automation remains unavailable to this session, and no live provider turn is authorized by the synthetic certificate.
 
 Current upstream comparison: [Agent-to-agent research](docs/research/agent-to-agent.md). Provider-native messaging is a delivery capability, not a replacement for BFB's permissions, turn identities or recovery decisions.
 
@@ -83,14 +86,14 @@ claiming provider execution. This is historical D01 evidence, not proof of the
 subsequently assembled discussion runtime. L05 later received its own clean
 certification, with the flake disclosed above. A01's protected-capture/replay
 runtime and A02's human attention loop are now certified. Current integration
-gaps include A03's clean runtime certification and D02's production turn path, independently of provider credentials
+gaps include A04's measurement runtime and D02's production turn path, independently of provider credentials
 and native interaction consent. The full MVP is not done.
 
 | Milestone | Packages | State | Completion check |
 | --- | --- | --- | --- |
 | Trusted Mac | L01–L03, C06, L08, L04 | All milestone packages done | Enroll, register exact checkout, probe providers, reconnect, revoke |
 | Remote launch | C09, L05, W02 | All milestone packages done | Card starts fake provider; contention, expiry, revocation and containment fail safely |
-| Real agent work | L06, E01–E02, A01–A04, L07, P01 | A01/A02 runtimes certified; A03 connected pending clean certification, A04 and L07 await dependent certification; P01 planned; current provider versions not certified | Claude/Codex start, scoped context, attention, explicit result and human acceptance |
+| Real agent work | L06, E01–E02, A01–A04, L07, P01 | A01/A02/A03 runtimes certified; A04 measurement gaps and L07 live-provider acceptance remain; P01 planned; current provider versions not certified | Claude/Codex start, scoped context, attention, explicit result and human acceptance |
 | Discussion | D01–D03 | Records and synthetic UI implemented; production scheduling/consumer and Claude headless turn support missing; D02 and D03 remain planned | Two read-only participants, bounded turns, recovery, intervention, human decision |
 | Running local delivery | Integrated MVP | Pending | Start services, full browser/runner/provider smoke, negative checks and health instructions |
 

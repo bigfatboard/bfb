@@ -279,8 +279,9 @@ administration, self-approval, enumeration beyond the bound task, and any cloud
 bearer credential in the provider environment. Attention tools are owned by
 A02 above; the [A03 result contract](results.md) extends this same server.
 A03 adds its separate v5 protected result family to this same daemon and journal;
-it does not add a credential or endpoint. Its connected runtime has a separate
-clean-certification gate. V01's rules alone do not establish an online bridge.
+it does not add a credential or endpoint. Its separate
+[clean runtime certificate](../work-packages/evidence/WP-A03/runtime-manifest.json)
+is at `9077a08`. V01's rules alone do not establish an online bridge.
 
 ## Per-item context result
 
@@ -312,8 +313,10 @@ partial page is the complete context.
 ## Pending-operation journal
 
 The production CLI never opens the journal. One daemon-owned service opens
-`local-mcp-journal.sqlite`, using migration `013_work_journal` independently of
-the daemon's migration chain and L06 hook state. A retained private flock and
+`local-mcp-journal.sqlite`, using migration `014_result_journal` independently of
+the daemon's migration chain and L06 hook state. A03 adds the result family while
+preserving the signed bytes and delivery history from `013_work_journal`.
+A retained private flock and
 identity sentinel reject accidental database replacement/loss. Recognized
 legacy 011/012 rows migrate atomically without rewriting their raw contents;
 unsigned pending history is quarantined, never granted new capture authority.
