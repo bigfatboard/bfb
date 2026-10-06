@@ -8,6 +8,17 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 
 ## Current checkpoint
 
+- The [launch-selection checkpoint](docs/work-packages/evidence/WP-L07/launch-selection-checkpoint.json)
+  records a separate retry blocker: the browser made the sole non-default
+  checkout look selected while the handler saw an empty choice and sent no
+  request. Explicit checkout selection and actionable validation repair the
+  silent UI path without altering launch authority or provider support.
+  Commit `d9238fd` passes all launch-browser and repository checks; L07 passes
+  with serialized Go package scheduling after a transient synthetic probe
+  failure. Timo's retry now opens Claude, and a trusted local session observation
+  exists. MCP context remains denied because separate-group Claude descendants
+  trigger containment uncertainty; the process is still alive despite the
+  misleading execution-ended error. The real tracked-work loop is not complete.
 - The [terminal-descriptor checkpoint](docs/work-packages/evidence/WP-L07/terminal-descriptor-checkpoint.json)
   identifies the first launch failure: Claude's Bun runtime rejected polling
   the `/dev/tty` handles supplied by BFB. A failing-first native regression

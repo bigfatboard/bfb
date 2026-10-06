@@ -94,6 +94,10 @@ A card can open a supported Claude Code version in the exact checkout, bind the 
 
 ## Evidence
 
+- [Launch-selection checkpoint](evidence/WP-L07/launch-selection-checkpoint.json)
+  records the silent retry caused by a non-default checkout looking selected
+  while application state remained empty. Explicit selection and accessible
+  validation preserve the existing checkout and same-run authority boundaries.
 - [Terminal-descriptor checkpoint](evidence/WP-L07/terminal-descriptor-checkpoint.json)
   records the human-supplied Bun startup error, failing-first native kqueue
   reproduction and validated original-PTY handoff repair at `fd9046f`.
@@ -158,6 +162,28 @@ A card can open a supported Claude Code version in the exact checkout, bind the 
 
 ## Handoff
 
+- Retry-UI continuation, 6 October: the enrolled runner remained online but
+  received no new command after a human retry click. A synthetic browser test
+  reproduced a non-default checkout displayed as selected while application
+  state was empty; the retry handler returned without a request or message.
+  The form now represents the empty choice and focuses actionable validation
+  for a missing or blocked checkout. It does not silently choose another
+  checkout or change the retry's original run/profile binding. Commit `d9238fd`
+  passes all 12 W02 browser cases, 34 focused unit cases and full repository
+  verification (2,843 TypeScript and 16 Swift cases plus Go). The exact L07
+  target passes with Go package scheduling serialized after a default-parallel
+  run hit an unchanged Grok synthetic five-second inspection bound; no tests
+  were skipped and no deadlines were relaxed.
+  Timo subsequently confirmed Claude opens. Kernel provider startup and a
+  trusted local observed-session record now exist. The next live boundary fails:
+  retained direct Claude descendants used separate process groups, setting
+  sticky containment uncertainty and denying MCP context/task calls. Claude
+  and its supervisor remain alive; the `assignment_ended` MCP message reflects
+  denial mapping, not actual process exit. The first escaped children were gone
+  before executable inspection, so their specific role remains unknown; the
+  surviving BFB MCP helper remains in the owned group. The proof checkout is
+  still clean. No new launch, forced recovery or authority bypass was attempted.
+  This is launch progress, not completed live provider acceptance.
 - Terminal-startup continuation, 6 October: Timo found the background Terminal
   and supplied Claude's bundled Bun `EINVAL`/`kqueue` error. The real provider
   runtime had started, but it exited before BFB observed or bound a session.
