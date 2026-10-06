@@ -34,6 +34,17 @@ privatization and retained-epoch loss before the final read fence delivery,
 including an empty page. An observed anchor separates the synthetic pagination
 history from earlier probes; dispatch times come from the production Hub clock.
 Other audit families and opaque positions remain uncertified.
+The bounded upload-recovery audit extension uses production Hub original and
+fresh-proof retry receipts, including older applied ledger history with no
+modern original counterpart. Every failed target must retain exact current
+shared/run-free lineage; one private target omits the whole receipt. Malformed
+envelopes, NUL identities and unsupported recovery namespace rows do not consume
+page/count/anchor delivery. Independent privatization and empty-page epoch loss
+occur before the final selection. This proves read projection, not new execution
+authority, historical proof provenance or a cryptographic ledger attestation.
+Historical synthetic UTC tuples additionally prove chronological page/anchor
+selection across fractional spellings, microseconds and equal-instant insertion
+ties, including a valid legacy row; original display timestamps are unchanged.
 Exact artifact-version evidence is checked
 with human, originating-run and task-bound delegation ceilings, including current
 scope denial. Independent source privatization before a real D1 result batch

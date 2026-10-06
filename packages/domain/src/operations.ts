@@ -810,25 +810,123 @@ export async function readSecurityAudit(
         JOIN (SELECT DISTINCT workspace_id,task_id FROM canonical_parents) AS candidate
           ON candidate.workspace_id=ops_task.workspace_id AND candidate.task_id=ops_task.id
         WHERE ${parent.sql}
+      ), recovery_envelopes AS MATERIALIZED (
+        SELECT audit.*,${auditJsonObject("payload_json")} AS envelope
+        FROM audits AS audit WHERE action='ops.recovery.resolve_stuck_upload'
+      ), recovery_objects AS MATERIALIZED (
+        SELECT audit_rowid,audit_id,actor_principal_id,action,created_at,envelope,
+          ${auditJsonObject("json_extract(envelope,'$.actor')")} AS actor_json,
+          ${auditJsonObject("json_extract(envelope,'$.input')")} AS input_json,
+          ${auditJsonObject("json_extract(envelope,'$.result')")} AS result_json
+        FROM recovery_envelopes
+      ), recovery_receipts AS MATERIALIZED (
+        SELECT audit_rowid,audit_id,actor_principal_id,action,created_at,
+          json_extract(actor_json,'$.authorizationEpoch') AS actor_epoch,
+          json_extract(input_json,'$.version_ids') AS input_targets,
+          json_extract(result_json,'$.action_id') AS action_id,
+          json_extract(result_json,'$.replayed') AS replayed,
+          json_extract(result_json,'$.resolved') AS resolved
+        FROM recovery_objects
+        WHERE ${auditClosedObject("envelope", ["actor", "input", "result"])}
+          AND json_type(envelope,'$.actor')='object' AND json_type(envelope,'$.input')='object'
+          AND json_type(envelope,'$.result')='object'
+          AND ${auditClosedObject("actor_json", ["humanId", "authorizationEpoch"])}
+          AND ${auditClosedObject("input_json", ["version_ids"])}
+          AND ${auditClosedObject("result_json", ["action_id", "kind", "replayed", "resolved"])}
+          AND ${auditUlid("audit_id")} AND ${auditUlid("actor_principal_id")} AND ${auditUtc("created_at")}
+          AND json_type(actor_json,'$.humanId')='text'
+          AND json_extract(actor_json,'$.humanId')=actor_principal_id
+          AND json_type(actor_json,'$.authorizationEpoch')='integer'
+          AND json_extract(actor_json,'$.authorizationEpoch') BETWEEN 1 AND 9007199254740991
+          AND json_type(input_json,'$.version_ids')='array'
+          AND json_type(result_json,'$.action_id')='text' AND ${auditRecoveryActionId("json_extract(result_json,'$.action_id')")}
+          AND json_type(result_json,'$.kind')='text' AND json_extract(result_json,'$.kind')='resolve_stuck_upload'
+          AND json_type(result_json,'$.replayed') IN ('true','false')
+          AND json_type(result_json,'$.resolved')='integer'
+      ), recovery_inputs AS MATERIALIZED (
+        SELECT * FROM recovery_receipts
+        WHERE json_array_length(input_targets) BETWEEN 1 AND ${OPS_MAX_TARGETS}
+          AND resolved=json_array_length(input_targets)
+          AND (SELECT COUNT(DISTINCT value) FROM json_each(input_targets))=resolved
+          AND NOT EXISTS (SELECT 1 FROM json_each(input_targets) AS target
+            WHERE target.type!='text' OR NOT (${auditUlid("target.value")}))
+      ), recovery_ledgers AS MATERIALIZED (
+        SELECT receipt.*,ledger.workspace_id,ledger.created_by_human_id,
+          ledger.created_at AS ledger_created_at,ledger.updated_at AS ledger_updated_at,
+          ${auditJsonObject("ledger.target_json")} AS target_json,
+          ${auditJsonObject("ledger.result_json")} AS ledger_result_json
+        FROM recovery_inputs AS receipt JOIN ops_recovery_ledger AS ledger
+          ON ledger.workspace_id=? AND ledger.action_id=receipt.action_id
+        WHERE ledger.kind='resolve_stuck_upload' AND ledger.state='applied'
+      ), recovery_ledger_arrays AS MATERIALIZED (
+        SELECT *,CASE WHEN json_type(target_json,'$.version_ids')='array'
+          THEN json_extract(target_json,'$.version_ids') ELSE '[]' END AS ledger_targets
+        FROM recovery_ledgers
+      ), recovery_sources AS MATERIALIZED (
+        SELECT * FROM recovery_ledger_arrays
+        WHERE ${auditUlid("created_by_human_id")} AND ${auditUtc("ledger_created_at")}
+          AND ${auditUtc("ledger_updated_at")}
+          AND ${auditClosedObject("target_json", ["version_ids"])}
+          AND json_type(target_json,'$.version_ids')='array'
+          AND json_array_length(ledger_targets)=resolved
+          AND NOT EXISTS (SELECT 1 FROM json_each(ledger_targets) AS stored
+            LEFT JOIN json_each(input_targets) AS supplied ON supplied.key=stored.key
+            WHERE stored.type!='text' OR stored.value IS NOT supplied.value)
+          AND ${auditClosedObject("ledger_result_json", ["resolved"])}
+          AND json_type(ledger_result_json,'$.resolved')='integer'
+          AND json_extract(ledger_result_json,'$.resolved')=resolved
+          AND ((replayed=0 AND actor_principal_id=created_by_human_id AND created_at=ledger_created_at)
+            OR (replayed=1 AND ${auditUtcOrderKey("created_at")} >= ${auditUtcOrderKey("ledger_created_at")}))
+      ), recovery_targets AS MATERIALIZED (
+        SELECT source.audit_id,source.workspace_id,source.resolved,artifact.run_id,
+          ops_task.id AS task_id,ops_run.project_id
+        FROM recovery_sources AS source JOIN json_each(source.input_targets) AS requested ON 1
+        JOIN artifact_versions AS version ON version.workspace_id=source.workspace_id AND version.id=requested.value
+        JOIN artifacts AS artifact ON artifact.workspace_id=version.workspace_id AND artifact.id=version.artifact_id
+        LEFT JOIN runs AS ops_run ON ops_run.workspace_id=artifact.workspace_id AND ops_run.id=artifact.run_id
+        LEFT JOIN tasks AS ops_task ON ops_task.workspace_id=ops_run.workspace_id AND ops_task.id=ops_run.task_id
+          AND ops_task.project_id=ops_run.project_id
+        WHERE version.state='failed' AND ${auditUlid("artifact.id")}
+          AND (artifact.run_id IS NULL OR ((${auditUlid("artifact.run_id")})
+            AND (${auditUlid("ops_task.id")}) AND (${auditUlid("ops_run.project_id")})))
+      ), recovery_current_tasks AS MATERIALIZED (
+        SELECT ops_task.workspace_id,ops_task.id FROM tasks AS ops_task
+        JOIN (SELECT DISTINCT workspace_id,task_id FROM recovery_targets) AS candidate
+          ON candidate.workspace_id=ops_task.workspace_id AND candidate.task_id=ops_task.id
+        WHERE ${parent.sql}
+      ), recovery_authorized AS MATERIALIZED (
+        SELECT target.audit_id FROM recovery_targets AS target LEFT JOIN recovery_current_tasks AS task
+          ON task.workspace_id=target.workspace_id AND task.id=target.task_id
+        WHERE target.run_id IS NULL OR task.id IS NOT NULL
+        GROUP BY target.audit_id HAVING COUNT(*)=MAX(target.resolved)
       ), visible AS MATERIALIZED (
         SELECT source.audit_rowid,source.audit_id,source.actor_principal_id,source.action,source.created_at,
-          NULL AS payload_json,source.outbox_id,source.version_id,source.grant_id,source.source_action,source.occurred_at
+          NULL AS payload_json,source.outbox_id,source.version_id,source.grant_id,source.source_action,source.occurred_at,
+          NULL AS recovery_actor_epoch,NULL AS recovery_action_id,NULL AS recovery_replayed,NULL AS recovery_resolved
         FROM canonical_parents AS source LEFT JOIN current_tasks AS task
           ON task.workspace_id=source.workspace_id AND task.id=source.task_id
         WHERE source.run_id IS NULL OR task.id IS NOT NULL
-        UNION ALL SELECT audit_rowid,audit_id,actor_principal_id,action,created_at,payload_json,NULL,NULL,NULL,NULL,NULL
-          FROM audits WHERE lower(action) NOT GLOB 'artifact.*'
+        UNION ALL SELECT source.audit_rowid,source.audit_id,source.actor_principal_id,source.action,source.created_at,
+          NULL,NULL,NULL,NULL,NULL,NULL,source.actor_epoch,source.action_id,source.replayed,source.resolved
+          FROM recovery_sources AS source JOIN recovery_authorized AS authorized ON authorized.audit_id=source.audit_id
+        UNION ALL SELECT audit_rowid,audit_id,actor_principal_id,action,created_at,payload_json,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL
+          FROM audits WHERE lower(action) NOT GLOB 'artifact.*' AND lower(action) NOT GLOB 'ops.recovery.*'
+      ), ordered_visible AS MATERIALIZED (
+        SELECT visible.*,CASE WHEN ${auditUtc("visible.created_at")}
+          THEN ${auditUtcOrderKey("visible.created_at")} ELSE visible.created_at END AS sort_key FROM visible
       ), anchor AS MATERIALIZED (
-        SELECT visible.created_at,visible.audit_rowid FROM visible JOIN requested_cursor AS cursor ON visible.audit_id=cursor.after_id
+        SELECT visible.sort_key,visible.audit_rowid FROM ordered_visible AS visible JOIN requested_cursor AS cursor ON visible.audit_id=cursor.after_id
       ), page AS MATERIALIZED (
-        SELECT visible.* FROM visible JOIN requested_cursor AS cursor LEFT JOIN anchor ON 1
-        WHERE cursor.after_id IS NULL OR visible.created_at>anchor.created_at
-          OR (visible.created_at=anchor.created_at AND visible.audit_rowid>anchor.audit_rowid)
-        ORDER BY visible.created_at,visible.audit_rowid LIMIT (SELECT page_limit FROM requested_cursor)
+        SELECT visible.* FROM ordered_visible AS visible JOIN requested_cursor AS cursor LEFT JOIN anchor ON 1
+        WHERE cursor.after_id IS NULL OR visible.sort_key>anchor.sort_key
+          OR (visible.sort_key=anchor.sort_key AND visible.audit_rowid>anchor.audit_rowid)
+        ORDER BY visible.sort_key,visible.audit_rowid LIMIT (SELECT page_limit FROM requested_cursor)
       ) SELECT scope.authorized,(cursor.after_id IS NULL OR EXISTS (SELECT 1 FROM anchor)) AS anchor_valid,
         (SELECT json_group_array(json_object('audit_id',audit_id,'actor_principal_id',actor_principal_id,'action',action,
           'created_at',created_at,'payload_json',payload_json,'outbox_id',outbox_id,'version_id',version_id,
-          'grant_id',grant_id,'source_action',source_action,'occurred_at',occurred_at)) FROM page) AS rows_json
+          'grant_id',grant_id,'source_action',source_action,'occurred_at',occurred_at,
+          'recovery_actor_epoch',recovery_actor_epoch,'recovery_action_id',recovery_action_id,
+          'recovery_replayed',recovery_replayed,'recovery_resolved',recovery_resolved)) FROM page) AS rows_json
       FROM current_scope AS scope JOIN requested_cursor AS cursor)`,
     )
     .get(
@@ -836,6 +934,8 @@ export async function readSecurityAudit(
       workspaceId,
       options.after ?? null,
       limit + 1,
+      ...parent.parameters,
+      workspaceId,
       ...parent.parameters,
     )) as { authorized: number; anchor_valid: number; rows_json: string };
   if (!current.authorized) fail("not_found", "operations scope not found");
@@ -851,6 +951,10 @@ export async function readSecurityAudit(
     grant_id: string | null;
     source_action: string;
     occurred_at: string;
+    recovery_actor_epoch: number;
+    recovery_action_id: string | null;
+    recovery_replayed: number;
+    recovery_resolved: number;
   }>;
   const entries = rows.slice(0, limit).map((row) => {
     let payload: unknown = null;
@@ -871,6 +975,17 @@ export async function readSecurityAudit(
               result: projection,
             }
           : projection;
+    } else if (row.recovery_action_id !== null) {
+      payload = {
+        actor: { humanId: row.actor_principal_id, authorizationEpoch: row.recovery_actor_epoch },
+        input: { version_ids: "[redacted]" },
+        result: {
+          action_id: row.recovery_action_id,
+          kind: "resolve_stuck_upload",
+          replayed: row.recovery_replayed === 1,
+          resolved: row.recovery_resolved,
+        },
+      };
     } else {
       try {
         payload = JSON.parse(row.payload_json!) as unknown;
@@ -904,6 +1019,18 @@ function auditClosedObject(expression: string, keys: string[]): string {
 
 function auditUlid(column: string): string {
   return `(typeof(${column})='text' AND instr(${column},char(0))=0 AND length(${column})=26 AND ${column} NOT GLOB '*[^0-9A-HJKMNP-TV-Z]*')`;
+}
+
+/** Recovery ids bind the stored ledger; their hash is not recomputed by SQL. */
+function auditRecoveryActionId(column: string): string {
+  return `(typeof(${column})='text' AND instr(${column},char(0))=0 AND length(${column})=57
+    AND substr(${column},1,25)='ops:resolve_stuck_upload:' AND substr(${column},26) NOT GLOB '*[^0-9a-f]*')`;
+}
+
+/** Valid UTC values compare precisely after padding their one-to-six fractional digits. */
+function auditUtcOrderKey(column: string): string {
+  return `(substr(${column},1,19)||'.'||substr(CASE WHEN length(${column})=20 THEN '000000'
+    ELSE substr(${column},21,length(${column})-21)||'000000' END,1,6))`;
 }
 
 /** Matches the persistence UTC shape, calendar validity and one-to-six fractional digits. */

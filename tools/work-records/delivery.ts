@@ -936,10 +936,11 @@ try {
     parentRun: string | null,
     state: "available" | "uploading",
     wrongKey = false,
+    at?: string,
   ) {
     const artifactId = randomUlid();
     const versionId = randomUlid();
-    const createdAt = state === "available" ? oldLogAt : oldUploadAt;
+    const createdAt = at ?? (state === "available" ? oldLogAt : oldUploadAt);
     const key = `workspaces/${FIX.workspace}/runs/${wrongKey ? randomUlid() : (parentRun ?? randomUlid())}/logs/${versionId}.jsonl.zst`;
     await db
       .prepare(
@@ -1519,6 +1520,377 @@ try {
     { code: "not_found", message: "operations scope not found" },
   );
   check("real_d1_empty_artifact_audit_scope_denial_after_epoch_loss");
+
+  // Recovery audit history uses actual Hub receipts; older applied ledger
+  // fixtures retain their lineage without pretending to carry per-retry proofs.
+  const recoveryAuditAccess = { ...access(), authorizationEpoch: 4 };
+  const recoveryAuditTask = await execute<TaskRecord>(
+    "a",
+    "task.create",
+    { projectId: FIX.projectA, title: "Synthetic recovery audit parent", priority: "P2" },
+    FIX.owner,
+    randomUlid(),
+    undefined,
+    4,
+  );
+  assert(recoveryAuditTask.ok);
+  const recoveryAuditRun = await execute<{ run: { id: string } }>(
+    "a",
+    "run.create",
+    {
+      taskId: recoveryAuditTask.result.id,
+      expectedTaskVersion: 1,
+      agentProfileId: FIX.profileCodex,
+      workspacePolicyVersion: 1,
+      projectPolicyVersion: 1,
+      repositoryConfigVersion: 1,
+      agentProfileVersion: 1,
+    },
+    FIX.owner,
+    randomUlid(),
+    undefined,
+    4,
+  );
+  assert(recoveryAuditRun.ok);
+  const recoveryAuditVersions = [
+    await seedOperationsVersion(recoveryAuditRun.result.run.id, "uploading"),
+    await seedOperationsVersion(null, "uploading"),
+  ];
+  const legacyRecoveryVersion = await seedOperationsVersion(null, "uploading");
+  const legacyRecoveryTarget = { version_ids: [legacyRecoveryVersion] };
+  const legacyRecoveryAction = recoveryActionId("resolve_stuck_upload", legacyRecoveryTarget);
+  await db
+    .prepare("UPDATE artifact_versions SET state='failed' WHERE workspace_id=? AND id=?")
+    .run(FIX.workspace, legacyRecoveryVersion);
+  await db
+    .prepare(
+      `INSERT INTO ops_recovery_ledger
+       (workspace_id,action_id,kind,target_json,state,attempt_count,result_json,
+        created_by_human_id,created_at,updated_at)
+       VALUES (?,?,'resolve_stuck_upload',?,'applied',3,'{"resolved":1}',?,?,?)`,
+    )
+    .run(
+      FIX.workspace,
+      legacyRecoveryAction,
+      JSON.stringify(legacyRecoveryTarget),
+      FIX.owner,
+      oldUploadAt,
+      oldUploadAt,
+    );
+  const recoveryAuditAnchorAt = new Date().toISOString();
+  const recoveryAuditAnchorId = randomUlid();
+  await db
+    .prepare(
+      `INSERT INTO audit_events
+       (workspace_id,audit_id,actor_principal_id,action,payload_json,created_at)
+       VALUES (?,?,?,'ops.audit.synthetic_anchor','{"action":"synthetic"}',?)`,
+    )
+    .run(FIX.workspace, recoveryAuditAnchorId, FIX.owner, recoveryAuditAnchorAt);
+  const makeRecoveryAuditProof = () =>
+    issueStepUpProof(
+      db,
+      FIX.owner,
+      {
+        action: OPS_STEP_UP_ACTIONS.recover,
+        workspaceId: FIX.workspace,
+        targetId: recoveryTarget,
+        scopes: [],
+        authorizationEpoch: 4,
+        expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+      },
+      new Date().toISOString(),
+    );
+  for (const [index, versions] of [
+    recoveryAuditVersions,
+    recoveryAuditVersions,
+    [legacyRecoveryVersion],
+  ].entries()) {
+    const outcome = await execute<{ replayed: boolean; detail: { resolved: number } }>(
+      index === 1 ? "b" : "a",
+      resolveStuckUploadCommand.name,
+      { versionIds: versions, stepUpProofId: await makeRecoveryAuditProof() },
+      FIX.owner,
+      randomUlid(),
+      undefined,
+      4,
+    );
+    assert(outcome.ok && outcome.result.replayed === (index !== 0));
+    assert.equal(outcome.result.detail.resolved, versions.length);
+  }
+  const recoveryAuditOptions = {
+    access: recoveryAuditAccess,
+    after: recoveryAuditAnchorId,
+    limit: 100,
+  };
+  const canonicalRecoveryAudit = await readSecurityAudit(db, FIX.workspace, recoveryAuditOptions);
+  assert.equal(canonicalRecoveryAudit.entries.length, 3);
+  assert.equal(canonicalRecoveryAudit.has_more, false);
+  for (const row of canonicalRecoveryAudit.entries) {
+    const payload = row.payload as { input: { version_ids: string }; result: { resolved: number } };
+    assert.equal(row.action, resolveStuckUploadCommand.name);
+    assert.equal(payload.input.version_ids, "[redacted]");
+    assert([1, 2].includes(payload.result.resolved));
+  }
+  const originalRecoveryAudit = (await db
+    .prepare(
+      `SELECT audit_id,payload_json,created_at FROM audit_events
+       WHERE workspace_id=? AND action=? AND created_at>=?
+         AND json_extract(payload_json,'$.result.replayed')=0`,
+    )
+    .get(FIX.workspace, resolveStuckUploadCommand.name, recoveryAuditAnchorAt)) as {
+    audit_id: string;
+    payload_json: string;
+    created_at: string;
+  };
+  assert(originalRecoveryAudit);
+  check("real_production_hub_recovery_audit_original_retry_and_legacy_ledger_history");
+
+  const recoveryEnvelope = JSON.parse(originalRecoveryAudit.payload_json) as {
+    actor: { humanId: string; authorizationEpoch: number };
+    input: { version_ids: string[] };
+    result: { action_id: string; kind: string; replayed: boolean; resolved: number };
+  };
+  const malformedRecoveryAnchors: string[] = [];
+  for (const [action, payload, actor] of [
+    [
+      resolveStuckUploadCommand.name,
+      JSON.stringify({ ...recoveryEnvelope, input: JSON.stringify(recoveryEnvelope.input) }),
+      FIX.owner,
+    ],
+    [
+      resolveStuckUploadCommand.name,
+      JSON.stringify({
+        ...recoveryEnvelope,
+        actor: {
+          ...recoveryEnvelope.actor,
+          humanId: FIX.owner + "\0SYNTHETIC-NUL-RECOVERY-CANARY",
+        },
+      }),
+      FIX.owner + "\0SYNTHETIC-NUL-RECOVERY-CANARY",
+    ],
+    [
+      resolveStuckUploadCommand.name,
+      JSON.stringify({
+        ...recoveryEnvelope,
+        result: { ...recoveryEnvelope.result, resolved: 999 },
+      }),
+      FIX.owner,
+    ],
+    ["OPS.RECOVERY.RESOLVE_STUCK_UPLOAD", originalRecoveryAudit.payload_json, FIX.owner],
+    ["ops.recovery.unsupported", originalRecoveryAudit.payload_json, FIX.owner],
+  ]) {
+    const id = randomUlid();
+    await db
+      .prepare(
+        `INSERT INTO audit_events
+         (workspace_id,audit_id,actor_principal_id,action,payload_json,created_at)
+         VALUES (?,?,?,?,?,?)`,
+      )
+      .run(FIX.workspace, id, actor, action, payload, recoveryAuditAnchorAt);
+    malformedRecoveryAnchors.push(id);
+  }
+  assert.deepEqual(
+    await readSecurityAudit(db, FIX.workspace, recoveryAuditOptions),
+    canonicalRecoveryAudit,
+  );
+  const recoveryFirstPage = await readSecurityAudit(db, FIX.workspace, {
+    ...recoveryAuditOptions,
+    limit: 1,
+  });
+  assert.equal(recoveryFirstPage.entries[0]?.audit_id, originalRecoveryAudit.audit_id);
+  assert.equal(recoveryFirstPage.has_more, true);
+  for (const after of malformedRecoveryAnchors) {
+    await assert.rejects(readSecurityAudit(db, FIX.workspace, { ...recoveryAuditOptions, after }), {
+      code: "invalid_argument",
+      message: "unknown audit cursor",
+    });
+  }
+  check("real_d1_recovery_audit_malformed_nul_and_unknown_namespace_receipts_do_not_consume_page");
+
+  // Escaped ASCII changes JSON spelling, not the typed target identity/order.
+  const escapedRecoveryId = recoveryAuditVersions[0]!;
+  const escapedRecoveryPayload = JSON.stringify(recoveryEnvelope).replace(
+    '"version_ids":["' + escapedRecoveryId + '"',
+    '"version_ids":["\\u' +
+      escapedRecoveryId.charCodeAt(0).toString(16).padStart(4, "0") +
+      escapedRecoveryId.slice(1) +
+      '"',
+  );
+  assert.notEqual(escapedRecoveryPayload, JSON.stringify(recoveryEnvelope));
+  const escapedRecoveryAuditId = randomUlid();
+  await db
+    .prepare(
+      `INSERT INTO audit_events
+       (workspace_id,audit_id,actor_principal_id,action,payload_json,created_at)
+       VALUES (?,?,?,?,?,?)`,
+    )
+    .run(
+      FIX.workspace,
+      escapedRecoveryAuditId,
+      FIX.owner,
+      resolveStuckUploadCommand.name,
+      escapedRecoveryPayload,
+      originalRecoveryAudit.created_at,
+    );
+  const decodedRecoveryAudit = await readSecurityAudit(db, FIX.workspace, recoveryAuditOptions);
+  assert.equal(decodedRecoveryAudit.entries.length, 4);
+  const escapedRecoveryAudit = decodedRecoveryAudit.entries.find(
+    (row) => row.audit_id === escapedRecoveryAuditId,
+  );
+  assert(escapedRecoveryAudit);
+  assert.deepEqual(
+    escapedRecoveryAudit.payload,
+    canonicalRecoveryAudit.entries.find((row) => row.audit_id === originalRecoveryAudit.audit_id)!
+      .payload,
+  );
+  check("real_d1_recovery_audit_preserves_decoded_target_order_across_json_escape_variants");
+
+  const currentRecoveryAudit = await readSecurityAudit(
+    beforeAuditSelection(async () => {
+      await db
+        .prepare(
+          "INSERT INTO task_privacy (workspace_id,task_id,owner_human_id,created_at) VALUES (?,?,?,?)",
+        )
+        .run(FIX.workspace, recoveryAuditTask.result.id, FIX.owner, now);
+    }),
+    FIX.workspace,
+    recoveryAuditOptions,
+  );
+  assert.equal(currentRecoveryAudit.entries.length, 1);
+  assert.equal(currentRecoveryAudit.has_more, false);
+  assert.equal(
+    (currentRecoveryAudit.entries[0]!.payload as { result: { action_id: string } }).result
+      .action_id,
+    legacyRecoveryAction,
+  );
+  check("real_d1_recovery_audit_mixed_private_target_before_final_selection_omits_whole_receipt");
+  for (const after of [originalRecoveryAudit.audit_id, randomUlid()]) {
+    await assert.rejects(readSecurityAudit(db, FIX.workspace, { ...recoveryAuditOptions, after }), {
+      code: "invalid_argument",
+      message: "unknown audit cursor",
+    });
+  }
+  check("real_d1_recovery_audit_hidden_and_unknown_anchor_denial_parity");
+  const lastRecoveryAudit = currentRecoveryAudit.entries[0]!.audit_id;
+  assert.deepEqual(
+    await readSecurityAudit(db, FIX.workspace, {
+      ...recoveryAuditOptions,
+      after: lastRecoveryAudit,
+    }),
+    { entries: [], has_more: false },
+  );
+  await assert.rejects(
+    readSecurityAudit(
+      beforeAuditSelection(async () => {
+        await db
+          .prepare(
+            "UPDATE workspace_members SET authorization_epoch=5 WHERE workspace_id=? AND human_id=?",
+          )
+          .run(FIX.workspace, FIX.owner);
+        await db
+          .prepare(
+            "UPDATE workspace_authorization_epochs SET authorization_epoch=5 WHERE workspace_id=? AND human_id=?",
+          )
+          .run(FIX.workspace, FIX.owner);
+      }),
+      FIX.workspace,
+      { ...recoveryAuditOptions, after: lastRecoveryAudit },
+    ),
+    { code: "not_found", message: "operations scope not found" },
+  );
+  check("real_d1_empty_recovery_audit_scope_denial_after_epoch_loss");
+
+  // Historical synthetic tuples isolate chronology without changing Hub time.
+  // Metadata predates its receipt; these fixtures do not establish wall-clock age.
+  const orderAnchorId = randomUlid();
+  await db
+    .prepare(
+      `INSERT INTO audit_events
+       (workspace_id,audit_id,actor_principal_id,action,payload_json,created_at)
+       VALUES (?,?,?,'ops.audit.synthetic_anchor','{"action":"synthetic"}',?)`,
+    )
+    .run(FIX.workspace, orderAnchorId, FIX.owner, "2025-01-01T00:00:00.000Z");
+  const orderFixtures: Array<{ auditId: string; at: string }> = [];
+  for (const at of [
+    "2025-02-01T12:00:00.1Z",
+    "2025-02-01T12:00:00.100001Z",
+    "2025-02-01T12:00:00Z",
+    "2025-02-01T12:00:00.000000Z",
+  ]) {
+    const versionId = await seedOperationsVersion(
+      null,
+      "uploading",
+      false,
+      "2025-02-01T10:00:00.000Z",
+    );
+    await db
+      .prepare("UPDATE artifact_versions SET state='failed' WHERE workspace_id=? AND id=?")
+      .run(FIX.workspace, versionId);
+    const target = { version_ids: [versionId] };
+    const actionId = recoveryActionId("resolve_stuck_upload", target);
+    await db
+      .prepare(
+        `INSERT INTO ops_recovery_ledger
+         (workspace_id,action_id,kind,target_json,state,attempt_count,result_json,
+          created_by_human_id,created_at,updated_at)
+         VALUES (?,?,'resolve_stuck_upload',?,'applied',1,'{"resolved":1}',?,?,?)`,
+      )
+      .run(FIX.workspace, actionId, JSON.stringify(target), FIX.owner, at, at);
+    const auditId = randomUlid();
+    await db
+      .prepare(
+        `INSERT INTO audit_events
+         (workspace_id,audit_id,actor_principal_id,action,payload_json,created_at)
+         VALUES (?,?,?,?,?,?)`,
+      )
+      .run(
+        FIX.workspace,
+        auditId,
+        FIX.owner,
+        resolveStuckUploadCommand.name,
+        JSON.stringify({
+          actor: { humanId: FIX.owner, authorizationEpoch: 1 },
+          input: target,
+          result: {
+            action_id: actionId,
+            kind: "resolve_stuck_upload",
+            replayed: false,
+            resolved: 1,
+          },
+        }),
+        at,
+      );
+    orderFixtures.push({ auditId, at });
+  }
+  const legacyOrderId = randomUlid();
+  await db
+    .prepare(
+      `INSERT INTO audit_events
+       (workspace_id,audit_id,actor_principal_id,action,payload_json,created_at)
+       VALUES (?,?,?,'ops.audit.synthetic_order','{"action":"synthetic"}',?)`,
+    )
+    .run(FIX.workspace, legacyOrderId, FIX.owner, "2025-02-01T12:00:00.000Z");
+  const chronologicalFixtures = [
+    orderFixtures[2]!,
+    orderFixtures[3]!,
+    { auditId: legacyOrderId, at: "2025-02-01T12:00:00.000Z" },
+    orderFixtures[0]!,
+    orderFixtures[1]!,
+  ];
+  let orderAfter = orderAnchorId;
+  for (const expected of chronologicalFixtures) {
+    const page = await readSecurityAudit(db, FIX.workspace, {
+      access: { ...access(), authorizationEpoch: 5 },
+      after: orderAfter,
+      limit: 1,
+    });
+    assert.equal(page.entries.length, 1);
+    assert.equal(page.entries[0]!.audit_id, expected.auditId);
+    assert.equal(page.entries[0]!.created_at, expected.at);
+    assert.equal(page.has_more, true);
+    orderAfter = expected.auditId;
+  }
+  check("real_d1_recovery_audit_normalized_utc_pages_and_anchors_preserve_microseconds_and_ties");
   console.log(
     JSON.stringify({
       schema_version: 1,
