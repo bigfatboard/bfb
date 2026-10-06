@@ -32,14 +32,16 @@ import { enforceDelegationAccess, type ActiveDelegation } from "./oauth.js";
 import { canonicalLaunchJson } from "./launch-state.js";
 import { runnerHash } from "./runner-crypto.js";
 import {
+  authorizeResultEvidence,
   MAX_EVIDENCE_REFS,
   MAX_RESULT_LIMITATIONS_CHARS,
   MAX_RESULT_SUMMARY_CHARS,
   type EvidenceRef,
   type SubmissionRecord,
 } from "./results.js";
-import { getTask } from "./work-commands.js";
+import { getTask, type TaskReadAccess } from "./work-commands.js";
 import { assertRunResultTransition } from "./work-records.js";
+import { assertTaskAccess } from "./task-access.js";
 
 const HEX64 = /^[0-9a-f]{64}$/;
 const GIT_COMMIT_PATTERN = /^[0-9a-f]{40}$/;
@@ -61,6 +63,13 @@ interface DelegationRow {
 interface DelegationAuthority {
   principal: Awaited<ReturnType<typeof loadPrincipal>>;
   delegation: ActiveDelegation;
+}
+
+function delegationTaskAccess(authority: DelegationAuthority): TaskReadAccess {
+  return {
+    ...authority.delegation,
+    ...(authority.delegation.taskId ? { taskBoundaryId: authority.delegation.taskId } : {}),
+  };
 }
 
 /**
@@ -292,12 +301,35 @@ async function delegatedRunAuthority(runId: string, ctx: HubContext, roles: Work
       }
     | undefined;
   if (!run) throw new DomainError("not_found", "run not found");
-  const task = await getTask(ctx.db, ctx.workspaceId, run.task_id);
-  if (!task || task.project_id !== run.project_id)
-    throw new DomainError("not_found", "run task not found");
-  assertProjectAccess(authority.principal, task.project_id);
-  await enforceDelegationAccess(ctx.db, authority.delegation, task.project_id, task.id);
-  return { authority, run, task };
+  try {
+    assertProjectAccess(authority.principal, run.project_id);
+    await enforceDelegationAccess(ctx.db, authority.delegation, run.project_id, run.task_id);
+    await assertTaskAccess(ctx.db, authority.delegation, run.task_id, "contribute");
+    const task = await getTask(
+      ctx.db,
+      ctx.workspaceId,
+      run.task_id,
+      delegationTaskAccess(authority),
+    );
+    if (!task || task.project_id !== run.project_id)
+      throw new DomainError("not_found", "run not found");
+    return { authority, run, task };
+  } catch (error) {
+    if (error instanceof DomainError && error.code === "not_found")
+      throw new DomainError("not_found", "run not found");
+    throw error;
+  }
+}
+
+async function delegatedArtifactRunAuthority(runId: string, ctx: HubContext) {
+  try {
+    return await delegatedRunAuthority(runId, ctx, ["owner", "member"]);
+  } catch (error) {
+    // Artifact publication preserves its uniform missing/denied rejection contract.
+    if (error instanceof DomainError && error.code === "not_found")
+      throw new DomainError("request_rejected", "request rejected");
+    throw error;
+  }
 }
 
 function delegatedFingerprint(input: unknown): string {
@@ -328,7 +360,15 @@ async function delegatedResultAuthority(input: SubmitDelegatedResultInput, ctx: 
     "invalid_argument",
   );
   // A historical result retry may replay after submission; transition validation stays in run().
-  return delegatedRunAuthority(input.runId, ctx, ["owner", "member"]);
+  const state = await delegatedRunAuthority(input.runId, ctx, ["owner", "member"]);
+  await authorizeResultEvidence(
+    ctx.db,
+    ctx.workspaceId,
+    state.task.id,
+    evidenceRefs(input.evidenceRefs),
+    state.authority.delegation,
+  );
+  return state;
 }
 
 export interface RequestDelegatedAttentionInput {
@@ -670,13 +710,13 @@ export const createDelegatedArtifactCommand: HubCommand<
 > = {
   name: "artifact.create_version.delegation",
   replay: "reject",
-  authorize: async (_input, ctx) => {
-    await requireDelegationAuthority(ctx, "bfb:task:write");
+  authorize: async (input, ctx) => {
+    if (!isUlid(input.runId ?? "")) throw new DomainError("request_rejected", "request rejected");
+    await delegatedArtifactRunAuthority(input.runId, ctx);
   },
   auditInput: () => ({ action: "artifact.create_version.delegation" }),
   async run(input, ctx) {
-    const authority = await requireDelegationAuthority(ctx, "bfb:task:write");
-    assertRole(authority.principal, ["owner", "member"]);
+    const { authority, run } = await delegatedArtifactRunAuthority(input.runId, ctx);
     exactKeys(
       input,
       [
@@ -700,19 +740,6 @@ export const createDelegatedArtifactCommand: HubCommand<
     if (typeof input.runId !== "string" || !isUlid(input.runId)) {
       throw new DomainError("request_rejected", "request rejected");
     }
-    const run = (await ctx.db
-      .prepare(`SELECT id, project_id, task_id FROM runs WHERE workspace_id = ? AND id = ?`)
-      .get(ctx.workspaceId, input.runId)) as
-      { id: string; project_id: string; task_id: string } | undefined;
-    if (!run) {
-      throw new DomainError("request_rejected", "request rejected");
-    }
-    const task = await getTask(ctx.db, ctx.workspaceId, run.task_id);
-    if (!task || task.project_id !== run.project_id) {
-      throw new DomainError("request_rejected", "request rejected");
-    }
-    assertProjectAccess(authority.principal, task.project_id);
-    await enforceDelegationAccess(ctx.db, authority.delegation, task.project_id, task.id);
     let artifactId: string | null =
       input.artifactId === undefined || input.artifactId === null ? null : input.artifactId;
     if (artifactId !== null) {
@@ -854,8 +881,17 @@ export const finalizeDelegatedArtifactCommand: HubCommand<
 > = {
   name: "artifact.finalize_version.delegation",
   replay: "reject",
-  authorize: async (_input, ctx) => {
-    await requireDelegationAuthority(ctx, "bfb:task:write");
+  authorize: async (input, ctx) => {
+    const artifact = (await ctx.db
+      .prepare(
+        `SELECT artifact.run_id
+      FROM artifact_versions AS version JOIN artifacts AS artifact
+        ON artifact.workspace_id = version.workspace_id AND artifact.id = version.artifact_id
+      WHERE version.workspace_id = ? AND version.id = ?`,
+      )
+      .get(ctx.workspaceId, input.versionId)) as { run_id: string | null } | undefined;
+    if (!artifact?.run_id) throw new DomainError("request_rejected", "request rejected");
+    await delegatedArtifactRunAuthority(artifact.run_id, ctx);
   },
   auditInput: () => ({ action: "artifact.finalize_version.delegation" }),
   async run(input, ctx) {
@@ -903,19 +939,7 @@ export const finalizeDelegatedArtifactCommand: HubCommand<
       versionId: input.versionId,
       contentHash,
     });
-    const run = (await ctx.db
-      .prepare(`SELECT id, project_id, task_id FROM runs WHERE workspace_id = ? AND id = ?`)
-      .get(ctx.workspaceId, artifact.run_id)) as
-      { id: string; project_id: string; task_id: string } | undefined;
-    if (!run) {
-      throw new DomainError("request_rejected", "request rejected");
-    }
-    const task = await getTask(ctx.db, ctx.workspaceId, run.task_id);
-    if (!task || task.project_id !== run.project_id) {
-      throw new DomainError("request_rejected", "request rejected");
-    }
-    assertProjectAccess(authority.principal, task.project_id);
-    await enforceDelegationAccess(ctx.db, authority.delegation, task.project_id, task.id);
+    await delegatedArtifactRunAuthority(artifact.run_id, ctx);
     const receipt = (await ctx.db
       .prepare(
         `SELECT content_hash, size FROM artifact_upload_receipts

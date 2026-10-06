@@ -282,7 +282,7 @@ describe("artifact reviews", () => {
       )
       .run(FIX.workspace, FIX.projectA, FIX.restricted);
     for (const retry of [input, { ...input, comment: "Different note" }]) {
-      expect(await failure(f.review(retry, { humanId: FIX.restricted, key }))).toBe("forbidden");
+      expect(await failure(f.review(retry, { humanId: FIX.restricted, key }))).toBe("not_found");
     }
     const ownerKey = randomUlid();
     result(await f.review(input, { key: ownerKey }));
@@ -544,7 +544,7 @@ describe("artifact reviews", () => {
       expectedLatestVersionId: unscopedVersion.version_id,
       decision: "approve" as const,
     };
-    expect(await failure(f.review(input, { humanId: FIX.restricted }))).toBe("forbidden");
+    expect(await failure(f.review(input, { humanId: FIX.restricted }))).toBe("not_found");
     expect(await failure(f.review(input, { runnerId: randomUlid() }))).toBe("forbidden");
     expect(await failure(f.review(input, { humanId: FIX.owner, delegationId: randomUlid() }))).toBe(
       "forbidden",

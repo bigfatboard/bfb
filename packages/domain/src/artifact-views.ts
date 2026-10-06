@@ -5,7 +5,7 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
 
 import type { SqlDatabase } from "@bfb/db";
 
-import { artifactHash, artifactSubject } from "./artifacts.js";
+import { artifactAccessPredicate, artifactHash, artifactSubject } from "./artifacts.js";
 import { assertEpoch, loadPrincipal } from "./authorization.js";
 import { DomainError, type HubCommand } from "./hub.js";
 import { isUlid, randomUlid } from "./ids.js";
@@ -153,6 +153,7 @@ export const createViewGrantCommand: HubCommand<CreateViewGrantInput, ViewGrant>
     // membership only, matching the review write path.
     const principal = await loadPrincipal(ctx.db, ctx.workspaceId, ctx.actorHumanId);
     assertEpoch(principal, ctx.authorizationEpoch);
+    const parent = artifactAccessPredicate(principal);
     if (typeof input.versionId !== "string" || !isUlid(input.versionId)) rejectViewRequest();
     if (typeof input.grantSecretHash !== "string" || !HEX64.test(input.grantSecretHash)) {
       rejectViewRequest();
@@ -163,10 +164,12 @@ export const createViewGrantCommand: HubCommand<CreateViewGrantInput, ViewGrant>
     }
     const version = (await ctx.db
       .prepare(
-        `SELECT id, artifact_id, state, format, content_hash, r2_key
-         FROM artifact_versions WHERE workspace_id = ? AND id = ?`,
+        `SELECT version.id, version.artifact_id, version.state, version.format, version.content_hash, version.r2_key
+         FROM artifact_versions AS version JOIN artifacts AS artifact
+           ON artifact.workspace_id = version.workspace_id AND artifact.id = version.artifact_id
+         WHERE version.workspace_id = ? AND version.id = ? AND ${parent.sql}`,
       )
-      .get(ctx.workspaceId, input.versionId)) as
+      .get(ctx.workspaceId, input.versionId, ...parent.parameters)) as
       | {
           id: string;
           artifact_id: string;
@@ -178,18 +181,6 @@ export const createViewGrantCommand: HubCommand<CreateViewGrantInput, ViewGrant>
       | undefined;
     if (!version || version.state !== "available" || !version.content_hash || !version.r2_key) {
       rejectViewRequest();
-    }
-    const artifact = (await ctx.db
-      .prepare(`SELECT run_id FROM artifacts WHERE workspace_id = ? AND id = ?`)
-      .get(ctx.workspaceId, version.artifact_id)) as { run_id: string | null } | undefined;
-    if (!artifact) rejectViewRequest();
-    if (artifact.run_id) {
-      const run = (await ctx.db
-        .prepare(`SELECT project_id FROM runs WHERE workspace_id = ? AND id = ?`)
-        .get(ctx.workspaceId, artifact.run_id)) as { project_id: string } | undefined;
-      // The rejection stays uniform with unknown versions so the project
-      // boundary discloses no existence signal.
-      if (run && !principal.projectIds.includes(run.project_id)) rejectViewRequest();
     }
     const nowMs = Date.parse(ctx.now);
     if (!Number.isFinite(nowMs)) rejectViewRequest();
@@ -222,6 +213,20 @@ export const createViewGrantCommand: HubCommand<CreateViewGrantInput, ViewGrant>
       action: "artifact.view_issued",
       now: ctx.now,
     });
+    const guardId = randomUlid();
+    await ctx.db
+      .prepare(
+        `INSERT INTO artifact_mutation_guards (id, valid) VALUES (?,
+      (SELECT COUNT(*) = 1 FROM artifact_view_grants AS grant
+       JOIN artifact_versions AS version ON version.workspace_id = grant.workspace_id AND version.id = grant.version_id
+       JOIN artifacts AS artifact ON artifact.workspace_id = version.workspace_id AND artifact.id = version.artifact_id
+       JOIN workspace_members AS member ON member.workspace_id = grant.workspace_id AND member.human_id = grant.human_id
+       JOIN workspace_authorization_epochs AS epoch ON epoch.workspace_id = member.workspace_id AND epoch.human_id = member.human_id
+       WHERE grant.workspace_id = ? AND grant.id = ? AND member.authorization_epoch = epoch.authorization_epoch
+         AND epoch.authorization_epoch = grant.authorization_epoch AND epoch.revoked_at IS NULL AND ${parent.sql}))`,
+      )
+      .run(guardId, ctx.workspaceId, viewId, ...parent.parameters);
+    await ctx.db.prepare("DELETE FROM artifact_mutation_guards WHERE id = ?").run(guardId);
     return {
       schema_version: 1,
       view_id: viewId,
@@ -244,6 +249,48 @@ export interface RedeemedView {
   contentHash: string;
   r2Key: string;
   humanId: string;
+  authorizationEpoch: number;
+  grantHash: string;
+  consumedAt: string;
+}
+
+/** Rechecks the consumed grant's retained human authority after asynchronous byte reads. */
+export async function assertViewDelivery(db: SqlDatabase, view: RedeemedView): Promise<void> {
+  const parent = artifactAccessPredicate({
+    workspaceId: view.workspaceId,
+    humanId: view.humanId,
+    authorizationEpoch: view.authorizationEpoch,
+  });
+  const authorized = await db
+    .prepare(
+      `SELECT grant.id FROM artifact_view_grants AS grant
+       JOIN artifact_versions AS version ON version.workspace_id = grant.workspace_id AND version.id = grant.version_id
+       JOIN artifacts AS artifact ON artifact.workspace_id = version.workspace_id AND artifact.id = version.artifact_id
+       JOIN workspace_members AS member ON member.workspace_id = grant.workspace_id AND member.human_id = grant.human_id
+       JOIN workspace_authorization_epochs AS epoch ON epoch.workspace_id = member.workspace_id AND epoch.human_id = member.human_id
+       WHERE grant.workspace_id = ? AND grant.id = ? AND grant.grant_hash = ? AND grant.consumed_at = ?
+         AND grant.human_id = ? AND grant.authorization_epoch = ? AND version.id = ? AND artifact.id = ?
+         AND grant.content_hash = ? AND version.content_hash = grant.content_hash
+         AND version.state = 'available' AND version.r2_key = ? AND version.format = ? AND artifact.role = ?
+         AND member.authorization_epoch = epoch.authorization_epoch AND epoch.authorization_epoch = grant.authorization_epoch
+         AND epoch.revoked_at IS NULL AND ${parent.sql}`,
+    )
+    .get(
+      view.workspaceId,
+      view.viewId,
+      view.grantHash,
+      view.consumedAt,
+      view.humanId,
+      view.authorizationEpoch,
+      view.versionId,
+      view.artifactId,
+      view.contentHash,
+      view.r2Key,
+      view.format,
+      view.role,
+      ...parent.parameters,
+    );
+  if (!authorized) rejectViewRequest();
 }
 
 function nonceEqual(stored: string, supplied: string): boolean {
@@ -312,6 +359,11 @@ export async function redeemViewGrant(
     .prepare(`SELECT role FROM artifacts WHERE workspace_id = ? AND id = ?`)
     .get(candidate.workspace_id, candidate.artifact_id)) as { role: string } | undefined;
   if (!artifact) rejectViewRequest();
+  const parent = artifactAccessPredicate({
+    workspaceId: candidate.workspace_id,
+    humanId: candidate.human_id,
+    authorizationEpoch: candidate.authorization_epoch,
+  });
   // The nonce, expiry, version, and membership/epoch fences are part of the
   // guarded update so revocation between the read above and the consume
   // cannot grant view authority.
@@ -322,10 +374,12 @@ export async function redeemViewGrant(
          AND consumed_at IS NULL AND expires_at > ?
          AND EXISTS (
            SELECT 1 FROM artifact_versions AS v
+           JOIN artifacts AS artifact ON artifact.workspace_id = v.workspace_id AND artifact.id = v.artifact_id
            WHERE v.workspace_id = artifact_view_grants.workspace_id
              AND v.id = artifact_view_grants.version_id
              AND v.state = 'available'
              AND v.content_hash = artifact_view_grants.content_hash
+             AND ${parent.sql}
          )
          AND EXISTS (
            SELECT 1 FROM workspace_members AS m
@@ -338,7 +392,7 @@ export async function redeemViewGrant(
              AND e.authorization_epoch = artifact_view_grants.authorization_epoch
          )`,
     )
-    .run(input.now, input.viewId, secretHash, artifactHash(nonce), input.now);
+    .run(input.now, input.viewId, secretHash, artifactHash(nonce), input.now, ...parent.parameters);
   // D1 batches cannot read after a queued write, so the single-consume check
   // is a guard row: D1 evaluates the predicate at commit time and aborts the
   // entire batch when a racing redemption consumed the grant first. The
@@ -370,6 +424,9 @@ export async function redeemViewGrant(
     contentHash: candidate.content_hash,
     r2Key: candidate.r2_key,
     humanId: candidate.human_id,
+    authorizationEpoch: candidate.authorization_epoch,
+    grantHash: secretHash,
+    consumedAt: input.now,
   };
 }
 

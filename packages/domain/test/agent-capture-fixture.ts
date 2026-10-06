@@ -56,9 +56,16 @@ export async function captureFixture(
   database?: SqlDatabase,
   enabled = true,
   tightened = false,
-  options: { offlineResults?: OfflineAgentResultsPolicy } = {},
+  options: {
+    offlineResults?: OfflineAgentResultsPolicy;
+    taskCreatorHumanId?: string;
+    requestingHumanId?: string;
+  } = {},
 ) {
-  const f = await launchFixture(database);
+  const f = await launchFixture(
+    database,
+    options.taskCreatorHumanId ? { taskCreatorHumanId: options.taskCreatorHumanId } : {},
+  );
   const key = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, [
     "sign",
     "verify",
@@ -149,7 +156,7 @@ export async function captureFixture(
       "INSERT INTO runner_launch_grants (workspace_id, runner_id, human_id, granted_at) VALUES (?, ?, ?, ?)",
     )
     .run(FIX.workspace, f.runner, FIX.member, LAUNCH_NOW);
-  const claimed = await f.claim(FIX.member);
+  const claimed = await f.claim(options.requestingHumanId ?? FIX.member);
   if (tightened) {
     const document = { allow_run_overrides: false };
     const repositoryConfigHash = `sha256:${runnerHash(JSON.stringify(document))}`;

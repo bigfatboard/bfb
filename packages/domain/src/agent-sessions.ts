@@ -22,7 +22,14 @@ import {
   type AgentWorkCapture,
   type WireDocumentName,
 } from "@bfb/protocol";
-import { agentWorkKey, agentTaskView, liveRun, type BoundRun } from "./agent-work.js";
+import {
+  agentWorkKey,
+  agentTaskView,
+  agentTaskAccess,
+  liveRun,
+  type BoundRun,
+} from "./agent-work.js";
+import { assertTaskAccess, type TaskAccessAction } from "./task-access.js";
 import { DomainError, type HubCommand, type HubContext } from "./hub.js";
 import { randomUlid } from "./ids.js";
 import { canonicalLaunchJson, readLaunch, snapshotOf } from "./launch-state.js";
@@ -309,9 +316,17 @@ export const bindAgentSessionCommand: HubCommand<AgentSessionInput, AgentSession
   },
 };
 
-async function boundAuthority(input: AgentBoundInput, ctx: HubContext) {
+async function boundAuthority(
+  input: AgentBoundInput,
+  ctx: HubContext,
+  action: TaskAccessAction = "read",
+) {
   const request = checked("agent-bound-request", input.request);
-  const row = await liveRun({ principal: input.principal, request: request.reference }, ctx);
+  const row = await liveRun(
+    { principal: input.principal, request: request.reference },
+    ctx,
+    action,
+  );
   await currentAgentSession(ctx, row, request.binding);
   return row;
 }
@@ -435,6 +450,9 @@ async function writeAuthority(
       },
     },
     ctx,
+    document === "agent-update-request" || document === "agent-proposal-request"
+      ? "edit"
+      : "contribute",
   );
   if (Object.hasOwn(input, "replayCapture")) {
     await authorizeAgentReplay(
@@ -449,7 +467,7 @@ async function writeAuthority(
   return row;
 }
 async function boundTask(ctx: HubContext, row: BoundRun) {
-  const task = await getTask(ctx.db, ctx.workspaceId, row.task_id);
+  const task = await getTask(ctx.db, ctx.workspaceId, row.task_id, agentTaskAccess(row));
   if (!task || task.project_id !== row.project_id)
     throw new DomainError("boundary_escape", "bound task unavailable");
   return task;
@@ -615,6 +633,12 @@ export const agentRunProgressCommand: HubCommand<AgentProgressInput, AgentCommen
 
 async function proposalAuthority(input: AgentProposalInput, ctx: HubContext) {
   const row = await writeAuthority(input, "agent-proposal-request", ctx);
+  const task = await assertTaskAccess(ctx.db, agentTaskAccess(row), row.task_id, "edit");
+  if (task.privateOwnerHumanId !== null)
+    throw new DomainError(
+      "forbidden",
+      "private proposals require inherited or published authority",
+    );
   if (input.request.parent_task_id !== undefined && input.request.parent_task_id !== row.task_id)
     throw new DomainError("boundary_escape", "proposal parent is outside the bound task");
   if (input.request.parent_task_id === undefined)

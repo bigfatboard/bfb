@@ -145,6 +145,35 @@ export interface CreateRunResult {
 
 export const createRunCommand: HubCommand<CreateRunInput, CreateRunResult> = {
   name: "run.create",
+  async authorize(input, ctx) {
+    const principal = await requireHuman(ctx);
+    // Run creation stays shared-only until the execution lane certifies privacy.
+    const task = await getTask(ctx.db, ctx.workspaceId, input.taskId);
+    if (!task) throw new DomainError("not_found", "task not found");
+    assertProjectAccess(principal, task.project_id);
+  },
+  inputFingerprint: (input) =>
+    createHash("sha256")
+      .update(
+        JSON.stringify([
+          input.taskId,
+          input.expectedTaskVersion,
+          input.agentProfileId,
+          input.workspacePolicyVersion,
+          input.projectPolicyVersion,
+          input.repositoryConfigVersion,
+          input.agentProfileVersion,
+        ]),
+      )
+      .digest("hex"),
+  auditInput: (input) => ({ taskId: input.taskId }),
+  auditResult: (result) => ({
+    runId: result.run.id,
+    taskId: result.task.id,
+    taskVersion: result.task.resource_version,
+    snapshotId: result.snapshot.id,
+    snapshotHash: result.snapshot.contentHash,
+  }),
   async run(input, ctx) {
     const prepared = await prepareRunCreation(input, ctx);
     await persistRunCreation(prepared, ctx);

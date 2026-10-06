@@ -16,6 +16,18 @@ import {
   listTasksPage,
   buildProjectLanes,
   buildNeedsNowDeck,
+  artifactHash,
+  mintUploadGrantSecret,
+  mintViewGrantSecret,
+  mintViewNonce,
+  redeemUploadGrant,
+  recordVerifiedUpload,
+  redeemViewGrant,
+  listArtifactsWithReviewState,
+  getRunMeasurements,
+  listReviewTimers,
+  type CreateArtifactResult,
+  type ViewGrant,
   type CommandOutcome,
   type TaskRecord,
 } from "@bfb/domain";
@@ -71,7 +83,8 @@ try {
   await server.listen();
   const worker = server.getWorker("bfb-work-records-hub");
   await worker.applyD1Migrations("DB");
-  const db = adaptD1(((await worker.getEnv()) as unknown as { DB: D1Like }).DB);
+  const binding = ((await worker.getEnv()) as unknown as { DB: D1Like }).DB;
+  const db = adaptD1(binding);
   const manifest = loadMigrationManifest(resolve(root, "migrations/d1"));
   await seedSyntheticWorkspace(db, now);
   const ids: string[] = [];
@@ -94,6 +107,66 @@ try {
     ids.push(outcome.result.id);
   }
   const [privateId, sharedId] = ids as [string, string];
+  // Create historical shared child records before the fixture-only privacy
+  // policy. Production private creation and launch remain unavailable here.
+  const run = await execute<{ run: { id: string } }>(
+    "a",
+    "run.create",
+    {
+      taskId: privateId,
+      expectedTaskVersion: 1,
+      agentProfileId: FIX.profileCodex,
+      workspacePolicyVersion: 1,
+      projectPolicyVersion: 1,
+      repositoryConfigVersion: 1,
+      agentProfileVersion: 1,
+    },
+    FIX.member,
+  );
+  assert(run.ok);
+  const runId = run.result.run.id;
+  const upload = mintUploadGrantSecret();
+  const digest = "a".repeat(64);
+  const artifact = await execute<CreateArtifactResult>(
+    "a",
+    "artifact.create_version",
+    {
+      runId,
+      format: "markdown",
+      role: "review",
+      declaredSize: 12,
+      expectedDigest: digest,
+      grantSecretHash: upload.secretHash,
+    },
+    FIX.member,
+  );
+  assert(artifact.ok);
+  const consumed = await db.withTransaction((tx) =>
+    redeemUploadGrant(tx, {
+      grantId: artifact.result.upload_grant.grant_id,
+      secret: upload.secret,
+      now,
+    }),
+  );
+  await db.withTransaction((tx) =>
+    recordVerifiedUpload(tx, {
+      grantId: consumed.grantId,
+      consumeAttemptId: consumed.consumeAttemptId,
+      contentHash: digest,
+      size: 12,
+      now,
+    }),
+  );
+  assert(
+    (
+      await execute(
+        "a",
+        "artifact.finalize_version",
+        { versionId: artifact.result.version_id, contentHash: digest, size: 12 },
+        FIX.member,
+      )
+    ).ok,
+  );
   assert.deepEqual(await db.prepare("SELECT COUNT(*) AS n FROM task_privacy").get(), { n: 0 });
   await db
     .prepare(
@@ -268,10 +341,166 @@ try {
   assert(fullCards.every((card) => card.latestEvent?.kind === "task.create"));
   assert.doesNotMatch(JSON.stringify(fullBoard), /PRIVATE_TITLE_CANARY/);
   check("full_board_page_stays_within_d1_parameter_limit");
+  assert.deepEqual(
+    await listArtifactsWithReviewState(db, FIX.workspace, principal.projectIds, runId, principal),
+    [],
+  );
+  await assert.rejects(getRunMeasurements(db, FIX.workspace, runId, now, principal));
+  assert.deepEqual(await listReviewTimers(db, FIX.workspace, privateId, principal), []);
+  check("private_artifact_measurement_and_timer_children_hide_unshared_owner");
+
+  const readGrant = randomUlid();
+  await db
+    .prepare(
+      `INSERT INTO task_human_grants
+      (workspace_id, id, task_id, human_id, authorization_epoch, permission, created_at)
+      VALUES (?, ?, ?, ?, 1, 'read', ?)`,
+    )
+    .run(FIX.workspace, readGrant, privateId, FIX.owner, now);
+  const visibleArtifacts = await listArtifactsWithReviewState(
+    db,
+    FIX.workspace,
+    principal.projectIds,
+    runId,
+    principal,
+  );
+  assert.equal(visibleArtifacts.length, 1);
+  await getRunMeasurements(db, FIX.workspace, runId, now, principal);
+  const deniedTimer = await execute("b", "review_timer.start", { taskId: privateId, runId });
+  assert(!deniedTimer.ok && deniedTimer.error.code === "not_found");
+  const viewSecret = mintViewGrantSecret();
+  const viewNonce = mintViewNonce();
+  const view = await execute<ViewGrant>("a", "artifact.create_view_grant", {
+    versionId: artifact.result.version_id,
+    grantSecretHash: artifactHash(viewSecret.secret),
+    viewNonce,
+    sessionHash: artifactHash("synthetic-private-child-session"),
+  });
+  assert(view.ok);
+  check("read_grant_allows_preview_and_measurements_but_not_timer_mutation");
+  await db.prepare("UPDATE task_human_grants SET revoked_at = ? WHERE id = ?").run(now, readGrant);
+  await assert.rejects(
+    db.withTransaction((tx) =>
+      redeemViewGrant(tx, {
+        viewId: view.result.view_id,
+        secret: viewSecret.secret,
+        nonce: viewNonce,
+        now,
+      }),
+    ),
+  );
+  assert.deepEqual(
+    await db
+      .prepare("SELECT consumed_at FROM artifact_view_grants WHERE id = ?")
+      .get(view.result.view_id),
+    { consumed_at: null },
+  );
+  check("real_d1_view_consumption_rechecks_current_private_parent_grant");
+
+  const contributionGrant = randomUlid();
+  await db
+    .prepare(
+      `INSERT INTO task_human_grants
+    (workspace_id, id, task_id, human_id, authorization_epoch, permission, created_at)
+    VALUES (?, ?, ?, ?, 1, 'contribute', ?)`,
+    )
+    .run(FIX.workspace, contributionGrant, privateId, FIX.owner, now);
+  const timerKey = randomUlid();
+  const timerInput = { taskId: privateId, runId };
+  assert((await execute("a", "review_timer.start", timerInput, FIX.owner, timerKey)).ok);
+  assert.equal((await listReviewTimers(db, FIX.workspace, privateId, principal)).length, 1);
+  await db
+    .prepare("UPDATE task_human_grants SET revoked_at = ? WHERE id = ?")
+    .run(now, contributionGrant);
+  const replayedTimer = await execute("b", "review_timer.start", timerInput, FIX.owner, timerKey);
+  assert(!replayedTimer.ok && replayedTimer.error.code === "not_found");
+  assert.deepEqual(await listReviewTimers(db, FIX.workspace, privateId, principal), []);
+  check("real_hub_timer_cache_and_read_delivery_recheck_private_grant");
+
+  const receiptGrant = randomUlid();
+  await db
+    .prepare(
+      `INSERT INTO task_human_grants
+    (workspace_id, id, task_id, human_id, authorization_epoch, permission, created_at)
+    VALUES (?, ?, ?, ?, 1, 'contribute', ?)`,
+    )
+    .run(FIX.workspace, receiptGrant, privateId, FIX.owner, now);
+  const receiptSecret = mintUploadGrantSecret();
+  const receiptVersion = await execute<CreateArtifactResult>("a", "artifact.create_version", {
+    artifactId: artifact.result.artifact_id,
+    runId,
+    format: "markdown",
+    role: "review",
+    declaredSize: 12,
+    expectedDigest: digest,
+    grantSecretHash: receiptSecret.secretHash,
+  });
+  assert(receiptVersion.ok);
+  const receiptConsumption = await db.withTransaction((tx) =>
+    redeemUploadGrant(tx, {
+      grantId: receiptVersion.result.upload_grant.grant_id,
+      secret: receiptSecret.secret,
+      now,
+    }),
+  );
+  const objectsBefore = await db.prepare("SELECT COUNT(*) AS n FROM artifact_objects").get();
+  const receiptTables = [
+    "artifact_upload_receipts",
+    "artifact_upload_receipt_sources",
+    "artifact_audit_outbox",
+  ];
+  const receiptsBefore = await Promise.all(
+    receiptTables.map((table) =>
+      db
+        .prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE version_id = ?`)
+        .get(receiptVersion.result.version_id),
+    ),
+  );
+  let batchRevoked = false;
+  const racingDb = adaptD1({
+    prepare: (query) => binding.prepare(query),
+    async batch(statements) {
+      // An independent D1 write revokes the fixture grant after preflight, before
+      // the real D1 batch evaluates both physical and current-authority guards.
+      await db
+        .prepare("UPDATE task_human_grants SET revoked_at = ? WHERE id = ?")
+        .run(now, receiptGrant);
+      batchRevoked = true;
+      return binding.batch(statements);
+    },
+  });
+  await assert.rejects(
+    racingDb.withTransaction((tx) =>
+      recordVerifiedUpload(tx, {
+        grantId: receiptConsumption.grantId,
+        consumeAttemptId: receiptConsumption.consumeAttemptId,
+        contentHash: digest,
+        size: 12,
+        now,
+      }),
+    ),
+    /constraint failed/i,
+  );
+  assert(batchRevoked);
+  for (const [index, table] of receiptTables.entries())
+    assert.deepEqual(
+      await db
+        .prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE version_id = ?`)
+        .get(receiptVersion.result.version_id),
+      receiptsBefore[index],
+    );
+  assert.deepEqual(
+    await db.prepare("SELECT COUNT(*) AS n FROM artifact_objects").get(),
+    objectsBefore,
+  );
+  assert.deepEqual(await db.prepare("SELECT COUNT(*) AS n FROM artifact_mutation_guards").get(), {
+    n: 0,
+  });
+  check("real_d1_receipt_batch_revocation_rolls_back_registry_receipt_source_and_audit");
   console.log(
     JSON.stringify({
       schema_version: 1,
-      stage: "human_task_surfaces",
+      stage: "human_task_and_child_surfaces",
       migration_head: manifest.migration_head,
       checks,
       outcome: "passed",
@@ -279,6 +508,7 @@ try {
         "synthetic policies only",
         "no full C11 delivery certificate",
         "real D1/domain/Hub proof, not real HTTP OAuth or provider execution",
+        "grant-consumption proof, not live R2 or private browser-byte delivery",
       ],
     }),
   );

@@ -14,6 +14,7 @@ import {
   listArtifactsWithReviewState,
   loadPrincipal,
   randomUlid,
+  readArtifactReviewReferences,
   readReviewTimerContext,
   recordReviewCommand,
   type HubCommand,
@@ -115,6 +116,7 @@ export async function handleArtifactReviewApi(
         deps.workspaceId,
         principal.projectIds,
         runId ?? undefined,
+        principal,
       );
       return response({ artifacts });
     }
@@ -129,6 +131,7 @@ export async function handleArtifactReviewApi(
         deps.workspaceId,
         artifactId,
         principal.projectIds,
+        principal,
       );
       if (!status) {
         return errorResponse("not_found", "artifact not found");
@@ -141,8 +144,24 @@ export async function handleArtifactReviewApi(
               deps.db,
               deps.workspaceId,
               review.review_timer_observation_id,
+              principal,
             )) ?? null;
+          if (timers[review.id] === null) review.review_timer_observation_id = null;
         }
+      }
+      // Recheck the artifact and independent timer parents in one final selection.
+      const references = await readArtifactReviewReferences(
+        deps.db,
+        deps.workspaceId,
+        artifactId,
+        principal,
+      );
+      if (!references) return errorResponse("not_found", "artifact not found");
+      for (const review of status.reviews) {
+        const reference = references.get(review.id) ?? null;
+        if (reference !== review.review_timer_observation_id || reference === null)
+          timers[review.id] = null;
+        review.review_timer_observation_id = reference;
       }
       return response({ ...status, review_timers: timers });
     }

@@ -43,6 +43,7 @@ export async function launchFixture(
   options: {
     policySchema?: "pre-offline-agent-work";
     profileSchema?: "pre-permission-mode";
+    taskCreatorHumanId?: string;
   } = {},
 ) {
   const db = database ?? (await openDomainDb()),
@@ -281,11 +282,16 @@ export async function launchFixture(
     profile = success(await human(createAgentProfileCommand, profileInput));
   }
   const task = success(
-    await human(createTaskCommand, {
-      projectId: FIX.projectA,
-      title: "Synthetic C09 task",
-      priority: "P2",
-    }),
+    await human(
+      createTaskCommand,
+      {
+        projectId: FIX.projectA,
+        title: "Synthetic C09 task",
+        priority: "P2",
+      },
+      LAUNCH_NOW,
+      options.taskCreatorHumanId ?? FIX.owner,
+    ),
   );
   let inventory: RunnerInventory = {
     schema_version: 1,

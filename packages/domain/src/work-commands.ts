@@ -134,7 +134,7 @@ async function replayTaskResult(result: TaskRecord, ctx: HubContext): Promise<Ta
   return { ...result, parent_task_id: parent?.id ?? null };
 }
 
-function readTaskPredicate(access: TaskReadAccess | undefined, alias = "task") {
+export function readTaskPredicate(access: TaskReadAccess | undefined, alias = "task") {
   let predicate: { sql: string; parameters: Array<string | number | null> } = access
     ? taskAccessPredicate(access, "read", alias)
     : { sql: sharedTaskPredicate(alias), parameters: [] };
@@ -1265,7 +1265,7 @@ export async function getAgentContext(
 }
 
 type AgentContextAuthority =
-  | { kind: "run"; runId: string }
+  | { kind: "run"; runId: string; access?: TaskReadAccess }
   | {
       kind: "delegation";
       delegationId: string;
@@ -1302,7 +1302,7 @@ export async function deliverAgentContext(
           humanId: authority.humanId,
           authorizationEpoch: authority.authorizationEpoch,
         }
-      : undefined;
+      : authority.access;
   const task = await getTask(db, workspaceId, taskId, access);
   if (!task) {
     throw new DomainError("not_found", "task not found");
@@ -1312,9 +1312,25 @@ export async function deliverAgentContext(
       .prepare(
         `SELECT 1 AS found FROM runs
          WHERE workspace_id = ? AND id = ? AND task_id = ? AND purpose = 'work'
-           AND result_state IN ('open', 'changes_requested')`,
+           AND result_state IN ('open', 'changes_requested')
+           ${
+             access
+               ? `AND EXISTS (
+             SELECT 1 FROM execution_assignments AS context_assignment
+             WHERE context_assignment.workspace_id = runs.workspace_id
+               AND context_assignment.run_id = runs.id AND context_assignment.task_id = runs.task_id
+               AND context_assignment.requesting_human_id = ?
+               AND context_assignment.requesting_human_epoch = ?
+           )`
+               : ""
+           }`,
       )
-      .get(workspaceId, authority.runId, taskId);
+      .get(
+        workspaceId,
+        authority.runId,
+        taskId,
+        ...(access ? [access.humanId, access.authorizationEpoch] : []),
+      );
     if (!run) {
       throw new DomainError("forbidden", "run cannot access current task context");
     }

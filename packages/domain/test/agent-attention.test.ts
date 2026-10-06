@@ -509,7 +509,7 @@ describe("human attention cached authority and private receipts", () => {
       await f.db.prepare("DELETE FROM project_access WHERE human_id = ?").run(FIX.reviewer);
       expect(await human(f, command, input, key, FIX.reviewer)).toMatchObject({
         ok: false,
-        error: { code: "forbidden" },
+        error: { code: "not_found" },
       });
     },
   );

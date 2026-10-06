@@ -15,7 +15,7 @@ import {
   deriveAgentCaptureScope,
 } from "./agent-capture.js";
 import { currentAgentSession } from "./agent-sessions.js";
-import { agentWorkKey, liveRun, type BoundRun } from "./agent-work.js";
+import { agentTaskAccess, agentWorkKey, liveRun, type BoundRun } from "./agent-work.js";
 import { DomainError, type HubCommand, type HubContext } from "./hub.js";
 import { canonicalLaunchJson, readLaunch, reauthorizeActiveRun } from "./launch-state.js";
 import {
@@ -72,6 +72,7 @@ async function resultRun(
       },
     },
     ctx,
+    "contribute",
   );
   const latest = (await ctx.db
     .prepare(
@@ -152,7 +153,7 @@ export async function deriveResultConfirmation(
   checkedCaptureDocument("agent-result-confirmation-request", request, 2_048);
   const scope = await deriveAgentCaptureScope(ctx, row, principal, request, "active");
   const permission = await resultPermission(ctx, row, scope);
-  const task = await getTask(ctx.db, ctx.workspaceId, row.task_id);
+  const task = await getTask(ctx.db, ctx.workspaceId, row.task_id, agentTaskAccess(row));
   return checkedCaptureDocument(
     "agent-result-confirmation-result",
     {

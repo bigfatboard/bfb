@@ -337,7 +337,13 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
       }
       try {
         return json({
-          measurements: await getTaskMeasurements(deps.db, deps.workspaceId, taskId, deps.now),
+          measurements: await getTaskMeasurements(
+            deps.db,
+            deps.workspaceId,
+            taskId,
+            deps.now,
+            principal,
+          ),
         });
       } catch (error) {
         if (error instanceof DomainError && error.code === "not_found") {
@@ -350,7 +356,7 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
       if (!(await canReadTask(deps.db, principal, taskId))) {
         return json({ error: "not_found" }, 404);
       }
-      return json({ timers: await listReviewTimers(deps.db, deps.workspaceId, taskId) });
+      return json({ timers: await listReviewTimers(deps.db, deps.workspaceId, taskId, principal) });
     }
     if (rest === "/review-timers" && request.method === "POST") {
       if (!(await canReadTask(deps.db, principal, taskId))) {
@@ -617,6 +623,7 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
                   run.result_state, run.activity, run.resource_version, run.created_at
            FROM runs AS run JOIN tasks AS run_task
              ON run_task.workspace_id = run.workspace_id AND run_task.id = run.task_id
+             AND run_task.project_id = run.project_id
            WHERE run.workspace_id = ? AND run.task_id = ? AND run.purpose = 'work' AND ${predicate.sql}
              ${pagination.cursor ? "AND run.id > ?" : ""}
            ORDER BY run.id ASC LIMIT ?`,
@@ -643,6 +650,7 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
                 run.result_state, run.activity, run.resource_version, run.created_at
          FROM runs AS run JOIN tasks AS run_task
            ON run_task.workspace_id = run.workspace_id AND run_task.id = run.task_id
+           AND run_task.project_id = run.project_id
          WHERE run.workspace_id = ? AND run.id = ? AND run.purpose = 'work' AND ${predicate.sql}`,
       )
       .get(deps.workspaceId, runId, ...predicate.parameters)) as { project_id: string } | undefined;
@@ -660,7 +668,13 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
     if (rest === "/measurements" && request.method === "GET") {
       try {
         return json({
-          measurements: await getRunMeasurements(deps.db, deps.workspaceId, runId, deps.now),
+          measurements: await getRunMeasurements(
+            deps.db,
+            deps.workspaceId,
+            runId,
+            deps.now,
+            principal,
+          ),
         });
       } catch (error) {
         if (error instanceof DomainError && error.code === "not_found") {
@@ -681,10 +695,16 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
         return values.length ? Number(values[0]) : fallback;
       };
       return json(
-        await listRunMeasurementSources(deps.db, deps.workspaceId, runId, {
-          afterCursor: integer("after_cursor", 0),
-          limit: integer("limit", 100),
-        }),
+        await listRunMeasurementSources(
+          deps.db,
+          deps.workspaceId,
+          runId,
+          {
+            afterCursor: integer("after_cursor", 0),
+            limit: integer("limit", 100),
+          },
+          principal,
+        ),
       );
     }
     if (rest === "/activity" && request.method === "PATCH") {
@@ -707,13 +727,18 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
     if (rest === "/results" && request.method === "GET") {
       // V03 supplies current artifact versions so submissions bound to an
       // older artifact version read outdated without mutating history.
-      const evidenceVersions = await artifactEvidenceVersionMap(deps.db, deps.workspaceId);
+      const evidenceVersions = await artifactEvidenceVersionMap(
+        deps.db,
+        deps.workspaceId,
+        principal,
+      );
       return json({
         submissions: await listResultSubmissions(
           deps.db,
           deps.workspaceId,
           runId,
           evidenceVersions,
+          principal,
         ),
       });
     }
@@ -794,15 +819,19 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
     if (rest === "/snapshot" && request.method === "GET") {
       const snapshot = await deps.db
         .prepare(
-          `SELECT id, project_id, run_id, workspace_policy_version,
-                  project_policy_version, repository_config_version,
-                  agent_profile_id, agent_profile_version, canonical_json,
-                  content_hash, created_at
-           FROM run_configuration_snapshots
-           WHERE workspace_id = ? AND run_id = ?
-           ORDER BY snapshot_generation DESC LIMIT 1`,
+          `SELECT snapshot.id, snapshot.project_id, snapshot.run_id, snapshot.workspace_policy_version,
+                  snapshot.project_policy_version, snapshot.repository_config_version,
+                  snapshot.agent_profile_id, snapshot.agent_profile_version, snapshot.canonical_json,
+                  snapshot.content_hash, snapshot.created_at
+           FROM run_configuration_snapshots AS snapshot
+           JOIN runs AS run ON run.workspace_id = snapshot.workspace_id AND run.id = snapshot.run_id
+             AND run.project_id = snapshot.project_id
+           JOIN tasks AS run_task ON run_task.workspace_id = run.workspace_id
+             AND run_task.id = run.task_id AND run_task.project_id = run.project_id
+           WHERE snapshot.workspace_id = ? AND snapshot.run_id = ? AND ${predicate.sql}
+           ORDER BY snapshot.snapshot_generation DESC LIMIT 1`,
         )
-        .get(deps.workspaceId, runId);
+        .get(deps.workspaceId, runId, ...predicate.parameters);
       return snapshot ? json({ snapshot }) : json({ error: "not_found" }, 404);
     }
     if (rest === "/executions" && request.method === "GET") {
@@ -810,14 +839,20 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
       const limit = pagination.limit ?? 50;
       const rows = (await deps.db
         .prepare(
-          `SELECT id, run_id, state, end_reason, resource_version, created_at, ended_at
-           FROM run_executions WHERE workspace_id = ? AND run_id = ?
-             ${pagination.cursor ? "AND id > ?" : ""}
-           ORDER BY id ASC LIMIT ?`,
+          `SELECT execution.id, execution.run_id, execution.state, execution.end_reason,
+                  execution.resource_version, execution.created_at, execution.ended_at
+           FROM run_executions AS execution
+           JOIN runs AS run ON run.workspace_id = execution.workspace_id AND run.id = execution.run_id
+           JOIN tasks AS run_task ON run_task.workspace_id = run.workspace_id
+             AND run_task.id = run.task_id AND run_task.project_id = run.project_id
+           WHERE execution.workspace_id = ? AND execution.run_id = ? AND ${predicate.sql}
+             ${pagination.cursor ? "AND execution.id > ?" : ""}
+           ORDER BY execution.id ASC LIMIT ?`,
         )
         .all(
           deps.workspaceId,
           runId,
+          ...predicate.parameters,
           ...(pagination.cursor ? [pagination.cursor] : []),
           limit + 1,
         )) as Array<{ id: string }>;
@@ -832,15 +867,21 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
       const limit = pagination.limit ?? 50;
       const rows = (await deps.db
         .prepare(
-          `SELECT id, run_id, execution_id, provider, requested_session_id,
-                  observed_session_id, state, resource_version, started_at, ended_at
-           FROM provider_sessions WHERE workspace_id = ? AND run_id = ?
-             ${pagination.cursor ? "AND id > ?" : ""}
-           ORDER BY id ASC LIMIT ?`,
+          `SELECT session.id, session.run_id, session.execution_id, session.provider,
+                  session.requested_session_id, session.observed_session_id, session.state,
+                  session.resource_version, session.started_at, session.ended_at
+           FROM provider_sessions AS session
+           JOIN runs AS run ON run.workspace_id = session.workspace_id AND run.id = session.run_id
+           JOIN tasks AS run_task ON run_task.workspace_id = run.workspace_id
+             AND run_task.id = run.task_id AND run_task.project_id = run.project_id
+           WHERE session.workspace_id = ? AND session.run_id = ? AND ${predicate.sql}
+             ${pagination.cursor ? "AND session.id > ?" : ""}
+           ORDER BY session.id ASC LIMIT ?`,
         )
         .all(
           deps.workspaceId,
           runId,
+          ...predicate.parameters,
           ...(pagination.cursor ? [pagination.cursor] : []),
           limit + 1,
         )) as Array<{ id: string }>;

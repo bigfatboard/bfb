@@ -254,6 +254,7 @@ export async function handleCliHumanApi(request: Request, deps: CliHumanDeps): P
     // observes the intersection, never the member's full grant.
     const principal = {
       ...current,
+      authorizationEpoch: cli.authorizationEpoch,
       projectIds: current.projectIds.filter((id) => cli.projectIds.includes(id)),
     };
     const hubDeps = {
@@ -451,10 +452,16 @@ export async function handleCliHumanApi(request: Request, deps: CliHumanDeps): P
         throw new DomainError("invalid_argument", "attention state filter is invalid");
       }
       return json({
-        attention: await listAttention(deps.db, workspaceId, principal.projectIds, {
-          ...(rawState === null ? {} : { state: rawState as AttentionState }),
-          ...(pagination.limit === undefined ? {} : { limit: pagination.limit }),
-        }),
+        attention: await listAttention(
+          deps.db,
+          workspaceId,
+          principal.projectIds,
+          {
+            ...(rawState === null ? {} : { state: rawState as AttentionState }),
+            ...(pagination.limit === undefined ? {} : { limit: pagination.limit }),
+          },
+          principal,
+        ),
       });
     }
     const attentionMatch = /^\/api\/v1\/cli\/attention\/([^/]+)(\/.*)?$/.exec(path);
@@ -467,6 +474,7 @@ export async function handleCliHumanApi(request: Request, deps: CliHumanDeps): P
           workspaceId,
           principal.projectIds,
           attentionId,
+          principal,
         );
         if (!attention) return json({ error: "not_found" }, 404);
         return json({
@@ -476,6 +484,7 @@ export async function handleCliHumanApi(request: Request, deps: CliHumanDeps): P
             workspaceId,
             principal.projectIds,
             attentionId,
+            principal,
           ),
         });
       }
@@ -487,7 +496,9 @@ export async function handleCliHumanApi(request: Request, deps: CliHumanDeps): P
         ]);
         // The answer command re-resolves the full member grant; the binding
         // subset is enforced with a scoped read before dispatch.
-        if (!(await getAttention(deps.db, workspaceId, principal.projectIds, attentionId))) {
+        if (
+          !(await getAttention(deps.db, workspaceId, principal.projectIds, attentionId, principal))
+        ) {
           return json({ error: "not_found" }, 404);
         }
         const outcome = await execute(answerAttentionCommand, requestId(record), {
@@ -501,6 +512,7 @@ export async function handleCliHumanApi(request: Request, deps: CliHumanDeps): P
             workspaceId,
             principal.projectIds,
             attentionId,
+            principal,
           );
           return json({ ...outcome, ...(committed ? { attention: committed } : {}) }, 409);
         }
@@ -511,7 +523,9 @@ export async function handleCliHumanApi(request: Request, deps: CliHumanDeps): P
           "expected_version",
           "request_id",
         ]);
-        if (!(await getAttention(deps.db, workspaceId, principal.projectIds, attentionId))) {
+        if (
+          !(await getAttention(deps.db, workspaceId, principal.projectIds, attentionId, principal))
+        ) {
           return json({ error: "not_found" }, 404);
         }
         return outcomeResponse(
@@ -526,40 +540,64 @@ export async function handleCliHumanApi(request: Request, deps: CliHumanDeps): P
     if (request.method === "GET" && path === "/api/v1/cli/artifacts") {
       const runId = url.searchParams.get("run_id") ?? "";
       if (!runId) throw new DomainError("invalid_argument", "run_id is required");
+      const predicate = taskAccessPredicate(principal, "read", "artifact_task");
       const run = (await deps.db
-        .prepare(`SELECT id, project_id FROM runs WHERE workspace_id = ? AND id = ?`)
-        .get(workspaceId, runId)) as { id: string; project_id: string } | undefined;
+        .prepare(
+          `SELECT artifact_run.id, artifact_run.project_id, artifact_run.task_id
+           FROM runs AS artifact_run JOIN tasks AS artifact_task
+             ON artifact_task.workspace_id = artifact_run.workspace_id
+            AND artifact_task.id = artifact_run.task_id AND artifact_task.project_id = artifact_run.project_id
+           WHERE artifact_run.workspace_id = ? AND artifact_run.id = ? AND ${predicate.sql}`,
+        )
+        .get(workspaceId, runId, ...predicate.parameters)) as
+        { id: string; project_id: string; task_id: string } | undefined;
       if (!run || !principal.projectIds.includes(run.project_id)) {
         return json({ error: "not_found" }, 404);
       }
       const artifacts = (await deps.db
         .prepare(
-          `SELECT id, run_id, format, role, created_at FROM artifacts
-           WHERE workspace_id = ? AND run_id = ? ORDER BY created_at DESC, id DESC LIMIT 50`,
+          `SELECT artifact.id, artifact.run_id, artifact.format, artifact.role, artifact.created_at
+           FROM artifacts AS artifact JOIN runs AS artifact_run
+             ON artifact_run.workspace_id = artifact.workspace_id AND artifact_run.id = artifact.run_id
+           JOIN tasks AS artifact_task ON artifact_task.workspace_id = artifact_run.workspace_id
+             AND artifact_task.id = artifact_run.task_id AND artifact_task.project_id = artifact_run.project_id
+           WHERE artifact.workspace_id = ? AND artifact.run_id = ? AND ${predicate.sql}
+           ORDER BY artifact.created_at DESC, artifact.id DESC LIMIT 50`,
         )
-        .all(workspaceId, runId)) as Array<Record<string, unknown>>;
+        .all(workspaceId, runId, ...predicate.parameters)) as Array<Record<string, unknown>>;
       const versions = (await deps.db
         .prepare(
-          `SELECT id, artifact_id, state, format, declared_size, content_hash, created_at, available_at
-           FROM artifact_versions WHERE workspace_id = ? AND artifact_id IN (
-             SELECT id FROM artifacts WHERE workspace_id = ? AND run_id = ?
-           ) ORDER BY created_at DESC, id DESC LIMIT 100`,
+          `SELECT version.id, version.artifact_id, version.state, version.format, version.declared_size,
+                  version.content_hash, version.created_at, version.available_at
+           FROM artifact_versions AS version JOIN artifacts AS artifact
+             ON artifact.workspace_id = version.workspace_id AND artifact.id = version.artifact_id
+           JOIN runs AS artifact_run ON artifact_run.workspace_id = artifact.workspace_id
+             AND artifact_run.id = artifact.run_id
+           JOIN tasks AS artifact_task ON artifact_task.workspace_id = artifact_run.workspace_id
+             AND artifact_task.id = artifact_run.task_id AND artifact_task.project_id = artifact_run.project_id
+           WHERE version.workspace_id = ? AND artifact.run_id = ? AND ${predicate.sql}
+           ORDER BY version.created_at DESC, version.id DESC LIMIT 100`,
         )
-        .all(workspaceId, workspaceId, runId)) as Array<Record<string, unknown>>;
+        .all(workspaceId, runId, ...predicate.parameters)) as Array<Record<string, unknown>>;
+      await assertTaskChildAccess(deps.db, principal, run.task_id);
       return json({ artifacts, versions });
     }
     const artifactMatch = /^\/api\/v1\/cli\/artifacts\/([^/]+)$/.exec(path);
     if (artifactMatch && request.method === "GET") {
       const artifactId = artifactMatch[1] ?? "";
+      const predicate = taskAccessPredicate(principal, "read", "artifact_task");
       const artifact = (await deps.db
         .prepare(
           `SELECT artifact.id, artifact.run_id, artifact.format, artifact.role, artifact.created_at,
-                  run.project_id AS project_id
-           FROM artifacts AS artifact LEFT JOIN runs AS run
+                  run.project_id AS project_id, run.task_id AS task_id
+           FROM artifacts AS artifact JOIN runs AS run
              ON run.workspace_id = artifact.workspace_id AND run.id = artifact.run_id
-           WHERE artifact.workspace_id = ? AND artifact.id = ?`,
+           JOIN tasks AS artifact_task ON artifact_task.workspace_id = run.workspace_id
+             AND artifact_task.id = run.task_id AND artifact_task.project_id = run.project_id
+           WHERE artifact.workspace_id = ? AND artifact.id = ? AND ${predicate.sql}`,
         )
-        .get(workspaceId, artifactId)) as { project_id: string | null } | undefined;
+        .get(workspaceId, artifactId, ...predicate.parameters)) as
+        { project_id: string; task_id: string } | undefined;
       if (
         !artifact ||
         !artifact.project_id ||
@@ -569,12 +607,24 @@ export async function handleCliHumanApi(request: Request, deps: CliHumanDeps): P
       }
       const versions = (await deps.db
         .prepare(
-          `SELECT id, artifact_id, state, format, declared_size, content_hash, created_at, available_at
-           FROM artifact_versions WHERE workspace_id = ? AND artifact_id = ?
-           ORDER BY created_at DESC, id DESC`,
+          `SELECT version.id, version.artifact_id, version.state, version.format, version.declared_size,
+                  version.content_hash, version.created_at, version.available_at
+           FROM artifact_versions AS version JOIN artifacts AS parent_artifact
+             ON parent_artifact.workspace_id = version.workspace_id AND parent_artifact.id = version.artifact_id
+           JOIN runs AS artifact_run ON artifact_run.workspace_id = parent_artifact.workspace_id
+             AND artifact_run.id = parent_artifact.run_id
+           JOIN tasks AS artifact_task ON artifact_task.workspace_id = artifact_run.workspace_id
+             AND artifact_task.id = artifact_run.task_id AND artifact_task.project_id = artifact_run.project_id
+           WHERE version.workspace_id = ? AND version.artifact_id = ? AND ${predicate.sql}
+           ORDER BY version.created_at DESC, version.id DESC`,
         )
-        .all(workspaceId, artifactId)) as Array<Record<string, unknown>>;
-      const { project_id: _dropped, ...artifactView } = artifact as Record<string, unknown>;
+        .all(workspaceId, artifactId, ...predicate.parameters)) as Array<Record<string, unknown>>;
+      await assertTaskChildAccess(deps.db, principal, artifact.task_id);
+      const {
+        project_id: _project,
+        task_id: _task,
+        ...artifactView
+      } = artifact as Record<string, unknown>;
       return json({ artifact: artifactView, versions });
     }
 

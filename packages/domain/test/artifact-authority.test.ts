@@ -820,13 +820,15 @@ describe("consume-bound physical receipts", () => {
     expect(raw.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
   });
 
-  it("retains a verified physical fact after membership changes but does not grant finalization", async () => {
+  it("rejects new verified receipt effects after membership changes without granting finalization", async () => {
     const f = await fixture();
     const { created, input } = await consumed(f);
     f.raw
       .prepare("UPDATE workspace_authorization_epochs SET revoked_at=? WHERE human_id=?")
       .run(NOW, FIX.owner);
-    await f.db.withTransaction((tx) => recordVerifiedUpload(tx, input));
+    await expect(f.db.withTransaction((tx) => recordVerifiedUpload(tx, input))).rejects.toThrow();
+    expect(f.raw.prepare("SELECT * FROM artifact_upload_receipts").all()).toEqual([]);
+    expect(f.raw.prepare("SELECT * FROM artifact_upload_receipt_sources").all()).toEqual([]);
     expect(
       await f.human(finalizeArtifactCommand, {
         versionId: created.version_id,

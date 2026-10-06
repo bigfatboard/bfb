@@ -13,6 +13,15 @@ import {
 } from "./measurement-tokens.js";
 import type { MeasurementProvider, TokenObservation, TokenQuality } from "./measurements.js";
 import { runnerHash } from "./runner-crypto.js";
+import { sharedTaskPredicate, taskAccessPredicate, type TaskAccessContext } from "./task-access.js";
+
+function sourceTaskPredicate(workspaceId: string, access?: TaskAccessContext) {
+  if (access && access.workspaceId !== workspaceId)
+    throw new DomainError("not_found", "run not found");
+  return access
+    ? taskAccessPredicate(access, "read")
+    : { sql: sharedTaskPredicate(), parameters: [] };
+}
 
 export interface PreparedMeasurementSource {
   sourceKey: string;
@@ -189,17 +198,22 @@ export async function listRunMeasurementActivitySources(
   db: SqlDatabase,
   workspaceId: string,
   runId: string,
+  access?: TaskAccessContext,
 ): Promise<MeasurementActivitySource[]> {
+  const predicate = sourceTaskPredicate(workspaceId, access);
   const rows = (await db
     .prepare(
       `SELECT s.event_id, s.run_execution_id, s.assignment_generation, s.provider_session_id,
     e.kind, e.occurred_at, s.identity AS activity_id, s.family, s.phase,
     s.parent_turn_id FROM measurement_sources s
     JOIN event_ledger e ON e.workspace_id = s.workspace_id AND e.event_id = s.event_id
-    WHERE s.workspace_id = ? AND s.run_id = ? AND s.family IN ('turn', 'tool')
+    JOIN runs AS run ON run.workspace_id = s.workspace_id AND run.id = s.run_id
+    JOIN tasks AS task ON task.workspace_id = run.workspace_id AND task.id = run.task_id
+      AND task.project_id = run.project_id
+    WHERE s.workspace_id = ? AND s.run_id = ? AND s.family IN ('turn', 'tool') AND ${predicate.sql}
     ORDER BY e.workspace_cursor`,
     )
-    .all(workspaceId, runId)) as Array<
+    .all(workspaceId, runId, ...predicate.parameters)) as Array<
     Omit<MeasurementActivitySource, "parent_turn_id"> & { parent_turn_id: string | null }
   >;
   return rows.map(({ parent_turn_id, ...row }) => ({
@@ -224,17 +238,31 @@ export interface MeasurementSourceReference {
   parent_turn_id?: string;
 }
 
-/** Caller authorizes the exact run; returns canonical sources only, without raw usage or alias events. */
+/** Current parent authority precedes pagination; omitted authority admits shared tasks only. */
 export async function listRunMeasurementSources(
   db: SqlDatabase,
   workspaceId: string,
   runId: string,
   options: { afterCursor?: number; limit?: number } = {},
+  access?: TaskAccessContext,
 ): Promise<{
   sources: MeasurementSourceReference[];
   has_more: boolean;
   next_cursor: number;
 }> {
+  const predicate = sourceTaskPredicate(workspaceId, access);
+  const authorize = async () => {
+    const run = await db
+      .prepare(
+        `SELECT run.id FROM runs AS run
+        JOIN tasks AS task ON task.workspace_id = run.workspace_id AND task.id = run.task_id
+          AND task.project_id = run.project_id
+        WHERE run.workspace_id = ? AND run.id = ? AND ${predicate.sql}`,
+      )
+      .get(workspaceId, runId, ...predicate.parameters);
+    if (!run) throw new DomainError("not_found", "run not found");
+  };
+  await authorize();
   const after = options.afterCursor ?? 0,
     limit = options.limit ?? 100;
   if (
@@ -251,10 +279,16 @@ export async function listRunMeasurementSources(
       `SELECT s.*, e.workspace_cursor, e.kind, e.occurred_at
     FROM measurement_sources s JOIN event_ledger e
     ON e.workspace_id = s.workspace_id AND e.event_id = s.event_id
-    WHERE s.workspace_id = ? AND s.run_id = ? AND e.workspace_cursor > ?
+    JOIN runs AS run ON run.workspace_id = s.workspace_id AND run.id = s.run_id
+    JOIN tasks AS task ON task.workspace_id = run.workspace_id AND task.id = run.task_id
+      AND task.project_id = run.project_id
+    WHERE s.workspace_id = ? AND s.run_id = ? AND e.workspace_cursor > ? AND ${predicate.sql}
     ORDER BY e.workspace_cursor LIMIT ?`,
     )
-    .all(workspaceId, runId, after, limit + 1)) as Record<string, unknown>[];
+    .all(workspaceId, runId, after, ...predicate.parameters, limit + 1)) as Record<
+    string,
+    unknown
+  >[];
   const sources = rows.slice(0, limit).map((row): MeasurementSourceReference => ({
     event_id: String(row.event_id),
     committed_cursor: Number(row.workspace_cursor),
@@ -271,6 +305,7 @@ export async function listRunMeasurementSources(
       : { activity_id: String(row.identity) }),
     ...(row.parent_turn_id === null ? {} : { parent_turn_id: String(row.parent_turn_id) }),
   }));
+  await authorize();
   return {
     sources,
     has_more: rows.length > limit,

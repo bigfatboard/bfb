@@ -74,10 +74,10 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
     "bfb_list_projects",
     {
       description: "List projects accessible to the authenticated delegation",
-      inputSchema: {
+      inputSchema: z.strictObject({
         limit: z.number().int().min(1).max(100).optional(),
         cursor: z.string().max(128).optional(),
-      },
+      }),
     },
     async ({ limit, cursor }) => {
       assertScope(deps.delegation, "bfb:read");
@@ -317,7 +317,7 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
     {
       description:
         "Request human attention for a run inside the delegated boundary. The authorizing human is recorded as requester; read the answer with bfb_get_attention. Cannot answer or resolve.",
-      inputSchema: {
+      inputSchema: z.strictObject({
         run_id: z.string().min(1).max(128),
         kind: z.enum(ATTENTION_KINDS),
         question: z.string().min(1).max(2048),
@@ -325,7 +325,7 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
         reference_id: z.string().min(1).max(128).optional(),
         blocking: z.boolean(),
         request_id: z.string().min(1).max(128),
-      },
+      }),
     },
     async ({ run_id, kind, question, reference_kind, reference_id, blocking, request_id }) => {
       assertScope(deps.delegation, "bfb:task:write");
@@ -356,7 +356,7 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
     "bfb_get_attention",
     {
       description: "Read one attention request inside the delegated boundary",
-      inputSchema: { attention_id: z.string().min(1).max(128) },
+      inputSchema: z.strictObject({ attention_id: z.string().min(1).max(128) }),
     },
     async ({ attention_id }) => {
       assertScope(deps.delegation, "bfb:read");
@@ -368,6 +368,7 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
         deps.delegation.workspaceId,
         scopedProjectIds,
         attention_id,
+        taskAccess,
       );
       if (!record) {
         return {
@@ -387,13 +388,13 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
     {
       description:
         "Submit an immutable result for a run inside the delegated boundary. Records the authorizing human as submitter and never mints agent_run identity. Cannot review, accept, fail, or cancel.",
-      inputSchema: {
+      inputSchema: z.strictObject({
         run_id: z.string().min(1).max(128),
         summary: z.string().min(1).max(2048),
         limitations: z.string().max(2048).optional(),
         evidence_refs: z
           .array(
-            z.object({
+            z.strictObject({
               kind: z.string().min(1).max(64),
               ref: z.string().min(1).max(512),
               version: z.string().min(1).max(128).optional(),
@@ -406,7 +407,7 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
         git_commit: z.string().min(1).max(256).optional(),
         git_dirty: z.boolean().optional(),
         request_id: z.string().min(1).max(128),
-      },
+      }),
     },
     async ({
       run_id,
@@ -457,7 +458,7 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
     {
       description:
         "Start an artifact publication for a run inside the delegated boundary. Returns a one-time upload grant secret; upload bytes to the deployment Artifact Worker, then call bfb_finalize_artifact. Cannot approve or review.",
-      inputSchema: {
+      inputSchema: z.strictObject({
         artifact_id: z.string().min(1).max(128).optional(),
         run_id: z.string().min(1).max(128),
         format: z.enum(ARTIFACT_FORMATS),
@@ -469,7 +470,7 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
           .max(5 * 1024 * 1024),
         expected_digest: z.string().min(1).max(128),
         request_id: z.string().min(1).max(128),
-      },
+      }),
     },
     async ({ artifact_id, run_id, format, role, declared_size, expected_digest, request_id }) => {
       assertScope(deps.delegation, "bfb:task:write");
@@ -527,7 +528,7 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
     {
       description:
         "Finalize a delegated artifact version after the Artifact Worker verified the uploaded bytes. Requires a run-bound version inside the delegated boundary.",
-      inputSchema: {
+      inputSchema: z.strictObject({
         version_id: z.string().min(1).max(128),
         content_hash: z.string().min(1).max(128),
         size: z
@@ -536,7 +537,7 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
           .min(1)
           .max(5 * 1024 * 1024),
         request_id: z.string().min(1).max(128),
-      },
+      }),
     },
     async ({ version_id, content_hash, size, request_id }) => {
       assertScope(deps.delegation, "bfb:task:write");

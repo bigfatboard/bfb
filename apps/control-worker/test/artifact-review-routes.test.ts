@@ -3,7 +3,7 @@
 
 import { createHash } from "node:crypto";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   createArtifactCommand,
@@ -182,10 +182,13 @@ async function fixture(overrides: Partial<ControlBindings> = {}) {
       content_hash: hash,
     };
   }
-  async function taskAndRun(projectId = FIX.projectA): Promise<{ taskId: string; runId: string }> {
+  async function taskAndRun(
+    projectId = FIX.projectA,
+    creator = FIX.owner,
+  ): Promise<{ taskId: string; runId: string }> {
     const task = await hub.execute(createTaskCommand, {
       workspaceId: FIX.workspace,
-      actorHumanId: FIX.owner,
+      actorHumanId: creator,
       authorizationEpoch: 1,
       now: NOW,
       idempotencyKey: randomUlid(),
@@ -375,9 +378,121 @@ describe("artifact review routes", () => {
       f.reviewBody(version),
       { cookie: f.reviewer.cookie, csrf: f.reviewerCsrf },
     );
-    expect(denied.status).toBe(403);
-    expect(((await denied.json()) as { error: string }).error).toBe("forbidden");
+    expect(denied.status).toBe(404);
+    const absent = await f.request(`${f.prefix}/${randomUlid()}/reviews`, f.reviewBody(version), {
+      cookie: f.reviewer.cookie,
+      csrf: f.reviewerCsrf,
+    });
+    expect(absent.status).toBe(404);
+    expect(await denied.json()).toEqual(await absent.json());
   });
+
+  it.each(["artifact", "independent_timer"] as const)(
+    "rechecks the %s parent after timer hydration",
+    async (subject) => {
+      const f = await fixture();
+      const scoped = await f.taskAndRun(FIX.projectA, FIX.member);
+      const version = await f.available(
+        "private-route-timer",
+        subject === "artifact" ? scoped.runId : null,
+      );
+      await f.context.db
+        .prepare(
+          `INSERT INTO task_privacy
+      (workspace_id, task_id, owner_human_id, created_at) VALUES (?, ?, ?, ?)`,
+        )
+        .run(FIX.workspace, scoped.taskId, FIX.member, NOW);
+      const grantId = randomUlid();
+      await f.context.db
+        .prepare(
+          `INSERT INTO task_human_grants
+      (workspace_id, id, task_id, human_id, authorization_epoch, permission, created_at)
+      VALUES (?, ?, ?, ?, 1, 'contribute', ?)`,
+        )
+        .run(FIX.workspace, grantId, scoped.taskId, FIX.owner, NOW);
+      const timerResponse = await f.request(
+        `/api/v1/workspaces/${FIX.workspace}/tasks/${scoped.taskId}/review-timers`,
+        { request_id: "private-review-timer", run_id: scoped.runId },
+      );
+      expect(timerResponse.status).toBe(200);
+      const timer = (await timerResponse.json()) as { result: { id: string } };
+      const observation = (await f.context.db
+        .prepare(
+          `SELECT observation_id
+      FROM review_timer_observations WHERE workspace_id = ? AND timer_id = ?`,
+        )
+        .get(FIX.workspace, timer.result.id)) as { observation_id: string };
+      const reviewed = await f.request(
+        `${f.prefix}/${version.artifact_id}/reviews`,
+        f.reviewBody(version, {
+          comment: "SYNTHETIC_PRIVATE_REVIEW_CANARY",
+          review_timer_observation_id: observation.observation_id,
+        }),
+      );
+      expect(reviewed.status).toBe(201);
+      const prepare = f.context.db.prepare.bind(f.context.db);
+      let revoked = false;
+      let hydrated = false;
+      const revokeOnce = async () => {
+        if (!revoked) {
+          revoked = true;
+          await prepare("UPDATE task_human_grants SET revoked_at = ? WHERE id = ?").run(
+            NOW,
+            grantId,
+          );
+        }
+      };
+      const spy = vi.spyOn(f.context.db, "prepare").mockImplementation((query) => {
+        const statement = prepare(query);
+        return {
+          ...statement,
+          get: async (...parameters: unknown[]) => {
+            if (
+              subject === "artifact" &&
+              /SELECT observation\.observation_id, observation\.timer_id/.test(query)
+            )
+              await revokeOnce();
+            const row = await statement.get(...parameters);
+            if (/SELECT timer\.\* FROM review_timers AS timer JOIN tasks/.test(query))
+              hydrated = true;
+            return row;
+          },
+          all: async (...parameters: unknown[]) => {
+            if (
+              subject === "independent_timer" &&
+              hydrated &&
+              query.includes("FROM artifacts AS artifact LEFT JOIN artifact_reviews AS review")
+            )
+              await revokeOnce();
+            return statement.all(...parameters);
+          },
+        };
+      });
+      try {
+        const delivered = await f.request(
+          `${f.prefix}/${version.artifact_id}/reviews`,
+          undefined,
+          undefined,
+          "GET",
+        );
+        expect(revoked).toBe(true);
+        if (subject === "artifact") {
+          expect(delivered.status).toBe(404);
+          expect(await delivered.text()).not.toContain("SYNTHETIC_PRIVATE_REVIEW_CANARY");
+        } else {
+          expect(delivered.status).toBe(200);
+          const body = await delivered.text();
+          expect(body).toContain("SYNTHETIC_PRIVATE_REVIEW_CANARY");
+          expect(body).not.toContain(observation.observation_id);
+          expect(body).not.toContain(timer.result.id);
+          expect(body).not.toContain(scoped.taskId);
+          expect(JSON.parse(body).reviews[0].review_timer_observation_id).toBeNull();
+        }
+      } finally {
+        spy.mockRestore();
+      }
+    },
+  );
 
   it("hides out-of-scope artifacts from review reads", async () => {
     const f = await fixture();

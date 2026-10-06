@@ -2,6 +2,7 @@
 // ABOUTME: Provider, session, and process endings never submit or accept; only these commands do.
 
 import { assertEpoch, assertProjectAccess, assertRole, loadPrincipal } from "./authorization.js";
+import type { SqlDatabase } from "@bfb/db";
 import type { AgentEffectOrigin } from "@bfb/protocol";
 import { authorizeAgentResult, type AgentResultInput } from "./agent-results.js";
 import { canonicalLaunchJson, readLaunch } from "./launch-state.js";
@@ -10,6 +11,14 @@ import { DomainError, type HubCommand, type HubContext } from "./hub.js";
 import { isUlid, randomUlid } from "./ids.js";
 import { getTask } from "./work-commands.js";
 import { assertRunResultTransition, type ExecutionEndReason } from "./work-records.js";
+import { agentTaskAccess } from "./agent-work.js";
+import {
+  assertTaskAccess,
+  sharedTaskPredicate,
+  taskAccessPredicate,
+  type TaskAccessAction,
+  type TaskAccessContext,
+} from "./task-access.js";
 
 export const MAX_RESULT_SUMMARY_CHARS = 2048;
 export const MAX_RESULT_LIMITATIONS_CHARS = 2048;
@@ -240,8 +249,11 @@ async function readRun(ctx: HubContext, runId: string): Promise<RunRow> {
   }
   const run = (await ctx.db
     .prepare(
-      `SELECT id, project_id, task_id, result_state, resource_version
-       FROM runs WHERE workspace_id = ? AND id = ? AND purpose = 'work'`,
+      `SELECT run.id, run.project_id, run.task_id, run.result_state, run.resource_version
+       FROM runs AS run JOIN tasks AS task
+         ON task.workspace_id = run.workspace_id AND task.id = run.task_id
+         AND task.project_id = run.project_id
+       WHERE run.workspace_id = ? AND run.id = ? AND run.purpose = 'work'`,
     )
     .get(ctx.workspaceId, runId)) as RunRow | undefined;
   if (!run) {
@@ -282,6 +294,7 @@ async function resolveSubmitter(ctx: HubContext, run: RunRow): Promise<ResultSub
     assertEpoch(principal, ctx.authorizationEpoch);
     assertRole(principal, ["owner", "member"]);
     assertProjectAccess(principal, run.project_id);
+    await assertTaskAccess(ctx.db, principal, run.task_id, "contribute");
     return { kind: "human", id: principal.humanId };
   }
   throw new DomainError("forbidden", "result submission requires a human or runner authority");
@@ -291,6 +304,7 @@ async function resolveReviewer(
   ctx: HubContext,
   run: RunRow,
   decisions: Array<"owner" | "member" | "reviewer">,
+  action: TaskAccessAction = "contribute",
 ): Promise<string> {
   if (!ctx.actorHumanId || ctx.actorDelegationId || ctx.actorRunnerId || ctx.actorSystemId) {
     throw new DomainError("forbidden", "direct authorized human required");
@@ -299,6 +313,7 @@ async function resolveReviewer(
   assertEpoch(principal, ctx.authorizationEpoch);
   assertRole(principal, decisions);
   assertProjectAccess(principal, run.project_id);
+  await assertTaskAccess(ctx.db, principal, run.task_id, action);
   return principal.humanId;
 }
 
@@ -365,6 +380,7 @@ async function submissionAuthority(input: ResultSubmissionInput, ctx: HubContext
         assignment_generation: row.assignment_generation,
         provider_session_id: request.binding.provider_session_id,
       } satisfies AgentEffectOrigin,
+      access: agentTaskAccess(row),
     };
   }
   const run = await readRun(ctx, input.runId);
@@ -372,6 +388,11 @@ async function submissionAuthority(input: ResultSubmissionInput, ctx: HubContext
     fields: input,
     run,
     submitter: await resolveSubmitter(ctx, run),
+    access: {
+      workspaceId: ctx.workspaceId,
+      humanId: ctx.actorHumanId!,
+      authorizationEpoch: ctx.authorizationEpoch,
+    },
     snapshot: undefined,
     origin: undefined,
   };
@@ -386,11 +407,128 @@ function validateSubmission(input: SubmitResultInput) {
     git: gitFacts(input),
   };
 }
+
+type ResultReadDb = {
+  prepare(query: string): {
+    get(...params: unknown[]): Promise<unknown>;
+    all(...params: unknown[]): Promise<unknown[]>;
+  };
+};
+
+async function artifactEvidenceSource(db: ResultReadDb, workspaceId: string, ref: EvidenceRef) {
+  const readArtifact = async (artifactId: string) =>
+    (await db
+      .prepare(
+        `SELECT artifact.id, artifact.run_id, run.task_id,
+      task.id AS parent_id,
+      EXISTS (SELECT 1 FROM task_privacy AS policy
+        WHERE policy.workspace_id = task.workspace_id AND policy.task_id = task.id) AS is_private
+    FROM artifacts AS artifact
+    LEFT JOIN runs AS run ON run.workspace_id = artifact.workspace_id AND run.id = artifact.run_id
+    LEFT JOIN tasks AS task ON task.workspace_id = run.workspace_id AND task.id = run.task_id
+      AND task.project_id = run.project_id
+    WHERE artifact.workspace_id = ? AND artifact.id = ?`,
+      )
+      .get(workspaceId, artifactId)) as
+      | {
+          id: string;
+          run_id: string | null;
+          task_id: string | null;
+          parent_id: string | null;
+          is_private: number;
+        }
+      | undefined;
+  let artifactId = ref.ref;
+  let artifact = await readArtifact(artifactId);
+  let version =
+    ref.version === undefined
+      ? undefined
+      : ((await db
+          .prepare("SELECT artifact_id FROM artifact_versions WHERE workspace_id = ? AND id = ?")
+          .get(workspaceId, ref.version)) as { artifact_id: string } | undefined);
+  // V03 also recognizes a version ID in ref without a separate version field.
+  // A directly named artifact takes precedence; unknown IDs remain opaque.
+  if (!artifact && ref.version === undefined) {
+    version = (await db
+      .prepare("SELECT artifact_id FROM artifact_versions WHERE workspace_id = ? AND id = ?")
+      .get(workspaceId, ref.ref)) as { artifact_id: string } | undefined;
+    if (version) {
+      artifactId = version.artifact_id;
+      artifact = await readArtifact(artifactId);
+    }
+  }
+  return { artifact, version, artifactId };
+}
+
+/** Unknown evidence kinds/IDs stay opaque; known private artifacts cannot publish across tasks. */
+export async function authorizeResultEvidence(
+  db: SqlDatabase,
+  workspaceId: string,
+  taskId: string,
+  refs: EvidenceRef[],
+  access: TaskAccessContext,
+): Promise<void> {
+  for (const ref of refs) {
+    if (ref.kind !== "artifact_version") continue;
+    const { artifact, version, artifactId } = await artifactEvidenceSource(db, workspaceId, ref);
+    if (version && version.artifact_id !== artifactId)
+      throw new DomainError("invalid_argument", "evidence version does not belong to artifact");
+    if (!artifact || artifact.run_id === null) continue;
+    if (!artifact.parent_id || (artifact.is_private === 1 && artifact.task_id !== taskId))
+      throw new DomainError("not_found", "evidence artifact not found");
+    await assertTaskAccess(db, access, artifact.parent_id, "read");
+  }
+}
+
+function resultEvidenceProjection(access?: TaskAccessContext) {
+  const predicate = access
+    ? taskAccessPredicate(access, "read", "source_task")
+    : { sql: sharedTaskPredicate("source_task"), parameters: [] };
+  // Every submission has at most twenty refs. Resolve those exact identities,
+  // including the supported version-ID alias, in the content-bearing query so
+  // a source revoke cannot interleave a separate final target-authority read.
+  return {
+    sql: `(SELECT json_group_array(json(evidence.value))
+      FROM json_each(submission.evidence_refs_json) AS evidence
+      LEFT JOIN artifacts AS named_artifact
+        ON named_artifact.workspace_id = submission.workspace_id
+          AND named_artifact.id = json_extract(evidence.value, '$.ref')
+      LEFT JOIN artifact_versions AS alias_version
+        ON alias_version.workspace_id = submission.workspace_id
+          AND alias_version.id = json_extract(evidence.value, '$.ref')
+          AND named_artifact.id IS NULL AND json_extract(evidence.value, '$.version') IS NULL
+      LEFT JOIN artifact_versions AS bound_version
+        ON bound_version.workspace_id = submission.workspace_id
+          AND bound_version.id = json_extract(evidence.value, '$.version')
+      LEFT JOIN artifacts AS source_artifact
+        ON source_artifact.workspace_id = submission.workspace_id
+          AND source_artifact.id = COALESCE(named_artifact.id, alias_version.artifact_id)
+      WHERE json_extract(evidence.value, '$.kind') <> 'artifact_version' OR (
+        (bound_version.id IS NULL OR bound_version.artifact_id = json_extract(evidence.value, '$.ref'))
+        AND (source_artifact.id IS NULL OR source_artifact.run_id IS NULL OR EXISTS (
+          SELECT 1 FROM runs AS source_run JOIN tasks AS source_task
+            ON source_task.workspace_id = source_run.workspace_id AND source_task.id = source_run.task_id
+              AND source_task.project_id = source_run.project_id
+          WHERE source_run.workspace_id = source_artifact.workspace_id
+            AND source_run.id = source_artifact.run_id AND ${predicate.sql}
+        ))
+      ))`,
+    parameters: predicate.parameters,
+  };
+}
+
 export const submitResultCommand: HubCommand<ResultSubmissionInput, SubmitResultResult> = {
   name: "result.submit",
   authorize: async (input, ctx) => {
     const authority = await submissionAuthority(input, ctx);
-    validateSubmission(authority.fields);
+    const { refs } = validateSubmission(authority.fields);
+    await authorizeResultEvidence(
+      ctx.db,
+      ctx.workspaceId,
+      authority.run.task_id,
+      refs,
+      authority.access,
+    );
   },
   inputFingerprint: (input) => resultFingerprint("request" in input ? input.request : input),
   auditInput: (input) =>
@@ -424,11 +562,12 @@ export const submitResultCommand: HubCommand<ResultSubmissionInput, SubmitResult
   async run(input, ctx) {
     const authority = await submissionAuthority(input, ctx);
     const { run, submitter } = authority;
-    const task = await getTask(ctx.db, ctx.workspaceId, run.task_id);
+    const task = await getTask(ctx.db, ctx.workspaceId, run.task_id, authority.access);
     if (!task) {
       throw new DomainError("not_found", "task not found");
     }
     const { summary, limitations, refs, git } = validateSubmission(authority.fields);
+    await authorizeResultEvidence(ctx.db, ctx.workspaceId, run.task_id, refs, authority.access);
     assertRunResultTransition(run.result_state as "open", "submitted");
     if (task.state !== "active") {
       throw new DomainError("invalid_transition", "submission requires an active task");
@@ -558,7 +697,11 @@ async function reviewRun(
     throw new DomainError("invalid_transition", "review requires a submitted run");
   }
   assertRunResultTransition("submitted", decision === "accept" ? "accepted" : "changes_requested");
-  const task = await getTask(ctx.db, ctx.workspaceId, run.task_id);
+  const task = await getTask(ctx.db, ctx.workspaceId, run.task_id, {
+    workspaceId: ctx.workspaceId,
+    humanId: reviewer,
+    authorizationEpoch: ctx.authorizationEpoch,
+  });
   if (!task || task.state !== "review") {
     throw new DomainError("invalid_transition", "review requires a task in review");
   }
@@ -638,7 +781,7 @@ const reviewAuditInput = (input: ReviewResultInput) => ({
   commentLength: typeof input.comment === "string" ? [...input.comment].length : 0,
 });
 async function closeAuthority(input: CloseRunInput, ctx: HubContext) {
-  await resolveReviewer(ctx, await readRun(ctx, input.runId), ["owner", "member"]);
+  await resolveReviewer(ctx, await readRun(ctx, input.runId), ["owner", "member"], "edit");
   versionNumber(input.expectedRunVersion, "expected run version");
 }
 export const requestChangesCommand: HubCommand<ReviewResultInput, ReviewResultResult> = {
@@ -667,7 +810,7 @@ export const failRunCommand: HubCommand<CloseRunInput, { runResultState: "failed
   inputFingerprint: resultFingerprint,
   async run(input, ctx) {
     const run = await readRun(ctx, input.runId);
-    await resolveReviewer(ctx, run, ["owner", "member"]);
+    await resolveReviewer(ctx, run, ["owner", "member"], "edit");
     assertRunResultTransition(run.result_state as "open", "failed");
     const expected = versionNumber(input.expectedRunVersion, "expected run version");
     if (run.resource_version !== expected) {
@@ -689,7 +832,7 @@ export const cancelRunCommand: HubCommand<CloseRunInput, { runResultState: "canc
   inputFingerprint: resultFingerprint,
   async run(input, ctx) {
     const run = await readRun(ctx, input.runId);
-    await resolveReviewer(ctx, run, ["owner", "member"]);
+    await resolveReviewer(ctx, run, ["owner", "member"], "edit");
     assertRunResultTransition(run.result_state as "open", "cancelled");
     const expected = versionNumber(input.expectedRunVersion, "expected run version");
     if (run.resource_version !== expected) {
@@ -717,7 +860,7 @@ export interface SubmissionView extends SubmissionRecord {
  * `config_changed` means the bound config hash differs from the run's
  * latest snapshot, and `evidence_changed` compares bound ref versions
  * against the caller-supplied current version map (`kind\nref` → version).
- * A03 resolves no referents itself; V01 supplies artifact versions here.
+ * Known artifact sources are current-ACL selected; other evidence stays opaque.
  */
 export async function listResultSubmissions(
   db: {
@@ -729,17 +872,39 @@ export async function listResultSubmissions(
   workspaceId: string,
   runId: string,
   currentEvidenceVersions: ReadonlyMap<string, string> = new Map(),
+  access?: TaskAccessContext,
 ): Promise<SubmissionView[]> {
+  const predicate = access
+    ? taskAccessPredicate(access, "read", "task")
+    : { sql: sharedTaskPredicate("task"), parameters: [] };
+  const current = await db
+    .prepare(
+      `SELECT run.id FROM runs AS run JOIN tasks AS task
+    ON task.workspace_id = run.workspace_id AND task.id = run.task_id
+      AND task.project_id = run.project_id
+    WHERE run.workspace_id = ? AND run.id = ? AND ${predicate.sql}`,
+    )
+    .get(workspaceId, runId, ...predicate.parameters);
+  if (!current) return [];
+  const evidence = resultEvidenceProjection(access);
   const rows = (await db
     .prepare(
-      `SELECT id, run_id, version, summary, limitations, evidence_refs_json,
-              git_branch, git_commit, git_dirty, config_snapshot_id, config_hash,
-              submitted_by_kind, submitted_by_id, submitted_at
-       FROM result_submissions
-       WHERE workspace_id = ? AND run_id = ?
-       ORDER BY version DESC`,
+      `SELECT submission.id, submission.run_id, submission.version, submission.summary,
+              submission.limitations, ${evidence.sql} AS evidence_refs_json,
+              submission.git_branch, submission.git_commit, submission.git_dirty,
+              submission.config_snapshot_id, submission.config_hash,
+              submission.submitted_by_kind, submission.submitted_by_id, submission.submitted_at,
+              (SELECT snapshot.content_hash FROM run_configuration_snapshots AS snapshot
+               WHERE snapshot.workspace_id = run.workspace_id AND snapshot.run_id = run.id
+               ORDER BY snapshot.snapshot_generation DESC LIMIT 1) AS current_config_hash
+       FROM result_submissions AS submission
+       JOIN runs AS run ON run.workspace_id = submission.workspace_id AND run.id = submission.run_id
+       JOIN tasks AS task ON task.workspace_id = run.workspace_id
+         AND task.id = run.task_id AND task.project_id = run.project_id
+       WHERE submission.workspace_id = ? AND submission.run_id = ? AND ${predicate.sql}
+       ORDER BY submission.version DESC`,
     )
-    .all(workspaceId, runId)) as Array<{
+    .all(...evidence.parameters, workspaceId, runId, ...predicate.parameters)) as Array<{
     id: string;
     run_id: string;
     version: number;
@@ -754,21 +919,16 @@ export async function listResultSubmissions(
     submitted_by_kind: "agent_run" | "human";
     submitted_by_id: string;
     submitted_at: string;
+    current_config_hash: string | null;
   }>;
-  const snapshot = (await db
-    .prepare(
-      `SELECT content_hash FROM run_configuration_snapshots
-       WHERE workspace_id = ? AND run_id = ?
-       ORDER BY snapshot_generation DESC LIMIT 1`,
-    )
-    .get(workspaceId, runId)) as { content_hash: string } | undefined;
-  return rows.map((row, index) => {
+  const views: SubmissionView[] = [];
+  for (const [index, row] of rows.entries()) {
     const record = submissionRow(row);
     const reasons: SubmissionView["outdated_reasons"] = [];
     if (index > 0) {
       reasons.push("superseded");
     }
-    if (snapshot && record.config_hash !== snapshot.content_hash) {
+    if (row.current_config_hash && record.config_hash !== row.current_config_hash) {
       reasons.push("config_changed");
     }
     for (const ref of record.evidence_refs) {
@@ -781,11 +941,12 @@ export async function listResultSubmissions(
         break;
       }
     }
-    return {
+    views.push({
       ...record,
       superseded: index > 0,
       outdated: reasons.length > 0,
       outdated_reasons: reasons,
-    };
-  });
+    });
+  }
+  return views;
 }

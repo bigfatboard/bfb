@@ -8,6 +8,8 @@ import { DomainError, type HubCommand, type HubContext } from "./hub.js";
 import { isUlid, randomUlid } from "./ids.js";
 import { canonicalLaunchJson } from "./launch-state.js";
 import { runnerHash } from "./runner-crypto.js";
+import { artifactAccessPredicate } from "./artifacts.js";
+import { sharedTaskPredicate, taskAccessPredicate, type TaskAccessContext } from "./task-access.js";
 
 export const REVIEW_DECISIONS = ["approve", "request_changes", "comment"] as const;
 export type ReviewDecision = (typeof REVIEW_DECISIONS)[number];
@@ -28,6 +30,12 @@ const REVIEW_INPUT_FIELDS = [
   "configHash",
   "reviewTimerObservationId",
 ] as const;
+
+// Historical timer rows are not proof of an exact run/task association.
+const timerRunRelation = `(timer.run_id IS NULL OR EXISTS (
+  SELECT 1 FROM runs AS timer_run WHERE timer_run.workspace_id = timer.workspace_id
+    AND timer_run.id = timer.run_id AND timer_run.task_id = timer_task.id
+    AND timer_run.project_id = timer_task.project_id))`;
 
 export interface RecordReviewInput {
   artifactId: string;
@@ -170,9 +178,18 @@ async function requireArtifact(ctx: HubContext, artifactId: unknown): Promise<Ar
   if (typeof artifactId !== "string" || !isUlid(artifactId)) {
     throw new DomainError("not_found", "artifact not found");
   }
+  if (!ctx.actorHumanId || ctx.actorDelegationId || ctx.actorRunnerId || ctx.actorSystemId) {
+    throw new DomainError("forbidden", "direct authorized human required");
+  }
+  const principal = await loadPrincipal(ctx.db, ctx.workspaceId, ctx.actorHumanId);
+  assertEpoch(principal, ctx.authorizationEpoch);
+  const parent = artifactAccessPredicate(principal, "contribute");
   const row = (await ctx.db
-    .prepare(`SELECT id, run_id FROM artifacts WHERE workspace_id = ? AND id = ?`)
-    .get(ctx.workspaceId, artifactId)) as ArtifactRow | undefined;
+    .prepare(
+      `SELECT artifact.id, artifact.run_id FROM artifacts AS artifact
+      WHERE artifact.workspace_id = ? AND artifact.id = ? AND ${parent.sql}`,
+    )
+    .get(ctx.workspaceId, artifactId, ...parent.parameters)) as ArtifactRow | undefined;
   if (!row) {
     throw new DomainError("not_found", "artifact not found");
   }
@@ -251,10 +268,9 @@ async function requireRunProject(
 }
 
 /**
- * Project pinning a read artifact: the bound run's project, or null for
- * run-free artifacts and dangling run references. Reads mirror the review
- * write path, where a run-bound artifact needs project access and a
- * run-free one needs membership only.
+ * Reads the project of an artifact already selected through parent authority.
+ * Run-free artifacts have no project; dangling run references never pass the
+ * artifact selection predicate.
  */
 async function readArtifactProject(
   db: ReviewDb,
@@ -273,14 +289,26 @@ async function requireTimerObservation(
   observationId: string | null,
 ): Promise<void> {
   if (!observationId) return;
+  const parent = taskAccessPredicate(
+    {
+      workspaceId: ctx.workspaceId,
+      humanId: ctx.actorHumanId!,
+      authorizationEpoch: ctx.authorizationEpoch,
+    },
+    "read",
+    "timer_task",
+  );
   // The observation must exist in this workspace. V03 reads A04 durations
   // from these rows and never writes timer state of its own.
   const row = (await ctx.db
     .prepare(
-      `SELECT observation_id FROM review_timer_observations
-       WHERE workspace_id = ? AND observation_id = ?`,
+      `SELECT observation.observation_id FROM review_timer_observations AS observation
+       JOIN review_timers AS timer ON timer.workspace_id = observation.workspace_id AND timer.id = observation.timer_id
+       JOIN tasks AS timer_task ON timer_task.workspace_id = timer.workspace_id AND timer_task.id = timer.task_id
+       WHERE observation.workspace_id = ? AND observation.observation_id = ? AND ${timerRunRelation} AND ${parent.sql}`,
     )
-    .get(ctx.workspaceId, observationId)) as { observation_id: string } | undefined;
+    .get(ctx.workspaceId, observationId, ...parent.parameters)) as
+    { observation_id: string } | undefined;
   if (!row) {
     throw new DomainError("not_found", "review timer observation not found");
   }
@@ -334,8 +362,35 @@ export const recordReviewCommand: HubCommand<RecordReviewInput, ReviewRecord> = 
   name: "artifact.record_review",
   authorize: async (input, ctx) => {
     // Historical retries may return their original decision, but only while
-    // the direct human still holds current workspace and project authority.
+    // the direct human still holds current contribute authority to its task.
     await reviewAuthority(input, ctx);
+  },
+  replayResult: async (record, ctx) => {
+    const access = {
+      workspaceId: ctx.workspaceId,
+      humanId: ctx.actorHumanId!,
+      authorizationEpoch: ctx.authorizationEpoch,
+    };
+    const parent = artifactAccessPredicate(access, "contribute");
+    const timer = reviewTimerReference(access);
+    const row = (await ctx.db
+      .prepare(
+        `SELECT review.id, review.artifact_id, review.version_id, review.content_hash,
+                review.reviewer_human_id, review.decision, review.comment, review.git_commit,
+                review.config_hash, ${timer.sql} AS review_timer_observation_id, review.created_at
+         FROM artifact_reviews AS review JOIN artifacts AS artifact
+           ON artifact.workspace_id = review.workspace_id AND artifact.id = review.artifact_id
+         WHERE review.workspace_id = ? AND review.id = ? AND review.artifact_id = ? AND ${parent.sql}`,
+      )
+      .get(
+        ...timer.parameters,
+        ctx.workspaceId,
+        record.id,
+        record.artifact_id,
+        ...parent.parameters,
+      )) as ReviewRow | undefined;
+    if (!row) throw new DomainError("not_found", "artifact not found");
+    return reviewRecord(row);
   },
   inputFingerprint: (input) => runnerHash(canonicalLaunchJson(JSON.parse(JSON.stringify(input)))),
   auditInput: (input) => ({
@@ -416,6 +471,32 @@ export const recordReviewCommand: HubCommand<RecordReviewInput, ReviewRecord> = 
       decision: body.decision as ReviewDecision,
       now: ctx.now,
     });
+    const access = {
+      workspaceId: ctx.workspaceId,
+      humanId: reviewer,
+      authorizationEpoch: ctx.authorizationEpoch,
+    };
+    const parent = artifactAccessPredicate(access, "contribute");
+    const timerParent = taskAccessPredicate(access, "read", "timer_task");
+    const guardId = randomUlid();
+    await ctx.db
+      .prepare(
+        `INSERT INTO artifact_mutation_guards (id, valid) VALUES (?,
+      (SELECT COUNT(*) = 1 FROM artifact_reviews AS review
+       JOIN artifacts AS artifact ON artifact.workspace_id = review.workspace_id AND artifact.id = review.artifact_id
+       JOIN workspace_members AS member ON member.workspace_id = review.workspace_id AND member.human_id = review.reviewer_human_id
+       JOIN workspace_authorization_epochs AS epoch ON epoch.workspace_id = member.workspace_id AND epoch.human_id = member.human_id
+       WHERE review.workspace_id = ? AND review.id = ? AND member.authorization_epoch = epoch.authorization_epoch
+         AND epoch.authorization_epoch = review.authorization_epoch AND epoch.revoked_at IS NULL AND ${parent.sql}
+         AND (review.review_timer_observation_id IS NULL OR EXISTS (
+           SELECT 1 FROM review_timer_observations AS observation
+           JOIN review_timers AS timer ON timer.workspace_id = observation.workspace_id AND timer.id = observation.timer_id
+           JOIN tasks AS timer_task ON timer_task.workspace_id = timer.workspace_id AND timer_task.id = timer.task_id
+           WHERE observation.workspace_id = review.workspace_id AND observation.observation_id = review.review_timer_observation_id
+             AND ${timerRunRelation} AND ${timerParent.sql}))))`,
+      )
+      .run(guardId, ctx.workspaceId, id, ...parent.parameters, ...timerParent.parameters);
+    await ctx.db.prepare("DELETE FROM artifact_mutation_guards WHERE id = ?").run(guardId);
     return {
       id,
       artifact_id: artifact.id,
@@ -448,6 +529,23 @@ interface ReviewRow {
 
 type ReviewDb = Pick<SqlDatabase, "prepare">;
 
+/** Timer relations require their own current parent authority, not artifact access. */
+function reviewTimerReference(access?: TaskAccessContext) {
+  const parent = access
+    ? taskAccessPredicate(access, "read", "timer_task")
+    : { sql: sharedTaskPredicate("timer_task"), parameters: [] };
+  return {
+    sql: `CASE WHEN EXISTS (
+      SELECT 1 FROM review_timer_observations AS observation
+      JOIN review_timers AS timer ON timer.workspace_id = observation.workspace_id AND timer.id = observation.timer_id
+      JOIN tasks AS timer_task ON timer_task.workspace_id = timer.workspace_id AND timer_task.id = timer.task_id
+      WHERE observation.workspace_id = review.workspace_id
+        AND observation.observation_id = review.review_timer_observation_id AND ${timerRunRelation} AND ${parent.sql}
+    ) THEN review.review_timer_observation_id ELSE NULL END`,
+    parameters: parent.parameters,
+  };
+}
+
 function reviewRecord(row: ReviewRow): ReviewRecord {
   return {
     id: row.id,
@@ -468,17 +566,24 @@ async function readArtifact(
   db: ReviewDb,
   workspaceId: string,
   artifactId: string,
+  access?: TaskAccessContext,
 ): Promise<{ id: string; run_id: string | null } | undefined> {
   if (!isUlid(artifactId)) return undefined;
+  const parent = artifactAccessPredicate(access);
   return (await db
-    .prepare(`SELECT id, run_id FROM artifacts WHERE workspace_id = ? AND id = ?`)
-    .get(workspaceId, artifactId)) as { id: string; run_id: string | null } | undefined;
+    .prepare(
+      `SELECT artifact.id, artifact.run_id FROM artifacts AS artifact
+      WHERE artifact.workspace_id = ? AND artifact.id = ? AND ${parent.sql}`,
+    )
+    .get(workspaceId, artifactId, ...parent.parameters)) as
+    { id: string; run_id: string | null } | undefined;
 }
 
 async function readVersions(
   db: ReviewDb,
   workspaceId: string,
   artifactId: string,
+  access?: TaskAccessContext,
 ): Promise<
   Array<{
     id: string;
@@ -491,6 +596,7 @@ async function readVersions(
     changes_requested: number;
   }>
 > {
+  const parent = artifactAccessPredicate(access);
   return (await db
     .prepare(
       `SELECT v.id, v.state, v.format, v.content_hash,
@@ -500,10 +606,11 @@ async function readVersions(
               (SELECT COUNT(*) FROM artifact_reviews AS r
                WHERE r.workspace_id = v.workspace_id AND r.version_id = v.id AND r.decision = 'request_changes') AS changes_requested
        FROM artifact_versions AS v
-       WHERE v.workspace_id = ? AND v.artifact_id = ?
+       JOIN artifacts AS artifact ON artifact.workspace_id = v.workspace_id AND artifact.id = v.artifact_id
+       WHERE v.workspace_id = ? AND v.artifact_id = ? AND ${parent.sql}
        ORDER BY v.created_at ASC, v.rowid ASC`,
     )
-    .all(workspaceId, artifactId)) as Array<{
+    .all(workspaceId, artifactId, ...parent.parameters)) as Array<{
     id: string;
     state: string;
     format: string;
@@ -580,33 +687,66 @@ export async function listArtifactReviews(
   db: ReviewDb,
   workspaceId: string,
   artifactId: string,
+  access?: TaskAccessContext,
 ): Promise<ReviewView[]> {
-  const artifact = await readArtifact(db, workspaceId, artifactId);
+  const artifact = await readArtifact(db, workspaceId, artifactId, access);
   if (!artifact) return [];
+  const parent = artifactAccessPredicate(access);
   const versions = (await db
     .prepare(
-      `SELECT id FROM artifact_versions
-       WHERE workspace_id = ? AND artifact_id = ? AND state = 'available'
-       ORDER BY created_at ASC, rowid ASC`,
+      `SELECT version.id FROM artifact_versions AS version JOIN artifacts AS artifact
+         ON artifact.workspace_id = version.workspace_id AND artifact.id = version.artifact_id
+       WHERE version.workspace_id = ? AND version.artifact_id = ? AND version.state = 'available' AND ${parent.sql}
+       ORDER BY version.created_at ASC, version.rowid ASC`,
     )
-    .all(workspaceId, artifactId)) as Array<{ id: string }>;
+    .all(workspaceId, artifactId, ...parent.parameters)) as Array<{ id: string }>;
   const latestVersionId = versions[versions.length - 1]?.id ?? null;
   const latestConfigHash = await readLatestConfigHash(db, workspaceId, artifact.run_id);
   const latestSubmissionGit = await readLatestSubmissionGit(db, workspaceId, artifact.run_id);
+  const timer = reviewTimerReference(access);
   // Decision order is insert order: review ids are random, so rowid breaks
   // same-millisecond timestamp ties deterministically.
   const rows = (await db
     .prepare(
-      `SELECT id, artifact_id, version_id, content_hash, reviewer_human_id, decision,
-              comment, git_commit, config_hash, review_timer_observation_id, created_at
-       FROM artifact_reviews
-       WHERE workspace_id = ? AND artifact_id = ?
-       ORDER BY created_at ASC, rowid ASC`,
+      `SELECT review.id, review.artifact_id, review.version_id, review.content_hash, review.reviewer_human_id, review.decision,
+              review.comment, review.git_commit, review.config_hash, ${timer.sql} AS review_timer_observation_id, review.created_at
+       FROM artifact_reviews AS review JOIN artifacts AS artifact
+         ON artifact.workspace_id = review.workspace_id AND artifact.id = review.artifact_id
+       WHERE review.workspace_id = ? AND review.artifact_id = ? AND ${parent.sql}
+       ORDER BY review.created_at ASC, review.rowid ASC`,
     )
-    .all(workspaceId, artifactId)) as ReviewRow[];
+    .all(...timer.parameters, workspaceId, artifactId, ...parent.parameters)) as ReviewRow[];
   return rows.map((row) =>
     flagReview(reviewRecord(row), latestVersionId, latestConfigHash, latestSubmissionGit),
   );
+}
+
+/** Re-selects parent visibility and independent timer relations in one final read. */
+export async function readArtifactReviewReferences(
+  db: ReviewDb,
+  workspaceId: string,
+  artifactId: string,
+  access?: TaskAccessContext,
+): Promise<Map<string, string | null> | undefined> {
+  if (!isUlid(artifactId)) return undefined;
+  const parent = artifactAccessPredicate(access);
+  const timer = reviewTimerReference(access);
+  const rows = (await db
+    .prepare(
+      `SELECT review.id, ${timer.sql} AS review_timer_observation_id
+       FROM artifacts AS artifact LEFT JOIN artifact_reviews AS review
+         ON review.workspace_id = artifact.workspace_id AND review.artifact_id = artifact.id
+       WHERE artifact.workspace_id = ? AND artifact.id = ? AND ${parent.sql}`,
+    )
+    .all(...timer.parameters, workspaceId, artifactId, ...parent.parameters)) as Array<{
+    id: string | null;
+    review_timer_observation_id: string | null;
+  }>;
+  if (rows.length === 0) return undefined;
+  const references = new Map<string, string | null>();
+  for (const row of rows)
+    if (row.id !== null) references.set(row.id, row.review_timer_observation_id);
+  return references;
 }
 
 function boundArtifactVersion(
@@ -631,22 +771,23 @@ export async function listLinkedSubmissions(
   workspaceId: string,
   artifactId: string,
   latestVersionId: string | null,
+  access?: TaskAccessContext,
 ): Promise<LinkedSubmissionView[]> {
-  const artifact = await readArtifact(db, workspaceId, artifactId);
+  const artifact = await readArtifact(db, workspaceId, artifactId, access);
   if (!artifact?.run_id) return [];
-  const versions = (await db
-    .prepare(`SELECT id FROM artifact_versions WHERE workspace_id = ? AND artifact_id = ?`)
-    .all(workspaceId, artifactId)) as Array<{ id: string }>;
+  const versions = await readVersions(db, workspaceId, artifactId, access);
+  const parent = artifactAccessPredicate(access);
   const versionIds = new Set(versions.map((version) => version.id));
   const rows = (await db
     .prepare(
       `SELECT s.id, s.run_id, s.version, s.evidence_refs_json, r.result_state
        FROM result_submissions AS s
        JOIN runs AS r ON r.workspace_id = s.workspace_id AND r.id = s.run_id
-       WHERE s.workspace_id = ? AND s.run_id = ?
+       JOIN artifacts AS artifact ON artifact.workspace_id = s.workspace_id AND artifact.run_id = s.run_id
+       WHERE s.workspace_id = ? AND s.run_id = ? AND artifact.id = ? AND ${parent.sql}
        ORDER BY s.version DESC`,
     )
-    .all(workspaceId, artifact.run_id)) as Array<{
+    .all(workspaceId, artifact.run_id, artifactId, ...parent.parameters)) as Array<{
     id: string;
     run_id: string;
     version: number;
@@ -692,16 +833,29 @@ export async function getArtifactReviewStatus(
   workspaceId: string,
   artifactId: string,
   projectIds: readonly string[],
+  access?: TaskAccessContext,
 ): Promise<ArtifactReviewStatus | undefined> {
-  const artifact = await readArtifact(db, workspaceId, artifactId);
+  const artifact = await readArtifact(db, workspaceId, artifactId, access);
   if (!artifact) return undefined;
   const projectId = await readArtifactProject(db, workspaceId, artifact.run_id);
   if (projectId && !projectIds.includes(projectId)) return undefined;
-  const versions = await readVersions(db, workspaceId, artifactId);
+  const versions = await readVersions(db, workspaceId, artifactId, access);
   const available = versions.filter((version) => version.state === "available");
   const latest = available[available.length - 1] ?? null;
-  const reviews = await listArtifactReviews(db, workspaceId, artifactId);
-  const linked = await listLinkedSubmissions(db, workspaceId, artifactId, latest?.id ?? null);
+  const reviews = await listArtifactReviews(db, workspaceId, artifactId, access);
+  const linked = await listLinkedSubmissions(
+    db,
+    workspaceId,
+    artifactId,
+    latest?.id ?? null,
+    access,
+  );
+  const references = await readArtifactReviewReferences(db, workspaceId, artifactId, access);
+  if (!references) return undefined;
+  const visibleReviews = reviews.map((review) => ({
+    ...review,
+    review_timer_observation_id: references.get(review.id) ?? null,
+  }));
   const historical = reviews.filter((review) => review.historical).length;
   return {
     artifact_id: artifact.id,
@@ -723,7 +877,7 @@ export async function getArtifactReviewStatus(
     review_count: reviews.length,
     historical_count: historical,
     linked_submissions: linked,
-    reviews,
+    reviews: visibleReviews,
   };
 }
 
@@ -752,11 +906,12 @@ export async function listArtifactsWithReviewState(
   workspaceId: string,
   projectIds: readonly string[],
   runId?: string,
+  access?: TaskAccessContext,
 ): Promise<ArtifactSummary[]> {
   const scope =
     projectIds.length === 0 ? "" : ` OR r.project_id IN (${projectIds.map(() => "?").join(", ")})`;
-  // A dangling run reference reads as unscoped, mirroring readArtifactProject.
-  const visible = `(a.run_id IS NULL OR (a.run_id IS NOT NULL AND r.id IS NULL)${scope})`;
+  const parent = artifactAccessPredicate(access, "read", "a");
+  const visible = `(a.run_id IS NULL${scope}) AND ${parent.sql}`;
   const artifacts = (await db
     .prepare(
       runId === undefined
@@ -771,6 +926,7 @@ export async function listArtifactsWithReviewState(
     )
     .all(
       ...(runId === undefined ? [workspaceId, ...projectIds] : [workspaceId, runId, ...projectIds]),
+      ...parent.parameters,
     )) as Array<{
     id: string;
     run_id: string | null;
@@ -780,15 +936,17 @@ export async function listArtifactsWithReviewState(
   }>;
   const summaries: ArtifactSummary[] = [];
   for (const artifact of artifacts) {
-    const versions = await readVersions(db, workspaceId, artifact.id);
+    const versions = await readVersions(db, workspaceId, artifact.id, access);
     const available = versions.filter((version) => version.state === "available");
     const latest = available[available.length - 1] ?? null;
     const reviewCount = (await db
       .prepare(
-        `SELECT COUNT(*) AS total FROM artifact_reviews
-         WHERE workspace_id = ? AND artifact_id = ?`,
+        `SELECT COUNT(*) AS total FROM artifact_reviews AS review JOIN artifacts AS a
+           ON a.workspace_id = review.workspace_id AND a.id = review.artifact_id
+         WHERE review.workspace_id = ? AND review.artifact_id = ? AND ${parent.sql}`,
       )
-      .get(workspaceId, artifact.id)) as { total: number };
+      .get(workspaceId, artifact.id, ...parent.parameters)) as { total: number };
+    if (!(await readArtifact(db, workspaceId, artifact.id, access))) continue;
     summaries.push({
       artifact_id: artifact.id,
       run_id: artifact.run_id,
@@ -813,7 +971,18 @@ export async function listArtifactsWithReviewState(
       review_count: Number(reviewCount.total),
     });
   }
-  return summaries;
+  // Assembly performs several child reads. Re-select the visible identities
+  // together so a grant closed during a later item's read cannot leak an
+  // earlier item's previously authorized metadata.
+  const current = (await db
+    .prepare(
+      `SELECT a.id FROM artifacts AS a
+       LEFT JOIN runs AS r ON r.workspace_id = a.workspace_id AND r.id = a.run_id
+       WHERE a.workspace_id = ? AND ${visible}`,
+    )
+    .all(workspaceId, ...projectIds, ...parent.parameters)) as Array<{ id: string }>;
+  const visibleIds = new Set(current.map((row) => row.id));
+  return summaries.filter((summary) => visibleIds.has(summary.artifact_id));
 }
 
 export interface ReviewTimerContext {
@@ -846,33 +1015,44 @@ export async function readReviewTimerContext(
   db: ReviewDb,
   workspaceId: string,
   observationId: string | null,
+  access?: TaskAccessContext,
 ): Promise<ReviewTimerContext | null> {
   if (!observationId) return null;
+  const parent = access
+    ? taskAccessPredicate(access, "read", "timer_task")
+    : { sql: sharedTaskPredicate("timer_task"), parameters: [] };
   const observation = (await db
     .prepare(
-      `SELECT observation_id, timer_id, observed_kind, actor_type, actor_id, occurred_at
-       FROM review_timer_observations
-       WHERE workspace_id = ? AND observation_id = ?`,
+      `SELECT observation.observation_id, observation.timer_id, observation.observed_kind, observation.actor_type, observation.actor_id, observation.occurred_at
+       FROM review_timer_observations AS observation
+       JOIN review_timers AS timer ON timer.workspace_id = observation.workspace_id AND timer.id = observation.timer_id
+       JOIN tasks AS timer_task ON timer_task.workspace_id = timer.workspace_id AND timer_task.id = timer.task_id
+       WHERE observation.workspace_id = ? AND observation.observation_id = ? AND ${timerRunRelation} AND ${parent.sql}`,
     )
-    .get(workspaceId, observationId)) as ReviewTimerContext["observation"] | undefined;
+    .get(workspaceId, observationId, ...parent.parameters)) as
+    ReviewTimerContext["observation"] | undefined;
   if (!observation) return null;
   const timer = (await db
-    .prepare(`SELECT * FROM review_timers WHERE workspace_id = ? AND id = ?`)
-    .get(workspaceId, observation.timer_id)) as Record<string, unknown> | undefined;
+    .prepare(
+      `SELECT timer.* FROM review_timers AS timer JOIN tasks AS timer_task
+      ON timer_task.workspace_id = timer.workspace_id AND timer_task.id = timer.task_id
+      WHERE timer.workspace_id = ? AND timer.id = ? AND ${timerRunRelation} AND ${parent.sql}`,
+    )
+    .get(workspaceId, observation.timer_id, ...parent.parameters)) as
+    Record<string, unknown> | undefined;
+  if (!timer) return null;
   return {
     observation,
-    timer: timer
-      ? {
-          id: String(timer.id),
-          task_id: String(timer.task_id),
-          run_id: (timer.run_id as string | null) ?? null,
-          started_by_human_id: String(timer.started_by_human_id),
-          started_at: String(timer.started_at),
-          stopped_at: (timer.stopped_at as string | null) ?? null,
-          state: timer.state as "open" | "stopped",
-          resource_version: Number(timer.resource_version),
-        }
-      : null,
+    timer: {
+      id: String(timer.id),
+      task_id: String(timer.task_id),
+      run_id: (timer.run_id as string | null) ?? null,
+      started_by_human_id: String(timer.started_by_human_id),
+      started_at: String(timer.started_at),
+      stopped_at: (timer.stopped_at as string | null) ?? null,
+      state: timer.state as "open" | "stopped",
+      resource_version: Number(timer.resource_version),
+    },
   };
 }
 
@@ -886,14 +1066,27 @@ export async function readReviewTimerContext(
 export async function artifactEvidenceVersionMap(
   db: ReviewDb,
   workspaceId: string,
+  access?: TaskAccessContext,
+  projectIds?: readonly string[],
 ): Promise<Map<string, string>> {
+  const parent = artifactAccessPredicate(access);
+  const projects =
+    projectIds === undefined
+      ? ""
+      : `AND (artifact.run_id IS NULL OR EXISTS (
+    SELECT 1 FROM runs AS scoped_run WHERE scoped_run.workspace_id = artifact.workspace_id AND scoped_run.id = artifact.run_id
+      AND scoped_run.project_id IN (${projectIds.length ? projectIds.map(() => "?").join(",") : "NULL"})))`;
   const rows = (await db
     .prepare(
-      `SELECT artifact_id, id FROM artifact_versions
-       WHERE workspace_id = ? AND state = 'available'
-       ORDER BY created_at ASC, rowid ASC`,
+      `SELECT version.artifact_id, version.id FROM artifact_versions AS version JOIN artifacts AS artifact
+         ON artifact.workspace_id = version.workspace_id AND artifact.id = version.artifact_id
+       WHERE version.workspace_id = ? AND version.state = 'available' AND ${parent.sql} ${projects}
+       ORDER BY version.created_at ASC, version.rowid ASC`,
     )
-    .all(workspaceId)) as Array<{ artifact_id: string; id: string }>;
+    .all(workspaceId, ...parent.parameters, ...(projectIds ?? []))) as Array<{
+    artifact_id: string;
+    id: string;
+  }>;
   const map = new Map<string, string>();
   for (const row of rows) {
     map.set(`artifact_version\n${row.artifact_id}`, row.id);

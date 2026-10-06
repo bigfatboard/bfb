@@ -8,7 +8,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ingestRunnerEventsCommand } from "../src/events.js";
 import { FIX } from "../src/fixtures.js";
 import { randomUlid } from "../src/ids.js";
-import { reportTokensCommand } from "../src/measurements.js";
 import { LAUNCH_NOW, launchFixture, success } from "./launch-fixture.js";
 
 const directory = fileURLToPath(new URL("../../../migrations/d1", import.meta.url));
@@ -38,18 +37,16 @@ describe("measurement source migration", () => {
       }),
       { claimed } = await f.claim(),
       spec = claimed.specification;
-    success(
-      await f.native(reportTokensCommand, {
-        principal: f.principal,
-        observationId: randomUlid(),
-        runId: spec.run_id,
-        executionId: spec.run_execution_id,
-        assignmentGeneration: spec.assignment_generation,
-        provider: "fake",
-        tokens: { input: 7 },
-        quality: "estimated",
-      }),
-    );
+    // Arrange the token row that existed under 0040, not today's capture
+    // authority contract, which requires current private-task policy storage.
+    raw
+      .prepare(
+        `INSERT INTO token_observations
+      (workspace_id, observation_id, run_id, run_execution_id, provider,
+       input_tokens, quality, provenance, occurred_at, committed_at)
+      VALUES (?, ?, ?, ?, 'fake', 7, 'estimated', 'runner_observed', ?, ?)`,
+      )
+      .run(FIX.workspace, randomUlid(), spec.run_id, spec.run_execution_id, LAUNCH_NOW, LAUNCH_NOW);
     const event = randomUlid();
     raw
       .prepare(

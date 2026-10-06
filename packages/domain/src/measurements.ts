@@ -3,7 +3,7 @@
 
 import type { SqlDatabase } from "@bfb/db";
 
-import { assertEpoch, assertProjectAccess, assertRole, loadPrincipal } from "./authorization.js";
+import { assertEpoch, assertRole, loadPrincipal } from "./authorization.js";
 import { DomainError, type HubCommand, type HubContext } from "./hub.js";
 import { isUlid, randomUlid } from "./ids.js";
 import { canonicalLaunchJson, launchRunner, readLaunch, snapshotOf } from "./launch-state.js";
@@ -13,7 +13,13 @@ import {
   type MeasurementSourceReference,
 } from "./measurement-sources.js";
 import { rejectRunnerRequest, runnerHash, runnerId, runnerObject } from "./runner-crypto.js";
-import type { RunnerPrincipal } from "./runners.js";
+import { assertRunnerLaunchAuthority, type RunnerPrincipal } from "./runners.js";
+import {
+  assertTaskAccess,
+  sharedTaskPredicate,
+  taskAccessPredicate,
+  type TaskAccessContext,
+} from "./task-access.js";
 import {
   normalizeTokenFields,
   persistTokenObservation,
@@ -396,6 +402,10 @@ async function requireExecutionBinding(
       `SELECT a.runner_id, a.project_id, a.task_id, a.run_id, l.id AS launch_id
        FROM execution_assignments AS a
        JOIN launch_commands AS l ON l.workspace_id = a.workspace_id AND l.execution_id = a.execution_id
+       JOIN runs AS run ON run.workspace_id = a.workspace_id AND run.id = a.run_id
+         AND run.task_id = a.task_id AND run.project_id = a.project_id
+       JOIN tasks AS task ON task.workspace_id = a.workspace_id AND task.id = a.task_id
+         AND task.project_id = a.project_id
        WHERE a.workspace_id = ? AND a.execution_id = ? AND a.assignment_generation = ?`,
     )
     .get(workspaceId, executionId, Number(generation))) as
@@ -406,8 +416,13 @@ async function requireExecutionBinding(
   if (!principal.projectIds.includes(binding.project_id)) {
     rejectRunnerRequest();
   }
-  const provider = snapshotOf(await readLaunch(db, workspaceId, binding.launch_id)).execution_config
-    .provider;
+  const launch = await readLaunch(db, workspaceId, binding.launch_id);
+  const requester = await loadPrincipal(db, workspaceId, launch.requesting_human_id);
+  assertEpoch(requester, launch.requesting_human_epoch);
+  await assertRunnerLaunchAuthority(db, requester, binding.runner_id, binding.project_id);
+  const task = await assertTaskAccess(db, requester, binding.task_id, "read");
+  if (task.projectId !== binding.project_id) rejectRunnerRequest();
+  const provider = snapshotOf(launch).execution_config.provider;
   return { ...binding, provider: provider as MeasurementProvider };
 }
 
@@ -622,6 +637,12 @@ export const reportIntervalCommand: HubCommand<ReportIntervalInput, ReportedInte
     executionId: (input as ReportIntervalInput)?.executionId,
     intervalKind: (input as ReportIntervalInput)?.intervalKind,
   }),
+  auditResult: (result) => ({
+    observation_id: result.observation_id,
+    run_id: result.run_id,
+    run_execution_id: result.run_execution_id,
+    interval_kind: result.interval_kind,
+  }),
   async run(raw, ctx) {
     const body = runnerObject(raw as unknown, [
       "principal",
@@ -757,14 +778,54 @@ async function requireTaskProject(
   if (!isUlid(taskId)) {
     throw new DomainError("not_found", "task not found");
   }
-  const row = (await db
-    .prepare(`SELECT project_id FROM tasks WHERE workspace_id = ? AND id = ?`)
-    .get(workspaceId, taskId)) as { project_id: string } | undefined;
-  if (!row) {
+  const task = await assertTaskAccess(db, { ...principal, workspaceId }, taskId, "contribute");
+  return { project_id: task.projectId };
+}
+
+function measurementTaskPredicate(
+  workspaceId: string,
+  access: TaskAccessContext | undefined,
+  alias = "task",
+) {
+  if (access && access.workspaceId !== workspaceId)
     throw new DomainError("not_found", "task not found");
-  }
-  assertProjectAccess(principal, row.project_id);
-  return row;
+  return access
+    ? taskAccessPredicate(access, "read", alias)
+    : { sql: sharedTaskPredicate(alias), parameters: [] };
+}
+
+async function assertMeasurementRun(
+  db: SqlDatabase,
+  workspaceId: string,
+  runId: string,
+  access?: TaskAccessContext,
+) {
+  const predicate = measurementTaskPredicate(workspaceId, access);
+  const row = await db
+    .prepare(
+      `SELECT run.id FROM runs AS run
+      JOIN tasks AS task ON task.workspace_id = run.workspace_id AND task.id = run.task_id
+        AND task.project_id = run.project_id
+      WHERE run.workspace_id = ? AND run.id = ? AND ${predicate.sql}`,
+    )
+    .get(workspaceId, runId, ...predicate.parameters);
+  if (!row) throw new DomainError("not_found", "run not found");
+}
+
+async function assertMeasurementTask(
+  db: SqlDatabase,
+  workspaceId: string,
+  taskId: string,
+  access?: TaskAccessContext,
+) {
+  const predicate = measurementTaskPredicate(workspaceId, access);
+  const row = await db
+    .prepare(
+      `SELECT task.id FROM tasks AS task
+      WHERE task.workspace_id = ? AND task.id = ? AND ${predicate.sql}`,
+    )
+    .get(workspaceId, taskId, ...predicate.parameters);
+  if (!row) throw new DomainError("not_found", "task not found");
 }
 
 export interface StartReviewTimerInput {
@@ -790,6 +851,7 @@ export const startReviewTimerCommand: HubCommand<StartReviewTimerInput, ReviewTi
     taskId: (input as StartReviewTimerInput)?.taskId,
     runId: (input as StartReviewTimerInput)?.runId,
   }),
+  auditResult: (result) => ({ id: result.id, task_id: result.task_id, run_id: result.run_id }),
   async run(input, ctx) {
     const principal = await requireMeasurementHuman(ctx);
     const body = (input ?? {}) as Partial<StartReviewTimerInput>;
@@ -858,11 +920,17 @@ export const stopReviewTimerCommand: HubCommand<StopReviewTimerInput, ReviewTime
   name: "review_timer.stop",
   async authorize(input, ctx) {
     const principal = await requireMeasurementHuman(ctx);
+    const predicate = taskAccessPredicate(principal, "contribute");
     const row = (await ctx.db
       .prepare(
-        "SELECT task_id, started_by_human_id FROM review_timers WHERE workspace_id = ? AND id = ?",
+        `SELECT timer.task_id, timer.started_by_human_id FROM review_timers AS timer
+         JOIN tasks AS task ON task.workspace_id = timer.workspace_id AND task.id = timer.task_id
+         WHERE timer.workspace_id = ? AND timer.id = ? AND ${predicate.sql}
+           AND (timer.run_id IS NULL OR EXISTS (SELECT 1 FROM runs AS run
+             WHERE run.workspace_id = timer.workspace_id AND run.id = timer.run_id
+               AND run.task_id = task.id AND run.project_id = task.project_id))`,
       )
-      .get(ctx.workspaceId, input.timerId)) as
+      .get(ctx.workspaceId, input.timerId, ...predicate.parameters)) as
       { task_id: string; started_by_human_id: string } | undefined;
     if (!row) throw new DomainError("not_found", "review timer not found");
     await requireTaskProject(ctx.db, ctx.workspaceId, principal, row.task_id);
@@ -874,6 +942,7 @@ export const stopReviewTimerCommand: HubCommand<StopReviewTimerInput, ReviewTime
     timerId: (input as StopReviewTimerInput)?.timerId,
     expectedVersion: (input as StopReviewTimerInput)?.expectedVersion,
   }),
+  auditResult: (result) => ({ id: result.id, task_id: result.task_id, run_id: result.run_id }),
   async run(input, ctx) {
     const principal = await requireMeasurementHuman(ctx);
     const body = (input ?? {}) as Partial<StopReviewTimerInput>;
@@ -883,9 +952,18 @@ export const stopReviewTimerCommand: HubCommand<StopReviewTimerInput, ReviewTime
     if (!Number.isSafeInteger(body.expectedVersion) || Number(body.expectedVersion) < 1) {
       throw new DomainError("invalid_argument", "expected timer version is invalid");
     }
+    const predicate = taskAccessPredicate(principal, "contribute");
     const row = (await ctx.db
-      .prepare(`SELECT * FROM review_timers WHERE workspace_id = ? AND id = ?`)
-      .get(ctx.workspaceId, body.timerId)) as Record<string, unknown> | undefined;
+      .prepare(
+        `SELECT timer.* FROM review_timers AS timer
+        JOIN tasks AS task ON task.workspace_id = timer.workspace_id AND task.id = timer.task_id
+        WHERE timer.workspace_id = ? AND timer.id = ? AND ${predicate.sql}
+          AND (timer.run_id IS NULL OR EXISTS (SELECT 1 FROM runs AS run
+            WHERE run.workspace_id = timer.workspace_id AND run.id = timer.run_id
+              AND run.task_id = task.id AND run.project_id = task.project_id))`,
+      )
+      .get(ctx.workspaceId, body.timerId, ...predicate.parameters)) as
+      Record<string, unknown> | undefined;
     if (!row) {
       throw new DomainError("not_found", "review timer not found");
     }
@@ -941,6 +1019,7 @@ export const recordBrowserActivityCommand: HubCommand<
   auditInput: (input) => ({
     taskId: (input as RecordBrowserActivityInput)?.taskId,
   }),
+  auditResult: (result) => ({ observation_id: result.observation_id, task_id: result.task_id }),
   async run(input, ctx) {
     const principal = await requireMeasurementHuman(ctx);
     const body = (input ?? {}) as Partial<RecordBrowserActivityInput>;
@@ -1033,14 +1112,19 @@ export async function listTokenObservations(
   db: SqlDatabase,
   workspaceId: string,
   runId: string,
+  access?: TaskAccessContext,
 ): Promise<TokenObservation[]> {
+  const predicate = measurementTaskPredicate(workspaceId, access);
   const rows = (await db
     .prepare(
-      `SELECT * FROM token_observations
-       WHERE workspace_id = ? AND run_id = ?
-       ORDER BY occurred_at ASC, observation_id ASC`,
+      `SELECT observation.* FROM token_observations AS observation
+       JOIN runs AS run ON run.workspace_id = observation.workspace_id AND run.id = observation.run_id
+       JOIN tasks AS task ON task.workspace_id = run.workspace_id AND task.id = run.task_id
+         AND task.project_id = run.project_id
+       WHERE observation.workspace_id = ? AND observation.run_id = ? AND ${predicate.sql}
+       ORDER BY observation.occurred_at ASC, observation.observation_id ASC`,
     )
-    .all(workspaceId, runId)) as Record<string, unknown>[];
+    .all(workspaceId, runId, ...predicate.parameters)) as Record<string, unknown>[];
   return rows.map(tokenRowToObservation);
 }
 
@@ -1048,14 +1132,19 @@ export async function listMeasurementIntervals(
   db: SqlDatabase,
   workspaceId: string,
   runId: string,
+  access?: TaskAccessContext,
 ): Promise<ReportedInterval[]> {
+  const predicate = measurementTaskPredicate(workspaceId, access);
   const rows = (await db
     .prepare(
-      `SELECT * FROM measurement_intervals
-       WHERE workspace_id = ? AND run_id = ?
-       ORDER BY started_at ASC, observation_id ASC`,
+      `SELECT observation.* FROM measurement_intervals AS observation
+       JOIN runs AS run ON run.workspace_id = observation.workspace_id AND run.id = observation.run_id
+       JOIN tasks AS task ON task.workspace_id = run.workspace_id AND task.id = run.task_id
+         AND task.project_id = run.project_id
+       WHERE observation.workspace_id = ? AND observation.run_id = ? AND ${predicate.sql}
+       ORDER BY observation.started_at ASC, observation.observation_id ASC`,
     )
-    .all(workspaceId, runId)) as Record<string, unknown>[];
+    .all(workspaceId, runId, ...predicate.parameters)) as Record<string, unknown>[];
   return rows.map(intervalRowToReported);
 }
 
@@ -1063,14 +1152,20 @@ export async function listReviewTimers(
   db: SqlDatabase,
   workspaceId: string,
   taskId: string,
+  access?: TaskAccessContext,
 ): Promise<ReviewTimerRecord[]> {
+  const predicate = measurementTaskPredicate(workspaceId, access);
   const rows = (await db
     .prepare(
-      `SELECT * FROM review_timers
-       WHERE workspace_id = ? AND task_id = ?
-       ORDER BY started_at ASC, id ASC`,
+      `SELECT timer.* FROM review_timers AS timer
+       JOIN tasks AS task ON task.workspace_id = timer.workspace_id AND task.id = timer.task_id
+       WHERE timer.workspace_id = ? AND timer.task_id = ? AND ${predicate.sql}
+         AND (timer.run_id IS NULL OR EXISTS (SELECT 1 FROM runs AS run
+           WHERE run.workspace_id = timer.workspace_id AND run.id = timer.run_id
+             AND run.task_id = task.id AND run.project_id = task.project_id))
+       ORDER BY timer.started_at ASC, timer.id ASC`,
     )
-    .all(workspaceId, taskId)) as Record<string, unknown>[];
+    .all(workspaceId, taskId, ...predicate.parameters)) as Record<string, unknown>[];
   return rows.map(timerRowToRecord);
 }
 
@@ -1078,15 +1173,24 @@ export async function listReviewTimerObservations(
   db: SqlDatabase,
   workspaceId: string,
   timerId: string,
+  access?: TaskAccessContext,
 ): Promise<ReviewTimerObservation[]> {
+  const predicate = measurementTaskPredicate(workspaceId, access);
   const rows = (await db
     .prepare(
-      `SELECT observation_id, timer_id, observed_kind, actor_type, actor_id, occurred_at
-       FROM review_timer_observations
-       WHERE workspace_id = ? AND timer_id = ?
-       ORDER BY occurred_at ASC, observation_id ASC`,
+      `SELECT observation.observation_id, observation.timer_id, observation.observed_kind,
+         observation.actor_type, observation.actor_id, observation.occurred_at
+       FROM review_timer_observations AS observation
+       JOIN review_timers AS timer ON timer.workspace_id = observation.workspace_id
+         AND timer.id = observation.timer_id
+       JOIN tasks AS task ON task.workspace_id = timer.workspace_id AND task.id = timer.task_id
+       WHERE observation.workspace_id = ? AND observation.timer_id = ? AND ${predicate.sql}
+         AND (timer.run_id IS NULL OR EXISTS (SELECT 1 FROM runs AS run
+           WHERE run.workspace_id = timer.workspace_id AND run.id = timer.run_id
+             AND run.task_id = task.id AND run.project_id = task.project_id))
+       ORDER BY observation.occurred_at ASC, observation.observation_id ASC`,
     )
-    .all(workspaceId, timerId)) as Array<{
+    .all(workspaceId, timerId, ...predicate.parameters)) as Array<{
     observation_id: string;
     timer_id: string;
     observed_kind: "started" | "stopped";
@@ -1101,15 +1205,26 @@ export async function listBrowserActivity(
   db: SqlDatabase,
   workspaceId: string,
   humanId: string,
+  access?: TaskAccessContext,
 ): Promise<BrowserActivityObservation[]> {
+  const predicate = measurementTaskPredicate(workspaceId, access);
+  const authorize = async () => {
+    if (!access) return;
+    const principal = await loadPrincipal(db, workspaceId, access.humanId);
+    assertEpoch(principal, access.authorizationEpoch);
+    assertRole(principal, ["owner", "member", "reviewer"]);
+  };
+  await authorize();
   const rows = (await db
     .prepare(
       `SELECT observation_id, human_id, task_id, started_at, ended_at, capped, provenance
-       FROM browser_activity_observations
-       WHERE workspace_id = ? AND human_id = ?
+       FROM browser_activity_observations AS observation
+       WHERE workspace_id = ? AND human_id = ? AND (task_id IS NULL OR EXISTS (
+         SELECT 1 FROM tasks AS task WHERE task.workspace_id = observation.workspace_id
+           AND task.id = observation.task_id AND ${predicate.sql}))
        ORDER BY started_at ASC, observation_id ASC`,
     )
-    .all(workspaceId, humanId)) as Array<{
+    .all(workspaceId, humanId, ...predicate.parameters)) as Array<{
     observation_id: string;
     human_id: string;
     task_id: string | null;
@@ -1118,6 +1233,7 @@ export async function listBrowserActivity(
     capped: number;
     provenance: "human_observed";
   }>;
+  await authorize();
   return rows.map((row) => ({
     observation_id: row.observation_id,
     human_id: row.human_id,
@@ -1319,16 +1435,20 @@ export async function getRunMeasurements(
   workspaceId: string,
   runId: string,
   now: string,
+  access?: TaskAccessContext,
 ): Promise<RunMeasurements> {
+  const predicate = measurementTaskPredicate(workspaceId, access);
   const nowMs = Date.parse(now);
   const run = (await db
     .prepare(
       `SELECT r.id, r.project_id, r.task_id, r.result_state, r.activity, r.created_at,
               ${RUN_PROVIDER_SQL} AS provider
        FROM runs AS r
-       WHERE r.workspace_id = ? AND r.id = ?`,
+       JOIN tasks AS task ON task.workspace_id = r.workspace_id AND task.id = r.task_id
+         AND task.project_id = r.project_id
+       WHERE r.workspace_id = ? AND r.id = ? AND ${predicate.sql}`,
     )
-    .get(workspaceId, runId)) as
+    .get(workspaceId, runId, ...predicate.parameters)) as
     | {
         id: string;
         project_id: string;
@@ -1389,13 +1509,13 @@ export async function getRunMeasurements(
          (SELECT id FROM attention_requests WHERE workspace_id = ? AND run_id = ?)`,
     )
     .get(workspaceId, workspaceId, runId)) as { total: number };
-  const tokens = await listTokenObservations(db, workspaceId, runId);
-  const activitySources = await listRunMeasurementActivitySources(db, workspaceId, runId);
-  const sources = await listRunMeasurementSources(db, workspaceId, runId);
-  const reported = await listMeasurementIntervals(db, workspaceId, runId);
+  const tokens = await listTokenObservations(db, workspaceId, runId, access);
+  const activitySources = await listRunMeasurementActivitySources(db, workspaceId, runId, access);
+  const sources = await listRunMeasurementSources(db, workspaceId, runId, {}, access);
+  const reported = await listMeasurementIntervals(db, workspaceId, runId, access);
   const timers = (await db
-    .prepare(`SELECT * FROM review_timers WHERE workspace_id = ? AND run_id = ?`)
-    .all(workspaceId, runId)) as Record<string, unknown>[];
+    .prepare(`SELECT * FROM review_timers WHERE workspace_id = ? AND run_id = ? AND task_id = ?`)
+    .all(workspaceId, runId, run.task_id)) as Record<string, unknown>[];
   const timerRecords = timers.map(timerRowToRecord);
   const submissions = (await db
     .prepare(
@@ -1661,6 +1781,7 @@ export async function getRunMeasurements(
     }
   }
 
+  await assertMeasurementRun(db, workspaceId, runId, access);
   return {
     run_id: runId,
     task_id: run.task_id,
@@ -1760,11 +1881,17 @@ export async function getTaskMeasurements(
   workspaceId: string,
   taskId: string,
   now: string,
+  access?: TaskAccessContext,
 ): Promise<TaskMeasurements> {
+  const predicate = measurementTaskPredicate(workspaceId, access);
   const nowMs = Date.parse(now);
   const task = (await db
-    .prepare(`SELECT id, project_id, priority FROM tasks WHERE workspace_id = ? AND id = ?`)
-    .get(workspaceId, taskId)) as { id: string; project_id: string; priority: string } | undefined;
+    .prepare(
+      `SELECT id, project_id, priority FROM tasks AS task
+      WHERE workspace_id = ? AND id = ? AND ${predicate.sql}`,
+    )
+    .get(workspaceId, taskId, ...predicate.parameters)) as
+    { id: string; project_id: string; priority: string } | undefined;
   if (!task) {
     throw new DomainError("not_found", "task not found");
   }
@@ -1773,9 +1900,9 @@ export async function getTaskMeasurements(
     .all(workspaceId, taskId)) as Array<{ id: string }>;
   const runs: RunMeasurements[] = [];
   for (const row of runIds) {
-    runs.push(await getRunMeasurements(db, workspaceId, row.id, now));
+    runs.push(await getRunMeasurements(db, workspaceId, row.id, now, access));
   }
-  const timers = await listReviewTimers(db, workspaceId, taskId);
+  const timers = await listReviewTimers(db, workspaceId, taskId, access);
   let stoppedTotal = 0;
   let openMs = 0;
   for (const timer of timers) {
@@ -1897,6 +2024,7 @@ export async function getTaskMeasurements(
     values.some((value) => value !== null)
       ? values.reduce<number>((sum, value) => sum + (value ?? 0), 0)
       : null;
+  await assertMeasurementTask(db, workspaceId, taskId, access);
   return {
     task_id: taskId,
     project_id: task.project_id,
@@ -1981,9 +2109,11 @@ export async function aggregateMeasurements(
   workspaceId: string,
   filters: AggregateFilters,
   now: string,
+  access?: TaskAccessContext,
 ): Promise<{ cells: AggregateCell[]; truncated: boolean }> {
-  const conditions: string[] = ["r.workspace_id = ?"];
-  const params: unknown[] = [workspaceId];
+  const predicate = measurementTaskPredicate(workspaceId, access, "t");
+  const conditions: string[] = ["r.workspace_id = ?", "r.project_id = t.project_id", predicate.sql];
+  const params: unknown[] = [workspaceId, ...predicate.parameters];
   if (filters.projectId !== undefined) {
     conditions.push("r.project_id = ?");
     params.push(filters.projectId);
@@ -2019,7 +2149,7 @@ export async function aggregateMeasurements(
   const truncated = rows.length > MEASUREMENT_AGGREGATION_RUN_LIMIT;
   const cells = new Map<string, AggregateCell>();
   for (const row of rows.slice(0, MEASUREMENT_AGGREGATION_RUN_LIMIT)) {
-    const measured = await getRunMeasurements(db, workspaceId, row.run_id, now);
+    const measured = await getRunMeasurements(db, workspaceId, row.run_id, now, access);
     const key = `${row.project_id}|${row.provider ?? "unknown"}|${row.priority}`;
     const cell = cells.get(key) ?? {
       project_id: row.project_id,
@@ -2087,5 +2217,6 @@ export async function aggregateMeasurements(
     cell.attention_wait_ms += measured.times.attention_wait_ms;
     cells.set(key, cell);
   }
+  for (const row of rows) await assertMeasurementRun(db, workspaceId, row.run_id, access);
   return { cells: [...cells.values()], truncated };
 }

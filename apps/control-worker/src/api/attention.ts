@@ -115,10 +115,16 @@ export async function handleAttentionApi(request: Request, deps: WorkApiDeps): P
       throw new DomainError("invalid_argument", "attention state filter is invalid");
     }
     return json({
-      attention: await listAttention(deps.db, deps.workspaceId, principal.projectIds, {
-        ...(rawState === null ? {} : { state: rawState as AttentionState }),
-        ...(limit === undefined ? {} : { limit }),
-      }),
+      attention: await listAttention(
+        deps.db,
+        deps.workspaceId,
+        principal.projectIds,
+        {
+          ...(rawState === null ? {} : { state: rawState as AttentionState }),
+          ...(limit === undefined ? {} : { limit }),
+        },
+        principal,
+      ),
     });
   }
 
@@ -134,6 +140,7 @@ export async function handleAttentionApi(request: Request, deps: WorkApiDeps): P
       deps.workspaceId,
       principal.projectIds,
       attentionId,
+      principal,
     );
     if (!attention) {
       return json({ error: "not_found" }, 404);
@@ -145,6 +152,7 @@ export async function handleAttentionApi(request: Request, deps: WorkApiDeps): P
         deps.workspaceId,
         principal.projectIds,
         attentionId,
+        principal,
       ),
     });
   }
@@ -165,6 +173,7 @@ export async function handleAttentionApi(request: Request, deps: WorkApiDeps): P
         deps.workspaceId,
         principal.projectIds,
         attentionId,
+        principal,
       );
       return json({ ...outcome, ...(committed ? { attention: committed } : {}) }, 409);
     }

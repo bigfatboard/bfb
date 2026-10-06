@@ -12,6 +12,7 @@ import { getAttention, requireAttentionRun, type AttentionRecord } from "./atten
 import { DomainError, type HubContext } from "./hub.js";
 import { runnerObject } from "./runner-crypto.js";
 import type { RunnerPrincipal } from "./runners.js";
+import { agentTaskAccess } from "./agent-work.js";
 
 export interface ReadAgentAttentionInput {
   principal: RunnerPrincipal;
@@ -77,7 +78,13 @@ export async function readAgentAttention(
       context,
       request.binding,
     );
-    const record = await getAttention(tx, workspaceId, [row.project_id], request.attention_id);
+    const record = await getAttention(
+      tx,
+      workspaceId,
+      [row.project_id],
+      request.attention_id,
+      agentTaskAccess(row),
+    );
     if (!record || record.run_id !== row.run_id || record.task_id !== row.task_id)
       throw new DomainError("not_found", "attention request not found");
     return agentAttentionResult(record, binding);

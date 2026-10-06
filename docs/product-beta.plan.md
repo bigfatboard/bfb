@@ -25,14 +25,20 @@ and certificates. Package metadata remains the source of truth for completion.
 
 ## Delivery order and observable checks
 
-Current priority, 6 October: Timo requested the clean UI redesign as a dedicated
-goal. [W03](work-packages/WP-W03-progressive-disclosure-ui.md) owns the board,
-attention, task detail and comment presentation, with details on demand and
-one or at most two item commands visible by default. The
-[redesign brief](ui-redesign-brief.md) records the implementation direction.
-This does not consume unfinished C11 behavior: its stage-one certificate is
-retained, private creation remains disabled and the remaining privacy gate
-resumes separately. The sequence below still records the broader product work.
+Current goal, 6 October: complete the remaining product-beta scope in the
+isolated product worktree. [W03](work-packages/WP-W03-progressive-disclosure-ui.md)
+is locally certified; its approved light/dark design and two-command default
+budget carry into new product surfaces. Use Impeccable to build and verify those
+surfaces without restarting visual-direction approval.
+
+[C11](work-packages/WP-C11-private-task-delivery.md) is the active package.
+Finish current-authority child/artifact delivery, recipient-safe replay and
+metadata, then creator-only sharing and private checkpoints. Its stage-one
+certificate remains historical; private creation stays disabled until all
+stages pass together. Publication follows in C12. Knowledge, skills, secrets,
+reminders and contribution views receive their own contracts and acceptance
+packages before implementation. The locally verified product branch is the
+deliverable; deployment and live-pilot operation are separate rollout decisions.
 
 1. Re-certify V02 isolated viewing against the current V01 contract. Reproduce
    and fix same-clock consumption and body-bound errors, connect metadata-only

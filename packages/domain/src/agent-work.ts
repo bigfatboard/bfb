@@ -18,11 +18,13 @@ import {
 } from "./launch-state.js";
 import { launchRunner } from "./launch-state.js";
 import { assertRunnerLaunchAuthority, type RunnerPrincipal } from "./runners.js";
+import { assertTaskAccess, type TaskAccessAction } from "./task-access.js";
 import {
   deliverAgentContext,
   getTask,
   type RunContextResult,
   type TaskRecord,
+  type TaskReadAccess,
 } from "./work-commands.js";
 
 export const AGENT_CONTEXT_RESULT_BYTES = 61_440;
@@ -63,7 +65,20 @@ export function agentWorkKey(tool: string, request: AgentWorkRequest): string {
     .digest("hex")}`;
 }
 
-async function boundRun(input: AgentWorkInput, ctx: HubContext): Promise<BoundRun> {
+/** The requesting human is retained by the authenticated immutable assignment. */
+export function agentTaskAccess(row: BoundRun): TaskReadAccess {
+  return {
+    workspaceId: row.workspace_id,
+    humanId: row.requesting_human_id,
+    authorizationEpoch: row.requesting_human_epoch,
+  };
+}
+
+async function boundRun(
+  input: AgentWorkInput,
+  ctx: HubContext,
+  action: TaskAccessAction = "read",
+): Promise<BoundRun> {
   const request = checkedRequest(input);
   let principal: RunnerPrincipal;
   try {
@@ -101,6 +116,8 @@ async function boundRun(input: AgentWorkInput, ctx: HubContext): Promise<BoundRu
     const requester = await loadPrincipal(ctx.db, ctx.workspaceId, row.requesting_human_id);
     assertEpoch(requester, row.requesting_human_epoch);
     await assertRunnerLaunchAuthority(ctx.db, requester, row.runner_id, row.project_id);
+    const task = await assertTaskAccess(ctx.db, requester, row.task_id, action);
+    if (task.projectId !== row.project_id) throw new DomainError("not_found", "task not found");
   } catch (error) {
     authorityFailure(error);
   }
@@ -125,8 +142,12 @@ function disposition(row: BoundRun): AgentAuthorityResult {
   };
 }
 
-export async function liveRun(input: AgentWorkInput, ctx: HubContext): Promise<BoundRun> {
-  const row = await boundRun(input, ctx),
+export async function liveRun(
+  input: AgentWorkInput,
+  ctx: HubContext,
+  action: TaskAccessAction = "read",
+): Promise<BoundRun> {
+  const row = await boundRun(input, ctx, action),
     state = disposition(row);
   if (state.execution_ended) throw new DomainError("assignment_ended", "execution ended");
   if (state.result_terminal) throw new DomainError("capability_closed", "run result is terminal");
@@ -197,7 +218,7 @@ export const agentRunContextCommand: HubCommand<AgentWorkInput, RunContextResult
       ctx.db,
       ctx.workspaceId,
       row.task_id,
-      { kind: "run", runId: row.run_id },
+      { kind: "run", runId: row.run_id, access: agentTaskAccess(row) },
       ctx.now,
       AGENT_CONTEXT_RESULT_BYTES,
     );
@@ -218,7 +239,7 @@ export const agentRunTaskCommand: HubCommand<AgentWorkInput, AgentTaskResult> = 
   }),
   async run(input, ctx) {
     const row = await liveRun(input, ctx),
-      task = await getTask(ctx.db, ctx.workspaceId, row.task_id);
+      task = await getTask(ctx.db, ctx.workspaceId, row.task_id, agentTaskAccess(row));
     if (!task) throw new DomainError("not_found", "task unavailable");
     return agentTaskView(task);
   },

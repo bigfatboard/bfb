@@ -3,11 +3,12 @@
 
 import type { SqlDatabase } from "@bfb/db";
 import type { AgentSessionReference, AgentWorkRequest } from "@bfb/protocol";
-import { liveRun } from "./agent-work.js";
+import { agentTaskAccess, liveRun } from "./agent-work.js";
 import { currentAgentSession } from "./agent-sessions.js";
 import { DomainError, type HubContext } from "./hub.js";
 import { readLaunch, reauthorizeActiveRun } from "./launch-state.js";
 import type { RunnerPrincipal } from "./runners.js";
+import { taskAccessPredicate } from "./task-access.js";
 
 export async function requireAgentArtifactRun(
   ctx: HubContext,
@@ -15,7 +16,7 @@ export async function requireAgentArtifactRun(
   reference: AgentWorkRequest,
   binding: AgentSessionReference,
 ) {
-  const row = await liveRun({ principal, request: reference }, ctx);
+  const row = await liveRun({ principal, request: reference }, ctx, "contribute");
   const latest = (await ctx.db
     .prepare(
       `SELECT execution_id,assignment_generation FROM execution_assignments
@@ -74,6 +75,8 @@ const authoritySql = `SELECT json_array(
 FROM execution_assignments a
 JOIN run_executions execution ON execution.workspace_id=a.workspace_id AND execution.id=a.execution_id
 JOIN runs run ON run.workspace_id=a.workspace_id AND run.id=a.run_id
+JOIN tasks artifact_task ON artifact_task.workspace_id=run.workspace_id AND artifact_task.id=run.task_id
+  AND artifact_task.project_id=run.project_id AND run.task_id=a.task_id AND run.project_id=a.project_id
 JOIN launch_commands launch ON launch.workspace_id=a.workspace_id AND launch.execution_id=a.execution_id
 JOIN run_configuration_snapshots snapshot ON snapshot.workspace_id=launch.workspace_id AND snapshot.id=launch.snapshot_id
 JOIN runners runner ON runner.workspace_id=a.workspace_id AND runner.id=a.runner_id
@@ -103,14 +106,21 @@ export async function prepareAgentArtifactAuthority(
   reference: AgentWorkRequest,
   binding: AgentSessionReference,
 ) {
+  const authenticated = await liveRun({ principal, request: reference }, ctx, "contribute");
+  const parent = taskAccessPredicate(agentTaskAccess(authenticated), "contribute", "artifact_task");
+  const currentAuthoritySql = `${authoritySql} AND ${parent.sql}
+    AND lease.expires_at > ? AND token.expires_at > ?`;
   const params = [
     principal.tokenId,
     ctx.workspaceId,
     reference.run_execution_id,
     reference.assignment_generation,
+    ...parent.parameters,
+    ctx.now,
+    ctx.now,
   ];
   const read = async () =>
-    ((await ctx.db.prepare(authoritySql).get(...params)) as { witness: string } | undefined)
+    ((await ctx.db.prepare(currentAuthoritySql).get(...params)) as { witness: string } | undefined)
       ?.witness;
   const before = await read();
   const row = await requireAgentArtifactRun(ctx, principal, reference, binding);
@@ -120,7 +130,7 @@ export async function prepareAgentArtifactAuthority(
   return {
     row,
     witness: {
-      predicate: `(${authoritySql}) = ?`,
+      predicate: `(${currentAuthoritySql}) = ?`,
       params: [...params, before],
     } satisfies ArtifactAuthorityWitness,
   };

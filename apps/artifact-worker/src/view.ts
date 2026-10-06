@@ -7,6 +7,7 @@ import type { SqlDatabase } from "@bfb/db";
 import {
   VIEW_REDEEM_BODY_LIMIT,
   artifactSubject,
+  assertViewDelivery,
   consumeArtifactBudget,
   isUlid,
   redeemViewGrant,
@@ -341,10 +342,13 @@ export async function handleViewRedeem(
       return new Response(JSON.stringify({ error: "view_failed" }), { status: 500, headers });
     }
     const object = await deps.artifacts.get(redeemed.r2Key);
-    if (!object) {
+    const bytes = object ? new Uint8Array(await object.arrayBuffer()) : null;
+    // R2 awaits are outside the consume transaction. Current task authority
+    // must still hold before bytes or body-derived integrity state leave here.
+    await assertViewDelivery(deps.db, redeemed);
+    if (!bytes) {
       return new Response(JSON.stringify({ error: "view_failed" }), { status: 500, headers });
     }
-    const bytes = new Uint8Array(await object.arrayBuffer());
     // R2 is not assumed immutable: re-verify the content hash before serving.
     if (sha256Hex(bytes) !== redeemed.contentHash) {
       return new Response(JSON.stringify({ error: "view_failed" }), { status: 500, headers });

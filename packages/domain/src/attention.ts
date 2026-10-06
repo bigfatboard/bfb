@@ -24,6 +24,8 @@ import { runnerObject } from "./runner-crypto.js";
 import type { RunnerPrincipal } from "./runners.js";
 import { liveRun, type AgentWorkInput } from "./agent-work.js";
 import { currentAgentSession } from "./agent-sessions.js";
+import { readTaskPredicate, type TaskReadAccess } from "./work-commands.js";
+import { taskAccessPredicate, type TaskAccessAction } from "./task-access.js";
 
 export const ATTENTION_KINDS = [
   "clarification",
@@ -208,9 +210,19 @@ async function loadRequestForHuman(
   if (!isUlid(attentionId)) {
     throw new DomainError("not_found", "attention request not found");
   }
+  const predicate = taskAccessPredicate(principal, "contribute", "task");
   const row = (await ctx.db
-    .prepare(`SELECT * FROM attention_requests WHERE workspace_id = ? AND id = ?`)
-    .get(ctx.workspaceId, attentionId)) as Record<string, unknown> | undefined;
+    .prepare(
+      `SELECT attention.* FROM attention_requests AS attention
+      JOIN tasks AS task ON task.workspace_id = attention.workspace_id
+        AND task.id = attention.task_id AND task.project_id = attention.project_id
+      JOIN runs AS run ON run.workspace_id = attention.workspace_id
+        AND run.id = attention.run_id AND run.task_id = task.id
+        AND run.project_id = task.project_id
+      WHERE attention.workspace_id = ? AND attention.id = ? AND ${predicate.sql}`,
+    )
+    .get(ctx.workspaceId, attentionId, ...predicate.parameters)) as
+    Record<string, unknown> | undefined;
   if (!row) {
     throw new DomainError("not_found", "attention request not found");
   }
@@ -252,8 +264,9 @@ export async function requireAttentionRun(
   input: AgentWorkInput,
   ctx: HubContext,
   supplied?: AgentSessionReference,
+  action: TaskAccessAction = "read",
 ) {
-  const row = await liveRun(input, ctx);
+  const row = await liveRun(input, ctx, action);
   const launch = await readLaunch(ctx.db, ctx.workspaceId, row.launch_id);
   try {
     await reauthorizeActiveRun(ctx, launch);
@@ -280,6 +293,7 @@ async function prepareAttentionRequest(input: RequestAttentionInput, ctx: HubCon
     { principal: input.principal, request: request.reference },
     ctx,
     request.binding,
+    "contribute",
   );
   if (!current.binding)
     throw new DomainError("session_not_bound", "attention requires a confirmed session");
@@ -529,17 +543,26 @@ export async function getAttention(
   workspaceId: string,
   projectIds: string[],
   attentionId: string,
+  access?: TaskReadAccess,
 ): Promise<AttentionRecord | null> {
   if (!isUlid(attentionId) || projectIds.length === 0) {
     return null;
   }
   const placeholders = projectIds.map(() => "?").join(", ");
+  const predicate = readTaskPredicate(access, "task");
   const row = (await db
     .prepare(
-      `SELECT * FROM attention_requests
-       WHERE workspace_id = ? AND id = ? AND project_id IN (${placeholders})`,
+      `SELECT attention.* FROM attention_requests AS attention
+       JOIN tasks AS task ON task.workspace_id = attention.workspace_id
+         AND task.id = attention.task_id AND task.project_id = attention.project_id
+       JOIN runs AS run ON run.workspace_id = attention.workspace_id
+         AND run.id = attention.run_id AND run.task_id = task.id
+         AND run.project_id = task.project_id
+       WHERE attention.workspace_id = ? AND attention.id = ?
+         AND attention.project_id IN (${placeholders}) AND ${predicate.sql}`,
     )
-    .get(workspaceId, attentionId, ...projectIds)) as Record<string, unknown> | undefined;
+    .get(workspaceId, attentionId, ...projectIds, ...predicate.parameters)) as
+    Record<string, unknown> | undefined;
   return row ? rowToRecord(row) : null;
 }
 
@@ -558,6 +581,7 @@ export async function listAttention(
   workspaceId: string,
   projectIds: string[],
   options: ListAttentionOptions = {},
+  access?: TaskReadAccess,
 ): Promise<RankedAttention[]> {
   if (projectIds.length === 0) {
     return [];
@@ -568,6 +592,7 @@ export async function listAttention(
     throw new DomainError("invalid_argument", "attention list limit is invalid");
   }
   const placeholders = projectIds.map(() => "?").join(", ");
+  const predicate = readTaskPredicate(access, "t");
   const rows = (await db
     .prepare(
       `SELECT a.*,
@@ -575,9 +600,11 @@ export async function listAttention(
               r.result_state AS run_result_state, r.activity AS run_activity
        FROM attention_requests AS a
        JOIN tasks AS t ON t.workspace_id = a.workspace_id AND t.id = a.task_id
+         AND t.project_id = a.project_id
        JOIN projects AS p ON p.workspace_id = a.workspace_id AND p.id = a.project_id
        JOIN runs AS r ON r.workspace_id = a.workspace_id AND r.id = a.run_id
-       WHERE a.workspace_id = ? AND a.project_id IN (${placeholders})
+         AND r.task_id = t.id AND r.project_id = t.project_id
+       WHERE a.workspace_id = ? AND a.project_id IN (${placeholders}) AND ${predicate.sql}
          ${state === undefined ? "" : "AND a.state = ?"}
        ORDER BY a.blocking DESC,
                 CASE a.kind
@@ -591,9 +618,13 @@ export async function listAttention(
                 a.requested_at ASC, a.id ASC
        LIMIT ?`,
     )
-    .all(workspaceId, ...projectIds, ...(state === undefined ? [] : [state]), limit)) as Array<
-    Record<string, unknown>
-  >;
+    .all(
+      workspaceId,
+      ...projectIds,
+      ...predicate.parameters,
+      ...(state === undefined ? [] : [state]),
+      limit,
+    )) as Array<Record<string, unknown>>;
   return rows.map((row) => {
     const record = rowToRecord(row);
     return {
@@ -613,19 +644,30 @@ export async function listAttentionObservations(
   workspaceId: string,
   projectIds: string[],
   attentionId: string,
+  access?: TaskReadAccess,
 ): Promise<AttentionObservation[]> {
-  const record = await getAttention(db, workspaceId, projectIds, attentionId);
-  if (!record) {
+  if (!isUlid(attentionId) || projectIds.length === 0) {
     return [];
   }
+  const predicate = readTaskPredicate(access, "task");
+  const placeholders = projectIds.map(() => "?").join(", ");
   const rows = (await db
     .prepare(
-      `SELECT observation_id, attention_id, observed_kind, actor_type, actor_id, occurred_at
-       FROM attention_observations
-       WHERE workspace_id = ? AND attention_id = ?
-       ORDER BY occurred_at ASC, rowid ASC`,
+      `SELECT observation.observation_id, observation.attention_id, observation.observed_kind,
+              observation.actor_type, observation.actor_id, observation.occurred_at
+       FROM attention_observations AS observation
+       JOIN attention_requests AS attention ON attention.workspace_id = observation.workspace_id
+         AND attention.id = observation.attention_id
+       JOIN tasks AS task ON task.workspace_id = attention.workspace_id
+         AND task.id = attention.task_id AND task.project_id = attention.project_id
+       JOIN runs AS run ON run.workspace_id = attention.workspace_id
+         AND run.id = attention.run_id AND run.task_id = task.id
+         AND run.project_id = task.project_id
+       WHERE observation.workspace_id = ? AND observation.attention_id = ?
+         AND attention.project_id IN (${placeholders}) AND ${predicate.sql}
+       ORDER BY observation.occurred_at ASC, observation.rowid ASC`,
     )
-    .all(workspaceId, attentionId)) as Array<{
+    .all(workspaceId, attentionId, ...projectIds, ...predicate.parameters)) as Array<{
     observation_id: string;
     attention_id: string;
     observed_kind: (typeof ATTENTION_OBSERVATION_KINDS)[number];

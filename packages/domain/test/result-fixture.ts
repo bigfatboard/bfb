@@ -18,13 +18,18 @@ import { randomUlid } from "../src/ids.js";
 import { captureFixture } from "./agent-capture-fixture.js";
 import { success } from "./launch-fixture.js";
 
-export async function resultFixture(db?: SqlDatabase, enabled = true, tightened = false) {
-  const f = await captureFixture(
-    db,
-    false,
-    tightened,
-    enabled ? { offlineResults: { allow_submit_result: true, max_pending_age_seconds: 300 } } : {},
-  );
+export async function resultFixture(
+  db?: SqlDatabase,
+  enabled = true,
+  tightened = false,
+  options: { taskCreatorHumanId?: string; requestingHumanId?: string } = {},
+) {
+  const f = await captureFixture(db, false, tightened, {
+    ...options,
+    ...(enabled
+      ? { offlineResults: { allow_submit_result: true, max_pending_age_seconds: 300 } }
+      : {}),
+  });
   const request = (id = randomUlid()): AgentResultRequest => ({
     ...f.bound(id),
     summary: " PRIVATE_RESULT_SUMMARY <>& \u2028 \u2029 \\u2028 ",

@@ -188,7 +188,7 @@ interface Seed {
 }
 
 /** Seeds owner auth, full and project-scoped CLI credentials, one launched run, and one open request. */
-async function seed(): Promise<Seed> {
+async function seed(taskCreatorHumanId = FIX.owner): Promise<Seed> {
   const context = openAuthTestContext(NOW);
   await seedSyntheticWorkspace(context.db, NOW);
   const { session, csrf } = await ownerSession(context);
@@ -200,11 +200,15 @@ async function seed(): Promise<Seed> {
   const checkout = randomUlid();
   const tokenId = randomUlid();
   const hub = new WorkspaceHub(db);
-  async function human<T>(command: Parameters<typeof hub.execute>[0], input: unknown): Promise<T> {
+  async function human<T>(
+    command: Parameters<typeof hub.execute>[0],
+    input: unknown,
+    humanId = FIX.owner,
+  ): Promise<T> {
     const outcome = await hub.execute(command as never, {
       workspaceId: FIX.workspace,
       idempotencyKey: randomUlid(),
-      actorHumanId: FIX.owner,
+      actorHumanId: humanId,
       authorizationEpoch: 1,
       now: NOW,
       input: input as never,
@@ -315,11 +319,15 @@ async function seed(): Promise<Seed> {
     executionMode: "interactive",
     harnessMode: "restricted",
   });
-  const task = await human<{ id: string }>(createTaskCommand, {
-    projectId: FIX.projectA,
-    title: "Synthetic X02 route task",
-    priority: "P2",
-  });
+  const task = await human<{ id: string }>(
+    createTaskCommand,
+    {
+      projectId: FIX.projectA,
+      title: "Synthetic X02 route task",
+      priority: "P2",
+    },
+    taskCreatorHumanId,
+  );
   const inventory: RunnerInventory = {
     schema_version: 1,
     workspace_id: FIX.workspace,
@@ -849,6 +857,54 @@ describe("X02 human CLI surface", () => {
       state: "resolved",
       answer: "Synthetic X02 CLI answer",
     });
+  });
+
+  it("private attention/artifact CLI delivery requires the current named grant, not workspace ownership", async () => {
+    const s = await seed(FIX.member);
+    const db = s.context.db;
+    const app = appFor(s.context);
+    const current = bindings(s.context);
+    const artifactId = randomUlid();
+    await db
+      .prepare(
+        `INSERT INTO artifacts (workspace_id, id, run_id, format, role, created_by_human_id, created_at)
+         VALUES (?, ?, ?, 'markdown', 'review', ?, ?)`,
+      )
+      .run(FIX.workspace, artifactId, s.runId, FIX.member, NOW);
+    await db
+      .prepare(
+        `INSERT INTO task_privacy (workspace_id, task_id, owner_human_id, created_at)
+         VALUES (?, ?, ?, ?)`,
+      )
+      .run(FIX.workspace, s.taskId, FIX.member, NOW);
+    const paths = [
+      `/api/v1/cli/artifacts?run_id=${s.runId}`,
+      `/api/v1/cli/artifacts/${artifactId}`,
+      `/api/v1/cli/attention/${s.attentionId}`,
+    ];
+    for (const path of paths) {
+      const denied = await app.request(cliGet(s.credential, path), undefined, current);
+      expect(denied.status).toBe(404);
+      expect(await denied.json()).toMatchObject({ error: "not_found" });
+    }
+    const grantId = randomUlid();
+    await db
+      .prepare(
+        `INSERT INTO task_human_grants
+         (workspace_id, id, task_id, human_id, authorization_epoch, permission, created_at)
+         VALUES (?, ?, ?, ?, 1, 'read', ?)`,
+      )
+      .run(FIX.workspace, grantId, s.taskId, FIX.owner, NOW);
+    for (const path of paths) {
+      const allowed = await app.request(cliGet(s.scopedCredential, path), undefined, current);
+      expect(allowed.status, await allowed.clone().text()).toBe(200);
+    }
+    await db
+      .prepare("UPDATE task_human_grants SET revoked_at = ? WHERE workspace_id = ? AND id = ?")
+      .run(NOW, FIX.workspace, grantId);
+    for (const path of paths) {
+      expect((await app.request(cliGet(s.credential, path), undefined, current)).status).toBe(404);
+    }
   });
 
   it("reads run-bound artifact metadata and hides unbound or foreign rows", async () => {

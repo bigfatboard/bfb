@@ -14,9 +14,12 @@ policies; these inserts are not a product command or deployment instruction.
    commands, including cached outcomes. Internal callers without a human access
    context exclude private tasks. Child creation under a private task is rejected
    until inheritance is implemented. This stage does not certify child delivery.
-   Task-tool arguments are closed shapes: unsupported private visibility,
-   ownership or audience fields reject before a shared business write, never
-   silently become shared creation or progress through SDK field stripping.
+  Task-tool arguments are closed shapes: unsupported private visibility,
+  ownership or audience fields reject before a shared business write, never
+  silently become shared creation or progress through SDK field stripping.
+   Attention/result/artifact tools and nested evidence references follow the
+   same closed-shape rule; unsupported private intent cannot become a shared
+   child write through SDK normalization.
 2. Fence task descendants, run/execution/session/attention/result/measurement
    reads and mutations, artifact issue/consume/redeem, local agent delivery and
    pending operations. Re-check parent authority in the byte-delivery query.
@@ -82,6 +85,31 @@ partial stage never changes C11 to `done` or enables privacy. Evidence lives at
   run/session/execution/assignment/runner authority. Remote clients need current
   sponsor task access plus delegation scope/boundary. Neither may enumerate
   another author's private checkpoints. Revocation fences cached/pending calls.
+
+## Child delivery implementation and remaining checks
+
+The child-delivery suites derive local task authority from the authenticated
+assignment's requesting human and retained epoch, not the runner's owner.
+Reads require `read`; comments, results, attention and review timers require
+`contribute`; task changes and fail/cancel require `edit`, in addition to their
+existing role and credential ceilings. Runner-observed measurement capture is
+telemetry and requires current requester read authority, not contribute authority.
+Human artifact issue/finalize and agent artifact issue require contribution;
+upload/view consumption repeats the current parent check in the committing SQL.
+
+Run creation remains shared-only, including cached responses. Its audit receipt
+contains run/task/snapshot identifiers and versions, not the task title or the
+configuration body. Private execution support belongs to its owning lane.
+
+Known private artifact evidence cannot be copied into a different task even
+when the submitting human can read both. Current reads re-project historical
+evidence links through recipient access without rewriting submissions. Generic
+unknown references retain their earlier opaque handling. This interim behavior
+does **not** certify reference-existence privacy: accepting an unknown artifact
+ID while rejecting an existing hidden ID distinguishes presence. Stage 3 must
+provide a uniform external policy for recognized artifact references before
+private creation can be enabled. Synthetic child tests prove access/content
+fences, not that remaining existence check or live private R2 byte delivery.
 
 ## Frozen replay contract
 
