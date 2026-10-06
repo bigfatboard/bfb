@@ -1,12 +1,12 @@
 # WP-X03 — Remote MCP parity extensions
 
-Status: `in_progress`
+Status: `done`
 
 Risk: Very high
 
 Test target: `pnpm test:x03`
 
-Evidence manifest: `docs/work-packages/evidence/WP-X03/manifest.json`
+Evidence manifest: `docs/work-packages/evidence/WP-X03/runtime-manifest.json`
 
 ## Outcome
 
@@ -68,12 +68,24 @@ The remote MCP surface can use later attention, result, and artifact commands th
 
 ## Handoff
 
+- Current product-lane certificate, 6 October: `done` at `edac71e`, with
+  separate `runtime-manifest.json`. Frozen install, exact X03 acceptance
+  (71 focused cases, 11 real-Worker/D1/R2 checks and both OAuth browser
+  scenarios), full verification (2,923 TypeScript cases, Go and 16 Swift
+  cases) and clean-worktree checks pass at the same committed source.
+  Current authority precedes cached delivery; exact fingerprints reject
+  changed retries; private bodies stay out of Hub receipts. Submitted-run
+  attention matches current A02 semantics. Historical cache entries without
+  fingerprints fail closed, preserving canonical history and existing audit
+  rows. No scope, provider authority, pilot state or deployment changed.
+  The bounded runtime proof's synthetic token/Host-bridge limits are explicit
+  in its acceptance document; historical evidence remains unchanged.
 - Product lane, 6 October: all direct dependencies are `done`. The unchanged
   baseline passes 56 cases in seven suites and both OAuth browser scenarios.
   Current re-certification checks exact retry input, current authority before
   cached private replies, metadata-only receipts and submitted-run attention
-  parity. Historical evidence remains unchanged; no current certificate,
-  pilot enablement or new OAuth authority is claimed yet.
+  parity. This earlier checkpoint preceded the certificate above; pilot
+  enablement and new OAuth authority remain unclaimed.
 - Dependency hold, 5 October: A01 is reopened for its missing production online/replay path. This implementation and historical isolated acceptance are retained; their tests have not been declared failed. Re-certification and settlement wait for A01 runtime acceptance and affected integration checks. The dated status below is historical, not the current package state.
 - Settled 18 September: `done`. A01, A02, A03, and V01 are `done`, and `pnpm test:x03` passed in a detached clean checkout at `92d7269` (install, build, exact target with the OAuth browser flow, plus the chunked-body streaming bound case).
 - Commands: `pnpm test:x03` (build, seven vitest suites, OAuth browser flow on `BFB_E2E_PORT=4193`), plus `pnpm test:x03a`, `pnpm verify`, `pnpm worktree:check`.

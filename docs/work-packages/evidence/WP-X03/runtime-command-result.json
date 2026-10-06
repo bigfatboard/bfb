@@ -1,0 +1,70 @@
+{
+  "package": "X03",
+  "recorded_on": "2026-10-06",
+  "tested_commit": "edac71ee4b8a7c04004fe94a68d79f99615cbc91",
+  "outcome": "passed",
+  "package_acceptance_complete": true,
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56)",
+    "architecture": "arm64",
+    "cloud": "Two independent disposable Control handlers, production WorkspaceHub, real D1 and Artifact Worker/R2",
+    "browser": "Headless Chromium; retained real consent, virtual-passkey and OAuth code exchange gate"
+  },
+  "migration_head": "0044_agent_profile_permissions",
+  "clean_commands": [
+    { "command": "pnpm install --frozen-lockfile", "exit_code": 0 },
+    {
+      "command": "pnpm test:x03",
+      "exit_code": 0,
+      "focused_cases": 71,
+      "focused_files": 7,
+      "storage_proof": "X03_D1_OK",
+      "runtime_checks": 11,
+      "ordered_migrations_applied": 39,
+      "browser_cases": 2
+    },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 2923,
+      "typescript_files": 147,
+      "go": "passed",
+      "swift": "passed",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    { "command": "pnpm worktree:check", "exit_code": 0 }
+  ],
+  "failing_first": {
+    "cases": 17,
+    "boundaries": [
+      "Changed retry input returned cached private data",
+      "Revoked delegation/project/boundary/scope/epoch/expiry did not fence cached delivery",
+      "Hub receipts copied questions, summaries, limitations and evidence references",
+      "Submitted-run review questions failed despite nonterminal A02 semantics"
+    ]
+  },
+  "runtime_checks": [
+    "ordered_d1_migrations_applied",
+    "twelve_stateless_tools",
+    "attention_concurrent_exact_retry_and_changed_input",
+    "result_concurrent_exact_retry_human_attribution",
+    "submitted_run_attention_is_nonterminal",
+    "cross_delegation_key_isolation",
+    "real_artifact_upload_and_verified_finalization",
+    "metadata_only_receipts_and_no_plaintext_credentials",
+    "no_privileged_or_launch_tools",
+    "current_project_access_fences_mcp_cache",
+    "revocation_fences_outer_handler_and_direct_hub_cache"
+  ],
+  "upgrade_limit": "Un-fingerprinted historical cache entries fail closed; canonical attention/result history is retained. Existing persistent audit rows were not changed or purged.",
+  "not_claimed": [
+    "Live-provider compatibility, run-scoped remote agent identity, remote start or agent-to-agent work",
+    "Pilot enablement or deployment",
+    "Creator-private task ACLs, explicit publication, project knowledge, catalogs, vault or themes",
+    "A new production Host-routing certificate: Wrangler replaces Host with loopback; the test-only bridge restores the preserved request URL's Host",
+    "OAuth protocol issuance in the real-Worker harness: approved session/proof/token fixtures are synthetic; the separate Chromium gate owns consent/code exchange"
+  ],
+  "redaction": "Bounded synthetic checks/counts only; no credentials, private bodies, local paths or raw output committed. Historical evidence remains unchanged."
+}

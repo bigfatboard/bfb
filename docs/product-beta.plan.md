@@ -12,10 +12,11 @@ and certificates. Package metadata remains the source of truth for completion.
 
 - This lane: task/project content, isolated artifact viewing and review,
   privacy and explicit sharing, canonical project knowledge, skill catalogs,
-  light/dark core UI, business secrets, contribution views and product-facing
-  checkpoint policy.
+  light/dark core UI, business secrets, contribution views and checkpoint
+  reminder policy/integration that cannot start a provider turn.
 - Other lane: provider launch/resume, containment and checkout recovery,
-  runner/app operation, provider adapters and supervised agent discussions.
+  runner/app operation, provider adapters for these paths and supervised agent
+  discussions.
 - Shared contracts: sequence D1 migrations, authorization changes, Hub commands
   and generated protocols. A product feature cannot silently change provider
   authority or consume an uncertified remote-start/discussion dependency.
@@ -55,6 +56,25 @@ feature certificates already exist. The eight requirements are mandatory;
 unimplemented capabilities remain visible rather than becoming implied by
 foundation tests.
 
+## Mandatory feature ledger
+
+| Requirement | Delivered foundation | Still to build in this lane |
+| --- | --- | --- |
+| Project board and human/agent tasks | Project lanes, typed context, routing and explicit progress records; current isolated viewer/review proofs | Distinct summary/plan/graphics/progress navigation and inherited base/project instructions |
+| Authenticated MCP and private work | Existing scoped OAuth and local run authority; current delegated retry/audit repairs | Creator-private ACLs on every read/projection/transport and explicit immutable selected-content sharing |
+| Project-root prompts and documentation | Task-local context and immutable delivery lineage, not project-wide knowledge | Canonical BFB project instructions/docs/artifacts, versioning and explicit precedence without overwriting local instructions |
+| Workspace/project Git skills | Configuration snapshot foundation only | Pinned catalogs, sync, collision resolution and explicit enablement without automatic code execution |
+| Clean neon UI, light/dark | Existing core board and narrow-screen review-control repair | Approved visual direction, tokens/preferences, core content navigation and both-theme accessibility/state acceptance |
+| Workspace/project business secrets | Infrastructure/Keychain credentials only; not business-secret sharing | Approved backing store, scoped grants/revisions, revocation and value-redaction proof |
+| Reminders to update BFB | Constant launch bootstrap and telemetry-only hooks, not checkpoint reminders | Explicit checkpoint cadence, suppression, acknowledgement/expiry and dedupe; no automatic publication or model turn |
+| Minimal human contribution history | Attributed comments, attention and result/artifact decisions; explicit timers remain measurements | Compact privacy-aware cross-record projection/view with source dedupe; no presence-derived contribution or labor |
+
+The ledger separates existing records from missing product behavior. It does
+not certify the whole board, private content, a vault or the live-provider flow.
+Root instructions, publication authority and skill enablement still require
+explicit contracts/ADRs before implementation. The current eight-feature
+acceptance definitions remain in the linked MVP plan.
+
 ## Outstanding user choices
 
 - Private-task ownership/ACL and workspace-owner exceptions.
@@ -81,7 +101,12 @@ manifests; current runtime proof must have its own explicit scope.
 - V03 is re-certified at `c20648a`: clean exact acceptance passes 62 focused
   cases, 14 real-D1 checks and nine browser scenarios. V02 regression stays
   green; full verification passes 2,908 TypeScript cases, Go and 16 Swift
-  cases. The review surface wraps at narrow widths. X03 existing MCP parity
-  is next; mandatory new product features retain their own boundaries.
+  cases. The review surface wraps at narrow widths.
+- X03 is re-certified at `edac71e`: clean exact acceptance passes 71 cases,
+  11 real-Worker/D1/R2 checks and both OAuth browser scenarios. Full verification
+  passes 2,923 TypeScript cases, Go and 16 Swift cases. Exact retries and current
+  authority fence private cached replies; receipts exclude private bodies.
+  Mandatory new privacy/knowledge/design contracts are next, pending the
+  recorded choices. Remaining foundation integrations keep their own gates.
 - No pilot configuration, production deployment or live-provider outcome is
   changed or claimed by this lane.
