@@ -15,7 +15,7 @@ A permitted human selects a named profile, enrolled Mac, and linked checkout on 
 ## Dependencies
 
 - **Requires:** C03, C06, C09, L03, L04, L05, L08, W01.
-- **Unlocks:** G01.
+- **Unlocks:** G01, W03.
 - **Can run with:** E02 only after shared run-state responses freeze.
 
 ## Scope

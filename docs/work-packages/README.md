@@ -90,6 +90,7 @@ flowchart TD
     subgraph Webandrealtime["Web and realtime"]
         W01["W01 Authenticated app and Work surface"]
         W02["W02 Runner and launch operations UI"]
+        W03["W03 Clean board and task interface"]
         E01["E01 Event ingestion, projection, and replay"]
         E02["E02 Browser realtime, timeline, and presence"]
     end
@@ -219,6 +220,12 @@ flowchart TD
     L05 --> W02
     L08 --> W02
     W01 --> W02
+    A02 --> W03
+    A03 --> W03
+    A04 --> W03
+    V03 --> W03
+    W01 --> W03
+    W02 --> W03
     C01 --> E01
     C04 --> E01
     C06 --> E01
@@ -419,6 +426,7 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 | --- | --- | --- | --- |
 | W01 | [Authenticated app and Work surface](WP-W01-app-shell.md) | `done` | Medium |
 | W02 | [Runner and launch operations UI](WP-W02-launch-operations-ui.md) | `done` | High |
+| W03 | [Clean board and task interface](WP-W03-progressive-disclosure-ui.md) | `planned` | Medium |
 | E01 | [Event ingestion, projection, and replay](WP-E01-event-ingest-replay.md) | `done` | Very high |
 | E02 | [Browser realtime, timeline, and presence](WP-E02-browser-realtime.md) | `done` | High |
 
