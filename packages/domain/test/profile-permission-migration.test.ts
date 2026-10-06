@@ -59,9 +59,11 @@ it("adds manual defaults at 0044 without rewriting populated history or snapshot
       rows: raw.prepare(`SELECT * FROM ${table}`).all(),
     }));
     const snapshots = raw.prepare("SELECT * FROM run_configuration_snapshots").all();
-    expect(applyMigrationsForVerification(raw, directory).head).toBe(
-      "0044_agent_profile_permissions",
-    );
+    expect(
+      applyMigrationsForVerification(raw, directory, {
+        stopBeforeId: "0045_private_task_authority",
+      }).head,
+    ).toBe("0044_agent_profile_permissions");
     for (const { table, columns, rows } of prior) {
       expect(raw.prepare(`SELECT ${columns.join(",")} FROM ${table}`).all()).toEqual(rows);
       expect(raw.prepare(`SELECT DISTINCT permission_mode FROM ${table}`).all()).toEqual([

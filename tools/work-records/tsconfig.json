@@ -6,6 +6,6 @@
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo",
     "types": ["node"]
   },
-  "include": ["run.ts", "worker.ts"],
+  "include": ["run.ts", "worker.ts", "privacy.ts"],
   "references": [{ "path": "../../packages/domain" }, { "path": "../../packages/db" }]
 }

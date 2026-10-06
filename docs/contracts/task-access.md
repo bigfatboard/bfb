@@ -16,6 +16,8 @@ No existing task is backfilled. C11 owns private agent-child inheritance.
 epoch. Permission is `read`, `contribute` or `edit`; revocation is explicit.
 Tenant/task/human/epoch identity cannot be rebound. Epoch changes invalidate
 old grants; re-sharing requires a new epoch-bound row. C11 owns its commands.
+Insertion checks the recipient's current live membership epoch; a future or
+revoked epoch cannot be pre-authorized in advance of rejoining.
 
 ## Queries
 
