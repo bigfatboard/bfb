@@ -1,6 +1,6 @@
 # WP-A04 — Measurements and provenance
 
-Status: `blocked`
+Status: `in_progress`
 
 Risk: High
 
@@ -20,6 +20,10 @@ BFB shows human attention, process elapsed time, active agent work, waiting, and
 
 ## Scope
 
+- Connect actual versioned native telemetry through the existing journal,
+  authenticated ingest and atomic observation persistence under
+  [ADR 0009](../adr/0009-connected-measurement-telemetry.md). Preserve frozen v1,
+  historical evidence and A01–A03 business authority boundaries.
 - Uniquely identified typed observations with derived totals; replays never blindly increment (D1 migration `0027_measurements`).
 - Launch latency, process elapsed, process-alive union, active interval union, attention wait, external wait/idle, and run age derived at read time.
 - Normalized input/output/cache/reasoning token fields with `provider_reported`, `stream_derived`, `estimated`, or `unavailable` quality.
@@ -53,6 +57,12 @@ BFB shows human attention, process elapsed time, active agent work, waiting, and
 - `tools/measurements/run.ts`: real-Worker/D1 fault and derivation harness writing `calculation-snapshots.json`.
 
 ## Work plan
+
+The numbered implementation history below is retained. The current runtime
+slice first repairs acknowledgement/measurement authorization and truthful time
+derivation, then connects typed usage/activity capture and safe replay, adds
+synthetic native proof and re-certifies the expanded exact gate. It consumes
+the committed A02/A03 runtime contracts and E01 v1 without widening them.
 
 1. Freeze `docs/contracts/measurements.md` with D1 heads and the review-timer service; verify with `pnpm docs:check`.
 2. Add D1 migration `0027_measurements` plus domain observations, derivations, and commands; verify with `vitest run packages/domain/test/measurements.test.ts`.
@@ -90,6 +100,12 @@ BFB shows human attention, process elapsed time, active agent work, waiting, and
 
 ## Handoff
 
+- Runtime integration resumed 6 October after the committed A03 runtime
+  certificate at `9077a08`. All required packages are done. ADR 0009 freezes
+  the versioned telemetry, historical authority, atomic measurement and honest
+  derivation boundary before implementation. Reproduced defects and missing
+  provider-to-D1 delivery require new acceptance; historical evidence is not
+  removed or relabelled. The current slice does not run Terminal/live providers.
 - Dependency hold, 5 October: the dependency chain reaches reopened A01 and its missing production online/replay path. This implementation and historical isolated acceptance are retained; their tests have not been declared failed. Settlement waits for dependency certification and affected integration checks. The dated status below is historical, not the current package state.
 - Settled 18 September: `done`. A02, A03, and E01 are `done`, and `pnpm test:a04` passed in a detached clean checkout at `1c9ae54` (install, build, exact target with the real-Worker/D1 harness and browser spec). The evidence manifest is re-based on that rerun; the implementation evidence stays listed as manifest artifacts.
 - Consume: `docs/contracts/measurements.md` (v1), domain commands `token.report`, `interval.report`, `review_timer.start`, `review_timer.stop`, `browser_activity.record` plus reads `getRunMeasurements`, `getTaskMeasurements`, `aggregateMeasurements` in `packages/domain/src/measurements.ts`, REST routes under `/runs/:runId/measurements`, `/tasks/:taskId/measurements`, `/tasks/:taskId/review-timers`, `/review-timers/:timerId/stop`, `/browser-activity`, `MeasurementsPanel`/`MeasurementsView` in `apps/web/src/work/measurements.tsx`.
