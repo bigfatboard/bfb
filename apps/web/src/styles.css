@@ -1270,6 +1270,36 @@ textarea:hover {
   gap: 12px;
 }
 
+.artifact-review {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.artifact-review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.artifact-review-actions button {
+  max-width: 100%;
+}
+
+.artifact-review-note,
+.artifact-review .truth-row code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.artifact-review iframe {
+  display: block;
+  width: 100%;
+  min-height: 320px;
+  border: 1px solid var(--rule);
+}
+
 .stacked-form + .button-attention {
   width: 100%;
   margin-top: 10px;

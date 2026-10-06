@@ -1,6 +1,6 @@
 # WP-V03 — Immutable artifact review
 
-Status: `blocked`
+Status: `in_progress`
 
 Risk: High
 
@@ -93,6 +93,17 @@ A human reviews an exact artifact version and records approval, changes requeste
 
 ## Handoff
 
+- Product lane, 6 October: all direct dependencies are `done`, including the
+  current V02 certificate. Re-certification checks current authority before
+  cached review replies, exact retry input, metadata-only Hub audit receipts,
+  review-audit dispatch and the compiled review surface with real preview bytes.
+  Historical evidence stays intact; no current V03 certificate or live flag
+  enablement is claimed yet.
+  `pnpm test:v03` now includes the compiled two-origin runtime proof. The D1
+  harness writes temporary evidence by default (`BFB_V03_EVIDENCE_DIR` selects
+  an explicit destination); it no longer overwrites historical captures. Its
+  timer assertions consume current A04 observation timestamps instead of
+  treating the caller's historical fixture timestamp as timer authority.
 - Dependency hold, 5 October: the dependency chain reaches reopened A01 and its missing production online/replay path. This implementation and historical isolated acceptance are retained; their tests have not been declared failed. Settlement waits for dependency certification and affected integration checks. The dated status below is historical, not the current package state.
 - Settled 18 September: `done`. A03, A04, and V02 are `done`, and `pnpm test:v03` passed in a detached clean checkout at `1c9ae54` (install, build, exact target with the real-Worker/D1 harness and 4 Chromium scenarios). The legacy evidence manifest is re-based on that rerun in the schema-conformant shape; the implementation evidence stays listed as manifest artifacts.
 - Consume: `docs/contracts/artifact-review.md` (v1), domain command `artifact.record_review` plus reads `getArtifactReviewStatus`, `listArtifactReviews`, `listLinkedSubmissions`, `listArtifactsWithReviewState`, `artifactEvidenceVersionMap` in `packages/domain/src/artifact-reviews.ts`, REST routes under `/artifacts` and `/artifacts/:artifactId/reviews`, `ReviewPanel`/`ReviewView` in `apps/web/src/artifacts/ArtifactReview.tsx`.

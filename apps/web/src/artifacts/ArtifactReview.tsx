@@ -120,7 +120,7 @@ export interface ReviewViewProps {
 export function ReviewView(props: ReviewViewProps) {
   const latest = props.status?.latest_version ?? null;
   return (
-    <section aria-labelledby="artifact-review-heading">
+    <section className="artifact-review" aria-labelledby="artifact-review-heading">
       <h3 id="artifact-review-heading">Artifact review</h3>
       {props.artifacts.length === 0 ? (
         <p data-testid="review-empty">No review artifacts yet.</p>
@@ -227,7 +227,11 @@ export function ReviewView(props: ReviewViewProps) {
               </code>
             </div>
           ) : null}
-          {review.comment ? <p data-testid="review-comment">{review.comment}</p> : null}
+          {review.comment ? (
+            <p className="artifact-review-note" data-testid="review-comment">
+              {review.comment}
+            </p>
+          ) : null}
         </article>
       ))}
       {props.error ? (
@@ -264,7 +268,7 @@ export function ReviewView(props: ReviewViewProps) {
               rows={3}
             />
           </label>
-          <div className="truth-row">
+          <div className="artifact-review-actions">
             <button
               type="button"
               className="button-primary"

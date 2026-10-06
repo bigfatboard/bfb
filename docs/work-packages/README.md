@@ -422,7 +422,7 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 | --- | --- | --- | --- |
 | V01 | [Artifact storage state machine](WP-V01-artifact-storage.md) | `done` | High |
 | V02 | [Isolated artifact viewer](WP-V02-artifact-viewer.md) | `done` | Very high |
-| V03 | [Immutable artifact review](WP-V03-artifact-review.md) | `blocked` | High |
+| V03 | [Immutable artifact review](WP-V03-artifact-review.md) | `in_progress` | High |
 
 ### Provider parity
 

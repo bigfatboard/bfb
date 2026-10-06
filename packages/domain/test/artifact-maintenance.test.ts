@@ -61,7 +61,7 @@ async function fixture() {
 }
 
 describe("artifact audit maintenance", () => {
-  it.each(["artifact.view_issued", "artifact.view_redeemed"])(
+  it.each(["artifact.view_issued", "artifact.view_redeemed", "artifact.review_recorded"])(
     "dispatches %s once without projecting private payloads",
     async (action) => {
       const f = await fixture();

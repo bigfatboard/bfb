@@ -82,6 +82,26 @@ policy, or credential row changes. The hub's own `audit_events` row carries
 the actor. The audit payload carries artifact, version, review, reviewer, and
 decision ids only — no comment text and no secrets (reviews mint none).
 
+Current direct-human workspace/epoch and project authority is checked inside
+the Hub FIFO before any cached reply or changed-input conflict. Retry identity
+binds the complete original input by hash, including the private note and
+optional bindings, without storing that input in audit. An exact authorized
+retry returns the original immutable decision even after a newer publication;
+it is not a new approval of those newer bytes. Changed input rejects, and
+revoked authority withholds the original private response.
+Historical cache entries without the input fingerprint cannot safely establish
+that binding and fail closed. Canonical immutable review history is unchanged
+and remains readable under current authority; no cache backfill or second
+decision is inferred.
+
+Hub semantic/audit/outbox receipts project review, artifact, version, reviewer,
+decision and occurrence identities only. Canonical review and authorized
+idempotent responses retain the note; ordinary audit and telemetry do not.
+V03 enables its closed `artifact.review_recorded` source action in the existing
+bounded artifact-audit dispatcher, through the same system Hub command and
+source-ID single-effect backstop as publication/views. It adds no parallel
+mutation or timer path.
+
 ## 3. Reads
 
 `getArtifactReviewStatus` returns one artifact's full review state:

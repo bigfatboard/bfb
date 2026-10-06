@@ -15,7 +15,7 @@ import {
   recordReviewCommand,
   type ReviewRecord,
 } from "../src/artifact-reviews.js";
-import { loadPrincipal } from "../src/authorization.js";
+import { bumpMemberEpoch, loadPrincipal } from "../src/authorization.js";
 import {
   createArtifactCommand,
   finalizeArtifactCommand,
@@ -237,6 +237,59 @@ async function tableCounts(db: SqlDatabase): Promise<Record<string, number>> {
 }
 
 describe("artifact reviews", () => {
+  it("binds cached review replies to exact input while preserving historical retries", async () => {
+    const f = await fixture();
+    const version = await f.available("v03-retry");
+    const input = {
+      artifactId: version.artifact_id,
+      versionId: version.version_id,
+      expectedContentHash: version.content_hash,
+      expectedLatestVersionId: version.version_id,
+      decision: "comment" as const,
+      comment: "Synthetic private review note",
+    };
+    const key = randomUlid();
+    const original = result(await f.review(input, { key }));
+    await f.publishNewVersion(version.artifact_id, "v03-retry-newer");
+    expect(await f.review(input, { key })).toMatchObject({
+      ok: true,
+      replayed: true,
+      result: original,
+    });
+    expect(await failure(f.review({ ...input, comment: "Different note" }, { key }))).toBe(
+      "request_rejected",
+    );
+    expect(await listArtifactReviews(f.db, FIX.workspace, version.artifact_id)).toHaveLength(1);
+  });
+
+  it("rechecks current project and epoch authority before cached private replies or conflicts", async () => {
+    const f = await fixture();
+    const run = await f.taskAndRun();
+    const version = await f.available("v03-cached-authority", run.runId);
+    const input = {
+      artifactId: version.artifact_id,
+      versionId: version.version_id,
+      expectedContentHash: version.content_hash,
+      expectedLatestVersionId: version.version_id,
+      decision: "comment" as const,
+      comment: "Synthetic private review note",
+    };
+    const key = randomUlid();
+    result(await f.review(input, { humanId: FIX.restricted, key }));
+    await f.db
+      .prepare(
+        `DELETE FROM project_access WHERE workspace_id = ? AND project_id = ? AND human_id = ?`,
+      )
+      .run(FIX.workspace, FIX.projectA, FIX.restricted);
+    for (const retry of [input, { ...input, comment: "Different note" }]) {
+      expect(await failure(f.review(retry, { humanId: FIX.restricted, key }))).toBe("forbidden");
+    }
+    const ownerKey = randomUlid();
+    result(await f.review(input, { key: ownerKey }));
+    await bumpMemberEpoch(f.db, FIX.workspace, FIX.owner);
+    expect(await failure(f.review(input, { key: ownerKey }))).toBe("stale_authorization");
+  });
+
   it("records an approve review bound to the exact version and hash", async () => {
     const f = await fixture();
     const version = await f.available("v03-exact");
@@ -766,6 +819,13 @@ describe("artifact reviews", () => {
     expect(payload.review_id).toBe(record.id);
     expect(JSON.stringify(payload)).not.toContain("<script>");
     expect(JSON.stringify(payload)).not.toContain(hostile.slice(0, 16));
+    for (const table of ["semantic_events", "audit_events", "outbox_records"]) {
+      const receipts = JSON.stringify(
+        await f.db.prepare(`SELECT payload_json FROM ${table}`).all(),
+      );
+      expect(receipts).not.toContain(hostile);
+      expect(receipts).not.toContain(hostile.slice(0, 16));
+    }
   });
 
   it("treats reviews as immutable history", async () => {

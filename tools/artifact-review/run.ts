@@ -3,13 +3,15 @@
 
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { adaptD1, loadMigrationManifest, type D1Like, type SqlDatabase } from "@bfb/db";
 import {
   artifactEvidenceVersionMap,
+  bumpMemberEpoch,
   getArtifactReviewStatus,
   getTaskMeasurements,
   listArtifactReviews,
@@ -345,18 +347,19 @@ async function main(): Promise<void> {
       .prepare(`SELECT state, resource_version FROM tasks WHERE workspace_id = ? AND id = ?`)
       .get(workspaceId, task.id)) as Record<string, unknown>;
 
+    const reviewInput = {
+      artifactId: first.artifact_id,
+      versionId: first.version_id,
+      expectedContentHash: first.content_hash,
+      expectedLatestVersionId: first.version_id,
+      decision: "approve",
+      comment: "Synthetic workerd approval",
+    };
     const review = ok<{ id: string }>(
       await execute(
         "bfb-v03-a",
         workspaceId,
-        humanCommand(workspaceId, owner, "artifact.record_review", "v03-review-v1", {
-          artifactId: first.artifact_id,
-          versionId: first.version_id,
-          expectedContentHash: first.content_hash,
-          expectedLatestVersionId: first.version_id,
-          decision: "approve",
-          comment: "Synthetic workerd approval",
-        }),
+        humanCommand(workspaceId, owner, "artifact.record_review", "v03-review-v1", reviewInput),
       ),
       "artifact.record_review",
     );
@@ -561,17 +564,22 @@ async function main(): Promise<void> {
       ),
       "review links timer observation",
     );
-    assert.deepEqual(await listReviewTimers(db, workspaceId, task.id), [
-      { ...timersBefore[0], state: "stopped", stopped_at: later, resource_version: 2 },
-    ]);
+    const stoppedTimers = await listReviewTimers(db, workspaceId, task.id);
+    assert.equal(stoppedTimers.length, 1);
+    assert.equal(stoppedTimers[0]?.state, "stopped");
+    assert.equal(stoppedTimers[0]?.resource_version, 2);
+    assert.equal(stoppedTimers[0]?.started_at, timersBefore[0]?.started_at);
+    assert(stoppedTimers[0]?.stopped_at);
     assert.equal(
       (await listReviewTimerObservations(db, workspaceId, timer.id)).length,
       observationsBefore.length + 1,
     );
-    const measured = await getTaskMeasurements(db, workspaceId, task.id, later);
+    // Current A04 commands own the FIFO clock; caller-supplied historical
+    // timestamps cannot choose review duration. Read the actual observation.
+    const measured = await getTaskMeasurements(db, workspaceId, task.id, new Date().toISOString());
     assert.ok(measured.review.stopped_total_ms > 0);
     snapshots.review_timer = {
-      stopped_total_ms: measured.review.stopped_total_ms,
+      stopped_duration_positive: measured.review.stopped_total_ms > 0,
       observation_kinds: (await listReviewTimerObservations(db, workspaceId, timer.id)).map(
         (entry) => entry.observed_kind,
       ),
@@ -618,8 +626,55 @@ async function main(): Promise<void> {
     snapshots.audit_payload_keys = Object.keys(payload).sort();
     checks.push("audit facts carry identities without comment text or secrets");
 
+    const exact = await execute(
+      "bfb-v03-b",
+      workspaceId,
+      humanCommand(workspaceId, owner, "artifact.record_review", "v03-review-v1", reviewInput),
+    );
+    assert(exact.ok && exact.replayed && (exact.result as { id: string }).id === review.id);
+    assert.equal(
+      failureCode(
+        await execute(
+          "bfb-v03-b",
+          workspaceId,
+          humanCommand(workspaceId, owner, "artifact.record_review", "v03-review-v1", {
+            ...reviewInput,
+            comment: "Changed private note",
+          }),
+        ),
+        "changed retry",
+      ),
+      "request_rejected",
+    );
+    checks.push("cross-isolate exact historical retry is single-effect; changed input rejects");
+    const receipts = JSON.stringify({
+      events: await db.prepare("SELECT payload_json FROM semantic_events").all(),
+      audit: await db.prepare("SELECT payload_json FROM audit_events").all(),
+      outbox: await db.prepare("SELECT payload_json FROM outbox_records").all(),
+    });
+    for (const note of [
+      "Synthetic workerd approval",
+      "Synthetic workerd change request",
+      "Synthetic timed note",
+    ])
+      assert(!receipts.includes(note));
+    checks.push("Hub semantic/audit/outbox receipts exclude private review notes");
+    await bumpMemberEpoch(db, workspaceId, owner);
+    assert.equal(
+      failureCode(
+        await execute(
+          "bfb-v03-b",
+          workspaceId,
+          humanCommand(workspaceId, owner, "artifact.record_review", "v03-review-v1", reviewInput),
+        ),
+        "revoked retry",
+      ),
+      "stale_authorization",
+    );
+    checks.push("current epoch is checked before cached private review delivery");
+
     snapshots.review_count = presenceStatus?.review_count;
-    const evidenceDir = resolve(repoRoot, "docs/work-packages/evidence/WP-V03");
+    const evidenceDir = process.env.BFB_V03_EVIDENCE_DIR ?? mkdtempSync(join(tmpdir(), "bfb-v03-"));
     mkdirSync(evidenceDir, { recursive: true });
     // Evidence stays in the repository's canonical format so format:check
     // passes on the exact bytes this harness produces.

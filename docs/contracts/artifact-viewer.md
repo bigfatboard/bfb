@@ -182,4 +182,5 @@ HTML escaping; hostile input survives only as visible escaped text.
   action, and occurrence time; source payloads and viewing credentials are not
   copied. This reuses V01's projection contract without adding business progress
   or a parallel mutation path.
-- Review and retention audit actions remain with their owning packages.
+- V03 owns the separately added `artifact.review_recorded` action. Retention
+  actions remain with their owning package.

@@ -1,4 +1,4 @@
-// ABOUTME: Projects bounded artifact publication and view audits through the workspace command lane.
+// ABOUTME: Projects bounded artifact publication, view and review audits through the workspace command lane.
 // ABOUTME: Source identities make dispatch atomic and replay-safe without copying private payloads.
 
 import { assertUtcTimestamp, type SqlDatabase } from "@bfb/db";
@@ -15,6 +15,7 @@ export const ARTIFACT_AUDIT_ACTIONS = [
   "artifact.abandoned",
   "artifact.view_issued",
   "artifact.view_redeemed",
+  "artifact.review_recorded",
 ] as const;
 const actions = new Set<string>(ARTIFACT_AUDIT_ACTIONS);
 const actionPlaceholders = ARTIFACT_AUDIT_ACTIONS.map(() => "?").join(", ");
@@ -122,7 +123,7 @@ export const dispatchArtifactAuditCommand: HubCommand<
   },
 };
 
-/** Read-only bounded backlog scan; review/retention actions stay with their owning packages. */
+/** Read-only bounded backlog scan; retention actions stay with their owning package. */
 export async function listArtifactAuditCandidates(
   db: SqlDatabase,
   limit = 100,

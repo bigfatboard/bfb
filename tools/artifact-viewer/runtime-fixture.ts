@@ -8,7 +8,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { adaptD1, type D1Like, type SqlDatabase } from "@bfb/db";
-import { FIX, seedSyntheticWorkspace } from "@bfb/domain";
+import { FIX, isUlid, seedSyntheticWorkspace } from "@bfb/domain";
 import { createTestHarness } from "wrangler";
 import { v02Digest, v02ProbeScript } from "./e2e-fixture.js";
 
@@ -25,8 +25,21 @@ export interface V02RuntimeFixture {
   appUrl: string;
   artUrl: string;
   db: SqlDatabase;
-  versions: Record<string, { id: string; hash: string }>;
-  counts: { grants: number; redemptions: number; denied: number; artifactCookies: number };
+  versions: Record<string, { id: string; artifactId: string; hash: string }>;
+  counts: {
+    grants: number;
+    redemptions: number;
+    denied: number;
+    artifactCookies: number;
+    appHits: number;
+  };
+  browser(path: string, body: unknown): Promise<Response>;
+  dispatchAudit(outboxId: string): Promise<Response>;
+  publish(
+    format: "html" | "markdown",
+    text: string,
+    binding?: { runId?: string; artifactId?: string },
+  ): Promise<{ id: string; artifactId: string; hash: string }>;
   close(): Promise<void>;
 }
 
@@ -70,6 +83,7 @@ async function close(server: ReturnType<typeof createServer>): Promise<void> {
 export async function startV02RuntimeFixture(
   appPort: number,
   artPort: number,
+  options: { reviewEnabled?: boolean } = {},
 ): Promise<V02RuntimeFixture> {
   const appUrl = `http://bfb.localhost:${appPort}`;
   const artUrl = `http://artifacts.bfb.localhost:${artPort}`;
@@ -96,6 +110,7 @@ export async function startV02RuntimeFixture(
           vars: {
             ENVIRONMENT: "local",
             ARTIFACT_VIEWER_ENABLED: "true",
+            ARTIFACT_REVIEW_ENABLED: String(options.reviewEnabled ?? false),
             JURISDICTION: "global",
             APP_ORIGIN: appUrl,
             ARTIFACT_ORIGIN: artUrl,
@@ -150,7 +165,7 @@ export async function startV02RuntimeFixture(
       },
     ],
   });
-  const counts = { grants: 0, redemptions: 0, denied: 0, artifactCookies: 0 };
+  const counts = { grants: 0, redemptions: 0, denied: 0, artifactCookies: 0, appHits: 0 };
   const versions: V02RuntimeFixture["versions"] = {};
   const app = server.getWorker("bfb-v02-runtime-control");
   const artifact = server.getWorker("bfb-v02-runtime-artifact");
@@ -168,9 +183,15 @@ export async function startV02RuntimeFixture(
       try {
         const request = await incoming(req, appUrl);
         const url = new URL(request.url);
-        const asset = /^\/assets\/([A-Za-z0-9_-]+\.js)$/.exec(url.pathname);
+        if (url.pathname === "/__test/hit") counts.appHits++;
+        const asset = /^\/assets\/([A-Za-z0-9_-]+\.(js|css))$/.exec(url.pathname);
         if (asset?.[1]) {
-          res.setHeader("content-type", "application/javascript; charset=utf-8");
+          res.setHeader(
+            "content-type",
+            asset[2] === "css"
+              ? "text/css; charset=utf-8"
+              : "application/javascript; charset=utf-8",
+          );
           res.end(await readFile(join(root, "apps/web/dist/viewer-runtime/assets", asset[1])));
           return;
         }
@@ -178,7 +199,7 @@ export async function startV02RuntimeFixture(
           const format = url.searchParams.get("format") ?? "html";
           const version = versions[format];
           if (!version) throw new Error("Unknown synthetic format.");
-          const props = {
+          const viewerProps = {
             workspaceId: FIX.workspace,
             versionId: version.id,
             contentHash: version.hash,
@@ -186,6 +207,16 @@ export async function startV02RuntimeFixture(
             csrfToken: CSRF,
             artifactOrigin: artUrl,
           };
+          const review = url.searchParams.get("panel") === "review";
+          const taskId = url.searchParams.get("task_id");
+          if (review && (!options.reviewEnabled || taskId === null || !isUlid(taskId))) {
+            res.statusCode = 400;
+            res.end();
+            return;
+          }
+          const props = review
+            ? { workspaceId: FIX.workspace, taskId, role: "owner", csrfToken: CSRF }
+            : viewerProps;
           const html = await readFile(
             join(root, "apps/web/dist/viewer-runtime/index.html"),
             "utf8",
@@ -196,7 +227,7 @@ export async function startV02RuntimeFixture(
           res.end(
             html.replace(
               "</head>",
-              `<script>window.__v02Props=${JSON.stringify(props)};</script></head>`,
+              `<script>window.${review ? "__v03Props" : "__v02Props"}=${JSON.stringify(props)};</script></head>`,
             ),
           );
           return;
@@ -242,7 +273,44 @@ export async function startV02RuntimeFixture(
         "cf-connecting-ip": "192.0.2.150",
       },
       body: JSON.stringify(body),
+    }) as unknown as Promise<Response>;
+  }
+  async function publish(
+    format: "html" | "markdown",
+    text: string,
+    binding: { runId?: string; artifactId?: string } = {},
+  ) {
+    const bytes = new TextEncoder().encode(text);
+    const hash = v02Digest(bytes);
+    const created = await browser(`/api/v1/workspaces/${FIX.workspace}/artifacts`, {
+      format,
+      role: "review",
+      declared_size: bytes.length,
+      expected_digest: hash,
+      ...(binding.runId ? { run_id: binding.runId } : {}),
+      ...(binding.artifactId ? { artifact_id: binding.artifactId } : {}),
     });
+    assert.equal(created.status, 201, "Synthetic publication prepare failed.");
+    const prepared = (await created.json()) as {
+      artifact_id: string;
+      version_id: string;
+      upload_grant: { grant_id: string; secret: string };
+    };
+    const uploaded = await artifact.fetch(`${artUrl}/upload/${prepared.upload_grant.grant_id}`, {
+      method: "PUT",
+      headers: {
+        authorization: `Bearer ${prepared.upload_grant.secret}`,
+        "cf-connecting-ip": "192.0.2.150",
+      },
+      body: bytes as unknown as never,
+    });
+    assert.equal(uploaded.status, 200, "Synthetic publication upload failed.");
+    const finalized = await browser(
+      `/api/v1/workspaces/${FIX.workspace}/artifacts/${prepared.version_id}/finalize`,
+      { content_hash: hash, size: bytes.length },
+    );
+    assert.equal(finalized.status, 200, "Synthetic publication finalize failed.");
+    return { id: prepared.version_id, artifactId: prepared.artifact_id, hash };
   }
   try {
     await server.listen();
@@ -262,38 +330,12 @@ export async function startV02RuntimeFixture(
         `INSERT INTO better_auth_sessions (id,expires_at,token,created_at,updated_at,user_id) VALUES (?,?,?,?,?,?)`,
       )
       .run(SESSION, "2027-09-17T12:00:00.000Z", TOKEN, NOW, NOW, authUser);
-    for (const [format, text] of Object.entries({
+    const texts = {
       html: `<!doctype html><html><body><h1>Synthetic isolated preview</h1><script>${v02ProbeScript(appUrl)}</script></body></html>`,
       markdown: "# Synthetic isolated plan\n\nThis content came through real D1 and R2.\n",
-    })) {
-      const bytes = new TextEncoder().encode(text);
-      const hash = v02Digest(bytes);
-      const created = await browser(`/api/v1/workspaces/${FIX.workspace}/artifacts`, {
-        format,
-        role: "review",
-        declared_size: bytes.length,
-        expected_digest: hash,
-      });
-      assert.equal(created.status, 201, "Synthetic publication prepare failed.");
-      const prepared = (await created.json()) as {
-        version_id: string;
-        upload_grant: { grant_id: string; secret: string };
-      };
-      const uploaded = await artifact.fetch(`${artUrl}/upload/${prepared.upload_grant.grant_id}`, {
-        method: "PUT",
-        headers: {
-          authorization: `Bearer ${prepared.upload_grant.secret}`,
-          "cf-connecting-ip": "192.0.2.150",
-        },
-        body: bytes as unknown as never,
-      });
-      assert.equal(uploaded.status, 200, "Synthetic publication upload failed.");
-      const finalized = await browser(
-        `/api/v1/workspaces/${FIX.workspace}/artifacts/${prepared.version_id}/finalize`,
-        { content_hash: hash, size: bytes.length },
-      );
-      assert.equal(finalized.status, 200, "Synthetic publication finalize failed.");
-      versions[format] = { id: prepared.version_id, hash };
+    };
+    for (const format of ["html", "markdown"] as const) {
+      versions[format] = await publish(format, texts[format]);
     }
     await listen(appServer, appPort);
     await listen(artifactServer, artPort);
@@ -303,6 +345,13 @@ export async function startV02RuntimeFixture(
       db,
       versions,
       counts,
+      browser,
+      publish,
+      dispatchAudit(outboxId) {
+        return app.fetch(`${appUrl}/__v02/audit/${outboxId}`, {
+          method: "POST",
+        }) as unknown as Promise<Response>;
+      },
       async close() {
         await close(appServer);
         await close(artifactServer);

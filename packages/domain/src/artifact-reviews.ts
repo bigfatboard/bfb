@@ -6,6 +6,8 @@ import type { SqlDatabase } from "@bfb/db";
 import { assertEpoch, assertProjectAccess, assertRole, loadPrincipal } from "./authorization.js";
 import { DomainError, type HubCommand, type HubContext } from "./hub.js";
 import { isUlid, randomUlid } from "./ids.js";
+import { canonicalLaunchJson } from "./launch-state.js";
+import { runnerHash } from "./runner-crypto.js";
 
 export const REVIEW_DECISIONS = ["approve", "request_changes", "comment"] as const;
 export type ReviewDecision = (typeof REVIEW_DECISIONS)[number];
@@ -15,6 +17,17 @@ export const MAX_ARTIFACT_REVIEW_COMMENT_CHARS = 2048;
 const HEX64 = /^[0-9a-f]{64}$/;
 const HEX40 = /^[0-9a-f]{40}$/;
 const CONFIG_HASH_PATTERN = /^sha256:[0-9a-f]{64}$/;
+const REVIEW_INPUT_FIELDS = [
+  "artifactId",
+  "versionId",
+  "expectedContentHash",
+  "expectedLatestVersionId",
+  "decision",
+  "comment",
+  "gitCommit",
+  "configHash",
+  "reviewTimerObservationId",
+] as const;
 
 export interface RecordReviewInput {
   artifactId: string;
@@ -309,26 +322,37 @@ async function reviewAuditOutbox(
     );
 }
 
+async function reviewAuthority(input: RecordReviewInput, ctx: HubContext) {
+  const body = reviewObject(input, REVIEW_INPUT_FIELDS);
+  const artifact = await requireArtifact(ctx, body.artifactId);
+  const projectId = await requireRunProject(ctx.db, ctx.workspaceId, artifact.run_id);
+  const reviewer = await requireReviewer(ctx, projectId);
+  return { body, artifact, reviewer };
+}
+
 export const recordReviewCommand: HubCommand<RecordReviewInput, ReviewRecord> = {
   name: "artifact.record_review",
+  authorize: async (input, ctx) => {
+    // Historical retries may return their original decision, but only while
+    // the direct human still holds current workspace and project authority.
+    await reviewAuthority(input, ctx);
+  },
+  inputFingerprint: (input) => runnerHash(canonicalLaunchJson(JSON.parse(JSON.stringify(input)))),
   auditInput: (input) => ({
     artifactId: (input as RecordReviewInput)?.artifactId,
     versionId: (input as RecordReviewInput)?.versionId,
     decision: (input as RecordReviewInput)?.decision,
   }),
+  auditResult: (record) => ({
+    review_id: record.id,
+    artifact_id: record.artifact_id,
+    version_id: record.version_id,
+    reviewer_human_id: record.reviewer_human_id,
+    decision: record.decision,
+    created_at: record.created_at,
+  }),
   async run(input, ctx) {
-    const body = reviewObject(input, [
-      "artifactId",
-      "versionId",
-      "expectedContentHash",
-      "expectedLatestVersionId",
-      "decision",
-      "comment",
-      "gitCommit",
-      "configHash",
-      "reviewTimerObservationId",
-    ]);
-    const artifact = await requireArtifact(ctx, body.artifactId);
+    const { body, artifact, reviewer } = await reviewAuthority(input, ctx);
     const version = await requireAvailableVersion(ctx, artifact.id, body.versionId);
     if (typeof body.expectedContentHash !== "string" || !HEX64.test(body.expectedContentHash)) {
       throw new DomainError("invalid_argument", "expected content hash is invalid");
@@ -358,8 +382,6 @@ export const recordReviewCommand: HubCommand<RecordReviewInput, ReviewRecord> = 
     const gitCommit = reviewGitCommit(body.gitCommit);
     const configHash = reviewConfigHash(body.configHash);
     const observationId = reviewObservationId(body.reviewTimerObservationId);
-    const projectId = await requireRunProject(ctx.db, ctx.workspaceId, artifact.run_id);
-    const reviewer = await requireReviewer(ctx, projectId);
     await requireTimerObservation(ctx, observationId);
     const id = randomUlid();
     await ctx.db
