@@ -380,17 +380,23 @@ describe("redaction", () => {
     expect(clean).not.toHaveProperty("path");
   });
 
-  it("builds an inventory that passes the secret scan", async () => {
+  it("quarantines inventory construction and body rendering", async () => {
     const db = await openDomainDb();
-    const inventory = await buildDiagnosticInventory(db, FIX.workspace, FIX.owner, NOW);
-    expect(inventory.sections.map((section) => section.name)).toEqual([
-      "identity",
-      "work",
-      "delivery",
-      "execution",
-      "integrations",
-    ]);
-    expect(scanDiagnosticText(renderDiagnosticInventory(inventory))).toEqual([]);
+    await expect(buildDiagnosticInventory(db, FIX.workspace, FIX.owner, NOW)).rejects.toMatchObject(
+      {
+        code: "request_rejected",
+        message: "diagnostic bundles are unavailable",
+      },
+    );
+    expect(() =>
+      renderDiagnosticInventory({
+        schema_version: 1,
+        workspace_id: FIX.workspace,
+        generated_at: NOW,
+        generated_by: FIX.owner,
+        sections: [],
+      }),
+    ).toThrow("diagnostic bundles are unavailable");
   });
 });
 
@@ -504,16 +510,19 @@ describe("diagnostic bundles", () => {
     });
   }
 
-  it("generates with Owner step-up and consents with an explicit second proof", async () => {
+  it("rejects Owner generation and consent without consuming valid proofs", async () => {
     const db = await openDomainDb();
-    const created = success(await generate(db));
-    expect(created.state).toBe("pending_consent");
-    expect(created.redaction_status).toBe("passed");
+    const denial = {
+      ok: false,
+      error: { code: "request_rejected", message: "diagnostic bundles are unavailable" },
+    };
+    expect(await generate(db)).toEqual(denial);
+    const bundleId = randomUlid();
     const consentProof = await stepUp(
       db,
       FIX.owner,
       OPS_STEP_UP_ACTIONS.diagnosticUpload,
-      `diagnostic:${created.id}`,
+      `diagnostic:${bundleId}`,
     );
     const consented = await hub(db).execute(consentDiagnosticUploadCommand, {
       workspaceId: FIX.workspace,
@@ -521,36 +530,20 @@ describe("diagnostic bundles", () => {
       actorHumanId: FIX.owner,
       authorizationEpoch: 1,
       now: NOW,
-      input: { bundleId: created.id, stepUpProofId: consentProof },
+      input: { bundleId, stepUpProofId: consentProof },
     });
-    expect(success(consented).state).toBe("consented");
-    const consumed = await hub(db).execute(consentDiagnosticUploadCommand, {
-      workspaceId: FIX.workspace,
-      idempotencyKey: randomUlid(),
-      actorHumanId: FIX.owner,
-      authorizationEpoch: 1,
-      now: NOW,
-      input: { bundleId: created.id, stepUpProofId: consentProof },
+    expect(consented).toEqual(denial);
+    expect(
+      await db
+        .prepare("SELECT consumed_at FROM passkey_step_up_proofs WHERE proof_id = ?")
+        .get(consentProof),
+    ).toEqual({ consumed_at: null });
+    expect(await db.prepare("SELECT COUNT(*) AS count FROM diagnostic_bundles").get()).toEqual({
+      count: 0,
     });
-    expect(consumed.ok).toBe(false);
-    const freshProof = await stepUp(
-      db,
-      FIX.owner,
-      OPS_STEP_UP_ACTIONS.diagnosticUpload,
-      `diagnostic:${created.id}`,
-    );
-    const idempotent = await hub(db).execute(consentDiagnosticUploadCommand, {
-      workspaceId: FIX.workspace,
-      idempotencyKey: randomUlid(),
-      actorHumanId: FIX.owner,
-      authorizationEpoch: 1,
-      now: NOW,
-      input: { bundleId: created.id, stepUpProofId: freshProof },
-    });
-    expect(success(idempotent).state).toBe("consented");
   });
 
-  it("rejects member generation, mismatched actions, and expired bundles", async () => {
+  it("preserves Member denial and rejects before mismatched proof lookup", async () => {
     const db = await openDomainDb();
     const memberProof = await stepUp(
       db,
@@ -566,7 +559,7 @@ describe("diagnostic bundles", () => {
       now: NOW,
       input: { stepUpProofId: memberProof },
     });
-    expect(denied.ok).toBe(false);
+    expect(denied).toMatchObject({ ok: false, error: { code: "forbidden" } });
 
     const wrong = await stepUp(
       db,
@@ -582,27 +575,15 @@ describe("diagnostic bundles", () => {
       now: NOW,
       input: { stepUpProofId: wrong },
     });
-    expect(mismatched.ok).toBe(false);
-
-    const created = success(await generate(db));
-    const late = await hub(db).execute(consentDiagnosticUploadCommand, {
-      workspaceId: FIX.workspace,
-      idempotencyKey: randomUlid(),
-      actorHumanId: FIX.owner,
-      authorizationEpoch: 1,
-      now: "2026-09-20T12:00:00.000Z",
-      input: {
-        bundleId: created.id,
-        stepUpProofId: await stepUp(
-          db,
-          FIX.owner,
-          OPS_STEP_UP_ACTIONS.diagnosticUpload,
-          `diagnostic:${created.id}`,
-          "2026-09-20T12:00:00.000Z",
-        ),
-      },
+    expect(mismatched).toEqual({
+      ok: false,
+      error: { code: "request_rejected", message: "diagnostic bundles are unavailable" },
     });
-    expect(late.ok).toBe(false);
+    expect(
+      await db
+        .prepare("SELECT consumed_at FROM passkey_step_up_proofs WHERE proof_id = ?")
+        .get(wrong),
+    ).toEqual({ consumed_at: null });
   });
 });
 

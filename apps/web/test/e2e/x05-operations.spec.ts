@@ -84,3 +84,25 @@ test("operations surface renders no private payload content", async ({ page }) =
   }
   note("redaction", { forbiddenClassesAbsent: 5 });
 });
+
+test("diagnostics are unavailable without inventory or privileged requests", async ({ page }) => {
+  await signInAndOpenBoard(page, "owner");
+  const requests: string[] = [];
+  page.on("request", (request) => {
+    const pathname = new URL(request.url()).pathname;
+    if (pathname.includes("/diagnostics") || pathname.includes("/step-up")) requests.push(pathname);
+  });
+  await openOperations(page);
+  const diagnostics = page.getByTestId("operations-diagnostics");
+  await expect(diagnostics).toContainText("Diagnostic bundles are unavailable.");
+  await expect(diagnostics.getByRole("button")).toHaveCount(0);
+  await expect(diagnostics.locator("ul")).toHaveCount(0);
+  await expect(diagnostics.locator("details")).not.toHaveAttribute("open", "");
+  await expect(page.getByTestId("retention-policy")).toBeVisible();
+  const explanation = diagnostics.getByText("Why unavailable?", { exact: true });
+  await explanation.focus();
+  await page.keyboard.press("Enter");
+  await expect(diagnostics).toContainText("Existing records and stored objects are preserved.");
+  await expect(diagnostics.locator("details")).toHaveAttribute("open", "");
+  expect(requests).toEqual([]);
+});

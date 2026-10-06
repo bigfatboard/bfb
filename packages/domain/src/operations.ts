@@ -39,7 +39,6 @@ export const RETENTION_MAX_DAYS = 365;
 export const RETENTION_DEFAULT_DAYS = 30;
 
 /** Diagnostic bundles expire unconsented after 24h; uploads stay addressable by id. */
-export const DIAGNOSTIC_BUNDLE_TTL_MS = 24 * 60 * 60_000;
 
 /** A claimed launch without final authorization this old is stuck. */
 export const STUCK_LAUNCH_CLAIM_MS = 10 * 60_000;
@@ -501,82 +500,22 @@ export interface DiagnosticInventory {
   sections: DiagnosticSection[];
 }
 
-/** Builds the explicit bundle inventory from counts and cursors only. */
-export async function buildDiagnosticInventory(
-  db: SqlDatabase,
-  workspaceId: string,
-  humanId: string,
-  nowIso: string,
-): Promise<DiagnosticInventory> {
-  async function count(table: string, extra = "", ...params: unknown[]): Promise<number> {
-    const row = (await db
-      .prepare(`SELECT COUNT(*) AS count FROM ${table} WHERE workspace_id = ? ${extra}`)
-      .get(workspaceId, ...params)) as { count: number };
-    return row.count;
-  }
-  const queue = await readLegacyDiagnosticQueueTotals(db, workspaceId, nowIso);
-  const stuckUploads = await listStuckUploads(db, workspaceId, nowIso);
-  const stuckLaunches = await listStuckLaunches(db, workspaceId, nowIso);
-  const sections: DiagnosticSection[] = [
-    {
-      name: "identity",
-      fields: {
-        workspace_id: workspaceId,
-        members: await count("workspace_members"),
-        runners: await count("runners"),
-        projects: await count("projects"),
-      },
-    },
-    {
-      name: "work",
-      fields: {
-        tasks: await count("tasks"),
-        runs: await count("runs"),
-        attention_open: await count("attention_requests", "AND state = 'open'"),
-        events: await count("semantic_events"),
-        ledger_events: await count("event_ledger"),
-      },
-    },
-    {
-      name: "delivery",
-      fields: {
-        notification_pending: queue.notifications.pending,
-        notification_dead_lettered: queue.notifications.dead_lettered,
-        github_outbox_pending: queue.github_outbox.pending,
-        github_dlq: queue.github_outbox.dlq,
-        ops_recovery_applied: queue.ops_recovery.applied,
-        ops_recovery_failed: queue.ops_recovery.failed,
-      },
-    },
-    {
-      name: "execution",
-      fields: {
-        stuck_uploads: stuckUploads.length,
-        stuck_launches: stuckLaunches.length,
-        artifact_versions: await count("artifact_versions"),
-        launch_commands: await count("launch_commands"),
-      },
-    },
-    {
-      name: "integrations",
-      fields: {
-        github_installations: await count("github_app_installations"),
-        github_evidence: await count("github_evidence"),
-        runner_inventories: await count("runner_inventories"),
-      },
-    },
-  ];
-  return {
-    schema_version: 1,
-    workspace_id: workspaceId,
-    generated_at: nowIso,
-    generated_by: humanId,
-    sections,
-  };
+function diagnosticBundlesUnavailable(): never {
+  fail("request_rejected", "diagnostic bundles are unavailable");
 }
 
-export function renderDiagnosticInventory(inventory: DiagnosticInventory): string {
-  return JSON.stringify(inventory);
+/** Frozen inventories have no source/audience manifest and cannot be delivered safely. */
+export async function buildDiagnosticInventory(
+  _db: SqlDatabase,
+  _workspaceId: string,
+  _humanId: string,
+  _nowIso: string,
+): Promise<DiagnosticInventory> {
+  return diagnosticBundlesUnavailable();
+}
+
+export function renderDiagnosticInventory(_inventory: DiagnosticInventory): string {
+  return diagnosticBundlesUnavailable();
 }
 
 export interface DiagnosticBundleRecord {
@@ -595,8 +534,32 @@ export interface DiagnosticBundleRecord {
   last_error: string | null;
 }
 
-function bundleHash(inventoryJson: string): string {
-  return createHash("sha256").update(inventoryJson).digest("hex");
+async function rejectDiagnosticAccess(ctx: HubContext, proofId: unknown): Promise<never> {
+  if (ctx.actorRunnerId || ctx.actorSystemId) {
+    fail("forbidden", "direct authorized human required");
+  }
+  await requireOwner(ctx);
+  if (typeof proofId !== "string" || !proofId) {
+    fail("step_up_invalid", "step-up proof is required");
+  }
+  return diagnosticBundlesUnavailable();
+}
+
+async function rejectDiagnosticGeneration(
+  input: { stepUpProofId: string },
+  ctx: HubContext,
+): Promise<never> {
+  closedObject(input, ["stepUpProofId"], "diagnostic generate");
+  return rejectDiagnosticAccess(ctx, input.stepUpProofId);
+}
+
+async function rejectDiagnosticConsent(
+  input: { bundleId: string; stepUpProofId: string },
+  ctx: HubContext,
+): Promise<never> {
+  closedObject(input, ["bundleId", "stepUpProofId"], "diagnostic consent");
+  ulidField(input.bundleId, "bundleId");
+  return rejectDiagnosticAccess(ctx, input.stepUpProofId);
 }
 
 export const createDiagnosticBundleCommand: HubCommand<
@@ -606,54 +569,8 @@ export const createDiagnosticBundleCommand: HubCommand<
   name: "diagnostic.generate",
   replay: "reject",
   auditInput: () => ({ action: "diagnostic.generate" }),
-  async run(input, ctx) {
-    closedObject(input, ["stepUpProofId"], "diagnostic generate");
-    const principal = await requireOwner(ctx);
-    const bundleId = randomUlid();
-    const consume = await prepareStepUp(
-      ctx,
-      input.stepUpProofId,
-      OPS_STEP_UP_ACTIONS.diagnosticGenerate,
-      `diagnostic:generate:${ctx.workspaceId}`,
-    );
-    const inventory = await buildDiagnosticInventory(
-      ctx.db,
-      ctx.workspaceId,
-      principal.humanId,
-      ctx.now,
-    );
-    const inventoryJson = renderDiagnosticInventory(inventory);
-    const hits = scanDiagnosticText(inventoryJson);
-    if (hits.length > 0) {
-      fail("redaction_failed", `diagnostic inventory failed the secret scan: ${hits.join(",")}`);
-    }
-    await consume();
-    const expiresAt = new Date(Date.parse(ctx.now) + DIAGNOSTIC_BUNDLE_TTL_MS).toISOString();
-    const hash = bundleHash(inventoryJson);
-    await ctx.db
-      .prepare(
-        `INSERT INTO diagnostic_bundles
-         (workspace_id, id, created_by_human_id, state, inventory_json, bundle_hash,
-          redaction_status, r2_key, created_at, consented_at, uploaded_at, expires_at, last_error)
-         VALUES (?, ?, ?, 'pending_consent', ?, ?, 'passed', NULL, ?, NULL, NULL, ?, NULL)`,
-      )
-      .run(ctx.workspaceId, bundleId, principal.humanId, inventoryJson, hash, ctx.now, expiresAt);
-    return {
-      workspace_id: ctx.workspaceId,
-      id: bundleId,
-      created_by_human_id: principal.humanId,
-      state: "pending_consent",
-      inventory_json: inventoryJson,
-      bundle_hash: hash,
-      redaction_status: "passed",
-      r2_key: null,
-      created_at: ctx.now,
-      consented_at: null,
-      uploaded_at: null,
-      expires_at: expiresAt,
-      last_error: null,
-    };
-  },
+  authorize: rejectDiagnosticGeneration,
+  run: rejectDiagnosticGeneration,
 };
 
 export const consentDiagnosticUploadCommand: HubCommand<
@@ -663,44 +580,8 @@ export const consentDiagnosticUploadCommand: HubCommand<
   name: "diagnostic.upload_consent",
   replay: "reject",
   auditInput: (input) => ({ bundle_id: input.bundleId }),
-  async run(input, ctx) {
-    closedObject(input, ["bundleId", "stepUpProofId"], "diagnostic consent");
-    const bundleId = ulidField(input.bundleId, "bundleId");
-    await requireOwner(ctx);
-    const row = (await ctx.db
-      .prepare(`SELECT * FROM diagnostic_bundles WHERE workspace_id = ? AND id = ?`)
-      .get(ctx.workspaceId, bundleId)) as DiagnosticBundleRecord | undefined;
-    if (!row) {
-      fail("not_found", "diagnostic bundle not found");
-    }
-    const bundle = row as DiagnosticBundleRecord;
-    if (bundle.state !== "pending_consent" && bundle.state !== "consented") {
-      fail("invalid_argument", `bundle in state ${bundle.state} cannot be consented`);
-    }
-    if (
-      bundle.state === "pending_consent" &&
-      Date.parse(bundle.expires_at) <= Date.parse(ctx.now)
-    ) {
-      fail("invalid_argument", "bundle consent expired");
-    }
-    const consume = await prepareStepUp(
-      ctx,
-      input.stepUpProofId,
-      OPS_STEP_UP_ACTIONS.diagnosticUpload,
-      `diagnostic:${bundleId}`,
-    );
-    await consume();
-    if (bundle.state === "pending_consent") {
-      await ctx.db
-        .prepare(
-          `UPDATE diagnostic_bundles SET state = 'consented', consented_at = ?
-           WHERE workspace_id = ? AND id = ? AND state = 'pending_consent'`,
-        )
-        .run(ctx.now, ctx.workspaceId, bundleId);
-      return { ...bundle, state: "consented", consented_at: ctx.now };
-    }
-    return bundle;
-  },
+  authorize: rejectDiagnosticConsent,
+  run: rejectDiagnosticConsent,
 };
 
 export interface SecurityAuditEntry {
@@ -911,6 +792,7 @@ export async function readSecurityAudit(
           FROM recovery_sources AS source JOIN recovery_authorized AS authorized ON authorized.audit_id=source.audit_id
         UNION ALL SELECT audit_rowid,audit_id,actor_principal_id,action,created_at,payload_json,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL
           FROM audits WHERE lower(action) NOT GLOB 'artifact.*' AND lower(action) NOT GLOB 'ops.recovery.*'
+            AND lower(action) NOT GLOB 'diagnostic.*'
       ), ordered_visible AS MATERIALIZED (
         SELECT visible.*,CASE WHEN ${auditUtc("visible.created_at")}
           THEN ${auditUtcOrderKey("visible.created_at")} ELSE visible.created_at END AS sort_key FROM visible
@@ -1593,40 +1475,6 @@ export async function readQueueState(
   return (
     await readOperationsProjection(db, workspaceId, nowIso, { uploads: [], launches: [] }, access)
   ).queues;
-}
-
-/** Legacy frozen diagnostic inventory counts remain outside the human projection certificate. */
-async function readLegacyDiagnosticQueueTotals(
-  db: SqlDatabase,
-  workspaceId: string,
-  nowIso: string,
-): Promise<QueueState> {
-  async function count(table: string, extra: string, ...params: unknown[]): Promise<number> {
-    const row = (await db
-      .prepare(`SELECT COUNT(*) AS count FROM ${table} WHERE workspace_id = ? ${extra}`)
-      .get(workspaceId, ...params)) as { count: number };
-    return row.count;
-  }
-  return {
-    notifications: {
-      pending: await count("notification_deliveries", "AND state = 'pending'"),
-      dead_lettered: await count("notification_deliveries", "AND state = 'dead_lettered'"),
-      failed: await count("notification_deliveries", "AND state = 'failed'"),
-    },
-    github_outbox: {
-      pending: await count("github_integration_outbox", "AND state = 'pending'"),
-      dispatched_stale: await count(
-        "github_integration_outbox",
-        "AND state = 'dispatched' AND datetime(next_attempt_at) <= datetime(?)",
-        nowIso,
-      ),
-      dlq: await count("github_dlq", ""),
-    },
-    ops_recovery: {
-      applied: await count("ops_recovery_ledger", "AND state = 'applied'"),
-      failed: await count("ops_recovery_ledger", "AND state = 'failed'"),
-    },
-  };
 }
 
 export interface ProviderRecordHealth {

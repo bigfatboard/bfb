@@ -1,7 +1,7 @@
 // ABOUTME: Proves OPS queue isolation, retry-to-DLQ, and retention sweep boundaries.
 // ABOUTME: A poison job never replays siblings; retention never touches hashes or metadata.
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   createRunCommand,
@@ -10,6 +10,7 @@ import {
   listSystemRetentionEligibleChunks,
   randomUlid,
   WorkspaceHub,
+  type DiagnosticBundleRecord,
 } from "@bfb/domain";
 
 import Database from "better-sqlite3";
@@ -20,6 +21,7 @@ import { adaptBetterSqlite3, applyMigrationsForVerification, type SqlDatabase } 
 
 import {
   consumeOpsQueueBatch,
+  renderBundleBody,
   type OpsQueueDeps,
   type OpsQueueHandle,
 } from "../src/operations/queue.js";
@@ -122,12 +124,18 @@ async function seedBundle(db: SqlDatabase, state = "consented"): Promise<string>
 }
 
 describe("ops queue consumer", () => {
-  it("uploads a consented bundle and acks exactly once", async () => {
+  it("acks a consented bundle before lookup while preserving its row and stored object", async () => {
     const db = await openDomainDb();
     const r2 = fakeR2();
     const dlq: unknown[] = [];
     const events: string[] = [];
     const bundle = await seedBundle(db);
+    const key = `workspaces/${FIX.workspace}/diagnostics/${bundle}.json`;
+    r2.objects.set(key, "retained synthetic inventory");
+    const before = await db
+      .prepare("SELECT * FROM diagnostic_bundles WHERE workspace_id=? AND id=?")
+      .get(FIX.workspace, bundle);
+    const queries = vi.spyOn(db, "prepare");
     await consumeOpsQueueBatch(
       [
         handle(
@@ -147,15 +155,16 @@ describe("ops queue consumer", () => {
     );
     expect(events).toEqual(["good:ack"]);
     expect(dlq).toEqual([]);
-    const key = `workspaces/${FIX.workspace}/diagnostics/${bundle}.json`;
-    expect(r2.objects.get(key)).toBe("{}");
+    expect(queries).not.toHaveBeenCalled();
+    expect(r2.objects.get(key)).toBe("retained synthetic inventory");
+    expect(r2.deleted).toEqual([]);
     const row = (await db
-      .prepare(`SELECT state, r2_key FROM diagnostic_bundles WHERE workspace_id = ? AND id = ?`)
-      .get(FIX.workspace, bundle)) as { state: string; r2_key: string };
-    expect(row).toEqual({ state: "uploaded", r2_key: key });
+      .prepare(`SELECT * FROM diagnostic_bundles WHERE workspace_id = ? AND id = ?`)
+      .get(FIX.workspace, bundle)) as DiagnosticBundleRecord;
+    expect(row).toEqual(before);
   });
 
-  it("isolates poison jobs and parks exhausted uploads in visible DLQ state", async () => {
+  it("isolates poison jobs while diagnostic attempts acknowledge without upload or DLQ effects", async () => {
     const db = await openDomainDb();
     const r2 = fakeR2(99);
     const dlq: unknown[] = [];
@@ -192,21 +201,22 @@ describe("ops queue consumer", () => {
       depsFor(r2, db, dlq),
       NOW,
     );
-    expect(events).toEqual(["flaky:retry", "poison:retry", "exhausted:ack"]);
-    expect(dlq).toHaveLength(1);
-    expect((dlq[0] as { error: string }).error).toBe("upload_exhausted");
+    expect(events).toEqual(["flaky:ack", "poison:retry", "exhausted:ack"]);
+    expect(dlq).toEqual([]);
+    expect(r2.failures).toBe(99);
     const row = (await db
       .prepare(`SELECT state FROM diagnostic_bundles WHERE workspace_id = ? AND id = ?`)
       .get(FIX.workspace, bundle)) as { state: string };
-    expect(row.state).toBe("failed");
+    expect(row.state).toBe("consented");
   });
 
-  it("diverts unknown bundles and wrong-state bundles without uploading", async () => {
+  it("treats unknown and unconsented bundles equally without lookup or state-sensitive DLQ copies", async () => {
     const db = await openDomainDb();
     const r2 = fakeR2();
     const dlq: unknown[] = [];
     const events: string[] = [];
     const pending = await seedBundle(db, "pending_consent");
+    const queries = vi.spyOn(db, "prepare");
     await consumeOpsQueueBatch(
       [
         handle(
@@ -236,8 +246,59 @@ describe("ops queue consumer", () => {
       NOW,
     );
     expect(events).toEqual(["unknown:ack", "unconsented:ack"]);
+    expect(queries).not.toHaveBeenCalled();
     expect(r2.objects.size).toBe(0);
-    expect(dlq).toHaveLength(2);
+    expect(dlq).toEqual([]);
+  });
+
+  it("does not let a claimed newer inventory schema authorize body rendering", async () => {
+    const db = await openDomainDb();
+    const id = await seedBundle(db);
+    await db
+      .prepare("UPDATE diagnostic_bundles SET inventory_json=? WHERE workspace_id=? AND id=?")
+      .run('{"schema_version":2,"tasks":17}', FIX.workspace, id);
+    const row = (await db
+      .prepare("SELECT * FROM diagnostic_bundles WHERE workspace_id=? AND id=?")
+      .get(FIX.workspace, id)) as DiagnosticBundleRecord;
+    expect(() => renderBundleBody(row)).toThrowError("diagnostic bundles are unavailable");
+  });
+
+  it("continues a valid retention sibling after a poison job and a quarantined diagnostic job", async () => {
+    const db = await openDomainDb();
+    const r2 = fakeR2();
+    const dlq: unknown[] = [];
+    const events: string[] = [];
+    const id = await seedBundle(db);
+    const queries = vi.spyOn(db, "prepare");
+    await consumeOpsQueueBatch(
+      [
+        handle({ nope: true }, events, "poison"),
+        handle(
+          {
+            schema_version: 1,
+            kind: "diagnostic.upload",
+            workspace_id: FIX.workspace,
+            bundle_id: id,
+            attempt: 1,
+          },
+          events,
+          "held",
+        ),
+        handle(
+          { schema_version: 1, kind: "retention.sweep", workspace_id: FIX.workspace, attempt: 1 },
+          events,
+          "retention",
+        ),
+      ],
+      depsFor(r2, db, dlq),
+      NOW,
+    );
+    expect(events).toEqual(["poison:retry", "held:ack", "retention:ack"]);
+    expect(queries.mock.calls.some(([sql]) => sql.includes("SELECT id FROM workspaces"))).toBe(
+      true,
+    );
+    expect(r2.objects.size).toBe(0);
+    expect(dlq).toEqual([]);
   });
 });
 

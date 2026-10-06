@@ -1,5 +1,5 @@
 // ABOUTME: Serves Owner-gated operations reads, privileged recovery, retention, and diagnostics.
-// ABOUTME: Stuck-upload recovery commits through the Hub; historical recovery retains sanitized audit rows.
+// ABOUTME: Recovery uses retained authority and diagnostic snapshots remain uniformly unavailable.
 
 import { createHash, createHmac } from "node:crypto";
 
@@ -11,11 +11,10 @@ import {
   assertRole,
   checkOperationsTables,
   collectWorkspaceHealth,
-  consentDiagnosticUploadCommand,
   consumeAbuseBudget,
-  createDiagnosticBundleCommand,
   diagnosticR2Key,
   DomainError,
+  isUlid,
   listRetentionEligibleChunks,
   listStuckLaunches,
   listStuckUploads,
@@ -29,9 +28,7 @@ import {
   sanitizeDiagnosticValue,
   setRetentionPolicyCommand,
   validateStepUpProof,
-  type DiagnosticBundleRecord,
   type HubCommand,
-  type OpsQueueMessage,
   type OpsRecoveryKind,
 } from "@bfb/domain";
 
@@ -235,26 +232,14 @@ async function consumeRecoveryProof(
   }
 }
 
-function publicBundle(row: DiagnosticBundleRecord): Record<string, unknown> {
-  return {
-    bundle_id: row.id,
-    state: row.state,
-    redaction_status: row.redaction_status,
-    bundle_hash: row.bundle_hash,
-    inventory: JSON.parse(row.inventory_json) as unknown,
-    created_at: row.created_at,
-    consented_at: row.consented_at,
-    uploaded_at: row.uploaded_at,
-    expires_at: row.expires_at,
-    r2_key: row.r2_key,
-    last_error: row.last_error,
-  };
+function rejectDiagnostics(): never {
+  throw new DomainError("request_rejected", "diagnostic bundles are unavailable");
 }
 
 /**
  * Browser operations surface under /api/v1/workspaces/:ws/operations.
  * Security audit and every mutation are Owner-only; activity, queues,
- * health, retention reads, and bundle inventory are owner/member, with
+ * health, retention reads, and diagnostics availability are owner/member, with
  * reviewers scoped to their projects on activity.
  */
 export async function handleOperationsApi(
@@ -333,24 +318,13 @@ export async function handleOperationsApi(
     }
     if (request.method === "GET" && (tail === "/diagnostics" || tail === "/diagnostics/")) {
       assertRole(principal, ["owner", "member"]);
-      const rows = (await deps.db
-        .prepare(
-          `SELECT * FROM diagnostic_bundles WHERE workspace_id = ? ORDER BY created_at DESC, id DESC LIMIT 20`,
-        )
-        .all(workspaceId)) as DiagnosticBundleRecord[];
-      return json({ ok: true, bundles: rows.map(publicBundle) });
+      rejectDiagnostics();
     }
     const bundleMatch = /^\/diagnostics\/([^/]+)\/?$/.exec(tail);
     if (request.method === "GET" && bundleMatch?.[1]) {
       assertRole(principal, ["owner", "member"]);
-      const row = (await deps.db
-        .prepare(`SELECT * FROM diagnostic_bundles WHERE workspace_id = ? AND id = ?`)
-        .get(workspaceId, decodeURIComponent(bundleMatch[1]))) as
-        DiagnosticBundleRecord | undefined;
-      if (!row) {
-        return json({ error: "not_found" }, 404);
-      }
-      return json({ ok: true, bundle: publicBundle(row) });
+      decodeURIComponent(bundleMatch[1]);
+      rejectDiagnostics();
     }
     if (request.method !== "POST" && request.method !== "PUT") {
       return json({ error: "method_not_allowed" }, 405);
@@ -464,57 +438,20 @@ export async function handleOperationsApi(
     }
     if (request.method === "POST" && tail === "/diagnostics") {
       assertRole(principal, ["owner"]);
-      return mutate(deps, principal, createDiagnosticBundleCommand, `ops.${requestId(body)}`, {
-        stepUpProofId: requiredString(body, "step_up_proof_id"),
-      });
+      requestId(body);
+      requiredString(body, "step_up_proof_id");
+      rejectDiagnostics();
     }
     const consentMatch = /^\/diagnostics\/([^/]+)\/consent\/?$/.exec(tail);
     if (request.method === "POST" && consentMatch?.[1]) {
       assertRole(principal, ["owner"]);
       const bundleId = decodeURIComponent(consentMatch[1]);
-      const outcome = await executeWorkspaceCommand(
-        {
-          db: deps.db,
-          workspaceHubNs: deps.workspaceHubNs,
-          authorization: createAuthorizationContext({
-            workspaceId: deps.workspaceId,
-            principalId: principal.humanId,
-            authorizationEpoch: principal.authorizationEpoch,
-            jurisdiction: deps.jurisdiction,
-          }),
-        },
-        consentDiagnosticUploadCommand,
-        {
-          workspaceId: deps.workspaceId,
-          idempotencyKey: `ops.${requestId(body)}`,
-          actorHumanId: principal.humanId,
-          authorizationEpoch: principal.authorizationEpoch,
-          now: deps.now,
-          input: { bundleId, stepUpProofId: requiredString(body, "step_up_proof_id") },
-        },
-      );
-      if (!outcome.ok) {
-        return failure(new DomainError(outcome.error.code, outcome.error.message));
+      requestId(body);
+      requiredString(body, "step_up_proof_id");
+      if (!isUlid(bundleId)) {
+        throw new DomainError("invalid_argument", "bundleId must be a ULID");
       }
-      const bundle = outcome.result;
-      if (bundle.state === "consented" && deps.opsJobs) {
-        const message: OpsQueueMessage = {
-          schema_version: 1,
-          kind: "diagnostic.upload",
-          workspace_id: workspaceId,
-          bundle_id: bundle.id,
-          attempt: 1,
-        };
-        try {
-          await deps.opsJobs.send(message, { contentType: "json" });
-        } catch {
-          // Enqueue runs outside the hub batch: a send failure surfaces here
-          // while the consented state stays durable for Cron redelivery.
-          return json({ ok: true, bundle: publicBundle(bundle), upload_queued: false });
-        }
-        return json({ ok: true, bundle: publicBundle(bundle), upload_queued: true });
-      }
-      return json({ ok: true, bundle: publicBundle(bundle), upload_queued: false });
+      rejectDiagnostics();
     }
     return json({ error: "not_found" }, 404);
   } catch (error) {

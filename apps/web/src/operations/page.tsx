@@ -1,5 +1,5 @@
 // ABOUTME: Renders the X05 Operations surface with role-gated audit, queues, retention, and diagnostics.
-// ABOUTME: Privileged actions obtain a fresh action-bound passkey proof; the UI never renders private payloads.
+// ABOUTME: Recovery and retention obtain fresh passkey proofs; diagnostic delivery stays unavailable.
 
 import { useCallback, useEffect, useState } from "react";
 
@@ -51,8 +51,6 @@ export function OperationsPage(props: OperationsPageProps) {
   const [audit, setAudit] =
     useState<SectionState<{ entries: Array<Record<string, unknown>> }>>(initialSection);
   const [retention, setRetention] = useState<SectionState<Record<string, unknown>>>(initialSection);
-  const [bundles, setBundles] =
-    useState<SectionState<{ bundles: Array<Record<string, unknown>> }>>(initialSection);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -124,18 +122,6 @@ export function OperationsPage(props: OperationsPageProps) {
           data: null,
         });
       }
-      try {
-        const list = (await getJson(fetchFn, base("/diagnostics"))) as {
-          bundles: Array<Record<string, unknown>>;
-        };
-        setBundles({ loading: false, error: null, data: list });
-      } catch (caught) {
-        setBundles({
-          loading: false,
-          error: caught instanceof Error ? caught.message : "Diagnostics failed.",
-          data: null,
-        });
-      }
     } else {
       setAudit({ loading: false, error: null, data: null });
       if (props.role === "member") {
@@ -152,21 +138,8 @@ export function OperationsPage(props: OperationsPageProps) {
             data: null,
           });
         }
-        try {
-          const list = (await getJson(fetchFn, base("/diagnostics"))) as {
-            bundles: Array<Record<string, unknown>>;
-          };
-          setBundles({ loading: false, error: null, data: list });
-        } catch (caught) {
-          setBundles({
-            loading: false,
-            error: caught instanceof Error ? caught.message : "Diagnostics failed.",
-            data: null,
-          });
-        }
       } else {
         setRetention({ loading: false, error: null, data: null });
-        setBundles({ loading: false, error: null, data: null });
       }
     }
   }, [fetchFn, props.role, props.workspaceId, sections]);
@@ -246,76 +219,6 @@ export function OperationsPage(props: OperationsPageProps) {
       await load();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Retention update failed.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function generateBundle() {
-    if (busy || props.role !== "owner") {
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    setStatus(null);
-    try {
-      const proof = await requestStepUpProof(fetchFn, props.csrfToken, {
-        action: "diagnostic.generate",
-        workspaceId: props.workspaceId,
-        targetId: `diagnostic:generate:${props.workspaceId}`,
-        scopes: [],
-        authorizationEpoch: props.authorizationEpoch,
-      });
-      const response = await fetchFn(operationsPath(props.workspaceId, "/diagnostics"), {
-        method: "POST",
-        headers: { "content-type": "application/json", "x-bfb-csrf": props.csrfToken },
-        body: JSON.stringify({ request_id: `ops-${newIdempotencyKey()}`, step_up_proof_id: proof }),
-      });
-      if (!response.ok) {
-        throw new Error(`Diagnostic generation failed (${response.status}).`);
-      }
-      setStatus("Diagnostic bundle generated. Review its inventory before consenting to upload.");
-      await load();
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Diagnostic generation failed.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function consentBundle(bundleId: string) {
-    if (busy || props.role !== "owner") {
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    setStatus(null);
-    try {
-      const proof = await requestStepUpProof(fetchFn, props.csrfToken, {
-        action: "diagnostic.upload",
-        workspaceId: props.workspaceId,
-        targetId: `diagnostic:${bundleId}`,
-        scopes: [],
-        authorizationEpoch: props.authorizationEpoch,
-      });
-      const response = await fetchFn(
-        operationsPath(props.workspaceId, `/diagnostics/${bundleId}/consent`),
-        {
-          method: "POST",
-          headers: { "content-type": "application/json", "x-bfb-csrf": props.csrfToken },
-          body: JSON.stringify({
-            request_id: `ops-${newIdempotencyKey()}`,
-            step_up_proof_id: proof,
-          }),
-        },
-      );
-      if (!response.ok) {
-        throw new Error(`Upload consent failed (${response.status}).`);
-      }
-      setStatus("Upload consented after inventory review. The redacted bundle uploads once.");
-      await load();
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Upload consent failed.");
     } finally {
       setBusy(false);
     }
@@ -494,28 +397,14 @@ export function OperationsPage(props: OperationsPageProps) {
       {sections.includes("diagnostics") ? (
         <section aria-label="Diagnostics" data-testid="operations-diagnostics">
           <h2>Diagnostics</h2>
-          {props.role === "owner" ? (
-            <button type="button" disabled={busy} onClick={() => void generateBundle()}>
-              Verify passkey &amp; generate bundle
-            </button>
-          ) : null}
-          <ul>
-            {(bundles.data?.bundles ?? []).map((bundle) => (
-              <li key={String(bundle.bundle_id)} data-testid={`bundle-${String(bundle.bundle_id)}`}>
-                {String(bundle.bundle_id).slice(0, 8)}… · {String(bundle.state)} · redaction{" "}
-                {String(bundle.redaction_status)}
-                {props.role === "owner" && bundle.state === "pending_consent" ? (
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void consentBundle(String(bundle.bundle_id))}
-                  >
-                    Review inventory &amp; consent upload
-                  </button>
-                ) : null}
-              </li>
-            ))}
-          </ul>
+          <p role="status">Diagnostic bundles are unavailable.</p>
+          <details>
+            <summary>Why unavailable?</summary>
+            <p>
+              Older snapshots cannot prove which work their counts came from or who may receive
+              them. Existing records and stored objects are preserved.
+            </p>
+          </details>
         </section>
       ) : null}
     </div>

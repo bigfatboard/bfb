@@ -2456,11 +2456,13 @@ try {
       nested: { token: CANARIES.bearer },
     });
     scanClean("ops-sanitizer", [redacted]);
-    const inventory = await buildDiagnosticInventory(db, FIX.workspace, FIX.owner, now);
-    scanClean("ops-inventory", [inventory]);
-    note("ops", "retention under step-up; diagnostics scan and sanitize");
+    await assert.rejects(buildDiagnosticInventory(db, FIX.workspace, FIX.owner, now), {
+      code: "request_rejected",
+      message: "diagnostic bundles are unavailable",
+    });
+    note("ops", "retention under step-up; diagnostic delivery held; pure scan and sanitize pass");
   }
-  verdict("X05-OPS", "passed", "operations boundaries with redacted diagnostics");
+  verdict("X05-OPS", "passed", "operations boundaries with diagnostic delivery unavailable");
 
   // G-AG01: three humans hold different workspace/project/runner access on the fixture.
   {

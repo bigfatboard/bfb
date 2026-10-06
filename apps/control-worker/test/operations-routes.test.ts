@@ -571,7 +571,7 @@ describe("operations browser routes", () => {
     }
   });
 
-  it("generates and consents diagnostic bundles through explicit inventory review", async () => {
+  it("keeps diagnostic inventory and consent uniformly unavailable without proof effects", async () => {
     const { context, owner, member } = await contextWithSessions();
     const { app, currentBindings } = appFor(context);
     const ownerCsrf = await csrf(app, currentBindings, owner.cookie);
@@ -589,31 +589,51 @@ describe("operations browser routes", () => {
       undefined,
       currentBindings,
     );
-    expect(generated.status).toBe(200);
-    const created = ((await generated.json()) as { result: { id: string } }).result;
+    const denied = { error: "request_rejected", message: "diagnostic bundles are unavailable" };
+    expect(generated.status).toBe(409);
+    expect(await generated.json()).toEqual(denied);
+    const bundleId = randomUlid();
+    await context.db
+      .prepare(
+        `INSERT INTO diagnostic_bundles
+         (workspace_id,id,created_by_human_id,state,inventory_json,bundle_hash,
+          redaction_status,created_at,expires_at)
+         VALUES (?,?,?,'pending_consent','{}',?,'passed',?,?)`,
+      )
+      .run(FIX.workspace, bundleId, FIX.owner, "a".repeat(64), NOW, "2026-09-19T12:00:00Z");
     const inventory = await app.request(
-      get(`${OPS}/diagnostics/${created.id}`, member.cookie),
+      get(`${OPS}/diagnostics/${bundleId}`, member.cookie),
       undefined,
       currentBindings,
     );
-    expect(inventory.status).toBe(200);
+    expect(inventory.status).toBe(409);
+    expect(await inventory.json()).toEqual(denied);
     const consentProof = await proofFor(
       context,
       FIX.owner,
       OPS_STEP_UP_ACTIONS.diagnosticUpload,
-      `diagnostic:${created.id}`,
+      `diagnostic:${bundleId}`,
     );
     const consented = await app.request(
-      mutation(`${OPS}/diagnostics/${created.id}/consent`, owner.cookie, ownerCsrf, {
+      mutation(`${OPS}/diagnostics/${bundleId}/consent`, owner.cookie, ownerCsrf, {
         request_id: "ops-diagnostic-consent-1",
         step_up_proof_id: consentProof,
       }),
       undefined,
       currentBindings,
     );
-    expect(consented.status).toBe(200);
-    expect(((await consented.json()) as { bundle: { state: string } }).bundle.state).toBe(
-      "consented",
-    );
+    expect(consented.status).toBe(409);
+    expect(await consented.json()).toEqual(denied);
+    expect(
+      await context.db
+        .prepare("SELECT consumed_at FROM passkey_step_up_proofs WHERE proof_id IN (?,?)")
+        .all(generateProof, consentProof),
+    ).toEqual([{ consumed_at: null }, { consumed_at: null }]);
+    expect(
+      await context.db
+        .prepare("SELECT state FROM diagnostic_bundles WHERE workspace_id=? AND id=?")
+        .get(FIX.workspace, bundleId),
+    ).toEqual({ state: "pending_consent" });
+    context.raw.close();
   });
 });

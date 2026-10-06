@@ -1023,8 +1023,44 @@ async function main(): Promise<void> {
       pass("D8-retention");
     }
 
-    // D9: diagnostic generate, inventory review, consent, and queued upload.
+    // D9: uncertified diagnostic snapshots remain stored but cannot be delivered.
     {
+      const bundleId = randomUlid();
+      const inventoryJson = JSON.stringify({
+        schema_version: 1,
+        workspace_id: FIX.workspace,
+        generated_at: now,
+        generated_by: FIX.owner,
+        sections: [{ name: "work", fields: { tasks: 17 } }],
+      });
+      await db
+        .prepare(
+          `INSERT INTO diagnostic_bundles
+          (workspace_id,id,created_by_human_id,state,inventory_json,bundle_hash,redaction_status,created_at,consented_at,expires_at)
+          VALUES (?,?,?,'consented',?,?,'passed',?,?,?)`,
+        )
+        .run(
+          FIX.workspace,
+          bundleId,
+          FIX.owner,
+          inventoryJson,
+          "a".repeat(64),
+          now,
+          now,
+          new Date(Date.parse(now) + 24 * 60 * 60_000).toISOString(),
+        );
+      const cached = JSON.stringify({
+        result: { id: bundleId, inventory_json: inventoryJson },
+        cursor: 1,
+        actorHumanId: FIX.owner,
+        authorizationEpoch: 1,
+      });
+      await db
+        .prepare(
+          `INSERT INTO idempotency_records
+        (workspace_id,idempotency_key,command_name,result_json,created_at) VALUES (?,?,'diagnostic.generate',?,?)`,
+        )
+        .run(FIX.workspace, "ops.x05-d9-cached", cached, now);
       const generateProof = await stepUp(
         db,
         FIX.owner,
@@ -1032,52 +1068,81 @@ async function main(): Promise<void> {
         `diagnostic:generate:${FIX.workspace}`,
         now,
       );
-      const generated = await browser("POST", `${base}/diagnostics`, OWNER, {
-        request_id: "x05-d9-generate",
-        step_up_proof_id: generateProof,
-      });
-      assert.equal(generated.status, 200);
-      const bundle = (
-        generated.body as { result: { id: string; state: string; inventory_json: string } }
-      ).result;
-      assert.equal(bundle.state, "pending_consent");
-      const inventory = JSON.parse(bundle.inventory_json) as { sections: Array<{ name: string }> };
-      assert.deepEqual(
-        inventory.sections.map((section) => section.name),
-        ["identity", "work", "delivery", "execution", "integrations"],
-      );
-      harvest("diagnostic-inventory", JSON.parse(bundle.inventory_json) as unknown);
-      const review = await get(`${base}/diagnostics/${bundle.id}`, OWNER);
-      assert.equal(review.status, 200);
       const consentProof = await stepUp(
         db,
         FIX.owner,
         OPS_STEP_UP_ACTIONS.diagnosticUpload,
-        `diagnostic:${bundle.id}`,
+        `diagnostic:${bundleId}`,
         now,
       );
-      const consented = await browser("POST", `${base}/diagnostics/${bundle.id}/consent`, OWNER, {
+      const snapshot = async () =>
+        await db
+          .prepare(
+            `SELECT
+        (SELECT COUNT(*) FROM diagnostic_bundles WHERE workspace_id=?) AS bundles,
+        (SELECT COUNT(*) FROM semantic_events WHERE workspace_id=?) AS events,
+        (SELECT COUNT(*) FROM audit_events WHERE workspace_id=?) AS audits,
+        (SELECT COUNT(*) FROM outbox_records WHERE workspace_id=?) AS outbox,
+            (SELECT COUNT(*) FROM idempotency_records WHERE workspace_id=?) AS idempotency,
+            (SELECT cursor FROM workspace_cursors WHERE workspace_id=?) AS cursor`,
+          )
+          .get(
+            FIX.workspace,
+            FIX.workspace,
+            FIX.workspace,
+            FIX.workspace,
+            FIX.workspace,
+            FIX.workspace,
+          );
+      const before = await snapshot();
+      const denied = { error: "request_rejected", message: "diagnostic bundles are unavailable" };
+      for (const requestId of ["x05-d9-generate", "x05-d9-cached"]) {
+        const response = await browser("POST", `${base}/diagnostics`, OWNER, {
+          request_id: requestId,
+          step_up_proof_id: generateProof,
+        });
+        assert.equal(response.status, 409);
+        assert.deepEqual(response.body, denied);
+      }
+      for (const path of [
+        `${base}/diagnostics`,
+        `${base}/diagnostics/${bundleId}`,
+        `${base}/diagnostics/${randomUlid()}`,
+      ]) {
+        const response = await get(path, OWNER);
+        assert.equal(response.status, 409);
+        assert.deepEqual(response.body, denied);
+      }
+      const consent = await browser("POST", `${base}/diagnostics/${bundleId}/consent`, OWNER, {
         request_id: "x05-d9-consent",
         step_up_proof_id: consentProof,
       });
-      assert.equal(consented.status, 200);
-      assert.equal((consented.body as { upload_queued: boolean }).upload_queued, true);
-      const uploaded = await poll("bundle uploaded through the OPS queue", async () => {
-        const row = (await db
-          .prepare(`SELECT state, r2_key FROM diagnostic_bundles WHERE workspace_id = ? AND id = ?`)
-          .get(FIX.workspace, bundle.id)) as { state: string; r2_key: string | null };
-        return row.state === "uploaded" ? row : null;
-      });
-      const control = server.getWorker("bfb-x05-b");
-      const r2 = (
-        (await control.getEnv()) as unknown as {
-          ARTIFACTS: { get(key: string): Promise<{ text(): Promise<string> } | null> };
-        }
-      ).ARTIFACTS;
-      const stored = await (await r2.get(uploaded.r2_key!))?.text();
-      assert.ok(stored && stored.length > 0, "uploaded bundle is readable");
-      harvest("diagnostic-upload", JSON.parse(stored) as unknown);
-      note("D9", "bundle generated, inventory reviewed, consented, and uploaded redacted");
+      assert.equal(consent.status, 409);
+      assert.deepEqual(consent.body, denied);
+      assert.deepEqual(await snapshot(), before);
+      for (const proofId of [generateProof, consentProof]) {
+        const proof = (await db
+          .prepare("SELECT consumed_at FROM passkey_step_up_proofs WHERE proof_id=?")
+          .get(proofId)) as { consumed_at: string | null };
+        assert.equal(proof.consumed_at, null);
+      }
+      const stored = (await db
+        .prepare(
+          "SELECT state,inventory_json FROM diagnostic_bundles WHERE workspace_id=? AND id=?",
+        )
+        .get(FIX.workspace, bundleId)) as { state: string; inventory_json: string };
+      assert.deepEqual(stored, { state: "consented", inventory_json: inventoryJson });
+      const cachedAfter = (await db
+        .prepare(
+          "SELECT result_json FROM idempotency_records WHERE workspace_id=? AND idempotency_key=?",
+        )
+        .get(FIX.workspace, "ops.x05-d9-cached")) as { result_json: string };
+      assert.equal(cachedAfter.result_json, cached);
+      harvest("diagnostic-held", denied);
+      note(
+        "D9",
+        "diagnostic generation/cache/read/consent deny uniformly; proofs and stored history unchanged",
+      );
       pass("D9-diagnostics");
     }
 

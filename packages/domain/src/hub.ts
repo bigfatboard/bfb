@@ -342,6 +342,7 @@ export async function listWorkspaceEvents(
       `SELECT event_id, workspace_cursor, kind, payload_json, created_at
        FROM semantic_events
        WHERE workspace_id = ? AND workspace_cursor > ? AND workspace_cursor <= ?
+         AND lower(kind) NOT GLOB 'diagnostic.*'
        ORDER BY workspace_cursor ASC
        LIMIT ?`,
     )

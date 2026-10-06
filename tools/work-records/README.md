@@ -69,6 +69,15 @@ counts and hydrated upload/retention references together. Retained Owner scope
 is rechecked even with empty references. This is not a physical queue-drained,
 usable-credential, frozen-diagnostic or full C11 delivery certificate.
 
+`pnpm test:c11` also owns `diagnostics.ts`: fresh production-Hub admission denies
+diagnostic generation and consent before proof/business effects, including a
+synthetic retained cached success. Known and missing consent targets share the
+fixed unavailable denial; stored bundles and cache remain unchanged. Real D1
+omits diagnostic audit/semantic copies before limits and anchor selection, while
+preserving stored history and scope-loss priority. These checks do not attest
+historical source provenance, opaque positions or a new snapshot format. The
+separate current X05 runtime D9 checks the same held browser policy, not v1 upload.
+
 All use the checked-in ordered migrations in a disposable local harness. No
 pilot enrollment, persistent local database, real user, credential or Terminal
 session is touched. No extra dependencies or generated fixtures are introduced.
