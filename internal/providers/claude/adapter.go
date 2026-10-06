@@ -69,50 +69,27 @@ func baseArguments(config configView) ([]string, error) {
 	}
 	// Explicit manual permission mode: prompts stay interactive and neither
 	// bypassPermissions nor the dangerous-skip flag may ever appear here.
-	return []string{"--model", config.Model, "--effort", config.Effort, "--permission-mode", "default"}, nil
+	// Keep the approved user integration, not repository/local overrides.
+	// Claude's managed policy remains in force above these selected sources.
+	return []string{"--model", config.Model, "--effort", config.Effort, "--permission-mode", "default", "--setting-sources", "user"}, nil
 }
 
 type configView struct {
 	Mode, Model, Effort, ApprovalPolicy, FilesystemPolicy string
 }
 
-// Inspect grants binary-level capabilities unconditionally and hook
-// capabilities only when a declared user-settings file already carries a BFB
-// SessionStart handler. MCP stdio stays withheld until the local MCP server
-// (A01) passes a bounded startup handshake; the manifest does not offer it.
+// Inspect grants hook capabilities only for the exact setup-owned integration
+// already bound to the installation hash. Missing or conflicting settings
+// never stand in for a working SessionStart hook or MCP server.
 func (Adapter) Inspect(_ context.Context, installation provider.Installation) (provider.RuntimeHealth, error) {
 	health := provider.RuntimeHealth{Healthy: true, IntegrationHash: installation.IntegrationHash}
 	observed := []string{"launch.interactive", "session.requested_id", "session.resume", "session.resume.interactive", "prompt.initial_constant", "approval.on_request", "filesystem.workspace_write", "control.interrupt", "control.terminate"}
-	for _, source := range installation.ConfigFiles {
-		if source.Name != "user_settings" {
-			continue
-		}
-		data, present, err := readBounded(source.Path)
-		if err != nil {
-			return provider.RuntimeHealth{}, err
-		}
-		if !present {
-			continue
-		}
-		// A declared but broken integration file is unhealthy, never a
-		// capability grant; doctor names the exact cause.
-		object, err := parseObject(data)
-		if err != nil {
-			health.Healthy = false
-			health.Capabilities = []string{}
-			return health, nil
-		}
-		hooks, _ := object["hooks"].(map[string]any)
-		list, _ := hooks["SessionStart"].([]any)
-		for _, item := range list {
-			entry, _ := item.(map[string]any)
-			handlers, _ := entry["hooks"].([]any)
-			for _, handler := range handlers {
-				if isBFBHandler(handler) {
-					observed = append(observed, "hooks.session_start", "context.session_start")
-				}
-			}
-		}
+	current, err := installationIntegrationCurrent(installation)
+	if err != nil {
+		return provider.RuntimeHealth{}, err
+	}
+	if current {
+		observed = append(observed, "hooks.session_start", "context.session_start")
 	}
 	health.Capabilities = provider.Intersection(observed, Capabilities())
 	return health, nil

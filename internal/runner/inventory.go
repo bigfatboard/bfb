@@ -8,8 +8,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"os"
-	"os/exec"
 	"slices"
 	"time"
 
@@ -82,9 +80,8 @@ func LocalInventory(db *sql.DB) InventorySource {
 			}
 			now := time.Now()
 			report := providerReport{Provider: name, Status: "unavailable", Capabilities: []string{}, ObservedAt: now.Add(offset).UTC().Format(time.RFC3339Nano), ExpiresAt: now.Add(offset).Add(30 * time.Second).UTC().Format(time.RFC3339Nano)}
-			path, pathErr := exec.LookPath(name)
-			if pathErr == nil {
-				installation := provider.Installation{Executable: path, Environment: os.Environ(), IntegrationHash: provider.Hash(nil)}
+			installation, installationErr := providers.LocalInstallation(ctx, name)
+			if installationErr == nil {
 				probe, probeErr := registry.Probe(ctx, name, installation, now)
 				if probeErr == nil {
 					report.Version, report.ManifestID, report.Status = probe.Version, probe.ManifestID, probe.Status

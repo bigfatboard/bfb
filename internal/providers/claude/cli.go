@@ -90,6 +90,9 @@ func settingsCurrent(data []byte, launcher string) bool {
 	if err != nil {
 		return false
 	}
+	if disabled, exists := object["disableAllHooks"]; exists && disabled != false {
+		return false
+	}
 	owned, err := ownedSettingsData(object)
 	if err != nil {
 		return false
@@ -101,8 +104,26 @@ func settingsCurrent(data []byte, launcher string) bool {
 		}
 		current, ok := handlers[0].(map[string]any)
 		command, _ := current["command"].(string)
-		if !ok || command != launcher || !isBFBHandler(current) {
+		if !ok || command != launcher || string(canonicalSingle(current)) != string(canonicalSingle(hookHandler(launcher))) {
 			return false
+		}
+	}
+	// A matcher or background/conditional handler can prevent the bootstrap
+	// from reaching this session even when its command arguments look right.
+	hooks, _ := object["hooks"].(map[string]any)
+	for _, event := range HookEvents {
+		entries, _ := hooks[event].([]any)
+		for _, item := range entries {
+			entry, _ := item.(map[string]any)
+			handlers, _ := entry["hooks"].([]any)
+			for _, handler := range handlers {
+				if !isBFBHandler(handler) {
+					continue
+				}
+				if matcher, exists := entry["matcher"]; exists && matcher != "" {
+					return false
+				}
+			}
 		}
 	}
 	return true
@@ -114,7 +135,7 @@ func mcpCurrent(data []byte, launcher string) bool {
 		return false
 	}
 	servers, _ := object["mcpServers"].(map[string]any)
-	return string(canonicalSingle(servers["bfb"])) == string(canonicalSingle(desiredServer(launcher)))
+	return string(canonicalSingle(servers["bfb"])) == string(canonicalSingle(desiredServer(launcher))) && mcpProjectBindingsCurrent(object, launcher)
 }
 
 var approvalPattern = regexp.MustCompile(`^(sha256:[0-9a-f]{64}):(sha256:[0-9a-f]{64})$`)

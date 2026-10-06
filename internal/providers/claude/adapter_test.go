@@ -5,6 +5,7 @@ package claude_test
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"slices"
@@ -62,7 +63,7 @@ func installation(t *testing.T, binary, home, launcher string) provider.Installa
 		Executable:      binary,
 		ConfigFiles:     []provider.ConfigSource{{Name: "user_settings", Path: filepath.Join(home, ".claude", "settings.json")}, {Name: "user_mcp", Path: filepath.Join(home, ".claude.json")}},
 		IntegrationHash: hash,
-		Environment:     []string{},
+		Environment:     []string{"HOME=" + home},
 	}
 }
 
@@ -77,6 +78,13 @@ func writeSettings(t *testing.T, home, launcher string) {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(home, ".claude", "settings.json"), after, 0600); err != nil {
+		t.Fatal(err)
+	}
+	mcp, _, err := (claude.MCPServerEditor{Launcher: launcher}).Prepare(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(home, ".claude.json"), mcp, 0600); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -179,8 +187,11 @@ func TestProbeHealthyWithAndWithoutHooks(t *testing.T) {
 	if !strings.Contains(joined, "--model sonnet") || !strings.Contains(joined, "--permission-mode default") || !strings.Contains(joined, provider.InitialInstruction) {
 		t.Fatalf("unexpected argv %v", invocation.Arguments)
 	}
-	if len(invocation.Environment) != 0 {
-		t.Fatal("probe installation must not leak environment")
+	if !strings.Contains(joined, "--setting-sources user") {
+		t.Fatal("tracked launch loads repository/local setting overrides")
+	}
+	if !slices.Equal(invocation.Environment, []string{"HOME=" + hooked}) {
+		t.Fatal("probe installation must preserve its config home without other environment")
 	}
 	if invocation.Stdin != nil {
 		t.Fatal("interactive launch must not carry stdin")
@@ -200,6 +211,92 @@ func TestProbeHealthyWithAndWithoutHooks(t *testing.T) {
 		if _, err := registry.PlanLaunch(versioned, launchInput(workdir), provider.Policy{AllowedCapabilities: claude.Capabilities()}, time.Now()); err != nil {
 			t.Fatalf("version %s: tracked launch refused: %v", version, err)
 		}
+	}
+}
+
+func TestProbeWithholdsHookCapabilitiesForIncorrectOwnedIntegration(t *testing.T) {
+	for _, fault := range []string{"disabled", "duplicate", "hook_launcher", "mcp_launcher", "mcp_env", "missing_mcp", "conditional", "async", "local_mcp", "local_disabled", "wrong_pinned_launcher", "mismatched_sources", "wrong_home", "missing_home", "duplicate_home", "config_override"} {
+		t.Run(fault, func(t *testing.T) {
+			home, launcher := t.TempDir(), stubLauncher(t)
+			writeSettings(t, home, launcher)
+			settingsPath, mcpPath := claude.SettingsPath(home), claude.MCPConfigPath(home)
+			settings, _ := os.ReadFile(settingsPath)
+			mcp, _ := os.ReadFile(mcpPath)
+			var settingObject, mcpObject map[string]any
+			if err := json.Unmarshal(settings, &settingObject); err != nil {
+				t.Fatal(err)
+			}
+			if err := json.Unmarshal(mcp, &mcpObject); err != nil {
+				t.Fatal(err)
+			}
+			hooks := settingObject["hooks"].(map[string]any)
+			entries := hooks["SessionStart"].([]any)
+			entry := entries[0].(map[string]any)
+			handler := entry["hooks"].([]any)[0].(map[string]any)
+			server := mcpObject["mcpServers"].(map[string]any)["bfb"].(map[string]any)
+			switch fault {
+			case "disabled":
+				settingObject["disableAllHooks"] = true
+			case "duplicate":
+				hooks["SessionStart"] = append(entries, entry)
+			case "hook_launcher":
+				handler["command"] = stubLauncher(t)
+			case "mcp_launcher":
+				server["command"] = stubLauncher(t)
+			case "mcp_env":
+				server["env"] = map[string]any{"BFB_RUN_ID": "synthetic-untrusted-override"}
+			case "conditional":
+				entry["matcher"] = "never-matches-startup"
+			case "async":
+				handler["async"] = true
+			case "local_mcp":
+				mcpObject["projects"] = map[string]any{"synthetic-project": map[string]any{"mcpServers": map[string]any{"bfb": map[string]any{"type": "stdio", "command": stubLauncher(t)}}}}
+			case "local_disabled":
+				mcpObject["projects"] = map[string]any{"synthetic-project": map[string]any{"disabledMcpServers": []any{"bfb"}}}
+			}
+			settings, _ = json.Marshal(settingObject)
+			mcp, _ = json.Marshal(mcpObject)
+			if err := os.WriteFile(settingsPath, settings, 0600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(mcpPath, mcp, 0600); err != nil {
+				t.Fatal(err)
+			}
+			if fault == "missing_mcp" {
+				if err := os.Remove(mcpPath); err != nil {
+					t.Fatal(err)
+				}
+			}
+			pinnedLauncher := launcher
+			if fault == "wrong_pinned_launcher" {
+				pinnedLauncher = stubLauncher(t)
+			}
+			local := installation(t, stubBinary(t, "2.1.275"), home, pinnedLauncher)
+			if fault == "mismatched_sources" {
+				local.ConfigFiles[1].Path = filepath.Join(t.TempDir(), ".claude.json")
+			}
+			switch fault {
+			case "wrong_home":
+				local.Environment = []string{"HOME=" + t.TempDir()}
+			case "missing_home":
+				local.Environment = nil
+			case "duplicate_home":
+				local.Environment = append(local.Environment, "HOME="+home)
+			case "config_override":
+				local.Environment = append(local.Environment, "CLAUDE_CONFIG_DIR="+t.TempDir())
+			}
+			if fault == "duplicate_home" {
+				_, err := registry(t).Probe(context.Background(), "claude", local, time.Now())
+				requireCode(t, err, "provider_config_invalid")
+				return
+			}
+			probe := mustProbe(t, registry(t), local)
+			for _, capability := range []string{"hooks.session_start", "context.session_start", "mcp.stdio"} {
+				if slices.Contains(probe.Capabilities, capability) {
+					t.Fatalf("incorrect integration granted %s", capability)
+				}
+			}
+		})
 	}
 }
 
@@ -272,6 +369,9 @@ func TestPlanResumeExactSession(t *testing.T) {
 	}
 	if slices.Contains(argv, provider.InitialInstruction) || slices.Contains(argv, "--continue") || slices.Contains(argv, "--fork-session") {
 		t.Fatalf("resume must not start a new turn: %v", argv)
+	}
+	if !strings.Contains(strings.Join(argv, " "), "--setting-sources user") {
+		t.Fatal("resume loads repository/local setting overrides")
 	}
 
 	input.Session.ObservedID = "abc123"

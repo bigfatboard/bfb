@@ -6,6 +6,8 @@ package cli
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"strconv"
@@ -25,8 +27,8 @@ func RegisterHook(registry *Registry, providers *provider.Registry, backend Back
 	if providers == nil || backend == nil {
 		panic("hook commands require a provider registry and journal backend")
 	}
-	if err := registry.Register(Command{Path: "hook ingest", Method: "hook.ingest", Summary: "Ingest one bounded provider hook event", Run: func(ctx context.Context, invocation Invocation) (map[string]any, error) {
-		return ingestHook(ctx, invocation, providers, backend)
+	if err := registry.Register(Command{Path: "hook ingest", Method: "hook.ingest", Summary: "Ingest one bounded provider hook event", RawStdio: true, Run: func(ctx context.Context, invocation Invocation) (map[string]any, error) {
+		return runHook(ctx, invocation, providers, backend)
 	}}); err != nil {
 		panic("duplicate built-in CLI command")
 	}
@@ -37,20 +39,64 @@ func RegisterHook(registry *Registry, providers *provider.Registry, backend Back
 	}
 }
 
-func ingestHook(ctx context.Context, invocation Invocation, providers *provider.Registry, backend BackendFactory) (map[string]any, error) {
+type hookOutcome struct {
+	payload   map[string]any
+	bootstrap bool
+}
+
+func runHook(ctx context.Context, invocation Invocation, providers *provider.Registry, backend BackendFactory) (map[string]any, error) {
+	outcome, err := ingestHook(ctx, invocation, providers, backend)
+	output := invocation.Output
+	if output == nil {
+		output = io.Discard
+	}
+	// Explicit JSON CLI diagnostics keep their frozen envelope. Claude's
+	// installed hook uses no flag: stdout is its vendor hook protocol, not a
+	// BFB receipt or private context response.
+	claudeHook := len(invocation.Args) == 2 && invocation.Args[0] == "--provider" && invocation.Args[1] == "claude"
+	if invocation.JSON || !claudeHook {
+		if exit := render(output, invocation.JSON, daemon.Response("hook.ingest", daemon.NewRequestID(), outcome.payload, err)); err == nil && exit != 0 {
+			return nil, &daemon.Failure{Code: "internal_error"}
+		}
+		return nil, err
+	}
+	stderr := invocation.Stderr
+	if stderr == nil {
+		stderr = io.Discard
+	}
+	if err != nil {
+		_, _ = fmt.Fprintln(stderr, "bfb hook ingest: "+daemon.AsFailure(err).Diagnostic().Code)
+		return nil, err
+	}
+	if outcome.bootstrap {
+		// This constant opens no turn and contains no task, credential or
+		// assignment payload. Resume receives the same instruction as startup.
+		if err := json.NewEncoder(output).Encode(map[string]any{"hookSpecificOutput": map[string]any{
+			"hookEventName": "SessionStart", "additionalContext": provider.InitialInstruction,
+		}}); err != nil {
+			return nil, &daemon.Failure{Code: "internal_error"}
+		}
+	}
+	if status, ok := outcome.payload["hook_status"].(string); ok {
+		_, _ = fmt.Fprintln(stderr, "bfb hook ingest: "+status)
+	}
+	return nil, nil
+}
+
+func ingestHook(ctx context.Context, invocation Invocation, providers *provider.Registry, backend BackendFactory) (hookOutcome, error) {
 	if len(invocation.Args) != 2 || invocation.Args[0] != "--provider" || invocation.Args[1] == "" {
-		return nil, &daemon.Failure{Code: "invalid_request"}
+		return hookOutcome{}, &daemon.Failure{Code: "invalid_request"}
 	}
 	name := invocation.Args[1]
 	raw, err := io.ReadAll(io.LimitReader(invocation.Input, provider.MaxHookBytes+1))
 	if err != nil || len(raw) == 0 || len(raw) > provider.MaxHookBytes {
-		return nil, &daemon.Failure{Code: "provider_event_invalid"}
+		return hookOutcome{}, &daemon.Failure{Code: "provider_event_invalid"}
 	}
 	execution := os.Getenv("BFB_RUN_EXECUTION_ID")
 	generation, genErr := strconv.ParseInt(os.Getenv("BFB_ASSIGNMENT_GENERATION"), 10, 64)
 	token := os.Getenv("BFB_CORRELATION_TOKEN")
 	if execution == "" || genErr != nil || generation < 1 || token == "" {
-		return nil, &daemon.Failure{Code: "invalid_request"}
+		return hookOutcome{}, &daemon.Failure{Code: "invalid_request"}
 	}
 	input := journal.HookInput{
 		Provider: name, Raw: raw, ExecutionID: execution, Generation: generation, Token: token,
@@ -62,20 +108,26 @@ func ingestHook(ctx context.Context, invocation Invocation, providers *provider.
 	defer cancel()
 	state, err := daemon.OpenStore(bounded, invocation.Paths)
 	if err != nil {
-		return inboxFallback(invocation.Paths.Root, input, err)
+		payload, fallbackErr := inboxFallback(invocation.Paths.Root, input, err)
+		return hookOutcome{payload: payload}, fallbackErr
 	}
 	defer state.Close()
 	store := journal.NewStore(state.DB)
 	assignments, _ := backend(state.DB)
 	receipt, err := store.Ingest(bounded, assignments, providers, input, time.Now())
 	if err != nil {
-		name, fallbackErr := inboxFallback(invocation.Paths.Root, input, err)
+		payload, fallbackErr := inboxFallback(invocation.Paths.Root, input, err)
 		if fallbackErr != nil {
-			return nil, fallbackErr
+			return hookOutcome{}, fallbackErr
 		}
-		return name, nil
+		return hookOutcome{payload: payload}, nil
 	}
-	return receiptPayload(receipt), nil
+	outcome := hookOutcome{payload: receiptPayload(receipt)}
+	if name == "claude" && (receipt.Status == "accepted" || receipt.Status == "duplicate") {
+		candidate, parseErr := providers.NormalizeHook(name, raw)
+		outcome.bootstrap = parseErr == nil && candidate != nil && candidate.Kind == "session_started"
+	}
+	return outcome, nil
 }
 
 func inboxFallback(root string, input journal.HookInput, cause error) (map[string]any, error) {

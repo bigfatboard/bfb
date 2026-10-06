@@ -107,6 +107,9 @@ func fixtureLaunchInstallation(t *testing.T, homeKey, binary, version string, wr
 	t.Setenv("PATH", bin)
 	home = t.TempDir()
 	t.Setenv(homeKey, home)
+	if homeKey == "BFB_CLAUDE_HOME" {
+		t.Setenv("HOME", home)
+	}
 	executable, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)

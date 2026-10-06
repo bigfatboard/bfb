@@ -19,6 +19,7 @@ import (
 	"github.com/qdis/bfb/internal/daemon"
 	"github.com/qdis/bfb/internal/protocol/generated"
 	"github.com/qdis/bfb/internal/provider"
+	"github.com/qdis/bfb/internal/providers/claude"
 	"github.com/qdis/bfb/internal/providers/fake"
 )
 
@@ -115,6 +116,100 @@ func TestPreparationEnvironmentContainsOnlyScopedBFBValues(t *testing.T) {
 	if !slices.Contains(normal, "BFB_TASK_ID=wrong") {
 		t.Fatal("ambient environment was mutated")
 	}
+}
+
+func TestPreparationClaudeReprobeAndExecKeepTightenedEnvironment(t *testing.T) {
+	files, draft, wire, _, checkout := fixturePreparation(t)
+	home, bin := t.TempDir(), t.TempDir()
+	binary := filepath.Join(bin, "claude")
+	// A helper reprobe that accidentally restores ambient credentials or
+	// config overrides fails before it can report the supported version.
+	if err := os.WriteFile(binary, []byte("#!/bin/sh\n[ -z \"${ANTHROPIC_API_KEY-}\" ] || exit 1\n[ -z \"${CLAUDE_CONFIG_DIR-}\" ] || exit 1\n[ -z \"${LOCAL_CREDENTIAL-}\" ] || exit 1\n[ -z \"${BFB_CORRELATION_TOKEN-}\" ] || exit 1\n[ -f \"$HOME/.claude/settings.json\" ] || exit 1\n[ -f \"$HOME/.claude.json\" ] || exit 1\nprintf '2.1.275 (Claude Code)\\n'\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	launcher, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	settings, _, err := (claude.SettingsEditor{Launcher: launcher}).Prepare(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mcp, _, err := (claude.MCPServerEditor{Launcher: launcher}).Prepare(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(claude.SettingsPath(home)), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(claude.SettingsPath(home), settings, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(claude.MCPConfigPath(home), mcp, 0600); err != nil {
+		t.Fatal(err)
+	}
+	hash, err := claude.IntegrationHash(home, launcher)
+	if err != nil {
+		t.Fatal(err)
+	}
+	installation := provider.Installation{Executable: binary, ConfigFiles: []provider.ConfigSource{{Name: "user_settings", Path: claude.SettingsPath(home)}, {Name: "user_mcp", Path: claude.MCPConfigPath(home)}}, IntegrationHash: hash, Environment: []string{"HOME=" + home, "PATH=" + bin}}
+	registry, err := provider.NewRegistry([]provider.Descriptor{claude.Descriptor()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	probe, err := registry.Probe(context.Background(), "claude", installation, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	draft.ProviderIdentityHash, err = registry.IdentityHash(probe)
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := generated.ExecutionConfig{Provider: "claude", Mode: "interactive", Model: "sonnet", Effort: "low", ApprovalPolicy: "on_request", FilesystemPolicy: "workspace_write", ContextInjection: "session_start_additional_context", InitialTurnTransport: "provider_prompt", RequiredCapabilities: []string{"hooks.session_start"}}
+	draft.Claim.Specification.ExecutionConfig, draft.Claim.Snapshot.ExecutionConfig = config, config
+	draft.Claim.Snapshot.ProviderVersion, draft.Claim.Snapshot.ProviderManifestId = probe.Version, probe.ManifestID
+	draft.Claim.Specification.ConfigSnapshotHash, err = snapshotHash(draft.Claim.Snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wire.Claim, wire.ProviderIdentityHash = draft.Claim, draft.ProviderIdentityHash
+	preparation, err := files.Prepare(draft, registry, probe, checkout)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ambient := []string{"HOME=" + home, "PATH=" + bin, "ANTHROPIC_API_KEY=synthetic-key", "CLAUDE_CONFIG_DIR=/synthetic-wrong-home", "LOCAL_CREDENTIAL=synthetic-key", "BFB_CORRELATION_TOKEN=wrong"}
+	fresh, err := preparation.Probe(context.Background(), registry, wire, ambient, now.Add(time.Second))
+	if err != nil {
+		t.Fatal("helper restored forbidden ambient provider environment", err)
+	}
+	plan, err := registry.PlanLaunch(fresh, provider.LaunchInput{Config: config, WorkingDirectory: checkout}, provider.Policy{AllowedCapabilities: claude.Capabilities()}, now.Add(time.Second))
+	if err != nil {
+		t.Fatal(err)
+	}
+	environment, err := preparation.Environment(wire, plan.Invocation().Environment)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range environment {
+		if strings.Contains(entry, "synthetic-key") || strings.Contains(entry, "synthetic-wrong-home") || strings.Contains(entry, "=wrong") {
+			t.Fatal("exec environment regained an inherited credential or scope")
+		}
+	}
+	if !slices.Contains(environment, "BFB_CORRELATION_TOKEN="+wire.CorrelationToken) || !slices.Contains(environment, "BFB_RUN_EXECUTION_ID="+wire.Claim.Assignment.RunExecutionId) {
+		t.Fatal("trusted helper omitted its immutable hook correlation")
+	}
+	wrongHome := t.TempDir()
+	if err := os.MkdirAll(filepath.Dir(claude.SettingsPath(wrongHome)), 0700); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{claude.SettingsPath(wrongHome), claude.MCPConfigPath(wrongHome)} {
+		if err := os.WriteFile(path, []byte("{}"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_, err = preparation.Probe(context.Background(), registry, wire, []string{"HOME=" + wrongHome, "PATH=" + bin}, now.Add(time.Second))
+	requireLaunchCode(t, err, "provider_changed")
 }
 
 func TestArtifactsRejectCheckoutAncestryBeforeCreatingFiles(t *testing.T) {

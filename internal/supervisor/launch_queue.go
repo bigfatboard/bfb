@@ -6,19 +6,13 @@ package supervisor
 import (
 	"context"
 	"encoding/json"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/qdis/bfb/internal/checkout"
 	"github.com/qdis/bfb/internal/protocol/generated"
 	"github.com/qdis/bfb/internal/provider"
-	"github.com/qdis/bfb/internal/providers/claude"
-	"github.com/qdis/bfb/internal/providers/codex"
-	"github.com/qdis/bfb/internal/providers/grok"
+	"github.com/qdis/bfb/internal/providers"
 	"github.com/qdis/bfb/internal/runner"
 )
 
@@ -27,80 +21,8 @@ import (
 // Real providers resolve the same hook/MCP sources and integration hash the
 // setup transactions publish, so probe, plan and pre-exec revalidation inspect
 // the files the launch actually depends on.
-func localInstallationForLaunch(_ context.Context, name string) (provider.Installation, error) {
-	switch name {
-	case "claude":
-		if _, err := exec.LookPath("claude"); err != nil {
-			return provider.Installation{}, failure("provider_unsupported")
-		}
-		home, err := claude.HomeDir()
-		if err != nil {
-			return provider.Installation{}, err
-		}
-		launcher, err := os.Executable()
-		if err != nil {
-			return provider.Installation{}, failure("provider_unavailable")
-		}
-		return claude.Installation(home, launcher)
-	case "codex":
-		return scopedInstallation("codex", "CODEX_HOME", ".codex", codex.ConfigSources, codex.IntegrationID())
-	case "grok":
-		return scopedInstallation("grok", "GROK_HOME", ".grok", grok.ConfigSources, grok.IntegrationID())
-	default:
-		return provider.Installation{}, failure("provider_unsupported")
-	}
-}
-
-// scopedInstallation resolves a home-scoped provider installation: the PATH
-// binary, the provider-owned hook/MCP sources under that home, the packaged
-// integration identity, and the local environment with the home variable
-// pinned so version/health probes cannot read another profile.
-func scopedInstallation(binary, homeKey, homeDot string, sources func(string) []provider.ConfigSource, integration string) (provider.Installation, error) {
-	path, err := exec.LookPath(binary)
-	if err != nil {
-		return provider.Installation{}, failure("provider_unsupported")
-	}
-	home, err := scopedHome(homeKey, homeDot)
-	if err != nil {
-		return provider.Installation{}, err
-	}
-	return provider.Installation{
-		Executable:      path,
-		ConfigFiles:     sources(home),
-		IntegrationHash: integration,
-		Environment:     scopedEnvironment(homeKey, home),
-	}, nil
-}
-
-// scopedHome prefers the explicit home override and otherwise falls back to
-// the vendor default under the user home. A relative override cannot name a
-// probe source.
-func scopedHome(homeKey, homeDot string) (string, error) {
-	if home := os.Getenv(homeKey); home != "" {
-		if !filepath.IsAbs(home) {
-			return "", failure("provider_path_unsafe")
-		}
-		return filepath.Clean(home), nil
-	}
-	home, err := os.UserHomeDir()
-	if err != nil || home == "" {
-		return "", failure("provider_path_unsafe")
-	}
-	return filepath.Join(home, homeDot), nil
-}
-
-// scopedEnvironment keeps the normal local environment with exactly one home
-// entry for the checked profile. The probe kit rejects duplicate names.
-func scopedEnvironment(homeKey, home string) []string {
-	environment := NormalEnvironment(os.Environ())
-	kept := environment[:0]
-	for _, entry := range environment {
-		name, _, _ := strings.Cut(entry, "=")
-		if name != homeKey {
-			kept = append(kept, entry)
-		}
-	}
-	return append(kept, homeKey+"="+home)
+func localInstallationForLaunch(ctx context.Context, name string) (provider.Installation, error) {
+	return providers.LocalInstallation(ctx, name)
 }
 
 type commandKey struct{ runner, command string }

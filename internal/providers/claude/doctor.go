@@ -7,7 +7,6 @@ import (
 	"context"
 	"os"
 	"os/exec"
-	"reflect"
 	"slices"
 	"strings"
 	"time"
@@ -127,14 +126,23 @@ func Diagnose(home, launcher, binary string) Report {
 	case drifted:
 		add("hooks", CheckFailed, "hooks_drift", "a BFB handler points at another launcher; re-run setup")
 	default:
-		add("hooks", CheckPassed, "hooks_registered", "every subscribed event carries the current handler once")
+		data, _, err := readBounded(SettingsPath(home))
+		if err != nil || !settingsCurrent(data, launcher) {
+			add("hooks", CheckFailed, "hooks_drift", "a BFB handler is conditional, disabled or differs from the current configuration")
+		} else {
+			add("hooks", CheckPassed, "hooks_registered", "every subscribed event carries the current handler once")
+		}
 	}
-	server, err := ownedMCPServer(home)
+	mcp, _, err := readBounded(MCPConfigPath(home))
 	if err != nil {
 		add("mcp", CheckFailed, "provider_config_invalid", "user MCP config does not parse")
 		return report
 	}
-	if !reflect.DeepEqual(canonicalSingle(server), canonicalSingle(desiredServer(launcher))) {
+	if _, err := parseObject(mcp); err != nil {
+		add("mcp", CheckFailed, "provider_config_invalid", "user MCP config does not parse")
+		return report
+	}
+	if !mcpCurrent(mcp, launcher) {
 		add("mcp", CheckFailed, "mcp_drift", "bfb MCP server entry is missing or stale; run setup")
 	} else {
 		add("mcp", CheckPassed, "mcp_registered", "bfb MCP server entry is current")

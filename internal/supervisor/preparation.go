@@ -18,6 +18,7 @@ import (
 
 	"github.com/qdis/bfb/internal/protocol/generated"
 	"github.com/qdis/bfb/internal/provider"
+	"github.com/qdis/bfb/internal/providers"
 	"golang.org/x/sys/unix"
 )
 
@@ -167,7 +168,9 @@ func (preparation LaunchPreparation) Probe(ctx context.Context, registry *provid
 	if validateLocalAssignment(assignment) != nil || !preparation.matches(assignment.TerminalIntentId, assignment.ProviderIdentityHash, assignment.Claim) {
 		return provider.Probe{}, failure("execution_assignment_invalid")
 	}
-	probe, err := registry.ProbeBound(ctx, string(assignment.Claim.Specification.ExecutionConfig.Provider), preparation.Installation(environment), preparation.SourceHash, now)
+	installation := preparation.Installation(environment)
+	installation.Environment = providers.ExecutionEnvironment(string(assignment.Claim.Specification.ExecutionConfig.Provider), environment)
+	probe, err := registry.ProbeBound(ctx, string(assignment.Claim.Specification.ExecutionConfig.Provider), installation, preparation.SourceHash, now)
 	if err != nil {
 		return provider.Probe{}, err
 	}
@@ -197,7 +200,7 @@ func (preparation LaunchPreparation) Environment(assignment generated.LocalExecu
 		return nil, failure("execution_assignment_invalid")
 	}
 	binding := assignment.Claim.Assignment
-	environment := NormalEnvironment(normal)
+	environment := providers.ExecutionEnvironment(string(assignment.Claim.Specification.ExecutionConfig.Provider), normal)
 	return append(environment,
 		"BFB_WORKSPACE_ID="+binding.WorkspaceId, "BFB_PROJECT_ID="+binding.ProjectId,
 		"BFB_TASK_ID="+binding.TaskId, "BFB_RUN_ID="+binding.RunId,
