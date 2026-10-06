@@ -720,6 +720,105 @@ describe("private operations Hub upload recovery", () => {
       attempt_count: 1,
     });
   });
+  it.each(["ledger", "proof", "private_parent"] as const)(
+    "stored retry %s tampering before batch preserves prior effects and rolls back new receipts",
+    async (tamper) => {
+      const f = await fixture();
+      const refs = [await artifact(f, "uploading"), await artifact(f, "uploading", null)];
+      const ids = refs.map((row) => row.versionId);
+      const first = success(
+        await human(f.db, resolveStuckUploadCommand, {
+          versionIds: ids,
+          stepUpProofId: await proof(f.db),
+        }),
+      );
+      expect(first).toMatchObject({ replayed: false, detail: { resolved: 2 } });
+      const freshProof = await proof(f.db);
+      const retryKey = randomUlid();
+      const effectTables = [
+        "artifacts",
+        "artifact_versions",
+        "artifact_upload_grants",
+        "artifact_upload_consumptions",
+        "artifact_objects",
+        "artifact_upload_receipts",
+        "artifact_upload_receipt_sources",
+        "artifact_agent_operations",
+        "artifact_agent_grants",
+        "artifact_view_grants",
+        "artifact_reviews",
+        "artifact_audit_outbox",
+        "ops_recovery_ledger",
+        "passkey_step_up_proofs",
+        "task_privacy",
+        "audit_events",
+        "semantic_events",
+        "idempotency_records",
+        "outbox_records",
+        "workspace_cursors",
+      ];
+      const snapshot = () =>
+        Promise.all(
+          effectTables.map(async (table) => ({
+            table,
+            rows: await f.db.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all(),
+          })),
+        );
+      const prior = await snapshot();
+      let expected = prior;
+      let changed = false;
+      const competingConsumption = "synthetic-independent-proof-consumer";
+      const changedTable =
+        tamper === "ledger"
+          ? "ops_recovery_ledger"
+          : tamper === "proof"
+            ? "passkey_step_up_proofs"
+            : "task_privacy";
+      const staged = resultStagedD1(f.db, async () => {
+        if (tamper === "ledger")
+          await f.db
+            .prepare("UPDATE ops_recovery_ledger SET result_json=? WHERE action_id=?")
+            .run(JSON.stringify({ resolved: 99 }), first.action_id);
+        else if (tamper === "proof")
+          await f.db
+            .prepare("UPDATE passkey_step_up_proofs SET consumed_at=? WHERE proof_id=?")
+            .run(competingConsumption, freshProof);
+        else await privatize(f);
+        changed = true;
+        // Capture only the independent mutation, before the queued Hub batch.
+        // A failed retry must leave these rows intact and add no new effect.
+        expected = await snapshot();
+        for (const [index, table] of effectTables.entries())
+          if (table !== changedTable) expect(expected[index]).toEqual(prior[index]);
+      });
+      expect(
+        await human(
+          staged.db,
+          resolveStuckUploadCommand,
+          { versionIds: ids, stepUpProofId: freshProof },
+          FIX.owner,
+          retryKey,
+        ),
+      ).toEqual({ ok: false, error: { code: "command_failed", message: "command failed" } });
+      expect(changed).toBe(true);
+      expect(await snapshot()).toEqual(expected);
+      expect(
+        await f.db.prepare("SELECT id,state FROM artifact_versions ORDER BY id").all(),
+      ).toEqual([...ids].sort().map((id) => ({ id, state: "failed" })));
+      expect(
+        await f.db
+          .prepare("SELECT consumed_at FROM passkey_step_up_proofs WHERE proof_id=?")
+          .get(freshProof),
+      ).toEqual({ consumed_at: tamper === "proof" ? competingConsumption : null });
+      expect(
+        await f.db
+          .prepare("SELECT idempotency_key FROM idempotency_records WHERE idempotency_key=?")
+          .all(retryKey),
+      ).toEqual([]);
+      expect(await f.db.prepare("SELECT id FROM artifact_mutation_guards").all()).toEqual([]);
+      expect(await f.db.prepare("SELECT id FROM runner_mutation_guards").all()).toEqual([]);
+    },
+  );
   it.each(["extra", "wrong_kind", "wrong_count", "nonfailed"] as const)(
     "rejects malformed %s historical ledger without consuming proof",
     async (kind) => {
