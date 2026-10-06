@@ -31,7 +31,7 @@ type Store struct {
 	db *sql.DB
 }
 
-// NewStore wraps an opened daemon database. Migrations 009 and 010 must be applied.
+// NewStore wraps an opened daemon database. Journal migrations through 011 must be applied.
 func NewStore(db *sql.DB) *Store { return &Store{db: db} }
 
 // OpenState opens the daemon database for hook ingestion, applying pending

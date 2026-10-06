@@ -1,8 +1,23 @@
 {
   "protocol": "bfb-wire/1",
   "schema_version": 1,
-  "schema_hash": "c0692208c2f3ae4be70d31bf842cf67b19f754341fc45d147c8c28a2b5d9654f",
+  "schema_hash": "ddfa28ac18edd5f01455e6155e94e9809a278031c000d0043c577e03bb36c34f",
   "documents": [
+    {
+      "name": "runner-telemetry-submission",
+      "schema": "runner-telemetry-submission.json",
+      "schema_version": 2
+    },
+    {
+      "name": "runner-event-capabilities",
+      "schema": "runner-event-capabilities.json",
+      "schema_version": 1
+    },
+    {
+      "name": "runner-event-ingest-result",
+      "schema": "runner-event-ingest-result.json",
+      "schema_version": 1
+    },
     {
       "name": "agent-result-request",
       "schema": "agent-result-request.json",

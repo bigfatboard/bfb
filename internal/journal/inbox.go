@@ -212,10 +212,8 @@ func (store *Store) ImportInbox(ctx context.Context, assignments Assignments, re
 			}
 		}
 		if !pending {
-			if _, err := store.db.ExecContext(ctx, "UPDATE hook_journal_meta SET value = '0' WHERE key = 'telemetry_degraded'"); err != nil {
-				return result, failure("storage_failed")
-			}
-			if _, err := store.db.ExecContext(ctx, "UPDATE hook_journal_meta SET value = '' WHERE key = 'degraded_reason'"); err != nil {
+			if _, err := store.db.ExecContext(ctx, `UPDATE hook_journal_meta SET value = CASE key WHEN 'telemetry_degraded' THEN '0' ELSE '' END
+WHERE key IN ('telemetry_degraded', 'degraded_reason') AND ((SELECT value FROM hook_journal_meta WHERE key = 'degraded_reason') LIKE 'inbox_%' OR (SELECT value FROM hook_journal_meta WHERE key = 'degraded_reason') LIKE 'hook_%')`); err != nil {
 				return result, failure("storage_failed")
 			}
 		}
@@ -299,7 +297,7 @@ func (store *Store) importFile(ctx context.Context, assignments Assignments, reg
 	defer tx.Rollback()
 	receipt, err := journalTx(ctx, store, tx, validated, input, now)
 	if err != nil {
-		return "", err
+		return "", store.captureFailure(ctx, tx, err, localTimestamp(now))
 	}
 	if _, err := tx.ExecContext(ctx, "INSERT INTO hook_inbox_receipts (file_hash, execution_id, outcome, recorded_at) VALUES (?, ?, 'imported', ?)", fileHash, capture.ExecutionID, localTimestamp(now)); err != nil {
 		return "", failure("storage_failed")

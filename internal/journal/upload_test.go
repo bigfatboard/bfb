@@ -80,7 +80,7 @@ func (f *fakeConnection) Request(_ context.Context, method, action string, body 
 		}
 		dispositions = append(dispositions, entry)
 	}
-	response, _ := json.Marshal(map[string]any{"schema_version": 1, "dispositions": dispositions})
+	response, _ := json.Marshal(map[string]any{"schema_version": 1, "workspace_id": "01JBFB0W0RKSPACE0000000000", "high_water_cursor": 0, "dispositions": dispositions})
 	return response, nil
 }
 

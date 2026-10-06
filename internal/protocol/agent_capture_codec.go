@@ -9,6 +9,9 @@ import (
 )
 
 var captureByteLimits = map[string]int{
+	"runner-telemetry-submission":        8192,
+	"runner-event-capabilities":          256,
+	"runner-event-ingest-result":         65536,
 	"agent-result-request":               32768,
 	"agent-result-local-request":         49152,
 	"agent-result-result":                16384,

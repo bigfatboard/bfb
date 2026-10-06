@@ -14,6 +14,25 @@ export const SCHEMA_VERSION = 1;
 
 export const DOCUMENTS: DocumentSpec[] = [
   {
+    name: "runner-telemetry-submission",
+    schemaFile: "runner-telemetry-submission.json",
+    goType: "RunnerTelemetrySubmission",
+    tsType: "RunnerTelemetrySubmission",
+    schemaVersion: 2,
+  },
+  {
+    name: "runner-event-capabilities",
+    schemaFile: "runner-event-capabilities.json",
+    goType: "RunnerEventCapabilities",
+    tsType: "RunnerEventCapabilities",
+  },
+  {
+    name: "runner-event-ingest-result",
+    schemaFile: "runner-event-ingest-result.json",
+    goType: "RunnerEventIngestResult",
+    tsType: "RunnerEventIngestResult",
+  },
+  {
     name: "agent-result-request",
     schemaFile: "agent-result-request.json",
     goType: "AgentResultRequest",

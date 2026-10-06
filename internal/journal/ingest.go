@@ -128,7 +128,7 @@ func (store *Store) Ingest(ctx context.Context, assignments Assignments, registr
 	defer tx.Rollback()
 	receipt, err := journalTx(ctx, store, tx, validated, input, now)
 	if err != nil {
-		return Receipt{}, err
+		return Receipt{}, store.captureFailure(ctx, tx, err, localTimestamp(now))
 	}
 	if err := tx.Commit(); err != nil {
 		return Receipt{}, failure("storage_failed")
@@ -140,6 +140,7 @@ func (store *Store) Ingest(ctx context.Context, assignments Assignments, registr
 // inbox import can co-commit its file receipt atomically. It never commits.
 func journalTx(ctx context.Context, store *Store, tx *sql.Tx, validated validatedHook, input HookInput, now time.Time) (Receipt, error) {
 	candidate, assignment, kind, stamp := validated.candidate, validated.assignment, validated.kind, validated.stamp
+	payload, identity := candidateTelemetry(candidate, kind)
 	origin := "agent_reported"
 	if candidate.SessionID != "" {
 		// The first session-scoped hook atomically binds the observed
@@ -169,7 +170,14 @@ func journalTx(ctx context.Context, store *Store, tx *sql.Tx, validated validate
 	}
 	// Independently redelivered hooks carrying the provider's stable event ID
 	// journal once; transport retries of a persisted BFB event dedup by event ID.
-	if candidate.SourceEventID != "" && candidate.Kind != "session_started" {
+	if payload != nil {
+		if receipt, found, err := lookupTelemetryIdentity(ctx, tx, input, identity); err != nil {
+			return Receipt{}, err
+		} else if found {
+			return receipt, nil
+		}
+	}
+	if payload == nil && candidate.SourceEventID != "" && candidate.Kind != "session_started" {
 		if eventID, found, err := duplicateEvent(ctx, tx, input.ExecutionID, input.Generation, candidate.SourceEventID); err != nil {
 			return Receipt{}, err
 		} else if found {
@@ -222,8 +230,27 @@ func journalTx(ctx context.Context, store *Store, tx *sql.Tx, validated validate
 	if err != nil {
 		return Receipt{}, failure("storage_failed")
 	}
-	if result := protocol.DecodeWireDocument("runner-event-submission", data); !result.OK {
+	document := "runner-event-submission"
+	if payload != nil {
+		source := telemetrySourceID(input, identity)
+		submission.SourceEventId = &source
+		data, err = json.Marshal(generated.RunnerTelemetrySubmission{
+			SchemaVersion: 2, EventId: submission.EventId, SourceStreamId: stream, SourceSequence: sequence,
+			RunExecutionId: input.ExecutionID, AssignmentGeneration: input.Generation, Kind: kind, OccurredAt: stamp, CaptureOrigin: origin,
+			SourceEventId: submission.SourceEventId, ProviderSessionId: submission.ProviderSessionId, Payload: payload,
+		})
+		if err != nil {
+			return Receipt{}, failure("storage_failed")
+		}
+		document = "runner-telemetry-submission"
+	}
+	if result := protocol.DecodeWireDocument(document, data); !result.OK {
 		return Receipt{}, failure("storage_failed")
+	}
+	if payload != nil {
+		if err := retainTelemetryIdentity(ctx, tx, input, identity, submission.EventId, stamp); err != nil {
+			return Receipt{}, err
+		}
 	}
 	sourceEvent := ""
 	if submission.SourceEventId != nil {
@@ -234,10 +261,10 @@ func journalTx(ctx context.Context, store *Store, tx *sql.Tx, validated validate
 		sessionID = *submission.ProviderSessionId
 	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO hook_journal
-(event_id, stream_id, source_sequence, runner_id, execution_id, assignment_generation, provider, kind, provider_session_id, source_event_id, occurred_at, captured_at, capture_origin, submission_json)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+(event_id, stream_id, source_sequence, runner_id, execution_id, assignment_generation, provider, kind, provider_session_id, source_event_id, occurred_at, captured_at, capture_origin, submission_json, workspace_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		submission.EventId, stream, sequence, assignment.RunnerID, input.ExecutionID, input.Generation,
-		input.Provider, kind, sessionID, sourceEvent, stamp, stamp, origin, string(data)); err != nil {
+		input.Provider, kind, sessionID, sourceEvent, stamp, stamp, origin, string(data), assignment.WorkspaceID); err != nil {
 		return Receipt{}, failure("storage_failed")
 	}
 	return Receipt{Status: "accepted", EventID: submission.EventId, Sequence: int64(sequence)}, nil

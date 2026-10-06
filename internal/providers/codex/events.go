@@ -67,6 +67,7 @@ func (Adapter) NormalizeHook(raw []byte) (*provider.Candidate, error) {
 			return nil, provider.Failure("provider_event_invalid")
 		}
 		candidate := &provider.Candidate{Kind: "turn_completed", SessionID: payload.SessionID}
+		candidate.ActivityID = payload.TurnID
 		if payload.TurnID != "" {
 			if !validIdentity(payload.TurnID) {
 				return nil, provider.Failure("provider_event_invalid")
@@ -85,6 +86,7 @@ func (Adapter) NormalizeHook(raw []byte) (*provider.Candidate, error) {
 			return nil, provider.Failure("provider_event_invalid")
 		}
 		candidate := &provider.Candidate{Kind: "interrupted", SessionID: payload.SessionID}
+		candidate.ActivityID = payload.TurnID
 		if payload.TurnID != "" {
 			if !validIdentity(payload.TurnID) {
 				return nil, provider.Failure("provider_event_invalid")
@@ -97,6 +99,7 @@ func (Adapter) NormalizeHook(raw []byte) (*provider.Candidate, error) {
 			return nil, provider.Failure("provider_event_invalid")
 		}
 		candidate := &provider.Candidate{Kind: "turn_started", SessionID: payload.SessionID}
+		candidate.ActivityID = payload.TurnID
 		if payload.TurnID != "" {
 			if !validIdentity(payload.TurnID) {
 				return nil, provider.Failure("provider_event_invalid")
@@ -130,6 +133,8 @@ func toolCandidate(kind string, payload hookPayload) (*provider.Candidate, error
 	}
 	if validIdentity(payload.ToolUseID) {
 		candidate.SourceEventID = payload.ToolUseID
+		candidate.ActivityID = payload.ToolUseID
+		candidate.ParentTurnID = payload.TurnID
 	}
 	return candidate, nil
 }
@@ -203,6 +208,20 @@ func usageCandidate(session string, usage *execUsage) (*provider.Candidate, erro
 		return nil, err
 	}
 	candidate := &provider.Candidate{Kind: "usage", SessionID: session, InputTokens: &input, OutputTokens: &output}
+	if usage.Cached != "" {
+		cached, err := tokenCount(usage.Cached)
+		if err != nil {
+			return nil, err
+		}
+		candidate.CacheReadTokens = &cached
+	}
+	if usage.Reasoning != "" {
+		reasoning, err := tokenCount(usage.Reasoning)
+		if err != nil {
+			return nil, err
+		}
+		candidate.ReasoningTokens = &reasoning
+	}
 	if err := candidate.Validate(); err != nil {
 		return nil, err
 	}

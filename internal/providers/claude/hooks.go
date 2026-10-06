@@ -129,5 +129,10 @@ func ParseHook(raw []byte) (*provider.Candidate, error) {
 	if err := candidate.Validate(); err != nil {
 		return nil, err
 	}
+	if candidate.Kind == "turn_started" || candidate.Kind == "turn_completed" {
+		candidate.ActivityID = hook.PromptID
+	} else if candidate.Kind == "tool_started" || candidate.Kind == "tool_completed" {
+		candidate.ActivityID = hook.ToolUseID
+	}
 	return candidate, nil
 }

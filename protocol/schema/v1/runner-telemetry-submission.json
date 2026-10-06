@@ -1,0 +1,353 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/runner-telemetry-submission.json",
+  "title": "RunnerTelemetrySubmission",
+  "description": "Closed schema-2 activity and token telemetry; authority derives from immutable execution assignment.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "event_id",
+    "source_stream_id",
+    "source_sequence",
+    "run_execution_id",
+    "assignment_generation",
+    "kind",
+    "occurred_at",
+    "capture_origin",
+    "payload"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 2
+    },
+    "event_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "source_stream_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "source_sequence": {
+      "$ref": "primitives.json#/$defs/SourceSequence"
+    },
+    "run_execution_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "assignment_generation": {
+      "$ref": "primitives.json#/$defs/AssignmentGeneration"
+    },
+    "source_event_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "provider_session_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "turn_started",
+        "turn_stopped",
+        "turn_failed",
+        "tool_started",
+        "tool_finished",
+        "tool_failed",
+        "progress_reported"
+      ]
+    },
+    "occurred_at": {
+      "$ref": "primitives.json#/$defs/UtcTimestamp"
+    },
+    "capture_origin": {
+      "type": "string",
+      "enum": ["runner_observed", "agent_reported", "hook_inbox"]
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "activity_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+        },
+        "parent_turn_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+        },
+        "measurement": {
+          "const": "tokens"
+        },
+        "usage_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+        },
+        "basis": {
+          "const": "turn_delta"
+        },
+        "model": {
+          "type": ["string", "null"],
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$"
+        },
+        "quality": {
+          "type": "string",
+          "enum": ["provider_reported", "stream_derived", "estimated", "unavailable"]
+        },
+        "tokens": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["input", "output", "cache_read", "cache_write", "reasoning"],
+          "properties": {
+            "input": {
+              "type": ["integer", "null"],
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "output": {
+              "type": ["integer", "null"],
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "cache_read": {
+              "type": ["integer", "null"],
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "cache_write": {
+              "type": ["integer", "null"],
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "reasoning": {
+              "type": ["integer", "null"],
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "enum": ["turn_started", "turn_stopped", "turn_failed"]
+          }
+        },
+        "required": ["kind"]
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["activity_id"],
+            "properties": {
+              "activity_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "enum": ["tool_started", "tool_finished", "tool_failed"]
+          }
+        },
+        "required": ["kind"]
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["activity_id"],
+            "properties": {
+              "activity_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+              },
+              "parent_turn_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "progress_reported"
+          }
+        },
+        "required": ["kind"]
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["measurement", "usage_id", "basis", "model", "quality", "tokens"],
+            "properties": {
+              "measurement": {
+                "const": "tokens"
+              },
+              "usage_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+              },
+              "basis": {
+                "const": "turn_delta"
+              },
+              "model": {
+                "type": ["string", "null"],
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$"
+              },
+              "quality": {
+                "type": "string",
+                "enum": ["provider_reported", "stream_derived", "estimated", "unavailable"]
+              },
+              "tokens": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["input", "output", "cache_read", "cache_write", "reasoning"],
+                "properties": {
+                  "input": {
+                    "type": ["integer", "null"],
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "output": {
+                    "type": ["integer", "null"],
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "cache_read": {
+                    "type": ["integer", "null"],
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "cache_write": {
+                    "type": ["integer", "null"],
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "reasoning": {
+                    "type": ["integer", "null"],
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                }
+              }
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "quality": {
+                      "const": "unavailable"
+                    }
+                  },
+                  "required": ["quality"]
+                },
+                "then": {
+                  "properties": {
+                    "tokens": {
+                      "type": "object",
+                      "properties": {
+                        "input": {
+                          "const": null
+                        },
+                        "output": {
+                          "const": null
+                        },
+                        "cache_read": {
+                          "const": null
+                        },
+                        "cache_write": {
+                          "const": null
+                        },
+                        "reasoning": {
+                          "const": null
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "quality": {
+                      "enum": ["provider_reported", "stream_derived", "estimated"]
+                    }
+                  },
+                  "required": ["quality"]
+                },
+                "then": {
+                  "not": {
+                    "properties": {
+                      "tokens": {
+                        "type": "object",
+                        "properties": {
+                          "input": {
+                            "const": null
+                          },
+                          "output": {
+                            "const": null
+                          },
+                          "cache_read": {
+                            "const": null
+                          },
+                          "cache_write": {
+                            "const": null
+                          },
+                          "reasoning": {
+                            "const": null
+                          }
+                        }
+                      }
+                    },
+                    "required": ["tokens"]
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

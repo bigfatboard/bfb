@@ -30,7 +30,7 @@ func TestUploadActionMatchesWorkerRoute(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(routeSource), "events/ingest") {
+	if !strings.Contains(string(routeSource), `/events\/(ingest|capabilities)`) {
 		t.Fatal("worker route no longer serves events/ingest")
 	}
 	if UploadAction != "events/ingest" {
@@ -79,7 +79,7 @@ func (f *boundEnforcingConnection) Request(_ context.Context, method, action str
 			"disposition": "accepted",
 		})
 	}
-	response, _ := json.Marshal(map[string]any{"schema_version": 1, "dispositions": dispositions})
+	response, _ := json.Marshal(map[string]any{"schema_version": 1, "workspace_id": "01JBFB0W0RKSPACE0000000000", "high_water_cursor": 0, "dispositions": dispositions})
 	return response, nil
 }
 

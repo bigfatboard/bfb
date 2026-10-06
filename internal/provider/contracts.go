@@ -119,21 +119,30 @@ type Invocation struct {
 }
 
 type Candidate struct {
-	Kind          string `json:"kind"`
-	SessionID     string `json:"session_id,omitempty"`
-	TurnID        string `json:"turn_id,omitempty"`
-	SourceEventID string `json:"source_event_id,omitempty"`
-	Tool          string `json:"tool,omitempty"`
-	Outcome       string `json:"outcome,omitempty"`
-	InputTokens   *int64 `json:"input_tokens,omitempty"`
-	OutputTokens  *int64 `json:"output_tokens,omitempty"`
+	Kind             string `json:"kind"`
+	SessionID        string `json:"session_id,omitempty"`
+	TurnID           string `json:"turn_id,omitempty"`
+	SourceEventID    string `json:"source_event_id,omitempty"`
+	Tool             string `json:"tool,omitempty"`
+	Outcome          string `json:"outcome,omitempty"`
+	InputTokens      *int64 `json:"input_tokens,omitempty"`
+	OutputTokens     *int64 `json:"output_tokens,omitempty"`
+	ActivityID       string `json:"activity_id,omitempty"`
+	ParentTurnID     string `json:"parent_turn_id,omitempty"`
+	UsageID          string `json:"usage_id,omitempty"`
+	Basis            string `json:"basis,omitempty"`
+	Quality          string `json:"quality,omitempty"`
+	Model            string `json:"model,omitempty"`
+	CacheReadTokens  *int64 `json:"cache_read_tokens,omitempty"`
+	CacheWriteTokens *int64 `json:"cache_write_tokens,omitempty"`
+	ReasoningTokens  *int64 `json:"reasoning_tokens,omitempty"`
 }
 
 func (candidate Candidate) Validate() error {
 	if !slices.Contains([]string{"session_started", "turn_started", "turn_completed", "tool_started", "tool_completed", "interrupted", "session_ended", "provider_error", "usage"}, candidate.Kind) {
 		return Failure("provider_event_invalid")
 	}
-	for _, value := range []string{candidate.SessionID, candidate.TurnID, candidate.SourceEventID, candidate.Tool} {
+	for _, value := range []string{candidate.SessionID, candidate.TurnID, candidate.SourceEventID, candidate.Tool, candidate.ActivityID, candidate.ParentTurnID, candidate.UsageID} {
 		if value != "" && !sessionPattern.MatchString(value) {
 			return Failure("provider_event_invalid")
 		}
@@ -141,10 +150,30 @@ func (candidate Candidate) Validate() error {
 	if candidate.Outcome != "" && !slices.Contains([]string{"succeeded", "failed", "cancelled", "unknown"}, candidate.Outcome) {
 		return Failure("provider_event_invalid")
 	}
-	for _, tokens := range []*int64{candidate.InputTokens, candidate.OutputTokens} {
+	for _, tokens := range []*int64{candidate.InputTokens, candidate.OutputTokens, candidate.CacheReadTokens, candidate.CacheWriteTokens, candidate.ReasoningTokens} {
 		if tokens != nil && (*tokens < 0 || *tokens > 9007199254740991) {
 			return Failure("provider_event_invalid")
 		}
+	}
+	if candidate.ParentTurnID != "" && candidate.Kind != "tool_started" && candidate.Kind != "tool_completed" {
+		return Failure("provider_event_invalid")
+	}
+	if candidate.ActivityID != "" && !slices.Contains([]string{"turn_started", "turn_completed", "tool_started", "tool_completed", "interrupted", "provider_error"}, candidate.Kind) {
+		return Failure("provider_event_invalid")
+	}
+	if candidate.Model != "" && !modelPattern.MatchString(candidate.Model) {
+		return Failure("provider_event_invalid")
+	}
+	if candidate.UsageID != "" {
+		if candidate.Kind != "usage" || candidate.SessionID == "" || candidate.Basis != "turn_delta" || !slices.Contains([]string{"provider_reported", "stream_derived", "estimated", "unavailable"}, candidate.Quality) {
+			return Failure("provider_event_invalid")
+		}
+		present := candidate.InputTokens != nil || candidate.OutputTokens != nil || candidate.CacheReadTokens != nil || candidate.CacheWriteTokens != nil || candidate.ReasoningTokens != nil
+		if (candidate.Quality == "unavailable") == present {
+			return Failure("provider_event_invalid")
+		}
+	} else if candidate.Basis != "" || candidate.Quality != "" {
+		return Failure("provider_event_invalid")
 	}
 	return nil
 }

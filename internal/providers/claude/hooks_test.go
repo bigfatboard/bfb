@@ -84,6 +84,14 @@ func TestHookFixtures(t *testing.T) {
 			if candidate.SourceEventID == "" {
 				t.Fatal("missing duplicate-suppression identity")
 			}
+			if candidate.Kind == "turn_started" || candidate.Kind == "turn_completed" || candidate.Kind == "tool_started" || candidate.Kind == "tool_completed" {
+				if candidate.ActivityID != fixture.turn {
+					t.Fatal("verified lifecycle identity lost", candidate)
+				}
+			}
+			if candidate.Kind == "interrupted" && candidate.ActivityID != "" {
+				t.Fatal("tool interruption invented a turn identity")
+			}
 			if err := candidate.Validate(); err != nil {
 				t.Fatal(err)
 			}

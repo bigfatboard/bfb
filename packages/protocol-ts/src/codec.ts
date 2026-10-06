@@ -663,7 +663,7 @@ function categorize(
           ? 4
           : document === "local-agent-work-rpc"
             ? 3
-            : document === "local-agent-rpc"
+            : document === "local-agent-rpc" || document === "runner-telemetry-submission"
               ? 2
               : 1;
     if (rootVersion?.integer !== undefined && rootVersion.integer !== String(expectedVersion)) {
@@ -966,6 +966,9 @@ function stableStringify(value: unknown, escapeSeparators = true): string {
 }
 
 const captureByteLimits: Partial<Record<WireDocumentName, number>> = {
+  "runner-telemetry-submission": 8_192,
+  "runner-event-capabilities": 256,
+  "runner-event-ingest-result": 65_536,
   "agent-result-request": 32_768,
   "agent-result-local-request": 49_152,
   "agent-result-result": 16_384,
@@ -1273,6 +1276,99 @@ export function encodeNamedWireDocument(document: WireDocumentName, value: unkno
   const result = decodeWireDocument(document, new TextEncoder().encode(stableStringify(value)));
   if (!result.ok) throw new Error(result.error.message);
   return result.json;
+}
+
+// Split only after JSON syntax validation. Items keep their original lexemes
+// so named item decoding cannot lose unsafe integers through JSON.stringify.
+export function decodeRunnerEventBatch(
+  input: Uint8Array,
+): DecodeResult<{ schema_version: 1; events: string[] }> {
+  const rejected = (
+    category: TypedError["category"],
+    code: string,
+    message: string,
+  ): DecodeResult<never> => ({ ok: false, error: { schema_version: 1, category, code, message } });
+  if (input.byteLength > 65_536)
+    return rejected("bound_exceeded", "max_bytes", "event batch exceeds the byte bound");
+  let source: string;
+  let root: unknown;
+  try {
+    source = new TextDecoder("utf-8", { fatal: true }).decode(input);
+    if (input[0] === 0xef && input[1] === 0xbb && input[2] === 0xbf) throw new Error();
+    root = JSON.parse(source) as unknown;
+  } catch {
+    return rejected("schema_invalid", "json_parse_failed", "event batch is not valid UTF-8 JSON");
+  }
+  if (!root || typeof root !== "object" || Array.isArray(root))
+    return rejected("type_mismatch", "type", "event batch must be an object");
+  const value = root as Record<string, unknown>;
+  if (Object.keys(value).length !== 2 || !("schema_version" in value) || !("events" in value))
+    return rejected("schema_invalid", "additional_field", "event batch fields are closed");
+  if (!Array.isArray(value.events) || value.events.length < 1 || value.events.length > 25)
+    return rejected("bound_exceeded", "max_items", "event batch requires one to twenty-five items");
+
+  let index = 0;
+  const whitespace = () => {
+    while (/[ \t\r\n]/u.test(source[index] ?? "")) index += 1;
+  };
+  const stringEnd = () => {
+    index += 1;
+    while (index < source.length) {
+      if (source[index] === "\\") index += 2;
+      else if (source[index++] === '"') return;
+    }
+  };
+  const rawValue = (): string => {
+    whitespace();
+    const start = index;
+    if (source[index] === '"') stringEnd();
+    else if (source[index] === "{" || source[index] === "[") {
+      let depth = 0;
+      do {
+        if (source[index] === '"') stringEnd();
+        else {
+          if (source[index] === "{" || source[index] === "[") depth += 1;
+          if (source[index] === "}" || source[index] === "]") depth -= 1;
+          index += 1;
+        }
+      } while (depth > 0 && index < source.length);
+    } else while (index < source.length && !/[ \t\r\n,\]}]/u.test(source[index] ?? "")) index += 1;
+    return source.slice(start, index);
+  };
+  whitespace();
+  index += 1;
+  const members = new Map<string, string>();
+  while (members.size < 3) {
+    whitespace();
+    if (source[index] === "}") break;
+    const key = JSON.parse(rawValue()) as string;
+    if (members.has(key))
+      return rejected("schema_invalid", "duplicate_key", "event batch contains a duplicate field");
+    whitespace();
+    index += 1;
+    members.set(key, rawValue());
+    whitespace();
+    if (source[index] !== ",") break;
+    index += 1;
+  }
+  const version = numericSourceInspection(members.get("schema_version") ?? "");
+  if (value.schema_version !== 1 || version.failure || version.integer !== "1")
+    return rejected(
+      "unknown_version",
+      "unsupported_schema_version",
+      "unsupported event batch version",
+    );
+  // Reuse the same validated scanner over the raw array's bounded item count.
+  const array = members.get("events") as string;
+  const offset = source.indexOf(array, 0);
+  index = offset + 1;
+  const events: string[] = [];
+  for (let item = 0; item < value.events.length; item += 1) {
+    events.push(rawValue());
+    whitespace();
+    if (source[index] === ",") index += 1;
+  }
+  return { ok: true, value: { schema_version: 1, events }, json: source };
 }
 
 const originalAgentWriteDocuments = {

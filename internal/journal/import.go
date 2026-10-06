@@ -99,10 +99,10 @@ func (store *Store) importOne(ctx context.Context, assignments Assignments, obse
 		return "", failure("storage_failed")
 	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO hook_journal
-(event_id, stream_id, source_sequence, runner_id, execution_id, assignment_generation, provider, kind, provider_session_id, source_event_id, occurred_at, captured_at, capture_origin, submission_json)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, 'runner_observed', ?)`,
+(event_id, stream_id, source_sequence, runner_id, execution_id, assignment_generation, provider, kind, provider_session_id, source_event_id, occurred_at, captured_at, capture_origin, submission_json, workspace_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, 'runner_observed', ?, ?)`,
 		submission.EventId, stream, sequence, assignment.RunnerID, observation.ExecutionID, observation.Generation,
-		assignment.Provider, observation.Kind, source, observation.OccurredAt, localTimestamp(now), string(data)); err != nil {
+		assignment.Provider, observation.Kind, source, observation.OccurredAt, localTimestamp(now), string(data), assignment.WorkspaceID); err != nil {
 		return "", failure("storage_failed")
 	}
 	if err := observers.MarkImported(ctx, tx, []string{observation.EventID}, now); err != nil {

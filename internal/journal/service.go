@@ -52,7 +52,7 @@ func (service *Service) Start(ctx context.Context, store *daemon.Store) (func(),
 	}
 	assignments, observers := service.options.Backend(store.DB)
 	journal := NewStore(store.DB)
-	uploader := &Uploader{Store: journal, Lookup: service.options.Connection}
+	uploader := &Uploader{Store: journal, Assignments: assignments, Lookup: service.options.Connection}
 	if service.options.Now != nil {
 		uploader.Now = service.options.Now
 	}

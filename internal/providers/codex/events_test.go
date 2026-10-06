@@ -175,6 +175,12 @@ func TestExecStreamBindsSessionAndUsage(t *testing.T) {
 	if usage.Kind != "usage" || *usage.InputTokens != 120 || *usage.OutputTokens != 34 || usage.SessionID != session {
 		t.Fatalf("usage must stay provider-reported: %+v", usage)
 	}
+	if usage.CacheReadTokens == nil || *usage.CacheReadTokens != 100 || usage.ReasoningTokens == nil || *usage.ReasoningTokens != 5 || usage.CacheWriteTokens != nil {
+		t.Fatalf("reported counters dropped or absent cache-write invented: %+v", usage)
+	}
+	if usage.UsageID != "" || usage.Basis != "" || usage.Quality != "" {
+		t.Fatal("uncertified stream invented stable delta identity")
+	}
 }
 
 func TestExecCompletionWithoutUsageInventsNothing(t *testing.T) {
@@ -235,6 +241,9 @@ func TestExecRejectsCorruptShapes(t *testing.T) {
 		`{"type":"turn.completed","usage":{"input_tokens":1.5,"output_tokens":2}}`,
 		`{"type":"turn.completed","usage":{"output_tokens":2}}`,
 		`{"type":"turn.completed","usage":{"input_tokens":1}}`,
+		`{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens":2,"cached_input_tokens":-1}}`,
+		`{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens":2,"reasoning_output_tokens":9007199254740992}}`,
+		`{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens":2,"reasoning_output_tokens":1.5}}`,
 		`{"type":"thread.started"}`,
 		`{"type":"thread.started","thread_id":"bad id!!"}`,
 		`{"type":"turn.completed","thread_id":"0199a213-81c0-7000-8aa1-bbab2a035a53","usage":{"input_tokens":1,"output_tokens":1},"usage":{"input_tokens":1,"output_tokens":1}}`,

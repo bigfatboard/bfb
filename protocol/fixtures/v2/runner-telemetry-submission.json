@@ -1,0 +1,270 @@
+{
+  "owner_command": "pnpm protocol:generate",
+  "document": "runner-telemetry-submission",
+  "schema_version": 2,
+  "fixtures": [
+    {
+      "name": "turn_started",
+      "document": "runner-telemetry-submission",
+      "json": "{\"schema_version\":2,\"event_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"source_stream_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"source_sequence\":1,\"run_execution_id\":\"01K6R7DT00CCCCCCCCCCCCCCCC\",\"assignment_generation\":7,\"occurred_at\":\"2026-10-06T00:00:00.000Z\",\"capture_origin\":\"hook_inbox\",\"provider_session_id\":\"synthetic-session\",\"kind\":\"turn_started\",\"payload\":{\"activity_id\":\"synthetic-turn\"}}",
+      "accept": true,
+      "canonical_sha256": "7e6d5893e533d512bc85b72725de830e55e89c896510426849d62be28691973f"
+    },
+    {
+      "name": "turn_stopped",
+      "document": "runner-telemetry-submission",
+      "json": "{\"schema_version\":2,\"event_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"source_stream_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"source_sequence\":1,\"run_execution_id\":\"01K6R7DT00CCCCCCCCCCCCCCCC\",\"assignment_generation\":7,\"occurred_at\":\"2026-10-06T00:00:00.000Z\",\"capture_origin\":\"hook_inbox\",\"provider_session_id\":\"synthetic-session\",\"kind\":\"turn_stopped\",\"payload\":{\"activity_id\":\"synthetic-turn\"}}",
+      "accept": true,
+      "canonical_sha256": "aa47945600ef77240b856f611caf66463efb1be550ba998ec7b4e5015a8bf667"
+    },
+    {
+      "name": "turn_failed",
+      "document": "runner-telemetry-submission",
+      "json": "{\"schema_version\":2,\"event_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"source_stream_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"source_sequence\":1,\"run_execution_id\":\"01K6R7DT00CCCCCCCCCCCCCCCC\",\"assignment_generation\":7,\"occurred_at\":\"2026-10-06T00:00:00.000Z\",\"capture_origin\":\"hook_inbox\",\"provider_session_id\":\"synthetic-session\",\"kind\":\"turn_failed\",\"payload\":{\"activity_id\":\"synthetic-turn\"}}",
+      "accept": true,
+      "canonical_sha256": "b25e3d75a1d52c035261a00f4e4f4278afee44fdb3ea307aa5a3b12521b1571b"
+    },
+    {
+      "name": "tool_started",
+      "document": "runner-telemetry-submission",
+      "json": "{\"schema_version\":2,\"event_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"source_stream_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"source_sequence\":1,\"run_execution_id\":\"01K6R7DT00CCCCCCCCCCCCCCCC\",\"assignment_generation\":7,\"occurred_at\":\"2026-10-06T00:00:00.000Z\",\"capture_origin\":\"hook_inbox\",\"provider_session_id\":\"synthetic-session\",\"kind\":\"tool_started\",\"payload\":{\"activity_id\":\"synthetic-turn\"}}",
+      "accept": true,
+      "canonical_sha256": "1604e7e0f23929ec25724202c8a04e27ebfff44d698ec69c38bc63703d87161f"
+    },
+    {
+      "name": "tool_started.parent",
+      "document": "runner-telemetry-submission",
+      "json": "{\"schema_version\":2,\"event_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"source_stream_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"source_sequence\":1,\"run_execution_id\":\"01K6R7DT00CCCCCCCCCCCCCCCC\",\"assignment_generation\":7,\"occurred_at\":\"2026-10-06T00:00:00.000Z\",\"capture_origin\":\"hook_inbox\",\"provider_session_id\":\"synthetic-session\",\"kind\":\"tool_started\",\"payload\":{\"activity_id\":\"synthetic-turn\",\"parent_turn_id\":\"synthetic-parent\"}}",
+      "accept": true,
+      "canonical_sha256": "45812bdac1766ccae0d028939f40920013d84d0189269f31a32c38addc950cd7"
+    },
+    {
+      "name": "tool_finished",
+      "document": "runner-telemetry-submission",
+      "json": "{\"schema_version\":2,\"event_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"source_stream_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"source_sequence\":1,\"run_execution_id\":\"01K6R7DT00CCCCCCCCCCCCCCCC\",\"assignment_generation\":7,\"occurred_at\":\"2026-10-06T00:00:00.000Z\",\"capture_origin\":\"hook_inbox\",\"provider_session_id\":\"synthetic-session\",\"kind\":\"tool_finished\",\"payload\":{\"activity_id\":\"synthetic-turn\"}}",
+      "accept": true,
+      "canonical_sha256": "b9e62de767583007dbe9265603f7271ff2a93cfb2a4ecb2425d8f0fd2e0a689c"
+    },
+    {
+      "name": "tool_finished.parent",
+      "document": "runner-telemetry-submission",
+      "json": "{\"schema_version\":2,\"event_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"source_stream_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"source_sequence\":1,\"run_execution_id\":\"01K6R7DT00CCCCCCCCCCCCCCCC\",\"assignment_generation\":7,\"occurred_at\":\"2026-10-06T00:00:00.000Z\",\"capture_origin\":\"hook_inbox\",\"provider_session_id\":\"synthetic-session\",\"kind\":\"tool_finished\",\"payload\":{\"activity_id\":\"synthetic-turn\",\"parent_turn_id\":\"synthetic-parent\"}}",
+      "accept": true,
+      "canonical_sha256": "3e4ed17fa194e4874ebc39d4a2d97ff630515f704ab5febfed5ca8a4d04cd1d2"
+    },
+    {
+      "name": "tool_failed",
+      "document": "runner-telemetry-submission",
+      "json": "{\"schema_version\":2,\"event_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"source_stream_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"source_sequence\":1,\"run_execution_id\":\"01K6R7DT00CCCCCCCCCCCCCCCC\",\"assignment_generation\":7,\"occurred_at\":\"2026-10-06T00:00:00.000Z\",\"capture_origin\":\"hook_inbox\",\"provider_session_id\":\"synthetic-session\",\"kind\":\"tool_failed\",\"payload\":{\"activity_id\":\"synthetic-turn\"}}",
+      "accept": true,
+      "canonical_sha256": "5ed2741cdb0eac31b38f22bb9dc2ce83fa2f72a662ee2a74ef2ce098798b433c"
+    },
+    {
+      "name": "tool_failed.parent",
+      "document": "runner-telemetry-submission",
+      "json": "{\"schema_version\":2,\"event_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"source_stream_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"source_sequence\":1,\"run_execution_id\":\"01K6R7DT00CCCCCCCCCCCCCCCC\",\"assignment_generation\":7,\"occurred_at\":\"2026-10-06T00:00:00.000Z\",\"capture_origin\":\"hook_inbox\",\"provider_session_id\":\"synthetic-session\",\"kind\":\"tool_failed\",\"payload\":{\"activity_id\":\"synthetic-turn\",\"parent_turn_id\":\"synthetic-parent\"}}",
+      "accept": true,
+      "canonical_sha256": "2d83f7f4a08c61b1a4f382202e7f3dcc6a6ade6abe2e5d04bae03602ec2cc1ff"
+    },
+    {
+      "name": "tokens",
+      "document": "runner-telemetry-submission",
+      "json": "{\"schema_version\":2,\"event_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"source_stream_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"source_sequence\":1,\"run_execution_id\":\"01K6R7DT00CCCCCCCCCCCCCCCC\",\"assignment_generation\":7,\"occurred_at\":\"2026-10-06T00:00:00.000Z\",\"capture_origin\":\"hook_inbox\",\"provider_session_id\":\"synthetic-session\",\"kind\":\"progress_reported\",\"payload\":{\"measurement\":\"tokens\",\"usage_id\":\"synthetic-turn\",\"basis\":\"turn_delta\",\"model\":\"synthetic-model\",\"quality\":\"provider_reported\",\"tokens\":{\"input\":120,\"output\":34,\"cache_read\":100,\"cache_write\":null,\"reasoning\":5}}}",
+      "accept": true,
+      "canonical_sha256": "5af642fa91d68b14a83045cdb5269b22199d7b256bfd80982b94743d47ebdcb9"
+    },
+    {
+      "name": "tokens.stream_derived",
+      "document": "runner-telemetry-submission",
+      "json": "{\"schema_version\":2,\"event_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"source_stream_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"source_sequence\":1,\"run_execution_id\":\"01K6R7DT00CCCCCCCCCCCCCCCC\",\"assignment_generation\":7,\"occurred_at\":\"2026-10-06T00:00:00.000Z\",\"capture_origin\":\"hook_inbox\",\"provider_session_id\":\"synthetic-session\",\"kind\":\"progress_reported\",\"payload\":{\"measurement\":\"tokens\",\"usage_id\":\"synthetic-turn\",\"basis\":\"turn_delta\",\"model\":\"synthetic-model\",\"quality\":\"stream_derived\",\"tokens\":{\"input\":120,\"output\":34,\"cache_read\":100,\"cache_write\":null,\"reasoning\":5}}}",
+      "accept": true,
+      "canonical_sha256": "943dc4fd2a217d4d53fff3fe032870c86b2ece540b1d1886762239d65824c302"
+    },
+    {
+      "name": "tokens.estimated",
+      "document": "runner-telemetry-submission",
+      "json": "{\"schema_version\":2,\"event_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"source_stream_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"source_sequence\":1,\"run_execution_id\":\"01K6R7DT00CCCCCCCCCCCCCCCC\",\"assignment_generation\":7,\"occurred_at\":\"2026-10-06T00:00:00.000Z\",\"capture_origin\":\"hook_inbox\",\"provider_session_id\":\"synthetic-session\",\"kind\":\"progress_reported\",\"payload\":{\"measurement\":\"tokens\",\"usage_id\":\"synthetic-turn\",\"basis\":\"turn_delta\",\"model\":\"synthetic-model\",\"quality\":\"estimated\",\"tokens\":{\"input\":120,\"output\":34,\"cache_read\":100,\"cache_write\":null,\"reasoning\":5}}}",
+      "accept": true,
+      "canonical_sha256": "f0b419769df84f531b30bb9d201de358606aaf8dfb78a301275e72b9436a96f2"
+    },
+    {
+      "name": "tokens.unavailable",
+      "document": "runner-telemetry-submission",
+      "json": "{\"schema_version\":2,\"event_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"source_stream_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"source_sequence\":1,\"run_execution_id\":\"01K6R7DT00CCCCCCCCCCCCCCCC\",\"assignment_generation\":7,\"occurred_at\":\"2026-10-06T00:00:00.000Z\",\"capture_origin\":\"hook_inbox\",\"provider_session_id\":\"synthetic-session\",\"kind\":\"progress_reported\",\"payload\":{\"measurement\":\"tokens\",\"usage_id\":\"synthetic-turn\",\"basis\":\"turn_delta\",\"model\":null,\"quality\":\"unavailable\",\"tokens\":{\"input\":null,\"output\":null,\"cache_read\":null,\"cache_write\":null,\"reasoning\":null}}}",
+      "accept": true,
+      "canonical_sha256": "e7b690d8895e97fdffb764f6cc91e00eaae90d83fbe8b41c48440ca513d473d7"
+    },
+    {
+      "name": "tokens.zero",
+      "document": "runner-telemetry-submission",
+      "json": "{\"schema_version\":2,\"event_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"source_stream_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"source_sequence\":1,\"run_execution_id\":\"01K6R7DT00CCCCCCCCCCCCCCCC\",\"assignment_generation\":7,\"occurred_at\":\"2026-10-06T00:00:00.000Z\",\"capture_origin\":\"hook_inbox\",\"provider_session_id\":\"synthetic-session\",\"kind\":\"progress_reported\",\"payload\":{\"measurement\":\"tokens\",\"usage_id\":\"synthetic-turn\",\"basis\":\"turn_delta\",\"model\":\"synthetic-model\",\"quality\":\"provider_reported\",\"tokens\":{\"input\":0,\"output\":34,\"cache_read\":100,\"cache_write\":null,\"reasoning\":5}}}",
+      "accept": true,
+      "canonical_sha256": "b89cbcb879e7fa23a424e03d9559634b2f156e58a8ac13ff36e035e649c1a4a2"
+    },
+    {
+      "name": "tokens.raw-fractional",
+      "document": "runner-telemetry-submission",
+      "json": "{\"schema_version\":2,\"event_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"source_stream_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"source_sequence\":1,\"run_execution_id\":\"01K6R7DT00CCCCCCCCCCCCCCCC\",\"assignment_generation\":7,\"occurred_at\":\"2026-10-06T00:00:00.000Z\",\"capture_origin\":\"hook_inbox\",\"provider_session_id\":\"synthetic-session\",\"kind\":\"progress_reported\",\"payload\":{\"measurement\":\"tokens\",\"usage_id\":\"synthetic-turn\",\"basis\":\"turn_delta\",\"model\":\"synthetic-model\",\"quality\":\"provider_reported\",\"tokens\":{\"input\":9007199254740991.1,\"output\":34,\"cache_read\":100,\"cache_write\":null,\"reasoning\":5}}}",
+      "accept": false
+    },
+    {
+      "name": "tokens.raw-rounded-zero",
+      "document": "runner-telemetry-submission",
+      "json": "{\"schema_version\":2,\"event_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"source_stream_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"source_sequence\":1,\"run_execution_id\":\"01K6R7DT00CCCCCCCCCCCCCCCC\",\"assignment_generation\":7,\"occurred_at\":\"2026-10-06T00:00:00.000Z\",\"capture_origin\":\"hook_inbox\",\"provider_session_id\":\"synthetic-session\",\"kind\":\"progress_reported\",\"payload\":{\"measurement\":\"tokens\",\"usage_id\":\"synthetic-turn\",\"basis\":\"turn_delta\",\"model\":\"synthetic-model\",\"quality\":\"provider_reported\",\"tokens\":{\"input\":1e-400,\"output\":34,\"cache_read\":100,\"cache_write\":null,\"reasoning\":5}}}",
+      "accept": false
+    },
+    {
+      "name": "version.raw-rounded",
+      "document": "runner-telemetry-submission",
+      "json": "{\"schema_version\":2.0000000000000001,\"event_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"source_stream_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"source_sequence\":1,\"run_execution_id\":\"01K6R7DT00CCCCCCCCCCCCCCCC\",\"assignment_generation\":7,\"occurred_at\":\"2026-10-06T00:00:00.000Z\",\"capture_origin\":\"hook_inbox\",\"provider_session_id\":\"synthetic-session\",\"kind\":\"turn_started\",\"payload\":{\"activity_id\":\"synthetic-turn\"}}",
+      "accept": false
+    },
+    {
+      "name": "unknown.root",
+      "document": "runner-telemetry-submission",
+      "json": "{\"schema_version\":2,\"event_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"source_stream_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"source_sequence\":1,\"run_execution_id\":\"01K6R7DT00CCCCCCCCCCCCCCCC\",\"assignment_generation\":7,\"occurred_at\":\"2026-10-06T00:00:00.000Z\",\"capture_origin\":\"hook_inbox\",\"provider_session_id\":\"synthetic-session\",\"kind\":\"turn_started\",\"payload\":{\"activity_id\":\"synthetic-turn\"},\"provider\":\"codex\"}",
+      "accept": false
+    },
+    {
+      "name": "unknown.payload",
+      "document": "runner-telemetry-submission",
+      "json": "{\"schema_version\":2,\"event_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"source_stream_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"source_sequence\":1,\"run_execution_id\":\"01K6R7DT00CCCCCCCCCCCCCCCC\",\"assignment_generation\":7,\"occurred_at\":\"2026-10-06T00:00:00.000Z\",\"capture_origin\":\"hook_inbox\",\"provider_session_id\":\"synthetic-session\",\"kind\":\"turn_started\",\"payload\":{\"activity_id\":\"synthetic-turn\",\"text\":\"synthetic-private-body\"}}",
+      "accept": false
+    },
+    {
+      "name": "turn.parent",
+      "document": "runner-telemetry-submission",
+      "json": "{\"schema_version\":2,\"event_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"source_stream_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"source_sequence\":1,\"run_execution_id\":\"01K6R7DT00CCCCCCCCCCCCCCCC\",\"assignment_generation\":7,\"occurred_at\":\"2026-10-06T00:00:00.000Z\",\"capture_origin\":\"hook_inbox\",\"provider_session_id\":\"synthetic-session\",\"kind\":\"turn_started\",\"payload\":{\"activity_id\":\"synthetic-turn\",\"parent_turn_id\":\"parent\"}}",
+      "accept": false
+    },
+    {
+      "name": "tokens.bad-basis",
+      "document": "runner-telemetry-submission",
+      "json": "{\"schema_version\":2,\"event_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"source_stream_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"source_sequence\":1,\"run_execution_id\":\"01K6R7DT00CCCCCCCCCCCCCCCC\",\"assignment_generation\":7,\"occurred_at\":\"2026-10-06T00:00:00.000Z\",\"capture_origin\":\"hook_inbox\",\"provider_session_id\":\"synthetic-session\",\"kind\":\"progress_reported\",\"payload\":{\"measurement\":\"tokens\",\"usage_id\":\"synthetic-turn\",\"basis\":\"cumulative\",\"model\":\"synthetic-model\",\"quality\":\"provider_reported\",\"tokens\":{\"input\":120,\"output\":34,\"cache_read\":100,\"cache_write\":null,\"reasoning\":5}}}",
+      "accept": false
+    },
+    {
+      "name": "tokens.negative",
+      "document": "runner-telemetry-submission",
+      "json": "{\"schema_version\":2,\"event_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"source_stream_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"source_sequence\":1,\"run_execution_id\":\"01K6R7DT00CCCCCCCCCCCCCCCC\",\"assignment_generation\":7,\"occurred_at\":\"2026-10-06T00:00:00.000Z\",\"capture_origin\":\"hook_inbox\",\"provider_session_id\":\"synthetic-session\",\"kind\":\"progress_reported\",\"payload\":{\"measurement\":\"tokens\",\"usage_id\":\"synthetic-turn\",\"basis\":\"turn_delta\",\"model\":\"synthetic-model\",\"quality\":\"provider_reported\",\"tokens\":{\"input\":-1,\"output\":34,\"cache_read\":100,\"cache_write\":null,\"reasoning\":5}}}",
+      "accept": false
+    },
+    {
+      "name": "tokens.unsafe",
+      "document": "runner-telemetry-submission",
+      "json": "{\"schema_version\":2,\"event_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"source_stream_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"source_sequence\":1,\"run_execution_id\":\"01K6R7DT00CCCCCCCCCCCCCCCC\",\"assignment_generation\":7,\"occurred_at\":\"2026-10-06T00:00:00.000Z\",\"capture_origin\":\"hook_inbox\",\"provider_session_id\":\"synthetic-session\",\"kind\":\"progress_reported\",\"payload\":{\"measurement\":\"tokens\",\"usage_id\":\"synthetic-turn\",\"basis\":\"turn_delta\",\"model\":\"synthetic-model\",\"quality\":\"provider_reported\",\"tokens\":{\"input\":9007199254740992,\"output\":34,\"cache_read\":100,\"cache_write\":null,\"reasoning\":5}}}",
+      "accept": false
+    },
+    {
+      "name": "tokens.unavailable-count",
+      "document": "runner-telemetry-submission",
+      "json": "{\"schema_version\":2,\"event_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"source_stream_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"source_sequence\":1,\"run_execution_id\":\"01K6R7DT00CCCCCCCCCCCCCCCC\",\"assignment_generation\":7,\"occurred_at\":\"2026-10-06T00:00:00.000Z\",\"capture_origin\":\"hook_inbox\",\"provider_session_id\":\"synthetic-session\",\"kind\":\"progress_reported\",\"payload\":{\"measurement\":\"tokens\",\"usage_id\":\"synthetic-turn\",\"basis\":\"turn_delta\",\"model\":\"synthetic-model\",\"quality\":\"unavailable\",\"tokens\":{\"input\":120,\"output\":34,\"cache_read\":100,\"cache_write\":null,\"reasoning\":5}}}",
+      "accept": false
+    },
+    {
+      "name": "tokens.missing-counter",
+      "document": "runner-telemetry-submission",
+      "json": "{\"schema_version\":2,\"event_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"source_stream_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"source_sequence\":1,\"run_execution_id\":\"01K6R7DT00CCCCCCCCCCCCCCCC\",\"assignment_generation\":7,\"occurred_at\":\"2026-10-06T00:00:00.000Z\",\"capture_origin\":\"hook_inbox\",\"provider_session_id\":\"synthetic-session\",\"kind\":\"progress_reported\",\"payload\":{\"measurement\":\"tokens\",\"usage_id\":\"synthetic-turn\",\"basis\":\"turn_delta\",\"model\":\"synthetic-model\",\"quality\":\"provider_reported\",\"tokens\":{\"input\":1,\"output\":2,\"cache_read\":null,\"cache_write\":null}}}",
+      "accept": false
+    },
+    {
+      "name": "tokens.extra-counter",
+      "document": "runner-telemetry-submission",
+      "json": "{\"schema_version\":2,\"event_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"source_stream_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"source_sequence\":1,\"run_execution_id\":\"01K6R7DT00CCCCCCCCCCCCCCCC\",\"assignment_generation\":7,\"occurred_at\":\"2026-10-06T00:00:00.000Z\",\"capture_origin\":\"hook_inbox\",\"provider_session_id\":\"synthetic-session\",\"kind\":\"progress_reported\",\"payload\":{\"measurement\":\"tokens\",\"usage_id\":\"synthetic-turn\",\"basis\":\"turn_delta\",\"model\":\"synthetic-model\",\"quality\":\"provider_reported\",\"tokens\":{\"input\":120,\"output\":34,\"cache_read\":100,\"cache_write\":null,\"reasoning\":5,\"total\":1}}}",
+      "accept": false
+    },
+    {
+      "name": "tokens.all-null-exact",
+      "document": "runner-telemetry-submission",
+      "json": "{\"schema_version\":2,\"event_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"source_stream_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"source_sequence\":1,\"run_execution_id\":\"01K6R7DT00CCCCCCCCCCCCCCCC\",\"assignment_generation\":7,\"occurred_at\":\"2026-10-06T00:00:00.000Z\",\"capture_origin\":\"hook_inbox\",\"provider_session_id\":\"synthetic-session\",\"kind\":\"progress_reported\",\"payload\":{\"measurement\":\"tokens\",\"usage_id\":\"synthetic-turn\",\"basis\":\"turn_delta\",\"model\":\"synthetic-model\",\"quality\":\"provider_reported\",\"tokens\":{\"input\":null,\"output\":null,\"cache_read\":null,\"cache_write\":null,\"reasoning\":null}}}",
+      "accept": false
+    },
+    {
+      "name": "activity.absent",
+      "document": "runner-telemetry-submission",
+      "json": "{\"schema_version\":2,\"event_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"source_stream_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"source_sequence\":1,\"run_execution_id\":\"01K6R7DT00CCCCCCCCCCCCCCCC\",\"assignment_generation\":7,\"occurred_at\":\"2026-10-06T00:00:00.000Z\",\"capture_origin\":\"hook_inbox\",\"provider_session_id\":\"synthetic-session\",\"kind\":\"turn_started\",\"payload\":{}}",
+      "accept": false
+    },
+    {
+      "name": "activity.null",
+      "document": "runner-telemetry-submission",
+      "json": "{\"schema_version\":2,\"event_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"source_stream_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"source_sequence\":1,\"run_execution_id\":\"01K6R7DT00CCCCCCCCCCCCCCCC\",\"assignment_generation\":7,\"occurred_at\":\"2026-10-06T00:00:00.000Z\",\"capture_origin\":\"hook_inbox\",\"provider_session_id\":\"synthetic-session\",\"kind\":\"turn_started\",\"payload\":{\"activity_id\":null}}",
+      "accept": false
+    },
+    {
+      "name": "activity.bound",
+      "document": "runner-telemetry-submission",
+      "json": "{\"schema_version\":2,\"event_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"source_stream_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"source_sequence\":1,\"run_execution_id\":\"01K6R7DT00CCCCCCCCCCCCCCCC\",\"assignment_generation\":7,\"occurred_at\":\"2026-10-06T00:00:00.000Z\",\"capture_origin\":\"hook_inbox\",\"provider_session_id\":\"synthetic-session\",\"kind\":\"turn_started\",\"payload\":{\"activity_id\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}}",
+      "accept": false
+    },
+    {
+      "name": "version.old",
+      "document": "runner-telemetry-submission",
+      "json": "{\"schema_version\":1,\"event_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"source_stream_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"source_sequence\":1,\"run_execution_id\":\"01K6R7DT00CCCCCCCCCCCCCCCC\",\"assignment_generation\":7,\"occurred_at\":\"2026-10-06T00:00:00.000Z\",\"capture_origin\":\"hook_inbox\",\"provider_session_id\":\"synthetic-session\",\"kind\":\"turn_started\",\"payload\":{\"activity_id\":\"synthetic-turn\"}}",
+      "accept": false
+    },
+    {
+      "name": "business.kind",
+      "document": "runner-telemetry-submission",
+      "json": "{\"schema_version\":2,\"event_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"source_stream_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"source_sequence\":1,\"run_execution_id\":\"01K6R7DT00CCCCCCCCCCCCCCCC\",\"assignment_generation\":7,\"occurred_at\":\"2026-10-06T00:00:00.000Z\",\"capture_origin\":\"hook_inbox\",\"provider_session_id\":\"synthetic-session\",\"kind\":\"result_submitted\",\"payload\":{\"activity_id\":\"synthetic-turn\"}}",
+      "accept": false
+    },
+    {
+      "name": "frozen.v1.rejects-typed",
+      "document": "runner-event-submission",
+      "json": "{\"schema_version\":1,\"event_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"source_stream_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"source_sequence\":1,\"run_execution_id\":\"01K6R7DT00CCCCCCCCCCCCCCCC\",\"assignment_generation\":7,\"occurred_at\":\"2026-10-06T00:00:00.000Z\",\"capture_origin\":\"hook_inbox\",\"provider_session_id\":\"synthetic-session\",\"kind\":\"turn_started\",\"payload\":{\"activity_id\":\"synthetic-turn\"}}",
+      "accept": false
+    },
+    {
+      "name": "capabilities",
+      "document": "runner-event-capabilities",
+      "json": "{\"schema_version\":1,\"accepted_event_versions\":[1,2]}",
+      "accept": true,
+      "canonical_sha256": "83dd39ea447960877605ea5a9496b84bd1527c3f31088b768b28a44596394d99"
+    },
+    {
+      "name": "capabilities.1",
+      "document": "runner-event-capabilities",
+      "json": "{\"schema_version\":1,\"accepted_event_versions\":[1]}",
+      "accept": false
+    },
+    {
+      "name": "capabilities.2-1",
+      "document": "runner-event-capabilities",
+      "json": "{\"schema_version\":1,\"accepted_event_versions\":[2,1]}",
+      "accept": false
+    },
+    {
+      "name": "capabilities.1-1-2",
+      "document": "runner-event-capabilities",
+      "json": "{\"schema_version\":1,\"accepted_event_versions\":[1,1,2]}",
+      "accept": false
+    },
+    {
+      "name": "ack.actual",
+      "document": "runner-event-ingest-result",
+      "json": "{\"schema_version\":1,\"workspace_id\":\"01K6R7DT00DDDDDDDDDDDDDDDD\",\"high_water_cursor\":2,\"dispositions\":[{\"schema_version\":1,\"event_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"source_stream_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"source_sequence\":1,\"disposition\":\"accepted\"}]}",
+      "accept": true,
+      "canonical_sha256": "33e6b2147a7d7e33c8b72a45526286ff5c1e77b9c05cf9a2a01b68f48f825be1"
+    },
+    {
+      "name": "ack.no-committed-cursor",
+      "document": "runner-event-ingest-result",
+      "json": "{\"schema_version\":1,\"workspace_id\":\"01K6R7DT00DDDDDDDDDDDDDDDD\",\"high_water_cursor\":0,\"dispositions\":[{\"schema_version\":1,\"event_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"source_stream_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"source_sequence\":1,\"disposition\":\"accepted\"}]}",
+      "accept": true,
+      "canonical_sha256": "88b88104420ff44194e8953ea7898d1b1b9ab62f67a2c972d71253a6034afd6e"
+    },
+    {
+      "name": "ack.extra",
+      "document": "runner-event-ingest-result",
+      "json": "{\"schema_version\":1,\"workspace_id\":\"01K6R7DT00DDDDDDDDDDDDDDDD\",\"high_water_cursor\":2,\"dispositions\":[{\"schema_version\":1,\"event_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"source_stream_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"source_sequence\":1,\"disposition\":\"accepted\"}],\"secret\":\"synthetic\"}",
+      "accept": false
+    },
+    {
+      "name": "ack.missing-workspace",
+      "document": "runner-event-ingest-result",
+      "json": "{\"schema_version\":1,\"high_water_cursor\":2,\"dispositions\":[{\"schema_version\":1,\"event_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"source_stream_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"source_sequence\":1,\"disposition\":\"accepted\"}]}",
+      "accept": false
+    }
+  ]
+}

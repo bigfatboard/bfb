@@ -11,6 +11,7 @@ export type * from "./generated/types.js";
 export {
   canonicalAgentWriteRequest,
   decodeWireDocument,
+  decodeRunnerEventBatch,
   encodeNamedWireDocument,
   encodeWireDocument,
 } from "./codec.js";
