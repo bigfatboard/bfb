@@ -295,6 +295,7 @@ describe("task access freshness and query boundaries", () => {
       "task_member",
       "task_policy",
       "task_grant",
+      "TASK_POLICY",
     ]) {
       expect(() => taskAccessPredicate(context(), "read", alias)).toThrow(
         "invalid task access query",

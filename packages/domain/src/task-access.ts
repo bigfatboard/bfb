@@ -44,7 +44,7 @@ export function taskAccessPredicate(
       "task_project_grant",
       "task_policy",
       "task_grant",
-    ].includes(taskAlias)
+    ].includes(taskAlias.toLowerCase())
   ) {
     throw new DomainError("invalid_argument", "invalid task access query");
   }
