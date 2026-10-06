@@ -14,11 +14,15 @@ import {
 } from "@bfb/db";
 
 import {
+  ARTIFACT_ABANDON_GRACE_MS,
+  ARTIFACT_GRANT_TTL_MS,
+  ARTIFACT_RECOVERY_SYSTEM_ID,
   artifactHash,
   artifactObjectKey,
   createArtifactCommand,
   finalizeArtifactCommand,
   issueArtifactGrantCommand,
+  listAbandonedArtifactUploads,
   markArtifactFailedCommand,
   mintUploadGrantSecret,
   recordVerifiedUpload,
@@ -26,7 +30,7 @@ import {
 } from "../src/artifacts.js";
 import { FIX, seedSyntheticWorkspace } from "../src/fixtures.js";
 import { WorkspaceHub, type HubCommand } from "../src/hub.js";
-import { randomUlid } from "../src/ids.js";
+import { randomUlid, syntheticUlid } from "../src/ids.js";
 
 const NOW = "2026-10-06T12:00:00.000Z";
 const DIGEST = artifactHash("synthetic artifact authority");
@@ -162,6 +166,179 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("current artifact authority", () => {
+  it("requires the exact recovery actor and fresh expiry grace before system abandonment", async () => {
+    const f = await fixture();
+    const created = await f.create();
+    async function recover(actor = syntheticUlid("ARTIFACTRECOVERY"), epoch = 1) {
+      return f.hub.execute(markArtifactFailedCommand, {
+        workspaceId: FIX.workspace,
+        actorSystemId: actor,
+        authorizationEpoch: epoch,
+        idempotencyKey: randomUlid(),
+        now: "2099-01-01T00:00:00.000Z",
+        input: { versionId: created.version_id },
+      });
+    }
+    expect(await recover()).toMatchObject({ ok: false, error: { code: "request_rejected" } });
+    vi.setSystemTime(Date.parse(NOW) + ARTIFACT_GRANT_TTL_MS + ARTIFACT_ABANDON_GRACE_MS);
+    expect(await recover(syntheticUlid("OTHERCRON"))).toMatchObject({
+      ok: false,
+      error: { code: "request_rejected" },
+    });
+    expect(await recover(syntheticUlid("ARTIFACTRECOVERY"), 2)).toMatchObject({
+      ok: false,
+      error: { code: "request_rejected" },
+    });
+    expect(await recover()).toMatchObject({ ok: true, result: { state: "failed" } });
+  });
+
+  it("preserves a stale recovery candidate while a reissued grant remains inside grace", async () => {
+    const f = await fixture();
+    const created = await f.create();
+    vi.setSystemTime(Date.parse(NOW) + ARTIFACT_GRANT_TTL_MS + ARTIFACT_ABANDON_GRACE_MS);
+    const minted = mintUploadGrantSecret();
+    const regrant = await f.human(issueArtifactGrantCommand, {
+      versionId: created.version_id,
+      grantSecretHash: minted.secretHash,
+    });
+    expect(regrant, JSON.stringify(regrant)).toMatchObject({ ok: true });
+    const request = {
+      workspaceId: FIX.workspace,
+      actorSystemId: syntheticUlid("ARTIFACTRECOVERY"),
+      authorizationEpoch: 1,
+      idempotencyKey: randomUlid(),
+      input: { versionId: created.version_id },
+    };
+    vi.setSystemTime(Date.parse(NOW) + 2 * ARTIFACT_GRANT_TTL_MS + ARTIFACT_ABANDON_GRACE_MS + 1);
+    expect(await f.hub.execute(markArtifactFailedCommand, request)).toMatchObject({
+      ok: false,
+      error: { code: "request_rejected" },
+    });
+    vi.setSystemTime(Date.parse(NOW) + 2 * (ARTIFACT_GRANT_TTL_MS + ARTIFACT_ABANDON_GRACE_MS));
+    expect(await f.hub.execute(markArtifactFailedCommand, request)).toMatchObject({ ok: true });
+  });
+
+  it.each(["regrant", "consume", "finalize"] as const)(
+    "rolls back abandonment after a commit-time %s",
+    async (change) => {
+      const f = await fixture();
+      const created = await f.create();
+      await f.receipt(created.version_id);
+      vi.setSystemTime(Date.parse(NOW) + ARTIFACT_GRANT_TTL_MS + ARTIFACT_ABANDON_GRACE_MS);
+      const now = new Date().toISOString();
+      let injected = false;
+      const hub = new WorkspaceHub(
+        stagedDatabase(f.raw, async () => {
+          if (injected) return;
+          injected = true;
+          if (change === "regrant" || change === "consume") {
+            const grantId = randomUlid();
+            const minted = mintUploadGrantSecret();
+            f.raw
+              .prepare(
+                `INSERT INTO artifact_upload_grants
+          (workspace_id,id,version_id,grant_hash,human_id,authorization_epoch,run_id,format,
+           declared_size,expected_digest,expires_at,consumed_at,created_at)
+          SELECT workspace_id, ?, version_id, ?, human_id, authorization_epoch, run_id, format,
+           declared_size,expected_digest, ?, NULL, ? FROM artifact_upload_grants WHERE id = ?`,
+              )
+              .run(
+                grantId,
+                minted.secretHash,
+                new Date(Date.now() + ARTIFACT_GRANT_TTL_MS).toISOString(),
+                now,
+                created.upload_grant.grant_id,
+              );
+            if (change === "consume")
+              await f.db.withTransaction((tx) =>
+                redeemUploadGrant(tx, {
+                  grantId,
+                  secret: minted.secret,
+                  now,
+                }),
+              );
+          } else {
+            f.raw
+              .prepare(
+                `UPDATE artifact_versions SET state='available', content_hash=?, r2_key=?, available_at=?
+          WHERE id=?`,
+              )
+              .run(
+                DIGEST,
+                artifactObjectKey({
+                  workspaceId: FIX.workspace,
+                  role: "review",
+                  runId: f.runId,
+                  versionId: created.version_id,
+                  contentHash: DIGEST,
+                }),
+                now,
+                created.version_id,
+              );
+          }
+        }),
+      );
+      const outcome = await hub.execute(markArtifactFailedCommand, {
+        workspaceId: FIX.workspace,
+        actorSystemId: ARTIFACT_RECOVERY_SYSTEM_ID,
+        authorizationEpoch: 1,
+        idempotencyKey: randomUlid(),
+        input: { versionId: created.version_id },
+      });
+      expect(outcome.ok).toBe(false);
+      expect(
+        f.raw.prepare(`SELECT state FROM artifact_versions WHERE id=?`).get(created.version_id),
+      ).toEqual({ state: change === "finalize" ? "available" : "uploading" });
+      expect(
+        f.raw
+          .prepare(`SELECT COUNT(*) n FROM artifact_audit_outbox WHERE action='artifact.abandoned'`)
+          .get(),
+      ).toEqual({ n: 0 });
+    },
+  );
+
+  it("retains a fresh consumed grant until its expiry plus grace", async () => {
+    const f = await fixture();
+    const created = await f.create();
+    vi.setSystemTime(Date.parse(NOW) + ARTIFACT_GRANT_TTL_MS + ARTIFACT_ABANDON_GRACE_MS);
+    const minted = mintUploadGrantSecret();
+    const reissued = await f.human(issueArtifactGrantCommand, {
+      versionId: created.version_id,
+      grantSecretHash: minted.secretHash,
+    });
+    if (!reissued.ok) throw new Error(JSON.stringify(reissued));
+    await f.db.withTransaction((tx) =>
+      redeemUploadGrant(tx, {
+        grantId: reissued.result.grant_id,
+        secret: minted.secret,
+        now: new Date().toISOString(),
+      }),
+    );
+    expect(await listAbandonedArtifactUploads(f.db, new Date().toISOString())).toEqual([]);
+    const outcome = await f.hub.execute(markArtifactFailedCommand, {
+      workspaceId: FIX.workspace,
+      actorSystemId: ARTIFACT_RECOVERY_SYSTEM_ID,
+      authorizationEpoch: 1,
+      idempotencyKey: randomUlid(),
+      input: { versionId: created.version_id },
+    });
+    expect(outcome).toMatchObject({ ok: false, error: { code: "request_rejected" } });
+  });
+
+  it("bounds read-only recovery selection and leaves candidates unchanged", async () => {
+    const f = await fixture();
+    await f.create();
+    await f.create();
+    vi.setSystemTime(Date.parse(NOW) + ARTIFACT_GRANT_TTL_MS + ARTIFACT_ABANDON_GRACE_MS);
+    const now = new Date().toISOString();
+    expect(await listAbandonedArtifactUploads(f.db, now, { limit: 1 })).toHaveLength(1);
+    expect(
+      f.raw.prepare(`SELECT COUNT(*) n FROM artifact_versions WHERE state='uploading'`).get(),
+    ).toEqual({ n: 2 });
+    await expect(listAbandonedArtifactUploads(f.db, now, { limit: 101 })).rejects.toThrow();
+    await expect(listAbandonedArtifactUploads(f.db, now, { limit: 0 })).rejects.toThrow();
+  });
+
   it.each(["create", "issue", "finalize", "fail"] as const)(
     "rejects restricted-project %s without a mutation",
     async (action) => {

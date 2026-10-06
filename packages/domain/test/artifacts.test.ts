@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ARTIFACT_LOG_MAX_BYTES,
   ARTIFACT_REVIEW_MAX_BYTES,
+  ARTIFACT_RECOVERY_SYSTEM_ID,
   artifactHash,
   artifactObjectKey,
   artifactSubject,
@@ -24,7 +25,7 @@ import {
   redeemUploadGrant,
   roleMaxBytes,
   sniffArtifactKind,
-  sweepAbandonedArtifactUploads,
+  listAbandonedArtifactUploads,
   type ArtifactFormat,
   type ArtifactRole,
   type CreateArtifactResult,
@@ -634,7 +635,7 @@ describe("artifact state machine", () => {
         }),
       ),
     ).toBe("request_rejected");
-    const marked = await sweepAbandonedArtifactUploads(db, SWEEP);
+    const marked = await listAbandonedArtifactUploads(db, SWEEP);
     expect(marked).toEqual([]);
   });
 
@@ -642,8 +643,17 @@ describe("artifact state machine", () => {
     const { db, hub, human, create } = await fixture();
     const stale = await create();
     const fresh = await create({}, { now: "2026-09-17T12:39:00.000Z" });
-    const marked = await sweepAbandonedArtifactUploads(db, SWEEP);
-    expect(marked).toEqual([stale.version_id]);
+    const candidates = await listAbandonedArtifactUploads(db, SWEEP);
+    expect(candidates).toEqual([{ workspace_id: FIX.workspace, id: stale.version_id }]);
+    vi.setSystemTime(SWEEP);
+    const marked = await hub.execute(markArtifactFailedCommand, {
+      workspaceId: FIX.workspace,
+      actorSystemId: ARTIFACT_RECOVERY_SYSTEM_ID,
+      authorizationEpoch: 1,
+      idempotencyKey: randomUlid(),
+      input: { versionId: stale.version_id },
+    });
+    expect(marked.ok).toBe(true);
     const states = (await db
       .prepare(`SELECT id, state FROM artifact_versions ORDER BY created_at`)
       .all()) as Array<{ id: string; state: string }>;
@@ -651,13 +661,13 @@ describe("artifact state machine", () => {
     expect(states.find((row) => row.id === fresh.version_id)?.state).toBe("uploading");
     const system = await hub.execute(markArtifactFailedCommand, {
       workspaceId: FIX.workspace,
-      actorSystemId: syntheticUlid("CRON"),
+      actorSystemId: ARTIFACT_RECOVERY_SYSTEM_ID,
       authorizationEpoch: 1,
       now: SWEEP,
       idempotencyKey: randomUlid(),
       input: { versionId: fresh.version_id },
     });
-    expect(system.ok).toBe(true);
+    expect(system).toMatchObject({ ok: false, error: { code: "request_rejected" } });
     expect(await failure(human(markArtifactFailedCommand, { versionId: stale.version_id }))).toBe(
       "request_rejected",
     );

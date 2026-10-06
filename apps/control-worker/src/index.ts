@@ -172,10 +172,16 @@ export default {
   ): Promise<void> {
     validateControlEnv(env);
     try {
-      const { runArtifactSweep } = await import("./api/artifacts.js");
-      await runArtifactSweep(adaptD1(env.DB), new Date().toISOString());
+      const { runArtifactSweep } = await import("./artifacts/maintenance.js");
+      await runArtifactSweep(adaptD1(env.DB), new Date().toISOString(), env.WORKSPACE_HUB);
     } catch {
       // The sweep is idempotent and retried on the next Cron tick.
+    }
+    try {
+      const { runArtifactAuditDispatch } = await import("./artifacts/maintenance.js");
+      await runArtifactAuditDispatch(adaptD1(env.DB), env.WORKSPACE_HUB);
+    } catch {
+      // The source-identified audit projection and stamp retry atomically.
     }
     try {
       await runGitHubSweep(adaptD1(env.DB), env.JOBS, new Date().toISOString());

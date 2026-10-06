@@ -11,7 +11,7 @@ import {
   FIX,
   bumpMemberEpoch,
   seedSyntheticWorkspace,
-  sweepAbandonedArtifactUploads,
+  listAbandonedArtifactUploads,
   randomUlid,
   syntheticUlid,
 } from "@bfb/domain";
@@ -30,7 +30,6 @@ const T1_LATE = phase(17);
 const T2 = phase(2);
 const T3 = phase(3);
 const T4A = phase(4);
-const SWEEP_TIME = phase(40);
 const SIGNING = "v01-runtime-current-signing-key-55c1e7";
 const SESSION = "v01-synthetic-session";
 const SESSION_TOKEN = "v01-synthetic-session-token";
@@ -807,18 +806,126 @@ try {
 
   // Recovery sweep marks only versions whose grants all expired past grace.
   const abandoned = await create(0, reviewBody(TEXT), OWNER, "192.0.2.91", T4A);
-  const earlySweep = await sweepAbandonedArtifactUploads(db, new Date().toISOString());
-  assert(!earlySweep.includes(abandoned.version_id), "fresh grant was swept before expiry");
-  const marked = await sweepAbandonedArtifactUploads(db, SWEEP_TIME);
-  assert(marked.includes(abandoned.version_id), "abandoned version was not swept");
+  const earlySweep = await listAbandonedArtifactUploads(db, new Date().toISOString());
+  assert(
+    !earlySweep.some((row) => row.id === abandoned.version_id),
+    "fresh grant was selected before expiry",
+  );
+  const freshRecovery = await accepted<{ ok: boolean }>(
+    await server
+      .getWorker("bfb-v01-a")
+      .fetch(`${ORIGIN}/__v01/recover/${abandoned.version_id}`, { method: "POST" }),
+  );
+  assert.equal(freshRecovery.ok, false, "fresh system abandonment was accepted");
+  // Historical synthetic setup makes one legitimate candidate; the production
+  // Hub command still observes its own fresh wall clock, never this fixture's clock.
+  const historicalTime = new Date(Date.now() - 21 * 60_000).toISOString();
+  const expiredTime = new Date(Date.now() - 6 * 60_000).toISOString();
+  const historicalArtifact = randomUlid();
+  const historicalVersion = randomUlid();
+  await db
+    .prepare(
+      `INSERT INTO artifacts
+    (workspace_id,id,run_id,format,role,created_by_human_id,created_at)
+    VALUES (?, ?, NULL, 'markdown', 'review', ?, ?)`,
+    )
+    .run(FIX.workspace, historicalArtifact, FIX.owner, historicalTime);
+  await db
+    .prepare(
+      `INSERT INTO artifact_versions
+    (workspace_id,id,artifact_id,state,format,declared_size,expected_digest,created_at)
+    VALUES (?, ?, ?, 'uploading', 'markdown', ?, ?, ?)`,
+    )
+    .run(
+      FIX.workspace,
+      historicalVersion,
+      historicalArtifact,
+      TEXT.length,
+      digest(TEXT),
+      historicalTime,
+    );
+  await db
+    .prepare(
+      `INSERT INTO artifact_upload_grants
+    (workspace_id,id,version_id,grant_hash,human_id,authorization_epoch,run_id,format,declared_size,
+     expected_digest,expires_at,consumed_at,created_at)
+    VALUES (?, ?, ?, ?, ?, 1, NULL, 'markdown', ?, ?, ?, NULL, ?)`,
+    )
+    .run(
+      FIX.workspace,
+      randomUlid(),
+      historicalVersion,
+      digest(new TextEncoder().encode(randomUlid())),
+      FIX.owner,
+      TEXT.length,
+      digest(TEXT),
+      expiredTime,
+      historicalTime,
+    );
+  const candidates = await listAbandonedArtifactUploads(db, new Date().toISOString());
+  assert(
+    candidates.some((row) => row.id === historicalVersion),
+    "historical candidate was not selected",
+  );
+  const recovery = await accepted<{ ok: boolean; result: { state: string } }>(
+    await server
+      .getWorker("bfb-v01-b")
+      .fetch(`${ORIGIN}/__v01/recover/${historicalVersion}`, { method: "POST" }),
+  );
+  assert.equal(recovery.ok, true, "eligible Hub recovery was denied");
+  assert.equal(recovery.result.state, "failed");
+  const protectedVersion = randomUlid();
+  await db
+    .prepare(
+      `INSERT INTO artifact_versions
+    (workspace_id,id,artifact_id,state,format,declared_size,expected_digest,created_at)
+    SELECT workspace_id,?,artifact_id,'uploading',format,declared_size,expected_digest,created_at
+    FROM artifact_versions WHERE id=?`,
+    )
+    .run(protectedVersion, historicalVersion);
+  assert(
+    (await listAbandonedArtifactUploads(db, new Date().toISOString())).some(
+      (row) => row.id === protectedVersion,
+    ),
+    "pre-regrant candidate was not selected",
+  );
+  const protectedGrant = await accepted<{ grant_id: string; secret: string }>(
+    await browser(
+      0,
+      "POST",
+      `/api/v1/workspaces/${FIX.workspace}/artifacts/${protectedVersion}/grants`,
+      { request_id: randomUlid() },
+      OWNER,
+      "192.0.2.97",
+      T4A,
+    ),
+    201,
+  );
+  await accepted(
+    await upload(protectedGrant.grant_id, protectedGrant.secret, TEXT, "192.0.2.97", T4A),
+  );
+  assert(
+    !(await listAbandonedArtifactUploads(db, new Date().toISOString())).some(
+      (row) => row.id === protectedVersion,
+    ),
+    "fresh consumed grant did not protect the version",
+  );
+  const protectedRecovery = await accepted<{ ok: boolean }>(
+    await server
+      .getWorker("bfb-v01-a")
+      .fetch(`${ORIGIN}/__v01/recover/${protectedVersion}`, { method: "POST" }),
+  );
+  assert.equal(protectedRecovery.ok, false, "in-flight consumed grant was abandoned");
+  note("consumed_fresh_grant_protected");
   const states = (await db.prepare(`SELECT id, state FROM artifact_versions`).all()) as Array<{
     id: string;
     state: string;
   }>;
   const byId = new Map(states.map((row) => [row.id, row.state]));
-  assert.equal(byId.get(abandoned.version_id), "failed");
+  assert.equal(byId.get(historicalVersion), "failed");
+  assert.equal(byId.get(abandoned.version_id), "uploading");
   assert.equal(byId.get(created.version_id), "available");
-  note("sweep_marked", marked.length);
+  note("sweep_marked", 1);
 
   // Capability scan: no secret, bearer, or byte payload survives in D1 or R2 keys.
   const dump = JSON.stringify({
@@ -837,6 +944,7 @@ try {
     revoked.upload_grant.secret,
     raceA.upload_grant.secret,
     raceB.upload_grant.secret,
+    protectedGrant.secret,
   ];
   for (const secret of secrets) {
     assert(!dump.includes(secret), "secret retained outside its hashed grant");

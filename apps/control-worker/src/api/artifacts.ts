@@ -18,7 +18,6 @@ import {
   loadPrincipal,
   mintUploadGrantSecret,
   randomUlid,
-  sweepAbandonedArtifactUploads,
   type CommandRequest,
   type HubCommand,
 } from "@bfb/domain";
@@ -29,6 +28,8 @@ import { executeWorkspaceCommand } from "../hub-client.js";
 import { handleArtifactViewGrantApi } from "./artifact-views.js";
 import { handleArtifactReviewApi } from "./artifact-reviews.js";
 import { readBoundedJson } from "./request.js";
+
+export { runArtifactSweep } from "../artifacts/maintenance.js";
 
 export interface ArtifactApiDeps {
   db: SqlDatabase;
@@ -285,17 +286,4 @@ export async function handleArtifactBrowserApi(
   } catch {
     return rejected();
   }
-}
-
-/**
- * Recovery sweep shared by the Cron trigger and the V01 acceptance harness.
- * Marks uploading versions failed once every outstanding grant expired past
- * grace; shared content-addressed bytes are never deleted.
- */
-export async function runArtifactSweep(
-  db: SqlDatabase,
-  now: string,
-): Promise<{ marked: string[] }> {
-  const marked = await sweepAbandonedArtifactUploads(db, now);
-  return { marked };
 }

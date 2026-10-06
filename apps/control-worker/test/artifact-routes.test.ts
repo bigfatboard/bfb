@@ -312,6 +312,7 @@ describe("artifact browser routes", () => {
   it("sweeps abandoned versions without touching live ones", async () => {
     const { db, create } = await fixture();
     await create();
+    vi.setSystemTime("2026-09-17T12:40:00.000Z");
     const { marked } = await runArtifactSweep(db, "2026-09-17T12:40:00.000Z");
     expect(marked.length).toBeGreaterThan(0);
     const rows = (await db.prepare(`SELECT state FROM artifact_versions`).all()) as Array<{

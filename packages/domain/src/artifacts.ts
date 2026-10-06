@@ -9,7 +9,7 @@ import { abuseBucketKey, consumeAbuseBudget } from "./abuse.js";
 import { assertEpoch, assertRole, loadPrincipal } from "./authorization.js";
 import { DomainError } from "./hub.js";
 import type { HubCommand, HubContext } from "./hub.js";
-import { isUlid, randomUlid } from "./ids.js";
+import { isUlid, randomUlid, syntheticUlid } from "./ids.js";
 
 /** Declared artifact formats; validated against sniffed bytes before any R2 write. */
 export const ARTIFACT_FORMATS = [
@@ -39,6 +39,8 @@ export const ARTIFACT_GRANT_TTL_MS = 15 * 60_000;
 export const ARTIFACT_BODY_LIMIT = 8_192;
 /** Grace after grant expiry before the recovery sweep marks a version failed. */
 export const ARTIFACT_ABANDON_GRACE_MS = 5 * 60_000;
+/** Fixed system principal for bounded recovery and artifact audit dispatch. */
+export const ARTIFACT_RECOVERY_SYSTEM_ID = syntheticUlid("ARTIFACTRECOVERY");
 
 const GRANT_SECRET_BYTES = 32;
 const HEX64 = /^[0-9a-f]{64}$/;
@@ -999,6 +1001,39 @@ export interface MarkArtifactFailedResult {
   state: "failed";
 }
 
+function abandonmentCutoffs(now: string) {
+  const nowMs = Date.parse(now);
+  if (!Number.isFinite(nowMs)) rejectArtifactRequest();
+  return {
+    created: new Date(nowMs - ARTIFACT_GRANT_TTL_MS - ARTIFACT_ABANDON_GRACE_MS).toISOString(),
+    expiry: new Date(nowMs - ARTIFACT_ABANDON_GRACE_MS).toISOString(),
+  };
+}
+
+async function requireArtifactRecovery(input: MarkArtifactFailedInput, ctx: HubContext) {
+  if (
+    ctx.actorSystemId !== ARTIFACT_RECOVERY_SYSTEM_ID ||
+    ctx.authorizationEpoch !== 1 ||
+    ctx.actorHumanId ||
+    ctx.actorDelegationId ||
+    ctx.actorRunnerId
+  )
+    rejectArtifactRequest();
+  if (typeof input.versionId !== "string" || !isUlid(input.versionId)) rejectArtifactRequest();
+  const cutoffs = abandonmentCutoffs(ctx.now);
+  const eligible = await ctx.db
+    .prepare(
+      `SELECT v.id FROM artifact_versions AS v
+    WHERE v.workspace_id = ? AND v.id = ? AND v.state = 'uploading' AND v.created_at <= ?
+      AND NOT EXISTS (SELECT 1 FROM artifact_upload_grants AS g
+        WHERE g.workspace_id = v.workspace_id AND g.version_id = v.id
+          AND g.expires_at > ?)`,
+    )
+    .get(ctx.workspaceId, input.versionId, cutoffs.created, cutoffs.expiry);
+  if (!eligible) rejectArtifactRequest();
+  return cutoffs;
+}
+
 /**
  * Marks an abandoned uploading version failed. Human members use it for
  * explicit recovery; the recovery Cron uses the system actor. Terminal rows
@@ -1013,7 +1048,7 @@ export const markArtifactFailedCommand: HubCommand<
   auditInput: () => ({ action: "artifact.mark_failed" }),
   async authorize(input, ctx) {
     if (ctx.actorSystemId) {
-      if (ctx.actorHumanId || ctx.actorDelegationId || ctx.actorRunnerId) rejectArtifactRequest();
+      await requireArtifactRecovery(input, ctx);
     } else {
       await artifactVersionScope(ctx, input.versionId);
     }
@@ -1021,19 +1056,38 @@ export const markArtifactFailedCommand: HubCommand<
   async run(input, ctx) {
     artifactObject(input, ["versionId"]);
     if (typeof input.versionId !== "string" || !isUlid(input.versionId)) rejectArtifactRequest();
-    if (ctx.actorSystemId) {
-      if (ctx.actorHumanId || ctx.actorDelegationId || ctx.actorRunnerId) rejectArtifactRequest();
-    } else {
+    const cutoffs = ctx.actorSystemId ? await requireArtifactRecovery(input, ctx) : null;
+    if (!ctx.actorSystemId) {
       await artifactVersionScope(ctx, input.versionId);
     }
     const version = await versionRow(ctx.db, ctx.workspaceId, input.versionId);
     if (version.state !== "uploading") rejectArtifactRequest();
+    if (cutoffs) {
+      await ctx.db
+        .prepare(
+          `UPDATE artifact_versions SET state = 'failed'
+        WHERE workspace_id = ? AND id = ? AND state = 'uploading' AND created_at <= ?
+          AND NOT EXISTS (SELECT 1 FROM artifact_upload_grants AS g
+            WHERE g.workspace_id = artifact_versions.workspace_id AND g.version_id = artifact_versions.id
+              AND g.expires_at > ?)`,
+        )
+        .run(ctx.workspaceId, input.versionId, cutoffs.created, cutoffs.expiry);
+    } else {
+      await ctx.db
+        .prepare(
+          `UPDATE artifact_versions SET state = 'failed'
+        WHERE workspace_id = ? AND id = ? AND state = 'uploading'`,
+        )
+        .run(ctx.workspaceId, input.versionId);
+    }
+    const guardId = randomUlid();
     await ctx.db
       .prepare(
-        `UPDATE artifact_versions SET state = 'failed'
-         WHERE workspace_id = ? AND id = ? AND state = 'uploading'`,
+        `INSERT INTO artifact_mutation_guards (id, valid) VALUES (?,
+      (SELECT COUNT(*) = 1 FROM artifact_versions WHERE workspace_id = ? AND id = ? AND state = 'failed'))`,
       )
-      .run(ctx.workspaceId, input.versionId);
+      .run(guardId, ctx.workspaceId, input.versionId);
+    await ctx.db.prepare(`DELETE FROM artifact_mutation_guards WHERE id = ?`).run(guardId);
     await auditOutbox(ctx.db, {
       workspaceId: ctx.workspaceId,
       versionId: input.versionId,
@@ -1047,53 +1101,32 @@ export const markArtifactFailedCommand: HubCommand<
 };
 
 /**
- * Recovery sweep used by the Cron trigger. Marks uploading versions failed
- * once every outstanding grant has expired past a grace interval, so crashed
- * uploads settle without deleting shared content-addressed bytes.
+ * Selects a bounded page of recovery candidates without mutating business
+ * state. Each candidate must pass the fresh Hub recovery command again.
  */
-export async function sweepAbandonedArtifactUploads(
+export async function listAbandonedArtifactUploads(
   db: SqlDatabase,
   now: string,
-  options: { graceMs?: number } = {},
-): Promise<string[]> {
-  const nowMs = Date.parse(now);
-  if (!Number.isFinite(nowMs)) return [];
-  const grace = options.graceMs ?? ARTIFACT_ABANDON_GRACE_MS;
-  const rows = (await db
+  options: { limit?: number } = {},
+): Promise<Array<{ workspace_id: string; id: string }>> {
+  const limit = options.limit ?? 100;
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) rejectArtifactRequest();
+  const cutoffs = abandonmentCutoffs(now);
+  return (await db
     .prepare(
       `SELECT v.workspace_id, v.id
        FROM artifact_versions AS v
        WHERE v.state = 'uploading'
-         AND datetime(v.created_at) <= datetime(?, ?)
+         AND v.created_at <= ?
          AND NOT EXISTS (
            SELECT 1 FROM artifact_upload_grants AS g
            WHERE g.workspace_id = v.workspace_id
              AND g.version_id = v.id
-             AND g.consumed_at IS NULL
-             AND datetime(g.expires_at) > datetime(?)
-         )`,
+             AND g.expires_at > ?
+         ) ORDER BY v.created_at, v.workspace_id, v.id LIMIT ?`,
     )
-    .all(now, `-${Math.floor((ARTIFACT_GRANT_TTL_MS + grace) / 1000)} seconds`, now)) as Array<{
+    .all(cutoffs.created, cutoffs.expiry, limit)) as Array<{
     workspace_id: string;
     id: string;
   }>;
-  const marked: string[] = [];
-  for (const row of rows) {
-    await db
-      .prepare(
-        `UPDATE artifact_versions SET state = 'failed'
-         WHERE workspace_id = ? AND id = ? AND state = 'uploading'`,
-      )
-      .run(row.workspace_id, row.id);
-    await auditOutbox(db, {
-      workspaceId: row.workspace_id,
-      versionId: row.id,
-      grantId: null,
-      action: "artifact.abandoned",
-      payload: { version_id: row.id, reason: "recovery_sweep" },
-      now,
-    });
-    marked.push(row.id);
-  }
-  return marked.sort();
 }

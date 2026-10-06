@@ -19,6 +19,7 @@ import {
 } from "./agent-work.js";
 import { recordReviewCommand } from "./artifact-reviews.js";
 import { createViewGrantCommand } from "./artifact-views.js";
+import { dispatchArtifactAuditCommand } from "./artifact-maintenance.js";
 import {
   createArtifactCommand,
   finalizeArtifactCommand,
@@ -191,6 +192,7 @@ const commands = new Map<string, HubCommand<unknown, unknown>>([
   [issueArtifactGrantCommand.name, issueArtifactGrantCommand as HubCommand<unknown, unknown>],
   [finalizeArtifactCommand.name, finalizeArtifactCommand as HubCommand<unknown, unknown>],
   [markArtifactFailedCommand.name, markArtifactFailedCommand as HubCommand<unknown, unknown>],
+  [dispatchArtifactAuditCommand.name, dispatchArtifactAuditCommand as HubCommand<unknown, unknown>],
   [createViewGrantCommand.name, createViewGrantCommand as HubCommand<unknown, unknown>],
   [recordReviewCommand.name, recordReviewCommand as HubCommand<unknown, unknown>],
   [authorizeDeviceCommand.name, authorizeDeviceCommand as HubCommand<unknown, unknown>],
