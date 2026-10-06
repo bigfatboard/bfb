@@ -14,10 +14,21 @@ exact-input command idempotency and revoked cached comment/context replies are
 checked against real D1 and the production Hub behind independent Workers.
 It also checks run-bound artifact metadata, conditional view-grant redemption,
 measurements and review-timer permissions/cache revocation. Artifact bytes are
-not uploaded to R2 by this harness. Mounted HTTP/MCP tests and local assignment
-fixtures are separate synthetic-authority proofs. This is not a full delivery
-certificate: creation/sharing, private R2/browser-byte delivery, opaque realtime
-positions and the remaining matrix stay gated.
+not uploaded to R2 by this harness. The partial metadata slice also proves
+shared-only stuck-upload selection and retained-epoch denial on real D1,
+including run-free workspace uploads. It does not certify diagnostic snapshots,
+audit/queue totals or recovery targets. Exact artifact-version evidence is checked
+with human, originating-run and task-bound delegation ceilings, including current
+scope denial. Independent source privatization before a real D1 result batch
+rolls back submission, state, receipt and audit effects. Historical malformed
+and duplicate-key references are omitted from
+delivery without rewriting immutable rows. Mounted HTTP/MCP tests and local
+assignment fixtures are separate synthetic-authority proofs. Notification fanout, final
+push-endpoint selection and historical lists also run through real D1 with
+shared/private parents and current preference denial; no push is contacted.
+This is not a full delivery certificate: creation/sharing, private R2/browser-byte
+delivery, opaque realtime positions, in-flight natural credential expiry and
+the remaining matrix stay gated.
 
 All use the checked-in ordered migrations in a disposable local harness. No
 pilot enrollment, persistent local database, real user, credential or Terminal

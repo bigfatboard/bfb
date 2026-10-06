@@ -26,6 +26,16 @@ import {
   listArtifactsWithReviewState,
   getRunMeasurements,
   listReviewTimers,
+  listStuckUploads,
+  filterOperationsStuckWork,
+  authorizeResultEvidence,
+  listResultSubmissions,
+  fanoutNotificationEvent,
+  deriveDeliveryId,
+  listDeliveries,
+  loadPushAttempt,
+  WorkspaceHub,
+  submitResultCommand,
   type CreateArtifactResult,
   type ViewGrant,
   type CommandOutcome,
@@ -497,16 +507,427 @@ try {
     n: 0,
   });
   check("real_d1_receipt_batch_revocation_rolls_back_registry_receipt_source_and_audit");
+  const runFreeSecret = mintUploadGrantSecret();
+  const runFreeVersion = await execute<CreateArtifactResult>("a", "artifact.create_version", {
+    format: "markdown",
+    role: "review",
+    declaredSize: 12,
+    expectedDigest: digest,
+    grantSecretHash: runFreeSecret.secretHash,
+  });
+  assert(runFreeVersion.ok);
+  const operationsNow = new Date(Date.parse(now) + 30 * 60_000).toISOString();
+  // Both synthetic versions are physically stuck. The private task-bound one
+  // cannot enter the operations projection even for a creator or read grantee.
+  assert.deepEqual(
+    await db
+      .prepare(
+        "SELECT COUNT(*) AS n FROM artifact_versions WHERE workspace_id = ? AND state = 'uploading'",
+      )
+      .get(FIX.workspace),
+    { n: 2 },
+  );
+  const stuck = await listStuckUploads(db, FIX.workspace, operationsNow, access());
+  assert.deepEqual(
+    stuck.map((row) => row.version_id),
+    [runFreeVersion.result.version_id],
+  );
+  assert.deepEqual(await listStuckUploads(db, FIX.workspace, operationsNow), stuck);
+  await db
+    .prepare(
+      "UPDATE workspace_members SET authorization_epoch = 2 WHERE workspace_id = ? AND human_id = ?",
+    )
+    .run(FIX.workspace, FIX.owner);
+  await db
+    .prepare(
+      "UPDATE workspace_authorization_epochs SET authorization_epoch = 2 WHERE workspace_id = ? AND human_id = ?",
+    )
+    .run(FIX.workspace, FIX.owner);
+  assert.deepEqual(await listStuckUploads(db, FIX.workspace, operationsNow, access()), []);
+  assert.deepEqual(
+    await filterOperationsStuckWork(
+      db,
+      FIX.workspace,
+      operationsNow,
+      {
+        uploads: stuck,
+        launches: [],
+      },
+      access(),
+    ),
+    { uploads: [], launches: [] },
+  );
+  assert.deepEqual(
+    (
+      await listStuckUploads(db, FIX.workspace, operationsNow, {
+        ...access(),
+        authorizationEpoch: 2,
+      })
+    ).map((row) => row.version_id),
+    [runFreeVersion.result.version_id],
+  );
+  assert.deepEqual(
+    await filterOperationsStuckWork(
+      db,
+      FIX.workspace,
+      operationsNow,
+      {
+        uploads: stuck,
+        launches: [],
+      },
+      { ...access(), authorizationEpoch: 2 },
+    ),
+    { uploads: stuck, launches: [] },
+  );
+  check("real_d1_operations_stuck_upload_projection_hides_private_and_rechecks_epoch");
+  const sourceRef = {
+    kind: "artifact_version",
+    ref: artifact.result.artifact_id,
+    version: artifact.result.version_id,
+  };
+  const aliasRef = { kind: sourceRef.kind, ref: sourceRef.version };
+  const sourceAccess = access(FIX.member);
+  await authorizeResultEvidence(db, FIX.workspace, privateId, [sourceRef, aliasRef], sourceAccess);
+  await authorizeResultEvidence(db, FIX.workspace, privateId, [sourceRef], sourceAccess, runId);
+  const deniedSources = [
+    { ...sourceRef, ref: randomUlid() },
+    { ...sourceRef, version: randomUlid() },
+    { kind: sourceRef.kind, ref: randomUlid() },
+  ];
+  for (const ref of deniedSources)
+    await assert.rejects(
+      authorizeResultEvidence(db, FIX.workspace, privateId, [ref], sourceAccess),
+      { code: "not_found", message: "evidence artifact not found" },
+    );
+  await assert.rejects(
+    authorizeResultEvidence(db, FIX.workspace, sharedId, [sourceRef], sourceAccess),
+    { code: "not_found", message: "evidence artifact not found" },
+  );
+  await assert.rejects(
+    authorizeResultEvidence(db, FIX.workspace, privateId, [sourceRef], sourceAccess, randomUlid()),
+    { code: "not_found", message: "evidence artifact not found" },
+  );
+  const runFreeRef = {
+    kind: sourceRef.kind,
+    ref: runFreeVersion.result.artifact_id,
+    version: runFreeVersion.result.version_id,
+  };
+  await authorizeResultEvidence(db, FIX.workspace, privateId, [runFreeRef], sourceAccess);
+  await assert.rejects(
+    authorizeResultEvidence(db, FIX.workspace, privateId, [runFreeRef], sourceAccess, runId),
+    { code: "not_found", message: "evidence artifact not found" },
+  );
+  check("real_d1_exact_artifact_evidence_binding_and_local_run_ceiling");
+  const evidenceDelegationId = randomUlid();
+  await db
+    .prepare(
+      `INSERT INTO oauth_delegations
+       (workspace_id, id, human_id, client_id, resource, project_id, task_id,
+        scopes_json, authorization_epoch, expires_at, created_at)
+       VALUES (?, ?, ?, ?, 'https://bfb.work-records.test/mcp', ?, ?, ?, 1, ?, ?)`,
+    )
+    .run(
+      FIX.workspace,
+      evidenceDelegationId,
+      FIX.member,
+      FIX.client,
+      FIX.projectA,
+      privateId,
+      JSON.stringify(["bfb:read", "bfb:task:write"]),
+      new Date(Date.parse(now) + 60 * 60_000).toISOString(),
+      now,
+    );
+  const delegatedAccess = {
+    ...sourceAccess,
+    delegationId: evidenceDelegationId,
+    taskBoundaryId: privateId,
+  };
+  await authorizeResultEvidence(
+    db,
+    FIX.workspace,
+    privateId,
+    [sourceRef, aliasRef],
+    delegatedAccess,
+  );
+  await assert.rejects(
+    authorizeResultEvidence(db, FIX.workspace, privateId, [runFreeRef], delegatedAccess),
+    { code: "not_found", message: "evidence artifact not found" },
+  );
+  await db
+    .prepare("UPDATE oauth_delegations SET scopes_json = ? WHERE workspace_id = ? AND id = ?")
+    .run(JSON.stringify(["bfb:read"]), FIX.workspace, evidenceDelegationId);
+  await assert.rejects(
+    authorizeResultEvidence(db, FIX.workspace, privateId, [sourceRef], delegatedAccess),
+    { code: "not_found", message: "evidence artifact not found" },
+  );
+  check("real_d1_exact_evidence_retains_delegation_boundary_and_current_scope");
+  const snapshot = (await db
+    .prepare(
+      `SELECT id, content_hash FROM run_configuration_snapshots
+       WHERE workspace_id = ? AND run_id = ? ORDER BY snapshot_generation DESC LIMIT 1`,
+    )
+    .get(FIX.workspace, runId)) as { id: string; content_hash: string } | undefined;
+  assert(snapshot);
+  const opaqueRef = { kind: "external", ref: "synthetic-opaque-proof" };
+  const historyJson = `[${JSON.stringify(sourceRef)},${JSON.stringify(aliasRef)},${JSON.stringify(opaqueRef)},"synthetic scalar",null,[],{"kind":"external","kind":"artifact_version","ref":${JSON.stringify(sourceRef.ref)},"version":${JSON.stringify(sourceRef.version)}},${JSON.stringify({ ...sourceRef, unexpected: true })}]`;
+  for (const [index, refsJson] of [historyJson, '{"invalid":"synthetic non-array"}'].entries())
+    await db
+      .prepare(
+        `INSERT INTO result_submissions
+         (workspace_id, id, run_id, version, summary, limitations, evidence_refs_json,
+          config_snapshot_id, config_hash, submitted_by_kind, submitted_by_id, submitted_at)
+         VALUES (?, ?, ?, ?, 'Synthetic historical result', '', ?, ?, ?, 'human', ?, ?)`,
+      )
+      .run(
+        FIX.workspace,
+        randomUlid(),
+        runId,
+        index + 1,
+        refsJson,
+        snapshot.id,
+        snapshot.content_hash,
+        FIX.member,
+        now,
+      );
+  const history = await listResultSubmissions(db, FIX.workspace, runId, new Map(), sourceAccess);
+  assert.equal(history.length, 2);
+  assert.deepEqual(history[0]!.evidence_refs, []);
+  assert.deepEqual(history[1]!.evidence_refs, [sourceRef, aliasRef, opaqueRef]);
+  assert.deepEqual(
+    await db
+      .prepare(
+        "SELECT evidence_refs_json FROM result_submissions WHERE workspace_id = ? AND run_id = ? AND version = 1",
+      )
+      .get(FIX.workspace, runId),
+    { evidence_refs_json: historyJson },
+  );
+  check("real_d1_historical_evidence_normalization_omits_corruption_without_row_rewrite");
+  const privateSubmission = await execute(
+    "a",
+    "result.submit",
+    {
+      runId,
+      summary: "Synthetic private notification source",
+    },
+    FIX.member,
+  );
+  assert(privateSubmission.ok);
+  assert.deepEqual(
+    await fanoutNotificationEvent(db, {
+      workspaceId: FIX.workspace,
+      eventCursor: privateSubmission.cursor,
+      eventKind: "result.submit",
+      now,
+    }),
+    { status: "subject_gone" },
+  );
+  const sharedRun = await execute<{ run: { id: string } }>(
+    "a",
+    "run.create",
+    {
+      taskId: sharedId,
+      expectedTaskVersion: 1,
+      agentProfileId: FIX.profileCodex,
+      workspacePolicyVersion: 1,
+      projectPolicyVersion: 1,
+      repositoryConfigVersion: 1,
+      agentProfileVersion: 1,
+    },
+    FIX.member,
+  );
+  assert(sharedRun.ok);
+  assert(
+    (
+      await execute(
+        "a",
+        "notification.push_endpoint.register",
+        {
+          endpoint: "https://push.synthetic.test/d1-notification-fence",
+          p256dh: "B".repeat(87),
+          auth: "A".repeat(22),
+        },
+        FIX.member,
+      )
+    ).ok,
+  );
+  const sharedSubmission = await execute(
+    "a",
+    "result.submit",
+    {
+      runId: sharedRun.result.run.id,
+      summary: "Synthetic shared notification source",
+    },
+    FIX.member,
+  );
+  assert(sharedSubmission.ok);
+  assert.deepEqual(
+    await fanoutNotificationEvent(db, {
+      workspaceId: FIX.workspace,
+      eventCursor: sharedSubmission.cursor,
+      eventKind: "result.submit",
+      now,
+    }),
+    { status: "notified", category: "result_submitted", push: 1, macos: 0 },
+  );
+  const deliveryId = deriveDeliveryId(
+    FIX.workspace,
+    sharedSubmission.cursor,
+    "browser_push",
+    FIX.member,
+  );
+  assert(
+    (await loadPushAttempt(db, { workspaceId: FIX.workspace, deliveryId, access: sourceAccess }))
+      .ok,
+  );
+  assert.equal((await listDeliveries(db, FIX.workspace, FIX.member, 1, sourceAccess)).length, 1);
+  await db
+    .prepare(
+      `INSERT INTO notification_preferences
+    (workspace_id, human_id, project_id, channel, category, enabled, updated_at)
+    VALUES (?, ?, ?, 'browser_push', 'result_submitted', 0, ?)`,
+    )
+    .run(FIX.workspace, FIX.member, FIX.projectA, now);
+  assert(
+    !(await loadPushAttempt(db, { workspaceId: FIX.workspace, deliveryId, access: sourceAccess }))
+      .ok,
+  );
+  await db
+    .prepare(
+      "UPDATE notification_preferences SET enabled = 1 WHERE workspace_id = ? AND human_id = ?",
+    )
+    .run(FIX.workspace, FIX.member);
+  const evidenceTarget = await execute<TaskRecord>(
+    "a",
+    "task.create",
+    {
+      projectId: FIX.projectA,
+      title: "Synthetic reference batch destination",
+      priority: "P2",
+    },
+    FIX.member,
+  );
+  assert(evidenceTarget.ok);
+  const evidenceTargetRun = await execute<{ run: { id: string } }>(
+    "a",
+    "run.create",
+    {
+      taskId: evidenceTarget.result.id,
+      expectedTaskVersion: 1,
+      agentProfileId: FIX.profileCodex,
+      workspacePolicyVersion: 1,
+      projectPolicyVersion: 1,
+      repositoryConfigVersion: 1,
+      agentProfileVersion: 1,
+    },
+    FIX.member,
+  );
+  assert(evidenceTargetRun.ok);
+  const sharedEvidenceSecret = mintUploadGrantSecret();
+  const sharedEvidence = await execute<CreateArtifactResult>(
+    "a",
+    "artifact.create_version",
+    {
+      runId: sharedRun.result.run.id,
+      format: "markdown",
+      role: "review",
+      declaredSize: 12,
+      expectedDigest: digest,
+      grantSecretHash: sharedEvidenceSecret.secretHash,
+    },
+    FIX.member,
+  );
+  assert(sharedEvidence.ok);
+  const effectTables = ["semantic_events", "audit_events", "outbox_records", "idempotency_records"];
+  const effectsBefore = await Promise.all(
+    effectTables.map((table) =>
+      db.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE workspace_id = ?`).get(FIX.workspace),
+    ),
+  );
+  let sourcePrivatizedBeforeBatch = false;
+  const sourceRacingDb = adaptD1({
+    prepare: (query) => binding.prepare(query),
+    async batch(statements) {
+      await db
+        .prepare(
+          `INSERT INTO task_privacy
+        (workspace_id, task_id, owner_human_id, created_at) VALUES (?, ?, ?, ?)`,
+        )
+        .run(FIX.workspace, sharedId, FIX.member, now);
+      sourcePrivatizedBeforeBatch = true;
+      return binding.batch(statements);
+    },
+  });
+  const rejectedSourceBatch = await new WorkspaceHub(sourceRacingDb).execute(submitResultCommand, {
+    workspaceId: FIX.workspace,
+    actorHumanId: FIX.member,
+    authorizationEpoch: 1,
+    idempotencyKey: randomUlid(),
+    now,
+    input: {
+      runId: evidenceTargetRun.result.run.id,
+      summary: "Synthetic rejected cross-task reference",
+      evidenceRefs: [
+        {
+          kind: "artifact_version",
+          ref: sharedEvidence.result.artifact_id,
+          version: sharedEvidence.result.version_id,
+        },
+      ],
+    },
+  });
+  assert(sourcePrivatizedBeforeBatch);
+  assert(!rejectedSourceBatch.ok && rejectedSourceBatch.error.code === "command_failed");
+  assert.deepEqual(
+    await db
+      .prepare("SELECT COUNT(*) AS n FROM result_submissions WHERE workspace_id = ? AND run_id = ?")
+      .get(FIX.workspace, evidenceTargetRun.result.run.id),
+    { n: 0 },
+  );
+  for (const [index, table] of effectTables.entries())
+    assert.deepEqual(
+      await db
+        .prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE workspace_id = ?`)
+        .get(FIX.workspace),
+      effectsBefore[index],
+    );
+  assert.deepEqual(await db.prepare("SELECT COUNT(*) AS n FROM artifact_mutation_guards").get(), {
+    n: 0,
+  });
+  assert.deepEqual(
+    await db
+      .prepare("SELECT result_state FROM runs WHERE workspace_id = ? AND id = ?")
+      .get(FIX.workspace, evidenceTargetRun.result.run.id),
+    { result_state: "open" },
+  );
+  assert.deepEqual(
+    await db
+      .prepare("SELECT state FROM tasks WHERE workspace_id = ? AND id = ?")
+      .get(FIX.workspace, evidenceTarget.result.id),
+    { state: "active" },
+  );
+  check(
+    "real_d1_result_source_private_before_batch_rolls_back_submission_state_receipts_and_audit",
+  );
+  assert(
+    !(await loadPushAttempt(db, { workspaceId: FIX.workspace, deliveryId, access: sourceAccess }))
+      .ok,
+  );
+  assert.deepEqual(await listDeliveries(db, FIX.workspace, FIX.member, 1, sourceAccess), []);
+  check(
+    "real_d1_notification_fanout_contact_and_history_keep_current_shared_parent_and_preference",
+  );
   console.log(
     JSON.stringify({
       schema_version: 1,
-      stage: "human_task_and_child_surfaces",
+      stage: "human_task_child_and_partial_metadata_surfaces",
       migration_head: manifest.migration_head,
       checks,
       outcome: "passed",
       limits: [
         "synthetic policies only",
         "no full C11 delivery certificate",
+        "partial metadata fences, not opaque positions or diagnostic/recovery privacy",
+        "natural credential expiry in flight remains uncertified",
         "real D1/domain/Hub proof, not real HTTP OAuth or provider execution",
         "grant-consumption proof, not live R2 or private browser-byte delivery",
       ],
