@@ -350,6 +350,91 @@ It does not change recovery execution or complete C11:
   No history rewrite, proof consumption, command/transport envelope change,
   private activation or opaque-position claim is included.
 
+### Scoped operations queue and health totals
+
+The next bounded C11 repair covers human queue/health projections, not queue
+execution, frozen diagnostics or complete operations privacy. It requires a
+separate clean checkpoint before being certified:
+
+- Require explicit `TaskAccessContext`, current Owner/member membership and
+  retained epoch, even when every source set is empty. Missing context is not
+  internal authority; scope loss returns the fixed operations scope denial.
+- After all provider/policy/stuck-work hydration, select current scope, visible
+  queue totals, token totals and remasked upload/launch/retention references in
+  one final query. Queue and health routes use only those returned values, with
+  no later awaited hydration. Preserve their existing wire envelopes, upload
+  age/grant grace, launch age and exact retention-key rules.
+- A shared-only current observer read/project witness governs task-bound
+  sources, including private creators/grantees. Typed identities reject NULs;
+  malformed, duplicate-key and serialized source objects cannot select lineage.
+  Count each stored source row once through authorized sets or `EXISTS`, not
+  multiplying joins. Unsupported sources contribute zero independent of whether
+  private work exists. These are scoped supported-source totals, not evidence
+  that physical queues are empty.
+- Notification totals count pending/dead-lettered/failed stored deliveries with
+  exact same-workspace semantic cursor and event kind. Observer authority is
+  separate from the stored recipient: recipient membership/epoch, preferences,
+  endpoint, runner token and current attention-open state do not erase visible
+  historical operator rows. Do not reuse an inbox predicate that equates the
+  observer with `delivery.human_id`.
+- Recognize only the exact category/action/result association below. Resolve
+  exact retained child→run→task/project; unrelated result fields never redirect
+  a source. `attention` uses `attention.request`, receipt state `open`, actual
+  `result.id` and matching retained attention task/run/project. Answered shared
+  history remains countable. `launch_blocked` retains the existing reject/claim/
+  authorize state/reason/code conditions: reject/claim use `input.launchId`;
+  authorize uses `result.launch_id`, agreeing with retained `input.launchId`.
+  `result_submitted` uses `result.submit`, `taskState=review` and the exact stored
+  submission ID/run/version. Changes-requested/accepted/failed/cancelled use
+  their matching command and `runResultState`, selecting producer `input.runId`;
+  review submission IDs must belong to that run. No generic `result.run_id`
+  fallback or arbitrary identifier heuristic is allowed.
+- GitHub totals bind exact same-workspace outbox→delivery and
+  `github.reconcile` kind. DLQ rows independently match that same outbox,
+  delivery ID and kind; preserve the existing dispatched-stale time condition.
+  Repository events require matching typed stored/effect installation and
+  repository identities, current active link and observer-accessible project.
+  Every applicable existing `observed_by='github'` evidence task association
+  must match that project and remain shared/readable; missing evidence may be
+  pending project-only work. Human/runner observations are distinct. Do not
+  require the latest evidence version token to equal an older queued effect.
+  Push resolves branch at `effect.ref` plus commit at `effect.version` (or
+  `<ref>:deleted`); pull-request, check-run/check-suite/status, issues and
+  deployment/deployment-status resolve their respective pull-request, check,
+  issue and deployment kinds at `effect.ref`. Unrelated evidence families do
+  not confer or revoke this association.
+- Pure GitHub installation lifecycle recognizes only `created`, `deleted`,
+  `suspend`, `unsuspend`, with exact typed stored/effect installation identity
+  and genuinely NULL repository/ref/version. Require the installation in this
+  workspace, not active status: pending, suspended and revoked lifecycle history
+  is legitimate. Uniformly exclude `installation_repositories` and unknown
+  actions; their multi-repository detail has no retained single-project lineage.
+- Applied recovery counts require closed actual target/result objects and all
+  current supported targets. One hidden, missing, foreign or malformed target
+  omits the whole ledger row. Upload resolution uses the certified 1–50 distinct
+  typed version IDs, matching `{resolved}` count and every current failed
+  artifact/shared-parent or genuine run-free association. Notification retry
+  uses 1–50 positive integer `{cursors}`, duplicates preserved, and exact
+  `{redispatched_from: min-1, cursors: length}`; every semantic event uses the
+  recognized notification source rules without requiring a delivery/contact.
+  GitHub requeue uses 1–50 bounded typed `{outbox_ids}`, duplicates preserved,
+  exact `{requeued: length}` and every GitHub source above, without reapplying
+  original mutation-only DLQ/dispatched-state conditions to applied history.
+  Do not claim action-hash recomputation or historical creator/proof authority.
+- Uniformly exclude failed recovery rows (no implemented producer/result
+  contract) and `clear_recovery_state` (deleted targets lose retained lineage).
+  Reappearing action IDs cannot reconstruct a historical cleared source set.
+- Health token totals share the final scope sentinel: unrevoked runner tokens
+  expiring by `now+24h`, including already expired rows, and unrevoked API
+  bindings. They are workspace-owned source counts, not usable-credential or
+  provider activity claims. Other provider/policy metadata remains unchanged.
+- The old raw eight-count helper becomes privately named for legacy diagnostic
+  inventory only. Human `readQueueState` requires context and wraps the same
+  final projection with empty work. Legacy v1 diagnostic bodies remain expressly
+  uncertified; repairing or quarantining their snapshot provenance is separate.
+  No schema, mutation, recovery/notification/GitHub execution, provider operation,
+  private activation or historical evidence rewrite is included.
+
 ## Delivery inventory and required proof
 
 | Surface | Existing owner / entry points | C11 completion check |

@@ -60,6 +60,26 @@ interprets provider-specific capability fields.
   Its chronology repair uses a normalized internal UTC key in both page and
   anchor comparison, preserving raw display timestamps and insertion-order ties.
 
+## Scoped queue and health projections
+
+C11's next bounded read repair freezes the [queue/health delivery contract](private-task-delivery.md).
+It requires an explicit current Owner/member observer and retained epoch, then
+selects all supported visible queue/token totals and hydrated stuck/retention
+references together as the final query. Existing response envelopes remain.
+Task-bound sources stay shared-only even for private creators/grantees.
+Notification operator authority is distinct from recipient/contact authority;
+GitHub binds exact outbox/delivery/installation/project/evidence lineage;
+applied recovery authorizes every supported target, including legitimate
+duplicate notification/GitHub target lists. Unsupported sources are uniformly
+excluded, not hidden only when private work exists. Failed recovery and cleared
+history lack a retained producer/source contract and contribute zero.
+
+These numbers mean currently visible supported sources, not that physical
+queues are drained. Use concise scoped count labels rather than adding default
+controls or diagnostic detail. Frozen diagnostic inventory retains its separately
+named legacy counts and remains uncertified. No execution or provider authority
+changes. This contract is not yet an implementation certificate.
+
 ## Activity read model
 
 - `GET /api/v1/workspaces/:ws/operations/activity` — owner, member, and
