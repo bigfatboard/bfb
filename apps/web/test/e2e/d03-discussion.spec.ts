@@ -275,10 +275,13 @@ test("keyboard, empty, loading, error, and narrow-layout cases pass", async ({ p
       .locator('[data-testid="discussion-start-form"], [data-testid="discussion-panel"]')
       .first(),
   ).toBeVisible();
-  const nativeControls = await section.evaluate(
-    (root) => [...root.querySelectorAll("button, select, input, textarea, a")].length,
-  );
-  expect(nativeControls).toBeGreaterThan(0);
+  await expect
+    .poll(() =>
+      section.evaluate(
+        (root) => [...root.querySelectorAll("button, select, input, textarea, a")].length,
+      ),
+    )
+    .toBeGreaterThan(0);
 
   // Loading renders committed-state copy, never a spinner claim.
   await page.route("**/api/v1/workspaces/*/tasks/*/discussions?*", async (route) => {

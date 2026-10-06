@@ -264,6 +264,11 @@ for (const theme of ["light", "dark"] as const) {
     expect(contrasts.length).toBeGreaterThan(10);
     expect(contrasts.filter((check) => check.ratio < 4.5)).toEqual([]);
     await page.screenshot({ path: path.join(evidenceDir, `board-${theme}.png`), fullPage: false });
+    await page.getByTestId("project-lanes").scrollIntoViewIfNeeded();
+    await page.screenshot({
+      path: path.join(evidenceDir, `board-lanes-${theme}.png`),
+      fullPage: false,
+    });
     await openTask(page);
     await page.screenshot({ path: path.join(evidenceDir, `task-${theme}.png`), fullPage: false });
     observations.push({
