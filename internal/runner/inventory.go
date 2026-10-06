@@ -30,9 +30,21 @@ type providerReport struct {
 }
 
 func LocalInventory(db *sql.DB) InventorySource {
-	registry, err := provider.NewRegistry(providers.Descriptors())
-	if err != nil {
-		panic("invalid compiled provider descriptors")
+	return LocalInventoryWithProviders(db, nil, nil)
+}
+
+// LocalInventoryWithProviders shares compiled registry and discovery with execution.
+// Nil dependencies keep production defaults; neither is remotely configurable.
+func LocalInventoryWithProviders(db *sql.DB, registry *provider.Registry, installation func(context.Context, string) (provider.Installation, error)) InventorySource {
+	if registry == nil {
+		var err error
+		registry, err = provider.NewRegistry(providers.Descriptors())
+		if err != nil {
+			panic("invalid compiled provider descriptors")
+		}
+	}
+	if installation == nil {
+		installation = providers.LocalInstallation
 	}
 	return func(ctx context.Context, enrollment Enrollment, projects []string, offset time.Duration) ([]byte, error) {
 		checkouts := []generated.CheckoutSummary{}
@@ -80,9 +92,9 @@ func LocalInventory(db *sql.DB) InventorySource {
 			}
 			now := time.Now()
 			report := providerReport{Provider: name, Status: "unavailable", Capabilities: []string{}, ObservedAt: now.Add(offset).UTC().Format(time.RFC3339Nano), ExpiresAt: now.Add(offset).Add(30 * time.Second).UTC().Format(time.RFC3339Nano)}
-			installation, installationErr := providers.LocalInstallation(ctx, name)
+			localInstallation, installationErr := installation(ctx, name)
 			if installationErr == nil {
-				probe, probeErr := registry.Probe(ctx, name, installation, now)
+				probe, probeErr := registry.Probe(ctx, name, localInstallation, now)
 				if probeErr == nil {
 					report.Version, report.ManifestID, report.Status = probe.Version, probe.ManifestID, probe.Status
 					report.Capabilities = append([]string{}, probe.Capabilities...)

@@ -14,6 +14,7 @@ import (
 	"github.com/qdis/bfb/internal/auth"
 	"github.com/qdis/bfb/internal/daemon"
 	"github.com/qdis/bfb/internal/notify"
+	"github.com/qdis/bfb/internal/provider"
 )
 
 type enrollmentWorker struct {
@@ -23,17 +24,19 @@ type enrollmentWorker struct {
 }
 
 type Manager struct {
-	mu          sync.Mutex
-	ctx         context.Context
-	cancel      context.CancelFunc
-	store       *Store
-	credentials Credentials
-	client      *http.Client
-	workers     map[string]*enrollmentWorker
-	consumers   map[string]CommandConsumer
-	inventory   InventorySource
-	heartbeat   time.Duration
-	notify      *notify.Service
+	mu           sync.Mutex
+	ctx          context.Context
+	cancel       context.CancelFunc
+	store        *Store
+	credentials  Credentials
+	client       *http.Client
+	workers      map[string]*enrollmentWorker
+	consumers    map[string]CommandConsumer
+	inventory    InventorySource
+	providers    *provider.Registry
+	installation func(context.Context, string) (provider.Installation, error)
+	heartbeat    time.Duration
+	notify       *notify.Service
 }
 
 // Credentials and HTTPClient are dependency boundaries for native integration
@@ -44,8 +47,13 @@ type ManagerOptions struct {
 	Credentials Credentials
 	HTTPClient  *http.Client
 	Inventory   InventorySource
-	Consumers   map[string]CommandConsumer
-	Notifier    notify.Notifier
+	// Providers optionally shares a compiled execution registry with inventory.
+	// It is not a wire/configuration extension or an inspection override.
+	Providers *provider.Registry
+	// Installation optionally shares compiled, pre-probe local discovery.
+	Installation func(context.Context, string) (provider.Installation, error)
+	Consumers    map[string]CommandConsumer
+	Notifier     notify.Notifier
 }
 
 func NewManager(options ManagerOptions) *Manager {
@@ -56,7 +64,7 @@ func NewManager(options ManagerOptions) *Manager {
 	for kind, accept := range options.Consumers {
 		consumers[kind] = accept
 	}
-	manager := &Manager{credentials: options.Credentials, client: options.HTTPClient, inventory: options.Inventory, consumers: consumers, workers: map[string]*enrollmentWorker{}, heartbeat: 20 * time.Second}
+	manager := &Manager{credentials: options.Credentials, client: options.HTTPClient, inventory: options.Inventory, providers: options.Providers, installation: options.Installation, consumers: consumers, workers: map[string]*enrollmentWorker{}, heartbeat: 20 * time.Second}
 	if options.Notifier != nil {
 		manager.notify = &notify.Service{
 			Connections: func(runnerID string) (notify.Connection, error) {
@@ -100,7 +108,7 @@ func (manager *Manager) Start(ctx context.Context, local *daemon.Store) (func(),
 		return nil, err
 	}
 	if manager.inventory == nil {
-		manager.inventory = LocalInventory(local.DB)
+		manager.inventory = LocalInventoryWithProviders(local.DB, manager.providers, manager.installation)
 	}
 	manager.ctx, manager.cancel = context.WithCancel(ctx)
 	for _, enrollment := range enrollments {
