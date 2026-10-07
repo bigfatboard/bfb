@@ -8,18 +8,18 @@ Timo split it from remote start and agent-to-agent work on 6 October. It starts
 from the integrated `7b8620c` checkpoint, preserving the existing implementation
 and certificates. Package metadata remains the source of truth for completion.
 
-Latest local checkpoint: [delegated attention read delivery](work-packages/evidence/WP-C11/attention-delivery-manifest.json),
-clean-certified at `3a2b0a6` through exact C11, X03 and full verification.
-C11 passes 2,427 stage invocation cases and 140 D1 checks; full verification
-passes 4,551 TypeScript cases, Go and all 16 Swift cases. Final attention
-selection retains exact historical lineage and original OAuth restrictions,
-rechecks current read authority and returns new canonical answers without read
-effects. This closes attention reads, not every OAuth response or private
-activation. Final task delivery and delegated task/project list selection are
-next. GitHub policy, execution-owned consumers and destructive private retention
-remain barriers. Private creation, sharing and checkpoints stay disabled; C11 is
-in progress, C12 planned, and the other mandatory product features remain
-unfinished. No rollout or pilot changed.
+Latest local checkpoint: [delegated task read delivery](work-packages/evidence/WP-C11/task-delivery-manifest.json),
+clean-certified at `4fc181e` through exact C11, X03 and full verification.
+C11 passes 2,459 stage invocation cases and 160 D1 checks; full verification
+passes 4,583 TypeScript cases, Go and all 16 Swift cases. Final task selection
+rechecks current read authority and original OAuth restrictions, returns
+current canonical fields and redacts an unreadable parent without read
+effects. This closes task reads, not every OAuth response or private
+activation. Delegated task/project list selection is next. GitHub policy,
+execution-owned consumers and destructive private retention remain barriers.
+Private creation, sharing and checkpoints stay disabled; C11 is in progress,
+C12 planned, and the other mandatory product features remain unfinished.
+No rollout or pilot changed.
 
 ## Ownership boundary
 
@@ -331,3 +331,12 @@ unresolved; live private R2 byte delivery remains uncertified. C12 stays planned
   creation/sharing/checkpoints remain disabled; C11 stays in progress, C12
   planned, and the other mandatory product features unfinished. No rollout or
   pilot changed.
+
+  The [delegated attention read checkpoint](work-packages/evidence/WP-C11/attention-delivery-manifest.json)
+  is clean-certified at `3a2b0a6`: C11 passes 2,427 stage invocation cases and
+  140 D1 checks across twelve harnesses, with exact X03 and full verification
+  passing 4,551 TypeScript cases, Go and all 16 Swift cases. Final canonical
+  attention selection retains exact historical lineage and original OAuth
+  restrictions. Current answers, read-only roles and ended historical
+  executions remain readable without read effects. Its evidence remains
+  unchanged.
