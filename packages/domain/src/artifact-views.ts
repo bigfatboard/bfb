@@ -427,12 +427,14 @@ export async function redeemViewGrant(
   });
   // The nonce, expiry, version, and membership/epoch fences are part of the
   // guarded update so revocation between the read above and the consume
-  // cannot grant view authority.
+  // cannot grant view authority. Its database-clock deadline still holds when
+  // this statement executes, independently of the captured observation.
   await db
     .prepare(
       `UPDATE artifact_view_grants SET consumed_at = ?
        WHERE id = ? AND grant_hash = ? AND view_nonce_hash = ?
          AND consumed_at IS NULL AND expires_at > ?
+         AND julianday(expires_at) > julianday('now')
          AND EXISTS (
            SELECT 1 FROM artifact_versions AS v
            JOIN artifacts AS artifact ON artifact.workspace_id = v.workspace_id AND artifact.id = v.artifact_id

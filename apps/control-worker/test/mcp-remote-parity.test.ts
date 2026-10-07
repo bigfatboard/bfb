@@ -277,6 +277,10 @@ describe("remote mcp parity extensions", () => {
     const db = await openDomainDb();
     const { runId } = await seedRun(db, "artifact-loop");
     const { accessToken } = await issueMcpAccess(db);
+    const clock = (await db
+      .prepare("SELECT strftime('%Y-%m-%dT%H:%M:%fZ', 'now') AS now")
+      .get()) as { now: string };
+    vi.setSystemTime(clock.now);
     const published = (await call(db, accessToken, "bfb_publish_artifact", {
       run_id: runId,
       format: "markdown",

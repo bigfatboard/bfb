@@ -103,6 +103,10 @@ async function fixture() {
      VALUES (?, ?, ?, ?, ?, ?, 'open', 'unknown', 1, ?)`,
     )
     .run(FIX.workspace, runId, FIX.projectA, taskId, FIX.owner, FIX.profileCodex, NOW);
+  const clock = (await db.prepare("SELECT strftime('%Y-%m-%dT%H:%M:%fZ', 'now') AS now").get()) as {
+    now: string;
+  };
+  vi.setSystemTime(clock.now);
   function human<I, R>(
     command: HubCommand<I, R>,
     input: I,
@@ -114,7 +118,7 @@ async function fixture() {
       actorHumanId: humanId,
       authorizationEpoch: 1,
       idempotencyKey: key,
-      now: NOW,
+      now: clock.now,
       input,
     });
   }
@@ -160,7 +164,7 @@ async function fixture() {
       }),
     );
   }
-  return { raw, db, hub, runId, human, create, removeProject, receipt };
+  return { raw, db, hub, runId, human, create, removeProject, receipt, now: clock.now };
 }
 
 beforeEach(() => {
@@ -222,7 +226,7 @@ describe("current artifact authority", () => {
       });
     }
     expect(await recover()).toMatchObject({ ok: false, error: { code: "request_rejected" } });
-    vi.setSystemTime(Date.parse(NOW) + ARTIFACT_GRANT_TTL_MS + ARTIFACT_ABANDON_GRACE_MS);
+    vi.setSystemTime(Date.parse(f.now) + ARTIFACT_GRANT_TTL_MS + ARTIFACT_ABANDON_GRACE_MS);
     expect(await recover(syntheticUlid("OTHERCRON"))).toMatchObject({
       ok: false,
       error: { code: "request_rejected" },
@@ -237,7 +241,7 @@ describe("current artifact authority", () => {
   it("preserves a stale recovery candidate while a reissued grant remains inside grace", async () => {
     const f = await fixture();
     const created = await f.create();
-    vi.setSystemTime(Date.parse(NOW) + ARTIFACT_GRANT_TTL_MS + ARTIFACT_ABANDON_GRACE_MS);
+    vi.setSystemTime(Date.parse(f.now) + ARTIFACT_GRANT_TTL_MS + ARTIFACT_ABANDON_GRACE_MS);
     const minted = mintUploadGrantSecret();
     const regrant = await f.human(issueArtifactGrantCommand, {
       versionId: created.version_id,
@@ -251,12 +255,12 @@ describe("current artifact authority", () => {
       idempotencyKey: randomUlid(),
       input: { versionId: created.version_id },
     };
-    vi.setSystemTime(Date.parse(NOW) + 2 * ARTIFACT_GRANT_TTL_MS + ARTIFACT_ABANDON_GRACE_MS + 1);
+    vi.setSystemTime(Date.parse(f.now) + 2 * ARTIFACT_GRANT_TTL_MS + ARTIFACT_ABANDON_GRACE_MS + 1);
     expect(await f.hub.execute(markArtifactFailedCommand, request)).toMatchObject({
       ok: false,
       error: { code: "request_rejected" },
     });
-    vi.setSystemTime(Date.parse(NOW) + 2 * (ARTIFACT_GRANT_TTL_MS + ARTIFACT_ABANDON_GRACE_MS));
+    vi.setSystemTime(Date.parse(f.now) + 2 * (ARTIFACT_GRANT_TTL_MS + ARTIFACT_ABANDON_GRACE_MS));
     expect(await f.hub.execute(markArtifactFailedCommand, request)).toMatchObject({ ok: true });
   });
 
@@ -266,7 +270,7 @@ describe("current artifact authority", () => {
       const f = await fixture();
       const created = await f.create();
       await f.receipt(created);
-      vi.setSystemTime(Date.parse(NOW) + ARTIFACT_GRANT_TTL_MS + ARTIFACT_ABANDON_GRACE_MS);
+      vi.setSystemTime(Date.parse(f.now) + ARTIFACT_GRANT_TTL_MS + ARTIFACT_ABANDON_GRACE_MS);
       const now = new Date().toISOString();
       let injected = false;
       const hub = new WorkspaceHub(
@@ -342,7 +346,7 @@ describe("current artifact authority", () => {
   it("retains a fresh consumed grant until its expiry plus grace", async () => {
     const f = await fixture();
     const created = await f.create();
-    vi.setSystemTime(Date.parse(NOW) + ARTIFACT_GRANT_TTL_MS + ARTIFACT_ABANDON_GRACE_MS);
+    vi.setSystemTime(Date.parse(f.now) + ARTIFACT_GRANT_TTL_MS + ARTIFACT_ABANDON_GRACE_MS);
     const minted = mintUploadGrantSecret();
     const reissued = await f.human(issueArtifactGrantCommand, {
       versionId: created.version_id,
@@ -371,7 +375,7 @@ describe("current artifact authority", () => {
     const f = await fixture();
     await f.create();
     await f.create();
-    vi.setSystemTime(Date.parse(NOW) + ARTIFACT_GRANT_TTL_MS + ARTIFACT_ABANDON_GRACE_MS);
+    vi.setSystemTime(Date.parse(f.now) + ARTIFACT_GRANT_TTL_MS + ARTIFACT_ABANDON_GRACE_MS);
     const now = new Date().toISOString();
     expect(await listAbandonedArtifactUploads(f.db, now, { limit: 1 })).toHaveLength(1);
     expect(

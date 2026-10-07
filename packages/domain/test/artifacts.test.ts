@@ -37,7 +37,6 @@ import { randomUlid, syntheticUlid } from "../src/ids.js";
 import { openDomainDb } from "./helpers.js";
 
 const NOW = "2026-09-17T12:00:00.000Z";
-const SWEEP = "2026-09-17T12:40:00.000Z";
 const DIGEST = createHash("sha256").update("synthetic-artifact").digest("hex");
 
 beforeEach(() => {
@@ -64,17 +63,21 @@ async function failure(promise: Promise<CommandOutcome<unknown>>): Promise<strin
 async function fixture() {
   const db = await openDomainDb();
   const hub = new WorkspaceHub(db);
+  const clock = (await db.prepare("SELECT strftime('%Y-%m-%dT%H:%M:%fZ', 'now') AS now").get()) as {
+    now: string;
+  };
+  vi.setSystemTime(clock.now);
   function human<T, R>(
     command: HubCommand<T, R>,
     input: T,
     overrides: { humanId?: string; epoch?: number; now?: string; key?: string } = {},
   ) {
-    vi.setSystemTime(overrides.now ?? NOW);
+    vi.setSystemTime(overrides.now ?? clock.now);
     return hub.execute(command, {
       workspaceId: FIX.workspace,
       actorHumanId: overrides.humanId ?? FIX.owner,
       authorizationEpoch: overrides.epoch ?? 1,
-      now: overrides.now ?? NOW,
+      now: overrides.now ?? clock.now,
       idempotencyKey: overrides.key ?? randomUlid(),
       input,
     });
@@ -109,7 +112,7 @@ async function fixture() {
     );
     return { ...created, secret: minted.secret };
   }
-  return { db, hub, human, create, createInput };
+  return { db, hub, human, create, createInput, now: clock.now };
 }
 
 describe("artifact state machine", () => {
@@ -239,7 +242,7 @@ describe("artifact state machine", () => {
   });
 
   it("rejects replay, wrong secrets, and expired grants", async () => {
-    const { db, human, create } = await fixture();
+    const { db, human, create, now } = await fixture();
     const created = await create();
     await redeemUploadGrant(db, {
       grantId: created.upload_grant.grant_id,
@@ -265,7 +268,7 @@ describe("artifact state machine", () => {
       redeemUploadGrant(db, {
         grantId: aged.upload_grant.grant_id,
         secret: aged.secret,
-        now: "2026-09-17T12:16:01.000Z",
+        now: new Date(Date.parse(now) + 16 * 60_000 + 1000).toISOString(),
       }),
     ).rejects.toThrow();
     const minted = mintUploadGrantSecret();
@@ -594,7 +597,7 @@ describe("artifact state machine", () => {
   });
 
   it("marks abandoned rows failed and leaves terminal history alone", async () => {
-    const { db, human, create } = await fixture();
+    const { db, human, create, now } = await fixture();
     const created = await create();
     const failed = result(
       await human(markArtifactFailedCommand, { versionId: created.version_id }),
@@ -612,17 +615,21 @@ describe("artifact state machine", () => {
         }),
       ),
     ).toBe("request_rejected");
-    const marked = await listAbandonedArtifactUploads(db, SWEEP);
+    const marked = await listAbandonedArtifactUploads(
+      db,
+      new Date(Date.parse(now) + 40 * 60_000).toISOString(),
+    );
     expect(marked).toEqual([]);
   });
 
   it("sweeps only uploading versions whose grants all expired past grace", async () => {
-    const { db, hub, human, create } = await fixture();
+    const { db, hub, human, create, now } = await fixture();
+    const sweep = new Date(Date.parse(now) + 40 * 60_000).toISOString();
     const stale = await create();
-    const fresh = await create({}, { now: "2026-09-17T12:39:00.000Z" });
-    const candidates = await listAbandonedArtifactUploads(db, SWEEP);
+    const fresh = await create({}, { now: new Date(Date.parse(now) + 39 * 60_000).toISOString() });
+    const candidates = await listAbandonedArtifactUploads(db, sweep);
     expect(candidates).toEqual([{ workspace_id: FIX.workspace, id: stale.version_id }]);
-    vi.setSystemTime(SWEEP);
+    vi.setSystemTime(sweep);
     const marked = await hub.execute(markArtifactFailedCommand, {
       workspaceId: FIX.workspace,
       actorSystemId: ARTIFACT_RECOVERY_SYSTEM_ID,
@@ -640,7 +647,7 @@ describe("artifact state machine", () => {
       workspaceId: FIX.workspace,
       actorSystemId: ARTIFACT_RECOVERY_SYSTEM_ID,
       authorizationEpoch: 1,
-      now: SWEEP,
+      now: sweep,
       idempotencyKey: randomUlid(),
       input: { versionId: fresh.version_id },
     });

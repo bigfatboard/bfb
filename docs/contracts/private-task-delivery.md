@@ -1451,6 +1451,45 @@ The exact additive target is `pnpm test:c11:artifact-bytes`, composed once by
 C11. Cursor compatibility, GitHub collisions, execution consumers, expiry and
 destructive retention keep their separate unresolved gates.
 
+### Frozen human artifact grant atomic expiry
+
+This finite C11 slice owns direct-human upload-grant consumption and human
+view-grant redemption. A captured request timestamp records an observation; it
+cannot extend a one-use grant's redemption deadline across awaited work.
+
+- Retain existing supplied-time checks, observation timestamps, secret/nonce,
+  role/epoch/project/task/version and one-use predicates. Add database-execution
+  clock expiry to the existing conditional consumption UPDATEs. The grant must
+  still be unexpired when that statement executes, not only when its inputs
+  were captured or its statement was prepared/bound.
+- An expired unchanged grant fails through the existing uniform no-store
+  `403 request_rejected`. Its consumption attempt, grant transition and durable
+  audit effects roll back together before upload bytes or view R2 reads. No
+  transport-owned business logic, kernel clock policy or new protocol is added.
+- Once consumption succeeds, grant TTL does not cancel body/R2 completion,
+  verified receipt or explicit finalization. Current parent/epoch/role delivery
+  fences and exact consumed lineage still apply; a later response denial does
+  not undo committed consumption or erase history.
+- Reproduce OLD native upload and view consumption using database-clock-aligned
+  live grants and an independently witnessed delay after statements are prepared
+  and bound, before their actual atomic batch. Grant/credential/authority rows
+  and supplied time remain unchanged during the delay. Equally delayed live
+  controls preserve useful bytes and original occurrence timestamps.
+- Prove expired fixed requests have no body/storage/consume/audit effects,
+  canonical rows and FKs remain unchanged apart from separate HTTP budgets, and
+  already-consumed live controls can finish after TTL with retained one-use
+  history. Short-deadline grant rows are explicitly synthetic; native fixtures
+  retain historical issuance offsets. Neither changes production issuance TTL
+  or implies a real sign-in ceremony.
+- Retain all prior artifact controls. Test-only seams forward native D1 batches
+  and R2 operations and report bounded outcomes and measured SQL/binding bounds;
+  no installed app, persistent pilot, deployment or private activation is claimed.
+
+The owning target remains `pnpm test:c11:artifact-bytes`, composed once by C11.
+Agent upload grants/replies, operations step-up proofs, runner/lease expiry,
+destructive retention and the wider temporal matrix remain separately owned.
+This contract does not certify its implementation or complete C11 acceptance.
+
 ## Delivery inventory and required proof
 
 | Surface | Existing owner / entry points | C11 completion check |

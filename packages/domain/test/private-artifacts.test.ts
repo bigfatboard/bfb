@@ -72,6 +72,10 @@ async function fixture() {
       "INSERT INTO task_privacy (workspace_id,task_id,owner_human_id,created_at) VALUES (?,?,?,?)",
     )
     .run(FIX.workspace, taskId, FIX.member, NOW);
+  const clock = (await db.prepare("SELECT strftime('%Y-%m-%dT%H:%M:%fZ', 'now') AS now").get()) as {
+    now: string;
+  };
+  vi.setSystemTime(clock.now);
   function human<I, R>(
     command: HubCommand<I, R>,
     input: I,
@@ -84,7 +88,7 @@ async function fixture() {
       actorHumanId: humanId,
       authorizationEpoch: 1,
       idempotencyKey: key,
-      now: NOW,
+      now: clock.now,
       input,
     });
   }
@@ -180,7 +184,7 @@ async function fixture() {
         humanId,
       ),
     );
-    return { viewId: grant.view_id, secret: minted.secret, nonce, now: NOW };
+    return { viewId: grant.view_id, secret: minted.secret, nonce, now: clock.now };
   }
   const review = (created: Awaited<ReturnType<typeof create>>) => ({
     artifactId: created.artifact_id,
@@ -239,6 +243,7 @@ async function fixture() {
   }
   return {
     db,
+    now: clock.now,
     hub,
     taskId,
     runId,
@@ -739,7 +744,7 @@ describe("private artifact delivery", () => {
     const f = await fixture(),
       hidden = await f.create(),
       free = await f.create(FIX.owner, null),
-      later = "2026-10-06T12:21:00.000Z";
+      later = new Date(Date.parse(f.now) + 21 * 60_000).toISOString();
     vi.setSystemTime(later);
     expect(await listAbandonedArtifactUploads(f.db, later, { limit: 1 })).toEqual([
       { workspace_id: FIX.workspace, id: free.version_id },

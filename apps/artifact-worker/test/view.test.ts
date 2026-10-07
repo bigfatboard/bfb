@@ -38,7 +38,6 @@ import {
 } from "../src/view.js";
 
 const NOW = "2026-09-17T12:00:00.000Z";
-const LATE = "2026-09-17T12:05:01.000Z";
 const ORIGIN = "https://artifacts.bfb.example.test";
 const APP_ORIGIN = "https://bfb.example.test";
 const ABUSE_SECRET = "v02-unit-test-abuse-secret-71aa90xx-long";
@@ -106,6 +105,13 @@ async function openDb(): Promise<SqlDatabase> {
   return db;
 }
 
+async function databaseTime(db: SqlDatabase): Promise<string> {
+  const row = (await db.prepare("SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now') AS now").get()) as {
+    now: string;
+  };
+  return row.now;
+}
+
 function env(r2: R2Bucket) {
   return {
     ARTIFACTS: r2,
@@ -122,9 +128,9 @@ async function call(
   db: SqlDatabase,
   r2: R2Bucket,
   request: Request,
-  now: string = NOW,
+  now?: string,
 ): Promise<Response> {
-  return createArtifactFetchHandler({ db, now })(request, env(r2));
+  return createArtifactFetchHandler({ db, now: now ?? (await databaseTime(db)) })(request, env(r2));
 }
 
 async function publish(
@@ -134,11 +140,12 @@ async function publish(
 ): Promise<{ version_id: string; content_hash: string }> {
   const hub = new WorkspaceHub(db);
   const minted = mintUploadGrantSecret();
+  const now = await databaseTime(db);
   const created = await hub.execute(createArtifactCommand, {
     workspaceId: FIX.workspace,
     actorHumanId: FIX.owner,
     authorizationEpoch: 1,
-    now: NOW,
+    now,
     idempotencyKey: randomUlid(),
     input: {
       artifactId: null,
@@ -154,7 +161,7 @@ async function publish(
   const consumed = await redeemUploadGrant(db, {
     grantId: created.result.upload_grant.grant_id,
     secret: minted.secret,
-    now: NOW,
+    now,
   });
   const key = artifactObjectKey({
     workspaceId: FIX.workspace,
@@ -170,14 +177,14 @@ async function publish(
       consumeAttemptId: consumed.consumeAttemptId,
       contentHash: digest(options.bytes),
       size: options.bytes.byteLength,
-      now: NOW,
+      now,
     }),
   );
   const finalized = await hub.execute(finalizeArtifactCommand, {
     workspaceId: FIX.workspace,
     actorHumanId: FIX.owner,
     authorizationEpoch: 1,
-    now: NOW,
+    now,
     idempotencyKey: randomUlid(),
     input: {
       versionId: created.result.version_id,
@@ -192,7 +199,7 @@ async function publish(
 async function issue(
   db: SqlDatabase,
   versionId: string,
-): Promise<{ view_id: string; secret: string; nonce: string }> {
+): Promise<{ view_id: string; secret: string; nonce: string; expires_at: string }> {
   const hub = new WorkspaceHub(db);
   const minted = mintViewGrantSecret();
   const nonce = mintViewNonce();
@@ -200,7 +207,7 @@ async function issue(
     workspaceId: FIX.workspace,
     actorHumanId: FIX.owner,
     authorizationEpoch: 1,
-    now: NOW,
+    now: await databaseTime(db),
     idempotencyKey: randomUlid(),
     input: {
       versionId,
@@ -211,7 +218,12 @@ async function issue(
   });
   if (!outcome.ok) throw new Error(JSON.stringify(outcome));
   const issued = issueViewGrantResponse(outcome.result, minted.secret, nonce);
-  return { view_id: issued.view_id, secret: issued.secret, nonce: issued.nonce };
+  return {
+    view_id: issued.view_id,
+    secret: issued.secret,
+    nonce: issued.nonce,
+    expires_at: issued.expires_at,
+  };
 }
 
 function bootstrapRequest(viewId: string, init: RequestInit = {}): Request {
@@ -533,10 +545,10 @@ describe("artifact view redemption", () => {
     const r2 = fakeR2();
     const version = await publish(db, r2, { format: "html", bytes: HTML });
     const grant = await issue(db, version.version_id);
-    const expired = await createArtifactFetchHandler({ db, now: LATE })(
-      redeemRequest(grant.view_id, grant.secret, grant.nonce),
-      env(r2.bucket),
-    );
+    const expired = await createArtifactFetchHandler({
+      db,
+      now: new Date(Date.parse(grant.expires_at) + 1_000).toISOString(),
+    })(redeemRequest(grant.view_id, grant.secret, grant.nonce), env(r2.bucket));
     expect(expired.status).toBe(403);
     const live = await issue(db, version.version_id);
     await bumpMemberEpoch(db, FIX.workspace, FIX.owner);

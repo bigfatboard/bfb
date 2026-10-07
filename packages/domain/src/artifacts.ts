@@ -942,6 +942,8 @@ export async function redeemUploadGrant(
     .run(candidate.workspace_id, input.grantId, attemptId, input.now);
   // Repeat current role/project and exact grant scope at commit, because the
   // candidate and principal reads happen before D1 flushes this write batch.
+  // Human redemption also checks the database clock; a captured observation
+  // cannot extend its deadline while this consume batch waits to execute.
   if (agentAuthority) {
     await db
       .prepare(
@@ -959,6 +961,7 @@ export async function redeemUploadGrant(
       .prepare(
         `UPDATE artifact_upload_grants SET consumed_at = ?
        WHERE id = ? AND grant_hash = ? AND consumed_at IS NULL AND expires_at > ?
+         AND julianday(expires_at) > julianday('now')
          AND EXISTS (
            SELECT 1 FROM artifact_versions AS v
            JOIN artifacts AS a ON a.workspace_id = v.workspace_id AND a.id = v.artifact_id

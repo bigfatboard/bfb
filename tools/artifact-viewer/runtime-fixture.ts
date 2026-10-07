@@ -52,6 +52,9 @@ async function incoming(request: IncomingMessage, origin: string): Promise<Reque
     if (value !== undefined) headers.set(key, Array.isArray(value) ? value.join(", ") : value);
   }
   headers.set("cf-connecting-ip", "192.0.2.151");
+  if (!headers.has("x-v02-test-time")) {
+    headers.set("x-v02-test-time", new Date().toISOString());
+  }
   const url = new URL(request.url ?? "/", origin);
   return new Request(url, {
     method: request.method ?? "GET",
@@ -271,6 +274,7 @@ export async function startV02RuntimeFixture(
         cookie: COOKIE,
         "x-bfb-csrf": CSRF,
         "cf-connecting-ip": "192.0.2.150",
+        "x-v02-test-time": new Date().toISOString(),
       },
       body: JSON.stringify(body),
     }) as unknown as Promise<Response>;
@@ -301,6 +305,7 @@ export async function startV02RuntimeFixture(
       headers: {
         authorization: `Bearer ${prepared.upload_grant.secret}`,
         "cf-connecting-ip": "192.0.2.150",
+        "x-v02-test-time": new Date().toISOString(),
       },
       body: bytes as unknown as never,
     });

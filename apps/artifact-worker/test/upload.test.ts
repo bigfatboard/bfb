@@ -5,7 +5,7 @@ import Database from "better-sqlite3";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { adaptBetterSqlite3, applyMigrationsForVerification, type SqlDatabase } from "@bfb/db";
 import {
@@ -28,12 +28,6 @@ const PNG = Uint8Array.from([
   0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
 ]);
 const TEXT = new TextEncoder().encode("# synthetic review\n");
-
-beforeEach(() => {
-  vi.useFakeTimers({ toFake: ["Date"] });
-  vi.setSystemTime(NOW);
-});
-afterEach(() => vi.useRealTimers());
 
 function digest(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex");
@@ -104,6 +98,13 @@ async function openDb(): Promise<SqlDatabase> {
   return db;
 }
 
+async function databaseTime(db: SqlDatabase): Promise<string> {
+  const row = (await db.prepare("SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now') AS now").get()) as {
+    now: string;
+  };
+  return row.now;
+}
+
 async function grant(
   db: SqlDatabase,
   overrides: { format?: string; role?: string; bytes?: Uint8Array } = {},
@@ -115,7 +116,7 @@ async function grant(
     workspaceId: FIX.workspace,
     actorHumanId: FIX.owner,
     authorizationEpoch: 1,
-    now: NOW,
+    now: await databaseTime(db),
     idempotencyKey: randomUlid(),
     input: {
       artifactId: null,
@@ -149,8 +150,9 @@ async function upload(
   r2: R2Bucket,
   request: Request,
   abuseSecret: string = ABUSE_SECRET,
+  now?: string,
 ) {
-  const handler = createArtifactFetchHandler({ db, now: NOW });
+  const handler = createArtifactFetchHandler({ db, now: now ?? (await databaseTime(db)) });
   return handler(request, {
     ARTIFACTS: r2,
     DB: {} as D1Database,
@@ -233,7 +235,10 @@ describe("artifact upload", () => {
     );
     expect(fresh.status).toBe(200);
     const second = await grant(db);
-    const expired = createArtifactFetchHandler({ db, now: "2026-09-17T12:16:01.000Z" });
+    const expired = createArtifactFetchHandler({
+      db,
+      now: new Date(Date.parse(second.created.upload_grant.expires_at) + 1_000).toISOString(),
+    });
     const response = await expired(
       uploadRequest(second.created.upload_grant.grant_id, second.secret, second.bytes),
       {
@@ -275,7 +280,7 @@ describe("artifact upload", () => {
       workspaceId: FIX.workspace,
       actorHumanId: FIX.owner,
       authorizationEpoch: 1,
-      now: NOW,
+      now: await databaseTime(db),
       idempotencyKey: randomUlid(),
       input: {
         artifactId: null,
@@ -568,6 +573,8 @@ describe("artifact upload", () => {
       broken,
       r2.bucket,
       uploadRequest(created.upload_grant.grant_id, secret, bytes),
+      ABUSE_SECRET,
+      await databaseTime(db),
     );
     expect(d1Fault.status).toBe(403);
     expect(r2.objects.size).toBe(0);
@@ -639,7 +646,7 @@ describe("artifact upload", () => {
       workspaceId: FIX.workspace,
       actorHumanId: FIX.owner,
       authorizationEpoch: 1,
-      now: NOW,
+      now: await databaseTime(db),
       idempotencyKey: randomUlid(),
       input: { versionId: first.created.version_id, grantSecretHash: minted.secretHash },
     });

@@ -93,6 +93,8 @@ presentation, natural expiry or an OLD security-failure claim.
 
 Next product-owned slice is human artifact upload/view grant natural expiry at
 atomic consumption; retained request timestamps must not extend a grant.
+The delivery contract now freezes the consume-only database-clock rule and
+unchanged-grant native delay proof; implementation is not yet certified.
 GitHub manual-link collision policy and historical source fences, execution-
 owned delivery and destructive private retention remain open. Timo separately
 authorized merge and first Cloudflare beta deployment after the product work

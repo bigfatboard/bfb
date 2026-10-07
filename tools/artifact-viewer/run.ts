@@ -23,11 +23,11 @@ import { createTestHarness } from "wrangler";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const ORIGIN = "https://bfb.v02.test";
 const ARTIFACT_ORIGIN = "https://artifacts.v02.test";
-const T0 = "2026-09-17T12:00:00.000Z";
-const T1 = "2026-09-17T12:05:00.000Z";
-const T1_LATE = "2026-09-17T12:11:01.000Z";
-const T2 = "2026-09-17T12:10:00.000Z";
-const T3 = "2026-09-17T12:15:00.000Z";
+let T0: string;
+let T1: string;
+let T1_LATE: string;
+let T2: string;
+let T3: string;
 const SIGNING = "v02-runtime-current-signing-key-55c1e7";
 const SESSION = "v02-synthetic-session";
 const SESSION_TOKEN = "v02-synthetic-session-token";
@@ -382,6 +382,14 @@ try {
   await worker.applyD1Migrations("DB");
   const env = (await worker.getEnv()) as unknown as { DB: D1Like };
   const db = adaptD1(env.DB);
+  const observed = (await db
+    .prepare("SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now') AS now")
+    .get()) as { now: string };
+  T0 = observed.now;
+  T1 = new Date(Date.parse(T0) + 5 * 60_000).toISOString();
+  T1_LATE = new Date(Date.parse(T0) + 11 * 60_000 + 1_000).toISOString();
+  T2 = new Date(Date.parse(T0) + 10 * 60_000).toISOString();
+  T3 = new Date(Date.parse(T0) + 15 * 60_000).toISOString();
 
   await seedSyntheticWorkspace(db, T0, "global");
   await seedHuman(db, "v02-user", SESSION, SESSION_TOKEN, FIX.owner, "owner@synthetic.test");

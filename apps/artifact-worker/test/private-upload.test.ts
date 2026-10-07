@@ -1,7 +1,7 @@
 // ABOUTME: Proves private upload receipt effects require current contribution after byte awaits.
 // ABOUTME: Mounted fake R2 and request-body interleavings never disclose rejected artifact metadata.
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import type { SqlDatabase } from "@bfb/db";
 import {
   artifactHash,
@@ -19,53 +19,50 @@ import {
 import { openDomainDb } from "../../../packages/domain/test/helpers.js";
 import { createArtifactFetchHandler } from "../src/index.js";
 
-const NOW = "2026-10-06T12:00:00.000Z";
 const ORIGIN = "https://artifacts.bfb.example.test";
 const TEXT = "SYNTHETIC_PRIVATE_UPLOAD_BYTES";
 const BYTES = new TextEncoder().encode(TEXT);
 const DIGEST = artifactHash(BYTES);
-
-beforeEach(() => {
-  vi.useFakeTimers({ toFake: ["Date"] });
-  vi.setSystemTime(NOW);
-});
-afterEach(() => vi.useRealTimers());
 
 async function fixture() {
   const db = await openDomainDb(),
     taskId = randomUlid(),
     runId = randomUlid(),
     taskGrantId = randomUlid();
+  const { now } = (await db
+    .prepare("SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now') AS now")
+    .get()) as { now: string };
   await db
     .prepare(
       `INSERT INTO tasks
     (workspace_id,id,project_id,title,state,priority,next_owner_type,punchline,resource_version,created_by_human_id,created_at)
     VALUES (?,?,?,'Synthetic private upload task','ready','P2','unassigned','Synthetic',1,?,?)`,
     )
-    .run(FIX.workspace, taskId, FIX.projectA, FIX.member, NOW);
+    .run(FIX.workspace, taskId, FIX.projectA, FIX.member, now);
   await db
     .prepare(
       `INSERT INTO runs
     (workspace_id,id,project_id,task_id,requested_by_human_id,agent_profile_id,result_state,activity,resource_version,created_at)
     VALUES (?,?,?,?,?,?,'open','unknown',1,?)`,
     )
-    .run(FIX.workspace, runId, FIX.projectA, taskId, FIX.member, FIX.profileCodex, NOW);
+    .run(FIX.workspace, runId, FIX.projectA, taskId, FIX.member, FIX.profileCodex, now);
   await db
     .prepare(
       "INSERT INTO task_privacy (workspace_id,task_id,owner_human_id,created_at) VALUES (?,?,?,?)",
     )
-    .run(FIX.workspace, taskId, FIX.member, NOW);
+    .run(FIX.workspace, taskId, FIX.member, now);
   await db
     .prepare(
       `INSERT INTO task_human_grants
     (workspace_id,id,task_id,human_id,authorization_epoch,permission,created_at) VALUES (?,?,?,?,1,'contribute',?)`,
     )
-    .run(FIX.workspace, taskGrantId, taskId, FIX.owner, NOW);
+    .run(FIX.workspace, taskGrantId, taskId, FIX.owner, now);
   const minted = mintUploadGrantSecret(),
     outcome = await new WorkspaceHub(db).execute(createArtifactCommand, {
       workspaceId: FIX.workspace,
       actorHumanId: FIX.owner,
       authorizationEpoch: 1,
+      now,
       idempotencyKey: randomUlid(),
       input: {
         runId,
@@ -88,7 +85,7 @@ async function fixture() {
     },
   } as unknown as R2Bucket;
   const revoke = async () => {
-    await db.prepare("UPDATE task_human_grants SET revoked_at=? WHERE id=?").run(NOW, taskGrantId);
+    await db.prepare("UPDATE task_human_grants SET revoked_at=? WHERE id=?").run(now, taskGrantId);
   };
   const upload = async (uploadDb: SqlDatabase = db) => {
     const body = new ReadableStream<Uint8Array>(
@@ -101,7 +98,7 @@ async function fixture() {
       },
       { highWaterMark: 0 },
     );
-    return createArtifactFetchHandler({ db: uploadDb, now: NOW })(
+    return createArtifactFetchHandler({ db: uploadDb, now })(
       new Request(`${ORIGIN}/upload/${created.upload_grant.grant_id}`, {
         method: "PUT",
         headers: {
@@ -122,7 +119,7 @@ async function fixture() {
       },
     );
   };
-  return { db, created, taskId, runId, taskGrantId, hooks, revoke, upload, puts: () => puts };
+  return { db, now, created, taskId, runId, taskGrantId, hooks, revoke, upload, puts: () => puts };
 }
 
 type Fixture = Awaited<ReturnType<typeof fixture>>;
@@ -313,7 +310,7 @@ describe("private upload receipt delivery", () => {
         await f.db
           .prepare("SELECT revoked_at FROM task_human_grants WHERE workspace_id=? AND id=?")
           .get(FIX.workspace, f.taskGrantId),
-      ).toEqual({ revoked_at: NOW });
+      ).toEqual({ revoked_at: f.now });
     });
     const response = await f.upload(cut.db);
     await cut.assertCommitted();
@@ -356,7 +353,7 @@ describe("private upload receipt delivery", () => {
             (workspace_id,id,task_id,human_id,authorization_epoch,permission,created_at)
             VALUES (?,?,?,?,1,'read',?)`,
             )
-            .run(FIX.workspace, readGrant, f.taskId, FIX.owner, NOW);
+            .run(FIX.workspace, readGrant, f.taskId, FIX.owner, f.now);
           expect(
             await f.db
               .prepare(
@@ -368,7 +365,7 @@ describe("private upload receipt delivery", () => {
             await f.db
               .prepare("SELECT revoked_at FROM task_human_grants WHERE workspace_id=? AND id=?")
               .get(FIX.workspace, f.taskGrantId),
-          ).toEqual({ revoked_at: NOW });
+          ).toEqual({ revoked_at: f.now });
         } else {
           await f.db
             .prepare(
@@ -439,6 +436,7 @@ describe("private upload receipt delivery", () => {
       workspaceId: FIX.workspace,
       actorHumanId: FIX.owner,
       authorizationEpoch: 1,
+      now: f.now,
       idempotencyKey: randomUlid(),
       input: {
         runId: f.runId,
@@ -454,7 +452,7 @@ describe("private upload receipt delivery", () => {
       redeemUploadGrant(tx, {
         grantId: created.result.upload_grant.grant_id,
         secret: mint.secret,
-        now: NOW,
+        now: f.now,
       }),
     );
     const cut = afterReceiptCommit(f, async (consumed) => {

@@ -171,13 +171,19 @@ export async function startV02E2EFixture(options: {
   artPort: number;
   now?: string;
 }): Promise<V02E2EFixture> {
-  const now = options.now ?? "2026-09-17T12:00:00.000Z";
   const appUrl = `http://bfb.localhost:${options.appPort}`;
   const artUrl = `http://artifacts.bfb.localhost:${options.artPort}`;
   const raw = new Database(":memory:");
   raw.pragma("foreign_keys = ON");
   applyMigrationsForVerification(raw as unknown as MigrationDatabase, migrationsDir);
   const db = adaptBetterSqlite3(raw);
+  const now =
+    options.now ??
+    (
+      (await db.prepare("SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now') AS now").get()) as {
+        now: string;
+      }
+    ).now;
   await seedSyntheticWorkspace(db, now, "global");
   const objects = new Map<string, Uint8Array>();
   const hits: V02E2EFixture["hits"] = [];
@@ -242,7 +248,6 @@ export async function startV02E2EFixture(options: {
       } as unknown as R2ObjectBody;
     },
   } as unknown as R2Bucket;
-  const handler = createArtifactFetchHandler({ db, now });
   const artifactEnv = {
     ARTIFACTS: bucket,
     DB: {} as D1Database,
@@ -264,7 +269,17 @@ export async function startV02E2EFixture(options: {
           headers: req.headers as Record<string, string>,
           ...(body.length > 0 ? { body: body as unknown as BodyInit } : {}),
         });
-        const response = await handler(request, artifactEnv);
+        const observed =
+          options.now ??
+          (
+            (await db.prepare("SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now') AS now").get()) as {
+              now: string;
+            }
+          ).now;
+        const response = await createArtifactFetchHandler({ db, now: observed })(
+          request,
+          artifactEnv,
+        );
         if (url.pathname.includes("/redeem")) {
           if (response.status === 200) state.redeemSuccess += 1;
           else state.redeemError += 1;
@@ -356,6 +371,13 @@ document.getElementById("redeem").submit();
   await new Promise<void>((resolve) => appServer.listen(options.appPort, "::", resolve));
 
   async function issueGrant(versionId: string): Promise<V02E2EGrant> {
+    const observed =
+      options.now ??
+      (
+        (await db.prepare("SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now') AS now").get()) as {
+          now: string;
+        }
+      ).now;
     const hub = new WorkspaceHub(db);
     const minted = mintViewGrantSecret();
     const nonce = mintViewNonce();
@@ -363,7 +385,7 @@ document.getElementById("redeem").submit();
       workspaceId: FIX.workspace,
       actorHumanId: FIX.owner,
       authorizationEpoch: 1,
-      now,
+      now: observed,
       idempotencyKey: randomUlid(),
       input: {
         versionId,

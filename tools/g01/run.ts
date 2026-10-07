@@ -2054,12 +2054,19 @@ try {
     // secret never appears in any stored row, response, or evidence line.
     const view = mintViewGrantSecret();
     const viewNonce = mintViewNonce();
-    const viewGrant = await human<{ view_id: string }>(createViewGrantCommand.name, {
-      versionId: created.version_id,
-      grantSecretHash: view.secretHash,
-      viewNonce,
-      sessionHash: artifactHash("g01-view-session"),
-    });
+    const viewNow = (await db
+      .prepare("SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now') AS now")
+      .get()) as { now: string };
+    const viewGrant = await human<{ view_id: string }>(
+      createViewGrantCommand.name,
+      {
+        versionId: created.version_id,
+        grantSecretHash: view.secretHash,
+        viewNonce,
+        sessionHash: artifactHash("g01-view-session"),
+      },
+      { now: viewNow.now },
+    );
     const viewRows = await db
       .prepare(`SELECT * FROM artifact_view_grants WHERE workspace_id = ? AND id = ?`)
       .get(FIX.workspace, viewGrant.view_id);
@@ -2069,7 +2076,7 @@ try {
       viewId: viewGrant.view_id,
       secret: view.secret,
       nonce: viewNonce,
-      now,
+      now: viewNow.now,
     });
     assert.equal(redeemedView.viewId, viewGrant.view_id, "exact view secret redeems once");
     try {
@@ -2077,7 +2084,7 @@ try {
         viewId: viewGrant.view_id,
         secret: view.secret,
         nonce: viewNonce,
-        now,
+        now: viewNow.now,
       });
     } catch (error) {
       viewReplay = (error as { code?: string }).code ?? "thrown";
@@ -2089,7 +2096,7 @@ try {
         viewId: viewGrant.view_id,
         secret: "wrong-view-secret-0000",
         nonce: viewNonce,
-        now,
+        now: viewNow.now,
       });
     } catch (error) {
       viewWrong = (error as { code?: string }).code ?? "thrown";

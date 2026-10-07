@@ -1006,6 +1006,10 @@ describe("delegated artifact publication", () => {
         ),
       ),
     ).toBe("forbidden");
+    const clock = (await db
+      .prepare("SELECT strftime('%Y-%m-%dT%H:%M:%fZ', 'now') AS now")
+      .get()) as { now: string };
+    vi.setSystemTime(clock.now);
     const minted = mintUploadGrantSecret();
     const humanCreated = ok(
       await hub.execute(
@@ -1050,6 +1054,10 @@ describe("delegated artifact publication", () => {
     const hub = new WorkspaceHub(db);
     const { runId } = await createTaskAndRun(db, hub, "finalize");
     const delegationId = await seedDelegation(db);
+    const clock = (await db
+      .prepare("SELECT strftime('%Y-%m-%dT%H:%M:%fZ', 'now') AS now")
+      .get()) as { now: string };
+    vi.setSystemTime(clock.now);
     const minted = mintUploadGrantSecret();
     const created = ok(
       await hub.execute(

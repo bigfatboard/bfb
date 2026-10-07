@@ -20,6 +20,19 @@ export interface ArtifactPrivacyEffects {
   fk_clean: boolean;
   maximum_bindings: number;
   maximum_statement_bytes: number;
+  maximum_batch_statements: number;
+  expiry_prepared_bound: boolean;
+  expiry_arrival_live: boolean;
+  expiry_before_batch_expired: boolean;
+  expiry_delay_unchanged: boolean;
+  expiry_batch_forwarded: boolean;
+  expiry_batch_rolled_back: boolean;
+  expiry_completion_after_ttl: boolean;
+  expiry_arrival_at: string | null;
+  expiry_before_batch_at: string | null;
+  expiry_completion_at: string | null;
+  expiry_deadline: string | null;
+  expiry_delay_ms: number;
 }
 type Seam = "before" | "get" | "body" | "put" | "receipt";
 type Snapshot = Record<string, Array<Record<string, unknown>>>;
@@ -39,6 +52,19 @@ const fresh = (): ArtifactPrivacyEffects => ({
   fk_clean: false,
   maximum_bindings: 0,
   maximum_statement_bytes: 0,
+  maximum_batch_statements: 0,
+  expiry_prepared_bound: false,
+  expiry_arrival_live: false,
+  expiry_before_batch_expired: false,
+  expiry_delay_unchanged: false,
+  expiry_batch_forwarded: false,
+  expiry_batch_rolled_back: false,
+  expiry_completion_after_ttl: false,
+  expiry_arrival_at: null,
+  expiry_before_batch_at: null,
+  expiry_completion_at: null,
+  expiry_deadline: null,
+  expiry_delay_ms: 0,
 });
 function requireWitness(value: unknown): asserts value {
   if (!value) throw new Error("synthetic artifact witness failed");
@@ -75,6 +101,7 @@ export default {
     const grantId = request.headers.get("x-c11-task-grant"),
       versionId = request.headers.get("x-c11-version");
     const projectLoss = request.headers.get("x-c11-project-access-loss");
+    const expiryMode = request.headers.get("x-c11-expiry-mode");
     if (
       scope !== null &&
       (scope.length !== 26 || !isUlid(scope) || effects.has(scope) || effects.size >= 64)
@@ -96,11 +123,56 @@ export default {
         !["before", "get", "body", "put", "receipt"].includes(phase))
     )
       return new Response(null, { status: 400 });
+    if (expiryMode && (!scope || phase || !["live", "expired"].includes(expiryMode)))
+      return new Response(null, { status: 400 });
     const count = fresh();
     if (scope) effects.set(scope, count);
     const raw = bindings.DB,
       db = adaptD1(raw);
     let afterMutation: Snapshot | undefined;
+    let beforeConsumption: Snapshot | undefined;
+    const uploadId = /^\/upload\/([^/]+)$/u.exec(url.pathname)?.[1];
+    const viewId = /^\/view\/([^/]+)\/redeem$/u.exec(url.pathname)?.[1];
+    const expiryTable = uploadId ? "artifact_upload_grants" : "artifact_view_grants";
+    const expiryGrantId = uploadId ?? viewId;
+    if (expiryMode && (!expiryGrantId || !isUlid(expiryGrantId)))
+      return new Response(null, { status: 400 });
+    async function grantClock() {
+      const value = (await db
+        .prepare(
+          `SELECT expires_at,consumed_at,strftime('%Y-%m-%dT%H:%M:%fZ','now') AS database_now,
+            julianday(expires_at)>julianday('now') AS live
+           FROM ${expiryTable} WHERE workspace_id=? AND id=?`,
+        )
+        .get(FIX.workspace, expiryGrantId)) as {
+        expires_at: string;
+        consumed_at: string | null;
+        database_now: string;
+        live: number;
+      } | null;
+      requireWitness(value);
+      return value;
+    }
+    async function waitForExpiry() {
+      const started = Date.now();
+      for (;;) {
+        const clock = await grantClock();
+        if (!clock.live) return clock;
+        requireWitness(Date.now() - started < 6_000);
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+    }
+    async function completeAfterExpiry() {
+      if (expiryMode !== "live" || count.expiry_completion_after_ttl) return;
+      const committed = await grantClock();
+      requireWitness(committed.consumed_at === now && count.expiry_batch_forwarded);
+      const before = await canonicalSnapshot(raw);
+      const clock = await waitForExpiry();
+      requireWitness(JSON.stringify(await canonicalSnapshot(raw)) === JSON.stringify(before));
+      requireWitness(clock.expires_at === count.expiry_deadline && clock.consumed_at === now);
+      count.expiry_completion_at = clock.database_now;
+      count.expiry_completion_after_ttl = true;
+    }
     async function revoke(at: Seam): Promise<void> {
       if (phase !== at || count.revoked) return;
       const before = await canonicalSnapshot(raw);
@@ -179,6 +251,7 @@ export default {
     // Preserve actual bound statements in native batch; wrapper identities never reach workerd's batch API.
     const native = new WeakMap<D1StatementLike, D1StatementLike>();
     const sqlFor = new WeakMap<D1StatementLike, string>();
+    const parametersFor = new WeakMap<D1StatementLike, unknown[]>();
     const measured: D1Like = {
       prepare(sql) {
         count.maximum_statement_bytes = Math.max(
@@ -186,12 +259,12 @@ export default {
           new TextEncoder().encode(sql).length,
         );
         requireWitness(count.maximum_statement_bytes <= 100_000);
-        const wrap = (statement: D1StatementLike): D1StatementLike => {
+        const wrap = (statement: D1StatementLike, parameters: unknown[] = []): D1StatementLike => {
           const wrapped: D1StatementLike = {
             bind(...parameters) {
               count.maximum_bindings = Math.max(count.maximum_bindings, parameters.length);
               requireWitness(parameters.length <= 100);
-              return wrap(statement.bind(...parameters));
+              return wrap(statement.bind(...parameters), parameters);
             },
             first: (column) => statement.first(column),
             all: () => statement.all(),
@@ -199,17 +272,63 @@ export default {
           };
           native.set(wrapped, statement);
           sqlFor.set(wrapped, sql);
+          parametersFor.set(wrapped, parameters);
           return wrapped;
         };
         return wrap(raw.prepare(sql));
       },
       async batch(statements) {
+        count.maximum_batch_statements = Math.max(
+          count.maximum_batch_statements,
+          statements.length,
+        );
         const receiptBatch = statements.some((statement) =>
           sqlFor.get(statement)?.includes("INSERT INTO artifact_upload_receipts"),
         );
-        const result = await raw.batch(
-          statements.map((statement) => native.get(statement) ?? statement),
+        const consumption = statements.find((statement) =>
+          /UPDATE\s+artifact_(?:upload|view)_grants\s+SET\s+consumed_at/u.test(
+            sqlFor.get(statement) ?? "",
+          ),
         );
+        if (expiryMode && consumption) {
+          requireWitness(!count.expiry_prepared_bound);
+          const parameters = parametersFor.get(consumption);
+          requireWitness(parameters?.[0] === now && parameters.includes(expiryGrantId));
+          requireWitness(statements.every((statement) => native.has(statement)));
+          count.expiry_prepared_bound = true;
+          beforeConsumption = await canonicalSnapshot(raw);
+          const arrival = await grantClock();
+          requireWitness(arrival.live === 1 && arrival.consumed_at === null);
+          requireWitness(Date.parse(arrival.expires_at) - Date.parse(arrival.database_now) >= 500);
+          requireWitness(Date.parse(now) < Date.parse(arrival.expires_at));
+          count.expiry_arrival_live = true;
+          count.expiry_arrival_at = arrival.database_now;
+          count.expiry_deadline = arrival.expires_at;
+          count.expiry_delay_ms = 2_200;
+          await new Promise((resolve) => setTimeout(resolve, count.expiry_delay_ms));
+          count.expiry_delay_unchanged =
+            JSON.stringify(await canonicalSnapshot(raw)) === JSON.stringify(beforeConsumption);
+          const clock = await grantClock();
+          count.expiry_before_batch_at = clock.database_now;
+          count.expiry_before_batch_expired = clock.live === 0;
+          requireWitness(count.expiry_delay_unchanged && clock.expires_at === arrival.expires_at);
+          requireWitness(
+            clock.consumed_at === null && clock.live === (expiryMode === "live" ? 1 : 0),
+          );
+          requireWitness(parametersFor.get(consumption)?.[0] === now);
+          count.expiry_batch_forwarded = true;
+        }
+        let result;
+        try {
+          result = await raw.batch(
+            statements.map((statement) => native.get(statement) ?? statement),
+          );
+        } catch (error) {
+          if (expiryMode && consumption && beforeConsumption)
+            count.expiry_batch_rolled_back =
+              JSON.stringify(await canonicalSnapshot(raw)) === JSON.stringify(beforeConsumption);
+          throw error;
+        }
         if (phase === "receipt" && receiptBatch) {
           requireWitness(versionId && versionId.length === 26 && isUlid(versionId));
           const witness = await db
@@ -241,6 +360,7 @@ export default {
           };
         if (key === "get")
           return async (...args: Parameters<R2Bucket["get"]>) => {
+            await completeAfterExpiry();
             count.get_calls++;
             const object = await target.get(...args);
             if (phase === "get") requireWitness(object);
@@ -273,7 +393,19 @@ export default {
               if (property === "getReader")
                 return () => {
                   count.body_reads++;
-                  return body.getReader();
+                  const reader = body.getReader();
+                  if (!uploadId || expiryMode !== "live") return reader;
+                  return new Proxy(reader, {
+                    get(target, property) {
+                      if (property === "read")
+                        return async () => {
+                          await completeAfterExpiry();
+                          return target.read();
+                        };
+                      const value = Reflect.get(target, property, target);
+                      return typeof value === "function" ? value.bind(target) : value;
+                    },
+                  });
                 };
               const value = Reflect.get(body, property, body);
               return typeof value === "function" ? value.bind(body) : value;
@@ -291,6 +423,12 @@ export default {
     if (afterMutation)
       count.canonical_unchanged =
         JSON.stringify(await canonicalSnapshot(raw)) === JSON.stringify(afterMutation);
+    if (expiryMode && beforeConsumption) {
+      count.canonical_unchanged =
+        JSON.stringify(await canonicalSnapshot(raw)) === JSON.stringify(beforeConsumption);
+      const consumed = await grantClock();
+      count.consume_committed = consumed.consumed_at === now;
+    }
     count.fk_clean = (await db.prepare("PRAGMA foreign_key_check").all()).length === 0;
     return response;
   },

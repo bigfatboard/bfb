@@ -1,7 +1,7 @@
 // ABOUTME: Proves private artifact bytes remain gated after asynchronous object reads.
 // ABOUTME: Synthetic task grants and fake R2 interleavings exercise the mounted byte consumer.
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   artifactHash,
   createArtifactCommand,
@@ -20,17 +20,10 @@ import {
 import { openDomainDb } from "../../../packages/domain/test/helpers.js";
 import { createArtifactFetchHandler } from "../src/index.js";
 
-const NOW = "2026-10-06T12:00:00.000Z";
 const ORIGIN = "https://artifacts.bfb.example.test";
 const PRIVATE_TEXT = "SYNTHETIC_PRIVATE_VIEW_BYTES";
 const BYTES = new TextEncoder().encode(PRIVATE_TEXT);
 const DIGEST = artifactHash(BYTES);
-
-beforeEach(() => {
-  vi.useFakeTimers({ toFake: ["Date"] });
-  vi.setSystemTime(NOW);
-});
-afterEach(() => vi.useRealTimers());
 
 async function fixture() {
   const db = await openDomainDb(),
@@ -38,36 +31,40 @@ async function fixture() {
     taskId = randomUlid(),
     runId = randomUlid(),
     taskGrantId = randomUlid();
+  const { now } = (await db
+    .prepare("SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now') AS now")
+    .get()) as { now: string };
   await db
     .prepare(
       `INSERT INTO tasks
     (workspace_id,id,project_id,title,state,priority,next_owner_type,punchline,resource_version,created_by_human_id,created_at)
     VALUES (?,?,?,'Synthetic private view task','ready','P2','unassigned','Synthetic',1,?,?)`,
     )
-    .run(FIX.workspace, taskId, FIX.projectA, FIX.member, NOW);
+    .run(FIX.workspace, taskId, FIX.projectA, FIX.member, now);
   await db
     .prepare(
       `INSERT INTO runs
     (workspace_id,id,project_id,task_id,requested_by_human_id,agent_profile_id,result_state,activity,resource_version,created_at)
     VALUES (?,?,?,?,?,?,'open','unknown',1,?)`,
     )
-    .run(FIX.workspace, runId, FIX.projectA, taskId, FIX.member, FIX.profileCodex, NOW);
+    .run(FIX.workspace, runId, FIX.projectA, taskId, FIX.member, FIX.profileCodex, now);
   await db
     .prepare(
       "INSERT INTO task_privacy (workspace_id,task_id,owner_human_id,created_at) VALUES (?,?,?,?)",
     )
-    .run(FIX.workspace, taskId, FIX.member, NOW);
+    .run(FIX.workspace, taskId, FIX.member, now);
   await db
     .prepare(
       `INSERT INTO task_human_grants
     (workspace_id,id,task_id,human_id,authorization_epoch,permission,created_at) VALUES (?,?,?,?,1,'read',?)`,
     )
-    .run(FIX.workspace, taskGrantId, taskId, FIX.owner, NOW);
+    .run(FIX.workspace, taskGrantId, taskId, FIX.owner, now);
   const command = <I, R>(definition: HubCommand<I, R>, input: I, humanId: string) =>
     hub.execute(definition, {
       workspaceId: FIX.workspace,
       actorHumanId: humanId,
       authorizationEpoch: 1,
+      now,
       idempotencyKey: randomUlid(),
       input,
     });
@@ -90,7 +87,7 @@ async function fixture() {
     redeemUploadGrant(tx, {
       grantId: publication.upload_grant.grant_id,
       secret: upload.secret,
-      now: NOW,
+      now,
     }),
   );
   await db.withTransaction((tx) =>
@@ -99,7 +96,7 @@ async function fixture() {
       consumeAttemptId: consumed.consumeAttemptId,
       contentHash: DIGEST,
       size: BYTES.length,
-      now: NOW,
+      now,
     }),
   );
   const final = await command(
@@ -142,7 +139,7 @@ async function fixture() {
     },
   } as unknown as R2Bucket;
   const revoke = async () => {
-    await db.prepare("UPDATE task_human_grants SET revoked_at=? WHERE id=?").run(NOW, taskGrantId);
+    await db.prepare("UPDATE task_human_grants SET revoked_at=? WHERE id=?").run(now, taskGrantId);
   };
   const env = {
     ARTIFACTS: bucket,
@@ -154,7 +151,7 @@ async function fixture() {
     UPLOAD_ABUSE_SECRET: "synthetic-private-view-abuse-secret-71aa90xx",
   };
   const redeem = (id = viewId) =>
-    createArtifactFetchHandler({ db, now: NOW })(
+    createArtifactFetchHandler({ db, now })(
       new Request(`${ORIGIN}/view/${id}/redeem`, {
         method: "POST",
         headers: {
@@ -165,7 +162,7 @@ async function fixture() {
       }),
       env,
     );
-  return { db, hooks, revoke, redeem, viewId, publication, gets: () => gets };
+  return { db, now, hooks, revoke, redeem, viewId, publication, gets: () => gets };
 }
 
 async function expectRejected(response: Response) {
@@ -198,7 +195,7 @@ describe("private artifact byte delivery", () => {
       expect(f.gets()).toBe(timing === "before" ? 0 : 1);
       expect(
         await f.db.prepare("SELECT consumed_at FROM artifact_view_grants WHERE id=?").get(f.viewId),
-      ).toEqual({ consumed_at: timing === "before" ? null : NOW });
+      ).toEqual({ consumed_at: timing === "before" ? null : f.now });
     },
   );
   it("rechecks the retained human epoch after the object body await", async () => {
@@ -206,7 +203,7 @@ describe("private artifact byte delivery", () => {
     f.hooks.bytes = async () => {
       await f.db
         .prepare("UPDATE workspace_authorization_epochs SET revoked_at=? WHERE human_id=?")
-        .run(NOW, FIX.owner);
+        .run(f.now, FIX.owner);
     };
     await expectRejected(await f.redeem());
   });

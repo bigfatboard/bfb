@@ -54,6 +54,10 @@ async function fixture() {
     email: "restricted@synthetic.test",
     now: NOW,
   });
+  const clock = (await context.db
+    .prepare("SELECT strftime('%Y-%m-%dT%H:%M:%fZ', 'now') AS now")
+    .get()) as { now: string };
+  vi.setSystemTime(clock.now);
   const fake = {};
   const env = {
     DB: fake,
@@ -138,6 +142,7 @@ async function fixture() {
   }
   return {
     db: context.db,
+    now: clock.now,
     post,
     create,
     raw,
@@ -320,10 +325,11 @@ describe("artifact browser routes", () => {
   });
 
   it("sweeps abandoned versions without touching live ones", async () => {
-    const { db, create } = await fixture();
+    const { db, create, now } = await fixture();
     await create();
-    vi.setSystemTime("2026-09-17T12:40:00.000Z");
-    const { marked } = await runArtifactSweep(db, "2026-09-17T12:40:00.000Z");
+    const sweep = new Date(Date.parse(now) + 40 * 60_000).toISOString();
+    vi.setSystemTime(sweep);
+    const { marked } = await runArtifactSweep(db, sweep);
     expect(marked.length).toBeGreaterThan(0);
     const rows = (await db.prepare(`SELECT state FROM artifact_versions`).all()) as Array<{
       state: string;

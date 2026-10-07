@@ -7,8 +7,13 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { adaptD1, loadMigrationManifest, type D1Like } from "@bfb/db";
 import {
+  ARTIFACT_GRANT_TTL_MS,
+  VIEW_GRANT_TTL_MS,
   artifactObjectKey,
   FIX,
+  mintUploadGrantSecret,
+  mintViewGrantSecret,
+  mintViewNonce,
   randomUlid,
   seedSyntheticWorkspace,
   type TaskRecord,
@@ -97,7 +102,7 @@ const server = createTestHarness({
     },
   ],
 });
-const bounds = { maximum_bindings: 0, maximum_statement_bytes: 0 };
+const bounds = { maximum_bindings: 0, maximum_statement_bytes: 0, maximum_batch_statements: 0 };
 const checks: Array<{ check: string; outcome: "passed" | "failed" }> = [];
 const failures: Array<{ check: string; phase: string; error_name: string }> = [];
 async function check(name: string, operation: (phase: (name: string) => void) => Promise<void>) {
@@ -159,6 +164,7 @@ type Probe = {
   taskGrantId?: string;
   versionId?: string;
   projectAccessLoss?: boolean;
+  expiryMode?: "live" | "expired";
 };
 type NativeResponse = Awaited<ReturnType<typeof server.fetch>>;
 function probeHeaders(probe?: Probe): Record<string, string> {
@@ -169,6 +175,7 @@ function probeHeaders(probe?: Probe): Record<string, string> {
         ...(probe.taskGrantId ? { "x-c11-task-grant": probe.taskGrantId } : {}),
         ...(probe.versionId ? { "x-c11-version": probe.versionId } : {}),
         ...(probe.projectAccessLoss ? { "x-c11-project-access-loss": "1" } : {}),
+        ...(probe.expiryMode ? { "x-c11-expiry-mode": probe.expiryMode } : {}),
       }
     : {};
 }
@@ -361,6 +368,10 @@ try {
       bounds.maximum_statement_bytes,
       value.maximum_statement_bytes,
     );
+    bounds.maximum_batch_statements = Math.max(
+      bounds.maximum_batch_statements,
+      value.maximum_batch_statements,
+    );
     assert(bounds.maximum_bindings <= 100 && bounds.maximum_statement_bytes <= 100_000);
     if (probe.seam) {
       assert(value.revoked && value.canonical_unchanged);
@@ -460,6 +471,71 @@ try {
       ).length,
       1,
     );
+  }
+
+  async function shortGrantWindow(ttl: number, mode: "live" | "expired") {
+    const clock = (await db
+      .prepare("SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now',?) AS expires_at")
+      .get(mode === "live" ? "+5 seconds" : "+2 seconds")) as { expires_at: string };
+    // Historical short-deadline fixtures are inserted once, before the request.
+    // They retain the production TTL distance; no immutable grant is rewritten.
+    return {
+      expiresAt: clock.expires_at,
+      createdAt: new Date(Date.parse(clock.expires_at) - ttl).toISOString(),
+    };
+  }
+  async function timedUpload(publication: Publication, mode: "live" | "expired") {
+    const secret = mintUploadGrantSecret(),
+      id = randomUlid(),
+      window = await shortGrantWindow(ARTIFACT_GRANT_TTL_MS, mode);
+    await db
+      .prepare(
+        `INSERT INTO artifact_upload_grants
+         (workspace_id,id,version_id,grant_hash,human_id,authorization_epoch,run_id,
+          format,declared_size,expected_digest,expires_at,consumed_at,created_at)
+         SELECT workspace_id,?,version_id,?,human_id,authorization_epoch,run_id,
+          format,declared_size,expected_digest,?,NULL,? FROM artifact_upload_grants
+         WHERE workspace_id=? AND id=? AND consumed_at IS NULL AND human_id=?`,
+      )
+      .run(
+        id,
+        secret.secretHash,
+        window.expiresAt,
+        window.createdAt,
+        FIX.workspace,
+        publication.upload_grant.grant_id,
+        FIX.owner,
+      );
+    return {
+      ...window,
+      publication: { ...publication, upload_grant: { grant_id: id, secret: secret.secret } },
+    };
+  }
+  async function timedView(issued: View, mode: "live" | "expired") {
+    const secret = mintViewGrantSecret(),
+      nonce = mintViewNonce(),
+      id = randomUlid(),
+      window = await shortGrantWindow(VIEW_GRANT_TTL_MS, mode);
+    await db
+      .prepare(
+        `INSERT INTO artifact_view_grants
+         (workspace_id,id,version_id,grant_hash,view_nonce_hash,human_id,session_hash,
+          authorization_epoch,content_hash,expires_at,consumed_at,created_at)
+         SELECT workspace_id,?,version_id,?,?,human_id,session_hash,
+          authorization_epoch,content_hash,?,NULL,? FROM artifact_view_grants
+         WHERE workspace_id=? AND id=? AND consumed_at IS NULL AND human_id=?`,
+      )
+      .run(
+        id,
+        secret.secretHash,
+        digest(new TextEncoder().encode(nonce)),
+        window.expiresAt,
+        window.createdAt,
+        FIX.workspace,
+        issued.view_id,
+        FIX.owner,
+      );
+    return { ...window, view: { view_id: id, secret: secret.secret, nonce } };
   }
 
   await check("healthy_private_shared_runfree_convergence_and_one_use", async (phase) => {
@@ -694,6 +770,132 @@ try {
       throw waveFailures[0]!.error;
     }
   });
+  for (const family of ["upload", "view"] as const) {
+    for (const mode of ["live", "expired"] as const) {
+      await check(
+        `human_${family}_grant_${mode === "live" ? "delayed_live_completion_after_ttl" : "natural_expiry_before_native_batch"}`,
+        async (phase) => {
+          const f = await fixture("contribute"),
+            bytes = body(`grant-clock-${family}-${mode}`),
+            publication = await create(bytes, f.runId);
+          if (family === "view") {
+            const uploaded = await upload(publication, bytes);
+            assert.equal(uploaded.status, 200);
+            await uploaded.arrayBuffer();
+            await finalize(publication, bytes);
+          }
+          const timed =
+            family === "upload"
+              ? await timedUpload(publication, mode)
+              : await timedView(await view(publication), mode);
+          const timedPublication = "publication" in timed ? timed.publication : null;
+          const timedIssued = "view" in timed ? timed.view : null;
+          const grantId = timedPublication?.upload_grant.grant_id ?? timedIssued!.view_id;
+          const table = family === "upload" ? "artifact_upload_grants" : "artifact_view_grants";
+          const storedGrant = (await db
+            .prepare(`SELECT * FROM ${table} WHERE workspace_id=? AND id=?`)
+            .get(FIX.workspace, grantId)) as Record<string, unknown>;
+          assert(storedGrant);
+          assert.equal(
+            Date.parse(timed.expiresAt) - Date.parse(timed.createdAt),
+            family === "upload" ? ARTIFACT_GRANT_TTL_MS : VIEW_GRANT_TTL_MS,
+          );
+          assert.equal(storedGrant.consumed_at, null);
+          const before = await snapshot(),
+            probe: Probe = { scope: randomUlid(), expiryMode: mode };
+          phase("native_prepared_bound_unchanged_live_arrival_then_clock_delay");
+          const response = timedPublication
+            ? await upload(timedPublication, bytes, probe)
+            : await redeem(timedIssued!, probe);
+          const effects = await observations(probe);
+          assert(
+            effects.expiry_prepared_bound &&
+              effects.expiry_arrival_live &&
+              effects.expiry_delay_unchanged &&
+              effects.expiry_batch_forwarded,
+          );
+          assert.equal(effects.expiry_deadline, timed.expiresAt);
+          assert.equal(effects.expiry_delay_ms, 2_200);
+          assert(Date.parse(effects.expiry_arrival_at!) < Date.parse(timed.expiresAt));
+          assert.equal(effects.expiry_before_batch_expired, mode === "expired");
+          assert(
+            Date.parse(effects.expiry_before_batch_at!) >= Date.parse(effects.expiry_arrival_at!),
+          );
+          if (mode === "expired") {
+            phase("uniform_expired_denial_before_body_storage_and_complete_rollback");
+            await denied(response);
+            assert(effects.expiry_batch_rolled_back && effects.canonical_unchanged);
+            assert.equal(effects.consume_committed, false);
+            assert.equal(effects.put_calls, 0);
+            assert.equal(effects.get_calls, 0);
+            assert.equal(effects.array_buffer_reads, 0);
+            if (family === "upload") assert.equal(effects.body_reads, 0);
+            assert.deepEqual(await snapshot(), before);
+            assert.deepEqual(
+              await db
+                .prepare(`SELECT * FROM ${table} WHERE workspace_id=? AND id=?`)
+                .get(FIX.workspace, grantId),
+              storedGrant,
+            );
+            if (family === "upload") {
+              const key = await publicationFacts(publication, bytes, f.runId, false);
+              assert.equal(await bucket.get(key), null);
+            } else await publicationFacts(publication, bytes, f.runId, true);
+          } else {
+            phase("successful_consumption_then_completion_after_unchanged_deadline");
+            assert.equal(response.status, 200);
+            assert(effects.consume_committed && effects.expiry_completion_after_ttl);
+            assert(Date.parse(effects.expiry_completion_at!) >= Date.parse(timed.expiresAt));
+            assert.equal(effects.expiry_batch_rolled_back, false);
+            assert.deepEqual(
+              await db
+                .prepare(`SELECT * FROM ${table} WHERE workspace_id=? AND id=?`)
+                .get(FIX.workspace, grantId),
+              { ...storedGrant, consumed_at: now },
+            );
+            const action =
+              family === "upload" ? "artifact.grant_consumed" : "artifact.view_redeemed";
+            assert.deepEqual(
+              await db
+                .prepare(
+                  "SELECT action,created_at FROM artifact_audit_outbox WHERE workspace_id=? AND version_id=? AND grant_id=? AND action=?",
+                )
+                .all(FIX.workspace, publication.version_id, grantId, action),
+              [{ action, created_at: now }],
+            );
+            if (timedPublication) {
+              assert.equal(
+                ((await response.json()) as { version_id: string }).version_id,
+                publication.version_id,
+              );
+              assert.equal(effects.body_reads, 1);
+              assert.equal(effects.put_calls, 1);
+              assert(effects.native_put_stored);
+              await publicationFacts(publication, bytes, f.runId, true);
+              assert.deepEqual(
+                await db
+                  .prepare(
+                    "SELECT consumed_at FROM artifact_upload_consumptions WHERE workspace_id=? AND grant_id=?",
+                  )
+                  .get(FIX.workspace, grantId),
+                { consumed_at: now },
+              );
+              // Expiry after successful consumption must not cancel explicit finalization.
+              await finalize(publication, bytes);
+              await assertReplay(() => upload(timedPublication, bytes));
+            } else {
+              assert.deepEqual(new Uint8Array(await response.arrayBuffer()), bytes);
+              assert.equal(effects.get_calls, 1);
+              assert.equal(effects.array_buffer_reads, 1);
+              await assertReplay(() => redeem(timedIssued!));
+              await publicationFacts(publication, bytes, f.runId, true);
+            }
+          }
+          await fk();
+        },
+      );
+    }
+  }
   const report = {
     checks,
     failures,

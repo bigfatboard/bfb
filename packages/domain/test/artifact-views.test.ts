@@ -35,7 +35,6 @@ import { randomUlid, syntheticUlid } from "../src/ids.js";
 import { openDomainDb } from "./helpers.js";
 
 const NOW = "2026-09-17T12:00:00.000Z";
-const LATE = "2026-09-17T12:05:01.000Z";
 const DIGEST = createHash("sha256").update("synthetic-artifact").digest("hex");
 const SESSION_HASH = createHash("sha256").update("synthetic-session").digest("hex");
 
@@ -57,6 +56,9 @@ async function failure(promise: Promise<CommandOutcome<unknown>>): Promise<strin
 async function fixture() {
   const db = await openDomainDb();
   const hub = new WorkspaceHub(db);
+  const clock = (await db.prepare("SELECT strftime('%Y-%m-%dT%H:%M:%fZ', 'now') AS now").get()) as {
+    now: string;
+  };
   function human<T, R>(
     command: HubCommand<T, R>,
     input: T,
@@ -66,7 +68,7 @@ async function fixture() {
       workspaceId: FIX.workspace,
       actorHumanId: overrides.humanId ?? FIX.owner,
       authorizationEpoch: overrides.epoch ?? 1,
-      now: overrides.now ?? NOW,
+      now: overrides.now ?? clock.now,
       idempotencyKey: overrides.key ?? randomUlid(),
       input,
     });
@@ -157,7 +159,7 @@ async function fixture() {
     );
     return { ...issueViewGrantResponse(grant, minted.secret, nonce), secret: minted.secret };
   }
-  return { db, hub, human, taskAndRun, available, issue };
+  return { db, hub, human, taskAndRun, available, issue, now: clock.now };
 }
 
 describe("artifact view grants", () => {
@@ -177,13 +179,13 @@ describe("artifact view grants", () => {
   });
 
   it("issues a grant bound to epoch, exact version, nonce, and expiry", async () => {
-    const { db, available, issue } = await fixture();
+    const { db, available, issue, now } = await fixture();
     const version = await available();
     const grant = await issue(version.version_id);
     expect(grant.version_id).toBe(version.version_id);
     expect(grant.content_hash).toBe(DIGEST);
     expect(grant.grant_hash).toBe(artifactHash(grant.secret));
-    expect(Date.parse(grant.expires_at) - Date.parse(NOW)).toBe(VIEW_GRANT_TTL_MS);
+    expect(Date.parse(grant.expires_at) - Date.parse(now)).toBe(VIEW_GRANT_TTL_MS);
     const row = (await db
       .prepare(`SELECT * FROM artifact_view_grants WHERE id = ?`)
       .get(grant.view_id)) as Record<string, unknown>;
@@ -418,7 +420,7 @@ describe("artifact view grants", () => {
         viewId: expired.view_id,
         secret: expired.secret,
         nonce: expired.nonce,
-        now: LATE,
+        now: new Date(Date.parse(expired.expires_at) + 1000).toISOString(),
       }),
     ).rejects.toThrow();
     const live = await issue(version.version_id);
