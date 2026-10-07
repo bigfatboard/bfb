@@ -8,18 +8,21 @@ Timo split it from remote start and agent-to-agent work on 6 October. It starts
 from the integrated `7b8620c` checkpoint, preserving the existing implementation
 and certificates. Package metadata remains the source of truth for completion.
 
-Latest local checkpoint: [human detail and cached business delivery](work-packages/evidence/WP-C11/human-detail-cache-manifest.json),
-clean-certified at `61cb5ae` through exact C11, X03 and full verification.
-C11 passes 2,527 stage invocation cases and 200 D1 checks across fifteen
-harnesses; full verification passes 4,651 TypeScript cases, Go and all 16 Swift
-cases. Browser/CLI attention detail shares canonical body/history selection;
-task and human/delegated attention caches retain current business authority
-without replacing historical replies. One expired healthy retry fixture was
-repaired without changing scopes or production clocks. Next is one cohesive
-public task-business response and CLI credential-ceiling pass, including original
-transport admission and completion after the actual Hub reply/body await.
-GitHub policy, execution-owned consumers and destructive private retention
-remain barriers.
+Latest local checkpoint: [public business delivery and CLI ceilings](work-packages/evidence/WP-C11/public-business-manifest.json),
+clean-certified at `4a7b399` through exact C11, X03 and full verification.
+C11 passes 2,614 stage invocation cases and 206 D1 checks across sixteen
+harnesses, with its notification drill counted separately. Full verification
+passes 4,738 TypeScript cases, Go and all 16 Swift cases. Typed public commands
+retain original transport ceilings through admission, committing, cached replay
+and final selection after the actual Hub reply/body await; CLI reads retain
+their exact binding and captured project subset. Native expression-depth and
+historical fixture failures were repaired before fresh complete certification.
+Next is coherent task-detail panel selection, stale-response/mutation guards,
+artifact-bound drafts and keyboard denied-state retry in both themes. Its UI
+tests are being verified; this is not yet a clean UI certificate. Malformed
+historical attention lineage in measurements is the following bounded
+investigation. GitHub policy, execution-owned consumers and destructive private
+retention remain barriers.
 Private creation, sharing and checkpoints stay disabled; C11 is in progress,
 C12 planned, and the other mandatory product features remain unfinished.
 No rollout or pilot changed.

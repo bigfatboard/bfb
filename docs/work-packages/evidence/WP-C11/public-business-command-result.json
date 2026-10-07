@@ -1,0 +1,181 @@
+{
+  "package": "C11",
+  "recorded_on": "2026-10-07",
+  "tested_commit": "4a7b399ac630845c296b5a437ae64356f44002d5",
+  "production_commit": "744a423eef3a23903c98b4fe4dabbc53f8f81c04",
+  "outcome": "passed",
+  "stage": "partial_public_business_delivery_cli_ceilings",
+  "package_acceptance_complete": false,
+  "private_creation_available": false,
+  "migration_head": "0047_security_audit_positions",
+  "scope": "Typed public task-business adapters retain original transport ceilings at admission, staged commit, cached replay and final delivery after the actual Hub reply/body await. Human CLI canonical readers retain exact binding authority and captured project subsets through their final selection. Local-agent result submission is excluded.",
+  "clean_certificate_marker": "C11_PUBLIC_BUSINESS_CLEAN_CERTIFICATE_OK",
+  "clean_commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "exit_code": 0
+    },
+    {
+      "command": "pnpm test:c11",
+      "exit_code": 0,
+      "c10_cases": 86,
+      "c10_files": 8,
+      "c10_d1_checks": 9,
+      "c08_cases": 23,
+      "c08_files": 5,
+      "c08_proof": "C08_D1_OK",
+      "stage_cases": 2614,
+      "stage_files": 101,
+      "stage_invocations": [
+        { "cases": 1861, "files": 64 },
+        { "cases": 4, "files": 2 },
+        { "cases": 23, "files": 2 },
+        { "cases": 18, "files": 2 },
+        { "cases": 31, "files": 2 },
+        { "cases": 34, "files": 2 },
+        { "cases": 32, "files": 2 },
+        { "cases": 36, "files": 2 },
+        { "cases": 32, "files": 2 },
+        { "cases": 87, "files": 4 },
+        { "cases": 68, "files": 3 },
+        { "cases": 27, "files": 2 },
+        { "cases": 54, "files": 2 },
+        { "cases": 41, "files": 3 },
+        { "cases": 31, "files": 3 },
+        { "cases": 235, "files": 4 }
+      ],
+      "stage_d1_checks": 206,
+      "stage_d1_harnesses": 16,
+      "notification_runtime": {
+        "proofs": ["C11_NOTIFICATION_IDENTITY_UPGRADE_OK", "X01_HARNESS_OK"],
+        "record_labels": 41,
+        "counting": "Setup and repeated dispatch/redaction labels are not independent acceptance cases"
+      },
+      "go_race": "passed",
+      "counting": "Stage totals count invocations, not unique cases; dependencies, notification runtime, X03 and full verification are separate"
+    },
+    {
+      "command": "pnpm test:x03",
+      "exit_code": 0,
+      "unit_cases": 71,
+      "unit_files": 7,
+      "worker_d1_r2_checks": 11,
+      "proof": "X03_D1_OK",
+      "browser_cases": 2,
+      "provider_started": false,
+      "persistent_pilot_changed": false
+    },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 4738,
+      "typescript_files": 217,
+      "go": "passed",
+      "go_scheduling": "GOFLAGS=-p=1",
+      "swift": "passed",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    {
+      "command": "pnpm worktree:check",
+      "exit_code": 0,
+      "before_and_after_verify": true,
+      "committed_source_unchanged": true,
+      "final_status_empty": true
+    }
+  ],
+  "slice_suites": {
+    "target": "pnpm test:c11:public-business",
+    "composed_once_by_c11": true,
+    "focused_cases": 87,
+    "focused_files": 4,
+    "native_d1_groups": 6,
+    "native_proof": "C11_PUBLIC_BUSINESS_D1_OK",
+    "maximum_bindings": 88,
+    "maximum_statement_bytes": 15179,
+    "maximum_batch_statements": 8,
+    "maximum_check_bindings": 88,
+    "native_checks": [
+      "native_d1_both_bound_write_only_child_creation_fits_check_parameter_limit",
+      "native_d1_discussion_prebatch_actual_delegation_revoke_rolls_back_every_effect",
+      "native_d1_progress_prebatch_actual_delegation_revoke_rolls_back_every_effect",
+      "native_d1_comment_cache_revocation_after_real_idempotency_select_has_no_effects",
+      "native_worker_do_fresh_post_body_revoke_withholds_reply_keeps_committed_history",
+      "native_worker_do_cached_post_body_revoke_withholds_reply_keeps_committed_history"
+    ],
+    "native_counting": "Six distinct collecting groups; domain FIFO, cache lookup and actual Worker/DO response-body cuts are separate witnesses"
+  },
+  "old_source_probe": {
+    "production_commit": "6fb6623991c5540c27e6f2a5f71488cd844cca5f",
+    "production_runtime_unfixed": true,
+    "focused_cases": 38,
+    "focused_failed": 32,
+    "focused_passed": 6,
+    "expected_exit_code": 1,
+    "suites": [
+      { "kind": "work_business", "cases": 14, "failed": 12, "passed": 2 },
+      { "kind": "child_business", "cases": 8, "failed": 5, "passed": 3 },
+      { "kind": "mounted_browser_cli", "cases": 16, "failed": 15, "passed": 1 }
+    ],
+    "failure_categories": {
+      "cached_business_result_disclosures": 13,
+      "staged_commit_authority_failures": 4,
+      "cli_final_read_credential_failures": 11,
+      "post_hub_fresh_and_cached_reply_disclosures": 2,
+      "original_transport_admission_ceiling_failures": 2
+    },
+    "expanded_eighty_seven_cases_replayed": false,
+    "six_native_groups_replayed": false,
+    "status": "Frozen initial tests ran on committed unfixed source and its separately built runtime without copying the fixed public-business framework. Thirty-two meaningful authority/body/commit failures and six healthy controls are retained. Expanded focused and native suites prove fixed source only; this is not old-source clean package acceptance."
+  },
+  "regression_proof": [
+    "Original browser/CLI/OAuth human, epoch, role, project and credential restrictions are retained, never enlarged by later role or grant additions",
+    "Typed command-owned admission, staged commit, cache and post-Hub selection distinguish no-effect denial, atomic rollback and withheld committed replies",
+    "Every staged authority guard attempts exactly one CHECK row even on a missing target; materialized typed selection keeps native D1 within expression depth and parameter bounds",
+    "Historical task, context, attention, result and timer replies preserve their original fields and exact lineage without rerunning fresh transition/latest/version guards",
+    "Recognized result evidence is checked together; artifact publication binds exact version/grant/run/task and immutable receipt/object metadata; independent timer/parent masks remain safe",
+    "Original absent view-grant authorizer, observation clock and one-use artifact replay rejection remain unchanged; execution-owned local-agent result submission bypasses the public factory completely",
+    "CLI final project/task/run/attention/artifact/session reads repeat exact current binding, safe scopes, SQL-clock expiry and captured project intersection even for empty and terminal pages",
+    "Internal authority is stripped before original command validation, business logic, fingerprint, cursor and audit; metadata receipts and stored results contain no authority capsule",
+    "Native full-effect snapshots remain equal after independent production revocation for rollback/read/cache denial; actual post-Hub denial preserves already committed business and idempotency history"
+  ],
+  "proof_boundaries": [
+    "Mounted browser/CLI route tests and native-D1 witnesses are separate; native retained OAuth metadata is synthetic, not real OAuth/cookie/CLI ingress",
+    "Disposable native D1 with production Hub setup and actual Worker/DO RPC; global test jurisdiction resolves one DO, not deployment or residency proof",
+    "Native public-business groups require no run/execution/runner/provider operation; child domain fixtures use synthetic dormant ACL and immutable waiter/evidence setup",
+    "Authority is proved through the final database selection followed only by synchronous projection/secret attachment/serialization, not arbitrary later delivery time",
+    "Post-commit authority loss withholds a public reply and does not undo a valid previously committed command or independently committed revocation",
+    "Internal Hub/runner coordinates, observation clocks and original business transitions remain outside the new transport envelope"
+  ],
+  "certification_corrections": [
+    {
+      "kind": "native_d1_expression_depth",
+      "production_correction_commit": "e0610eab6dad2ace8e483fe93ff6dd48c57b9d35",
+      "detail": "Native diagnostics exposed two composition ceilings: typed authority nested in a CHECK VALUES expression and an extra EXISTS around canonical artifact admission. Guard materialization is included in the implementation commit; e0610ea makes artifact owners supply the direct canonical SELECT. Current authority predicates, staged SELECT shape, one-use semantics and final projection are preserved. The initial failed clean certificate is excluded from passing acceptance."
+    },
+    {
+      "kind": "historical_notification_migration_fixture",
+      "fixture_commit": "4a7b399ac630845c296b5a437ae64356f44002d5",
+      "detail": "The next clean attempt invoked a modern authority-wrapped task command on the intentional schema0028 pre0030 fixture. Native D1 reported the absent task_privacy table and the command rolled back. A named pre-authority SQL seed rejects current schema and retains exact before/after historical task projection assertions. Only the test harness changed; no production schema fallback, authority relaxation or clock change was added. The second failed certificate is excluded; the fresh repaired pipeline supplies every passing count."
+    }
+  ],
+  "excluded_preliminary_probes": [
+    "Preliminary draft or invalid-fixture runs are not counted; only the finalized initial 14-work/8-child/16-mounted OLD suites supply the old-source totals",
+    "The two failed clean certificates are diagnostic/correction provenance, not passed C11/X03/full-verification evidence",
+    "Earlier focused, native and notification-only passes do not substitute for the completed unchanged clean-checkout pipeline"
+  ],
+  "activation_barriers": [
+    "GitHub key-collision policy and its internal helper bypass remain open",
+    "Execution-owned provider/runner/local-agent private delivery, destructive private retention and artifact-byte consumers remain excluded",
+    "Broader temporal boundaries after final selection or guard statements and runner/local lease expiry are not certified by this slice",
+    "Private creation, creator sharing, inherited private children, author-private checkpoints and C12 remain unavailable or planned"
+  ],
+  "not_claimed": [
+    "Complete C11 delivery/sharing acceptance or activation of any private control",
+    "Expanded 87-case or six-native-group replay on unfixed source",
+    "Native real OAuth/cookie/CLI ingress, live private R2/browser bytes, installed app, provider execution, persistent pilot, deployment or external CI",
+    "Rollback of valid committed commands whose outward result is withheld after an independent authority change",
+    "Fresh W03 visual acceptance, publication, canonical project knowledge, skills, vault, reminders or contribution views"
+  ],
+  "redaction": "Bounded counts and synthetic outcomes only; raw logs, credentials, private content and local paths are not committed"
+}

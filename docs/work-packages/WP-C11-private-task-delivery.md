@@ -76,24 +76,36 @@ Coordinate shared contracts without changing the other lane's execution work.
 
 ## Handoff
 
-Current checkpoint: [human detail and cached business delivery](evidence/WP-C11/human-detail-cache-manifest.json),
-clean-certified at `61cb5ae`. Exact C11 passes 2,527 stage invocation cases and
-200 D1 checks across fifteen harnesses; X03 and full verification pass,
-including 4,651 TypeScript cases, Go and all 16 Swift cases. Browser/CLI
-attention body and observations share final canonical selection. Task and
-human/delegated attention cache replies repeat retained business authority,
-preserving historical fields and masking unreadable task parents. Read-only,
-Reviewer, write-only and ended-history controls remain valid. One expired
-healthy retry fixture was repaired without changing scope or production clocks.
+Current checkpoint: [public business delivery and CLI ceilings](evidence/WP-C11/public-business-manifest.json),
+clean-certified at `4a7b399`. Exact C11 passes 2,614 stage invocation cases and
+206 D1 checks across sixteen harnesses; its notification drill is counted
+separately. Exact X03 and full verification pass, including 4,738 TypeScript
+cases, Go and all 16 Swift cases. Typed adapters retain original transport
+ceilings at admission, staged commit, cached replay and final selection after
+the actual Hub reply/body await. CLI reads retain their exact original binding
+and captured project ceiling. The 87 focused cases and six native groups prove
+fixed source; the initial OLD probe separately records 32 failures/six controls.
+Native expression-depth and historical notification-fixture corrections were
+verified by a fresh complete pipeline; failed attempts are not acceptance.
 
-Next is one cohesive public task-business response and CLI credential-ceiling
-pass: original transport admission, remaining caches and completion after the
-actual Hub reply/body await. GitHub key policy, execution-owned delivery and
+Next is the frozen task-detail panel selection checkpoint: coherent result,
+measurement and artifact snapshots, selection-bound mutation callbacks/drafts,
+denied-state clearing and keyboard retry in light/dark themes. Its mounted and
+Chromium tests are implementation work, not yet clean acceptance. Malformed
+historical attention lineage in measurement projections is the following
+bounded investigation. GitHub key policy, execution-owned delivery and
 destructive private retention remain open. Private creation, sharing, inherited
 private children and checkpoints stay disabled; C11 remains in progress and
 C12 planned.
 
 ### Earlier checkpoints
+
+The [human detail and cached business delivery checkpoint](evidence/WP-C11/human-detail-cache-manifest.json)
+is clean-certified at `61cb5ae`: exact C11 passes 2,527 stage invocation cases
+and 200 D1 checks across fifteen harnesses; X03 and full verification pass with
+4,651 TypeScript cases, Go and all 16 Swift cases. Canonical attention detail
+and task/attention cached replies retain current business authority and
+historical fields. Its evidence remains unchanged.
 
 The [delegated list selection checkpoint](evidence/WP-C11/list-delivery-manifest.json)
 is clean-certified at `8e04700`: exact C11 passes 2,495 stage invocation cases
