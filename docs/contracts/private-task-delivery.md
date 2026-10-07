@@ -595,6 +595,58 @@ coordination delivery or private creation.
   D1 single-selection proof. Repair the existing discussion test's vacuous
   `card.id` lookup to use `taskId`. Preserve stored history and prior evidence.
 
+### Frozen human coordination-history delivery
+
+This bounded slice owns human product readers only. It does not implement
+provider dispatch, private execution, participant-run authority or cleanup.
+
+- Human discussion detail and task discussion lists remain available only for
+  exact current shared parents. Private parents are uniformly unavailable to
+  everyone, including creators and grantees, until their execution-owning lane
+  certifies private coordination. Missing/misbound parents share the existing
+  absent-resource denial. No transcript, frozen brief, recommendation, decision,
+  participant identity, page count or anchor is delivered through a private task.
+- Detail checks exact discussion/workspace/task/project lineage and current
+  viewer membership, retained epoch, role and project access before hydration.
+  Recheck that same binding after every asynchronous view/advisory read and
+  immediately before returning the wire value. Only synchronous projection may
+  follow the final guard. A privacy/current-viewer denial must not be converted
+  into the readable `sponsor_revoked` advisory. For a still-shared parent and
+  authorized viewer, the existing sponsor-revocation advisory remains readable.
+- Lists select the exact shared parent and current viewer together with rows
+  in the final statement, before `LIMIT + 1`, `has_more` and next-anchor output.
+  An empty page still requires the parent/scope sentinel. Preserve existing ID
+  ordering, default/max limits, structural pagination errors and wire shape.
+- Human browser launch-status list/detail use final current-viewer and exact
+  shared-task predicates, not captured project lists. List filtering precedes
+  its existing limit; empty lists still require the shared parent and retained
+  epoch. Private, missing and misbound direct reads return the existing uniform
+  404/no-store response. Status views retain terminal recorded work history,
+  existing fields and bounds; infer no provider activity or task completion.
+- Status source joins bind launch, immutable assignment generation, execution,
+  run, task/project and snapshot to the same tuple. A checkout lease contributes
+  only for that exact execution/assignment, not a replacement occupant sharing
+  the physical worktree. Discussion and malformed/misbound sources do not enter
+  a visible page. Do not change reservation or provider behavior to repair a view.
+- Mounted GET paths retain the authenticated human's original epoch; a later
+  principal load cannot adopt a newer epoch. Preserve authentication, route/body
+  admission, feature holds and no-store envelopes. Mutation routing stays with
+  its existing commands; this is not authorization to change launch/discussion
+  execution or add controls.
+- Prove genuine shared discussion history and synthetic recommendations/decisions
+  followed by parent privatization, including creator/grantee denial; final-read
+  privacy/project/epoch loss, empty-page scope, readable shared sponsor advisory
+  and pagination controls. Prove genuine launch history, both mounted reads,
+  private/absent parity, final-read authority loss, exact source tuples and
+  replacement-lease omission. Keep stored records unchanged and add fresh
+  actual-D1 selector proof. Do not claim participant or runner delivery.
+
+`readParticipantDiscussion`, runner pull/channel/control delivery and
+`readLaunch`/reconciliation are outside this implementation. Cleanup-only
+reconciliation intentionally survives human authority loss; a blanket privacy
+guard must not strand reservations. Those remaining activation seams require
+the execution-owning lane's contract and proof.
+
 ## Delivery inventory and required proof
 
 | Surface | Existing owner / entry points | C11 completion check |
