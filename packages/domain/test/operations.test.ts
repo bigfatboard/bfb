@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { SqlDatabase } from "@bfb/db";
 
+import { ARTIFACT_RECOVERY_SYSTEM_ID } from "../src/artifacts.js";
 import { FIX } from "../src/fixtures.js";
 import { DomainError, WorkspaceHub } from "../src/hub.js";
 import { startLaunchCommand } from "../src/launches.js";
@@ -411,9 +412,12 @@ describe("audit versus activity", () => {
     );
     expect((await setRetention(db, 14, proof)).ok).toBe(true);
     const audit = await readSecurityAudit(db, FIX.workspace, { access: ACCESS });
-    const retentionRows = audit.entries.filter((entry) => entry.action === "ops.retention.set");
-    expect(retentionRows.length).toBe(1);
-    expect(retentionRows[0]!.actor_principal_id).toBe(FIX.owner);
+    expect(audit.entries).toEqual([]);
+    expect(
+      await db
+        .prepare("SELECT actor_principal_id FROM audit_events WHERE action='ops.retention.set'")
+        .get(),
+    ).toEqual({ actor_principal_id: FIX.owner });
     const activity = await readActivityFeed(db, FIX.workspace);
     expect(activity.entries.find((entry) => entry.kind === "ops.retention.set")).toBeUndefined();
   });
@@ -426,29 +430,40 @@ describe("security audit ordering", () => {
 
   async function seedChronology(db: SqlDatabase): Promise<string[]> {
     await db.prepare(`DELETE FROM audit_events WHERE workspace_id = ?`).run(FIX.workspace);
-    // Inserted oldest-first, but the ids sort in the opposite order on
-    // purpose (including the non-ULID recovery-row shape), so an id-ordered
-    // read model returns them scrambled.
-    const rows = [
-      { audit_id: "01ZZZZZZZZZZZZZZZZZZZZZZZZ", created_at: T1 },
-      { audit_id: "audit-recovery-shape", created_at: T2 },
-      { audit_id: "01000000000000000000000000", created_at: T2 },
-      { audit_id: "01MMMMMMMMMMMMMMMMMMMMMMMM", created_at: T3 },
-    ];
+    // Canonical synthetic abandonment receipts retain the ordering proof:
+    // ids sort opposite to insertion/UTC chronology, including equal instants.
+    const ids = Array.from({ length: 4 }, () => randomUlid())
+      .sort()
+      .reverse();
+    const rows = [T1, T2, T2, T3].map((created_at, index) => ({
+      audit_id: ids[index]!,
+      created_at,
+    }));
     for (const row of rows) {
+      const artifactId = randomUlid(),
+        versionId = randomUlid();
+      await db
+        .prepare(
+          "INSERT INTO artifacts (workspace_id,id,run_id,format,role,created_by_human_id,created_at) VALUES (?,?,NULL,'log','log',?,?)",
+        )
+        .run(FIX.workspace, artifactId, FIX.owner, T1);
+      await db
+        .prepare(
+          "INSERT INTO artifact_versions (workspace_id,id,artifact_id,state,format,declared_size,expected_digest,created_at) VALUES (?,?,?,'failed','log',64,?,?)",
+        )
+        .run(FIX.workspace, versionId, artifactId, "a".repeat(64), T1);
+      await db
+        .prepare(
+          "INSERT INTO artifact_audit_outbox (workspace_id,id,version_id,grant_id,action,payload_json,created_at,dispatched_at) VALUES (?,?,?,NULL,'artifact.abandoned','{}',?,?)",
+        )
+        .run(FIX.workspace, row.audit_id, versionId, T1, row.created_at);
       await db
         .prepare(
           `INSERT INTO audit_events
              (workspace_id, audit_id, actor_principal_id, action, payload_json, created_at)
-           VALUES (?, ?, ?, 'ops.audit.order.probe', ?, ?)`,
+           VALUES (?, ?, ?, 'artifact.abandoned', ?, ?)`,
         )
-        .run(
-          FIX.workspace,
-          row.audit_id,
-          FIX.owner,
-          JSON.stringify({ action: "probe" }),
-          row.created_at,
-        );
+        .run(FIX.workspace, row.audit_id, ARTIFACT_RECOVERY_SYSTEM_ID, "{}", row.created_at);
     }
     return rows.map((row) => row.audit_id);
   }
@@ -588,7 +603,7 @@ describe("diagnostic bundles", () => {
 });
 
 describe("privileged recovery", () => {
-  it("rewinds notification dispatch idempotently", async () => {
+  it("holds notification redispatch without creating a recovery ledger", async () => {
     const db = await openDomainDb();
     await db
       .prepare(
@@ -597,26 +612,32 @@ describe("privileged recovery", () => {
       )
       .run(FIX.workspace, randomUlid(), NOW);
     const target = { cursors: [7] };
-    const first = await applyOpsRecovery({
-      db,
-      workspaceId: FIX.workspace,
-      kind: "retry_notification_dispatch",
-      target,
-      actorHumanId: FIX.owner,
-      now: NOW,
+    await expect(
+      applyOpsRecovery({
+        db,
+        workspaceId: FIX.workspace,
+        kind: "retry_notification_dispatch",
+        target,
+        actorHumanId: FIX.owner,
+        now: NOW,
+      }),
+    ).rejects.toMatchObject({ code: "request_rejected", message: "recovery kind is unavailable" });
+    await expect(
+      applyOpsRecovery({
+        db,
+        workspaceId: FIX.workspace,
+        kind: "retry_notification_dispatch",
+        target,
+        actorHumanId: FIX.owner,
+        now: NOW,
+      }),
+    ).rejects.toMatchObject({ code: "request_rejected", message: "recovery kind is unavailable" });
+    expect(await db.prepare("SELECT COUNT(*) AS count FROM ops_recovery_ledger").get()).toEqual({
+      count: 0,
     });
-    expect(first.replayed).toBe(false);
-    expect(first.detail.redispatched_from).toBe(6);
-    const second = await applyOpsRecovery({
-      db,
-      workspaceId: FIX.workspace,
-      kind: "retry_notification_dispatch",
-      target,
-      actorHumanId: FIX.owner,
-      now: NOW,
-    });
-    expect(second.replayed).toBe(true);
-    expect(second.detail).toEqual(first.detail);
+    expect(
+      await db.prepare("SELECT COUNT(*) AS count FROM notification_dispatch_state").get(),
+    ).toEqual({ count: 0 });
     await expect(
       applyOpsRecovery({
         db,
@@ -629,7 +650,7 @@ describe("privileged recovery", () => {
     ).rejects.toBeInstanceOf(DomainError);
   });
 
-  it("requeues only dlq or stale dispatched github rows", async () => {
+  it("holds GitHub requeue without changing DLQ or pending rows", async () => {
     const db = await openDomainDb();
     const delivery = randomUlid();
     await db
@@ -644,30 +665,32 @@ describe("privileged recovery", () => {
          VALUES (?, 'outbox-dlq-1', ?, 'github.reconcile', 'dlq', 5, ?, ?, ?), (?, 'outbox-pending-1', ?, 'github.reconcile', 'pending', 0, ?, ?, ?)`,
       )
       .run(FIX.workspace, delivery, NOW, NOW, NOW, FIX.workspace, delivery, NOW, NOW, NOW);
-    const first = await applyOpsRecovery({
-      db,
-      workspaceId: FIX.workspace,
-      kind: "requeue_github_outbox",
-      target: { outbox_ids: ["outbox-dlq-1"] },
-      actorHumanId: FIX.owner,
-      now: NOW,
-    });
-    expect(first.detail).toEqual({ requeued: 1 });
+    await expect(
+      applyOpsRecovery({
+        db,
+        workspaceId: FIX.workspace,
+        kind: "requeue_github_outbox",
+        target: { outbox_ids: ["outbox-dlq-1"] },
+        actorHumanId: FIX.owner,
+        now: NOW,
+      }),
+    ).rejects.toMatchObject({ code: "request_rejected", message: "recovery kind is unavailable" });
     const row = (await db
       .prepare(
         `SELECT state, attempts FROM github_integration_outbox WHERE workspace_id = ? AND outbox_id = ?`,
       )
       .get(FIX.workspace, "outbox-dlq-1")) as { state: string; attempts: number };
-    expect(row).toEqual({ state: "pending", attempts: 0 });
-    const replay = await applyOpsRecovery({
-      db,
-      workspaceId: FIX.workspace,
-      kind: "requeue_github_outbox",
-      target: { outbox_ids: ["outbox-dlq-1"] },
-      actorHumanId: FIX.owner,
-      now: NOW,
-    });
-    expect(replay.replayed).toBe(true);
+    expect(row).toEqual({ state: "dlq", attempts: 5 });
+    await expect(
+      applyOpsRecovery({
+        db,
+        workspaceId: FIX.workspace,
+        kind: "requeue_github_outbox",
+        target: { outbox_ids: ["outbox-dlq-1"] },
+        actorHumanId: FIX.owner,
+        now: NOW,
+      }),
+    ).rejects.toMatchObject({ code: "request_rejected", message: "recovery kind is unavailable" });
     await expect(
       applyOpsRecovery({
         db,
@@ -725,18 +748,19 @@ describe("privileged recovery", () => {
       .prepare(`SELECT COUNT(*) AS n FROM ops_recovery_ledger WHERE workspace_id = ?`)
       .get(FIX.workspace)) as { n: number };
     expect(ledger.n).toBe(0);
-    const done = await applyOpsRecovery({
-      db,
-      workspaceId: FIX.workspace,
-      kind: "requeue_github_outbox",
-      target: { outbox_ids: ["outbox-mixed-dlq"] },
-      actorHumanId: FIX.owner,
-      now: LATER,
-    });
-    expect(done.detail).toEqual({ requeued: 1 });
+    await expect(
+      applyOpsRecovery({
+        db,
+        workspaceId: FIX.workspace,
+        kind: "requeue_github_outbox",
+        target: { outbox_ids: ["outbox-mixed-dlq"] },
+        actorHumanId: FIX.owner,
+        now: LATER,
+      }),
+    ).rejects.toMatchObject({ code: "request_rejected", message: "recovery kind is unavailable" });
   });
 
-  it("resolves only genuinely stuck uploads and clears ledger state", async () => {
+  it("resolves genuinely stuck uploads through Hub and holds ledger clearing", async () => {
     const db = await openDomainDb();
     const artifact = randomUlid();
     const version = randomUlid();
@@ -790,18 +814,24 @@ describe("privileged recovery", () => {
       .get(FIX.workspace, version)) as { state: string };
     expect(state.state).toBe("failed");
     expect(replay.replayed).toBe(true);
-    const cleared = await applyOpsRecovery({
-      db,
-      workspaceId: FIX.workspace,
-      kind: "clear_recovery_state",
-      target: { action_ids: [resolved.action_id] },
-      actorHumanId: FIX.owner,
-      now: NOW,
-    });
-    expect(cleared.detail).toEqual({ cleared: 1 });
+    await expect(
+      applyOpsRecovery({
+        db,
+        workspaceId: FIX.workspace,
+        kind: "clear_recovery_state",
+        target: { action_ids: [resolved.action_id] },
+        actorHumanId: FIX.owner,
+        now: NOW,
+      }),
+    ).rejects.toMatchObject({ code: "request_rejected", message: "recovery kind is unavailable" });
+    expect(
+      await db
+        .prepare("SELECT state FROM ops_recovery_ledger WHERE action_id=?")
+        .get(resolved.action_id),
+    ).toEqual({ state: "applied" });
   });
 
-  it("rejects unknown kinds and live versions", async () => {
+  it("rejects unknown kinds and unguarded upload resolution", async () => {
     const db = await openDomainDb();
     await expect(
       applyOpsRecovery({

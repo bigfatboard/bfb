@@ -1166,17 +1166,29 @@ try {
   );
   check("real_d1_empty_composite_scope_rechecks_epoch_before_hydrated_workspace_metadata");
   const auditAccess = { ...access(), authorizationEpoch: 3 };
+  async function seedCanonicalAuditAnchor(at: string) {
+    const versionId = await seedOperationsVersion(null, "available", false, at);
+    const id = randomUlid();
+    await db
+      .prepare(
+        `INSERT INTO artifact_audit_outbox
+         (workspace_id,id,version_id,grant_id,action,payload_json,created_at,dispatched_at)
+         VALUES (?,?,?,NULL,'artifact.finalized','{}',?,?)`,
+      )
+      .run(FIX.workspace, id, versionId, at, at);
+    await db
+      .prepare(
+        `INSERT INTO audit_events
+         (workspace_id,audit_id,actor_principal_id,action,payload_json,created_at)
+         VALUES (?,?,?,'artifact.finalized','{}',?)`,
+      )
+      .run(FIX.workspace, id, ARTIFACT_RECOVERY_SYSTEM_ID, at);
+    return id;
+  }
   // The observed anchor separates this synthetic history from prior probes.
   // Hub authorization owns dispatch time; request.now cannot override its clock.
   const auditAnchorAt = new Date().toISOString();
-  const auditAnchorId = randomUlid();
-  await db
-    .prepare(
-      `INSERT INTO audit_events
-     (workspace_id,audit_id,actor_principal_id,action,payload_json,created_at)
-     VALUES (?,?,?,'ops.audit.synthetic_anchor','{"action":"synthetic"}',?)`,
-    )
-    .run(FIX.workspace, auditAnchorId, FIX.owner, auditAnchorAt);
+  const auditAnchorId = await seedCanonicalAuditAnchor(auditAnchorAt);
 
   async function seedAuditSource(
     action: string,
@@ -1578,14 +1590,7 @@ try {
       oldUploadAt,
     );
   const recoveryAuditAnchorAt = new Date().toISOString();
-  const recoveryAuditAnchorId = randomUlid();
-  await db
-    .prepare(
-      `INSERT INTO audit_events
-       (workspace_id,audit_id,actor_principal_id,action,payload_json,created_at)
-       VALUES (?,?,?,'ops.audit.synthetic_anchor','{"action":"synthetic"}',?)`,
-    )
-    .run(FIX.workspace, recoveryAuditAnchorId, FIX.owner, recoveryAuditAnchorAt);
+  const recoveryAuditAnchorId = await seedCanonicalAuditAnchor(recoveryAuditAnchorAt);
   const makeRecoveryAuditProof = () =>
     issueStepUpProof(
       db,
@@ -1802,14 +1807,7 @@ try {
 
   // Historical synthetic tuples isolate chronology without changing Hub time.
   // Metadata predates its receipt; these fixtures do not establish wall-clock age.
-  const orderAnchorId = randomUlid();
-  await db
-    .prepare(
-      `INSERT INTO audit_events
-       (workspace_id,audit_id,actor_principal_id,action,payload_json,created_at)
-       VALUES (?,?,?,'ops.audit.synthetic_anchor','{"action":"synthetic"}',?)`,
-    )
-    .run(FIX.workspace, orderAnchorId, FIX.owner, "2025-01-01T00:00:00.000Z");
+  const orderAnchorId = await seedCanonicalAuditAnchor("2025-01-01T00:00:00.000Z");
   const orderFixtures: Array<{ auditId: string; at: string }> = [];
   for (const at of [
     "2025-02-01T12:00:00.1Z",
@@ -1873,10 +1871,16 @@ try {
   const chronologicalFixtures = [
     orderFixtures[2]!,
     orderFixtures[3]!,
-    { auditId: legacyOrderId, at: "2025-02-01T12:00:00.000Z" },
     orderFixtures[0]!,
     orderFixtures[1]!,
   ];
+  await assert.rejects(
+    readSecurityAudit(db, FIX.workspace, {
+      access: { ...access(), authorizationEpoch: 5 },
+      after: legacyOrderId,
+    }),
+    { code: "invalid_argument", message: "unknown audit cursor" },
+  );
   let orderAfter = orderAnchorId;
   for (const expected of chronologicalFixtures) {
     const page = await readSecurityAudit(db, FIX.workspace, {

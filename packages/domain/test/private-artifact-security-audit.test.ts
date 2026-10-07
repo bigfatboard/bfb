@@ -718,7 +718,7 @@ describe("canonical artifact security audit", () => {
       message: "operations scope not found",
     });
   });
-  it("preserves unrelated audit sanitizer behavior without certifying its IDs", async () => {
+  it("holds unrelated audit metadata while preserving historical payloads", async () => {
     const f = await fixture(),
       id = randomUlid();
     await f.db
@@ -732,6 +732,11 @@ describe("canonical artifact security audit", () => {
         JSON.stringify({ task_id: CANARY, body: CANARY, grant_secret: CANARY }),
         DISPATCH_TIME,
       );
-    expect((await read(f.db)).entries[0].payload).toEqual({ task_id: CANARY });
+    expect(await read(f.db)).toEqual({ entries: [], has_more: false });
+    expect(
+      await f.db.prepare("SELECT payload_json FROM audit_events WHERE audit_id=?").get(id),
+    ).toEqual({
+      payload_json: JSON.stringify({ task_id: CANARY, body: CANARY, grant_secret: CANARY }),
+    });
   });
 });

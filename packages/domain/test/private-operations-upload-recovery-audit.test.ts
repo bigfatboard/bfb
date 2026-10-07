@@ -751,7 +751,7 @@ describe("canonical upload-recovery security audit", () => {
       { auditId: second.auditId, at: secondAt },
     ]);
   });
-  it("shares chronology across canonical artifact, recovery and valid legacy pages", async () => {
+  it("shares chronology across canonical artifact and recovery while holding legacy pages", async () => {
     const f = await fixture(),
       ref = await target(f, { runId: null }),
       later = await legacyReceipt(f, "2026-10-06T12:00:00.100001Z"),
@@ -759,12 +759,11 @@ describe("canonical upload-recovery security audit", () => {
       recoveryAt = "2026-10-06T12:00:00.000000Z",
       recovery = await receipt(f, [ref.versionId], { at: recoveryAt }),
       fraction = await artifactReceipt(f, "2026-10-06T12:00:00.1Z");
-    await expectChronology(f, [
-      artifact,
-      { auditId: recovery.auditId, at: recoveryAt },
-      fraction,
-      later,
-    ]);
+    await expectChronology(f, [artifact, { auditId: recovery.auditId, at: recoveryAt }, fraction]);
+    await expect(read(f.db, { after: later.auditId })).rejects.toMatchObject({
+      code: "invalid_argument",
+      message: "unknown audit cursor",
+    });
     expect((await read(f.db)).entries[0]?.payload).toEqual({
       schema_version: 1,
       outbox_id: artifact.auditId,
@@ -774,13 +773,17 @@ describe("canonical upload-recovery security audit", () => {
       occurred_at: OLD,
     });
   });
-  it("retains raw chronology for explicitly uncertified malformed legacy timestamps", async () => {
+  it("holds malformed legacy timestamps without changing canonical chronology", async () => {
     const f = await fixture(),
       malformed = await legacyReceipt(f, "2026-10-06T12:00:00 malformed"),
       ref = await target(f, { runId: null }),
       at = "2026-10-06T12:00:00Z",
       valid = await receipt(f, [ref.versionId], { at });
-    await expectChronology(f, [malformed, { auditId: valid.auditId, at }]);
+    await expectChronology(f, [{ auditId: valid.auditId, at }]);
+    await expect(read(f.db, { after: malformed.auditId })).rejects.toMatchObject({
+      code: "invalid_argument",
+      message: "unknown audit cursor",
+    });
   });
   it.each(["audit_id", "audit_time", "version_id", "artifact_id", "run_id"])(
     "rejects joined canonical %s NULs",
@@ -851,7 +854,7 @@ describe("canonical upload-recovery security audit", () => {
       message: "operations scope not found",
     });
   });
-  it("retains unrelated legacy families without inferring resource IDs", async () => {
+  it("holds unrelated legacy families without rewriting retained resource IDs", async () => {
     const f = await fixture(),
       id = randomUlid();
     await f.db
@@ -865,9 +868,11 @@ describe("canonical upload-recovery security audit", () => {
         JSON.stringify({ action_id: "legacy", task_id: "synthetic-uncertified" }),
         NOW,
       );
-    expect((await read(f.db)).entries[0]?.payload).toEqual({
-      action_id: "legacy",
-      task_id: "synthetic-uncertified",
+    expect(await read(f.db)).toEqual({ entries: [], has_more: false });
+    expect(
+      await f.db.prepare("SELECT payload_json FROM audit_events WHERE audit_id=?").get(id),
+    ).toEqual({
+      payload_json: JSON.stringify({ action_id: "legacy", task_id: "synthetic-uncertified" }),
     });
   });
 });

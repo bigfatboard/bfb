@@ -365,9 +365,9 @@ describe("diagnostic snapshot quarantine", () => {
       ids = await historicalCopies(db),
       before = await snapshot(db);
     const result = await readSecurityAudit(db, FIX.workspace, { access: ACCESS, limit: 1 });
-    expect(result.entries.map((row) => row.audit_id)).toEqual([ids[3]]);
+    expect(result.entries).toEqual([]);
     expect(result.has_more).toBe(false);
-    for (const anchor of [ids[0]!, ids[2]!, randomUlid()])
+    for (const anchor of [...ids, randomUlid()])
       await expect(
         readSecurityAudit(db, FIX.workspace, { access: ACCESS, after: anchor }),
       ).rejects.toMatchObject({ code: "invalid_argument", message: "unknown audit cursor" });

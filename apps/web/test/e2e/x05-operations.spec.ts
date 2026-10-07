@@ -52,6 +52,9 @@ test("owner sees health, queues, activity, audit, retention, and diagnostics", a
   ]) {
     await expect(page.getByTestId(section)).toBeVisible();
   }
+  await expect(page.getByTestId("audit-scope")).toHaveText(
+    "Verified artifact and upload-recovery receipts only.",
+  );
   const counts = await page.getByTestId("queue-counts").textContent();
   expect(counts).toMatch(/Notifications pending \d+/);
   note("owner-sections", { visible: 6, queueCounts: (counts ?? "").slice(0, 160) });

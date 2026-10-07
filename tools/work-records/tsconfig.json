@@ -13,7 +13,8 @@
     "delivery.ts",
     "aggregates.ts",
     "diagnostics.ts",
-    "board.ts"
+    "board.ts",
+    "quarantine.ts"
   ],
   "references": [{ "path": "../../packages/domain" }, { "path": "../../packages/db" }]
 }

@@ -632,9 +632,9 @@ describe("stuck-upload recovery audit browser delivery", () => {
       "2026-10-06T12:00:00.100000Z",
       false,
     ],
-    ["valid legacy mixed fraction", "2026-10-06T12:00:00Z", "2026-10-06T12:00:00.1Z", true],
+    ["unsupported legacy mixed fraction", "2026-10-06T12:00:00Z", "2026-10-06T12:00:00.1Z", true],
     [
-      "equal legacy instant with insertion-order tie",
+      "unsupported equal legacy instant",
       "2026-10-06T12:00:00.1Z",
       "2026-10-06T12:00:00.100000Z",
       true,
@@ -642,7 +642,7 @@ describe("stuck-upload recovery audit browser delivery", () => {
   ] as const;
   for (const boundary of ["page", "anchor"] as const) {
     it.each(chronologyCases)(
-      `keeps UTC chronology for %s at the ${boundary} boundary without changing displayed metadata`,
+      `keeps supported UTC chronology and omits %s at the ${boundary} boundary`,
       async (_label, earlierAt, laterAt, legacy) => {
         const f = await fixture();
         const earlierIds = [await f.upload()];
@@ -664,13 +664,17 @@ describe("stuck-upload recovery audit browser delivery", () => {
           expect(first.entries.map((entry) => [entry.audit_id, entry.created_at])).toEqual([
             [earlierId, earlierAt],
           ]);
-          expect(first.has_more).toBe(true);
+          expect(first.has_more).toBe(!legacy);
         }
         const next = await page(await f.request(`?limit=1&after=${earlierId}`));
-        expect(next.entries.map((entry) => [entry.audit_id, entry.created_at])).toEqual([
-          [laterId, laterAt],
-        ]);
+        expect(next.entries.map((entry) => [entry.audit_id, entry.created_at])).toEqual(
+          legacy ? [] : [[laterId, laterAt]],
+        );
         expect(next.has_more).toBe(false);
+        if (legacy) {
+          await cursorDenied(await f.request(`?limit=1&after=${laterId}`));
+          return;
+        }
         expect(await page(await f.request(`?limit=1&after=${laterId}`))).toEqual({
           ok: true,
           entries: [],

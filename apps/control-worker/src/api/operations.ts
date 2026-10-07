@@ -1,12 +1,11 @@
 // ABOUTME: Serves Owner-gated operations reads, privileged recovery, retention, and diagnostics.
-// ABOUTME: Recovery uses retained authority and diagnostic snapshots remain uniformly unavailable.
+// ABOUTME: Upload recovery uses retained authority while unsupported recovery and diagnostics remain unavailable.
 
 import { createHash, createHmac } from "node:crypto";
 
 import { createAuthorizationContext, type SqlDatabase } from "@bfb/db";
 import {
   abuseBucketKey,
-  applyOpsRecovery,
   assertOperationsUploadRecoveryAccess,
   assertRole,
   checkOperationsTables,
@@ -20,16 +19,12 @@ import {
   listStuckUploads,
   loadPrincipal,
   OPS_RECOVERY_KINDS,
-  randomUlid,
   readActivityFeed,
   readOperationsProjection,
   readSecurityAudit,
   resolveStuckUploadCommand,
-  sanitizeDiagnosticValue,
   setRetentionPolicyCommand,
-  validateStepUpProof,
   type HubCommand,
-  type OpsRecoveryKind,
 } from "@bfb/domain";
 
 import type { BrowserPrincipal } from "../auth/session.js";
@@ -182,54 +177,6 @@ async function mutate<TInput, TResult>(
     return failure(new DomainError(outcome.error.code, outcome.error.message));
   }
   return json({ ok: true, result: outcome.result, replayed: outcome.replayed });
-}
-
-/**
- * Consumes one fresh action-bound step-up proof outside a hub transaction.
- * Recovery effects interleave reads and writes, which D1 batches forbid
- * inside a transaction, so the guarded consume runs here with the same
- * single-winner UPDATE semantics the hub commands use.
- */
-async function consumeRecoveryProof(
-  deps: OpsBrowserDeps,
-  proofId: string,
-  action: string,
-  targetId: string,
-  humanId: string,
-  authorizationEpoch: number,
-): Promise<void> {
-  if (typeof proofId !== "string" || !proofId) {
-    throw new DomainError("step_up_invalid", "step-up proof is required");
-  }
-  const proof = (await deps.db
-    .prepare(`SELECT expires_at FROM passkey_step_up_proofs WHERE proof_id = ?`)
-    .get(proofId)) as { expires_at: string } | undefined;
-  if (!proof) {
-    throw new DomainError("step_up_invalid", "step-up proof is invalid");
-  }
-  await validateStepUpProof(
-    deps.db,
-    proofId,
-    {
-      action,
-      workspaceId: deps.workspaceId,
-      targetId,
-      scopes: [],
-      authorizationEpoch,
-      expiresAt: proof.expires_at,
-    },
-    deps.now,
-    humanId,
-  );
-  const stamp = `${deps.now}#${proofId}`;
-  const result = await deps.db
-    .prepare(
-      `UPDATE passkey_step_up_proofs SET consumed_at = ? WHERE proof_id = ? AND consumed_at IS NULL AND expires_at > ?`,
-    )
-    .run(stamp, proofId, deps.now);
-  if ((result.changes ?? 0) !== 1) {
-    throw new DomainError("step_up_replayed", "step-up proof already consumed");
-  }
 }
 
 function rejectDiagnostics(): never {
@@ -398,43 +345,7 @@ export async function handleOperationsApi(
         await assertOperationsUploadRecoveryAccess(deps.db, workspaceId, versionIds, principal);
         return json({ ok: true, result: outcome.result });
       }
-      await consumeRecoveryProof(
-        deps,
-        proofId,
-        "ops.recover",
-        `ops-recover:${kind}:${workspaceId}`,
-        principal.humanId,
-        principal.authorizationEpoch,
-      );
-      const result = await applyOpsRecovery({
-        db: deps.db,
-        workspaceId,
-        kind: kind as OpsRecoveryKind,
-        target: typedTarget,
-        actorHumanId: principal.humanId,
-        now: deps.now,
-      });
-      // Audit ids are server-generated: a replayed recovery shares the
-      // caller's request_id, so the id must be unique per call.
-      await deps.db
-        .prepare(
-          `INSERT INTO audit_events (workspace_id, audit_id, actor_principal_id, action, payload_json, created_at)
-           VALUES (?, ?, ?, 'ops.recover', ?, ?)`,
-        )
-        .run(
-          workspaceId,
-          randomUlid(),
-          principal.humanId,
-          JSON.stringify(
-            sanitizeDiagnosticValue({
-              kind,
-              action_id: result.action_id,
-              replayed: result.replayed,
-            }),
-          ),
-          deps.now,
-        );
-      return json({ ok: true, result });
+      throw new DomainError("request_rejected", "recovery kind is unavailable");
     }
     if (request.method === "POST" && tail === "/diagnostics") {
       assertRole(principal, ["owner"]);

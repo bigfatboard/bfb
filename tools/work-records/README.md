@@ -91,3 +91,14 @@ Hub; dormant privacy and retained run history use explicit synthetic fixtures.
 The reader holds heuristic recent-event metadata without rewriting stored history.
 These checks do not certify private creation, live execution, session lifetime,
 opaque positions or the complete C11 delivery matrix.
+
+`pnpm test:c11:quarantine`, composed by `pnpm test:c11`, owns `quarantine.ts`:
+three fresh real-D1 checks hold unsupported audit families before limits and
+anchors, preserve retained audit/legacy recovery rows, deny exported legacy
+helpers before database access and recheck an empty audit page's retained epoch.
+This is a uniform unavailable policy, not historical provenance, working legacy
+recovery, opaque paging or full C11 acceptance. Current X05 D6/D7 separately
+exercise mounted unavailable recovery calls and unused proofs.
+The retained `delivery.ts` audit proof uses source-backed canonical artifact
+anchors. Unsupported legacy chronology rows remain stored but cannot serve as
+visible anchors or consume a page; supported UTC chronology still passes.

@@ -799,7 +799,7 @@ async function main(): Promise<void> {
       pass("D5-stuck-upload");
     }
 
-    // D6: a parked GitHub outbox row requeues through the X04 converger.
+    // D6: unproven GitHub recovery is held without consuming proof or touching the parked row.
     {
       const delivery = `x05-delivery-${randomBytes(4).toString("hex")}`;
       await db
@@ -822,18 +822,28 @@ async function main(): Promise<void> {
         target: { outbox_ids: ["x05-outbox-dlq-1"] },
         step_up_proof_id: proof,
       });
-      assert.equal(requeued.status, 200);
+      assert.equal(requeued.status, 409);
+      assert.deepEqual(requeued.body, {
+        error: "request_rejected",
+        message: "recovery kind is unavailable",
+      });
       const row = (await db
         .prepare(
           `SELECT state, attempts FROM github_integration_outbox WHERE workspace_id = ? AND outbox_id = ?`,
         )
         .get(FIX.workspace, "x05-outbox-dlq-1")) as { state: string; attempts: number };
-      assert.deepEqual(row, { state: "pending", attempts: 0 });
-      note("D6", "github DLQ row requeued to pending with reset attempts");
-      pass("D6-github-requeue");
+      assert.deepEqual(row, { state: "dlq", attempts: 5 });
+      assert.deepEqual(
+        await db
+          .prepare("SELECT consumed_at FROM passkey_step_up_proofs WHERE proof_id=?")
+          .get(proof),
+        { consumed_at: null },
+      );
+      note("D6", "unavailable GitHub recovery leaves the DLQ row and fresh proof unchanged");
+      pass("D6-github-requeue-held");
     }
 
-    // D7: missed notification dispatch rewinds the X01 watermark idempotently.
+    // D7: unproven notification recovery is held without consuming proof or rewinding state.
     {
       const eventId = randomUlid();
       await db
@@ -856,13 +866,26 @@ async function main(): Promise<void> {
         target: { cursors: [21] },
         step_up_proof_id: proof,
       });
-      assert.equal(rewound.status, 200);
+      assert.equal(rewound.status, 409);
+      assert.deepEqual(rewound.body, {
+        error: "request_rejected",
+        message: "recovery kind is unavailable",
+      });
       const watermark = (await db
         .prepare(`SELECT last_cursor FROM notification_dispatch_state WHERE workspace_id = ?`)
         .get(FIX.workspace)) as { last_cursor: number };
-      assert.equal(watermark.last_cursor, 20);
-      note("D7", "notification watermark rewound to 20 for redelivery");
-      pass("D7-notify-rewind");
+      assert.equal(watermark.last_cursor, 21);
+      assert.deepEqual(
+        await db
+          .prepare("SELECT consumed_at FROM passkey_step_up_proofs WHERE proof_id=?")
+          .get(proof),
+        { consumed_at: null },
+      );
+      note(
+        "D7",
+        "unavailable notification recovery leaves its watermark and fresh proof unchanged",
+      );
+      pass("D7-notify-rewind-held");
     }
 
     // D8: retention deletes only the eligible log object through the OPS queue.

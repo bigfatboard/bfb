@@ -1,5 +1,5 @@
 // ABOUTME: Exercises X05 operations browser routes across roles and step-up states.
-// ABOUTME: Security audit stays Owner-only; recovery and retention need fresh bound proofs.
+// ABOUTME: Security audit stays Owner-only; retention needs proofs and unsupported recovery remains unavailable.
 
 import { describe, expect, it } from "vitest";
 
@@ -417,7 +417,7 @@ describe("operations browser routes", () => {
     expect(mismatched.status).toBe(403);
   });
 
-  it("runs privileged recovery idempotently and gates it to Owners", async () => {
+  it("holds legacy recovery without consuming proofs and retains Owner admission", async () => {
     const { context, owner, member } = await contextWithSessions();
     const { app, currentBindings } = appFor(context);
     await context.db
@@ -461,9 +461,9 @@ describe("operations browser routes", () => {
       undefined,
       currentBindings,
     );
-    expect(first.status).toBe(200);
-    const firstBody = (await first.json()) as { result: { replayed: boolean } };
-    expect(firstBody.result.replayed).toBe(false);
+    const unavailable = { error: "request_rejected", message: "recovery kind is unavailable" };
+    expect(first.status).toBe(409);
+    expect(await first.json()).toEqual(unavailable);
     const secondProof = await proofFor(
       context,
       FIX.owner,
@@ -480,8 +480,12 @@ describe("operations browser routes", () => {
       undefined,
       currentBindings,
     );
-    expect(second.status).toBe(200);
-    expect(((await second.json()) as { result: { replayed: boolean } }).result.replayed).toBe(true);
+    expect(second.status).toBe(409);
+    expect(await second.json()).toEqual(unavailable);
+    const proofs = await context.db
+      .prepare("SELECT consumed_at FROM passkey_step_up_proofs WHERE proof_id IN (?,?)")
+      .all(firstProof, secondProof);
+    expect(proofs).toEqual([{ consumed_at: null }, { consumed_at: null }]);
     const audit = (await (
       await app.request(get(`${OPS}/security-audit`, owner.cookie), undefined, currentBindings)
     ).json()) as { entries: Array<{ action: string; actor_principal_id: string }> };
@@ -489,10 +493,10 @@ describe("operations browser routes", () => {
       audit.entries.some(
         (entry) => entry.action === "ops.recover" && entry.actor_principal_id === FIX.owner,
       ),
-    ).toBe(true);
+    ).toBe(false);
   });
 
-  it("replays recovery on the same request_id without a primary-key failure", async () => {
+  it("holds repeated legacy requests without replay receipts", async () => {
     const { context, owner } = await contextWithSessions();
     const { app, currentBindings } = appFor(context);
     await context.db
@@ -517,8 +521,11 @@ describe("operations browser routes", () => {
       undefined,
       currentBindings,
     );
-    expect(first.status).toBe(200);
-    expect(((await first.json()) as { result: { replayed: boolean } }).result.replayed).toBe(false);
+    expect(first.status).toBe(409);
+    expect(await first.json()).toEqual({
+      error: "request_rejected",
+      message: "recovery kind is unavailable",
+    });
     const secondProof = await proofFor(context, FIX.owner, OPS_STEP_UP_ACTIONS.recover, targetId);
     const second = await app.request(
       mutation(`${OPS}/recovery`, owner.cookie, ownerCsrf, {
@@ -528,17 +535,20 @@ describe("operations browser routes", () => {
       undefined,
       currentBindings,
     );
-    expect(second.status).toBe(200);
-    expect(((await second.json()) as { result: { replayed: boolean } }).result.replayed).toBe(true);
+    expect(second.status).toBe(409);
+    expect(await second.json()).toEqual({
+      error: "request_rejected",
+      message: "recovery kind is unavailable",
+    });
     const rows = (await context.db
       .prepare(
         `SELECT COUNT(*) AS count FROM audit_events WHERE workspace_id = ? AND action = 'ops.recover'`,
       )
       .get(FIX.workspace)) as { count: number };
-    expect(rows.count).toBe(2);
+    expect(rows.count).toBe(0);
   });
 
-  it("keeps a long request_id from colliding across different recovery targets", async () => {
+  it("holds admitted long request IDs uniformly across legacy targets", async () => {
     const { context, owner } = await contextWithSessions();
     const { app, currentBindings } = appFor(context);
     await context.db
@@ -564,10 +574,11 @@ describe("operations browser routes", () => {
         undefined,
         currentBindings,
       );
-      expect(response.status).toBe(200);
-      expect(((await response.json()) as { result: { replayed: boolean } }).result.replayed).toBe(
-        false,
-      );
+      expect(response.status).toBe(409);
+      expect(await response.json()).toEqual({
+        error: "request_rejected",
+        message: "recovery kind is unavailable",
+      });
     }
   });
 

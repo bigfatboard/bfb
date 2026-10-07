@@ -643,7 +643,7 @@ describe("canonical artifact audit browser delivery", () => {
     const s = await f.source();
     expect((await page(await f.request("?limit=1"))).entries[0]?.audit_id).toBe(s.outboxId);
   });
-  it("keeps unrelated audit families on the existing sanitizer without interpreting payload IDs", async () => {
+  it("omits unrelated audit families and denies their anchors without interpreting payload IDs", async () => {
     const f = await fixture(),
       id = randomUlid();
     await f.audit(
@@ -655,16 +655,9 @@ describe("canonical artifact audit browser delivery", () => {
     expect(await page(await f.request())).toEqual({
       ok: true,
       has_more: false,
-      entries: [
-        {
-          audit_id: id,
-          actor_principal_id: FIX.owner,
-          action: "unrelated.audit",
-          created_at: NOW,
-          payload: { version_id: "synthetic-opaque-reference" },
-        },
-      ],
+      entries: [],
     });
+    await denied(await f.request(`?after=${id}`), 400, CURSOR_DENIED);
   });
 
   it("rebuilds a direct receipt from canonical source metadata instead of historical JSON", async () => {

@@ -593,14 +593,13 @@ export interface SecurityAuditEntry {
 }
 
 /**
- * Owner-only security audit read model. Canonical artifact receipts resolve
- * current shared parents before pagination; unrelated families retain their
- * historical sanitizer and are not certified as private-safe projections.
+ * Owner-only security audit read model for canonical artifact and upload-recovery
+ * receipts. Current shared parents resolve before pagination; every unsupported
+ * family is unavailable without parsing its historical payload.
  *
  * Rows are ordered chronologically by `created_at`, with insertion order
  * (`rowid`) breaking ties: audit ids carry no time component (hub ids are
- * random, recovery rows use an `audit-` prefix), so id order is not time
- * order. `after` stays an `audit_id` cursor but resolves to its row's
+ * random), so id order is not time order. `after` stays an `audit_id` cursor but resolves to its row's
  * timestamp first, so pages advance in time, not id space.
  */
 export async function readSecurityAudit(
@@ -782,17 +781,14 @@ export async function readSecurityAudit(
         GROUP BY target.audit_id HAVING COUNT(*)=MAX(target.resolved)
       ), visible AS MATERIALIZED (
         SELECT source.audit_rowid,source.audit_id,source.actor_principal_id,source.action,source.created_at,
-          NULL AS payload_json,source.outbox_id,source.version_id,source.grant_id,source.source_action,source.occurred_at,
+          source.outbox_id,source.version_id,source.grant_id,source.source_action,source.occurred_at,
           NULL AS recovery_actor_epoch,NULL AS recovery_action_id,NULL AS recovery_replayed,NULL AS recovery_resolved
         FROM canonical_parents AS source LEFT JOIN current_tasks AS task
           ON task.workspace_id=source.workspace_id AND task.id=source.task_id
         WHERE source.run_id IS NULL OR task.id IS NOT NULL
         UNION ALL SELECT source.audit_rowid,source.audit_id,source.actor_principal_id,source.action,source.created_at,
-          NULL,NULL,NULL,NULL,NULL,NULL,source.actor_epoch,source.action_id,source.replayed,source.resolved
+          NULL,NULL,NULL,NULL,NULL,source.actor_epoch,source.action_id,source.replayed,source.resolved
           FROM recovery_sources AS source JOIN recovery_authorized AS authorized ON authorized.audit_id=source.audit_id
-        UNION ALL SELECT audit_rowid,audit_id,actor_principal_id,action,created_at,payload_json,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL
-          FROM audits WHERE lower(action) NOT GLOB 'artifact.*' AND lower(action) NOT GLOB 'ops.recovery.*'
-            AND lower(action) NOT GLOB 'diagnostic.*'
       ), ordered_visible AS MATERIALIZED (
         SELECT visible.*,CASE WHEN ${auditUtc("visible.created_at")}
           THEN ${auditUtcOrderKey("visible.created_at")} ELSE visible.created_at END AS sort_key FROM visible
@@ -805,7 +801,7 @@ export async function readSecurityAudit(
         ORDER BY visible.sort_key,visible.audit_rowid LIMIT (SELECT page_limit FROM requested_cursor)
       ) SELECT scope.authorized,(cursor.after_id IS NULL OR EXISTS (SELECT 1 FROM anchor)) AS anchor_valid,
         (SELECT json_group_array(json_object('audit_id',audit_id,'actor_principal_id',actor_principal_id,'action',action,
-          'created_at',created_at,'payload_json',payload_json,'outbox_id',outbox_id,'version_id',version_id,
+          'created_at',created_at,'outbox_id',outbox_id,'version_id',version_id,
           'grant_id',grant_id,'source_action',source_action,'occurred_at',occurred_at,
           'recovery_actor_epoch',recovery_actor_epoch,'recovery_action_id',recovery_action_id,
           'recovery_replayed',recovery_replayed,'recovery_resolved',recovery_resolved)) FROM page) AS rows_json
@@ -826,7 +822,6 @@ export async function readSecurityAudit(
     audit_id: string;
     actor_principal_id: string;
     action: string;
-    payload_json: string | null;
     created_at: string;
     outbox_id: string | null;
     version_id: string;
@@ -868,13 +863,6 @@ export async function readSecurityAudit(
           resolved: row.recovery_resolved,
         },
       };
-    } else {
-      try {
-        payload = JSON.parse(row.payload_json!) as unknown;
-      } catch {
-        payload = "[unparseable]";
-      }
-      payload = sanitizeDiagnosticValue(payload);
     }
     return {
       audit_id: row.audit_id,
@@ -1899,11 +1887,8 @@ export const resolveStuckUploadCommand: HubCommand<ResolveStuckUploadInput, OpsR
 };
 
 /**
- * Applies one privileged recovery idempotently. Retries with an identical
- * target return the stored outcome without touching domain state again.
- * Notification redispatch rewinds the X01 watermark and GitHub requeue resets
- * rows the X04 reconciler already converges. Upload resolution is rejected
- * here and uses the explicit proof-bound WorkspaceHub command instead.
+ * Holds legacy recovery kinds before target or stored-outcome access.
+ * Upload resolution uses the explicit proof-bound WorkspaceHub command.
  */
 export async function applyOpsRecovery(input: {
   db: SqlDatabase;
@@ -1913,174 +1898,12 @@ export async function applyOpsRecovery(input: {
   actorHumanId: string;
   now: string;
 }): Promise<OpsRecoveryResult> {
-  const db = input.db;
   if (!OPS_RECOVERY_KINDS.includes(input.kind)) {
     fail("invalid_argument", `unknown recovery kind ${input.kind}`);
   }
   if (input.kind === "resolve_stuck_upload")
     fail("request_rejected", "upload recovery requires WorkspaceHub");
-  const actionId = recoveryActionId(input.kind, input.target);
-  const stored = (await db
-    .prepare(
-      `SELECT state, result_json, target_json FROM ops_recovery_ledger WHERE workspace_id = ? AND action_id = ?`,
-    )
-    .get(input.workspaceId, actionId)) as
-    { state: string; result_json: string; target_json: string } | undefined;
-  if (stored && stored.state === "applied" && stored.target_json === JSON.stringify(input.target)) {
-    return {
-      action_id: actionId,
-      kind: input.kind,
-      replayed: true,
-      detail: JSON.parse(stored.result_json) as Record<string, number | string>,
-    };
-  }
-  const detail = await runRecoveryEffect(
-    db,
-    input.workspaceId,
-    input.kind,
-    input.target,
-    input.now,
-  );
-  await db
-    .prepare(
-      `INSERT INTO ops_recovery_ledger
-       (workspace_id, action_id, kind, target_json, state, attempt_count,
-        result_json, created_by_human_id, created_at, updated_at)
-       VALUES (?, ?, ?, ?, 'applied', COALESCE((SELECT attempt_count FROM ops_recovery_ledger WHERE workspace_id = ? AND action_id = ?), 0) + 1, ?, ?, ?, ?)
-       ON CONFLICT (workspace_id, action_id) DO UPDATE SET
-         state = 'applied', attempt_count = ops_recovery_ledger.attempt_count + 1,
-         result_json = excluded.result_json, updated_at = excluded.updated_at`,
-    )
-    .run(
-      input.workspaceId,
-      actionId,
-      input.kind,
-      JSON.stringify(input.target),
-      input.workspaceId,
-      actionId,
-      JSON.stringify(detail),
-      input.actorHumanId,
-      input.now,
-      input.now,
-    );
-  return { action_id: actionId, kind: input.kind, replayed: false, detail };
-}
-
-async function runRecoveryEffect(
-  db: SqlDatabase,
-  workspaceId: string,
-  kind: OpsRecoveryKind,
-  target: Record<string, unknown>,
-  now: string,
-): Promise<Record<string, number | string>> {
-  switch (kind) {
-    case "retry_notification_dispatch": {
-      const body = closedObject(target, ["cursors"], "notification redispatch");
-      if (
-        !Array.isArray(body.cursors) ||
-        body.cursors.length < 1 ||
-        body.cursors.length > OPS_MAX_TARGETS
-      ) {
-        fail("invalid_argument", "cursors must list 1 to 50 event cursors");
-      }
-      const cursors = (body.cursors as unknown[]).map((cursor) => {
-        if (!Number.isInteger(cursor) || (cursor as number) < 1) {
-          fail("invalid_argument", "cursors must be positive integers");
-        }
-        return cursor as number;
-      });
-      for (const cursor of cursors) {
-        const found = (await db
-          .prepare(
-            `SELECT workspace_cursor FROM semantic_events WHERE workspace_id = ? AND workspace_cursor = ?`,
-          )
-          .get(workspaceId, cursor)) as { workspace_cursor: number } | undefined;
-        if (!found) {
-          fail("invalid_argument", `event cursor ${cursor} does not exist`);
-        }
-      }
-      const floor = Math.min(...cursors) - 1;
-      await db
-        .prepare(
-          `INSERT INTO notification_dispatch_state (workspace_id, last_cursor, updated_at)
-           VALUES (?, ?, ?)
-           ON CONFLICT (workspace_id) DO UPDATE SET
-             last_cursor = MIN(notification_dispatch_state.last_cursor, excluded.last_cursor),
-             updated_at = excluded.updated_at`,
-        )
-        .run(workspaceId, floor, now);
-      return { redispatched_from: floor, cursors: cursors.length };
-    }
-    case "requeue_github_outbox": {
-      const body = closedObject(target, ["outbox_ids"], "github requeue");
-      if (
-        !Array.isArray(body.outbox_ids) ||
-        body.outbox_ids.length < 1 ||
-        body.outbox_ids.length > OPS_MAX_TARGETS
-      ) {
-        fail("invalid_argument", "outbox_ids must list 1 to 50 ids");
-      }
-      const ids = body.outbox_ids as unknown[];
-      for (const id of ids) {
-        if (typeof id !== "string" || id.length < 8 || id.length > 128) {
-          fail("invalid_argument", "outbox ids must be bounded strings");
-        }
-      }
-      const queues = ids as string[];
-      for (const id of queues) {
-        const row = (await db
-          .prepare(
-            `SELECT state FROM github_integration_outbox WHERE workspace_id = ? AND outbox_id = ?`,
-          )
-          .get(workspaceId, id)) as { state: string } | undefined;
-        if (!row) {
-          fail("invalid_argument", `github outbox row ${id} does not exist`);
-        }
-        if (row.state !== "dlq" && row.state !== "dispatched") {
-          fail(
-            "invalid_argument",
-            `github outbox row ${id} in state ${row.state} needs no requeue`,
-          );
-        }
-      }
-      let requeued = 0;
-      for (const id of queues) {
-        await db
-          .prepare(
-            `UPDATE github_integration_outbox
-             SET state = 'pending', attempts = 0, next_attempt_at = ?, last_error = NULL, updated_at = ?
-             WHERE workspace_id = ? AND outbox_id = ? AND state IN ('dlq', 'dispatched')`,
-          )
-          .run(now, now, workspaceId, id);
-        requeued += 1;
-      }
-      return { requeued };
-    }
-    case "resolve_stuck_upload": {
-      fail("request_rejected", "upload recovery requires WorkspaceHub");
-    }
-    case "clear_recovery_state": {
-      const body = closedObject(target, ["action_ids"], "recovery clearing");
-      if (
-        !Array.isArray(body.action_ids) ||
-        body.action_ids.length < 1 ||
-        body.action_ids.length > OPS_MAX_TARGETS
-      ) {
-        fail("invalid_argument", "action_ids must list 1 to 50 ids");
-      }
-      let cleared = 0;
-      for (const id of body.action_ids as unknown[]) {
-        if (typeof id !== "string" || id.length < 8 || id.length > 128) {
-          fail("invalid_argument", "action ids must be bounded strings");
-        }
-        const result = await db
-          .prepare(`DELETE FROM ops_recovery_ledger WHERE workspace_id = ? AND action_id = ?`)
-          .run(workspaceId, id);
-        cleared += Number(result.changes ?? 0);
-      }
-      return { cleared };
-    }
-  }
+  fail("request_rejected", "recovery kind is unavailable");
 }
 
 export type OpsQueueMessage =

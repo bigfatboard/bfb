@@ -236,9 +236,7 @@ export function OperationsPage(props: OperationsPageProps) {
         <div>
           <p className="section-label">OPERATIONS</p>
           <h1>Operations, audit, and retention</h1>
-          <p>
-            Committed counts and cursors only. No task text, paths, or secrets leave this surface.
-          </p>
+          <p>Current health, visible work and supported receipts.</p>
         </div>
       </div>
       {status ? (
@@ -351,6 +349,7 @@ export function OperationsPage(props: OperationsPageProps) {
       {props.role === "owner" ? (
         <section aria-label="Security audit" data-testid="operations-audit">
           <h2>Security audit</h2>
+          <p data-testid="audit-scope">Verified artifact and upload-recovery receipts only.</p>
           {audit.loading ? <p>Loading audit…</p> : null}
           {audit.error ? <p className="inline-error">{audit.error}</p> : null}
           <ul>
