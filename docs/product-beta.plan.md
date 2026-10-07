@@ -266,3 +266,16 @@ unresolved; live private R2 byte delivery remains uncertified. C12 stays planned
   still gate private creation/sharing/checkpoints; C11 stays in progress and
   C12 planned. Knowledge, skills, vault, reminders, contributions and the wider
   MVP remain unfinished. No UI or live-pilot rollout changed in this checkpoint.
+  The [security audit position checkpoint](work-packages/evidence/WP-C11/audit-positions-manifest.json)
+  is clean-certified at `23c8930`: 2,298 C11 stage invocation cases, 79 D1
+  checks across eight harnesses, the separate notification runtime, exact
+  X01/X05 and full verification with 4,422 TypeScript cases, Go and all 16
+  Swift cases. Random ten-minute positions bind exact current audiences,
+  inherited capture/expiry and canonical anchors; whole-page commit guards
+  and final delivered-cut checks close security-audit position v1. Internal
+  business history is unchanged. Current board UI workspace-selection races
+  are the next bounded correction. GitHub key policy, execution-owned consumers,
+  destructive private retention and natural expiry still gate activation.
+  Private creation/sharing/checkpoints remain disabled; C11 is in progress,
+  C12 planned, and the other mandatory product features remain unfinished.
+  No deployment or live-pilot/provider operation changed.

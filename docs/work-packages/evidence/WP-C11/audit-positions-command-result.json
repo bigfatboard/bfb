@@ -1,0 +1,129 @@
+{
+  "package": "C11",
+  "recorded_on": "2026-10-07",
+  "tested_commit": "23c89306d5d7bff9691142413a380249c4e3f8da",
+  "outcome": "passed",
+  "stage": "partial_security_audit_position_transition",
+  "package_acceptance_complete": false,
+  "private_creation_available": false,
+  "migration_head": "0047_security_audit_positions",
+  "scope": "Replace raw audit-ID pagination with reusable random positions, current exact audience and canonical anchor binding, atomic Hub issuance and a final delivered-page check.",
+  "clean_commands": [
+    { "command": "pnpm install --frozen-lockfile", "exit_code": 0 },
+    {
+      "command": "pnpm test:c11",
+      "exit_code": 0,
+      "c10_cases": 86,
+      "c10_files": 8,
+      "c10_d1_checks": 9,
+      "c08_cases": 23,
+      "c08_files": 5,
+      "c08_proof": "C08_D1_OK",
+      "stage_cases": 2298,
+      "stage_files": 80,
+      "stage_invocations": [
+        { "cases": 1861, "files": 64 },
+        { "cases": 49, "files": 2 },
+        { "cases": 27, "files": 2 },
+        { "cases": 54, "files": 2 },
+        { "cases": 41, "files": 3 },
+        { "cases": 31, "files": 3 },
+        { "cases": 235, "files": 4 }
+      ],
+      "prior_stage_d1_checks": 67,
+      "prior_stage_d1_harnesses": 7,
+      "audit_position_runtime": {
+        "checks": 12,
+        "proof": "C11_SECURITY_AUDIT_POSITIONS_D1_OK",
+        "maximum_bindings": 18,
+        "maximum_statement_bytes": 33807,
+        "scope": "Actual local D1 bindings and registered production WorkspaceHub, with two independent request Workers, cross-isolate retry and pre-batch canonical mutations"
+      },
+      "notification_runtime": {
+        "proofs": ["C11_NOTIFICATION_IDENTITY_UPGRADE_OK", "X01_HARNESS_OK"],
+        "record_labels": 41,
+        "counting": "Repeated dispatch, setup and redaction labels are not 41 independent acceptance cases"
+      },
+      "go_race": "passed",
+      "counting": "Stage counts are invocation totals, not unique cross-package cases; dependency and runtime counts remain separate"
+    },
+    {
+      "command": "pnpm test:x01",
+      "exit_code": 0,
+      "cases": 37,
+      "files": 5,
+      "go_race": "passed",
+      "proofs": ["C11_NOTIFICATION_IDENTITY_UPGRADE_OK", "X01_HARNESS_OK"]
+    },
+    {
+      "command": "pnpm test:x05",
+      "exit_code": 0,
+      "cases": 60,
+      "files": 6,
+      "runtime_checks": 11,
+      "proof": "X05_DRILL_OK",
+      "browser_cases": 5,
+      "scope": "Supported operator counts/history and retained unavailable legacy activity, diagnostics and recovery behavior"
+    },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 4422,
+      "typescript_files": 196,
+      "go": "passed",
+      "go_scheduling": "GOFLAGS=-p=1",
+      "swift": "passed",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    {
+      "command": "pnpm exec tsc -b tools/g01 --pretty false",
+      "exit_code": 0,
+      "scope": "Caller compilation only, not G01 runtime acceptance"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "exit_code": 0,
+      "before_and_after_verify": true,
+      "committed_source_unchanged": true,
+      "final_status_empty": true
+    }
+  ],
+  "slice_suites": {
+    "domain_position_cases": 18,
+    "database_position_cases": 5,
+    "mounted_artifact_audit_cases": 110,
+    "mounted_recovery_audit_cases": 102,
+    "other_mounted_operations_cases": 23,
+    "real_d1_position_checks": 12
+  },
+  "regression_proof": [
+    "Four meaningful old-source failures: two domain and two mounted cases demonstrate accepted raw audit-ID pagination and absent continuation positions; unselected cases are not passing controls",
+    "Positions contain 32 random bytes with canonical base64url encoding; only domain-separated SHA-256 hashes enter Hub input, fingerprints, safe receipts, audit and idempotency storage",
+    "Current direct-human Owner admission precedes uniform raw, malformed, expired, foreign and unknown position denial, including empty and run-free pages",
+    "Current exact sorted project audience, retained epoch, effective limit and projection version bind every position; same-epoch expansion and contraction invalidate genuine positions",
+    "Reusable descendants retain the root database-clock expiry and rowid capture ceiling, so later backdated inserts appear only from a fresh root",
+    "The current canonical anchor audit ID, normalized sort key and rowid must remain identical; genuine source privacy or tuple drift denies without rewriting business history",
+    "Write-only D1 guards repeat the complete selected rows including lookahead at commit, not merely the cut; audience, epoch and non-anchor/lookahead privatization roll back position, guard and Hub bookkeeping",
+    "Final delivery repeats the original authority and selection under the issued capture; a changed delivered cut or fresh post-await expiry denies without returning the handle",
+    "Populated migration preserves audit rowids and history; tenant-composite primary keys retain global position-hash uniqueness, immutable metadata and no source/member anchor foreign keys",
+    "Real-D1 bounded queries use at most 18 bindings and 33807 SQL bytes; fresh-root limit-100 delivery is tested separately from collected fixed-limit-1 legacy traversals"
+  ],
+  "local_integration_repairs": [
+    "Exploratory tests initially attempted forbidden append-only source changes; fixtures now use genuine task-policy mutations or explicitly labelled corruption of historical fixtures, without weakening production triggers",
+    "A tenant structural invariant rejected globally keyed new tables; both now use workspace-composite primary keys while position hashes remain globally unique",
+    "Legacy fake-clock tests exposed an unnecessary fresh-expiry check on unanchored terminal pages; position replay and issued handles still require database and post-await expiry checks"
+  ],
+  "activation_barriers": [
+    "Public event/realtime replacement remains held; current board UI workspace-selection races require a separate correction",
+    "GitHub key existence policy, execution-owned consumers and destructive private retention remain open",
+    "Natural credential/lease expiry during an in-flight D1 batch, private creation/sharing/checkpoints and C12 remain open"
+  ],
+  "not_claimed": [
+    "Complete C11 acceptance, private activation or live private R2/browser-byte delivery",
+    "Live pilot/provider/native operation, deployment, external CI or G01 runtime acceptance",
+    "Complete notification cutover or broader feed/realtime replacement",
+    "UI implementation in this source slice, project knowledge, skill catalogs, vault, checkpoint reminders or contribution views"
+  ],
+  "redaction": "Bounded synthetic counts, source identities, proof labels and limits only; no credentials, private bodies, raw output, plaintext positions or local absolute paths"
+}

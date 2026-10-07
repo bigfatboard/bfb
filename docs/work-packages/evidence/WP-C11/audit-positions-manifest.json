@@ -1,0 +1,81 @@
+{
+  "$schema": "../manifest.schema.json",
+  "package": "C11",
+  "tested_commit": "23c89306d5d7bff9691142413a380249c4e3f8da",
+  "protocol_version": "bfb-wire/1 unchanged; security audit positions v1",
+  "schema_version": "private-task-delivery/1 partial stage 3 audit position transition; activation unavailable",
+  "migration_head": "0047_security_audit_positions",
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "xcode": "26.0.1",
+    "wrangler": "4.120.1",
+    "playwright": "1.55.1"
+  },
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56)",
+    "architecture": "arm64"
+  },
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/audit-positions-command-result.json"
+    },
+    {
+      "command": "pnpm test:c11",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/audit-positions-command-result.json"
+    },
+    {
+      "command": "pnpm test:x01",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/audit-positions-command-result.json"
+    },
+    {
+      "command": "pnpm test:x05",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/audit-positions-command-result.json"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/audit-positions-command-result.json"
+    },
+    {
+      "command": "pnpm exec tsc -b tools/g01 --pretty false",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/audit-positions-command-result.json"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/audit-positions-command-result.json"
+    }
+  ],
+  "outcome": "passed",
+  "artifacts": [
+    "docs/work-packages/evidence/WP-C11/audit-positions-command-result.json",
+    "docs/work-packages/evidence/WP-C11/audit-positions-acceptance.md",
+    "docs/contracts/operations.md",
+    "docs/contracts/private-task-delivery.md",
+    "migrations/d1/0047_security_audit_positions.sql",
+    "packages/domain/src/security-audit-positions.ts",
+    "packages/domain/src/operations.ts",
+    "packages/domain/src/command-catalog.ts",
+    "packages/domain/test/private-security-audit-positions.test.ts",
+    "packages/domain/test/security-audit-helpers.ts",
+    "packages/db/test/security-audit-positions.test.ts",
+    "apps/control-worker/src/api/operations.ts",
+    "apps/control-worker/test/private-operations-audit-routes.test.ts",
+    "apps/control-worker/test/private-operations-recovery-audit-routes.test.ts",
+    "tools/work-records/audit-fixture.ts",
+    "tools/work-records/audit-positions.ts",
+    "tools/work-records/delivery.ts",
+    "tools/g01/run.ts"
+  ],
+  "redaction": { "status": "passed", "prohibited_content": [] },
+  "ci": { "status": "not_run" }
+}

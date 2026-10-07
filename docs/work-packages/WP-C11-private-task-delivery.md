@@ -238,5 +238,11 @@ The audit-position v1 wire is now frozen in the delivery contract: random hashed
 ten-minute positions, exact current audience/epoch/page-size binding, inherited
 capture ceiling/expiry, whole-selection commit guards and final delivered-cut
 checks. Its additive target is `pnpm test:c11:audit-positions`, composed by C11.
-Implementation and clean-checkout evidence are pending; this contract does not
-close audit positions or activate private work.
+Its [clean checkpoint](evidence/WP-C11/audit-positions-manifest.json) passes at
+`23c8930`: 2,298 stage invocation cases, 79 D1 checks across eight harnesses,
+the separate notification runtime, exact X01/X05 and full verification with
+4,422 TypeScript cases, Go and all 16 Swift cases. The new real-D1 proof bounds
+queries at 18 bindings and 33,807 SQL bytes and closes position v1 without
+rewriting audit history. Current board UI workspace-selection races are next.
+GitHub key policy, execution-owned delivery, destructive private retention and
+natural expiry remain barriers; no private activation or complete C11 is implied.
