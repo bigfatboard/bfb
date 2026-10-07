@@ -4,7 +4,7 @@
 import Database from "better-sqlite3";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { adaptBetterSqlite3, applyMigrationsForVerification } from "@bfb/db";
+import { adaptBetterSqlite3, applyMigrationsForVerification, MIGRATION_HEAD } from "@bfb/db";
 import { FIX, seedSyntheticWorkspace } from "../src/fixtures.js";
 import { WorkspaceHub } from "../src/hub.js";
 import { createTaskCommand } from "../src/work-commands.js";
@@ -86,9 +86,7 @@ describe("private task authority migration", () => {
     const { raw } = await fixture(true);
     try {
       const before = raw.prepare("SELECT * FROM tasks ORDER BY id").all();
-      expect(applyMigrationsForVerification(raw, directory).head).toBe(
-        "0045_private_task_authority",
-      );
+      expect(applyMigrationsForVerification(raw, directory).head).toBe(MIGRATION_HEAD);
       expect(raw.prepare("SELECT * FROM tasks ORDER BY id").all()).toEqual(before);
       expect(raw.prepare("SELECT COUNT(*) AS n FROM task_privacy").get()).toEqual({ n: 0 });
       expect(raw.prepare("SELECT COUNT(*) AS n FROM task_human_grants").get()).toEqual({ n: 0 });
