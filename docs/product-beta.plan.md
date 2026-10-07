@@ -8,8 +8,21 @@ Timo split it from remote start and agent-to-agent work on 6 October. It starts
 from the integrated `7b8620c` checkpoint, preserving the existing implementation
 and certificates. Package metadata remains the source of truth for completion.
 
-Latest local checkpoint: [native Reviewer and project-loss artifact views](work-packages/evidence/WP-C11/native-view-authority-manifest.json),
-clean-certified at `e947fdf` through exact C11 and full verification. C11 passes
+Latest local checkpoint: [browser task child positions](work-packages/evidence/WP-C11/task-positions-manifest.json),
+clean-certified at `70c8500`: exact C11 passes 3,307 stage case invocations
+across 138 file invocations in twenty-two blocks, six panel browser cases and
+230 native check labels across twenty-one harnesses. Dependencies and the
+notification drill remain separate. Full verification passes 4,848 TypeScript
+cases in 223 files, Go and all 16 Swift cases. The focused target passes 106
+cases/six files and six real-D1 groups. Raw-ID continuation is retired without
+fallback on comments, dependencies, links and work-runs; hash-only Hub positions
+retain exact current audiences, fixed capture/expiry and current parent access.
+Complete-selection guards and final post-Hub denial preserve safe history.
+Context remains unpaged. This is not private activation, natural expiry,
+compiled-browser presentation or a new OLD security-failure claim.
+
+The earlier [native Reviewer and project-loss artifact-view proof](work-packages/evidence/WP-C11/native-view-authority-manifest.json)
+is clean-certified at `e947fdf` through exact C11 and full verification. That run passes
 3,201 stage case invocations across 132 file invocations in twenty-one blocks,
 six panel browser cases and 224 native check labels across twenty harnesses;
 dependencies and the notification drill remain separate. Full verification passes
@@ -42,11 +55,10 @@ certificate. Production capture, arithmetic and clocks are unchanged.
 The [task-detail panel certificate](work-packages/evidence/WP-C11/detail-panels-manifest.json)
 and earlier public business/CLI certificate remain unchanged. UI details,
 drafts, retry and hidden-section notices stay on demand in both themes.
-Opaque continuation for comments, dependencies, links and work-runs is implemented
-and awaiting clean-checkout certification.
 Timo approved raw-ID retirement without fallback and position-only Hub
 bookkeeping on 7 October; ADR 0016 and the delivery contract freeze the wire.
-Context remains unpaged. No new position implementation is yet certified.
+The next product-owned slice is human artifact upload/view grant natural expiry
+at atomic consumption, retaining successful-consume and timestamp semantics.
 Timo separately authorized merging and a first Cloudflare beta deployment after
 the product-beta work is verified, followed by deployed smoke checks. No rollout
 has occurred and execution-lane implementation remains excluded. GitHub policy,
@@ -84,8 +96,10 @@ metadata, then creator-only sharing and private checkpoints. Its stage-one
 certificate remains historical; private creation stays disabled until all
 stages pass together. Publication follows in C12. Knowledge, skills, secrets,
 reminders and contribution views receive their own contracts and acceptance
-packages before implementation. The locally verified product branch is the
-deliverable; deployment and live-pilot operation are separate rollout decisions.
+packages before implementation. After the product-beta work is verified, Timo
+has authorized merge and a first Cloudflare beta deployment with deployed smoke
+checks. Operating the enrolled pilot or changing execution-lane scope remains
+separate.
 
 1. Re-certify V02 isolated viewing against the current V01 contract. Reproduce
    and fix same-clock consumption and body-bound errors, connect metadata-only

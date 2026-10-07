@@ -76,8 +76,34 @@ Coordinate shared contracts without changing the other lane's execution work.
 
 ## Handoff
 
-Current checkpoint: [native Reviewer and project-loss artifact views](evidence/WP-C11/native-view-authority-manifest.json),
-clean-certified at `e947fdf`. Exact C11 passes 3,201 stage case invocations
+Current checkpoint: [browser task child positions](evidence/WP-C11/task-positions-manifest.json),
+clean-certified at `70c8500`. Exact C11 passes 3,307 stage case invocations
+across 138 file invocations in twenty-two blocks, six panel browser cases and
+230 native check labels across twenty-one harnesses; dependencies and the
+notification drill are separate. Full verification passes 4,848 TypeScript
+cases in 223 files, Go and all 16 Swift cases. The focused target passes 106
+cases in six files and six real-D1 groups. Under ADR 0016, comments/dependencies/
+links/work-run pages reject raw IDs without fallback and use principal-bound
+opaque positions with hash-only registered Hub issuance. Current parent denial,
+exact audience, inherited capture/expiry, complete-selection rollback and final
+delivery after actual Hub success pass. Context remains unpaged. SQL bounds
+are 24 bindings/10,659 bytes for instrumented reader/local Hub statements.
+This is a finite wire certificate, not full activation, compiled-browser
+presentation, natural expiry or an OLD security-failure claim.
+
+Next product-owned slice is human artifact upload/view grant natural expiry at
+atomic consumption; retained request timestamps must not extend a grant.
+GitHub manual-link collision policy and historical source fences, execution-
+owned delivery and destructive private retention remain open. Timo separately
+authorized merge and first Cloudflare beta deployment after the product work
+is verified; no rollout has happened. Private creation, sharing, inherited
+private children and checkpoints stay disabled; C11 is in progress, C12 planned,
+and other mandatory product features remain unfinished.
+
+### Earlier checkpoints
+
+The [native Reviewer and project-loss artifact-view proof](evidence/WP-C11/native-view-authority-manifest.json)
+is clean-certified at `e947fdf`. Its exact C11 run passes 3,201 stage case invocations
 across 132 file invocations in twenty-one blocks, six panel browser cases and
 224 native check labels across twenty harnesses; dependencies and its
 notification drill are separate. Full verification passes 4,820 TypeScript
@@ -93,20 +119,6 @@ SQL bounds stay 19 bindings/4,716 bytes. Production guards are unchanged from
 The earlier human upload reply fix remains covered by retained tests. This is
 local native proof, not live private bytes, compiled-browser presentation,
 agent-upload reply, natural expiry or activation certification.
-
-The current implementation adds opaque continuation for the four paged browser
-collections: comments, dependencies, links and work-runs. Timo approved raw-ID
-retirement without fallback and position-only Hub bookkeeping on 7 October;
-[ADR 0016](../adr/0016-browser-task-collection-positions.md) and the delivery
-contract freeze the transition. Both context views remain unpaged. Additive
-target `pnpm test:c11:task-positions` joins C11. Its focused local check passes
-106 cases and six real-D1 groups. This source checkpoint is not yet clean-
-certified; no new position certificate or private activation is claimed.
-GitHub key policy, execution-owned delivery and destructive private retention
-remain open. Private creation, sharing, inherited private children and
-checkpoints stay disabled; C11 remains in progress and C12 planned.
-
-### Earlier checkpoints
 
 The [human upload reply and local native artifact-byte checkpoint](evidence/WP-C11/artifact-bytes-manifest.json)
 is clean-certified at `833babe`: 3,201 stage case invocations, six panel browser

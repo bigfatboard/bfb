@@ -1,0 +1,124 @@
+{
+  "package": "C11",
+  "recorded_on": "2026-10-07",
+  "tested_commit": "70c8500525a2b0748a336f3b0b4e5360eed0207e",
+  "production_commit": "70c8500525a2b0748a336f3b0b4e5360eed0207e",
+  "outcome": "passed",
+  "stage": "partial_browser_task_child_positions",
+  "package_acceptance_complete": false,
+  "private_creation_available": false,
+  "migration_head": "0048_task_collection_positions",
+  "scope": "Four existing browser comments/dependencies/links/work-run collections retire raw-ID continuation without fallback. Reusable opaque positions bind current human, epoch, exact canonical project audience, parent, family and page size, with immutable capture/expiry and hash-only registered Hub issuance. Context remains unpaged.",
+  "clean_certificate_marker": "C11_TASK_COLLECTION_POSITIONS_CLEAN_CERTIFICATE_OK",
+  "clean_pipeline_exit_code": 0,
+  "clean_commands": [
+    { "command": "pnpm install --frozen-lockfile", "exit_code": 0 },
+    {
+      "command": "pnpm test:c11",
+      "exit_code": 0,
+      "c10_cases": 86,
+      "c10_files": 8,
+      "c10_d1_checks": 9,
+      "c08_cases": 23,
+      "c08_files": 5,
+      "c08_proof": "C08_D1_OK",
+      "stage_cases": 3307,
+      "stage_files": 138,
+      "stage_invocation_blocks": 22,
+      "retained_vitest_breakdown_reference": "docs/work-packages/evidence/WP-C11/native-view-authority-command-result.json",
+      "additive_vitest_invocation": { "cases": 106, "files": 6 },
+      "stage_browser_cases": 6,
+      "stage_d1_check_labels": 230,
+      "stage_d1_harnesses": 21,
+      "notification_runtime": {
+        "proofs": ["C11_NOTIFICATION_IDENTITY_UPGRADE_OK", "X01_HARNESS_OK"],
+        "record_labels": 41,
+        "counting": "Setup and repeated dispatch/redaction labels are not independent acceptance cases"
+      },
+      "go_race": "passed",
+      "counting": "Twenty-two stage Vitest case/file invocations, not unique cases/files. C10/C08 dependencies, six retained panel Chromium cases and the notification drill are separate. Six new independently collecting native groups join twenty retained harnesses; nested assertions and waves are not additional cases."
+    },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 4848,
+      "typescript_files": 223,
+      "go": "passed",
+      "go_scheduling": "GOFLAGS=-p=1",
+      "swift": "passed",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    {
+      "command": "pnpm worktree:check",
+      "exit_code": 0,
+      "before_and_after_verify": true,
+      "committed_source_unchanged": true,
+      "final_status_empty": true
+    }
+  ],
+  "slice_suites": {
+    "target": "pnpm test:c11:task-positions",
+    "composed_once_by_c11": true,
+    "focused_cases": 106,
+    "focused_files": 6,
+    "new_authenticated_mounted_cases": 20,
+    "new_sqlite_migration_cases": 8,
+    "retained_route_cases": 78,
+    "native_groups": 6,
+    "native_proof": "C11_TASK_COLLECTION_POSITIONS_D1_OK",
+    "maximum_bindings": 24,
+    "maximum_statement_bytes": 10659,
+    "native_checks": [
+      "four_collections_reviewer_capture_reuse_and_hash_only_storage",
+      "raw_foreign_and_drifted_audiences_reject_without_effects",
+      "dependency_insertion_ceiling_and_current_target_acl",
+      "native_batch_whole_selection_guard_rolls_back_issuance",
+      "four_actual_hub_reply_losses_retain_committed_positions",
+      "expired_anchor_and_epoch_loss_are_current_not_capability_authority"
+    ],
+    "counting": "Bounds cover instrumented domain reader and local native Hub statements, not setup/snapshot queries or the independent Worker Hub's internal statements. The eight migration cases use local SQLite transactions, not native Hub admission."
+  },
+  "regression_proof": [
+    "Named read-only Reviewers traverse all four useful collections; terminal reuse has next_cursor:null and no position or Hub effects",
+    "Raw record IDs, malformed/noncanonical/unknown handles and foreign human/task/family/limit reject uniformly; the mounted wrong-human fixture retains equal project audiences",
+    "Current parent denial takes precedence over cursor rejection, including terminal/empty and post-issuance responses; scoped mounted successes and denials are private,no-store",
+    "Same-epoch canonical audience expansion and contraction invalidate handles; descendant capture and expiry are inherited without sliding",
+    "Dependency targets are filtered before visible-only lookahead; a production shared-task insertion beyond captured rowid is excluded while a fresh root sees it",
+    "Complete native selection guards cover a changed nonanchor delivered dependency and the actual lookahead, rolling back position and ordinary Hub bookkeeping",
+    "Actual registered Hub success is independently witnessed before grant loss; final response suppression preserves the exact committed position/history instead of erasing it",
+    "Hash grammar, additive migration preservation, immutable metadata, guard rollback and foreign keys pass; plaintext handles do not enter canonical persisted state or captured Hub RPCs"
+  ],
+  "old_source_probe": {
+    "run": false,
+    "scope": "This is an approved continuation compatibility feature, not a newly demonstrated OLD security failure. Earlier collection-selection and artifact-reply OLD evidence remains separate."
+  },
+  "proof_boundaries": [
+    "Mounted authentication uses genuine synthetic BetterAuth cookies/CSRF over local SQLite and production routing; it is not real sign-in, deployed ingress or compiled-browser presentation",
+    "Native selection and issuance use disposable D1, actual batches and registered production Hub dispatch; browser authentication is proved separately",
+    "Historical work-run and dormant privacy/grant rows are explicit synthetic fixtures; no execution/provider/launch is created by their insertion",
+    "Expired positions are typed already-expired historical fixtures, not natural in-flight expiry proof; the task move is a synthetic FK-clean robustness control",
+    "Foreign human and task are combined in the native rejection group; mounted cases separate the inputs without claiming single-column fault isolation for all bindings",
+    "Canonical snapshots include business, authority and history tables, excluding only engine metadata, migrations and separate HTTP abuse buckets",
+    "Ordinary redacted Hub bookkeeping is the approved read-position exception; no task/comment/progress/interaction business action or kernel interface changes are introduced"
+  ],
+  "excluded_preliminary_probes": [
+    "Early mounted runs exposed missing scoped no-store response headers and a retained historical fixture clock mismatch; both were repaired before clean acceptance",
+    "An initial native insertion fixture attempted a currently unavailable private dependency command; the capture control now uses production shared-task setup without weakening private command authority",
+    "The lookahead seam was corrected to the actual selected extra row, and wrong-human mounted audience equality was corrected before the source commit",
+    "Dirty-worktree focused passes and partial or failing exploratory runs are not the clean certificate"
+  ],
+  "activation_barriers": [
+    "GitHub manual key-collision policy and historical integration source fences remain open",
+    "Human artifact/operations natural-expiry boundaries, execution-owned delivery and destructive private retention remain separate",
+    "Private creation, sharing, inherited private children and checkpoints stay disabled; C11 is in progress and C12 planned"
+  ],
+  "not_claimed": [
+    "Complete C11 acceptance, private activation, the wider mandatory product MVP, deployment or external CI",
+    "Fresh standalone W03, V02, X03, A02 or A04 acceptance; their prior evidence remains separate",
+    "Other raw collection wires, public event/realtime replay, a complete direct-actor/retry matrix, cleanup or rowid rebuilding",
+    "Natural grant/lease expiry, agent upload replies, live private bytes, installed app, persistent pilot, provider, remote-start or agent-to-agent operation",
+    "Rollback of independently committed fixture authority changes, new business actions or a new OLD security failure"
+  ],
+  "redaction": "Bounded synthetic outcomes/counts only; no raw logs, credentials, private bodies, per-run timestamps or local absolute paths"
+}
