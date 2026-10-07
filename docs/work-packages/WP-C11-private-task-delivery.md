@@ -76,22 +76,32 @@ Coordinate shared contracts without changing the other lane's execution work.
 
 ## Handoff
 
-Current checkpoint: [delegated list selection](evidence/WP-C11/list-delivery-manifest.json),
-clean-certified at `8e04700`. Exact C11 passes 2,495 stage invocation cases and
-181 D1 checks across fourteen harnesses; X03 and full verification pass,
-including 4,619 TypeScript cases, Go and all 16 Swift cases. One final statement
-selects current credential/sponsor authority together with canonical project
-or task rows. Authorized empty pages retain their DTOs; denied authority cannot
-masquerade as empty. Captured project ceilings, current project policy/grants,
-readable-root traversal and parent redaction remain restrictions. Read-only
-roles and completed/cancelled history remain readable without read effects.
+Current checkpoint: [human detail and cached business delivery](evidence/WP-C11/human-detail-cache-manifest.json),
+clean-certified at `61cb5ae`. Exact C11 passes 2,527 stage invocation cases and
+200 D1 checks across fifteen harnesses; X03 and full verification pass,
+including 4,651 TypeScript cases, Go and all 16 Swift cases. Browser/CLI
+attention body and observations share final canonical selection. Task and
+human/delegated attention cache replies repeat retained business authority,
+preserving historical fields and masking unreadable task parents. Read-only,
+Reviewer, write-only and ended-history controls remain valid. One expired
+healthy retry fixture was repaired without changing scope or production clocks.
 
-Human attention-detail composition and late business-cache delivery are next.
-GitHub key policy, execution-owned delivery and destructive private retention
-remain open. Private creation, sharing, inherited private children and
-checkpoints stay disabled; C11 remains in progress and C12 planned.
+Next is one cohesive public task-business response and CLI credential-ceiling
+pass: original transport admission, remaining caches and completion after the
+actual Hub reply/body await. GitHub key policy, execution-owned delivery and
+destructive private retention remain open. Private creation, sharing, inherited
+private children and checkpoints stay disabled; C11 remains in progress and
+C12 planned.
 
 ### Earlier checkpoints
+
+The [delegated list selection checkpoint](evidence/WP-C11/list-delivery-manifest.json)
+is clean-certified at `8e04700`: exact C11 passes 2,495 stage invocation cases
+and 181 D1 checks across fourteen harnesses; X03 and full verification pass with
+4,619 TypeScript cases, Go and all 16 Swift cases. Current authority and canonical
+project/task pages share a final statement, retaining authorized empty pages,
+captured project ceilings, readable-root traversal and parent masking without
+read effects. Its evidence remains unchanged.
 
 The [delegated task read checkpoint](evidence/WP-C11/task-delivery-manifest.json)
 is clean-certified at `4fc181e`: final canonical selection repeats current read

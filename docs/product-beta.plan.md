@@ -8,16 +8,18 @@ Timo split it from remote start and agent-to-agent work on 6 October. It starts
 from the integrated `7b8620c` checkpoint, preserving the existing implementation
 and certificates. Package metadata remains the source of truth for completion.
 
-Latest local checkpoint: [delegated list selection](work-packages/evidence/WP-C11/list-delivery-manifest.json),
-clean-certified at `8e04700` through exact C11, X03 and full verification.
-C11 passes 2,495 stage invocation cases and 181 D1 checks across fourteen
-harnesses; full verification passes 4,619 TypeScript cases, Go and all 16 Swift
-cases. Project/task pages select current authority and canonical records in
-one statement, retaining authorized empty pages, captured project ceilings and
-readable-root traversal. This closes delegated lists, not every response or
-private activation. Human attention-detail composition and late business-cache
-delivery are next. GitHub policy, execution-owned consumers and destructive
-private retention remain barriers.
+Latest local checkpoint: [human detail and cached business delivery](work-packages/evidence/WP-C11/human-detail-cache-manifest.json),
+clean-certified at `61cb5ae` through exact C11, X03 and full verification.
+C11 passes 2,527 stage invocation cases and 200 D1 checks across fifteen
+harnesses; full verification passes 4,651 TypeScript cases, Go and all 16 Swift
+cases. Browser/CLI attention detail shares canonical body/history selection;
+task and human/delegated attention caches retain current business authority
+without replacing historical replies. One expired healthy retry fixture was
+repaired without changing scopes or production clocks. Next is one cohesive
+public task-business response and CLI credential-ceiling pass, including original
+transport admission and completion after the actual Hub reply/body await.
+GitHub policy, execution-owned consumers and destructive private retention
+remain barriers.
 Private creation, sharing and checkpoints stay disabled; C11 is in progress,
 C12 planned, and the other mandatory product features remain unfinished.
 No rollout or pilot changed.
@@ -349,3 +351,11 @@ unresolved; live private R2 byte delivery remains uncertified. C12 stays planned
   current read authority and original OAuth restrictions, returns current
   canonical fields and redacts unreadable parents without read effects. Its
   evidence remains unchanged.
+
+  The [delegated list selection checkpoint](work-packages/evidence/WP-C11/list-delivery-manifest.json)
+  is clean-certified at `8e04700`: C11 passes 2,495 stage invocation cases and
+  181 D1 checks across fourteen harnesses; X03 and full verification pass with
+  4,619 TypeScript cases, Go and all 16 Swift cases. Final project/task page
+  selection retains current authority, authorized empty pages, captured project
+  ceilings, readable-root traversal and parent masking without read effects.
+  Its evidence remains unchanged.
