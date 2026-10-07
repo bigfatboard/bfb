@@ -1,5 +1,22 @@
 # Work-record runtime proofs
 
+`pnpm test:c11:github-reconcile-authority`, composed once by C11, owns
+`github-reconcile-authority.mjs`. Four independently collecting native-D1 groups
+cover useful repository reconciliation, completed independent installation
+revocation before the original bound write batch, its same-key retry and the
+retained already-revoked path. The retry is explicitly derivative, not a second
+independent race. Registered external Worker/Hub commands create synthetic
+setup; timed execution imports the real domain Hub and command through the D1
+adapter. The production revocation helper runs through an independent native
+client, never a competing same-Hub mutation. Original bound native statements
+are forwarded unchanged. Complete snapshots start after revocation; evidence,
+terminal state, cache and cursor must roll back with clean foreign keys and
+empty transient guards. Named engine tables are excluded and HTTP budgets
+compared separately. Bounds measure timed direct domain-Hub SQL, not setup,
+revocation, snapshots or Worker/DO internals. This does not certify remap policy,
+lifecycle races, deployed Queue/GitHub ingress, private/task-bound observations,
+natural expiry, private activation or provider/runner operation.
+
 `pnpm test:c11:operations-expiry`, composed once by C11, owns
 `operations-step-up-expiry.ts` and the seven-file mounted/staged operations
 regression target. Eight new staged cases cover unchanged natural expiry,

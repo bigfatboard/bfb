@@ -334,6 +334,39 @@ internal reconciliation remap/conflict lineage and commit-time installation
 authority remain separate, unproved concerns. Status certification alone cannot
 activate private creation, sharing or publication.
 
+### GitHub repository reconcile commit authority
+
+A separate disposable native probe at unchanged `cd69f42` reproduced one
+reachable repository-reconcile race. After real installation/link captures, an
+independent native client completed the production revocation helper before the
+original bound batch. OLD still committed evidence and an applied receipt; its
+same-key follow-on replayed that result. The follow-on is derivative, not a
+second independent race. Healthy and already-revoked controls both passed.
+
+- Before committing repository evidence, require the delivery's installation
+  to remain active in its exact workspace and its captured repository/project
+  link to remain active there. Put this assertion in the same atomic batch as
+  default-branch, evidence, latest-wins, delivery/outbox and Hub bookkeeping
+  writes. Independent source loss rejects through the existing `command_failed`
+  transaction outcome and rolls back the complete batch.
+- A retry after rejected commit has no applied cache to replay and follows the
+  existing revoked-to-ignored path. Preserve legitimate historical applied
+  receipts, webhook ingress, Queue attempt policy, lifecycle handling, schema
+  keys, manual hold and repository mapping behavior. No new credential, clock,
+  shared Hub or installation-helper policy belongs to this bounded repair.
+- Prove actual native captures, completed independent production-helper
+  revocation, unmodified forwarding of bound statements, snapshots taken after
+  revocation, full canonical rollback, clean foreign keys and empty transient
+  guards. Classify budgets separately and retain useful healthy and pre-revoked
+  controls. Bounds cover direct instrumented domain-Hub SQL only.
+
+This is not a same-Hub competing mutation: FIFO serializes those commands.
+Sequential remap/conflict policy remains unchanged and unproved by this cut.
+Production reconciliation omits task IDs and uses the reserved GitHub observer;
+historical human/runner observations cannot collide with it. Dormant synthetic
+private/task-bound GitHub rows do not establish another reachable bug. This
+finite repair does not activate private creation or certify execution consumers.
+
 Operations activity and stuck-work projections exclude private or dangling
 task-bound rows, even for the creator, until the complete operations delivery
 gate passes. Resolve ledger/launch/artifact children through their exact

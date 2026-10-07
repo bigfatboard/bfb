@@ -1413,6 +1413,30 @@ export const reconcileGitHubCommand: HubCommand<ReconcileGitHubInput, ReconcileG
       );
       return { effect: "superseded", reason: "a newer delivery already applied" };
     }
+    // GitHub's independent token-revocation helper can finish outside this
+    // workspace lane after its source reads. Assert liveness in the write batch
+    // so evidence and terminal receipts cannot commit under that stale capture.
+    const sourceGuardId = randomUlid();
+    await ctx.db
+      .prepare(
+        `INSERT INTO artifact_mutation_guards (id, valid)
+         SELECT ?, CASE WHEN EXISTS (
+           SELECT 1 FROM github_app_installations
+           WHERE installation_id = ? AND workspace_id = ? AND status = 'active'
+         ) AND EXISTS (
+           SELECT 1 FROM github_repository_links
+           WHERE workspace_id = ? AND repository_id = ? AND project_id = ? AND link_state = 'active'
+         ) THEN 1 ELSE 0 END`,
+      )
+      .run(
+        sourceGuardId,
+        effect.installationId,
+        ctx.workspaceId,
+        ctx.workspaceId,
+        effect.repositoryId,
+        link.project_id,
+      );
+    await ctx.db.prepare("DELETE FROM artifact_mutation_guards WHERE id = ?").run(sourceGuardId);
     if (observed.defaultBranch !== link.default_branch) {
       await ctx.db
         .prepare(

@@ -7,6 +7,7 @@
 | 3 | 2026-09-18 | Latest-wins guard is per object within each stream, not per stream. |
 | 4 | 2026-10-08 | Beta manual linking is uniformly unavailable; retained history and webhook reconciliation remain. |
 | 5 | 2026-10-08 | Status retains the first workspace authority capture through one coherent installation/link selection. |
+| 6 | 2026-10-08 | Repository reconcile asserts live installation/mapping authority in its committing batch. |
 
 Consumers: X05 (audit/retention), G01 (redelivery/revocation hardening).
 
@@ -88,6 +89,10 @@ to D1.
   exhausted attempts move to visible `github_dlq` state. Link resolution is
   scoped to the delivery's workspace, so one workspace's mapping can neither
   evict nor receive evidence for another workspace's link.
+  Repository evidence commits only while the installation and captured
+  repository/project mapping remain active in that workspace. A same-batch
+  assertion rolls back all effects after independent token-revocation loss;
+  retry then follows the existing ignored path without an applied cache.
   `installation.created` flips `pending` to `active`, `deleted` revokes and
   closes links, `suspend`/`unsuspend` move between `active` and `suspended`.
   `installation_repositories` is recorded only: repository mapping stays
