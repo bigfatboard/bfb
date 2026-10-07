@@ -433,11 +433,69 @@ async function authorizeHumanAttention(
   return { principal, record };
 }
 
+const humanAttentionReplayAuthorities = new WeakMap<
+  HubContext,
+  Awaited<ReturnType<typeof authorizeHumanAttention>>
+>();
+
+async function replayHumanAttentionResult(
+  result: AttentionRecord,
+  ctx: HubContext,
+): Promise<AttentionRecord> {
+  const retained = humanAttentionReplayAuthorities.get(ctx);
+  if (!retained) throw new DomainError("not_found", "attention request not found");
+  const { principal, record } = retained;
+  if (
+    result.id !== record.id ||
+    result.project_id !== record.project_id ||
+    result.task_id !== record.task_id ||
+    result.run_id !== record.run_id ||
+    result.run_execution_id !== record.run_execution_id ||
+    result.assignment_generation !== record.assignment_generation
+  )
+    throw new DomainError("not_found", "attention request not found");
+  const predicate = taskAccessPredicate(principal, "contribute");
+  const row = await ctx.db
+    .prepare(
+      `SELECT 1 AS authorized FROM attention_requests AS attention
+       JOIN tasks AS task ON task.workspace_id = attention.workspace_id
+         AND task.id = attention.task_id AND task.project_id = attention.project_id
+       JOIN runs AS run ON run.workspace_id = attention.workspace_id
+         AND run.id = attention.run_id AND run.task_id = task.id AND run.project_id = task.project_id
+       JOIN workspace_members AS sponsor
+         ON sponsor.workspace_id = task.workspace_id AND sponsor.human_id = ?
+       WHERE attention.workspace_id = ? AND attention.id = ? AND attention.project_id = ?
+         AND attention.task_id = ? AND attention.run_id = ? AND attention.run_execution_id = ?
+         AND attention.assignment_generation = ?
+         AND attention.project_id IN (SELECT value FROM json_each(?)) AND ${predicate.sql}
+         AND CASE attention.required_role
+           WHEN 'owner' THEN sponsor.role = 'owner'
+           WHEN 'member' THEN sponsor.role IN ('owner', 'member')
+           WHEN 'reviewer' THEN sponsor.role IN ('owner', 'member', 'reviewer')
+           ELSE 0 END`,
+    )
+    .get(
+      principal.humanId,
+      ctx.workspaceId,
+      record.id,
+      record.project_id,
+      record.task_id,
+      record.run_id,
+      record.run_execution_id,
+      record.assignment_generation,
+      JSON.stringify(principal.projectIds),
+      ...predicate.parameters,
+    );
+  if (!row) throw new DomainError("not_found", "attention request not found");
+  return result;
+}
+
 export const answerAttentionCommand: HubCommand<AnswerAttentionInput, AttentionRecord> = {
   name: "attention.answer",
   authorize: async (input, ctx) => {
-    await authorizeHumanAttention(input, ctx, true);
+    humanAttentionReplayAuthorities.set(ctx, await authorizeHumanAttention(input, ctx, true));
   },
+  replayResult: replayHumanAttentionResult,
   inputFingerprint: fingerprint,
   auditInput: (input) => ({
     attentionId: (input as AnswerAttentionInput)?.attentionId,
@@ -496,8 +554,9 @@ export interface ResolveAttentionInput {
 export const resolveAttentionCommand: HubCommand<ResolveAttentionInput, AttentionRecord> = {
   name: "attention.resolve",
   authorize: async (input, ctx) => {
-    await authorizeHumanAttention(input, ctx, false);
+    humanAttentionReplayAuthorities.set(ctx, await authorizeHumanAttention(input, ctx, false));
   },
+  replayResult: replayHumanAttentionResult,
   inputFingerprint: fingerprint,
   auditInput: (input) => ({
     attentionId: input.attentionId,
@@ -569,6 +628,58 @@ export async function getAttention(
     .get(workspaceId, attentionId, ...projectIds, ...predicate.parameters)) as
     Record<string, unknown> | undefined;
   return row ? rowToRecord(row) : null;
+}
+
+/** Select body and observations together; an authorized empty history is not a denied parent. */
+export async function getHumanAttentionDetail(
+  db: SqlDatabase,
+  workspaceId: string,
+  projectIds: string[],
+  attentionId: string,
+  access: TaskReadAccess,
+): Promise<{ attention: AttentionRecord; observations: AttentionObservation[] } | null> {
+  if (!isUlid(attentionId) || projectIds.length === 0) return null;
+  const predicate = readTaskPredicate(access);
+  const rows = (await db
+    .prepare(
+      `SELECT attention.*, observation.observation_id,
+              observation.attention_id AS observation_attention_id, observation.observed_kind,
+              observation.actor_type, observation.actor_id, observation.occurred_at
+       FROM attention_requests AS attention
+       JOIN tasks AS task ON task.workspace_id = attention.workspace_id
+         AND task.id = attention.task_id AND task.project_id = attention.project_id
+       JOIN runs AS run ON run.workspace_id = attention.workspace_id
+         AND run.id = attention.run_id AND run.task_id = task.id
+         AND run.project_id = task.project_id
+       LEFT JOIN attention_observations AS observation
+         ON observation.workspace_id = attention.workspace_id
+        AND observation.attention_id = attention.id
+       WHERE attention.workspace_id = ? AND attention.id = ?
+         AND attention.project_id IN (SELECT value FROM json_each(?)) AND ${predicate.sql}
+       ORDER BY observation.occurred_at ASC, observation.rowid ASC`,
+    )
+    .all(workspaceId, attentionId, JSON.stringify(projectIds), ...predicate.parameters)) as Array<
+    Record<string, unknown>
+  >;
+  const first = rows[0];
+  if (!first) return null;
+  return {
+    attention: rowToRecord(first),
+    observations: rows.flatMap((row) =>
+      row.observation_id === null
+        ? []
+        : [
+            {
+              observation_id: String(row.observation_id),
+              attention_id: String(row.observation_attention_id),
+              observed_kind: row.observed_kind as AttentionObservation["observed_kind"],
+              actor_type: row.actor_type as AttentionObservation["actor_type"],
+              actor_id: String(row.actor_id),
+              occurred_at: String(row.occurred_at),
+            },
+          ],
+    ),
+  };
 }
 
 /** Final canonical read bound to the preliminary lineage and original OAuth ceilings. */

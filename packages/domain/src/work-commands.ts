@@ -122,16 +122,60 @@ function workReadAccess(authority: WorkAuthority): TaskReadAccess {
   };
 }
 
-async function replayTaskResult(result: TaskRecord, ctx: HubContext): Promise<TaskRecord> {
-  const authority = await requireAuthority(ctx);
+const taskReplayAuthorities = new WeakMap<HubContext, WorkAuthority>();
+
+async function replayTaskResult(
+  result: TaskRecord,
+  ctx: HubContext,
+  action: "read" | "edit",
+): Promise<TaskRecord> {
+  const authority = taskReplayAuthorities.get(ctx);
+  if (!authority) throw new DomainError("not_found", "task not found");
   const access = workReadAccess(authority);
-  if (!(await getTask(ctx.db, ctx.workspaceId, result.id, access))) {
-    throw new DomainError("not_found", "task not found");
-  }
-  const parent = result.parent_task_id
-    ? await getTask(ctx.db, ctx.workspaceId, result.parent_task_id, access)
+  const target = taskAccessPredicate(authority.principal, action);
+  const read = readTaskPredicate(access);
+  const parent = readTaskPredicate(access, "task_parent");
+  const credential = authority.delegation
+    ? delegatedCredentialPredicate(
+        {
+          ...access,
+          delegationId: authority.delegation.id,
+          clientId: authority.delegation.client_id,
+          projectBoundaryId: authority.delegation.project_id,
+        },
+        "bfb:task:write",
+      )
     : undefined;
-  return { ...result, parent_task_id: parent?.id ?? null };
+  const row = (await ctx.db
+    .prepare(
+      `SELECT CASE WHEN EXISTS (
+         SELECT 1 FROM tasks AS task_parent
+         WHERE task_parent.workspace_id = task.workspace_id AND task_parent.id = ?
+           AND ${parent.sql}
+       ) THEN ? ELSE NULL END AS parent_task_id
+       FROM tasks AS task
+       JOIN workspace_members AS sponsor
+         ON sponsor.workspace_id = task.workspace_id AND sponsor.human_id = ?
+       WHERE task.workspace_id = ? AND task.id = ? AND task.project_id = ?
+         AND task.project_id IN (SELECT value FROM json_each(?))
+         AND sponsor.role IN ('owner', 'member') AND ${target.sql} AND ${read.sql}
+         ${credential ? `AND EXISTS (SELECT 1 FROM oauth_delegations AS credential WHERE ${credential.sql})` : ""}`,
+    )
+    .get(
+      result.parent_task_id,
+      ...parent.parameters,
+      result.parent_task_id,
+      authority.principal.humanId,
+      ctx.workspaceId,
+      result.id,
+      result.project_id,
+      JSON.stringify(authority.principal.projectIds),
+      ...target.parameters,
+      ...read.parameters,
+      ...(credential?.parameters ?? []),
+    )) as { parent_task_id: string | null } | undefined;
+  if (!row) throw new DomainError("not_found", "task not found");
+  return { ...result, parent_task_id: row.parent_task_id };
 }
 
 export function readTaskPredicate(access: TaskReadAccess | undefined, alias = "task") {
@@ -594,7 +638,7 @@ export async function persistTaskCreation(
 
 export const createTaskCommand: HubCommand<CreateTaskInput, TaskRecord> = {
   name: "task.create",
-  replayResult: replayTaskResult,
+  replayResult: (result, ctx) => replayTaskResult(result, ctx, "read"),
   inputFingerprint: workInputFingerprint,
   auditInput: (input) => ({ projectId: input.projectId, parentTaskId: input.parentTaskId }),
   auditResult: taskReceipt,
@@ -617,6 +661,7 @@ export const createTaskCommand: HubCommand<CreateTaskInput, TaskRecord> = {
       input.projectId,
       input.parentTaskId,
     );
+    taskReplayAuthorities.set(ctx, authority);
   },
   async run(input, ctx) {
     const authority = await requireAuthority(ctx);
@@ -747,12 +792,12 @@ export async function persistTaskUpdate(
 
 export const updateTaskCommand: HubCommand<UpdateTaskInput, TaskRecord> = {
   name: "task.update",
-  replayResult: replayTaskResult,
+  replayResult: (result, ctx) => replayTaskResult(result, ctx, "edit"),
   inputFingerprint: workInputFingerprint,
   auditInput: (input) => ({ taskId: input.taskId, expectedVersion: input.expectedVersion }),
   auditResult: taskReceipt,
   async authorize(input, ctx) {
-    await authorizeWorkTask(ctx, input.taskId, "edit");
+    taskReplayAuthorities.set(ctx, await authorizeWorkTask(ctx, input.taskId, "edit"));
   },
   async run(input, ctx) {
     const authority = await authorizeWorkTask(ctx, input.taskId, "edit");
@@ -1339,6 +1384,14 @@ export function delegatedReadTaskPredicate(access: DelegatedTaskReadAccess) {
 
 /** Match the authenticated credential's original ceilings and current read authority. */
 export function delegatedReadCredentialPredicate(access: DelegatedTaskReadAccess) {
+  return delegatedCredentialPredicate(access, "bfb:read");
+}
+
+/** Match retained OAuth ceilings and current scope at a command-owned final selection. */
+export function delegatedCredentialPredicate(
+  access: DelegatedTaskReadAccess,
+  scope: "bfb:read" | "bfb:task:write",
+) {
   const scopes = `CASE WHEN json_valid(credential.scopes_json) THEN
     CASE WHEN json_type(credential.scopes_json) = 'array' THEN credential.scopes_json ELSE '[]' END
     ELSE '[]' END`;
@@ -1349,7 +1402,7 @@ export function delegatedReadCredentialPredicate(access: DelegatedTaskReadAccess
           AND credential.project_id IS ? AND credential.task_id IS ?
           AND julianday(credential.expires_at) > julianday('now')
           AND EXISTS (SELECT 1 FROM json_each(${scopes}) AS scope
-            WHERE scope.type = 'text' AND scope.value = 'bfb:read')
+            WHERE scope.type = 'text' AND scope.value = ?)
           AND NOT EXISTS (SELECT 1 FROM json_each(${scopes}) AS scope WHERE scope.type <> 'text')`,
     parameters: [
       access.workspaceId,
@@ -1359,6 +1412,7 @@ export function delegatedReadCredentialPredicate(access: DelegatedTaskReadAccess
       access.authorizationEpoch,
       access.projectBoundaryId,
       access.taskBoundaryId ?? null,
+      scope,
     ],
   };
 }

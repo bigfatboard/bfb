@@ -14,11 +14,11 @@ import {
   createTaskCommand,
   DomainError,
   getAttention,
+  getHumanAttentionDetail,
   getProject,
   getTask,
   isUlid,
   listAttention,
-  listAttentionObservations,
   listProjectsPage,
   listTasksPage,
   loadPrincipal,
@@ -469,24 +469,15 @@ export async function handleCliHumanApi(request: Request, deps: CliHumanDeps): P
       const attentionId = attentionMatch[1] ?? "";
       const rest = attentionMatch[2] ?? "";
       if (rest === "" && request.method === "GET") {
-        const attention = await getAttention(
+        const detail = await getHumanAttentionDetail(
           deps.db,
           workspaceId,
           principal.projectIds,
           attentionId,
           principal,
         );
-        if (!attention) return json({ error: "not_found" }, 404);
-        return json({
-          attention,
-          observations: await listAttentionObservations(
-            deps.db,
-            workspaceId,
-            principal.projectIds,
-            attentionId,
-            principal,
-          ),
-        });
+        if (!detail) return json({ error: "not_found" }, 404);
+        return json(detail);
       }
       if (rest === "/answer" && request.method === "POST") {
         const record = objectBody(await readBoundedJson(request, BODY_LIMIT), [

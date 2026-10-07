@@ -6,8 +6,8 @@ import {
   answerAttentionCommand,
   DomainError,
   getAttention,
+  getHumanAttentionDetail,
   listAttention,
-  listAttentionObservations,
   loadPrincipal,
   resolveAttentionCommand,
   type AttentionState,
@@ -20,7 +20,10 @@ import type { WorkApiDeps } from "./work.js";
 const BODY_LIMIT = 32_768;
 
 function json(body: unknown, status = 200): Response {
-  return Response.json(body, { status });
+  return Response.json(body, {
+    status,
+    headers: { "cache-control": "no-store", "referrer-policy": "no-referrer" },
+  });
 }
 
 function objectBody(value: unknown, allowed: readonly string[]): Record<string, unknown> {
@@ -135,26 +138,17 @@ export async function handleAttentionApi(request: Request, deps: WorkApiDeps): P
   const attentionId = match[1] ?? "";
   const rest = match[2] ?? "";
   if (rest === "" && request.method === "GET") {
-    const attention = await getAttention(
+    const detail = await getHumanAttentionDetail(
       deps.db,
       deps.workspaceId,
       principal.projectIds,
       attentionId,
       principal,
     );
-    if (!attention) {
+    if (!detail) {
       return json({ error: "not_found" }, 404);
     }
-    return json({
-      attention,
-      observations: await listAttentionObservations(
-        deps.db,
-        deps.workspaceId,
-        principal.projectIds,
-        attentionId,
-        principal,
-      ),
-    });
+    return json(detail);
   }
   if (rest === "/answer" && request.method === "POST") {
     const record = objectBody(await readBoundedJson(request, BODY_LIMIT), [

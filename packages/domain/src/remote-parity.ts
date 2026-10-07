@@ -41,7 +41,12 @@ import {
   type EvidenceRef,
   type SubmissionRecord,
 } from "./results.js";
-import { getTask, readTaskPredicate, type TaskReadAccess } from "./work-commands.js";
+import {
+  delegatedCredentialPredicate,
+  getTask,
+  readTaskPredicate,
+  type TaskReadAccess,
+} from "./work-commands.js";
 import { assertRunResultTransition } from "./work-records.js";
 import { assertTaskAccess, taskAccessPredicate } from "./task-access.js";
 
@@ -504,6 +509,75 @@ export interface RequestDelegatedAttentionInput {
   blocking: boolean;
 }
 
+const delegatedAttentionReplayAuthorities = new WeakMap<
+  HubContext,
+  Awaited<ReturnType<typeof delegatedAttentionAuthority>>
+>();
+
+async function replayDelegatedAttentionResult(
+  result: AttentionRecord,
+  ctx: HubContext,
+): Promise<AttentionRecord> {
+  const retained = delegatedAttentionReplayAuthorities.get(ctx);
+  if (
+    !retained ||
+    result.run_id !== retained.run.id ||
+    result.task_id !== retained.task.id ||
+    result.project_id !== retained.task.project_id
+  )
+    throw new DomainError("not_found", "attention request not found");
+  const { authority, run } = retained;
+  const access = delegationTaskAccess(authority);
+  const contribute = taskAccessPredicate(authority.principal, "contribute");
+  const boundary = readTaskPredicate(access);
+  const credential = delegatedCredentialPredicate(
+    {
+      ...access,
+      delegationId: authority.delegation.delegationId,
+      clientId: authority.delegation.clientId,
+      projectBoundaryId: authority.delegation.projectId,
+    },
+    "bfb:task:write",
+  );
+  const row = await ctx.db
+    .prepare(
+      `SELECT 1 AS authorized FROM attention_requests AS attention
+       JOIN tasks AS task ON task.workspace_id = attention.workspace_id
+         AND task.id = attention.task_id AND task.project_id = attention.project_id
+       JOIN runs AS run ON run.workspace_id = attention.workspace_id
+         AND run.id = attention.run_id AND run.task_id = task.id AND run.project_id = task.project_id
+       JOIN run_executions AS execution ON execution.workspace_id = attention.workspace_id
+         AND execution.id = attention.run_execution_id AND execution.run_id = run.id
+       JOIN execution_assignments AS assignment ON assignment.workspace_id = attention.workspace_id
+         AND assignment.execution_id = execution.id
+         AND assignment.assignment_generation = attention.assignment_generation
+         AND assignment.run_id = run.id AND assignment.task_id = task.id
+         AND assignment.project_id = task.project_id
+       WHERE attention.workspace_id = ? AND attention.id = ? AND attention.run_id = ?
+         AND attention.task_id = ? AND attention.project_id = ?
+         AND attention.run_execution_id = ? AND attention.assignment_generation = ?
+         AND run.purpose = 'work' AND run.result_state IN ('open', 'changes_requested', 'submitted')
+         AND attention.project_id IN (SELECT value FROM json_each(?))
+         AND ${contribute.sql} AND ${boundary.sql}
+         AND EXISTS (SELECT 1 FROM oauth_delegations AS credential WHERE ${credential.sql})`,
+    )
+    .get(
+      ctx.workspaceId,
+      result.id,
+      run.id,
+      result.task_id,
+      result.project_id,
+      result.run_execution_id,
+      result.assignment_generation,
+      JSON.stringify(authority.principal.projectIds),
+      ...contribute.parameters,
+      ...boundary.parameters,
+      ...credential.parameters,
+    );
+  if (!row) throw new DomainError("not_found", "attention request not found");
+  return result;
+}
+
 /**
  * Files an attention request under a live OAuth delegation. The request
  * binds the named run (which must sit inside the delegation boundary with a
@@ -519,8 +593,9 @@ export const requestDelegatedAttentionCommand: HubCommand<
 > = {
   name: "attention.request.delegation",
   authorize: async (input, ctx) => {
-    await delegatedAttentionAuthority(input, ctx);
+    delegatedAttentionReplayAuthorities.set(ctx, await delegatedAttentionAuthority(input, ctx));
   },
+  replayResult: replayDelegatedAttentionResult,
   inputFingerprint: delegatedFingerprint,
   auditInput: (input) => ({
     runId: (input as RequestDelegatedAttentionInput)?.runId,

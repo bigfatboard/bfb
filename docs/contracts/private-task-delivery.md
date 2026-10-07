@@ -950,6 +950,54 @@ This certifies only the final delegated collection statements, not opaque
 task cursors, later delivery, caches, other transports, private activation,
 provider/run expiry or the pending GitHub collision policy.
 
+### Frozen human detail and cached business delivery
+
+This C11 checkpoint owns browser/CLI attention detail and cached task create/update,
+human attention answer/resolve and delegated attention request replies. The Hub
+FIFO, idempotency envelope, execution infrastructure and observation clocks are
+unchanged. Fresh writes retain their separate committing authority contracts.
+
+- Attention detail selects the canonical request and its ordered observations
+  together under current membership/epoch, project authority and task read access.
+  Captured project IDs remain a ceiling, including the CLI binding subset. An
+  authorized request with no observations returns the existing empty array; a
+  missing or denied parent returns the same 404. Answered/resolved requests and
+  historical ended executions remain readable without active-session checks.
+  Browser attention replies, like CLI replies, carry no-store and no-referrer.
+- Cached business replies retain historical fields, versions and cursor. They
+  do not become fresh reads or create observations, audit, outbox or new cursor
+  positions. Command-owned replay hooks repeat current authority in a final
+  selection after the idempotency read. Command-owned, request-lifetime state
+  retains the business authorizer's authenticated principal and nullable
+  OAuth/client ceilings across that await; no new shared Hub context or
+  transport wire is introduced. This capture does not certify a transport
+  ceiling that changed before Hub admission.
+- Task retries require the original operation's role and access, exact current
+  task/project lineage and current read authority. Their historical parent ID is
+  masked in the same statement when that parent is no longer readable. A parent
+  mask must not permit a target task whose authority was lost during the old
+  second read. Write-only delegations need write scope, not additional read scope.
+- Human attention retries require the current kind's answer role, contribute
+  access and exact retained attention/run/task/project lineage. Delegated
+  requests retain Reviewer support, write-only scope, permitted run result state
+  and their original immutable waiter assignment; they do not require a live
+  lease or adopt a newer execution. Their final selection repeats current
+  credential/sponsor/client, all-string write scope, original nullable resource
+  boundaries and strict database-clock expiry.
+- Reproduce the old attention body/observation composition race and old cached
+  task parent-read and attention idempotency-read races. Include healthy empty
+  detail, historical cached results, read/contribute/edit distinctions,
+  Reviewer and write-only cases, immutable lineage and original-boundary changes.
+  Snapshot canonical business/authority state and cursors after independent
+  changes; native D1 witnesses are separate from mounted transport tests.
+
+The additive target is `pnpm test:c11:human-detail-cache`, composed once by C11.
+This checkpoint does not certify authority after the final selection, CLI
+credential lifetime (binding revocation, scope/subset changes and admission role)
+or cached command binding subsets, provider/run capability expiry, fresh command response
+delivery, destructive retention, artifact bytes, private activation or the
+pending GitHub collision policy.
+
 ### Frozen browser board selection
 
 This corrective C11 slice binds already-authorized board delivery to the
