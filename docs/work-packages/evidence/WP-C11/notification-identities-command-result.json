@@ -1,0 +1,137 @@
+{
+  "package": "C11",
+  "recorded_on": "2026-10-07",
+  "tested_commit": "4f156f5b5520671b9876d12e73d19c01c9556df1",
+  "outcome": "passed",
+  "stage": "partial_notification_identity_transition",
+  "package_acceptance_complete": false,
+  "private_creation_available": false,
+  "migration_head": "0046_notification_public_identities",
+  "scope": "Replace recipient-visible source-derived notification keys with immutable random identities while preserving internal dedupe, inbox history and shared-parent delivery fences.",
+  "clean_commands": [
+    { "command": "pnpm install --frozen-lockfile", "exit_code": 0 },
+    {
+      "command": "pnpm test:c11",
+      "exit_code": 0,
+      "c10_cases": 86,
+      "c10_files": 8,
+      "c10_d1_checks": 9,
+      "c08_cases": 23,
+      "c08_files": 5,
+      "c08_proof": "C08_D1_OK",
+      "stage_cases": 2044,
+      "stage_files": 76,
+      "stage_invocations": [
+        { "cases": 1842, "files": 64 },
+        { "cases": 49, "files": 2 },
+        { "cases": 27, "files": 2 },
+        { "cases": 54, "files": 2 },
+        { "cases": 41, "files": 3 },
+        { "cases": 31, "files": 3 }
+      ],
+      "prior_stage_d1_checks": 67,
+      "prior_stage_d1_harnesses": 7,
+      "notification_runtime": {
+        "proof": "C11_NOTIFICATION_IDENTITY_UPGRADE_OK",
+        "completion": "X01_HARNESS_OK",
+        "record_labels": 41,
+        "new_bounded_checks": [
+          "notification_identity_cross_isolate_winner",
+          "notification_identity_upgrade_resume"
+        ],
+        "scope": "Production Worker/Hub/D1 and local Queue/DLQ, including two independent proxy Workers sharing the production workspace Hub",
+        "counting": "Structured record labels include repeated dispatch/redaction and setup; they are not 41 independent acceptance cases"
+      },
+      "go_race": "passed",
+      "counting": "Invocation totals, not a unique cross-package combined total; dependency and runtime counts remain separate"
+    },
+    {
+      "command": "pnpm test:x01",
+      "exit_code": 0,
+      "cases": 37,
+      "files": 5,
+      "go_race": "passed",
+      "proofs": ["C11_NOTIFICATION_IDENTITY_UPGRADE_OK", "X01_HARNESS_OK"],
+      "scope": "Notification, native bridge and runner regression; production-shaped push/pull/ack plus retained retry, revocation, DLQ, endpoint and redaction controls"
+    },
+    {
+      "command": "pnpm test:x05",
+      "exit_code": 0,
+      "cases": 60,
+      "files": 6,
+      "runtime_checks": 11,
+      "proof": "X05_DRILL_OK",
+      "browser_cases": 5,
+      "scope": "Preserved supported operator counts and history; legacy activity, diagnostics and unsupported recovery remain held"
+    },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 4380,
+      "typescript_files": 194,
+      "go": "passed",
+      "go_scheduling": "GOFLAGS=-p=1",
+      "swift": "passed",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    {
+      "command": "pnpm exec tsc -b tools/g01 --pretty false",
+      "exit_code": 0,
+      "scope": "Caller compilation only; G01 runtime acceptance not run"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "exit_code": 0,
+      "before_and_after_verify": true,
+      "committed_source_unchanged": true,
+      "final_status_empty": true
+    }
+  ],
+  "slice_suites": {
+    "domain_identity_cases": 22,
+    "database_migration_cases": 5,
+    "worker_maintenance_cases": 4,
+    "mounted_notification_cases": 24,
+    "maintenance_population": 500,
+    "cron_resume_population": 101,
+    "legacy_delivery_states": 5
+  },
+  "regression_proof": [
+    "Meaningful old-source baseline: three failures and one control in four domain cases; both selected mounted cases fail, with ten unselected cases skipped",
+    "Five native leaf failures expose production-envelope rejection, partial offers from malformed/duplicate batches and trailing JSON acceptance; old tuple denials alone were not proof because unknown fields also rejected them",
+    "Cryptographic identity generation has no timestamp or source input; entropy/collision failures do not silently discard a different logical delivery or rewrite legacy bookkeeping",
+    "The registered bounded system-only command authorizes before cache, fingerprints sorted input, stores count-only receipts and assigns only NULL identities; reads precede queued D1 writes",
+    "Public history is an explicit cursor-free DTO; native v1 uses the public alias in its existing delivery_id field; internal, unknown and foreign acknowledgements remain indistinguishable zeroes",
+    "Authorized legacy-page repair repeats the original retained viewer/runner scope after the Hub await; parent, project and epoch losses suppress delivery, and push repeats its authority/alias/endpoint check after signing",
+    "Five hundred maintenance rows use at most 100 bound parameters per query and 100 inputs per Hub request; 101 Cron candidates resume across ticks with unchanged acknowledgements and no effects on a completed rerun",
+    "Populated real-D1 upgrade preserves all five states and acknowledged native inbox history; independent Worker requests serialize to one stable winner, retries retain aliases, unauthorized cache return denies and remaining NULL rows resume",
+    "The native decoder accepts the complete production enrollment tuple, rejects foreign/unknown/trailing data and validates the whole bounded batch before any offer; bridge retry/denial behavior remains"
+  ],
+  "initial_certificate_attempts": [
+    {
+      "tested_commit": "8c34daa83a7ac4bf301f1edd0c24e7b2be91caba",
+      "outcome": "failed",
+      "reason": "The C10 preservation test assumed 0045 was the final repository migration",
+      "repair": "Compare the complete upgrade with the canonical migration head while retaining unchanged-task, empty-policy/grant and foreign-key assertions"
+    },
+    {
+      "tested_commit": "a0a43fabba8b420635bf6daab62bdf684c75cb79",
+      "outcome": "failed",
+      "reason": "C11, X01, X05 and full verification passed, but the separately compiled G01 caller still supplied the removed eventCursor input",
+      "repair": "Use a deterministic synthetic public identity and exact cursor-free payload assertions in that fixture; final clean-source caller compilation and every selected gate pass"
+    }
+  ],
+  "activation_barriers": [
+    "Security-audit opaque anchors; public replay/realtime remains held rather than replaced",
+    "GitHub unbound-key collision policy, execution-owning participant/runner/control delivery and destructive private retention",
+    "Natural credential/lease expiry during in-flight D1, private creation/sharing/checkpoints and C12"
+  ],
+  "not_claimed": [
+    "Complete C11 acceptance, private notification activation or live private R2/browser-byte delivery",
+    "Complete legacy identity cutover, retirement of deployed old producers or recall of already sent payloads/notices",
+    "Installed native notification consent/delivery, live provider/pilot operation, deployment, external CI or G01 runtime acceptance",
+    "New UI, project knowledge, skills catalogs, vault, checkpoint reminders or contribution features"
+  ],
+  "redaction": "Bounded synthetic counts, source identities, proof labels and limits only; no credentials, private bodies, raw output or local absolute paths"
+}

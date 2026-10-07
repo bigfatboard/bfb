@@ -1,0 +1,83 @@
+{
+  "$schema": "../manifest.schema.json",
+  "package": "C11",
+  "tested_commit": "4f156f5b5520671b9876d12e73d19c01c9556df1",
+  "protocol_version": "bfb-wire/1 unchanged; native notification envelope remains v1",
+  "schema_version": "private-task-delivery/1 partial stage 3 notification identity transition; activation unavailable",
+  "migration_head": "0046_notification_public_identities",
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "xcode": "26.0.1",
+    "wrangler": "4.120.1",
+    "playwright": "1.55.1"
+  },
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56)",
+    "architecture": "arm64"
+  },
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/notification-identities-command-result.json"
+    },
+    {
+      "command": "pnpm test:c11",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/notification-identities-command-result.json"
+    },
+    {
+      "command": "pnpm test:x01",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/notification-identities-command-result.json"
+    },
+    {
+      "command": "pnpm test:x05",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/notification-identities-command-result.json"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/notification-identities-command-result.json"
+    },
+    {
+      "command": "pnpm exec tsc -b tools/g01 --pretty false",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/notification-identities-command-result.json"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/notification-identities-command-result.json"
+    }
+  ],
+  "outcome": "passed",
+  "artifacts": [
+    "docs/work-packages/evidence/WP-C11/notification-identities-command-result.json",
+    "docs/work-packages/evidence/WP-C11/notification-identities-acceptance.md",
+    "docs/contracts/notifications.md",
+    "docs/contracts/private-task-delivery.md",
+    "migrations/d1/0046_notification_public_identities.sql",
+    "packages/domain/src/notification-identities.ts",
+    "packages/domain/test/private-notification-identities.test.ts",
+    "packages/db/test/notification-identities.test.ts",
+    "apps/control-worker/src/notifications/identities.ts",
+    "apps/control-worker/test/notification-identities.test.ts",
+    "apps/control-worker/test/private-notification-delivery.test.ts",
+    "internal/notify/notify.go",
+    "internal/notify/notify_test.go",
+    "tools/notifications/run.ts",
+    "tools/g01/run.ts"
+  ],
+  "redaction": {
+    "status": "passed",
+    "prohibited_content": []
+  },
+  "ci": {
+    "status": "not_run"
+  }
+}

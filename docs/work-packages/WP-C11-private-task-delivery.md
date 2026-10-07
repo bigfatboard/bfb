@@ -218,3 +218,18 @@ private retention and natural in-flight expiry remain open. Private creation,
 sharing and author-private checkpoints stay disabled; C11 stays in progress and
 C12 planned. This is an availability hold, not an opaque replacement stream or
 a live-provider/private-byte/deployment certificate.
+
+The [notification identity checkpoint](evidence/WP-C11/notification-identities-manifest.json)
+is clean-certified at `4f156f5`: 2,044 invocation cases, seven earlier D1
+harnesses plus the production notification Worker/D1/Queue/DLQ drill, exact
+X01/X05 and full verification with 4,380 TypeScript cases, Go and all 16 Swift
+cases. Additive migration 0046 preserves internal keys, historical delivery
+states and inbox acknowledgements while assigning immutable random public
+identities through bounded Hub repair. Recipient wires omit raw event positions;
+native pull retains its complete v1 tuple and accepts only public-ID acks.
+Post-repair/signing parent, project and epoch regressions pass. Stale migration
+and G01 caller fixtures were repaired before final clean certification. Complete
+cutover and installed native delivery remain uncertified. Audit anchors are
+next; GitHub key policy, execution-owned consumers, destructive private retention
+and natural in-flight expiry remain open. Private creation/sharing/checkpoints
+stay disabled; C11 remains in progress and C12 remains planned.

@@ -252,3 +252,17 @@ unresolved; live private R2 byte delivery remains uncertified. C12 stays planned
   remain barriers. Private creation/sharing/checkpoints stay disabled; C11 remains
   in progress and C12 planned. Knowledge, skills, vault, reminders and contribution
   views remain unbuilt; the wider MVP and deployment are not complete.
+  The [notification identity checkpoint](work-packages/evidence/WP-C11/notification-identities-manifest.json)
+  is clean-certified at `4f156f5`: 2,044 C11 invocation cases, eight stage runtime
+  harnesses, exact X01/X05 and full verification with 4,380 TypeScript cases,
+  Go and all 16 Swift cases. Additive migration 0046 and bounded Hub repair retain
+  historical bookkeeping while browser/push/native wires use immutable random
+  public identities without raw positions. Native v1 tuple and whole-batch
+  validation, legacy resume and post-await parent/project/epoch checks pass.
+  Two stale acceptance fixtures were corrected before final clean certification.
+  Complete deployed cutover and installed native delivery are not claimed.
+  Security-audit opaque anchors are the next product-side slice. Remaining
+  GitHub, execution-owned, destructive retention and natural-expiry barriers
+  still gate private creation/sharing/checkpoints; C11 stays in progress and
+  C12 planned. Knowledge, skills, vault, reminders, contributions and the wider
+  MVP remain unfinished. No UI or live-pilot rollout changed in this checkpoint.
