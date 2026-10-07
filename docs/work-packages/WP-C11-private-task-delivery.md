@@ -160,3 +160,16 @@ dated evidence is preserved. Other audit/recovery families, opaque positions,
 composite board/deck final delivery, coordination consumers and the prior
 natural-expiry barrier remain open. C11 stays in progress; private creation,
 creator sharing and author-private checkpoints remain disabled; C12 stays planned.
+
+The [canonical board/deck checkpoint](evidence/WP-C11/board-manifest.json)
+is clean-certified at `014f73b`: 1,877 invocation cases, 55 real-D1 checks across
+four harnesses, retained C10/C08 and exact W03 acceptance (179 unit and 87
+shared browser cases). Full verification passes 4,219 TypeScript cases, Go and
+all 16 Swift cases. One final current-authority selector returns lanes, an
+independent three-item deck, current role/epoch, task bodies, policy/routing,
+current owner names and exact typed work history. Heuristic recent events are
+uniformly held inside existing task Details. The first certification attempt
+passed test gates but failed final clean status due to a historical G01 capture;
+routine captures now use ignored output and the fresh clean certificate passes.
+Unsupported audit/recovery implementation, opaque positions, coordination,
+natural expiry and private activation remain open. C11 is still in progress.

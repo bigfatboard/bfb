@@ -208,5 +208,13 @@ unresolved; live private R2 byte delivery remains uncertified. C12 stays planned
   proves the hold rather than v1 upload. Other audit/recovery families, opaque
   positions, composite board/deck delivery, coordination and the prior natural
   expiry barrier remain open. Private creation/sharing/checkpoints stay disabled.
-  Next priority is final current-authority board/deck delivery after hydration;
-  new optional audit detail does not take priority over that core product boundary.
+  The [canonical board/deck checkpoint](work-packages/evidence/WP-C11/board-manifest.json)
+  is clean-certified at `014f73b`: 1,877 invocation cases, 55 real-D1 checks,
+  exact W03 acceptance (179 unit and 87 shared browser cases), and full
+  verification with 4,219 TypeScript cases, Go and all 16 Swift cases. Current
+  authority, role/body/policy/name/run history and independent board/deck bounds
+  share one final selector. Recent event details are held within existing
+  disclosures, with stale metadata suppressed and no new default action.
+  Routine browser captures no longer overwrite historical evidence; a fresh
+  clean certificate passes. Remaining unsupported audit/recovery, opaque
+  positions, coordination, natural expiry and activation barriers stay open.

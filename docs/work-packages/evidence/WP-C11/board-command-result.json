@@ -1,0 +1,114 @@
+{
+  "package": "C11",
+  "recorded_on": "2026-10-07",
+  "tested_commit": "014f73b147f1c48e528c96eb0901b7bd96c113be",
+  "outcome": "passed",
+  "stage": "partial_metadata_canonical_board_and_attention_deck",
+  "package_acceptance_complete": false,
+  "private_creation_available": false,
+  "scope": "One final human-authorized selection returns board, independent attention deck, current role/epoch, routing, owner names and typed work-run history. Heuristic recent event details are uniformly unavailable; source rows remain unchanged.",
+  "migration_head": "0045_private_task_authority",
+  "clean_commands": [
+    { "command": "pnpm install --frozen-lockfile", "exit_code": 0 },
+    {
+      "command": "pnpm test:c11",
+      "exit_code": 0,
+      "c10_cases": 86,
+      "c10_files": 8,
+      "c10_d1_checks": 9,
+      "c08_cases": 23,
+      "c08_files": 5,
+      "c08_proof": "C08_D1_OK",
+      "stage_cases": 1877,
+      "stage_files": 66,
+      "stage_invocations": [
+        { "cases": 1828, "files": 64 },
+        { "cases": 49, "files": 2 }
+      ],
+      "stage_d1_checks": 55,
+      "stage_d1_harnesses": [
+        { "proof": "C11_TASK_D1_OK", "checks": 37 },
+        { "proof": "C11_OPERATIONS_AGGREGATES_D1_OK", "checks": 8 },
+        { "proof": "C11_DIAGNOSTIC_QUARANTINE_D1_OK", "checks": 4 },
+        { "proof": "C11_BOARD_D1_OK", "checks": 6 }
+      ],
+      "counting": "Invocation totals, not a unique cross-package combined total"
+    },
+    {
+      "command": "pnpm test:w03",
+      "exit_code": 0,
+      "unit_cases": 179,
+      "unit_files": 27,
+      "shared_browser_cases": 87,
+      "w03_browser_cases": 16,
+      "historical_evidence_unchanged": true
+    },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 4219,
+      "typescript_files": 184,
+      "go": "passed",
+      "go_scheduling": "GOFLAGS=-p=1",
+      "swift": "passed",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    {
+      "command": "pnpm exec tsc -b tools/g01 --pretty false",
+      "exit_code": 0,
+      "scope": "Caller compilation only; G01 runtime acceptance not run"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "exit_code": 0,
+      "before_and_after_verify": true,
+      "committed_source_unchanged": true,
+      "final_status_empty": true
+    }
+  ],
+  "new_regression_suites": {
+    "domain_cases": 26,
+    "mounted_cases": 23,
+    "board_ui_unit_cases": 1,
+    "board_browser_cases": 1
+  },
+  "real_d1_extension_checks": [
+    "revoked_grant_cannot_survive_late_hydration_or_final_selection",
+    "one_statement_preserves_current_role_body_and_precise_deck_chronology",
+    "typed_terminal_work_history_excludes_discussion_and_malformed_sources",
+    "captured_project_ids_cannot_restore_current_project_loss",
+    "fixed_bind_project_set_preserves_global_fifty_candidates_and_independent_three_deck_items",
+    "empty_board_and_invalid_clock_still_require_current_human_epoch"
+  ],
+  "repairs_with_regression_proof": [
+    "Domain, mounted and UI regressions fail meaningfully before repair; an actual-D1 old-source race returns the synthetic private canary",
+    "Current membership/retained epoch and project/task authority govern the final SQL result, even with no tasks or invalid deck clock",
+    "Readable candidates precede the legacy global limit; policy-backed lanes and independent deck preserve their separate bounds",
+    "Current names, policy/body fields and exact typed work-run tuples share the selection; valid UTC chronology preserves fractional instants and deterministic ties",
+    "No semantic hydration can manufacture a recent event; stale supplied latestEvent is ignored in the existing keyboard-operable Details disclosure",
+    "Light/dark captures were visually inspected; reduced-motion card capture avoids menu-scroll and theme-transition artifacts",
+    "Independent focused review passes 49 cases; clean exact C11/W03/repository gates pass without platform skips"
+  ],
+  "initial_certificate_attempt": {
+    "tested_commit": "71f4ebd49c4cd86b7b9cd1e426616c53f4e84d71",
+    "outcome": "failed",
+    "reason": "All test gates passed, but an existing browser regression overwrote tracked historical G01 request-count evidence, so final worktree check failed",
+    "repair": "Routine G01 browser captures now use ignored test output; intentional historical-evidence capture requires an explicit environment flag. A fresh clean checkout passes with empty final status"
+  },
+  "activation_barriers": [
+    "Natural credential or lease expiry during an in-flight D1 batch",
+    "Opaque recipient positions, raw notification identities and unbound GitHub evidence keys",
+    "Unsupported audit/recovery and destructive private-retention policy",
+    "Remaining coordination delivery and private creation/sharing/author checkpoints",
+    "Downstream C12 publication"
+  ],
+  "not_claimed": [
+    "Complete C11 acceptance or private activation",
+    "Browser-session lifetime, opaque event history, commit/send-time expiry or live private R2 delivery",
+    "The unsupported audit/recovery contract present in this source; its implementation is a later checkpoint",
+    "G01 runtime acceptance, execution/provider changes, pilot operation, deployment or external CI",
+    "New project knowledge, skills, vault values, reminders or contribution views"
+  ],
+  "redaction": "Bounded synthetic counts, proof labels, source identity and limits only; no private bodies, credentials, raw output or local absolute paths"
+}
