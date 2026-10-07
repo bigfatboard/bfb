@@ -4,15 +4,10 @@
 import type { SqlDatabase } from "@bfb/db";
 import type { DiscussionView } from "@bfb/protocol";
 
-import {
-  assertEpoch,
-  assertProjectAccess,
-  loadPrincipal,
-  type AuthzPrincipal,
-} from "./authorization.js";
+import type { AuthzPrincipal } from "./authorization.js";
 import { DomainError, type HubContext } from "./hub.js";
 import { isUlid } from "./ids.js";
-import { getTask } from "./work-commands.js";
+import { sharedTaskPredicate, taskAccessPredicate } from "./task-access.js";
 import {
   discussionDispatchBlock,
   discussionHash,
@@ -198,24 +193,52 @@ async function view(
   });
 }
 
+/** Human history is shared-only; sponsor advice cannot replace current viewer authority. */
+async function humanDiscussionRow(
+  db: SqlDatabase,
+  principal: AuthzPrincipal,
+  id: string,
+  expected?: DiscussionRow,
+): Promise<DiscussionRow> {
+  if (!isUlid(id)) throw new DomainError("invalid_argument", "discussion id is invalid");
+  const access = taskAccessPredicate(principal, "read", "view_task");
+  const row = (await db
+    .prepare(
+      `SELECT discussion.* FROM discussions AS discussion
+       JOIN tasks AS view_task ON view_task.workspace_id=discussion.workspace_id
+         AND view_task.id=discussion.task_id AND view_task.project_id=discussion.project_id
+       WHERE discussion.workspace_id=? AND discussion.id=?
+         AND ${sharedTaskPredicate("view_task")} AND ${access.sql}
+         ${expected ? "AND discussion.task_id=? AND discussion.project_id=?" : ""}`,
+    )
+    .get(
+      principal.workspaceId,
+      id,
+      ...access.parameters,
+      ...(expected ? [expected.task_id, expected.project_id] : []),
+    )) as DiscussionRow | undefined;
+  if (!row) throw new DomainError("not_found", "discussion not found");
+  return row;
+}
+
 export async function readHumanDiscussion(
   db: SqlDatabase,
   principal: AuthzPrincipal,
   id: string,
   now: string,
 ): Promise<DiscussionView> {
-  const fresh = await loadPrincipal(db, principal.workspaceId, principal.humanId);
-  assertEpoch(fresh, principal.authorizationEpoch);
-  const row = await readDiscussion(db, fresh.workspaceId, id);
-  assertProjectAccess(fresh, row.project_id);
-  return view(row, {
+  const row = await humanDiscussionRow(db, principal, id);
+  const result = await view(row, {
     db,
-    workspaceId: fresh.workspaceId,
+    workspaceId: principal.workspaceId,
     now,
-    actorHumanId: fresh.humanId,
-    authorizationEpoch: fresh.authorizationEpoch,
+    actorHumanId: principal.humanId,
+    authorizationEpoch: principal.authorizationEpoch,
     cursorBase: 0,
   });
+  // All hydration/advisory awaits finish before this exact current-parent delivery guard.
+  await humanDiscussionRow(db, principal, id, row);
+  return result;
 }
 
 /** A01/D02 must supply authenticated run authority; this is not a public ID-based login. */
@@ -234,11 +257,6 @@ export async function listTaskDiscussions(
   taskId: string,
   options: { cursor?: string; limit?: number } = {},
 ) {
-  const fresh = await loadPrincipal(db, principal.workspaceId, principal.humanId);
-  assertEpoch(fresh, principal.authorizationEpoch);
-  const task = await getTask(db, fresh.workspaceId, taskId);
-  if (!task) throw new DomainError("not_found", "discussion task not found");
-  assertProjectAccess(fresh, task.project_id);
   const limit = options.limit ?? 20;
   if (
     !Number.isSafeInteger(limit) ||
@@ -247,17 +265,28 @@ export async function listTaskDiscussions(
     (options.cursor !== undefined && !isUlid(options.cursor))
   )
     throw new DomainError("invalid_argument", "discussion pagination is invalid");
-  const rows = (await db
+  const access = taskAccessPredicate(principal, "read", "view_task");
+  const current = (await db
     .prepare(
-      `SELECT id, state, resource_version AS version, deadline, created_at FROM discussions WHERE workspace_id = ? AND task_id = ?
-     ${options.cursor ? "AND id > ?" : ""} ORDER BY id LIMIT ?`,
+      `WITH readable_parent AS MATERIALIZED (
+         SELECT view_task.workspace_id,view_task.id,view_task.project_id FROM tasks AS view_task
+         WHERE view_task.id=? AND ${sharedTaskPredicate("view_task")} AND ${access.sql}
+       ), page AS MATERIALIZED (
+         SELECT discussion.id,discussion.state,discussion.resource_version AS version,
+           discussion.deadline,discussion.created_at FROM discussions AS discussion
+         JOIN readable_parent AS parent ON parent.workspace_id=discussion.workspace_id
+           AND parent.id=discussion.task_id AND parent.project_id=discussion.project_id
+         ${options.cursor ? "WHERE discussion.id > ?" : ""} ORDER BY discussion.id LIMIT ?
+       ) SELECT EXISTS (SELECT 1 FROM readable_parent) AS authorized,
+         (SELECT json_group_array(json_object('id',id,'state',state,'version',version,
+           'deadline',deadline,'created_at',created_at)) FROM page) AS rows_json`,
     )
-    .all(
-      fresh.workspaceId,
-      taskId,
-      ...(options.cursor ? [options.cursor] : []),
-      limit + 1,
-    )) as Array<{
+    .get(taskId, ...access.parameters, ...(options.cursor ? [options.cursor] : []), limit + 1)) as {
+    authorized: number;
+    rows_json: string;
+  };
+  if (!current.authorized) throw new DomainError("not_found", "discussion task not found");
+  const rows = JSON.parse(current.rows_json) as Array<{
     id: string;
     state: DiscussionRow["state"];
     version: number;

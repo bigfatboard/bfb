@@ -2,7 +2,13 @@
 // ABOUTME: Sanitized projections only; command authority stays with C09 and L05.
 
 import type { SqlDatabase } from "@bfb/db";
-import { assertProjectAccess, DomainError, listRunners, type AuthzPrincipal } from "@bfb/domain";
+import {
+  DomainError,
+  listRunners,
+  sharedTaskPredicate,
+  taskAccessPredicate,
+  type AuthzPrincipal,
+} from "@bfb/domain";
 import { decodeWireDocument, type RunnerInventory } from "@bfb/protocol";
 
 export interface CheckoutStatus {
@@ -217,34 +223,88 @@ function toStatus(row: StatusRow): LaunchStatus {
   };
 }
 
+function statusUlid(column: string): string {
+  return `(typeof(${column}) = 'text' AND instr(${column}, char(0)) = 0
+    AND length(${column}) = 26 AND substr(${column}, 1, 1) GLOB '[0-7]'
+    AND ${column} NOT GLOB '*[^0-9A-HJKMNP-TV-Z]*')`;
+}
+
 const STATUS_SELECT = `SELECT launch.id AS launch_id, launch.run_id, launch.execution_id AS run_execution_id,
   launch.assignment_generation, assignment.task_id, assignment.project_id, assignment.runner_id,
   assignment.checkout_id, assignment.requesting_human_id, launch.state, launch.expires_at,
   launch.cancelled_at, launch.end_reason, execution.state AS execution_state,
   execution.end_reason AS execution_end_reason, run.result_state, run.activity,
-  lease.state AS lease_state, lease.containment_reason, snapshot.canonical_json
+  lease.state AS lease_state, lease.containment_reason, snapshot.canonical_json, launch.created_at
   FROM launch_commands AS launch
   JOIN execution_assignments AS assignment
     ON assignment.workspace_id = launch.workspace_id AND assignment.execution_id = launch.execution_id
+    AND assignment.assignment_generation = launch.assignment_generation
+    AND assignment.run_id = launch.run_id AND assignment.requesting_human_id = launch.requesting_human_id
   JOIN run_executions AS execution
     ON execution.workspace_id = launch.workspace_id AND execution.id = launch.execution_id
+    AND execution.run_id = assignment.run_id
   JOIN runs AS run
     ON run.workspace_id = launch.workspace_id AND run.id = launch.run_id
+    AND run.task_id = assignment.task_id AND run.project_id = assignment.project_id
+  JOIN status_parent AS task ON task.workspace_id = run.workspace_id AND task.id = run.task_id
+    AND task.project_id = run.project_id
   JOIN run_configuration_snapshots AS snapshot
     ON snapshot.workspace_id = launch.workspace_id AND snapshot.id = launch.snapshot_id
+    AND snapshot.run_id = run.id AND snapshot.project_id = task.project_id
   LEFT JOIN checkout_leases AS lease
     ON lease.workspace_id = launch.workspace_id AND lease.runner_id = assignment.runner_id
     AND lease.physical_worktree_hash = assignment.physical_worktree_hash
-  WHERE launch.workspace_id = ? AND run.purpose = 'work'`;
+    AND lease.execution_id = execution.id AND lease.assignment_generation = assignment.assignment_generation
+  WHERE run.purpose = 'work'
+    AND typeof(assignment.assignment_generation) = 'integer' AND assignment.assignment_generation >= 1
+    AND assignment.assignment_generation <= 9007199254740991
+    AND ${[
+      "launch.id",
+      "assignment.execution_id",
+      "run.id",
+      "assignment.runner_id",
+      "assignment.checkout_id",
+      "assignment.requesting_human_id",
+      "snapshot.id",
+      "snapshot.agent_profile_id",
+    ]
+      .map(statusUlid)
+      .join(" AND ")}`;
 
-async function taskProject(db: SqlDatabase, workspaceId: string, taskId: string): Promise<string> {
-  const task = (await db
-    .prepare(`SELECT project_id FROM tasks WHERE workspace_id = ? AND id = ?`)
-    .get(workspaceId, taskId)) as { project_id: string } | undefined;
-  if (!task) {
-    throw new DomainError("not_found", "task is not available");
-  }
-  return task.project_id;
+function statusSelection(
+  principal: AuthzPrincipal,
+  boundary: "task" | "launch",
+  id: string,
+  limit: number,
+) {
+  const access = taskAccessPredicate(principal, "read");
+  const parentBinding =
+    boundary === "task"
+      ? "task.id = ?"
+      : `task.id = (SELECT run.task_id FROM launch_commands AS launch
+        JOIN runs AS run ON run.workspace_id = launch.workspace_id AND run.id = launch.run_id
+        WHERE launch.workspace_id = task.workspace_id AND launch.id = ?)`;
+  return {
+    sql: `WITH status_parent AS MATERIALIZED (
+      SELECT task.workspace_id, task.id, task.project_id FROM tasks AS task
+      WHERE ${parentBinding} AND ${access.sql} AND ${sharedTaskPredicate()}
+        AND ${statusUlid("task.id")} AND ${statusUlid("task.project_id")}
+        AND task.project_id IN (SELECT value FROM json_each(?))
+    ), status_rows AS MATERIALIZED (
+      ${STATUS_SELECT} ${boundary === "launch" ? "AND launch.id = ?" : ""}
+      ORDER BY launch.created_at DESC, launch.id DESC LIMIT ?
+    )
+    SELECT status_parent.id AS parent_task_id, status_rows.* FROM status_parent
+    LEFT JOIN status_rows ON status_rows.task_id = status_parent.id
+    ORDER BY status_rows.created_at DESC, status_rows.launch_id DESC`,
+    parameters: [
+      id,
+      ...access.parameters,
+      JSON.stringify(principal.projectIds),
+      ...(boundary === "launch" ? [id] : []),
+      limit,
+    ],
+  };
 }
 
 export async function launchStatusForTask(
@@ -253,16 +313,13 @@ export async function launchStatusForTask(
   taskId: string,
   limit = 20,
 ): Promise<{ launches: LaunchStatus[] }> {
-  const projectId = await taskProject(db, principal.workspaceId, taskId);
-  assertProjectAccess(principal, projectId);
   const bounded = Math.min(Math.max(limit, 1), 50);
-  const rows = (await db
-    .prepare(
-      `${STATUS_SELECT} AND assignment.task_id = ?
-       ORDER BY launch.created_at DESC, launch.id DESC LIMIT ?`,
-    )
-    .all(principal.workspaceId, taskId, bounded)) as StatusRow[];
-  return { launches: rows.map(toStatus) };
+  const selection = statusSelection(principal, "task", taskId, bounded);
+  const rows = (await db.prepare(selection.sql).all(...selection.parameters)) as Array<
+    StatusRow & { parent_task_id: string; launch_id: string | null }
+  >;
+  if (rows.length === 0) throw new DomainError("not_found", "launch is not available");
+  return { launches: rows.filter((row) => row.launch_id !== null).map(toStatus) };
 }
 
 export async function launchStatusById(
@@ -270,12 +327,11 @@ export async function launchStatusById(
   principal: AuthzPrincipal,
   launchId: string,
 ): Promise<{ launch: LaunchStatus }> {
-  const row = (await db
-    .prepare(`${STATUS_SELECT} AND launch.id = ?`)
-    .get(principal.workspaceId, launchId)) as StatusRow | undefined;
-  if (!row) {
+  const selection = statusSelection(principal, "launch", launchId, 1);
+  const row = (await db.prepare(selection.sql).get(...selection.parameters)) as
+    StatusRow | undefined;
+  if (!row?.launch_id) {
     throw new DomainError("not_found", "launch is not available");
   }
-  assertProjectAccess(principal, row.project_id);
   return { launch: toStatus(row) };
 }

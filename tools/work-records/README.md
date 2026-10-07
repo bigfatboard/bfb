@@ -107,3 +107,11 @@ exercise mounted unavailable recovery calls and unused proofs.
 The retained `delivery.ts` audit proof uses source-backed canonical artifact
 anchors. Unsupported legacy chronology rows remain stored but cannot serve as
 visible anchors or consume a page; supported UTC chronology still passes.
+
+`pnpm test:c11:coordination`, composed by `pnpm test:c11`, owns `coordination.ts`:
+fresh real-D1 checks cover shared discussion-list pagination, canonical launch
+status tuples, private-parent creator/grantee holds and retained-epoch denial
+on empty final selections. Tasks/runs/snapshots/executions originate through the
+production Hub; synthetic retained discussion/assignment/launch rows supply
+read-only source fixtures. This is not complete discussion hydration, browser
+authentication, provider dispatch, participant authority or runner cleanup.

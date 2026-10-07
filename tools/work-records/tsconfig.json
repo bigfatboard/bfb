@@ -14,7 +14,13 @@
     "aggregates.ts",
     "diagnostics.ts",
     "board.ts",
-    "quarantine.ts"
+    "quarantine.ts",
+    "coordination.ts"
   ],
-  "references": [{ "path": "../../packages/domain" }, { "path": "../../packages/db" }]
+  "references": [
+    { "path": "../../packages/domain" },
+    { "path": "../../packages/db" },
+    { "path": "../../packages/protocol-ts" },
+    { "path": "../../apps/control-worker" }
+  ]
 }
