@@ -62,7 +62,7 @@ async function delegation() {
       `INSERT INTO oauth_delegations
     (workspace_id, id, human_id, client_id, resource, project_id, scopes_json,
      authorization_epoch, expires_at, created_at)
-    VALUES (?, ?, ?, ?, 'https://bfb.example.test/mcp', ?, ?, 1, ?, ?)`,
+    VALUES (?, ?, ?, ?, 'https://bfb.example.test/mcp', ?, ?, 1, strftime('%Y-%m-%dT%H:%M:%fZ','now','+10 minutes'), ?)`,
     )
     .run(
       FIX.workspace,
@@ -71,7 +71,6 @@ async function delegation() {
       FIX.client,
       FIX.projectA,
       JSON.stringify(["bfb:read", "bfb:task:write"]),
-      "2026-10-06T14:00:00Z",
       now,
     );
   return id;
@@ -436,10 +435,11 @@ describe("private work command action and cache boundary", () => {
         body: "PRIVATE_CONTEXT_CANARY",
       }),
     );
-    await hub.execute(deliverDelegatedAgentContextCommand, {
+    const delivered = await hub.execute(deliverDelegatedAgentContextCommand, {
       ...request({ taskId: privateId }),
       actorDelegationId: await delegation(),
     });
+    expect(delivered.ok).toBe(true);
     for (const table of ["audit_events", "semantic_events", "outbox_records"]) {
       const rows = await db
         .prepare(`SELECT payload_json FROM ${table} WHERE workspace_id = ?`)

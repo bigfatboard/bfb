@@ -58,7 +58,13 @@ function humanRequest<T>(idempotencyKey: string, input: T) {
 
 async function delegation(
   db: Awaited<ReturnType<typeof openDomainDb>>,
-  options: { humanId?: string; projectId?: string; taskId?: string; scopes?: string[] } = {},
+  options: {
+    humanId?: string;
+    projectId?: string;
+    taskId?: string;
+    scopes?: string[];
+    expiresAt?: string;
+  } = {},
 ): Promise<string> {
   const id = randomUlid();
   await db
@@ -76,7 +82,7 @@ async function delegation(
       options.projectId ?? FIX.projectA,
       options.taskId ?? null,
       JSON.stringify(options.scopes ?? ["bfb:read", "bfb:task:write"]),
-      LATER,
+      options.expiresAt ?? LATER,
       NOW,
     );
   return id;
@@ -443,7 +449,13 @@ describe("work records", () => {
         .digest("hex")}`,
     );
 
-    const delegationId = await delegation(db, { taskId: created.result.id });
+    const clock = (await db
+      .prepare("SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now','+10 minutes') AS expires_at")
+      .get()) as { expires_at: string };
+    const delegationId = await delegation(db, {
+      taskId: created.result.id,
+      expiresAt: clock.expires_at,
+    });
     const delivered = await hub.execute(deliverDelegatedAgentContextCommand, {
       workspaceId: FIX.workspace,
       idempotencyKey: "context-delivery",

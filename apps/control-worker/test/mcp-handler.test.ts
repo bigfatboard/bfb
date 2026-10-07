@@ -285,7 +285,16 @@ describe("mcp handler", () => {
       now: "2026-08-07T12:00:00.000Z",
       input: { taskId: taskA, kind: "constraint", audience: "agent", body: "Agent input" },
     });
-    const { accessToken } = await issueSyntheticMcpAccess(db, { projectId: FIX.projectA });
+    const clock = (await db
+      .prepare(
+        "SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now') AS observed_at, strftime('%Y-%m-%dT%H:%M:%fZ','now','+10 minutes') AS expires_at",
+      )
+      .get()) as { observed_at: string; expires_at: string };
+    const { accessToken } = await issueSyntheticMcpAccess(db, {
+      projectId: FIX.projectA,
+      now: clock.observed_at,
+      expiresAt: clock.expires_at,
+    });
 
     const projects = (await call(db, accessToken, "bfb_list_projects", {})) as {
       projects: Array<{ id: string }>;

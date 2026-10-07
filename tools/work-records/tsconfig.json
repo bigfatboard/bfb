@@ -20,7 +20,8 @@
     "audit-fixture.ts",
     "audit-positions.ts",
     "delegated-artifacts.ts",
-    "delegated-attention.ts"
+    "delegated-attention.ts",
+    "delegated-context.ts"
   ],
   "references": [
     { "path": "../../packages/domain" },

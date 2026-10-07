@@ -775,6 +775,58 @@ This proves command-local creation guard statements, not cached/read response
 delivery, every later statement, runner/lease expiry, private activation or the
 pending GitHub collision policy.
 
+### Frozen delegated context delivery
+
+This corrective C11 slice owns delegated task-context selection, committing
+delivery records, cached retries and the final `bfb_get_context` response.
+Run/local context delivery, shared clock helpers and provider operations stay
+unchanged. Context items and delivery records remain immutable history.
+
+- Use one delegation-only selector for fresh and retained delivery. In its
+  selection statement repeat current kernel `read`, sponsor membership and the
+  authenticated epoch, project access and private read permission, exact
+  credential/sponsor/client identity, revocation, valid all-string read scope,
+  current project/task-subtree boundary and strict database-clock expiry.
+  Retain the authenticated boundary and target project; do not adopt a newer
+  epoch or a different task. Authorized empty context differs from denial.
+  MCP supplies its original nullable project/task boundary and client as an
+  internal command-input ceiling, never tool arguments. It cannot grant access;
+  current canonical authority is still required. Fingerprints and audit input
+  remain `{taskId}`, preserving historical retry identity and receipt shape.
+- Fresh delivery selects only `agent`/`both` items in version order. Before
+  delivery writes, write-only CHECK statements repeat that authority and the
+  exact selected immutable identities, including an empty-context sentinel.
+  Finish reads before staging writes. A failed committing guard returns uniform
+  `command_failed` and rolls back deliveries, receipts, idempotency and cursor;
+  independent permission changes remain. Prepared and audit timestamps stay
+  unchanged.
+- A cached retry reselects canonical immutable items for the original bounded,
+  unique identity/version/hash/audience list, not newly appended context. An
+  empty list still checks authority. Missing or malformed retained identity
+  fails closed without returning any cached body or creating another delivery.
+  Each retained item also matches an immutable delivery for the same
+  delegation/client and task/version/hash. This proves prior delivery under that
+  credential, not provenance from a particular request key.
+  Changed-input rejection and the original successful history remain intact.
+- After the Hub result, MCP applies the same retained selector with the
+  original authenticated delegation and actual outcome before serialization.
+  There is no further asynchronous boundary before the response body is built.
+  Denial withholds context; it does not erase already committed history.
+- Prove independent production revocation before fresh selection, committing
+  batch, cached-result return and post-Hub response. Cover current epoch,
+  project, read scope, subtree and private read-grant loss; use genuine task
+  boundaries and revoke/regrant immutable permissions. Include natural expiry
+  of an unchanged credential, delayed healthy read-only Owner/Member/Reviewer,
+  empty context, appended context after delivery and exact/changed retries.
+  Mounted OAuth MCP and separate actual-D1/native-statement witnesses retain
+  complete effect snapshots and healthy controls. Immutable-row corruption is
+  robustness testing, not a production permission-race claim.
+
+The additive target is `pnpm test:c11:delegated-context`, composed once by C11.
+This does not certify every OAuth read tool, later statements, private
+activation, artifact bytes, runner leases or the pending GitHub collision
+policy.
+
 ### Frozen browser board selection
 
 This corrective C11 slice binds already-authorized board delivery to the

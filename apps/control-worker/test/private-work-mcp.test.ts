@@ -128,6 +128,15 @@ async function access(input: Parameters<typeof issueSyntheticMcpAccess>[1] = {})
   return issueSyntheticMcpAccess(db, { now: NOW, expiresAt: EXPIRES_AT, ...input });
 }
 
+async function liveContextAccess() {
+  const clock = (await db
+    .prepare(
+      "SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now') AS observed_at, strftime('%Y-%m-%dT%H:%M:%fZ','now','+10 minutes') AS expires_at",
+    )
+    .get()) as { observed_at: string; expires_at: string };
+  return issueSyntheticMcpAccess(db, { now: clock.observed_at, expiresAt: clock.expires_at });
+}
+
 async function call(
   accessToken: string,
   name: string,
@@ -380,7 +389,7 @@ describe("private task delivery through remote MCP", () => {
 
   it("filters a named human's task pages before LIMIT and delivers only agent-visible context", async () => {
     await grant("read");
-    const { accessToken } = await access();
+    const { accessToken } = await liveContextAccess();
     const expectedIds = [sharedTask.id, privateTask.id].sort();
     const firstReply = await call(accessToken, "bfb_list_tasks", { limit: 1 });
     const first = value<TaskPage>(firstReply);
@@ -575,7 +584,7 @@ describe("private task delivery through remote MCP", () => {
     "%s rechecks revoked task authority before an identical cached reply",
     async (tool, permission, command, fields) => {
       const grantId = await grant(permission);
-      const { accessToken } = await access();
+      const { accessToken } = await (tool === "bfb_get_context" ? liveContextAccess() : access());
       const args = { task_id: privateTask.id, request_id: `synthetic-cached-${tool}`, ...fields };
       value(await call(accessToken, tool, args));
       expect(

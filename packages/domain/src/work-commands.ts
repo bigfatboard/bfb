@@ -1264,6 +1264,195 @@ export async function getAgentContext(
     .all(workspaceId, taskId, ...predicate.parameters)) as AgentContextItem[];
 }
 
+export interface DelegatedContextAccess extends TaskReadAccess {
+  delegationId: string;
+  clientId: string;
+  /** Nullable original credential boundary, separate from the selected task's project. */
+  projectBoundaryId: string | null;
+}
+
+interface DelegatedContextBoundary {
+  clientId: string;
+  projectId: string | null;
+  taskId: string | null;
+}
+
+function delegatedContextPredicate(
+  workspaceId: string,
+  taskId: string,
+  projectId: string,
+  access: DelegatedContextAccess,
+) {
+  const read = readTaskPredicate(access);
+  const scopes = `CASE WHEN json_valid(credential.scopes_json) THEN
+    CASE WHEN json_type(credential.scopes_json) = 'array' THEN credential.scopes_json ELSE '[]' END
+    ELSE '[]' END`;
+  return {
+    sql: `task.workspace_id = ? AND task.id = ? AND task.project_id = ?
+      AND ${read.sql} AND EXISTS (
+        SELECT 1 FROM oauth_delegations AS credential
+        WHERE credential.workspace_id = task.workspace_id AND credential.id = ?
+          AND credential.human_id = ? AND credential.client_id = ?
+          AND credential.authorization_epoch = ? AND credential.revoked_at IS NULL
+          AND credential.project_id IS ? AND credential.task_id IS ?
+          AND julianday(credential.expires_at) > julianday('now')
+          AND EXISTS (SELECT 1 FROM json_each(${scopes}) AS scope
+            WHERE scope.type = 'text' AND scope.value = 'bfb:read')
+          AND NOT EXISTS (SELECT 1 FROM json_each(${scopes}) AS scope WHERE scope.type <> 'text')
+      )`,
+    parameters: [
+      workspaceId,
+      taskId,
+      projectId,
+      ...read.parameters,
+      access.delegationId,
+      access.humanId,
+      access.clientId,
+      access.authorizationEpoch,
+      access.projectBoundaryId,
+      access.taskBoundaryId ?? null,
+    ],
+  };
+}
+
+function contextIdentities(items: AgentContextItem[]): string | undefined {
+  if (!Array.isArray(items) || items.length > MAX_CONTEXT_ITEMS_PER_TASK) return undefined;
+  const ids = new Set<string>(),
+    versions = new Set<number>();
+  const identities = [];
+  for (const item of items) {
+    if (
+      !item ||
+      typeof item.id !== "string" ||
+      item.id.length !== 26 ||
+      !isUlid(item.id) ||
+      !Number.isSafeInteger(item.version) ||
+      item.version < 1 ||
+      typeof item.content_hash !== "string" ||
+      !/^sha256:[a-f0-9]{64}$/u.test(item.content_hash) ||
+      !["agent", "both"].includes(item.audience) ||
+      ids.has(item.id) ||
+      versions.has(item.version)
+    )
+      return undefined;
+    ids.add(item.id);
+    versions.add(item.version);
+    identities.push({
+      id: item.id,
+      version: item.version,
+      content_hash: item.content_hash,
+      audience: item.audience,
+    });
+  }
+  return JSON.stringify(identities);
+}
+
+function retainedContextPredicate(identities: string, access?: DelegatedContextAccess) {
+  return {
+    sql: `NOT EXISTS (
+      SELECT 1 FROM json_each(?) AS retained WHERE NOT EXISTS (
+        SELECT 1 FROM task_context_items AS item
+        WHERE item.workspace_id = task.workspace_id AND item.task_id = task.id
+          AND item.id = json_extract(retained.value, '$.id')
+          AND item.version = json_extract(retained.value, '$.version')
+          AND item.content_hash = json_extract(retained.value, '$.content_hash')
+          AND item.audience = json_extract(retained.value, '$.audience')
+          ${
+            access
+              ? `AND EXISTS (
+            SELECT 1 FROM task_context_deliveries AS delivery
+            WHERE delivery.workspace_id = item.workspace_id AND delivery.task_id = item.task_id
+              AND delivery.context_version = item.version AND delivery.content_hash = item.content_hash
+              AND delivery.delegation_id = ? AND delivery.client_id = ?
+          )`
+              : ""
+          }
+      )
+    )`,
+    parameters: [identities, ...(access ? [access.delegationId, access.clientId] : [])],
+  };
+}
+
+/** Select canonical fresh or previously delivered context with one current-authority sentinel. */
+export async function selectDelegatedAgentContext(
+  db: SqlDatabase,
+  workspaceId: string,
+  taskId: string,
+  projectId: string,
+  access: DelegatedContextAccess,
+  retained?: AgentContextItem[],
+): Promise<AgentContextItem[] | undefined> {
+  const identities = retained === undefined ? undefined : contextIdentities(retained);
+  if (retained !== undefined && identities === undefined) return undefined;
+  const authority = delegatedContextPredicate(workspaceId, taskId, projectId, access);
+  const exact = identities === undefined ? undefined : retainedContextPredicate(identities, access);
+  const source =
+    identities === undefined
+      ? `SELECT item.* FROM task_context_items AS item
+       WHERE item.workspace_id = task.workspace_id AND item.task_id = task.id
+         AND item.audience IN ('agent', 'both') ORDER BY item.version ASC`
+      : `SELECT item.* FROM json_each(?) AS retained JOIN task_context_items AS item
+         ON item.id = json_extract(retained.value, '$.id')
+       WHERE item.workspace_id = task.workspace_id AND item.task_id = task.id
+       ORDER BY CAST(retained.key AS INTEGER) ASC`;
+  const row = (await db
+    .prepare(
+      `SELECT (SELECT json_group_array(json_object(
+      'id', item.id, 'kind', item.kind, 'body', item.body, 'version', item.version,
+      'audience', item.audience, 'content_hash', item.content_hash, 'created_at', item.created_at
+    )) FROM (${source}) AS item) AS items_json
+     FROM tasks AS task WHERE ${authority.sql} ${exact ? `AND ${exact.sql}` : ""}`,
+    )
+    .get(
+      ...(identities === undefined ? [] : [identities]),
+      ...authority.parameters,
+      ...(exact?.parameters ?? []),
+    )) as { items_json: string } | undefined;
+  if (!row) return undefined;
+  const items = JSON.parse(row.items_json) as AgentContextItem[];
+  if (
+    items.length > MAX_CONTEXT_ITEMS_PER_TASK ||
+    items.reduce((bytes, item) => bytes + Buffer.byteLength(item.body), 0) >
+      MAX_CONTEXT_BYTES_PER_TASK
+  ) {
+    throw new DomainError("request_rejected", "context exceeds response bound");
+  }
+  return items;
+}
+
+async function guardDelegatedContextDelivery(
+  db: SqlDatabase,
+  workspaceId: string,
+  taskId: string,
+  projectId: string,
+  access: DelegatedContextAccess,
+  items: AgentContextItem[],
+) {
+  const identities = contextIdentities(items);
+  if (identities === undefined) throw new DomainError("not_found", "task not found");
+  const authority = delegatedContextPredicate(workspaceId, taskId, projectId, access);
+  const exact = retainedContextPredicate(identities);
+  const id = randomUlid();
+  // Keep database expiry independent of preparation and receipt timestamps, including empty delivery.
+  await db
+    .prepare(
+      `INSERT INTO artifact_mutation_guards (id,valid)
+    SELECT ?, CASE WHEN EXISTS (SELECT 1 FROM oauth_delegations
+      WHERE workspace_id = ? AND id = ? AND julianday(expires_at) > julianday('now'))
+      THEN 1 ELSE 0 END`,
+    )
+    .run(id, workspaceId, access.delegationId);
+  await db.prepare("DELETE FROM artifact_mutation_guards WHERE id = ?").run(id);
+  await db
+    .prepare(
+      `INSERT INTO artifact_mutation_guards (id,valid)
+    SELECT ?, CASE WHEN EXISTS (SELECT 1 FROM tasks AS task
+      WHERE ${authority.sql} AND ${exact.sql}) THEN 1 ELSE 0 END`,
+    )
+    .run(id, ...authority.parameters, ...exact.parameters);
+  await db.prepare("DELETE FROM artifact_mutation_guards WHERE id = ?").run(id);
+}
+
 type AgentContextAuthority =
   | { kind: "run"; runId: string; access?: TaskReadAccess }
   | {
@@ -1272,6 +1461,7 @@ type AgentContextAuthority =
       clientId: string;
       humanId: string;
       authorizationEpoch: number;
+      boundary?: DelegatedContextBoundary;
     };
 
 export interface AgentContextDelivery {
@@ -1307,6 +1497,7 @@ export async function deliverAgentContext(
   if (!task) {
     throw new DomainError("not_found", "task not found");
   }
+  let delegatedAccess: DelegatedContextAccess | undefined;
   if (authority.kind === "run") {
     const run = await db
       .prepare(
@@ -1356,8 +1547,25 @@ export async function deliverAgentContext(
       throw new DomainError("forbidden", "delegation cannot access current task context");
     }
     await assertDelegationBoundary(db, workspaceId, delegation, task.project_id, task.id);
+    const boundary = authority.boundary ?? {
+      clientId: delegation.client_id,
+      projectId: delegation.project_id,
+      taskId: delegation.task_id,
+    };
+    delegatedAccess = {
+      workspaceId,
+      humanId: authority.humanId,
+      authorizationEpoch: authority.authorizationEpoch,
+      delegationId: authority.delegationId,
+      clientId: boundary.clientId,
+      projectBoundaryId: boundary.projectId,
+      ...(boundary.taskId ? { taskBoundaryId: boundary.taskId } : {}),
+    };
   }
-  const items = await getAgentContext(db, workspaceId, taskId, access);
+  const items = delegatedAccess
+    ? await selectDelegatedAgentContext(db, workspaceId, taskId, task.project_id, delegatedAccess)
+    : await getAgentContext(db, workspaceId, taskId, access);
+  if (!items) throw new DomainError("not_found", "task not found");
   const rows = items.map((item) => ({
     id: randomUlid(),
     context_version: item.version,
@@ -1376,6 +1584,16 @@ export async function deliverAgentContext(
     if (Buffer.byteLength(encoded) > maximumResultBytes) {
       throw new DomainError("request_rejected", "context exceeds local response bound");
     }
+  }
+  if (delegatedAccess) {
+    await guardDelegatedContextDelivery(
+      db,
+      workspaceId,
+      taskId,
+      task.project_id,
+      delegatedAccess,
+      items,
+    );
   }
   for (const row of rows) {
     await db
@@ -1401,16 +1619,59 @@ export async function deliverAgentContext(
 }
 
 export const deliverDelegatedAgentContextCommand: HubCommand<
-  { taskId: string },
+  { taskId: string; delegationBoundary?: DelegatedContextBoundary },
   AgentContextItem[]
 > = {
   name: "context.deliver.delegation",
-  inputFingerprint: workInputFingerprint,
+  inputFingerprint: (input) => workInputFingerprint({ ...input, delegationBoundary: undefined }),
+  auditInput: (input) => ({ taskId: input.taskId }),
   auditResult: (items) =>
     items.map((item) => ({ id: item.id, version: item.version, content_hash: item.content_hash })),
   async authorize(input, ctx) {
     const authority = await authorizeWorkTask(ctx, input.taskId, "read");
     if (!authority.delegation) throw new DomainError("forbidden", "delegated authority required");
+  },
+  async replayResult(result, ctx, input) {
+    if (!ctx.actorHumanId || !ctx.actorDelegationId)
+      throw new DomainError("not_found", "task not found");
+    // Admission already ran before cache hydration; current authority belongs to the final selector.
+    const delegation = (await ctx.db
+      .prepare(
+        `SELECT client_id,project_id,task_id FROM oauth_delegations
+      WHERE workspace_id = ? AND id = ?`,
+      )
+      .get(ctx.workspaceId, ctx.actorDelegationId)) as
+      Pick<DelegationRow, "client_id" | "project_id" | "task_id"> | undefined;
+    if (!delegation) throw new DomainError("not_found", "task not found");
+    const task = await getTask(ctx.db, ctx.workspaceId, input.taskId, {
+      workspaceId: ctx.workspaceId,
+      humanId: ctx.actorHumanId,
+      authorizationEpoch: ctx.authorizationEpoch,
+    });
+    if (!task) throw new DomainError("not_found", "task not found");
+    const boundary = input.delegationBoundary ?? {
+      clientId: delegation.client_id,
+      projectId: delegation.project_id,
+      taskId: delegation.task_id,
+    };
+    const items = await selectDelegatedAgentContext(
+      ctx.db,
+      ctx.workspaceId,
+      input.taskId,
+      task.project_id,
+      {
+        workspaceId: ctx.workspaceId,
+        humanId: ctx.actorHumanId,
+        authorizationEpoch: ctx.authorizationEpoch,
+        delegationId: ctx.actorDelegationId,
+        clientId: boundary.clientId,
+        projectBoundaryId: boundary.projectId,
+        ...(boundary.taskId ? { taskBoundaryId: boundary.taskId } : {}),
+      },
+      result,
+    );
+    if (!items) throw new DomainError("not_found", "task not found");
+    return items;
   },
   async run(input, ctx) {
     const authority = await authorizeWorkTask(ctx, input.taskId, "read");
@@ -1441,6 +1702,7 @@ export const deliverDelegatedAgentContextCommand: HubCommand<
           clientId: authority.delegation.client_id,
           humanId: authority.delegation.human_id,
           authorizationEpoch: authority.delegation.authorization_epoch,
+          ...(input.delegationBoundary ? { boundary: input.delegationBoundary } : {}),
         },
         ctx.now,
       )

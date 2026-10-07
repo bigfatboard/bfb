@@ -8,6 +8,7 @@ import { createAuthorizationContext, type SqlDatabase } from "@bfb/db";
 import {
   type ActiveDelegation,
   deliverDelegatedAgentContextCommand,
+  selectDelegatedAgentContext,
   ARTIFACT_FORMATS,
   ARTIFACT_ROLES,
   artifactHash,
@@ -190,7 +191,14 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
         actorHumanId: deps.delegation.humanId,
         actorDelegationId: deps.delegation.delegationId,
         now: deps.now,
-        input: { taskId: task_id },
+        input: {
+          taskId: task_id,
+          delegationBoundary: {
+            clientId: deps.delegation.clientId,
+            projectId: deps.delegation.projectId,
+            taskId: deps.delegation.taskId,
+          },
+        },
       });
       if (!outcome.ok) {
         return {
@@ -198,8 +206,26 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
           isError: true,
         };
       }
+      const context = await selectDelegatedAgentContext(
+        deps.db,
+        deps.delegation.workspaceId,
+        task_id,
+        task.project_id,
+        {
+          ...taskAccess,
+          clientId: deps.delegation.clientId,
+          projectBoundaryId: deps.delegation.projectId,
+        },
+        outcome.result,
+      );
+      if (!context) {
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ error: "not_found" }) }],
+          isError: true,
+        };
+      }
       return {
-        content: [{ type: "text" as const, text: JSON.stringify({ context: outcome.result }) }],
+        content: [{ type: "text" as const, text: JSON.stringify({ context }) }],
       };
     },
   );
