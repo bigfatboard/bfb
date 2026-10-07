@@ -1030,6 +1030,8 @@ observation clocks, command names, stored business results or transitions.
   including on absent targets, so late denial aborts all staged command effects.
   Its typed selection is materialized separately from the VALUES expression to
   remain within native D1's expression-depth limit; no authority term is removed.
+  Artifact owners supply their canonical admission SELECT directly rather than
+  wrapping it in an additional EXISTS expression that exceeds the same limit.
   Final delivery runs after Hub RPC and body parsing; only synchronous secret
   attachment/projection/serialization may follow. Delivery denial withholds the
   reply, not the already committed command. No generic recursive scrubbing or

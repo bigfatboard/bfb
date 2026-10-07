@@ -1305,14 +1305,13 @@ export const createDelegatedArtifactCommand = publicBusinessCommand(createDelega
 export const finalizeDelegatedArtifactCommand = publicBusinessCommand(
   finalizeDelegatedArtifactBase,
   {
-    admission: (input, authority) => {
-      const selection = publicArtifactVersionBusinessSelection<FinalizeDelegatedArtifactResult>(
+    admissionIsSelection: true,
+    admission: (input, authority) =>
+      publicArtifactVersionBusinessSelection<FinalizeDelegatedArtifactResult>(
         authority,
         input.versionId,
         "contribute",
-      );
-      return { sql: `EXISTS (${selection.sql})`, parameters: selection.parameters };
-    },
+      ),
     delivery: (input, result, authority) =>
       publicArtifactFinalizationBusinessSelection(authority, input, result),
   },

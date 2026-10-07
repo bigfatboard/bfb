@@ -1553,25 +1553,19 @@ export const createArtifactCommand = publicBusinessCommand(createArtifactBase, {
     publicArtifactCreationBusinessSelection(authority, input, result),
 });
 export const issueArtifactGrantCommand = publicBusinessCommand(issueArtifactGrantBase, {
-  admission: (input, authority) => {
-    const selection = publicArtifactVersionBusinessSelection<ArtifactGrant>(
-      authority,
-      input.versionId,
-      "contribute",
-    );
-    return { sql: `EXISTS (${selection.sql})`, parameters: selection.parameters };
-  },
+  admissionIsSelection: true,
+  admission: (input, authority) =>
+    publicArtifactVersionBusinessSelection<ArtifactGrant>(authority, input.versionId, "contribute"),
   delivery: (_input, result, authority) => publicUploadGrantBusinessSelection(authority, result),
 });
 export const finalizeArtifactCommand = publicBusinessCommand(finalizeArtifactBase, {
-  admission: (input, authority) => {
-    const selection = publicArtifactVersionBusinessSelection<FinalizeArtifactResult>(
+  admissionIsSelection: true,
+  admission: (input, authority) =>
+    publicArtifactVersionBusinessSelection<FinalizeArtifactResult>(
       authority,
       input.versionId,
       "contribute",
-    );
-    return { sql: `EXISTS (${selection.sql})`, parameters: selection.parameters };
-  },
+    ),
   delivery: (input, result, authority) =>
     publicArtifactFinalizationBusinessSelection(authority, input, result),
 });

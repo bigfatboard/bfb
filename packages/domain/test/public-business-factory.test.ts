@@ -32,6 +32,7 @@ async function fixture(
     oneUse?: boolean;
     fallbackAudit?: boolean;
     internal?: boolean;
+    admissionIsSelection?: boolean;
   } = {},
 ) {
   const db = await openDomainDb(),
@@ -83,7 +84,11 @@ async function fixture(
   };
   const command = publicBusinessCommand(base, {
     applies: (input) => !(options.internal && input.internal),
-    admission: (_input, authority) => publicMemberAuthorityPredicate(authority, ["owner"]),
+    ...(options.admissionIsSelection ? { admissionIsSelection: true } : {}),
+    admission: (_input, authority) => {
+      const predicate = publicMemberAuthorityPredicate(authority, ["owner"]);
+      return options.admissionIsSelection ? publicBusinessSelection(predicate) : predicate;
+    },
     delivery: (_input, _result, authority) =>
       publicBusinessSelection(publicMemberAuthorityPredicate(authority, ["owner"])),
   });
@@ -100,6 +105,27 @@ async function fixture(
 }
 
 describe("public business adapter mechanics", () => {
+  it.each([false, true])(
+    "reads an owned canonical admission selection with authorize=%s",
+    async (authorize) => {
+      const f = await fixture({ authorize, admissionIsSelection: true });
+      expect((await f.hub.execute(f.command, f.request)).ok).toBe(true);
+      await f.db
+        .prepare("UPDATE workspace_members SET role='owner' WHERE workspace_id=? AND human_id=?")
+        .run(FIX.workspace, FIX.member);
+      await f.db
+        .prepare("UPDATE workspace_members SET role='member' WHERE workspace_id=? AND human_id=?")
+        .run(FIX.workspace, FIX.owner);
+      const before = await f.db.prepare("SELECT * FROM idempotency_records").all();
+      expect(
+        await f.hub.execute(f.command, { ...f.request, idempotencyKey: randomUlid() }),
+      ).toMatchObject({ ok: false, error: { code: "not_found" } });
+      expect(await f.db.prepare("SELECT * FROM idempotency_records").all()).toEqual(before);
+      expect(f.calls.run).toHaveLength(1);
+      expect(Boolean(f.command.authorize)).toBe(authorize);
+    },
+  );
+
   it.each([false, true])(
     "strips every base hook and audit fallback=%s without changing retry identity",
     async (fallbackAudit) => {

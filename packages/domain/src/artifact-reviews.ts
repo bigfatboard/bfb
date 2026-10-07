@@ -519,15 +519,13 @@ const recordReviewBase: HubCommand<RecordReviewInput, ReviewRecord> = {
 };
 
 export const recordReviewCommand = publicBusinessCommand(recordReviewBase, {
-  admission: (input, authority) => {
-    const selection = publicArtifactVersionBusinessSelection<ReviewRecord>(
-      authority,
-      input.versionId,
-      "contribute",
-      ["owner", "member", "reviewer"],
-    );
-    return { sql: `EXISTS (${selection.sql})`, parameters: selection.parameters };
-  },
+  admissionIsSelection: true,
+  admission: (input, authority) =>
+    publicArtifactVersionBusinessSelection<ReviewRecord>(authority, input.versionId, "contribute", [
+      "owner",
+      "member",
+      "reviewer",
+    ]),
   delivery: (input, result, authority) => {
     const parent = publicArtifactParentAuthorityPredicate(authority, "contribute", "artifact", [
         "owner",

@@ -38,6 +38,8 @@ export interface PublicBusinessSelection<TResult> extends PublicAuthoritySql {
 
 export interface PublicBusinessPolicy<TInput, TResult> {
   admission: (input: TInput, authority: PublicBusinessAuthority) => PublicAuthoritySql;
+  /** Typed owner selections are read directly, avoiding another nested EXISTS expression. */
+  admissionIsSelection?: true;
   delivery: (
     input: TInput,
     result: TResult,
@@ -437,6 +439,10 @@ export function publicBusinessCommand<TInput, TResult>(
   const replayAuthorities = new WeakMap<HubContext, PublicBusinessAuthority>();
   const applies = (input: TInput) => policy.applies?.(input) ?? true;
   const clean = (input: TInput) => (applies(input) ? splitInput(input).input : input);
+  const admissionSelection = (input: TInput, retained: PublicBusinessAuthority) => {
+    const admission = policy.admission(clean(input), retained);
+    return policy.admissionIsSelection ? admission : publicBusinessSelection(admission);
+  };
   const authority = async (input: TInput, ctx: HubContext) => {
     const split = splitInput(input);
     return split.authority === undefined
@@ -451,11 +457,10 @@ export function publicBusinessCommand<TInput, TResult>(
             await base.authorize!(clean(input), ctx);
             if (!applies(input)) return;
             const retained = await authority(input, ctx);
-            const admission = policy.admission(clean(input), retained);
             await selectPublicResult(
               ctx.db,
               null,
-              publicBusinessSelection(admission),
+              admissionSelection(input, retained),
               policy.denial,
             );
             replayAuthorities.set(ctx, retained);
@@ -488,12 +493,7 @@ export function publicBusinessCommand<TInput, TResult>(
       if (!applies(input)) return base.run(input, ctx);
       const retained = await authority(input, ctx);
       if (!base.authorize) {
-        await selectPublicResult(
-          ctx.db,
-          null,
-          publicBusinessSelection(policy.admission(clean(input), retained)),
-          policy.denial,
-        );
+        await selectPublicResult(ctx.db, null, admissionSelection(input, retained), policy.denial);
       }
       const result = await base.run(clean(input), ctx);
       const delivery = policy.delivery(clean(input), result, retained);

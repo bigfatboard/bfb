@@ -248,17 +248,17 @@ const createViewGrantBase: HubCommand<CreateViewGrantInput, ViewGrant> = {
 
 export const createViewGrantCommand = publicBusinessCommand(createViewGrantBase, {
   denial: { code: "request_rejected", message: "request rejected" },
+  admissionIsSelection: true,
   admission: (input, authority) => {
     if (typeof input?.versionId !== "string" || !isUlid(input.versionId))
-      return { sql: "0", parameters: [] };
-    const selection = publicArtifactVersionBusinessSelection<ViewGrant>(
+      return { sql: "SELECT 1 AS permitted WHERE 0", parameters: [] };
+    return publicArtifactVersionBusinessSelection<ViewGrant>(
       authority,
       input.versionId,
       "read",
       ["owner", "member", "reviewer"],
       "bfb:read",
     );
-    return { sql: `EXISTS (${selection.sql})`, parameters: selection.parameters };
   },
   delivery: (input, result, authority) => {
     const parent = publicArtifactParentAuthorityPredicate(
