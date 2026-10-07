@@ -30,6 +30,7 @@ export * from "./notification-identities.js";
 export * from "./oauth.js";
 export * from "./operations.js";
 export * from "./security-audit-positions.js";
+export * from "./human-task-collection-positions.js";
 export * from "./projects.js";
 export * from "./offline-agent-policy.js";
 export * from "./offline-result-policy.js";

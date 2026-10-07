@@ -1,5 +1,5 @@
 // ABOUTME: Exercises browser task child collections through genuine synthetic sessions and production work setup.
-// ABOUTME: Final-parent races distinguish denied collections from authorized empty pages without read effects or private activation.
+// ABOUTME: Final-parent races distinguish denial from empty pages while paged reads permit only opaque-position bookkeeping.
 
 import type { SqlDatabase } from "@bfb/db";
 import {
@@ -69,7 +69,7 @@ interface CollectionBody {
   runs?: Row[];
   limit?: number;
   has_more?: boolean;
-  next_cursor?: string;
+  next_cursor?: string | null;
 }
 
 beforeEach(() => {
@@ -111,11 +111,56 @@ async function unchanged<T>(db: SqlDatabase, read: () => Promise<T>) {
   return result;
 }
 
+async function positionRead<T>(db: SqlDatabase, read: () => Promise<T>) {
+  const before = await snapshot(db),
+    result = await read(),
+    after = await snapshot(db);
+  const bookkeeping = new Set([
+    "task_collection_positions",
+    "semantic_events",
+    "audit_events",
+    "outbox_records",
+    "idempotency_records",
+    "workspace_cursors",
+  ]);
+  for (const name of Object.keys(after)) {
+    if (!bookkeeping.has(name)) expect(after[name], name).toEqual(before[name]);
+  }
+  const positions = after.task_collection_positions ?? [],
+    previous = before.task_collection_positions ?? [],
+    issued = positions.length - previous.length;
+  expect(positions.slice(0, previous.length)).toEqual(previous);
+  for (const [table, actionKey] of [
+    ["semantic_events", "kind"],
+    ["audit_events", "action"],
+    ["outbox_records", "kind"],
+    ["idempotency_records", "command_name"],
+  ] as const) {
+    const oldRows = before[table] ?? [],
+      rows = after[table] ?? [];
+    expect(rows.slice(0, oldRows.length), table).toEqual(oldRows);
+    expect(rows.length - oldRows.length, table).toBe(issued);
+    for (const row of rows.slice(oldRows.length)) {
+      expect((row as Row)[actionKey], table).toBe("task.collection_position.issue");
+    }
+  }
+  expect(after.workspace_cursors).toEqual(
+    (before.workspace_cursors as Array<Row>).map((row) =>
+      row.workspace_id === FIX.workspace ? { ...row, cursor: Number(row.cursor) + issued } : row,
+    ),
+  );
+  await foreignKeys(db);
+  return result;
+}
+
 function collectionPath(collection: Collection, taskId: string, query = "") {
   return `${BASE}/tasks/${taskId}${collection.suffix}${query ? `${collection.suffix.includes("?") ? "&" : "?"}${query}` : ""}`;
 }
 function emptyBody(collection: Collection, limit = 50) {
-  return { [collection.key]: [], ...(collection.paged ? { limit, has_more: false } : {}) };
+  return {
+    [collection.key]: [],
+    ...(collection.paged ? { limit, has_more: false, next_cursor: null } : {}),
+  };
 }
 function rowId(collection: Collection, row: Row): string {
   const id = row[collection.key === "dependencies" ? "depends_on_task_id" : "id"];
@@ -405,16 +450,18 @@ describe("browser task collection final-parent delivery", () => {
   );
 
   it.each(collections.filter((collection) => collection.paged))(
-    "$name authorized terminal cursor remains an empty page",
+    "$name authorized opaque traversal reaches a terminal page",
     async (collection) => {
-      const f = await fixture(),
-        populated = await unchanged(f.db, () => read(f, collection));
-      const rows = populated[collection.key]!;
-      expect(rows.length).toBeGreaterThan(0);
-      const cursor = rowId(collection, rows.at(-1)!);
-      expect(await unchanged(f.db, () => read(f, collection, `limit=1&cursor=${cursor}`))).toEqual(
-        emptyBody(collection, 1),
-      );
+      const f = await fixture();
+      let body = await positionRead(f.db, () => read(f, collection, "limit=1"));
+      expect(body[collection.key]!.length).toBeGreaterThan(0);
+      if (body.has_more) {
+        expect(body.next_cursor).toMatch(/^[A-Za-z0-9_-]{43}$/u);
+        body = await unchanged(f.db, () =>
+          read(f, collection, `limit=1&cursor=${body.next_cursor}`),
+        );
+      }
+      expect(body).toMatchObject({ limit: 1, has_more: false, next_cursor: null });
     },
   );
 
@@ -429,11 +476,14 @@ describe("browser task collection final-parent delivery", () => {
   it("late denial at a real terminal comment cursor returns the uniform missing envelope", async () => {
     const f = await fixture(),
       collection = collections[0],
-      populated = await unchanged(f.db, () => read(f, collection));
-    const query = `limit=1&cursor=${rowId(collection, populated.comments!.at(-1)!)}`;
-    expect(await unchanged(f.db, () => read(f, collection, query))).toEqual(
-      emptyBody(collection, 1),
-    );
+      first = await positionRead(f.db, () => read(f, collection, "limit=1"));
+    expect(first.next_cursor).toMatch(/^[A-Za-z0-9_-]{43}$/u);
+    const query = `limit=1&cursor=${first.next_cursor}`;
+    expect(await unchanged(f.db, () => read(f, collection, query))).toMatchObject({
+      limit: 1,
+      has_more: false,
+      next_cursor: null,
+    });
     const cut = beforeFinalSelection(f, collection, f.revoke);
     await deniedAfterCut(f, cut, await f.request(collectionPath(collection, f.task.id, query)));
   });
@@ -501,7 +551,7 @@ describe("browser task collection final-parent delivery", () => {
 
   it("preserves useful fields, human attribution, context audience/version order and paged lookahead for a Reviewer", async () => {
     const f = await fixture();
-    await unchanged(f.db, async () => {
+    await positionRead(f.db, async () => {
       const comments = await read(f, collections[0]);
       expect(comments.comments).toEqual(
         [...f.comments]
@@ -567,12 +617,13 @@ describe("browser task collection final-parent delivery", () => {
         expect(first).toMatchObject({
           limit: 1,
           has_more: true,
-          next_cursor: rowId(collection, rows[0]!),
         });
+        expect(first.next_cursor).toMatch(/^[A-Za-z0-9_-]{43}$/u);
+        expect(first.next_cursor).not.toBe(rowId(collection, rows[0]!));
         expect(rows).toHaveLength(1);
         const second = await read(f, collection, `limit=1&cursor=${first.next_cursor}`);
         expect(second).toMatchObject({ limit: 1, has_more: false });
-        expect(second.next_cursor).toBeUndefined();
+        expect(second.next_cursor).toBeNull();
         expect(
           rowId(collection, second[collection.key]![0]!).localeCompare(rowId(collection, rows[0]!)),
         ).toBeGreaterThan(0);
@@ -606,6 +657,7 @@ describe("browser task collection final-parent delivery", () => {
       ],
       limit: 1,
       has_more: false,
+      next_cursor: null,
     });
     expect(JSON.stringify(response)).not.toContain(ordered[0]!.id);
   });

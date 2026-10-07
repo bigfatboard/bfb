@@ -42,11 +42,14 @@ certificate. Production capture, arithmetic and clocks are unchanged.
 The [task-detail panel certificate](work-packages/evidence/WP-C11/detail-panels-manifest.json)
 and earlier public business/CLI certificate remain unchanged. UI details,
 drafts, retry and hidden-section notices stay on demand in both themes.
-Opaque continuation for comments, dependencies, links and work-runs is awaiting
-its compatibility decision; context is unpaged. Raw-ID retirement/version
-compatibility and position-only
-Hub bookkeeping need a frozen transition decision before implementation.
-No new cursor storage, migration or fallback exists. GitHub policy,
+Opaque continuation for comments, dependencies, links and work-runs is implemented
+and awaiting clean-checkout certification.
+Timo approved raw-ID retirement without fallback and position-only Hub
+bookkeeping on 7 October; ADR 0016 and the delivery contract freeze the wire.
+Context remains unpaged. No new position implementation is yet certified.
+Timo separately authorized merging and a first Cloudflare beta deployment after
+the product-beta work is verified, followed by deployed smoke checks. No rollout
+has occurred and execution-lane implementation remains excluded. GitHub policy,
 execution-owned consumers and destructive private retention remain open.
 Private creation, sharing and checkpoints stay disabled; C11 is in progress,
 C12 planned, and the other mandatory product features remain unfinished.

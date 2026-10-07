@@ -2,6 +2,7 @@
 // ABOUTME: Browser authority is translated into shared WorkspaceHub commands for every mutation.
 
 import { createAuthorizationContext, type SqlDatabase } from "@bfb/db";
+import { randomUUID } from "node:crypto";
 import {
   acceptResultCommand,
   addCommentCommand,
@@ -21,6 +22,7 @@ import {
   getRunMeasurements,
   getTask,
   getTaskMeasurements,
+  issueHumanTaskCollectionPositionCommand,
   isUlid,
   listReviewTimers,
   listResultSubmissions,
@@ -29,6 +31,7 @@ import {
   recordBrowserActivityCommand,
   readWorkBoard,
   readHumanTaskCollection,
+  readHumanTaskCollectionPage,
   requestChangesCommand,
   startReviewTimerCommand,
   stopReviewTimerCommand,
@@ -38,6 +41,7 @@ import {
   updateRunActivityCommand,
   updateTaskCommand,
   type EvidenceRef,
+  type PagedHumanTaskCollection,
   type TaskPriority,
   type TaskState,
 } from "@bfb/domain";
@@ -149,6 +153,19 @@ function page(url: URL): { limit?: number; cursor?: string } {
     throw new DomainError("invalid_argument", "cursor is invalid");
   }
   return { ...(limit === undefined ? {} : { limit }), ...(cursor ? { cursor } : {}) };
+}
+
+/** These four browser collections deliberately have no raw record-ID fallback. */
+function taskCollectionPage(url: URL): { limit?: number; cursor?: string } {
+  const rawLimit = url.searchParams.get("limit");
+  const limit = rawLimit === null ? undefined : Number(rawLimit);
+  if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1 || limit > 100))
+    throw new DomainError("invalid_argument", "limit is invalid");
+  const cursor = url.searchParams.get("cursor");
+  return {
+    ...(limit === undefined ? {} : { limit }),
+    ...(cursor === null ? {} : { cursor }),
+  };
 }
 
 function outcomeResponse(outcome: { ok: boolean; error?: { code: string } }): Response {
@@ -411,27 +428,35 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
         }),
       );
     }
-    if (rest === "/comments" && request.method === "GET") {
+    if (
+      request.method === "GET" &&
+      ["/comments", "/dependencies", "/links", "/runs"].includes(rest)
+    ) {
       if (!(await canReadTask(deps.db, principal, taskId))) {
         return json({ error: "not_found" }, 404);
       }
-      const pagination = page(url);
-      const limit = pagination.limit ?? 50;
-      const rows = await readHumanTaskCollection(
+      const collection = rest.slice(1) as PagedHumanTaskCollection;
+      const result = await readHumanTaskCollectionPage(
         deps.db,
         principal,
         taskId,
-        "comments",
-        pagination,
+        collection,
+        taskCollectionPage(url),
+        async (input) => {
+          const outcome = await execute(
+            issueHumanTaskCollectionPositionCommand,
+            `task.collection-position.${randomUUID()}`,
+            input,
+          );
+          if (!outcome.ok) throw new DomainError(outcome.error.code, outcome.error.message);
+        },
       );
-      if (!rows) return json({ error: "not_found" }, 404);
-      const hasMore = rows.length > limit;
-      const comments = hasMore ? rows.slice(0, limit) : rows;
+      if (!result) return json({ error: "not_found" }, 404);
       return json({
-        comments,
-        limit,
-        has_more: hasMore,
-        ...(hasMore ? { next_cursor: comments[comments.length - 1]?.id } : {}),
+        [collection]: result.rows,
+        limit: result.limit,
+        has_more: result.has_more,
+        next_cursor: result.next_cursor,
       });
     }
     if (rest === "/comments" && request.method === "POST") {
@@ -481,31 +506,6 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
         }),
       );
     }
-    if (rest === "/dependencies" && request.method === "GET") {
-      if (!(await canReadTask(deps.db, principal, taskId))) {
-        return json({ error: "not_found" }, 404);
-      }
-      const pagination = page(url);
-      const limit = pagination.limit ?? 50;
-      const rows = await readHumanTaskCollection(
-        deps.db,
-        principal,
-        taskId,
-        "dependencies",
-        pagination,
-      );
-      if (!rows) return json({ error: "not_found" }, 404);
-      const hasMore = rows.length > limit;
-      const dependencies = hasMore ? rows.slice(0, limit) : rows;
-      return json({
-        dependencies,
-        limit,
-        has_more: hasMore,
-        ...(hasMore
-          ? { next_cursor: dependencies[dependencies.length - 1]!.depends_on_task_id }
-          : {}),
-      });
-    }
     if (rest === "/links" && request.method === "POST") {
       const record = await body(request, ["kind", "url", "label", "request_id"]);
       return outcomeResponse(
@@ -516,17 +516,6 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
           label: requiredString(record, "label"),
         }),
       );
-    }
-    if (rest === "/links" && request.method === "GET") {
-      if (!(await canReadTask(deps.db, principal, taskId))) {
-        return json({ error: "not_found" }, 404);
-      }
-      const pagination = page(url);
-      const limit = pagination.limit ?? 50;
-      const rows = await readHumanTaskCollection(deps.db, principal, taskId, "links", pagination);
-      return rows
-        ? json(pagedBody("links", rows as Array<{ id: string }>, limit))
-        : json({ error: "not_found" }, 404);
     }
     if (rest === "/runs" && request.method === "POST") {
       const record = await body(request, [
@@ -549,17 +538,6 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
           agentProfileVersion: requiredVersion(record, "agent_profile_version"),
         }),
       );
-    }
-    if (rest === "/runs" && request.method === "GET") {
-      if (!(await canReadTask(deps.db, principal, taskId))) {
-        return json({ error: "not_found" }, 404);
-      }
-      const pagination = page(url);
-      const limit = pagination.limit ?? 50;
-      const rows = await readHumanTaskCollection(deps.db, principal, taskId, "runs", pagination);
-      return rows
-        ? json(pagedBody("runs", rows as Array<{ id: string }>, limit))
-        : json({ error: "not_found" }, 404);
     }
   }
 

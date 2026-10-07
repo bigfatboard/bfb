@@ -1,5 +1,5 @@
 {
-  "migration_head": "0047_security_audit_positions",
+  "migration_head": "0048_task_collection_positions",
   "migrations": [
     {
       "id": "0001_workspace_registry",
@@ -168,6 +168,10 @@
     {
       "id": "0047_security_audit_positions",
       "file": "0047_security_audit_positions.sql"
+    },
+    {
+      "id": "0048_task_collection_positions",
+      "file": "0048_task_collection_positions.sql"
     }
   ]
 }

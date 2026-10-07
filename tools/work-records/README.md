@@ -1,5 +1,21 @@
 # Work-record runtime proofs
 
+`pnpm test:c11:task-positions`, composed once by C11, owns `task-positions.ts`:
+six independently collecting disposable native-D1 groups exercise opaque child
+positions through the registered production Hub. Four collection traversals
+retain Reviewer access, canonical rows, fixed capture and reusable terminal
+positions without plaintext persistence. Invalid/foreign bindings and audience
+drift reject without effects. A newly inserted dependency to an older task stays
+outside the original insertion ceiling, while fresh roots see it. Real native
+batch seams remove a non-anchor delivered dependency or lookahead before commit
+and prove full issuance rollback. Four post-Worker/DO response-body revocations
+withhold replies while preserving committed position bookkeeping. Expired fixture
+positions, lost anchors and stale epochs remain current-authority checks, not
+bearer access. SQL bounds cover the observed selectors and native guard command,
+not setup or snapshots. Historical work-runs and dormant private policy/grants
+are explicit synthetic fixtures. Mounted browser authentication is separate;
+this does not certify private activation, execution or deployment.
+
 `pnpm test:c11:human-attention-history`, composed once by C11, owns
 `human-attention-history.ts`: four independently collecting native-D1 groups
 exercise canonical ended/earlier-generation and empty attention history, exact

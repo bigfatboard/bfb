@@ -144,8 +144,13 @@ import {
   resolveStuckUploadCommand,
   issueSecurityAuditPositionCommand,
 } from "./operations.js";
+import { issueHumanTaskCollectionPositionCommand } from "./human-task-collection-positions.js";
 
 const commands = new Map<string, HubCommand<unknown, unknown>>([
+  [
+    issueHumanTaskCollectionPositionCommand.name,
+    issueHumanTaskCollectionPositionCommand as HubCommand<unknown, unknown>,
+  ],
   [
     resultCaptureConfirmationCommand.name,
     resultCaptureConfirmationCommand as HubCommand<unknown, unknown>,

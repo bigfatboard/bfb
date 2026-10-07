@@ -94,14 +94,14 @@ The earlier human upload reply fix remains covered by retained tests. This is
 local native proof, not live private bytes, compiled-browser presentation,
 agent-upload reply, natural expiry or activation certification.
 
-Next implementation is opaque continuation for the four paged browser
-collections, awaiting its compatibility
-decision: comments, dependencies, links and work-runs. Both context views are
-unpaged. The existing
-audit handle primitives are useful, but audit-only storage cannot be overloaded.
-Raw-ID retirement/version compatibility and position-only Hub bookkeeping need
-a frozen transition decision before implementation; no migration or fallback
-has been added. This read checkpoint does not certify opaque positions.
+The current implementation adds opaque continuation for the four paged browser
+collections: comments, dependencies, links and work-runs. Timo approved raw-ID
+retirement without fallback and position-only Hub bookkeeping on 7 October;
+[ADR 0016](../adr/0016-browser-task-collection-positions.md) and the delivery
+contract freeze the transition. Both context views remain unpaged. Additive
+target `pnpm test:c11:task-positions` joins C11. Its focused local check passes
+106 cases and six real-D1 groups. This source checkpoint is not yet clean-
+certified; no new position certificate or private activation is claimed.
 GitHub key policy, execution-owned delivery and destructive private retention
 remain open. Private creation, sharing, inherited private children and
 checkpoints stay disabled; C11 remains in progress and C12 planned.

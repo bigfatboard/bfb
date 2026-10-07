@@ -29,7 +29,8 @@
     "public-business.ts",
     "measurement-attention.ts",
     "human-attention-history.ts",
-    "human-task-collections.ts"
+    "human-task-collections.ts",
+    "task-positions.ts"
   ],
   "references": [
     { "path": "../../packages/domain" },

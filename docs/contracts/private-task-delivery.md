@@ -1094,6 +1094,60 @@ The additive target is `pnpm test:c11:task-collections`, composed once by C11.
 The contract is preparation only until its source and exact target receive their
 own clean-checkout acceptance.
 
+### Frozen browser task child-position v1
+
+[ADR 0016](../adr/0016-browser-task-collection-positions.md) records Timo's approved
+wire transition and the read-position bookkeeping exception. This finite slice
+replaces raw-ID continuations on browser comments, dependencies, links and
+work-run pages only. Both context views remain unpaged.
+
+- Keep route names, ascending record-ID order, visible-only limit-plus-one
+  selection, record fields and attribution. `cursor` accepts only canonical
+  43-character base64url encodings of 32 random bytes. No raw-ID fallback,
+  restart, conversion or feature flag exists. Every paged response contains
+  `next_cursor`, a new position iff `has_more`, otherwise `null`.
+- Check the current readable parent and originally captured human, epoch and
+  project vector before cursor denial, including empty and terminal pages.
+  Absent/denied parents retain uniform HTTP 404 `{ "error": "not_found" }`.
+  Successful pages and their admission/cursor/authority failures carry
+  `Cache-Control: private, no-store`; browsers must not retain position pages.
+  All malformed, unknown, expired, foreign and drifted positions return
+  `invalid_argument / unknown task collection cursor` without source metadata.
+- Persist a domain-separated SHA-256 hash only. Each position binds workspace,
+  human, retained epoch, projection version `1`, task and project, one of the
+  four collections, effective page size and the exact sorted canonical project
+  audience. Re-derive that audience in the authority-bearing selection; either
+  same-epoch expansion or contraction invalidates a position. Bound audience
+  metadata to 32 KiB and reject overflow without truncation.
+- A root captures the same-workspace/task collection insertion ceiling and a
+  ten-minute expiry using the database clock. Descendants inherit both without
+  sliding expiry. Store the last delivered row's identity and insertion tuple,
+  never the lookahead. The anchor must remain a currently readable canonical
+  child of this exact parent, including dependency-target access and work-run
+  purpose/project checks. Anchor deletion, tuple drift or parent movement
+  invalidates a position. Newer backdated IDs remain outside the capture.
+- Issue through a registered direct-human read-authorized Hub command with
+  a boolean receipt and rejected cached-success replay. Derive cuts server-side;
+  transport captures may narrow authority but cannot supply an anchor or ceiling.
+  Plaintext positions never enter Hub inputs, results, fingerprints, receipts,
+  idempotency, audit, semantic events or outbox. Ordinary redacted Hub issuance
+  bookkeeping is the approved exception, not a task/progress/interaction action.
+- Finish all reads before queued writes. A database-clock commit guard repeats
+  parent authority, audience, expiry, anchor and the complete bounded selection,
+  including lookahead. Loss or drift rolls back position and Hub bookkeeping.
+  After the actual Hub response, final selection repeats current authority
+  under the issued capture and verifies its cut. Check expiry synchronously
+  after the final awaited read too. Withhold stale replies without rolling back
+  an already committed position. Terminal reads create no position; issuance
+  unavailability must never expose raw IDs or falsely claim a terminal page.
+
+The additive target is `pnpm test:c11:task-positions`, composed once by C11.
+Migration preservation, hash grammar, direct-human/Reviewer authority, every
+collection binding, malformed/raw/foreign positions, fixed capture/expiry,
+audience changes, dependency filtering and committing/post-Hub races require
+mounted and native D1 evidence. This contract is not implementation proof,
+private activation or certification of other raw collection wires.
+
 ### Frozen historical attention sources for measurements
 
 This finite corrective C11 slice owns only attention-derived run, task and

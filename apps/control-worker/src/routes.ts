@@ -423,6 +423,17 @@ export function createControlApp(
     }
   });
 
+  app.use("/api/v1/workspaces/*", async (c, next) => {
+    await next();
+    if (
+      c.req.method === "GET" &&
+      /^\/api\/v1\/workspaces\/[^/]+\/tasks\/[^/]+\/(comments|dependencies|links|runs)$/.test(
+        c.req.path,
+      )
+    )
+      c.header("Cache-Control", "private, no-store");
+  });
+
   app.all("/api/v1/workspaces/*", async (c) => {
     const db = c.get("db") ?? options.db;
     const current = c.get("validated");
