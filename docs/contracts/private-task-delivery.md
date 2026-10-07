@@ -511,6 +511,9 @@ coordination delivery or private creation.
   accessible empty lanes. Existing required policy/configuration joins govern
   lanes and effective pass-to-agent metadata. The deck has a separate project
   access set: missing lane-policy rows must not silently hide urgent tasks.
+  Preserve the legacy candidate-limit order: take the first 50 readable tasks
+  before mapping policy-backed lanes; a candidate in a project missing those
+  policy rows still consumes that global candidate budget.
 - Needs Now independently ranks all readable tasks, not the first 50 cards:
   at most three P0/P1 items assigned to this human, blocked or due. Preserve P0
   before P1, dated before undated, due time then task ID. Compare valid due UTC
