@@ -76,20 +76,30 @@ Coordinate shared contracts without changing the other lane's execution work.
 
 ## Handoff
 
-Current checkpoint: [delegated context delivery](evidence/WP-C11/delegated-context-manifest.json),
-clean-certified at `7aaf625`. Exact C11 passes 2,393 stage invocation cases and
-122 D1 checks across eleven harnesses; X03 and full verification pass, including
-4,517 TypeScript cases, Go and all 16 Swift cases. Fresh selection, committing
-delivery, cached replay and final MCP selection repeat current read authority.
-Original OAuth nullable boundaries remain ceilings; retries reconstruct only
-canonical previously delivered versions, including an authorized empty list.
+Current checkpoint: [delegated attention read delivery](evidence/WP-C11/attention-delivery-manifest.json),
+clean-certified at `3a2b0a6`. Exact C11 passes 2,427 stage invocation cases and
+140 D1 checks across twelve harnesses; X03 and full verification pass, including
+4,551 TypeScript cases, Go and all 16 Swift cases. One final canonical selection
+repeats current read authority and original OAuth restrictions while retaining
+exact attention/task/run/execution/assignment lineage. New canonical answers,
+read-only roles and ended historical executions remain readable without read
+effects. Missing and denied attention share the existing bounded error wire.
 
-Delegated attention reads are the next bounded slice to reproduce. Other OAuth
-read responses, GitHub key policy, execution-owned delivery and destructive
-private retention remain open. Private creation/sharing/checkpoints stay
-disabled; C11 remains in progress and C12 planned.
+Final `bfb_get_task` delivery and delegated task/project list selection are next.
+Other OAuth response boundaries, GitHub key policy, execution-owned delivery
+and destructive private retention remain open. Private creation, sharing and
+checkpoints stay disabled; C11 remains in progress and C12 planned.
 
 ### Earlier checkpoints
+
+The [delegated context delivery checkpoint](evidence/WP-C11/delegated-context-manifest.json)
+is clean-certified at `7aaf625`: fresh selection, committing delivery, cached
+replay and final MCP selection repeat current read authority. Original OAuth
+nullable boundaries remain ceilings; retries reconstruct only canonical
+previously delivered versions, including an authorized empty list. Exact C11
+passes 2,393 stage invocation cases and 122 D1 checks across eleven harnesses;
+X03 and full verification pass with 4,517 TypeScript cases, Go and all 16 Swift
+cases. Its evidence remains unchanged.
 
 The [delegated attention creation checkpoint](evidence/WP-C11/delegated-attention-manifest.json)
 is clean-certified at `0e987c9`: retained creation authority, permitted run state

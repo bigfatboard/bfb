@@ -8,16 +8,18 @@ Timo split it from remote start and agent-to-agent work on 6 October. It starts
 from the integrated `7b8620c` checkpoint, preserving the existing implementation
 and certificates. Package metadata remains the source of truth for completion.
 
-Latest local checkpoint: [delegated context delivery](work-packages/evidence/WP-C11/delegated-context-manifest.json),
-clean-certified at `7aaf625` through exact C11, X03 and full verification.
-C11 passes 2,393 stage invocation cases and 122 D1 checks; full verification
-passes 4,517 TypeScript cases, Go and all 16 Swift cases. This closes fresh,
-committing, cached and final MCP context delivery, not every read response or
-private activation. Delegated attention reads are the next bounded slice to
-reproduce. Other OAuth reads, GitHub policy, execution-owned consumers and
-destructive private retention remain barriers. Private creation, sharing and
-checkpoints stay disabled; C11 is in progress, C12 planned, and the other
-mandatory product features remain unfinished. No rollout or pilot changed.
+Latest local checkpoint: [delegated attention read delivery](work-packages/evidence/WP-C11/attention-delivery-manifest.json),
+clean-certified at `3a2b0a6` through exact C11, X03 and full verification.
+C11 passes 2,427 stage invocation cases and 140 D1 checks; full verification
+passes 4,551 TypeScript cases, Go and all 16 Swift cases. Final attention
+selection retains exact historical lineage and original OAuth restrictions,
+rechecks current read authority and returns new canonical answers without read
+effects. This closes attention reads, not every OAuth response or private
+activation. Final task delivery and delegated task/project list selection are
+next. GitHub policy, execution-owned consumers and destructive private retention
+remain barriers. Private creation, sharing and checkpoints stay disabled; C11 is
+in progress, C12 planned, and the other mandatory product features remain
+unfinished. No rollout or pilot changed.
 
 ## Ownership boundary
 
