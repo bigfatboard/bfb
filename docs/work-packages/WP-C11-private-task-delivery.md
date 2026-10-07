@@ -76,25 +76,25 @@ Coordinate shared contracts without changing the other lane's execution work.
 
 ## Handoff
 
-Current checkpoint: [browser task child positions](evidence/WP-C11/task-positions-manifest.json),
-clean-certified at `70c8500`. Exact C11 passes 3,307 stage case invocations
-across 138 file invocations in twenty-two blocks, six panel browser cases and
-230 native check labels across twenty-one harnesses; dependencies and the
-notification drill are separate. Full verification passes 4,848 TypeScript
-cases in 223 files, Go and all 16 Swift cases. The focused target passes 106
-cases in six files and six real-D1 groups. Under ADR 0016, comments/dependencies/
-links/work-run pages reject raw IDs without fallback and use principal-bound
-opaque positions with hash-only registered Hub issuance. Current parent denial,
-exact audience, inherited capture/expiry, complete-selection rollback and final
-delivery after actual Hub success pass. Context remains unpaged. SQL bounds
-are 24 bindings/10,659 bytes for instrumented reader/local Hub statements.
-This is a finite wire certificate, not full activation, compiled-browser
-presentation, natural expiry or an OLD security-failure claim.
+Current checkpoint: [human artifact atomic expiry](evidence/WP-C11/human-grant-expiry-manifest.json),
+clean-certified at `bd5dbf5`. Exact C11 passes 3,340 stage case invocations
+across 140 file invocations in twenty-two blocks, six panel browser cases and
+234 native check labels across twenty-one harnesses; dependencies and the
+notification drill are separate. Full verification passes 4,869 TypeScript
+cases in 224 files, Go and all 16 Swift cases. Exact V01/V02/V03 also pass,
+including compiled native V01 and the retained viewer/review browser proofs.
+The artifact target passes 130 cases in nine files and ten native groups.
+Human grant consumption now requires database-clock liveness; unchanged OLD
+replays record two mounted failures/four controls and two native failures/eight
+controls. Completion after successful consumption may pass TTL without undoing
+history. Handler bounds remain 19 bindings/4,716 bytes/eight batch statements.
+A pre-existing native agent receipt expression-depth failure is repaired locally
+without changing its authority predicate. Stale browser and historical migration
+fixtures are repaired; G01 still fails on an expired historical runner credential
+and AG02/AG04 remain open. This finite certificate does not waive release gates.
 
-Next product-owned slice is human artifact upload/view grant natural expiry at
-atomic consumption; retained request timestamps must not extend a grant.
-The delivery contract now freezes the consume-only database-clock rule and
-unchanged-grant native delay proof; implementation is not yet certified.
+Next product-owned slice is operations-local step-up natural expiry at atomic
+consumption, frozen in the delivery contract but not yet implemented or certified.
 GitHub manual-link collision policy and historical source fences, execution-
 owned delivery and destructive private retention remain open. Timo separately
 authorized merge and first Cloudflare beta deployment after the product work
@@ -103,6 +103,15 @@ private children and checkpoints stay disabled; C11 is in progress, C12 planned,
 and other mandatory product features remain unfinished.
 
 ### Earlier checkpoints
+
+The [browser task child positions](evidence/WP-C11/task-positions-manifest.json)
+checkpoint remains certified separately at `70c8500`: 3,307 C11 stage-case
+invocations, 230 native labels and full verification with 4,848 TypeScript cases.
+The focused target passes 106 cases/six files and six native groups. ADR 0016
+retires raw-ID continuation without fallback on comments/dependencies/links/
+work-run pages. Hash-only Hub positions bind current audiences and parents,
+inherited capture/expiry and whole selections; context remains unpaged. Its
+historical evidence and finite compatibility scope remain unchanged.
 
 The [native Reviewer and project-loss artifact-view proof](evidence/WP-C11/native-view-authority-manifest.json)
 is clean-certified at `e947fdf`. Its exact C11 run passes 3,201 stage case invocations

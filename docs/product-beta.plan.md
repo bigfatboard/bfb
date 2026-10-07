@@ -1,6 +1,6 @@
 # BFB product beta lane
 
-Status: implementation in progress, 7 October 2026.
+Status: implementation in progress, 8 October 2026.
 
 This lane owns the board, product UI, authenticated MCP product features and
 the eight [mandatory requirements](../mvp.plan.md#mandatory-product-scope-extension--5-october).
@@ -8,18 +8,28 @@ Timo split it from remote start and agent-to-agent work on 6 October. It starts
 from the integrated `7b8620c` checkpoint, preserving the existing implementation
 and certificates. Package metadata remains the source of truth for completion.
 
-Latest local checkpoint: [browser task child positions](work-packages/evidence/WP-C11/task-positions-manifest.json),
-clean-certified at `70c8500`: exact C11 passes 3,307 stage case invocations
-across 138 file invocations in twenty-two blocks, six panel browser cases and
-230 native check labels across twenty-one harnesses. Dependencies and the
-notification drill remain separate. Full verification passes 4,848 TypeScript
-cases in 223 files, Go and all 16 Swift cases. The focused target passes 106
-cases/six files and six real-D1 groups. Raw-ID continuation is retired without
-fallback on comments, dependencies, links and work-runs; hash-only Hub positions
-retain exact current audiences, fixed capture/expiry and current parent access.
-Complete-selection guards and final post-Hub denial preserve safe history.
-Context remains unpaged. This is not private activation, natural expiry,
-compiled-browser presentation or a new OLD security-failure claim.
+Latest local checkpoint: [human artifact atomic expiry](work-packages/evidence/WP-C11/human-grant-expiry-manifest.json),
+clean-certified at `bd5dbf5`: exact C11 passes 3,340 stage-case invocations
+across 140 file invocations in twenty-two blocks, six panel browser cases and
+234 native labels across twenty-one harnesses. Dependencies and the notification
+drill are separate. Full verification passes 4,869 TypeScript cases in 224 files,
+Go and all sixteen Swift cases; exact V01/V02/V03 also pass, including compiled
+native V01 and the viewer/review browser proofs. The artifact target passes 130
+cases/nine files and ten native groups. Human upload/view grants require atomic
+database-clock liveness while allowing later completion after valid consumption.
+Unchanged OLD replays record two mounted expiry failures/four controls and two
+native expiry failures/eight controls. Handler bounds stay 19 bindings/4,716 bytes/
+eight batch statements. A pre-existing agent receipt expression-depth failure
+is repaired without changing authority; retained browser/migration fixtures are
+updated. G01 still fails on an expired historical runner token, AG02/AG04 remain
+open, and this finite certificate does not waive release gates or enable privacy.
+
+The [browser task child positions](work-packages/evidence/WP-C11/task-positions-manifest.json)
+checkpoint retains its separate `70c8500` certificate. Raw-ID continuation is
+retired without fallback for comments/dependencies/links/work-runs; hash-only
+Hub positions retain exact audiences, fixed capture/expiry and current parent
+access. Complete-selection guards and final post-Hub denial preserve safe
+history. Context remains unpaged; this compatibility evidence is unchanged.
 
 The earlier [native Reviewer and project-loss artifact-view proof](work-packages/evidence/WP-C11/native-view-authority-manifest.json)
 is clean-certified at `e947fdf` through exact C11 and full verification. That run passes
@@ -57,15 +67,16 @@ and earlier public business/CLI certificate remain unchanged. UI details,
 drafts, retry and hidden-section notices stay on demand in both themes.
 Timo approved raw-ID retirement without fallback and position-only Hub
 bookkeeping on 7 October; ADR 0016 and the delivery contract freeze the wire.
-The next product-owned slice is human artifact upload/view grant natural expiry
-at atomic consumption, retaining successful-consume and timestamp semantics.
+The next product-owned slice is operations-local step-up natural expiry at
+atomic consumption. Its contract is frozen; implementation is not certified.
 Timo separately authorized merging and a first Cloudflare beta deployment after
 the product-beta work is verified, followed by deployed smoke checks. No rollout
 has occurred and execution-lane implementation remains excluded. GitHub policy,
 execution-owned consumers and destructive private retention remain open.
 Private creation, sharing and checkpoints stay disabled; C11 is in progress,
 C12 planned, and the other mandatory product features remain unfinished.
-No rollout or pilot changed.
+Pinned Cloudflare CLI authentication and read-only resource inventory are
+available for the later beta rollout. No beta resources, rollout or pilot changed.
 
 ## Ownership boundary
 

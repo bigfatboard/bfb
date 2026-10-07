@@ -1518,6 +1518,44 @@ or execution behavior.
 This is a receipt execution-limit repair, not agent natural-expiry, response
 delivery, remote-start, live-provider or private-activation certification.
 
+### Frozen operations step-up atomic expiry
+
+This finite C11 slice owns only the operations-local `prepareStepUp` consumption
+used by `ops.retention.set` and `ops.recovery.resolve_stuck_upload`. Retained
+request time must not extend an unchanged action-bound proof across awaited work.
+This freeze is not implementation or acceptance evidence.
+
+- Retain supplied-time validation, exact human/workspace/action/target/scopes/
+  epoch binding, one-use consumption and the unique-stamp winner CHECK. Add
+  database-execution-clock expiry only to the existing consumption UPDATE.
+  Shared step-up, authorization, runner and lease helpers remain unchanged.
+- An unchanged proof that expires before that UPDATE executes must leave no
+  consumption, policy/version, artifact abandonment, recovery ledger, Hub audit,
+  semantic event, outbox, idempotency or workspace-cursor effects. The existing
+  failed batch returns the bounded `command_failed` Hub outcome. Existing route
+  admission and error mapping remain unchanged; no new diagnostic body is added.
+- Fresh-proof target-ledger recovery retries obey the same consumption boundary,
+  even when original artifact effects already exist. Failed consumption retains
+  those earlier committed rows unchanged and creates no retry receipt.
+- Once the proof has been successfully consumed and the batch committed, expiry
+  while awaiting that batch response does not cancel or undo the command. Keep
+  original occurrence times and one-use history. The consumption stamp remains
+  an opaque winner identity, not a timestamp or a new user-interaction record.
+- Reproduce OLD and fixed behavior with SQL-clock-aligned synthetic proofs that
+  are live after actual UPDATE preparation/binding. Witness the same explicit
+  pre-batch delay for naturally expired and comfortably live controls, forwarding
+  the original statements and parameters. Do not rewrite proof, authority or
+  target rows during the delay; early rejection is not the temporal reproducer.
+- Use mounted/staged SQLite and a separate disposable native-D1 proof. Compare
+  complete canonical snapshots and clean FKs; keep engine/migration metadata and
+  any HTTP budgets separately named. Measure handler/Hub statement bindings,
+  SQL bytes and batch lengths without counting setup or snapshot queries.
+
+The owning additive target will be composed by C11 once implemented. Retain exact
+X05 regression and full repository/platform verification. No R2 deletion, private
+retention activation, later-statement deadline, broader role/epoch repair, live
+provider, installed app, runner/lease or complete C11 claim is included.
+
 ## Delivery inventory and required proof
 
 | Surface | Existing owner / entry points | C11 completion check |

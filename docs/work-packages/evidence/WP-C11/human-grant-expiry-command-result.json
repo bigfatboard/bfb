@@ -1,0 +1,151 @@
+{
+  "package": "C11",
+  "recorded_on": "2026-10-08",
+  "tested_commit": "bd5dbf5e6eed7ec037ab8c6e48f1bbe015a70b46",
+  "production_commit": "31b720c7be0da2c3df20125d5a47259bb0d43c19",
+  "outcome": "passed",
+  "stage": "partial_human_artifact_atomic_expiry",
+  "package_acceptance_complete": false,
+  "private_creation_available": false,
+  "migration_head": "0048_task_collection_positions",
+  "scope": "Human upload/view grant consumption checks database execution time while retaining supplied-time validation, exact lineage, one-use guards and successful-consume history. A pre-existing agent receipt expression-depth failure is repaired locally without changing its authority predicate.",
+  "clean_certificate_marker": "PRODUCT_PRIVACY_FINITE_CLEAN_CERTIFICATE_OK",
+  "clean_pipeline_exit_code": 0,
+  "clean_commands": [
+    { "command": "pnpm install --frozen-lockfile", "exit_code": 0 },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 4869,
+      "typescript_files": 224,
+      "go": "passed",
+      "go_scheduling": "GOFLAGS=-p=1",
+      "swift": "passed",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    {
+      "command": "pnpm test:c11",
+      "exit_code": 0,
+      "c10_cases": 86,
+      "c10_files": 8,
+      "c10_d1_checks": 9,
+      "c08_cases": 23,
+      "c08_files": 5,
+      "c08_proof": "C08_D1_OK",
+      "stage_cases": 3340,
+      "stage_files": 140,
+      "stage_invocation_blocks": 22,
+      "stage_browser_cases": 6,
+      "stage_d1_check_labels": 234,
+      "stage_d1_harnesses": 21,
+      "notification_record_labels": 41,
+      "counting": "Stage cases/files are invocations across twenty-two Vitest blocks, not unique totals. C10/C08, six panel browser cases and the notification drill are separate. Native totals count emitted top-level check labels, not nested assertions or delay waves; the ten artifact groups collect independently."
+    },
+    {
+      "command": "pnpm test:v01",
+      "exit_code": 0,
+      "protocol_cases": 1154,
+      "protocol_files": 12,
+      "focused_cases": 264,
+      "focused_files": 15,
+      "native_proofs": ["V01_D1_OK", "V01_NATIVE_PROOF_COMPLETE"],
+      "go_race": "passed",
+      "compiled_native_agent": "passed"
+    },
+    {
+      "command": "pnpm test:v02",
+      "exit_code": 0,
+      "protocol_cases": 1154,
+      "protocol_files": 12,
+      "focused_cases": 165,
+      "focused_files": 13,
+      "native_proof": "V02_D1_OK",
+      "browser_cases": 16
+    },
+    {
+      "command": "pnpm test:v03",
+      "exit_code": 0,
+      "protocol_cases": 1154,
+      "protocol_files": 12,
+      "focused_cases": 64,
+      "focused_files": 8,
+      "native_proof": "V03_D1_OK",
+      "native_checks": 14,
+      "browser_cases": 9,
+      "browser_blocks": [4, 5]
+    },
+    {
+      "command": "pnpm worktree:check",
+      "exit_code": 0,
+      "before_and_after_pipeline": true,
+      "committed_source_unchanged": true,
+      "final_status_empty": true
+    }
+  ],
+  "slice_suites": {
+    "target": "pnpm test:c11:artifact-bytes",
+    "composed_once_by_c11": true,
+    "focused_cases": 130,
+    "focused_files": 9,
+    "new_mounted_expiry_cases": 6,
+    "native_groups": 10,
+    "retained_native_groups": 6,
+    "new_native_expiry_groups": 4,
+    "native_proof": "C11_ARTIFACT_PRIVACY_D1_R2_OK",
+    "maximum_bindings": 19,
+    "maximum_statement_bytes": 4716,
+    "maximum_batch_statements": 8,
+    "bounds_scope": "Instrumented artifact-handler statements only; migration, setup, Hub internals, clock witnesses and snapshots are excluded."
+  },
+  "old_source_probes": {
+    "production_commit": "c341c4837764238cb5361723b8d15dee90289dd1",
+    "production_unchanged_before_after": true,
+    "mounted": { "meaningful_expiry_failures": 2, "healthy_controls": 4 },
+    "native": { "meaningful_expiry_failures": 2, "healthy_controls": 8 },
+    "observed": "Unchanged grants remain live after actual prepare/bind, naturally expire during the same explicit delay used by live controls, and OLD consumption succeeds. Mounted soft assertions independently collect useful response/byte and canonical effects; native failures stop at the first denial expectation and are not claimed as separately collected downstream failures.",
+    "excluded": ["Initial mounted JSON-on-HTML probe was incomplete and is not behavioral evidence"]
+  },
+  "receipt_expression_repair": {
+    "source_commit": "31b720c7be0da2c3df20125d5a47259bb0d43c19",
+    "unfixed_replay_commit": "c341c4837764238cb5361723b8d15dee90289dd1",
+    "unfixed_native_outcome": "Agent prepare succeeded and upload failed with 409 on both the human-expiry source and its unchanged parent",
+    "diagnostic": "Temporary bounded native classification observed batch phase, eight statements and Expression tree is too large; diagnostic code was fully removed before committed clean acceptance",
+    "change": "The unchanged agent witness is a sibling scalar CHECK operand rather than nested inside the source COUNT. Grant/attempt/version/consumed-time checks and the literal agent-origin condition remain in the source operand. Human branch and first retained-byte/lineage guard are unchanged.",
+    "staged_cases": 15,
+    "staged_live_controls": 1,
+    "staged_authority_loss_cases": 14,
+    "full_agent_suite_cases": 86,
+    "proof_boundary": "Staged SQLite proves complete receipt rollback and useful controls, not native expression depth. The exact clean V01 compiled-native acceptance separately proves the repaired native receipt path. No numeric expression-depth limit is inferred from documentation."
+  },
+  "fixture_repairs": [
+    "Artifact grant fixtures use actual clocks at issuance/redemption without changing historical corpora, production TTLs or shared clock helpers",
+    "Connected V03 tests now assert current 401 panel suppression and uniform 404 project denial; restoring the same synthetic session preserves the unsent draft and keyboard retry without publishing a review",
+    "G01 seeds the original sixteen-column historical task before its later authority migration and compares its full row through upgrade; production task.create remains after the modern schema"
+  ],
+  "exploratory_failures_not_acceptance": [
+    "Earlier certificate attempts stopped at the pre-existing native expression failure, stale connected-browser expectations or historical G01 task seeding; their partial passes are not this certificate",
+    "A standalone post-repair native run later returned work_unavailable before a subsequent prepare; no cause is assigned and no execution code was changed. This did not recur in the exact clean V01 run",
+    "G01 migration preservation passed after fixture repair, but event ingestion still rejects an expired historical runner token. G01 release acceptance and its static AG02/AG04 failures remain unresolved and are not waived"
+  ],
+  "proof_boundaries": [
+    "Expiry is enforced when the consume UPDATE executes, not at a later statement or response deadline",
+    "Successful consumption allows body/R2/receipt/finalization work past TTL while existing current-delivery authority and one-use history remain required",
+    "Mounted authentication uses synthetic cookies/CSRF, staged local SQLite and fake R2; native bytes use disposable D1/R2 and production handlers, not deployed ingress or a real sign-in ceremony",
+    "Short grants are explicit synthetic fixtures assigned once; the native historical issuance time retains production TTL distance while creating a short remaining window",
+    "Complete canonical snapshots and clean foreign keys are checked; HTTP abuse budgets and engine/migration metadata are separately classified",
+    "The V01 compiled native proof is regression verification, not implementation of remote start, provider adapters or agent-to-agent features in this lane"
+  ],
+  "activation_barriers": [
+    "Operations-local step-up natural expiry is the next frozen slice and is not implemented or certified by this source",
+    "GitHub manual-link collision choice/history fences, execution-owned delivery and destructive private retention remain open",
+    "Private creation, sharing, inherited private children and checkpoints remain disabled; C11 is in progress and C12 planned"
+  ],
+  "not_claimed": [
+    "Complete C11, the eight-feature product MVP, private activation, deployed beta or external CI",
+    "G01 release acceptance, static AG02/AG04 approval, live provider or installed pilot operation",
+    "Agent natural-expiry, operations step-up expiry, runner/lease expiry or later-statement deadlines",
+    "Cloudflare resource creation, merge, deployment or deployed authenticated smoke"
+  ],
+  "redaction": "Bounded synthetic counts and outcomes only; no credentials, private bodies, raw logs, per-run timestamps or local absolute paths"
+}
