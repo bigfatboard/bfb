@@ -552,6 +552,20 @@ export async function guardResultEvidence(
     targetRunId,
   );
   const id = randomUlid();
+  if (access.delegationId) {
+    // Execution-clock expiry is separate from the prepared all-reference predicate.
+    await ctx.db
+      .prepare(
+        `INSERT INTO artifact_mutation_guards (id,valid)
+      SELECT ?, CASE WHEN EXISTS (
+        SELECT 1 FROM oauth_delegations AS credential
+        WHERE credential.workspace_id = ? AND credential.id = ?
+          AND julianday(credential.expires_at) > julianday('now')
+      ) THEN 1 ELSE 0 END`,
+      )
+      .run(id, ctx.workspaceId, access.delegationId);
+    await ctx.db.prepare("DELETE FROM artifact_mutation_guards WHERE id = ?").run(id);
+  }
   await ctx.db
     .prepare(
       `INSERT INTO artifact_mutation_guards (id,valid)

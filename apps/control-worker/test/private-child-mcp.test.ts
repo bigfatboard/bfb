@@ -17,7 +17,6 @@ import { LAUNCH_NOW, success } from "../../../packages/domain/test/launch-fixtur
 import { createTestWorkspaceHubNamespace } from "../src/hub-client.js";
 import { handleMcpRequest } from "../src/mcp/handler.js";
 
-const EXPIRES_AT = "2026-09-12T12:10:00.000Z";
 const QUESTION = "SYNTHETIC-C11-PRIVATE-MCP-CHILD-QUESTION";
 const ANSWER = "SYNTHETIC-C11-PRIVATE-MCP-CHILD-ANSWER";
 const SUMMARY = "SYNTHETIC-C11-MCP-STRICT-RESULT-SUMMARY";
@@ -73,13 +72,19 @@ async function fixture() {
     taskCreatorHumanId: FIX.member,
     requestingHumanId: FIX.owner,
   });
+  const credentialWindow = (await f.db
+    .prepare(
+      `SELECT strftime('%Y-%m-%dT%H:%M:%fZ', 'now') AS now,
+        strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '+10 minutes') AS expires_at`,
+    )
+    .get()) as { now: string; expires_at: string };
   const credential = await issueSyntheticMcpAccess(f.db, {
     humanId: FIX.owner,
     projectId: FIX.projectA,
     taskId: f.task.id,
     scopes: ["bfb:read", "bfb:task:write", "offline_access"],
-    now: LAUNCH_NOW,
-    expiresAt: EXPIRES_AT,
+    now: credentialWindow.now,
+    expiresAt: credentialWindow.expires_at,
   });
   return { ...f, ...credential, namespace: createTestWorkspaceHubNamespace(f.db) };
 }
@@ -376,8 +381,11 @@ describe("mounted private attention delegation delivery", () => {
     const attention = await privateAttention(f);
     const missing = await call(f, "bfb_get_attention", { attention_id: randomUlid() });
     denied(missing);
+    const credential = (await f.db
+      .prepare(`SELECT expires_at FROM oauth_delegations WHERE workspace_id = ? AND id = ?`)
+      .get(FIX.workspace, f.delegationId)) as { expires_at: string };
     const interleaved = interleaveRead(f.db, "after_token_resolution", async () => {
-      vi.setSystemTime(new Date(EXPIRES_AT));
+      vi.setSystemTime(new Date(credential.expires_at));
     });
     const hidden = await call(
       f,

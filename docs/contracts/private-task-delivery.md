@@ -651,6 +651,42 @@ coordination delivery or private creation.
   D1 single-selection proof. Repair the existing discussion test's vacuous
   `card.id` lookup to use `taskId`. Preserve stored history and prior evidence.
 
+### Frozen delegated result commit expiry
+
+This bounded C11 correction owns `result.submit.delegation` only. The existing
+preflight, exact target/source selection, scopes, epoch and credential boundary
+remain necessary. It does not change shared preparation-time authority helpers,
+local agent capabilities, runner leases, cleanup or provider execution.
+
+- A delegated submission additionally requires its exact workspace/delegation
+  row to have an expiry strictly later than the database execution clock when
+  a write-only CHECK guard runs inside the committing D1 batch. Missing, NULL,
+  invalid or elapsed expiry fails closed, including empty evidence. Comparing
+  against a JavaScript time captured while preparing the batch is insufficient.
+- Keep the temporal CHECK separate from the existing all-reference guard so
+  their atomic conjunction does not deepen the bounded source query. Both must
+  pass before submission effects; failure retains uniform `command_failed`
+  and rolls back state, versions, receipts, audit, events, outbox and cursor.
+  Do not perform reads after queued writes or branch on queued change counts.
+- Preserve `ctx.now` for submission and audit observation timestamps. Database
+  execution time is an additional authorization ceiling, not a rewrite of
+  observed history or a new clock contract for other commands.
+- Prove actual delayed D1 execution after natural expiry while the complete
+  credential row remains unchanged. Assert the batch was reached while valid,
+  then use the database clock to confirm expiry before flushing it. Compare all
+  effects against baseline, with a comfortably unexpired delayed control and
+  empty evidence so source presence cannot supply the temporal check.
+- Align successful test credentials with the database clock without faking SQL
+  time. Historical observation clocks remain deliberate; elapsed read tests
+  advance to their stored expiry rather than relying on obsolete constants.
+
+The additive target is `pnpm test:c11:result-expiry`, composed by C11. Actual-D1
+domain/Hub proof is not by itself authenticated transport, runner/lease expiry,
+every later statement's temporal boundary or complete private activation proof.
+D1 [batch semantics](https://developers.cloudflare.com/d1/worker-api/d1-database/)
+provide transaction rollback; SQLite's [date functions](https://www.sqlite.org/lang_datefunc.html)
+define the UTC execution-clock `now` used by this additional guard.
+
 ### Frozen browser board selection
 
 This corrective C11 slice binds already-authorized board delivery to the

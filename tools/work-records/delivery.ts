@@ -4,8 +4,15 @@
 import assert from "node:assert/strict";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { setTimeout as delay } from "node:timers/promises";
 import { createTestHarness } from "wrangler";
-import { adaptD1, loadMigrationManifest, type D1Like, type SqlDatabase } from "@bfb/db";
+import {
+  adaptD1,
+  loadMigrationManifest,
+  type D1Like,
+  type D1StatementLike,
+  type SqlDatabase,
+} from "@bfb/db";
 import {
   FIX,
   randomUlid,
@@ -47,6 +54,7 @@ import {
   loadPushAttempt,
   WorkspaceHub,
   submitResultCommand,
+  submitDelegatedResultCommand,
   type CreateArtifactResult,
   type ViewGrant,
   type CommandOutcome,
@@ -923,6 +931,210 @@ try {
   check(
     "real_d1_result_source_private_before_batch_rolls_back_submission_state_receipts_and_audit",
   );
+  async function resultExpiryEffects(taskId: string, parentRunId: string) {
+    const counts: Record<string, number> = {};
+    for (const table of [...effectTables, "result_submissions"]) {
+      const row = (await db
+        .prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE workspace_id=?`)
+        .get(FIX.workspace)) as { n: number };
+      counts[table] = row.n;
+    }
+    return {
+      counts,
+      run: (await db
+        .prepare("SELECT result_state,resource_version FROM runs WHERE workspace_id=? AND id=?")
+        .get(FIX.workspace, parentRunId)) as { result_state: string; resource_version: number },
+      task: (await db
+        .prepare("SELECT state,resource_version FROM tasks WHERE workspace_id=? AND id=?")
+        .get(FIX.workspace, taskId)) as { state: string; resource_version: number },
+      cursor: (await db
+        .prepare("SELECT cursor FROM workspace_cursors WHERE workspace_id=?")
+        .get(FIX.workspace)) as { cursor: number },
+      artifactGuards: await db.prepare("SELECT id FROM artifact_mutation_guards").all(),
+      runnerGuards: await db.prepare("SELECT id FROM runner_mutation_guards").all(),
+    };
+  }
+  for (const mode of ["unexpired", "natural_expiry"] as const) {
+    let targetTaskId: string = evidenceTarget.result.id,
+      targetRunId: string = evidenceTargetRun.result.run.id;
+    if (mode === "unexpired") {
+      const task = await execute<TaskRecord>(
+        "a",
+        "task.create",
+        { projectId: FIX.projectA, title: "Synthetic delayed live result control", priority: "P2" },
+        FIX.member,
+      );
+      assert(task.ok);
+      const run = await execute<{ run: { id: string } }>(
+        "a",
+        "run.create",
+        {
+          taskId: task.result.id,
+          expectedTaskVersion: 1,
+          agentProfileId: FIX.profileCodex,
+          workspacePolicyVersion: 1,
+          projectPolicyVersion: 1,
+          repositoryConfigVersion: 1,
+          agentProfileVersion: 1,
+        },
+        FIX.member,
+      );
+      assert(run.ok);
+      targetTaskId = task.result.id;
+      targetRunId = run.result.run.id;
+    }
+    const clock = (await db
+      .prepare(
+        "SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now') AS observed_at, strftime('%Y-%m-%dT%H:%M:%fZ','now',?) AS expires_at",
+      )
+      .get(mode === "natural_expiry" ? "+15 seconds" : "+1 hour")) as {
+      observed_at: string;
+      expires_at: string;
+    };
+    const expiryDelegationId = randomUlid(),
+      expiryKey = randomUlid();
+    await db
+      .prepare(
+        `INSERT INTO oauth_delegations
+         (workspace_id,id,human_id,client_id,resource,project_id,task_id,scopes_json,
+          authorization_epoch,expires_at,created_at)
+         VALUES (?,?,?,?,'https://bfb.work-records.test/mcp',?,?,?,1,?,?)`,
+      )
+      .run(
+        FIX.workspace,
+        expiryDelegationId,
+        FIX.member,
+        FIX.client,
+        FIX.projectA,
+        targetTaskId,
+        JSON.stringify(["bfb:read", "bfb:task:write"]),
+        clock.expires_at,
+        clock.observed_at,
+      );
+    const readExpiryCredential = () =>
+      db
+        .prepare("SELECT * FROM oauth_delegations WHERE workspace_id=? AND id=?")
+        .get(FIX.workspace, expiryDelegationId);
+    const expiryClockWitness = async () =>
+      (await db
+        .prepare(
+          `SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now') AS database_now,
+            julianday(expires_at)>julianday('now') AS live
+           FROM oauth_delegations WHERE workspace_id=? AND id=?`,
+        )
+        .get(FIX.workspace, expiryDelegationId)) as { database_now: string; live: number };
+    const originalExpiryCredential = await readExpiryCredential(),
+      expiryEffectsBefore = await resultExpiryEffects(targetTaskId, targetRunId);
+    let reachedWhileLive = false,
+      flushWitness = false,
+      observedSubmissionAt = "",
+      flushAt = "";
+    const expiryDb = adaptD1({
+      prepare(query) {
+        const original = binding.prepare(query);
+        if (!query.includes("INSERT INTO result_submissions")) return original;
+        const statement: D1StatementLike = {
+          bind(...parameters) {
+            const at = parameters.at(-1);
+            assert(typeof at === "string");
+            observedSubmissionAt = at;
+            // Preserve the native prepared statement accepted by the real D1 batch.
+            return original.bind(...parameters);
+          },
+          first: (column) => original.first(column),
+          all: () => original.all(),
+          run: () => original.run(),
+        };
+        return statement;
+      },
+      async batch(statements) {
+        reachedWhileLive = (await expiryClockWitness()).live === 1;
+        assert(reachedWhileLive, "result must reach the actual batch while its credential is live");
+        assert(Date.parse(observedSubmissionAt) < Date.parse(clock.expires_at));
+        if (mode === "natural_expiry") {
+          const deadline = performance.now() + 20_000;
+          while ((await expiryClockWitness()).live === 1) {
+            assert(
+              performance.now() < deadline,
+              "unchanged delegation must expire in bounded time",
+            );
+            await delay(100);
+          }
+        } else await delay(250);
+        const flush = await expiryClockWitness();
+        flushWitness = flush.live === (mode === "natural_expiry" ? 0 : 1);
+        flushAt = flush.database_now;
+        assert(flushWitness);
+        assert.deepEqual(await readExpiryCredential(), originalExpiryCredential);
+        return binding.batch(statements);
+      },
+    });
+    const submissionStarted = Date.now();
+    const outcome = await new WorkspaceHub(expiryDb).execute(submitDelegatedResultCommand, {
+      workspaceId: FIX.workspace,
+      actorHumanId: FIX.member,
+      actorDelegationId: expiryDelegationId,
+      authorizationEpoch: 1,
+      idempotencyKey: expiryKey,
+      now: "2025-01-01T00:00:00.000Z",
+      input: {
+        runId: targetRunId,
+        summary: "Synthetic real D1 commit-expiry result",
+        evidenceRefs: [],
+      },
+    });
+    assert(reachedWhileLive);
+    assert(flushWitness);
+    assert(Date.parse(observedSubmissionAt) >= submissionStarted);
+    assert.deepEqual(await readExpiryCredential(), originalExpiryCredential);
+    if (mode === "natural_expiry") {
+      assert(Date.parse(flushAt) >= Date.parse(clock.expires_at));
+      assert.deepEqual(outcome, {
+        ok: false,
+        error: { code: "command_failed", message: "command failed" },
+      });
+      assert.deepEqual(await resultExpiryEffects(targetTaskId, targetRunId), expiryEffectsBefore);
+      check("real_d1_unchanged_delegation_natural_expiry_rolls_back_complete_result_batch");
+    } else {
+      assert(outcome.ok);
+      assert.equal(outcome.replayed, false);
+      assert.deepEqual(outcome.result.submission.evidence_refs, []);
+      assert.equal(outcome.result.submission.submitted_at, observedSubmissionAt);
+      assert(Date.parse(flushAt) - Date.parse(observedSubmissionAt) >= 200);
+      assert.deepEqual(await resultExpiryEffects(targetTaskId, targetRunId), {
+        ...expiryEffectsBefore,
+        counts: Object.fromEntries(
+          Object.entries(expiryEffectsBefore.counts).map(([table, n]) => [table, n + 1]),
+        ),
+        run: {
+          result_state: "submitted",
+          resource_version: expiryEffectsBefore.run.resource_version + 1,
+        },
+        task: { state: "review", resource_version: expiryEffectsBefore.task.resource_version + 1 },
+        cursor: { cursor: expiryEffectsBefore.cursor.cursor + 1 },
+      });
+      for (const [table, field] of [
+        ["semantic_events", "kind"],
+        ["audit_events", "action"],
+        ["outbox_records", "kind"],
+      ])
+        assert.deepEqual(
+          await db
+            .prepare(`SELECT created_at FROM ${table} WHERE workspace_id=? AND ${field}=?`)
+            .all(FIX.workspace, submitDelegatedResultCommand.name),
+          [{ created_at: observedSubmissionAt }],
+        );
+      assert.deepEqual(
+        await db
+          .prepare(
+            "SELECT created_at FROM idempotency_records WHERE workspace_id=? AND idempotency_key=?",
+          )
+          .get(FIX.workspace, expiryKey),
+        { created_at: observedSubmissionAt },
+      );
+      check("real_d1_delayed_live_empty_evidence_commits_once_and_retains_observation_time");
+    }
+  }
   assert(
     !(await loadPushAttempt(db, { workspaceId: FIX.workspace, deliveryId, access: sourceAccess }))
       .ok,
@@ -2036,7 +2248,7 @@ try {
         "synthetic policies only",
         "no full C11 delivery certificate",
         "partial metadata/retention/upload-recovery/canonical artifact audit fences, not opaque positions or complete operations privacy",
-        "natural credential expiry in flight remains uncertified",
+        "delegated-result execution-clock guard only; other credential or lease expiry remains uncertified",
         "real D1/domain/Hub proof, not real HTTP OAuth or provider execution",
         "grant-consumption proof, not live R2 or private browser-byte delivery",
       ],

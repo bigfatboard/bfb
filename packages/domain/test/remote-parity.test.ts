@@ -102,6 +102,9 @@ async function seedDelegation(
   } = {},
 ): Promise<string> {
   const delegationId = randomUlid();
+  const expiry = (await db
+    .prepare(`SELECT strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '+10 minutes') AS expires_at`)
+    .get()) as { expires_at: string };
   await db
     .prepare(
       `INSERT INTO oauth_delegations
@@ -117,7 +120,7 @@ async function seedDelegation(
       options.projectId === undefined ? FIX.projectA : options.projectId,
       options.taskId ?? null,
       JSON.stringify(options.scopes ?? ["bfb:read", "bfb:task:write", "offline_access"]),
-      options.expiresAt ?? LATER,
+      options.expiresAt ?? expiry.expires_at,
       NOW,
     );
   return delegationId;
@@ -809,7 +812,12 @@ describe.each(["attention", "result"] as const)("delegated %s private replies", 
           .prepare(`UPDATE oauth_delegations SET scopes_json=? WHERE workspace_id=? AND id=?`)
           .run(JSON.stringify(["bfb:read"]), FIX.workspace, delegationId);
       if (fence === "epoch") await bumpMemberEpoch(db, FIX.workspace, FIX.owner);
-      if (fence === "expiry") vi.setSystemTime(new Date(LATER));
+      if (fence === "expiry") {
+        const credential = (await db
+          .prepare(`SELECT expires_at FROM oauth_delegations WHERE workspace_id = ? AND id = ?`)
+          .get(FIX.workspace, delegationId)) as { expires_at: string };
+        vi.setSystemTime(new Date(credential.expires_at));
+      }
       const outcome = await hub.execute(command, request);
       expect(outcome.ok).toBe(false);
       expect(JSON.stringify(outcome)).not.toContain(canary);

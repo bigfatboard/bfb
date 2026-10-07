@@ -208,6 +208,9 @@ async function delegation(
   taskId: string | null = f.task.id,
 ) {
   const id = randomUlid();
+  const expiry = (await f.db
+    .prepare(`SELECT strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '+10 minutes') AS expires_at`)
+    .get()) as { expires_at: string };
   await f.db
     .prepare(
       `INSERT INTO oauth_delegations
@@ -223,7 +226,7 @@ async function delegation(
       FIX.projectA,
       taskId,
       JSON.stringify(scopes),
-      "2026-09-12T13:00:00.000Z",
+      expiry.expires_at,
       LAUNCH_NOW,
     );
   return id;
@@ -1116,6 +1119,9 @@ describe("private result actions and delivery", () => {
       const f = await privateResultFixture();
       const ref = await artifactEvidence(f);
       const delegationId = await delegation(f);
+      const credential = (await f.db
+        .prepare(`SELECT expires_at FROM oauth_delegations WHERE workspace_id = ? AND id = ?`)
+        .get(FIX.workspace, delegationId)) as { expires_at: string };
       let changed = false;
       const db: SqlDatabase = {
         ...f.db,
@@ -1131,7 +1137,7 @@ describe("private result actions and delivery", () => {
                     if (!changed && sql.includes("SELECT 1 AS authorized")) {
                       changed = true;
                       if (change === "elapsed_expiry")
-                        vi.setSystemTime(new Date("2026-09-12T13:00:00.000Z"));
+                        vi.setSystemTime(new Date(credential.expires_at));
                       else {
                         const column =
                           change === "revocation"

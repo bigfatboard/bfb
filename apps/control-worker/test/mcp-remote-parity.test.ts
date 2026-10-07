@@ -68,6 +68,23 @@ const TOOL_NAMES = [
   "bfb_finalize_artifact",
 ];
 
+async function issueMcpAccess(
+  db: import("@bfb/db").SqlDatabase,
+  input: { projectId?: string; taskId?: string; scopes?: string[] } = {},
+) {
+  const credentialWindow = (await db
+    .prepare(
+      `SELECT strftime('%Y-%m-%dT%H:%M:%fZ', 'now') AS now,
+        strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '+10 minutes') AS expires_at`,
+    )
+    .get()) as { now: string; expires_at: string };
+  return issueSyntheticMcpAccess(db, {
+    ...input,
+    now: credentialWindow.now,
+    expiresAt: credentialWindow.expires_at,
+  });
+}
+
 async function seedRun(
   db: import("@bfb/db").SqlDatabase,
   key: string,
@@ -145,7 +162,7 @@ async function seedRun(
 describe("remote mcp parity extensions", () => {
   it("lists exactly twelve tools for an active delegation", async () => {
     const db = await openDomainDb();
-    const { accessToken } = await issueSyntheticMcpAccess(db);
+    const { accessToken } = await issueMcpAccess(db);
     const response = await request(db, "tools/list", undefined, {}, accessToken);
     expect(response.status).toBe(200);
     const body = (await response.json()) as {
@@ -157,7 +174,7 @@ describe("remote mcp parity extensions", () => {
   it("runs the delegated attention loop and keeps retries idempotent", async () => {
     const db = await openDomainDb();
     const { runId } = await seedRun(db, "attention-loop");
-    const { accessToken } = await issueSyntheticMcpAccess(db);
+    const { accessToken } = await issueMcpAccess(db);
     const requested = (await call(db, accessToken, "bfb_request_human", {
       run_id: runId,
       kind: "clarification",
@@ -208,7 +225,7 @@ describe("remote mcp parity extensions", () => {
   it("submits a delegated result attributed to the authorizing human", async () => {
     const db = await openDomainDb();
     const { runId } = await seedRun(db, "submit-loop");
-    const { accessToken } = await issueSyntheticMcpAccess(db);
+    const { accessToken } = await issueMcpAccess(db);
     const submitted = (await call(db, accessToken, "bfb_submit_result", {
       run_id: runId,
       summary: "Synthetic delegated result",
@@ -259,7 +276,7 @@ describe("remote mcp parity extensions", () => {
   it("publishes and finalizes a delegated artifact without storing the grant secret", async () => {
     const db = await openDomainDb();
     const { runId } = await seedRun(db, "artifact-loop");
-    const { accessToken } = await issueSyntheticMcpAccess(db);
+    const { accessToken } = await issueMcpAccess(db);
     const published = (await call(db, accessToken, "bfb_publish_artifact", {
       run_id: runId,
       format: "markdown",
@@ -314,7 +331,7 @@ describe("remote mcp parity extensions", () => {
     const db = await openDomainDb();
     const home = await seedRun(db, "boundary-home");
     const away = await seedRun(db, "boundary-away", FIX.projectB);
-    const { accessToken } = await issueSyntheticMcpAccess(db, { projectId: FIX.projectA });
+    const { accessToken } = await issueMcpAccess(db, { projectId: FIX.projectA });
     const escapes: Array<[string, Record<string, unknown>]> = [
       [
         "bfb_request_human",
@@ -358,7 +375,7 @@ describe("remote mcp parity extensions", () => {
       request_id: "home-attention-1",
     })) as { ok: boolean };
     expect(requested.ok).toBe(true);
-    const taskBound = await issueSyntheticMcpAccess(db, { taskId: home.taskId });
+    const taskBound = await issueMcpAccess(db, { taskId: home.taskId });
     const foreign = await request(
       db,
       "tools/call",
@@ -377,7 +394,7 @@ describe("remote mcp parity extensions", () => {
   it("requires the write scope for mutations while reads stay available", async () => {
     const db = await openDomainDb();
     const { taskId, runId } = await seedRun(db, "scope-loop");
-    const full = await issueSyntheticMcpAccess(db);
+    const full = await issueMcpAccess(db);
     const attentionId = (
       (await call(db, full.accessToken, "bfb_request_human", {
         run_id: runId,
@@ -387,7 +404,7 @@ describe("remote mcp parity extensions", () => {
         request_id: "scope-attention-1",
       })) as { result: { id: string } }
     ).result.id;
-    const readOnly = await issueSyntheticMcpAccess(db, { scopes: ["bfb:read", "offline_access"] });
+    const readOnly = await issueMcpAccess(db, { scopes: ["bfb:read", "offline_access"] });
     const read = (await call(db, readOnly.accessToken, "bfb_get_attention", {
       attention_id: attentionId,
     })) as { attention: { id: string } };
@@ -434,7 +451,7 @@ describe("remote mcp parity extensions", () => {
   it("blocks the next call after delegation revocation without touching the token", async () => {
     const db = await openDomainDb();
     const { runId } = await seedRun(db, "revoke-loop");
-    const { accessToken, delegationId } = await issueSyntheticMcpAccess(db);
+    const { accessToken, delegationId } = await issueMcpAccess(db);
     const projects = (await call(db, accessToken, "bfb_list_projects", {})) as {
       projects: Array<{ id: string }>;
     };
@@ -453,8 +470,8 @@ describe("remote mcp parity extensions", () => {
   it("proves no persistent MCP session state across isolated requests", async () => {
     const db = await openDomainDb();
     const first = await seedRun(db, "stateless-a");
-    const alpha = await issueSyntheticMcpAccess(db);
-    const beta = await issueSyntheticMcpAccess(db);
+    const alpha = await issueMcpAccess(db);
+    const beta = await issueMcpAccess(db);
     const alphaSubmit = (await call(db, alpha.accessToken, "bfb_submit_result", {
       run_id: first.runId,
       summary: "Synthetic alpha submission",
@@ -488,7 +505,7 @@ describe("remote mcp parity extensions", () => {
   it("leaves delegation scopes and boundaries unchanged by tool use", async () => {
     const db = await openDomainDb();
     const { runId } = await seedRun(db, "scope-stable");
-    const { accessToken, delegationId } = await issueSyntheticMcpAccess(db);
+    const { accessToken, delegationId } = await issueMcpAccess(db);
     const before = (await db
       .prepare(`SELECT scopes_json, project_id, task_id FROM oauth_delegations WHERE id = ?`)
       .get(delegationId)) as Record<string, unknown>;
@@ -507,7 +524,7 @@ describe("remote mcp parity extensions", () => {
     const db = await openDomainDb();
     const hub = new WorkspaceHub(db);
     const { taskId, runId } = await seedRun(db, "attack-matrix");
-    const { accessToken, delegationId } = await issueSyntheticMcpAccess(db);
+    const { accessToken, delegationId } = await issueMcpAccess(db);
     const requested = (await call(db, accessToken, "bfb_request_human", {
       run_id: runId,
       kind: "credential",
@@ -652,7 +669,7 @@ describe("remote mcp parity extensions", () => {
   it("dispatches extension commands through the catalogued hub namespace", async () => {
     const db = await openDomainDb();
     const { runId } = await seedRun(db, "catalog-loop");
-    const { accessToken } = await issueSyntheticMcpAccess(db);
+    const { accessToken } = await issueMcpAccess(db);
     const response = await handleMcpRequest(
       new Request("https://bfb.example.test/mcp", {
         method: "POST",
