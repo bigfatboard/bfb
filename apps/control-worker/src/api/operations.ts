@@ -1,7 +1,7 @@
 // ABOUTME: Serves Owner-gated operations reads, privileged recovery, retention, and diagnostics.
 // ABOUTME: Upload recovery uses retained authority while unsupported recovery and diagnostics remain unavailable.
 
-import { createHash, createHmac } from "node:crypto";
+import { createHash, createHmac, randomUUID } from "node:crypto";
 
 import { createAuthorizationContext, type SqlDatabase } from "@bfb/db";
 import {
@@ -14,6 +14,7 @@ import {
   diagnosticR2Key,
   DomainError,
   isUlid,
+  issueSecurityAuditPositionCommand,
   listRetentionEligibleChunks,
   listStuckLaunches,
   listStuckUploads,
@@ -215,11 +216,38 @@ export async function handleOperationsApi(
     if (request.method === "GET" && (tail === "/security-audit" || tail === "/security-audit/")) {
       assertRole(principal, ["owner"]);
       const after = url.searchParams.get("after") ?? undefined;
-      const audit = await readSecurityAudit(deps.db, workspaceId, {
-        access: principal,
-        limit: Number.isSafeInteger(limit) ? limit : 50,
-        ...(after === undefined ? {} : { after }),
-      });
+      const audit = await readSecurityAudit(
+        deps.db,
+        workspaceId,
+        {
+          access: principal,
+          limit: Number.isSafeInteger(limit) ? limit : 50,
+          ...(after === undefined ? {} : { after }),
+        },
+        async (input) => {
+          const outcome = await executeWorkspaceCommand(
+            {
+              db: deps.db,
+              workspaceHubNs: deps.workspaceHubNs,
+              authorization: createAuthorizationContext({
+                workspaceId,
+                principalId: principal.humanId,
+                authorizationEpoch: principal.authorizationEpoch,
+                jurisdiction: deps.jurisdiction,
+              }),
+            },
+            issueSecurityAuditPositionCommand,
+            {
+              workspaceId,
+              idempotencyKey: `ops.audit-position.${randomUUID()}`,
+              actorHumanId: principal.humanId,
+              authorizationEpoch: principal.authorizationEpoch,
+              input,
+            },
+          );
+          if (!outcome.ok) throw new DomainError(outcome.error.code, outcome.error.message);
+        },
+      );
       return json({ ok: true, ...audit });
     }
     if (request.method === "GET" && (tail === "/queues" || tail === "/queues/")) {

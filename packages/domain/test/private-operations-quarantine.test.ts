@@ -182,6 +182,7 @@ describe("unsupported operations quarantine", () => {
     expect(await readSecurityAudit(db, FIX.workspace, { access: ACCESS, limit: 1 })).toEqual({
       entries: [],
       has_more: false,
+      next_cursor: null,
     });
     for (const after of ids)
       await expect(

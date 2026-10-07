@@ -18,6 +18,7 @@ import { createTaskCommand } from "../src/work-commands.js";
 import { createRunCommand } from "../src/work-records.js";
 import { openDomainDb } from "./helpers.js";
 import { success } from "./launch-fixture.js";
+import { auditPositionIssuer } from "./security-audit-helpers.js";
 
 const NOW = "2026-10-06T12:00:00.000Z";
 const OLD = "2026-10-06T10:00:00.000Z";
@@ -31,7 +32,13 @@ const access = (humanId = FIX.owner, authorizationEpoch = 1): TaskAccessContext 
 const read = (
   db: SqlDatabase,
   options: { after?: string; limit?: number; access?: TaskAccessContext } = {},
-) => readSecurityAudit(db, FIX.workspace, { access: access(), ...options });
+) =>
+  readSecurityAudit(
+    db,
+    FIX.workspace,
+    { access: access(), ...options },
+    auditPositionIssuer(db, options.access ?? access()),
+  );
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date(NOW));
@@ -231,9 +238,9 @@ async function expectChronology(f: Fixture, ordered: Array<{ auditId: string; at
       [expected.auditId, expected.at],
     ]);
     expect(page.has_more).toBe(index < ordered.length - 1);
-    after = expected.auditId;
+    after = page.next_cursor ?? undefined;
   }
-  expect(await read(f.db, { after, limit: 1 })).toEqual({ entries: [], has_more: false });
+  expect(after).toBeUndefined();
 }
 async function payload(f: Fixture, id: string, value: unknown) {
   await f.db
@@ -241,7 +248,7 @@ async function payload(f: Fixture, id: string, value: unknown) {
     .run(typeof value === "string" ? value : JSON.stringify(value), id);
 }
 async function expectHidden(f: Fixture, auditId: string) {
-  expect(await read(f.db)).toEqual({ entries: [], has_more: false });
+  expect(await read(f.db)).toEqual({ entries: [], has_more: false, next_cursor: null });
   await expect(read(f.db, { after: auditId })).rejects.toMatchObject({
     code: "invalid_argument",
     message: "unknown audit cursor",
@@ -426,6 +433,7 @@ describe("canonical upload-recovery security audit", () => {
     expect(await read(f.db, { access: access(FIX.member) })).toEqual({
       entries: [],
       has_more: false,
+      next_cursor: null,
     });
     await expect(
       read(f.db, { after: r.auditId, access: access(FIX.member) }),
@@ -813,9 +821,23 @@ describe("canonical upload-recovery security audit", () => {
       visible.auditId,
     ]);
     expect((await read(f.db, { limit: 1 })).has_more).toBe(false);
-    expect(await read(f.db, { after: visible.auditId, limit: 1 })).toEqual({
-      entries: [],
-      has_more: false,
+    expect((await read(f.db, { limit: 1 })).next_cursor).toBeNull();
+  });
+  it("rejects a genuinely issued recovery anchor after ledger-source loss", async () => {
+    const f = await fixture(),
+      ref = await target(f),
+      other = await target(f, { runId: null });
+    const first = await receipt(f, [ref.versionId]);
+    await receipt(f, [other.versionId]);
+    const page = await read(f.db, { limit: 1 });
+    expect(page.entries.map((row) => row.audit_id)).toEqual([first.auditId]);
+    expect(page.next_cursor).not.toBeNull();
+    await f.db
+      .prepare("UPDATE ops_recovery_ledger SET result_json='{\"resolved\":0}' WHERE action_id=?")
+      .run(first.actionId);
+    await expect(read(f.db, { after: page.next_cursor!, limit: 1 })).rejects.toMatchObject({
+      code: "invalid_argument",
+      message: "unknown audit cursor",
     });
   });
   it.each(["privacy", "project", "epoch", "role", "count", "ledger"])(
@@ -843,7 +865,7 @@ describe("canonical upload-recovery security audit", () => {
           code: "not_found",
           message: "operations scope not found",
         });
-      else expect(await read(db)).toEqual({ entries: [], has_more: false });
+      else expect(await read(db)).toEqual({ entries: [], has_more: false, next_cursor: null });
     },
   );
   it.each(["epoch", "role"])("denies empty page and unknown anchor after %s loss", async (loss) => {
@@ -868,7 +890,7 @@ describe("canonical upload-recovery security audit", () => {
         JSON.stringify({ action_id: "legacy", task_id: "synthetic-uncertified" }),
         NOW,
       );
-    expect(await read(f.db)).toEqual({ entries: [], has_more: false });
+    expect(await read(f.db)).toEqual({ entries: [], has_more: false, next_cursor: null });
     expect(
       await f.db.prepare("SELECT payload_json FROM audit_events WHERE audit_id=?").get(id),
     ).toEqual({

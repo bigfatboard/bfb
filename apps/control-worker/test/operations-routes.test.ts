@@ -295,6 +295,12 @@ describe("operations browser routes", () => {
       currentBindings,
     );
     expect(ownerAudit.status).toBe(200);
+    expect(await ownerAudit.json()).toEqual({
+      ok: true,
+      entries: [],
+      has_more: false,
+      next_cursor: null,
+    });
     const memberAudit = await app.request(
       get(`${OPS}/security-audit`, member.cookie),
       undefined,

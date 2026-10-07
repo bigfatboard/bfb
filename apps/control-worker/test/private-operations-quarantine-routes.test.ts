@@ -385,7 +385,12 @@ describe("mounted unsupported operations quarantine", () => {
       const before = durableState(f.context);
       const page = await f.request("/security-audit?limit=1");
       expect(page.status).toBe(200);
-      expect(await page.json()).toEqual({ ok: true, entries: [], has_more: false });
+      expect(await page.json()).toEqual({
+        ok: true,
+        entries: [],
+        has_more: false,
+        next_cursor: null,
+      });
       for (const cursor of [id, randomUlid()]) {
         const response = await f.request(`/security-audit?after=${cursor}`);
         expect(response.status).toBe(400);

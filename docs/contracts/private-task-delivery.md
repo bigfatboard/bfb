@@ -164,6 +164,57 @@ Old raw-cursor endpoints must not become a private-work back door. Activation
 requires their safe version transition, including shared command receipts,
 measurement-source cursors and security-audit pagination, not just `/events`.
 
+### Frozen security-audit position v1
+
+This version replaces the public audit-ID `after` wire without changing the
+certified artifact/recovery receipt allowlist, payload projection or chronological
+ordering. It is a contract, not implementation or activation evidence.
+
+- `after` is a canonical 43-character base64url encoding of 32 cryptographically
+  random bytes. Old audit IDs, malformed, oversized, unknown, expired and foreign
+  positions all receive `invalid_argument / unknown audit cursor`. Current
+  direct-human Owner and retained membership-epoch scope is checked first, even
+  for empty or run-free pages. There is no raw-ID fallback.
+- Persist only a domain-separated SHA-256 position hash. Plaintext positions
+  never enter Hub input, results, fingerprints, idempotency, audit, semantic or
+  outbox receipts. The browser receives the plaintext only after the final
+  authorized read. Issuance is a registered direct-human Owner Hub command with
+  a safe boolean receipt; it derives the cut server-side, not from a supplied
+  audit ID. Issuance retries do not replay a cached success. Read positions are
+  reusable until their fixed expiry.
+- Each position binds workspace, human, retained epoch, projection/order version
+  `1`, effective page size, and the exact sorted current project audience. This
+  audience is re-derived from canonical project access, not a caller's retained
+  project list. Same-epoch audience expansion or contraction invalidates it.
+  Audience metadata is bounded to 32 KiB; exceeding that bound fails closed,
+  never truncates the audience.
+- A root page captures a same-workspace audit insertion ceiling and a ten-minute
+  expiry using the database clock. Descendants inherit both, without sliding the
+  expiry or admitting newer backdated rows. Stored anchor audit identity,
+  normalized UTC sort key and insertion tie-breaker must still match a currently
+  authorized canonical receipt. Historical payload alone cannot validate an
+  anchor. Audit row-ID rebuilding while positions are live is unsupported;
+  tuple drift invalidates the position rather than reinterpreting it.
+- Issuance has a commit-time D1 guard covering current Owner/epoch, exact audience,
+  expiry, certified source/parent lineage and the complete bounded selection,
+  including lookahead, not only an unchanged last delivered cut. Authority
+  or source loss before commit rolls back the position and all Hub bookkeeping.
+  All source reads precede queued writes. Final delivery repeats the original
+  current-authority selection under the issued capture ceiling and rejects if
+  its last delivered row differs from the issued anchor. Never anchor on the
+  lookahead row, skip a changed cut or return a mismatched continuation.
+- The response adds `next_cursor`: a plaintext position only when `has_more` is
+  true, otherwise `null`, including empty pages. Missing issuance capability is
+  unavailable when continuation is needed; it cannot expose a raw cursor or
+  falsely claim a terminal page. Hidden-only rows do not affect visible page
+  membership or `has_more`. Position expiry is checked with the database clock
+  and a fresh synchronous clock check after the final awaited selection.
+
+These rules do not replace the remaining public event/realtime position work,
+broader natural credential/lease expiry proof, private delivery activation or
+execution-owned consumer work. Expired position rows confer no authority;
+retention/cleanup is a separately owned bounded policy, not audit-history deletion.
+
 ## Fail-closed notification and integration delivery
 
 Until recipient-safe dispatch is certified, private task-bound notifications

@@ -37,6 +37,8 @@ import {
   ARTIFACT_AUDIT_ACTIONS,
   ARTIFACT_RECOVERY_SYSTEM_ID,
   readSecurityAudit,
+  issueSecurityAuditPositionCommand,
+  DomainError,
   authorizeResultEvidence,
   listResultSubmissions,
   fanoutNotificationEvent,
@@ -49,7 +51,10 @@ import {
   type ViewGrant,
   type CommandOutcome,
   type TaskRecord,
+  type IssueSecurityAuditPosition,
+  type TaskAccessContext,
 } from "@bfb/domain";
+import { auditPositionAfter, readAuditSegment } from "./audit-fixture.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const origin = "https://bfb.work-records.test";
@@ -1166,6 +1171,21 @@ try {
   );
   check("real_d1_empty_composite_scope_rechecks_epoch_before_hydrated_workspace_metadata");
   const auditAccess = { ...access(), authorizationEpoch: 3 };
+  const issueAuditPosition =
+    (authority: TaskAccessContext): IssueSecurityAuditPosition =>
+    async (input) => {
+      const outcome = await execute<{ issued: true }>(
+        "a",
+        issueSecurityAuditPositionCommand.name,
+        input,
+        authority.humanId,
+        randomUlid(),
+        undefined,
+        authority.authorizationEpoch,
+      );
+      if (!outcome.ok) throw new DomainError(outcome.error.code, outcome.error.message);
+      assert.deepEqual(outcome.result, { issued: true });
+    };
   async function seedCanonicalAuditAnchor(at: string) {
     const versionId = await seedOperationsVersion(null, "available", false, at);
     const id = randomUlid();
@@ -1299,8 +1319,13 @@ try {
       "SELECT created_at,dispatched_at FROM artifact_audit_outbox WHERE workspace_id=? AND id=?",
     )
     .get(FIX.workspace, runFreeAuditSource)) as { created_at: string; dispatched_at: string };
-  const auditOptions = { access: auditAccess, after: auditAnchorId, limit: 100 };
-  const canonicalAudit = await readSecurityAudit(db, FIX.workspace, auditOptions);
+  const auditOptions = { access: auditAccess, marker: auditAnchorId, limit: 100 };
+  const canonicalAudit = await readAuditSegment(
+    db,
+    FIX.workspace,
+    auditOptions,
+    issueAuditPosition(auditAccess),
+  );
   assert.equal(canonicalAudit.entries.length, 20);
   assert.equal(canonicalAudit.has_more, false);
   for (const [action, id] of sourceByAction) {
@@ -1322,7 +1347,10 @@ try {
       FIX.workspace,
       sourceByAction.get("artifact.finalized"),
     );
-  assert.deepEqual(await readSecurityAudit(db, FIX.workspace, auditOptions), canonicalAudit);
+  assert.deepEqual(
+    await readAuditSegment(db, FIX.workspace, auditOptions, issueAuditPosition(auditAccess)),
+    canonicalAudit,
+  );
   check("real_d1_canonical_artifact_audit_reconstructs_nine_sources_and_runfree_history");
 
   // SQLite text length and GLOB stop at NUL, but JSON retains the suffix.
@@ -1348,8 +1376,16 @@ try {
       .run(FIX.workspace, id, ARTIFACT_RECOVERY_SYSTEM_ID, auditAnchorAt);
     nulAuditIds.push(id);
   }
-  assert.deepEqual(await readSecurityAudit(db, FIX.workspace, auditOptions), canonicalAudit);
-  const nulAuditPage = await readSecurityAudit(db, FIX.workspace, { ...auditOptions, limit: 1 });
+  assert.deepEqual(
+    await readAuditSegment(db, FIX.workspace, auditOptions, issueAuditPosition(auditAccess)),
+    canonicalAudit,
+  );
+  const nulAuditPage = await readAuditSegment(
+    db,
+    FIX.workspace,
+    { ...auditOptions, limit: 1 },
+    issueAuditPosition(auditAccess),
+  );
   assert.equal(nulAuditPage.entries[0]?.audit_id, sourceByAction.get(ARTIFACT_AUDIT_ACTIONS[0]));
   assert.equal(nulAuditPage.has_more, true);
   for (const after of nulAuditIds) {
@@ -1358,7 +1394,9 @@ try {
       message: "unknown audit cursor",
     });
   }
-  check("real_d1_artifact_audit_nul_suffixed_typed_fields_are_omitted_before_page_and_anchor");
+  check(
+    "real_d1_artifact_audit_nul_suffixed_typed_fields_are_omitted_before_page_with_no_raw_id_fallback",
+  );
 
   const privateAuditSource = await seedAuditSource("artifact.finalized", privateLog, null);
   await seedAuditSource("artifact.view_issued", canonicalLog, auditUploadGrant);
@@ -1442,8 +1480,16 @@ try {
       result: { ...projection, outbox_id: orphanSource },
     }),
   );
-  assert.deepEqual(await readSecurityAudit(db, FIX.workspace, auditOptions), canonicalAudit);
-  const firstAuditPage = await readSecurityAudit(db, FIX.workspace, { ...auditOptions, limit: 1 });
+  assert.deepEqual(
+    await readAuditSegment(db, FIX.workspace, auditOptions, issueAuditPosition(auditAccess)),
+    canonicalAudit,
+  );
+  const firstAuditPage = await readAuditSegment(
+    db,
+    FIX.workspace,
+    { ...auditOptions, limit: 1 },
+    issueAuditPosition(auditAccess),
+  );
   assert.equal(firstAuditPage.entries[0]?.audit_id, sourceByAction.get(ARTIFACT_AUDIT_ACTIONS[0]));
   assert.equal(firstAuditPage.has_more, true);
   check("real_d1_artifact_audit_hidden_misbound_and_malformed_rows_do_not_consume_page_or_count");
@@ -1453,7 +1499,7 @@ try {
       message: "unknown audit cursor",
     });
   }
-  check("real_d1_artifact_audit_hidden_and_unknown_anchor_denial_parity");
+  check("real_d1_artifact_audit_hidden_and_unknown_raw_ids_have_no_pagination_fallback");
 
   const auditTask = (await db
     .prepare(
@@ -1488,7 +1534,14 @@ try {
       },
     };
   }
-  const parentChangedAudit = await readSecurityAudit(
+  const validTaskAnchor = await auditPositionAfter(
+    db,
+    FIX.workspace,
+    auditAccess,
+    sourceByAction.get(ARTIFACT_AUDIT_ACTIONS[0])!,
+    issueAuditPosition(auditAccess),
+  );
+  const parentChangedAudit = await readAuditSegment(
     beforeAuditSelection(async () => {
       await db
         .prepare(
@@ -1498,6 +1551,7 @@ try {
     }),
     FIX.workspace,
     auditOptions,
+    issueAuditPosition(auditAccess),
   );
   assert.equal(parentChangedAudit.entries.length, 2);
   assert(
@@ -1506,12 +1560,42 @@ try {
     ),
   );
   assert.equal(parentChangedAudit.has_more, false);
-  check("real_d1_artifact_audit_final_selection_drops_parent_privatized_before_delivery");
-  const lastRunFreeAudit = parentChangedAudit.entries.at(-1)!.audit_id;
-  assert.deepEqual(
-    await readSecurityAudit(db, FIX.workspace, { ...auditOptions, after: lastRunFreeAudit }),
-    { entries: [], has_more: false },
+  check(
+    "real_d1_artifact_audit_current_selection_filters_parent_privatized_before_marker_traversal",
   );
+  await assert.rejects(
+    readSecurityAudit(
+      db,
+      FIX.workspace,
+      { access: auditAccess, limit: 1, after: validTaskAnchor },
+      issueAuditPosition(auditAccess),
+    ),
+    { code: "invalid_argument", message: "unknown audit cursor" },
+  );
+  const firstRunFreeAudit = parentChangedAudit.entries[0]!.audit_id;
+  const lastRunFreeAudit = parentChangedAudit.entries.at(-1)!.audit_id;
+  const runFreePosition = await auditPositionAfter(
+    db,
+    FIX.workspace,
+    auditAccess,
+    firstRunFreeAudit,
+    issueAuditPosition(auditAccess),
+  );
+  await db
+    .prepare("UPDATE audit_events SET actor_principal_id=? WHERE workspace_id=? AND audit_id=?")
+    .run(FIX.owner, FIX.workspace, lastRunFreeAudit);
+  assert.deepEqual(
+    await readSecurityAudit(
+      db,
+      FIX.workspace,
+      { access: auditAccess, limit: 1, after: runFreePosition },
+      issueAuditPosition(auditAccess),
+    ),
+    { entries: [], has_more: false, next_cursor: null },
+  );
+  await db
+    .prepare("UPDATE audit_events SET actor_principal_id=? WHERE workspace_id=? AND audit_id=?")
+    .run(ARTIFACT_RECOVERY_SYSTEM_ID, FIX.workspace, lastRunFreeAudit);
   await assert.rejects(
     readSecurityAudit(
       beforeAuditSelection(async () => {
@@ -1527,7 +1611,8 @@ try {
           .run(FIX.workspace, FIX.owner);
       }),
       FIX.workspace,
-      { ...auditOptions, after: lastRunFreeAudit },
+      { access: auditAccess, limit: 1, after: runFreePosition },
+      issueAuditPosition(auditAccess),
     ),
     { code: "not_found", message: "operations scope not found" },
   );
@@ -1624,10 +1709,15 @@ try {
   }
   const recoveryAuditOptions = {
     access: recoveryAuditAccess,
-    after: recoveryAuditAnchorId,
+    marker: recoveryAuditAnchorId,
     limit: 100,
   };
-  const canonicalRecoveryAudit = await readSecurityAudit(db, FIX.workspace, recoveryAuditOptions);
+  const canonicalRecoveryAudit = await readAuditSegment(
+    db,
+    FIX.workspace,
+    recoveryAuditOptions,
+    issueAuditPosition(recoveryAuditAccess),
+  );
   assert.equal(canonicalRecoveryAudit.entries.length, 3);
   assert.equal(canonicalRecoveryAudit.has_more, false);
   for (const row of canonicalRecoveryAudit.entries) {
@@ -1695,13 +1785,23 @@ try {
     malformedRecoveryAnchors.push(id);
   }
   assert.deepEqual(
-    await readSecurityAudit(db, FIX.workspace, recoveryAuditOptions),
+    await readAuditSegment(
+      db,
+      FIX.workspace,
+      recoveryAuditOptions,
+      issueAuditPosition(recoveryAuditAccess),
+    ),
     canonicalRecoveryAudit,
   );
-  const recoveryFirstPage = await readSecurityAudit(db, FIX.workspace, {
-    ...recoveryAuditOptions,
-    limit: 1,
-  });
+  const recoveryFirstPage = await readAuditSegment(
+    db,
+    FIX.workspace,
+    {
+      ...recoveryAuditOptions,
+      limit: 1,
+    },
+    issueAuditPosition(recoveryAuditAccess),
+  );
   assert.equal(recoveryFirstPage.entries[0]?.audit_id, originalRecoveryAudit.audit_id);
   assert.equal(recoveryFirstPage.has_more, true);
   for (const after of malformedRecoveryAnchors) {
@@ -1737,7 +1837,12 @@ try {
       escapedRecoveryPayload,
       originalRecoveryAudit.created_at,
     );
-  const decodedRecoveryAudit = await readSecurityAudit(db, FIX.workspace, recoveryAuditOptions);
+  const decodedRecoveryAudit = await readAuditSegment(
+    db,
+    FIX.workspace,
+    recoveryAuditOptions,
+    issueAuditPosition(recoveryAuditAccess),
+  );
   assert.equal(decodedRecoveryAudit.entries.length, 4);
   const escapedRecoveryAudit = decodedRecoveryAudit.entries.find(
     (row) => row.audit_id === escapedRecoveryAuditId,
@@ -1750,7 +1855,14 @@ try {
   );
   check("real_d1_recovery_audit_preserves_decoded_target_order_across_json_escape_variants");
 
-  const currentRecoveryAudit = await readSecurityAudit(
+  const validRecoveryAnchor = await auditPositionAfter(
+    db,
+    FIX.workspace,
+    recoveryAuditAccess,
+    originalRecoveryAudit.audit_id,
+    issueAuditPosition(recoveryAuditAccess),
+  );
+  const currentRecoveryAudit = await readAuditSegment(
     beforeAuditSelection(async () => {
       await db
         .prepare(
@@ -1760,6 +1872,7 @@ try {
     }),
     FIX.workspace,
     recoveryAuditOptions,
+    issueAuditPosition(recoveryAuditAccess),
   );
   assert.equal(currentRecoveryAudit.entries.length, 1);
   assert.equal(currentRecoveryAudit.has_more, false);
@@ -1768,22 +1881,25 @@ try {
       .action_id,
     legacyRecoveryAction,
   );
-  check("real_d1_recovery_audit_mixed_private_target_before_final_selection_omits_whole_receipt");
+  check(
+    "real_d1_recovery_audit_current_selection_filters_mixed_private_target_before_marker_traversal",
+  );
+  await assert.rejects(
+    readSecurityAudit(
+      db,
+      FIX.workspace,
+      { access: recoveryAuditAccess, limit: 1, after: validRecoveryAnchor },
+      issueAuditPosition(recoveryAuditAccess),
+    ),
+    { code: "invalid_argument", message: "unknown audit cursor" },
+  );
   for (const after of [originalRecoveryAudit.audit_id, randomUlid()]) {
     await assert.rejects(readSecurityAudit(db, FIX.workspace, { ...recoveryAuditOptions, after }), {
       code: "invalid_argument",
       message: "unknown audit cursor",
     });
   }
-  check("real_d1_recovery_audit_hidden_and_unknown_anchor_denial_parity");
-  const lastRecoveryAudit = currentRecoveryAudit.entries[0]!.audit_id;
-  assert.deepEqual(
-    await readSecurityAudit(db, FIX.workspace, {
-      ...recoveryAuditOptions,
-      after: lastRecoveryAudit,
-    }),
-    { entries: [], has_more: false },
-  );
+  check("real_d1_recovery_audit_hidden_and_unknown_raw_ids_have_no_pagination_fallback");
   await assert.rejects(
     readSecurityAudit(
       beforeAuditSelection(async () => {
@@ -1799,7 +1915,8 @@ try {
           .run(FIX.workspace, FIX.owner);
       }),
       FIX.workspace,
-      { ...recoveryAuditOptions, after: lastRecoveryAudit },
+      { access: recoveryAuditAccess, limit: 1, after: validRecoveryAnchor },
+      issueAuditPosition(recoveryAuditAccess),
     ),
     { code: "not_found", message: "operations scope not found" },
   );
@@ -1881,18 +1998,31 @@ try {
     }),
     { code: "invalid_argument", message: "unknown audit cursor" },
   );
-  let orderAfter = orderAnchorId;
+  const orderAccess = { ...access(), authorizationEpoch: 5 };
+  let orderAfter = await auditPositionAfter(
+    db,
+    FIX.workspace,
+    orderAccess,
+    orderAnchorId,
+    issueAuditPosition(orderAccess),
+  );
   for (const expected of chronologicalFixtures) {
-    const page = await readSecurityAudit(db, FIX.workspace, {
-      access: { ...access(), authorizationEpoch: 5 },
-      after: orderAfter,
-      limit: 1,
-    });
+    const page = await readSecurityAudit(
+      db,
+      FIX.workspace,
+      {
+        access: orderAccess,
+        after: orderAfter,
+        limit: 1,
+      },
+      issueAuditPosition(orderAccess),
+    );
     assert.equal(page.entries.length, 1);
     assert.equal(page.entries[0]!.audit_id, expected.auditId);
     assert.equal(page.entries[0]!.created_at, expected.at);
     assert.equal(page.has_more, true);
-    orderAfter = expected.auditId;
+    assert(page.next_cursor);
+    orderAfter = page.next_cursor;
   }
   check("real_d1_recovery_audit_normalized_utc_pages_and_anchors_preserve_microseconds_and_ties");
   console.log(

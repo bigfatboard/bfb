@@ -17,6 +17,7 @@ import { createTaskCommand } from "../src/work-commands.js";
 import { createRunCommand } from "../src/work-records.js";
 import { openDomainDb } from "./helpers.js";
 import { success } from "./launch-fixture.js";
+import { auditPositionIssuer } from "./security-audit-helpers.js";
 
 const SOURCE_TIME = "2026-10-06T12:00:00.000Z";
 const DISPATCH_TIME = "2026-10-06T12:01:00.000Z";
@@ -29,7 +30,13 @@ const access = (humanId = FIX.owner, authorizationEpoch = 1): TaskAccessContext 
 const read = (
   db: SqlDatabase,
   options: { after?: string; limit?: number; access?: TaskAccessContext } = {},
-) => readSecurityAudit(db, FIX.workspace, { access: access(), ...options });
+) =>
+  readSecurityAudit(
+    db,
+    FIX.workspace,
+    { access: access(), ...options },
+    auditPositionIssuer(db, options.access ?? access()),
+  );
 const uploadActions = new Set([
   "artifact.grant_issued",
   "artifact.grant_reissued",
@@ -352,6 +359,7 @@ describe("canonical artifact security audit", () => {
           },
         ],
         has_more: false,
+        next_cursor: null,
       });
       expect(JSON.stringify(result)).not.toContain(CANARY);
       expect(
@@ -389,7 +397,7 @@ describe("canonical artifact security audit", () => {
           .run(FIX.workspace, randomUlid(), f.taskId, FIX.owner, permission, SOURCE_TIME);
       expect(
         await read(f.db, { access: access(permission === "creator" ? FIX.member : FIX.owner) }),
-      ).toEqual({ entries: [], has_more: false });
+      ).toEqual({ entries: [], has_more: false, next_cursor: null });
     },
   );
   it("retains expired/consumed grant and retained version history for true NULL runfree parents", async () => {
@@ -409,7 +417,11 @@ describe("canonical artifact security audit", () => {
           ? { sourceVersionId: await foreignVersion(f) }
           : { runId: await malformedRun(f, kind) },
       );
-      expect(await read(f.db, { limit: 1 })).toEqual({ entries: [], has_more: false });
+      expect(await read(f.db, { limit: 1 })).toEqual({
+        entries: [],
+        has_more: false,
+        next_cursor: null,
+      });
       for (const after of [r.outboxId, r.wrapperId])
         await expect(read(f.db, { after })).rejects.toMatchObject({
           code: "invalid_argument",
@@ -475,6 +487,7 @@ describe("canonical artifact security audit", () => {
               ]
             : [],
         has_more: false,
+        next_cursor: null,
       });
       expect(JSON.stringify(result)).not.toContain(CANARY);
       for (const after of field === "wrapperId" ? [r.wrapperId] : [r.outboxId, r.wrapperId]) {
@@ -504,7 +517,11 @@ describe("canonical artifact security audit", () => {
   ])("filters invalid canonical UTC source %s before pagination", async (sourceTime) => {
     const f = await fixture();
     await receipt(f, "artifact.finalized", { sourceTime });
-    expect(await read(f.db, { limit: 1 })).toEqual({ entries: [], has_more: false });
+    expect(await read(f.db, { limit: 1 })).toEqual({
+      entries: [],
+      has_more: false,
+      next_cursor: null,
+    });
   });
   it.each(["2024-02-29T23:59:59Z", "2000-02-29T12:00:00.1Z", "2026-10-06T12:00:00.123456Z"])(
     "retains typed UTC persistence shape %s",
@@ -565,7 +582,11 @@ describe("canonical artifact security audit", () => {
       ...(kind === "case_variant" ? { auditAction: "Artifact.grant_issued", wrapper: false } : {}),
       ...(kind === "bad_time" ? { sourceTime: CANARY } : {}),
     });
-    expect(await read(f.db, { limit: 1 })).toEqual({ entries: [], has_more: false });
+    expect(await read(f.db, { limit: 1 })).toEqual({
+      entries: [],
+      has_more: false,
+      next_cursor: null,
+    });
     await expect(read(f.db, { after: r.outboxId })).rejects.toMatchObject({
       code: "invalid_argument",
       message: "unknown audit cursor",
@@ -664,16 +685,37 @@ describe("canonical artifact security audit", () => {
         code: "invalid_argument",
         message: "unknown audit cursor",
       });
-    expect(await read(f.db, { after: visible.wrapperId })).toEqual({
-      entries: [],
-      has_more: false,
-    });
+    expect(page.next_cursor).toBeNull();
   });
+  it.each(["wrapper", "source_time"] as const)(
+    "rejects a genuinely issued wrapper anchor after canonical %s corruption",
+    async (kind) => {
+      const f = await fixture(),
+        r = await receipt(f, "artifact.finalized");
+      await receipt(f, "artifact.finalized", { runId: null });
+      const page = await read(f.db, { limit: 2 });
+      expect(page.entries.map((row) => row.audit_id)).toEqual([r.outboxId, r.wrapperId]);
+      expect(page.next_cursor).not.toBeNull();
+      if (kind === "wrapper") await setWrapper(f, r.wrapperId, { ...r.wrapper, extra: CANARY });
+      else {
+        // Synthetic historical corruption only: production source rows are append-only.
+        await f.db.prepare("DROP TRIGGER artifact_audit_outbox_dispatch_once").run();
+        await f.db
+          .prepare("UPDATE artifact_audit_outbox SET created_at=? WHERE id=?")
+          .run(`${SOURCE_TIME}\u0000${CANARY}`, r.outboxId);
+      }
+      await expect(read(f.db, { after: page.next_cursor!, limit: 2 })).rejects.toMatchObject({
+        code: "invalid_argument",
+        message: "unknown audit cursor",
+      });
+    },
+  );
   it.each(["epoch", "role", "privacy", "project"] as const)(
     "rechecks %s at final page/anchor selection",
     async (loss) => {
-      const f = await fixture(),
-        r = await receipt(f, "artifact.finalized");
+      const f = await fixture();
+      await receipt(f, "artifact.finalized");
+      const position = (await read(f.db, { limit: 1 })).next_cursor!;
       const db = beforeSelection(f.db, async () => {
         if (loss === "privacy") await privatize(f);
         else if (loss === "project") {
@@ -701,7 +743,7 @@ describe("canonical artifact security audit", () => {
             .run(FIX.owner);
         }
       });
-      await expect(read(db, { after: r.outboxId })).rejects.toMatchObject(
+      await expect(read(db, { after: position, limit: 1 })).rejects.toMatchObject(
         loss === "epoch" || loss === "role"
           ? { code: "not_found", message: "operations scope not found" }
           : { code: "invalid_argument", message: "unknown audit cursor" },
@@ -732,7 +774,7 @@ describe("canonical artifact security audit", () => {
         JSON.stringify({ task_id: CANARY, body: CANARY, grant_secret: CANARY }),
         DISPATCH_TIME,
       );
-    expect(await read(f.db)).toEqual({ entries: [], has_more: false });
+    expect(await read(f.db)).toEqual({ entries: [], has_more: false, next_cursor: null });
     expect(
       await f.db.prepare("SELECT payload_json FROM audit_events WHERE audit_id=?").get(id),
     ).toEqual({

@@ -27,11 +27,19 @@ interprets provider-specific capability fields.
   Rows come from `audit_events`, ordered chronologically by `created_at`
   (insertion order breaks ties: audit ids carry no time component, so id
   order is not time order). Paginated with `after`/`limit` (max 100):
-  `after` is an `audit_id` cursor resolved to its row's timestamp, so pages
-  advance in time, not id space; an unknown cursor is rejected. Each entry
-  carries `audit_id`, `actor_principal_id`, `action`, `created_at`, and a
-  `payload` passed through the sanitizer below.
-- The sanitizer drops any key naming a secret, path, or private payload
+  `after` is an opaque random ten-minute position, not an audit ID. Positions
+  bind the current human/epoch, exact project audience, page size and projection
+  version, and inherit one capture ceiling and expiry across a chain. The response
+  includes `next_cursor` only when `has_more` is true, otherwise `null`.
+  Old raw IDs, malformed, foreign, unknown and expired positions have the same
+  bounded denial after current Owner admission. Each authorized entry retains
+  `audit_id`, `actor_principal_id`, `action`, `created_at` and the certified
+  canonical payload projection. Hash-only issuance uses WorkspaceHub; exact
+  commit-time and final-delivery rules are frozen in
+  [audit position v1](private-task-delivery.md#frozen-security-audit-position-v1).
+  Implementation certification is separately recorded by C11, not implied by
+  this contract.
+- The historical generic sanitizer drops any key naming a secret, path, or private payload
   (secret, token, bearer, cookie, password, credential, grant secrets,
   prompts, task bodies, hook payloads, terminal output, artifact bytes,
   paths, executables) and any free-text content key (title, body, text,
@@ -49,10 +57,12 @@ interprets provider-specific capability fields.
   artifact actions and their strict dispatch wrapper; unsupported artifact-family
   receipts are unavailable. Canonical source fields replace arbitrary historical
   payloads. Hidden and missing anchors share the existing cursor denial. This
-  does not certify unrelated audit families, diagnostics or opaque positions;
+  historical checkpoint does not certify unrelated audit families, diagnostics
+  or the later opaque-position wire;
   see the [C11 delivery contract](private-task-delivery.md) for the source,
-  grant, normalization and final-delivery rules. Internal dispatch/history and
-  the browser response/cursor envelope remain unchanged.
+  grant, normalization and final-delivery rules. Internal dispatch/history
+  remains unchanged; the later position v1 contract replaces the old public
+  audit-ID cursor without broadening the certified receipt families.
   Its [clean checkpoint](../work-packages/evidence/WP-C11/artifact-audit-manifest.json)
   certifies the canonical artifact subset, not the entire audit feed.
 - The bounded C11 read projection covers only

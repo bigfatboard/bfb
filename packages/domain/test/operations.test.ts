@@ -37,6 +37,7 @@ import { createRunCommand } from "../src/work-records.js";
 import { randomUlid } from "../src/ids.js";
 import { openDomainDb } from "./helpers.js";
 import { launchFixture, success } from "./launch-fixture.js";
+import { auditPositionIssuer } from "./security-audit-helpers.js";
 import { loadMigrationManifest } from "@bfb/db";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -481,19 +482,24 @@ describe("security audit ordering", () => {
   it("pages forward in time through the after cursor", async () => {
     const db = await openDomainDb();
     const ids = await seedChronology(db);
-    const first = await readSecurityAudit(db, FIX.workspace, { limit: 2, access: ACCESS });
+    const issue = auditPositionIssuer(db, ACCESS);
+    const first = await readSecurityAudit(db, FIX.workspace, { limit: 2, access: ACCESS }, issue);
     expect(first.entries.map((entry) => entry.audit_id)).toEqual(ids.slice(0, 2));
     expect(first.has_more).toBe(true);
-    const second = await readSecurityAudit(db, FIX.workspace, {
-      limit: 2,
-      after: ids[1],
-      access: ACCESS,
-    });
+    expect(first.next_cursor).not.toBeNull();
+    const second = await readSecurityAudit(
+      db,
+      FIX.workspace,
+      {
+        limit: 2,
+        after: first.next_cursor!,
+        access: ACCESS,
+      },
+      issue,
+    );
     expect(second.entries.map((entry) => entry.audit_id)).toEqual(ids.slice(2));
     expect(second.has_more).toBe(false);
-    const empty = await readSecurityAudit(db, FIX.workspace, { after: ids[3], access: ACCESS });
-    expect(empty.entries).toEqual([]);
-    expect(empty.has_more).toBe(false);
+    expect(second.next_cursor).toBeNull();
   });
 
   it("rejects an unknown after cursor instead of skipping in id space", async () => {

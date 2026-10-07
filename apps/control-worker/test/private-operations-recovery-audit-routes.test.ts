@@ -42,6 +42,7 @@ type Page = {
     payload: unknown;
   }>;
   has_more: boolean;
+  next_cursor: string | null;
 };
 
 beforeEach(() => {
@@ -218,7 +219,11 @@ async function fixture() {
       result = options.result ?? { resolved: ids.length };
     await db
       .prepare(
-        `INSERT INTO ops_recovery_ledger (workspace_id,action_id,kind,target_json,state,attempt_count,result_json,created_by_human_id,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+        `INSERT INTO ops_recovery_ledger (workspace_id,action_id,kind,target_json,state,attempt_count,result_json,created_by_human_id,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)
+         ON CONFLICT(workspace_id,action_id) DO UPDATE SET kind=excluded.kind,
+           target_json=excluded.target_json,state=excluded.state,attempt_count=excluded.attempt_count,
+           result_json=excluded.result_json,created_by_human_id=excluded.created_by_human_id,
+           created_at=excluded.created_at,updated_at=excluded.updated_at`,
       )
       .run(
         FIX.workspace,
@@ -358,6 +363,19 @@ async function fixture() {
       .prepare("DELETE FROM project_access WHERE workspace_id=? AND project_id=? AND human_id=?")
       .run(FIX.workspace, FIX.projectA, FIX.owner);
   };
+  const positionAt = async (auditId: string, limit = 1) => {
+    let after = "";
+    for (let count = 0; count < 100; count++) {
+      const result = await page(await request(`?limit=${limit}${after}`));
+      if (result.entries.at(-1)?.audit_id === auditId) {
+        expect(result.has_more).toBe(true);
+        return result.next_cursor!;
+      }
+      if (result.next_cursor === null) throw new Error("audit anchor has no continuation");
+      after = `&after=${result.next_cursor}`;
+    }
+    throw new Error("audit anchor was not found in bounded traversal");
+  };
   return {
     db,
     task,
@@ -376,6 +394,7 @@ async function fixture() {
     rotate,
     revoke,
     restrict,
+    positionAt,
   };
 }
 function beforeAuditRead(db: SqlDatabase, change: () => Promise<unknown>): SqlDatabase {
@@ -407,7 +426,14 @@ function beforeAuditRead(db: SqlDatabase, change: () => Promise<unknown>): SqlDa
 }
 async function page(response: Response): Promise<Page> {
   expect(response.status).toBe(200);
-  return (await response.json()) as Page;
+  const result = (await response.json()) as Page;
+  if (result.has_more) {
+    expect(result.next_cursor).toMatch(/^[A-Za-z0-9_-]{43}$/u);
+    expect(Buffer.from(result.next_cursor!, "base64url").toString("base64url")).toBe(
+      result.next_cursor,
+    );
+  } else expect(result.next_cursor).toBeNull();
+  return result;
 }
 async function cursorDenied(response: Response) {
   expect(response.status).toBe(400);
@@ -451,7 +477,8 @@ describe("stuck-upload recovery audit browser delivery", () => {
       s = await f.history();
     const value = receipt(s.ids, true, FIX.member, 17),
       id = await f.audit(value, { actor: FIX.member, createdAt: NOW });
-    expect((await page(await f.request(`?after=${s.id}`))).entries).toEqual([
+    const position = await f.positionAt(s.id);
+    expect((await page(await f.request(`?limit=1&after=${position}`))).entries).toEqual([
       {
         audit_id: id,
         actor_principal_id: FIX.member,
@@ -498,7 +525,7 @@ describe("stuck-upload recovery audit browser delivery", () => {
       if (kind === "grantee") await f.grant();
       expect(
         await page(await f.request("?limit=1", kind === "creator" ? "member" : "owner")),
-      ).toEqual({ ok: true, entries: [], has_more: false });
+      ).toEqual({ ok: true, entries: [], has_more: false, next_cursor: null });
       expect(
         await f.db
           .prepare("SELECT COUNT(*) AS count FROM audit_events WHERE workspace_id=?")
@@ -510,7 +537,12 @@ describe("stuck-upload recovery audit browser delivery", () => {
     const f = await fixture();
     await f.history([await f.upload(), await f.upload(null)]);
     await f.privacy();
-    expect(await page(await f.request())).toEqual({ ok: true, entries: [], has_more: false });
+    expect(await page(await f.request())).toEqual({
+      ok: true,
+      entries: [],
+      has_more: false,
+      next_cursor: null,
+    });
   });
   it("filters older hidden receipts before LIMIT plus one and has_more", async () => {
     const f = await fixture();
@@ -521,7 +553,7 @@ describe("stuck-upload recovery audit browser delivery", () => {
     const first = await page(await f.request("?limit=1"));
     expect(first.entries.map((e) => e.audit_id)).toEqual([a.id]);
     expect(first.has_more).toBe(true);
-    const second = await page(await f.request(`?limit=1&after=${a.id}`));
+    const second = await page(await f.request(`?limit=1&after=${first.next_cursor}`));
     expect(second.entries.map((e) => e.audit_id)).toEqual([b.id]);
     expect(second.has_more).toBe(false);
   });
@@ -531,10 +563,12 @@ describe("stuck-upload recovery audit browser delivery", () => {
       const f = await fixture();
       let id = randomUlid();
       if (kind === "hidden") {
-        id = (await f.history()).id;
+        const source = await f.history();
+        await f.history([await f.upload(null)]);
+        id = await f.positionAt(source.id);
         await f.privacy();
       }
-      await cursorDenied(await f.request(`?after=${id}`));
+      await cursorDenied(await f.request(`?limit=1&after=${id}`));
     },
   );
   it.each(["privacy", "restrict"] as const)(
@@ -546,6 +580,7 @@ describe("stuck-upload recovery audit browser delivery", () => {
         ok: true,
         entries: [],
         has_more: false,
+        next_cursor: null,
       });
     },
   );
@@ -554,10 +589,18 @@ describe("stuck-upload recovery audit browser delivery", () => {
       `denies current %s loss for ${state} pages before anchor validation`,
       async (change) => {
         const f = await fixture();
-        if (state !== "empty") await f.history();
+        const source = await f.history();
+        await f.history([await f.upload()]);
+        const position = await f.positionAt(source.id);
+        if (state === "empty")
+          await f.db
+            .prepare(
+              "DELETE FROM audit_events WHERE workspace_id=? AND action!='ops.audit_position.issue'",
+            )
+            .run(FIX.workspace);
         if (state === "hidden-only") await f.privacy();
         const response = await f.request(
-          "?after=synthetic-unknown",
+          `?limit=1&after=${position}`,
           "owner",
           beforeAuditRead(f.db, f[change]),
         );
@@ -659,27 +702,22 @@ describe("stuck-upload recovery audit browser delivery", () => {
           await f.ledger(laterIds, { createdAt: laterAt, updatedAt: laterAt });
           laterId = await f.audit(receipt(laterIds), { createdAt: laterAt });
         }
-        if (boundary === "page") {
-          const first = await page(await f.request("?limit=1"));
-          expect(first.entries.map((entry) => [entry.audit_id, entry.created_at])).toEqual([
-            [earlierId, earlierAt],
-          ]);
-          expect(first.has_more).toBe(!legacy);
+        const first = await page(await f.request("?limit=1"));
+        expect(first.entries.map((entry) => [entry.audit_id, entry.created_at])).toEqual([
+          [earlierId, earlierAt],
+        ]);
+        expect(first.has_more).toBe(!legacy);
+        if (legacy) {
+          expect(first.next_cursor).toBeNull();
+          await cursorDenied(await f.request(`?limit=1&after=${laterId}`));
+          return;
         }
-        const next = await page(await f.request(`?limit=1&after=${earlierId}`));
+        const next = await page(await f.request(`?limit=1&after=${first.next_cursor}`));
         expect(next.entries.map((entry) => [entry.audit_id, entry.created_at])).toEqual(
           legacy ? [] : [[laterId, laterAt]],
         );
         expect(next.has_more).toBe(false);
-        if (legacy) {
-          await cursorDenied(await f.request(`?limit=1&after=${laterId}`));
-          return;
-        }
-        expect(await page(await f.request(`?limit=1&after=${laterId}`))).toEqual({
-          ok: true,
-          entries: [],
-          has_more: false,
-        });
+        expect(next.next_cursor).toBeNull();
       },
     );
   }
@@ -692,7 +730,10 @@ describe("stuck-upload recovery audit browser delivery", () => {
     await f.audit(receipt(ids), { id: high });
     await f.audit(receipt(ids, true), { id: low });
     expect((await page(await f.request())).entries.map((e) => e.audit_id)).toEqual([high, low]);
-    expect((await page(await f.request(`?limit=1&after=${high}`))).entries[0]?.audit_id).toBe(low);
+    const position = await f.positionAt(high);
+    expect((await page(await f.request(`?limit=1&after=${position}`))).entries[0]?.audit_id).toBe(
+      low,
+    );
   });
   it.each([
     "Ops.recovery.resolve_stuck_upload",
@@ -774,12 +815,21 @@ describe("stuck-upload recovery audit browser delivery", () => {
       const f = await fixture(),
         ids = [await f.upload()];
       await f.ledger(ids);
-      const hidden = await f.audit(bad(receipt(ids)));
-      const valid = await f.audit(receipt(ids));
+      const hidden = await f.audit(receipt(ids));
+      const valid = await f.audit(receipt(ids, true), { createdAt: NOW });
+      const position = await f.positionAt(hidden);
+      const malformed = bad(receipt(ids));
+      await f.db
+        .prepare("UPDATE audit_events SET payload_json=? WHERE workspace_id=? AND audit_id=?")
+        .run(
+          typeof malformed === "string" ? malformed : JSON.stringify(malformed),
+          FIX.workspace,
+          hidden,
+        );
       const result = await page(await f.request("?limit=1"));
       expect(result.entries.map((e) => e.audit_id)).toEqual([valid]);
       expect(result.has_more).toBe(false);
-      await cursorDenied(await f.request(`?after=${hidden}`));
+      await cursorDenied(await f.request(`?limit=1&after=${position}`));
     },
   );
   const badLedgers: Array<
@@ -826,33 +876,56 @@ describe("stuck-upload recovery audit browser delivery", () => {
     async (_label, bad) => {
       const f = await fixture(),
         ids = [await f.upload()];
-      await f.ledger(ids, bad(ids));
+      await f.ledger(ids);
       const id = await f.audit(receipt(ids));
-      expect(await page(await f.request())).toEqual({ ok: true, entries: [], has_more: false });
-      await cursorDenied(await f.request(`?after=${id}`));
+      const tail = await f.history([await f.upload(null)]);
+      const position = await f.positionAt(id);
+      await f.ledger(ids, bad(ids));
+      const result = await page(await f.request("?limit=1"));
+      expect(result.entries.map((entry) => entry.audit_id)).toEqual([tail.id]);
+      expect(result.has_more).toBe(false);
+      await cursorDenied(await f.request(`?limit=1&after=${position}`));
     },
   );
   it("requires exact preserved ledger target order", async () => {
     const f = await fixture(),
       ids = [await f.upload(), await f.upload(null)];
-    await f.ledger(ids, { target: { version_ids: [...ids].reverse() } });
+    await f.ledger(ids);
     const id = await f.audit(receipt(ids));
-    expect(await page(await f.request())).toEqual({ ok: true, entries: [], has_more: false });
-    await cursorDenied(await f.request(`?after=${id}`));
+    const tail = await f.history([await f.upload(null)]);
+    const position = await f.positionAt(id);
+    await f.ledger(ids, { target: { version_ids: [...ids].reverse() } });
+    expect((await page(await f.request())).entries.map((entry) => entry.audit_id)).toEqual([
+      tail.id,
+    ]);
+    await cursorDenied(await f.request(`?limit=1&after=${position}`));
   });
   it("omits a receipt without its applied ledger source", async () => {
     const f = await fixture(),
       ids = [await f.upload()];
+    await f.ledger(ids);
     const id = await f.audit(receipt(ids));
-    expect(await page(await f.request())).toEqual({ ok: true, entries: [], has_more: false });
-    await cursorDenied(await f.request(`?after=${id}`));
+    const tail = await f.history([await f.upload(null)]);
+    const position = await f.positionAt(id);
+    await f.db
+      .prepare("DELETE FROM ops_recovery_ledger WHERE workspace_id=? AND action_id=?")
+      .run(FIX.workspace, actionId(ids));
+    expect((await page(await f.request())).entries.map((entry) => entry.audit_id)).toEqual([
+      tail.id,
+    ]);
+    await cursorDenied(await f.request(`?limit=1&after=${position}`));
   });
   it.each([0, 51])("rejects a complete source array with %s failed targets", async (count) => {
     const f = await fixture(),
       ids: string[] = [];
     for (let index = 0; index < count; index++) ids.push(await f.upload(null));
     const s = await f.history(ids);
-    expect(await page(await f.request())).toEqual({ ok: true, entries: [], has_more: false });
+    expect(await page(await f.request())).toEqual({
+      ok: true,
+      entries: [],
+      has_more: false,
+      next_cursor: null,
+    });
     await cursorDenied(await f.request(`?after=${s.id}`));
   });
   it.each(["ledger action ID", "failed version ULID"] as const)(
@@ -870,7 +943,12 @@ describe("stuck-upload recovery audit browser delivery", () => {
       if (kind === "ledger action ID") value.result.action_id += `\u0000${CANARY}`;
       await f.ledger(ids, { id: value.result.action_id });
       const id = await f.audit(value);
-      expect(await page(await f.request())).toEqual({ ok: true, entries: [], has_more: false });
+      expect(await page(await f.request())).toEqual({
+        ok: true,
+        entries: [],
+        has_more: false,
+        next_cursor: null,
+      });
       await cursorDenied(await f.request(`?after=${id}`));
     },
   );
@@ -895,7 +973,12 @@ describe("stuck-upload recovery audit browser delivery", () => {
       )
       .run(workspace, version, artifact, "a".repeat(64), OLD);
     const s = await f.history([version]);
-    expect(await page(await f.request())).toEqual({ ok: true, entries: [], has_more: false });
+    expect(await page(await f.request())).toEqual({
+      ok: true,
+      entries: [],
+      has_more: false,
+      next_cursor: null,
+    });
     await cursorDenied(await f.request(`?after=${s.id}`));
   });
   it.each([
@@ -929,7 +1012,12 @@ describe("stuck-upload recovery audit browser delivery", () => {
             : OLD,
       ...(kind === "NUL audit ID" ? { id: `${randomUlid()}\u0000${CANARY}` } : {}),
     });
-    expect(await page(await f.request())).toEqual({ ok: true, entries: [], has_more: false });
+    expect(await page(await f.request())).toEqual({
+      ok: true,
+      entries: [],
+      has_more: false,
+      next_cursor: null,
+    });
     await cursorDenied(await f.request(`?after=${encodeURIComponent(id)}`));
   });
 });

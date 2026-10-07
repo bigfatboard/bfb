@@ -142,6 +142,7 @@ import {
   createDiagnosticBundleCommand,
   setRetentionPolicyCommand,
   resolveStuckUploadCommand,
+  issueSecurityAuditPositionCommand,
 } from "./operations.js";
 
 const commands = new Map<string, HubCommand<unknown, unknown>>([
@@ -291,6 +292,10 @@ const commands = new Map<string, HubCommand<unknown, unknown>>([
   [removePushEndpointCommand.name, removePushEndpointCommand as HubCommand<unknown, unknown>],
   [setRetentionPolicyCommand.name, setRetentionPolicyCommand as HubCommand<unknown, unknown>],
   [resolveStuckUploadCommand.name, resolveStuckUploadCommand as HubCommand<unknown, unknown>],
+  [
+    issueSecurityAuditPositionCommand.name,
+    issueSecurityAuditPositionCommand as HubCommand<unknown, unknown>,
+  ],
   [
     createDiagnosticBundleCommand.name,
     createDiagnosticBundleCommand as HubCommand<unknown, unknown>,

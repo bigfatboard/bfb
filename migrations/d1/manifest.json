@@ -1,5 +1,5 @@
 {
-  "migration_head": "0046_notification_public_identities",
+  "migration_head": "0047_security_audit_positions",
   "migrations": [
     {
       "id": "0001_workspace_registry",
@@ -164,6 +164,10 @@
     {
       "id": "0046_notification_public_identities",
       "file": "0046_notification_public_identities.sql"
+    },
+    {
+      "id": "0047_security_audit_positions",
+      "file": "0047_security_audit_positions.sql"
     }
   ]
 }

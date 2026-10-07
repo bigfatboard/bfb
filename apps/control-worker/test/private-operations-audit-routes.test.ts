@@ -41,7 +41,7 @@ type Entry = {
   created_at: string;
   payload: unknown;
 };
-type Page = { ok: true; entries: Entry[]; has_more: boolean };
+type Page = { ok: true; entries: Entry[]; has_more: boolean; next_cursor: string | null };
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
@@ -73,16 +73,31 @@ async function fixture() {
     )
     .run(FIX.workspace, run, FIX.projectA, task, FIX.member, FIX.profileCodex, OLD);
   const ns = createTestWorkspaceHubNamespace(db);
-  const calls: Array<{ commandName: string; request: { actorSystemId: string; input: unknown } }> =
-    [];
+  const calls: Array<{
+    commandName: string;
+    request: {
+      actorSystemId?: string;
+      actorHumanId?: string;
+      authorizationEpoch: number;
+      input: unknown;
+    };
+  }> = [];
+  let afterIssue: (() => Promise<unknown>) | undefined;
   const baseGet = ns.get.bind(ns);
   Object.assign(ns, {
     get(id: DurableObjectId) {
       const stub = baseGet(id);
       return {
         async fetch(input: RequestInfo | URL, init?: RequestInit) {
-          calls.push(JSON.parse(String(init?.body)));
-          return stub.fetch(input, init);
+          const envelope = JSON.parse(String(init?.body)) as (typeof calls)[number];
+          calls.push(envelope);
+          const response = await stub.fetch(input, init);
+          if (envelope.commandName === "ops.audit_position.issue") {
+            const change = afterIssue;
+            afterIssue = undefined;
+            await change?.();
+          }
+          return response;
         },
       } as DurableObjectStub;
     },
@@ -135,9 +150,12 @@ async function fixture() {
     actor: Actor = "owner",
     database = db,
     headers: Record<string, string> = {},
+    workspaceId = FIX.workspace,
   ) =>
     app(database).request(
-      new Request(ORIGIN + PATH + query, { headers: { cookie: cookies[actor], ...headers } }),
+      new Request(ORIGIN + PATH.replace(FIX.workspace, workspaceId) + query, {
+        headers: { cookie: cookies[actor], ...headers },
+      }),
       undefined,
       bindings,
     );
@@ -351,6 +369,19 @@ async function fixture() {
       .prepare("DELETE FROM project_access WHERE workspace_id=? AND project_id=? AND human_id=?")
       .run(FIX.workspace, FIX.projectA, FIX.owner);
   };
+  const positionAt = async (auditId: string, limit = 1) => {
+    let after = "";
+    for (let count = 0; count < 100; count++) {
+      const result = await page(await request(`?limit=${limit}${after}`));
+      if (result.entries.at(-1)?.audit_id === auditId) {
+        expect(result.has_more).toBe(true);
+        return result.next_cursor!;
+      }
+      if (result.next_cursor === null) throw new Error("audit anchor has no continuation");
+      after = `&after=${result.next_cursor}`;
+    }
+    throw new Error("audit anchor was not found in bounded traversal");
+  };
   return {
     db,
     context,
@@ -366,6 +397,10 @@ async function fixture() {
     revoke,
     demote,
     restrict,
+    positionAt,
+    hookAfterIssue: (change: () => Promise<unknown>) => {
+      afterIssue = change;
+    },
   };
 }
 
@@ -405,12 +440,267 @@ function wrapper(projection: Projection) {
 }
 async function page(response: Response): Promise<Page> {
   expect(response.status).toBe(200);
-  return (await response.json()) as Page;
+  const result = (await response.json()) as Page;
+  if (result.has_more) {
+    expect(result.next_cursor).toMatch(/^[A-Za-z0-9_-]{43}$/u);
+    expect(Buffer.from(result.next_cursor!, "base64url").toString("base64url")).toBe(
+      result.next_cursor,
+    );
+  } else expect(result.next_cursor).toBeNull();
+  return result;
 }
 async function denied(response: Response, status: number, body: Record<string, string>) {
   expect(response.status).toBe(status);
   expect(await response.json()).toEqual(body);
 }
+
+describe("opaque artifact audit browser positions", () => {
+  it("rejects an old raw visible audit ID instead of accepting it as a position", async () => {
+    const f = await fixture(),
+      source = await f.source("artifact.finalized");
+    const first = await page(await f.request("?limit=1"));
+    expect(first.entries.map((entry) => entry.audit_id)).toEqual([source.outboxId]);
+    expect(first.has_more).toBe(true);
+    await denied(await f.request(`?limit=1&after=${source.outboxId}`), 400, CURSOR_DENIED);
+  });
+
+  it("issues an opaque first-page continuation and a terminal null next_cursor", async () => {
+    const f = await fixture(),
+      source = await f.source("artifact.finalized");
+    const first = (await page(await f.request("?limit=1"))) as Page & {
+      next_cursor: string | null;
+    };
+    expect(first.entries.map((entry) => entry.audit_id)).toEqual([source.outboxId]);
+    expect(first.has_more).toBe(true);
+    expect(first.next_cursor).toEqual(expect.any(String));
+    expect(first.next_cursor).toMatch(/^[A-Za-z0-9_-]{43}$/u);
+    expect(Buffer.from(first.next_cursor!, "base64url")).toHaveLength(32);
+    expect(Buffer.from(first.next_cursor!, "base64url").toString("base64url")).toBe(
+      first.next_cursor,
+    );
+    expect(first.next_cursor).not.toBe(source.outboxId);
+    expect(first.next_cursor).not.toBe(source.wrapperId);
+    const terminal = (await page(
+      await f.request(`?limit=1&after=${first.next_cursor}`),
+    )) as Page & { next_cursor: string | null };
+    expect(terminal.entries.map((entry) => entry.audit_id)).toEqual([source.wrapperId]);
+    expect(terminal.has_more).toBe(false);
+    expect(terminal.next_cursor).toBeNull();
+  });
+
+  it.each(["viewer", "workspace"] as const)(
+    "rejects a real position bound to another %s",
+    async (kind) => {
+      const f = await fixture(),
+        source = await f.source(),
+        position = await f.positionAt(source.outboxId);
+      if (kind === "viewer") {
+        await f.db
+          .prepare("UPDATE workspace_members SET role='owner' WHERE workspace_id=? AND human_id=?")
+          .run(FIX.workspace, FIX.member);
+        await denied(await f.request(`?limit=1&after=${position}`, "member"), 400, CURSOR_DENIED);
+        return;
+      }
+      const workspace = randomUlid();
+      await f.db
+        .prepare(
+          "INSERT INTO workspaces(id,slug,jurisdiction,created_at,resource_version) VALUES (?,'foreign-position','eu',?,1)",
+        )
+        .run(workspace, NOW);
+      await f.db
+        .prepare(
+          "INSERT INTO workspace_members(workspace_id,human_id,role,authorization_epoch,created_at) VALUES (?,?,'owner',1,?)",
+        )
+        .run(workspace, FIX.owner, NOW);
+      await f.db
+        .prepare(
+          "INSERT INTO workspace_authorization_epochs(workspace_id,human_id,authorization_epoch,updated_at) VALUES (?,?,1,?)",
+        )
+        .run(workspace, FIX.owner, NOW);
+      await denied(
+        await f.request(`?limit=1&after=${position}`, "owner", f.db, {}, workspace),
+        400,
+        CURSOR_DENIED,
+      );
+    },
+  );
+
+  it("rejects changed page size and same-human epoch while allowing reusable bound positions", async () => {
+    const f = await fixture(),
+      source = await f.source(),
+      position = await f.positionAt(source.outboxId);
+    for (let use = 0; use < 2; use++) {
+      const result = await page(await f.request(`?limit=1&after=${position}`));
+      expect(result.entries.map((entry) => entry.audit_id)).toEqual([source.wrapperId]);
+    }
+    await denied(await f.request(`?limit=2&after=${position}`), 400, CURSOR_DENIED);
+    await f.rotate();
+    await denied(await f.request(`?limit=1&after=${position}`), 400, CURSOR_DENIED);
+  });
+
+  it.each(["expansion", "contraction"] as const)(
+    "rejects same-epoch audience %s even for a still-shared run-free anchor",
+    async (kind) => {
+      const f = await fixture();
+      if (kind === "expansion") await f.restrict();
+      const source = await f.source("artifact.finalized", { runId: null }),
+        position = await f.positionAt(source.outboxId);
+      if (kind === "contraction") await f.restrict();
+      else
+        await f.db
+          .prepare("UPDATE projects SET access_mode='workspace' WHERE workspace_id=? AND id=?")
+          .run(FIX.workspace, FIX.projectA);
+      await denied(await f.request(`?limit=1&after=${position}`), 400, CURSOR_DENIED);
+    },
+  );
+
+  it.each(["project", "run/task lineage", "grant lineage"] as const)(
+    "denies a position issued before %s loss and remasks the original source",
+    async (kind) => {
+      const f = await fixture(),
+        source = await f.source(
+          kind === "grant lineage" ? "artifact.grant_consumed" : "artifact.finalized",
+        ),
+        tail = await f.source("artifact.finalized", { runId: null });
+      const position = await f.positionAt(source.outboxId);
+      if (kind === "project") await f.restrict();
+      else if (kind === "run/task lineage") {
+        // Model corrupt historical lineage explicitly; current writes enforce this composite FK.
+        f.context.raw.pragma("foreign_keys = OFF");
+        try {
+          await f.db
+            .prepare("UPDATE runs SET project_id=? WHERE workspace_id=? AND id=?")
+            .run(FIX.projectB, FIX.workspace, f.run);
+        } finally {
+          f.context.raw.pragma("foreign_keys = ON");
+        }
+      } else {
+        // Immutable grants cannot change in production; inject historical corruption in this fixture.
+        f.context.raw.exec("DROP TRIGGER artifact_upload_grants_consume_once");
+        await f.db
+          .prepare("UPDATE artifact_upload_grants SET run_id=NULL WHERE workspace_id=? AND id=?")
+          .run(FIX.workspace, source.grantId);
+      }
+      await denied(await f.request(`?limit=1&after=${position}`), 400, CURSOR_DENIED);
+      expect((await page(await f.request())).entries.map((entry) => entry.audit_id)).toEqual([
+        tail.outboxId,
+        tail.wrapperId,
+      ]);
+    },
+  );
+
+  it("denies expiry reached after real issuance without modifying the immutable stored position", async () => {
+    const f = await fixture();
+    await f.source();
+    f.hookAfterIssue(async () => {
+      const row = (await f.db
+        .prepare("SELECT expires_at FROM security_audit_positions WHERE workspace_id=?")
+        .get(FIX.workspace)) as { expires_at: string };
+      vi.setSystemTime(new Date(row.expires_at));
+    });
+    await denied(await f.request("?limit=1"), 400, CURSOR_DENIED);
+    expect(
+      await f.db.prepare("SELECT COUNT(*) AS count FROM security_audit_positions").get(),
+    ).toEqual({ count: 1 });
+  });
+
+  it.each(["private parent", "epoch", "source", "changed cut"] as const)(
+    "rejects final delivery after issuance and %s loss",
+    async (kind) => {
+      const f = await fixture(),
+        source = await f.source();
+      if (kind === "changed cut") await f.source("artifact.finalized", { runId: null });
+      f.hookAfterIssue(async () => {
+        if (kind === "epoch") await f.rotate();
+        else if (kind === "source")
+          await f.db
+            .prepare(
+              "UPDATE audit_events SET action='artifact.abandoned' WHERE workspace_id=? AND audit_id=?",
+            )
+            .run(FIX.workspace, source.outboxId);
+        else await f.privacy();
+      });
+      await denied(
+        await f.request(`?limit=${kind === "changed cut" ? 3 : 1}`),
+        kind === "epoch" ? 404 : 400,
+        kind === "epoch" ? SCOPE_DENIED : CURSOR_DENIED,
+      );
+      expect(
+        f.calls.filter((call) => call.commandName === "ops.audit_position.issue"),
+      ).toHaveLength(1);
+    },
+  );
+
+  it("stores only a hash through registered human Hub issuance without changing original receipts or business state", async () => {
+    const f = await fixture(),
+      source = await f.source();
+    const business = [
+      "tasks",
+      "runs",
+      "artifacts",
+      "artifact_versions",
+      "artifact_audit_outbox",
+      "ops_recovery_ledger",
+    ];
+    const bookkeeping = [
+      "audit_events",
+      "idempotency_records",
+      "outbox_records",
+      "semantic_events",
+    ];
+    const snapshot = (tables: string[]) =>
+      Object.fromEntries(
+        tables.map((table) => [
+          table,
+          f.context.raw.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all(),
+        ]),
+      );
+    const beforeBusiness = snapshot(business),
+      beforeBookkeeping = snapshot(bookkeeping);
+    const first = await page(await f.request("?limit=1")),
+      position = first.next_cursor!;
+    expect(snapshot(business)).toEqual(beforeBusiness);
+    const after = snapshot(bookkeeping);
+    for (const table of bookkeeping)
+      expect(after[table]).toEqual(expect.arrayContaining(beforeBookkeeping[table]));
+    const calls = f.calls.filter((call) => call.commandName === "ops.audit_position.issue");
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.request).toMatchObject({
+      actorHumanId: FIX.owner,
+      authorizationEpoch: 1,
+      input: { afterHash: null, limit: 1 },
+    });
+    expect(Object.keys(calls[0]!.request.input as object).sort()).toEqual([
+      "afterHash",
+      "limit",
+      "positionHash",
+    ]);
+    const hash = (calls[0]!.request.input as { positionHash: string }).positionHash;
+    expect(hash).toMatch(/^[0-9a-f]{64}$/u);
+    const stored = await f.db.prepare("SELECT * FROM security_audit_positions").all();
+    expect(stored).toMatchObject([
+      {
+        position_hash: hash,
+        workspace_id: FIX.workspace,
+        human_id: FIX.owner,
+        authorization_epoch: 1,
+        page_limit: 1,
+        projection_version: 1,
+        anchor_audit_id: source.outboxId,
+      },
+    ]);
+    const addedAudit = (after.audit_events as Array<Record<string, unknown>>).filter(
+      (row) => row.action === "ops.audit_position.issue",
+    );
+    expect(addedAudit).toHaveLength(1);
+    expect(JSON.parse(addedAudit[0]!.payload_json as string)).toEqual({
+      actor: { humanId: FIX.owner, authorizationEpoch: 1 },
+      input: {},
+      result: { issued: true },
+    });
+    expect(JSON.stringify({ calls: f.calls, stored, bookkeeping: after })).not.toContain(position);
+  });
+});
 
 describe("canonical artifact audit browser delivery", () => {
   it.each(ARTIFACT_AUDIT_ACTIONS)(
@@ -422,6 +712,7 @@ describe("canonical artifact audit browser delivery", () => {
       expect(result).toEqual({
         ok: true,
         has_more: false,
+        next_cursor: null,
         entries: [
           {
             audit_id: s.outboxId,
@@ -459,6 +750,7 @@ describe("canonical artifact audit browser delivery", () => {
         ok: true,
         entries: [],
         has_more: false,
+        next_cursor: null,
       });
       expect(
         await f.db
@@ -479,6 +771,7 @@ describe("canonical artifact audit browser delivery", () => {
       ok: true,
       entries: [],
       has_more: false,
+      next_cursor: null,
     });
   });
   it("does not give a named private edit grantee an audit override", async () => {
@@ -486,7 +779,12 @@ describe("canonical artifact audit browser delivery", () => {
     await f.source();
     await f.privacy();
     await f.grant();
-    expect(await page(await f.request())).toEqual({ ok: true, entries: [], has_more: false });
+    expect(await page(await f.request())).toEqual({
+      ok: true,
+      entries: [],
+      has_more: false,
+      next_cursor: null,
+    });
   });
   it.each(["member", "reviewer"] as const)("retains static %s role denial", async (actor) => {
     const f = await fixture();
@@ -500,7 +798,12 @@ describe("canonical artifact audit browser delivery", () => {
       (await f.request("", "owner", f.db, { authorization: "Bearer synthetic-not-browser" }))
         .status,
     ).toBe(401);
-    expect(await page(await f.request())).toEqual({ ok: true, entries: [], has_more: false });
+    expect(await page(await f.request())).toEqual({
+      ok: true,
+      entries: [],
+      has_more: false,
+      next_cursor: null,
+    });
   });
 
   for (const state of ["nonempty", "empty", "private-only"] as const) {
@@ -508,11 +811,18 @@ describe("canonical artifact audit browser delivery", () => {
       `rechecks current %s at the final selection for ${state} pages before cursor validation`,
       async (change) => {
         const f = await fixture();
-        if (state !== "empty") await f.source();
+        const source = await f.source();
+        const position = await f.positionAt(source.outboxId);
+        if (state === "empty")
+          await f.db
+            .prepare(
+              "DELETE FROM audit_events WHERE workspace_id=? AND action!='ops.audit_position.issue'",
+            )
+            .run(FIX.workspace);
         if (state === "private-only") await f.privacy();
         const racing = beforeAuditRead(f.db, f[change]);
         await denied(
-          await f.request("?after=synthetic-missing-cursor", "owner", racing),
+          await f.request(`?limit=1&after=${position}`, "owner", racing),
           404,
           SCOPE_DENIED,
         );
@@ -540,6 +850,7 @@ describe("canonical artifact audit browser delivery", () => {
       ok: true,
       entries: [],
       has_more: false,
+      next_cursor: null,
     });
   });
   it("rechecks private parent creation after principal hydration before returning receipts", async () => {
@@ -549,6 +860,7 @@ describe("canonical artifact audit browser delivery", () => {
       ok: true,
       entries: [],
       has_more: false,
+      next_cursor: null,
     });
   });
 
@@ -565,13 +877,9 @@ describe("canonical artifact audit browser delivery", () => {
       expect(result.entries.map((entry) => entry.audit_id)).toEqual([id]);
       ids.push(id);
       expect(result.has_more).toBe(ids.length < 4);
-      after = `&after=${id}`;
+      after = result.next_cursor === null ? "" : `&after=${result.next_cursor}`;
     }
-    expect(await page(await f.request(`?limit=1${after}`))).toEqual({
-      ok: true,
-      entries: [],
-      has_more: false,
-    });
+    expect(after).toBe("");
   });
   it("preserves insertion order for equal timestamps rather than lexical audit IDs", async () => {
     const f = await fixture();
@@ -583,9 +891,10 @@ describe("canonical artifact audit browser delivery", () => {
       low.outboxId,
       low.wrapperId,
     ]);
-    expect(
-      (await page(await f.request(`?after=${high.wrapperId}&limit=1`))).entries[0]?.audit_id,
-    ).toBe(low.outboxId);
+    const position = await f.positionAt(high.wrapperId!);
+    expect((await page(await f.request(`?after=${position}&limit=1`))).entries[0]?.audit_id).toBe(
+      low.outboxId,
+    );
   });
 
   it.each(["missing", "private", "foreign", "malformed", "unsupported"] as const)(
@@ -594,7 +903,7 @@ describe("canonical artifact audit browser delivery", () => {
       const f = await fixture();
       let anchor = randomUlid();
       if (kind === "private") {
-        anchor = (await f.source()).outboxId;
+        anchor = await f.positionAt((await f.source()).outboxId);
         await f.privacy();
       }
       if (kind === "malformed") {
@@ -619,14 +928,15 @@ describe("canonical artifact audit browser delivery", () => {
           )
           .run(ws, anchor, FIX.owner, NOW);
       }
-      await denied(await f.request(`?after=${anchor}`), 400, CURSOR_DENIED);
+      await denied(await f.request(`?limit=1&after=${anchor}`), 400, CURSOR_DENIED);
     },
   );
   it("denies a formerly visible anchor privatized immediately before the final selection", async () => {
     const f = await fixture(),
-      s = await f.source();
+      s = await f.source(),
+      position = await f.positionAt(s.outboxId);
     await denied(
-      await f.request(`?after=${s.outboxId}`, "owner", beforeAuditRead(f.db, f.privacy)),
+      await f.request(`?limit=1&after=${position}`, "owner", beforeAuditRead(f.db, f.privacy)),
       400,
       CURSOR_DENIED,
     );
@@ -655,6 +965,7 @@ describe("canonical artifact audit browser delivery", () => {
     expect(await page(await f.request())).toEqual({
       ok: true,
       has_more: false,
+      next_cursor: null,
       entries: [],
     });
     await denied(await f.request(`?after=${id}`), 400, CURSOR_DENIED);
@@ -699,13 +1010,15 @@ describe("canonical artifact audit browser delivery", () => {
         const first = await page(await f.request("?limit=1"));
         expect(first.entries.map((entry) => entry.audit_id)).toEqual([visible.outboxId]);
         expect(first.has_more).toBe(true);
-        const second = await page(await f.request(`?limit=1&after=${visible.outboxId}`));
+        const second = await page(await f.request(`?limit=1&after=${first.next_cursor}`));
         expect(second.entries.map((entry) => entry.audit_id)).toEqual([visible.wrapperId]);
         expect(second.has_more).toBe(false);
         expect(JSON.stringify(await page(await f.request()))).not.toContain(CANARY);
         expect(
           await f.db
-            .prepare("SELECT COUNT(*) AS count FROM audit_events WHERE workspace_id=?")
+            .prepare(
+              "SELECT COUNT(*) AS count FROM audit_events WHERE workspace_id=? AND action!='ops.audit_position.issue'",
+            )
             .get(FIX.workspace),
         ).toEqual({ count: 4 });
       },
@@ -724,7 +1037,12 @@ describe("canonical artifact audit browser delivery", () => {
         kind === "dispatch time" ? OLD : NOW,
       );
       await f.audit(randomUlid(), "artifact.dispatch_audit", wrapper(s.projection));
-      expect(await page(await f.request())).toEqual({ ok: true, entries: [], has_more: false });
+      expect(await page(await f.request())).toEqual({
+        ok: true,
+        entries: [],
+        has_more: false,
+        next_cursor: null,
+      });
       await denied(await f.request(`?after=${s.outboxId}`), 400, CURSOR_DENIED);
     },
   );
@@ -732,7 +1050,12 @@ describe("canonical artifact audit browser delivery", () => {
     const f = await fixture(),
       s = await f.source("artifact.finalized", { dispatched: false });
     await f.audit(randomUlid(), "artifact.dispatch_audit", wrapper(s.projection));
-    expect(await page(await f.request())).toEqual({ ok: true, entries: [], has_more: false });
+    expect(await page(await f.request())).toEqual({
+      ok: true,
+      entries: [],
+      has_more: false,
+      next_cursor: null,
+    });
   });
 
   const malformedWrappers: Array<[string, (p: Projection) => unknown]> = [
@@ -796,12 +1119,20 @@ describe("canonical artifact audit browser delivery", () => {
   it.each(malformedWrappers)("omits a wrapper with %s before LIMIT", async (_label, malformed) => {
     const f = await fixture(),
       s = await f.source();
-    const id = randomUlid();
-    await f.audit(id, "artifact.dispatch_audit", malformed(s.projection));
+    const tail = await f.source("artifact.finalized", { runId: null });
+    const position = await f.positionAt(s.wrapperId!);
+    const value = malformed(s.projection);
+    await f.db
+      .prepare("UPDATE audit_events SET payload_json=? WHERE workspace_id=? AND audit_id=?")
+      .run(typeof value === "string" ? value : JSON.stringify(value), FIX.workspace, s.wrapperId!);
     const result = await page(await f.request());
-    expect(result.entries.map((entry) => entry.audit_id)).toEqual([s.outboxId, s.wrapperId]);
+    expect(result.entries.map((entry) => entry.audit_id)).toEqual([
+      s.outboxId,
+      tail.outboxId,
+      tail.wrapperId,
+    ]);
     expect(result.has_more).toBe(false);
-    await denied(await f.request(`?after=${id}`), 400, CURSOR_DENIED);
+    await denied(await f.request(`?limit=1&after=${position}`), 400, CURSOR_DENIED);
   });
   it("filters older malformed wrappers before LIMIT plus one and has_more", async () => {
     const f = await fixture(),
@@ -815,7 +1146,7 @@ describe("canonical artifact audit browser delivery", () => {
     const first = await page(await f.request("?limit=1"));
     expect(first.entries.map((entry) => entry.audit_id)).toEqual([s.outboxId]);
     expect(first.has_more).toBe(true);
-    const second = await page(await f.request(`?limit=1&after=${s.outboxId}`));
+    const second = await page(await f.request(`?limit=1&after=${first.next_cursor}`));
     expect(second.entries.map((entry) => entry.audit_id)).toEqual([wrapperId]);
     expect(second.has_more).toBe(false);
   });
@@ -860,7 +1191,12 @@ describe("canonical artifact audit browser delivery", () => {
           ? { runId: randomUlid() }
           : { versionId: kind === "null version" ? null : randomUlid() },
       );
-      expect(await page(await f.request())).toEqual({ ok: true, entries: [], has_more: false });
+      expect(await page(await f.request())).toEqual({
+        ok: true,
+        entries: [],
+        has_more: false,
+        next_cursor: null,
+      });
     },
   );
   it.each([
@@ -879,6 +1215,11 @@ describe("canonical artifact audit browser delivery", () => {
   ] as const)("omits %s before page counts", async (_label, action, options) => {
     const f = await fixture();
     await f.source(action, options);
-    expect(await page(await f.request())).toEqual({ ok: true, entries: [], has_more: false });
+    expect(await page(await f.request())).toEqual({
+      ok: true,
+      entries: [],
+      has_more: false,
+      next_cursor: null,
+    });
   });
 });

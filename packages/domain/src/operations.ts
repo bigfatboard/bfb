@@ -14,6 +14,13 @@ import {
 import { ARTIFACT_AUDIT_ACTIONS } from "./artifact-maintenance.js";
 import { DomainError, type HubCommand, type HubContext } from "./hub.js";
 import { isUlid, randomUlid } from "./ids.js";
+import {
+  createSecurityAuditPosition,
+  hashSecurityAuditPosition,
+  isSecurityAuditPosition,
+  type IssueSecurityAuditPosition,
+  type IssueSecurityAuditPositionInput,
+} from "./security-audit-positions.js";
 import { validateStepUpProof, type StepUpAction } from "./step-up.js";
 import {
   sharedTaskPredicate,
@@ -592,34 +599,106 @@ export interface SecurityAuditEntry {
   created_at: string;
 }
 
-/**
- * Owner-only security audit read model for canonical artifact and upload-recovery
- * receipts. Current shared parents resolve before pagination; every unsupported
- * family is unavailable without parsing its historical payload.
- *
- * Rows are ordered chronologically by `created_at`, with insertion order
- * (`rowid`) breaking ties: audit ids carry no time component (hub ids are
- * random), so id order is not time order. `after` stays an `audit_id` cursor but resolves to its row's
- * timestamp first, so pages advance in time, not id space.
- */
-export async function readSecurityAudit(
-  db: SqlDatabase,
-  workspaceId: string,
-  options: { limit?: number; after?: string; access: TaskAccessContext },
-): Promise<{ entries: SecurityAuditEntry[]; has_more: boolean }> {
-  if (!options?.access) fail("invalid_argument", "human audit access is required");
-  const limit = Math.min(Math.max(options.limit ?? 50, 1), OPS_MAX_PAGE);
+interface AuditSelectionOptions {
+  access: TaskAccessContext;
+  limit: number;
+  afterHash: string | null;
+  issuedHash?: string;
+  captureCeiling?: number;
+  expiresAt?: string;
+}
+
+interface AuditProjectionRow {
+  audit_id: string;
+  audit_rowid: number;
+  sort_key: string;
+  actor_principal_id: string;
+  action: string;
+  created_at: string;
+  outbox_id: string | null;
+  version_id: string;
+  grant_id: string | null;
+  source_action: string;
+  occurred_at: string;
+  recovery_actor_epoch: number;
+  recovery_action_id: string | null;
+  recovery_replayed: number;
+  recovery_resolved: number;
+}
+
+interface AuditSelection {
+  authorized: number;
+  audience_valid: number;
+  position_valid: number;
+  anchor_valid: number;
+  audience_json: string;
+  capture_ceiling: number;
+  expires_at: string;
+  database_now: string;
+  issued_anchor_audit_id: string | null;
+  issued_anchor_sort_key: string | null;
+  issued_anchor_rowid: number | null;
+  rows_json: string;
+}
+
+/** Reads and write-only issuance guards share every canonical source and parent predicate. */
+function securityAuditSelection(workspaceId: string, options: AuditSelectionOptions) {
   const scope = operationsWorkspacePredicate(options.access, "ops_scope", true);
   const parent = operationsTaskPredicate(options.access);
   const ownedActions = ARTIFACT_AUDIT_ACTIONS.map((action) => `'${action}'`).join(",");
-  const current = (await db
-    .prepare(
-      `SELECT * FROM (WITH current_scope AS MATERIALIZED (
+  return {
+    sql: `SELECT * FROM (WITH current_scope AS MATERIALIZED (
         SELECT ops_scope.workspace_id,${scope.sql} AS authorized FROM (SELECT ? AS workspace_id) AS ops_scope
-      ), requested_cursor AS MATERIALIZED (SELECT ? AS after_id,? AS page_limit),
+      ), requested_cursor AS MATERIALIZED (
+        SELECT json_extract(config,'$.afterHash') AS after_hash,json_extract(config,'$.issuedHash') AS issued_hash,
+          json_extract(config,'$.limit') AS page_limit,json_extract(config,'$.humanId') AS human_id,
+          json_extract(config,'$.epoch') AS authorization_epoch,
+          json_extract(config,'$.captureCeiling') AS fixed_ceiling,json_extract(config,'$.expiresAt') AS fixed_expiry
+        FROM (SELECT ? AS config)
+      ), database_clock AS MATERIALIZED (
+        SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now') AS database_now,
+          strftime('%Y-%m-%dT%H:%M:%fZ','now','+10 minutes') AS root_expiry
+      ), current_audience AS MATERIALIZED (
+        SELECT json_group_array(id) AS audience_json FROM (
+          SELECT project.id FROM projects AS project JOIN current_scope AS scope
+            ON scope.workspace_id=project.workspace_id AND scope.authorized
+          JOIN requested_cursor AS cursor ON 1
+          WHERE project.access_mode='workspace' OR EXISTS (
+            SELECT 1 FROM project_access AS access WHERE access.workspace_id=project.workspace_id
+              AND access.project_id=project.id AND access.human_id=cursor.human_id)
+          ORDER BY project.id)
+      ), requested_position AS MATERIALIZED (
+        SELECT position.* FROM security_audit_positions AS position
+        JOIN current_scope AS scope ON scope.workspace_id=position.workspace_id AND scope.authorized
+        JOIN requested_cursor AS cursor ON cursor.after_hash=position.position_hash
+        JOIN current_audience AS audience ON audience.audience_json=position.audience_json
+        JOIN database_clock AS clock ON position.expires_at>clock.database_now
+        WHERE position.human_id=cursor.human_id AND position.authorization_epoch=cursor.authorization_epoch
+          AND position.projection_version=1 AND position.page_limit=cursor.page_limit
+      ), issued_position AS MATERIALIZED (
+        SELECT position.* FROM security_audit_positions AS position
+        JOIN current_scope AS scope ON scope.workspace_id=position.workspace_id AND scope.authorized
+        JOIN requested_cursor AS cursor ON cursor.issued_hash=position.position_hash
+        JOIN current_audience AS audience ON audience.audience_json=position.audience_json
+        JOIN database_clock AS clock ON position.expires_at>clock.database_now
+        LEFT JOIN requested_position AS previous ON 1
+        WHERE position.human_id=cursor.human_id AND position.authorization_epoch=cursor.authorization_epoch
+          AND position.projection_version=1 AND position.page_limit=cursor.page_limit
+          AND position.after_hash IS cursor.after_hash
+          AND (cursor.after_hash IS NULL OR (position.capture_ceiling=previous.capture_ceiling
+            AND position.expires_at=previous.expires_at))
+      ), capture AS MATERIALIZED (
+        SELECT COALESCE(cursor.fixed_ceiling,issued.capture_ceiling,previous.capture_ceiling,
+          (SELECT COALESCE(MAX(audit.rowid),0) FROM audit_events AS audit
+            JOIN current_scope AS scope ON scope.workspace_id=audit.workspace_id)) AS capture_ceiling,
+          COALESCE(cursor.fixed_expiry,issued.expires_at,previous.expires_at,clock.root_expiry) AS expires_at
+        FROM requested_cursor AS cursor JOIN database_clock AS clock
+        LEFT JOIN requested_position AS previous ON 1 LEFT JOIN issued_position AS issued ON 1
+      ),
       audits AS MATERIALIZED (
         SELECT audit.rowid AS audit_rowid,audit.* FROM audit_events AS audit
         JOIN current_scope AS scope ON scope.workspace_id=audit.workspace_id AND scope.authorized
+        JOIN capture ON audit.rowid<=capture.capture_ceiling
       ), wrapper_envelopes AS MATERIALIZED (
         SELECT audit_id,${auditJsonObject("payload_json")} AS envelope FROM audits WHERE action='artifact.dispatch_audit'
       ), wrapper_objects AS MATERIALIZED (
@@ -793,47 +872,66 @@ export async function readSecurityAudit(
         SELECT visible.*,CASE WHEN ${auditUtc("visible.created_at")}
           THEN ${auditUtcOrderKey("visible.created_at")} ELSE visible.created_at END AS sort_key FROM visible
       ), anchor AS MATERIALIZED (
-        SELECT visible.sort_key,visible.audit_rowid FROM ordered_visible AS visible JOIN requested_cursor AS cursor ON visible.audit_id=cursor.after_id
+        SELECT visible.sort_key,visible.audit_rowid FROM ordered_visible AS visible
+        JOIN requested_position AS position ON visible.audit_id=position.anchor_audit_id
+          AND visible.sort_key=position.anchor_sort_key AND visible.audit_rowid=position.anchor_rowid
       ), page AS MATERIALIZED (
         SELECT visible.* FROM ordered_visible AS visible JOIN requested_cursor AS cursor LEFT JOIN anchor ON 1
-        WHERE cursor.after_id IS NULL OR visible.sort_key>anchor.sort_key
+        WHERE cursor.after_hash IS NULL OR visible.sort_key>anchor.sort_key
           OR (visible.sort_key=anchor.sort_key AND visible.audit_rowid>anchor.audit_rowid)
-        ORDER BY visible.sort_key,visible.audit_rowid LIMIT (SELECT page_limit FROM requested_cursor)
-      ) SELECT scope.authorized,(cursor.after_id IS NULL OR EXISTS (SELECT 1 FROM anchor)) AS anchor_valid,
-        (SELECT json_group_array(json_object('audit_id',audit_id,'actor_principal_id',actor_principal_id,'action',action,
+        ORDER BY visible.sort_key,visible.audit_rowid LIMIT (SELECT page_limit+1 FROM requested_cursor)
+      ) SELECT scope.authorized,length(CAST(audience.audience_json AS BLOB))<=32768 AS audience_valid,
+        ((cursor.after_hash IS NULL OR EXISTS (SELECT 1 FROM requested_position))
+          AND (cursor.issued_hash IS NULL OR EXISTS (SELECT 1 FROM issued_position))
+          AND capture.expires_at>clock.database_now
+          AND (cursor.after_hash IS NULL OR (capture.capture_ceiling=previous.capture_ceiling
+            AND capture.expires_at=previous.expires_at))) AS position_valid,
+        (cursor.after_hash IS NULL OR EXISTS (SELECT 1 FROM anchor)) AS anchor_valid,
+        audience.audience_json,capture.capture_ceiling,capture.expires_at,clock.database_now,
+        issued.anchor_audit_id AS issued_anchor_audit_id,issued.anchor_sort_key AS issued_anchor_sort_key,
+        issued.anchor_rowid AS issued_anchor_rowid,
+        (SELECT json_group_array(json_object('audit_id',audit_id,'audit_rowid',audit_rowid,'sort_key',sort_key,
+          'actor_principal_id',actor_principal_id,'action',action,
           'created_at',created_at,'outbox_id',outbox_id,'version_id',version_id,
           'grant_id',grant_id,'source_action',source_action,'occurred_at',occurred_at,
           'recovery_actor_epoch',recovery_actor_epoch,'recovery_action_id',recovery_action_id,
           'recovery_replayed',recovery_replayed,'recovery_resolved',recovery_resolved)) FROM page) AS rows_json
-      FROM current_scope AS scope JOIN requested_cursor AS cursor)`,
-    )
-    .get(
+      FROM current_scope AS scope JOIN requested_cursor AS cursor JOIN current_audience AS audience
+        JOIN capture JOIN database_clock AS clock LEFT JOIN requested_position AS previous ON 1
+        LEFT JOIN issued_position AS issued ON 1)`,
+    parameters: [
       ...scope.parameters,
       workspaceId,
-      options.after ?? null,
-      limit + 1,
+      JSON.stringify({
+        afterHash: options.afterHash,
+        issuedHash: options.issuedHash ?? null,
+        limit: options.limit,
+        humanId: options.access.humanId,
+        epoch: options.access.authorizationEpoch,
+        captureCeiling: options.captureCeiling ?? null,
+        expiresAt: options.expiresAt ?? null,
+      }),
       ...parent.parameters,
       workspaceId,
       ...parent.parameters,
-    )) as { authorized: number; anchor_valid: number; rows_json: string };
+    ],
+  };
+}
+
+function assertAuditSelection(current: AuditSelection): void {
   if (!current.authorized) fail("not_found", "operations scope not found");
-  if (!current.anchor_valid) fail("invalid_argument", "unknown audit cursor");
-  const rows = JSON.parse(current.rows_json) as Array<{
-    audit_id: string;
-    actor_principal_id: string;
-    action: string;
-    created_at: string;
-    outbox_id: string | null;
-    version_id: string;
-    grant_id: string | null;
-    source_action: string;
-    occurred_at: string;
-    recovery_actor_epoch: number;
-    recovery_action_id: string | null;
-    recovery_replayed: number;
-    recovery_resolved: number;
-  }>;
-  const entries = rows.slice(0, limit).map((row) => {
+  if (!current.audience_valid) fail("request_rejected", "audit positions are unavailable");
+  if (!current.position_valid || !current.anchor_valid)
+    fail("invalid_argument", "unknown audit cursor");
+}
+
+function assertAuditPositionFresh(current: AuditSelection): void {
+  if (Date.now() >= Date.parse(current.expires_at))
+    fail("invalid_argument", "unknown audit cursor");
+}
+
+function projectSecurityAudit(rows: AuditProjectionRow[], limit: number): SecurityAuditEntry[] {
+  return rows.slice(0, limit).map((row) => {
     let payload: unknown = null;
     if (row.outbox_id !== null) {
       const projection = {
@@ -872,8 +970,181 @@ export async function readSecurityAudit(
       created_at: row.created_at,
     };
   });
-  return { entries, has_more: rows.length > limit };
 }
+
+/** Opaque positions retain one canonical capture ceiling, audience and expiry across every page. */
+export async function readSecurityAudit(
+  db: SqlDatabase,
+  workspaceId: string,
+  options: { limit?: number; after?: string; access: TaskAccessContext },
+  issue?: IssueSecurityAuditPosition,
+): Promise<{ entries: SecurityAuditEntry[]; has_more: boolean; next_cursor: string | null }> {
+  if (!options?.access) fail("invalid_argument", "human audit access is required");
+  const limit = Math.min(Math.max(options.limit ?? 50, 1), OPS_MAX_PAGE);
+  const afterHash =
+    options.after === undefined
+      ? null
+      : isSecurityAuditPosition(options.after)
+        ? hashSecurityAuditPosition(options.after)
+        : "invalid";
+  const selection = securityAuditSelection(workspaceId, {
+    access: options.access,
+    limit,
+    afterHash,
+  });
+  let current = (await db.prepare(selection.sql).get(...selection.parameters)) as AuditSelection;
+  assertAuditSelection(current);
+  let rows = JSON.parse(current.rows_json) as AuditProjectionRow[];
+  if (rows.length <= limit) {
+    // An unanchored terminal page creates no position whose expiry can elapse.
+    if (afterHash !== null) assertAuditPositionFresh(current);
+    return { entries: projectSecurityAudit(rows, limit), has_more: false, next_cursor: null };
+  }
+  if (!issue) fail("request_rejected", "audit positions are unavailable");
+  const handle = createSecurityAuditPosition();
+  const positionHash = hashSecurityAuditPosition(handle);
+  await issue({ positionHash, afterHash, limit });
+  const final = securityAuditSelection(workspaceId, {
+    access: options.access,
+    limit,
+    afterHash,
+    issuedHash: positionHash,
+  });
+  current = (await db.prepare(final.sql).get(...final.parameters)) as AuditSelection;
+  assertAuditSelection(current);
+  rows = JSON.parse(current.rows_json) as AuditProjectionRow[];
+  const cut = rows[limit - 1];
+  if (
+    !cut ||
+    cut.audit_id !== current.issued_anchor_audit_id ||
+    cut.sort_key !== current.issued_anchor_sort_key ||
+    cut.audit_rowid !== current.issued_anchor_rowid
+  )
+    fail("invalid_argument", "unknown audit cursor");
+  assertAuditPositionFresh(current);
+  return {
+    entries: projectSecurityAudit(rows, limit),
+    has_more: rows.length > limit,
+    next_cursor: rows.length > limit ? handle : null,
+  };
+}
+
+function validateAuditPositionInput(input: IssueSecurityAuditPositionInput): void {
+  const fields = closedObject(input, ["positionHash", "afterHash", "limit"], "audit position");
+  const validHash = (value: unknown) =>
+    typeof value === "string" && value.length === 64 && /^[0-9a-f]+$/.test(value);
+  if (
+    Object.keys(fields).length !== 3 ||
+    !validHash(input.positionHash) ||
+    !(input.afterHash === null || validHash(input.afterHash)) ||
+    !Number.isSafeInteger(input.limit) ||
+    input.limit < 1 ||
+    input.limit > OPS_MAX_PAGE
+  )
+    fail("invalid_argument", "invalid audit position request");
+}
+
+async function authorizeAuditPosition(input: IssueSecurityAuditPositionInput, ctx: HubContext) {
+  if (!ctx.actorHumanId || ctx.actorRunnerId || ctx.actorSystemId || ctx.actorDelegationId)
+    fail("not_found", "operations scope not found");
+  const access = {
+    workspaceId: ctx.workspaceId,
+    humanId: ctx.actorHumanId,
+    authorizationEpoch: ctx.authorizationEpoch,
+  };
+  const scope = operationsWorkspacePredicate(access, "ops_scope", true);
+  const row = (await ctx.db
+    .prepare(`SELECT ${scope.sql} AS authorized FROM (SELECT ? AS workspace_id) AS ops_scope`)
+    .get(...scope.parameters, ctx.workspaceId)) as { authorized: number };
+  if (!row.authorized) fail("not_found", "operations scope not found");
+  validateAuditPositionInput(input);
+  return access;
+}
+
+/** The plaintext position is never an input, result or receipt in the Hub mutation lane. */
+export const issueSecurityAuditPositionCommand: HubCommand<
+  IssueSecurityAuditPositionInput,
+  { issued: true }
+> = {
+  name: "ops.audit_position.issue",
+  replay: "reject",
+  authorize: async (input, ctx) => {
+    await authorizeAuditPosition(input, ctx);
+  },
+  inputFingerprint: (input) =>
+    createHash("sha256")
+      .update(JSON.stringify([input.positionHash, input.afterHash, input.limit]))
+      .digest("hex"),
+  auditInput: () => ({}),
+  auditResult: () => ({ issued: true }),
+  async run(input, ctx) {
+    const access = await authorizeAuditPosition(input, ctx);
+    const selection = securityAuditSelection(ctx.workspaceId, {
+      access,
+      limit: input.limit,
+      afterHash: input.afterHash,
+    });
+    const current = (await ctx.db
+      .prepare(selection.sql)
+      .get(...selection.parameters)) as AuditSelection;
+    assertAuditSelection(current);
+    const rows = JSON.parse(current.rows_json) as AuditProjectionRow[];
+    if (rows.length <= input.limit) fail("request_rejected", "audit positions are unavailable");
+    const cut = rows[input.limit - 1]!;
+    const guardId = randomUlid();
+    const guard = securityAuditSelection(ctx.workspaceId, {
+      access,
+      limit: input.limit,
+      afterHash: input.afterHash,
+      captureCeiling: current.capture_ceiling,
+      expiresAt: current.expires_at,
+    });
+    // The complete bounded selection includes the lookahead, not just the anchor.
+    // Every read is complete before the D1 adapter starts queuing atomic writes.
+    await ctx.db
+      .prepare(
+        `INSERT INTO security_audit_position_guards(workspace_id,id,valid)
+      SELECT ?, ?, (selection.authorized AND selection.audience_valid AND selection.position_valid
+        AND selection.anchor_valid AND selection.audience_json=? AND selection.capture_ceiling=?
+        AND selection.expires_at=? AND selection.rows_json=?) FROM (${guard.sql}) AS selection`,
+      )
+      .run(
+        ctx.workspaceId,
+        guardId,
+        current.audience_json,
+        current.capture_ceiling,
+        current.expires_at,
+        current.rows_json,
+        ...guard.parameters,
+      );
+    await ctx.db
+      .prepare(
+        `INSERT INTO security_audit_positions
+      (position_hash,workspace_id,human_id,authorization_epoch,projection_version,page_limit,
+        audience_json,after_hash,capture_ceiling,expires_at,anchor_audit_id,anchor_sort_key,anchor_rowid,created_at)
+      VALUES (?,?,?,?,1,?,?,?,?,?,?,?,?,?)`,
+      )
+      .run(
+        input.positionHash,
+        ctx.workspaceId,
+        access.humanId,
+        access.authorizationEpoch,
+        input.limit,
+        current.audience_json,
+        input.afterHash,
+        current.capture_ceiling,
+        current.expires_at,
+        cut.audit_id,
+        cut.sort_key,
+        cut.audit_rowid,
+        current.database_now,
+      );
+    await ctx.db
+      .prepare(`DELETE FROM security_audit_position_guards WHERE workspace_id=? AND id=?`)
+      .run(ctx.workspaceId, guardId);
+    return { issued: true };
+  },
+};
 
 /** Normalize before extraction: malformed JSON and SQL scalar text never reach JSON joins. */
 function auditJsonObject(expression: string): string {

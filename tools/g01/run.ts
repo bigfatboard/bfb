@@ -100,6 +100,7 @@ import {
   readActivityFeed,
   readLedgerHighWater,
   readSecurityAudit,
+  issueSecurityAuditPositionCommand,
   recordVerifiedUpload,
   requestChangesCommand,
   reclaimStaleGitHubOutbox,
@@ -2230,10 +2231,19 @@ try {
     scanClean("sg05-outputs", [link, payload]);
     // Audit and activity stay separated: audit is Owner-only structured records,
     // activity is project-scoped without private payloads.
-    const audit = await readSecurityAudit(db, FIX.workspace, {
-      limit: 50,
-      access: await loadPrincipal(db, FIX.workspace, FIX.owner),
-    });
+    const audit = await readSecurityAudit(
+      db,
+      FIX.workspace,
+      { limit: 50, access: await loadPrincipal(db, FIX.workspace, FIX.owner) },
+      async (input) => {
+        const issued = await execute<{ issued: true }>(
+          issueSecurityAuditPositionCommand.name,
+          input,
+        );
+        assert(issued.ok, JSON.stringify(issued));
+        assert.deepEqual(issued.result, { issued: true });
+      },
+    );
     await assert.rejects(
       readActivityFeed(db, FIX.workspace, { limit: 50, projectIds: [FIX.projectA] }),
       { code: "request_rejected", message: "event feeds are unavailable" },

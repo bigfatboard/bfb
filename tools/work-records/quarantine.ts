@@ -61,6 +61,7 @@ try {
   assert.deepEqual(await readSecurityAudit(db, FIX.workspace, { limit: 1, access }), {
     entries: [],
     has_more: false,
+    next_cursor: null,
   });
   for (const after of [...ids, randomUlid()]) {
     await assert.rejects(readSecurityAudit(db, FIX.workspace, { after, limit: 1, access }), {

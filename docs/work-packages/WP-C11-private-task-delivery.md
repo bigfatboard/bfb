@@ -233,3 +233,10 @@ cutover and installed native delivery remain uncertified. Audit anchors are
 next; GitHub key policy, execution-owned consumers, destructive private retention
 and natural in-flight expiry remain open. Private creation/sharing/checkpoints
 stay disabled; C11 remains in progress and C12 remains planned.
+
+The audit-position v1 wire is now frozen in the delivery contract: random hashed
+ten-minute positions, exact current audience/epoch/page-size binding, inherited
+capture ceiling/expiry, whole-selection commit guards and final delivered-cut
+checks. Its additive target is `pnpm test:c11:audit-positions`, composed by C11.
+Implementation and clean-checkout evidence are pending; this contract does not
+close audit positions or activate private work.
