@@ -277,3 +277,8 @@ snapshot contract after the quarantine repair:
 - The drill retains dated evidence only at its original `0034_operations`
   migration head. Current-head regression runs report bounded scenario outcomes
   to their command log; they do not replace the historical package certificate.
+
+Routine X05 browser captures use ignored test output. The owning
+`BFB_CAPTURE_X05_EVIDENCE=1 BFB_E2E_PORT=4196 pnpm exec playwright test apps/web/test/e2e/x05-operations.spec.ts --config tools/e2e/playwright.config.ts`
+command explicitly updates
+the historical browser evidence path; ordinary regression runs preserve it.

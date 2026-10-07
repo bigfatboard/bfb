@@ -677,6 +677,13 @@ activate private work or change runner/provider execution.
   Apply to fresh/cache, special artifact replies and preference batches. Do
   not rewrite idempotency/history, globally scrub JSON or alter runner/local
   agent acknowledgements or internal `HubCommandOutcome`.
+  These exact key shapes describe the Hub receipt portion, not existing
+  transport business DTOs. Browser/human-CLI `already_answered` conflicts
+  retain authorized current attention detail beside the projected failure.
+  Delegated `bfb_get_context` keeps its existing `{context}` read response and
+  error read wire after internal command authorization; it is not a mutation
+  receipt. Existing artifact/grant, invitation, launch/control and other
+  business-only responses stay intact. No nested business field is scrubbed.
 - New browser socket admission is held before Durable Object resolution,
   attachment, ready/high-water or frames. Existing browser attachments retire
   on heartbeat/alarm independently of commands. Browser `afterCommand` does

@@ -47,6 +47,9 @@ special artifact-grant replies. Authorized result/resource versions and
 one-time grants remain intact; internal Hub outcomes, stored receipts,
 authorization and runner acknowledgements are unchanged. No new feed tool or
 opaque replay service is added.
+The exact keys describe mutation receipts, not existing read responses.
+`bfb_get_context` retains its authorized `{context}` response and error read
+wire after the internal command; nested business fields are not scrubbed.
 
 ## Delegation rules
 

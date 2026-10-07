@@ -252,6 +252,11 @@ and explicit timer commands remain unchanged. Source disclosures show a compact
 unavailable explanation and issue no held requests. Historical source-page
 wire/evidence below does not certify current public availability.
 
+Routine A04 runtime snapshots use ignored `test-results/a04`; the owning
+`BFB_CAPTURE_A04_RUNTIME_EVIDENCE=1 pnpm exec tsx tools/measurements/run.ts`
+command explicitly captures the historical evidence path. Ordinary regression
+runs do not overwrite the dated package certificate.
+
 ## Displays
 
 Task and run surfaces show five separate sections, each with its

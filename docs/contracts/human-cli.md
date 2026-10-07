@@ -75,6 +75,9 @@ adapters project success `{ok:true,result,replayed}` or failure
 The CLI's outer envelope, errors and exit codes remain unchanged. No raw feed
 endpoint, idempotency rewrite or runner/local-agent acknowledgement change is
 introduced.
+The exact keys describe the Hub receipt portion. Existing `already_answered`
+conflicts retain their authorized current attention detail beside that failure
+receipt; business-only DTOs and nested result fields are unchanged.
 
 ## JSON envelope and exit codes
 
