@@ -1,0 +1,189 @@
+{
+  "package": "C11",
+  "recorded_on": "2026-10-07",
+  "tested_commit": "c4747a903a371ad485eeffee203e0f24bd58f377",
+  "production_commit": "801dfdf13f54559a59cf88524d282e4f570bca86",
+  "historical_fixture_repair_commit": "c4747a903a371ad485eeffee203e0f24bd58f377",
+  "outcome": "passed",
+  "stage": "partial_human_attention_historical_lineage",
+  "package_acceptance_complete": false,
+  "private_creation_available": false,
+  "migration_head": "0047_security_audit_positions",
+  "scope": "Human attention body, detail, ranked inbox and observation reads, plus independent final CLI inbox/detail selections, bind the declared task/run tuple to the retained execution and immutable assignment generation before content or rank delivery. Historical canonical ended records remain readable without new execution or liveness authority.",
+  "clean_certificate_marker": "C11_ATTENTION_HISTORY_CLEAN_CERTIFICATE_OK",
+  "clean_pipeline_exit_code": 0,
+  "clean_commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "exit_code": 0
+    },
+    {
+      "command": "pnpm test:c11",
+      "exit_code": 0,
+      "c10_cases": 86,
+      "c10_files": 8,
+      "c10_d1_checks": 9,
+      "c08_cases": 23,
+      "c08_files": 5,
+      "c08_proof": "C08_D1_OK",
+      "stage_cases": 3004,
+      "stage_files": 121,
+      "stage_invocations": [
+        { "cases": 1861, "files": 64 },
+        { "cases": 4, "files": 2 },
+        { "cases": 23, "files": 2 },
+        { "cases": 18, "files": 2 },
+        { "cases": 31, "files": 2 },
+        { "cases": 34, "files": 2 },
+        { "cases": 32, "files": 2 },
+        { "cases": 36, "files": 2 },
+        { "cases": 38, "files": 2 },
+        { "cases": 87, "files": 4 },
+        { "cases": 70, "files": 6 },
+        { "cases": 99, "files": 5 },
+        { "cases": 215, "files": 9 },
+        { "cases": 68, "files": 3 },
+        { "cases": 27, "files": 2 },
+        { "cases": 54, "files": 2 },
+        { "cases": 41, "files": 3 },
+        { "cases": 31, "files": 3 },
+        { "cases": 235, "files": 4 }
+      ],
+      "stage_browser_cases": 6,
+      "stage_d1_checks": 214,
+      "stage_d1_harnesses": 18,
+      "notification_runtime": {
+        "proofs": ["C11_NOTIFICATION_IDENTITY_UPGRADE_OK", "X01_HARNESS_OK"],
+        "record_labels": 41,
+        "counting": "Setup and repeated dispatch/redaction labels are not independent acceptance cases"
+      },
+      "go_race": "passed",
+      "counting": "Stage totals count nineteen Vitest invocations and file invocations, not unique cases/files. Six panel Chromium cases, dependencies and the notification runtime are separate; the 214 D1 labels include retained harness groups and are not 214 new historical-attention tests."
+    },
+    {
+      "command": "pnpm test:a04",
+      "exit_code": 0,
+      "protocol_cases": 1154,
+      "protocol_files": 12,
+      "focused_cases": 138,
+      "focused_files": 11,
+      "node_cases": 5,
+      "browser_cases": 3,
+      "go_race": "passed",
+      "native_proof": "A04 native compiled capture / daemon / possession / Worker / Hub / D1 proof passed"
+    },
+    {
+      "command": "pnpm test:a02",
+      "exit_code": 0,
+      "protocol_cases": 1154,
+      "protocol_files": 12,
+      "focused_cases": 95,
+      "focused_files": 6,
+      "node_cases": 7,
+      "browser_cases": 3,
+      "go_race": "passed",
+      "native_proof": "A02 native compiled capture / daemon / possession / Worker / Hub / D1 proof passed"
+    },
+    {
+      "command": "pnpm test:x03",
+      "exit_code": 0,
+      "unit_cases": 71,
+      "unit_files": 7,
+      "worker_d1_r2_checks": 11,
+      "browser_cases": 2,
+      "provider_started": false,
+      "persistent_pilot_changed": false
+    },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 4788,
+      "typescript_files": 220,
+      "go": "passed",
+      "go_scheduling": "GOFLAGS=-p=1",
+      "swift": "passed",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    {
+      "command": "pnpm worktree:check",
+      "exit_code": 0,
+      "before_and_after_verify": true,
+      "committed_source_unchanged": true,
+      "final_status_empty": true
+    }
+  ],
+  "slice_suites": {
+    "target": "pnpm test:c11:human-attention-history",
+    "composed_once_by_c11": true,
+    "focused_cases": 215,
+    "focused_files": 9,
+    "new_domain_cases": 5,
+    "new_authenticated_mounted_cases": 6,
+    "native_d1_groups": 4,
+    "native_proof": "C11_HUMAN_ATTENTION_HISTORY_D1_OK",
+    "maximum_bindings": 28,
+    "maximum_statement_bytes": 8971,
+    "counting": "Eleven new unit/mounted cases plus retained regressions form the 215-case focused invocation. Four independently collected native-D1 groups are separate; the focused invocation is composed once by C11."
+  },
+  "old_source_probe": {
+    "production_commit": "6ebe0dc78ba088597ceec6c1bfe4743edd04296f",
+    "production_runtime_unfixed": true,
+    "selected_cases": 11,
+    "failed": 8,
+    "passed": 3,
+    "retained_mounted_cases_skipped": 12,
+    "expected_exit_code": 1,
+    "failure_categories": {
+      "domain_body_detail_observation_and_inbox_exposure": 1,
+      "domain_ranked_limit_displacement": 1,
+      "mounted_browser_cli_detail_disclosure": 4,
+      "mounted_browser_cli_inbox_disclosure": 2
+    },
+    "controls": {
+      "canonical_earlier_ended_history": 1,
+      "authorized_empty_observation_history": 1,
+      "retained_declared_task_run_mismatch_fence": 1
+    },
+    "status": "Independent replay used committed unfixed source and its built runtime with only the frozen test files copied. Eight case failures and three controls reproduce the final five unit and six mounted additions; multiple soft assertion failures within one case are not extra failed cases. Twelve retained mounted cases were deliberately skipped. The temporary checkout was recoverably archived. This is not old-source package acceptance."
+  },
+  "regression_proof": [
+    "The four shared human read primitives and two independent final CLI selections bind workspace/project/task/run to the exact retained execution and immutable assignment generation before bodies, answers, origin, observations or rank metadata leave the selector",
+    "Same-project private/shared fixtures with clean foreign keys demonstrate that readable declared task/run IDs do not authorize retained private execution history",
+    "Malformed high-priority attention is excluded before ranked limit one, preserving the complete healthy visible page rather than displacing its member",
+    "Canonical resolved and empty history on earlier ended executions remains readable even after a distinct later execution/generation exists; no live lease, current runner or latest execution condition is introduced",
+    "Mounted browser and human CLI detail selectors withhold malformed lineage both before the request and at the actual final selection, retaining uniform not_found/no-store replies and complete effect snapshots",
+    "Native bound statements witness final human/CLI detail lineage changes and current narrowed CLI binding restrictions, including an authorized empty page versus lost scope",
+    "Reads leave all canonical source/business/authority/cursor/guard snapshots unchanged after independently witnessed fixture mutations; existing delegated final delivery keeps its independent malformed-retained-record robustness proof"
+  ],
+  "fixture_repairs": {
+    "commit": "c4747a903a371ad485eeffee203e0f24bd58f377",
+    "files": [
+      "tools/attention/run.ts",
+      "tools/measurements/run.ts",
+      "docs/work-packages/WP-A02-attention.md"
+    ],
+    "scope": "Both harnesses seed explicit pre-upgrade task rows and preserve complete SELECT * task snapshots across migration. A02 also validates its existing recording/cadence independently of writing, sends routine captures to ignored output, and documents an explicit evidence-capture command. These are fixture/output repairs, not production authority, transition or clock-policy changes."
+  },
+  "proof_boundaries": [
+    "Native-D1 history uses production task/run setup but fixture-only ended executions, assignments, attention/observations and persisted exchanged CLI bindings; it does not mount native credential exchange or authentication",
+    "Browser session and CLI bearer admission are mounted through the real control application in the test process; CLI binding issuance/device exchange and deployed HTTP ingress are not certified by these mounted additions",
+    "Malformed retained-source fixtures and final-selection declaration changes are robustness proofs, not claims that a production command can rewrite immutable assignments",
+    "This is historical read selection, not ingestion, execution transitions, runner/provider authority, liveness/latest semantics or a new credential/lease expiry guarantee",
+    "A02/A04 and X03 are preserved regression gates; their native/browser proofs are not additional new human-history cases or a live operation certificate"
+  ],
+  "excluded_attempts": [
+    "The earlier failed clean-certificate attempt is excluded; only the fresh complete exit-zero pipeline with the final marker and unchanged committed source is certified"
+  ],
+  "activation_barriers": [
+    "GitHub key-collision policy and internal helper bypass, execution-owned delivery, destructive private retention and artifact-byte acceptance remain separate",
+    "Private creation, creator sharing, inherited private children, author-private checkpoints and complete C11 acceptance remain unavailable; C12 remains planned"
+  ],
+  "not_claimed": [
+    "Later browser collection source, including changes committed after the tested c4747a9 checkpoint",
+    "OLD replay of the twelve skipped mounted cases, the complete 215-case focused invocation or native-D1 harness",
+    "New execution/liveness/latest-run requirements, clock policy, ingestion or transition authority",
+    "Private activation, publication, provider operation, installed app, persistent pilot, deployment or external CI"
+  ],
+  "redaction": "Bounded counts, proof markers and synthetic outcome categories only; task bodies, credentials, raw terminal logs and local absolute paths are not committed"
+}

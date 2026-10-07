@@ -76,8 +76,33 @@ Coordinate shared contracts without changing the other lane's execution work.
 
 ## Handoff
 
-Current checkpoint: [task-detail panel selection](evidence/WP-C11/detail-panels-manifest.json),
-clean-certified at `9687435`. Exact C11 passes 2,684 stage invocation cases,
+Current checkpoint: [measurement attention lineage](evidence/WP-C11/measurement-attention-manifest.json)
+and [human attention history](evidence/WP-C11/human-attention-history-manifest.json),
+clean-certified together at `c4747a9`. Exact C11 passes 3,004 stage invocation
+cases across 121 file invocations, six panel browser cases and 214 D1 checks
+across eighteen harnesses; its notification drill is separate. Exact A04, A02
+and X03 pass, including their native and browser checks. Full verification
+passes 4,788 TypeScript cases, Go and all 16 Swift cases. Same-project fixtures
+separate task privacy from project restrictions. Measurement sources and all
+human attention readers require exact retained task/run/execution/assignment
+lineage, without requiring current execution activity or the newest assignment.
+Canonical ended, earlier-generation, resolved and empty history stays readable.
+Historical pre-upgrade fixtures preserve their old task shape through migration;
+this does not change production capture, measurements or clocks.
+
+Next is browser task child-collection selection. Its source is committed at
+`a1506cd`; the exact focused target passes 78 cases and four native D1 groups,
+and a finalized committed OLD replay records 12 failures/13 controls. Its own
+clean C11/full-verification pipeline is running, not yet acceptance. Parent
+denial must remain distinct from an authorized empty or terminal child page.
+GitHub key policy, execution-owned delivery and destructive private retention
+remain open. Private creation, sharing, inherited private children and
+checkpoints stay disabled; C11 remains in progress and C12 planned.
+
+### Earlier checkpoints
+
+The [task-detail panel selection checkpoint](evidence/WP-C11/detail-panels-manifest.json)
+is clean-certified at `9687435`. Exact C11 passes 2,684 stage invocation cases,
 six panel browser cases and 206 D1 checks across sixteen harnesses; its
 notification drill is separate. Exact W03 passes 239 unit/mounted cases and
 91 shared browser cases. Full verification passes 4,772 TypeScript cases, Go
@@ -89,19 +114,7 @@ retain their label-only opt-in notice and the existing default action budget.
 The original 25-case committed OLD probe records 20 failures/five controls;
 nine later expanded cases are separate from that OLD replay. Browser denials
 are intercepted presentation responses, not server authorization proof.
-
-Next is the frozen historical attention-source measurement checkpoint. Its
-same-project fixtures separate private-task access from project restrictions;
-full run/task/aggregate comparisons cover malformed task/run and retained
-execution/assignment history while preserving canonical ended records. Its
-focused tests and native harness are implementation work, not clean acceptance.
-Human attention-detail historical lineage remains a separate open read boundary.
-GitHub key policy, execution-owned delivery and
-destructive private retention remain open. Private creation, sharing, inherited
-private children and checkpoints stay disabled; C11 remains in progress and
-C12 planned.
-
-### Earlier checkpoints
+Its evidence remains unchanged.
 
 The [public business delivery and CLI ceilings checkpoint](evidence/WP-C11/public-business-manifest.json)
 is clean-certified at `4a7b399`: exact C11 passes 2,614 stage invocation cases

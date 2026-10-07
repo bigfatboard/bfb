@@ -1,0 +1,220 @@
+{
+  "package": "C11",
+  "recorded_on": "2026-10-07",
+  "tested_commit": "c4747a903a371ad485eeffee203e0f24bd58f377",
+  "production_commit": "6ebe0dc78ba088597ceec6c1bfe4743edd04296f",
+  "historical_fixture_repair_commit": "c4747a903a371ad485eeffee203e0f24bd58f377",
+  "outcome": "passed",
+  "stage": "partial_historical_attention_measurement_lineage",
+  "package_acceptance_complete": false,
+  "private_creation_available": false,
+  "migration_head": "0047_security_audit_positions",
+  "scope": "Attention-derived run, task and aggregate measurements require the exact retained workspace/project/task/run/execution/assignment-generation relationship before delivering source metadata, observation counts, latencies or blocking waits. Canonical ended history remains measurable; malformed retained rows remain stored but do not contribute to these projections.",
+  "clean_certificate_marker": "C11_ATTENTION_HISTORY_CLEAN_CERTIFICATE_OK",
+  "shared_pipeline": {
+    "exit_code": 0,
+    "tested_source_unchanged": true,
+    "final_status_empty": true,
+    "human_attention_history": "The same clean pipeline also certifies the separately owned human-attention-history slice at 801dfdf. Its cases and four D1 groups appear in shared C11 totals, not as additional measurement-lineage proof.",
+    "later_task_collections_included": false,
+    "counting": "Counts are finished command invocations, not unique tests across repeated suites, dependencies or gates. Later a150 task-collection source and its certificate are excluded."
+  },
+  "clean_commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "exit_code": 0
+    },
+    {
+      "command": "pnpm test:c11",
+      "exit_code": 0,
+      "c10_cases": 86,
+      "c10_files": 8,
+      "c10_d1_checks": 9,
+      "c08_cases": 23,
+      "c08_files": 5,
+      "c08_proof": "C08_D1_OK",
+      "stage_cases": 3004,
+      "stage_files": 121,
+      "stage_vitest_invocations": 19,
+      "stage_invocations": [
+        { "cases": 1861, "files": 64 },
+        { "cases": 4, "files": 2 },
+        { "cases": 23, "files": 2 },
+        { "cases": 18, "files": 2 },
+        { "cases": 31, "files": 2 },
+        { "cases": 34, "files": 2 },
+        { "cases": 32, "files": 2 },
+        { "cases": 36, "files": 2 },
+        { "cases": 38, "files": 2 },
+        { "cases": 87, "files": 4 },
+        { "cases": 70, "files": 6 },
+        { "cases": 99, "files": 5 },
+        { "cases": 215, "files": 9 },
+        { "cases": 68, "files": 3 },
+        { "cases": 27, "files": 2 },
+        { "cases": 54, "files": 2 },
+        { "cases": 41, "files": 3 },
+        { "cases": 31, "files": 3 },
+        { "cases": 235, "files": 4 }
+      ],
+      "stage_browser_cases": 6,
+      "stage_d1_checks": 214,
+      "stage_d1_harnesses": 18,
+      "notification_runtime": {
+        "proofs": ["C11_NOTIFICATION_IDENTITY_UPGRADE_OK", "X01_HARNESS_OK"],
+        "record_labels": 41,
+        "counting": "Setup and repeated dispatch/redaction labels are separate from the stage D1 total, not forty-one independent cases"
+      },
+      "counting": "C10/C08, six retained panel Chromium cases and the notification runtime are separate from stage Vitest invocations. Six human-detail-cache mounted cases repeat within an existing target; the measured stage total is 3,004, not a unique-case count."
+    },
+    {
+      "command": "pnpm test:a04",
+      "exit_code": 0,
+      "protocol_cases": 1154,
+      "protocol_files": 12,
+      "focused_cases": 138,
+      "focused_files": 11,
+      "node_evidence_cases": 5,
+      "chromium_cases": 3,
+      "native_proof": "A04_NATIVE_PROOF_COMPLETE",
+      "native_capture_daemon_possession_worker_hub_d1": "passed",
+      "counting": "Native milestone/snapshot labels are not added as independent test cases"
+    },
+    {
+      "command": "pnpm test:a02",
+      "exit_code": 0,
+      "protocol_cases": 1154,
+      "protocol_files": 12,
+      "focused_cases": 95,
+      "focused_files": 6,
+      "node_evidence_cases": 7,
+      "chromium_cases": 3,
+      "native_proof": "A02_NATIVE_PROOF_COMPLETE",
+      "native_capture_daemon_possession_worker_hub_d1": "passed",
+      "counting": "Native milestone/recording labels are not added as independent test cases"
+    },
+    {
+      "command": "pnpm test:x03",
+      "exit_code": 0,
+      "unit_cases": 71,
+      "unit_files": 7,
+      "worker_d1_r2_checks": 11,
+      "proof": "X03_D1_OK",
+      "browser_cases": 2,
+      "provider_started": false,
+      "persistent_pilot_changed": false,
+      "synthetic_token_protocol": true
+    },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 4788,
+      "typescript_files": 220,
+      "go": "passed",
+      "go_scheduling": "GOFLAGS=-p=1",
+      "swift": "passed",
+      "swift_cases": 16,
+      "platform_checks_skipped": false,
+      "counting": "Sixteen is the final Swift suite total; nested suite summaries are not added together"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "exit_code": 0,
+      "before_and_after_verify": true,
+      "committed_source_unchanged": true,
+      "final_status_empty": true
+    }
+  ],
+  "slice_suites": {
+    "target": "pnpm test:c11:measurement-attention",
+    "composed_once_by_c11": true,
+    "focused_cases": 99,
+    "focused_files": 5,
+    "new_domain_cases": 5,
+    "native_d1_groups": 4,
+    "native_proof": "C11_MEASUREMENT_ATTENTION_D1_OK",
+    "native_checks": [
+      "canonical_ended_history_remains_measurable_and_reads_preserve_all_tables",
+      "private_declared_tuple_cannot_borrow_a_readable_run",
+      "private_run_cannot_borrow_a_readable_task",
+      "coherent_readable_declared_tuple_cannot_borrow_a_private_assignment"
+    ],
+    "native_bounds": {
+      "maximum_bindings": 6,
+      "maximum_statement_bytes": 4116,
+      "required_binding_limit": 100,
+      "required_statement_byte_limit": 100000,
+      "instrumentation_scope": "Instrumented native measurement-read statements, not every setup/snapshot query"
+    },
+    "negative_projection_witnesses": 3,
+    "projection_dimensions": [
+      "run_body_equal",
+      "task_body_equal",
+      "observation_count_equal",
+      "waits_equal",
+      "task_by_kind_equal",
+      "aggregate_counts_equal",
+      "complete_projections_equal"
+    ],
+    "counting": "Five new domain cases plus existing controls form the ninety-nine-case target. Seven equality dimensions on each of three negative D1 witnesses are not twenty-one additional tests."
+  },
+  "old_source_probe": {
+    "production_commit": "6fb6623991c5540c27e6f2a5f71488cd844cca5f",
+    "production_runtime_unfixed": true,
+    "selected_cases": 5,
+    "selected_files": 1,
+    "failed": 4,
+    "passed": 1,
+    "expected_exit_code": 1,
+    "same_project_fixtures": true,
+    "foreign_key_checks_clean": true,
+    "stored_sources_retained": true,
+    "failure_categories": [
+      "Private attention history falsely declares a readable run and changes readable run/task projections",
+      "A private run falsely declares a readable task and changes task history/kind counts",
+      "A falsely declared readable run changes the complete aggregate cell and attention count",
+      "A coherent declared readable tuple retains a private execution/assignment and changes readable projections"
+    ],
+    "healthy_control": "Canonical ended historical attention remains measurable without source changes",
+    "full_focused_target_replayed": false,
+    "native_d1_replayed_on_old_source": false,
+    "counting": "Four failed tests, not the eleven individual soft-assertion failure blocks. The final same-project replay separates task privacy from project restrictions; no fixed production selector was copied."
+  },
+  "regression_proof": [
+    "One complete historical lineage predicate governs run attention rows and observation count, task attention/intervention rows, and aggregate attention counts",
+    "Exact execution and immutable assignment-generation parents must match the declared workspace/project/task/run; foreign-key-valid malformed history cannot borrow a readable parent",
+    "Complete readable projections, including request metadata, observation counts, latencies, blocking waits and kind/aggregate counts, are invariant after each malformed retained source is inserted",
+    "Canonical resolved history on ended executions remains measurable without requiring an active runner, latest assignment, live lease or open attention/result",
+    "Disposable D1 uses genuine Hub task/run setup; dormant privacy and historical execution/assignment rows are explicitly synthetic fixtures",
+    "Complete canonical-table snapshots and clean foreign-key checks preserve stored requests/observations and distinguish filtering from history repair",
+    "Current parent ACL/final authority checks, interval/token arithmetic, observation clocks and public sources:null remain unchanged"
+  ],
+  "historical_fixture_repair": {
+    "commit": "c4747a903a371ad485eeffee203e0f24bd58f377",
+    "affected_harnesses": ["A04", "A02"],
+    "scope": "Pre-0027 measurement and pre-0023 attention migration fixtures seed their explicit historical full task rows while privacy tables are absent, then verify exact before/after retention and foreign-key validity. Modern post-upgrade commands remain unchanged.",
+    "runtime_fallback_added": false,
+    "production_policy_relaxed": false,
+    "schema_or_clock_changed": false,
+    "capture_behavior": "Routine A02 capture uses ignored output; committed dated capture is explicit opt-in, matching the existing A04 pattern. Historical evidence is not overwritten."
+  },
+  "excluded_attempts": [
+    "The IOvaFa measurement-only clean attempt at 6ebe passed C11 but failed A04 on a modern task command against the historical pre-privacy schema. It has no complete certificate and is not acceptance.",
+    "The initial focused driver's TypeScript failure used nonexistent RunRecord.created_at; the native fixture now reads the actual runs row. That failed driver is excluded.",
+    "Earlier different-project OLD fixtures are excluded; only the final same-project five-case committed OLD replay is claimed.",
+    "A preliminary repaired A04 native drill passed its bounded assertions but its driver later invoked unsupported eslint instead of repository oxlint. That driver is excluded; the final combined exact gates passed."
+  ],
+  "proof_boundaries": [
+    "The new native harness proves direct domain measurement reads over synthetic retained attention lineage, not mounted cookie/OAuth ingress, human attention detail or current ingestion authority",
+    "Historical execution and observation timelines are fixture-only; no new provider, runner, lease, live arithmetic or credential-clock certificate is supplied by this slice",
+    "The separately certified human-attention-history slice is present in the shared clean pipeline but is not reclassified as measurement proof",
+    "Existing A04/A02 native and browser regression gates do not extend this slice to live provider/private-byte operation or a persistent pilot",
+    "No fresh standalone W03 target, later a150 browser collection selection, schema migration, deployment or external CI is claimed"
+  ],
+  "activation_barriers": [
+    "GitHub key policy, execution-owned delivery and destructive private retention remain open",
+    "Other measurement-source lineages, ingestion/mutation authority and broader temporal/lease boundaries are outside this corrective proof",
+    "Private creation, creator sharing, inherited private children and author-private checkpoints remain disabled; C11 remains in progress and C12 planned"
+  ],
+  "redaction": "Bounded counts and synthetic lineage outcomes only; raw logs, task/question bodies, credentials, local absolute paths and runtime recordings are not committed"
+}

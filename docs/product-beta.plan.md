@@ -8,22 +8,24 @@ Timo split it from remote start and agent-to-agent work on 6 October. It starts
 from the integrated `7b8620c` checkpoint, preserving the existing implementation
 and certificates. Package metadata remains the source of truth for completion.
 
-Latest local checkpoint: [task-detail panel selection](work-packages/evidence/WP-C11/detail-panels-manifest.json),
-clean-certified at `9687435` through exact C11, W03 and full verification.
-C11 passes 2,684 stage invocation cases, six panel browser cases and 206 D1
-checks across sixteen harnesses, with its notification drill separate. W03
-passes 239 unit/mounted cases and 91 shared browser cases; full verification
-passes 4,772 TypeScript cases, Go and all 16 Swift cases. Coherent snapshots,
-stale-response/mutation guards, artifact-bound draft revisions and single-flight
-actions preserve truthful task details. Current denial removes stale records and
-actions; keyboard retry and hidden-section notices remain on demand in both
-themes. Browser denial responses are synthetic presentation, not backend ACL
-proof. The earlier public business/CLI certificate remains unchanged.
-Next is historical attention-source lineage in measurements, with same-project
-private/shared fixtures and complete run/task/aggregate comparisons. It is
-being verified, not yet clean-certified. Human attention-detail historical
-lineage, GitHub policy, execution-owned consumers and destructive private
-retention remain open.
+Latest local checkpoints: [measurement attention lineage](work-packages/evidence/WP-C11/measurement-attention-manifest.json)
+and [human attention history](work-packages/evidence/WP-C11/human-attention-history-manifest.json),
+clean-certified together at `c4747a9` through exact C11, A04, A02, X03 and full
+verification. C11 passes 3,004 stage invocation cases across 121 file invocations,
+six panel browser cases and 214 D1 checks across eighteen harnesses, with its
+notification drill separate. Full verification passes 4,788 TypeScript cases,
+Go and all 16 Swift cases. Exact historical task/run/execution/assignment
+lineage fences attention-derived measurements and human history, preserving
+canonical ended, earlier-generation, resolved and empty records. Same-project
+fixtures isolate task privacy; old-schema upgrade fixtures keep their actual
+historical task shape. Production capture, arithmetic and clocks are unchanged.
+The [task-detail panel certificate](work-packages/evidence/WP-C11/detail-panels-manifest.json)
+and earlier public business/CLI certificate remain unchanged. UI details,
+drafts, retry and hidden-section notices stay on demand in both themes.
+Next is browser task child-collection selection: source `a1506cd` passes its
+78-case focused target and four native D1 groups, but its separate clean
+pipeline is still running. GitHub policy, execution-owned consumers and
+destructive private retention remain open.
 Private creation, sharing and checkpoints stay disabled; C11 is in progress,
 C12 planned, and the other mandatory product features remain unfinished.
 No rollout or pilot changed.
