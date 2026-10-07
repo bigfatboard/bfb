@@ -1,0 +1,175 @@
+{
+  "package": "C11",
+  "recorded_on": "2026-10-07",
+  "tested_commit": "96874359dcd335021028d07eacb27fe300e1da93",
+  "production_commit": "96874359dcd335021028d07eacb27fe300e1da93",
+  "outcome": "passed",
+  "stage": "partial_task_detail_panel_selection",
+  "package_acceptance_complete": false,
+  "private_creation_available": false,
+  "migration_head": "0047_security_audit_positions",
+  "scope": "Existing result, measurement and artifact-review panels bind coherent snapshots, mutations, local drafts and completion effects to their current task/API/artifact selection incarnation. Current authority-denial presentation removes delivered records/actions and keeps an explicit retry; this UI suppression does not replace backend authority.",
+  "clean_certificate_marker": "C11_DETAIL_PANELS_CLEAN_CERTIFICATE_OK",
+  "clean_commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "exit_code": 0
+    },
+    {
+      "command": "pnpm test:c11",
+      "exit_code": 0,
+      "c10_cases": 86,
+      "c10_files": 8,
+      "c10_d1_checks": 9,
+      "c08_cases": 23,
+      "c08_files": 5,
+      "c08_proof": "C08_D1_OK",
+      "stage_cases": 2684,
+      "stage_files": 107,
+      "stage_invocations": [
+        { "cases": 1861, "files": 64 },
+        { "cases": 4, "files": 2 },
+        { "cases": 23, "files": 2 },
+        { "cases": 18, "files": 2 },
+        { "cases": 31, "files": 2 },
+        { "cases": 34, "files": 2 },
+        { "cases": 32, "files": 2 },
+        { "cases": 36, "files": 2 },
+        { "cases": 32, "files": 2 },
+        { "cases": 87, "files": 4 },
+        { "cases": 70, "files": 6 },
+        { "cases": 68, "files": 3 },
+        { "cases": 27, "files": 2 },
+        { "cases": 54, "files": 2 },
+        { "cases": 41, "files": 3 },
+        { "cases": 31, "files": 3 },
+        { "cases": 235, "files": 4 }
+      ],
+      "stage_browser_cases": 6,
+      "stage_d1_checks": 206,
+      "stage_d1_harnesses": 16,
+      "notification_runtime": {
+        "proofs": ["C11_NOTIFICATION_IDENTITY_UPGRADE_OK", "X01_HARNESS_OK"],
+        "record_labels": 41,
+        "counting": "Setup and repeated dispatch/redaction labels are not independent acceptance cases"
+      },
+      "go_race": "passed",
+      "counting": "Stage totals count Vitest invocations, not unique cases; six Chromium cases, dependencies and notification runtime are separate. Detail-panel browser cases are repeated in the shared W03 gate, not six additional unique cases."
+    },
+    {
+      "command": "pnpm test:w03",
+      "exit_code": 0,
+      "unit_cases": 239,
+      "unit_files": 30,
+      "shared_browser_cases": 91,
+      "counting": "Shared browser gate includes the six detail-panel Chromium scenarios"
+    },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 4772,
+      "typescript_files": 218,
+      "go": "passed",
+      "go_scheduling": "GOFLAGS=-p=1",
+      "swift": "passed",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    {
+      "command": "pnpm worktree:check",
+      "exit_code": 0,
+      "before_and_after_verify": true,
+      "committed_source_unchanged": true,
+      "final_status_empty": true
+    }
+  ],
+  "slice_suites": {
+    "target": "pnpm test:c11:detail-panels",
+    "composed_once_by_c11": true,
+    "focused_cases": 70,
+    "focused_files": 6,
+    "new_mounted_cases": 34,
+    "initial_mounted_cases": 25,
+    "expanded_mounted_cases": 9,
+    "chromium_cases": 6,
+    "themes": ["light", "dark"],
+    "new_d1_harnesses": 0,
+    "counting": "Thirty-four new mounted cases plus existing panel/disclosure controls form the seventy-case focused target; the target is not seventy unique new tests"
+  },
+  "old_source_probe": {
+    "production_commit": "6fb6623991c5540c27e6f2a5f71488cd844cca5f",
+    "production_runtime_unfixed": true,
+    "selected_cases": 25,
+    "failed": 20,
+    "passed": 5,
+    "expanded_cases_skipped": 9,
+    "expected_exit_code": 1,
+    "failure_categories": {
+      "task_selection_reentry": 3,
+      "newest_api_incarnation": 3,
+      "partial_snapshots": 2,
+      "artifact_selection_reentry": 1,
+      "current_denial_records_and_actions": 4,
+      "stale_mutation_completion": 3,
+      "unmounted_completion_effects": 3,
+      "hidden_visited_panel_body": 1
+    },
+    "controls": {
+      "healthy_panel_records_and_actions": 3,
+      "ordinary_validation_and_transient_failure": 1,
+      "artifact_version_conflict": 1
+    },
+    "three_panel_sources_identical_through_commit": "4a7b399ac630845c296b5a437ae64356f44002d5",
+    "all_thirty_four_cases_replayed": false,
+    "status": "Independent replay copied only the current test file into committed unfixed source and selected the original twenty-five cases. No fixed panel/helper was copied. Twenty meaningful presentation failures and five controls reproduce the initial local OLD result; the nine expanded cases were deliberately skipped. Older untracked public-business probes were not run. This is not old-source clean package acceptance."
+  },
+  "expanded_regression_probe": {
+    "phase": "partially_hardened_source_before_single_flight",
+    "cases": 9,
+    "failed": 2,
+    "passed": 7,
+    "replayed_committed_old_source": false,
+    "status": "The later nine-case regression probe found two failures before the synchronous single-flight repair. Its seven passes and two failures are separate from the committed OLD twenty-five-case proof. All thirty-four mounted cases pass on tested source."
+  },
+  "regression_proof": [
+    "Committed workspace/task/API selection incarnations and newest operations prevent A-to-B-to-A re-entry, stale body/error/loading/finalizer and unmounted completion from affecting current panels",
+    "Result runs/submissions, measurements/timers and artifact list/origin/selection install only coherent snapshots; selected-artifact status clears immediately on selection change",
+    "Current 401/403/404 or not_found/forbidden/stale_authorization clears delivered records, viewer/selection and actions rather than presenting denial as an authorized empty collection",
+    "Mutation POST/body/follow-up delivery retains original scope and target; only current successful completion may reload, clear the unchanged submitted draft or invoke the parent callback",
+    "Local note revisions, including value A-to-B-to-A edits, survive in-flight success; artifact notes remain attached to their selected artifact; ordinary validation/transient/version conflicts preserve existing draft/reload behavior",
+    "Synchronous single-flight admission prevents rapid duplicate mutation POSTs before React renders pending state",
+    "A hidden visited denied panel remains hidden and exposes only its bounded label-only notice; explicit reveal/retry focus followed by Enter is tested in both themes",
+    "Existing progressive disclosure, two default task actions, inert notes, explicit viewer activation, measurement provenance and distinct result/artifact decisions remain within the W03 regression gate"
+  ],
+  "browser_proof": {
+    "cases": 6,
+    "denials": "All workspace POSTs in these scenarios, including incidental viewer grants, are intercepted synthetic presentation responses; no command mutation is admitted by this suite",
+    "healthy_reads": "Artifact/review and measurement GETs use disposable V03 server fixtures; result task state, runs and submissions are intercepted synthetic presentation",
+    "keyboard": "Retry and section-reveal controls are explicitly focused before Enter; natural Tab traversal and native popup-key navigation are not proved",
+    "screenshots": {
+      "ephemeral_captures_inspected": 2,
+      "scope": "Root inspected two test-output captures; not all captures, a broad visual audit or new design acceptance"
+    },
+    "loading": "Result and Measurements have explicit Loading text and disabled actions. Only ArtifactReview currently exposes aria-busy; no all-panel aria-busy claim."
+  },
+  "proof_boundaries": [
+    "Mounted consumer race tests use synthetic responses and presentation records; they are not backend task ACL, credential or post-Hub delivery proof",
+    "Browser denials are intercepted while healthy artifact/measurement reads remain real disposable fixture HTTP; backend authorization certificates are separate preserved evidence",
+    "No native D1 harness, schema, authority policy, business transition or execution behavior is introduced by this UI slice",
+    "The exact gate proves current selection and completion suppression, not transport arrival order as business state or automatic draft publication",
+    "The completed pipeline runs C11/W03/full verification, not a fresh standalone X03 certificate"
+  ],
+  "activation_barriers": [
+    "GitHub key policy/internal helper bypass, execution-owned private delivery, destructive private retention and artifact-byte consumers remain open",
+    "Broader temporal/lease boundaries and complete C11 delivery/sharing remain uncertified",
+    "Private creation, creator sharing, inherited private children, author-private checkpoints and C12 remain unavailable or planned"
+  ],
+  "not_claimed": [
+    "Complete C11 acceptance, new backend authority proof or activation of private work",
+    "Committed OLD replay of the nine expanded cases, all thirty-four mounted cases, focused seventy-case target or Chromium suite",
+    "Natural keyboard Tab traversal, native popup-key navigation, aria-busy on Result/Measurements or broad visual acceptance",
+    "Malformed historical measurement-source lineage, artifact-byte delivery, provider/runner operation, installed app, persistent pilot, deployment or external CI",
+    "Fresh standalone X03 acceptance, publication, canonical project knowledge, skills, vault, reminders or contribution views"
+  ],
+  "redaction": "Bounded counts and synthetic presentation outcomes only; raw logs, task bodies, credentials, local paths and ephemeral screenshots are not committed"
+}

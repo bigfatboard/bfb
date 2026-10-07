@@ -76,29 +76,41 @@ Coordinate shared contracts without changing the other lane's execution work.
 
 ## Handoff
 
-Current checkpoint: [public business delivery and CLI ceilings](evidence/WP-C11/public-business-manifest.json),
-clean-certified at `4a7b399`. Exact C11 passes 2,614 stage invocation cases and
-206 D1 checks across sixteen harnesses; its notification drill is counted
-separately. Exact X03 and full verification pass, including 4,738 TypeScript
-cases, Go and all 16 Swift cases. Typed adapters retain original transport
-ceilings at admission, staged commit, cached replay and final selection after
-the actual Hub reply/body await. CLI reads retain their exact original binding
-and captured project ceiling. The 87 focused cases and six native groups prove
-fixed source; the initial OLD probe separately records 32 failures/six controls.
-Native expression-depth and historical notification-fixture corrections were
-verified by a fresh complete pipeline; failed attempts are not acceptance.
+Current checkpoint: [task-detail panel selection](evidence/WP-C11/detail-panels-manifest.json),
+clean-certified at `9687435`. Exact C11 passes 2,684 stage invocation cases,
+six panel browser cases and 206 D1 checks across sixteen harnesses; its
+notification drill is separate. Exact W03 passes 239 unit/mounted cases and
+91 shared browser cases. Full verification passes 4,772 TypeScript cases, Go
+and all 16 Swift cases. Panels bind coherent snapshots, mutation callbacks and
+drafts to the current selection/operation. Current denials remove records,
+viewers and actions; keyboard retry preserves drafts. Artifact notes remain
+artifact-bound; rapid duplicate actions dispatch once. Hidden visited sections
+retain their label-only opt-in notice and the existing default action budget.
+The original 25-case committed OLD probe records 20 failures/five controls;
+nine later expanded cases are separate from that OLD replay. Browser denials
+are intercepted presentation responses, not server authorization proof.
 
-Next is the frozen task-detail panel selection checkpoint: coherent result,
-measurement and artifact snapshots, selection-bound mutation callbacks/drafts,
-denied-state clearing and keyboard retry in light/dark themes. Its mounted and
-Chromium tests are implementation work, not yet clean acceptance. Malformed
-historical attention lineage in measurement projections is the following
-bounded investigation. GitHub key policy, execution-owned delivery and
+Next is the frozen historical attention-source measurement checkpoint. Its
+same-project fixtures separate private-task access from project restrictions;
+full run/task/aggregate comparisons cover malformed task/run and retained
+execution/assignment history while preserving canonical ended records. Its
+focused tests and native harness are implementation work, not clean acceptance.
+Human attention-detail historical lineage remains a separate open read boundary.
+GitHub key policy, execution-owned delivery and
 destructive private retention remain open. Private creation, sharing, inherited
 private children and checkpoints stay disabled; C11 remains in progress and
 C12 planned.
 
 ### Earlier checkpoints
+
+The [public business delivery and CLI ceilings checkpoint](evidence/WP-C11/public-business-manifest.json)
+is clean-certified at `4a7b399`: exact C11 passes 2,614 stage invocation cases
+and 206 D1 checks across sixteen harnesses; X03 and full verification pass with
+4,738 TypeScript cases, Go and all 16 Swift cases. Typed adapters retain
+original transport authority through admission, staged commit, cached replay
+and final post-Hub selection; CLI readers retain their original binding/project
+ceilings. Native SQL and historical fixture corrections were certified by a
+fresh complete pipeline. Its evidence remains unchanged.
 
 The [human detail and cached business delivery checkpoint](evidence/WP-C11/human-detail-cache-manifest.json)
 is clean-certified at `61cb5ae`: exact C11 passes 2,527 stage invocation cases

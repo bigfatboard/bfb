@@ -8,21 +8,22 @@ Timo split it from remote start and agent-to-agent work on 6 October. It starts
 from the integrated `7b8620c` checkpoint, preserving the existing implementation
 and certificates. Package metadata remains the source of truth for completion.
 
-Latest local checkpoint: [public business delivery and CLI ceilings](work-packages/evidence/WP-C11/public-business-manifest.json),
-clean-certified at `4a7b399` through exact C11, X03 and full verification.
-C11 passes 2,614 stage invocation cases and 206 D1 checks across sixteen
-harnesses, with its notification drill counted separately. Full verification
-passes 4,738 TypeScript cases, Go and all 16 Swift cases. Typed public commands
-retain original transport ceilings through admission, committing, cached replay
-and final selection after the actual Hub reply/body await; CLI reads retain
-their exact binding and captured project subset. Native expression-depth and
-historical fixture failures were repaired before fresh complete certification.
-Next is coherent task-detail panel selection, stale-response/mutation guards,
-artifact-bound drafts and keyboard denied-state retry in both themes. Its UI
-tests are being verified; this is not yet a clean UI certificate. Malformed
-historical attention lineage in measurements is the following bounded
-investigation. GitHub policy, execution-owned consumers and destructive private
-retention remain barriers.
+Latest local checkpoint: [task-detail panel selection](work-packages/evidence/WP-C11/detail-panels-manifest.json),
+clean-certified at `9687435` through exact C11, W03 and full verification.
+C11 passes 2,684 stage invocation cases, six panel browser cases and 206 D1
+checks across sixteen harnesses, with its notification drill separate. W03
+passes 239 unit/mounted cases and 91 shared browser cases; full verification
+passes 4,772 TypeScript cases, Go and all 16 Swift cases. Coherent snapshots,
+stale-response/mutation guards, artifact-bound draft revisions and single-flight
+actions preserve truthful task details. Current denial removes stale records and
+actions; keyboard retry and hidden-section notices remain on demand in both
+themes. Browser denial responses are synthetic presentation, not backend ACL
+proof. The earlier public business/CLI certificate remains unchanged.
+Next is historical attention-source lineage in measurements, with same-project
+private/shared fixtures and complete run/task/aggregate comparisons. It is
+being verified, not yet clean-certified. Human attention-detail historical
+lineage, GitHub policy, execution-owned consumers and destructive private
+retention remain open.
 Private creation, sharing and checkpoints stay disabled; C11 is in progress,
 C12 planned, and the other mandatory product features remain unfinished.
 No rollout or pilot changed.
