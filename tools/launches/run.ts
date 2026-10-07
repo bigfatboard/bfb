@@ -333,6 +333,11 @@ try {
         assert.equal(row.purpose, "work");
         delete row.purpose;
       }
+    if (table === "agent_profiles" || table === "agent_profile_versions")
+      for (const row of rows) {
+        assert.equal(row.permission_mode, "manual");
+        delete row.permission_mode;
+      }
     assert.deepEqual(rows, before[index], `${table} history changed during upgrade`);
   }
   assert.deepEqual(await db.prepare("PRAGMA foreign_key_check").all(), []);
