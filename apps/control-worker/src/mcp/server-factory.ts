@@ -206,18 +206,20 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
           isError: true,
         };
       }
-      const context = await selectDelegatedAgentContext(
-        deps.db,
-        deps.delegation.workspaceId,
-        task_id,
-        task.project_id,
-        {
-          ...taskAccess,
-          clientId: deps.delegation.clientId,
-          projectBoundaryId: deps.delegation.projectId,
-        },
-        outcome.result,
-      );
+      const context = Array.isArray(outcome.result)
+        ? await selectDelegatedAgentContext(
+            deps.db,
+            deps.delegation.workspaceId,
+            task_id,
+            task.project_id,
+            {
+              ...taskAccess,
+              clientId: deps.delegation.clientId,
+              projectBoundaryId: deps.delegation.projectId,
+            },
+            outcome.result,
+          )
+        : undefined;
       if (!context) {
         return {
           content: [{ type: "text" as const, text: JSON.stringify({ error: "not_found" }) }],

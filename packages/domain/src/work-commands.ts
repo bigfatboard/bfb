@@ -1632,6 +1632,7 @@ export const deliverDelegatedAgentContextCommand: HubCommand<
     if (!authority.delegation) throw new DomainError("forbidden", "delegated authority required");
   },
   async replayResult(result, ctx, input) {
+    if (!Array.isArray(result)) throw new DomainError("not_found", "task not found");
     if (!ctx.actorHumanId || !ctx.actorDelegationId)
       throw new DomainError("not_found", "task not found");
     // Admission already ran before cache hydration; current authority belongs to the final selector.

@@ -610,6 +610,47 @@ describe("delegated context delivery", () => {
     expect(identities(await canonical(f))).toEqual(identities(original));
   });
 
+  it("robustness: a missing cached result cannot turn a retry into fresh context selection", async () => {
+    const f = await fixture(),
+      key = randomUlid();
+    success(await f.hub.execute(deliverDelegatedAgentContextCommand, request(f, key)));
+    success(
+      await f.hub.execute(addContextCommand, {
+        ...f.owner,
+        idempotencyKey: randomUlid(),
+        input: {
+          taskId: f.taskId,
+          kind: "brief",
+          audience: "agent",
+          body: `${BODY}-AFTER-MISSING-CACHE`,
+        },
+      }),
+    );
+    const row = (await f.db
+      .prepare(
+        "SELECT result_json FROM idempotency_records WHERE workspace_id=? AND idempotency_key=?",
+      )
+      .get(FIX.workspace, key)) as { result_json: string };
+    const stored = JSON.parse(row.result_json) as { result?: AgentContextItem[] };
+    delete stored.result;
+    await f.db
+      .prepare(
+        "UPDATE idempotency_records SET result_json=? WHERE workspace_id=? AND idempotency_key=?",
+      )
+      .run(JSON.stringify(stored), FIX.workspace, key);
+    const before = await effects(f);
+    const hooked = hookReads(resultStagedD1(f.db).db, "selection", key, async () => {
+      throw new Error("missing retained result reached fresh selection");
+    });
+    const outcome = await new WorkspaceHub(hooked.db).execute(
+      deliverDelegatedAgentContextCommand,
+      request(f, key),
+    );
+    expect(hooked.observed()).toBe(false);
+    expect(outcome).toEqual({ ok: false, error: { code: "not_found", message: "task not found" } });
+    expect(await effects(f)).toEqual(before);
+  });
+
   it("robustness: a retained ID with a trailing newline rejects before canonical selection", async () => {
     const f = await fixture(),
       key = randomUlid();
