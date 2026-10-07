@@ -1490,6 +1490,34 @@ Agent upload grants/replies, operations step-up proofs, runner/lease expiry,
 destructive retention and the wider temporal matrix remain separately owned.
 This contract does not certify its implementation or complete C11 acceptance.
 
+### Artifact receipt D1 expression boundary
+
+The human-grant expiry regression run exposed an existing native agent receipt
+batch failure: D1 rejects the composed current-authority CHECK with `Expression
+tree is too large`. It reproduces on the unchanged pre-expiry source. This
+bounded repair changes only receipt SQL composition, not agent upload authority
+or execution behavior.
+
+- Retain the exact grant/consume-attempt identity, matching consumed timestamp,
+  canonical artifact/version association and agent-origin grant condition.
+  Retain the prepared current-authority witness and every bound value unchanged.
+- Evaluate the agent-origin source check and the complete authority witness as
+  sibling scalar conditions of the same receipt CHECK, rather than nesting the
+  witness inside the source-count WHERE. Both must pass. Keep the human branch
+  unchanged, including its current parent/epoch/role predicate.
+- All registry, receipt, immutable winning source, audit and CHECK statements
+  remain in one D1 batch. A false or missing source/witness aborts the entire
+  receipt batch. No extra grant, clock policy, schema, provider or runner helper
+  is introduced; physically written R2 objects are not rolled back or deleted.
+- The retained exact `pnpm test:v01` native compiled publication regression must
+  pass with production D1/R2 and unmodified native helpers. Retain domain agent
+  authority/recovery tests, the C11 artifact matrix and full repository checks.
+  The failed old-source replay and test-only bounded error diagnosis are separate
+  from acceptance; temporary diagnostic headers/wrappers must not be committed.
+
+This is a receipt execution-limit repair, not agent natural-expiry, response
+delivery, remote-start, live-provider or private-activation certification.
+
 ## Delivery inventory and required proof
 
 | Surface | Existing owner / entry points | C11 completion check |

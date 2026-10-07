@@ -601,3 +601,57 @@ describe("agent upload consumption authority", () => {
     },
   );
 });
+
+describe("agent verified receipt authority", () => {
+  it("commits the exact consumed source and current witness in one staged receipt batch", async () => {
+    const f = await resultFixture(undefined, false),
+      input = request(f),
+      staged = resultStagedD1(f.db);
+    const prepared = await verified(f, input, f.hub, staged.db);
+    expect(await f.db.prepare("SELECT * FROM artifact_objects").all()).toHaveLength(1);
+    expect(await f.db.prepare("SELECT * FROM artifact_upload_receipts").all()).toHaveLength(1);
+    expect(await f.db.prepare("SELECT * FROM artifact_upload_receipt_sources").all()).toHaveLength(
+      1,
+    );
+    expect(
+      await f.db
+        .prepare("SELECT * FROM artifact_audit_outbox WHERE action='artifact.upload_verified'")
+        .all(),
+    ).toHaveLength(1);
+    expect(await f.db.prepare("SELECT * FROM artifact_mutation_guards").all()).toEqual([]);
+    expect(success(await finalize(f, input)).version_id).toBe(prepared.version_id);
+  });
+
+  it.each([...closures, ...commitChanges])(
+    "retains consumption but rolls back every receipt effect when %s changes before batch",
+    async (kind) => {
+      const f = await resultFixture(undefined, false),
+        input = request(f),
+        issued = prepare(f, input),
+        prepared = success(await issued.outcome);
+      const consumed = await f.db.withTransaction((tx) =>
+        redeemUploadGrant(tx, {
+          grantId: prepared.upload!.grant_id,
+          secret: issued.secret,
+          now: LAUNCH_NOW,
+        }),
+      );
+      const before = await rows(f.db),
+        staged = resultStagedD1(f.db, () => close(f, kind));
+      await expect(
+        staged.db.withTransaction((tx) =>
+          recordVerifiedUpload(tx, {
+            grantId: consumed.grantId,
+            consumeAttemptId: consumed.consumeAttemptId,
+            contentHash: input.expected_digest,
+            size: input.declared_size,
+            now: LAUNCH_NOW,
+          }),
+        ),
+      ).rejects.toThrow();
+      expect(await rows(f.db)).toEqual(before);
+      expect(await f.db.prepare("SELECT * FROM artifact_mutation_guards").all()).toEqual([]);
+      expect(await f.db.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+    },
+  );
+});

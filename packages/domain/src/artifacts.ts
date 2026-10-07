@@ -1216,7 +1216,7 @@ export async function recordVerifiedUpload(
   } else {
     const agent = await agentUploadAuthority(db, source, input.grantId, authorityObservedAt);
     authority = {
-      predicate: `g.human_id IS NULL AND (${agent.witness.predicate})`,
+      predicate: agent.witness.predicate,
       params: agent.witness.params,
     };
   }
@@ -1343,16 +1343,19 @@ export async function recordVerifiedUpload(
   // D1 limits SQL expression depth. Keep the retained-byte proof and current
   // authority proof as separate CHECK guards in this same atomic batch; either
   // failure still rolls back every registry, receipt, source and audit effect.
-  await db
-    .prepare(
-      `INSERT INTO artifact_mutation_guards (id,valid) VALUES (?,
-    (SELECT COUNT(*)=1 FROM artifact_upload_grants AS g
+  const receiptSourceSql = `SELECT COUNT(*)=1 FROM artifact_upload_grants AS g
      JOIN artifact_upload_consumptions AS c ON c.workspace_id=g.workspace_id AND c.grant_id=g.id
      JOIN artifact_versions AS v ON v.workspace_id=g.workspace_id AND v.id=g.version_id
      JOIN artifacts AS a ON a.workspace_id=v.workspace_id AND a.id=v.artifact_id
-     WHERE g.id=? AND c.attempt_id=? AND g.consumed_at IS NOT NULL AND c.consumed_at=g.consumed_at
-       AND (${authority.predicate})))`,
-    )
+     WHERE g.id=? AND c.attempt_id=? AND g.consumed_at IS NOT NULL AND c.consumed_at=g.consumed_at`;
+  // The complete agent witness also exceeds D1 expression depth when nested
+  // inside this count's WHERE. Sibling scalar checks retain the same authority
+  // and exact source in one CHECK; a false or NULL witness aborts the batch.
+  const receiptAuthoritySql = source.human_id
+    ? `(${receiptSourceSql} AND (${authority.predicate}))`
+    : `(${receiptSourceSql} AND g.human_id IS NULL) AND (${authority.predicate})`;
+  await db
+    .prepare(`INSERT INTO artifact_mutation_guards (id,valid) VALUES (?,${receiptAuthoritySql})`)
     .run(guardId, input.grantId, input.consumeAttemptId, ...authority.params);
   await db.prepare(`DELETE FROM artifact_mutation_guards WHERE id=?`).run(guardId);
   return {
