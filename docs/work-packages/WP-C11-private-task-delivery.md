@@ -246,3 +246,18 @@ queries at 18 bindings and 33,807 SQL bytes and closes position v1 without
 rewriting audit history. Current board UI workspace-selection races are next.
 GitHub key policy, execution-owned delivery, destructive private retention and
 natural expiry remain barriers; no private activation or complete C11 is implied.
+
+The [browser board selection checkpoint](evidence/WP-C11/browser-board-manifest.json)
+is clean-certified at `320b23a`: exact W03 passes 205 unit and 85 shared browser
+cases; C11 passes 2,317 stage invocation cases and 79 D1 checks across eight
+harnesses, with the separate notification runtime. Full verification passes
+4,441 TypeScript cases, Go and all 16 Swift cases. Board, profiles and role share
+the current human, selection incarnation and newest request. Old body/error/
+finalizer and creation callbacks cannot restore previous workspace content;
+current failures clear stale authority and retain one keyboard-operable retry.
+Light/dark themes and the two default task actions are unchanged. The browser
+secondary workspace is intercepted synthetic presentation, not server authority
+proof, and native popup-key navigation remains uncertified. GitHub key policy,
+execution-owned consumers, destructive private retention and natural expiry
+remain barriers. Private creation/sharing/checkpoints stay disabled; C11 remains
+in progress and C12 planned.

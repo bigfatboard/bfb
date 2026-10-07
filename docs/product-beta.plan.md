@@ -279,3 +279,17 @@ unresolved; live private R2 byte delivery remains uncertified. C12 stays planned
   Private creation/sharing/checkpoints remain disabled; C11 is in progress,
   C12 planned, and the other mandatory product features remain unfinished.
   No deployment or live-pilot/provider operation changed.
+  The [browser board selection checkpoint](work-packages/evidence/WP-C11/browser-board-manifest.json)
+  is clean-certified at `320b23a`: W03 passes 205 unit and 85 shared browser
+  cases, C11 passes 2,317 stage invocation cases and 79 D1 checks across eight
+  harnesses plus the separate notification runtime. Full verification passes
+  4,441 TypeScript cases, Go and all 16 Swift cases. Current selection and newest
+  request guards suppress old boards, profiles, roles and callbacks; failed
+  reads clear stale content and keep one keyboard-operable retry. Impeccable
+  distill guidance preserves on-demand details, existing themes and two default
+  task actions. Synthetic browser interception is not cross-workspace server
+  authority or native popup-key proof. GitHub, execution-owned delivery,
+  destructive private retention and natural expiry still gate activation.
+  Private creation/sharing/checkpoints remain disabled; C11 stays in progress,
+  C12 planned, and the other mandatory product features remain unfinished.
+  No deployment or live-pilot/provider operation changed.
