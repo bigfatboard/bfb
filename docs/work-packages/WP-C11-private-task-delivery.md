@@ -261,3 +261,14 @@ proof, and native popup-key navigation remains uncertified. GitHub key policy,
 execution-owned consumers, destructive private retention and natural expiry
 remain barriers. Private creation/sharing/checkpoints stay disabled; C11 remains
 in progress and C12 planned.
+
+The [delegated-result expiry checkpoint](evidence/WP-C11/result-expiry-manifest.json)
+is clean-certified at `6df0fce`. An additional atomic database-clock guard
+rejects unchanged credentials that naturally expire before batch execution,
+while delayed live controls retain observation timestamps. Exact C11, X03 and
+full repository/platform verification pass. This closes only the delegated-
+result temporal guard statement, not later statements, response delivery,
+other commands or runner/lease expiry. GitHub key policy, execution-owned
+delivery, destructive private retention and other expiry boundaries remain
+open. Private creation/sharing/checkpoints remain disabled; C11 stays in
+progress and C12 planned.

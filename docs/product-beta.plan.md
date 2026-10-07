@@ -279,6 +279,7 @@ unresolved; live private R2 byte delivery remains uncertified. C12 stays planned
   Private creation/sharing/checkpoints remain disabled; C11 is in progress,
   C12 planned, and the other mandatory product features remain unfinished.
   No deployment or live-pilot/provider operation changed.
+
   The [browser board selection checkpoint](work-packages/evidence/WP-C11/browser-board-manifest.json)
   is clean-certified at `320b23a`: W03 passes 205 unit and 85 shared browser
   cases, C11 passes 2,317 stage invocation cases and 79 D1 checks across eight
@@ -293,3 +294,12 @@ unresolved; live private R2 byte delivery remains uncertified. C12 stays planned
   Private creation/sharing/checkpoints remain disabled; C11 stays in progress,
   C12 planned, and the other mandatory product features remain unfinished.
   No deployment or live-pilot/provider operation changed.
+  The [delegated-result expiry checkpoint](work-packages/evidence/WP-C11/result-expiry-manifest.json)
+  is clean-certified at `6df0fce` through exact C11, X03 and full verification.
+  Database-clock expiry is now checked atomically at the delegated-result guard;
+  delayed live controls preserve observation history. This is not certification
+  of other commands, later statements, response delivery or runner/lease expiry.
+  GitHub key policy, execution-owned delivery, destructive private retention and
+  other expiry boundaries still gate activation. Private creation/sharing/
+  checkpoints remain disabled; C11 stays in progress and C12 planned. The other
+  mandatory product features remain unfinished. No rollout or pilot changed.
