@@ -651,6 +651,43 @@ coordination delivery or private creation.
   D1 single-selection proof. Repair the existing discussion test's vacuous
   `card.id` lookup to use `taskId`. Preserve stored history and prior evidence.
 
+### Frozen browser board selection
+
+This corrective C11 slice binds already-authorized board delivery to the
+currently selected browser scope. Server authorization and the canonical
+board/deck contract above remain unchanged; UI suppression is not a new ACL.
+
+- Treat the board, profiles and role as one human/workspace-bound presentation
+  snapshot. A mismatched snapshot is unavailable immediately, before a new
+  response arrives. Do not carry old cards, profiles, role-dependent controls,
+  task selection or an open composer into another workspace or human context.
+  A successful board response must identify the captured human before the
+  snapshot is installed; a session changed elsewhere cannot relabel its content
+  as the previously selected human.
+- Every read belongs to a committed selection incarnation and a latest request.
+  Fence entry as well as HTTP/body awaits, success, errors and final loading
+  updates. An old callback cannot start an old-scope read after a new selection,
+  become its newest request or select its committed task in that new scope.
+- Returning through A to B to A does not revive the first A request. Concurrent
+  reads in one scope retain the newest selection; old HTTP/network failures and
+  finalizers cannot replace newer success, error or loading state.
+- A current HTTP, network or body failure removes the previous board, profiles
+  and role-dependent controls. Account copy reports unavailable role rather
+  than substituting cached membership authority. Keep one discoverable retry;
+  genuine current callbacks can still refresh and select committed work.
+- Workspace changes through the picker or browser history reset selected task
+  and composer state. Same-workspace disclosure and navigation preserve their
+  existing behavior. Unmounted shells have no completion effects.
+- Keep the W03 themes, named disclosures and two default task commands. No
+  mutation, launch, provider turn, privacy activation or extra default action
+  occurs because a snapshot is hidden, selected, loaded or retried.
+- Prove deferred success/body/error/finalizer and old-callback cases through the
+  mounted shell with healthy and current-creation controls. Re-authentication
+  induced by a public fetch-prop change is labelled a test trigger, not a
+  production refresh action. Browser checks cover actual rendered suppression,
+  current role, selector focus and keyboard retry without live operation. Native
+  popup key presses are not certified by the headless option-selection driver.
+
 ### Frozen human coordination-history delivery
 
 This bounded slice owns human product readers only. It does not implement

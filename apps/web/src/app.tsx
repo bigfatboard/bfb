@@ -1,7 +1,7 @@
 // ABOUTME: Authenticated W01 shell with URL-resolved workspaces and role-aware Work navigation.
 // ABOUTME: Keeps attention, project lanes, task detail, and honest unavailable routes in one app.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import type { AttentionDeckItem, ProjectLane } from "@bfb/domain";
 
@@ -42,6 +42,17 @@ interface BoardResponse {
   lanes: ProjectLane[];
   needs_now: AttentionDeckItem[];
   agent_work_available: boolean;
+}
+
+interface BoardSelection {
+  humanId: string | null;
+  workspaceId: string | null;
+}
+
+interface BoardSnapshot {
+  selection: BoardSelection;
+  board: BoardResponse;
+  agentProfiles: AgentProfileSummary[];
 }
 
 type AppView = "work" | "attention" | "latest" | "load" | "runners" | "settings" | "operations";
@@ -148,8 +159,7 @@ export function AppShell(props: AppShellProps = {}) {
   );
   const [human, setHuman] = useState<SessionHuman | null>(null);
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([]);
-  const [board, setBoard] = useState<BoardResponse | null>(null);
-  const [agentProfiles, setAgentProfiles] = useState<AgentProfileSummary[]>([]);
+  const [boardSnapshot, setBoardSnapshot] = useState<BoardSnapshot | null>(null);
   const [csrfToken, setCsrfToken] = useState("");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [showComposer, setShowComposer] = useState(false);
@@ -163,8 +173,38 @@ export function AppShell(props: AppShellProps = {}) {
     () => workspaces.find((item) => item.slug === route.workspaceSlug) ?? null,
     [route.workspaceSlug, workspaces],
   );
+  const selection = useMemo<BoardSelection>(
+    () => ({ humanId: human?.id ?? null, workspaceId: workspace?.id ?? null }),
+    [human?.id, workspace?.id],
+  );
+  const currentSelection = useRef(selection);
+  const boardRequest = useRef(0);
+  const mounted = useRef(false);
+  const currentSnapshot = boardSnapshot?.selection === selection ? boardSnapshot : null;
+  const board = currentSnapshot?.board ?? null;
+  const agentProfiles = currentSnapshot?.agentProfiles ?? [];
   const workspaceUnavailable = Boolean(route.workspaceSlug && workspaces.length > 0 && !workspace);
   const canManageTasks = board?.role === "owner" || board?.role === "member";
+
+  useLayoutEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      boardRequest.current += 1;
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    if (currentSelection.current === selection) return;
+    currentSelection.current = selection;
+    boardRequest.current += 1;
+    setBoardSnapshot(null);
+    setSelectedTaskId(null);
+    setShowComposer(false);
+    setBoardLoading(false);
+    setError(null);
+    setOffline(false);
+  }, [selection]);
 
   useEffect(() => {
     if (props.initialPath || typeof window === "undefined") {
@@ -229,44 +269,60 @@ export function AppShell(props: AppShellProps = {}) {
   }, [fetchFn]);
 
   const reloadBoard = useCallback(async () => {
-    if (!human || !workspace) {
-      setBoard(null);
-      setAgentProfiles([]);
+    if (!mounted.current || currentSelection.current !== selection) return;
+    const request = ++boardRequest.current;
+    const isCurrent = () =>
+      mounted.current && currentSelection.current === selection && boardRequest.current === request;
+    if (!selection.humanId || !selection.workspaceId) {
+      setBoardSnapshot(null);
+      setBoardLoading(false);
       return;
     }
     setBoardLoading(true);
+    setError(null);
+    setOffline(false);
     try {
       const [boardResponse, profilesResponse] = await Promise.all([
-        fetchFn(`/api/v1/workspaces/${workspace.id}/board`),
-        fetchFn(`/api/v1/workspaces/${workspace.id}/agent-profiles?limit=100`),
+        fetchFn(`/api/v1/workspaces/${selection.workspaceId}/board`),
+        fetchFn(`/api/v1/workspaces/${selection.workspaceId}/agent-profiles?limit=100`),
       ]);
+      if (!isCurrent()) return;
       if (!boardResponse.ok || !profilesResponse.ok) {
         const status = boardResponse.ok ? profilesResponse.status : boardResponse.status;
         setError(
           status === 403 || status === 404 ? "Workspace not available." : "Board failed to load.",
         );
-        setBoard(null);
+        setBoardSnapshot(null);
         return;
       }
       const profileBody = (await profilesResponse.json()) as {
         profiles: AgentProfileSummary[];
       };
-      setBoard((await boardResponse.json()) as BoardResponse);
-      setAgentProfiles(profileBody.profiles);
+      if (!isCurrent()) return;
+      const boardBody = (await boardResponse.json()) as BoardResponse;
+      if (!isCurrent()) return;
+      if (boardBody.human?.id !== selection.humanId) {
+        setBoardSnapshot(null);
+        setError("Workspace not available.");
+        return;
+      }
+      setBoardSnapshot({ selection, board: boardBody, agentProfiles: profileBody.profiles });
       setError(null);
       setOffline(false);
     } catch {
+      if (!isCurrent()) return;
+      setBoardSnapshot(null);
       setOffline(true);
       setError("Board is offline. No cached state is presented as current.");
     } finally {
-      setBoardLoading(false);
+      if (isCurrent()) setBoardLoading(false);
     }
-  }, [fetchFn, human, workspace]);
+  }, [fetchFn, selection]);
 
   useEffect(() => {
     if (route.workspaceSlug && workspaces.length > 0 && !workspace) {
       setError("Workspace not available.");
-      setBoard(null);
+      setBoardSnapshot(null);
       return;
     }
     void reloadBoard();
@@ -312,7 +368,7 @@ export function AppShell(props: AppShellProps = {}) {
     }
     setHuman(null);
     setWorkspaces([]);
-    setBoard(null);
+    setBoardSnapshot(null);
     navigate("/");
   }
 
@@ -455,7 +511,7 @@ export function AppShell(props: AppShellProps = {}) {
             label={<strong data-testid="current-human">{human.display_name}</strong>}
           >
             <p className="account-role" data-testid="current-role">
-              {board?.role ?? workspace?.role ?? "member"}
+              {board?.role ?? "Role unavailable"}
             </p>
             <label className="theme-picker">
               <span>Appearance</span>
@@ -595,6 +651,7 @@ export function AppShell(props: AppShellProps = {}) {
               csrfToken={csrfToken}
               onCancel={() => setShowComposer(false)}
               onCreated={(taskId) => {
+                if (!mounted.current || currentSelection.current !== selection) return;
                 setShowComposer(false);
                 setSelectedTaskId(taskId);
                 void reloadBoard();
