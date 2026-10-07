@@ -4,7 +4,7 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
 
-import { FIX, seedSyntheticWorkspace, WorkspaceHub } from "@bfb/domain";
+import { FIX, randomUlid, seedSyntheticWorkspace, WorkspaceHub } from "@bfb/domain";
 import { createProjectCommand } from "@bfb/domain";
 import { issueStepUpProof } from "@bfb/domain";
 
@@ -236,6 +236,30 @@ async function createGitHubProject(context: AuthTestContext): Promise<string> {
     throw new Error(`project setup failed: ${JSON.stringify(outcome)}`);
   }
   return outcome.result.id;
+}
+
+async function historicalRunnerEvidence(context: AuthTestContext, projectId: string, sha: string) {
+  // Explicit synthetic pre-hold observation: useful read setup is not a manual-link bypass.
+  await context.db
+    .prepare(
+      `INSERT INTO github_evidence
+       (workspace_id,id,project_id,task_id,repository_id,kind,ref,version_token,state_json,observed_by,observed_at,resource_version)
+       VALUES (?,?,?,NULL,?,'commit',?,?,'{}','runner',?,1)`,
+    )
+    .run(FIX.workspace, randomUlid(), projectId, REPOSITORY, sha, sha, NOW);
+}
+
+function canonicalSnapshot(context: AuthTestContext) {
+  const tables = context.raw
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+    .all() as Array<{ name: string }>;
+  const snapshot: Record<string, unknown[]> = {};
+  for (const { name } of tables) {
+    if (["sqlite_sequence", "d1_migrations", "rate_limit_buckets"].includes(name)) continue;
+    expect(name).toMatch(/^[A-Za-z_][A-Za-z0-9_]*$/u);
+    snapshot[name] = context.raw.prepare(`SELECT * FROM "${name}" ORDER BY rowid`).all();
+  }
+  return snapshot;
 }
 
 describe("X04 github webhook route", () => {
@@ -507,8 +531,8 @@ describe("X04 github management routes", () => {
     );
     expect(reviewerStatus.status).toBe(403);
 
-    // Evidence links are role-gated (no step-up): a member links a
-    // runner-observed commit while a reviewer is rejected.
+    // Valid manual links are held without changing business history; Reviewer admission remains.
+    const beforeManualLink = canonicalSnapshot(context);
     const evidence = await post("/evidence/links", member.cookie, memberCsrf, {
       request_id: "github-route-evidence-1",
       project_id: projectId,
@@ -518,7 +542,12 @@ describe("X04 github management routes", () => {
       version_token: "a".repeat(40),
       observed_by: "runner",
     });
-    expect(evidence.status, await evidence.clone().text()).toBe(200);
+    expect(evidence.status).toBe(409);
+    expect(evidence.headers.get("cache-control")).toBe("no-store");
+    expect(await evidence.json()).toEqual({
+      error: "request_rejected",
+      message: "manual GitHub evidence linking is unavailable",
+    });
     const reviewerCsrf = await csrf(app, currentBindings, reviewer.cookie);
     const reviewerLink = await post("/evidence/links", reviewer.cookie, reviewerCsrf, {
       request_id: "github-route-evidence-2",
@@ -530,11 +559,24 @@ describe("X04 github management routes", () => {
       observed_by: "runner",
     });
     expect(reviewerLink.status).toBe(403);
+    expect(canonicalSnapshot(context)).toEqual(beforeManualLink);
+    expect(context.raw.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
 
+    await historicalRunnerEvidence(context, projectId, "a".repeat(40));
     const verified = await post("/evidence/verification", member.cookie, memberCsrf, {
       refs: [{ kind: "github", ref: `github:${REPOSITORY}:commit:${"a".repeat(40)}` }],
     });
     expect(verified.status).toBe(200);
+    expect(await verified.json()).toEqual({
+      ok: true,
+      statuses: [
+        {
+          kind: "github",
+          ref: `github:${REPOSITORY}:commit:${"a".repeat(40)}`,
+          provenance: "runner_observed",
+        },
+      ],
+    });
 
     // Remove revokes behind step-up; a second remove fails.
     const removeProof = await proofFor(
@@ -579,25 +621,15 @@ describe("X04 github verification project scoping", () => {
     const post = (path: string, cookie: string, csrfToken: string, value: unknown) =>
       send(mutation(`${base}${path}`, cookie, csrfToken, value));
 
-    // The reviewer fixture holds a grant only to projectA; the member links
-    // one runner-observed commit per project.
+    // The Reviewer holds a grant only to projectA; retained synthetic history exists in both projects.
     const shaA = "a".repeat(40);
     const shaB = "b".repeat(40);
-    const links: Array<[number, string, string]> = [
-      [1, FIX.projectA, shaA],
-      [2, FIX.projectB, shaB],
+    const history: Array<[string, string]> = [
+      [FIX.projectA, shaA],
+      [FIX.projectB, shaB],
     ];
-    for (const [index, projectId, sha] of links) {
-      const linked = await post("/evidence/links", member.cookie, memberCsrf, {
-        request_id: `github-verify-scope-link-${index}`,
-        project_id: projectId,
-        repository_id: REPOSITORY,
-        kind: "commit",
-        ref: sha,
-        version_token: sha,
-        observed_by: "runner",
-      });
-      expect(linked.status, await linked.clone().text()).toBe(200);
+    for (const [projectId, sha] of history) {
+      await historicalRunnerEvidence(context, projectId, sha);
     }
     const refs = [
       { kind: "github", ref: `github:${REPOSITORY}:commit:${shaA}` },

@@ -860,7 +860,7 @@ async function main(): Promise<void> {
       pass("F11-revocation");
     }
 
-    // F12: issues never move tasks; provenance separates runner from github.
+    // F12: manual links are held; retained history and genuine webhook provenance remain useful.
     {
       const created = await browser("POST", `/api/v1/workspaces/${FIX.workspace}/tasks`, OWNER, {
         project_id: projectId,
@@ -870,7 +870,45 @@ async function main(): Promise<void> {
       });
       assert.equal(created.status, 200);
       const taskId = (created.body as { result: { id: string } }).result.id;
-      const linked = await browser("POST", `${base}/evidence/links`, MEMBER, {
+      const historicalEvidenceId = randomUlid();
+      // Explicit synthetic retained history replaces former manual-success setup.
+      // It is not a business command bypass or a new runner observation.
+      await db
+        .prepare(
+          `INSERT INTO github_evidence
+           (workspace_id,id,project_id,task_id,repository_id,kind,ref,version_token,
+            state_json,observed_by,observed_at,resource_version)
+           VALUES (?,?,?,?,'87654321','issue','9','open',?,'runner',?,1)`,
+        )
+        .run(
+          FIX.workspace,
+          historicalEvidenceId,
+          projectId,
+          taskId,
+          JSON.stringify({ note: "runner claim" }),
+          FIXTURE_NOW,
+        );
+      const manualEffectTables = [
+        "github_evidence",
+        "tasks",
+        "semantic_events",
+        "audit_events",
+        "outbox_records",
+        "idempotency_records",
+        "workspace_cursors",
+        "runner_mutation_guards",
+      ];
+      const manualEffects = async () =>
+        Object.fromEntries(
+          await Promise.all(
+            manualEffectTables.map(async (table) => [
+              table,
+              await db.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all(),
+            ]),
+          ),
+        );
+      const beforeManual = await manualEffects();
+      const manualInput = {
         request_id: "x04-e2e-evidence-runner",
         project_id: projectId,
         task_id: taskId,
@@ -880,8 +918,31 @@ async function main(): Promise<void> {
         version_token: "open",
         observed_by: "runner",
         state: { note: "runner claim" },
-      });
-      assert.equal(linked.status, 200);
+      };
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const held = await browser("POST", `${base}/evidence/links`, MEMBER, manualInput);
+        assert.equal(held.status, 409);
+        assert.deepEqual(held.body, {
+          error: "request_rejected",
+          message: "manual GitHub evidence linking is unavailable",
+        });
+      }
+      // HTTP budgets retain their normal effects; source/task and Hub bookkeeping do not.
+      assert.deepEqual(await manualEffects(), beforeManual);
+      const history = await browser(
+        "GET",
+        `${base}/evidence?project_id=${projectId}&task_id=${taskId}`,
+        MEMBER,
+      );
+      assert.equal(history.status, 200);
+      const retainedHistory = (history.body as { evidence: Array<Record<string, unknown>> })
+        .evidence;
+      assert.equal(retainedHistory.length, 1);
+      assert.equal(retainedHistory[0]?.id, historicalEvidenceId);
+      assert.equal(retainedHistory[0]?.task_id, taskId);
+      assert.equal(retainedHistory[0]?.observed_by, "runner");
+      assert.equal(retainedHistory[0]?.observed_at, FIXTURE_NOW);
+      assert.deepEqual(retainedHistory[0]?.state, { note: "runner claim" });
       const before = await browser("POST", `${base}/evidence/verification`, MEMBER, {
         refs: [{ kind: "github", ref: "github:87654321:issue:9" }],
       });
@@ -957,13 +1018,20 @@ async function main(): Promise<void> {
       assert.deepEqual((after.body as { statuses: unknown }).statuses, [
         { kind: "github", ref: "github:87654321:issue:9", provenance: "github_verified" },
       ]);
+      const retainedAfter = await browser(
+        "GET",
+        `${base}/evidence?project_id=${projectId}&task_id=${taskId}`,
+        MEMBER,
+      );
+      assert.equal(retainedAfter.status, 200);
+      assert.deepEqual((retainedAfter.body as { evidence: unknown[] }).evidence, retainedHistory);
       const task = (await db
         .prepare(`SELECT state FROM tasks WHERE workspace_id = ? AND id = ?`)
         .get(FIX.workspace, taskId)) as { state: string };
       assert.equal(task.state, "ready");
       note(
         "F12",
-        "issue events link evidence only; task stays canonical; provenance upgrades on github match",
+        "manual links held without source/receipt effects; synthetic runner history retained; genuine issue reconciliation verifies provenance without moving tasks",
       );
       pass("F12-provenance");
     }

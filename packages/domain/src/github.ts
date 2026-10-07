@@ -1674,6 +1674,43 @@ async function requireSharedEvidenceTask(ctx: HubContext, taskId: string, projec
     fail("invalid_argument", "task does not belong to the project");
 }
 
+function validateEvidenceLink(input: LinkGitHubEvidenceInput) {
+  if (input.taskId !== undefined && !isUlid(input.taskId))
+    fail("invalid_argument", "task id is invalid");
+  const repositoryId = numericId(input.repositoryId, "repository id");
+  if (!["issue", "branch", "commit", "pull_request", "check", "deployment"].includes(input.kind))
+    fail("invalid_argument", "evidence kind is invalid");
+  const ref = boundedText(input.ref, "evidence ref", 512);
+  const versionToken = boundedText(input.versionToken, "evidence version", 128);
+  if (input.observedBy !== "runner" && input.observedBy !== "human")
+    fail("invalid_argument", "evidence observer is invalid");
+  const state =
+    input.state === undefined
+      ? {}
+      : closedObject(input.state, Object.keys(input.state ?? {}), "evidence state");
+  for (const [key, value] of Object.entries(state)) {
+    if (value !== null && typeof value !== "string")
+      fail("invalid_argument", `evidence state ${key} is invalid`);
+    if (
+      typeof value === "string" &&
+      (value.length > 512 ||
+        [...value].some((c) => {
+          const code = c.codePointAt(0) ?? 0;
+          return code <= 0x1f || code === 0x7f;
+        }))
+    )
+      fail("invalid_argument", `evidence state ${key} is invalid`);
+  }
+  const stateJson = JSON.stringify(state);
+  if (stateJson.length > 2048) fail("invalid_argument", "github evidence exceeds its bounds");
+  return { repositoryId, ref, versionToken, state, stateJson };
+}
+
+/** Availability is independent of task/evidence presence and retained Hub results. */
+function holdManualEvidenceLink(): void {
+  fail("request_rejected", "manual GitHub evidence linking is unavailable");
+}
+
 async function authorizeEvidenceLink(input: LinkGitHubEvidenceInput, ctx: HubContext) {
   closedObject(
     input,
@@ -1687,25 +1724,7 @@ async function authorizeEvidenceLink(input: LinkGitHubEvidenceInput, ctx: HubCon
   assertRole(principal, ["owner", "member"]);
   if (!isUlid(input.projectId)) fail("invalid_argument", "project id is invalid");
   assertProjectAccess(principal, input.projectId);
-  if (input.taskId !== undefined)
-    await requireSharedEvidenceTask(ctx, input.taskId, input.projectId);
-  const prior = (await ctx.db
-    .prepare(
-      `SELECT project_id, task_id FROM github_evidence
-    WHERE workspace_id = ? AND repository_id = ? AND kind = ? AND ref = ? AND observed_by = ?`,
-    )
-    .get(
-      ctx.workspaceId,
-      numericId(input.repositoryId, "repository id"),
-      input.kind,
-      boundedText(input.ref, "evidence ref", 512),
-      input.observedBy,
-    )) as { project_id: string; task_id: string | null } | undefined;
-  if (prior) {
-    if (prior.project_id !== input.projectId) fail("not_found", "task not found");
-    if (prior.task_id !== null)
-      await requireSharedEvidenceTask(ctx, prior.task_id, prior.project_id);
-  }
+  validateEvidenceLink(input);
   return principal;
 }
 
@@ -1722,15 +1741,16 @@ function evidenceReceipt(row: GitHubEvidenceRecord) {
 }
 
 /**
- * Links issue/branch/commit/PR/check/deployment evidence to BFB work. The
- * `github` observer is reserved for webhook reconcile; human and runner
- * callers record their own provenance, and task state is never touched.
+ * Holds manual linking before source/cache selection. Historical observations
+ * retain their provenance; the separate webhook reconciliation path remains
+ * available and never derives task completion from GitHub evidence.
  */
 export const linkGitHubEvidenceCommand: HubCommand<LinkGitHubEvidenceInput, GitHubEvidenceRecord> =
   {
     name: "github.evidence.link",
     async authorize(input, ctx) {
       await authorizeEvidenceLink(input, ctx);
+      holdManualEvidenceLink();
     },
     inputFingerprint: (input) =>
       createHash("sha256")
@@ -1766,37 +1786,9 @@ export const linkGitHubEvidenceCommand: HubCommand<LinkGitHubEvidenceInput, GitH
     },
     async run(input, ctx) {
       const principal = await authorizeEvidenceLink(input, ctx);
+      holdManualEvidenceLink();
       const taskId = input.taskId ?? null;
-      const repositoryId = numericId(input.repositoryId, "repository id");
-      if (
-        !["issue", "branch", "commit", "pull_request", "check", "deployment"].includes(input.kind)
-      ) {
-        fail("invalid_argument", "evidence kind is invalid");
-      }
-      const ref = boundedText(input.ref, "evidence ref", 512);
-      const versionToken = boundedText(input.versionToken, "evidence version", 128);
-      if (input.observedBy !== "runner" && input.observedBy !== "human") {
-        fail("invalid_argument", "evidence observer is invalid");
-      }
-      const state =
-        input.state === undefined
-          ? {}
-          : closedObject(input.state, Object.keys(input.state), "evidence state");
-      for (const [key, value] of Object.entries(state)) {
-        if (value !== null && typeof value !== "string") {
-          fail("invalid_argument", `evidence state ${key} is invalid`);
-        }
-        if (
-          typeof value === "string" &&
-          (value.length > 512 ||
-            [...value].some((c) => {
-              const code = c.codePointAt(0) ?? 0;
-              return code <= 0x1f || code === 0x7f;
-            }))
-        ) {
-          fail("invalid_argument", `evidence state ${key} is invalid`);
-        }
-      }
+      const { repositoryId, ref, versionToken, state, stateJson } = validateEvidenceLink(input);
       // Read-first upsert: D1 batches forbid reads after a queued write.
       const prior = (await ctx.db
         .prepare(
@@ -1811,10 +1803,6 @@ export const linkGitHubEvidenceCommand: HubCommand<LinkGitHubEvidenceInput, GitH
             resource_version: number;
           }
         | undefined;
-      const stateJson = JSON.stringify(state);
-      if (ref.length > 512 || versionToken.length > 128 || stateJson.length > 2048) {
-        fail("invalid_argument", "github evidence exceeds its bounds");
-      }
       const access = principal;
       const candidate = evidenceDeliveryPredicate(access, "candidate", true);
       const priorAccess = evidenceDeliveryPredicate(access, "evidence", true);

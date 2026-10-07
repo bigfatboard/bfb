@@ -201,6 +201,26 @@ production Hub; synthetic retained discussion/assignment/launch rows supply
 read-only source fixtures. This is not complete discussion hydration, browser
 authentication, provider dispatch, participant authority or runner cleanup.
 
+# Manual GitHub linking hold
+
+`pnpm test:c11:github-manual-hold`, composed once by `pnpm test:c11`, owns
+`github-manual-hold.ts`. Seven collecting groups use two disposable Worker
+clients and the registered production Hub to hold manual linking uniformly
+for absent/visible/hidden keys, retained and changed-input caches, and valid
+shared/private/missing/omitted task associations. Historical evidence, caches
+and metadata receipts are explicitly seeded synthetic fixtures, not a manual
+command bypass. Full canonical snapshots, separately compared HTTP budgets,
+foreign keys and transient guards prove no business effects. Genuine malformed
+and Reviewer admission remains distinct; native history/provenance reads retain
+independent public observations and omit hidden rows before limits.
+
+Native SQL bounds cover only the directly instrumented domain history and
+provenance selectors; Worker/DO-internal command SQL, setup and snapshots are
+excluded. Mounted cookie/CSRF admission is proved separately by the focused
+suites. Exact X04 retains its genuine webhook/Queue reconciliation control.
+This is a beta availability policy, not a scoped-key migration, complete GitHub
+delivery/source-fence proof, private activation or deployed integration claim.
+
 # Public-position quarantine
 
 `pnpm test:c11:positions` compiles and runs `positions.ts` against disposable

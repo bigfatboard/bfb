@@ -9,6 +9,8 @@ import {
   linkGitHubEvidenceCommand,
   randomUlid,
   seedSyntheticWorkspace,
+  type GitHubEvidenceRecord,
+  type LinkGitHubEvidenceInput,
 } from "@bfb/domain";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { success } from "../../../packages/domain/test/launch-fixture.js";
@@ -27,6 +29,10 @@ const NOW = "2026-10-06T12:00:00.000Z",
   ORIGIN = AUTH_TEST_ENV.APP_ORIGIN;
 const BASE = `/api/v1/workspaces/${FIX.workspace}/github/evidence`;
 const CANARY = "SYNTHETIC_GITHUB_HTTP_REF";
+const UNAVAILABLE = {
+  error: "request_rejected",
+  message: "manual GitHub evidence linking is unavailable",
+};
 const contexts: AuthTestContext[] = [];
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
@@ -125,7 +131,7 @@ async function fixture() {
       undefined,
       bindings,
     );
-  const input = {
+  const input: LinkGitHubEvidenceInput = {
     projectId: FIX.projectA,
     taskId: task.id,
     repositoryId: "1234",
@@ -135,14 +141,44 @@ async function fixture() {
     state: {},
     observedBy: "runner" as const,
   };
-  const link = (value = input) =>
-    hub.execute(linkGitHubEvidenceCommand, {
-      workspaceId: FIX.workspace,
-      actorHumanId: FIX.member,
-      authorizationEpoch: 1,
-      idempotencyKey: randomUlid(),
-      input: value,
-    });
+  // Explicit synthetic pre-hold history; no setup invokes the held link command.
+  const history = async (value = input, resourceVersion = 1, observedAt = NOW) => {
+    const row: GitHubEvidenceRecord = {
+      id: randomUlid(),
+      workspace_id: FIX.workspace,
+      project_id: value.projectId,
+      task_id: value.taskId ?? null,
+      repository_id: value.repositoryId,
+      kind: value.kind,
+      ref: value.ref,
+      version_token: value.versionToken,
+      state: value.state ?? {},
+      observed_by: value.observedBy,
+      observed_at: observedAt,
+      resource_version: resourceVersion,
+    };
+    await db
+      .prepare(
+        `INSERT INTO github_evidence
+         (workspace_id,id,project_id,task_id,repository_id,kind,ref,version_token,state_json,observed_by,observed_at,resource_version)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+      )
+      .run(
+        row.workspace_id,
+        row.id,
+        row.project_id,
+        row.task_id,
+        row.repository_id,
+        row.kind,
+        row.ref,
+        row.version_token,
+        JSON.stringify(row.state),
+        row.observed_by,
+        row.observed_at,
+        row.resource_version,
+      );
+    return row;
+  };
   const body = (taskId: string | undefined = task.id, requestId = randomUlid()) => ({
     request_id: requestId,
     project_id: FIX.projectA,
@@ -159,7 +195,71 @@ async function fixture() {
         "INSERT INTO task_privacy (workspace_id,task_id,owner_human_id,created_at) VALUES (?,?,?,?)",
       )
       .run(FIX.workspace, task.id, FIX.member, NOW);
-  return { db, task, input, link, body, privacy, request };
+  return { db, task, input, history, body, privacy, request };
+}
+
+async function canonicalSnapshot(db: SqlDatabase) {
+  const tables = (await db
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+    .all()) as Array<{ name: string }>;
+  const snapshot: Record<string, unknown[]> = {};
+  for (const { name } of tables) {
+    if (["sqlite_sequence", "d1_migrations", "rate_limit_buckets"].includes(name)) continue;
+    expect(name).toMatch(/^[A-Za-z_][A-Za-z0-9_]*$/u);
+    snapshot[name] = await db.prepare(`SELECT * FROM "${name}" ORDER BY rowid`).all();
+  }
+  return snapshot;
+}
+
+async function heldWithoutEffects(db: SqlDatabase, requests: () => Promise<void>) {
+  const before = await canonicalSnapshot(db);
+  await requests();
+  expect(await canonicalSnapshot(db)).toEqual(before);
+  expect(await db.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+}
+
+async function unavailable(response: Response) {
+  expect(response.status).toBe(409);
+  expect(response.headers.get("cache-control")).toBe("no-store");
+  expect(await response.json()).toEqual(UNAVAILABLE);
+}
+
+async function historicalCache(
+  db: SqlDatabase,
+  body: Record<string, unknown>,
+  result: GitHubEvidenceRecord,
+) {
+  const input: LinkGitHubEvidenceInput = {
+    projectId: body.project_id as string,
+    ...(body.task_id === undefined ? {} : { taskId: body.task_id as string }),
+    repositoryId: body.repository_id as string,
+    kind: "commit",
+    ref: body.ref as string,
+    versionToken: body.version_token as string,
+    observedBy: "runner",
+  };
+  const cursor = (await db
+    .prepare("SELECT cursor FROM workspace_cursors WHERE workspace_id=?")
+    .get(FIX.workspace)) as { cursor: number };
+  // Synthetic original Hub outcome with its exact retained request fingerprint.
+  await db
+    .prepare(
+      `INSERT INTO idempotency_records
+       (workspace_id,idempotency_key,command_name,result_json,created_at) VALUES (?,?,?,?,?)`,
+    )
+    .run(
+      FIX.workspace,
+      `github.${body.request_id}`,
+      "github.evidence.link",
+      JSON.stringify({
+        result,
+        cursor: cursor.cursor,
+        authorizationEpoch: 1,
+        actorHumanId: FIX.member,
+        inputFingerprint: linkGitHubEvidenceCommand.inputFingerprint!(input),
+      }),
+      NOW,
+    );
 }
 function before(db: SqlDatabase, match: RegExp, change: () => Promise<void>): SqlDatabase {
   let fired = false;
@@ -277,40 +377,43 @@ describe("mounted private GitHub evidence", () => {
     },
   );
   it.each(["owner", "member"] as const)(
-    "denies explicit private and missing task identically for %s",
+    "holds explicit private and missing manual task links identically for %s",
     async (actor) => {
       const f = await fixture();
       await f.privacy();
-      const hidden = await f.request(BASE + "/links", actor, f.body());
-      const missing = await f.request(BASE + "/links", actor, f.body(randomUlid()));
-      expect(hidden.status).toBe(404);
-      expect(missing.status).toBe(404);
-      expect(await hidden.json()).toEqual(await missing.json());
+      await heldWithoutEffects(f.db, async () => {
+        await unavailable(await f.request(BASE + "/links", actor, f.body()));
+        await unavailable(await f.request(BASE + "/links", actor, f.body(randomUlid())));
+      });
       expect(await f.db.prepare("SELECT id FROM github_evidence").all()).toEqual([]);
     },
   );
-  it("keeps shared links and their unchanged retry working", async () => {
+  it("holds shared manual links and cached retries while preserving readable history", async () => {
     const f = await fixture(),
       body = f.body();
-    const first = await f.request(BASE + "/links", "member", body),
-      retry = await f.request(BASE + "/links", "member", body);
-    expect(first.status).toBe(200);
-    expect(retry.status).toBe(200);
+    const row = await f.history();
+    await historicalCache(f.db, body, row);
+    await heldWithoutEffects(f.db, async () => {
+      await unavailable(await f.request(BASE + "/links", "member", body));
+      await unavailable(await f.request(BASE + "/links", "member", body));
+    });
     const page = await f.request();
     expect(page.status).toBe(200);
     expect(((await page.json()) as { evidence: unknown[] }).evidence).toHaveLength(1);
   });
-  it("fences omitted-task updates and cached replies against retained private lineage", async () => {
+  it("holds omitted-task updates and cached replies without rewriting retained private lineage", async () => {
     const f = await fixture();
     const body = f.body();
     delete (body as { task_id?: string }).task_id;
-    expect((await f.request(BASE + "/links", "member", body)).status).toBe(200);
-    const row = success(await f.link());
+    const row = await f.history(f.input, 2);
+    await historicalCache(f.db, body, { ...row, task_id: null, resource_version: 1 });
     await f.privacy();
-    expect((await f.request(BASE + "/links", "member", body)).status).toBe(404);
-    expect(
-      (await f.request(BASE + "/links", "member", { ...body, request_id: randomUlid() })).status,
-    ).toBe(404);
+    await heldWithoutEffects(f.db, async () => {
+      await unavailable(await f.request(BASE + "/links", "member", body));
+      await unavailable(
+        await f.request(BASE + "/links", "member", { ...body, request_id: randomUlid() }),
+      );
+    });
     expect(
       await f.db
         .prepare("SELECT task_id,resource_version FROM github_evidence WHERE id = ?")
@@ -319,14 +422,9 @@ describe("mounted private GitHub evidence", () => {
   });
   it("excludes private rows before HTTP pagination and verification", async () => {
     const f = await fixture();
-    success(await f.link({ ...f.input, taskId: undefined, ref: "public-http-ref" }));
-    success(await f.link());
+    await f.history({ ...f.input, taskId: undefined, ref: "public-http-ref" });
+    await f.history(f.input, 1, "2026-10-06T13:00:00.000Z");
     await f.privacy();
-    await f.db
-      .prepare(
-        "UPDATE github_evidence SET observed_at = '2026-10-06T13:00:00.000Z' WHERE task_id IS NOT NULL",
-      )
-      .run();
     const page = await f.request(BASE + "?limit=1");
     expect(page.status).toBe(200);
     expect(
@@ -342,7 +440,7 @@ describe("mounted private GitHub evidence", () => {
     "applies current project scope to every role, including %s",
     async (actor) => {
       const f = await fixture();
-      success(await f.link({ ...f.input, taskId: undefined }));
+      await f.history({ ...f.input, taskId: undefined });
       await f.db
         .prepare("UPDATE projects SET access_mode = 'restricted' WHERE workspace_id = ? AND id = ?")
         .run(FIX.workspace, FIX.projectA);
@@ -368,7 +466,7 @@ describe("mounted private GitHub evidence", () => {
   );
   it("rejects a recipient epoch changed between authenticated route and evidence selection", async () => {
     const f = await fixture();
-    success(await f.link());
+    await f.history();
     const db = before(f.db, /FROM github_evidence/, async () => {
       await f.db
         .prepare(

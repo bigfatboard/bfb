@@ -30,6 +30,8 @@ import {
   verifyGitHubWebhookSignature,
   writeGitHubDlqRow,
   type GitHubDeliveryEffect,
+  type GitHubEvidenceRecord,
+  type LinkGitHubEvidenceInput,
   type ReceiveGitHubWebhookResult,
   type ReconcileGitHubResult,
 } from "../src/github.js";
@@ -50,9 +52,79 @@ const ACCOUNT = "synthetic-org";
 const PERMISSIONS = { metadata: "read", pull_requests: "read", checks: "read" };
 const EVENTS = ["push", "pull_request", "installation"];
 const SECRET = "x04-synthetic-webhook-secret-0123456789abcdef";
+const MANUAL_HOLD = {
+  ok: false,
+  error: {
+    code: "request_rejected",
+    message: "manual GitHub evidence linking is unavailable",
+  },
+};
 
 function hub(db: SqlDatabase): WorkspaceHub {
   return new WorkspaceHub(db);
+}
+
+async function snapshot(db: SqlDatabase) {
+  const tables = (await db
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+    .all()) as Array<{ name: string }>;
+  const canonical: Record<string, unknown[]> = {};
+  const excluded: string[] = [];
+  for (const { name } of tables) {
+    if (["sqlite_sequence", "d1_migrations", "_cf_METADATA"].includes(name)) {
+      excluded.push(name);
+      continue;
+    }
+    if (name.startsWith("sqlite_") || name.startsWith("_cf_"))
+      throw new Error(`unexpected snapshot engine table: ${name}`);
+    expect(name).toMatch(/^[A-Za-z_][A-Za-z0-9_]*$/u);
+    if (name !== "rate_limit_buckets")
+      canonical[name] = await db.prepare(`SELECT * FROM "${name}" ORDER BY rowid`).all();
+  }
+  return {
+    canonical,
+    budgets: await db.prepare("SELECT * FROM rate_limit_buckets ORDER BY rowid").all(),
+    excluded,
+  };
+}
+
+/** Explicit synthetic pre-hold observations for retained provenance readers. */
+async function historicalEvidence(db: SqlDatabase, input: LinkGitHubEvidenceInput) {
+  const row: GitHubEvidenceRecord = {
+    id: randomUlid(),
+    workspace_id: FIX.workspace,
+    project_id: input.projectId,
+    task_id: input.taskId ?? null,
+    repository_id: input.repositoryId,
+    kind: input.kind,
+    ref: input.ref,
+    version_token: input.versionToken,
+    state: input.state ?? {},
+    observed_by: input.observedBy,
+    observed_at: NOW,
+    resource_version: 1,
+  };
+  await db
+    .prepare(
+      `INSERT INTO github_evidence
+       (workspace_id,id,project_id,task_id,repository_id,kind,ref,version_token,
+        state_json,observed_by,observed_at,resource_version) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+    )
+    .run(
+      row.workspace_id,
+      row.id,
+      row.project_id,
+      row.task_id,
+      row.repository_id,
+      row.kind,
+      row.ref,
+      row.version_token,
+      JSON.stringify(row.state),
+      row.observed_by,
+      row.observed_at,
+      row.resource_version,
+    );
+  return row;
 }
 
 async function stepUp(
@@ -1323,7 +1395,7 @@ describe("github webhook receive and reconcile", () => {
 });
 
 describe("github evidence linking and provenance", () => {
-  it("links runner-observed evidence without touching task state", async () => {
+  it("holds manual runner observations without touching evidence, task state or receipts", async () => {
     const db = await openDomainDb();
     await install(db);
     await activate(db);
@@ -1338,6 +1410,7 @@ describe("github evidence linking and provenance", () => {
       input: { projectId, title: "Synthetic evidence task", priority: "P2" },
     });
     const taskId = (task as { ok: true; result: { id: string } }).result.id;
+    const retained = await snapshot(db);
     const linked = await hub(db).execute(linkGitHubEvidenceCommand, {
       workspaceId: FIX.workspace,
       idempotencyKey: randomUlid(),
@@ -1354,7 +1427,7 @@ describe("github evidence linking and provenance", () => {
         observedBy: "runner",
       },
     });
-    expect(linked.ok).toBe(true);
+    expect(linked).toEqual(MANUAL_HOLD);
     const state = (await db
       .prepare(`SELECT state FROM tasks WHERE workspace_id = ? AND id = ?`)
       .get(FIX.workspace, taskId)) as { state: string };
@@ -1375,7 +1448,7 @@ describe("github evidence linking and provenance", () => {
         observedBy: "runner",
       },
     });
-    expect(reviewer.ok).toBe(false);
+    expect(reviewer).toMatchObject({ ok: false, error: { code: "forbidden" } });
     const forged = await hub(db).execute(linkGitHubEvidenceCommand, {
       workspaceId: FIX.workspace,
       idempotencyKey: randomUlid(),
@@ -1391,10 +1464,11 @@ describe("github evidence linking and provenance", () => {
         observedBy: "github",
       },
     });
-    expect(forged.ok).toBe(false);
+    expect(forged).toMatchObject({ ok: false, error: { code: "invalid_argument" } });
     const listed = await listGitHubEvidence(db, FIX.workspace, { taskId });
-    expect(listed).toHaveLength(1);
-    expect(listed[0]?.observed_by).toBe("runner");
+    expect(listed).toHaveLength(0);
+    expect(await snapshot(db)).toEqual(retained);
+    expect(await db.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
   });
 
   it("rejects delegated envelopes without writing evidence", async () => {
@@ -1403,6 +1477,7 @@ describe("github evidence linking and provenance", () => {
     await activate(db);
     const projectId = await createGitHubProject(db);
     await mapRepo(db, projectId);
+    const retained = await snapshot(db);
     const delegated = await hub(db).execute(linkGitHubEvidenceCommand, {
       workspaceId: FIX.workspace,
       idempotencyKey: randomUlid(),
@@ -1421,6 +1496,8 @@ describe("github evidence linking and provenance", () => {
     });
     expect(delegated).toMatchObject({ ok: false, error: { code: "forbidden" } });
     expect(await listGitHubEvidence(db, FIX.workspace, { projectId })).toHaveLength(0);
+    expect(await snapshot(db)).toEqual(retained);
+    expect(await db.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
   });
 
   it("never upgrades runner claims without matching github evidence", async () => {
@@ -1435,23 +1512,15 @@ describe("github evidence linking and provenance", () => {
     expect(
       await getEvidenceVerificationStatus(db, FIX.workspace, [{ kind: "github", ref }]),
     ).toEqual([{ kind: "github", ref, provenance: "unverified" }]);
-    // Runner claim alone stays runner-observed.
-    const linked = await hub(db).execute(linkGitHubEvidenceCommand, {
-      workspaceId: FIX.workspace,
-      idempotencyKey: randomUlid(),
-      actorHumanId: FIX.member,
-      authorizationEpoch: 1,
-      now: NOW,
-      input: {
-        projectId,
-        repositoryId: REPOSITORY,
-        kind: "commit",
-        ref: sha,
-        versionToken: sha,
-        observedBy: "runner",
-      },
+    // A retained synthetic runner observation is not GitHub verification.
+    await historicalEvidence(db, {
+      projectId,
+      repositoryId: REPOSITORY,
+      kind: "commit",
+      ref: sha,
+      versionToken: sha,
+      observedBy: "runner",
     });
-    expect(linked.ok).toBe(true);
     expect(
       await getEvidenceVerificationStatus(db, FIX.workspace, [{ kind: "github", ref }]),
     ).toEqual([{ kind: "github", ref, provenance: "runner_observed" }]);
@@ -1473,30 +1542,22 @@ describe("github evidence linking and provenance", () => {
     const db = await openDomainDb();
     await install(db);
     await activate(db);
-    // The reviewer fixture holds a grant only to projectA; the member links
-    // one runner-observed commit per project.
+    // The reviewer fixture holds a grant only to projectA; explicitly retained
+    // synthetic history supplies one runner-observed commit per project.
     const shaA = "a".repeat(40);
     const shaB = "b".repeat(40);
     for (const [projectId, sha] of [
       [FIX.projectA, shaA],
       [FIX.projectB, shaB],
     ] as const) {
-      const linked = await hub(db).execute(linkGitHubEvidenceCommand, {
-        workspaceId: FIX.workspace,
-        idempotencyKey: randomUlid(),
-        actorHumanId: FIX.member,
-        authorizationEpoch: 1,
-        now: NOW,
-        input: {
-          projectId,
-          repositoryId: REPOSITORY,
-          kind: "commit",
-          ref: sha,
-          versionToken: sha,
-          observedBy: "runner",
-        },
+      await historicalEvidence(db, {
+        projectId,
+        repositoryId: REPOSITORY,
+        kind: "commit",
+        ref: sha,
+        versionToken: sha,
+        observedBy: "runner",
       });
-      expect(linked.ok).toBe(true);
     }
     const refA = `github:${REPOSITORY}:commit:${shaA}`;
     const refB = `github:${REPOSITORY}:commit:${shaB}`;

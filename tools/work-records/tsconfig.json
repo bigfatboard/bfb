@@ -31,6 +31,7 @@
     "human-attention-history.ts",
     "human-task-collections.ts",
     "operations-step-up-expiry.ts",
+    "github-manual-hold.ts",
     "task-positions.ts"
   ],
   "references": [

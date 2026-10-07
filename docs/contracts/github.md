@@ -5,6 +5,7 @@
 | 1 | 2026-09-18 | Freeze link, webhook, Queue, token, and evidence rules. |
 | 2 | 2026-09-18 | Rate-limit 403/429/5xx on repository reads retry; only 401/404 revoke. |
 | 3 | 2026-09-18 | Latest-wins guard is per object within each stream, not per stream. |
+| 4 | 2026-10-08 | Beta manual linking is uniformly unavailable; retained history and webhook reconciliation remain. |
 
 Consumers: X05 (audit/retention), G01 (redelivery/revocation hardening).
 
@@ -90,10 +91,12 @@ to D1.
   closes links, `suspend`/`unsuspend` move between `active` and `suspended`.
   `installation_repositories` is recorded only: repository mapping stays
   Owner-only.
-- `github.evidence.link` (owner/member with project access): records a
-  `runner`- or `human`-observed evidence row, optionally bound to a task in
-  the same project. The `github` observer is reserved for reconcile, and no
-  command in this package writes task, run, or result state.
+- `github.evidence.link` retains owner/member project and pure input admission,
+  then denies uniformly with `request_rejected / manual GitHub evidence linking
+  is unavailable` before task/evidence or cache lookup during beta. The `github`
+  observer remains reserved for reconcile, and no command in this package writes
+  task, run, or result state. The [frozen beta hold](private-task-delivery.md#frozen-beta-manual-github-linking-hold)
+  preserves historical associations and receipts without a scoped-key migration.
 
 ## Webhook route
 
@@ -178,7 +181,11 @@ confusion rejected by the shared router):
   `POST /installations/:id/permissions`, `POST /repository-links`:
   Owner-only mutations with per-request idempotency keys and fresh step-up
   proofs, forwarded into the hub commands above.
-- `POST /evidence/links` (owner/member), `POST /evidence/verification`
+- `POST /evidence/links` retains owner/member admission, then returns the fixed
+  beta hold as HTTP 409 with a no-store response, independent of stored keys or
+  prior task associations. Fresh and cached attempts create no business or Hub
+  bookkeeping effects; existing HTTP abuse budgets remain.
+- `POST /evidence/verification`
   (owner/member; reviewers must pass `project_id` for a granted project and
   answers are filtered to that project), `GET /status` (owner/member),
   `GET /evidence?project_id=&task_id=&repository_id=&limit=` (reviewers
@@ -192,5 +199,9 @@ exactly-one workspace/project mapping, the Owner step-up matrix,
 token/key absence from D1/queues/logs/evidence (canary scan), poison
 isolation with visible DLQ state, task canonicality under issue events, and
 the runner-vs-GitHub provenance ladder across real Workers and D1 with a
-local Queue and GitHub double. D1 migration head after this package is
+local Queue and GitHub double. The beta F12 control uses explicitly seeded
+synthetic retained runner evidence rather than a now-held manual command;
+registered manual attempts deny without source/receipt effects, while genuine
+webhook receive and Queue reconciliation supply the independent GitHub match.
+D1 migration head after this package is
 `0028_github_integration`.
