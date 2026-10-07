@@ -8,7 +8,20 @@ Timo split it from remote start and agent-to-agent work on 6 October. It starts
 from the integrated `7b8620c` checkpoint, preserving the existing implementation
 and certificates. Package metadata remains the source of truth for completion.
 
-Latest local checkpoint: [human artifact atomic expiry](work-packages/evidence/WP-C11/human-grant-expiry-manifest.json),
+Latest local checkpoint: [operations step-up atomic expiry](work-packages/evidence/WP-C11/operations-step-up-expiry-manifest.json),
+clean-certified at `44c5714`: C11 passes 3,683 stage case invocations across
+147 file invocations in twenty-three blocks, six panel browser cases and 240
+native labels across twenty-two harnesses. Dependencies and the notification
+drill remain separate. Full verification passes 4,877 TypeScript cases/225 files,
+Go and all sixteen Swift cases; exact X05 passes 60 cases/six files, eleven
+native scenarios and five browser cases. The operations target passes 343 cases
+and six native groups. Its local consume UPDATE rejects naturally expired
+proofs; successful commit history remains valid after TTL. OLD records three
+staged failures/five controls and three native failures/three controls. Timed
+domain-Hub bounds are 14 bindings/4,731 bytes/nineteen batch statements. G01
+runtime and broader expiry/activation gates remain uncertified.
+
+The earlier [human artifact atomic expiry](work-packages/evidence/WP-C11/human-grant-expiry-manifest.json) is
 clean-certified at `bd5dbf5`: exact C11 passes 3,340 stage-case invocations
 across 140 file invocations in twenty-two blocks, six panel browser cases and
 234 native labels across twenty-one harnesses. Dependencies and the notification
@@ -67,8 +80,10 @@ and earlier public business/CLI certificate remain unchanged. UI details,
 drafts, retry and hidden-section notices stay on demand in both themes.
 Timo approved raw-ID retirement without fallback and position-only Hub
 bookkeeping on 7 October; ADR 0016 and the delivery contract freeze the wire.
-The next product-owned slice is operations-local step-up natural expiry at
-atomic consumption. Its contract is frozen; implementation is not certified.
+The next product-owned slice is the uniform manual GitHub linking hold approved
+by Timo on 8 October. Webhook reconciliation stays enabled; stored associations
+and receipts are not rewritten. The frozen contract and OLD proof drive the
+implementation, which is not certified by the operations checkpoint.
 Timo separately authorized merging and a first Cloudflare beta deployment after
 the product-beta work is verified, followed by deployed smoke checks. No rollout
 has occurred and execution-lane implementation remains excluded. GitHub policy,

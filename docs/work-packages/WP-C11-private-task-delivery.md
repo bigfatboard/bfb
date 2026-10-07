@@ -76,7 +76,21 @@ Coordinate shared contracts without changing the other lane's execution work.
 
 ## Handoff
 
-Current checkpoint: [human artifact atomic expiry](evidence/WP-C11/human-grant-expiry-manifest.json),
+Current checkpoint: [operations step-up atomic expiry](evidence/WP-C11/operations-step-up-expiry-manifest.json),
+clean-certified at `44c5714`. Exact C11 passes 3,683 stage case invocations
+across 147 file invocations in twenty-three blocks, six panel browser cases and
+240 native labels across twenty-two harnesses. Dependencies and the notification
+drill are separate. Full verification passes 4,877 TypeScript cases/225 files,
+Go and all sixteen Swift cases. Exact X05 passes 60 cases/six files, eleven
+native scenarios and five browser cases. The operations target passes 343 cases
+in seven files, including eight new staged cases, and six native groups. Its
+local consume UPDATE enforces database-clock liveness while preserving valid
+commit history after TTL. Unchanged OLD records three staged failures/five
+controls and three native failures/three controls. Timed domain-Hub bounds are
+14 bindings/4,731 bytes/nineteen batch statements. Six retained fixture clocks
+are repaired without changing shared clocks; G01 runtime remains uncertified.
+
+The earlier [human artifact atomic expiry](evidence/WP-C11/human-grant-expiry-manifest.json) is
 clean-certified at `bd5dbf5`. Exact C11 passes 3,340 stage case invocations
 across 140 file invocations in twenty-two blocks, six panel browser cases and
 234 native check labels across twenty-one harnesses; dependencies and the
@@ -93,10 +107,10 @@ without changing its authority predicate. Stale browser and historical migration
 fixtures are repaired; G01 still fails on an expired historical runner credential
 and AG02/AG04 remain open. This finite certificate does not waive release gates.
 
-Next product-owned slice is operations-local step-up natural expiry at atomic
-consumption. Its local guard, staged/native proofs and bounded fixture-clock
-repairs are implemented; clean certification remains pending.
-GitHub manual-link collision policy and historical source fences, execution-
+Next product-owned slice is Timo's approved uniform manual GitHub linking hold
+for beta, preserving webhook reconciliation. Its frozen contract is recorded;
+implementation and clean certification are not part of the current checkpoint.
+Historical GitHub source fences, execution-
 owned delivery and destructive private retention remain open. Timo separately
 authorized merge and first Cloudflare beta deployment after the product work
 is verified; no rollout has happened. Private creation, sharing, inherited

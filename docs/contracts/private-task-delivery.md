@@ -252,6 +252,44 @@ certificate. A uniform collision policy is still required before private
 activation. Incoming webhook convergence, installation authority and internal
 queue identity remain unchanged; there is no new external-publication API.
 
+### Frozen beta manual GitHub linking hold
+
+Timo chose uniform unavailability for manual linking on 8 October, leaving
+webhook reconciliation enabled. This availability policy is not a scoped-key
+migration or complete GitHub delivery certificate.
+
+- Hold registered `github.evidence.link` and browser `/github/evidence/links`
+  for all human/runner-observed manual attempts, independent of key presence or
+  prior project/task association. After existing identity, current epoch,
+  role/project and pure closed-shape/bounds validation, valid attempts return
+  fixed `request_rejected / manual GitHub evidence linking is unavailable`.
+  The browser uses the existing 409 mapping and no-store envelope.
+- The domain authorization hold must precede task/evidence lookup and Hub cache
+  lookup. Omitted-task, shared/private/unknown task and absent/visible/hidden key
+  attempts cannot distinguish persisted evidence through manual linking. Fresh,
+  historical cached and changed-key retries create no business, cursor, audit,
+  semantic, outbox or idempotency effects. Malformed/authentication/role/project
+  admission and existing HTTP abuse-budget behavior remain distinct.
+- Keep every historical evidence association, version, state, timestamp and
+  receipt unchanged. Do not detach private history or rewrite caches to simulate
+  successful commands. Existing authorized history/provenance readers remain;
+  independent public observations retain their established visibility.
+- Preserve webhook receive, queue reconciliation, dedupe/latest-wins behavior,
+  installation/token authority, repository mapping, schema uniqueness and
+  internal queue identity. Test setup formerly using a now-held manual command
+  must use clearly labelled historical fixtures, not a business bypass.
+- Prove identical bounded outcomes and complete canonical no-effects snapshots
+  for absent/visible/hidden keys and historical caches, plus retained malformed,
+  role and CSRF controls. Use mounted synthetic browser auth and disposable
+  native production-Hub proof separately; retain exact X04 regression and full
+  repository/platform verification. Native bounds exclude setup and snapshots.
+
+The owning additive target will be composed by C11 once implemented. Internal
+reconciliation source fences, post-await historical delivery, scoped keys,
+execution-owned consumers and full private activation remain separate. Browser
+session identity is not a captured workspace authorization epoch: its first
+workspace membership lookup establishes that request's retained authority.
+
 Operations activity and stuck-work projections exclude private or dangling
 task-bound rows, even for the creator, until the complete operations delivery
 gate passes. Resolve ledger/launch/artifact children through their exact
