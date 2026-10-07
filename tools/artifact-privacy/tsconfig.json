@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": ".",
+    "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo",
+    "types": ["@cloudflare/workers-types", "node"]
+  },
+  "include": ["run.ts", "artifact.ts"],
+  "references": [
+    { "path": "../../packages/domain" },
+    { "path": "../../packages/db" },
+    { "path": "../../apps/control-worker" },
+    { "path": "../../apps/artifact-worker" }
+  ]
+}

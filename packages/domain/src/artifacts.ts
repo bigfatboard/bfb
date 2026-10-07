@@ -784,6 +784,9 @@ export interface RedeemedGrant {
   authorizationEpoch: number;
   grantId: string;
   consumeAttemptId: string;
+  grantHash: string;
+  consumedAt: string;
+  humanProjectIds: string[] | null;
 }
 
 interface UploadAuthoritySource {
@@ -900,6 +903,7 @@ export async function redeemUploadGrant(
   if (!artifact) rejectArtifactRequest();
   if (artifact.run_id !== candidate.run_id) rejectArtifactRequest();
   let agentAuthority: Awaited<ReturnType<typeof prepareAgentArtifactGrantAuthority>> | undefined;
+  let humanProjectIds: string[] | null = null;
   if (candidate.human_id) {
     const principal = await loadPrincipal(db, candidate.workspace_id, candidate.human_id);
     assertRole(principal, ["owner", "member"]);
@@ -910,6 +914,7 @@ export async function redeemUploadGrant(
       principal.projectIds,
       principal,
     );
+    humanProjectIds = principal.projectIds;
   } else {
     agentAuthority = await agentUploadAuthority(db, candidate, input.grantId, input.now);
   }
@@ -1022,6 +1027,9 @@ export async function redeemUploadGrant(
     authorizationEpoch: candidate.authorization_epoch,
     grantId: input.grantId,
     consumeAttemptId: attemptId,
+    grantHash: secretHash,
+    consumedAt: input.now,
+    humanProjectIds,
   };
 }
 
@@ -1032,6 +1040,90 @@ export interface VerifiedUpload {
   r2Key: string;
   size: number;
   deduplicated: boolean;
+}
+
+/** Suppresses human receipt metadata after authority loss without undoing verified history. */
+export async function assertHumanUploadDelivery(
+  db: SqlDatabase,
+  consumed: RedeemedGrant,
+  receipt: VerifiedUpload,
+): Promise<void> {
+  if (
+    !consumed.humanId ||
+    !consumed.humanProjectIds ||
+    receipt.workspaceId !== consumed.workspaceId ||
+    receipt.versionId !== consumed.versionId ||
+    receipt.contentHash !== consumed.expectedDigest ||
+    receipt.size !== consumed.declaredSize ||
+    receipt.r2Key !==
+      artifactObjectKey({
+        workspaceId: consumed.workspaceId,
+        runId: consumed.runId,
+        role: consumed.role,
+        versionId: consumed.versionId,
+        contentHash: receipt.contentHash,
+      })
+  )
+    rejectArtifactRequest();
+  const parent = artifactAccessPredicate(
+    {
+      workspaceId: consumed.workspaceId,
+      humanId: consumed.humanId,
+      authorizationEpoch: consumed.authorizationEpoch,
+    },
+    "contribute",
+    "a",
+  );
+  const current = await db
+    .prepare(
+      `SELECT 1 AS authorized FROM artifact_upload_grants AS g
+       JOIN artifact_upload_consumptions AS c ON c.workspace_id=g.workspace_id AND c.grant_id=g.id
+       JOIN artifact_versions AS v ON v.workspace_id=g.workspace_id AND v.id=g.version_id
+       JOIN artifacts AS a ON a.workspace_id=v.workspace_id AND a.id=v.artifact_id
+       JOIN artifact_upload_receipts AS receipt ON receipt.workspace_id=v.workspace_id AND receipt.version_id=v.id
+       JOIN artifact_objects AS object ON object.workspace_id=v.workspace_id AND object.r2_key=?
+       JOIN artifact_upload_receipt_sources AS lineage ON lineage.workspace_id=v.workspace_id AND lineage.version_id=v.id
+       JOIN artifact_audit_outbox AS outbox ON outbox.workspace_id=lineage.workspace_id AND outbox.id=lineage.outbox_id
+       JOIN workspace_members AS member ON member.workspace_id=g.workspace_id AND member.human_id=g.human_id
+       JOIN workspace_authorization_epochs AS epoch ON epoch.workspace_id=member.workspace_id AND epoch.human_id=member.human_id
+       WHERE g.workspace_id=? AND g.id=? AND g.grant_hash=? AND c.attempt_id=?
+         AND g.consumed_at=? AND c.consumed_at=g.consumed_at
+         AND g.human_id=? AND g.authorization_epoch=?
+         AND member.role IN ('owner','member') AND member.authorization_epoch=epoch.authorization_epoch
+         AND epoch.authorization_epoch=g.authorization_epoch AND epoch.revoked_at IS NULL
+         AND g.version_id=? AND v.artifact_id=? AND a.run_id IS ? AND g.run_id IS a.run_id
+         AND a.role=? AND g.format=? AND v.format=g.format
+         AND v.state IN ('uploading','available') AND g.expected_digest=? AND g.declared_size=?
+         AND v.expected_digest=g.expected_digest AND v.declared_size=g.declared_size
+         AND receipt.content_hash=g.expected_digest AND receipt.size=g.declared_size
+         AND object.content_hash=receipt.content_hash AND object.size=receipt.size
+         AND outbox.version_id=v.id AND outbox.grant_id=lineage.grant_id AND outbox.action='artifact.upload_verified'
+         AND (v.state='uploading' OR (v.content_hash=receipt.content_hash AND v.r2_key=object.r2_key))
+         AND (a.run_id IS NULL OR EXISTS (
+           SELECT 1 FROM runs AS captured_run WHERE captured_run.workspace_id=a.workspace_id
+             AND captured_run.id=a.run_id AND captured_run.project_id IN (SELECT value FROM json_each(?))))
+         AND ${parent.sql}`,
+    )
+    .get(
+      receipt.r2Key,
+      consumed.workspaceId,
+      consumed.grantId,
+      consumed.grantHash,
+      consumed.consumeAttemptId,
+      consumed.consumedAt,
+      consumed.humanId,
+      consumed.authorizationEpoch,
+      consumed.versionId,
+      consumed.artifactId,
+      consumed.runId,
+      consumed.role,
+      consumed.format,
+      consumed.expectedDigest,
+      consumed.declaredSize,
+      JSON.stringify(consumed.humanProjectIds),
+      ...parent.parameters,
+    );
+  if (!current) rejectArtifactRequest();
 }
 
 /**

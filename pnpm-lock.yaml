@@ -171,6 +171,28 @@ importers:
 
   packages/ui: {}
 
+  tools/artifact-privacy:
+    dependencies:
+      '@bfb/artifact-worker':
+        specifier: workspace:*
+        version: link:../../apps/artifact-worker
+      '@bfb/control-worker':
+        specifier: workspace:*
+        version: link:../../apps/control-worker
+      '@bfb/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@bfb/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+    devDependencies:
+      '@cloudflare/workers-types':
+        specifier: 5.20260810.1
+        version: 5.20260810.1
+      wrangler:
+        specifier: 4.120.1
+        version: 4.120.1(@cloudflare/workers-types@5.20260810.1)
+
   tools/artifact-review:
     dependencies:
       '@bfb/db':

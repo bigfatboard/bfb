@@ -1356,6 +1356,42 @@ The exact additive target is `pnpm test:c11:positions`, composed by C11. This
 does not settle notification identities, security-audit opaque anchors, natural
 in-flight expiry, GitHub collision policy, execution consumers or activation.
 
+### Frozen human upload reply and local artifact-byte proof
+
+This finite corrective C11 slice owns direct-human upload receipt metadata after
+the receipt transaction, and disposable native private artifact delivery proof.
+It does not certify agent upload replies, deployed private bytes or activation.
+
+- After the real receipt transaction resolves, the human upload response must
+  reselect the exact retained grant/consume attempt, human/epoch, artifact/version,
+  nullable run, format/role, verified digest/size/key and canonical receipt source.
+  Current member/owner contribution and task/project access are required. Retain
+  the project ceiling captured during consume; newly granted projects do not
+  widen an in-flight response. No await follows that final selector before JSON.
+- Lost authority returns the existing uniform 403 `request_rejected`, no-store,
+  without IDs, key, digest, bytes or integrity details. Already committed object,
+  receipt, source and verification audit remain unchanged. This is response
+  suppression, not rollback, reconsumption, finalization or cleanup.
+- Prove the actual post-commit/pre-response seam, not a simulated failed commit.
+  Witness successful receipt effects before independent revocation, then compare
+  them unchanged. Retain healthy private creator/contributor, shared/run-free
+  and same-content convergence controls. Agent upload semantics stay unchanged.
+- Disposable local Worker/D1/R2 proof forwards actual stored objects and bodies.
+  Use genuine synthetic browser authentication for create/finalize/view issue,
+  and the production cookie-less artifact handler. Prove healthy private bytes,
+  read denial before consume and after real object/body awaits, contribution
+  loss after R2 put before receipt commit, and after successful receipt commit.
+  One-use claims and committed history survive response denial; failed receipt
+  batches leave no registry/receipt/source/verification audit. R2 orphans are
+  not deleted. Compare canonical/FK snapshots after independent mutations.
+- Test-only seam wrappers are confined to disposable tooling. They neither add
+  a deployed bypass nor fabricate R2 success. Report bounds and synthetic check
+  labels; local native proof is not a live/pilot or browser-presentation claim.
+
+The exact additive target is `pnpm test:c11:artifact-bytes`, composed once by
+C11. Cursor compatibility, GitHub collisions, execution consumers, expiry and
+destructive retention keep their separate unresolved gates.
+
 ## Delivery inventory and required proof
 
 | Surface | Existing owner / entry points | C11 completion check |

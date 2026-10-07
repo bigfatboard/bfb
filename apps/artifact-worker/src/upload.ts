@@ -6,6 +6,7 @@ import { createHash, createHmac } from "node:crypto";
 import type { SqlDatabase } from "@bfb/db";
 import {
   ARTIFACT_REVIEW_MAX_BYTES,
+  assertHumanUploadDelivery,
   artifactObjectKey,
   artifactSubject,
   assertRoleKind,
@@ -272,6 +273,7 @@ export async function handleUpload(
       // existing receipt must not turn a failed source/commit check into success.
       return new Response(JSON.stringify({ error: "upload_conflict" }), { status: 409, headers });
     }
+    if (redeemed.humanId !== null) await assertHumanUploadDelivery(deps.db, redeemed, receipt);
     return new Response(
       JSON.stringify({
         version_id: redeemed.versionId,
