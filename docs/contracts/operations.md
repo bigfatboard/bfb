@@ -16,6 +16,13 @@ interprets provider-specific capability fields.
 
 ## Security-audit read model
 
+- C11's current delivery policy holds all unsupported audit families. Only the
+  certified canonical artifact/dispatch and upload-recovery receipts described
+  below are eligible; the historical generic sanitizer is not authority to
+  deliver another family. Omission precedes limits, `has_more` and anchors.
+  Current Owner/retained-epoch scope still precedes unknown/hidden cursor denial,
+  including empty pages. Stored history is unchanged. The
+  [C11 delivery contract](private-task-delivery.md) freezes this quarantine.
 - `GET /api/v1/workspaces/:ws/operations/security-audit` — Owner only.
   Rows come from `audit_events`, ordered chronologically by `created_at`
   (insertion order breaks ties: audit ids carry no time component, so id
@@ -92,6 +99,17 @@ certifies these projections, not complete operations privacy.
 
 ## Privileged recovery
 
+Current C11 policy holds `retry_notification_dispatch`, `requeue_github_outbox`
+and `clear_recovery_state`. After existing current Owner/admission and pure
+structural checks, the browser returns fixed 409 `request_rejected` with
+`recovery kind is unavailable`, before proof, target, ledger or cached-outcome
+access. The exported helper rejects them before all database access. Proofs,
+watermarks, outbox, ledger, audit and ordinary consumers remain unchanged.
+Only proof-bound upload recovery is available; no new recovery UI is added.
+
+The following records historical v1 effects for the three held kinds, not a
+working outside-Hub recovery path after quarantine:
+
 - `POST /api/v1/workspaces/:ws/operations/recovery` — Owner plus a fresh
   action-bound step-up proof for action `ops.recover` and target
   `ops-recover:<kind>:<workspace>`. Body: `request_id`, `kind`, `target`.
@@ -121,7 +139,7 @@ certifies these projections, not complete operations privacy.
   resolution: `ops.recovery.resolve_stuck_upload` reads all targets before
   queuing writes, and serializes through WorkspaceHub. Its proof, current
   authority/state guards, artifact effects, target ledger and safe Hub audit
-  commit atomically. The other three kinds retain the historical path.
+  commit atomically. The other three kinds are unavailable under the C11 policy.
 - The C11 command accepts `{versionIds, stepUpProofId}` while the browser keeps
   the existing recovery body and nested result shape. It rejects Hub cache
   replay, uses a request/proof-bound key and requires a fresh proof for each

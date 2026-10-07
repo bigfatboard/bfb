@@ -486,6 +486,52 @@ diagnostic format or complete C11 delivery.
   A future source-backed format needs a separate manifest/audience contract and
   complete recipient delivery certificate, not a v1 schema-version relabel.
 
+### Frozen unsupported audit and legacy recovery quarantine
+
+- Security-audit delivery recognizes only the certified nine canonical artifact
+  actions, their exact `artifact.dispatch_audit` wrappers and
+  `ops.recovery.resolve_stuck_upload` receipts. Remove the generic fallback:
+  every other action is uniformly unavailable before page, `has_more` and
+  anchor selection, independently of private presence, payload shape or naming.
+  Sanitization is not source lineage. Do not invent workspace-only exemptions.
+- Preserve current direct-human Owner/retained-epoch scope before cursor denial,
+  including empty pages, and the existing chronology, limits and wire shape.
+  Unsupported and unknown anchors share `invalid_argument` with
+  `unknown audit cursor`. Already-certified artifact/recovery selectors retain
+  their exact current shared/run-free source and historical provenance rules.
+- Hold `retry_notification_dispatch`, `requeue_github_outbox` and
+  `clear_recovery_state`. The browser retains authentication, current Owner,
+  method, abuse-budget, CSRF, closed-body, known-kind, target-object,
+  request-ID and nonempty proof-ID structural gates, then returns fixed 409
+  `request_rejected` with `recovery kind is unavailable` and no-store headers.
+  Denial precedes proof lookup/validation/consumption, target/hash/ledger reads,
+  cached outcome interpretation, source checks and business effects. Missing,
+  shared, private, already-applied and malformed retained targets cannot select
+  different unavailable answers. Admission/abuse bookkeeping is not a business
+  effect and remains in place.
+- The exported `applyOpsRecovery` helper denies those three known kinds with
+  the same fixed policy before hashing, any database access or JSON parsing.
+  Preserve unknown-kind structural rejection and the separate
+  `upload recovery requires WorkspaceHub` denial for `resolve_stuck_upload`.
+  Remove effect/proof helpers orphaned by the hold; no internal bypass remains.
+  Retained kind enums and pure historical action-ID helpers remain available.
+- No Hub command or queue variant exists for the held legacy kinds. Do not add
+  one or fabricate a successful command. The registered proof-bound upload
+  command and final browser delivery check remain unchanged. Denied legacy
+  calls never rewind notification watermarks, reset GitHub outbox rows, delete
+  recovery ledgers, enqueue/dispatch work or append business receipts/events.
+- Preserve stored audit/cache/ledger rows, proofs, objects, historical aggregate
+  counts and ordinary notification/GitHub consumers. The product currently
+  exposes only upload recovery; do not add unavailable recovery controls or
+  passkey requests. Audit copy states the supported receipt scope concisely.
+- Prove meaningful baseline leaks and side effects, unsupported/malformed/NUL/
+  duplicate/serialized-object audit rows before limits/anchors, current-scope
+  denial, unused proofs and unchanged business state across the three held
+  kinds, direct-helper no-DB denial and retained upload success/retry controls.
+  Fresh actual-D1 and current X05 D6/D7 prove the hold rather than historical
+  requeue/rewind; dated X05 evidence remains historical. This is not opaque
+  paging, complete operations privacy or C11/private-feature activation.
+
 ### Frozen canonical board and attention-deck delivery
 
 The next bounded C11 slice replaces multi-await board hydration with one
