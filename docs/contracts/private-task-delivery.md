@@ -608,7 +608,7 @@ provider dispatch, private execution, participant-run authority or cleanup.
   participant identity, page count or anchor is delivered through a private task.
 - Detail checks exact discussion/workspace/task/project lineage and current
   viewer membership, retained epoch, role and project access before hydration.
-  Recheck that same binding after every asynchronous view/advisory read and
+  Recheck that same binding after all asynchronous view/advisory reads and
   immediately before returning the wire value. Only synchronous projection may
   follow the final guard. A privacy/current-viewer denial must not be converted
   into the readable `sponsor_revoked` advisory. For a still-shared parent and
