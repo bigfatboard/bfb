@@ -628,8 +628,9 @@ provider dispatch, private execution, participant-run authority or cleanup.
   only for that exact execution/assignment, not a replacement occupant sharing
   the physical worktree. Discussion and malformed/misbound sources do not enter
   a visible page. Do not change reservation or provider behavior to repair a view.
-- Mounted GET paths retain the authenticated human's original epoch; a later
-  principal load cannot adopt a newer epoch. Preserve authentication, route/body
+- Mounted GET paths retain the first workspace-authority epoch captured for the
+  authenticated browser human; the browser identity itself carries no workspace
+  epoch. A later principal load cannot adopt a newer epoch. Preserve authentication, route/body
   admission, feature holds and no-store envelopes. Mutation routing stays with
   its existing commands; this is not authorization to change launch/discussion
   execution or add controls.
