@@ -117,7 +117,7 @@ async function check(name: string, operation: (phase: (name: string) => void) =>
   }
 }
 type Session = { cookie: string; csrf: string };
-function session(human: "owner" | "member"): Session {
+function session(human: "owner" | "member" | "reviewer"): Session {
   const id = `c11-artifact-privacy-${human}-session`,
     token = `c11-artifact-privacy-${human}-synthetic-token`;
   return {
@@ -126,7 +126,8 @@ function session(human: "owner" | "member"): Session {
   };
 }
 const owner = session("owner"),
-  member = session("member");
+  member = session("member"),
+  reviewer = session("reviewer");
 let address = 30;
 const ip = () => `192.0.2.${address++}`;
 function browser(path: string, body: unknown, auth = owner) {
@@ -157,6 +158,7 @@ type Probe = {
   seam?: "before" | "get" | "body" | "put" | "receipt";
   taskGrantId?: string;
   versionId?: string;
+  projectAccessLoss?: boolean;
 };
 type NativeResponse = Awaited<ReturnType<typeof server.fetch>>;
 function probeHeaders(probe?: Probe): Record<string, string> {
@@ -166,6 +168,7 @@ function probeHeaders(probe?: Probe): Record<string, string> {
         ...(probe.seam ? { "x-c11-seam": probe.seam } : {}),
         ...(probe.taskGrantId ? { "x-c11-task-grant": probe.taskGrantId } : {}),
         ...(probe.versionId ? { "x-c11-version": probe.versionId } : {}),
+        ...(probe.projectAccessLoss ? { "x-c11-project-access-loss": "1" } : {}),
       }
     : {};
 }
@@ -232,6 +235,7 @@ try {
   for (const [name, humanId] of [
     ["owner", FIX.owner],
     ["member", FIX.member],
+    ["reviewer", FIX.reviewer],
   ] as const) {
     const userId = `c11-artifact-privacy-${name}-user`,
       id = `c11-artifact-privacy-${name}-session`;
@@ -258,7 +262,10 @@ try {
   async function fk() {
     assert.deepEqual(await db.prepare("PRAGMA foreign_key_check").all(), []);
   }
-  async function fixture(permission: "read" | "contribute" | "none" | "shared"): Promise<Fixture> {
+  async function fixture(
+    permission: "read" | "contribute" | "none" | "shared",
+    granteeHumanId: string = FIX.owner,
+  ): Promise<Fixture> {
     const taskResponse = await browser(
       `${workspacePath}/tasks`,
       {
@@ -303,7 +310,7 @@ try {
             `INSERT INTO task_human_grants
           (workspace_id,id,task_id,human_id,authorization_epoch,permission,created_at) VALUES (?,?,?,?,1,?,?)`,
           )
-          .run(FIX.workspace, taskGrantId, task.result.id, FIX.owner, permission, now);
+          .run(FIX.workspace, taskGrantId, task.result.id, granteeHumanId, permission, now);
       }
     }
     await fk();
@@ -357,11 +364,12 @@ try {
     assert(bounds.maximum_bindings <= 100 && bounds.maximum_statement_bytes <= 100_000);
     if (probe.seam) {
       assert(value.revoked && value.canonical_unchanged);
+      assert.equal(value.project_access_removed, probe.projectAccessLoss === true);
       assert.deepEqual(
         await db
           .prepare("SELECT revoked_at FROM task_human_grants WHERE workspace_id=? AND id=?")
           .get(FIX.workspace, probe.taskGrantId),
-        { revoked_at: now },
+        { revoked_at: probe.projectAccessLoss ? null : now },
       );
     }
     return value;
@@ -413,6 +421,45 @@ try {
     await denied(await call());
     assert.deepEqual(await snapshot(), before);
     await fk();
+  }
+  async function reviewerViewFacts(issued: View, publication: Publication, f: Fixture) {
+    assert.deepEqual(
+      await db
+        .prepare(
+          `SELECT view.human_id, view.authorization_epoch, view.consumed_at, task.id AS task_id,
+            task.project_id, member.role, task_grant.permission, task_grant.revoked_at
+           FROM artifact_view_grants AS view
+           JOIN artifact_versions AS version ON version.workspace_id=view.workspace_id AND version.id=view.version_id
+           JOIN artifacts AS artifact ON artifact.workspace_id=version.workspace_id AND artifact.id=version.artifact_id
+           JOIN runs AS run ON run.workspace_id=artifact.workspace_id AND run.id=artifact.run_id
+           JOIN tasks AS task ON task.workspace_id=run.workspace_id AND task.id=run.task_id AND task.project_id=run.project_id
+           JOIN workspace_members AS member ON member.workspace_id=view.workspace_id AND member.human_id=view.human_id
+           JOIN task_human_grants AS task_grant ON task_grant.workspace_id=task.workspace_id AND task_grant.task_id=task.id
+             AND task_grant.human_id=view.human_id AND task_grant.authorization_epoch=view.authorization_epoch
+           WHERE view.workspace_id=? AND view.id=? AND view.version_id=? AND task_grant.id=? AND run.id=?`,
+        )
+        .get(FIX.workspace, issued.view_id, publication.version_id, f.taskGrantId, f.runId),
+      {
+        human_id: FIX.reviewer,
+        authorization_epoch: 1,
+        consumed_at: now,
+        task_id: f.taskId,
+        project_id: FIX.projectA,
+        role: "reviewer",
+        permission: "read",
+        revoked_at: null,
+      },
+    );
+    assert.equal(
+      (
+        await db
+          .prepare(
+            "SELECT id FROM artifact_audit_outbox WHERE workspace_id=? AND version_id=? AND grant_id=? AND action='artifact.view_redeemed'",
+          )
+          .all(FIX.workspace, publication.version_id, issued.view_id)
+      ).length,
+      1,
+    );
   }
 
   await check("healthy_private_shared_runfree_convergence_and_one_use", async (phase) => {
@@ -570,6 +617,83 @@ try {
       await assertReplay(() => upload(publication, bytes));
     },
   );
+  await check("healthy_named_reviewer_private_read_and_one_use", async (phase) => {
+    const f = await fixture("read", FIX.reviewer),
+      bytes = body("reviewer-read"),
+      publication = await create(bytes, f.runId, member);
+    const uploaded = await upload(publication, bytes);
+    assert.equal(uploaded.status, 200);
+    await uploaded.arrayBuffer();
+    await finalize(publication, bytes, member);
+    phase("reviewer_cookie_csrf_view_issue_and_native_bytes");
+    const issued = await view(publication, reviewer),
+      probe = { scope: randomUlid() },
+      response = await redeem(issued, probe);
+    assert.equal(response.status, 200);
+    assert.deepEqual(new Uint8Array(await response.arrayBuffer()), bytes);
+    const effects = await observations(probe);
+    assert.equal(effects.get_calls, 1);
+    assert.equal(effects.array_buffer_reads, 1);
+    await reviewerViewFacts(issued, publication, f);
+    await publicationFacts(publication, bytes, f.runId, true);
+    await assertReplay(() => redeem(issued));
+  });
+  await check("private_view_restricted_project_loss_after_native_get_and_body", async (phase) => {
+    const waveFailures: Array<{ seam: string; error: unknown }> = [];
+    for (const seam of ["get", "body"] as const) {
+      try {
+        phase(`restricted_project_${seam}`);
+        // Each independent wave starts readable; an earlier denied view cannot mask the next seam.
+        await db
+          .prepare(
+            "INSERT OR IGNORE INTO project_access (workspace_id,project_id,human_id) VALUES (?,?,?)",
+          )
+          .run(FIX.workspace, FIX.projectA, FIX.reviewer);
+        const f = await fixture("read", FIX.reviewer),
+          bytes = body(`restricted-project-${seam}`),
+          publication = await create(bytes, f.runId, member);
+        const uploaded = await upload(publication, bytes);
+        assert.equal(uploaded.status, 200);
+        await uploaded.arrayBuffer();
+        await finalize(publication, bytes, member);
+        const issued = await view(publication, reviewer),
+          probe: Probe = {
+            scope: randomUlid(),
+            seam,
+            taskGrantId: f.taskGrantId!,
+            projectAccessLoss: true,
+          };
+        await denied(await redeem(issued, probe));
+        const effects = await observations(probe);
+        assert(effects.consume_committed && effects.project_access_removed);
+        assert.equal(effects.get_calls, 1);
+        assert.equal(effects.array_buffer_reads, 1);
+        assert.equal(
+          await db
+            .prepare(
+              "SELECT 1 FROM project_access WHERE workspace_id=? AND project_id=? AND human_id=?",
+            )
+            .get(FIX.workspace, FIX.projectA, FIX.reviewer),
+          null,
+        );
+        await reviewerViewFacts(issued, publication, f);
+        const retained = await snapshot();
+        const key = await publicationFacts(publication, bytes, f.runId, true),
+          object = await bucket.get(key);
+        assert(object);
+        assert.deepEqual(new Uint8Array(await object.arrayBuffer()), bytes);
+        await assertReplay(() => redeem(issued));
+        assert.deepEqual(await snapshot(), retained);
+        await fk();
+      } catch (error) {
+        waveFailures.push({ seam, error });
+      }
+    }
+    if (waveFailures.length) {
+      phase(`restricted_project_${waveFailures[0]!.seam}`);
+      throw waveFailures[0]!.error;
+    }
+  });
   const report = {
     checks,
     failures,

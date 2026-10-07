@@ -12,6 +12,7 @@ export interface ArtifactPrivacyEffects {
   array_buffer_reads: number;
   native_put_stored: boolean;
   revoked: boolean;
+  project_access_removed: boolean;
   consume_committed: boolean;
   receipt_committed: boolean;
   committed_history_preserved: boolean;
@@ -30,6 +31,7 @@ const fresh = (): ArtifactPrivacyEffects => ({
   array_buffer_reads: 0,
   native_put_stored: false,
   revoked: false,
+  project_access_removed: false,
   consume_committed: false,
   receipt_committed: false,
   committed_history_preserved: false,
@@ -72,9 +74,17 @@ export default {
       phase = request.headers.get("x-c11-seam") as Seam | null;
     const grantId = request.headers.get("x-c11-task-grant"),
       versionId = request.headers.get("x-c11-version");
+    const projectLoss = request.headers.get("x-c11-project-access-loss");
     if (
       scope !== null &&
       (scope.length !== 26 || !isUlid(scope) || effects.has(scope) || effects.size >= 64)
+    )
+      return new Response(null, { status: 400 });
+    if (
+      projectLoss !== null &&
+      (projectLoss !== "1" ||
+        !["get", "body"].includes(phase ?? "") ||
+        !/^\/view\/([^/]+)\/redeem$/u.test(url.pathname))
     )
       return new Response(null, { status: 400 });
     if (
@@ -94,20 +104,66 @@ export default {
     async function revoke(at: Seam): Promise<void> {
       if (phase !== at || count.revoked) return;
       const before = await canonicalSnapshot(raw);
-      const row = before.task_human_grants?.find((candidate) => candidate.id === grantId);
-      requireWitness(
-        row &&
-          row.workspace_id === FIX.workspace &&
-          row.human_id === FIX.owner &&
-          row.revoked_at === null,
-      );
       const expected = structuredClone(before);
-      expected.task_human_grants!.find((candidate) => candidate.id === grantId)!.revoked_at = now;
-      await db
-        .prepare(
-          "UPDATE task_human_grants SET revoked_at=? WHERE workspace_id=? AND id=? AND revoked_at IS NULL",
-        )
-        .run(now, FIX.workspace, grantId);
+      if (projectLoss) {
+        const viewId = /^\/view\/([^/]+)\/redeem$/u.exec(url.pathname)?.[1];
+        // Derive the independently removed grant from the consumed view, never from caller-chosen parent IDs.
+        const parent = (await db
+          .prepare(
+            `SELECT project.id AS project_id, view.human_id FROM artifact_view_grants AS view
+             JOIN artifact_versions AS version ON version.workspace_id=view.workspace_id AND version.id=view.version_id
+             JOIN artifacts AS artifact ON artifact.workspace_id=version.workspace_id AND artifact.id=version.artifact_id
+             JOIN runs AS run ON run.workspace_id=artifact.workspace_id AND run.id=artifact.run_id
+             JOIN tasks AS task ON task.workspace_id=run.workspace_id AND task.id=run.task_id AND task.project_id=run.project_id
+             JOIN task_privacy AS privacy ON privacy.workspace_id=task.workspace_id AND privacy.task_id=task.id
+               AND privacy.owner_human_id=task.created_by_human_id
+             JOIN task_human_grants AS task_grant ON task_grant.workspace_id=task.workspace_id AND task_grant.task_id=task.id
+               AND task_grant.human_id=view.human_id AND task_grant.authorization_epoch=view.authorization_epoch
+             JOIN projects AS project ON project.workspace_id=task.workspace_id AND project.id=task.project_id
+             JOIN workspace_members AS member ON member.workspace_id=view.workspace_id AND member.human_id=view.human_id
+             JOIN workspace_authorization_epochs AS epoch ON epoch.workspace_id=member.workspace_id AND epoch.human_id=member.human_id
+             JOIN project_access AS access ON access.workspace_id=project.workspace_id AND access.project_id=project.id AND access.human_id=view.human_id
+             WHERE view.workspace_id=? AND view.id=? AND task_grant.id=? AND view.human_id=?
+               AND view.consumed_at IS NOT NULL AND view.content_hash=version.content_hash AND version.state='available'
+               AND privacy.owner_human_id<>view.human_id AND task_grant.permission='read' AND task_grant.revoked_at IS NULL
+               AND project.access_mode='restricted' AND member.role='reviewer'
+               AND member.authorization_epoch=view.authorization_epoch AND epoch.authorization_epoch=view.authorization_epoch
+               AND epoch.revoked_at IS NULL`,
+          )
+          .get(FIX.workspace, viewId, grantId, FIX.reviewer)) as {
+          project_id: string;
+          human_id: string;
+        } | null;
+        requireWitness(parent);
+        const matching = (candidate: Record<string, unknown>) =>
+          candidate.workspace_id === FIX.workspace &&
+          candidate.project_id === parent.project_id &&
+          candidate.human_id === parent.human_id;
+        requireWitness(expected.project_access?.filter(matching).length === 1);
+        expected.project_access = expected.project_access!.filter(
+          (candidate) => !matching(candidate),
+        );
+        await db
+          .prepare(
+            "DELETE FROM project_access WHERE workspace_id=? AND project_id=? AND human_id=?",
+          )
+          .run(FIX.workspace, parent.project_id, parent.human_id);
+        count.project_access_removed = true;
+      } else {
+        const row = before.task_human_grants?.find((candidate) => candidate.id === grantId);
+        requireWitness(
+          row &&
+            row.workspace_id === FIX.workspace &&
+            row.human_id === FIX.owner &&
+            row.revoked_at === null,
+        );
+        expected.task_human_grants!.find((candidate) => candidate.id === grantId)!.revoked_at = now;
+        await db
+          .prepare(
+            "UPDATE task_human_grants SET revoked_at=? WHERE workspace_id=? AND id=? AND revoked_at IS NULL",
+          )
+          .run(now, FIX.workspace, grantId);
+      }
       afterMutation = await canonicalSnapshot(raw);
       requireWitness(JSON.stringify(expected) === JSON.stringify(afterMutation));
       count.revoked = true;

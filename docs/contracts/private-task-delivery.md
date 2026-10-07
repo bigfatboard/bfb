@@ -1384,6 +1384,11 @@ It does not certify agent upload replies, deployed private bytes or activation.
   One-use claims and committed history survive response denial; failed receipt
   batches leave no registry/receipt/source/verification audit. R2 orphans are
   not deleted. Compare canonical/FK snapshots after independent mutations.
+  Include a healthy named Reviewer read recipient and independently witnessed
+  restricted-project access loss after actual R2 get/body. The task read grant,
+  role, epoch and parent remain unchanged in those project-loss fixtures. This
+  proves existing current read rules; it does not introduce a view-parent move
+  policy or copy the Owner/Member upload-role ceiling into view delivery.
 - Test-only seam wrappers are confined to disposable tooling. They neither add
   a deployed bypass nor fabricate R2 success. Report bounds and synthetic check
   labels; local native proof is not a live/pilot or browser-presentation claim.
