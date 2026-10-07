@@ -186,3 +186,17 @@ was corrected after the initial clean attempt failed; a fresh checkout passes.
 Opaque positions, outward notification identities, GitHub key policy, remaining
 coordination, natural expiry and destructive private retention remain open.
 Private creation/sharing/checkpoints stay disabled; C11 is still in progress.
+
+The [human coordination-history checkpoint](evidence/WP-C11/coordination-manifest.json)
+is clean-certified at `7a34404`: 1,958 invocation cases, 63 real-D1 checks across
+six harnesses, exact D01/W02 regressions and full verification with 4,300
+TypeScript cases, Go and all 16 Swift cases. Shared discussion history repeats
+exact current parent/viewer authority after all advisory awaits; lists retain
+empty-parent scope before pagination. Human launch status binds the exact
+assignment/execution/run/task/project/snapshot and lease occupant. Private
+creator/grantee history remains held. The first clean attempt caught a stale
+profile migration expectation; the corrected manual defaults and every prior
+field pass from a fresh checkout. This does not certify participant/runner
+authority, cleanup, opaque positions or natural in-flight expiry. The included
+public-position contract is not implementation proof. Private creation remains
+disabled; C11 remains in progress and C12 remains planned.

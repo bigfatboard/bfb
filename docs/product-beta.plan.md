@@ -227,3 +227,13 @@ unresolved; live private R2 byte delivery remains uncertified. C12 stays planned
   scope copy adds no controls. Current X05 D6/D7 prove held state and unused
   proofs, not legacy recovery success. Remaining privacy barriers still gate
   activation; human coordination-history readers are the next bounded slice.
+  The [human coordination-history checkpoint](work-packages/evidence/WP-C11/coordination-manifest.json)
+  is clean-certified at `7a34404`: 1,958 invocation cases, 63 real-D1 checks,
+  exact D01/W02 regressions and full verification with 4,300 TypeScript cases,
+  Go and all 16 Swift cases. Shared discussion/status readers bind current exact
+  parents and the retained first viewer epoch at final delivery; empty lists and
+  replacement lease occupants are covered. Private creator/grantee history is
+  still held. A stale profile migration fixture was repaired before fresh clean
+  certification. Participant/runner/cleanup and the natural-expiry barrier remain
+  outside this checkpoint. The included public-position contract is not its
+  implementation certificate; private creation stays disabled and C12 planned.
