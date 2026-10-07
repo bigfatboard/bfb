@@ -14,7 +14,12 @@ import { signInAndOpenBoard, signInAs } from "./helpers.js";
 test.describe.configure({ mode: "serial" });
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
-const evidenceDir = path.join(rootDir, "docs/work-packages/evidence/WP-G01");
+const evidenceDir = path.join(
+  rootDir,
+  process.env.BFB_CAPTURE_G01_BROWSER_EVIDENCE === "1"
+    ? "docs/work-packages/evidence/WP-G01"
+    : "apps/web/test/e2e/test-results/evidence-g01",
+);
 const BASE = `/api/v1/workspaces/${FIX.workspace}`;
 const HOSTILE = "</script><script>alert(document.cookie)</script><img src=x onerror=alert(1)>";
 const recording: Record<string, unknown> = {
