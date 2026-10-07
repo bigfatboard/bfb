@@ -77,14 +77,8 @@
     "maximum_statement_bytes": 1529,
     "bounds_scope": "Instrumented direct native domain status selections only; Worker/DO internals, setup, first principal captures, independent cuts and snapshots are excluded.",
     "canonical_table_count": 134,
-    "snapshot_exclusions": [
-      "_cf_METADATA",
-      "d1_migrations",
-      "sqlite_sequence"
-    ],
-    "http_budget_tables_compared_separately": [
-      "rate_limit_buckets"
-    ],
+    "snapshot_exclusions": ["_cf_METADATA", "d1_migrations", "sqlite_sequence"],
+    "http_budget_tables_compared_separately": ["rate_limit_buckets"],
     "controls": "Useful ordered Owner/Member DTOs and authorized empty arrays; direct internal reader retained. Restricted-project/no-grant Member audience is proved in domain/native controls. Mounted grant absence is not relabelled as a restricted-project control.",
     "denials": "Initial Reviewer getter denial; retained late epoch/removal/demotion and empty-status loss; explicitly synthetic membership reinstatement at the same still-revoked epoch.",
     "coherence": "One final statement returns current installation/link fields and an authority sentinel; no partial array survives a separate source change.",
@@ -140,4 +134,3 @@
   ],
   "redaction": "Bounded synthetic counts and outcomes only; no credentials, private bodies, raw logs, per-run timestamps or local absolute paths"
 }
-
