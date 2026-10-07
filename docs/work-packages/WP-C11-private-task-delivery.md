@@ -76,21 +76,26 @@ Coordinate shared contracts without changing the other lane's execution work.
 
 ## Handoff
 
-Current checkpoint: [delegated attention commit authority](evidence/WP-C11/delegated-attention-manifest.json),
-clean-certified at `0e987c9`. Exact C11 passes 2,362 stage invocation cases and
-110 D1 checks across ten harnesses; X03 and full verification pass, including
-4,486 TypeScript cases, Go and all 16 Swift cases. Attention creation repeats
-retained current authority, permitted state and the immutable waiter tuple
-inside its batch, preserving Reviewer requests, write-only scope, observations
-and exact retries. The historical parity expiry fixture is repaired.
+Current checkpoint: [delegated context delivery](evidence/WP-C11/delegated-context-manifest.json),
+clean-certified at `7aaf625`. Exact C11 passes 2,393 stage invocation cases and
+122 D1 checks across eleven harnesses; X03 and full verification pass, including
+4,517 TypeScript cases, Go and all 16 Swift cases. Fresh selection, committing
+delivery, cached replay and final MCP selection repeat current read authority.
+Original OAuth nullable boundaries remain ceilings; retries reconstruct only
+canonical previously delivered versions, including an authorized empty list.
 
-Delegated context delivery is the next product slice to reproduce; cached/read
-responses are not certified by this creation guard. GitHub key policy,
-execution-owned delivery, destructive private retention and other expiry
-boundaries remain open. Private creation/sharing/checkpoints stay disabled;
-C11 remains in progress and C12 planned.
+Delegated attention reads are the next bounded slice to reproduce. Other OAuth
+read responses, GitHub key policy, execution-owned delivery and destructive
+private retention remain open. Private creation/sharing/checkpoints stay
+disabled; C11 remains in progress and C12 planned.
 
 ### Earlier checkpoints
+
+The [delegated attention creation checkpoint](evidence/WP-C11/delegated-attention-manifest.json)
+is clean-certified at `0e987c9`: retained creation authority, permitted run state
+and immutable waiter context are guarded without narrowing Reviewer requests,
+write-only scope or exact retries. Its historical parity expiry fixture is
+repaired; its evidence remains unchanged.
 
 In progress. Contracts and exact target are assigned; private creation remains
 unavailable. Stage 1 is clean-certified at `02dffa6`: 121 focused cases, nine

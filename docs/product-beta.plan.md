@@ -8,15 +8,16 @@ Timo split it from remote start and agent-to-agent work on 6 October. It starts
 from the integrated `7b8620c` checkpoint, preserving the existing implementation
 and certificates. Package metadata remains the source of truth for completion.
 
-Latest local checkpoint: [delegated attention commit authority](work-packages/evidence/WP-C11/delegated-attention-manifest.json),
-clean-certified at `0e987c9` through exact C11, X03 and full verification.
-C11 passes 2,362 stage invocation cases and 110 D1 checks; full verification
-passes 4,486 TypeScript cases, Go and all 16 Swift cases. This closes creation
-guards, not cached/read delivery or private activation. Delegated context
-delivery is the next product slice to reproduce. GitHub policy, execution-owned
-consumers and destructive private retention remain barriers. Private creation,
-sharing and checkpoints stay disabled; C11 is in progress, C12 planned, and the
-other mandatory product features remain unfinished. No rollout or pilot changed.
+Latest local checkpoint: [delegated context delivery](work-packages/evidence/WP-C11/delegated-context-manifest.json),
+clean-certified at `7aaf625` through exact C11, X03 and full verification.
+C11 passes 2,393 stage invocation cases and 122 D1 checks; full verification
+passes 4,517 TypeScript cases, Go and all 16 Swift cases. This closes fresh,
+committing, cached and final MCP context delivery, not every read response or
+private activation. Delegated attention reads are the next bounded slice to
+reproduce. Other OAuth reads, GitHub policy, execution-owned consumers and
+destructive private retention remain barriers. Private creation, sharing and
+checkpoints stay disabled; C11 is in progress, C12 planned, and the other
+mandatory product features remain unfinished. No rollout or pilot changed.
 
 ## Ownership boundary
 
