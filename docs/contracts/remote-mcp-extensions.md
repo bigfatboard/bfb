@@ -37,6 +37,17 @@ assignment IDs; `run_id` and `task_id` narrow the delegation boundary
 only. There is no remote wait primitive: clients re-read
 `bfb_get_attention` instead of holding a Worker request open.
 
+## Current C11 public command receipt
+
+Under the [C11 public-position policy](private-task-delivery.md), public tool
+mutation successes are `{ok:true,result,replayed}` and failures are
+`{ok:false,error}`. The top-level internal Hub cursor is omitted through the
+same allowlisted adapter as browser/human CLI replies, including cached and
+special artifact-grant replies. Authorized result/resource versions and
+one-time grants remain intact; internal Hub outcomes, stored receipts,
+authorization and runner acknowledgements are unchanged. No new feed tool or
+opaque replay service is added.
+
 ## Delegation rules
 
 - Membership, project access, scope, resource boundary, and

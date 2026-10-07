@@ -134,6 +134,16 @@ the batch. A typed row rejected only for unsupported schema remains queued.
   (`heartbeat_count`, `last_heartbeat_at`) is liveness only, never activity
   or completion.
 
+## Current C11 public delivery policy
+
+The [C11 public-position quarantine](private-task-delivery.md) holds browser
+replay/high-water and exported public raw-position readers uniformly before
+source/high-water reads. Existing credential, role and pure query admission
+remain; valid public requests receive fixed 409 `request_rejected` with
+`event feeds are unavailable` and no-store. Stored ledger/order, runner ingest,
+capabilities, per-item dispositions and acknowledgements are unchanged. The
+following replay wire remains historical, not current available delivery.
+
 ## Replay and high-water
 
 `GET /api/v1/workspaces/:workspace/events/high-water` returns

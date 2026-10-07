@@ -90,6 +90,14 @@ certifies these projections, not complete operations privacy.
 
 ## Activity read model
 
+Current [C11 public-position policy](private-task-delivery.md) uniformly holds
+this route and `readActivityFeed` before source/high-water queries. After
+credential/role and pure method/query admission, valid browser requests return
+fixed 409 `request_rejected` with `event feeds are unavailable` and no-store.
+The UI issues no activity-feed request and shows unavailable history; current
+health, supported receipts and explicit commands remain. The row projection
+below is retained historical wire, not an available raw-position feed.
+
 - `GET /api/v1/workspaces/:ws/operations/activity` — owner, member, and
   reviewer (reviewers are filtered to their projects). Rows come from
   `event_ledger` (`workspace_cursor`, `kind`, `actor_type`, `actor_id`,

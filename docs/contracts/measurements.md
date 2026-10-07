@@ -240,6 +240,18 @@ Task totals expose `unknown_run_counts` for process, active, external wait and
 idle, so a partial known subtotal is not labelled complete. Zero runs or no
 observations render as missing, distinct from an observed zero.
 
+## Current C11 public source delivery policy
+
+The [C11 public-position quarantine](private-task-delivery.md) holds public
+measurement-source pages and their exported raw-position reader before target
+or source queries. Valid admitted pages return fixed 409 `request_rejected`
+with `event feeds are unavailable` and no-store. Run measurement `sources` is
+`null`, also within task runs: unavailable, not an empty page. Internal complete
+activity identities, ordering, measurement arithmetic, current parent access
+and explicit timer commands remain unchanged. Source disclosures show a compact
+unavailable explanation and issue no held requests. Historical source-page
+wire/evidence below does not certify current public availability.
+
 ## Displays
 
 Task and run surfaces show five separate sections, each with its

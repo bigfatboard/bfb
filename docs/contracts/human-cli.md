@@ -66,6 +66,16 @@ actor. Hub commands re-resolve the member's full grant, so the binding
 project subset is enforced in the CLI layer before dispatch; out-of-scope
 reads and writes answer `not_found`, mirroring the browser boundary.
 
+## Current C11 public command receipt
+
+The [C11 public-position policy](private-task-delivery.md) omits the top-level
+internal Hub cursor from fresh/cached human CLI mutation replies. Shared public
+adapters project success `{ok:true,result,replayed}` or failure
+`{ok:false,error}`, retaining authorized business result/resource versions.
+The CLI's outer envelope, errors and exit codes remain unchanged. No raw feed
+endpoint, idempotency rewrite or runner/local-agent acknowledgement change is
+introduced.
+
 ## JSON envelope and exit codes
 
 JSON mode (`--json`) prints exactly one document on standard output:

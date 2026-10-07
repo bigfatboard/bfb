@@ -8,6 +8,19 @@ timeline and presence semantics. E01 owns the ledger, dispositions, replay,
 and high-water reads consumed here; this package adds no wire schema and no
 D1 migration. D1 head stays `0019_event_ledger`.
 
+## Current C11 public delivery policy
+
+The [C11 public-position quarantine](private-task-delivery.md) holds new browser
+subscriptions uniformly after credential/role/pure upgrade admission and before
+DO resolution or ready/high-water delivery. Valid requests receive fixed 409
+`request_rejected` with `event feeds are unavailable` and no-store. Existing
+browser attachments retire on heartbeat/alarm, not after a workspace command.
+Browser post-command handling neither reads nor sends nor closes; runner nudges
+are unchanged. Product UI attempts no held socket/feed and presents unavailable
+history/presence, while explicit commands, HTTP detail/manual refresh and launch
+polling remain. Below are retained historical wire and pure codec/resync rules,
+not a certificate of an available public realtime service.
+
 ## Socket subscription
 
 `GET /realtime/workspaces/:workspace/subscribe`

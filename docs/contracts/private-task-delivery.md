@@ -648,6 +648,57 @@ reconciliation intentionally survives human authority loss; a blanket privacy
 guard must not strand reservations. Those remaining activation seams require
 the execution-owning lane's contract and proof.
 
+### Frozen public-position quarantine
+
+This availability-only C11 slice holds uncertified public ordering metadata.
+It does not implement the opaque replay replacement, change internal ordering,
+activate private work or change runner/provider execution.
+
+- After existing authentication/current-role, method and pure query/upgrade
+  admission, public ledger/high-water, semantic-event, operations activity and
+  measurement-source pages return fixed 409 `request_rejected` with
+  `event feeds are unavailable` and no-store headers. Hold uniformly for empty,
+  shared and private workspaces. Denial precedes source/target/cache/high-water
+  reads; a missing/private run must not select the held-page answer. Preserve
+  structural invalid-range/query errors without reading a default high-water.
+- Exported `readEventHighWater`, `listWorkspaceEvents`, `readLedgerHighWater`,
+  `listLedgerEvents`, `listRunMeasurementSources` and `readActivityFeed` retain
+  pure argument checks, then deny before database access. No production or test
+  bypass is added. Internal ingestion, activity arithmetic and persisted order
+  continue through their existing separately scoped paths, not these readers.
+- Run/task measurement arithmetic and current parent authority remain intact;
+  their public run `sources` field is explicitly `null`, including nested task
+  runs. It means unavailable, not an empty source page or an observed zero.
+  Internal complete canonical activity identities still govern arithmetic.
+- Public browser, human CLI and delegated MCP command replies use one explicit
+  allowlisted projection: success `{ok:true,result,replayed}`, failure
+  `{ok:false,error}`. Omit only the top-level Hub `cursor`; preserve authorized
+  business results, resource versions, errors and one-time artifact grants.
+  Apply to fresh/cache, special artifact replies and preference batches. Do
+  not rewrite idempotency/history, globally scrub JSON or alter runner/local
+  agent acknowledgements or internal `HubCommandOutcome`.
+- New browser socket admission is held before Durable Object resolution,
+  attachment, ready/high-water or frames. Existing browser attachments retire
+  on heartbeat/alarm independently of commands. Browser `afterCommand` does
+  no reads, sends or command-triggered closes: even close timing is an activity
+  hint. Keep runner-channel post-command nudges unchanged. Pure codec/resync
+  algorithms may remain tested, but not as a claim of an available public feed.
+- Product consumers stop raw-feed and socket attempts, including hidden mounted
+  panels, and suppress stale history/source state. Use compact unavailable
+  notices in existing disclosures, without extra default actions, false live
+  labels, fake empty history or fabricated presence. Authorized discussion and
+  launch HTTP reads, explicit mutations, manual refresh and launch polling stay.
+- Prove no database/source calls at held helpers, credential/query admission and
+  uniform mounted failures, no command-correlated socket frames/closes, runner
+  nudge preservation, unchanged arithmetic/null source pages, all public receipt
+  paths and browser stale-state/no-attempt behavior. Current E01/E02/A04/X03/G01
+  runtime fixtures must assert the hold and internal invariants truthfully;
+  preserve historical certificates rather than relabeling replay as available.
+
+The exact additive target is `pnpm test:c11:positions`, composed by C11. This
+does not settle notification identities, security-audit opaque anchors, natural
+in-flight expiry, GitHub collision policy, execution consumers or activation.
+
 ## Delivery inventory and required proof
 
 | Surface | Existing owner / entry points | C11 completion check |
