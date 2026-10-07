@@ -173,3 +173,16 @@ passed test gates but failed final clean status due to a historical G01 capture;
 routine captures now use ignored output and the fresh clean certificate passes.
 Unsupported audit/recovery implementation, opaque positions, coordination,
 natural expiry and private activation remain open. C11 is still in progress.
+
+The [unsupported audit/recovery quarantine checkpoint](evidence/WP-C11/quarantine-manifest.json)
+is clean-certified at `b085cb9`: 1,904 invocation cases, 58 real-D1 checks across
+five harnesses, retained C10/C08, exact X05 and full verification with 4,246
+TypeScript cases, Go and all 16 Swift cases. Generic audit delivery is removed;
+three legacy recovery kinds deny uniformly before proof/source/cache/effects.
+Canonical artifact/upload receipts and proof-bound upload recovery remain.
+Stored rows and ordinary integration consumers are preserved. Current X05 D6/D7
+prove the hold, not historical requeue/rewind. An older D1 generic audit control
+was corrected after the initial clean attempt failed; a fresh checkout passes.
+Opaque positions, outward notification identities, GitHub key policy, remaining
+coordination, natural expiry and destructive private retention remain open.
+Private creation/sharing/checkpoints stay disabled; C11 is still in progress.

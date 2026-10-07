@@ -218,3 +218,12 @@ unresolved; live private R2 byte delivery remains uncertified. C12 stays planned
   Routine browser captures no longer overwrite historical evidence; a fresh
   clean certificate passes. Remaining unsupported audit/recovery, opaque
   positions, coordination, natural expiry and activation barriers stay open.
+  The [unsupported audit/recovery quarantine checkpoint](work-packages/evidence/WP-C11/quarantine-manifest.json)
+  is clean-certified at `b085cb9`: 1,904 invocation cases, 58 real-D1 checks,
+  exact X05 and full verification with 4,246 TypeScript cases, Go and all
+  16 Swift cases. Only certified artifact/upload receipts enter audit pages;
+  three unproved legacy recoveries are held before proof/source/cache/effects.
+  Stored history and normal integrations remain unchanged. Concise supported-
+  scope copy adds no controls. Current X05 D6/D7 prove held state and unused
+  proofs, not legacy recovery success. Remaining privacy barriers still gate
+  activation; human coordination-history readers are the next bounded slice.
