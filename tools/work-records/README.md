@@ -1,5 +1,18 @@
 # Work-record runtime proofs
 
+`pnpm test:c11:measurement-attention`, composed once by C11, owns
+`measurement-attention.ts`: four independently collecting disposable-D1 groups
+exercise canonical ended attention history and foreign-key-valid malformed
+task/run/execution-assignment relationships. Complete readable run/task/aggregate
+projections, including observation counts and blocking waits, must exclude each
+misbound source while retaining canonical historical rows. Full canonical-table
+snapshots and foreign-key checks distinguish read-only filtering from rewriting
+history. Task/run setup uses the production Hub; ended assignments and dormant
+privacy are explicit synthetic fixtures, without launch dispatch, runner grants,
+leases, credentials or provider sessions. This proves attention-source lineage,
+not human attention-detail authority, other measurement sources, current
+execution lifetime, private activation or live operation.
+
 `pnpm test:c11:public-business`, composed once by C11, owns `public-business.ts`:
 six disposable D1 witnesses cover retained public authority. A healthy
 project-and-task-bound write-only child fits the native SQL limits. Independent

@@ -1560,6 +1560,27 @@ const RUN_PROVIDER_SQL = `(SELECT CASE WHEN COUNT(DISTINCT json_extract(snapshot
     AND snapshot.id = launch.snapshot_id AND snapshot.run_id = launch.run_id
   WHERE launch.workspace_id = r.workspace_id AND launch.run_id = r.id)`;
 
+/** Historical reads bind the complete source tuple, never current execution liveness. */
+const MEASUREMENT_ATTENTION_LINEAGE_SQL = `EXISTS (
+  SELECT 1 FROM tasks AS attention_task
+  JOIN runs AS attention_run ON attention_run.workspace_id = attention_task.workspace_id
+    AND attention_run.id = attention.run_id AND attention_run.task_id = attention_task.id
+    AND attention_run.project_id = attention_task.project_id
+  JOIN run_executions AS attention_execution
+    ON attention_execution.workspace_id = attention_run.workspace_id
+    AND attention_execution.id = attention.run_execution_id
+    AND attention_execution.run_id = attention_run.id
+  JOIN execution_assignments AS attention_assignment
+    ON attention_assignment.workspace_id = attention_execution.workspace_id
+    AND attention_assignment.execution_id = attention_execution.id
+    AND attention_assignment.assignment_generation = attention.assignment_generation
+    AND attention_assignment.run_id = attention_run.id
+    AND attention_assignment.task_id = attention_task.id
+    AND attention_assignment.project_id = attention_task.project_id
+  WHERE attention_task.workspace_id = attention.workspace_id
+    AND attention_task.id = attention.task_id
+    AND attention_task.project_id = attention.project_id)`;
+
 function mergeMeasurementWindows(windows: readonly IntervalMs[]): IntervalMs[] {
   const sorted = windows
     .filter((row) => row.end >= row.start)
@@ -1641,16 +1662,20 @@ export async function getRunMeasurements(
     .all(workspaceId, runId)) as LedgerRow[];
   const attentionRows = (await db
     .prepare(
-      `SELECT id, kind, blocking, state, requested_at, first_response_at, answered_at, resolved_at
-       FROM attention_requests WHERE workspace_id = ? AND run_id = ?
-       ORDER BY requested_at ASC, id ASC`,
+      `SELECT attention.id, attention.kind, attention.blocking, attention.state,
+              attention.requested_at, attention.first_response_at, attention.answered_at, attention.resolved_at
+       FROM attention_requests AS attention WHERE attention.workspace_id = ? AND attention.run_id = ?
+         AND ${MEASUREMENT_ATTENTION_LINEAGE_SQL}
+       ORDER BY attention.requested_at ASC, attention.id ASC`,
     )
     .all(workspaceId, runId)) as AttentionRow[];
   const attentionCount = (await db
     .prepare(
       `SELECT COUNT(*) AS total FROM attention_observations
        WHERE workspace_id = ? AND attention_id IN
-         (SELECT id FROM attention_requests WHERE workspace_id = ? AND run_id = ?)`,
+         (SELECT attention.id FROM attention_requests AS attention
+          WHERE attention.workspace_id = ? AND attention.run_id = ?
+            AND ${MEASUREMENT_ATTENTION_LINEAGE_SQL})`,
     )
     .get(workspaceId, workspaceId, runId)) as { total: number };
   const tokens = await listTokenObservations(db, workspaceId, runId, access);
@@ -2064,9 +2089,11 @@ export async function getTaskMeasurements(
   }
   const requestRows = (await db
     .prepare(
-      `SELECT id, kind, blocking, state, requested_at, first_response_at, answered_at, resolved_at
-       FROM attention_requests WHERE workspace_id = ? AND task_id = ?
-       ORDER BY requested_at ASC, id ASC`,
+      `SELECT attention.id, attention.kind, attention.blocking, attention.state,
+              attention.requested_at, attention.first_response_at, attention.answered_at, attention.resolved_at
+       FROM attention_requests AS attention WHERE attention.workspace_id = ? AND attention.task_id = ?
+         AND ${MEASUREMENT_ATTENTION_LINEAGE_SQL}
+       ORDER BY attention.requested_at ASC, attention.id ASC`,
     )
     .all(workspaceId, taskId)) as AttentionRow[];
   const attention = requestRows.map(deriveAttentionLatency);
@@ -2272,8 +2299,9 @@ export async function aggregateMeasurements(
   const rows = (await db
     .prepare(
       `SELECT r.id AS run_id, r.project_id, t.priority, ${RUN_PROVIDER_SQL} AS provider,
-              (SELECT COUNT(*) FROM attention_requests AS a
-               WHERE a.workspace_id = r.workspace_id AND a.run_id = r.id) AS attention_requests,
+              (SELECT COUNT(*) FROM attention_requests AS attention
+               WHERE attention.workspace_id = r.workspace_id AND attention.run_id = r.id
+                 AND ${MEASUREMENT_ATTENTION_LINEAGE_SQL}) AS attention_requests,
               (SELECT COUNT(*) FROM result_submissions AS s
                WHERE s.workspace_id = r.workspace_id AND s.run_id = r.id) AS submissions
        FROM runs AS r

@@ -1060,6 +1060,38 @@ local-agent delivery, destructive retention, artifact-byte consumers and private
 activation are excluded. No new private controls or live operation are enabled.
 The additive target is `pnpm test:c11:public-business`, composed once by C11.
 
+### Frozen historical attention sources for measurements
+
+This finite corrective C11 slice owns only attention-derived run, task and
+aggregate measurement projections. Historical requests and observations remain
+stored; fixing their selection does not repair or rewrite malformed history.
+
+- Before delivering request IDs, kinds, state, latencies, blocking waits,
+  observation provenance or aggregate counts, select exact historical lineage:
+  workspace/project/task/run, execution belonging to that run, and the immutable
+  assignment at the request's generation belonging to that same run/task/project.
+  A declared readable run or task cannot substitute for its retained private
+  assignment. Foreign-key validity alone is insufficient for this relationship.
+- Run attention rows and their observation count, task attention/intervention
+  rows and aggregate attention counts use the same complete lineage predicate.
+  Malformed rows contribute neither bodies nor existence/count/timing metadata.
+  Current parent-task ACLs and the final authority recheck remain unchanged.
+- Canonical historical ended executions remain measurable. Do not require an
+  active runner, latest generation, live lease, open result or open attention;
+  those are execution/transition constraints, not historical read authority.
+  Keep interval/token arithmetic, observation clocks and held public sources.
+- Reproduce task/run mismatches and a coherent declared shared tuple referring
+  to a private execution/assignment. Compare complete readable run/task and
+  aggregate projections, including counts and waits, before and after insertion.
+  Retain a canonical ended-history control, clean foreign-key checks and exact
+  stored-source snapshots. Native D1 witnesses are separate from mounted human
+  authentication and provider/runtime operation.
+
+The additive target is `pnpm test:c11:measurement-attention`, composed once by
+C11. Human attention-detail delivery, other measurement-source lineages,
+ingestion/mutation authority, execution consumers, clocks/leases, private
+activation and live rollout are excluded.
+
 ### Frozen task-detail panel selection
 
 This finite corrective C11 slice owns the result, measurement and artifact-review
