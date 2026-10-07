@@ -76,23 +76,31 @@ Coordinate shared contracts without changing the other lane's execution work.
 
 ## Handoff
 
-Current checkpoint: [browser task child-collection selection](evidence/WP-C11/task-collections-manifest.json),
-clean-certified at `a1506cd`. Exact C11 passes 3,082 stage case invocations
-across 125 file invocations in twenty blocks, six panel browser cases and 218
-D1 check labels across nineteen harnesses; dependencies and its notification
-drill are separate. Full verification passes 4,813 TypeScript cases in 221
-files, Go and all 16 Swift cases. The focused target passes 78 cases, including
-25 new mounted cases and 53 retained controls, plus four native D1 groups.
-Final parent authority and the child page share one statement, retaining the
-original human, epoch and project ceiling. Late denial returns uniform 404
-even for empty or terminal pages; authorized emptiness stays 200. Fields,
-attribution, audience/version order, dependency-target ACL and lookahead remain
-unchanged. The committed OLD replay records 12 failures/13 controls: eleven
-200-empty ambiguities and one captured-project body exposure. Its task-move
-fixture is synthetic, not a new production move command.
+Current checkpoint: [human upload reply and local native artifact bytes](evidence/WP-C11/artifact-bytes-manifest.json),
+clean-certified at `833babe`. Exact C11 passes 3,201 stage case invocations
+across 132 file invocations in twenty-one blocks, six panel browser cases and
+222 native check labels across twenty harnesses; dependencies and its
+notification drill are separate. Full verification passes 4,820 TypeScript
+cases in 221 files, Go and all 16 Swift cases. The focused target passes 112
+cases in seven files, including eleven human-private-upload cases, plus four
+native Worker/D1/R2 groups. After a successful receipt commit, human upload
+replies reselect their retained consumed tuple, canonical receipt and current
+contribution authority within the original project ceiling. Late denial
+preserves committed history and stored bytes. The native proof forwards actual
+D1 batches and R2 get/put/body operations; it covers healthy private/shared/run-
+free paths, one-use, grant-loss seams, failed receipt rollback and post-commit
+reply suppression. Handler SQL bounds are 19 bindings and 4,716 bytes.
+The original five-case committed OLD replay records one post-COMMIT failure
+and four controls; six later cases and native groups are not replayed on OLD.
+Synthetic parent-move and retained-result substitution controls do not claim
+reachable business transitions. This is local native proof, not live private
+bytes, compiled-browser presentation, agent-upload reply or expiry certification.
 
-Next is opaque continuation for the four paged browser collections: comments,
-dependencies, links and work-runs. Both context views are unpaged. The existing
+Next proof-only scope is native Reviewer read and restricted-project loss after
+R2 get/body; current view read rules already admit Reviewer. Opaque continuation
+for the four paged browser collections is separately awaiting its compatibility
+decision: comments, dependencies, links and work-runs. Both context views are
+unpaged. The existing
 audit handle primitives are useful, but audit-only storage cannot be overloaded.
 Raw-ID retirement/version compatibility and position-only Hub bookkeeping need
 a frozen transition decision before implementation; no migration or fallback
@@ -102,6 +110,18 @@ remain open. Private creation, sharing, inherited private children and
 checkpoints stay disabled; C11 remains in progress and C12 planned.
 
 ### Earlier checkpoints
+
+The [browser task child-collection selection checkpoint](evidence/WP-C11/task-collections-manifest.json)
+is clean-certified at `a1506cd`: exact C11 passes 3,082 stage case invocations
+across 125 file invocations in twenty blocks, six panel browser cases and 218
+D1 check labels across nineteen harnesses; full verification passes 4,813
+TypeScript cases in 221 files, Go and all 16 Swift cases. Its focused target
+passes 78 cases and four native D1 groups. Final parent authority and the child
+page share one statement, retaining original human/epoch/project ceilings.
+Late denial returns uniform 404 even for empty or terminal pages; authorized
+emptiness, fields, attribution, ordering and lookahead stay unchanged. Its
+committed OLD replay records twelve failures/thirteen controls, including one
+expressly synthetic captured-project body exposure. Its evidence is unchanged.
 
 The [measurement attention lineage](evidence/WP-C11/measurement-attention-manifest.json)
 and [human attention history](evidence/WP-C11/human-attention-history-manifest.json)
