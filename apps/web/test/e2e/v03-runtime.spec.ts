@@ -183,11 +183,37 @@ test("notes are required for changes and authentication loss cannot commit a rev
   await page.getByTestId("review-note").fill("Synthetic changes requested");
   await page.getByTestId("review-request-changes").click();
   await expect(page.getByTestId("review-changes-note")).toBeVisible();
+  const authenticatedCookies = await context.cookies();
   await context.clearCookies();
   await page.getByTestId("review-note").fill("Synthetic unsent draft");
   const afterChanges = await fixture.db.prepare("SELECT COUNT(*) AS n FROM artifact_reviews").get();
+  const deniedReview = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname === `${BASE}/artifacts/${version.artifactId}/reviews`,
+  );
   await page.getByTestId("review-comment-submit").click();
-  await expect(page.getByTestId("review-error")).toContainText("Review failed.");
+  expect((await deniedReview).status()).toBe(401);
+  await expect(page.getByTestId("review-error")).toContainText("Artifact details unavailable.");
+  await expect(page.getByTestId("review-error")).toContainText("unauthenticated");
+  for (const id of [
+    "review-provenance",
+    "review-record",
+    "review-artifact-select",
+    "artifact-viewer",
+    "review-decide-form",
+    "review-note",
+  ])
+    await expect(page.getByTestId(id)).toHaveCount(0);
+  expect(await fixture.db.prepare("SELECT COUNT(*) AS n FROM artifact_reviews").get()).toEqual(
+    afterChanges,
+  );
+  await context.addCookies(authenticatedCookies);
+  const retry = page.getByRole("button", { name: "Try again", exact: true });
+  await retry.focus();
+  await expect(retry).toBeFocused();
+  await retry.press("Enter");
+  await expect(page.getByTestId("review-changes-note")).toBeVisible();
   await expect(page.getByTestId("review-note")).toHaveValue("Synthetic unsent draft");
   expect(await fixture.db.prepare("SELECT COUNT(*) AS n FROM artifact_reviews").get()).toEqual(
     afterChanges,
@@ -252,11 +278,20 @@ test("project revocation withholds browser cached replies, conflicts and private
       "DELETE FROM project_access WHERE workspace_id = ? AND project_id = ? AND human_id = ?",
     )
     .run(FIX.workspace, FIX.projectA, FIX.owner);
+  const retainedReviews = await fixture.db
+    .prepare("SELECT * FROM artifact_reviews ORDER BY rowid")
+    .all();
+  const retainedWork = await readState();
   for (const body of [input, { ...input, comment: "Changed private input" }]) {
     const denied = await fixture.browser(path, body);
-    expect(denied.status).toBe(403);
+    expect(denied.status).toBe(404);
+    expect(denied.headers.get("cache-control")).toBe("no-store");
     expect(await denied.text()).not.toContain(input.comment);
   }
+  expect(await fixture.db.prepare("SELECT * FROM artifact_reviews ORDER BY rowid").all()).toEqual(
+    retainedReviews,
+  );
+  expect(await readState()).toEqual(retainedWork);
   await page.goto(surface());
   const read = await page.evaluate(async (path) => {
     const response = await fetch(path);
