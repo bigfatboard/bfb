@@ -1,0 +1,162 @@
+{
+  "package": "C11",
+  "recorded_on": "2026-10-07",
+  "tested_commit": "a1506cd2aca825b1acb705442dcd10cf077b7bb6",
+  "production_commit": "a1506cd2aca825b1acb705442dcd10cf077b7bb6",
+  "outcome": "passed",
+  "stage": "partial_browser_task_child_collection_selection",
+  "package_acceptance_complete": false,
+  "private_creation_available": false,
+  "migration_head": "0047_security_audit_positions",
+  "scope": "Browser task comments, all and agent context, dependencies, links and work-run collections select their current readable parent sentinel and child rows together. The original human, epoch and captured project vector remain restrictions; denied parents do not become successful empty pages.",
+  "clean_certificate_marker": "C11_TASK_COLLECTIONS_CLEAN_CERTIFICATE_OK",
+  "clean_pipeline_exit_code": 0,
+  "clean_commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "exit_code": 0
+    },
+    {
+      "command": "pnpm test:c11",
+      "exit_code": 0,
+      "c10_cases": 86,
+      "c10_files": 8,
+      "c10_d1_checks": 9,
+      "c08_cases": 23,
+      "c08_files": 5,
+      "c08_proof": "C08_D1_OK",
+      "stage_cases": 3082,
+      "stage_files": 125,
+      "stage_invocations": [
+        { "cases": 1861, "files": 64 },
+        { "cases": 4, "files": 2 },
+        { "cases": 23, "files": 2 },
+        { "cases": 18, "files": 2 },
+        { "cases": 31, "files": 2 },
+        { "cases": 34, "files": 2 },
+        { "cases": 32, "files": 2 },
+        { "cases": 36, "files": 2 },
+        { "cases": 38, "files": 2 },
+        { "cases": 87, "files": 4 },
+        { "cases": 70, "files": 6 },
+        { "cases": 99, "files": 5 },
+        { "cases": 215, "files": 9 },
+        { "cases": 78, "files": 4 },
+        { "cases": 68, "files": 3 },
+        { "cases": 27, "files": 2 },
+        { "cases": 54, "files": 2 },
+        { "cases": 41, "files": 3 },
+        { "cases": 31, "files": 3 },
+        { "cases": 235, "files": 4 }
+      ],
+      "stage_browser_cases": 6,
+      "stage_d1_checks": 218,
+      "stage_d1_harnesses": 19,
+      "notification_runtime": {
+        "proofs": ["C11_NOTIFICATION_IDENTITY_UPGRADE_OK", "X01_HARNESS_OK"],
+        "record_labels": 41,
+        "counting": "Setup and repeated dispatch/redaction labels are not independent acceptance cases"
+      },
+      "go_race": "passed",
+      "counting": "Stage totals count twenty Vitest case/file invocations, not unique cases/files. Six retained panel Chromium cases, C10/C08 dependencies and notification runtime are separate. The 218 stage D1 labels include four new independently collecting groups, not 218 new collection tests."
+    },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 4813,
+      "typescript_files": 221,
+      "go": "passed",
+      "go_scheduling": "GOFLAGS=-p=1",
+      "swift": "passed",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    {
+      "command": "pnpm worktree:check",
+      "exit_code": 0,
+      "before_and_after_verify": true,
+      "committed_source_unchanged": true,
+      "final_status_empty": true
+    }
+  ],
+  "slice_suites": {
+    "target": "pnpm test:c11:task-collections",
+    "composed_once_by_c11": true,
+    "focused_cases": 78,
+    "focused_files": 4,
+    "new_authenticated_mounted_cases": 25,
+    "retained_mounted_cases": 53,
+    "native_d1_groups": 4,
+    "native_proof": "C11_HUMAN_TASK_COLLECTION_D1_OK",
+    "maximum_bindings": 10,
+    "maximum_statement_bytes": 5024,
+    "native_checks": [
+      "canonical_collections",
+      "six_late_grant_losses",
+      "current_epoch_project_membership",
+      "captured_project_ceiling"
+    ],
+    "counting": "Twenty-five new mounted cases and fifty-three retained route cases form one 78-case invocation. Native D1 has four independently collected groups; six grant-loss cuts and individual assertions within groups are not extra cases. Bounds describe the instrumented final collection queries."
+  },
+  "old_source_probe": {
+    "production_commit": "c4747a903a371ad485eeffee203e0f24bd58f377",
+    "production_runtime_unfixed": true,
+    "selected_cases": 25,
+    "failed": 12,
+    "passed": 13,
+    "expected_exit_code": 1,
+    "source_unchanged_marker": "UNFIXED_TASK_COLLECTION_SOURCE_UNCHANGED",
+    "failure_categories": {
+      "populated_late_grant_denial_reported_as_authorized_empty": 6,
+      "empty_and_terminal_late_grant_denial_reported_as_authorized_empty": 2,
+      "late_epoch_project_membership_denial_reported_as_authorized_empty": 3,
+      "synthetic_captured_project_ceiling_nonempty_reply": 1
+    },
+    "controls": {
+      "authorized_empty_views": 6,
+      "authorized_terminal_pages": 4,
+      "useful_fields_attribution_audience_order_and_lookahead": 1,
+      "dependency_endpoint_acl_before_limit": 1,
+      "initial_absent_and_denied_parent_uniformity": 1
+    },
+    "native_groups_replayed": false,
+    "status": "The finalized twenty-five-case mounted suite ran against committed unfixed source and its independently built runtime. Eleven failures are HTTP 200-empty ambiguity rather than demonstrated body leakage; one explicitly synthetic FK-clean task move/new-project-grant probe returned a non-empty reply outside the original project ceiling. Thirteen controls pass. Production source remained unchanged. This is not old-source clean package acceptance."
+  },
+  "regression_proof": [
+    "The exact current workspace/human/epoch, read-role, project policy and creator/grant predicate selects the parent sentinel together with every child page",
+    "Original captured project IDs remain a ceiling; a fixture-only task move plus newly gained project access cannot widen the same read",
+    "All six populated final family selections observe the independent named read-grant loss and return the uniform missing-parent response rather than an authorized empty collection",
+    "Authorized empty and terminal pages stay successful; currently denied empty and terminal pages return HTTP 404 with the exact not_found envelope",
+    "Representative membership, retained-epoch and project losses are selected at the real final SQL boundary; the membership fixture independently retains workspace project readability",
+    "Comment fields and human/agent attribution, all-versus-agent context audience/version order, dependency target ACL before limit, work-run purpose and exact task/project joins, ascending ordering and visible-only lookahead retain their current DTOs",
+    "Every armed cut asserts that the independent mutation completed; complete canonical snapshots and foreign-key checks remain unchanged by subsequent reads",
+    "Final route projection and serialization are synchronous after the authority-bearing selection; no later advisory await substitutes for it"
+  ],
+  "proof_boundaries": [
+    "Mounted browser tests use genuine synthetic session cookies and production Control app routing over disposable local SQLite; they are not a deployed HTTP Worker ingress proof",
+    "Native disposable D1 uses production Worker/Hub task, child and work-run setup; named Reviewer and dormant privacy/grant rows are explicit synthetic fixtures",
+    "Native domain selections do not independently prove browser or CLI credentials; mounted authentication and native selection evidence remain distinct",
+    "The task move/new-project-grant control is synthetic and FK-clean; it does not claim a reachable production task-move command",
+    "Snapshots cover canonical business/authority/history rows after independent changes; HTTP abuse accounting and engine metadata are separate",
+    "The boundary ends at the final statement followed by synchronous projection/serialization, not current authority at arbitrary later transport delivery time"
+  ],
+  "excluded_preliminary_probes": [
+    "An exploratory mounted run with an invalid membership fixture is excluded; the finalized independent committed OLD replay supplies the twelve meaningful failures and thirteen controls",
+    "The first native run stopped at a harness-only undefined-versus-null missing-row assertion; adaptD1 returns native first() null. It is excluded from security RED and passing native acceptance; the corrected complete four-group run passes",
+    "Pre-certificate focused/native passes do not replace the completed unchanged clean-checkout C11 and full-verification pipeline"
+  ],
+  "activation_barriers": [
+    "Opaque child-collection continuations and other broader delivery/temporal boundaries are not certified by this slice",
+    "GitHub key policy, execution-owned private consumers and destructive private retention remain open",
+    "Private creation, creator sharing, inherited private children, author-private checkpoints and C12 remain unavailable or planned"
+  ],
+  "not_claimed": [
+    "Complete C11 acceptance, private activation, deployment or external CI",
+    "Fresh standalone A02, A04, X03 or W03 acceptance; their earlier evidence remains separate",
+    "Opaque task cursors or new context-delivery/receipt semantics",
+    "Run execution/session collections, review timers, shared agent/delegated context, mutations, clocks, leases, cleanup or provider behavior",
+    "Native browser/CLI credential ingress, live private R2/browser bytes, installed app, persistent pilot or provider operation",
+    "Rollback of independently committed privacy, grant, epoch, membership, project or task fixture changes"
+  ],
+  "redaction": "Bounded counts and synthetic outcomes only; raw logs, credentials, private content, per-run timestamps and local paths are not committed"
+}

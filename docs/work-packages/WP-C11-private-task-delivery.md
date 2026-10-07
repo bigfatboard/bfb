@@ -76,30 +76,48 @@ Coordinate shared contracts without changing the other lane's execution work.
 
 ## Handoff
 
-Current checkpoint: [measurement attention lineage](evidence/WP-C11/measurement-attention-manifest.json)
-and [human attention history](evidence/WP-C11/human-attention-history-manifest.json),
-clean-certified together at `c4747a9`. Exact C11 passes 3,004 stage invocation
-cases across 121 file invocations, six panel browser cases and 214 D1 checks
-across eighteen harnesses; its notification drill is separate. Exact A04, A02
-and X03 pass, including their native and browser checks. Full verification
-passes 4,788 TypeScript cases, Go and all 16 Swift cases. Same-project fixtures
-separate task privacy from project restrictions. Measurement sources and all
-human attention readers require exact retained task/run/execution/assignment
-lineage, without requiring current execution activity or the newest assignment.
-Canonical ended, earlier-generation, resolved and empty history stays readable.
-Historical pre-upgrade fixtures preserve their old task shape through migration;
-this does not change production capture, measurements or clocks.
+Current checkpoint: [browser task child-collection selection](evidence/WP-C11/task-collections-manifest.json),
+clean-certified at `a1506cd`. Exact C11 passes 3,082 stage case invocations
+across 125 file invocations in twenty blocks, six panel browser cases and 218
+D1 check labels across nineteen harnesses; dependencies and its notification
+drill are separate. Full verification passes 4,813 TypeScript cases in 221
+files, Go and all 16 Swift cases. The focused target passes 78 cases, including
+25 new mounted cases and 53 retained controls, plus four native D1 groups.
+Final parent authority and the child page share one statement, retaining the
+original human, epoch and project ceiling. Late denial returns uniform 404
+even for empty or terminal pages; authorized emptiness stays 200. Fields,
+attribution, audience/version order, dependency-target ACL and lookahead remain
+unchanged. The committed OLD replay records 12 failures/13 controls: eleven
+200-empty ambiguities and one captured-project body exposure. Its task-move
+fixture is synthetic, not a new production move command.
 
-Next is browser task child-collection selection. Its source is committed at
-`a1506cd`; the exact focused target passes 78 cases and four native D1 groups,
-and a finalized committed OLD replay records 12 failures/13 controls. Its own
-clean C11/full-verification pipeline is running, not yet acceptance. Parent
-denial must remain distinct from an authorized empty or terminal child page.
+Next is opaque continuation for the four paged browser collections: comments,
+dependencies, links and work-runs. Both context views are unpaged. The existing
+audit handle primitives are useful, but audit-only storage cannot be overloaded.
+Raw-ID retirement/version compatibility and position-only Hub bookkeeping need
+a frozen transition decision before implementation; no migration or fallback
+has been added. This read checkpoint does not certify opaque positions.
 GitHub key policy, execution-owned delivery and destructive private retention
 remain open. Private creation, sharing, inherited private children and
 checkpoints stay disabled; C11 remains in progress and C12 planned.
 
 ### Earlier checkpoints
+
+The [measurement attention lineage](evidence/WP-C11/measurement-attention-manifest.json)
+and [human attention history](evidence/WP-C11/human-attention-history-manifest.json)
+checkpoints are clean-certified together at `c4747a9`. Exact C11 passes 3,004
+stage invocation cases across 121 file invocations, six panel browser cases and
+214 D1 checks across eighteen harnesses; its notification drill is separate.
+Exact A04, A02 and X03 pass, including their native and browser checks. Full
+verification passes 4,788 TypeScript cases, Go and all 16 Swift cases. Same-project
+fixtures separate task privacy from project restrictions. Measurement sources
+and all human attention readers require exact retained task/run/execution/assignment
+lineage, without requiring current execution activity or the newest assignment.
+Canonical ended, earlier-generation, resolved and empty history stays readable.
+Historical pre-upgrade fixtures preserve their old task shape through migration;
+this does not change production capture, measurements or clocks. Their evidence
+remains unchanged; their additional package gates are not rerun by the later
+browser collection certificate.
 
 The [task-detail panel selection checkpoint](evidence/WP-C11/detail-panels-manifest.json)
 is clean-certified at `9687435`. Exact C11 passes 2,684 stage invocation cases,

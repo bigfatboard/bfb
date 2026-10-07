@@ -8,24 +8,29 @@ Timo split it from remote start and agent-to-agent work on 6 October. It starts
 from the integrated `7b8620c` checkpoint, preserving the existing implementation
 and certificates. Package metadata remains the source of truth for completion.
 
-Latest local checkpoints: [measurement attention lineage](work-packages/evidence/WP-C11/measurement-attention-manifest.json)
-and [human attention history](work-packages/evidence/WP-C11/human-attention-history-manifest.json),
-clean-certified together at `c4747a9` through exact C11, A04, A02, X03 and full
-verification. C11 passes 3,004 stage invocation cases across 121 file invocations,
-six panel browser cases and 214 D1 checks across eighteen harnesses, with its
-notification drill separate. Full verification passes 4,788 TypeScript cases,
-Go and all 16 Swift cases. Exact historical task/run/execution/assignment
-lineage fences attention-derived measurements and human history, preserving
-canonical ended, earlier-generation, resolved and empty records. Same-project
-fixtures isolate task privacy; old-schema upgrade fixtures keep their actual
-historical task shape. Production capture, arithmetic and clocks are unchanged.
+Latest local checkpoint: [browser task child-collection selection](work-packages/evidence/WP-C11/task-collections-manifest.json),
+clean-certified at `a1506cd` through exact C11 and full verification. C11 passes
+3,082 stage case invocations across 125 file invocations in twenty blocks, six
+panel browser cases and 218 D1 check labels across nineteen harnesses; dependencies
+and the notification drill remain separate. Full verification passes 4,813
+TypeScript cases in 221 files, Go and all 16 Swift cases. Late denial of comments,
+context, dependencies, links or work-runs returns uniform 404, including empty
+and terminal pages, without widening the originally captured project ceiling.
+Authorized emptiness, fields, attribution, ordering and lookahead are preserved.
+The focused target passes 78 cases and four native D1 groups; the unfixed replay
+records twelve failures/thirteen controls. The task-move fixture is synthetic.
+The earlier [measurement attention lineage](work-packages/evidence/WP-C11/measurement-attention-manifest.json)
+and [human attention history](work-packages/evidence/WP-C11/human-attention-history-manifest.json)
+checkpoints retain their separate `c4747a9` C11/A04/A02/X03/full-verification
+certificate. Production capture, arithmetic and clocks are unchanged.
 The [task-detail panel certificate](work-packages/evidence/WP-C11/detail-panels-manifest.json)
 and earlier public business/CLI certificate remain unchanged. UI details,
 drafts, retry and hidden-section notices stay on demand in both themes.
-Next is browser task child-collection selection: source `a1506cd` passes its
-78-case focused target and four native D1 groups, but its separate clean
-pipeline is still running. GitHub policy, execution-owned consumers and
-destructive private retention remain open.
+Next is opaque continuation for comments, dependencies, links and work-runs;
+context is unpaged. Raw-ID retirement/version compatibility and position-only
+Hub bookkeeping need a frozen transition decision before implementation.
+No new cursor storage, migration or fallback exists. GitHub policy,
+execution-owned consumers and destructive private retention remain open.
 Private creation, sharing and checkpoints stay disabled; C11 is in progress,
 C12 planned, and the other mandatory product features remain unfinished.
 No rollout or pilot changed.
