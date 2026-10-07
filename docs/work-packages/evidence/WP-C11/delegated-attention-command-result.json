@@ -1,0 +1,128 @@
+{
+  "package": "C11",
+  "recorded_on": "2026-10-07",
+  "tested_commit": "0e987c9afd204328eff938904a6d37210d50f89a",
+  "outcome": "passed",
+  "stage": "partial_delegated_attention_commit_authority",
+  "package_acceptance_complete": false,
+  "private_creation_available": false,
+  "migration_head": "0047_security_audit_positions",
+  "scope": "Repeat retained current delegated attention authority, permitted run state and exact immutable waiter tuple in write-only committing D1 checks; add a separate database-clock credential-expiry ceiling without changing prepared observations, retries or artifact role ceilings.",
+  "clean_commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "exit_code": 0
+    },
+    {
+      "command": "pnpm test:c11",
+      "exit_code": 0,
+      "c10_cases": 86,
+      "c10_files": 8,
+      "c10_d1_checks": 9,
+      "c08_cases": 23,
+      "c08_files": 5,
+      "c08_proof": "C08_D1_OK",
+      "stage_cases": 2362,
+      "stage_files": 87,
+      "stage_invocations": [
+        { "cases": 1861, "files": 64 },
+        { "cases": 4, "files": 2 },
+        { "cases": 23, "files": 2 },
+        { "cases": 18, "files": 2 },
+        { "cases": 68, "files": 3 },
+        { "cases": 27, "files": 2 },
+        { "cases": 54, "files": 2 },
+        { "cases": 41, "files": 3 },
+        { "cases": 31, "files": 3 },
+        { "cases": 235, "files": 4 }
+      ],
+      "stage_d1_checks": 110,
+      "stage_d1_harnesses": 10,
+      "notification_runtime": {
+        "proofs": ["C11_NOTIFICATION_IDENTITY_UPGRADE_OK", "X01_HARNESS_OK"],
+        "record_labels": 41,
+        "counting": "Setup and repeated dispatch/redaction labels are not 41 independent acceptance cases"
+      },
+      "go_race": "passed",
+      "counting": "Stage totals count invocations, not unique cases; dependencies, notification runtime, X03 and full verification are separate"
+    },
+    {
+      "command": "pnpm test:x03",
+      "exit_code": 0,
+      "unit_cases": 71,
+      "unit_files": 7,
+      "worker_d1_r2_checks": 11,
+      "browser_cases": 2,
+      "provider_started": false,
+      "persistent_pilot_changed": false
+    },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 4486,
+      "typescript_files": 203,
+      "go": "passed",
+      "go_scheduling": "GOFLAGS=-p=1",
+      "swift": "passed",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    {
+      "command": "pnpm worktree:check",
+      "exit_code": 0,
+      "before_and_after_verify": true,
+      "committed_source_unchanged": true,
+      "final_status_empty": true
+    }
+  ],
+  "slice_suites": {
+    "target": "pnpm test:c11:delegated-attention",
+    "composed_once_by_c11": true,
+    "domain_cases": 11,
+    "authenticated_mounted_mcp_cases": 7,
+    "attention_d1_checks": 14,
+    "local_retained_artifact_cases": 23,
+    "local_retained_artifact_d1_checks": 15,
+    "local_repaired_parity_cases": 30,
+    "maximum_bindings": 25,
+    "maximum_statement_bytes": 6497,
+    "maximum_batch_statements": 11
+  },
+  "old_source_probe": {
+    "production_commit": "a6363b93969e545dea0ce4c3036a508f2145421d",
+    "production_source_unchanged": true,
+    "focused_failed": 11,
+    "focused_passed": 7,
+    "d1_failed": 8,
+    "d1_passed": 6,
+    "status": "Uncommitted new reproducers on unchanged production source; corrected healthy controls and expected late-loss failures are local regression evidence, not old-source clean package acceptance"
+  },
+  "regression_proof": [
+    "Delayed Owner/Member/Reviewer controls preserve write-only attention requests, prepared timestamps and exact retries without duplicate records; changed inputs reject",
+    "Current retained sponsor/client/epoch, membership role, private contribution, project access, write scope and task boundary are checked before attention effects",
+    "Independent production delegation revocation and epoch/project/scope/boundary or private contribution loss roll back requests, observations, semantic/audit/outbox/idempotency and cursor while retaining the independent change",
+    "An unchanged credential reaches the batch while live and naturally expires by database time; denial has no effects while delayed live controls retain observation timestamps",
+    "Submitted review questions and ended immutable execution context remain valid; no active/latest assignment, requester equality or checkout lease is required",
+    "Failed keys succeed once after revoking a read grant and issuing a valid new contribution grant; completed exact retries preserve the original record",
+    "Private helper reuse preserves artifact Owner/Member ceilings, exact publication predicates and their retained regression proof",
+    "Mounted MCP probes use genuine OAuth admission and a separately staged committing Hub; actual D1/native bound-statement proof is separately domain/Hub"
+  ],
+  "probe_repairs": [
+    "The initial D1 submitted-run setup used a write-only delegated result submission, which requires read and write scopes. It is excluded; a genuine human result.submit command now prepares that healthy attention control without broadening its credential.",
+    "Initial clean C11 at 76623a2054a84575af1ecbac768c9fc551432c9d caught a historical September expiry in the twin-run parity control. The existing database-relative live-window helper replaces only that explicit expiry; the repaired 30-case suite and fresh final clean certificate pass."
+  ],
+  "activation_barriers": [
+    "Delegated context and other cached/read response boundaries remain product-owned; context delivery is the next bounded slice to reproduce",
+    "GitHub key-existence policy, execution-owned delivery and destructive private retention remain open",
+    "Private creation, creator sharing, author-private checkpoints and C12 remain unavailable or planned"
+  ],
+  "not_claimed": [
+    "Expiry at every later statement, cached/read response delivery or other command rather than these creation guard statements",
+    "Runner/local capability/lease expiry, cleanup, provider operation or execution-owned private consumers",
+    "Complete C11 acceptance, private activation or live private R2/browser-byte delivery",
+    "A real HTTP Worker/D1 OAuth attention race: MCP cases are authenticated mounted requests using staged SQLite; actual D1 proof is separately domain/Hub",
+    "Separate W03/X01/X05/G01 acceptance reruns; C11 composes its own notification drill",
+    "Live pilot/installed-app operation, deployment or external CI"
+  ],
+  "redaction": "Bounded counts and synthetic outcomes only; raw logs, credentials, private content and local paths are not retained"
+}

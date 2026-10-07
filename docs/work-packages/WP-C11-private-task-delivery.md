@@ -76,6 +76,22 @@ Coordinate shared contracts without changing the other lane's execution work.
 
 ## Handoff
 
+Current checkpoint: [delegated attention commit authority](evidence/WP-C11/delegated-attention-manifest.json),
+clean-certified at `0e987c9`. Exact C11 passes 2,362 stage invocation cases and
+110 D1 checks across ten harnesses; X03 and full verification pass, including
+4,486 TypeScript cases, Go and all 16 Swift cases. Attention creation repeats
+retained current authority, permitted state and the immutable waiter tuple
+inside its batch, preserving Reviewer requests, write-only scope, observations
+and exact retries. The historical parity expiry fixture is repaired.
+
+Delegated context delivery is the next product slice to reproduce; cached/read
+responses are not certified by this creation guard. GitHub key policy,
+execution-owned delivery, destructive private retention and other expiry
+boundaries remain open. Private creation/sharing/checkpoints stay disabled;
+C11 remains in progress and C12 planned.
+
+### Earlier checkpoints
+
 In progress. Contracts and exact target are assigned; private creation remains
 unavailable. Stage 1 is clean-certified at `02dffa6`: 121 focused cases, nine
 real-D1 checks, C10/C08/X03 regressions and full repository/platform verification
