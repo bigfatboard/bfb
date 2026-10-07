@@ -14,6 +14,15 @@ import { assertRunResultTransition, type ExecutionEndReason } from "./work-recor
 import { agentTaskAccess } from "./agent-work.js";
 import { prepareAgentArtifactAuthority } from "./artifact-agent-authority.js";
 import {
+  publicBusinessCommand,
+  publicMemberAuthorityPredicate,
+  publicRunAuthorityPredicate,
+  publicTaskRowAuthorityPredicate,
+  type PublicBusinessAuthority,
+  type PublicBusinessSelection,
+} from "./public-business.js";
+import type { WorkspaceRole } from "./authorization.js";
+import {
   assertTaskAccess,
   sharedTaskPredicate,
   taskAccessPredicate,
@@ -654,7 +663,7 @@ function resultEvidenceProjection(access?: TaskReadAccess) {
   };
 }
 
-export const submitResultCommand: HubCommand<ResultSubmissionInput, SubmitResultResult> = {
+const submitResultBase: HubCommand<ResultSubmissionInput, SubmitResultResult> = {
   name: "result.submit",
   authorize: async (input, ctx) => {
     const authority = await submissionAuthority(input, ctx);
@@ -983,7 +992,7 @@ async function closeAuthority(input: CloseRunInput, ctx: HubContext) {
   await resolveReviewer(ctx, await readRun(ctx, input.runId), ["owner", "member"], "edit");
   versionNumber(input.expectedRunVersion, "expected run version");
 }
-export const requestChangesCommand: HubCommand<ReviewResultInput, ReviewResultResult> = {
+const requestChangesBase: HubCommand<ReviewResultInput, ReviewResultResult> = {
   name: "result.request_changes",
   authorize: (input, ctx) => reviewAuthority(input, ctx, ["owner", "member", "reviewer"]),
   inputFingerprint: resultFingerprint,
@@ -993,7 +1002,7 @@ export const requestChangesCommand: HubCommand<ReviewResultInput, ReviewResultRe
   },
 };
 
-export const acceptResultCommand: HubCommand<ReviewResultInput, ReviewResultResult> = {
+const acceptResultBase: HubCommand<ReviewResultInput, ReviewResultResult> = {
   name: "result.accept",
   authorize: (input, ctx) => reviewAuthority(input, ctx, ["owner", "member"]),
   inputFingerprint: resultFingerprint,
@@ -1003,7 +1012,7 @@ export const acceptResultCommand: HubCommand<ReviewResultInput, ReviewResultResu
   },
 };
 
-export const failRunCommand: HubCommand<CloseRunInput, { runResultState: "failed" }> = {
+const failRunBase: HubCommand<CloseRunInput, { runResultState: "failed" }> = {
   name: "result.fail",
   authorize: closeAuthority,
   inputFingerprint: resultFingerprint,
@@ -1025,7 +1034,7 @@ export const failRunCommand: HubCommand<CloseRunInput, { runResultState: "failed
   },
 };
 
-export const cancelRunCommand: HubCommand<CloseRunInput, { runResultState: "cancelled" }> = {
+const cancelRunBase: HubCommand<CloseRunInput, { runResultState: "cancelled" }> = {
   name: "result.cancel",
   authorize: closeAuthority,
   inputFingerprint: resultFingerprint,
@@ -1046,6 +1055,162 @@ export const cancelRunCommand: HubCommand<CloseRunInput, { runResultState: "canc
     return { runResultState: "cancelled" };
   },
 };
+
+/** Every recognized immutable evidence source shares the final target/credential selection. */
+export function publicSubmissionBusinessSelection<TResult>(
+  authority: PublicBusinessAuthority,
+  runId: string,
+  submissionId: string,
+  roles: readonly WorkspaceRole[] = ["owner", "member"],
+  historical?: SubmissionRecord,
+): PublicBusinessSelection<TResult> {
+  const target = publicTaskRowAuthorityPredicate(
+      authority,
+      "contribute",
+      "public_target_task",
+      roles,
+    ),
+    source = publicTaskRowAuthorityPredicate(authority, "read", "public_source_task", roles),
+    member = publicMemberAuthorityPredicate(authority, roles),
+    evidenceRead =
+      authority.credential?.kind === "delegation"
+        ? publicMemberAuthorityPredicate(authority, roles, "bfb:read")
+        : { sql: "1", parameters: [] },
+    bound =
+      authority.credential?.kind === "delegation" &&
+      (authority.credential.projectId !== null || authority.credential.taskId !== null);
+  return {
+    sql: `SELECT * FROM (WITH public_target AS MATERIALIZED (
+      SELECT public_target_run.workspace_id, public_target_run.id AS run_id, public_target_task.id AS task_id
+      FROM runs AS public_target_run JOIN tasks AS public_target_task
+        ON public_target_task.workspace_id = public_target_run.workspace_id
+          AND public_target_task.id = public_target_run.task_id AND public_target_task.project_id = public_target_run.project_id
+      WHERE public_target_run.workspace_id = ? AND public_target_run.id = ? AND public_target_run.purpose = 'work'
+        AND ${target.sql} AND ${evidenceRead.sql}
+    ), public_submission AS MATERIALIZED (
+      SELECT submission.* FROM result_submissions AS submission JOIN public_target AS target
+        ON target.workspace_id = submission.workspace_id AND target.run_id = submission.run_id
+      JOIN run_configuration_snapshots AS public_snapshot ON public_snapshot.workspace_id = submission.workspace_id
+        AND public_snapshot.id = submission.config_snapshot_id AND public_snapshot.run_id = submission.run_id
+        AND public_snapshot.content_hash = submission.config_hash
+      WHERE submission.id = ? ${
+        historical
+          ? `AND submission.version = ? AND submission.summary = ? AND submission.limitations = ?
+        AND submission.evidence_refs_json = ? AND submission.config_snapshot_id = ? AND submission.config_hash = ?
+        AND submission.submitted_by_kind = ? AND submission.submitted_by_id = ? AND submission.submitted_at = ?
+        AND submission.git_branch IS ? AND submission.git_commit IS ? AND submission.git_dirty IS ?`
+          : ""
+      }
+    ), public_evidence AS MATERIALIZED (
+      SELECT item.key AS ref_index, json_extract(item.value,'$.ref') AS ref, json_extract(item.value,'$.version') AS version
+      FROM public_submission AS submission, json_each(submission.evidence_refs_json) AS item
+      WHERE json_extract(item.value,'$.kind') = 'artifact_version'
+    ), public_sources AS MATERIALIZED (
+      SELECT evidence.ref_index FROM public_evidence AS evidence
+      JOIN artifact_versions AS public_source_version ON public_source_version.workspace_id = ?
+        AND public_source_version.id = COALESCE(evidence.version,evidence.ref)
+      JOIN artifacts AS public_source_artifact ON public_source_artifact.workspace_id = public_source_version.workspace_id
+        AND public_source_artifact.id = public_source_version.artifact_id
+        AND (evidence.version IS NULL OR public_source_artifact.id = evidence.ref)
+      LEFT JOIN runs AS public_source_run ON public_source_run.workspace_id = public_source_artifact.workspace_id
+        AND public_source_run.id = public_source_artifact.run_id
+      LEFT JOIN tasks AS public_source_task ON public_source_task.workspace_id = public_source_run.workspace_id
+        AND public_source_task.id = public_source_run.task_id AND public_source_task.project_id = public_source_run.project_id
+      JOIN public_target AS target ON target.workspace_id = public_source_version.workspace_id
+      WHERE (public_source_artifact.run_id IS NULL AND ${bound ? "0" : member.sql}) OR (
+        ${source.sql} AND (${sharedTaskPredicate("public_source_task")} OR public_source_task.id = target.task_id)
+      )
+    ) SELECT 1 AS permitted FROM public_submission
+      WHERE (SELECT COUNT(*) FROM public_sources) = (SELECT COUNT(*) FROM public_evidence))`,
+    parameters: [
+      authority.workspaceId,
+      runId,
+      ...target.parameters,
+      ...evidenceRead.parameters,
+      submissionId,
+      ...(historical
+        ? [
+            historical.version,
+            historical.summary,
+            historical.limitations,
+            JSON.stringify(historical.evidence_refs),
+            historical.config_snapshot_id,
+            historical.config_hash,
+            historical.submitted_by_kind,
+            historical.submitted_by_id,
+            historical.submitted_at,
+            historical.git_branch,
+            historical.git_commit,
+            historical.git_dirty === null ? null : Number(historical.git_dirty),
+          ]
+        : []),
+      authority.workspaceId,
+      ...(bound ? [] : member.parameters),
+      ...source.parameters,
+    ],
+  };
+}
+
+export const submitResultCommand = publicBusinessCommand(submitResultBase, {
+  applies: (input) => !("request" in input),
+  admission: (input, authority) =>
+    publicRunAuthorityPredicate(authority, (input as SubmitResultInput).runId, "contribute", [
+      "owner",
+      "member",
+    ]),
+  delivery: (input, result, authority) =>
+    publicSubmissionBusinessSelection(
+      authority,
+      (input as SubmitResultInput).runId,
+      result.submission.id,
+      ["owner", "member"],
+      result.submission,
+    ),
+});
+export const requestChangesCommand = publicBusinessCommand(requestChangesBase, {
+  admission: (input, authority) =>
+    publicRunAuthorityPredicate(authority, input.runId, "contribute"),
+  delivery: (input, _result, authority) =>
+    publicSubmissionBusinessSelection(authority, input.runId, input.submissionId, [
+      "owner",
+      "member",
+      "reviewer",
+    ]),
+});
+export const acceptResultCommand = publicBusinessCommand(acceptResultBase, {
+  admission: (input, authority) =>
+    publicRunAuthorityPredicate(authority, input.runId, "contribute", ["owner", "member"]),
+  delivery: (input, _result, authority) =>
+    publicSubmissionBusinessSelection(authority, input.runId, input.submissionId),
+});
+export const failRunCommand = publicBusinessCommand(failRunBase, {
+  admission: (input, authority) =>
+    publicRunAuthorityPredicate(authority, input.runId, "edit", ["owner", "member"]),
+  delivery: (input, _result, authority) => {
+    const predicate = publicRunAuthorityPredicate(authority, input.runId, "edit", [
+      "owner",
+      "member",
+    ]);
+    return {
+      sql: `SELECT 1 AS permitted WHERE ${predicate.sql}`,
+      parameters: predicate.parameters,
+    };
+  },
+});
+export const cancelRunCommand = publicBusinessCommand(cancelRunBase, {
+  admission: (input, authority) =>
+    publicRunAuthorityPredicate(authority, input.runId, "edit", ["owner", "member"]),
+  delivery: (input, _result, authority) => {
+    const predicate = publicRunAuthorityPredicate(authority, input.runId, "edit", [
+      "owner",
+      "member",
+    ]);
+    return {
+      sql: `SELECT 1 AS permitted WHERE ${predicate.sql}`,
+      parameters: predicate.parameters,
+    };
+  },
+});
 
 export interface SubmissionView extends SubmissionRecord {
   superseded: boolean;

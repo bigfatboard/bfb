@@ -8,6 +8,9 @@ import {
   ARTIFACT_GRANT_TTL_MS,
   ARTIFACT_ROLES,
   artifactObjectKey,
+  publicArtifactCreationBusinessSelection,
+  publicArtifactFinalizationBusinessSelection,
+  publicArtifactVersionBusinessSelection,
   roleMaxBytes,
   type ArtifactFormat,
   type ArtifactRole,
@@ -15,6 +18,7 @@ import {
 import {
   ATTENTION_KINDS,
   ATTENTION_KIND_ROLES,
+  publicAttentionBusinessSelection,
   type AttentionKind,
   type AttentionRecord,
   type AttentionState,
@@ -35,6 +39,7 @@ import {
   authorizeResultEvidence,
   cachedResultEvidence,
   guardResultEvidence,
+  publicSubmissionBusinessSelection,
   MAX_EVIDENCE_REFS,
   MAX_RESULT_LIMITATIONS_CHARS,
   MAX_RESULT_SUMMARY_CHARS,
@@ -49,6 +54,7 @@ import {
 } from "./work-commands.js";
 import { assertRunResultTransition } from "./work-records.js";
 import { assertTaskAccess, taskAccessPredicate } from "./task-access.js";
+import { publicBusinessCommand, publicRunAuthorityPredicate } from "./public-business.js";
 
 const HEX64 = /^[0-9a-f]{64}$/;
 const GIT_COMMIT_PATTERN = /^[0-9a-f]{40}$/;
@@ -587,10 +593,7 @@ async function replayDelegatedAttentionResult(
  * clients can never answer or resolve: those commands still require a
  * direct human.
  */
-export const requestDelegatedAttentionCommand: HubCommand<
-  RequestDelegatedAttentionInput,
-  AttentionRecord
-> = {
+const requestDelegatedAttentionBase: HubCommand<RequestDelegatedAttentionInput, AttentionRecord> = {
   name: "attention.request.delegation",
   authorize: async (input, ctx) => {
     delegatedAttentionReplayAuthorities.set(ctx, await delegatedAttentionAuthority(input, ctx));
@@ -724,7 +727,7 @@ export interface SubmitDelegatedResultResult {
  * `agent_run` identity. Review, acceptance, failure, and cancellation stay
  * direct-human only.
  */
-export const submitDelegatedResultCommand: HubCommand<
+const submitDelegatedResultBase: HubCommand<
   SubmitDelegatedResultInput,
   SubmitDelegatedResultResult
 > = {
@@ -904,6 +907,34 @@ export const submitDelegatedResultCommand: HubCommand<
   },
 };
 
+export const requestDelegatedAttentionCommand = publicBusinessCommand(
+  requestDelegatedAttentionBase,
+  {
+    admission: (input, authority) =>
+      publicRunAuthorityPredicate(authority, input.runId, "contribute"),
+    delivery: (input, result, authority) => {
+      const selection = publicAttentionBusinessSelection(authority, result.id, result, true);
+      return {
+        ...selection,
+        sql: `${selection.sql} AND public_attention.run_id = ?`,
+        parameters: [...selection.parameters, input.runId],
+      };
+    },
+  },
+);
+export const submitDelegatedResultCommand = publicBusinessCommand(submitDelegatedResultBase, {
+  admission: (input, authority) =>
+    publicRunAuthorityPredicate(authority, input.runId, "contribute", ["owner", "member"]),
+  delivery: (input, result, authority) =>
+    publicSubmissionBusinessSelection(
+      authority,
+      input.runId,
+      result.submission.id,
+      ["owner", "member"],
+      result.submission,
+    ),
+});
+
 export interface CreateDelegatedArtifactInput {
   artifactId?: string | null;
   /** Delegated publication always binds an in-boundary run; run-less artifacts stay human-only. */
@@ -941,7 +972,7 @@ export interface CreateDelegatedArtifactResult {
  * minted by the calling tool and never enters D1. Finalization and recovery
  * stay on their own delegated/human commands.
  */
-export const createDelegatedArtifactCommand: HubCommand<
+const createDelegatedArtifactBase: HubCommand<
   CreateDelegatedArtifactInput,
   CreateDelegatedArtifactResult
 > = {
@@ -1120,7 +1151,7 @@ export interface FinalizeDelegatedArtifactResult {
  * boundary still contains the version's run. Approval and review stay
  * human-only surfaces.
  */
-export const finalizeDelegatedArtifactCommand: HubCommand<
+const finalizeDelegatedArtifactBase: HubCommand<
   FinalizeDelegatedArtifactInput,
   FinalizeDelegatedArtifactResult
 > = {
@@ -1260,3 +1291,29 @@ export const finalizeDelegatedArtifactCommand: HubCommand<
     };
   },
 };
+
+export const createDelegatedArtifactCommand = publicBusinessCommand(createDelegatedArtifactBase, {
+  admission: (input, authority) =>
+    publicRunAuthorityPredicate(authority, input.runId, "contribute", ["owner", "member"]),
+  delivery: (input, result, authority) =>
+    publicArtifactCreationBusinessSelection(
+      authority,
+      { ...input, artifactId: input.artifactId ?? null },
+      result,
+    ),
+});
+export const finalizeDelegatedArtifactCommand = publicBusinessCommand(
+  finalizeDelegatedArtifactBase,
+  {
+    admission: (input, authority) => {
+      const selection = publicArtifactVersionBusinessSelection<FinalizeDelegatedArtifactResult>(
+        authority,
+        input.versionId,
+        "contribute",
+      );
+      return { sql: `EXISTS (${selection.sql})`, parameters: selection.parameters };
+    },
+    delivery: (input, result, authority) =>
+      publicArtifactFinalizationBusinessSelection(authority, input, result),
+  },
+);

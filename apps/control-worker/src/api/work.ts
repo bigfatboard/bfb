@@ -204,6 +204,7 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
   const principal = await loadPrincipal(deps.db, deps.workspaceId, deps.principal.humanId);
   const hubDeps = {
     db: deps.db,
+    publicAuthority: { ...principal, projectIds: [...principal.projectIds] },
     authorization: createAuthorizationContext({
       workspaceId: deps.workspaceId,
       principalId: deps.principal.humanId,

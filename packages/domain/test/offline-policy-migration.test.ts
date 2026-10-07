@@ -10,8 +10,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import { FIX, seedSyntheticWorkspace } from "../src/fixtures.js";
 import { WorkspaceHub, type HubCommand } from "../src/hub.js";
 import { createProjectCommand, getProjectPolicy } from "../src/projects.js";
-import { createTaskCommand } from "../src/work-commands.js";
 import { createRunCommand } from "../src/work-records.js";
+import { seedHistoricalTask } from "./historical-task-fixture.js";
 
 const directory = fileURLToPath(new URL("../../../migrations/d1", import.meta.url));
 const head = "0039_offline_agent_policy";
@@ -65,10 +65,12 @@ describe("offline policy migration", () => {
       if (!result.ok) throw Error(result.error.code);
       return result.result;
     }
-    const task = await human(createTaskCommand, {
+    const task = await seedHistoricalTask(db, {
+      workspaceId: FIX.workspace,
       projectId: FIX.projectA,
+      humanId: FIX.owner,
       title: "Synthetic historical run",
-      priority: "P2",
+      now: "2026-10-06T00:00:00.000Z",
     });
     const run = await human(createRunCommand, {
       taskId: task.id,

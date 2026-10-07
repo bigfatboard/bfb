@@ -84,10 +84,12 @@ async function executeArtifactCommand<TInput, TResult>(
   deps: ArtifactApiDeps,
   command: HubCommand<TInput, TResult>,
   request: CommandRequest<TInput>,
+  publicAuthority: import("@bfb/domain").PublicBusinessAuthority,
 ): Promise<TResult> {
   const outcome = await executeWorkspaceCommand(
     {
       db: deps.db,
+      publicAuthority,
       workspaceHubNs: deps.workspaceHubNs,
       authorization: createAuthorizationContext({
         workspaceId: request.workspaceId,
@@ -127,6 +129,7 @@ export async function handleArtifactBrowserApi(
       return handleArtifactReviewApi(request, deps);
     }
     const principal = await loadPrincipal(deps.db, deps.workspaceId, deps.principal.humanId);
+    const publicAuthority = { ...principal, projectIds: [...principal.projectIds] };
     const common = {
       workspaceId: deps.workspaceId,
       actorHumanId: principal.humanId,
@@ -168,18 +171,23 @@ export async function handleArtifactBrowserApi(
       const minted = mintUploadGrantSecret();
       let created;
       try {
-        created = await executeArtifactCommand(deps, createArtifactCommand, {
-          ...common,
-          input: {
-            artifactId: (body.artifact_id as string | undefined) ?? null,
-            runId: (body.run_id as string | undefined) ?? null,
-            format: body.format as never,
-            role: body.role as never,
-            declaredSize: body.declared_size as number,
-            expectedDigest: body.expected_digest as string,
-            grantSecretHash: artifactHash(minted.secret),
+        created = await executeArtifactCommand(
+          deps,
+          createArtifactCommand,
+          {
+            ...common,
+            input: {
+              artifactId: (body.artifact_id as string | undefined) ?? null,
+              runId: (body.run_id as string | undefined) ?? null,
+              format: body.format as never,
+              role: body.role as never,
+              declaredSize: body.declared_size as number,
+              expectedDigest: body.expected_digest as string,
+              grantSecretHash: artifactHash(minted.secret),
+            },
           },
-        });
+          publicAuthority,
+        );
       } catch {
         return rejected();
       }
@@ -222,11 +230,16 @@ export async function handleArtifactBrowserApi(
       const minted = mintUploadGrantSecret();
       let grant;
       try {
-        const issued = await executeArtifactCommand(deps, issueArtifactGrantCommand, {
-          ...common,
-          idempotencyKey: randomUlid(),
-          input: { versionId, grantSecretHash: artifactHash(minted.secret) },
-        });
+        const issued = await executeArtifactCommand(
+          deps,
+          issueArtifactGrantCommand,
+          {
+            ...common,
+            idempotencyKey: randomUlid(),
+            input: { versionId, grantSecretHash: artifactHash(minted.secret) },
+          },
+          publicAuthority,
+        );
         grant = issueGrantResponse(issued, minted.secret);
       } catch {
         return rejected();
@@ -267,15 +280,20 @@ export async function handleArtifactBrowserApi(
       }
       let finalized;
       try {
-        finalized = await executeArtifactCommand(deps, finalizeArtifactCommand, {
-          ...common,
-          idempotencyKey: randomUlid(),
-          input: {
-            versionId,
-            contentHash: body.content_hash as string,
-            size: body.size as number,
+        finalized = await executeArtifactCommand(
+          deps,
+          finalizeArtifactCommand,
+          {
+            ...common,
+            idempotencyKey: randomUlid(),
+            input: {
+              versionId,
+              contentHash: body.content_hash as string,
+              size: body.size as number,
+            },
           },
-        });
+          publicAuthority,
+        );
       } catch {
         return rejected();
       }

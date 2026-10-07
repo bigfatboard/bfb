@@ -72,7 +72,8 @@ async function delegation(
       `INSERT INTO oauth_delegations
        (workspace_id, id, human_id, client_id, resource, project_id, task_id,
         scopes_json, authorization_epoch, expires_at, created_at)
-       VALUES (?, ?, ?, ?, 'https://bfb.example.test/mcp', ?, ?, ?, 1, ?, ?)`,
+       VALUES (?, ?, ?, ?, 'https://bfb.example.test/mcp', ?, ?, ?, 1,
+         COALESCE(?, strftime('%Y-%m-%dT%H:%M:%fZ','now','+1 hour')), ?)`,
     )
     .run(
       FIX.workspace,
@@ -82,7 +83,7 @@ async function delegation(
       options.projectId ?? FIX.projectA,
       options.taskId ?? null,
       JSON.stringify(options.scopes ?? ["bfb:read", "bfb:task:write"]),
-      options.expiresAt ?? LATER,
+      options.expiresAt ?? null,
       NOW,
     );
   return id;

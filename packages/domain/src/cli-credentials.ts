@@ -483,6 +483,7 @@ export const revokeBindingCommand: HubCommand<RevokeBindingInput, CliBindingSumm
 
 export interface CliPrincipal {
   type: "human";
+  role: AuthzPrincipal["role"];
   humanId: string;
   authUserId: string;
   workspaceId: string;
@@ -526,23 +527,35 @@ export async function resolveCliPrincipal(
   if (principal.authorizationEpoch !== binding.authorization_epoch) {
     throw new DomainError("unauthenticated", "CLI credential is not active");
   }
-  const bound = binding.project_ids_json
-    ? (JSON.parse(binding.project_ids_json) as string[])
-    : null;
+  let bound: unknown, scopes: unknown;
+  try {
+    bound = binding.project_ids_json === null ? null : JSON.parse(binding.project_ids_json);
+    scopes = JSON.parse(binding.scopes_json);
+  } catch {
+    throw new DomainError("unauthenticated", "CLI credential is not active");
+  }
+  if (
+    (bound !== null && (!Array.isArray(bound) || bound.some((id) => !isUlid(id)))) ||
+    !Array.isArray(scopes) ||
+    scopes.some((scope) => typeof scope !== "string")
+  ) {
+    throw new DomainError("unauthenticated", "CLI credential is not active");
+  }
   const effective = bound
-    ? bound.filter((id) => principal.projectIds.includes(id))
+    ? (bound as string[]).filter((id) => principal.projectIds.includes(id))
     : principal.projectIds;
   if (effective.length === 0) {
     throw new DomainError("forbidden", "CLI credential has no accessible project");
   }
   return {
     type: "human",
+    role: principal.role,
     humanId: principal.humanId,
     authUserId: binding.auth_user_id,
     workspaceId: binding.workspace_id,
     bindingId: binding.id,
     keyPrefix: binding.key_prefix ?? "",
-    scopes: JSON.parse(binding.scopes_json) as string[],
+    scopes: scopes as string[],
     projectIds: effective,
     authorizationEpoch: binding.authorization_epoch,
     expiresAt: binding.expires_at,

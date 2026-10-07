@@ -7,8 +7,8 @@ import { adaptBetterSqlite3, applyMigrationsForVerification, schemaSnapshot } fr
 import { describe, expect, it } from "vitest";
 import { FIX, seedSyntheticWorkspace } from "../src/fixtures.js";
 import { WorkspaceHub } from "../src/hub.js";
-import { createTaskCommand } from "../src/work-commands.js";
 import { createRunCommand } from "../src/work-records.js";
+import { seedHistoricalTask } from "./historical-task-fixture.js";
 
 const directory = fileURLToPath(new URL("../../../migrations/d1", import.meta.url));
 const head = "0040_offline_result_policy";
@@ -33,22 +33,20 @@ describe("offline result migration", () => {
       const db = adaptBetterSqlite3(raw);
       await seedSyntheticWorkspace(db);
       const hub = new WorkspaceHub(db);
-      const task = await hub.execute(createTaskCommand, {
+      const task = await seedHistoricalTask(db, {
         workspaceId: FIX.workspace,
-        actorHumanId: FIX.owner,
-        authorizationEpoch: 1,
-        idempotencyKey: "result-migration-task",
-        input: { projectId: FIX.projectA, title: "Synthetic historical task", priority: "P2" },
+        projectId: FIX.projectA,
+        humanId: FIX.owner,
+        title: "Synthetic historical task",
+        now: "2026-10-06T00:00:00.000Z",
       });
-      expect(task.ok).toBe(true);
-      if (!task.ok) throw Error(task.error.code);
       const run = await hub.execute(createRunCommand, {
         workspaceId: FIX.workspace,
         actorHumanId: FIX.owner,
         authorizationEpoch: 1,
         idempotencyKey: "result-migration-run",
         input: {
-          taskId: task.result.id,
+          taskId: task.id,
           expectedTaskVersion: 1,
           agentProfileId: FIX.profileCodex,
           workspacePolicyVersion: 1,

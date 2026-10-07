@@ -69,6 +69,19 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
   };
   const hubDeps = {
     db: deps.db,
+    publicAuthority: {
+      ...principal,
+      authorizationEpoch: deps.delegation.authorizationEpoch,
+      projectIds: [...principal.projectIds],
+      credential: {
+        kind: "delegation" as const,
+        delegationId: deps.delegation.delegationId,
+        clientId: deps.delegation.clientId,
+        projectId: deps.delegation.projectId,
+        taskId: deps.delegation.taskId,
+        scopes: [...deps.delegation.scopes],
+      },
+    },
     authorization: createAuthorizationContext({
       workspaceId: deps.delegation.workspaceId,
       principalId: deps.delegation.delegationId,

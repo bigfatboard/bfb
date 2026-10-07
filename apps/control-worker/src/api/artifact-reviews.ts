@@ -210,6 +210,7 @@ export async function handleArtifactReviewApi(
       const outcome = await executeWorkspaceCommand(
         {
           db: deps.db,
+          publicAuthority: { ...principal, projectIds: [...principal.projectIds] },
           workspaceHubNs: deps.workspaceHubNs,
           authorization: createAuthorizationContext({
             workspaceId: deps.workspaceId,

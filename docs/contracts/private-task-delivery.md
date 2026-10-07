@@ -998,6 +998,66 @@ or cached command binding subsets, provider/run capability expiry, fresh command
 delivery, destructive retention, artifact bytes, private activation or the
 pending GitHub collision policy.
 
+### Frozen public business delivery and CLI ceilings
+
+This finite C11 pass closes public task-business admission, committing authority,
+cached replies and delivery after the actual Hub response/body await. It extends
+the existing delivery invariant; it does not change Hub FIFO, execution,
+observation clocks, command names, stored business results or transitions.
+
+- Owned commands are task create/update; comment/progress/context/dependency/link;
+  attention answer/resolve/delegated request; human/delegated result submission,
+  request-changes/accept/fail/cancel; human/delegated artifact create/finalize,
+  upload grant, view grant and review; timer start/stop and browser activity.
+  Delegated context delivery retains its existing canonical selection as a
+  control. Local-agent result submission is excluded, including its admission,
+  commit and reply. One-use artifact commands continue to reject cached success.
+- The public transport retains its authenticated human, epoch, role, effective
+  projects and original credential identity/scope ceilings. Current
+  authority can narrow these ceilings but cannot enlarge them. CLI authority
+  includes its exact exchanged binding and current Owner/Member admission,
+  revocation, database-clock expiry, safe required scopes and current subset.
+  OAuth includes its exact client and nullable project/task restrictions.
+  Write-only business actions do not acquire an unrelated read requirement.
+- An internal capsule is not caller input. Closed public schemas reject it;
+  command adapters strip it before original validation, business logic,
+  fingerprints, cursor reservation and audit input. It is never a business
+  result, cache payload or persisted audit field. Original command hooks and
+  historical retry identity remain intact. Commands without authorization hooks
+  retain that absence and their existing observation-time semantics.
+- Command-owned typed SQL predicates govern admission, staged commit guards,
+  replay and final public delivery. Every guard inserts exactly one CHECK row,
+  including on absent targets, so late denial aborts all staged command effects.
+  Its typed selection is materialized separately from the VALUES expression to
+  remain within native D1's expression-depth limit; no authority term is removed.
+  Final delivery runs after Hub RPC and body parsing; only synchronous secret
+  attachment/projection/serialization may follow. Delivery denial withholds the
+  reply, not the already committed command. No generic recursive scrubbing or
+  fresh transition/version authorizer is used for historical replies.
+- Creation retains project/parent gates as well as the new target. Historical
+  attention/result/timer replies retain exact lineage but not pre-effect state
+  or latest-version requirements. Artifact references and recognized submission
+  evidence remain one current-authority selection. Parent and timer masks are
+  recomputed only where already established. Run-free records use membership
+  authority rather than a fabricated task ACL.
+- Human CLI project/task/run/attention/artifact list/detail and session reads
+  compose binding authority with final canonical selection, including empty and
+  terminal pages and multi-source artifact details. The captured effective
+  project vector intersects current binding restrictions and project policy.
+  Version/device issuance and successful self-revoke acknowledgement remain
+  unchanged. Cancellation keeps its existing action-bound step-up proof.
+- Prove actual old-source failures and healthy controls for original ceiling
+  loss before Hub admission, missing cache hooks, post-Hub fresh/cache delivery,
+  committing expiry/revocation and final CLI reads. Distinguish denied admission
+  (no effects), failed committing guards (rollback), read-only/cache delivery
+  (no new effects) and withheld post-commit replies (committed effects retained).
+  Native D1 witnesses and mounted browser/CLI/OAuth witnesses are separate.
+
+GitHub key-collision policy and its internal helper bypass, provider/runner and
+local-agent delivery, destructive retention, artifact-byte consumers and private
+activation are excluded. No new private controls or live operation are enabled.
+The additive target is `pnpm test:c11:public-business`, composed once by C11.
+
 ### Frozen browser board selection
 
 This corrective C11 slice binds already-authorized board delivery to the

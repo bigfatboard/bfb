@@ -8,7 +8,12 @@ import { DomainError, type HubCommand, type HubContext } from "./hub.js";
 import { isUlid, randomUlid } from "./ids.js";
 import { canonicalLaunchJson } from "./launch-state.js";
 import { runnerHash } from "./runner-crypto.js";
-import { artifactAccessPredicate } from "./artifacts.js";
+import {
+  artifactAccessPredicate,
+  publicArtifactParentAuthorityPredicate,
+  publicArtifactVersionBusinessSelection,
+} from "./artifacts.js";
+import { publicBusinessCommand, publicTaskRowAuthorityPredicate } from "./public-business.js";
 import { sharedTaskPredicate, taskAccessPredicate, type TaskAccessContext } from "./task-access.js";
 
 export const REVIEW_DECISIONS = ["approve", "request_changes", "comment"] as const;
@@ -358,7 +363,7 @@ async function reviewAuthority(input: RecordReviewInput, ctx: HubContext) {
   return { body, artifact, reviewer };
 }
 
-export const recordReviewCommand: HubCommand<RecordReviewInput, ReviewRecord> = {
+const recordReviewBase: HubCommand<RecordReviewInput, ReviewRecord> = {
   name: "artifact.record_review",
   authorize: async (input, ctx) => {
     // Historical retries may return their original decision, but only while
@@ -512,6 +517,68 @@ export const recordReviewCommand: HubCommand<RecordReviewInput, ReviewRecord> = 
     };
   },
 };
+
+export const recordReviewCommand = publicBusinessCommand(recordReviewBase, {
+  admission: (input, authority) => {
+    const selection = publicArtifactVersionBusinessSelection<ReviewRecord>(
+      authority,
+      input.versionId,
+      "contribute",
+      ["owner", "member", "reviewer"],
+    );
+    return { sql: `EXISTS (${selection.sql})`, parameters: selection.parameters };
+  },
+  delivery: (input, result, authority) => {
+    const parent = publicArtifactParentAuthorityPredicate(authority, "contribute", "artifact", [
+        "owner",
+        "member",
+        "reviewer",
+      ]),
+      timer = publicTaskRowAuthorityPredicate(authority, "read", "timer_task");
+    return {
+      sql: `SELECT CASE WHEN EXISTS (
+          SELECT 1 FROM review_timer_observations AS observation
+          JOIN review_timers AS timer ON timer.workspace_id = observation.workspace_id AND timer.id = observation.timer_id
+          JOIN tasks AS timer_task ON timer_task.workspace_id = timer.workspace_id AND timer_task.id = timer.task_id
+          WHERE observation.workspace_id = review.workspace_id
+            AND observation.observation_id = review.review_timer_observation_id AND ${timerRunRelation} AND ${timer.sql}
+        ) THEN review.review_timer_observation_id ELSE NULL END AS review_timer_observation_id
+        FROM artifact_reviews AS review
+        JOIN artifact_versions AS version ON version.workspace_id = review.workspace_id AND version.id = review.version_id
+          AND version.artifact_id = review.artifact_id AND version.content_hash = review.content_hash
+        JOIN artifacts AS artifact ON artifact.workspace_id = version.workspace_id AND artifact.id = version.artifact_id
+        WHERE review.workspace_id = ? AND review.id = ? AND review.artifact_id = ? AND review.artifact_id = ?
+          AND review.version_id = ? AND review.version_id = ? AND review.content_hash = ?
+          AND review.reviewer_human_id = ? AND review.decision = ?
+          AND review.comment IS ? AND review.git_commit IS ? AND review.config_hash IS ? AND review.created_at = ?
+          AND ${parent.sql}`,
+      parameters: [
+        ...timer.parameters,
+        authority.workspaceId,
+        result.id,
+        result.artifact_id,
+        input.artifactId,
+        result.version_id,
+        input.versionId,
+        result.content_hash,
+        result.reviewer_human_id,
+        result.decision,
+        result.comment,
+        result.git_commit,
+        result.config_hash,
+        result.created_at,
+        ...parent.parameters,
+      ],
+      project: (historical: ReviewRecord, row: Record<string, unknown>) => ({
+        ...historical,
+        review_timer_observation_id:
+          typeof row.review_timer_observation_id === "string"
+            ? row.review_timer_observation_id
+            : null,
+      }),
+    };
+  },
+});
 
 interface ReviewRow {
   id: string;

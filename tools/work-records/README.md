@@ -1,5 +1,19 @@
 # Work-record runtime proofs
 
+`pnpm test:c11:public-business`, composed once by C11, owns `public-business.ts`:
+six disposable D1 witnesses cover retained public authority. A healthy
+project-and-task-bound write-only child fits the native SQL limits. Independent
+production revocation before the actual comment/progress batch rolls back every
+canonical effect; revocation after the real idempotency selection denies a
+cached reply without new effects. Fresh and cached replies traverse the actual
+Worker/DO Hub response and its body parser before revocation and final denial,
+preserving already committed comments and receipts. The materialized CHECK
+selection is required by native D1's expression-depth limit, not a policy
+relaxation. Mounted cookie/device-authenticated CLI tests are separate; this
+native harness uses synthetic retained OAuth metadata and global test
+jurisdiction. It neither certifies private activation nor operates an execution,
+runner, provider or artifact-byte consumer.
+
 `pnpm test:c08` owns `run.ts`: real independent Workers dispatch production Hub
 commands to disposable D1 and prove task/run races and immutable context history.
 

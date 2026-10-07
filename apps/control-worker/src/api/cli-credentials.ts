@@ -9,7 +9,7 @@ import {
   CLI_BODY_LIMIT,
   CLI_CLIENT_ID,
   cliHash,
-  cliKeyPrefix,
+  readCliSession,
   CLI_EXCHANGE_ISSUER_ID,
   consumeCliBudget,
   DomainError,
@@ -359,16 +359,7 @@ export async function handleCliPublicApi(request: Request, deps: CliApiDeps): Pr
         if (error instanceof DomainError && error.code === "forbidden") return rejected();
         return rejectUnauthenticated();
       }
-      return response({
-        human_id: principal.humanId,
-        workspace_id: principal.workspaceId,
-        binding_id: principal.bindingId,
-        key_prefix: cliKeyPrefix(match[1]),
-        scopes: principal.scopes,
-        project_ids: principal.projectIds,
-        authorization_epoch: principal.authorizationEpoch,
-        expires_at: principal.expiresAt,
-      });
+      return response(await readCliSession(deps.db, principal));
     }
     return rejected();
   } catch {

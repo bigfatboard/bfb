@@ -6,26 +6,29 @@ import { createHmac } from "node:crypto";
 import { createAuthorizationContext, type SqlDatabase } from "@bfb/db";
 import {
   answerAttentionCommand,
-  assertTaskChildAccess,
   cancelRunCommand,
   cliHash,
+  cliPublicAuthority,
+  readCliProjects,
+  readCliProject,
+  readCliTasks,
+  readCliTask,
+  readCliRuns,
+  readCliRun,
+  readCliAttention,
+  readCliAttentionDetail,
+  readCliArtifacts,
+  readCliArtifact,
   consumeCliBudget,
   consumeStepUpProof,
   createTaskCommand,
   DomainError,
   getAttention,
-  getHumanAttentionDetail,
-  getProject,
-  getTask,
   isUlid,
-  listAttention,
-  listProjectsPage,
-  listTasksPage,
   loadPrincipal,
   resolveAttentionCommand,
   resolveCliPrincipal,
   revokeBindingCommand,
-  taskAccessPredicate,
   type AttentionState,
   type CliPrincipal,
   type HubCommand,
@@ -249,6 +252,7 @@ export async function handleCliHumanApi(request: Request, deps: CliHumanDeps): P
     }
     const cli = await authenticate(request, deps);
     const workspaceId = cli.workspaceId;
+    const publicAuthority = cliPublicAuthority(cli);
     const current = await loadPrincipal(deps.db, workspaceId, cli.humanId);
     // The binding narrows project scope: every downstream read and command
     // observes the intersection, never the member's full grant.
@@ -259,6 +263,7 @@ export async function handleCliHumanApi(request: Request, deps: CliHumanDeps): P
     };
     const hubDeps = {
       db: deps.db,
+      publicAuthority,
       authorization: createAuthorizationContext({
         workspaceId,
         principalId: cli.humanId,
@@ -281,6 +286,49 @@ export async function handleCliHumanApi(request: Request, deps: CliHumanDeps): P
         input,
       });
 
+    if (request.method === "GET") {
+      if (path === "/api/v1/cli/projects")
+        return json(await readCliProjects(deps.db, publicAuthority, page(url)));
+      if (path === "/api/v1/cli/tasks")
+        return json(await readCliTasks(deps.db, publicAuthority, page(url)));
+      if (path === "/api/v1/cli/runs") {
+        const taskId = url.searchParams.get("task_id");
+        if (!taskId) throw new DomainError("invalid_argument", "task_id is required");
+        return json(await readCliRuns(deps.db, publicAuthority, taskId, page(url)));
+      }
+      if (path === "/api/v1/cli/attention") {
+        const state = url.searchParams.get("state");
+        if (state !== null && !["open", "answered", "resolved"].includes(state))
+          throw new DomainError("invalid_argument", "attention state filter is invalid");
+        return json(
+          await readCliAttention(deps.db, publicAuthority, {
+            ...page(url),
+            ...(state === null ? {} : { state: state as AttentionState }),
+          }),
+        );
+      }
+      if (path === "/api/v1/cli/artifacts") {
+        const runId = url.searchParams.get("run_id");
+        if (!runId) throw new DomainError("invalid_argument", "run_id is required");
+        return json(await readCliArtifacts(deps.db, publicAuthority, runId));
+      }
+      const detail = /^\/api\/v1\/cli\/(projects|tasks|runs|attention|artifacts)\/([^/]+)$/.exec(
+        path,
+      );
+      if (detail) {
+        const readers = {
+          projects: readCliProject,
+          tasks: readCliTask,
+          runs: readCliRun,
+          attention: readCliAttentionDetail,
+          artifacts: readCliArtifact,
+        };
+        return json(
+          await readers[detail[1] as keyof typeof readers](deps.db, publicAuthority, detail[2]!),
+        );
+      }
+    }
+
     if (request.method === "POST" && path === "/api/v1/cli/session/revoke") {
       const outcome = await execute(revokeBindingCommand, `cli-revoke-${cli.bindingId}`, {
         bindingId: cli.bindingId,
@@ -288,25 +336,6 @@ export async function handleCliHumanApi(request: Request, deps: CliHumanDeps): P
       return outcomeResponse(outcome);
     }
 
-    if (request.method === "GET" && path === "/api/v1/cli/projects") {
-      return json(await listProjectsPage(deps.db, principal, page(url)));
-    }
-    const projectMatch = /^\/api\/v1\/cli\/projects\/([^/]+)$/.exec(path);
-    if (projectMatch && request.method === "GET") {
-      const projectId = projectMatch[1] ?? "";
-      assertCliProject(principal.projectIds, projectId);
-      const record = await getProject(deps.db, workspaceId, projectId);
-      return record ? json({ project: record }) : json({ error: "not_found" }, 404);
-    }
-
-    if (request.method === "GET" && path === "/api/v1/cli/tasks") {
-      return json(
-        await listTasksPage(deps.db, workspaceId, principal.projectIds, {
-          ...page(url),
-          access: principal,
-        }),
-      );
-    }
     if (request.method === "POST" && path === "/api/v1/cli/tasks") {
       const record = objectBody(await readBoundedJson(request, BODY_LIMIT), [
         "project_id",
@@ -325,90 +354,11 @@ export async function handleCliHumanApi(request: Request, deps: CliHumanDeps): P
       });
       return outcomeResponse(outcome);
     }
-    const taskMatch = /^\/api\/v1\/cli\/tasks\/([^/]+)$/.exec(path);
-    if (taskMatch && request.method === "GET") {
-      const taskId = taskMatch[1] ?? "";
-      try {
-        await assertTaskChildAccess(deps.db, principal, taskId);
-      } catch (error) {
-        if (
-          error instanceof DomainError &&
-          (error.code === "forbidden" || error.code === "not_found")
-        ) {
-          return json({ error: "not_found" }, 404);
-        }
-        throw error;
-      }
-      const task = await getTask(deps.db, workspaceId, taskId, principal);
-      return task ? json({ task }) : json({ error: "not_found" }, 404);
-    }
-
-    if (request.method === "GET" && path === "/api/v1/cli/runs") {
-      const taskId = url.searchParams.get("task_id") ?? "";
-      if (!taskId) throw new DomainError("invalid_argument", "task_id is required");
-      try {
-        await assertTaskChildAccess(deps.db, principal, taskId);
-      } catch (error) {
-        if (
-          error instanceof DomainError &&
-          (error.code === "forbidden" || error.code === "not_found")
-        ) {
-          return json({ error: "not_found" }, 404);
-        }
-        throw error;
-      }
-      // Mirrors the browser task-runs read column for column so one human
-      // observes identical run state on both surfaces.
-      const pagination = page(url);
-      const limit = pagination.limit ?? 50;
-      const predicate = taskAccessPredicate(principal, "read", "run_task");
-      const rows = (await deps.db
-        .prepare(
-          `SELECT run.id, run.project_id, run.task_id, run.requested_by_human_id, run.agent_profile_id,
-                  run.result_state, run.activity, run.resource_version, run.created_at
-           FROM runs AS run JOIN tasks AS run_task
-             ON run_task.workspace_id = run.workspace_id AND run_task.id = run.task_id
-           WHERE run.workspace_id = ? AND run.task_id = ? AND run.purpose = 'work' AND ${predicate.sql}
-             ${pagination.cursor ? "AND run.id > ?" : ""}
-           ORDER BY run.id ASC LIMIT ?`,
-        )
-        .all(
-          workspaceId,
-          taskId,
-          ...predicate.parameters,
-          ...(pagination.cursor ? [pagination.cursor] : []),
-          limit + 1,
-        )) as Array<{ id: string }>;
-      const hasMore = rows.length > limit;
-      const runs = hasMore ? rows.slice(0, limit) : rows;
-      return json({
-        runs,
-        limit,
-        has_more: hasMore,
-        ...(hasMore ? { next_cursor: runs[runs.length - 1]!.id } : {}),
-      });
-    }
     const runMatch = /^\/api\/v1\/cli\/runs\/([^/]+)(\/.*)?$/.exec(path);
     if (runMatch) {
       const runId = runMatch[1] ?? "";
       const rest = runMatch[2] ?? "";
-      const predicate = taskAccessPredicate(principal, "read", "run_task");
-      const run = (await deps.db
-        .prepare(
-          `SELECT run.id, run.project_id, run.task_id, run.requested_by_human_id, run.agent_profile_id,
-                  run.result_state, run.activity, run.resource_version, run.created_at
-           FROM runs AS run JOIN tasks AS run_task
-             ON run_task.workspace_id = run.workspace_id AND run_task.id = run.task_id
-           WHERE run.workspace_id = ? AND run.id = ? AND run.purpose = 'work' AND ${predicate.sql}`,
-        )
-        .get(workspaceId, runId, ...predicate.parameters)) as
-        { id: string; task_id: string; project_id: string } | undefined;
-      if (!run || !principal.projectIds.includes(run.project_id)) {
-        return json({ error: "not_found" }, 404);
-      }
-      if (rest === "" && request.method === "GET") {
-        return json({ run });
-      }
+      await readCliRun(deps.db, publicAuthority, runId);
       if (rest === "/cancellation" && request.method === "POST") {
         const record = objectBody(await readBoundedJson(request, BODY_LIMIT), [
           "expected_run_version",
@@ -445,40 +395,10 @@ export async function handleCliHumanApi(request: Request, deps: CliHumanDeps): P
       }
     }
 
-    if (request.method === "GET" && path === "/api/v1/cli/attention") {
-      const rawState = url.searchParams.get("state");
-      const pagination = page(url);
-      if (rawState !== null && !["open", "answered", "resolved"].includes(rawState)) {
-        throw new DomainError("invalid_argument", "attention state filter is invalid");
-      }
-      return json({
-        attention: await listAttention(
-          deps.db,
-          workspaceId,
-          principal.projectIds,
-          {
-            ...(rawState === null ? {} : { state: rawState as AttentionState }),
-            ...(pagination.limit === undefined ? {} : { limit: pagination.limit }),
-          },
-          principal,
-        ),
-      });
-    }
     const attentionMatch = /^\/api\/v1\/cli\/attention\/([^/]+)(\/.*)?$/.exec(path);
     if (attentionMatch) {
       const attentionId = attentionMatch[1] ?? "";
       const rest = attentionMatch[2] ?? "";
-      if (rest === "" && request.method === "GET") {
-        const detail = await getHumanAttentionDetail(
-          deps.db,
-          workspaceId,
-          principal.projectIds,
-          attentionId,
-          principal,
-        );
-        if (!detail) return json({ error: "not_found" }, 404);
-        return json(detail);
-      }
       if (rest === "/answer" && request.method === "POST") {
         const record = objectBody(await readBoundedJson(request, BODY_LIMIT), [
           "expected_version",
@@ -498,14 +418,8 @@ export async function handleCliHumanApi(request: Request, deps: CliHumanDeps): P
           answer: requiredString(record, "answer"),
         });
         if (!outcome.ok && outcome.error?.code === "already_answered") {
-          const committed = await getAttention(
-            deps.db,
-            workspaceId,
-            principal.projectIds,
-            attentionId,
-            principal,
-          );
-          return json({ ...outcome, ...(committed ? { attention: committed } : {}) }, 409);
+          const committed = await readCliAttentionDetail(deps.db, publicAuthority, attentionId);
+          return json({ ...outcome, attention: committed.attention }, 409);
         }
         return outcomeResponse(outcome);
       }
@@ -528,100 +442,10 @@ export async function handleCliHumanApi(request: Request, deps: CliHumanDeps): P
       }
     }
 
-    if (request.method === "GET" && path === "/api/v1/cli/artifacts") {
-      const runId = url.searchParams.get("run_id") ?? "";
-      if (!runId) throw new DomainError("invalid_argument", "run_id is required");
-      const predicate = taskAccessPredicate(principal, "read", "artifact_task");
-      const run = (await deps.db
-        .prepare(
-          `SELECT artifact_run.id, artifact_run.project_id, artifact_run.task_id
-           FROM runs AS artifact_run JOIN tasks AS artifact_task
-             ON artifact_task.workspace_id = artifact_run.workspace_id
-            AND artifact_task.id = artifact_run.task_id AND artifact_task.project_id = artifact_run.project_id
-           WHERE artifact_run.workspace_id = ? AND artifact_run.id = ? AND ${predicate.sql}`,
-        )
-        .get(workspaceId, runId, ...predicate.parameters)) as
-        { id: string; project_id: string; task_id: string } | undefined;
-      if (!run || !principal.projectIds.includes(run.project_id)) {
-        return json({ error: "not_found" }, 404);
-      }
-      const artifacts = (await deps.db
-        .prepare(
-          `SELECT artifact.id, artifact.run_id, artifact.format, artifact.role, artifact.created_at
-           FROM artifacts AS artifact JOIN runs AS artifact_run
-             ON artifact_run.workspace_id = artifact.workspace_id AND artifact_run.id = artifact.run_id
-           JOIN tasks AS artifact_task ON artifact_task.workspace_id = artifact_run.workspace_id
-             AND artifact_task.id = artifact_run.task_id AND artifact_task.project_id = artifact_run.project_id
-           WHERE artifact.workspace_id = ? AND artifact.run_id = ? AND ${predicate.sql}
-           ORDER BY artifact.created_at DESC, artifact.id DESC LIMIT 50`,
-        )
-        .all(workspaceId, runId, ...predicate.parameters)) as Array<Record<string, unknown>>;
-      const versions = (await deps.db
-        .prepare(
-          `SELECT version.id, version.artifact_id, version.state, version.format, version.declared_size,
-                  version.content_hash, version.created_at, version.available_at
-           FROM artifact_versions AS version JOIN artifacts AS artifact
-             ON artifact.workspace_id = version.workspace_id AND artifact.id = version.artifact_id
-           JOIN runs AS artifact_run ON artifact_run.workspace_id = artifact.workspace_id
-             AND artifact_run.id = artifact.run_id
-           JOIN tasks AS artifact_task ON artifact_task.workspace_id = artifact_run.workspace_id
-             AND artifact_task.id = artifact_run.task_id AND artifact_task.project_id = artifact_run.project_id
-           WHERE version.workspace_id = ? AND artifact.run_id = ? AND ${predicate.sql}
-           ORDER BY version.created_at DESC, version.id DESC LIMIT 100`,
-        )
-        .all(workspaceId, runId, ...predicate.parameters)) as Array<Record<string, unknown>>;
-      await assertTaskChildAccess(deps.db, principal, run.task_id);
-      return json({ artifacts, versions });
-    }
-    const artifactMatch = /^\/api\/v1\/cli\/artifacts\/([^/]+)$/.exec(path);
-    if (artifactMatch && request.method === "GET") {
-      const artifactId = artifactMatch[1] ?? "";
-      const predicate = taskAccessPredicate(principal, "read", "artifact_task");
-      const artifact = (await deps.db
-        .prepare(
-          `SELECT artifact.id, artifact.run_id, artifact.format, artifact.role, artifact.created_at,
-                  run.project_id AS project_id, run.task_id AS task_id
-           FROM artifacts AS artifact JOIN runs AS run
-             ON run.workspace_id = artifact.workspace_id AND run.id = artifact.run_id
-           JOIN tasks AS artifact_task ON artifact_task.workspace_id = run.workspace_id
-             AND artifact_task.id = run.task_id AND artifact_task.project_id = run.project_id
-           WHERE artifact.workspace_id = ? AND artifact.id = ? AND ${predicate.sql}`,
-        )
-        .get(workspaceId, artifactId, ...predicate.parameters)) as
-        { project_id: string; task_id: string } | undefined;
-      if (
-        !artifact ||
-        !artifact.project_id ||
-        !principal.projectIds.includes(artifact.project_id)
-      ) {
-        return json({ error: "not_found" }, 404);
-      }
-      const versions = (await deps.db
-        .prepare(
-          `SELECT version.id, version.artifact_id, version.state, version.format, version.declared_size,
-                  version.content_hash, version.created_at, version.available_at
-           FROM artifact_versions AS version JOIN artifacts AS parent_artifact
-             ON parent_artifact.workspace_id = version.workspace_id AND parent_artifact.id = version.artifact_id
-           JOIN runs AS artifact_run ON artifact_run.workspace_id = parent_artifact.workspace_id
-             AND artifact_run.id = parent_artifact.run_id
-           JOIN tasks AS artifact_task ON artifact_task.workspace_id = artifact_run.workspace_id
-             AND artifact_task.id = artifact_run.task_id AND artifact_task.project_id = artifact_run.project_id
-           WHERE version.workspace_id = ? AND version.artifact_id = ? AND ${predicate.sql}
-           ORDER BY version.created_at DESC, version.id DESC`,
-        )
-        .all(workspaceId, artifactId, ...predicate.parameters)) as Array<Record<string, unknown>>;
-      await assertTaskChildAccess(deps.db, principal, artifact.task_id);
-      const {
-        project_id: _project,
-        task_id: _task,
-        ...artifactView
-      } = artifact as Record<string, unknown>;
-      return json({ artifact: artifactView, versions });
-    }
-
     return json({ error: "not_found" }, 404);
   } catch (error) {
     if (error instanceof DomainError) {
+      if (error.code === "not_found") return json({ error: "not_found" }, 404);
       if (error.code === "unauthenticated") return unauthenticated();
       if (error.code === "credential_confusion") return confused();
       if (error.code === "forbidden") return rejected();

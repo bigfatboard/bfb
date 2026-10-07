@@ -8,6 +8,16 @@ import { DomainError, type HubCommand, type HubContext } from "./hub.js";
 import { isUlid, randomUlid } from "./ids.js";
 import { canonicalLaunchJson, launchRunner, readLaunch, snapshotOf } from "./launch-state.js";
 import { listRunMeasurementActivitySources } from "./measurement-sources.js";
+import {
+  allPublicAuthority,
+  publicBusinessCommand,
+  publicBusinessSelection,
+  publicMemberAuthorityPredicate,
+  publicTaskAuthorityPredicate,
+  publicTaskRowAuthorityPredicate,
+  type PublicBusinessAuthority,
+  type PublicBusinessSelection,
+} from "./public-business.js";
 import { rejectRunnerRequest, runnerHash, runnerId, runnerObject } from "./runner-crypto.js";
 import { assertRunnerLaunchAuthority, type RunnerPrincipal } from "./runners.js";
 import {
@@ -829,169 +839,272 @@ export interface StartReviewTimerInput {
   runId?: string;
 }
 
-export const startReviewTimerCommand: HubCommand<StartReviewTimerInput, ReviewTimerRecord> = {
-  name: "review_timer.start",
-  async authorize(input, ctx) {
-    const principal = await requireMeasurementHuman(ctx);
-    await requireTaskProject(ctx.db, ctx.workspaceId, principal, input.taskId);
-    if (input.runId !== undefined && input.runId !== null) {
-      const run = (await ctx.db
-        .prepare("SELECT task_id FROM runs WHERE workspace_id = ? AND id = ?")
-        .get(ctx.workspaceId, input.runId)) as { task_id: string } | undefined;
-      if (!run || run.task_id !== input.taskId)
-        throw new DomainError("not_found", "run not found for this task");
-    }
-  },
-  inputFingerprint: measurementFingerprint,
-  auditInput: (input) => ({
-    taskId: (input as StartReviewTimerInput)?.taskId,
-    runId: (input as StartReviewTimerInput)?.runId,
-  }),
-  auditResult: (result) => ({ id: result.id, task_id: result.task_id, run_id: result.run_id }),
-  async run(input, ctx) {
-    const principal = await requireMeasurementHuman(ctx);
-    const body = (input ?? {}) as Partial<StartReviewTimerInput>;
-    if (typeof body.taskId !== "string") {
-      throw new DomainError("invalid_argument", "task id is invalid");
-    }
-    await requireTaskProject(ctx.db, ctx.workspaceId, principal, body.taskId);
-    let runId: string | null = null;
-    if (body.runId !== undefined && body.runId !== null) {
-      if (typeof body.runId !== "string" || !isUlid(body.runId)) {
-        throw new DomainError("invalid_argument", "run id is invalid");
-      }
-      const run = (await ctx.db
-        .prepare(`SELECT task_id FROM runs WHERE workspace_id = ? AND id = ?`)
-        .get(ctx.workspaceId, body.runId)) as { task_id: string } | undefined;
-      if (!run || run.task_id !== body.taskId) {
-        throw new DomainError("not_found", "run not found for this task");
-      }
-      runId = body.runId;
-    }
-    const open = (await ctx.db
-      .prepare(
-        `SELECT id FROM review_timers
+function publicMeasurementId(value: unknown): value is string {
+  return typeof value === "string" && value.length === 26 && isUlid(value);
+}
+
+function publicMeasurementAuthority(authority: PublicBusinessAuthority, taskId?: string | null) {
+  if (authority.credential?.kind === "delegation") return { sql: "0", parameters: [] };
+  return taskId === undefined || taskId === null
+    ? publicMemberAuthorityPredicate(authority)
+    : publicTaskAuthorityPredicate(authority, taskId, "contribute");
+}
+
+function publicTimerRunWitness(workspaceId: string, taskId: string, runId?: string | null) {
+  return runId === undefined || runId === null
+    ? { sql: "1", parameters: [] }
+    : {
+        sql: `EXISTS (SELECT 1 FROM runs AS public_timer_run
+      JOIN tasks AS public_timer_run_task ON public_timer_run_task.workspace_id = public_timer_run.workspace_id
+        AND public_timer_run_task.id = public_timer_run.task_id
+        AND public_timer_run_task.project_id = public_timer_run.project_id
+      WHERE public_timer_run.workspace_id = ? AND public_timer_run.id = ? AND public_timer_run.task_id = ?)`,
+        parameters: [workspaceId, runId, taskId],
+      };
+}
+
+function publicTimerAdmission(timerId: string, authority: PublicBusinessAuthority) {
+  const task =
+    authority.credential?.kind === "delegation"
+      ? { sql: "0", parameters: [] }
+      : publicTaskRowAuthorityPredicate(authority, "contribute", "public_timer_task");
+  return {
+    sql: `EXISTS (SELECT 1 FROM review_timers AS public_timer
+      JOIN tasks AS public_timer_task ON public_timer_task.workspace_id = public_timer.workspace_id
+        AND public_timer_task.id = public_timer.task_id
+      WHERE public_timer.workspace_id = ? AND public_timer.id = ?
+        AND public_timer.started_by_human_id = ? AND ${task.sql}
+        AND (public_timer.run_id IS NULL OR EXISTS (SELECT 1 FROM runs AS public_timer_run
+          WHERE public_timer_run.workspace_id = public_timer.workspace_id AND public_timer_run.id = public_timer.run_id
+            AND public_timer_run.task_id = public_timer_task.id AND public_timer_run.project_id = public_timer_task.project_id)))`,
+    parameters: [authority.workspaceId, timerId, authority.humanId, ...task.parameters],
+  };
+}
+
+function publicTimerSelection(
+  result: ReviewTimerRecord,
+  authority: PublicBusinessAuthority,
+): PublicBusinessSelection<ReviewTimerRecord> {
+  if (
+    !result ||
+    !publicMeasurementId(result.id) ||
+    !publicMeasurementId(result.task_id) ||
+    !(result.run_id === null || publicMeasurementId(result.run_id)) ||
+    result.started_by_human_id !== authority.humanId
+  )
+    return publicBusinessSelection({ sql: "0", parameters: [] });
+  const access = publicTimerAdmission(result.id, authority);
+  return {
+    sql: `SELECT 1 AS permitted FROM review_timers AS public_result_timer
+      WHERE public_result_timer.workspace_id = ? AND public_result_timer.id = ?
+        AND public_result_timer.task_id = ? AND public_result_timer.run_id IS ?
+        AND public_result_timer.started_by_human_id = ? AND public_result_timer.started_at = ?
+        AND ${access.sql}`,
+    parameters: [
+      authority.workspaceId,
+      result.id,
+      result.task_id,
+      result.run_id,
+      authority.humanId,
+      result.started_at,
+      ...access.parameters,
+    ],
+  };
+}
+
+export const startReviewTimerCommand: HubCommand<StartReviewTimerInput, ReviewTimerRecord> =
+  publicBusinessCommand<StartReviewTimerInput, ReviewTimerRecord>(
+    {
+      name: "review_timer.start",
+      async authorize(input, ctx) {
+        const principal = await requireMeasurementHuman(ctx);
+        await requireTaskProject(ctx.db, ctx.workspaceId, principal, input.taskId);
+        if (input.runId !== undefined && input.runId !== null) {
+          const run = (await ctx.db
+            .prepare("SELECT task_id FROM runs WHERE workspace_id = ? AND id = ?")
+            .get(ctx.workspaceId, input.runId)) as { task_id: string } | undefined;
+          if (!run || run.task_id !== input.taskId)
+            throw new DomainError("not_found", "run not found for this task");
+        }
+      },
+      inputFingerprint: measurementFingerprint,
+      auditInput: (input) => ({
+        taskId: (input as StartReviewTimerInput)?.taskId,
+        runId: (input as StartReviewTimerInput)?.runId,
+      }),
+      auditResult: (result) => ({ id: result.id, task_id: result.task_id, run_id: result.run_id }),
+      async run(input, ctx) {
+        const principal = await requireMeasurementHuman(ctx);
+        const body = (input ?? {}) as Partial<StartReviewTimerInput>;
+        if (typeof body.taskId !== "string") {
+          throw new DomainError("invalid_argument", "task id is invalid");
+        }
+        await requireTaskProject(ctx.db, ctx.workspaceId, principal, body.taskId);
+        let runId: string | null = null;
+        if (body.runId !== undefined && body.runId !== null) {
+          if (typeof body.runId !== "string" || !isUlid(body.runId)) {
+            throw new DomainError("invalid_argument", "run id is invalid");
+          }
+          const run = (await ctx.db
+            .prepare(`SELECT task_id FROM runs WHERE workspace_id = ? AND id = ?`)
+            .get(ctx.workspaceId, body.runId)) as { task_id: string } | undefined;
+          if (!run || run.task_id !== body.taskId) {
+            throw new DomainError("not_found", "run not found for this task");
+          }
+          runId = body.runId;
+        }
+        const open = (await ctx.db
+          .prepare(
+            `SELECT id FROM review_timers
          WHERE workspace_id = ? AND task_id = ? AND started_by_human_id = ? AND state = 'open'`,
-      )
-      .get(ctx.workspaceId, body.taskId, ctx.actorHumanId as string)) as { id: string } | undefined;
-    if (open) {
-      throw new DomainError("timer_open", "a review timer is already open for this task");
-    }
-    const id = randomUlid();
-    const observationIdValue = randomUlid();
-    await ctx.db
-      .prepare(
-        `INSERT INTO review_timers
+          )
+          .get(ctx.workspaceId, body.taskId, ctx.actorHumanId as string)) as
+          { id: string } | undefined;
+        if (open) {
+          throw new DomainError("timer_open", "a review timer is already open for this task");
+        }
+        const id = randomUlid();
+        const observationIdValue = randomUlid();
+        await ctx.db
+          .prepare(
+            `INSERT INTO review_timers
          (workspace_id, id, task_id, run_id, started_by_human_id, started_at,
           stopped_at, state, resource_version)
          VALUES (?, ?, ?, ?, ?, ?, NULL, 'open', 1)`,
-      )
-      .run(ctx.workspaceId, id, body.taskId, runId, ctx.actorHumanId as string, ctx.now);
-    await ctx.db
-      .prepare(
-        `INSERT INTO review_timer_observations
+          )
+          .run(ctx.workspaceId, id, body.taskId, runId, ctx.actorHumanId as string, ctx.now);
+        await ctx.db
+          .prepare(
+            `INSERT INTO review_timer_observations
          (workspace_id, observation_id, timer_id, observed_kind, actor_type, actor_id, occurred_at)
          VALUES (?, ?, ?, 'started', 'human', ?, ?)`,
-      )
-      .run(ctx.workspaceId, observationIdValue, id, ctx.actorHumanId as string, ctx.now);
-    return {
-      id,
-      task_id: body.taskId,
-      run_id: runId,
-      started_by_human_id: ctx.actorHumanId as string,
-      started_at: ctx.now,
-      stopped_at: null,
-      state: "open" as const,
-      resource_version: 1,
-    };
-  },
-};
+          )
+          .run(ctx.workspaceId, observationIdValue, id, ctx.actorHumanId as string, ctx.now);
+        return {
+          id,
+          task_id: body.taskId,
+          run_id: runId,
+          started_by_human_id: ctx.actorHumanId as string,
+          started_at: ctx.now,
+          stopped_at: null,
+          state: "open" as const,
+          resource_version: 1,
+        };
+      },
+    },
+    {
+      admission: (input, authority) =>
+        allPublicAuthority(
+          publicMeasurementAuthority(authority, input.taskId),
+          publicTimerRunWitness(authority.workspaceId, input.taskId, input.runId),
+        ),
+      delivery: (input, result, authority) =>
+        !result || result.task_id !== input.taskId || result.run_id !== (input.runId ?? null)
+          ? publicBusinessSelection({ sql: "0", parameters: [] })
+          : publicTimerSelection(result, authority),
+    },
+  );
 
 export interface StopReviewTimerInput {
   timerId: string;
   expectedVersion: number;
 }
 
-export const stopReviewTimerCommand: HubCommand<StopReviewTimerInput, ReviewTimerRecord> = {
-  name: "review_timer.stop",
-  async authorize(input, ctx) {
-    const principal = await requireMeasurementHuman(ctx);
-    const predicate = taskAccessPredicate(principal, "contribute");
-    const row = (await ctx.db
-      .prepare(
-        `SELECT timer.task_id, timer.started_by_human_id FROM review_timers AS timer
+export const stopReviewTimerCommand: HubCommand<StopReviewTimerInput, ReviewTimerRecord> =
+  publicBusinessCommand<StopReviewTimerInput, ReviewTimerRecord>(
+    {
+      name: "review_timer.stop",
+      async authorize(input, ctx) {
+        const principal = await requireMeasurementHuman(ctx);
+        const predicate = taskAccessPredicate(principal, "contribute");
+        const row = (await ctx.db
+          .prepare(
+            `SELECT timer.task_id, timer.started_by_human_id FROM review_timers AS timer
          JOIN tasks AS task ON task.workspace_id = timer.workspace_id AND task.id = timer.task_id
          WHERE timer.workspace_id = ? AND timer.id = ? AND ${predicate.sql}
            AND (timer.run_id IS NULL OR EXISTS (SELECT 1 FROM runs AS run
              WHERE run.workspace_id = timer.workspace_id AND run.id = timer.run_id
                AND run.task_id = task.id AND run.project_id = task.project_id))`,
-      )
-      .get(ctx.workspaceId, input.timerId, ...predicate.parameters)) as
-      { task_id: string; started_by_human_id: string } | undefined;
-    if (!row) throw new DomainError("not_found", "review timer not found");
-    await requireTaskProject(ctx.db, ctx.workspaceId, principal, row.task_id);
-    if (row.started_by_human_id !== ctx.actorHumanId)
-      throw new DomainError("forbidden", "only the starting reviewer can stop this timer");
-  },
-  inputFingerprint: measurementFingerprint,
-  auditInput: (input) => ({
-    timerId: (input as StopReviewTimerInput)?.timerId,
-    expectedVersion: (input as StopReviewTimerInput)?.expectedVersion,
-  }),
-  auditResult: (result) => ({ id: result.id, task_id: result.task_id, run_id: result.run_id }),
-  async run(input, ctx) {
-    const principal = await requireMeasurementHuman(ctx);
-    const body = (input ?? {}) as Partial<StopReviewTimerInput>;
-    if (typeof body.timerId !== "string" || !isUlid(body.timerId)) {
-      throw new DomainError("not_found", "review timer not found");
-    }
-    if (!Number.isSafeInteger(body.expectedVersion) || Number(body.expectedVersion) < 1) {
-      throw new DomainError("invalid_argument", "expected timer version is invalid");
-    }
-    const predicate = taskAccessPredicate(principal, "contribute");
-    const row = (await ctx.db
-      .prepare(
-        `SELECT timer.* FROM review_timers AS timer
+          )
+          .get(ctx.workspaceId, input.timerId, ...predicate.parameters)) as
+          { task_id: string; started_by_human_id: string } | undefined;
+        if (!row) throw new DomainError("not_found", "review timer not found");
+        await requireTaskProject(ctx.db, ctx.workspaceId, principal, row.task_id);
+        if (row.started_by_human_id !== ctx.actorHumanId)
+          throw new DomainError("forbidden", "only the starting reviewer can stop this timer");
+      },
+      inputFingerprint: measurementFingerprint,
+      auditInput: (input) => ({
+        timerId: (input as StopReviewTimerInput)?.timerId,
+        expectedVersion: (input as StopReviewTimerInput)?.expectedVersion,
+      }),
+      auditResult: (result) => ({ id: result.id, task_id: result.task_id, run_id: result.run_id }),
+      async run(input, ctx) {
+        const principal = await requireMeasurementHuman(ctx);
+        const body = (input ?? {}) as Partial<StopReviewTimerInput>;
+        if (typeof body.timerId !== "string" || !isUlid(body.timerId)) {
+          throw new DomainError("not_found", "review timer not found");
+        }
+        if (!Number.isSafeInteger(body.expectedVersion) || Number(body.expectedVersion) < 1) {
+          throw new DomainError("invalid_argument", "expected timer version is invalid");
+        }
+        const predicate = taskAccessPredicate(principal, "contribute");
+        const row = (await ctx.db
+          .prepare(
+            `SELECT timer.* FROM review_timers AS timer
         JOIN tasks AS task ON task.workspace_id = timer.workspace_id AND task.id = timer.task_id
         WHERE timer.workspace_id = ? AND timer.id = ? AND ${predicate.sql}
           AND (timer.run_id IS NULL OR EXISTS (SELECT 1 FROM runs AS run
             WHERE run.workspace_id = timer.workspace_id AND run.id = timer.run_id
               AND run.task_id = task.id AND run.project_id = task.project_id))`,
-      )
-      .get(ctx.workspaceId, body.timerId, ...predicate.parameters)) as
-      Record<string, unknown> | undefined;
-    if (!row) {
-      throw new DomainError("not_found", "review timer not found");
-    }
-    const record = timerRowToRecord(row);
-    await requireTaskProject(ctx.db, ctx.workspaceId, principal, record.task_id);
-    if (record.started_by_human_id !== ctx.actorHumanId) {
-      throw new DomainError("forbidden", "only the starting reviewer can stop this timer");
-    }
-    if (record.state !== "open") {
-      throw new DomainError("invalid_transition", "review timer is already stopped");
-    }
-    if (record.resource_version !== Number(body.expectedVersion)) {
-      throw new DomainError("stale_version", "review timer version conflict");
-    }
-    const next = record.resource_version + 1;
-    await ctx.db
-      .prepare(
-        `UPDATE review_timers
+          )
+          .get(ctx.workspaceId, body.timerId, ...predicate.parameters)) as
+          Record<string, unknown> | undefined;
+        if (!row) {
+          throw new DomainError("not_found", "review timer not found");
+        }
+        const record = timerRowToRecord(row);
+        await requireTaskProject(ctx.db, ctx.workspaceId, principal, record.task_id);
+        if (record.started_by_human_id !== ctx.actorHumanId) {
+          throw new DomainError("forbidden", "only the starting reviewer can stop this timer");
+        }
+        if (record.state !== "open") {
+          throw new DomainError("invalid_transition", "review timer is already stopped");
+        }
+        if (record.resource_version !== Number(body.expectedVersion)) {
+          throw new DomainError("stale_version", "review timer version conflict");
+        }
+        const next = record.resource_version + 1;
+        await ctx.db
+          .prepare(
+            `UPDATE review_timers
          SET state = 'stopped', stopped_at = ?, resource_version = ?
          WHERE workspace_id = ? AND id = ? AND state = 'open' AND resource_version = ?`,
-      )
-      .run(ctx.now, next, ctx.workspaceId, record.id, record.resource_version);
-    await ctx.db
-      .prepare(
-        `INSERT INTO review_timer_observations
+          )
+          .run(ctx.now, next, ctx.workspaceId, record.id, record.resource_version);
+        await ctx.db
+          .prepare(
+            `INSERT INTO review_timer_observations
          (workspace_id, observation_id, timer_id, observed_kind, actor_type, actor_id, occurred_at)
          VALUES (?, ?, ?, 'stopped', 'human', ?, ?)`,
-      )
-      .run(ctx.workspaceId, randomUlid(), record.id, ctx.actorHumanId as string, ctx.now);
-    return { ...record, state: "stopped" as const, stopped_at: ctx.now, resource_version: next };
-  },
-};
+          )
+          .run(ctx.workspaceId, randomUlid(), record.id, ctx.actorHumanId as string, ctx.now);
+        return {
+          ...record,
+          state: "stopped" as const,
+          stopped_at: ctx.now,
+          resource_version: next,
+        };
+      },
+    },
+    {
+      admission: (input, authority) => publicTimerAdmission(input.timerId, authority),
+      delivery: (input, result, authority) =>
+        !result || result.id !== input.timerId
+          ? publicBusinessSelection({ sql: "0", parameters: [] })
+          : publicTimerSelection(result, authority),
+    },
+  );
 
 export interface RecordBrowserActivityInput {
   observationId?: string;
@@ -1003,106 +1116,141 @@ export interface RecordBrowserActivityInput {
 export const recordBrowserActivityCommand: HubCommand<
   RecordBrowserActivityInput,
   BrowserActivityObservation
-> = {
-  name: "browser_activity.record",
-  async authorize(input, ctx) {
-    const principal = await requireMeasurementHuman(ctx);
-    if (input.taskId !== undefined && input.taskId !== null) {
-      await requireTaskProject(ctx.db, ctx.workspaceId, principal, input.taskId);
-    }
-  },
-  inputFingerprint: measurementFingerprint,
-  auditInput: (input) => ({
-    taskId: (input as RecordBrowserActivityInput)?.taskId,
-  }),
-  auditResult: (result) => ({ observation_id: result.observation_id, task_id: result.task_id }),
-  async run(input, ctx) {
-    const principal = await requireMeasurementHuman(ctx);
-    const body = (input ?? {}) as Partial<RecordBrowserActivityInput>;
-    if (typeof body.startedAt !== "string" || typeof body.endedAt !== "string") {
-      throw new DomainError("invalid_argument", "browser activity interval is invalid");
-    }
-    const start = Date.parse(body.startedAt);
-    const end = Date.parse(body.endedAt);
-    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
-      throw new DomainError("invalid_argument", "browser activity interval is invalid");
-    }
-    if (start - Date.parse(ctx.now) > MEASUREMENT_FUTURE_TOLERANCE_MS) {
-      throw new DomainError("invalid_argument", "browser activity starts in the future");
-    }
-    let taskId: string | null = null;
-    if (body.taskId !== undefined && body.taskId !== null) {
-      if (typeof body.taskId !== "string") {
-        throw new DomainError("invalid_argument", "task id is invalid");
+> = publicBusinessCommand<RecordBrowserActivityInput, BrowserActivityObservation>(
+  {
+    name: "browser_activity.record",
+    async authorize(input, ctx) {
+      const principal = await requireMeasurementHuman(ctx);
+      if (input.taskId !== undefined && input.taskId !== null) {
+        await requireTaskProject(ctx.db, ctx.workspaceId, principal, input.taskId);
       }
-      await requireTaskProject(ctx.db, ctx.workspaceId, principal, body.taskId);
-      taskId = body.taskId;
-    }
-    const capped = end - start > BROWSER_ACTIVITY_CAP_MS;
-    const storedEnd = capped
-      ? new Date(start + BROWSER_ACTIVITY_CAP_MS).toISOString()
-      : body.endedAt;
-    let id: string;
-    try {
-      id = observationId(body.observationId);
-    } catch {
-      throw new DomainError("invalid_argument", "observation id is invalid");
-    }
-    const existing = (await ctx.db
-      .prepare(
-        `SELECT observation_id, human_id, task_id, started_at, ended_at, capped, provenance
+    },
+    inputFingerprint: measurementFingerprint,
+    auditInput: (input) => ({
+      taskId: (input as RecordBrowserActivityInput)?.taskId,
+    }),
+    auditResult: (result) => ({ observation_id: result.observation_id, task_id: result.task_id }),
+    async run(input, ctx) {
+      const principal = await requireMeasurementHuman(ctx);
+      const body = (input ?? {}) as Partial<RecordBrowserActivityInput>;
+      if (typeof body.startedAt !== "string" || typeof body.endedAt !== "string") {
+        throw new DomainError("invalid_argument", "browser activity interval is invalid");
+      }
+      const start = Date.parse(body.startedAt);
+      const end = Date.parse(body.endedAt);
+      if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+        throw new DomainError("invalid_argument", "browser activity interval is invalid");
+      }
+      if (start - Date.parse(ctx.now) > MEASUREMENT_FUTURE_TOLERANCE_MS) {
+        throw new DomainError("invalid_argument", "browser activity starts in the future");
+      }
+      let taskId: string | null = null;
+      if (body.taskId !== undefined && body.taskId !== null) {
+        if (typeof body.taskId !== "string") {
+          throw new DomainError("invalid_argument", "task id is invalid");
+        }
+        await requireTaskProject(ctx.db, ctx.workspaceId, principal, body.taskId);
+        taskId = body.taskId;
+      }
+      const capped = end - start > BROWSER_ACTIVITY_CAP_MS;
+      const storedEnd = capped
+        ? new Date(start + BROWSER_ACTIVITY_CAP_MS).toISOString()
+        : body.endedAt;
+      let id: string;
+      try {
+        id = observationId(body.observationId);
+      } catch {
+        throw new DomainError("invalid_argument", "observation id is invalid");
+      }
+      const existing = (await ctx.db
+        .prepare(
+          `SELECT observation_id, human_id, task_id, started_at, ended_at, capped, provenance
          FROM browser_activity_observations WHERE workspace_id = ? AND observation_id = ?`,
-      )
-      .get(ctx.workspaceId, id)) as Record<string, unknown> | undefined;
-    if (existing) {
-      const identical =
-        String(existing.human_id) === ctx.actorHumanId &&
-        ((existing.task_id as string | null) ?? null) === taskId &&
-        String(existing.started_at) === body.startedAt &&
-        String(existing.ended_at) === storedEnd;
-      if (!identical) {
-        throw new DomainError("conflict", "observation id is bound to another activity row");
+        )
+        .get(ctx.workspaceId, id)) as Record<string, unknown> | undefined;
+      if (existing) {
+        const identical =
+          String(existing.human_id) === ctx.actorHumanId &&
+          ((existing.task_id as string | null) ?? null) === taskId &&
+          String(existing.started_at) === body.startedAt &&
+          String(existing.ended_at) === storedEnd;
+        if (!identical) {
+          throw new DomainError("conflict", "observation id is bound to another activity row");
+        }
+        return {
+          observation_id: id,
+          human_id: ctx.actorHumanId as string,
+          task_id: taskId,
+          started_at: body.startedAt,
+          ended_at: storedEnd,
+          capped: Number(existing.capped) === 1,
+          provenance: "human_observed" as const,
+          occurred_at: ctx.now,
+        };
       }
+      await ctx.db
+        .prepare(
+          `INSERT INTO browser_activity_observations
+         (workspace_id, observation_id, human_id, task_id, started_at, ended_at,
+          capped, provenance, occurred_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'human_observed', ?)`,
+        )
+        .run(
+          ctx.workspaceId,
+          id,
+          ctx.actorHumanId as string,
+          taskId,
+          body.startedAt,
+          storedEnd,
+          capped ? 1 : 0,
+          ctx.now,
+        );
       return {
         observation_id: id,
         human_id: ctx.actorHumanId as string,
         task_id: taskId,
         started_at: body.startedAt,
         ended_at: storedEnd,
-        capped: Number(existing.capped) === 1,
+        capped,
         provenance: "human_observed" as const,
         occurred_at: ctx.now,
       };
-    }
-    await ctx.db
-      .prepare(
-        `INSERT INTO browser_activity_observations
-         (workspace_id, observation_id, human_id, task_id, started_at, ended_at,
-          capped, provenance, occurred_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'human_observed', ?)`,
-      )
-      .run(
-        ctx.workspaceId,
-        id,
-        ctx.actorHumanId as string,
-        taskId,
-        body.startedAt,
-        storedEnd,
-        capped ? 1 : 0,
-        ctx.now,
-      );
-    return {
-      observation_id: id,
-      human_id: ctx.actorHumanId as string,
-      task_id: taskId,
-      started_at: body.startedAt,
-      ended_at: storedEnd,
-      capped,
-      provenance: "human_observed" as const,
-      occurred_at: ctx.now,
-    };
+    },
   },
-};
+  {
+    admission: (input, authority) => publicMeasurementAuthority(authority, input.taskId),
+    delivery: (input, result, authority) => {
+      if (
+        !result ||
+        !publicMeasurementId(result.observation_id) ||
+        result.human_id !== authority.humanId ||
+        result.task_id !== (input.taskId ?? null) ||
+        !(result.task_id === null || publicMeasurementId(result.task_id)) ||
+        (input.observationId !== undefined && result.observation_id !== input.observationId)
+      )
+        return publicBusinessSelection({ sql: "0", parameters: [] });
+      const access = publicMeasurementAuthority(authority, result.task_id);
+      return {
+        sql: `SELECT 1 AS permitted FROM browser_activity_observations AS public_activity
+        WHERE public_activity.workspace_id = ? AND public_activity.observation_id = ?
+          AND public_activity.human_id = ? AND public_activity.task_id IS ?
+          AND public_activity.started_at = ? AND public_activity.ended_at = ?
+          AND public_activity.capped = ? AND public_activity.provenance = 'human_observed'
+          AND ${access.sql}`,
+        parameters: [
+          authority.workspaceId,
+          result.observation_id,
+          authority.humanId,
+          result.task_id,
+          result.started_at,
+          result.ended_at,
+          result.capped ? 1 : 0,
+          ...access.parameters,
+        ],
+      };
+    },
+  },
+);
 
 export async function listTokenObservations(
   db: SqlDatabase,

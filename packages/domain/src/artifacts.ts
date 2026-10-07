@@ -4,12 +4,21 @@
 import { createHash, randomBytes } from "node:crypto";
 
 import type { SqlDatabase } from "@bfb/db";
+import {
+  publicBusinessCommand,
+  publicMemberAuthorityPredicate,
+  publicRunAuthorityPredicate,
+  publicTaskRowAuthorityPredicate,
+  type PublicBusinessAuthority,
+  type PublicAuthoritySql,
+  type PublicBusinessSelection,
+} from "./public-business.js";
 import { prepareAgentArtifactGrantAuthority } from "./artifact-agent-authority.js";
 import type { RunnerPrincipal } from "./runners.js";
 import { runnerObject } from "./runner-crypto.js";
 
 import { abuseBucketKey, consumeAbuseBudget } from "./abuse.js";
-import { assertEpoch, assertRole, loadPrincipal } from "./authorization.js";
+import { assertEpoch, assertRole, loadPrincipal, type WorkspaceRole } from "./authorization.js";
 import { DomainError } from "./hub.js";
 import type { HubCommand, HubContext } from "./hub.js";
 import { isUlid, randomUlid, syntheticUlid } from "./ids.js";
@@ -670,7 +679,7 @@ export async function issueArtifactUploadGrant(
   return grant;
 }
 
-export const createArtifactCommand: HubCommand<CreateArtifactInput, CreateArtifactResult> = {
+const createArtifactBase: HubCommand<CreateArtifactInput, CreateArtifactResult> = {
   name: "artifact.create_version",
   replay: "reject",
   auditInput: () => ({ action: "artifact.create_version" }),
@@ -731,7 +740,7 @@ export interface IssueArtifactGrantInput {
   grantSecretHash: string;
 }
 
-export const issueArtifactGrantCommand: HubCommand<IssueArtifactGrantInput, ArtifactGrant> = {
+const issueArtifactGrantBase: HubCommand<IssueArtifactGrantInput, ArtifactGrant> = {
   name: "artifact.issue_grant",
   replay: "reject",
   auditInput: () => ({ action: "artifact.issue_grant" }),
@@ -1375,7 +1384,7 @@ export async function persistArtifactFinalization(
   };
 }
 
-export const finalizeArtifactCommand: HubCommand<FinalizeArtifactInput, FinalizeArtifactResult> = {
+const finalizeArtifactBase: HubCommand<FinalizeArtifactInput, FinalizeArtifactResult> = {
   name: "artifact.finalize_version",
   replay: "reject",
   auditInput: () => ({ action: "artifact.finalize_version" }),
@@ -1393,6 +1402,179 @@ export const finalizeArtifactCommand: HubCommand<FinalizeArtifactInput, Finalize
     return result;
   },
 };
+
+/** Exact artifact parent authority; only a genuine NULL run takes membership-only scope. */
+export function publicArtifactParentAuthorityPredicate(
+  authority: PublicBusinessAuthority,
+  action: TaskAccessAction,
+  alias = "public_artifact",
+  roles: readonly WorkspaceRole[] = ["owner", "member"],
+  scope: "bfb:read" | "bfb:task:write" = "bfb:task:write",
+): PublicAuthoritySql {
+  if (!/^[a-z][a-z0-9_]*$/.test(alias)) throw new Error("invalid public artifact alias");
+  const member = publicMemberAuthorityPredicate(authority, roles, scope),
+    task = publicTaskRowAuthorityPredicate(authority, action, "public_artifact_task", roles, scope),
+    bound =
+      authority.credential?.kind === "delegation" &&
+      (authority.credential.projectId !== null || authority.credential.taskId !== null);
+  return {
+    sql: `${alias}.workspace_id = ? AND (
+      (${alias}.run_id IS NULL AND ${bound ? "0" : member.sql}) OR EXISTS (
+        SELECT 1 FROM runs AS public_artifact_run JOIN tasks AS public_artifact_task
+          ON public_artifact_task.workspace_id = public_artifact_run.workspace_id
+            AND public_artifact_task.id = public_artifact_run.task_id
+            AND public_artifact_task.project_id = public_artifact_run.project_id
+        WHERE public_artifact_run.workspace_id = ${alias}.workspace_id
+          AND public_artifact_run.id = ${alias}.run_id AND public_artifact_run.purpose = 'work' AND ${task.sql}
+      ))`,
+    parameters: [authority.workspaceId, ...(bound ? [] : member.parameters), ...task.parameters],
+  };
+}
+
+export function publicArtifactVersionBusinessSelection<TResult>(
+  authority: PublicBusinessAuthority,
+  versionId: string,
+  action: TaskAccessAction,
+  roles: readonly WorkspaceRole[] = ["owner", "member"],
+  scope: "bfb:read" | "bfb:task:write" = "bfb:task:write",
+): PublicBusinessSelection<TResult> {
+  const parent = publicArtifactParentAuthorityPredicate(
+    authority,
+    action,
+    "public_artifact",
+    roles,
+    scope,
+  );
+  return {
+    sql: `SELECT 1 AS permitted FROM artifact_versions AS public_version
+      JOIN artifacts AS public_artifact ON public_artifact.workspace_id = public_version.workspace_id
+        AND public_artifact.id = public_version.artifact_id
+      WHERE public_version.workspace_id = ? AND public_version.id = ? AND ${parent.sql}`,
+    parameters: [authority.workspaceId, versionId, ...parent.parameters],
+  };
+}
+
+export function publicUploadGrantBusinessSelection(
+  authority: PublicBusinessAuthority,
+  grant: ArtifactGrant,
+): PublicBusinessSelection<ArtifactGrant> {
+  const parent = publicArtifactParentAuthorityPredicate(authority, "contribute");
+  return {
+    sql: `SELECT 1 AS permitted FROM artifact_upload_grants AS public_grant
+      JOIN artifact_versions AS public_version ON public_version.workspace_id = public_grant.workspace_id
+        AND public_version.id = public_grant.version_id
+      JOIN artifacts AS public_artifact ON public_artifact.workspace_id = public_version.workspace_id
+        AND public_artifact.id = public_version.artifact_id
+      WHERE public_grant.workspace_id = ? AND public_grant.id = ? AND public_grant.version_id = ?
+        AND public_grant.grant_hash = ? AND public_grant.expires_at = ?
+        AND public_grant.human_id = ? AND public_grant.authorization_epoch = ?
+        AND public_grant.run_id IS public_artifact.run_id AND public_grant.format = public_version.format
+        AND public_grant.declared_size = public_version.declared_size AND public_grant.expected_digest = public_version.expected_digest
+        AND ${parent.sql}`,
+    parameters: [
+      authority.workspaceId,
+      grant.grant_id,
+      grant.version_id,
+      grant.grant_hash,
+      grant.expires_at,
+      authority.humanId,
+      authority.authorizationEpoch,
+      ...parent.parameters,
+    ],
+  };
+}
+
+export function publicArtifactCreationBusinessSelection(
+  authority: PublicBusinessAuthority,
+  input: CreateArtifactInput,
+  result: CreateArtifactResult,
+): PublicBusinessSelection<CreateArtifactResult> {
+  const selection = publicUploadGrantBusinessSelection(authority, result.upload_grant);
+  return {
+    sql: `${selection.sql} AND public_version.id = ? AND public_artifact.id = ? AND public_artifact.run_id IS ?
+      AND public_version.format = ? AND public_artifact.format = ? AND public_artifact.role = ?
+      AND public_version.declared_size = ? AND public_version.expected_digest = ?
+      ${input.artifactId == null ? "" : "AND public_artifact.id = ?"}`,
+    parameters: [
+      ...selection.parameters,
+      result.version_id,
+      result.artifact_id,
+      input.runId ?? null,
+      result.format,
+      result.format,
+      result.role,
+      result.declared_size,
+      result.expected_digest,
+      ...(input.artifactId == null ? [] : [input.artifactId]),
+    ],
+  };
+}
+
+export function publicArtifactFinalizationBusinessSelection(
+  authority: PublicBusinessAuthority,
+  input: FinalizeArtifactInput,
+  result: FinalizeArtifactResult,
+): PublicBusinessSelection<FinalizeArtifactResult> {
+  const selection = publicArtifactVersionBusinessSelection<FinalizeArtifactResult>(
+    authority,
+    input.versionId,
+    "contribute",
+  );
+  return {
+    sql: `${selection.sql} AND public_version.id = ? AND public_artifact.id = ?
+      AND public_version.state = 'available' AND public_version.content_hash = ?
+      AND public_version.r2_key = ? AND public_version.available_at = ?
+      AND public_version.expected_digest = ? AND public_version.declared_size = ?
+      AND EXISTS (SELECT 1 FROM artifact_upload_receipts AS public_receipt
+        WHERE public_receipt.workspace_id = public_version.workspace_id AND public_receipt.version_id = public_version.id
+          AND public_receipt.content_hash = public_version.content_hash AND public_receipt.size = public_version.declared_size)
+      AND EXISTS (SELECT 1 FROM artifact_objects AS public_object
+        WHERE public_object.workspace_id = public_version.workspace_id AND public_object.r2_key = public_version.r2_key
+          AND public_object.content_hash = public_version.content_hash AND public_object.size = public_version.declared_size)`,
+    parameters: [
+      ...selection.parameters,
+      result.version_id,
+      result.artifact_id,
+      result.content_hash,
+      result.r2_key,
+      result.available_at,
+      input.contentHash,
+      input.size,
+    ],
+  };
+}
+
+export const createArtifactCommand = publicBusinessCommand(createArtifactBase, {
+  admission: (input, authority) =>
+    input.runId == null
+      ? publicMemberAuthorityPredicate(authority, ["owner", "member"])
+      : publicRunAuthorityPredicate(authority, input.runId, "contribute", ["owner", "member"]),
+  delivery: (input, result, authority) =>
+    publicArtifactCreationBusinessSelection(authority, input, result),
+});
+export const issueArtifactGrantCommand = publicBusinessCommand(issueArtifactGrantBase, {
+  admission: (input, authority) => {
+    const selection = publicArtifactVersionBusinessSelection<ArtifactGrant>(
+      authority,
+      input.versionId,
+      "contribute",
+    );
+    return { sql: `EXISTS (${selection.sql})`, parameters: selection.parameters };
+  },
+  delivery: (_input, result, authority) => publicUploadGrantBusinessSelection(authority, result),
+});
+export const finalizeArtifactCommand = publicBusinessCommand(finalizeArtifactBase, {
+  admission: (input, authority) => {
+    const selection = publicArtifactVersionBusinessSelection<FinalizeArtifactResult>(
+      authority,
+      input.versionId,
+      "contribute",
+    );
+    return { sql: `EXISTS (${selection.sql})`, parameters: selection.parameters };
+  },
+  delivery: (input, result, authority) =>
+    publicArtifactFinalizationBusinessSelection(authority, input, result),
+});
 
 export interface MarkArtifactFailedInput {
   versionId: string;

@@ -27,6 +27,7 @@ import { runnerHash, type RunnerTokenClaims } from "../src/runner-crypto.js";
 import type { RunnerPrincipal } from "../src/runners.js";
 import { createTaskCommand } from "../src/work-commands.js";
 import { openDomainDb } from "./helpers.js";
+import { seedHistoricalTask } from "./historical-task-fixture.js";
 
 export const LAUNCH_NOW = "2026-09-12T12:00:00.000Z";
 export const EMPTY_CONFIG_HASH = `sha256:${runnerHash("{}")}`;
@@ -281,18 +282,29 @@ export async function launchFixture(
   } else {
     profile = success(await human(createAgentProfileCommand, profileInput));
   }
-  const task = success(
-    await human(
-      createTaskCommand,
-      {
+  const currentTaskSchema = await db
+    .prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='task_privacy'")
+    .get();
+  const task = currentTaskSchema
+    ? success(
+        await human(
+          createTaskCommand,
+          {
+            projectId: FIX.projectA,
+            title: "Synthetic C09 task",
+            priority: "P2",
+          },
+          LAUNCH_NOW,
+          options.taskCreatorHumanId ?? FIX.owner,
+        ),
+      )
+    : await seedHistoricalTask(db, {
+        workspaceId: FIX.workspace,
         projectId: FIX.projectA,
         title: "Synthetic C09 task",
-        priority: "P2",
-      },
-      LAUNCH_NOW,
-      options.taskCreatorHumanId ?? FIX.owner,
-    ),
-  );
+        humanId: options.taskCreatorHumanId ?? FIX.owner,
+        now: LAUNCH_NOW,
+      });
   let inventory: RunnerInventory = {
     schema_version: 1,
     workspace_id: FIX.workspace,

@@ -7,8 +7,8 @@ import { adaptBetterSqlite3, applyMigrationsForVerification } from "@bfb/db";
 import { expect, it } from "vitest";
 import { FIX, seedSyntheticWorkspace } from "../src/fixtures.js";
 import { WorkspaceHub, type HubCommand } from "../src/hub.js";
-import { createTaskCommand } from "../src/work-commands.js";
 import { createRunCommand } from "../src/work-records.js";
+import { seedHistoricalTask } from "./historical-task-fixture.js";
 
 it("adds manual defaults at 0044 without rewriting populated history or snapshot hashes", async () => {
   const raw = new Database(":memory:");
@@ -36,10 +36,12 @@ it("adds manual defaults at 0044 without rewriting populated history or snapshot
       if (!result.ok) throw Error(result.error.code);
       return result.result;
     }
-    const task = await human(createTaskCommand, {
+    const task = await seedHistoricalTask(db, {
+      workspaceId: FIX.workspace,
       projectId: FIX.projectA,
+      humanId: FIX.owner,
       title: "Synthetic historical manual task",
-      priority: "P2",
+      now: "2026-10-06T00:00:00.000Z",
     });
     await human(createRunCommand, {
       taskId: task.id,

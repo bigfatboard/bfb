@@ -16,6 +16,16 @@ import { DomainError, type HubCommand, type HubContext } from "./hub.js";
 import { isUlid, randomUlid } from "./ids.js";
 import { canonicalLaunchJson } from "./launch-state.js";
 import {
+  allPublicAuthority,
+  publicBusinessCommand,
+  publicBusinessSelection,
+  publicProjectAuthorityPredicate,
+  publicTaskAuthorityPredicate,
+  type PublicAuthoritySql,
+  type PublicBusinessAuthority,
+  type PublicBusinessSelection,
+} from "./public-business.js";
+import {
   assertTaskAccess,
   sharedTaskPredicate,
   taskAccessPredicate,
@@ -105,6 +115,112 @@ function taskReceipt(task: TaskRecord) {
     parent_task_id: task.parent_task_id,
     resource_version: task.resource_version,
   };
+}
+
+const PUBLIC_EDIT_ROLES = ["owner", "member"] as const;
+
+function publicId(value: unknown): value is string {
+  return typeof value === "string" && value.length === 26 && isUlid(value);
+}
+
+function publicCreationAuthority(input: CreateTaskInput, authority: PublicBusinessAuthority) {
+  const project = publicProjectAuthorityPredicate(authority, input.projectId, PUBLIC_EDIT_ROLES);
+  if (!input.parentTaskId) return project;
+  return allPublicAuthority(
+    project,
+    publicTaskAuthorityPredicate(authority, input.parentTaskId, "edit", PUBLIC_EDIT_ROLES),
+    {
+      sql: `EXISTS (SELECT 1 FROM tasks AS public_parent_source
+        WHERE public_parent_source.workspace_id = ? AND public_parent_source.id = ?
+          AND public_parent_source.project_id = ? AND ${sharedTaskPredicate("public_parent_source")})`,
+      parameters: [authority.workspaceId, input.parentTaskId, input.projectId],
+    },
+  );
+}
+
+function publicTaskResultSelection(
+  result: TaskRecord,
+  authority: PublicBusinessAuthority,
+  action: "read" | "edit",
+  additional: PublicAuthoritySql = { sql: "1", parameters: [] },
+): PublicBusinessSelection<TaskRecord> {
+  if (
+    !result ||
+    !publicId(result.id) ||
+    !publicId(result.project_id) ||
+    !(result.parent_task_id === null || publicId(result.parent_task_id))
+  )
+    return publicBusinessSelection({ sql: "0", parameters: [] });
+  const target = publicTaskAuthorityPredicate(authority, result.id, action, PUBLIC_EDIT_ROLES);
+  const parent =
+    result.parent_task_id === null
+      ? { sql: "0", parameters: [] }
+      : publicTaskAuthorityPredicate(authority, result.parent_task_id, "read", PUBLIC_EDIT_ROLES);
+  return {
+    sql: `SELECT CASE WHEN ${parent.sql} THEN ? ELSE NULL END AS parent_task_id
+      FROM tasks AS public_result_task
+      WHERE public_result_task.workspace_id = ? AND public_result_task.id = ?
+        AND public_result_task.project_id = ? AND ${target.sql}
+        AND ${additional.sql}`,
+    parameters: [
+      ...parent.parameters,
+      result.parent_task_id,
+      authority.workspaceId,
+      result.id,
+      result.project_id,
+      ...target.parameters,
+      ...additional.parameters,
+    ],
+    project: (historical, row) => ({
+      ...historical,
+      parent_task_id: row.parent_task_id as string | null,
+    }),
+  };
+}
+
+function publicDirectTaskAuthority(authority: PublicBusinessAuthority, taskId: string) {
+  return authority.credential?.kind === "delegation"
+    ? { sql: "0", parameters: [] }
+    : publicTaskAuthorityPredicate(authority, taskId, "edit", PUBLIC_EDIT_ROLES);
+}
+
+function publicTaskChildSelection<TResult>(
+  authority: PublicBusinessAuthority,
+  taskId: string,
+  table: "comments" | "task_context_items" | "task_links",
+  exact: PublicAuthoritySql,
+  action: "edit" | "contribute",
+  direct = false,
+): PublicBusinessSelection<TResult> {
+  const access = direct
+    ? publicDirectTaskAuthority(authority, taskId)
+    : publicTaskAuthorityPredicate(authority, taskId, action);
+  return {
+    sql: `SELECT 1 AS permitted FROM ${table} AS public_source
+      JOIN tasks AS public_source_task ON public_source_task.workspace_id = public_source.workspace_id
+        AND public_source_task.id = public_source.task_id
+      WHERE public_source.workspace_id = ? AND public_source.task_id = ?
+        AND ${exact.sql} AND ${access.sql}`,
+    parameters: [authority.workspaceId, taskId, ...exact.parameters, ...access.parameters],
+  };
+}
+
+function publicDependencyAuthority(
+  input: AddTaskDependencyInput,
+  authority: PublicBusinessAuthority,
+) {
+  return allPublicAuthority(
+    publicDirectTaskAuthority(authority, input.taskId),
+    publicTaskAuthorityPredicate(authority, input.dependsOnTaskId, "read", PUBLIC_EDIT_ROLES),
+    {
+      sql: `EXISTS (SELECT 1 FROM tasks AS public_target JOIN tasks AS public_dependency
+        ON public_dependency.workspace_id = public_target.workspace_id
+          AND public_dependency.project_id = public_target.project_id
+        WHERE public_target.workspace_id = ? AND public_target.id = ? AND public_dependency.id = ?
+          AND ${sharedTaskPredicate("public_target")} AND ${sharedTaskPredicate("public_dependency")})`,
+      parameters: [authority.workspaceId, input.taskId, input.dependsOnTaskId],
+    },
+  );
 }
 
 export interface TaskReadAccess extends TaskAccessContext {
@@ -636,66 +752,84 @@ export async function persistTaskCreation(
     );
 }
 
-export const createTaskCommand: HubCommand<CreateTaskInput, TaskRecord> = {
-  name: "task.create",
-  replayResult: (result, ctx) => replayTaskResult(result, ctx, "read"),
-  inputFingerprint: workInputFingerprint,
-  auditInput: (input) => ({ projectId: input.projectId, parentTaskId: input.parentTaskId }),
-  auditResult: taskReceipt,
-  async authorize(input, ctx) {
-    const authority = await requireAuthority(ctx);
-    assertRole(authority.principal, ["owner", "member"]);
-    assertProjectAccess(authority.principal, input.projectId);
-    assertDelegationScope(authority.delegation, "bfb:task:write");
-    if (input.parentTaskId) {
-      // Inherited agent/human children are not certified; never create a shared child of private work.
-      const parent = await getTask(ctx.db, ctx.workspaceId, input.parentTaskId);
-      if (!parent || parent.project_id !== input.projectId)
-        throw new DomainError("not_found", "task not found");
-      await authorizeWorkTask(ctx, parent.id, "edit");
-    }
-    await assertDelegationBoundary(
-      ctx.db,
-      ctx.workspaceId,
-      authority.delegation,
-      input.projectId,
-      input.parentTaskId,
-    );
-    taskReplayAuthorities.set(ctx, authority);
-  },
-  async run(input, ctx) {
-    const authority = await requireAuthority(ctx);
-    assertRole(authority.principal, ["owner", "member"]);
-    assertProjectAccess(authority.principal, input.projectId);
-    const isAgent = authority.delegation !== undefined;
-    assertDelegationScope(authority.delegation, "bfb:task:write");
-    let parent: TaskRecord | undefined;
-    if (input.parentTaskId !== undefined) {
-      parent = await getTask(ctx.db, ctx.workspaceId, input.parentTaskId);
-      if (!parent || parent.project_id !== input.projectId) {
-        throw new DomainError("not_found", "parent task not found in project");
+export const createTaskCommand: HubCommand<CreateTaskInput, TaskRecord> = publicBusinessCommand<
+  CreateTaskInput,
+  TaskRecord
+>(
+  {
+    name: "task.create",
+    replayResult: (result, ctx) => replayTaskResult(result, ctx, "read"),
+    inputFingerprint: workInputFingerprint,
+    auditInput: (input) => ({ projectId: input.projectId, parentTaskId: input.parentTaskId }),
+    auditResult: taskReceipt,
+    async authorize(input, ctx) {
+      const authority = await requireAuthority(ctx);
+      assertRole(authority.principal, ["owner", "member"]);
+      assertProjectAccess(authority.principal, input.projectId);
+      assertDelegationScope(authority.delegation, "bfb:task:write");
+      if (input.parentTaskId) {
+        // Inherited agent/human children are not certified; never create a shared child of private work.
+        const parent = await getTask(ctx.db, ctx.workspaceId, input.parentTaskId);
+        if (!parent || parent.project_id !== input.projectId)
+          throw new DomainError("not_found", "task not found");
+        await authorizeWorkTask(ctx, parent.id, "edit");
       }
-    }
-    await assertDelegationBoundary(
-      ctx.db,
-      ctx.workspaceId,
-      authority.delegation,
-      input.projectId,
-      parent?.id,
-    );
-    if (isAgent && !parent) {
-      await assertAgentRootProposalAllowed(ctx.db, ctx.workspaceId, input.projectId);
-    } else if (isAgent && parent) {
-      await assertAgentChildLimit(ctx.db, ctx.workspaceId, parent.id);
-    }
-    const task = await prepareTaskCreation(input, ctx, isAgent, parent);
-    await persistTaskCreation(ctx, task, {
-      humanId: ctx.actorHumanId ?? null,
-      delegationId: ctx.actorDelegationId ?? null,
-    });
-    return task;
+      await assertDelegationBoundary(
+        ctx.db,
+        ctx.workspaceId,
+        authority.delegation,
+        input.projectId,
+        input.parentTaskId,
+      );
+      taskReplayAuthorities.set(ctx, authority);
+    },
+    async run(input, ctx) {
+      const authority = await requireAuthority(ctx);
+      assertRole(authority.principal, ["owner", "member"]);
+      assertProjectAccess(authority.principal, input.projectId);
+      const isAgent = authority.delegation !== undefined;
+      assertDelegationScope(authority.delegation, "bfb:task:write");
+      let parent: TaskRecord | undefined;
+      if (input.parentTaskId !== undefined) {
+        parent = await getTask(ctx.db, ctx.workspaceId, input.parentTaskId);
+        if (!parent || parent.project_id !== input.projectId) {
+          throw new DomainError("not_found", "parent task not found in project");
+        }
+      }
+      await assertDelegationBoundary(
+        ctx.db,
+        ctx.workspaceId,
+        authority.delegation,
+        input.projectId,
+        parent?.id,
+      );
+      if (isAgent && !parent) {
+        await assertAgentRootProposalAllowed(ctx.db, ctx.workspaceId, input.projectId);
+      } else if (isAgent && parent) {
+        await assertAgentChildLimit(ctx.db, ctx.workspaceId, parent.id);
+      }
+      const task = await prepareTaskCreation(input, ctx, isAgent, parent);
+      await persistTaskCreation(ctx, task, {
+        humanId: ctx.actorHumanId ?? null,
+        delegationId: ctx.actorDelegationId ?? null,
+      });
+      return task;
+    },
   },
-};
+  {
+    admission: publicCreationAuthority,
+    delivery: (input, result, authority) =>
+      publicTaskResultSelection(
+        result,
+        authority,
+        "read",
+        allPublicAuthority(publicCreationAuthority(input, authority), {
+          sql: "public_result_task.project_id = ?",
+          parameters: [input.projectId],
+        }),
+      ),
+  },
+);
 
 export interface UpdateTaskInput {
   taskId: string;
@@ -790,53 +924,66 @@ export async function persistTaskUpdate(
     );
 }
 
-export const updateTaskCommand: HubCommand<UpdateTaskInput, TaskRecord> = {
-  name: "task.update",
-  replayResult: (result, ctx) => replayTaskResult(result, ctx, "edit"),
-  inputFingerprint: workInputFingerprint,
-  auditInput: (input) => ({ taskId: input.taskId, expectedVersion: input.expectedVersion }),
-  auditResult: taskReceipt,
-  async authorize(input, ctx) {
-    taskReplayAuthorities.set(ctx, await authorizeWorkTask(ctx, input.taskId, "edit"));
-  },
-  async run(input, ctx) {
-    const authority = await authorizeWorkTask(ctx, input.taskId, "edit");
-    const task = await getTask(ctx.db, ctx.workspaceId, input.taskId, workReadAccess(authority));
-    if (!task) {
-      throw new DomainError("not_found", "task not found");
-    }
-    assertRole(authority.principal, ["owner", "member"]);
-    assertProjectAccess(authority.principal, task.project_id);
-    assertDelegationScope(authority.delegation, "bfb:task:write");
-    await assertDelegationBoundary(
-      ctx.db,
-      ctx.workspaceId,
-      authority.delegation,
-      task.project_id,
-      task.id,
-    );
-    assertTaskVersion(task, input.expectedVersion);
-    if (authority.delegation) {
-      if (
-        input.promote ||
-        input.state !== undefined ||
-        input.priority !== undefined ||
-        input.dueAt !== undefined ||
-        input.nextOwnerType !== undefined ||
-        input.nextOwnerId !== undefined ||
-        input.nextActionReason !== undefined
-      ) {
-        throw new DomainError(
-          "forbidden",
-          "delegated agents cannot change task workflow or routing",
-        );
+export const updateTaskCommand: HubCommand<UpdateTaskInput, TaskRecord> = publicBusinessCommand<
+  UpdateTaskInput,
+  TaskRecord
+>(
+  {
+    name: "task.update",
+    replayResult: (result, ctx) => replayTaskResult(result, ctx, "edit"),
+    inputFingerprint: workInputFingerprint,
+    auditInput: (input) => ({ taskId: input.taskId, expectedVersion: input.expectedVersion }),
+    auditResult: taskReceipt,
+    async authorize(input, ctx) {
+      taskReplayAuthorities.set(ctx, await authorizeWorkTask(ctx, input.taskId, "edit"));
+    },
+    async run(input, ctx) {
+      const authority = await authorizeWorkTask(ctx, input.taskId, "edit");
+      const task = await getTask(ctx.db, ctx.workspaceId, input.taskId, workReadAccess(authority));
+      if (!task) {
+        throw new DomainError("not_found", "task not found");
       }
-    }
-    const updated = await prepareTaskUpdate(input, ctx, task);
-    await persistTaskUpdate(ctx, updated, input.expectedVersion);
-    return updated;
+      assertRole(authority.principal, ["owner", "member"]);
+      assertProjectAccess(authority.principal, task.project_id);
+      assertDelegationScope(authority.delegation, "bfb:task:write");
+      await assertDelegationBoundary(
+        ctx.db,
+        ctx.workspaceId,
+        authority.delegation,
+        task.project_id,
+        task.id,
+      );
+      assertTaskVersion(task, input.expectedVersion);
+      if (authority.delegation) {
+        if (
+          input.promote ||
+          input.state !== undefined ||
+          input.priority !== undefined ||
+          input.dueAt !== undefined ||
+          input.nextOwnerType !== undefined ||
+          input.nextOwnerId !== undefined ||
+          input.nextActionReason !== undefined
+        ) {
+          throw new DomainError(
+            "forbidden",
+            "delegated agents cannot change task workflow or routing",
+          );
+        }
+      }
+      const updated = await prepareTaskUpdate(input, ctx, task);
+      await persistTaskUpdate(ctx, updated, input.expectedVersion);
+      return updated;
+    },
   },
-};
+  {
+    admission: (input, authority) => publicTaskAuthorityPredicate(authority, input.taskId, "edit"),
+    delivery: (input, result, authority) =>
+      publicTaskResultSelection(result, authority, "edit", {
+        sql: "public_result_task.id = ?",
+        parameters: [input.taskId],
+      }),
+  },
+);
 
 export interface AddCommentInput {
   taskId: string;
@@ -847,43 +994,75 @@ export interface AddCommentInput {
 function commentCommand(
   name: "comment.add" | "progress.report",
 ): HubCommand<AddCommentInput, { id: string }> {
-  return {
-    name,
-    inputFingerprint: workInputFingerprint,
-    auditInput: (input) => ({ taskId: input.taskId, kind: input.kind }),
-    async authorize(input, ctx) {
-      await authorizeWorkTask(ctx, input.taskId, "contribute");
+  return publicBusinessCommand<AddCommentInput, { id: string }>(
+    {
+      name,
+      inputFingerprint: workInputFingerprint,
+      auditInput: (input) => ({ taskId: input.taskId, kind: input.kind }),
+      async authorize(input, ctx) {
+        await authorizeWorkTask(ctx, input.taskId, "contribute");
+      },
+      async run(input, ctx) {
+        const authority = await authorizeWorkTask(ctx, input.taskId, "contribute");
+        const task = await getTask(
+          ctx.db,
+          ctx.workspaceId,
+          input.taskId,
+          workReadAccess(authority),
+        );
+        if (!task) {
+          throw new DomainError("not_found", "task not found");
+        }
+        assertRole(authority.principal, ["owner", "member", "reviewer"]);
+        assertProjectAccess(authority.principal, task.project_id);
+        assertDelegationScope(authority.delegation, "bfb:task:write");
+        await assertDelegationBoundary(
+          ctx.db,
+          ctx.workspaceId,
+          authority.delegation,
+          task.project_id,
+          task.id,
+        );
+        if (input.kind !== "discussion" && input.kind !== "progress") {
+          throw new DomainError("invalid_argument", "comment kind is invalid");
+        }
+        if (name === "progress.report" && input.kind !== "progress") {
+          throw new DomainError("invalid_argument", "progress report must use progress kind");
+        }
+        const body = checkedCommentBody(input.body);
+        const id = await persistComment(ctx, input.taskId, body, input.kind, {
+          humanId: ctx.actorHumanId ?? null,
+          delegationId: ctx.actorDelegationId ?? null,
+        });
+        return { id };
+      },
     },
-    async run(input, ctx) {
-      const authority = await authorizeWorkTask(ctx, input.taskId, "contribute");
-      const task = await getTask(ctx.db, ctx.workspaceId, input.taskId, workReadAccess(authority));
-      if (!task) {
-        throw new DomainError("not_found", "task not found");
-      }
-      assertRole(authority.principal, ["owner", "member", "reviewer"]);
-      assertProjectAccess(authority.principal, task.project_id);
-      assertDelegationScope(authority.delegation, "bfb:task:write");
-      await assertDelegationBoundary(
-        ctx.db,
-        ctx.workspaceId,
-        authority.delegation,
-        task.project_id,
-        task.id,
-      );
-      if (input.kind !== "discussion" && input.kind !== "progress") {
-        throw new DomainError("invalid_argument", "comment kind is invalid");
-      }
-      if (name === "progress.report" && input.kind !== "progress") {
-        throw new DomainError("invalid_argument", "progress report must use progress kind");
-      }
-      const body = checkedCommentBody(input.body);
-      const id = await persistComment(ctx, input.taskId, body, input.kind, {
-        humanId: ctx.actorHumanId ?? null,
-        delegationId: ctx.actorDelegationId ?? null,
-      });
-      return { id };
+    {
+      admission: (input, authority) =>
+        publicTaskAuthorityPredicate(authority, input.taskId, "contribute"),
+      delivery: (input, result, authority) =>
+        !result || !publicId(result.id)
+          ? publicBusinessSelection({ sql: "0", parameters: [] })
+          : publicTaskChildSelection(
+              authority,
+              input.taskId,
+              "comments",
+              {
+                sql: `public_source.id = ? AND public_source.kind = ?
+          AND public_source.author_human_id = ? AND public_source.author_delegation_id IS ?`,
+                parameters: [
+                  result.id,
+                  input.kind,
+                  authority.humanId,
+                  authority.credential?.kind === "delegation"
+                    ? authority.credential.delegationId
+                    : null,
+                ],
+              },
+              "contribute",
+            ),
     },
-  };
+  );
 }
 
 export const addCommentCommand = commentCommand("comment.add");
@@ -923,74 +1102,105 @@ export interface AddContextInput {
 export const addContextCommand: HubCommand<
   AddContextInput,
   { id: string; version: number; contentHash: string }
-> = {
-  name: "context.add",
-  inputFingerprint: workInputFingerprint,
-  auditInput: (input) => ({ taskId: input.taskId, kind: input.kind, audience: input.audience }),
-  async authorize(input, ctx) {
-    await authorizeWorkTask(ctx, input.taskId, "edit", false);
-  },
-  async run(input, ctx) {
-    const authority = await authorizeWorkTask(ctx, input.taskId, "edit", false);
-    if (authority.delegation) {
-      throw new DomainError("forbidden", "delegated agents cannot edit task context");
-    }
-    assertRole(authority.principal, ["owner", "member"]);
-    const task = await getTask(ctx.db, ctx.workspaceId, input.taskId, workReadAccess(authority));
-    if (!task) {
-      throw new DomainError("not_found", "task not found");
-    }
-    assertProjectAccess(authority.principal, task.project_id);
-    if (!CONTEXT_KINDS.includes(input.kind)) {
-      throw new DomainError("invalid_argument", "context kind is invalid");
-    }
-    if (input.audience !== "human" && input.audience !== "agent" && input.audience !== "both") {
-      throw new DomainError("invalid_argument", "context audience is invalid");
-    }
-    const body = boundedText(input.body, "context body", 16_384);
-    const previous = (await ctx.db
-      .prepare(
-        `SELECT COALESCE(MAX(version), 0) AS version,
+> = publicBusinessCommand<AddContextInput, { id: string; version: number; contentHash: string }>(
+  {
+    name: "context.add",
+    inputFingerprint: workInputFingerprint,
+    auditInput: (input) => ({ taskId: input.taskId, kind: input.kind, audience: input.audience }),
+    async authorize(input, ctx) {
+      await authorizeWorkTask(ctx, input.taskId, "edit", false);
+    },
+    async run(input, ctx) {
+      const authority = await authorizeWorkTask(ctx, input.taskId, "edit", false);
+      if (authority.delegation) {
+        throw new DomainError("forbidden", "delegated agents cannot edit task context");
+      }
+      assertRole(authority.principal, ["owner", "member"]);
+      const task = await getTask(ctx.db, ctx.workspaceId, input.taskId, workReadAccess(authority));
+      if (!task) {
+        throw new DomainError("not_found", "task not found");
+      }
+      assertProjectAccess(authority.principal, task.project_id);
+      if (!CONTEXT_KINDS.includes(input.kind)) {
+        throw new DomainError("invalid_argument", "context kind is invalid");
+      }
+      if (input.audience !== "human" && input.audience !== "agent" && input.audience !== "both") {
+        throw new DomainError("invalid_argument", "context audience is invalid");
+      }
+      const body = boundedText(input.body, "context body", 16_384);
+      const previous = (await ctx.db
+        .prepare(
+          `SELECT COALESCE(MAX(version), 0) AS version,
                 COUNT(*) AS item_count,
                 COALESCE(SUM(length(CAST(body AS BLOB))), 0) AS byte_count
          FROM task_context_items
          WHERE workspace_id = ? AND task_id = ?`,
-      )
-      .get(ctx.workspaceId, input.taskId)) as {
-      version: number;
-      item_count: number;
-      byte_count: number;
-    };
-    if (
-      previous.item_count >= MAX_CONTEXT_ITEMS_PER_TASK ||
-      previous.byte_count + new TextEncoder().encode(body).byteLength > MAX_CONTEXT_BYTES_PER_TASK
-    ) {
-      throw new DomainError("context_limit_reached", "task context limit reached");
-    }
-    const version = previous.version + 1;
-    const id = randomUlid();
-    const canonical = JSON.stringify({ audience: input.audience, body, kind: input.kind });
-    const contentHash = `sha256:${createHash("sha256").update(canonical, "utf8").digest("hex")}`;
-    await ctx.db
-      .prepare(
-        `INSERT INTO task_context_items (
+        )
+        .get(ctx.workspaceId, input.taskId)) as {
+        version: number;
+        item_count: number;
+        byte_count: number;
+      };
+      if (
+        previous.item_count >= MAX_CONTEXT_ITEMS_PER_TASK ||
+        previous.byte_count + new TextEncoder().encode(body).byteLength > MAX_CONTEXT_BYTES_PER_TASK
+      ) {
+        throw new DomainError("context_limit_reached", "task context limit reached");
+      }
+      const version = previous.version + 1;
+      const id = randomUlid();
+      const canonical = JSON.stringify({ audience: input.audience, body, kind: input.kind });
+      const contentHash = `sha256:${createHash("sha256").update(canonical, "utf8").digest("hex")}`;
+      await ctx.db
+        .prepare(
+          `INSERT INTO task_context_items (
           workspace_id, id, task_id, kind, audience, body, version, content_hash, created_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        ctx.workspaceId,
-        id,
-        input.taskId,
-        input.kind,
-        input.audience,
-        body,
-        version,
-        contentHash,
-        ctx.now,
-      );
-    return { id, version, contentHash };
+        )
+        .run(
+          ctx.workspaceId,
+          id,
+          input.taskId,
+          input.kind,
+          input.audience,
+          body,
+          version,
+          contentHash,
+          ctx.now,
+        );
+      return { id, version, contentHash };
+    },
   },
-};
+  {
+    admission: (input, authority) => publicDirectTaskAuthority(authority, input.taskId),
+    delivery: (input, result, authority) =>
+      !result ||
+      !publicId(result.id) ||
+      !Number.isSafeInteger(result.version) ||
+      result.version < 1 ||
+      typeof result.contentHash !== "string" ||
+      !/^sha256:[0-9a-f]{64}$/u.test(result.contentHash)
+        ? publicBusinessSelection({ sql: "0", parameters: [] })
+        : publicTaskChildSelection(
+            authority,
+            input.taskId,
+            "task_context_items",
+            {
+              sql: `public_source.id = ? AND public_source.version = ? AND public_source.content_hash = ?
+        AND public_source.kind = ? AND public_source.audience = ?`,
+              parameters: [
+                result.id,
+                result.version,
+                result.contentHash,
+                input.kind,
+                input.audience,
+              ],
+            },
+            "edit",
+            true,
+          ),
+  },
+);
 
 export interface AddTaskDependencyInput {
   taskId: string;
@@ -998,67 +1208,94 @@ export interface AddTaskDependencyInput {
 }
 
 export const addTaskDependencyCommand: HubCommand<AddTaskDependencyInput, AddTaskDependencyInput> =
-  {
-    name: "task.dependency.add",
-    inputFingerprint: workInputFingerprint,
-    async authorize(input, ctx) {
-      await authorizeWorkTask(ctx, input.taskId, "edit", false);
-      await authorizeWorkTask(ctx, input.dependsOnTaskId, "read", false);
-      // Cross-visibility dependency graphs remain unavailable until their complete delivery proof.
-      if (
-        !(await getTask(ctx.db, ctx.workspaceId, input.taskId)) ||
-        !(await getTask(ctx.db, ctx.workspaceId, input.dependsOnTaskId))
-      ) {
-        throw new DomainError("not_found", "task not found");
-      }
-    },
-    async run(input, ctx) {
-      const authority = await requireAuthority(ctx);
-      if (authority.delegation) {
-        throw new DomainError("forbidden", "delegated agents cannot change task dependencies");
-      }
-      assertRole(authority.principal, ["owner", "member"]);
-      const task = await getTask(ctx.db, ctx.workspaceId, input.taskId);
-      const dependency = await getTask(ctx.db, ctx.workspaceId, input.dependsOnTaskId);
-      if (!task || !dependency || task.project_id !== dependency.project_id) {
-        throw new DomainError("not_found", "task dependency must be in the same project");
-      }
-      assertProjectAccess(authority.principal, task.project_id);
-      if (task.id === dependency.id) {
-        throw new DomainError("invalid_argument", "task cannot depend on itself");
-      }
-      const reachable = new Set<string>();
-      const pending = [dependency.id];
-      while (pending.length > 0) {
-        const current = pending.shift()!;
-        if (current === task.id) {
-          throw new DomainError("invalid_argument", "task dependency cycle is not allowed");
+  publicBusinessCommand<AddTaskDependencyInput, AddTaskDependencyInput>(
+    {
+      name: "task.dependency.add",
+      inputFingerprint: workInputFingerprint,
+      async authorize(input, ctx) {
+        await authorizeWorkTask(ctx, input.taskId, "edit", false);
+        await authorizeWorkTask(ctx, input.dependsOnTaskId, "read", false);
+        // Cross-visibility dependency graphs remain unavailable until their complete delivery proof.
+        if (
+          !(await getTask(ctx.db, ctx.workspaceId, input.taskId)) ||
+          !(await getTask(ctx.db, ctx.workspaceId, input.dependsOnTaskId))
+        ) {
+          throw new DomainError("not_found", "task not found");
         }
-        if (reachable.has(current)) {
-          continue;
+      },
+      async run(input, ctx) {
+        const authority = await requireAuthority(ctx);
+        if (authority.delegation) {
+          throw new DomainError("forbidden", "delegated agents cannot change task dependencies");
         }
-        if (reachable.size >= 1_000) {
-          throw new DomainError("dependency_graph_too_large", "task dependency graph is too large");
+        assertRole(authority.principal, ["owner", "member"]);
+        const task = await getTask(ctx.db, ctx.workspaceId, input.taskId);
+        const dependency = await getTask(ctx.db, ctx.workspaceId, input.dependsOnTaskId);
+        if (!task || !dependency || task.project_id !== dependency.project_id) {
+          throw new DomainError("not_found", "task dependency must be in the same project");
         }
-        reachable.add(current);
-        const children = (await ctx.db
-          .prepare(
-            `SELECT depends_on_task_id FROM task_dependencies
+        assertProjectAccess(authority.principal, task.project_id);
+        if (task.id === dependency.id) {
+          throw new DomainError("invalid_argument", "task cannot depend on itself");
+        }
+        const reachable = new Set<string>();
+        const pending = [dependency.id];
+        while (pending.length > 0) {
+          const current = pending.shift()!;
+          if (current === task.id) {
+            throw new DomainError("invalid_argument", "task dependency cycle is not allowed");
+          }
+          if (reachable.has(current)) {
+            continue;
+          }
+          if (reachable.size >= 1_000) {
+            throw new DomainError(
+              "dependency_graph_too_large",
+              "task dependency graph is too large",
+            );
+          }
+          reachable.add(current);
+          const children = (await ctx.db
+            .prepare(
+              `SELECT depends_on_task_id FROM task_dependencies
              WHERE workspace_id = ? AND task_id = ?`,
-          )
-          .all(ctx.workspaceId, current)) as Array<{ depends_on_task_id: string }>;
-        pending.push(...children.map((child) => child.depends_on_task_id));
-      }
-      await ctx.db
-        .prepare(
-          `INSERT INTO task_dependencies
+            )
+            .all(ctx.workspaceId, current)) as Array<{ depends_on_task_id: string }>;
+          pending.push(...children.map((child) => child.depends_on_task_id));
+        }
+        await ctx.db
+          .prepare(
+            `INSERT INTO task_dependencies
          (workspace_id, project_id, task_id, depends_on_task_id, kind, created_at)
          VALUES (?, ?, ?, ?, 'blocks', ?)`,
-        )
-        .run(ctx.workspaceId, task.project_id, task.id, dependency.id, ctx.now);
-      return input;
+          )
+          .run(ctx.workspaceId, task.project_id, task.id, dependency.id, ctx.now);
+        return input;
+      },
     },
-  };
+    {
+      admission: publicDependencyAuthority,
+      delivery: (input, result, authority) =>
+        !result ||
+        result.taskId !== input.taskId ||
+        result.dependsOnTaskId !== input.dependsOnTaskId
+          ? publicBusinessSelection({ sql: "0", parameters: [] })
+          : {
+              sql: `SELECT 1 AS permitted FROM task_dependencies AS public_source
+          JOIN tasks AS public_source_task ON public_source_task.workspace_id = public_source.workspace_id
+            AND public_source_task.id = public_source.task_id AND public_source_task.project_id = public_source.project_id
+          WHERE public_source.workspace_id = ? AND public_source.task_id = ?
+            AND public_source.depends_on_task_id = ? AND public_source.kind = 'blocks'
+            AND ${publicDependencyAuthority(input, authority).sql}`,
+              parameters: [
+                authority.workspaceId,
+                result.taskId,
+                result.dependsOnTaskId,
+                ...publicDependencyAuthority(input, authority).parameters,
+              ],
+            },
+    },
+  );
 
 export interface AddTaskLinkInput {
   taskId: string;
@@ -1067,61 +1304,86 @@ export interface AddTaskLinkInput {
   label: string;
 }
 
-export const addTaskLinkCommand: HubCommand<AddTaskLinkInput, { id: string }> = {
-  name: "task.link.add",
-  inputFingerprint: workInputFingerprint,
-  auditInput: (input) => ({ taskId: input.taskId, kind: input.kind }),
-  async authorize(input, ctx) {
-    await authorizeWorkTask(ctx, input.taskId, "edit");
-  },
-  async run(input, ctx) {
-    const authority = await authorizeWorkTask(ctx, input.taskId, "edit");
-    const task = await getTask(ctx.db, ctx.workspaceId, input.taskId, workReadAccess(authority));
-    if (!task) {
-      throw new DomainError("not_found", "task not found");
-    }
-    assertRole(authority.principal, ["owner", "member"]);
-    assertProjectAccess(authority.principal, task.project_id);
-    assertDelegationScope(authority.delegation, "bfb:task:write");
-    await assertDelegationBoundary(
-      ctx.db,
-      ctx.workspaceId,
-      authority.delegation,
-      task.project_id,
-      task.id,
-    );
-    if (input.kind !== "github" && input.kind !== "artifact" && input.kind !== "external") {
-      throw new DomainError("invalid_argument", "task link kind is invalid");
-    }
-    const url = boundedText(input.url, "task link URL", 2048);
-    let parsed: URL;
-    try {
-      parsed = new URL(url);
-    } catch {
-      throw new DomainError("invalid_argument", "task link URL is invalid");
-    }
-    if (parsed.protocol !== "https:" || parsed.username || parsed.password) {
-      throw new DomainError("invalid_argument", "task link must use credential-free HTTPS");
-    }
-    const id = randomUlid();
-    await ctx.db
-      .prepare(
-        `INSERT INTO task_links
+export const addTaskLinkCommand: HubCommand<AddTaskLinkInput, { id: string }> =
+  publicBusinessCommand<AddTaskLinkInput, { id: string }>(
+    {
+      name: "task.link.add",
+      inputFingerprint: workInputFingerprint,
+      auditInput: (input) => ({ taskId: input.taskId, kind: input.kind }),
+      async authorize(input, ctx) {
+        await authorizeWorkTask(ctx, input.taskId, "edit");
+      },
+      async run(input, ctx) {
+        const authority = await authorizeWorkTask(ctx, input.taskId, "edit");
+        const task = await getTask(
+          ctx.db,
+          ctx.workspaceId,
+          input.taskId,
+          workReadAccess(authority),
+        );
+        if (!task) {
+          throw new DomainError("not_found", "task not found");
+        }
+        assertRole(authority.principal, ["owner", "member"]);
+        assertProjectAccess(authority.principal, task.project_id);
+        assertDelegationScope(authority.delegation, "bfb:task:write");
+        await assertDelegationBoundary(
+          ctx.db,
+          ctx.workspaceId,
+          authority.delegation,
+          task.project_id,
+          task.id,
+        );
+        if (input.kind !== "github" && input.kind !== "artifact" && input.kind !== "external") {
+          throw new DomainError("invalid_argument", "task link kind is invalid");
+        }
+        const url = boundedText(input.url, "task link URL", 2048);
+        let parsed: URL;
+        try {
+          parsed = new URL(url);
+        } catch {
+          throw new DomainError("invalid_argument", "task link URL is invalid");
+        }
+        if (parsed.protocol !== "https:" || parsed.username || parsed.password) {
+          throw new DomainError("invalid_argument", "task link must use credential-free HTTPS");
+        }
+        const id = randomUlid();
+        await ctx.db
+          .prepare(
+            `INSERT INTO task_links
          (workspace_id, id, task_id, kind, url, label, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        ctx.workspaceId,
-        id,
-        task.id,
-        input.kind,
-        parsed.toString(),
-        boundedText(input.label, "task link label", 256),
-        ctx.now,
-      );
-    return { id };
-  },
-};
+          )
+          .run(
+            ctx.workspaceId,
+            id,
+            task.id,
+            input.kind,
+            parsed.toString(),
+            boundedText(input.label, "task link label", 256),
+            ctx.now,
+          );
+        return { id };
+      },
+    },
+    {
+      admission: (input, authority) =>
+        publicTaskAuthorityPredicate(authority, input.taskId, "edit"),
+      delivery: (input, result, authority) =>
+        !result || !publicId(result.id)
+          ? publicBusinessSelection({ sql: "0", parameters: [] })
+          : publicTaskChildSelection(
+              authority,
+              input.taskId,
+              "task_links",
+              {
+                sql: "public_source.id = ? AND public_source.kind = ?",
+                parameters: [result.id, input.kind],
+              },
+              "edit",
+            ),
+    },
+  );
 
 export async function getTask(
   db: SqlDatabase,
@@ -1720,98 +1982,155 @@ export async function deliverAgentContext(
   return result;
 }
 
+function publicDelegatedContextAuthority(taskId: string, authority: PublicBusinessAuthority) {
+  return authority.credential?.kind !== "delegation"
+    ? { sql: "0", parameters: [] }
+    : publicTaskAuthorityPredicate(
+        authority,
+        taskId,
+        "read",
+        ["owner", "member", "reviewer"],
+        "bfb:read",
+      );
+}
+
 export const deliverDelegatedAgentContextCommand: HubCommand<
   { taskId: string; delegationBoundary?: DelegatedContextBoundary },
   AgentContextItem[]
-> = {
-  name: "context.deliver.delegation",
-  inputFingerprint: (input) => workInputFingerprint({ ...input, delegationBoundary: undefined }),
-  auditInput: (input) => ({ taskId: input.taskId }),
-  auditResult: (items) =>
-    items.map((item) => ({ id: item.id, version: item.version, content_hash: item.content_hash })),
-  async authorize(input, ctx) {
-    const authority = await authorizeWorkTask(ctx, input.taskId, "read");
-    if (!authority.delegation) throw new DomainError("forbidden", "delegated authority required");
-  },
-  async replayResult(result, ctx, input) {
-    if (!Array.isArray(result)) throw new DomainError("not_found", "task not found");
-    if (!ctx.actorHumanId || !ctx.actorDelegationId)
-      throw new DomainError("not_found", "task not found");
-    // Admission already ran before cache hydration; current authority belongs to the final selector.
-    const delegation = (await ctx.db
-      .prepare(
-        `SELECT client_id,project_id,task_id FROM oauth_delegations
+> = publicBusinessCommand<
+  { taskId: string; delegationBoundary?: DelegatedContextBoundary },
+  AgentContextItem[]
+>(
+  {
+    name: "context.deliver.delegation",
+    inputFingerprint: (input) => workInputFingerprint({ ...input, delegationBoundary: undefined }),
+    auditInput: (input) => ({ taskId: input.taskId }),
+    auditResult: (items) =>
+      items.map((item) => ({
+        id: item.id,
+        version: item.version,
+        content_hash: item.content_hash,
+      })),
+    async authorize(input, ctx) {
+      const authority = await authorizeWorkTask(ctx, input.taskId, "read");
+      if (!authority.delegation) throw new DomainError("forbidden", "delegated authority required");
+    },
+    async replayResult(result, ctx, input) {
+      if (!Array.isArray(result)) throw new DomainError("not_found", "task not found");
+      if (!ctx.actorHumanId || !ctx.actorDelegationId)
+        throw new DomainError("not_found", "task not found");
+      // Admission already ran before cache hydration; current authority belongs to the final selector.
+      const delegation = (await ctx.db
+        .prepare(
+          `SELECT client_id,project_id,task_id FROM oauth_delegations
       WHERE workspace_id = ? AND id = ?`,
-      )
-      .get(ctx.workspaceId, ctx.actorDelegationId)) as
-      Pick<DelegationRow, "client_id" | "project_id" | "task_id"> | undefined;
-    if (!delegation) throw new DomainError("not_found", "task not found");
-    const task = await getTask(ctx.db, ctx.workspaceId, input.taskId, {
-      workspaceId: ctx.workspaceId,
-      humanId: ctx.actorHumanId,
-      authorizationEpoch: ctx.authorizationEpoch,
-    });
-    if (!task) throw new DomainError("not_found", "task not found");
-    const boundary = input.delegationBoundary ?? {
-      clientId: delegation.client_id,
-      projectId: delegation.project_id,
-      taskId: delegation.task_id,
-    };
-    const items = await selectDelegatedAgentContext(
-      ctx.db,
-      ctx.workspaceId,
-      input.taskId,
-      task.project_id,
-      {
+        )
+        .get(ctx.workspaceId, ctx.actorDelegationId)) as
+        Pick<DelegationRow, "client_id" | "project_id" | "task_id"> | undefined;
+      if (!delegation) throw new DomainError("not_found", "task not found");
+      const task = await getTask(ctx.db, ctx.workspaceId, input.taskId, {
         workspaceId: ctx.workspaceId,
         humanId: ctx.actorHumanId,
         authorizationEpoch: ctx.authorizationEpoch,
-        delegationId: ctx.actorDelegationId,
-        clientId: boundary.clientId,
-        projectBoundaryId: boundary.projectId,
-        ...(boundary.taskId ? { taskBoundaryId: boundary.taskId } : {}),
-      },
-      result,
-    );
-    if (!items) throw new DomainError("not_found", "task not found");
-    return items;
-  },
-  async run(input, ctx) {
-    const authority = await authorizeWorkTask(ctx, input.taskId, "read");
-    if (!authority.delegation) {
-      throw new DomainError("forbidden", "delegated authority required");
-    }
-    assertDelegationScope(authority.delegation, "bfb:read");
-    const task = await getTask(ctx.db, ctx.workspaceId, input.taskId, authority.principal);
-    if (!task) {
-      throw new DomainError("not_found", "task not found");
-    }
-    assertProjectAccess(authority.principal, task.project_id);
-    await assertDelegationBoundary(
-      ctx.db,
-      ctx.workspaceId,
-      authority.delegation,
-      task.project_id,
-      task.id,
-    );
-    return (
-      await deliverAgentContext(
+      });
+      if (!task) throw new DomainError("not_found", "task not found");
+      const boundary = input.delegationBoundary ?? {
+        clientId: delegation.client_id,
+        projectId: delegation.project_id,
+        taskId: delegation.task_id,
+      };
+      const items = await selectDelegatedAgentContext(
         ctx.db,
         ctx.workspaceId,
-        task.id,
+        input.taskId,
+        task.project_id,
         {
-          kind: "delegation",
-          delegationId: authority.delegation.id,
-          clientId: authority.delegation.client_id,
-          humanId: authority.delegation.human_id,
-          authorizationEpoch: authority.delegation.authorization_epoch,
-          ...(input.delegationBoundary ? { boundary: input.delegationBoundary } : {}),
+          workspaceId: ctx.workspaceId,
+          humanId: ctx.actorHumanId,
+          authorizationEpoch: ctx.authorizationEpoch,
+          delegationId: ctx.actorDelegationId,
+          clientId: boundary.clientId,
+          projectBoundaryId: boundary.projectId,
+          ...(boundary.taskId ? { taskBoundaryId: boundary.taskId } : {}),
         },
-        ctx.now,
-      )
-    ).context;
+        result,
+      );
+      if (!items) throw new DomainError("not_found", "task not found");
+      return items;
+    },
+    async run(input, ctx) {
+      const authority = await authorizeWorkTask(ctx, input.taskId, "read");
+      if (!authority.delegation) {
+        throw new DomainError("forbidden", "delegated authority required");
+      }
+      assertDelegationScope(authority.delegation, "bfb:read");
+      const task = await getTask(ctx.db, ctx.workspaceId, input.taskId, authority.principal);
+      if (!task) {
+        throw new DomainError("not_found", "task not found");
+      }
+      assertProjectAccess(authority.principal, task.project_id);
+      await assertDelegationBoundary(
+        ctx.db,
+        ctx.workspaceId,
+        authority.delegation,
+        task.project_id,
+        task.id,
+      );
+      return (
+        await deliverAgentContext(
+          ctx.db,
+          ctx.workspaceId,
+          task.id,
+          {
+            kind: "delegation",
+            delegationId: authority.delegation.id,
+            clientId: authority.delegation.client_id,
+            humanId: authority.delegation.human_id,
+            authorizationEpoch: authority.delegation.authorization_epoch,
+            ...(input.delegationBoundary ? { boundary: input.delegationBoundary } : {}),
+          },
+          ctx.now,
+        )
+      ).context;
+    },
   },
-};
+  {
+    denial: { code: "not_found", message: "task not found" },
+    finalSelectionByTransport: true,
+    admission: (input, authority) => publicDelegatedContextAuthority(input.taskId, authority),
+    delivery: (input, items, authority) => {
+      const identities = contextIdentities(items);
+      if (identities === undefined || authority.credential?.kind !== "delegation")
+        return publicBusinessSelection({ sql: "0", parameters: [] });
+      const access = publicDelegatedContextAuthority(input.taskId, authority);
+      return {
+        sql: `SELECT 1 AS permitted WHERE ${access.sql} AND NOT EXISTS (
+        SELECT 1 FROM json_each(?) AS retained WHERE NOT EXISTS (
+          SELECT 1 FROM task_context_items AS public_item
+          JOIN task_context_deliveries AS public_delivery
+            ON public_delivery.workspace_id = public_item.workspace_id
+              AND public_delivery.task_id = public_item.task_id
+              AND public_delivery.context_version = public_item.version
+              AND public_delivery.content_hash = public_item.content_hash
+          WHERE public_item.workspace_id = ? AND public_item.task_id = ?
+            AND public_item.id = json_extract(retained.value, '$.id')
+            AND public_item.version = json_extract(retained.value, '$.version')
+            AND public_item.content_hash = json_extract(retained.value, '$.content_hash')
+            AND public_item.audience = json_extract(retained.value, '$.audience')
+            AND public_delivery.delegation_id = ? AND public_delivery.client_id = ?
+        ))`,
+        parameters: [
+          ...access.parameters,
+          identities,
+          authority.workspaceId,
+          input.taskId,
+          authority.credential.delegationId,
+          authority.credential.clientId,
+        ],
+      };
+    },
+  },
+);
 
 export const deliverRunAgentContextCommand: HubCommand<{ taskId: string }, AgentContextItem[]> = {
   name: "context.deliver.run",

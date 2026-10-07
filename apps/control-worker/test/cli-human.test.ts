@@ -42,9 +42,9 @@ import {
   type AuthTestContext,
 } from "./auth-helpers.js";
 
-// Frozen in the past relative to wall-clock: the Better Auth device plugin
-// stamps real-time expiries, so a future-frozen NOW would read codes as expired.
-const NOW = "2026-08-18T12:00:00.000Z";
+// Keep the observation clock just behind real time: healthy exchanged keys must
+// remain live at both Better Auth admission and SQLite's independent SQL clock.
+const NOW = new Date(Math.floor((Date.now() - 60_000) / 1_000) * 1_000).toISOString();
 const ORIGIN = AUTH_TEST_ENV.APP_ORIGIN;
 const DIGEST = `sha256:${"a".repeat(64)}`;
 const EMPTY_CONFIG = `sha256:${runnerHash("{}")}`;

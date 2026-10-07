@@ -63,10 +63,10 @@ function modernMcpRequest(method: string, name?: string, args: Record<string, un
   };
 }
 
-function appFor(context: AuthTestContext) {
+function appFor(context: AuthTestContext, now = "2026-08-07T12:00:00Z") {
   return createControlApp(validateControlEnv(env()), {
     db: context.db,
-    now: "2026-08-07T12:00:00Z",
+    now,
     abuseSecret: AUTH_TEST_ENV.AUTH_ABUSE_SECRET,
     humanAuth: () => ({
       auth: context.auth,
@@ -230,11 +230,17 @@ describe("control routes", () => {
   });
 
   it("completes OAuth code+PKCE and calls propose via MCP token", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-08-07T12:00:00.000Z"));
     const context = await openRouteContext();
     const db = context.db;
-    const now = "2026-08-07T12:00:00Z";
+    // Healthy credentials use the native SQL clock; explicit expiry-denial fixtures stay fixed.
+    const clock = (await db
+      .prepare(
+        "SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now') AS now, strftime('%Y-%m-%dT%H:%M:%fZ','now','+10 minutes') AS expires_at, strftime('%Y-%m-%dT%H:%M:%fZ','now','+1 hour') AS session_expires_at",
+      )
+      .get()) as { now: string; expires_at: string; session_expires_at: string };
+    const now = clock.now;
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(now));
     const seeded = await seedAuthSession(context, {
       userId: "auth-owner-oauth",
       sessionId: "auth-owner-oauth-session",
@@ -243,9 +249,9 @@ describe("control routes", () => {
       name: "Synthetic Owner",
       humanId: FIX.owner,
       now,
-      expiresAt: "2026-08-07T13:00:00.000Z",
+      expiresAt: clock.session_expires_at,
     });
-    const app = appFor(context);
+    const app = appFor(context, now);
     const bindings = env(db);
     const cookie = seeded.cookie;
 
@@ -260,7 +266,7 @@ describe("control routes", () => {
         projectId: FIX.projectA,
         scopes: ["bfb:read", "bfb:task:write", "offline_access"],
         authorizationEpoch: 1,
-        expiresAt: "2026-08-07T12:10:00Z",
+        expiresAt: clock.expires_at,
       },
       now,
     );
@@ -362,7 +368,7 @@ describe("control routes", () => {
           .prepare(`SELECT expires_at FROM oauth_delegations WHERE workspace_id = ?`)
           .get(FIX.workspace)) as { expires_at: string }
       ).expires_at,
-    ).toBe("2026-08-07T12:10:00Z");
+    ).toBe(clock.expires_at);
 
     const propose = await app.request(
       new Request("https://bfb.example.test/mcp", {

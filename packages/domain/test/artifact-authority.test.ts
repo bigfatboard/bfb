@@ -169,6 +169,44 @@ beforeEach(() => {
 });
 afterEach(() => vi.useRealTimers());
 
+/** Migration drills seed the historical schema rather than executing current policy commands. */
+function seedHistoricalUpload(raw: Database.Database, grantHash: string) {
+  const artifactId = randomUlid(),
+    versionId = randomUlid(),
+    grantId = randomUlid();
+  raw
+    .prepare(
+      `INSERT INTO artifacts
+    (workspace_id,id,run_id,format,role,created_by_human_id,created_at)
+    VALUES (?,?,NULL,'markdown','review',?,?)`,
+    )
+    .run(FIX.workspace, artifactId, FIX.owner, NOW);
+  raw
+    .prepare(
+      `INSERT INTO artifact_versions
+    (workspace_id,id,artifact_id,state,format,declared_size,expected_digest,content_hash,r2_key,created_at,available_at)
+    VALUES (?,?,?,'uploading','markdown',18,?,NULL,NULL,?,NULL)`,
+    )
+    .run(FIX.workspace, versionId, artifactId, DIGEST, NOW);
+  raw
+    .prepare(
+      `INSERT INTO artifact_upload_grants
+    (workspace_id,id,version_id,grant_hash,human_id,authorization_epoch,run_id,format,declared_size,expected_digest,expires_at,consumed_at,created_at)
+    VALUES (?,?,?,?,?,1,NULL,'markdown',18,?,?,NULL,?)`,
+    )
+    .run(
+      FIX.workspace,
+      grantId,
+      versionId,
+      grantHash,
+      FIX.owner,
+      DIGEST,
+      new Date(Date.parse(NOW) + ARTIFACT_GRANT_TTL_MS).toISOString(),
+      NOW,
+    );
+  return { version_id: versionId, upload_grant: { grant_id: grantId } };
+}
+
 describe("current artifact authority", () => {
   it("requires the exact recovery actor and fresh expiry grace before system abandonment", async () => {
     const f = await fixture();
@@ -458,24 +496,10 @@ describe("exact upload consumption", () => {
     const db = adaptBetterSqlite3(raw);
     await seedSyntheticWorkspace(db, NOW);
     const minted = mintUploadGrantSecret();
-    const outcome = await new WorkspaceHub(db).execute(createArtifactCommand, {
-      workspaceId: FIX.workspace,
-      actorHumanId: FIX.owner,
-      authorizationEpoch: 1,
-      idempotencyKey: randomUlid(),
-      now: NOW,
-      input: {
-        format: "markdown",
-        role: "review",
-        declaredSize: 18,
-        expectedDigest: DIGEST,
-        grantSecretHash: minted.secretHash,
-      },
-    });
-    if (!outcome.ok) throw new Error(JSON.stringify(outcome));
+    const created = seedHistoricalUpload(raw, minted.secretHash);
     raw
       .prepare("UPDATE artifact_upload_grants SET consumed_at = ? WHERE id = ?")
-      .run(NOW, outcome.result.upload_grant.grant_id);
+      .run(NOW, created.upload_grant.grant_id);
     const before = raw.prepare("SELECT * FROM artifact_upload_grants").all();
     applyMigrationsForVerification(raw, path.resolve("migrations/d1"));
     expect(raw.prepare("SELECT * FROM artifact_upload_grants").all()).toEqual(before);
@@ -485,7 +509,7 @@ describe("exact upload consumption", () => {
     await expect(
       db.withTransaction((tx) =>
         redeemUploadGrant(tx, {
-          grantId: outcome.result.upload_grant.grant_id,
+          grantId: created.upload_grant.grant_id,
           secret: minted.secret,
           now: NOW,
         }),
@@ -784,23 +808,10 @@ describe("consume-bound physical receipts", () => {
     const db = adaptBetterSqlite3(raw);
     await seedSyntheticWorkspace(db, NOW);
     const mint = mintUploadGrantSecret();
-    const created = await new WorkspaceHub(db).execute(createArtifactCommand, {
-      workspaceId: FIX.workspace,
-      actorHumanId: FIX.owner,
-      authorizationEpoch: 1,
-      idempotencyKey: randomUlid(),
-      input: {
-        format: "markdown",
-        role: "review",
-        declaredSize: 18,
-        expectedDigest: DIGEST,
-        grantSecretHash: mint.secretHash,
-      },
-    });
-    if (!created.ok) throw new Error(JSON.stringify(created));
+    const created = seedHistoricalUpload(raw, mint.secretHash);
     raw
       .prepare("INSERT INTO artifact_upload_receipts VALUES (?,?,?,?,?)")
-      .run(FIX.workspace, created.result.version_id, DIGEST, 18, NOW);
+      .run(FIX.workspace, created.version_id, DIGEST, 18, NOW);
     const before = raw.prepare("SELECT * FROM artifact_upload_receipts").all();
     applyMigrationsForVerification(raw, path.resolve("migrations/d1"));
     expect(raw.prepare("SELECT * FROM artifact_upload_receipts").all()).toEqual(before);
@@ -808,7 +819,7 @@ describe("consume-bound physical receipts", () => {
     await expect(
       db.withTransaction((tx) =>
         recordVerifiedUpload(tx, {
-          grantId: created.result.upload_grant.grant_id,
+          grantId: created.upload_grant.grant_id,
           consumeAttemptId: randomUlid(),
           contentHash: DIGEST,
           size: 18,

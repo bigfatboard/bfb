@@ -31,6 +31,12 @@ import {
   type TaskReadAccess,
 } from "./work-commands.js";
 import { taskAccessPredicate, type TaskAccessAction } from "./task-access.js";
+import {
+  publicBusinessCommand,
+  publicTaskRowAuthorityPredicate,
+  type PublicBusinessAuthority,
+  type PublicBusinessSelection,
+} from "./public-business.js";
 
 export const ATTENTION_KINDS = [
   "clarification",
@@ -167,7 +173,7 @@ function version(value: unknown, field: string): number {
   return Number(value);
 }
 
-function rowToRecord(row: Record<string, unknown>): AttentionRecord {
+export function rowToRecord(row: Record<string, unknown>): AttentionRecord {
   return {
     id: String(row.id),
     project_id: String(row.project_id),
@@ -192,7 +198,7 @@ function rowToRecord(row: Record<string, unknown>): AttentionRecord {
   };
 }
 
-function rankReason(record: AttentionRecord): string {
+export function rankReason(record: AttentionRecord): string {
   const blocking = record.blocking ? "blocking" : "non-blocking";
   return `${blocking} ${record.kind} requested ${record.requested_at}`;
 }
@@ -490,7 +496,7 @@ async function replayHumanAttentionResult(
   return result;
 }
 
-export const answerAttentionCommand: HubCommand<AnswerAttentionInput, AttentionRecord> = {
+const answerAttentionBase: HubCommand<AnswerAttentionInput, AttentionRecord> = {
   name: "attention.answer",
   authorize: async (input, ctx) => {
     humanAttentionReplayAuthorities.set(ctx, await authorizeHumanAttention(input, ctx, true));
@@ -551,7 +557,7 @@ export interface ResolveAttentionInput {
   expectedVersion: number;
 }
 
-export const resolveAttentionCommand: HubCommand<ResolveAttentionInput, AttentionRecord> = {
+const resolveAttentionBase: HubCommand<ResolveAttentionInput, AttentionRecord> = {
   name: "attention.resolve",
   authorize: async (input, ctx) => {
     humanAttentionReplayAuthorities.set(ctx, await authorizeHumanAttention(input, ctx, false));
@@ -846,3 +852,79 @@ export async function listAttentionObservations(
   }>;
   return rows;
 }
+
+/** Current contribution and exact historical waiter lineage, without replaying a transition. */
+export function publicAttentionBusinessSelection(
+  authority: PublicBusinessAuthority,
+  attentionId: string,
+  record?: AttentionRecord,
+  delegated = false,
+): PublicBusinessSelection<AttentionRecord> {
+  const task = publicTaskRowAuthorityPredicate(authority, "contribute", "public_attention_task");
+  return {
+    sql: `SELECT 1 AS permitted FROM attention_requests AS public_attention
+      JOIN runs AS public_attention_run ON public_attention_run.workspace_id = public_attention.workspace_id
+        AND public_attention_run.id = public_attention.run_id AND public_attention_run.task_id = public_attention.task_id
+        AND public_attention_run.project_id = public_attention.project_id AND public_attention_run.purpose = 'work'
+      JOIN tasks AS public_attention_task ON public_attention_task.workspace_id = public_attention_run.workspace_id
+        AND public_attention_task.id = public_attention_run.task_id AND public_attention_task.project_id = public_attention_run.project_id
+      JOIN run_executions AS public_attention_execution ON public_attention_execution.workspace_id = public_attention.workspace_id
+        AND public_attention_execution.id = public_attention.run_execution_id AND public_attention_execution.run_id = public_attention_run.id
+      JOIN execution_assignments AS public_attention_assignment ON public_attention_assignment.workspace_id = public_attention.workspace_id
+        AND public_attention_assignment.execution_id = public_attention_execution.id
+        AND public_attention_assignment.assignment_generation = public_attention.assignment_generation
+        AND public_attention_assignment.run_id = public_attention_run.id
+        AND public_attention_assignment.task_id = public_attention_task.id
+        AND public_attention_assignment.project_id = public_attention_task.project_id
+      JOIN workspace_members AS public_attention_member ON public_attention_member.workspace_id = public_attention.workspace_id
+        AND public_attention_member.human_id = ?
+      WHERE public_attention.workspace_id = ? AND public_attention.id = ? AND ${task.sql}
+      ${
+        record
+          ? `AND public_attention.id = ? AND public_attention.project_id = ? AND public_attention.task_id = ? AND public_attention.run_id = ?
+        AND public_attention.run_execution_id = ? AND public_attention.assignment_generation = ?`
+          : ""
+      }
+      ${
+        delegated
+          ? "AND public_attention_run.result_state IN ('open','changes_requested','submitted')"
+          : `AND CASE public_attention.required_role
+        WHEN 'owner' THEN public_attention_member.role = 'owner' AND ${ROLE_RANK[authority.role]} = 0
+        WHEN 'member' THEN public_attention_member.role IN ('owner','member') AND ${ROLE_RANK[authority.role]} <= 1
+        WHEN 'reviewer' THEN public_attention_member.role IN ('owner','member','reviewer') ELSE 0 END`
+      }`,
+    parameters: [
+      authority.humanId,
+      authority.workspaceId,
+      attentionId,
+      ...task.parameters,
+      ...(record
+        ? [
+            record.id,
+            record.project_id,
+            record.task_id,
+            record.run_id,
+            record.run_execution_id,
+            record.assignment_generation,
+          ]
+        : []),
+    ],
+  };
+}
+
+export const answerAttentionCommand = publicBusinessCommand(answerAttentionBase, {
+  admission: (input, authority) => {
+    const selection = publicAttentionBusinessSelection(authority, input.attentionId);
+    return { sql: `EXISTS (${selection.sql})`, parameters: selection.parameters };
+  },
+  delivery: (input, result, authority) =>
+    publicAttentionBusinessSelection(authority, input.attentionId, result),
+});
+export const resolveAttentionCommand = publicBusinessCommand(resolveAttentionBase, {
+  admission: (input, authority) => {
+    const selection = publicAttentionBusinessSelection(authority, input.attentionId);
+    return { sql: `EXISTS (${selection.sql})`, parameters: selection.parameters };
+  },
+  delivery: (input, result, authority) =>
+    publicAttentionBusinessSelection(authority, input.attentionId, result),
+});

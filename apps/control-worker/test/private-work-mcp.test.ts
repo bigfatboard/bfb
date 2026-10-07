@@ -300,7 +300,7 @@ describe("private task delivery through remote MCP", () => {
   }
 
   it("keeps the existing shared child proposal available without private arguments", async () => {
-    const { accessToken } = await access();
+    const { accessToken } = await liveReadAccess();
     const outcome = value<{ ok: boolean; result: TaskRecord }>(
       await call(accessToken, "bfb_propose_task", {
         project_id: FIX.projectA,
@@ -448,7 +448,7 @@ describe("private task delivery through remote MCP", () => {
 
   it("a contribute grant permits explicit comments and progress", async () => {
     await grant("contribute");
-    const { accessToken } = await access();
+    const { accessToken } = await liveReadAccess();
     for (const [tool, fields] of [
       ["bfb_add_comment", { body: "Synthetic permitted comment" }],
       ["bfb_report_progress", { summary: "Synthetic permitted progress" }],
@@ -474,7 +474,7 @@ describe("private task delivery through remote MCP", () => {
 
   it("a contribute grant cannot edit task fields, while an edit grant can", async () => {
     const grantId = await grant("contribute");
-    const { delegationId } = await access();
+    const { delegationId } = await liveReadAccess();
     // Remote MCP exposes no task-update tool; exercise its shared delegated command authority.
     const update = () =>
       hub.execute(updateTaskCommand, {
@@ -588,7 +588,7 @@ describe("private task delivery through remote MCP", () => {
     "%s rechecks revoked task authority before an identical cached reply",
     async (tool, permission, command, fields) => {
       const grantId = await grant(permission);
-      const { accessToken } = await (tool === "bfb_get_context" ? liveReadAccess() : access());
+      const { accessToken } = await liveReadAccess();
       const args = { task_id: privateTask.id, request_id: `synthetic-cached-${tool}`, ...fields };
       value(await call(accessToken, tool, args));
       expect(

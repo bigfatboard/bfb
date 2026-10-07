@@ -5,7 +5,14 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
 
 import type { SqlDatabase } from "@bfb/db";
 
-import { artifactAccessPredicate, artifactHash, artifactSubject } from "./artifacts.js";
+import {
+  artifactAccessPredicate,
+  artifactHash,
+  artifactSubject,
+  publicArtifactParentAuthorityPredicate,
+  publicArtifactVersionBusinessSelection,
+} from "./artifacts.js";
+import { publicBusinessCommand } from "./public-business.js";
 import { assertEpoch, loadPrincipal } from "./authorization.js";
 import { DomainError, type HubCommand } from "./hub.js";
 import { isUlid, randomUlid } from "./ids.js";
@@ -138,7 +145,7 @@ export interface CreateViewGrantInput {
   sessionHash: string;
 }
 
-export const createViewGrantCommand: HubCommand<CreateViewGrantInput, ViewGrant> = {
+const createViewGrantBase: HubCommand<CreateViewGrantInput, ViewGrant> = {
   name: "artifact.create_view_grant",
   replay: "reject",
   auditInput: () => ({ action: "artifact.create_view_grant" }),
@@ -238,6 +245,60 @@ export const createViewGrantCommand: HubCommand<CreateViewGrantInput, ViewGrant>
     };
   },
 };
+
+export const createViewGrantCommand = publicBusinessCommand(createViewGrantBase, {
+  denial: { code: "request_rejected", message: "request rejected" },
+  admission: (input, authority) => {
+    if (typeof input?.versionId !== "string" || !isUlid(input.versionId))
+      return { sql: "0", parameters: [] };
+    const selection = publicArtifactVersionBusinessSelection<ViewGrant>(
+      authority,
+      input.versionId,
+      "read",
+      ["owner", "member", "reviewer"],
+      "bfb:read",
+    );
+    return { sql: `EXISTS (${selection.sql})`, parameters: selection.parameters };
+  },
+  delivery: (input, result, authority) => {
+    const parent = publicArtifactParentAuthorityPredicate(
+      authority,
+      "read",
+      "public_artifact",
+      ["owner", "member", "reviewer"],
+      "bfb:read",
+    );
+    return {
+      sql: `SELECT 1 AS permitted FROM artifact_view_grants AS public_view
+        JOIN artifact_versions AS public_version ON public_version.workspace_id = public_view.workspace_id
+          AND public_version.id = public_view.version_id
+        JOIN artifacts AS public_artifact ON public_artifact.workspace_id = public_version.workspace_id
+          AND public_artifact.id = public_version.artifact_id
+        WHERE public_view.workspace_id = ? AND public_view.id = ? AND public_view.version_id = ?
+          AND public_version.id = ? AND public_view.grant_hash = ? AND public_view.grant_hash = ?
+          AND public_view.content_hash = ? AND public_version.content_hash = public_view.content_hash
+          AND public_version.format = ? AND public_view.expires_at = ?
+          AND public_view.view_nonce_hash = ? AND public_view.session_hash = ?
+          AND public_view.human_id = ? AND public_view.authorization_epoch = ? AND ${parent.sql}`,
+      parameters: [
+        authority.workspaceId,
+        result.view_id,
+        result.version_id,
+        input.versionId,
+        result.grant_hash,
+        input.grantSecretHash,
+        result.content_hash,
+        result.format,
+        result.expires_at,
+        artifactHash(input.viewNonce),
+        input.sessionHash,
+        authority.humanId,
+        authority.authorizationEpoch,
+        ...parent.parameters,
+      ],
+    };
+  },
+});
 
 export interface RedeemedView {
   workspaceId: string;

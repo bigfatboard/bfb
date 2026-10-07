@@ -9,6 +9,7 @@ import { FIX, seedSyntheticWorkspace } from "../src/fixtures.js";
 import { WorkspaceHub } from "../src/hub.js";
 import { createTaskCommand } from "../src/work-commands.js";
 import { randomUlid } from "../src/ids.js";
+import { seedHistoricalTask } from "./historical-task-fixture.js";
 
 const directory = fileURLToPath(new URL("../../../migrations/d1", import.meta.url));
 const now = "2026-10-06T12:00:00.000Z";
@@ -23,6 +24,16 @@ async function fixture(previous = false) {
   );
   const db = adaptBetterSqlite3(raw);
   await seedSyntheticWorkspace(db);
+  if (previous) {
+    const task = await seedHistoricalTask(db, {
+      workspaceId: FIX.workspace,
+      projectId: FIX.projectA,
+      humanId: FIX.member,
+      title: "Synthetic private authority fixture",
+      now,
+    });
+    return { raw, taskId: task.id };
+  }
   const outcome = await new WorkspaceHub(db).execute(createTaskCommand, {
     workspaceId: FIX.workspace,
     actorHumanId: FIX.member,

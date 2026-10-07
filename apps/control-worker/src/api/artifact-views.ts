@@ -55,6 +55,7 @@ export async function handleArtifactViewGrantApi(
     const path = new URL(request.url).pathname;
     const route = /^\/api\/v1\/workspaces\/[^/]+\/artifacts\/([^/]+)\/views$/.exec(path);
     if (request.method !== "POST" || !route?.[1]) return rejected();
+    const principal = await loadPrincipal(deps.db, deps.workspaceId, deps.principal.humanId);
     // The grant request carries no fields; any body must be an empty object.
     const body = (await readBoundedJson(request, ARTIFACT_BODY_LIMIT).catch(() => null)) as Record<
       string,
@@ -64,7 +65,6 @@ export async function handleArtifactViewGrantApi(
       return rejected();
     }
     const versionId = route[1];
-    const principal = await loadPrincipal(deps.db, deps.workspaceId, deps.principal.humanId);
     if (typeof deps.abuseSecret !== "string" || deps.abuseSecret.length < 32) return rejected();
     const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
     const budgeted = await consumeArtifactBudget(deps.db, {
@@ -83,6 +83,7 @@ export async function handleArtifactViewGrantApi(
     const outcome = await executeWorkspaceCommand(
       {
         db: deps.db,
+        publicAuthority: { ...principal, projectIds: [...principal.projectIds] },
         workspaceHubNs: deps.workspaceHubNs,
         authorization: createAuthorizationContext({
           workspaceId: deps.workspaceId,

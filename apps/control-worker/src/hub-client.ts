@@ -7,6 +7,7 @@ import {
   type CommandRequest,
   type HubCommand,
   resolveCommand,
+  type PublicBusinessAuthority,
   workspaceHub,
 } from "@bfb/domain";
 
@@ -17,6 +18,8 @@ export interface HubClientDeps {
   authorization: AuthorizationContext;
   /** Cloudflare WORKSPACE_HUB binding, or a test double with idFromName/get. */
   workspaceHubNs?: DurableObjectNamespace | undefined;
+  /** First authenticated transport ceiling; never reloaded after body/RPC awaits. */
+  publicAuthority?: PublicBusinessAuthority | undefined;
 }
 
 function isDurableObjectNamespace(

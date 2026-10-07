@@ -6,8 +6,8 @@ import Database from "better-sqlite3";
 import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
 import { FIX, seedSyntheticWorkspace } from "../src/fixtures.js";
-import { WorkspaceHub } from "../src/hub.js";
-import { createTaskCommand, getTask } from "../src/work-commands.js";
+import { getTask } from "../src/work-commands.js";
+import { seedHistoricalTask } from "./historical-task-fixture.js";
 
 const directory = fileURLToPath(new URL("../../../migrations/d1", import.meta.url));
 const now = "2026-10-06T12:00:00.000Z";
@@ -18,15 +18,13 @@ async function historicalFixture() {
   applyMigrationsForVerification(raw, directory, { stopBeforeId: "0045_private_task_authority" });
   const db = adaptBetterSqlite3(raw);
   await seedSyntheticWorkspace(db);
-  const created = await new WorkspaceHub(db).execute(createTaskCommand, {
+  const task = await seedHistoricalTask(db, {
     workspaceId: FIX.workspace,
-    actorHumanId: FIX.member,
-    authorizationEpoch: 1,
-    idempotencyKey: "historical-task",
+    projectId: FIX.projectA,
+    humanId: FIX.member,
+    title: "Synthetic historical task",
     now,
-    input: { projectId: FIX.projectA, title: "Synthetic historical task", priority: "P2" },
   });
-  if (!created.ok) throw new Error(created.error.code);
   const makePrivate = () => {
     applyMigrationsForVerification(raw, directory);
     raw
@@ -34,9 +32,9 @@ async function historicalFixture() {
         `INSERT INTO task_privacy (workspace_id, task_id, owner_human_id, created_at)
          VALUES (?, ?, ?, ?)`,
       )
-      .run(FIX.workspace, created.result.id, FIX.member, now);
+      .run(FIX.workspace, task.id, FIX.member, now);
   };
-  return { raw, db, taskId: created.result.id, makePrivate };
+  return { raw, db, taskId: task.id, makePrivate };
 }
 
 it("reads shared historical rows but never caches schema absence across migration", async () => {
