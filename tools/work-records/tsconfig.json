@@ -18,7 +18,8 @@
     "coordination.ts",
     "positions.ts",
     "audit-fixture.ts",
-    "audit-positions.ts"
+    "audit-positions.ts",
+    "delegated-artifacts.ts"
   ],
   "references": [
     { "path": "../../packages/domain" },

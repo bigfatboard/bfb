@@ -41,9 +41,9 @@ import {
   type EvidenceRef,
   type SubmissionRecord,
 } from "./results.js";
-import { getTask, type TaskReadAccess } from "./work-commands.js";
+import { getTask, readTaskPredicate, type TaskReadAccess } from "./work-commands.js";
 import { assertRunResultTransition } from "./work-records.js";
-import { assertTaskAccess } from "./task-access.js";
+import { assertTaskAccess, taskAccessPredicate } from "./task-access.js";
 
 const HEX64 = /^[0-9a-f]{64}$/;
 const GIT_COMMIT_PATTERN = /^[0-9a-f]{40}$/;
@@ -332,6 +332,116 @@ async function delegatedArtifactRunAuthority(runId: string, ctx: HubContext) {
       throw new DomainError("request_rejected", "request rejected");
     throw error;
   }
+}
+
+type DelegatedArtifactCommitTarget =
+  | { kind: "create"; artifactId: string | null; format: ArtifactFormat; role: ArtifactRole }
+  | {
+      kind: "finalize";
+      artifactId: string;
+      versionId: string;
+      format: ArtifactFormat;
+      role: ArtifactRole;
+      contentHash: string;
+      size: number;
+      r2Key: string;
+    };
+
+/** Repeat retained authority and publication identity in the batch that writes the artifact. */
+async function guardDelegatedArtifactCommit(
+  ctx: HubContext,
+  authenticated: Awaited<ReturnType<typeof delegatedArtifactRunAuthority>>,
+  target: DelegatedArtifactCommitTarget,
+) {
+  const { authority, run } = authenticated;
+  const contribute = taskAccessPredicate(authority.delegation, "contribute", "task");
+  const credential = readTaskPredicate(delegationTaskAccess(authority), "task");
+  const scopes = `CASE WHEN json_valid(credential.scopes_json) THEN
+    CASE WHEN json_type(credential.scopes_json) = 'array' THEN credential.scopes_json ELSE '[]' END
+    ELSE '[]' END`;
+  let publication = "1";
+  const publicationParameters: Array<string | number> = [];
+  if (target.kind === "finalize") {
+    publication = `EXISTS (
+      SELECT 1 FROM artifacts AS artifact
+      JOIN artifact_versions AS version
+        ON version.workspace_id = artifact.workspace_id AND version.artifact_id = artifact.id
+      JOIN artifact_upload_receipts AS receipt
+        ON receipt.workspace_id = version.workspace_id AND receipt.version_id = version.id
+      JOIN artifact_objects AS object
+        ON object.workspace_id = version.workspace_id AND object.r2_key = ?
+      WHERE artifact.workspace_id = run.workspace_id AND artifact.id = ?
+        AND artifact.run_id = run.id AND artifact.format = ? AND artifact.role = ?
+        AND version.id = ? AND version.state = 'uploading' AND version.format = artifact.format
+        AND version.expected_digest = ? AND version.declared_size = ?
+        AND receipt.content_hash = version.expected_digest AND receipt.size = version.declared_size
+        AND object.content_hash = receipt.content_hash AND object.size = receipt.size
+    )`;
+    publicationParameters.push(
+      target.r2Key,
+      target.artifactId,
+      target.format,
+      target.role,
+      target.versionId,
+      target.contentHash,
+      target.size,
+    );
+  } else if (target.artifactId !== null) {
+    publication = `EXISTS (
+      SELECT 1 FROM artifacts AS artifact
+      WHERE artifact.workspace_id = run.workspace_id AND artifact.id = ?
+        AND artifact.run_id = run.id AND artifact.format = ? AND artifact.role = ?
+    )`;
+    publicationParameters.push(target.artifactId, target.format, target.role);
+  }
+  const id = randomUlid();
+  // SQL execution time is an additional ceiling; prepared clocks and work observations stay intact.
+  await ctx.db
+    .prepare(
+      `INSERT INTO artifact_mutation_guards (id,valid)
+      SELECT ?, CASE WHEN EXISTS (
+        SELECT 1 FROM oauth_delegations AS credential
+        WHERE credential.workspace_id = ? AND credential.id = ?
+          AND julianday(credential.expires_at) > julianday('now')
+      ) THEN 1 ELSE 0 END`,
+    )
+    .run(id, ctx.workspaceId, authority.delegation.delegationId);
+  await ctx.db.prepare("DELETE FROM artifact_mutation_guards WHERE id = ?").run(id);
+  await ctx.db
+    .prepare(
+      `INSERT INTO artifact_mutation_guards (id,valid)
+      SELECT ?, CASE WHEN EXISTS (
+        SELECT 1 FROM runs AS run
+        JOIN tasks AS task ON task.workspace_id = run.workspace_id AND task.id = run.task_id
+        JOIN oauth_delegations AS credential ON credential.workspace_id = run.workspace_id
+        JOIN workspace_members AS sponsor
+          ON sponsor.workspace_id = credential.workspace_id AND sponsor.human_id = credential.human_id
+        WHERE run.workspace_id = ? AND run.id = ? AND run.project_id = ? AND run.task_id = ?
+          AND run.purpose = 'work' AND task.project_id = run.project_id
+          AND credential.id = ? AND credential.human_id = ? AND credential.client_id = ?
+          AND credential.authorization_epoch = ? AND credential.revoked_at IS NULL
+          AND sponsor.role IN ('owner', 'member')
+          AND EXISTS (SELECT 1 FROM json_each(${scopes}) AS scope
+            WHERE scope.type = 'text' AND scope.value = 'bfb:task:write')
+          AND NOT EXISTS (SELECT 1 FROM json_each(${scopes}) AS scope WHERE scope.type <> 'text')
+          AND ${contribute.sql} AND ${credential.sql} AND ${publication}
+      ) THEN 1 ELSE 0 END`,
+    )
+    .run(
+      id,
+      ctx.workspaceId,
+      run.id,
+      run.project_id,
+      run.task_id,
+      authority.delegation.delegationId,
+      authority.delegation.humanId,
+      authority.delegation.clientId,
+      authority.delegation.authorizationEpoch,
+      ...contribute.parameters,
+      ...credential.parameters,
+      ...publicationParameters,
+    );
+  await ctx.db.prepare("DELETE FROM artifact_mutation_guards WHERE id = ?").run(id);
 }
 
 function delegatedFingerprint(input: unknown): string {
@@ -752,7 +862,8 @@ export const createDelegatedArtifactCommand: HubCommand<
   },
   auditInput: () => ({ action: "artifact.create_version.delegation" }),
   async run(input, ctx) {
-    const { authority, run } = await delegatedArtifactRunAuthority(input.runId, ctx);
+    const authenticated = await delegatedArtifactRunAuthority(input.runId, ctx);
+    const { authority, run } = authenticated;
     exactKeys(
       input,
       [
@@ -795,7 +906,14 @@ export const createDelegatedArtifactCommand: HubCommand<
       if ((existing.run_id ?? null) !== run.id) {
         throw new DomainError("request_rejected", "request rejected");
       }
-    } else {
+    }
+    await guardDelegatedArtifactCommit(ctx, authenticated, {
+      kind: "create",
+      artifactId,
+      format,
+      role,
+    });
+    if (artifactId === null) {
       artifactId = randomUlid();
       await ctx.db
         .prepare(
@@ -962,9 +1080,9 @@ export const finalizeDelegatedArtifactCommand: HubCommand<
       throw new DomainError("request_rejected", "request rejected");
     }
     const artifact = (await ctx.db
-      .prepare(`SELECT role, run_id FROM artifacts WHERE workspace_id = ? AND id = ?`)
+      .prepare(`SELECT role, run_id, format FROM artifacts WHERE workspace_id = ? AND id = ?`)
       .get(ctx.workspaceId, version.artifact_id)) as
-      { role: string; run_id: string | null } | undefined;
+      { role: string; run_id: string | null; format: string } | undefined;
     if (!artifact || !artifact.run_id || !isUlid(artifact.run_id)) {
       throw new DomainError("request_rejected", "request rejected");
     }
@@ -975,7 +1093,7 @@ export const finalizeDelegatedArtifactCommand: HubCommand<
       versionId: input.versionId,
       contentHash,
     });
-    await delegatedArtifactRunAuthority(artifact.run_id, ctx);
+    const authenticated = await delegatedArtifactRunAuthority(artifact.run_id, ctx);
     const receipt = (await ctx.db
       .prepare(
         `SELECT content_hash, size FROM artifact_upload_receipts
@@ -994,6 +1112,16 @@ export const finalizeDelegatedArtifactCommand: HubCommand<
     if (!object || object.content_hash !== contentHash || object.size !== input.size) {
       throw new DomainError("request_rejected", "request rejected");
     }
+    await guardDelegatedArtifactCommit(ctx, authenticated, {
+      kind: "finalize",
+      artifactId: version.artifact_id,
+      versionId: input.versionId,
+      format: artifactFormat(artifact.format),
+      role: artifactRole(artifact.role),
+      contentHash,
+      size: input.size,
+      r2Key: expectedKey,
+    });
     await ctx.db
       .prepare(
         `UPDATE artifact_versions

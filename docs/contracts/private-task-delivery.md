@@ -687,6 +687,49 @@ D1 [batch semantics](https://developers.cloudflare.com/d1/worker-api/d1-database
 provide transaction rollback; SQLite's [date functions](https://www.sqlite.org/lang_datefunc.html)
 define the UTC execution-clock `now` used by this additional guard.
 
+### Frozen delegated artifact commit authority
+
+This corrective C11 slice owns `artifact.create_version.delegation` and
+`artifact.finalize_version.delegation`. It completes their committing authority
+boundary without changing shared preparation-time helpers, runner/local agent
+capabilities, provider execution, upload grant wire/TTL or replay rejection.
+
+- Before artifact effects, a write-only CHECK inside the committing D1 batch
+  repeats the exact retained run→task→project tuple, work-run purpose, sponsor
+  membership/retained epoch, Owner/Member ceiling, kernel `contribute`, and the
+  exact delegation's sponsor/client, revocation, valid write scope and current
+  project/task-subtree boundary. Preserve the existing `bfb:task:write` scope
+  requirement; do not newly require a read scope or adopt a newer sponsor epoch.
+- A separate execution-clock CHECK requires the exact credential's expiry to
+  be strictly later than database `now`. Invalid, NULL, missing and elapsed
+  expiry fail closed. Keep the prepared clock predicates and `ctx.now` work/audit
+  observations unchanged; this is an additional authorization ceiling.
+- Creating another version pins the existing logical artifact's exact
+  workspace/run/format/role. A new artifact retains server-generated identity.
+  Finalization pins the retained version/artifact/run/task tuple, `uploading`
+  state, matching format/role/digest/size, verified receipt and exact canonical
+  object key/hash/size before its UPDATE. A legitimate competing finalization
+  cannot produce a second receipt after a zero-row UPDATE. Consumed upload
+  grants and immutable verified history are not required to regain freshness.
+- Reads precede queued writes. Guard failures keep uniform `command_failed`
+  and atomically roll back artifact/version/grant/audit effects, semantic/audit
+  receipts, outbox, idempotency and cursor. Do not branch on queued change counts.
+  Failed keys may retry after valid current authority is restored; completed
+  keys retain the existing replay rejection.
+- Prove new/existing artifact and genuine receipt/object-backed finalization
+  controls, independent current-authority loss before batch execution, private
+  contribution loss, reachable competing finalization, and unchanged-credential
+  natural expiry. Use genuine mounted OAuth admission plus separate actual-D1
+  Hub witnesses and delayed live controls retaining observation timestamps.
+  Never rewrite immutable grant permissions or lineage as a purported reachable
+  attack; label any deliberately malformed disposable fixture as robustness,
+  distinct from production race proof. Persist no plaintext upload secret.
+
+The additive target is `pnpm test:c11:delegated-artifacts`, composed once by C11.
+This proves these command-local guard statements, not every subsequent statement
+or response delivery, artifact byte retrieval, other OAuth commands, runner
+leases, complete private activation or the pending GitHub collision policy.
+
 ### Frozen browser board selection
 
 This corrective C11 slice binds already-authorized board delivery to the
