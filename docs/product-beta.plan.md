@@ -8,23 +8,28 @@ Timo split it from remote start and agent-to-agent work on 6 October. It starts
 from the integrated `7b8620c` checkpoint, preserving the existing implementation
 and certificates. Package metadata remains the source of truth for completion.
 
-Latest local checkpoint: [human upload reply and local native artifact bytes](work-packages/evidence/WP-C11/artifact-bytes-manifest.json),
-clean-certified at `833babe` through exact C11 and full verification. C11 passes
+Latest local checkpoint: [native Reviewer and project-loss artifact views](work-packages/evidence/WP-C11/native-view-authority-manifest.json),
+clean-certified at `e947fdf` through exact C11 and full verification. C11 passes
 3,201 stage case invocations across 132 file invocations in twenty-one blocks,
-six panel browser cases and 222 native check labels across twenty harnesses;
+six panel browser cases and 224 native check labels across twenty harnesses;
 dependencies and the notification drill remain separate. Full verification passes
-4,820 TypeScript cases in 221 files, Go and all 16 Swift cases. A final human
-upload selection after receipt commit retains the exact consumed tuple,
-canonical receipt, current contribution authority and original project ceiling.
-Denied replies preserve committed receipt history and stored bytes. The focused
-target passes 112 cases and four actual native Worker/D1/R2 groups, with handler
-SQL bounds of 19 bindings/4,716 bytes. The original five-case OLD replay records
-one failure/four controls; six later cases and native groups are separate.
-Synthetic task-move and retained-result substitution probes are not claimed
-reachable business transitions. Native Reviewer reads and restricted-project
-loss at R2 get/body are the next proof-only slice under existing view rules.
+4,820 TypeScript cases in 221 files, Go and all 16 Swift cases. The focused
+artifact target retains 112 cases and expands from four to six native groups,
+proving useful named Reviewer cookie/CSRF reads and restricted-project access
+loss after actual R2 get/body. The independent loss changes only the exact
+project-access row; task grant, role, epoch, parents and committed consume/audit/
+receipt/object history remain unchanged. Both waves start readable; denied
+replies retain one-use, stored bytes and clean FKs. Handler SQL bounds remain
+19 bindings/4,716 bytes. This proof-only extension changes no production guard
+or view-parent policy and claims no new OLD security failure.
 This is local native proof, not live private bytes, compiled-browser presentation,
 agent-upload reply or expiry certification.
+The earlier [human upload reply checkpoint](work-packages/evidence/WP-C11/artifact-bytes-manifest.json)
+retains its `833babe` certificate and original five-case OLD replay with one
+failure/four controls. The post-commit human response retains exact consumed
+lineage, canonical receipt, current contribution and captured project ceilings
+without rolling back history. Synthetic parent-move and retained-result probes
+are not claimed reachable business transitions; their evidence remains separate.
 The earlier [browser task child-collection checkpoint](work-packages/evidence/WP-C11/task-collections-manifest.json)
 retains its separate `a1506cd` certificate: uniform late denial including empty
 and terminal pages, useful fields/order and captured-project ceilings. Its

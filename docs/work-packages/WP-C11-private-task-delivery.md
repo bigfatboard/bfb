@@ -76,29 +76,26 @@ Coordinate shared contracts without changing the other lane's execution work.
 
 ## Handoff
 
-Current checkpoint: [human upload reply and local native artifact bytes](evidence/WP-C11/artifact-bytes-manifest.json),
-clean-certified at `833babe`. Exact C11 passes 3,201 stage case invocations
+Current checkpoint: [native Reviewer and project-loss artifact views](evidence/WP-C11/native-view-authority-manifest.json),
+clean-certified at `e947fdf`. Exact C11 passes 3,201 stage case invocations
 across 132 file invocations in twenty-one blocks, six panel browser cases and
-222 native check labels across twenty harnesses; dependencies and its
+224 native check labels across twenty harnesses; dependencies and its
 notification drill are separate. Full verification passes 4,820 TypeScript
-cases in 221 files, Go and all 16 Swift cases. The focused target passes 112
-cases in seven files, including eleven human-private-upload cases, plus four
-native Worker/D1/R2 groups. After a successful receipt commit, human upload
-replies reselect their retained consumed tuple, canonical receipt and current
-contribution authority within the original project ceiling. Late denial
-preserves committed history and stored bytes. The native proof forwards actual
-D1 batches and R2 get/put/body operations; it covers healthy private/shared/run-
-free paths, one-use, grant-loss seams, failed receipt rollback and post-commit
-reply suppression. Handler SQL bounds are 19 bindings and 4,716 bytes.
-The original five-case committed OLD replay records one post-COMMIT failure
-and four controls; six later cases and native groups are not replayed on OLD.
-Synthetic parent-move and retained-result substitution controls do not claim
-reachable business transitions. This is local native proof, not live private
-bytes, compiled-browser presentation, agent-upload reply or expiry certification.
+cases in 221 files, Go and all 16 Swift cases. The artifact target retains 112
+cases in seven files and the four earlier native groups, adding two groups for
+Reviewer read and restricted-project loss after actual R2 get/body. Synthetic
+cookie/CSRF issuance returns useful Reviewer bytes; both late cuts remove only
+the exact canonical project-access row, preserving task grant, role, epoch,
+parents and consume/audit/receipt/object history. Each wave starts readable,
+denies uniformly after its real await and keeps one-use and clean FKs. Handler
+SQL bounds stay 19 bindings/4,716 bytes. Production guards are unchanged from
+`833babe`; no new captured-parent policy or OLD security failure is claimed.
+The earlier human upload reply fix remains covered by retained tests. This is
+local native proof, not live private bytes, compiled-browser presentation,
+agent-upload reply, natural expiry or activation certification.
 
-Next proof-only scope is native Reviewer read and restricted-project loss after
-R2 get/body; current view read rules already admit Reviewer. Opaque continuation
-for the four paged browser collections is separately awaiting its compatibility
+Next implementation is opaque continuation for the four paged browser
+collections, awaiting its compatibility
 decision: comments, dependencies, links and work-runs. Both context views are
 unpaged. The existing
 audit handle primitives are useful, but audit-only storage cannot be overloaded.
@@ -110,6 +107,17 @@ remain open. Private creation, sharing, inherited private children and
 checkpoints stay disabled; C11 remains in progress and C12 planned.
 
 ### Earlier checkpoints
+
+The [human upload reply and local native artifact-byte checkpoint](evidence/WP-C11/artifact-bytes-manifest.json)
+is clean-certified at `833babe`: 3,201 stage case invocations, six panel browser
+cases, 222 native labels across twenty harnesses and full verification with
+4,820 TypeScript cases, Go and 16 Swift cases. The focused artifact target passes
+112 cases and four native groups. Human replies after successful receipt commit
+retain the exact consumed tuple, canonical receipt, current contribution and
+captured project ceiling without rolling back history. Its original five-case
+committed OLD replay records one failure/four controls; six later additions and
+native groups are separate. Parent-move and retained-result substitution probes
+are synthetic robustness controls. Its evidence remains unchanged.
 
 The [browser task child-collection selection checkpoint](evidence/WP-C11/task-collections-manifest.json)
 is clean-certified at `a1506cd`: exact C11 passes 3,082 stage case invocations
