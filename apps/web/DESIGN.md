@@ -83,6 +83,8 @@ Use the native system sans stack for human language and controls. Reserve monosp
 - Menus use bounded raised surfaces and 8px corners. The desktop task sheet is non-modal and uses a neutral separating rule, not a glass overlay or shadow. At narrow widths it becomes a labelled modal dialog with bounded keyboard focus and an inert background, restored on close.
 - Project lanes use one native horizontal scroll. Lanes never become workflow-state columns or vertical scroll traps.
 - New activity does not expand hidden sections. Empty, loading, offline and failure states describe actual outcomes, not fabricated activity or progress.
+- Result, measurement and artifact-review details install coherent bodies only for the current selection and newest operation. Denied details remove old records and actions, with one keyboard-operable retry inside the existing detail section. A hidden section reports only its label until the human chooses to open it.
+- Unsent review notes stay local. Artifact notes belong to their task and artifact; switching artifacts restores each note without moving it to another review. Saving an earlier note does not erase edits made while that save is pending.
 - Empty states teach the next action and may use one dry line. Permission, credential, destructive, and acceptance copy never jokes.
 
 ## Responsive behavior
@@ -96,3 +98,5 @@ Use short ease-out transitions only for selection, sheet entry and committed sta
 ## Product and authority boundaries
 
 This design implements progressive disclosure, not new authorization or business behavior. Existing routes, role access, context audiences, review decisions, feature gates and handlers remain authoritative. Artifact bytes load only after explicit preview. Theme and disclosure changes never launch, approve, complete or publish work. Remote start, provider operation, agent discussions and private-work activation retain their separate contracts and gates. `PRODUCT.md` remains the product source of truth.
+
+`pnpm test:c11:detail-panels` owns mounted task-detail race controls and the compiled Chromium denial/retry/disclosure checks. Synthetic intercepted browser responses certify presentation only, not server authority; the owning domain and mounted API suites retain that separate responsibility.

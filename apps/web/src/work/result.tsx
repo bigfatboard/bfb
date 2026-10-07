@@ -1,9 +1,14 @@
 // ABOUTME: Shows run result state and human review actions on the task sheet.
 // ABOUTME: Lists every immutable submission version with computed outdated flags; renders no artifact content.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { client } from "./mutations.js";
+import {
+  isPanelAuthorityDenied,
+  usePanelDelivery,
+  type PanelDeliveryCheck,
+} from "./panel-delivery.js";
 
 export type ResultRole = "owner" | "member" | "reviewer";
 
@@ -68,6 +73,8 @@ export interface ResultViewProps {
   role: ResultRole;
   pending: boolean;
   error: string | null;
+  loading?: boolean;
+  onRetry?: () => void;
   comment: string;
   onCommentChange?: (value: string) => void;
   onRequestChanges?: () => void;
@@ -83,7 +90,10 @@ export function ResultView(props: ResultViewProps) {
   return (
     <section aria-labelledby="result-review-heading" data-testid="result-panel">
       <h3 id="result-review-heading">Result and review</h3>
-      {props.runs.length === 0 ? <p data-testid="result-empty">No runs yet.</p> : null}
+      {props.loading ? <p data-testid="result-loading">Loading results…</p> : null}
+      {props.runs.length === 0 && !props.loading && !props.error ? (
+        <p data-testid="result-empty">No runs yet.</p>
+      ) : null}
       {props.runs.map((run) => (
         <div className="truth-row" key={run.id} data-testid="run-result-row">
           <span>Run {shortId(run.id)}</span>
@@ -139,6 +149,17 @@ export function ResultView(props: ResultViewProps) {
         <div className="inline-error" role="alert" data-testid="result-error">
           <strong>Review failed.</strong>
           <span>{props.error}</span>
+          {props.onRetry ? (
+            <button
+              type="button"
+              className="button-secondary"
+              data-testid="result-retry"
+              disabled={props.loading}
+              onClick={props.onRetry}
+            >
+              Retry
+            </button>
+          ) : null}
         </div>
       ) : null}
       {reviewable && canRequestChanges ? (
@@ -164,7 +185,7 @@ export function ResultView(props: ResultViewProps) {
             type="submit"
             className="button-secondary"
             data-testid="request-changes-submit"
-            disabled={props.pending}
+            disabled={props.pending || props.loading}
           >
             Request changes
           </button>
@@ -175,7 +196,7 @@ export function ResultView(props: ResultViewProps) {
           type="button"
           className="button-primary"
           data-testid="accept-result"
-          disabled={props.pending}
+          disabled={props.pending || props.loading}
           onClick={() => props.onAccept?.()}
         >
           Accept result
@@ -195,79 +216,167 @@ function requestId(prefix: string): string {
   return `${prefix}-${crypto.randomUUID()}`;
 }
 
+interface ResultSnapshot {
+  selection: object;
+  runs: RunRow[];
+  submissions: SubmissionView[];
+  pending: boolean;
+  loading: boolean;
+  error: string | null;
+}
+
+function emptyResultSnapshot(selection: object): ResultSnapshot {
+  return { selection, runs: [], submissions: [], pending: false, loading: false, error: null };
+}
+
+interface ResultDraft {
+  selection: object;
+  value: string;
+  revision: number;
+}
+
 export function ResultPanel(props: ResultPanelProps) {
   const fetchFn = props.fetchImpl ?? fetch;
   const api = useMemo(() => client(fetchFn, props.csrfToken ?? ""), [fetchFn, props.csrfToken]);
-  const [runs, setRuns] = useState<RunRow[]>([]);
-  const [submissions, setSubmissions] = useState<SubmissionView[]>([]);
-  const [comment, setComment] = useState("");
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const selection = useMemo(
+    () => ({ api, workspaceId: props.workspaceId, taskId: props.taskId }),
+    [api, props.workspaceId, props.taskId],
+  );
+  const begin = usePanelDelivery(selection);
+  const mutation = useRef<PanelDeliveryCheck | null>(null);
+  const [snapshot, setSnapshot] = useState<ResultSnapshot | null>(null);
+  const [draft, setDraft] = useState<ResultDraft | null>(null);
+  const draftRef = useRef<ResultDraft | null>(null);
+  const current = snapshot?.selection === selection ? snapshot : null;
+  const comment = draft?.selection === selection ? draft.value : "";
 
-  const load = useCallback(async () => {
-    try {
-      const runBody = await api.get(
-        `/api/v1/workspaces/${props.workspaceId}/tasks/${props.taskId}/runs`,
-      );
-      const nextRuns = ((runBody.runs ?? []) as RunRow[]).filter((run) => run.id);
-      setRuns(nextRuns);
-      const latestRun = nextRuns[nextRuns.length - 1];
-      if (!latestRun) {
-        setSubmissions([]);
-        return;
+  useLayoutEffect(() => {
+    const next = { selection, value: "", revision: 0 };
+    draftRef.current = next;
+    setDraft(next);
+    return () => {
+      draftRef.current = null;
+    };
+  }, [selection]);
+
+  const failed = useCallback(
+    (cause: unknown, check: PanelDeliveryCheck) => {
+      if (!check()) return;
+      setSnapshot((previous) => ({
+        ...(previous?.selection === selection ? previous : emptyResultSnapshot(selection)),
+        ...(isPanelAuthorityDenied(cause) ? { runs: [], submissions: [] } : {}),
+        loading: false,
+        error: cause instanceof Error ? cause.message : "Request failed",
+      }));
+    },
+    [selection],
+  );
+
+  const load = useCallback(
+    async (origin?: PanelDeliveryCheck): Promise<boolean> => {
+      const check = origin ?? begin();
+      if (!check || !check()) return false;
+      setSnapshot((previous) => ({
+        ...(previous?.selection === selection ? previous : emptyResultSnapshot(selection)),
+        pending: origin !== undefined && previous?.selection === selection && previous.pending,
+        loading: true,
+        error: null,
+      }));
+      try {
+        const runBody = await api.get(
+          `/api/v1/workspaces/${props.workspaceId}/tasks/${props.taskId}/runs`,
+        );
+        if (!check()) return false;
+        const runs = ((runBody.runs ?? []) as RunRow[]).filter((run) => run.id);
+        const latestRun = runs[runs.length - 1];
+        const resultBody = latestRun
+          ? await api.get(`/api/v1/workspaces/${props.workspaceId}/runs/${latestRun.id}/results`)
+          : null;
+        if (!check()) return false;
+        setSnapshot((previous) => ({
+          ...(previous?.selection === selection ? previous : emptyResultSnapshot(selection)),
+          runs,
+          submissions: (resultBody?.submissions ?? []) as SubmissionView[],
+          loading: false,
+          error: null,
+        }));
+        return true;
+      } catch (cause) {
+        failed(cause, check);
+        return false;
       }
-      const resultBody = await api.get(
-        `/api/v1/workspaces/${props.workspaceId}/runs/${latestRun.id}/results`,
-      );
-      setSubmissions((resultBody.submissions ?? []) as SubmissionView[]);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Request failed");
-    }
-  }, [api, props.taskId, props.workspaceId]);
+    },
+    [api, begin, failed, props.taskId, props.workspaceId, selection],
+  );
 
   useEffect(() => {
-    setComment("");
-    setError(null);
     void load();
   }, [load]);
 
+  function changeComment(value: string): void {
+    const previous = draftRef.current;
+    if (previous?.selection !== selection) return;
+    const next = { selection, value, revision: previous.revision + 1 };
+    draftRef.current = next;
+    setDraft(next);
+  }
+
   async function review(decision: "request_changes" | "accept"): Promise<void> {
-    const latest = submissions[0];
-    const latestRun = runs[runs.length - 1];
-    if (!latest || !latestRun) {
-      return;
-    }
-    setPending(true);
-    setError(null);
+    if (!current || current.pending || current.loading) return;
+    if (mutation.current?.()) return;
+    const latest = current.submissions[0];
+    const latestRun = current.runs[current.runs.length - 1];
+    if (!latest || !latestRun) return;
+    const check = begin();
+    if (!check) return;
+    mutation.current = check;
+    const submittedDraft = draftRef.current;
+    setSnapshot({ ...current, pending: true, error: null });
     try {
       await api.post(`/api/v1/workspaces/${props.workspaceId}/runs/${latestRun.id}/review`, {
         decision,
         submission_id: latest.id,
         expected_run_version: latestRun.resource_version,
         expected_task_version: props.taskVersion,
-        ...(decision === "request_changes" && comment.trim() ? { comment: comment.trim() } : {}),
+        ...(decision === "request_changes" && submittedDraft?.value.trim()
+          ? { comment: submittedDraft.value.trim() }
+          : {}),
         request_id: requestId(`web-${decision.replace("_", "-")}`),
       });
-      setComment("");
-      await load();
+      if (!check()) return;
+      if (!(await load(check)) || !check()) return;
+      if (
+        submittedDraft?.selection === selection &&
+        draftRef.current?.selection === selection &&
+        draftRef.current.revision === submittedDraft.revision
+      ) {
+        changeComment("");
+      }
       props.onReviewed();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Request failed");
+      failed(cause, check);
     } finally {
-      setPending(false);
+      if (mutation.current === check) mutation.current = null;
+      if (check()) {
+        setSnapshot((previous) =>
+          previous?.selection === selection ? { ...previous, pending: false } : previous,
+        );
+      }
     }
   }
 
   return (
     <ResultView
-      runs={runs}
-      submissions={submissions}
+      runs={current?.runs ?? []}
+      submissions={current?.submissions ?? []}
       taskState={props.taskState}
       role={props.role}
-      pending={pending}
-      error={error}
+      pending={current?.pending ?? false}
+      loading={current?.loading ?? true}
+      error={current?.error ?? null}
       comment={comment}
-      onCommentChange={setComment}
+      onRetry={() => void load()}
+      onCommentChange={changeComment}
       onRequestChanges={() => void review("request_changes")}
       onAccept={() => void review("accept")}
     />

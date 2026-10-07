@@ -1060,6 +1060,49 @@ local-agent delivery, destructive retention, artifact-byte consumers and private
 activation are excluded. No new private controls or live operation are enabled.
 The additive target is `pnpm test:c11:public-business`, composed once by C11.
 
+### Frozen task-detail panel selection
+
+This finite corrective C11 slice owns the result, measurement and artifact-review
+panels already exposed through task Details. It hardens their presentation
+against concurrent delivery; it does not replace server authorization or enable
+private work.
+
+- Bind every panel to its committed workspace/task/API selection incarnation
+  and every load to the newest request. Artifact status and decisions also bind
+  to the exact selected-artifact incarnation. Returning A to B to A never revives
+  the first A response. Retained callbacks cannot start old-scope reads or mutate
+  the current pending state; unmounted panels have no completion effects.
+- Install result runs and submissions, measurements and timers, and artifact
+  lists/origin/selection as coherent snapshots after their required awaits.
+  Do not expose a partly loaded body with authority-dependent actions. Artifact
+  status belongs only to the current selection and is unavailable immediately
+  when that selection changes.
+- Only current responses may set body, error, loading or pending state. A
+  current 401/403/404 or `not_found`, `forbidden` or `stale_authorization` removes
+  delivered records, artifact selections/viewer and actions. Keep one
+  keyboard-operable retry inside the unavailable detail panel. A denied body
+  must not be represented as an authorized empty collection.
+- Mutations retain the original scope and target through POST/body parsing and
+  follow-up reads. Only current success clears the submitted note, reloads or
+  calls the parent review callback. Old success, failure and finalizers are
+  ignored. Ordinary validation/transient failures and version conflicts retain
+  the human's draft and the existing conflict/reload semantics; local drafts
+  are not published merely because delivery was denied or retried.
+- Hidden visited panels stay hidden. Their existing label-only section notice
+  remains the opt-in path to the error, without copying record text or expanding
+  details automatically. Preserve W03 themes, existing named disclosures and
+  the two default task actions. Preserve inert review notes, explicit viewer
+  activation, measurement provenance and distinct result/artifact decisions.
+- Prove selection/re-entry, newest refresh, delayed HTTP/body/error/finalizer,
+  current-denial suppression, retry, mutation and hidden-panel cases with
+  mounted consumers and healthy controls. Synthetic browser presentation
+  responses are not server-authority proof; existing genuine domain/mounted
+  denial controls remain separate witnesses.
+
+The additive target is `pnpm test:c11:detail-panels`, composed once by C11.
+Malformed measurement-source lineage, backend authority changes, artifact-byte
+delivery, execution consumers, privacy activation and live rollout are excluded.
+
 ### Frozen browser board selection
 
 This corrective C11 slice binds already-authorized board delivery to the

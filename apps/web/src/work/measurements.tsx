@@ -1,10 +1,15 @@
 // ABOUTME: Shows separated provenance-labelled measurements on the task sheet.
 // ABOUTME: Human, agent, wait, token, and provenance sections never collapse into one total.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RunMeasurements, TaskMeasurements } from "@bfb/domain";
 
 import { client } from "./mutations.js";
+import {
+  isPanelAuthorityDenied,
+  usePanelDelivery,
+  type PanelDeliveryCheck,
+} from "./panel-delivery.js";
 
 export interface MeasurementsTokenFields {
   input: number | null;
@@ -126,6 +131,8 @@ export interface MeasurementsViewProps {
   timers: ReviewTimerView[];
   pending: boolean;
   error: string | null;
+  loading?: boolean;
+  onRetry?: () => void;
   onStartTimer?: () => void;
   onStopTimer?: (timer: ReviewTimerView) => void;
 }
@@ -139,9 +146,20 @@ export function MeasurementsView(props: MeasurementsViewProps) {
         <div className="inline-error" role="alert" data-testid="measurements-error">
           <strong>Measurements failed.</strong>
           <span>{props.error}</span>
+          {props.onRetry ? (
+            <button
+              type="button"
+              className="button-secondary"
+              data-testid="measurements-retry"
+              disabled={props.loading}
+              onClick={props.onRetry}
+            >
+              Retry
+            </button>
+          ) : null}
         </div>
       ) : null}
-      {!measurements && !props.error ? (
+      {(props.loading || !measurements) && !props.error ? (
         <p data-testid="measurements-loading">Loading measurements…</p>
       ) : null}
       {measurements ? (
@@ -326,7 +344,7 @@ export function MeasurementsView(props: MeasurementsViewProps) {
                   type="button"
                   className="button-secondary"
                   data-testid="review-timer-stop"
-                  disabled={props.pending}
+                  disabled={props.pending || props.loading}
                   onClick={() => props.onStopTimer?.(timer)}
                 >
                   Stop timer
@@ -340,7 +358,7 @@ export function MeasurementsView(props: MeasurementsViewProps) {
             type="button"
             className="button-secondary"
             data-testid="review-timer-start"
-            disabled={props.pending}
+            disabled={props.pending || props.loading}
             onClick={() => props.onStartTimer?.()}
           >
             Start review timer
@@ -362,76 +380,127 @@ function requestId(prefix: string): string {
   return `${prefix}-${crypto.randomUUID()}`;
 }
 
+interface MeasurementsSnapshot {
+  selection: object;
+  measurements: TaskMeasurementsView | null;
+  timers: ReviewTimerView[];
+  pending: boolean;
+  loading: boolean;
+  error: string | null;
+}
+
+function emptyMeasurementsSnapshot(selection: object): MeasurementsSnapshot {
+  return { selection, measurements: null, timers: [], pending: false, loading: false, error: null };
+}
+
 export function MeasurementsPanel(props: MeasurementsPanelProps) {
   const fetchFn = props.fetchImpl ?? fetch;
   const api = useMemo(() => client(fetchFn, props.csrfToken ?? ""), [fetchFn, props.csrfToken]);
-  const [measurements, setMeasurements] = useState<TaskMeasurementsView | null>(null);
-  const [timers, setTimers] = useState<ReviewTimerView[]>([]);
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const selection = useMemo(
+    () => ({ api, workspaceId: props.workspaceId, taskId: props.taskId }),
+    [api, props.workspaceId, props.taskId],
+  );
+  const begin = usePanelDelivery(selection);
+  const mutation = useRef<PanelDeliveryCheck | null>(null);
+  const [snapshot, setSnapshot] = useState<MeasurementsSnapshot | null>(null);
+  const current = snapshot?.selection === selection ? snapshot : null;
 
-  const load = useCallback(async () => {
-    try {
-      const measured = await api.get(
-        `/api/v1/workspaces/${props.workspaceId}/tasks/${props.taskId}/measurements`,
-      );
-      setMeasurements(measured.measurements as TaskMeasurementsView);
-      const timerBody = await api.get(
-        `/api/v1/workspaces/${props.workspaceId}/tasks/${props.taskId}/review-timers`,
-      );
-      setTimers((timerBody.timers ?? []) as ReviewTimerView[]);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Request failed");
-    }
-  }, [api, props.taskId, props.workspaceId]);
+  const failed = useCallback(
+    (cause: unknown, check: PanelDeliveryCheck) => {
+      if (!check()) return;
+      setSnapshot((previous) => ({
+        ...(previous?.selection === selection ? previous : emptyMeasurementsSnapshot(selection)),
+        ...(isPanelAuthorityDenied(cause) ? { measurements: null, timers: [] } : {}),
+        loading: false,
+        error: cause instanceof Error ? cause.message : "Request failed",
+      }));
+    },
+    [selection],
+  );
+
+  const load = useCallback(
+    async (origin?: PanelDeliveryCheck): Promise<boolean> => {
+      const check = origin ?? begin();
+      if (!check || !check()) return false;
+      setSnapshot((previous) => ({
+        ...(previous?.selection === selection ? previous : emptyMeasurementsSnapshot(selection)),
+        pending: origin !== undefined && previous?.selection === selection && previous.pending,
+        loading: true,
+        error: null,
+      }));
+      try {
+        const measured = await api.get(
+          `/api/v1/workspaces/${props.workspaceId}/tasks/${props.taskId}/measurements`,
+        );
+        if (!check()) return false;
+        const timerBody = await api.get(
+          `/api/v1/workspaces/${props.workspaceId}/tasks/${props.taskId}/review-timers`,
+        );
+        if (!check()) return false;
+        setSnapshot((previous) => ({
+          ...(previous?.selection === selection ? previous : emptyMeasurementsSnapshot(selection)),
+          measurements: measured.measurements as TaskMeasurementsView,
+          timers: (timerBody.timers ?? []) as ReviewTimerView[],
+          loading: false,
+          error: null,
+        }));
+        return true;
+      } catch (cause) {
+        failed(cause, check);
+        return false;
+      }
+    },
+    [api, begin, failed, props.taskId, props.workspaceId, selection],
+  );
 
   useEffect(() => {
-    setMeasurements(null);
-    setTimers([]);
-    setError(null);
     void load();
   }, [load]);
 
-  async function startTimer(): Promise<void> {
-    setPending(true);
-    setError(null);
+  async function mutate(path: string, input: Record<string, unknown>): Promise<void> {
+    if (!current?.measurements || current.pending || current.loading) return;
+    if (mutation.current?.()) return;
+    const check = begin();
+    if (!check) return;
+    mutation.current = check;
+    setSnapshot({ ...current, pending: true, error: null });
     try {
-      await api.post(
-        `/api/v1/workspaces/${props.workspaceId}/tasks/${props.taskId}/review-timers`,
-        {
-          request_id: requestId("web-review-timer"),
-        },
-      );
-      await load();
+      await api.post(path, input);
+      if (!check()) return;
+      await load(check);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Request failed");
+      failed(cause, check);
     } finally {
-      setPending(false);
+      if (mutation.current === check) mutation.current = null;
+      if (check()) {
+        setSnapshot((previous) =>
+          previous?.selection === selection ? { ...previous, pending: false } : previous,
+        );
+      }
     }
   }
 
-  async function stopTimer(timer: ReviewTimerView): Promise<void> {
-    setPending(true);
-    setError(null);
-    try {
-      await api.post(`/api/v1/workspaces/${props.workspaceId}/review-timers/${timer.id}/stop`, {
-        expected_version: timer.resource_version,
-        request_id: requestId("web-review-timer"),
-      });
-      await load();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Request failed");
-    } finally {
-      setPending(false);
-    }
+  function startTimer(): Promise<void> {
+    return mutate(`/api/v1/workspaces/${props.workspaceId}/tasks/${props.taskId}/review-timers`, {
+      request_id: requestId("web-review-timer"),
+    });
+  }
+
+  function stopTimer(timer: ReviewTimerView): Promise<void> {
+    return mutate(`/api/v1/workspaces/${props.workspaceId}/review-timers/${timer.id}/stop`, {
+      expected_version: timer.resource_version,
+      request_id: requestId("web-review-timer"),
+    });
   }
 
   return (
     <MeasurementsView
-      measurements={measurements}
-      timers={timers}
-      pending={pending}
-      error={error}
+      measurements={current?.measurements ?? null}
+      timers={current?.timers ?? []}
+      pending={current?.pending ?? false}
+      loading={current?.loading ?? true}
+      error={current?.error ?? null}
+      onRetry={() => void load()}
       onStartTimer={() => void startTimer()}
       onStopTimer={(timer) => void stopTimer(timer)}
     />
