@@ -76,7 +76,23 @@ Coordinate shared contracts without changing the other lane's execution work.
 
 ## Handoff
 
-Current checkpoint: [beta manual GitHub linking hold](evidence/WP-C11/github-manual-hold-manifest.json),
+Current checkpoint: [coherent GitHub status](evidence/WP-C11/github-status-delivery-manifest.json),
+clean-certified at `cd69f42`. Exact C11 passes 3,871 stage case invocations/
+159 file invocations in twenty-five blocks, six panel browser cases and 257
+native labels across twenty-four harnesses. Dependencies and forty-one
+notification labels stay separate. Full verification passes 4,927 TypeScript
+cases/229 files, Go and all sixteen Swift cases. Exact X04 passes 1,154 protocol
+cases/twelve files, Go protocol, 49 focused cases/three files and all thirteen
+native scenarios. The status target passes 92 cases/six files and ten native
+groups, retaining the first actual workspace capture through one coherent final
+selection and useful empty status. Direct native bounds are five bindings/
+1,529 bytes, not Worker/DO internals. Final OLD probes record seven domain
+failures/three controls, eight mounted failures/five controls and seven native
+failures/three controls; exploratory fixture/cleanup failures are excluded.
+Browser session identity has no workspace epoch, and no withdrawn reload theory
+is revived by this separate status repair.
+
+The earlier [beta manual GitHub linking hold](evidence/WP-C11/github-manual-hold-manifest.json),
 clean-certified at `21e4d69`. Exact C11 passes 3,779 stage case invocations/
 153 file invocations in twenty-four blocks, six panel browser cases and 247
 native labels across twenty-three harnesses. Dependencies and the forty-one
@@ -123,13 +139,15 @@ without changing its authority predicate. Stale browser and historical migration
 fixtures are repaired; G01 still fails on an expired historical runner credential
 and AG02/AG04 remain open. This finite certificate does not waive release gates.
 
-Next product-owned slice is the frozen GitHub status final-selection boundary.
-Unchanged-source staged and native replays reproduce late authority delivery and
-mixed-age arrays; the local reader/caller repair passes focused and exact X04
-checks, but clean certification is not part of the current checkpoint.
-Internal reconciliation lineage/commit authority and browser session expiry
-remain separate unproved concerns. Execution-
-owned delivery and destructive private retention remain open. Timo separately
+Next product-owned feature slice is frozen creator-only sharing, followed by
+author-private checkpoints. A separate native repository-reconcile probe at
+unchanged `cd69f42` reproduces independent installation revocation before commit;
+its derivative same-key retry replays the stale applied result. Healthy and
+pre-revoked controls pass. Local reconcile guard/native checks and concurrent
+sharing implementation are not part of the current clean checkpoint. Sequential
+remap policy and browser session expiry remain unproved; dormant private/task-
+bound GitHub fixtures are not another claimed reachable defect. Execution-owned
+delivery and destructive private retention remain open. Timo separately
 authorized merge and first Cloudflare beta deployment after the product work
 is verified; no rollout has happened. Private creation, sharing, inherited
 private children and checkpoints stay disabled; C11 is in progress, C12 planned,

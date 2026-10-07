@@ -8,7 +8,22 @@ Timo split it from remote start and agent-to-agent work on 6 October. It starts
 from the integrated `7b8620c` checkpoint, preserving the existing implementation
 and certificates. Package metadata remains the source of truth for completion.
 
-Latest local checkpoint: [beta manual GitHub linking hold](work-packages/evidence/WP-C11/github-manual-hold-manifest.json),
+Latest local checkpoint: [coherent GitHub status](work-packages/evidence/WP-C11/github-status-delivery-manifest.json),
+clean-certified at `cd69f42`: C11 passes 3,871 stage case invocations/159 file
+invocations in twenty-five blocks, six panel browser cases and 257 native labels
+across twenty-four harnesses. Dependencies and forty-one notification labels
+remain separate. Full verification passes 4,927 TypeScript cases/229 files,
+Go and all sixteen Swift cases; exact X04 passes all thirteen native scenarios,
+1,154 protocol cases/twelve files, Go protocol and 49 focused cases/three files.
+The status target passes 92 cases/six files and ten native groups. The first
+actual workspace capture is retained through one coherent final selection;
+ordered DTOs and authorized empty arrays remain useful. Direct native status
+bounds are five bindings/1,529 bytes, not Worker/DO internals. Final OLD probes
+record seven domain failures/three controls, eight mounted failures/five controls
+and seven native failures/three controls, excluding exploratory fixture/cleanup
+failures. Browser session identity itself has no workspace epoch.
+
+The earlier [beta manual GitHub linking hold](work-packages/evidence/WP-C11/github-manual-hold-manifest.json),
 clean-certified at `21e4d69`: C11 passes 3,779 stage case invocations/153 file
 invocations in twenty-four blocks, six panel browser cases and 247 native labels
 across twenty-three harnesses. Dependencies and forty-one notification drill
@@ -96,17 +111,21 @@ and earlier public business/CLI certificate remain unchanged. UI details,
 drafts, retry and hidden-section notices stay on demand in both themes.
 Timo approved raw-ID retirement without fallback and position-only Hub
 bookkeeping on 7 October; ADR 0016 and the delivery contract freeze the wire.
-The next product-owned slice is the frozen GitHub status final-selection boundary.
-Unchanged-source staged and native replays reproduce late authority delivery and
-mixed-age arrays. Its local reader/caller repair passes focused and exact X04
-checks; clean certification remains separate from the manual-hold checkpoint.
-Internal reconciliation lineage/commit authority and natural browser-session
-expiry remain separate unproved concerns, not defects demonstrated by that slice.
+The next product-owned feature slice is creator-only sharing under the frozen
+stage-four contract, followed by author-private checkpoints. Private creation
+stays unavailable until the complete matrix passes. A separate native repository-
+reconcile probe reproduces independent installation revocation before commit:
+OLD still applies, and its same-key follow-on replays that result. Healthy and
+pre-revoked controls pass. Its local commit guard/native proof and concurrent
+sharing work are outside the latest clean certificate. Sequential remap policy
+and natural browser-session expiry remain separate unproved concerns; production
+GitHub reconciliation omits task IDs, so dormant private/task-bound fixtures are
+not claimed as another reachable defect.
 Timo separately authorized merging and a first Cloudflare beta deployment after
 the product-beta work is verified, followed by deployed smoke checks. No rollout
-has occurred and execution-lane implementation remains excluded. GitHub status
-certification and source-fence review, execution-owned consumers and destructive
-private retention remain open; the selected manual-key policy hold is certified.
+has occurred and execution-lane implementation remains excluded. Repository-
+reconcile certification, execution-owned consumers and destructive private
+retention remain open; status and the selected manual-key hold are certified.
 Private creation, sharing and checkpoints stay disabled; C11 is in progress,
 C12 planned, and the other mandatory product features remain unfinished.
 Pinned Cloudflare CLI authentication and read-only resource inventory are
