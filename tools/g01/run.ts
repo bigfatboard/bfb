@@ -372,16 +372,37 @@ try {
   assert.equal(new Set(stable).size, stable.length, "fixture IDs must be unique");
   note("fixture", `seed ${G01_SEED} v${G01_FIXTURE_VERSION} with ${stable.length} stable ids`);
 
-  // Populated pre-0034 state upgrades to the frozen head without touching work history.
+  // Arrange the historical task shape before upgrading, not today's commands,
+  // whose result authority requires private-task tables absent from this schema.
   await seedSyntheticWorkspace(db, now, "eu");
-  const preserved = await human<TaskRecord>(createTaskCommand.name, {
-    projectId: FIX.projectA,
-    title: "Synthetic G01 migration preservation",
-    priority: "P2",
-  });
+  assert.deepEqual(
+    await db
+      .prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE name = 'task_privacy'")
+      .get(),
+    { count: 0 },
+    "the migration preservation fixture must predate private-task authority",
+  );
+  await db
+    .prepare(
+      `INSERT INTO tasks
+      (workspace_id, id, project_id, parent_task_id, title, state, priority, due_at,
+       next_owner_type, next_owner_id, next_action_reason, punchline, resource_version,
+       created_by_human_id, created_by_delegation_id, created_at)
+      VALUES (?, ?, ?, NULL, ?, 'ready', 'P2', NULL, 'unassigned', NULL, NULL, ?, 1, ?, NULL, ?)`,
+    )
+    .run(
+      FIX.workspace,
+      g01Id("G01MIGRATION"),
+      FIX.projectA,
+      "Synthetic G01 migration preservation",
+      "Ready for next action",
+      FIX.owner,
+      now,
+    );
   const beforeUpgrade = await db
-    .prepare(`SELECT id, state, resource_version FROM tasks WHERE workspace_id = ? ORDER BY id`)
+    .prepare(`SELECT * FROM tasks WHERE workspace_id = ? ORDER BY id`)
     .all(FIX.workspace);
+  assert.equal(beforeUpgrade.length, 1, "the upgrade must preserve a populated task table");
   for (const migration of manifest.migrations.slice(split))
     await copyFile(
       resolve(root, "migrations/d1", migration.file),
@@ -389,14 +410,11 @@ try {
     );
   await hub.applyD1Migrations("DB");
   assert.deepEqual(
-    await db
-      .prepare(`SELECT id, state, resource_version FROM tasks WHERE workspace_id = ? ORDER BY id`)
-      .all(FIX.workspace),
+    await db.prepare(`SELECT * FROM tasks WHERE workspace_id = ? ORDER BY id`).all(FIX.workspace),
     beforeUpgrade,
   );
   assert.deepEqual(await db.prepare("PRAGMA foreign_key_check").all(), []);
-  note("fixture", "pre-0034 state upgrades to 0034_operations preserving tasks");
-  void preserved;
+  note("fixture", `pre-0034 state upgrades to ${manifest.migration_head} preserving tasks`);
 
   // Ten projects: Alpha/Beta from the seed plus eight G01 projects.
   const projectIds: Record<string, string> = { alpha: FIX.projectA, beta: FIX.projectB };
