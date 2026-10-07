@@ -1,4 +1,4 @@
-// ABOUTME: Exercises actual signed telemetry requests, capability discovery and canonical source reads.
+// ABOUTME: Exercises actual signed telemetry requests, capability discovery and held public source pages.
 // ABOUTME: Preserves raw numeric boundaries and sanitized infrastructure failures through the mounted Worker.
 
 import type { SqlDatabase } from "@bfb/db";
@@ -224,7 +224,7 @@ describe("mounted typed measurement telemetry", () => {
     expect(await f.effects()).toEqual({ ledger: 0, tokens: 0, sources: 0, aliases: 0 });
   });
 
-  it("authorizes canonical source pages, omits raw usage and rejects ambiguous cursor queries", async () => {
+  it("holds public source pages after admission without changing signed telemetry or pure query errors", async () => {
     const f = await fixture(),
       event = f.event();
     expect(
@@ -237,13 +237,14 @@ describe("mounted typed measurement telemetry", () => {
     const path = `${ORIGIN}/api/v1/workspaces/${FIX.workspace}/runs/${f.launch.run_id}/measurement-sources`;
     const request = (suffix = "") =>
       f.send(new Request(path + suffix, { headers: { cookie: session.cookie } }));
+    const before = await f.effects();
+    const held = { error: "request_rejected", message: "event feeds are unavailable" };
     const response = await request("?limit=1");
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(409);
+    expect(response.headers.get("cache-control")).toBe("no-store");
     const page = await response.json();
-    expect(page).toMatchObject({
-      sources: [{ event_id: event.event_id, usage_id: "PRIVATE_USAGE_SOURCE", provider: "fake" }],
-      has_more: false,
-    });
+    expect(page).toEqual(held);
+    expect(JSON.stringify(page)).not.toContain("PRIVATE_USAGE_SOURCE");
     expect(JSON.stringify(page)).not.toContain("PRIVATE_MODEL_SOURCE");
     expect((await request("?limit=101")).status).toBe(400);
     expect((await request("?limit=1&limit=2")).status).toBe(400);
@@ -253,7 +254,10 @@ describe("mounted typed measurement telemetry", () => {
     await f.db
       .prepare("DELETE FROM project_access WHERE workspace_id=? AND human_id=?")
       .run(FIX.workspace, FIX.owner);
-    expect((await request()).status).toBe(404);
+    const afterProjectLoss = await request();
+    expect(afterProjectLoss.status).toBe(409);
+    expect(await afterProjectLoss.json()).toEqual(held);
     expect((await f.send(new Request(path))).status).toBe(401);
+    expect(await f.effects()).toEqual(before);
   });
 });
