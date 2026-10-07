@@ -272,3 +272,17 @@ other commands or runner/lease expiry. GitHub key policy, execution-owned
 delivery, destructive private retention and other expiry boundaries remain
 open. Private creation/sharing/checkpoints remain disabled; C11 stays in
 progress and C12 planned.
+
+The [delegated artifact commit checkpoint](evidence/WP-C11/delegated-artifacts-manifest.json)
+is clean-certified at `026be0b`: exact C11 passes 2,344 stage invocation cases
+and 96 D1 checks across nine harnesses; X03 and full verification pass, including
+4,468 TypeScript cases, Go and all 16 Swift cases. Creation/finalization repeat
+retained current authority and exact publication targets inside their batch,
+with a separate database-clock expiry ceiling and unchanged observations.
+Corrected old-source reproducers establish the boundary loss; initial unseeded
+task attempts are excluded. This is command-local proof, not later-statement,
+response, byte retrieval or private activation certification. Delegated
+attention commit authority is next; GitHub key policy, execution-owned delivery,
+destructive retention and other expiry boundaries remain open. Private
+creation/sharing/checkpoints stay disabled; C11 remains in progress and C12
+planned.

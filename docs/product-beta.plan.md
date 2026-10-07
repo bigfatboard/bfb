@@ -303,3 +303,18 @@ unresolved; live private R2 byte delivery remains uncertified. C12 stays planned
   other expiry boundaries still gate activation. Private creation/sharing/
   checkpoints remain disabled; C11 stays in progress and C12 planned. The other
   mandatory product features remain unfinished. No rollout or pilot changed.
+
+  The [delegated artifact commit checkpoint](work-packages/evidence/WP-C11/delegated-artifacts-manifest.json)
+  is clean-certified at `026be0b`: C11 passes 2,344 stage invocation cases and
+  96 D1 checks across nine harnesses, with exact X03 and full verification
+  passing 4,468 TypeScript cases, Go and all 16 Swift cases. Artifact creation
+  and finalization repeat retained current authority and exact publication
+  targets before effects, with a separate database-clock credential ceiling
+  that preserves observations. Initial unseeded boundary fixtures are excluded;
+  corrected old-source reproducers fail meaningfully. The next product-side
+  slice is delegated attention commit authority, preserving Reviewer request
+  permission. GitHub key policy, execution-owned delivery, destructive private
+  retention and other expiry boundaries still gate activation. Private
+  creation/sharing/checkpoints remain disabled; C11 stays in progress, C12
+  planned, and the other mandatory product features unfinished. No rollout or
+  pilot changed.
