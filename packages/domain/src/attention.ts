@@ -24,7 +24,12 @@ import { runnerObject } from "./runner-crypto.js";
 import type { RunnerPrincipal } from "./runners.js";
 import { liveRun, type AgentWorkInput } from "./agent-work.js";
 import { currentAgentSession } from "./agent-sessions.js";
-import { readTaskPredicate, type TaskReadAccess } from "./work-commands.js";
+import {
+  delegatedReadTaskPredicate,
+  readTaskPredicate,
+  type DelegatedTaskReadAccess,
+  type TaskReadAccess,
+} from "./work-commands.js";
 import { taskAccessPredicate, type TaskAccessAction } from "./task-access.js";
 
 export const ATTENTION_KINDS = [
@@ -563,6 +568,59 @@ export async function getAttention(
     )
     .get(workspaceId, attentionId, ...projectIds, ...predicate.parameters)) as
     Record<string, unknown> | undefined;
+  return row ? rowToRecord(row) : null;
+}
+
+/** Final canonical read bound to the preliminary lineage and original OAuth ceilings. */
+export async function getDelegatedAttention(
+  db: SqlDatabase,
+  workspaceId: string,
+  retained: AttentionRecord,
+  access: DelegatedTaskReadAccess,
+): Promise<AttentionRecord | null> {
+  if (
+    [
+      retained.id,
+      retained.task_id,
+      retained.project_id,
+      retained.run_id,
+      retained.run_execution_id,
+    ].some((id) => typeof id !== "string" || id.length !== 26 || !isUlid(id)) ||
+    !Number.isSafeInteger(retained.assignment_generation) ||
+    retained.assignment_generation < 1
+  )
+    return null;
+  const predicate = delegatedReadTaskPredicate(access);
+  const row = (await db
+    .prepare(
+      `SELECT attention.* FROM attention_requests AS attention
+     JOIN tasks AS task ON task.workspace_id = attention.workspace_id
+       AND task.id = attention.task_id AND task.project_id = attention.project_id
+     JOIN runs AS run ON run.workspace_id = attention.workspace_id
+       AND run.id = attention.run_id AND run.task_id = task.id
+       AND run.project_id = task.project_id
+     JOIN run_executions AS execution ON execution.workspace_id = attention.workspace_id
+       AND execution.id = attention.run_execution_id AND execution.run_id = run.id
+     JOIN execution_assignments AS assignment ON assignment.workspace_id = attention.workspace_id
+       AND assignment.execution_id = execution.id
+       AND assignment.assignment_generation = attention.assignment_generation
+       AND assignment.run_id = run.id AND assignment.task_id = task.id
+       AND assignment.project_id = task.project_id
+     WHERE attention.workspace_id = ? AND attention.id = ?
+       AND attention.task_id = ? AND attention.project_id = ? AND attention.run_id = ?
+       AND attention.run_execution_id = ? AND attention.assignment_generation = ?
+       AND ${predicate.sql}`,
+    )
+    .get(
+      workspaceId,
+      retained.id,
+      retained.task_id,
+      retained.project_id,
+      retained.run_id,
+      retained.run_execution_id,
+      retained.assignment_generation,
+      ...predicate.parameters,
+    )) as Record<string, unknown> | undefined;
   return row ? rowToRecord(row) : null;
 }
 

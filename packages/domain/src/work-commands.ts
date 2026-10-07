@@ -1264,12 +1264,14 @@ export async function getAgentContext(
     .all(workspaceId, taskId, ...predicate.parameters)) as AgentContextItem[];
 }
 
-export interface DelegatedContextAccess extends TaskReadAccess {
+export interface DelegatedTaskReadAccess extends TaskReadAccess {
   delegationId: string;
   clientId: string;
   /** Nullable original credential boundary, separate from the selected task's project. */
   projectBoundaryId: string | null;
 }
+
+export type DelegatedContextAccess = DelegatedTaskReadAccess;
 
 interface DelegatedContextBoundary {
   clientId: string;
@@ -1283,13 +1285,22 @@ function delegatedContextPredicate(
   projectId: string,
   access: DelegatedContextAccess,
 ) {
+  const read = delegatedReadTaskPredicate(access);
+  return {
+    sql: `task.workspace_id = ? AND task.id = ? AND task.project_id = ?
+      AND ${read.sql}`,
+    parameters: [workspaceId, taskId, projectId, ...read.parameters],
+  };
+}
+
+/** Retain original OAuth ceilings while checking current read authority at selection. */
+export function delegatedReadTaskPredicate(access: DelegatedTaskReadAccess) {
   const read = readTaskPredicate(access);
   const scopes = `CASE WHEN json_valid(credential.scopes_json) THEN
     CASE WHEN json_type(credential.scopes_json) = 'array' THEN credential.scopes_json ELSE '[]' END
     ELSE '[]' END`;
   return {
-    sql: `task.workspace_id = ? AND task.id = ? AND task.project_id = ?
-      AND ${read.sql} AND EXISTS (
+    sql: `${read.sql} AND EXISTS (
         SELECT 1 FROM oauth_delegations AS credential
         WHERE credential.workspace_id = task.workspace_id AND credential.id = ?
           AND credential.human_id = ? AND credential.client_id = ?
@@ -1301,9 +1312,6 @@ function delegatedContextPredicate(
           AND NOT EXISTS (SELECT 1 FROM json_each(${scopes}) AS scope WHERE scope.type <> 'text')
       )`,
     parameters: [
-      workspaceId,
-      taskId,
-      projectId,
       ...read.parameters,
       access.delegationId,
       access.humanId,

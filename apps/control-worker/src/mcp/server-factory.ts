@@ -17,7 +17,9 @@ import {
   ATTENTION_KINDS,
   createDelegatedArtifactCommand,
   finalizeDelegatedArtifactCommand,
+  DomainError,
   getAttention,
+  getDelegatedAttention,
   getTask,
   issueGrantResponse,
   listProjectsPage,
@@ -404,9 +406,32 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
           isError: true,
         };
       }
-      await enforceDelegationAccess(deps.db, deps.delegation, record.project_id, record.task_id);
+      try {
+        await enforceDelegationAccess(deps.db, deps.delegation, record.project_id, record.task_id);
+      } catch (error) {
+        if (
+          !(error instanceof DomainError) ||
+          !["not_found", "forbidden", "stale_authorization"].includes(error.code)
+        )
+          throw error;
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ error: "not_found" }) }],
+          isError: true,
+        };
+      }
+      const attention = await getDelegatedAttention(deps.db, deps.delegation.workspaceId, record, {
+        ...taskAccess,
+        clientId: deps.delegation.clientId,
+        projectBoundaryId: deps.delegation.projectId,
+      });
+      if (!attention) {
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ error: "not_found" }) }],
+          isError: true,
+        };
+      }
       return {
-        content: [{ type: "text" as const, text: JSON.stringify({ attention: record }) }],
+        content: [{ type: "text" as const, text: JSON.stringify({ attention }) }],
       };
     },
   );

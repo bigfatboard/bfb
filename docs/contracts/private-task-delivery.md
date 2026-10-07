@@ -827,6 +827,42 @@ This does not certify every OAuth read tool, later statements, private
 activation, artifact bytes, runner leases or the pending GitHub collision
 policy.
 
+### Frozen delegated attention read delivery
+
+This corrective C11 slice owns the final `bfb_get_attention` response. Attention
+creation, human answers, run-scoped readers, leases and shared clocks remain
+unchanged. Reading creates no business record or attention observation.
+
+- After preliminary selection and every advisory await, select the canonical
+  attention record with current kernel read authority in one final statement.
+  Match its original workspace, task, project, run, recorded execution ID and
+  assignment generation; join that historical execution and exact immutable
+  assignment without adopting a different parent. Repeat sponsor
+  membership and retained epoch, project access and private read permission,
+  exact credential/sponsor/client identity, revocation, valid all-string read
+  scope, original nullable project/task-subtree boundaries and strict database
+  clock expiry. Serialize immediately without another asynchronous boundary.
+- Missing and denied records return the same existing `not_found` tool error,
+  without attention bodies or identifiers. Current canonical answers may be
+  newer than the preliminary selection. Preserve historical `open`, `answered`
+  and `resolved` requests, read-only Owner/Member/Reviewer authority and answers
+  for ended runs. Do not require creation state, a latest assignment, live lease,
+  requester equality or answer-role authority merely to read history.
+- Prove independent production revocation after preliminary body selection,
+  current read-scope/client/nullable-boundary loss and natural expiry of an
+  unchanged credential before final selection. Include private read-grant,
+  epoch/project loss, exact parent misbinding and missing/denied equivalence.
+  Delayed healthy controls and canonical answer updates must remain readable.
+  Mounted genuine OAuth MCP and separate actual-D1/native-statement witnesses
+  distinguish permission races from malformed-history robustness checks.
+  Snapshot business history and cursor; HTTP abuse accounting is separate from
+  business effects. No cached body or new delivery record is required.
+
+The additive target is `pnpm test:c11:attention-delivery`, composed once by C11.
+This does not certify other OAuth read tools, authority after the final
+selection statement, provider/run capability expiry, private activation,
+artifact bytes or the pending GitHub collision policy.
+
 ### Frozen browser board selection
 
 This corrective C11 slice binds already-authorized board delivery to the
