@@ -8,15 +8,16 @@ Timo split it from remote start and agent-to-agent work on 6 October. It starts
 from the integrated `7b8620c` checkpoint, preserving the existing implementation
 and certificates. Package metadata remains the source of truth for completion.
 
-Latest local checkpoint: [delegated task read delivery](work-packages/evidence/WP-C11/task-delivery-manifest.json),
-clean-certified at `4fc181e` through exact C11, X03 and full verification.
-C11 passes 2,459 stage invocation cases and 160 D1 checks; full verification
-passes 4,583 TypeScript cases, Go and all 16 Swift cases. Final task selection
-rechecks current read authority and original OAuth restrictions, returns
-current canonical fields and redacts an unreadable parent without read
-effects. This closes task reads, not every OAuth response or private
-activation. Delegated task/project list selection is next. GitHub policy,
-execution-owned consumers and destructive private retention remain barriers.
+Latest local checkpoint: [delegated list selection](work-packages/evidence/WP-C11/list-delivery-manifest.json),
+clean-certified at `8e04700` through exact C11, X03 and full verification.
+C11 passes 2,495 stage invocation cases and 181 D1 checks across fourteen
+harnesses; full verification passes 4,619 TypeScript cases, Go and all 16 Swift
+cases. Project/task pages select current authority and canonical records in
+one statement, retaining authorized empty pages, captured project ceilings and
+readable-root traversal. This closes delegated lists, not every response or
+private activation. Human attention-detail composition and late business-cache
+delivery are next. GitHub policy, execution-owned consumers and destructive
+private retention remain barriers.
 Private creation, sharing and checkpoints stay disabled; C11 is in progress,
 C12 planned, and the other mandatory product features remain unfinished.
 No rollout or pilot changed.
@@ -340,3 +341,11 @@ unresolved; live private R2 byte delivery remains uncertified. C12 stays planned
   restrictions. Current answers, read-only roles and ended historical
   executions remain readable without read effects. Its evidence remains
   unchanged.
+
+  The [delegated task read checkpoint](work-packages/evidence/WP-C11/task-delivery-manifest.json)
+  is clean-certified at `4fc181e`: C11 passes 2,459 stage invocation cases and
+  160 D1 checks across thirteen harnesses; X03 and full verification pass with
+  4,583 TypeScript cases, Go and all 16 Swift cases. Final task selection repeats
+  current read authority and original OAuth restrictions, returns current
+  canonical fields and redacts unreadable parents without read effects. Its
+  evidence remains unchanged.
