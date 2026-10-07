@@ -9,6 +9,7 @@ import { LaunchSection } from "../launch/operations.js";
 import type { AgentProfileSummary } from "./board.js";
 import { MeasurementsPanel } from "./measurements.js";
 import { ResultPanel } from "./result.js";
+import { TaskSharingPanel } from "./sharing.js";
 import { RunTimeline } from "../realtime/RunTimeline.js";
 
 type WorkspaceRole = "owner" | "member" | "reviewer";
@@ -301,6 +302,7 @@ type TaskPanel =
   | "artifacts"
   | "activity"
   | "measurements"
+  | "sharing"
   | "launch"
   | "discussion";
 
@@ -812,6 +814,7 @@ export function WorkMutations(props: WorkMutationsProps) {
                 <option value="context">Context</option>
                 {canManage ? <option value="edit">Edit task</option> : null}
                 {canManage ? <option value="handoff">Handoff</option> : null}
+                {canManage ? <option value="sharing">Sharing</option> : null}
                 <option value="results">Results</option>
                 <option value="artifacts">Artifacts</option>
                 <option value="activity">Activity</option>
@@ -836,6 +839,19 @@ export function WorkMutations(props: WorkMutationsProps) {
               </button>
             </div>
           ) : null}
+          {canManage
+            ? panel(
+                "sharing",
+                <TaskSharingPanel
+                  workspaceId={props.workspaceId}
+                  taskId={task.id}
+                  humanId={props.humanId}
+                  members={humanTargets}
+                  api={api}
+                  onChanged={props.onChanged}
+                />,
+              )
+            : null}
           <section
             className="task-overview"
             aria-label="Current task truth"

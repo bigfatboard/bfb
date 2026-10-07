@@ -145,8 +145,11 @@ import {
   issueSecurityAuditPositionCommand,
 } from "./operations.js";
 import { issueHumanTaskCollectionPositionCommand } from "./human-task-collection-positions.js";
+import { grantTaskSharingCommand, revokeTaskSharingCommand } from "./task-sharing.js";
 
 const commands = new Map<string, HubCommand<unknown, unknown>>([
+  [grantTaskSharingCommand.name, grantTaskSharingCommand as HubCommand<unknown, unknown>],
+  [revokeTaskSharingCommand.name, revokeTaskSharingCommand as HubCommand<unknown, unknown>],
   [
     issueHumanTaskCollectionPositionCommand.name,
     issueHumanTaskCollectionPositionCommand as HubCommand<unknown, unknown>,

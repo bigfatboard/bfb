@@ -33,6 +33,7 @@
     "operations-step-up-expiry.ts",
     "github-manual-hold.ts",
     "github-status-delivery.ts",
+    "task-sharing.ts",
     "task-positions.ts"
   ],
   "references": [

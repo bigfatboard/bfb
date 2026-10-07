@@ -1,5 +1,24 @@
 # Work-record runtime proofs
 
+`pnpm test:c11:task-sharing`, composed once by C11, owns `task-sharing.ts`,
+the creator-sharing domain/mounted/presentation suites and six compiled-browser
+checks. Synthetic dormant policies exercise the registered grant/revoke commands;
+no private-create endpoint or activation is available. Four independently
+collecting native-D1 groups prove the useful three-permission Reviewer ceiling,
+retained revocation/exact history, independently completed recipient-project and
+creator-epoch loss before the original bound batch, and failed-key repair retries.
+The parallel-Hub version control deliberately bypasses the serialized lane to
+test the D1 backstop; it is not a reachable competing production race. Compare all
+canonical tables after each cut, with named engine tables excluded, HTTP budgets
+separate, foreign keys clean and transient guards empty. Bounds cover only the
+instrumented prebatch-cut commands, not lifecycle/metadata queries or Worker/DO
+internals. Mounted signed-cookie/CSRF cases prove final selection and post-real-
+Hub response/body receipt withholding. Browser cases prove on-demand controls,
+keyboard focus/retry and light/dark reflow at 1280 and 390 pixels using intercepted
+synthetic responses; they are presentation evidence, not server authorization.
+Author-private checkpoints, child inheritance, private creation, destructive
+retention and execution-owned delivery remain separate activation obligations.
+
 `pnpm test:c11:github-reconcile-authority`, composed once by C11, owns
 `github-reconcile-authority.mjs`. Four independently collecting native-D1 groups
 cover useful repository reconciliation, completed independent installation

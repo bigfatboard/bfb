@@ -53,6 +53,7 @@ export * from "./work-commands.js";
 export * from "./delegated-lists.js";
 export * from "./work-records.js";
 export * from "./task-access.js";
+export * from "./task-sharing.js";
 export * from "./workspace-authorization.js";
 export * from "./discussions.js";
 export * from "./events.js";

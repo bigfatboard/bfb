@@ -88,6 +88,55 @@ partial stage never changes C11 to `done` or enables privacy. Evidence lives at
 
 ## Child delivery implementation and remaining checks
 
+### Creator sharing lifecycle checkpoint
+
+Stage four starts with creator-only sharing over the retained 0045 policy and
+grant storage. This checkpoint does not expose private creation, inherit private
+children, add agent ACL tools or activate the complete privacy feature.
+
+- `task.sharing.grant` and `task.sharing.revoke` accept only their frozen fields
+  above. Require a direct current Owner/Member human, the retained requesting
+  membership epoch, current project access and `manage_sharing` on the exact
+  private task. A shared, missing or inaccessible task has the same `not_found`
+  response. Delegation, runner and system actors cannot use either command.
+- Read sharing metadata only for that same current creator. One final coherent
+  selection returns the task ID, access version and current effective grants;
+  it must retain an authority sentinel for an authorized empty list. Select
+  grants whose recipient still has the recorded current membership epoch and
+  project access. Return at most one hundred ordered grants with truthful
+  `has_more` from a one-row lookahead; do not expose a workspace cursor or
+  pretend a truncated list is complete. This is not a sharing-history API.
+- Grant recipients are explicit current named humans in the same workspace
+  with project access. Bind their current membership epoch; their existing role
+  remains a ceiling on `read`, `contribute` and `edit`. The immutable creator
+  needs no self-grant. An already active grant for that recipient/epoch rejects
+  with `already_exists`; changing its permission requires explicit revoke and
+  re-share, never an update to immutable grant authority. Old inert grants stay
+  retained and cannot block an explicit grant at a newer membership epoch.
+- Compare `expectedAccessVersion` for fresh mutations only after creator
+  authority. A successful grant or revoke increments the policy version once.
+  Revocation targets an exact active grant on that task and retains its identity
+  and revocation. A missing, foreign-task or already revoked grant is uniformly
+  unavailable. Never remove policy or grant records or rewrite the creator.
+- Repeat creator/current-project/retained-epoch/version authority and the exact
+  recipient or grant witness inside the committing D1 batch. Independent loss
+  before commit rolls back all business and Hub bookkeeping effects. Use the
+  existing transaction-guard contract; no shared kernel, Hub or schema changes.
+- Bind idempotency to closed canonical input. Check current creator authority
+  before cached replies; changed retries reject. Receipts contain only task,
+  grant and access-version identifiers, not task content or recipient lists.
+  Successful historical receipts do not assert that a grant is still active.
+  Recheck creator authority after awaited command delivery before a browser
+  receives any receipt or sharing metadata. Sharing never publishes author-
+  private checkpoints or changes another transport's credential ceiling.
+
+Prove useful creator and empty-list controls, no Owner override, all permission
+intersections, recipient/project/role/epoch loss, removal/rejoin, optimistic
+version conflicts, exact and changed retries, immutable retained revocation,
+late final-selection loss and native commit rollback. Synthetic dormant policy
+setup is labelled; passing this finite checkpoint cannot enable private creation
+or substitute for destructive-retention and execution-owned delivery gates.
+
 The child-delivery suites derive local task authority from the authenticated
 assignment's requesting human and retained epoch, not the runner's owner.
 Reads require `read`; comments, results, attention and review timers require

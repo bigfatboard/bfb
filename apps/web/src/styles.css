@@ -1304,6 +1304,34 @@ legend {
   margin-bottom: 0;
 }
 
+.sharing-list {
+  display: grid;
+  gap: var(--space-md);
+  margin: var(--space-lg) 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sharing-grant {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.sharing-recipient,
+.sharing-form {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-sm);
+  overflow-wrap: anywhere;
+}
+
+.sharing-recipient span {
+  color: var(--ink-muted);
+}
+
 .task-composer {
   margin-bottom: 28px;
   padding: 20px;

@@ -12,6 +12,7 @@ import {
   addTaskLinkCommand,
   assertProjectAccess,
   assertTaskChildAccess,
+  assertTaskSharingReceipt,
   cancelRunCommand,
   createExecutionCommand,
   createProviderSessionCommand,
@@ -22,6 +23,7 @@ import {
   getRunMeasurements,
   getTask,
   getTaskMeasurements,
+  grantTaskSharingCommand,
   issueHumanTaskCollectionPositionCommand,
   isUlid,
   listReviewTimers,
@@ -30,9 +32,11 @@ import {
   loadPrincipal,
   recordBrowserActivityCommand,
   readWorkBoard,
+  readTaskSharing,
   readHumanTaskCollection,
   readHumanTaskCollectionPage,
   requestChangesCommand,
+  revokeTaskSharingCommand,
   startReviewTimerCommand,
   stopReviewTimerCommand,
   submitResultCommand,
@@ -44,11 +48,17 @@ import {
   type PagedHumanTaskCollection,
   type TaskPriority,
   type TaskState,
+  type TaskSharingReceipt,
+  type GrantTaskSharingInput,
+  type RevokeTaskSharingInput,
 } from "@bfb/domain";
 
 import type { BrowserPrincipal } from "../auth/session.js";
 import type { Jurisdiction } from "../env.js";
-import { executePublicWorkspaceCommand as executeWorkspaceCommand } from "../public-command-outcome.js";
+import {
+  executePublicWorkspaceCommand as executeWorkspaceCommand,
+  type PublicCommandOutcome,
+} from "../public-command-outcome.js";
 import { readBoundedJson } from "./request.js";
 
 const BODY_LIMIT = 32_768;
@@ -244,6 +254,36 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
       input,
     });
 
+  async function sharingOutcome(
+    outcome: PublicCommandOutcome<TaskSharingReceipt>,
+    input: GrantTaskSharingInput | RevokeTaskSharingInput,
+  ) {
+    // This follows the actual Hub RPC/body await. Historical receipts are not
+    // assertions of current recipient access, but still require the creator now.
+    if (outcome.ok) {
+      if (
+        outcome.result.task_id !== input.taskId ||
+        outcome.result.access_version !== input.expectedAccessVersion + 1 ||
+        ("grantId" in input && outcome.result.grant_id !== input.grantId)
+      ) {
+        throw new DomainError("not_found", "task sharing not found");
+      }
+      await assertTaskSharingReceipt(
+        deps.db,
+        principal,
+        outcome.result,
+        "humanId" in input ? input : undefined,
+      );
+    } else if (
+      ["stale_version", "already_exists", "not_found", "command_failed"].includes(
+        outcome.error.code,
+      )
+    ) {
+      await readTaskSharing(deps.db, principal, input.taskId);
+    }
+    return outcomeResponse(outcome);
+  }
+
   if (path === `${base}/board` && request.method === "GET") {
     const board = await readWorkBoard(
       deps.db,
@@ -341,6 +381,41 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
   if (taskMatch) {
     const taskId = taskMatch[1] ?? "";
     const rest = taskMatch[2] ?? "";
+    if (rest === "/sharing" && request.method === "GET") {
+      if (url.search) throw new DomainError("invalid_argument", "sharing query is invalid");
+      return json({ sharing: await readTaskSharing(deps.db, principal, taskId) });
+    }
+    if (rest === "/sharing/grants" && request.method === "POST") {
+      const record = await body(request, [
+        "human_id",
+        "permission",
+        "expected_access_version",
+        "request_id",
+      ]);
+      const input: GrantTaskSharingInput = {
+        taskId,
+        humanId: requiredString(record, "human_id"),
+        permission: requiredString(record, "permission") as "read" | "contribute" | "edit",
+        expectedAccessVersion: requiredVersion(record, "expected_access_version"),
+      };
+      return sharingOutcome(
+        await execute(grantTaskSharingCommand, requestId(record), input),
+        input,
+      );
+    }
+    const sharingRevoke = rest.match(/^\/sharing\/grants\/([^/]+)\/revoke$/u);
+    if (sharingRevoke && request.method === "POST") {
+      const record = await body(request, ["expected_access_version", "request_id"]);
+      const input: RevokeTaskSharingInput = {
+        taskId,
+        grantId: sharingRevoke[1] ?? "",
+        expectedAccessVersion: requiredVersion(record, "expected_access_version"),
+      };
+      return sharingOutcome(
+        await execute(revokeTaskSharingCommand, requestId(record), input),
+        input,
+      );
+    }
     if (rest === "" && request.method === "GET") {
       if (!(await canReadTask(deps.db, principal, taskId))) {
         return json({ error: "not_found" }, 404);
