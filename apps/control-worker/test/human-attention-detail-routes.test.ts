@@ -7,6 +7,8 @@ import {
   answerAttentionCommand,
   bumpMemberEpoch,
   cliHash,
+  createRunCommand,
+  createTaskCommand,
   FIX,
   mintCliKey,
   randomUlid,
@@ -203,10 +205,10 @@ async function fixture(
       abuseSecret: AUTH_TEST_ENV.AUTH_ABUSE_SECRET,
     }),
   });
-  const request = (transport: Transport, id = attention.id) =>
+  const request = (transport: Transport, id: string | null = attention.id) =>
     app.request(
       new Request(
-        `${AUTH_TEST_ENV.APP_ORIGIN}${transport === "browser" ? `/api/v1/workspaces/${FIX.workspace}/attention/${id}` : `/api/v1/cli/attention/${id}`}`,
+        `${AUTH_TEST_ENV.APP_ORIGIN}${transport === "browser" ? `/api/v1/workspaces/${FIX.workspace}/attention` : "/api/v1/cli/attention"}${id === null ? "?limit=1" : `/${id}`}`,
         {
           headers:
             transport === "browser"
@@ -251,6 +253,93 @@ async function revoke(f: Fixture) {
     await f.db.prepare("SELECT revoked_at FROM task_human_grants WHERE id=?").get(f.grantId),
   ).toEqual({ revoked_at: LAUNCH_NOW });
 }
+
+async function misbindPrivateHistoryToSharedTarget(f: Fixture) {
+  const task = success(
+    await f.human(createTaskCommand, {
+      projectId: FIX.projectA,
+      title: "Synthetic shared attention-history declaration",
+      priority: "P2",
+    }),
+  );
+  const run = success(
+    await f.human(createRunCommand, {
+      taskId: task.id,
+      expectedTaskVersion: task.resource_version,
+      agentProfileId: f.profile.id,
+      agentProfileVersion: f.start.agent_profile_version,
+      workspacePolicyVersion: f.start.workspace_policy_version,
+      projectPolicyVersion: f.start.project_policy_version,
+      repositoryConfigVersion: f.start.repository_config_version,
+    }),
+  );
+  // Only the disposable request's declaration changes; its private immutable
+  // execution/assignment and observations remain retained source fixtures.
+  await f.db
+    .prepare("UPDATE attention_requests SET task_id=?,run_id=? WHERE workspace_id=? AND id=?")
+    .run(task.id, run.run.id, FIX.workspace, f.attention.id);
+  await revoke(f);
+  expect(await f.db.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+  expect(
+    await f.db
+      .prepare(
+        "SELECT task_id,run_id,run_execution_id,assignment_generation FROM attention_requests WHERE workspace_id=? AND id=?",
+      )
+      .get(FIX.workspace, f.attention.id),
+  ).toEqual({
+    task_id: task.id,
+    run_id: run.run.id,
+    run_execution_id: f.attention.run_execution_id,
+    assignment_generation: f.attention.assignment_generation,
+  });
+}
+
+describe("human attention historical source lineage", () => {
+  it.each([
+    ["browser", "before_request"],
+    ["cli", "before_request"],
+    ["browser", "final_selection"],
+    ["cli", "final_selection"],
+  ] as const)(
+    "%s withholds a private assignment behind a shared declaration at %s",
+    async (transport, boundary) => {
+      const f = await fixture({
+        resolved: true,
+        viewer: transport === "cli" ? FIX.owner : FIX.reviewer,
+      });
+      let cut: ReturnType<typeof beforeDetail> | undefined,
+        before: Awaited<ReturnType<typeof snapshot>> | undefined;
+      if (boundary === "final_selection") {
+        cut = beforeDetail(f, () => misbindPrivateHistoryToSharedTarget(f));
+      } else {
+        await misbindPrivateHistoryToSharedTarget(f);
+        before = await snapshot(f.db);
+      }
+      const response = await f.request(transport);
+      if (cut) expect(cut.observed()).toBe(true);
+      expect(response.status).toBe(404);
+      expect(response.headers.get("cache-control")).toContain("no-store");
+      expect(await response.json()).toEqual({ error: "not_found" });
+      expect(await snapshot(f.db)).toEqual(cut ? cut.baseline() : before);
+      expect(await f.db.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+    },
+  );
+
+  it.each(["browser", "cli"] as const)(
+    "%s inbox omits a falsely shared private assignment before rank and limit",
+    async (transport) => {
+      const f = await fixture({ viewer: transport === "cli" ? FIX.owner : FIX.reviewer });
+      await misbindPrivateHistoryToSharedTarget(f);
+      const before = await snapshot(f.db),
+        response = await f.request(transport, null);
+      expect(response.status).toBe(200);
+      expect(response.headers.get("cache-control")).toContain("no-store");
+      expect(await response.json()).toEqual({ attention: [] });
+      expect(await snapshot(f.db)).toEqual(before);
+      expect(await f.db.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+    },
+  );
+});
 
 describe("human attention final detail delivery", () => {
   it.each(["browser", "cli"] as const)(

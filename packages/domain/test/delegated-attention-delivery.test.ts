@@ -496,22 +496,17 @@ describe("final delegated attention selector", () => {
     await f.db
       .prepare("UPDATE attention_requests SET run_execution_id=? WHERE workspace_id=? AND id=?")
       .run(secondExecution.id, FIX.workspace, f.record.id);
-    const malformed = await getAttention(
-      f.db,
-      FIX.workspace,
-      [FIX.projectA],
-      f.record.id,
-      f.access,
-    );
-    expect(malformed).toMatchObject({
-      id: f.record.id,
-      task_id: f.taskId,
-      run_id: f.runId,
+    expect(
+      await getAttention(f.db, FIX.workspace, [FIX.projectA], f.record.id, f.access),
+    ).toBeNull();
+    // The preliminary reader now denies this fixture. Independently retain
+    // the malformed tuple to prove the delegated final selector still denies it.
+    const malformed = {
+      ...f.record,
       run_execution_id: secondExecution.id,
-      assignment_generation: 1,
-    });
+    };
     const before = await effects(f);
-    expect(await getDelegatedAttention(f.db, FIX.workspace, malformed!, f.access)).toBeNull();
+    expect(await getDelegatedAttention(f.db, FIX.workspace, malformed, f.access)).toBeNull();
     expect(await effects(f)).toEqual(before);
   });
 

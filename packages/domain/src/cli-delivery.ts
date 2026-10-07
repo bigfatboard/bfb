@@ -3,7 +3,12 @@
 
 import type { SqlDatabase } from "@bfb/db";
 
-import { rowToRecord, rankReason, type AttentionState } from "./attention.js";
+import {
+  ATTENTION_HISTORY_LINEAGE_SQL,
+  rowToRecord,
+  rankReason,
+  type AttentionState,
+} from "./attention.js";
 import type { CliPrincipal } from "./cli-credentials.js";
 import { DomainError } from "./hub.js";
 import {
@@ -285,7 +290,8 @@ export async function readCliAttention(
       JOIN tasks AS task ON task.workspace_id = attention.workspace_id AND task.id = attention.task_id AND task.project_id = attention.project_id
       JOIN runs AS run ON run.workspace_id = attention.workspace_id AND run.id = attention.run_id AND run.task_id = task.id AND run.project_id = task.project_id
       JOIN projects AS project ON project.workspace_id = task.workspace_id AND project.id = task.project_id
-      WHERE ${predicate.sql} ${options.state === undefined ? "" : "AND attention.state = ?"}
+      WHERE ${predicate.sql} AND ${ATTENTION_HISTORY_LINEAGE_SQL}
+      ${options.state === undefined ? "" : "AND attention.state = ?"}
       ORDER BY attention.blocking DESC,kind_rank ASC,attention.requested_at ASC,attention.id ASC LIMIT ?`,
       parameters: [
         ...predicate.parameters,
@@ -331,7 +337,8 @@ export async function readCliAttentionDetail(
       ON task.workspace_id = attention.workspace_id AND task.id = attention.task_id AND task.project_id = attention.project_id
     JOIN runs AS run ON run.workspace_id = attention.workspace_id AND run.id = attention.run_id AND run.task_id = task.id AND run.project_id = task.project_id
     LEFT JOIN attention_observations AS observation ON observation.workspace_id = attention.workspace_id AND observation.attention_id = attention.id
-    WHERE attention.id = ? AND ${predicate.sql} ORDER BY observation.occurred_at ASC,observation.rowid ASC`,
+    WHERE attention.id = ? AND ${predicate.sql} AND ${ATTENTION_HISTORY_LINEAGE_SQL}
+    ORDER BY observation.occurred_at ASC,observation.rowid ASC`,
     )
     .all(id, ...predicate.parameters)) as Row[];
   if (!rows[0]) denied();

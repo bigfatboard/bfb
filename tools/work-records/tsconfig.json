@@ -27,7 +27,8 @@
     "delegated-lists.ts",
     "human-detail-cache.ts",
     "public-business.ts",
-    "measurement-attention.ts"
+    "measurement-attention.ts",
+    "human-attention-history.ts"
   ],
   "references": [
     { "path": "../../packages/domain" },

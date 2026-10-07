@@ -607,6 +607,20 @@ const resolveAttentionBase: HubCommand<ResolveAttentionInput, AttentionRecord> =
   },
 };
 
+/** Bound to the joined attention/task/run aliases; historical reads do not require liveness. */
+export const ATTENTION_HISTORY_LINEAGE_SQL = `EXISTS (
+  SELECT 1 FROM run_executions AS attention_execution
+  JOIN execution_assignments AS attention_assignment
+    ON attention_assignment.workspace_id = attention_execution.workspace_id
+    AND attention_assignment.execution_id = attention_execution.id
+    AND attention_assignment.assignment_generation = attention.assignment_generation
+    AND attention_assignment.run_id = run.id
+    AND attention_assignment.task_id = task.id
+    AND attention_assignment.project_id = task.project_id
+  WHERE attention_execution.workspace_id = attention.workspace_id
+    AND attention_execution.id = attention.run_execution_id
+    AND attention_execution.run_id = run.id)`;
+
 /** Reads one request within the reader's project scope. Cross-project IDs stay hidden as null. */
 export async function getAttention(
   db: SqlDatabase,
@@ -629,7 +643,8 @@ export async function getAttention(
          AND run.id = attention.run_id AND run.task_id = task.id
          AND run.project_id = task.project_id
        WHERE attention.workspace_id = ? AND attention.id = ?
-         AND attention.project_id IN (${placeholders}) AND ${predicate.sql}`,
+         AND attention.project_id IN (${placeholders}) AND ${predicate.sql}
+         AND ${ATTENTION_HISTORY_LINEAGE_SQL}`,
     )
     .get(workspaceId, attentionId, ...projectIds, ...predicate.parameters)) as
     Record<string, unknown> | undefined;
@@ -662,6 +677,7 @@ export async function getHumanAttentionDetail(
         AND observation.attention_id = attention.id
        WHERE attention.workspace_id = ? AND attention.id = ?
          AND attention.project_id IN (SELECT value FROM json_each(?)) AND ${predicate.sql}
+         AND ${ATTENTION_HISTORY_LINEAGE_SQL}
        ORDER BY observation.occurred_at ASC, observation.rowid ASC`,
     )
     .all(workspaceId, attentionId, JSON.stringify(projectIds), ...predicate.parameters)) as Array<
@@ -767,22 +783,23 @@ export async function listAttention(
     throw new DomainError("invalid_argument", "attention list limit is invalid");
   }
   const placeholders = projectIds.map(() => "?").join(", ");
-  const predicate = readTaskPredicate(access, "t");
+  const predicate = readTaskPredicate(access, "task");
   const rows = (await db
     .prepare(
-      `SELECT a.*,
-              t.title AS task_title, p.name AS project_name,
-              r.result_state AS run_result_state, r.activity AS run_activity
-       FROM attention_requests AS a
-       JOIN tasks AS t ON t.workspace_id = a.workspace_id AND t.id = a.task_id
-         AND t.project_id = a.project_id
-       JOIN projects AS p ON p.workspace_id = a.workspace_id AND p.id = a.project_id
-       JOIN runs AS r ON r.workspace_id = a.workspace_id AND r.id = a.run_id
-         AND r.task_id = t.id AND r.project_id = t.project_id
-       WHERE a.workspace_id = ? AND a.project_id IN (${placeholders}) AND ${predicate.sql}
-         ${state === undefined ? "" : "AND a.state = ?"}
-       ORDER BY a.blocking DESC,
-                CASE a.kind
+      `SELECT attention.*,
+              task.title AS task_title, project.name AS project_name,
+              run.result_state AS run_result_state, run.activity AS run_activity
+       FROM attention_requests AS attention
+       JOIN tasks AS task ON task.workspace_id = attention.workspace_id AND task.id = attention.task_id
+         AND task.project_id = attention.project_id
+       JOIN projects AS project ON project.workspace_id = attention.workspace_id AND project.id = attention.project_id
+       JOIN runs AS run ON run.workspace_id = attention.workspace_id AND run.id = attention.run_id
+         AND run.task_id = task.id AND run.project_id = task.project_id
+       WHERE attention.workspace_id = ? AND attention.project_id IN (${placeholders}) AND ${predicate.sql}
+         AND ${ATTENTION_HISTORY_LINEAGE_SQL}
+         ${state === undefined ? "" : "AND attention.state = ?"}
+       ORDER BY attention.blocking DESC,
+                CASE attention.kind
                   WHEN 'blocker' THEN 0
                   WHEN 'destructive_action' THEN 1
                   WHEN 'credential' THEN 2
@@ -790,7 +807,7 @@ export async function listAttention(
                   WHEN 'review' THEN 4
                   ELSE 5
                 END ASC,
-                a.requested_at ASC, a.id ASC
+                attention.requested_at ASC, attention.id ASC
        LIMIT ?`,
     )
     .all(
@@ -840,6 +857,7 @@ export async function listAttentionObservations(
          AND run.project_id = task.project_id
        WHERE observation.workspace_id = ? AND observation.attention_id = ?
          AND attention.project_id IN (${placeholders}) AND ${predicate.sql}
+         AND ${ATTENTION_HISTORY_LINEAGE_SQL}
        ORDER BY observation.occurred_at ASC, observation.rowid ASC`,
     )
     .all(workspaceId, attentionId, ...projectIds, ...predicate.parameters)) as Array<{

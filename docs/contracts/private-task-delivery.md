@@ -1092,6 +1092,45 @@ C11. Human attention-detail delivery, other measurement-source lineages,
 ingestion/mutation authority, execution consumers, clocks/leases, private
 activation and live rollout are excluded.
 
+### Frozen human attention historical lineage
+
+This finite corrective C11 slice owns the shared attention read primitives used
+by human detail, ranked inbox and observation delivery. Declared readable task
+and run IDs cannot replace the retained execution and immutable assignment.
+
+- Before selecting attention bodies, answers, origin IDs, observations or rank
+  metadata, bind workspace/project/task/run, the execution belonging to that
+  run, and the assignment at the request's generation belonging to the same
+  run/task/project. Apply this relationship inside all four read selections:
+  `getAttention`, `getHumanAttentionDetail`, `listAttention` and
+  `listAttentionObservations`, plus the independent final CLI selections
+  `readCliAttention` and `readCliAttentionDetail`. Filter ranked requests before
+  ordering and limit; malformed high-priority rows cannot displace a valid page
+  member. CLI retains its exact captured binding/project subset, read scope,
+  Owner/Member ceiling and authorized-empty-page sentinel in the final statement.
+- Preserve the existing current parent-task ACL and original human, CLI,
+  delegated and local-agent ceilings. These shared read primitives add no
+  execution permission and do not change provider or runner consumers. Historical
+  canonical ended executions, earlier assignment generations, resolved requests
+  and authorized empty observation lists remain readable. Do not require current
+  runner authority, a live lease or an active/latest execution.
+- Human browser/CLI detail keeps its uniform missing/denied no-store envelope.
+  A malformed tuple present before the request, or appearing at the existing
+  final detail selection after authentication, must not return the question,
+  answer, origin or observations. Reads must not create business records or
+  rewrite retained source history. Existing business commands and delegated final
+  selection retain their independent admission/replay/delivery checks.
+- Use same-project private/shared fixtures, clean foreign-key checks, complete
+  read projections and stored-source snapshots. Keep canonical ended-history and
+  empty-history controls. A delegated robustness test must independently feed
+  its malformed retained record to the delegated final selector even when the
+  preliminary shared read now denies it.
+
+The additive target is `pnpm test:c11:human-attention-history`, composed once by
+C11. This is historical read selection, not ingestion/transition authority,
+provider operation, execution lifetime, metadata positions, private activation,
+publication or live rollout.
+
 ### Frozen task-detail panel selection
 
 This finite corrective C11 slice owns the result, measurement and artifact-review

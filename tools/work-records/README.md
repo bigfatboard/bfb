@@ -1,5 +1,16 @@
 # Work-record runtime proofs
 
+`pnpm test:c11:human-attention-history`, composed once by C11, owns
+`human-attention-history.ts`: four independently collecting native-D1 groups
+exercise canonical ended/earlier-generation and empty attention history, exact
+private retained assignment exclusion across six human/CLI selections, filtering
+before ranked limits, and late source/binding changes at final selection. CLI
+reads use a persisted synthetic exchanged binding and its original ceilings;
+this is not device-flow or mounted authentication proof. Full canonical-table
+snapshots and foreign-key checks prove read-only filtering, not history repair.
+Assignments and privacy remain explicit dormant fixtures without raw keys,
+local provider credentials, launch, leases, provider sessions or private activation.
+
 `pnpm test:c11:measurement-attention`, composed once by C11, owns
 `measurement-attention.ts`: four independently collecting disposable-D1 groups
 exercise canonical ended attention history and foreign-key-valid malformed
