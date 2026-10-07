@@ -414,7 +414,8 @@ describe("discussion causal lifecycle", () => {
     expect(view.decision).toBeUndefined();
     const task = (await buildProjectLanes(f.db, FIX.workspace, [FIX.projectA]))
       .flatMap((lane) => lane.tasks)
-      .find((task) => task.id === f.task.id);
+      .find((task) => task.taskId === f.task.id);
+    expect(task).toBeDefined();
     expect(task?.runSummary).toBeUndefined();
     expect((await listTaskDiscussions(f.db, principal, f.task.id)).discussions).toHaveLength(1);
   });

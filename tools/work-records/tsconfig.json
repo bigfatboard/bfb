@@ -12,7 +12,8 @@
     "privacy.ts",
     "delivery.ts",
     "aggregates.ts",
-    "diagnostics.ts"
+    "diagnostics.ts",
+    "board.ts"
   ],
   "references": [{ "path": "../../packages/domain" }, { "path": "../../packages/db" }]
 }

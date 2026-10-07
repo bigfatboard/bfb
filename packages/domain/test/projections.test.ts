@@ -128,7 +128,7 @@ describe("work surface projections", () => {
       .flatMap((lane) => lane.tasks)
       .find((task) => task.title === "Pass candidate");
     expect(enabledPassCandidate?.passToAgentProfileId).toBe(FIX.profileCodex);
-    expect(enabledPassCandidate?.latestEvent?.kind).toBe("task.create");
+    expect(enabledPassCandidate).not.toHaveProperty("latestEvent");
     expect(enabledPassCandidate?.runSummary).toEqual({ resultState: "open", activity: "unknown" });
     await db
       .prepare(`UPDATE workspace_policies SET allow_pass_to_agent = 0 WHERE workspace_id = ?`)

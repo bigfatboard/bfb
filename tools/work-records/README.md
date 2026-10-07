@@ -81,3 +81,13 @@ separate current X05 runtime D9 checks the same held browser policy, not v1 uplo
 All use the checked-in ordered migrations in a disposable local harness. No
 pilot enrollment, persistent local database, real user, credential or Terminal
 session is touched. No extra dependencies or generated fixtures are introduced.
+
+`pnpm test:c11:board`, composed by `pnpm test:c11`, owns `board.ts`: six fresh
+real-D1 checks exercise late grant revocation, one current board/deck statement,
+retained role/body coherence, precise UTC due ordering, typed recorded work-run
+history, project loss, independent fifty-card/three-item limits with fixed binds,
+and empty-board retained-epoch denial. Tasks originate through the production
+Hub; dormant privacy and retained run history use explicit synthetic fixtures.
+The reader holds heuristic recent-event metadata without rewriting stored history.
+These checks do not certify private creation, live execution, session lifetime,
+opaque positions or the complete C11 delivery matrix.

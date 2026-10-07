@@ -224,11 +224,9 @@ export function WorkBoard(props: WorkBoardProps) {
                                     ) : null}
                                   </div>
                                 ) : null}
-                                {card.latestEvent ? (
-                                  <p className="card-record" data-testid="latest-event">
-                                    {`Latest · ${card.latestEvent.kind} · ${card.latestEvent.createdAt}`}
-                                  </p>
-                                ) : null}
+                                <p className="card-record" data-testid="recent-events-unavailable">
+                                  Recent event details are unavailable.
+                                </p>
                                 {card.runSummary ? (
                                   <p className="card-record" data-testid="run-summary">
                                     {`Run · ${card.runSummary.resultState} · ${card.runSummary.activity}`}
@@ -237,7 +235,6 @@ export function WorkBoard(props: WorkBoardProps) {
                                 {!card.whyHuman &&
                                 !card.whyDelegable &&
                                 !assignedProfile &&
-                                !card.latestEvent &&
                                 !card.runSummary ? (
                                   <p className="compact-empty">
                                     No additional routing or run details.

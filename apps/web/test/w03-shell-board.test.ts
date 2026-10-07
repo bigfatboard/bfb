@@ -31,7 +31,6 @@ const LANE: ProjectLane = {
       projectTint: "#197d7d",
       topEdgePx: 3,
       sideStripe: false,
-      latestEvent: { kind: "progress_reported", createdAt: "2026-10-06T12:00:00Z" },
       runSummary: { resultState: "open", activity: "unknown" },
     },
   ],
@@ -129,6 +128,34 @@ afterEach(() => {
 });
 
 describe("compact project board", () => {
+  it("holds unproved recent-event metadata without adding a default command", () => {
+    const lanes = structuredClone([LANE]);
+    Object.assign(lanes[0]!.tasks[0]!, {
+      latestEvent: { kind: "SYNTHETIC_UNPROVED_EVENT", createdAt: "2026-10-06T12:00:00Z" },
+    });
+    const container = mount(
+      createElement(WorkBoard, {
+        humanDisplayName: "Synthetic human",
+        lanes,
+        needsNow: [],
+        agentWorkAvailable: false,
+        agentProfiles: [],
+        canManageTasks: false,
+      }),
+    );
+    const card = container.querySelector(".task-card")!;
+    const details = card.querySelector("details")!;
+    expect(container.textContent).not.toContain("SYNTHETIC_UNPROVED_EVENT");
+    expect(card.querySelector("[data-testid=recent-events-unavailable]")?.closest("details")).toBe(
+      details,
+    );
+    expect(details.open).toBe(false);
+    expect(card.querySelectorAll(":scope > button, :scope > details > summary")).toHaveLength(2);
+    click(card.querySelector("summary")!);
+    expect(details.open).toBe(true);
+    expect(details.textContent).toContain("Recent event details are unavailable.");
+  });
+
   it("exposes only Open and Details by default while retaining routing and run information", () => {
     const onSelectTask = vi.fn();
     const onPassToAgent = vi.fn();
@@ -154,7 +181,7 @@ describe("compact project board", () => {
     expect(card.querySelector(".priority-marker")?.textContent).toContain("P1 HIGH");
     for (const selector of [
       ".routing-reason",
-      "[data-testid=latest-event]",
+      "[data-testid=recent-events-unavailable]",
       "[data-testid=run-summary]",
       "[data-testid=pass-to-agent]",
     ]) {

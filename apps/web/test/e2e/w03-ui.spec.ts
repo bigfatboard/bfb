@@ -44,6 +44,50 @@ async function appearance(page: Page, value: "light" | "dark" | "system"): Promi
   await page.keyboard.press("Escape");
 }
 
+test("recent-event detail is held on demand even when a stale board supplies it", async ({
+  page,
+}) => {
+  await page.route("**/api/v1/workspaces/*/board", async (route) => {
+    const response = await route.fetch();
+    const body = (await response.json()) as {
+      lanes: Array<{ tasks: Array<Record<string, unknown>> }>;
+    };
+    for (const lane of body.lanes) {
+      for (const card of lane.tasks) {
+        card.latestEvent = {
+          kind: "SYNTHETIC_UNPROVED_BOARD_EVENT",
+          createdAt: "2026-10-06T12:00:00Z",
+        };
+      }
+    }
+    await route.fulfill({ response, json: body });
+  });
+  await signInAndOpenBoard(page, "owner");
+  const card = page.locator(".task-card").first();
+  await expect(page.getByText("SYNTHETIC_UNPROVED_BOARD_EVENT", { exact: false })).toHaveCount(0);
+  expect(await visibleCommands(card)).toBe(2);
+  const notice = card.getByTestId("recent-events-unavailable");
+  await expect(notice).not.toBeVisible();
+  await card.locator("summary").focus();
+  await page.keyboard.press("Enter");
+  await expect(notice).toBeVisible();
+  await expect(notice).toHaveText("Recent event details are unavailable.");
+  await appearance(page, "light");
+  await card.screenshot({
+    path: test.info().outputPath("board-detail-held-light.png"),
+    animations: "disabled",
+  });
+  await appearance(page, "dark");
+  await card.screenshot({
+    path: test.info().outputPath("board-detail-held-dark.png"),
+    animations: "disabled",
+  });
+  await card.locator("summary").focus();
+  await page.keyboard.press("Escape");
+  await expect(notice).not.toBeVisible();
+  await expect(card.locator("summary")).toBeFocused();
+});
+
 for (const role of ["owner", "member", "restricted"] as RoleKey[]) {
   test(`${role} gets two task controls and discoverable role-appropriate sections`, async ({
     page,

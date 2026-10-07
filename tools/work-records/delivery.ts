@@ -358,7 +358,7 @@ try {
   const fullBoard = await buildProjectLanes(db, FIX.workspace, principal.projectIds, principal);
   const fullCards = fullBoard.flatMap((lane) => lane.tasks);
   assert.equal(fullCards.length, 49);
-  assert(fullCards.every((card) => card.latestEvent?.kind === "task.create"));
+  assert(fullCards.every((card) => !("latestEvent" in card)));
   assert.doesNotMatch(JSON.stringify(fullBoard), /PRIVATE_TITLE_CANARY/);
   check("full_board_page_stays_within_d1_parameter_limit");
   assert.deepEqual(

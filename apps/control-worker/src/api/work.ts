@@ -11,8 +11,6 @@ import {
   addTaskLinkCommand,
   assertProjectAccess,
   assertTaskChildAccess,
-  buildNeedsNowDeck,
-  buildProjectLanes,
   cancelRunCommand,
   createExecutionCommand,
   createProviderSessionCommand,
@@ -31,6 +29,7 @@ import {
   listTasksPage,
   loadPrincipal,
   recordBrowserActivityCommand,
+  readWorkBoard,
   requestChangesCommand,
   startReviewTimerCommand,
   stopReviewTimerCommand,
@@ -229,20 +228,21 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
     });
 
   if (path === `${base}/board` && request.method === "GET") {
+    const board = await readWorkBoard(
+      deps.db,
+      deps.workspaceId,
+      principal.projectIds,
+      deps.now,
+      principal,
+    );
     return json({
       human: { id: deps.principal.humanId, display_name: deps.principal.displayName },
-      role: principal.role,
-      authorization_epoch: principal.authorizationEpoch,
-      lanes: await buildProjectLanes(deps.db, deps.workspaceId, principal.projectIds, principal),
-      needs_now: await buildNeedsNowDeck(
-        deps.db,
-        deps.workspaceId,
-        deps.principal.humanId,
-        principal.projectIds,
-        deps.now,
-        principal,
-      ),
+      role: board.role,
+      authorization_epoch: board.authorizationEpoch,
+      lanes: board.lanes,
+      needs_now: board.needsNow,
       agent_work_available: false,
+      recent_events_available: board.recentEventsAvailable,
     });
   }
 
