@@ -2189,7 +2189,7 @@ try {
       null,
       "resolved attention selects nothing",
     );
-    // Delivery identity is stable: queue redelivery converges on one logical effect.
+    // The internal delivery key is stable: queue redelivery converges on one logical effect.
     const first = deriveDeliveryId(FIX.workspace, 41, "browser_push", FIX.owner);
     assert.equal(
       deriveDeliveryId(FIX.workspace, 41, "browser_push", FIX.owner),
@@ -2216,14 +2216,17 @@ try {
       "attention",
     );
     assert(link.startsWith(`${origin}/w/`), "deep link stays on the app origin");
+    const publicIdentity = g01Id("G01PUBLICNOTICE");
     const payload = buildPushPayload({
       appOrigin: origin,
       workspaceId: FIX.workspace,
       subject: { projectId: FIX.projectA, taskId: taskIds[0] ?? FIX.taskAttention },
       category: "attention",
-      deliveryId: first,
-      eventCursor: 41,
+      deliveryId: publicIdentity,
     });
+    assert.equal(payload.delivery_id, publicIdentity, "payload retains its public identity");
+    assert.notEqual(payload.delivery_id, first, "payload omits the internal delivery key");
+    assert.deepEqual(Object.keys(payload).sort(), ["body", "deep_link", "delivery_id", "title"]);
     scanClean("sg05-outputs", [link, payload]);
     // Audit and activity stay separated: audit is Owner-only structured records,
     // activity is project-scoped without private payloads.
