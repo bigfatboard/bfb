@@ -118,10 +118,10 @@ async function fixture() {
     JURISDICTION: "eu",
     ENVIRONMENT: "local",
   } as unknown as ControlBindings;
-  const app = (database = db) =>
+  const app = (database = db, observedNow = NOW) =>
     createControlApp(validateControlEnv(bindings), {
       db: database,
-      now: NOW,
+      now: observedNow,
       abuseSecret: AUTH_TEST_ENV.AUTH_ABUSE_SECRET,
       humanAuth: () => ({
         auth: context.auth,
@@ -265,55 +265,66 @@ async function fixture() {
       id = await audit(value);
     return { ids: versionIds, value, id };
   };
+  // Actual recovery proofs use live time without moving the historical read corpus.
+  const { operationNow } = (await db
+    .prepare("SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now') AS operationNow")
+    .get()) as { operationNow: string };
   const recover = async (
     ids: string[],
     actor: Actor = "owner",
     requestId = "synthetic-recovery-audit-request",
   ) => {
     const humanId = actor === "owner" ? FIX.owner : actor === "member" ? FIX.member : FIX.reviewer;
-    const proofId = await issueStepUpProof(
-      db,
-      humanId,
-      {
-        action: "ops.recover",
-        workspaceId: FIX.workspace,
-        targetId: `ops-recover:${KIND}:${FIX.workspace}`,
-        scopes: [],
-        authorizationEpoch: 1,
-        expiresAt: "2026-10-06T12:05:00.000Z",
-      },
-      NOW,
-    );
-    const response = await app().request(
-      new Request(ORIGIN + BASE + "/recovery", {
-        method: "POST",
-        headers: {
-          cookie: actors[actor].cookie,
-          "content-type": "application/json",
-          origin: ORIGIN,
-          "sec-fetch-site": "same-origin",
-          "x-bfb-csrf": actors[actor].csrf,
+    const previousNow = new Date();
+    // The Hub authorizer replaces request time with Date; preserve the same retry instant.
+    vi.setSystemTime(operationNow);
+    try {
+      const proofId = await issueStepUpProof(
+        db,
+        humanId,
+        {
+          action: "ops.recover",
+          workspaceId: FIX.workspace,
+          targetId: `ops-recover:${KIND}:${FIX.workspace}`,
+          scopes: [],
+          authorizationEpoch: 1,
+          expiresAt: new Date(Date.parse(operationNow) + 5 * 60_000).toISOString(),
         },
-        body: JSON.stringify({
-          kind: KIND,
-          target: { version_ids: ids },
-          request_id: requestId,
-          step_up_proof_id: proofId,
+        operationNow,
+      );
+      const response = await app(db, operationNow).request(
+        new Request(ORIGIN + BASE + "/recovery", {
+          method: "POST",
+          headers: {
+            cookie: actors[actor].cookie,
+            "content-type": "application/json",
+            origin: ORIGIN,
+            "sec-fetch-site": "same-origin",
+            "x-bfb-csrf": actors[actor].csrf,
+          },
+          body: JSON.stringify({
+            kind: KIND,
+            target: { version_ids: ids },
+            request_id: requestId,
+            step_up_proof_id: proofId,
+          }),
         }),
-      }),
-      undefined,
-      bindings,
-    );
-    expect(response.status).toBe(200);
-    const body = (await response.json()) as {
-      ok: true;
-      result: { action_id: string; replayed: boolean; detail: { resolved: number } };
-    };
-    expect(body).toMatchObject({
-      ok: true,
-      result: { action_id: actionId(ids), detail: { resolved: ids.length } },
-    });
-    return body.result;
+        undefined,
+        bindings,
+      );
+      expect(response.status).toBe(200);
+      const body = (await response.json()) as {
+        ok: true;
+        result: { action_id: string; replayed: boolean; detail: { resolved: number } };
+      };
+      expect(body).toMatchObject({
+        ok: true,
+        result: { action_id: actionId(ids), detail: { resolved: ids.length } },
+      });
+      return body.result;
+    } finally {
+      vi.setSystemTime(previousNow);
+    }
   };
   const privacy = () =>
     db
@@ -381,6 +392,7 @@ async function fixture() {
     task,
     run,
     calls,
+    operationNow,
     request,
     upload,
     ledger,
@@ -470,7 +482,7 @@ describe("stuck-upload recovery audit browser delivery", () => {
     expect((await f.recover(ids)).replayed).toBe(true);
     const result = await page(await f.request());
     expect(result.entries.map((e) => e.payload)).toEqual([outward(receipt(ids, true))]);
-    expect(result.entries[0]?.created_at).toBe(NOW);
+    expect(result.entries[0]?.created_at).toBe(f.operationNow);
   });
   it("retains the historical positive actor epoch without fabricating current epoch or proof provenance", async () => {
     const f = await fixture(),

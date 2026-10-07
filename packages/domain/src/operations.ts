@@ -170,7 +170,9 @@ async function prepareStepUp(
   return async () => {
     await ctx.db
       .prepare(
-        `UPDATE passkey_step_up_proofs SET consumed_at = ? WHERE proof_id = ? AND consumed_at IS NULL AND expires_at > ?`,
+        `UPDATE passkey_step_up_proofs SET consumed_at = ?
+         WHERE proof_id = ? AND consumed_at IS NULL AND expires_at > ?
+           AND julianday(expires_at) > julianday('now')`,
       )
       .run(stamp, proofId, ctx.now);
     // Write-only single-winner check: D1 batches forbid reads after a queued

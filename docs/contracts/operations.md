@@ -171,6 +171,16 @@ working outside-Hub recovery path after quarantine:
   committed work. See the [C11 contract](private-task-delivery.md) for the
   checkpoint and remaining activation limits.
 
+Retention changes and this upload-recovery command consume their action-bound
+proofs in the existing guarded Hub batch. The operations-local consume UPDATE
+requires both supplied-time validation and database-clock liveness at execution;
+an unchanged proof cannot outlive its deadline through an await. Successful
+consumption/commit remains valid if its response arrives past TTL, retaining
+original occurrence times and one-use history. The
+[C11 atomic-expiry freeze](private-task-delivery.md#frozen-operations-step-up-atomic-expiry)
+owns proof and acceptance; this is not a later-statement deadline or a change to
+shared step-up/runner authorization.
+
 ## Retention policy and sweep
 
 - `GET /api/v1/workspaces/:ws/operations/retention` — owner/member. Shows

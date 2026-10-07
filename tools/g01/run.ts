@@ -2426,6 +2426,9 @@ try {
   {
     const tables = await checkOperationsTables(db);
     assert(tables.ok, `operations tables missing: ${tables.missing.join(",")}`);
+    const retentionClock = (await db
+      .prepare("SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now') AS now")
+      .get()) as { now: string };
     const retentionProof = await issueStepUpProof(
       db,
       FIX.owner,
@@ -2435,19 +2438,21 @@ try {
         targetId: `ops-retention:${FIX.workspace}`,
         scopes: [],
         authorizationEpoch: 1,
-        expiresAt: launchDeadline(now, 600_000),
+        expiresAt: launchDeadline(retentionClock.now, 600_000),
       },
-      now,
+      retentionClock.now,
     );
-    const retention = await human<{ raw_log_retention_days: number }>("ops.retention.set", {
-      rawLogRetentionDays: 30,
-      stepUpProofId: retentionProof,
-    });
+    const retention = await human<{ raw_log_retention_days: number }>(
+      "ops.retention.set",
+      { rawLogRetentionDays: 30, stepUpProofId: retentionProof },
+      { now: retentionClock.now },
+    );
     assert.equal(retention.raw_log_retention_days, 30, "retention policy updates under step-up");
-    const staleRetention = await execute("ops.retention.set", {
-      rawLogRetentionDays: 1,
-      stepUpProofId: retentionProof,
-    });
+    const staleRetention = await execute(
+      "ops.retention.set",
+      { rawLogRetentionDays: 1, stepUpProofId: retentionProof },
+      { now: retentionClock.now },
+    );
     assert(!staleRetention.ok, "consumed retention proof cannot set policy twice");
     const health = await collectWorkspaceHealth(db, FIX.workspace, now, {
       workspaceId: FIX.workspace,

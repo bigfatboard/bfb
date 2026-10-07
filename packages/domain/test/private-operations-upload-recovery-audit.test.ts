@@ -77,7 +77,11 @@ async function fixture() {
     }),
   );
   await db.prepare("DELETE FROM audit_events WHERE workspace_id=?").run(FIX.workspace);
-  return { db, hub, taskId: task.id, runId: run.run.id };
+  // Only actual recovery commands use live proof time; the audit corpus stays historical.
+  const { operationNow } = (await db
+    .prepare("SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now') AS operationNow")
+    .get()) as { operationNow: string };
+  return { db, hub, taskId: task.id, runId: run.run.id, operationNow };
 }
 type Fixture = Awaited<ReturnType<typeof fixture>>;
 async function target(
@@ -264,22 +268,29 @@ async function proof(f: Fixture, actor = FIX.owner) {
       targetId: `ops-recover:resolve_stuck_upload:${FIX.workspace}`,
       scopes: [],
       authorizationEpoch: 1,
-      expiresAt: "2026-10-06T12:05:00.000Z",
+      expiresAt: new Date(Date.parse(f.operationNow) + 5 * 60_000).toISOString(),
     },
-    NOW,
+    f.operationNow,
   );
 }
 async function execute(f: Fixture, ids: string[], actor = FIX.owner) {
-  return success(
-    await f.hub.execute(resolveStuckUploadCommand, {
-      workspaceId: FIX.workspace,
-      actorHumanId: actor,
-      authorizationEpoch: 1,
-      idempotencyKey: randomUlid(),
-      now: NOW,
-      input: { versionIds: ids, stepUpProofId: await proof(f, actor) },
-    }),
-  );
+  const previousNow = new Date();
+  // Authorize observes Date inside the Hub; original and retry retain one tie instant.
+  vi.setSystemTime(f.operationNow);
+  try {
+    return success(
+      await f.hub.execute(resolveStuckUploadCommand, {
+        workspaceId: FIX.workspace,
+        actorHumanId: actor,
+        authorizationEpoch: 1,
+        idempotencyKey: randomUlid(),
+        now: f.operationNow,
+        input: { versionIds: ids, stepUpProofId: await proof(f, actor) },
+      }),
+    );
+  } finally {
+    vi.setSystemTime(previousNow);
+  }
 }
 function beforeSelection(db: SqlDatabase, change: () => Promise<void>): SqlDatabase {
   let fired = false;

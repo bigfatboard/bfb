@@ -48,11 +48,11 @@ function bindings(context: AuthTestContext): ControlBindings {
   };
 }
 
-function appFor(context: AuthTestContext) {
+function appFor(context: AuthTestContext, now = NOW) {
   const currentBindings = bindings(context);
   const app = createControlApp(validateControlEnv(currentBindings), {
     db: context.db,
-    now: NOW,
+    now,
     abuseSecret: AUTH_TEST_ENV.AUTH_ABUSE_SECRET,
     humanAuth: () => ({
       auth: context.auth,
@@ -136,6 +136,7 @@ async function proofFor(
   humanId: string,
   action: string,
   targetId: string,
+  now = NOW,
 ): Promise<string> {
   return issueStepUpProof(
     context.db,
@@ -146,9 +147,9 @@ async function proofFor(
       targetId,
       scopes: [],
       authorizationEpoch: 1,
-      expiresAt: new Date(Date.parse(NOW) + 5 * 60_000).toISOString(),
+      expiresAt: new Date(Date.parse(now) + 5 * 60_000).toISOString(),
     },
-    NOW,
+    now,
   );
 }
 
@@ -348,7 +349,10 @@ describe("operations browser routes", () => {
 
   it("changes retention only for Owners with a fresh bound proof", async () => {
     const { context, owner, member } = await contextWithSessions();
-    const { app, currentBindings } = appFor(context);
+    const clock = (await context.db
+      .prepare("SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now') AS observed_at")
+      .get()) as { observed_at: string };
+    const { app, currentBindings } = appFor(context, clock.observed_at);
     const ownerCsrf = await csrf(app, currentBindings, owner.cookie);
     const memberCsrf = await csrf(app, currentBindings, member.cookie);
     const memberProof = await proofFor(
@@ -356,6 +360,7 @@ describe("operations browser routes", () => {
       FIX.member,
       OPS_STEP_UP_ACTIONS.retention,
       `ops-retention:${FIX.workspace}`,
+      clock.observed_at,
     );
     const memberDenied = await app.request(
       mutation(
@@ -378,6 +383,7 @@ describe("operations browser routes", () => {
       FIX.owner,
       OPS_STEP_UP_ACTIONS.retention,
       `ops-retention:${FIX.workspace}`,
+      clock.observed_at,
     );
     const changed = await app.request(
       mutation(
@@ -416,6 +422,7 @@ describe("operations browser routes", () => {
       FIX.owner,
       OPS_STEP_UP_ACTIONS.recover,
       `ops-retention:${FIX.workspace}`,
+      clock.observed_at,
     );
     const mismatched = await app.request(
       mutation(

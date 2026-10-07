@@ -50,6 +50,13 @@ function hub(db: SqlDatabase): WorkspaceHub {
   return new WorkspaceHub(db);
 }
 
+async function currentOperationTime(db: SqlDatabase): Promise<string> {
+  const clock = (await db
+    .prepare("SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now') AS observed_at")
+    .get()) as { observed_at: string };
+  return clock.observed_at;
+}
+
 async function stepUp(
   db: SqlDatabase,
   humanId: string,
@@ -104,13 +111,15 @@ describe("x05 operations migration", () => {
 describe("retention policy", () => {
   it("sets the window for an Owner with a fresh bound proof", async () => {
     const db = await openDomainDb();
+    const now = await currentOperationTime(db);
     const proof = await stepUp(
       db,
       FIX.owner,
       OPS_STEP_UP_ACTIONS.retention,
       `ops-retention:${FIX.workspace}`,
+      now,
     );
-    const outcome = await setRetention(db, 7, proof);
+    const outcome = await setRetention(db, 7, proof, FIX.owner, now);
     expect(outcome.ok).toBe(true);
     expect(success(outcome)).toMatchObject({ raw_log_retention_days: 7, version: 1 });
   });
@@ -135,14 +144,16 @@ describe("retention policy", () => {
       false,
     );
 
+    const now = await currentOperationTime(db);
     const replay = await stepUp(
       db,
       FIX.owner,
       OPS_STEP_UP_ACTIONS.retention,
       `ops-retention:${FIX.workspace}`,
+      now,
     );
-    expect((await setRetention(db, 7, replay)).ok).toBe(true);
-    expect((await setRetention(db, 9, replay)).ok).toBe(false);
+    expect((await setRetention(db, 7, replay, FIX.owner, now)).ok).toBe(true);
+    expect((await setRetention(db, 9, replay, FIX.owner, now)).ok).toBe(false);
 
     const wrong = await stepUp(
       db,
@@ -288,13 +299,15 @@ describe("retention eligibility", () => {
   it("selects only eligible raw log chunks and never shared hashes", async () => {
     const db = await openDomainDb();
     const rows = await seedArtifacts(db);
+    const now = await currentOperationTime(db);
     const proof = await stepUp(
       db,
       FIX.owner,
       OPS_STEP_UP_ACTIONS.retention,
       `ops-retention:${FIX.workspace}`,
+      now,
     );
-    expect((await setRetention(db, 30, proof)).ok).toBe(true);
+    expect((await setRetention(db, 30, proof, FIX.owner, now)).ok).toBe(true);
     const found = await listRetentionEligibleChunks(db, FIX.workspace, NOW, ACCESS);
     expect(found.days).toBe(30);
     expect(found.examined).toBe(2);
@@ -405,13 +418,15 @@ describe("redaction", () => {
 describe("audit versus activity", () => {
   it("keeps security audit and activity distinct and attributable", async () => {
     const db = await openDomainDb();
+    const now = await currentOperationTime(db);
     const proof = await stepUp(
       db,
       FIX.owner,
       OPS_STEP_UP_ACTIONS.retention,
       `ops-retention:${FIX.workspace}`,
+      now,
     );
-    expect((await setRetention(db, 14, proof)).ok).toBe(true);
+    expect((await setRetention(db, 14, proof, FIX.owner, now)).ok).toBe(true);
     const audit = await readSecurityAudit(db, FIX.workspace, { access: ACCESS });
     expect(audit.entries).toEqual([]);
     expect(
@@ -786,9 +801,10 @@ describe("privileged recovery", () => {
       .run(FIX.workspace, version, artifact, "f".repeat(64), "2026-09-18T10:00:00.000Z");
     const stuck = await listStuckUploads(db, FIX.workspace, NOW);
     expect(stuck.map((entry) => entry.version_id)).toEqual([version]);
-    // Authorization observes server Date, independent of the command's observed time.
+    const now = await currentOperationTime(db);
+    // Only the consuming operation uses a live clock; retained upload history stays historical.
     vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(new Date(NOW));
+    vi.setSystemTime(new Date(now));
     const resolve = async () =>
       success(
         await hub(db).execute(resolveStuckUploadCommand, {
@@ -796,7 +812,7 @@ describe("privileged recovery", () => {
           actorHumanId: FIX.owner,
           authorizationEpoch: 1,
           idempotencyKey: randomUlid(),
-          now: NOW,
+          now,
           input: {
             versionIds: [version],
             stepUpProofId: await stepUp(
@@ -804,6 +820,7 @@ describe("privileged recovery", () => {
               FIX.owner,
               OPS_STEP_UP_ACTIONS.recover,
               `ops-recover:resolve_stuck_upload:${FIX.workspace}`,
+              now,
             ),
           },
         }),

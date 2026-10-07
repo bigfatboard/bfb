@@ -30,6 +30,7 @@
     "measurement-attention.ts",
     "human-attention-history.ts",
     "human-task-collections.ts",
+    "operations-step-up-expiry.ts",
     "task-positions.ts"
   ],
   "references": [

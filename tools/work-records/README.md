@@ -1,5 +1,26 @@
 # Work-record runtime proofs
 
+`pnpm test:c11:operations-expiry`, composed once by C11, owns
+`operations-step-up-expiry.ts` and the seven-file mounted/staged operations
+regression target. Eight new staged cases cover unchanged natural expiry,
+equal-delay live controls and valid consumption whose committed response arrives
+past TTL. Six independently collecting disposable native-D1 groups exercise
+retention changes, fresh upload recovery and fresh-proof target-ledger retries.
+The actual consume UPDATE is prepared/bound while the proof is live; the same
+explicit five-second pre-batch delay is used for live and expired waves. Original
+native objects and parameters are forwarded without changing authority, proof
+or source rows. Expired batches must roll back every canonical effect. Live
+batches commit before expiry, retain complete history while their response is
+held past TTL, and preserve original occurrence times. Full expected snapshots
+include existing retry ledger/proof/receipt history, not just row counts.
+Engine tables are individually named exclusions; the HTTP budget table is named
+separately and compared without an HTTP request. Statement/batch bounds cover
+timed domain/Hub commands, not setup, migrations or snapshots. Short proof
+windows are explicit synthetic issuance fixtures, not production TTL changes.
+This proves the operations-local consumption boundary only, not shared step-up,
+later-statement deadlines, mounted sign-in, private retention, R2 deletion,
+runner/lease/provider behavior, deployment or private activation.
+
 `pnpm test:c11:task-positions`, composed once by C11, owns `task-positions.ts`:
 six independently collecting disposable native-D1 groups exercise opaque child
 positions through the registered production Hub. Four collection traversals

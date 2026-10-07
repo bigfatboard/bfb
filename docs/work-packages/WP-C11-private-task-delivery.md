@@ -94,7 +94,8 @@ fixtures are repaired; G01 still fails on an expired historical runner credentia
 and AG02/AG04 remain open. This finite certificate does not waive release gates.
 
 Next product-owned slice is operations-local step-up natural expiry at atomic
-consumption, frozen in the delivery contract but not yet implemented or certified.
+consumption. Its local guard, staged/native proofs and bounded fixture-clock
+repairs are implemented; clean certification remains pending.
 GitHub manual-link collision policy and historical source fences, execution-
 owned delivery and destructive private retention remain open. Timo separately
 authorized merge and first Cloudflare beta deployment after the product work

@@ -27,6 +27,7 @@ import { resultStagedD1 } from "./result-fixture.js";
 const NOW = "2026-09-18T12:00:00.000Z";
 const OLD = "2026-07-01T12:00:00.000Z";
 const STUCK = "2026-09-18T10:00:00.000Z";
+const recoveryClocks = new WeakMap<SqlDatabase, string>();
 const access = (humanId = FIX.owner, authorizationEpoch = 1): TaskAccessContext => ({
   workspaceId: FIX.workspace,
   humanId,
@@ -42,21 +43,46 @@ beforeEach(() => {
 });
 afterEach(() => vi.useRealTimers());
 
-function human<I, R>(
+async function recoveryTime(db: SqlDatabase): Promise<string> {
+  const retained = recoveryClocks.get(db);
+  if (retained) return retained;
+  const row = (await db.prepare("SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now') AS now").get()) as {
+    now: string;
+  };
+  recoveryClocks.set(db, row.now);
+  return row.now;
+}
+async function human<I, R>(
   db: SqlDatabase,
   command: HubCommand<I, R>,
   input: I,
   actor = FIX.owner,
   key = randomUlid(),
 ) {
-  return new WorkspaceHub(db).execute(command, {
-    workspaceId: FIX.workspace,
-    actorHumanId: actor,
-    authorizationEpoch: 1,
-    idempotencyKey: key,
-    now: NOW,
-    input,
-  });
+  const recovery = command.name === resolveStuckUploadCommand.name;
+  const proof = recovery
+    ? ((await db
+        .prepare("SELECT created_at FROM passkey_step_up_proofs WHERE proof_id=?")
+        .get((input as { stepUpProofId: string }).stepUpProofId)) as
+        { created_at: string } | undefined)
+    : undefined;
+  const now = proof?.created_at ?? NOW;
+  const saved = new Date();
+  // Only the recovery operation follows its proof's SQL-clock-aligned time;
+  // historical task fixtures, retention reads and cutoffs keep NOW.
+  if (recovery) vi.setSystemTime(now);
+  try {
+    return await new WorkspaceHub(db).execute(command, {
+      workspaceId: FIX.workspace,
+      actorHumanId: actor,
+      authorizationEpoch: 1,
+      idempotencyKey: key,
+      now,
+      input,
+    });
+  } finally {
+    if (recovery) vi.setSystemTime(saved);
+  }
 }
 async function fixture() {
   const db = await openDomainDb();
@@ -83,7 +109,7 @@ async function fixture() {
       agentProfileVersion: 1,
     }),
   );
-  return { db, taskId: task.id, runId: run.run.id };
+  return { db, taskId: task.id, runId: run.run.id, recoveryNow: await recoveryTime(db) };
 }
 type Fixture = Awaited<ReturnType<typeof fixture>>;
 async function artifact(
@@ -183,6 +209,7 @@ async function proof(
   targetId = `ops-recover:resolve_stuck_upload:${FIX.workspace}`,
   action = "ops.recover",
 ) {
+  const now = await recoveryTime(db);
   return issueStepUpProof(
     db,
     humanId,
@@ -192,9 +219,9 @@ async function proof(
       targetId,
       scopes: [],
       authorizationEpoch: 1,
-      expiresAt: "2026-09-18T12:05:00.000Z",
+      expiresAt: new Date(Date.parse(now) + 5 * 60_000).toISOString(),
     },
-    NOW,
+    now,
   );
 }
 async function rotate(db: SqlDatabase) {
@@ -216,9 +243,11 @@ async function demote(db: SqlDatabase, role = "reviewer") {
 async function uploadGrant(
   db: SqlDatabase,
   versionId: string,
-  expiresAt = "2026-09-18T12:10:00.000Z",
+  expiresAt?: string,
   consumedAt: string | null = null,
 ) {
+  const expiry =
+    expiresAt ?? new Date(Date.parse(await recoveryTime(db)) + 10 * 60_000).toISOString();
   await db
     .prepare(
       `INSERT INTO artifact_upload_grants
@@ -232,7 +261,7 @@ async function uploadGrant(
       "c".repeat(64),
       FIX.owner,
       "a".repeat(64),
-      expiresAt,
+      expiry,
       consumedAt,
       STUCK,
     );
@@ -596,7 +625,7 @@ describe("private operations Hub upload recovery", () => {
       kind === "available" ? "available" : "uploading",
       runId,
       undefined,
-      kind === "young" ? NOW : STUCK,
+      kind === "young" ? f.recoveryNow : STUCK,
     );
     if (kind === "private") {
       await privatize(f);
@@ -622,8 +651,10 @@ describe("private operations Hub upload recovery", () => {
       await uploadGrant(
         f.db,
         ref.versionId,
-        kind === "recently_expired_grant" ? "2026-09-18T11:58:00.000Z" : undefined,
-        kind === "consumed_future_grant" ? NOW : null,
+        kind === "recently_expired_grant"
+          ? new Date(Date.parse(f.recoveryNow) - 2 * 60_000).toISOString()
+          : undefined,
+        kind === "consumed_future_grant" ? f.recoveryNow : null,
       );
     const proofId = await proof(f.db);
     expect(
@@ -929,8 +960,10 @@ describe("private operations Hub upload recovery", () => {
         await uploadGrant(
           f.db,
           ids[1]!,
-          loss === "recently_expired_grant" ? "2026-09-18T11:58:00.000Z" : undefined,
-          loss === "consumed_future_grant" ? NOW : null,
+          loss === "recently_expired_grant"
+            ? new Date(Date.parse(f.recoveryNow) - 2 * 60_000).toISOString()
+            : undefined,
+          loss === "consumed_future_grant" ? f.recoveryNow : null,
         );
       else
         await f.db

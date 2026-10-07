@@ -1551,7 +1551,8 @@ This freeze is not implementation or acceptance evidence.
   any HTTP budgets separately named. Measure handler/Hub statement bindings,
   SQL bytes and batch lengths without counting setup or snapshot queries.
 
-The owning additive target will be composed by C11 once implemented. Retain exact
+The owning additive target is `pnpm test:c11:operations-expiry`, composed once by
+C11. Implementation and clean acceptance evidence remain separate. Retain exact
 X05 regression and full repository/platform verification. No R2 deletion, private
 retention activation, later-statement deadline, broader role/epoch repair, live
 provider, installed app, runner/lease or complete C11 claim is included.

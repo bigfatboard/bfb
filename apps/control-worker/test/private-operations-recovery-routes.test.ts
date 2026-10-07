@@ -48,6 +48,10 @@ async function fixture() {
   contexts.push(context);
   const db = context.db;
   await seedSyntheticWorkspace(db, NOW);
+  const clock = (await db.prepare("SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now') AS now").get()) as {
+    now: string;
+  };
+  const recoveryNow = clock.now;
   const hub = new WorkspaceHub(db);
   const task = success(
     await hub.execute(createTaskCommand, {
@@ -103,10 +107,10 @@ async function fixture() {
     JURISDICTION: "eu",
     ENVIRONMENT: "local",
   } as unknown as ControlBindings;
-  const app = (database = db) =>
+  const app = (database = db, observedAt = NOW) =>
     createControlApp(validateControlEnv(bindings), {
       db: database,
-      now: NOW,
+      now: observedAt,
       abuseSecret: AUTH_TEST_ENV.AUTH_ABUSE_SECRET,
       humanAuth: () => ({
         auth: context.auth,
@@ -139,33 +143,44 @@ async function fixture() {
       csrf: ((await response.json()) as { csrf_token: string }).csrf_token,
     };
   }
-  const request = (
+  const request = async (
     tail: string,
     actor: Actor = "owner",
     body?: Record<string, unknown>,
     database = db,
     headers: Record<string, string> = {},
-  ) =>
-    app(database).request(
-      new Request(ORIGIN + BASE + tail, {
-        method: body ? "POST" : "GET",
-        headers: {
-          cookie: actors[actor].cookie,
-          ...(body
-            ? {
-                "content-type": "application/json",
-                origin: ORIGIN,
-                "sec-fetch-site": "same-origin",
-                "x-bfb-csrf": actors[actor].csrf,
-              }
-            : {}),
-          ...headers,
-        },
-        ...(body ? { body: JSON.stringify(body) } : {}),
-      }),
-      undefined,
-      bindings,
-    );
+  ) => {
+    const recovery = tail === "/recovery" && body !== undefined;
+    const saved = new Date();
+    const observedAt = recovery ? recoveryNow : NOW;
+    // Keep historical read views unchanged while the action-bound recovery
+    // operation and Hub authorizer observe its locally captured SQL time.
+    if (recovery) vi.setSystemTime(observedAt);
+    try {
+      return await app(database, observedAt).request(
+        new Request(ORIGIN + BASE + tail, {
+          method: body ? "POST" : "GET",
+          headers: {
+            cookie: actors[actor].cookie,
+            ...(body
+              ? {
+                  "content-type": "application/json",
+                  origin: ORIGIN,
+                  "sec-fetch-site": "same-origin",
+                  "x-bfb-csrf": actors[actor].csrf,
+                }
+              : {}),
+            ...headers,
+          },
+          ...(body ? { body: JSON.stringify(body) } : {}),
+        }),
+        undefined,
+        bindings,
+      );
+    } finally {
+      if (recovery) vi.setSystemTime(saved);
+    }
+  };
   const upload = async (
     state: "uploading" | "available" = "uploading",
     runId: string | null = run,
@@ -213,9 +228,9 @@ async function fixture() {
         targetId,
         scopes: [],
         authorizationEpoch: 1,
-        expiresAt: "2026-10-06T12:05:00.000Z",
+        expiresAt: new Date(Date.parse(recoveryNow) + 5 * 60_000).toISOString(),
       },
-      NOW,
+      recoveryNow,
     );
   const body = (
     versionIds: string[],
@@ -280,6 +295,7 @@ async function fixture() {
     db,
     task,
     run,
+    recoveryNow,
     calls,
     actors,
     request,
@@ -537,7 +553,7 @@ describe("private operations recovery browser command", () => {
       let ids = [version];
       if (target === "private") await f.privacy();
       if (target === "missing") ids = [randomUlid()];
-      if (target === "nonstuck") ids = [await f.upload("uploading", f.run, NOW)];
+      if (target === "nonstuck") ids = [await f.upload("uploading", f.run, f.recoveryNow)];
       if (target === "mixed") ids.push(randomUlid());
       const response = await f.request("/recovery", "owner", f.body(ids, proof));
       expect(response.status).toBe(404);
@@ -577,8 +593,12 @@ describe("private operations recovery browser command", () => {
           FIX.member,
           f.run,
           "f".repeat(64),
-          grant === "recent_expiry" ? "2026-10-06T11:58:00.000Z" : "2026-10-06T12:05:00.000Z",
-          grant === "consumed_future" ? "2026-10-06T11:50:00.000Z" : null,
+          new Date(
+            Date.parse(f.recoveryNow) + (grant === "recent_expiry" ? -2 : 5) * 60_000,
+          ).toISOString(),
+          grant === "consumed_future"
+            ? new Date(Date.parse(f.recoveryNow) - 10 * 60_000).toISOString()
+            : null,
           OLD,
         );
       const response = await f.request("/recovery", "owner", f.body([version], proof));
