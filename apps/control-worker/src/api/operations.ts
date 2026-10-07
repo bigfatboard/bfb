@@ -339,7 +339,7 @@ export async function handleOperationsApi(
           return failure(new DomainError(outcome.error.code, outcome.error.message));
         }
         await assertOperationsUploadRecoveryAccess(deps.db, workspaceId, versionIds, principal);
-        return json(outcome);
+        return json({ ok: true, result: outcome.result });
       }
       throw new DomainError("request_rejected", "recovery kind is unavailable");
     }
