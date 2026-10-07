@@ -128,13 +128,17 @@ async function access(input: Parameters<typeof issueSyntheticMcpAccess>[1] = {})
   return issueSyntheticMcpAccess(db, { now: NOW, expiresAt: EXPIRES_AT, ...input });
 }
 
-async function liveContextAccess() {
+async function liveReadAccess(input: Parameters<typeof issueSyntheticMcpAccess>[1] = {}) {
   const clock = (await db
     .prepare(
       "SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now') AS observed_at, strftime('%Y-%m-%dT%H:%M:%fZ','now','+10 minutes') AS expires_at",
     )
     .get()) as { observed_at: string; expires_at: string };
-  return issueSyntheticMcpAccess(db, { now: clock.observed_at, expiresAt: clock.expires_at });
+  return issueSyntheticMcpAccess(db, {
+    ...input,
+    now: clock.observed_at,
+    expiresAt: clock.expires_at,
+  });
 }
 
 async function call(
@@ -389,7 +393,7 @@ describe("private task delivery through remote MCP", () => {
 
   it("filters a named human's task pages before LIMIT and delivers only agent-visible context", async () => {
     await grant("read");
-    const { accessToken } = await liveContextAccess();
+    const { accessToken } = await liveReadAccess();
     const expectedIds = [sharedTask.id, privateTask.id].sort();
     const firstReply = await call(accessToken, "bfb_list_tasks", { limit: 1 });
     const first = value<TaskPage>(firstReply);
@@ -495,7 +499,7 @@ describe("private task delivery through remote MCP", () => {
 
   it("task contribution authority cannot replace the OAuth write scope", async () => {
     await grant("contribute");
-    const { accessToken } = await access({ scopes: ["bfb:read", "offline_access"] });
+    const { accessToken } = await liveReadAccess({ scopes: ["bfb:read", "offline_access"] });
     const reply = await call(accessToken, "bfb_add_comment", {
       task_id: privateTask.id,
       request_id: "synthetic-no-write-scope",
@@ -558,7 +562,7 @@ describe("private task delivery through remote MCP", () => {
 
   it("a private grant cannot preserve delivery after project access is revoked", async () => {
     await grant("read");
-    const { accessToken } = await access();
+    const { accessToken } = await liveReadAccess();
     expect(
       value<{ task: TaskRecord }>(
         await call(accessToken, "bfb_get_task", {
@@ -584,7 +588,7 @@ describe("private task delivery through remote MCP", () => {
     "%s rechecks revoked task authority before an identical cached reply",
     async (tool, permission, command, fields) => {
       const grantId = await grant(permission);
-      const { accessToken } = await (tool === "bfb_get_context" ? liveContextAccess() : access());
+      const { accessToken } = await (tool === "bfb_get_context" ? liveReadAccess() : access());
       const args = { task_id: privateTask.id, request_id: `synthetic-cached-${tool}`, ...fields };
       value(await call(accessToken, tool, args));
       expect(
@@ -646,7 +650,7 @@ describe("private task delivery through remote MCP", () => {
     const deniedParent = await createTask("Synthetic denied subtree parent", sharedTask.id);
     const visibleChild = await createTask("Synthetic readable subtree child", deniedParent.id);
     await makePrivate(deniedParent.id);
-    const { accessToken } = await access();
+    const { accessToken } = await liveReadAccess();
     const reply = await call(accessToken, "bfb_list_tasks");
     const page = value<TaskPage>(reply);
     expect(page.tasks.map((task) => task.id).sort()).toEqual(
@@ -665,7 +669,7 @@ describe("private task delivery through remote MCP", () => {
     const child = await createTask("Synthetic delegated subtree descendant", root.id);
     await makePrivate(parent.id);
     await grant("read", parent.id);
-    const bounded = await access({ taskId: root.id });
+    const bounded = await liveReadAccess({ taskId: root.id });
 
     const rootReply = await call(bounded.accessToken, "bfb_get_task", { task_id: root.id });
     expect(value<{ task: TaskRecord }>(rootReply).task).toMatchObject({
@@ -685,7 +689,7 @@ describe("private task delivery through remote MCP", () => {
     denied(deniedParent);
     noPrivateExistence(deniedParent, [parent]);
 
-    const broader = await access();
+    const broader = await liveReadAccess();
     expect(
       value<{ task: TaskRecord }>(
         await call(broader.accessToken, "bfb_get_task", { task_id: parent.id }),
