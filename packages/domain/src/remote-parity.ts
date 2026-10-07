@@ -334,7 +334,8 @@ async function delegatedArtifactRunAuthority(runId: string, ctx: HubContext) {
   }
 }
 
-type DelegatedArtifactCommitTarget =
+type DelegatedRunCommitTarget =
+  | { kind: "attention"; executionId: string; assignmentGeneration: number }
   | { kind: "create"; artifactId: string | null; format: ArtifactFormat; role: ArtifactRole }
   | {
       kind: "finalize";
@@ -347,11 +348,11 @@ type DelegatedArtifactCommitTarget =
       r2Key: string;
     };
 
-/** Repeat retained authority and publication identity in the batch that writes the artifact. */
-async function guardDelegatedArtifactCommit(
+/** Repeat retained delegated authority and the exact command target in the committing batch. */
+async function guardDelegatedRunCommit(
   ctx: HubContext,
-  authenticated: Awaited<ReturnType<typeof delegatedArtifactRunAuthority>>,
-  target: DelegatedArtifactCommitTarget,
+  authenticated: Awaited<ReturnType<typeof delegatedRunAuthority>>,
+  target: DelegatedRunCommitTarget,
 ) {
   const { authority, run } = authenticated;
   const contribute = taskAccessPredicate(authority.delegation, "contribute", "task");
@@ -359,10 +360,11 @@ async function guardDelegatedArtifactCommit(
   const scopes = `CASE WHEN json_valid(credential.scopes_json) THEN
     CASE WHEN json_type(credential.scopes_json) = 'array' THEN credential.scopes_json ELSE '[]' END
     ELSE '[]' END`;
-  let publication = "1";
-  const publicationParameters: Array<string | number> = [];
+  const roles = target.kind === "attention" ? "'owner', 'member', 'reviewer'" : "'owner', 'member'";
+  let commandTarget = "1";
+  const targetParameters: Array<string | number> = [];
   if (target.kind === "finalize") {
-    publication = `EXISTS (
+    commandTarget = `EXISTS (
       SELECT 1 FROM artifacts AS artifact
       JOIN artifact_versions AS version
         ON version.workspace_id = artifact.workspace_id AND version.artifact_id = artifact.id
@@ -377,7 +379,7 @@ async function guardDelegatedArtifactCommit(
         AND receipt.content_hash = version.expected_digest AND receipt.size = version.declared_size
         AND object.content_hash = receipt.content_hash AND object.size = receipt.size
     )`;
-    publicationParameters.push(
+    targetParameters.push(
       target.r2Key,
       target.artifactId,
       target.format,
@@ -386,13 +388,21 @@ async function guardDelegatedArtifactCommit(
       target.contentHash,
       target.size,
     );
+  } else if (target.kind === "attention") {
+    commandTarget = `run.result_state IN ('open', 'changes_requested', 'submitted') AND EXISTS (
+      SELECT 1 FROM execution_assignments AS assignment
+      WHERE assignment.workspace_id = run.workspace_id AND assignment.execution_id = ?
+        AND assignment.assignment_generation = ? AND assignment.run_id = run.id
+        AND assignment.task_id = run.task_id AND assignment.project_id = run.project_id
+    )`;
+    targetParameters.push(target.executionId, target.assignmentGeneration);
   } else if (target.artifactId !== null) {
-    publication = `EXISTS (
+    commandTarget = `EXISTS (
       SELECT 1 FROM artifacts AS artifact
       WHERE artifact.workspace_id = run.workspace_id AND artifact.id = ?
         AND artifact.run_id = run.id AND artifact.format = ? AND artifact.role = ?
     )`;
-    publicationParameters.push(target.artifactId, target.format, target.role);
+    targetParameters.push(target.artifactId, target.format, target.role);
   }
   const id = randomUlid();
   // SQL execution time is an additional ceiling; prepared clocks and work observations stay intact.
@@ -420,11 +430,11 @@ async function guardDelegatedArtifactCommit(
           AND run.purpose = 'work' AND task.project_id = run.project_id
           AND credential.id = ? AND credential.human_id = ? AND credential.client_id = ?
           AND credential.authorization_epoch = ? AND credential.revoked_at IS NULL
-          AND sponsor.role IN ('owner', 'member')
+          AND sponsor.role IN (${roles})
           AND EXISTS (SELECT 1 FROM json_each(${scopes}) AS scope
             WHERE scope.type = 'text' AND scope.value = 'bfb:task:write')
           AND NOT EXISTS (SELECT 1 FROM json_each(${scopes}) AS scope WHERE scope.type <> 'text')
-          AND ${contribute.sql} AND ${credential.sql} AND ${publication}
+          AND ${contribute.sql} AND ${credential.sql} AND ${commandTarget}
       ) THEN 1 ELSE 0 END`,
     )
     .run(
@@ -439,7 +449,7 @@ async function guardDelegatedArtifactCommit(
       authority.delegation.authorizationEpoch,
       ...contribute.parameters,
       ...credential.parameters,
-      ...publicationParameters,
+      ...targetParameters,
     );
   await ctx.db.prepare("DELETE FROM artifact_mutation_guards WHERE id = ?").run(id);
 }
@@ -531,7 +541,8 @@ export const requestDelegatedAttentionCommand: HubCommand<
     assignment_generation: record.assignment_generation,
   }),
   async run(input, ctx) {
-    const { authority, run, task } = await delegatedAttentionAuthority(input, ctx);
+    const authenticated = await delegatedAttentionAuthority(input, ctx);
+    const { authority, run, task } = authenticated;
     if (typeof input.kind !== "string" || !ATTENTION_KINDS.includes(input.kind)) {
       throw new DomainError("invalid_argument", "attention kind is invalid");
     }
@@ -551,6 +562,11 @@ export const requestDelegatedAttentionCommand: HubCommand<
     const binding = await latestExecutionAssignment(ctx.db, ctx.workspaceId, run.id);
     const requiredRole = ATTENTION_KIND_ROLES[input.kind];
     const id = randomUlid();
+    await guardDelegatedRunCommit(ctx, authenticated, {
+      kind: "attention",
+      executionId: binding.execution_id,
+      assignmentGeneration: binding.assignment_generation,
+    });
     await ctx.db
       .prepare(
         `INSERT INTO attention_requests
@@ -907,7 +923,7 @@ export const createDelegatedArtifactCommand: HubCommand<
         throw new DomainError("request_rejected", "request rejected");
       }
     }
-    await guardDelegatedArtifactCommit(ctx, authenticated, {
+    await guardDelegatedRunCommit(ctx, authenticated, {
       kind: "create",
       artifactId,
       format,
@@ -1112,7 +1128,7 @@ export const finalizeDelegatedArtifactCommand: HubCommand<
     if (!object || object.content_hash !== contentHash || object.size !== input.size) {
       throw new DomainError("request_rejected", "request rejected");
     }
-    await guardDelegatedArtifactCommit(ctx, authenticated, {
+    await guardDelegatedRunCommit(ctx, authenticated, {
       kind: "finalize",
       artifactId: version.artifact_id,
       versionId: input.versionId,

@@ -730,6 +730,51 @@ This proves these command-local guard statements, not every subsequent statement
 or response delivery, artifact byte retrieval, other OAuth commands, runner
 leases, complete private activation or the pending GitHub collision policy.
 
+### Frozen delegated attention commit authority
+
+This corrective C11 slice owns `attention.request.delegation` creation inside
+its committing D1 batch. It does not change shared preparation-time helpers,
+runner/local capabilities, execution assignment freshness, provider behavior,
+attention wire shapes, exact idempotent retries or changed-input rejection.
+
+- Before attention effects, a write-only CHECK repeats the retained
+  run→task→project tuple, work-run purpose and permitted result states (`open`,
+  `changes_requested`, `submitted`). Repeat sponsor membership/retained epoch,
+  the existing Owner/Member/Reviewer request ceiling, kernel `contribute`,
+  current project access and private contribution, plus the exact delegation's
+  sponsor/client, revocation, valid write scope and current project/task-subtree
+  boundary. Preserve the existing `bfb:task:write` requirement without adding
+  `bfb:read` or adopting a newer sponsor epoch.
+- A separate execution-clock CHECK requires the exact credential's expiry to
+  be strictly later than database `now`. Missing, invalid, NULL and elapsed
+  expiry fail closed. Prepared predicates, request/observation/audit timestamps
+  and `ctx.now` stay unchanged.
+- Retain the exact execution/assignment generation as waiter context for the
+  same workspace/run/task/project. Its immutable historical tuple remains
+  valid context: do not require an active execution/lease, a newer latest
+  assignment, runner acknowledgement or new execution authorization.
+- Finish reads before queued writes. Guard failure returns uniform
+  `command_failed` and atomically rolls back attention request/observation,
+  semantic/audit/outbox receipts, idempotency and cursor. Independent authority
+  changes remain. Failed keys may retry after valid current authority returns;
+  successful exact retries retain the original record without duplicate effects
+  and changed inputs still reject.
+- Prove healthy delayed Owner/Member/Reviewer and write-only-scope requests,
+  including a submitted run's review question. Prove independent production
+  `revokeDelegation` before flush, private contribution loss, current scope/
+  project/epoch/boundary loss and unchanged-credential natural expiry. Genuine
+  mounted OAuth MCP requests and separate actual-D1/native-statement Hub
+  witnesses must retain valid positive controls and complete effect snapshots.
+  Witness successful independent mutations; create genuine boundary tasks and
+  revoke/regrant immutable permissions rather than rewriting history. A cursor,
+  FK or competing-Hub backstop that already rejects on old source is a control,
+  not new committing-authority proof.
+
+The additive target is `pnpm test:c11:delegated-attention`, composed once by C11.
+This proves command-local creation guard statements, not cached/read response
+delivery, every later statement, runner/lease expiry, private activation or the
+pending GitHub collision policy.
+
 ### Frozen browser board selection
 
 This corrective C11 slice binds already-authorized board delivery to the
