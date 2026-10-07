@@ -16,6 +16,7 @@ export * from "./agent-attention.js";
 export * from "./authorization.js";
 export * from "./public-business.js";
 export * from "./cli-delivery.js";
+export * from "./human-task-collections.js";
 export * from "./fixtures.js";
 export * from "./command-catalog.js";
 export * from "./hub.js";

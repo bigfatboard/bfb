@@ -1060,6 +1060,40 @@ local-agent delivery, destructive retention, artifact-byte consumers and private
 activation are excluded. No new private controls or live operation are enabled.
 The additive target is `pnpm test:c11:public-business`, composed once by C11.
 
+### Frozen browser task child-collection selection
+
+This finite corrective C11 slice owns browser task comments, context (all and
+agent audiences), dependencies, links and work-run collections. Their current
+child predicates suppress bodies after parent revocation, but a late denial
+must not be reported as an authorized empty collection.
+
+- Select the exact readable parent, its authority sentinel and the child page in
+  one final statement. Retain the originally loaded human, authorization epoch
+  and project vector alongside current task-kernel read authority. A project
+  gained or task moved during an await cannot widen that captured ceiling.
+- Missing or currently denied parents return the existing uniform
+  `{ "error": "not_found" }` HTTP 404, including collections with no rows or a
+  terminal cursor. Authorized empty collections retain their current HTTP 200
+  DTO. No advisory read or post-selection asynchronous work replaces the final
+  authority-bearing statement.
+- Preserve existing fields, comment attribution, context audience filtering and
+  version order, dependency-target read checks, exact work-run/task/project joins,
+  ordering, limit-plus-one lookahead and cursor fields. Reviewer read access
+  remains valid. This does not certify opaque continuations or new context
+  delivery/receipt semantics.
+- Reproduce loss of a named read grant immediately before the real final child
+  selection using genuine synthetic browser sessions. Record the original
+  failure as HTTP 200 empty versus required 404, not as a demonstrated body leak.
+  Retain healthy empty/terminal-page controls, representative late membership,
+  epoch and project loss, clean foreign-key checks and unchanged canonical rows
+  after each independent fixture mutation.
+
+Run execution/session collections, review timers, shared agent/delegated context
+consumers, mutations, clocks, leases, cleanup and private activation are excluded.
+The additive target is `pnpm test:c11:task-collections`, composed once by C11.
+The contract is preparation only until its source and exact target receive their
+own clean-checkout acceptance.
+
 ### Frozen historical attention sources for measurements
 
 This finite corrective C11 slice owns only attention-derived run, task and

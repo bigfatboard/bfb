@@ -18,7 +18,6 @@ import {
   createTaskCommand,
   DomainError,
   failRunCommand,
-  getAgentContext,
   getRunMeasurements,
   getTask,
   getTaskMeasurements,
@@ -29,6 +28,7 @@ import {
   loadPrincipal,
   recordBrowserActivityCommand,
   readWorkBoard,
+  readHumanTaskCollection,
   requestChangesCommand,
   startReviewTimerCommand,
   stopReviewTimerCommand,
@@ -417,33 +417,14 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
       }
       const pagination = page(url);
       const limit = pagination.limit ?? 50;
-      const predicate = taskAccessPredicate(principal, "read", "comment_task");
-      const rows = (await deps.db
-        .prepare(
-          `SELECT comment.id, comment.author_human_id, comment.author_delegation_id,
-             comment.body, comment.kind, comment.created_at,
-             CASE WHEN effect.operation_key IS NOT NULL THEN 'agent_run'
-                  WHEN comment.author_delegation_id IS NOT NULL THEN 'delegated_human'
-                  WHEN comment.author_human_id IS NOT NULL THEN 'human' ELSE 'unknown' END AS author_kind,
-             effect.run_id AS author_run_id, effect.execution_id AS author_execution_id,
-             effect.provider_session_id AS author_provider_session_id, effect.percent, effect.confidence
-           FROM comments comment JOIN tasks AS comment_task
-             ON comment_task.workspace_id = comment.workspace_id AND comment_task.id = comment.task_id
-           LEFT JOIN agent_work_effects effect
-             ON effect.workspace_id = comment.workspace_id AND effect.comment_id = comment.id
-             AND effect.target_task_id = comment.task_id AND effect.kind IN ('comment.add', 'progress.report')
-           WHERE comment.workspace_id = ? AND comment.task_id = ?
-             AND ${predicate.sql}
-             ${pagination.cursor ? "AND comment.id > ?" : ""}
-           ORDER BY comment.id ASC LIMIT ?`,
-        )
-        .all(
-          deps.workspaceId,
-          taskId,
-          ...predicate.parameters,
-          ...(pagination.cursor ? [pagination.cursor] : []),
-          limit + 1,
-        )) as Array<{ id: string }>;
+      const rows = await readHumanTaskCollection(
+        deps.db,
+        principal,
+        taskId,
+        "comments",
+        pagination,
+      );
+      if (!rows) return json({ error: "not_found" }, 404);
       const hasMore = rows.length > limit;
       const comments = hasMore ? rows.slice(0, limit) : rows;
       return json({
@@ -471,23 +452,13 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
       if (audience !== "all" && audience !== "agent") {
         throw new DomainError("invalid_argument", "context audience view is invalid");
       }
-      if (audience === "agent") {
-        return json({
-          context: await getAgentContext(deps.db, deps.workspaceId, taskId, principal),
-        });
-      }
-      const predicate = taskAccessPredicate(principal, "read", "context_task");
-      return json({
-        context: await deps.db
-          .prepare(
-            `SELECT item.id, item.kind, item.body, item.version, item.audience, item.content_hash, item.created_at
-             FROM task_context_items AS item JOIN tasks AS context_task
-               ON context_task.workspace_id = item.workspace_id AND context_task.id = item.task_id
-             WHERE item.workspace_id = ? AND item.task_id = ? AND ${predicate.sql}
-             ORDER BY item.version ASC`,
-          )
-          .all(deps.workspaceId, taskId, ...predicate.parameters),
-      });
+      const context = await readHumanTaskCollection(
+        deps.db,
+        principal,
+        taskId,
+        audience === "agent" ? "agent_context" : "context",
+      );
+      return context ? json({ context }) : json({ error: "not_found" }, 404);
     }
     if (rest === "/context" && request.method === "POST") {
       const record = await body(request, ["kind", "audience", "body", "request_id"]);
@@ -516,31 +487,14 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
       }
       const pagination = page(url);
       const limit = pagination.limit ?? 50;
-      const predicate = taskAccessPredicate(principal, "read");
-      const source = taskAccessPredicate(principal, "read", "source_task");
-      const rows = (await deps.db
-        .prepare(
-          `SELECT dependency.depends_on_task_id, dependency.kind, dependency.created_at,
-                  task.title, task.state, task.priority
-           FROM task_dependencies AS dependency
-           JOIN tasks AS task
-             ON task.workspace_id = dependency.workspace_id
-            AND task.id = dependency.depends_on_task_id
-           JOIN tasks AS source_task ON source_task.workspace_id = dependency.workspace_id
-             AND source_task.id = dependency.task_id
-           WHERE dependency.workspace_id = ? AND dependency.task_id = ?
-             AND ${source.sql} AND ${predicate.sql}
-             ${pagination.cursor ? "AND dependency.depends_on_task_id > ?" : ""}
-           ORDER BY dependency.depends_on_task_id ASC LIMIT ?`,
-        )
-        .all(
-          deps.workspaceId,
-          taskId,
-          ...source.parameters,
-          ...predicate.parameters,
-          ...(pagination.cursor ? [pagination.cursor] : []),
-          limit + 1,
-        )) as Array<{ depends_on_task_id: string }>;
+      const rows = await readHumanTaskCollection(
+        deps.db,
+        principal,
+        taskId,
+        "dependencies",
+        pagination,
+      );
+      if (!rows) return json({ error: "not_found" }, 404);
       const hasMore = rows.length > limit;
       const dependencies = hasMore ? rows.slice(0, limit) : rows;
       return json({
@@ -569,24 +523,10 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
       }
       const pagination = page(url);
       const limit = pagination.limit ?? 50;
-      const predicate = taskAccessPredicate(principal, "read", "link_task");
-      const rows = (await deps.db
-        .prepare(
-          `SELECT link.id, link.kind, link.url, link.label, link.created_at
-           FROM task_links AS link JOIN tasks AS link_task
-             ON link_task.workspace_id = link.workspace_id AND link_task.id = link.task_id
-           WHERE link.workspace_id = ? AND link.task_id = ? AND ${predicate.sql}
-             ${pagination.cursor ? "AND link.id > ?" : ""}
-           ORDER BY link.id ASC LIMIT ?`,
-        )
-        .all(
-          deps.workspaceId,
-          taskId,
-          ...predicate.parameters,
-          ...(pagination.cursor ? [pagination.cursor] : []),
-          limit + 1,
-        )) as Array<{ id: string }>;
-      return json(pagedBody("links", rows, limit));
+      const rows = await readHumanTaskCollection(deps.db, principal, taskId, "links", pagination);
+      return rows
+        ? json(pagedBody("links", rows as Array<{ id: string }>, limit))
+        : json({ error: "not_found" }, 404);
     }
     if (rest === "/runs" && request.method === "POST") {
       const record = await body(request, [
@@ -616,26 +556,10 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
       }
       const pagination = page(url);
       const limit = pagination.limit ?? 50;
-      const predicate = taskAccessPredicate(principal, "read", "run_task");
-      const rows = (await deps.db
-        .prepare(
-          `SELECT run.id, run.project_id, run.task_id, run.requested_by_human_id, run.agent_profile_id,
-                  run.result_state, run.activity, run.resource_version, run.created_at
-           FROM runs AS run JOIN tasks AS run_task
-             ON run_task.workspace_id = run.workspace_id AND run_task.id = run.task_id
-             AND run_task.project_id = run.project_id
-           WHERE run.workspace_id = ? AND run.task_id = ? AND run.purpose = 'work' AND ${predicate.sql}
-             ${pagination.cursor ? "AND run.id > ?" : ""}
-           ORDER BY run.id ASC LIMIT ?`,
-        )
-        .all(
-          deps.workspaceId,
-          taskId,
-          ...predicate.parameters,
-          ...(pagination.cursor ? [pagination.cursor] : []),
-          limit + 1,
-        )) as Array<{ id: string }>;
-      return json(pagedBody("runs", rows, limit));
+      const rows = await readHumanTaskCollection(deps.db, principal, taskId, "runs", pagination);
+      return rows
+        ? json(pagedBody("runs", rows as Array<{ id: string }>, limit))
+        : json({ error: "not_found" }, 404);
     }
   }
 

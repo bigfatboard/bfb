@@ -121,6 +121,16 @@ remain stored and cannot serve as anchors.
 These checks do not attest historical source provenance, opaque positions or a new snapshot format. The
 separate current X05 runtime D9 checks the same held browser policy, not v1 upload.
 
+`pnpm test:c11:task-collections`, composed by `pnpm test:c11`, owns
+`human-task-collections.ts`. Its bounded native D1 groups exercise the final
+parent sentinel together with browser collection SQL, keeping authorized empty
+and terminal pages distinct from late denial. Captured human, epoch and project
+ceilings are retained, including a fixture-only task move/new project grant.
+Production Hub setup is separate from dormant privacy and independent authority
+fixtures. Canonical row snapshots and foreign-key checks guard read effects.
+This is native selector proof, not browser credential admission, opaque cursor,
+provider, execution or private activation certification.
+
 All use the checked-in ordered migrations in a disposable local harness. No
 pilot enrollment, persistent local database, real user, credential or Terminal
 session is touched. No extra dependencies or generated fixtures are introduced.

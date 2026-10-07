@@ -28,7 +28,8 @@
     "human-detail-cache.ts",
     "public-business.ts",
     "measurement-attention.ts",
-    "human-attention-history.ts"
+    "human-attention-history.ts",
+    "human-task-collections.ts"
   ],
   "references": [
     { "path": "../../packages/domain" },
