@@ -290,6 +290,50 @@ execution-owned consumers and full private activation remain separate. Browser
 session identity is not a captured workspace authorization epoch: its first
 workspace membership lookup establishes that request's retained authority.
 
+### Frozen GitHub status delivery
+
+The next bounded GitHub read slice is workspace status, not an internal
+reconciliation or scoped-key migration. The frozen source prediction is now
+reproduced against unchanged `21e4d69`: two awaited status reads can outlive the
+handler's first workspace membership capture and combine metadata from different
+selections. Staged and native OLD probes retain useful healthy controls; neither
+the first fixture failures nor separate internal concerns supply that evidence.
+
+- Keep the existing workspace-wide Owner/Member audience and exact installation
+  and active repository-link DTOs, fields, ordering and useful empty status.
+  Reviewer admission stays denied. This slice does not add project filtering
+  to the documented status audience.
+- The browser retains the human and epoch from its first workspace membership
+  lookup. Pass that retained ceiling into status selection; never replace it
+  with a newly loaded epoch after an await. Browser session identity alone is
+  not a prior workspace capture.
+- One final coherent database selection must bind canonical installations and
+  links with current membership, retained epoch and Owner/Member authority,
+  including an empty-result authority sentinel. A late removal, demotion or
+  epoch loss returns fixed `forbidden / github status is unavailable` and the
+  existing browser 403/no-store mapping, with neither partial array delivered.
+  Healthy authorized emptiness remains a 200 with both arrays empty.
+- Keep direct internal status fixtures usable without inventing browser
+  authority. Current business state and display fields come from the final
+  selection; an earlier installation array cannot survive a later lifecycle or
+  repository-link change. Reads create no business, audit, cursor, cache or
+  OAuth effects. Classify HTTP budgets and explicit independent source changes
+  separately and compare full canonical snapshots with clean foreign keys.
+- Prove useful Owner/Member controls, initial Reviewer denial, retained late
+  epoch/removal/demotion, empty-status loss and a changed installation/link
+  selection. An explicitly synthetic membership reinstatement at the same
+  still-revoked authorization epoch must not restore access; do not claim that
+  this bypasses the real service's epoch bump. Use actual mounted synthetic cookies
+  separately from direct selectors and disposable native D1. Instrumented SQL
+  bounds exclude unobserved Worker/DO internals, setup and snapshots. Preserve
+  the certified manual hold, history/provenance selectors and exact X04.
+
+No shared auth, Hub, step-up, runner/provider, webhook/upsert, repository mapping
+or schema changes belong to this read slice. Browser natural session expiry,
+internal reconciliation remap/conflict lineage and commit-time installation
+authority remain separate, unproved concerns. Status certification alone cannot
+activate private creation, sharing or publication.
+
 Operations activity and stuck-work projections exclude private or dangling
 task-bound rows, even for the creator, until the complete operations delivery
 gate passes. Resolve ledger/launch/artifact children through their exact

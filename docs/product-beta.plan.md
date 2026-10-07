@@ -8,7 +8,23 @@ Timo split it from remote start and agent-to-agent work on 6 October. It starts
 from the integrated `7b8620c` checkpoint, preserving the existing implementation
 and certificates. Package metadata remains the source of truth for completion.
 
-Latest local checkpoint: [operations step-up atomic expiry](work-packages/evidence/WP-C11/operations-step-up-expiry-manifest.json),
+Latest local checkpoint: [beta manual GitHub linking hold](work-packages/evidence/WP-C11/github-manual-hold-manifest.json),
+clean-certified at `21e4d69`: C11 passes 3,779 stage case invocations/153 file
+invocations in twenty-four blocks, six panel browser cases and 247 native labels
+across twenty-three harnesses. Dependencies and forty-one notification drill
+labels remain separate. Full verification passes 4,904 TypeScript cases/227 files,
+Go and all sixteen Swift cases; exact X04 passes 1,154 protocol cases/twelve files,
+Go protocol, 49 focused cases/three files and thirteen native scenarios. The hold
+target passes 98 cases/six files and seven native groups. OLD records ten domain
+failures/four controls, ten mounted hold-dependent failures/five controls and five
+native failures/two controls. Valid manual attempts now share one fixed denial
+before task/evidence or cache selection; history and webhook reconciliation remain.
+Direct history/provenance reader bounds are seven bindings/1,971 bytes, not
+Worker/DO command bounds. The first unchanged-source Go inspection failure remains
+separate, with no assigned cause or waiver; scoped uncached repetitions and the
+complete fresh retry pass without code or timeout changes.
+
+The earlier [operations step-up atomic expiry](work-packages/evidence/WP-C11/operations-step-up-expiry-manifest.json) is
 clean-certified at `44c5714`: C11 passes 3,683 stage case invocations across
 147 file invocations in twenty-three blocks, six panel browser cases and 240
 native labels across twenty-two harnesses. Dependencies and the notification
@@ -80,14 +96,17 @@ and earlier public business/CLI certificate remain unchanged. UI details,
 drafts, retry and hidden-section notices stay on demand in both themes.
 Timo approved raw-ID retirement without fallback and position-only Hub
 bookkeeping on 7 October; ADR 0016 and the delivery contract freeze the wire.
-The next product-owned slice is the uniform manual GitHub linking hold approved
-by Timo on 8 October. Webhook reconciliation stays enabled; stored associations
-and receipts are not rewritten. The frozen contract and OLD proof drive the
-implementation, which is not certified by the operations checkpoint.
+The next product-owned slice is the frozen GitHub status final-selection boundary.
+Unchanged-source staged and native replays reproduce late authority delivery and
+mixed-age arrays. Its local reader/caller repair passes focused and exact X04
+checks; clean certification remains separate from the manual-hold checkpoint.
+Internal reconciliation lineage/commit authority and natural browser-session
+expiry remain separate unproved concerns, not defects demonstrated by that slice.
 Timo separately authorized merging and a first Cloudflare beta deployment after
 the product-beta work is verified, followed by deployed smoke checks. No rollout
-has occurred and execution-lane implementation remains excluded. GitHub policy,
-execution-owned consumers and destructive private retention remain open.
+has occurred and execution-lane implementation remains excluded. GitHub status
+certification and source-fence review, execution-owned consumers and destructive
+private retention remain open; the selected manual-key policy hold is certified.
 Private creation, sharing and checkpoints stay disabled; C11 is in progress,
 C12 planned, and the other mandatory product features remain unfinished.
 Pinned Cloudflare CLI authentication and read-only resource inventory are
