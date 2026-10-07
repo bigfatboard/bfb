@@ -1896,17 +1896,70 @@ export interface GitHubStatusView {
   links: GitHubRepositoryLinkSummary[];
 }
 
-/** Workspace-scoped installation and link status for Owner/member reads. */
+/** One coherent workspace status selection under retained Owner/member authority. */
 export async function getGitHubStatus(
   db: SqlDatabase,
   workspaceId: string,
+  access?: TaskAccessContext,
 ): Promise<GitHubStatusView> {
-  const installations = (await db
+  if (
+    access !== undefined &&
+    (!access ||
+      access.workspaceId !== workspaceId ||
+      !isUlid(access.workspaceId) ||
+      !isUlid(access.humanId) ||
+      !Number.isSafeInteger(access.authorizationEpoch) ||
+      access.authorizationEpoch < 1)
+  ) {
+    fail("forbidden", "github status is unavailable");
+  }
+  const authority =
+    access === undefined
+      ? "1"
+      : `EXISTS (
+    SELECT 1 FROM workspace_members AS membership
+    JOIN workspace_authorization_epochs AS epoch
+      ON epoch.workspace_id = membership.workspace_id
+     AND epoch.human_id = membership.human_id
+     AND epoch.authorization_epoch = membership.authorization_epoch
+     AND epoch.revoked_at IS NULL
+    WHERE membership.workspace_id = status_scope.workspace_id
+      AND membership.human_id = ? AND epoch.authorization_epoch = ?
+      AND membership.role IN ('owner', 'member')
+  )`;
+  const rows = (await db
     .prepare(
-      `SELECT installation_id, app_slug, account_login, status, permissions_json, events_json, resource_version
-       FROM github_app_installations WHERE workspace_id = ? ORDER BY installation_id`,
+      `SELECT kind, payload FROM (
+         SELECT 'authority' AS kind, NULL AS position, NULL AS payload, ? AS workspace_id
+         UNION ALL
+         SELECT 'installation', installation_id, json_object(
+           'installation_id', installation_id, 'app_slug', app_slug,
+           'account_login', account_login, 'status', status,
+           'permissions_json', permissions_json, 'events_json', events_json,
+           'resource_version', resource_version
+         ), workspace_id
+         FROM github_app_installations WHERE workspace_id = ?
+         UNION ALL
+         SELECT 'link', repository_id, json_object(
+           'id', id, 'repository_id', repository_id, 'installation_id', installation_id,
+           'project_id', project_id, 'full_name', full_name, 'default_branch', default_branch,
+           'link_state', link_state, 'resource_version', resource_version
+         ), workspace_id
+         FROM github_repository_links WHERE workspace_id = ? AND link_state = 'active'
+       ) AS status_scope WHERE ${authority} ORDER BY kind, position`,
     )
-    .all(workspaceId)) as Array<{
+    .all(
+      workspaceId,
+      workspaceId,
+      workspaceId,
+      ...(access === undefined ? [] : [access.humanId, access.authorizationEpoch]),
+    )) as Array<{ kind: "authority" | "installation" | "link"; payload: string | null }>;
+  // A separate authority row preserves empty status without aggregating a workspace into one D1 value.
+  if (!rows.some((row) => row.kind === "authority"))
+    fail("forbidden", "github status is unavailable");
+  const installations = rows
+    .filter((row) => row.kind === "installation")
+    .map((row) => JSON.parse(row.payload as string)) as Array<{
     installation_id: string;
     app_slug: string;
     account_login: string;
@@ -1915,13 +1968,9 @@ export async function getGitHubStatus(
     events_json: string;
     resource_version: number;
   }>;
-  const links = (await db
-    .prepare(
-      `SELECT id, repository_id, installation_id, project_id, full_name, default_branch,
-              link_state, resource_version
-       FROM github_repository_links WHERE workspace_id = ? AND link_state = 'active' ORDER BY repository_id`,
-    )
-    .all(workspaceId)) as Array<{
+  const links = rows
+    .filter((row) => row.kind === "link")
+    .map((row) => JSON.parse(row.payload as string)) as Array<{
     id: string;
     repository_id: string;
     installation_id: string;

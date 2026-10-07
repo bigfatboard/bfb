@@ -495,7 +495,7 @@ export async function handleGitHubBrowserApi(
     const tail = url.pathname.slice(prefix.length);
     if (request.method === "GET" && (tail === "/status" || tail === "/status/")) {
       assertRole(principal, ["owner", "member"]);
-      return json({ ok: true, ...(await getGitHubStatus(deps.db, workspaceId)) });
+      return json({ ok: true, ...(await getGitHubStatus(deps.db, workspaceId, principal)) });
     }
     if (request.method === "GET" && tail.startsWith("/evidence")) {
       const projectId = url.searchParams.get("project_id") ?? undefined;

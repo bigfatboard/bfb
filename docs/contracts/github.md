@@ -6,6 +6,7 @@
 | 2 | 2026-09-18 | Rate-limit 403/429/5xx on repository reads retry; only 401/404 revoke. |
 | 3 | 2026-09-18 | Latest-wins guard is per object within each stream, not per stream. |
 | 4 | 2026-10-08 | Beta manual linking is uniformly unavailable; retained history and webhook reconciliation remain. |
+| 5 | 2026-10-08 | Status retains the first workspace authority capture through one coherent installation/link selection. |
 
 Consumers: X05 (audit/retention), G01 (redelivery/revocation hardening).
 
@@ -190,6 +191,21 @@ confusion rejected by the shared router):
   answers are filtered to that project), `GET /status` (owner/member),
   `GET /evidence?project_id=&task_id=&repository_id=&limit=` (reviewers
   project-scoped).
+
+`GET /status` retains its workspace-wide Owner/Member audience; linked projects
+are not separately filtered. It passes the first loaded human/epoch ceiling to
+one final selection binding both ordered canonical arrays to current membership,
+the same nonrevoked epoch and current Owner/Member role. The selecting row is an
+authority sentinel: authorized empty status remains `200` with two empty arrays;
+late authority loss returns fixed `forbidden / github status is unavailable` as
+`403`/no-store, never a partial array. Direct internal fixtures may omit human
+context; explicit malformed context does not become internal authority. Existing
+permissions/events normalization and DTOs remain unchanged. The
+[bounded status contract](private-task-delivery.md#frozen-github-status-delivery)
+does not certify natural browser-session expiry or webhook/reconciliation policy.
+The physical selection returns individually tagged records plus the authority
+sentinel, not a workspace-sized JSON aggregate. This avoids introducing a whole-
+workspace string ceiling under [D1's documented value/row limit](https://developers.cloudflare.com/d1/platform/limits/).
 
 ## Verification ownership
 

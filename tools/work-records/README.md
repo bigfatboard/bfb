@@ -21,6 +21,22 @@ This proves the operations-local consumption boundary only, not shared step-up,
 later-statement deadlines, mounted sign-in, private retention, R2 deletion,
 runner/lease/provider behavior, deployment or private activation.
 
+`pnpm test:c11:github-status`, composed once by C11, owns
+`github-status-delivery.ts`: ten independently collecting disposable native-D1
+groups prove retained Owner/Member workspace authority and one coherent status
+selection, including useful empty pages. The existing workspace-wide audience,
+ordered installation/link DTOs and direct internal fixtures remain intact.
+Independent epoch, membership and isolated role loss withhold both arrays;
+same-revoked-epoch membership reinstatement is explicitly synthetic robustness.
+A canonical installation/link change reaches OLD after its first source read
+and the fused reader before its actual selection. Full canonical snapshots,
+foreign keys and empty guards are checked after independent changes; HTTP
+budgets are separately named and compared. Bounds measure only instrumented
+direct domain status statements, not setup, captures, snapshots or Worker/DO
+internals. Mounted synthetic cookie tests are separate. This neither certifies
+natural browser-session expiry, webhook/reconcile/remap policy, private
+activation, provider/runner operation, live GitHub nor deployment.
+
 `pnpm test:c11:task-positions`, composed once by C11, owns `task-positions.ts`:
 six independently collecting disposable native-D1 groups exercise opaque child
 positions through the registered production Hub. Four collection traversals
