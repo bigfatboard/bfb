@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { adaptD1, loadMigrationManifest, type D1Like } from "@bfb/db";
+import { adaptD1, loadMigrationManifest, type D1Like, type SqlDatabase } from "@bfb/db";
 import {
   authorizeSyntheticPolicyUpdate,
   canonicalRunnerKey,
@@ -350,6 +350,35 @@ const testServer = createTestHarness({
 function success<T>(outcome: CommandOutcome<T>): T {
   assert(outcome.ok, JSON.stringify(outcome));
   return outcome.result;
+}
+
+/** Populated migration history predates current private-authority command guards. */
+async function seedHistoricalMigrationTask(db: SqlDatabase): Promise<{ id: string }> {
+  assert(
+    !(await db
+      .prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='task_privacy'")
+      .get()),
+    "historical task fixture requires pre-private-authority schema",
+  );
+  const id = randomUlid();
+  await db
+    .prepare(
+      `INSERT INTO tasks
+      (workspace_id,id,project_id,parent_task_id,title,state,priority,due_at,next_owner_type,
+       next_owner_id,next_action_reason,punchline,resource_version,created_by_human_id,
+       created_by_delegation_id,created_at)
+      VALUES (?,?,?,NULL,?,'ready','P2',NULL,'unassigned',NULL,NULL,?,1,?,NULL,?)`,
+    )
+    .run(
+      FIX.workspace,
+      id,
+      FIX.projectA,
+      "Synthetic X01 migration preservation",
+      "Ready for next action",
+      FIX.owner,
+      now,
+    );
+  return { id };
 }
 
 let sequence = 0;
@@ -854,11 +883,10 @@ try {
 
   const db = adaptD1((await hubEnv()).DB);
   await seedSyntheticWorkspace(db, now, "global");
-  const preserved = await human<{ id: string }>("task.create", {
-    projectId: FIX.projectA,
-    title: "Synthetic X01 migration preservation",
-    priority: "P2",
-  });
+  const preserved = await seedHistoricalMigrationTask(db);
+  const preservedBefore = await db
+    .prepare("SELECT * FROM tasks WHERE workspace_id = ? AND id = ?")
+    .get(FIX.workspace, preserved.id);
   const identityMigration = manifest.migrations.find(
     (migration) => migration.id === "0046_notification_public_identities",
   );
@@ -1031,6 +1059,13 @@ try {
       .prepare(`SELECT id FROM tasks WHERE workspace_id = ? AND id = ?`)
       .get(FIX.workspace, preserved.id)) as { id: string } | undefined;
     assert(row?.id === preserved.id, "0030 must preserve pre-existing work history");
+    assert.deepEqual(
+      await again
+        .prepare("SELECT * FROM tasks WHERE workspace_id = ? AND id = ?")
+        .get(FIX.workspace, preserved.id),
+      preservedBefore,
+      "notification upgrades must preserve every historical task field",
+    );
     const tables = (await again
       .prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'notification_%'`)
       .all()) as Array<{ name: string }>;
