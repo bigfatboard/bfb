@@ -1118,6 +1118,37 @@ export async function getTask(
   return row ?? undefined;
 }
 
+/** Final canonical task read retaining its identity and original OAuth ceilings. */
+export async function getDelegatedTask(
+  db: SqlDatabase,
+  workspaceId: string,
+  retained: Pick<TaskRecord, "id" | "project_id">,
+  access: DelegatedTaskReadAccess,
+): Promise<TaskRecord | undefined> {
+  if (
+    [retained.id, retained.project_id].some(
+      (id) => typeof id !== "string" || id.length !== 26 || !isUlid(id),
+    )
+  )
+    return undefined;
+  const predicate = delegatedReadTaskPredicate(access);
+  const projection = taskProjection(access);
+  const row = (await db
+    .prepare(
+      `SELECT ${projection.sql}
+       FROM tasks AS task WHERE task.workspace_id = ? AND task.id = ?
+         AND task.project_id = ? AND ${predicate.sql}`,
+    )
+    .get(
+      ...projection.parameters,
+      workspaceId,
+      retained.id,
+      retained.project_id,
+      ...predicate.parameters,
+    )) as TaskRecord | null | undefined;
+  return row ?? undefined;
+}
+
 export interface TaskPage {
   tasks: TaskRecord[];
   limit: number;

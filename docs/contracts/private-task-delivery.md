@@ -863,6 +863,45 @@ This does not certify other OAuth read tools, authority after the final
 selection statement, provider/run capability expiry, private activation,
 artifact bytes or the pending GitHub collision policy.
 
+### Frozen delegated task read delivery
+
+This corrective C11 slice owns the final `bfb_get_task` response. Shared task
+reads, work commands, lists, pre-0045 fallback, leases and shared clocks remain
+unchanged. Reading creates no business record or context delivery.
+
+- After preliminary selection and every advisory await, select the current
+  canonical task in one final statement. Retain its workspace, task ID and
+  project ID, not its version, title, state or parent ID. Reuse the current
+  task projection so an unreadable parent becomes `parent_task_id: null`
+  inside that same selection, without a separate parent fetch.
+- Repeat current sponsor membership and retained epoch, project access and
+  private read permission, exact credential/sponsor/client identity,
+  revocation, valid all-string read scope, original nullable project and
+  task-subtree boundaries and strict database-clock expiry. Serialize the
+  canonical task immediately without another asynchronous boundary.
+- Preserve successful `{task}` replies, read-only Owner/Member/Reviewer access
+  and completed/cancelled task history. All valid-ID missing or authority-denied
+  paths use the same canonical `not_found` error, including the initial child
+  guard, preliminary absence, late advisory denial and final absence. Preserve
+  the pinned SDK's existing `isError: true` and `task not found` text for a
+  missing task. Do not mask malformed input, database or transport failures.
+- Prove production delegation revocation after preliminary body selection;
+  scope/client/original nullable-boundary loss; private read-grant, epoch and
+  project loss after a successful advisory read; and natural expiry of an
+  unchanged credential between final SQL preparation and execution. A genuine
+  concurrent task edit returns new canonical fields. Parent-only grant loss
+  must still return the readable child with a null parent; a task-bound root
+  must not reveal its out-of-subtree parent even in a healthy read.
+- Mounted genuine OAuth MCP and native-D1 statements witness the final response
+  boundary separately from malformed retained-identity robustness. Snapshot
+  business history and cursor after any independent mutation. HTTP abuse
+  accounting is not a business read effect.
+
+The additive target is `pnpm test:c11:task-delivery`, composed once by C11.
+This does not certify delegated lists, command caches, authority after the final
+statement, provider or run capability expiry, artifact bytes or private
+activation. The pending GitHub collision policy remains separate.
+
 ### Frozen browser board selection
 
 This corrective C11 slice binds already-authorized board delivery to the

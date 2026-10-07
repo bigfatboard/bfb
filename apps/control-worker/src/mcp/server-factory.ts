@@ -20,6 +20,7 @@ import {
   DomainError,
   getAttention,
   getDelegatedAttention,
+  getDelegatedTask,
   getTask,
   issueGrantResponse,
   listProjectsPage,
@@ -153,16 +154,26 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
     },
     async ({ task_id }) => {
       assertScope(deps.delegation, "bfb:read");
-      await assertTaskChildAccess(deps.db, principal, task_id);
-      const task = await getTask(deps.db, deps.delegation.workspaceId, task_id, taskAccess);
-      if (!task) {
-        return {
-          content: [{ type: "text" as const, text: JSON.stringify({ error: "not_found" }) }],
-          isError: true,
-        };
+      try {
+        await assertTaskChildAccess(deps.db, principal, task_id);
+        const task = await getTask(deps.db, deps.delegation.workspaceId, task_id, taskAccess);
+        if (!task) throw new DomainError("not_found", "task not found");
+        await enforceDelegationAccess(deps.db, deps.delegation, task.project_id, task.id);
+        const canonical = await getDelegatedTask(deps.db, deps.delegation.workspaceId, task, {
+          ...taskAccess,
+          clientId: deps.delegation.clientId,
+          projectBoundaryId: deps.delegation.projectId,
+        });
+        if (!canonical) throw new DomainError("not_found", "task not found");
+        return { content: [{ type: "text" as const, text: JSON.stringify({ task: canonical }) }] };
+      } catch (error) {
+        if (
+          error instanceof DomainError &&
+          ["not_found", "forbidden", "stale_authorization"].includes(error.code)
+        )
+          throw new DomainError("not_found", "task not found");
+        throw error;
       }
-      await enforceDelegationAccess(deps.db, deps.delegation, task.project_id, task.id);
-      return { content: [{ type: "text" as const, text: JSON.stringify({ task }) }] };
     },
   );
 
