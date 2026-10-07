@@ -709,7 +709,7 @@ describe("private task delivery through remote MCP", () => {
     const root = await createTask("Synthetic cached delegated subtree root", parent.id);
     await makePrivate(parent.id);
     const grantId = await grant("read", parent.id);
-    const { delegationId } = await access({ taskId: root.id });
+    const { delegationId } = await liveReadAccess({ taskId: root.id });
     // Remote MCP has no update tool; its issued delegation still bounds the shared command.
     const update = () =>
       hub.execute(updateTaskCommand, {
