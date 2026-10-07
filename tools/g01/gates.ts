@@ -110,7 +110,7 @@ export const GATE_ROWS: GateRow[] = [
     command: "pnpm test:e01",
     evidence: "docs/work-packages/evidence/WP-E01/manifest.json",
     detail:
-      "Duplicate/out-of-order/concurrent ingest has one effect with exact replay; owning evidence WP-E01/WP-E02/WP-L06.",
+      "Duplicate/out-of-order/concurrent ingest has one effect and internal ordering; public raw replay is held under C11. Owning evidence WP-E01/WP-E02/WP-L06.",
   },
   {
     gate: "AG-04",

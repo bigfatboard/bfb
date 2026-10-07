@@ -151,12 +151,17 @@ describe("connected typed measurement ingest", () => {
       aliases: 1,
       tokens: 1,
     });
-    const page = await listRunMeasurementSources(f.db, FIX.workspace, f.spec.run_id);
-    expect(page).toMatchObject({
-      sources: [{ event_id: event.event_id, family: "tokens", usage_id: "usage-1" }],
-      has_more: false,
+    await expect(
+      listRunMeasurementSources(f.db, FIX.workspace, f.spec.run_id),
+    ).rejects.toMatchObject({
+      code: "request_rejected",
+      message: "event feeds are unavailable",
     });
-    expect(JSON.stringify(page)).not.toContain('"tokens"' + ":");
+    expect(
+      await f.db
+        .prepare("SELECT event_id,family,identity FROM measurement_sources WHERE event_id=?")
+        .get(event.event_id),
+    ).toEqual({ event_id: event.event_id, family: "tokens", identity: "usage-1" });
   });
 
   it("accepts captured telemetry for ended executions without a live lease or result eligibility", async () => {
@@ -296,7 +301,7 @@ describe("connected typed measurement ingest", () => {
     ]);
   });
 
-  it("keeps v1 replay bytes private-safe while canonical typed payload remains in the ledger", async () => {
+  it("holds public replay while canonical typed payload remains in the ledger and safe receipts", async () => {
     const f = await fixture(),
       event = f.tokens();
     const accepted = success(await f.ingest([event]));
@@ -306,12 +311,12 @@ describe("connected typed measurement ingest", () => {
       authorizationEpoch: 1,
       jurisdiction: "eu",
     });
-    expect(
-      await listLedgerEvents(f.db, authorization, {
+    await expect(
+      listLedgerEvents(f.db, authorization, {
         afterCursor: 0,
         throughCursor: accepted.high_water_cursor,
       }),
-    ).toMatchObject([{ event_id: event.event_id, payload: {} }]);
+    ).rejects.toMatchObject({ code: "request_rejected", message: "event feeds are unavailable" });
     const row = (await f.db
       .prepare("SELECT payload_json FROM event_ledger WHERE event_id=?")
       .get(event.event_id)) as { payload_json: string };
@@ -326,7 +331,7 @@ describe("connected typed measurement ingest", () => {
     expect(JSON.stringify(receipts)).not.toContain("synthetic-model");
   });
 
-  it("does not truncate internal activity input and paginates public canonical sources explicitly", async () => {
+  it("does not truncate internal activity input while public canonical source pages are held", async () => {
     const f = await fixture();
     for (let offset = 0; offset < 105; offset += 25) {
       success(
@@ -340,14 +345,12 @@ describe("connected typed measurement ingest", () => {
     expect(
       await listRunMeasurementActivitySources(f.db, FIX.workspace, f.spec.run_id),
     ).toHaveLength(105);
-    const first = await listRunMeasurementSources(f.db, FIX.workspace, f.spec.run_id);
-    expect(first.sources).toHaveLength(100);
-    expect(first.has_more).toBe(true);
-    const second = await listRunMeasurementSources(f.db, FIX.workspace, f.spec.run_id, {
-      afterCursor: first.next_cursor,
-    });
-    expect(second.sources).toHaveLength(5);
-    expect(second.has_more).toBe(false);
+    await expect(
+      listRunMeasurementSources(f.db, FIX.workspace, f.spec.run_id),
+    ).rejects.toMatchObject({ code: "request_rejected", message: "event feeds are unavailable" });
+    await expect(
+      listRunMeasurementSources(f.db, FIX.workspace, f.spec.run_id, { afterCursor: 100 }),
+    ).rejects.toMatchObject({ code: "request_rejected", message: "event feeds are unavailable" });
     await expect(
       listRunMeasurementSources(f.db, FIX.workspace, f.spec.run_id, { limit: 101 }),
     ).rejects.toThrow();

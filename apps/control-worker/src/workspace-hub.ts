@@ -5,6 +5,7 @@ import { adaptD1 } from "@bfb/db";
 import { DurableObject } from "cloudflare:workers";
 import {
   type CommandRequest,
+  DomainError,
   randomUlid,
   resolveCommand,
   WorkspaceHub as DomainWorkspaceHub,
@@ -16,11 +17,10 @@ import {
 import type { ControlBindings } from "./env.js";
 import {
   BROWSER_REALTIME_PROTOCOL,
-  BROWSER_REALTIME_TAG,
   BrowserSockets,
   type RealtimeSocket,
 } from "./realtime/browser-sockets.js";
-import { RunnerChannels } from "./runner-channels.js";
+import { RunnerChannels, RUNNER_SOCKET_TAG } from "./runner-channels.js";
 
 const MAX_COMMAND_BYTES = 65_536;
 const MAX_PRINCIPAL_BYTES = 2048;
@@ -117,12 +117,20 @@ export class WorkspaceHub extends DurableObject<ControlBindings> {
    * One shared alarm covers runner expiries and browser session expiries.
    * Either class alone would delete the timer while the other still needs it.
    */
-  private async scheduleAlarms(): Promise<void> {
-    let expiry = Number.POSITIVE_INFINITY;
+  private async scheduleAlarms(
+    includeBrowsers = true,
+    retainedAlarm: number | null = null,
+  ): Promise<void> {
+    let expiry = retainedAlarm ?? Number.POSITIVE_INFINITY;
     try {
-      expiry = Math.min(expiry, this.channels.earliestExpiry(), this.browsers.earliestExpiry());
+      expiry = Math.min(expiry, this.channels.earliestExpiry());
+      if (includeBrowsers) expiry = Math.min(expiry, this.browsers.earliestExpiry());
+      else {
+        const existing = await this.ctx.storage.getAlarm();
+        if (existing !== null) expiry = Math.min(expiry, existing);
+      }
     } catch {
-      // Corrupt attachments are already closed by the expiry readers.
+      // Runner expiry readers handle invalid runner attachments; browsers remain quiet.
     }
     try {
       if (Number.isFinite(expiry)) {
@@ -131,8 +139,8 @@ export class WorkspaceHub extends DurableObject<ControlBindings> {
         await this.ctx.storage.deleteAlarm();
       }
     } catch {
-      // No live authority may outlast expiry if the persistent timer is lost.
-      for (const socket of this.ctx.getWebSockets()) {
+      // Runner authority fails closed. Held browser sockets disclose nothing on timer loss.
+      for (const socket of this.ctx.getWebSockets(RUNNER_SOCKET_TAG)) {
         try {
           if (socket.readyState === WebSocket.OPEN) socket.close(1011, "channel_unavailable");
         } catch {
@@ -154,31 +162,14 @@ export class WorkspaceHub extends DurableObject<ControlBindings> {
           request.headers.get("sec-websocket-protocol") !== BROWSER_REALTIME_PROTOCOL
         )
           throw new Error("invalid browser upgrade");
-        const handshake = JSON.parse(metadata) as unknown;
-        const pair = new WebSocketPair();
-        const client = pair[0];
-        const server = pair[1];
-        this.ctx.acceptWebSocket(server, [BROWSER_REALTIME_TAG]);
-        try {
-          await this.browsers.admit(wrapSocket(server), handshake);
-          await this.scheduleAlarms();
-        } catch (error) {
-          try {
-            server.close(1011, "channel_unavailable");
-          } catch {
-            /* Already disconnected. */
-          }
-          throw error;
+        this.browsers.assertAdmission(JSON.parse(metadata) as unknown);
+      } catch (error) {
+        if (error instanceof DomainError && error.message === "event feeds are unavailable") {
+          return Response.json(
+            { error: error.code, message: error.message },
+            { status: 409, headers: { "cache-control": "no-store" } },
+          );
         }
-        return new Response(null, {
-          status: 101,
-          webSocket: client,
-          headers: {
-            "sec-websocket-protocol": BROWSER_REALTIME_PROTOCOL,
-            "cache-control": "no-store",
-          },
-        });
-      } catch {
         return Response.json(
           { error: "request_rejected" },
           { status: 403, headers: { "cache-control": "no-store" } },
@@ -267,9 +258,15 @@ export class WorkspaceHub extends DurableObject<ControlBindings> {
     try {
       const outcome = await this.lane().execute(command, body.request);
       if (outcome.ok) {
+        let retainedAlarm: number | null = null;
+        try {
+          retainedAlarm = await this.ctx.storage.getAlarm();
+        } catch {
+          // Advisory timer storage cannot change the committed business outcome.
+        }
         await this.channels.afterCommand();
         await this.browsers.afterCommand();
-        await this.scheduleAlarms();
+        await this.scheduleAlarms(false, retainedAlarm);
       }
       return Response.json(outcome);
     } catch {

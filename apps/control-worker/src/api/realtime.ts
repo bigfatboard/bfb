@@ -1,12 +1,10 @@
-// ABOUTME: Authenticates browser realtime upgrades with cookie sessions and forwards them to the hub.
-// ABOUTME: Only IDs, epochs, and expiry cross into the socket handshake; cookies and tokens never do.
+// ABOUTME: Authenticates browser realtime upgrade admission before the uniform public-feed hold.
+// ABOUTME: Admitted requests disclose no positions and never resolve or attach a workspace socket.
 
-import { createAuthorizationContext, WorkspaceRepository } from "@bfb/db";
 import { assertLedgerBrowserAccess, loadPrincipal, runnerId } from "@bfb/domain";
 
 import type { HumanAuth } from "../auth/better-auth.js";
 import { resolveBrowserPrincipal, type BrowserPrincipal } from "../auth/session.js";
-import { workspaceNamespaceForJurisdiction } from "../env.js";
 import { BROWSER_REALTIME_PROTOCOL } from "../realtime/browser-sockets.js";
 import type { RunnerApiDeps } from "./runners.js";
 
@@ -27,27 +25,6 @@ function failure(status: number, error: string): Response {
     { error, message: error.replaceAll("_", " ") },
     { status, headers: { "cache-control": "no-store", "referrer-policy": "no-referrer" } },
   );
-}
-
-async function hubStub(
-  deps: BrowserRealtimeDeps,
-  workspaceId: string,
-  authorizationEpoch: number,
-): Promise<DurableObjectStub> {
-  if (!deps.workspaceHubNs) throw new Error("hub binding unavailable");
-  const workspace = await WorkspaceRepository.forAuthorization(
-    deps.db,
-    createAuthorizationContext({
-      workspaceId,
-      principalId: deps.principal.humanId,
-      authorizationEpoch,
-      jurisdiction: deps.jurisdiction,
-    }),
-  ).getWorkspace();
-  if (!workspace || workspace.jurisdiction !== deps.jurisdiction)
-    throw new Error("unknown workspace");
-  const namespace = workspaceNamespaceForJurisdiction(deps.workspaceHubNs, workspace.jurisdiction);
-  return namespace.get(namespace.idFromName(workspace.id));
 }
 
 export async function handleBrowserRealtimeApi(
@@ -95,23 +72,10 @@ export async function handleBrowserRealtimeApi(
       resolved.humanId,
       principal.authorizationEpoch,
     );
-    const stub = await hubStub(deps, workspaceId, principal.authorizationEpoch);
-    return stub.fetch("https://bfb-hub.internal/browser/connect", {
-      method: "GET",
-      headers: {
-        upgrade: "websocket",
-        "sec-websocket-protocol": BROWSER_REALTIME_PROTOCOL,
-        "x-bfb-browser-principal": JSON.stringify({
-          schema_version: 1,
-          workspaceId,
-          humanId: resolved.humanId,
-          authorizationEpoch: principal.authorizationEpoch,
-          role: principal.role,
-          sessionId: resolved.sessionId,
-          sessionExpiresAt: session.expires_at,
-        }),
-      },
-    });
+    return Response.json(
+      { error: "request_rejected", message: "event feeds are unavailable" },
+      { status: 409, headers: { "cache-control": "no-store", "referrer-policy": "no-referrer" } },
+    );
   } catch {
     return failure(403, "request_rejected");
   }

@@ -1,4 +1,4 @@
-// ABOUTME: Real-browser D03 proof for discussion timeline, decisions, and reconnect.
+// ABOUTME: Real-browser D03 proof for discussion history, decisions and manual HTTP refresh.
 // ABOUTME: Synthetic D01/D02-committed discussions drive every assertion; no model turns run.
 
 import { mkdir, writeFile } from "node:fs/promises";
@@ -323,7 +323,15 @@ test("keyboard, empty, loading, error, and narrow-layout cases pass", async ({ p
   await page.screenshot({ path: path.join(EVIDENCE_DIR, "narrow.png"), fullPage: true });
 });
 
-test("reconnect replays committed state through cursor invalidations", async ({ page }) => {
+test("manual refresh preserves committed discussion history without a realtime subscription", async ({
+  page,
+}) => {
+  const sockets: string[] = [];
+  // Vite HMR is a development transport, not a public BFB subscription.
+  page.on("websocket", (socket) => {
+    if (/^\/realtime\/workspaces\/[^/]+\/subscribe$/u.test(new URL(socket.url()).pathname))
+      sockets.push(socket.url());
+  });
   await signInAndOpenBoard(page, "owner");
   const tasks = await d03Tasks(page);
   await openDiscussionTask(page, tasks.taskSix, "Synthetic discussion exchange card");
@@ -332,31 +340,30 @@ test("reconnect replays committed state through cursor invalidations", async ({ 
   const refreshBefore = Number(await panel.getByTestId("discussion-refresh-count").textContent());
   const messagesBefore = await messageTexts(page);
 
-  const commit = await page.request.post("/__test/events/commit", {
-    data: { key: "discussion", kinds: ["heartbeat"] },
-  });
-  expect(commit.ok()).toBe(true);
-  await expect(panel.getByTestId("discussion-refresh-count")).not.toHaveText(
-    String(refreshBefore),
-    { timeout: 15_000 },
+  await expect(panel.getByTestId("discussion-updates-unavailable")).toContainText(
+    "Live updates are unavailable.",
   );
+  await expect(panel.getByTestId("discussion-connectivity")).toHaveCount(0);
+  await expect(panel.getByTestId("discussion-reconnect")).toHaveCount(0);
+  await panel.getByTestId("discussion-refresh").focus();
+  await page.keyboard.press("Enter");
+  await expect(panel.getByTestId("discussion-refresh-count")).not.toHaveText(String(refreshBefore));
   expect(await messageTexts(page)).toEqual(messagesBefore);
-  await expect(panel.getByTestId("discussion-connectivity")).toContainText("Discussion live");
+  expect(sockets).toEqual([]);
   const refreshAfter = Number(await panel.getByTestId("discussion-refresh-count").textContent());
   expect(refreshAfter).toBeGreaterThan(refreshBefore);
-  await page.screenshot({ path: path.join(EVIDENCE_DIR, "reconnect.png"), fullPage: true });
+  await page.screenshot({ path: path.join(EVIDENCE_DIR, "manual-refresh.png"), fullPage: true });
   await writeFile(
-    path.join(EVIDENCE_DIR, "reconnect-trace.md"),
+    path.join(EVIDENCE_DIR, "manual-refresh-trace.md"),
     [
-      "# D03 reconnect trace (browser)",
+      "# D03 manual refresh trace (browser)",
       "",
-      `- socket: bfb.browser.v1 subscription with subscribe-first buffering`,
-      `- refresh count before invalidation: ${refreshBefore}`,
-      `- refresh count after cursor invalidation: ${refreshAfter}`,
+      "- public realtime subscription: unavailable, zero socket attempts",
+      `- refresh count before manual action: ${refreshBefore}`,
+      `- refresh count after manual action: ${refreshAfter}`,
       `- committed messages before: ${messagesBefore.length}`,
       `- committed messages after: ${messagesBefore.length} (identical, no duplicates)`,
-      `- connectivity: Discussion live`,
-      `- conclusion: close and reopen renders the same committed state (see timeline test)`,
+      "- authorized HTTP history remains available; no live/presence claim",
       "",
     ].join("\n"),
     "utf8",

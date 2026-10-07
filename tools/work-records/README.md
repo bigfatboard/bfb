@@ -115,3 +115,15 @@ on empty final selections. Tasks/runs/snapshots/executions originate through the
 production Hub; synthetic retained discussion/assignment/launch rows supply
 read-only source fixtures. This is not complete discussion hydration, browser
 authentication, provider dispatch, participant authority or runner cleanup.
+
+# Public-position quarantine
+
+`pnpm test:c11:positions` compiles and runs `positions.ts` against disposable
+real D1 and the production Hub, in addition to the focused domain/transport/UI
+suites. Four bounded checks prove six public readers make no source queries,
+uniform empty/shared/private holds without stored-history rewrites, preserved
+internal fresh/cache ordering with cursor-free public projection, and null
+source pages in authorized run/task measurement views. The measurement fixture
+has no observations; arithmetic, mounted authentication and visual interaction
+retain their separate tests. This is not an opaque replay replacement, private
+activation, native/provider operation or live-byte certificate.

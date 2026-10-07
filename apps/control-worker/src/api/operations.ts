@@ -19,7 +19,6 @@ import {
   listStuckUploads,
   loadPrincipal,
   OPS_RECOVERY_KINDS,
-  readActivityFeed,
   readOperationsProjection,
   readSecurityAudit,
   resolveStuckUploadCommand,
@@ -29,7 +28,7 @@ import {
 
 import type { BrowserPrincipal } from "../auth/session.js";
 import type { Jurisdiction } from "../env.js";
-import { executeWorkspaceCommand } from "../hub-client.js";
+import { executePublicWorkspaceCommand as executeWorkspaceCommand } from "../public-command-outcome.js";
 import { readBoundedJson } from "./request.js";
 
 export interface OpsBrowserDeps {
@@ -176,7 +175,7 @@ async function mutate<TInput, TResult>(
   if (!outcome.ok) {
     return failure(new DomainError(outcome.error.code, outcome.error.message));
   }
-  return json({ ok: true, result: outcome.result, replayed: outcome.replayed });
+  return json(outcome);
 }
 
 function rejectDiagnostics(): never {
@@ -208,13 +207,10 @@ export async function handleOperationsApi(
     if (request.method === "GET" && (tail === "/activity" || tail === "/activity/")) {
       assertRole(principal, ["owner", "member", "reviewer"]);
       const afterRaw = url.searchParams.get("after_cursor");
-      const feed = await readActivityFeed(deps.db, workspaceId, {
-        limit: Number.isSafeInteger(limit) ? limit : 50,
-        ...(afterRaw === null ? {} : { afterCursor: Number(afterRaw) }),
-        projectIds: principal.projectIds,
-        access: principal,
-      });
-      return json({ ok: true, ...feed });
+      if (afterRaw !== null && (!Number.isSafeInteger(Number(afterRaw)) || Number(afterRaw) < 0)) {
+        throw new DomainError("invalid_argument", "activity cursor is invalid");
+      }
+      return json({ error: "request_rejected", message: "event feeds are unavailable" }, 409);
     }
     if (request.method === "GET" && (tail === "/security-audit" || tail === "/security-audit/")) {
       assertRole(principal, ["owner"]);
@@ -343,7 +339,7 @@ export async function handleOperationsApi(
           return failure(new DomainError(outcome.error.code, outcome.error.message));
         }
         await assertOperationsUploadRecoveryAccess(deps.db, workspaceId, versionIds, principal);
-        return json({ ok: true, result: outcome.result });
+        return json(outcome);
       }
       throw new DomainError("request_rejected", "recovery kind is unavailable");
     }

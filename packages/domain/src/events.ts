@@ -2,7 +2,6 @@
 // ABOUTME: Attribution is derived server-side from execution assignments; claimed IDs are hints only.
 
 import type { AuthorizationContext, SqlDatabase } from "@bfb/db";
-import { WorkspaceRepository } from "@bfb/db";
 import {
   decodeWireDocument,
   type EventDisposition,
@@ -959,69 +958,18 @@ function envelopeOf(
   return decoded.value as EventEnvelope;
 }
 
-async function assertLedgerReadScope(
-  db: SqlDatabase,
-  authorization: AuthorizationContext,
-): Promise<void> {
-  const workspace = await WorkspaceRepository.forAuthorization(db, authorization).getWorkspace();
-  if (!workspace) {
-    throw new DomainError("workspace_not_found", "workspace not found");
-  }
-  if (workspace.jurisdiction !== authorization.jurisdiction) {
-    throw new DomainError(
-      "workspace_jurisdiction_mismatch",
-      "workspace jurisdiction does not match the authorization context",
-    );
-  }
-}
-
-/** Workspace high-water cursor over committed ledger rows. Reads go directly to D1. */
+/** Public positions remain unavailable; runner ingest keeps its internal acknowledgement. */
 export async function readLedgerHighWater(
-  db: SqlDatabase,
-  authorization: AuthorizationContext,
+  _db: SqlDatabase,
+  _authorization: AuthorizationContext,
 ): Promise<number> {
-  await assertLedgerReadScope(db, authorization);
-  const row = (await db
-    .prepare(
-      `SELECT COALESCE(MAX(workspace_cursor), 0) AS high_water FROM event_ledger WHERE workspace_id = ?`,
-    )
-    .get(authorization.workspaceId)) as { high_water: number };
-  if (!Number.isSafeInteger(row.high_water) || row.high_water < 0) {
-    throw new DomainError("event_history_corrupt", "ledger high-water is invalid");
-  }
-  return row.high_water;
+  throw new DomainError("request_rejected", "event feeds are unavailable");
 }
 
-interface LedgerRow {
-  event_id: string;
-  workspace_cursor: number;
-  source_stream_id: string;
-  source_event_id: string | null;
-  source_sequence: number;
-  workspace_id: string;
-  project_id: string;
-  task_id: string;
-  run_id: string;
-  run_execution_id: string;
-  assignment_generation: number;
-  provider_session_id: string | null;
-  actor_type: string;
-  actor_id: string;
-  source_type: string;
-  source_id: string;
-  source_provider: string | null;
-  capture_origin: string;
-  kind: string;
-  occurred_at: string;
-  received_at: string;
-  payload_json: string;
-  telemetry_version: number;
-}
-
-/** Paginated replay of committed ledger envelopes in cursor order. Reads go directly to D1. */
+/** Pure range admission remains available while public ledger delivery is held. */
 export async function listLedgerEvents(
-  db: SqlDatabase,
-  authorization: AuthorizationContext,
+  _db: SqlDatabase,
+  _authorization: AuthorizationContext,
   options: LedgerReplayOptions,
 ): Promise<EventEnvelope[]> {
   const limit = options.limit ?? 100;
@@ -1036,66 +984,7 @@ export async function listLedgerEvents(
   ) {
     throw new DomainError("invalid_event_range", "ledger replay range is invalid");
   }
-  await assertLedgerReadScope(db, authorization);
-  const rows = (await db
-    .prepare(
-      `SELECT event_id, workspace_cursor, source_stream_id, source_event_id, source_sequence,
-              workspace_id, project_id, task_id, run_id, run_execution_id, assignment_generation,
-              provider_session_id, actor_type, actor_id, source_type, source_id, source_provider,
-              capture_origin, kind, occurred_at, received_at, payload_json,
-              EXISTS (SELECT 1 FROM measurement_event_sources s WHERE s.workspace_id = event_ledger.workspace_id AND s.event_id = event_ledger.event_id) AS telemetry_version
-       FROM event_ledger
-       WHERE workspace_id = ? AND workspace_cursor > ? AND workspace_cursor <= ?
-       ORDER BY workspace_cursor ASC
-       LIMIT ?`,
-    )
-    .all(
-      authorization.workspaceId,
-      options.afterCursor,
-      options.throughCursor,
-      limit,
-    )) as LedgerRow[];
-  return rows.map((row) => {
-    if (!Number.isSafeInteger(row.workspace_cursor) || row.workspace_cursor < 1) {
-      throw new DomainError("event_history_corrupt", "ledger cursor is invalid");
-    }
-    let payload: unknown;
-    try {
-      payload = row.telemetry_version ? {} : (JSON.parse(row.payload_json) as unknown);
-    } catch {
-      throw new DomainError("event_history_corrupt", "ledger payload is invalid");
-    }
-    const envelope = {
-      schema_version: 1,
-      event_id: row.event_id,
-      workspace_cursor: row.workspace_cursor,
-      source_stream_id: row.source_stream_id,
-      ...(row.source_event_id === null ? {} : { source_event_id: row.source_event_id }),
-      source_sequence: row.source_sequence,
-      workspace_id: row.workspace_id,
-      project_id: row.project_id,
-      task_id: row.task_id,
-      run_id: row.run_id,
-      run_execution_id: row.run_execution_id,
-      assignment_generation: row.assignment_generation,
-      ...(row.provider_session_id === null ? {} : { provider_session_id: row.provider_session_id }),
-      actor: { type: row.actor_type, id: row.actor_id },
-      source: {
-        type: row.source_type,
-        id: row.source_id,
-        ...(row.source_provider === null ? {} : { provider: row.source_provider }),
-      },
-      kind: row.kind,
-      occurred_at: row.occurred_at,
-      received_at: row.received_at,
-      payload,
-    };
-    const decoded = decodeWireDocument("event-envelope", Buffer.from(JSON.stringify(envelope)));
-    if (!decoded.ok) {
-      throw new DomainError("event_history_corrupt", "stored ledger envelope is invalid");
-    }
-    return decoded.value as EventEnvelope;
-  });
+  throw new DomainError("request_rejected", "event feeds are unavailable");
 }
 
 /** Browser replay requires a current workspace owner or member; reviewers stay project-scoped. */

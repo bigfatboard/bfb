@@ -58,6 +58,10 @@ const now = "2026-09-12T12:00:00.000Z",
 const digest = `sha256:${"a".repeat(64)}`,
   emptyConfig = `sha256:${runnerHash("{}")}`;
 const evidenceDir = resolve(root, "docs/work-packages/evidence/WP-A04");
+const runtimeEvidenceDir =
+  process.env.BFB_CAPTURE_A04_RUNTIME_EVIDENCE === "1"
+    ? evidenceDir
+    : resolve(root, "test-results/a04");
 const fixturesDir = resolve(evidenceDir, "fixtures");
 const manifest = loadMigrationManifest(resolve(root, "migrations/d1"));
 const split = manifest.migrations.findIndex((migration) => migration.id === "0027_measurements");
@@ -590,6 +594,11 @@ try {
     "2026-09-12T12:10:00.000Z",
   );
   assert.equal(measured.times.launch_latency_ms, 30_000);
+  assert.equal(
+    measured.sources,
+    null,
+    "public source positions are unavailable, not an empty page",
+  );
   assert.equal(measured.times.active_ms, 50_000);
   assert.equal(measured.times.process_elapsed_ms, 330_000);
   assert(measured.times.offline_ms > 0, "offline wall time stays visible");
@@ -684,6 +693,7 @@ try {
     "2026-09-12T12:10:00.000Z",
   );
   assert.equal(taskMeasured.review.stopped_total_ms, 240_000);
+  assert(taskMeasured.runs.every((run) => run.sources === null));
   assert.notEqual(taskMeasured.review.stopped_total_ms, taskMeasured.totals.active_ms);
   snapshot("review_timer", {
     observations: timerObservations.length,
@@ -945,13 +955,13 @@ try {
   }
   snapshot("redaction", { private_bodies_absent: true });
 
-  await mkdir(evidenceDir, { recursive: true });
+  await mkdir(runtimeEvidenceDir, { recursive: true });
   await writeFile(
-    resolve(evidenceDir, "runtime-calculation-snapshots.json"),
+    resolve(runtimeEvidenceDir, "runtime-calculation-snapshots.json"),
     serializeRuntimeSnapshots(snapshots),
   );
   console.log(
-    "A04_EVIDENCE_OK bounded runtime calculation snapshots written; historical evidence preserved",
+    "A04_EVIDENCE_OK bounded runtime calculation snapshots written to the selected output",
   );
 } catch (error) {
   server.debug();

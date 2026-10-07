@@ -263,36 +263,19 @@ describe("event ingest and replay routes", () => {
       ((await resend.json()) as typeof committed).dispositions.map((entry) => entry.disposition),
     ).toEqual(["permanently_rejected", "permanently_rejected"]);
 
-    const replay = await f.browserGet("/events");
-    expect(replay.status, await replay.clone().text()).toBe(200);
-    const body = (await replay.json()) as {
-      schema_version: number;
-      high_water_cursor: number;
-      events: Array<{ workspace_cursor: number; kind: string; actor: unknown; source: unknown }>;
-      has_more: boolean;
-    };
-    expect(body.high_water_cursor).toBe(committed.high_water_cursor);
-    expect(body.events.map((entry) => entry.kind)).toEqual(["heartbeat", "turn_started"]);
-    expect(body.has_more).toBe(false);
-    expect(body.events[0]).toMatchObject({
-      actor: { type: "runner", id: f.runner },
-      source: { type: "runner", id: f.runner, provider: "fake" },
-    });
-    expect(body.events[0]?.workspace_cursor).toBeLessThan(body.events[1]?.workspace_cursor ?? 0);
-
-    const water = await f.browserGet("/events/high-water");
-    expect(water.status).toBe(200);
-    expect(await water.json()).toMatchObject({
-      schema_version: 1,
-      high_water_cursor: committed.high_water_cursor,
-    });
-    const page = await f.browserGet(
-      `/events?after_cursor=${body.events[0]?.workspace_cursor}&through_cursor=${body.high_water_cursor}&limit=1`,
-    );
-    expect(page.status).toBe(200);
-    expect(((await page.json()) as typeof body).events.map((entry) => entry.kind)).toEqual([
-      "turn_started",
-    ]);
+    for (const path of [
+      "/events",
+      "/events/high-water",
+      "/events?after_cursor=0&through_cursor=1&limit=1",
+    ]) {
+      const response = await f.browserGet(path);
+      expect(response.status).toBe(409);
+      expect(await response.json()).toEqual({
+        error: "request_rejected",
+        message: "event feeds are unavailable",
+      });
+      expect(response.headers.get("cache-control")).toBe("no-store");
+    }
   });
 
   it("returns poison dispositions per event and rejects transport violations uniformly", async () => {
@@ -394,21 +377,15 @@ describe("event ingest and replay routes", () => {
   it("keeps browser replay read-only and fenced to workspace members", async () => {
     const f = await fixture();
     await f.startAndClaim();
-    const before = (await f
-      .browserGet("/events/high-water")
-      .then((response) => response.json())) as {
-      high_water_cursor: number;
-    };
+    const before = await f.browserGet("/events/high-water");
+    expect(before.status).toBe(409);
     const posted = await f.browserPost("/events", {});
     expect([404, 403]).toContain(posted.status);
     const deleted = await f.browserPost("/events", {}, "DELETE");
     expect([404, 403]).toContain(deleted.status);
-    const after = (await f
-      .browserGet("/events/high-water")
-      .then((response) => response.json())) as {
-      high_water_cursor: number;
-    };
-    expect(after.high_water_cursor).toBe(before.high_water_cursor);
+    const after = await f.browserGet("/events/high-water");
+    expect(after.status).toBe(409);
+    expect(await after.json()).toEqual(await before.json());
 
     const reviewer = await f.browserGet("/events", f.reviewer.cookie);
     expect(reviewer.status).toBe(403);

@@ -687,7 +687,12 @@ async function call(
   const response = await request(db, "tools/call", name, args, accessToken);
   expect(response.status).toBe(200);
   const body = (await response.json()) as { result: { content: Array<{ text: string }> } };
-  return JSON.parse(body.result.content[0]!.text) as unknown;
+  const outcome = JSON.parse(body.result.content[0]!.text) as { ok?: boolean };
+  if (typeof outcome.ok === "boolean")
+    expect(Object.keys(outcome).sort()).toEqual(
+      outcome.ok ? ["ok", "replayed", "result"] : ["error", "ok"],
+    );
+  return outcome;
 }
 
 function request(

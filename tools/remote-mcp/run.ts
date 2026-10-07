@@ -166,7 +166,14 @@ async function call<T>(
   const response = await rpc(worker, token, "tools/call", tool, args);
   assert.equal(response.status, 200, "Synthetic MCP call must reach the handler.");
   const body = (await response.json()) as { result: { content: Array<{ text: string }> } };
-  return JSON.parse(body.result.content[0]!.text) as T;
+  const value = JSON.parse(body.result.content[0]!.text) as Record<string, unknown>;
+  if (typeof value.ok === "boolean") {
+    assert.deepEqual(
+      Object.keys(value).sort(),
+      value.ok ? ["ok", "replayed", "result"] : ["error", "ok"],
+    );
+  }
+  return value as T;
 }
 
 try {

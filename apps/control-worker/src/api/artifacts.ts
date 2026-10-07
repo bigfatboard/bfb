@@ -24,7 +24,7 @@ import {
 
 import type { HumanAuth } from "../auth/better-auth.js";
 import type { BrowserPrincipal } from "../auth/session.js";
-import { executeWorkspaceCommand } from "../hub-client.js";
+import { executePublicWorkspaceCommand as executeWorkspaceCommand } from "../public-command-outcome.js";
 import { handleArtifactViewGrantApi } from "./artifact-views.js";
 import { handleArtifactReviewApi } from "./artifact-reviews.js";
 import { readBoundedJson } from "./request.js";

@@ -236,24 +236,21 @@ try {
       },
     );
   }
-  const events = await listWorkspaceEvents(
-    db,
-    createAuthorizationContext({
-      workspaceId: FIX.workspace,
-      principalId: FIX.owner,
-      authorizationEpoch: 1,
-      jurisdiction: "eu",
-    }),
-    { afterCursor: 999, throughCursor: 1002, limit: 1 },
-  );
-  assert.deepEqual(
-    events.map((row) => row.eventId),
-    [controlId],
+  await assert.rejects(
+    listWorkspaceEvents(
+      db,
+      createAuthorizationContext({
+        workspaceId: FIX.workspace,
+        principalId: FIX.owner,
+        authorizationEpoch: 1,
+        jurisdiction: "eu",
+      }),
+      { afterCursor: 999, throughCursor: 1002, limit: 1 },
+    ),
+    { code: "request_rejected", message: "event feeds are unavailable" },
   );
   assert.deepEqual(await snapshot(), beforeCopies);
-  checks.push(
-    "real_d1_diagnostic_audit_anchor_and_semantic_copy_omission_precedes_limits_without_rewrite",
-  );
+  checks.push("real_d1_diagnostic_audit_anchor_and_public_semantic_hold_preserve_stored_copies");
 
   await db
     .prepare(

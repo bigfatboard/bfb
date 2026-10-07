@@ -383,44 +383,41 @@ describe("diagnostic snapshot quarantine", () => {
       }),
     ).rejects.toMatchObject({ code: "not_found", message: "operations scope not found" });
   });
-  it("omits diagnostic semantic copies before replay LIMIT without rewriting source cursors", async () => {
-    const db = await openDomainDb(),
-      ids = await historicalCopies(db),
-      before = await snapshot(db),
+  it("holds semantic replay without rewriting diagnostic copies or source cursors", async () => {
+    const db = await openDomainDb();
+    await historicalCopies(db);
+    const before = await snapshot(db),
       authorization = createAuthorizationContext({
         workspaceId: FIX.workspace,
         principalId: FIX.owner,
         authorizationEpoch: 1,
         jurisdiction: "eu",
       });
-    const rows = await listWorkspaceEvents(db, authorization, {
-      afterCursor: 0,
-      throughCursor: 4,
-      limit: 1,
-    });
-    expect(rows.map((row) => [row.eventId, row.cursor, row.kind])).toEqual([
-      [ids[3], 4, "ops.retention.set"],
-    ]);
+    await expect(
+      listWorkspaceEvents(db, authorization, {
+        afterCursor: 0,
+        throughCursor: 4,
+        limit: 1,
+      }),
+    ).rejects.toMatchObject({ code: "request_rejected", message: "event feeds are unavailable" });
     expect(await snapshot(db)).toEqual(before);
   });
-  it("does not parse hidden malformed semantic payloads or consume replay slots", async () => {
-    const db = await openDomainDb(),
-      ids = await historicalCopies(db),
-      authorization = createAuthorizationContext({
-        workspaceId: FIX.workspace,
-        principalId: FIX.owner,
-        authorizationEpoch: 1,
-        jurisdiction: "eu",
-      });
+  it("holds semantic replay before parsing malformed retained payloads", async () => {
+    const db = await openDomainDb();
+    await historicalCopies(db);
+    const authorization = createAuthorizationContext({
+      workspaceId: FIX.workspace,
+      principalId: FIX.owner,
+      authorizationEpoch: 1,
+      jurisdiction: "eu",
+    });
     await db
       .prepare(
         "UPDATE semantic_events SET payload_json='not JSON' WHERE workspace_id=? AND workspace_cursor=1",
       )
       .run(FIX.workspace);
-    expect(
-      (
-        await listWorkspaceEvents(db, authorization, { afterCursor: 0, throughCursor: 4, limit: 1 })
-      ).map((row) => row.eventId),
-    ).toEqual([ids[3]]);
+    await expect(
+      listWorkspaceEvents(db, authorization, { afterCursor: 0, throughCursor: 4, limit: 1 }),
+    ).rejects.toMatchObject({ code: "request_rejected", message: "event feeds are unavailable" });
   });
 });

@@ -1,5 +1,5 @@
 // ABOUTME: Real Playwright browser E2E for the A04 separated measurements display.
-// ABOUTME: Proves missing observations, identity-linked display fixtures, safe overflow and explicit review timers.
+// ABOUTME: Proves honest arithmetic, unavailable source history, safe overflow and explicit review timers.
 
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -101,6 +101,7 @@ test("task sheet keeps human, agent, wait, token, and provenance sections separa
     times: Record<string, unknown>;
     tokens: { exact: { input: number }; unavailable_count: number; catalog_version: string };
     provenance: Record<string, number>;
+    sources: null;
   };
   expect(body.times.process_elapsed_ms).toBeNull();
   expect(body.times.active_quality).toBe("unavailable");
@@ -109,13 +110,14 @@ test("task sheet keeps human, agent, wait, token, and provenance sections separa
   expect(body.tokens.exact.input).toBe(1200);
   expect(body.tokens.unavailable_count).toBe(1);
   expect(body.tokens.catalog_version).toBe("2026-09-01");
+  expect(body.sources).toBeNull();
 
   await page
     .getByTestId("measurements-sources")
     .getByText("Measurement sources", { exact: true })
     .click();
   await expect(page.getByTestId("measurements-sources")).toContainText(
-    "No identity-linked telemetry sources.",
+    "Measurement source history is unavailable.",
   );
   await expect(page.getByTestId("measurements-sources")).toContainText(
     "not added to a token grand total",
@@ -160,7 +162,7 @@ test("owner starts and stops the explicit review timer from the task sheet", asy
   );
 });
 
-test("observed display sources remain traceable while safe token overflow stays unavailable", async ({
+test("observed arithmetic survives the source-history hold and safe token overflow", async ({
   page,
 }) => {
   await signInAs(page, "owner");
@@ -193,6 +195,7 @@ test("observed display sources remain traceable while safe token overflow stays 
       offline_ms: number;
     };
     tokens: { exact: { input: number | null }; exact_overflow_fields: string[] };
+    sources: null;
   };
   expect(view.times.active_ms).toBe(30_000);
   expect(view.times.active_quality).toBe("observed");
@@ -200,20 +203,17 @@ test("observed display sources remain traceable while safe token overflow stays 
   expect(view.times.offline_ms).toBeGreaterThan(0);
   expect(view.tokens.exact.input).toBeNull();
   expect(view.tokens.exact_overflow_fields).toEqual(["input"]);
+  expect(view.sources).toBeNull();
   const sourcePage = await api(
     page,
     "GET",
     `${BASE}/runs/${FIX.runDelegable}/measurement-sources?limit=100`,
   );
-  expect(sourcePage.status).toBe(200);
-  const sources = sourcePage.json.sources as Array<{
-    event_id: string;
-    run_execution_id: string;
-    family: string;
-  }>;
-  expect(sources.map((entry) => entry.event_id).sort()).toEqual([...sourceIds].sort());
-  expect(sources.filter((entry) => entry.family === "turn")).toHaveLength(2);
-  expect(sources.filter((entry) => entry.family === "tokens")).toHaveLength(2);
+  expect(sourcePage.status).toBe(409);
+  expect(sourcePage.json).toMatchObject({
+    error: "request_rejected",
+    message: "event feeds are unavailable",
+  });
   await page
     .getByTestId("measurements-sources")
     .getByText("Measurement sources", { exact: true })
@@ -221,8 +221,11 @@ test("observed display sources remain traceable while safe token overflow stays 
   for (const id of sourceIds) {
     await expect(
       page.getByTestId("measurements-sources").getByText(id, { exact: true }),
-    ).toBeVisible();
+    ).toHaveCount(0);
   }
+  await expect(page.getByTestId("measurement-sources-unavailable")).toHaveText(
+    "Measurement source history is unavailable.",
+  );
   await page.screenshot({
     path: path.join(EVIDENCE_DIR, "measurements-observed-sources.png"),
     fullPage: true,

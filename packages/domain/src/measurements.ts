@@ -7,11 +7,7 @@ import { assertEpoch, assertRole, loadPrincipal } from "./authorization.js";
 import { DomainError, type HubCommand, type HubContext } from "./hub.js";
 import { isUlid, randomUlid } from "./ids.js";
 import { canonicalLaunchJson, launchRunner, readLaunch, snapshotOf } from "./launch-state.js";
-import {
-  listRunMeasurementActivitySources,
-  listRunMeasurementSources,
-  type MeasurementSourceReference,
-} from "./measurement-sources.js";
+import { listRunMeasurementActivitySources } from "./measurement-sources.js";
 import { rejectRunnerRequest, runnerHash, runnerId, runnerObject } from "./runner-crypto.js";
 import { assertRunnerLaunchAuthority, type RunnerPrincipal } from "./runners.js";
 import {
@@ -1399,7 +1395,7 @@ export interface RunMeasurements {
     stopped_total_ms: number;
     open_ms: number;
   };
-  sources: { sources: MeasurementSourceReference[]; has_more: boolean; next_cursor: number };
+  sources: null;
   provenance: {
     ledger_events: number;
     token_observations: number;
@@ -1511,7 +1507,6 @@ export async function getRunMeasurements(
     .get(workspaceId, workspaceId, runId)) as { total: number };
   const tokens = await listTokenObservations(db, workspaceId, runId, access);
   const activitySources = await listRunMeasurementActivitySources(db, workspaceId, runId, access);
-  const sources = await listRunMeasurementSources(db, workspaceId, runId, {}, access);
   const reported = await listMeasurementIntervals(db, workspaceId, runId, access);
   const timers = (await db
     .prepare(`SELECT * FROM review_timers WHERE workspace_id = ? AND run_id = ? AND task_id = ?`)
@@ -1816,7 +1811,7 @@ export async function getRunMeasurements(
     attention,
     tokens: summarizeTokens(tokens, CURRENT_PRICE_CATALOG_VERSION, now),
     review: { timers: timerRecords, stopped_total_ms: stoppedTotal, open_ms: openMs },
-    sources,
+    sources: null,
     provenance: {
       ledger_events: ledger.length,
       token_observations: tokens.length,

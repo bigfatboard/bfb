@@ -1,7 +1,6 @@
-// ABOUTME: Serves runner event-batch ingest and browser ledger replay through shared domain commands.
+// ABOUTME: Serves runner event-batch ingest while holding admitted public ledger-position reads.
 // ABOUTME: Raw runner claims never enter the ledger; attribution is derived server-side by E01 ingest.
 
-import { createAuthorizationContext } from "@bfb/db";
 import { decodeRunnerEventBatch } from "@bfb/protocol";
 import {
   assertLedgerBrowserAccess,
@@ -9,10 +8,8 @@ import {
   EVENT_BATCH_LIMIT,
   EVENT_BODY_LIMIT,
   ingestRunnerEventsCommand,
-  listLedgerEvents,
   loadPrincipal,
   randomUlid,
-  readLedgerHighWater,
   rejectRunnerRequest,
   runnerId,
   type HubCommand,
@@ -119,7 +116,7 @@ export interface EventBrowserDeps extends RunnerApiDeps {
   workspaceId: string;
 }
 
-/** Browser replay reads committed ledger envelopes directly from D1; replay never deletes rows. */
+/** Public raw-position delivery is held after existing browser and pure range admission. */
 export async function handleEventBrowserApi(
   request: Request,
   deps: EventBrowserDeps,
@@ -133,46 +130,32 @@ export async function handleEventBrowserApi(
     deps.principal.humanId,
     principal.authorizationEpoch,
   );
-  const authorization = createAuthorizationContext({
-    workspaceId,
-    principalId: deps.principal.humanId,
-    authorizationEpoch: principal.authorizationEpoch,
-    jurisdiction: deps.jurisdiction,
-  });
   const prefix = `/api/v1/workspaces/${workspaceId}`;
   if (url.pathname === `${prefix}/events/high-water` && request.method === "GET") {
     if (url.search) throw new DomainError("invalid_argument", "high-water takes no parameters");
-    return Response.json({
-      schema_version: 1,
-      workspace_id: workspaceId,
-      high_water_cursor: await readLedgerHighWater(deps.db, authorization),
-    });
+    return unavailable();
   }
   if (url.pathname === `${prefix}/events` && request.method === "GET") {
     const afterCursor = integerParam(url, "after_cursor", 0);
-    const highWater = await readLedgerHighWater(deps.db, authorization);
-    const throughCursor = integerParam(url, "through_cursor", highWater);
+    const throughCursor = integerParam(url, "through_cursor", afterCursor);
     const limit = integerParam(url, "limit", 100);
-    const events = await listLedgerEvents(deps.db, authorization, {
-      afterCursor,
-      throughCursor,
-      limit,
-    });
-    const lastCursor =
-      events.length > 0 ? (events[events.length - 1]?.workspace_cursor as number) : afterCursor;
-    return Response.json({
-      schema_version: 1,
-      workspace_id: workspaceId,
-      high_water_cursor: highWater,
-      events,
-      has_more: lastCursor < throughCursor,
-    });
+    if (throughCursor < afterCursor || limit < 1 || limit > 100) {
+      throw new DomainError("invalid_event_range", "ledger replay range is invalid");
+    }
+    return unavailable();
   }
   return Response.json({ error: "not_found" }, { status: 404 });
 }
 
+function unavailable(): Response {
+  return response({ error: "request_rejected", message: "event feeds are unavailable" }, 409);
+}
+
 function integerParam(url: URL, name: string, fallback: number): number {
-  const raw = url.searchParams.get(name);
+  const values = url.searchParams.getAll(name);
+  if (values.length > 1)
+    throw new DomainError("invalid_argument", `query parameter ${name} is invalid`);
+  const raw = values[0] ?? null;
   if (raw === null) return fallback;
   if (!/^[0-9]{1,16}$/.test(raw)) {
     throw new DomainError("invalid_argument", `query parameter ${name} is invalid`);

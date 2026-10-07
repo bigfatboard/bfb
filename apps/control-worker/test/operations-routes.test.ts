@@ -202,8 +202,11 @@ describe("operations browser routes", () => {
         undefined,
         currentBindings,
       );
-      expect(initial.status).toBe(200);
-      expect(await initial.json()).toMatchObject({ entries: [{ task_id: f.task.id }] });
+      expect(initial.status).toBe(409);
+      expect(await initial.json()).toEqual({
+        error: "request_rejected",
+        message: "event feeds are unavailable",
+      });
       await context.db
         .prepare(
           "INSERT INTO task_privacy (workspace_id, task_id, owner_human_id, created_at) VALUES (?, ?, ?, ?)",
@@ -214,8 +217,11 @@ describe("operations browser routes", () => {
         undefined,
         currentBindings,
       );
-      expect(activity.status).toBe(200);
-      expect(await activity.json()).toEqual({ ok: true, entries: [], has_more: false });
+      expect(activity.status).toBe(409);
+      expect(await activity.json()).toEqual({
+        error: "request_rejected",
+        message: "event feeds are unavailable",
+      });
       for (const tail of ["queues", "health"]) {
         const response = await app.request(
           get(`${OPS}/${tail}`, owner.cookie),
@@ -232,7 +238,7 @@ describe("operations browser routes", () => {
     }
   });
 
-  it("rechecks project access inside selection after authenticated route admission", async () => {
+  it("holds activity before source selection after authenticated route admission", async () => {
     const { context, owner } = await activityContextWithSession();
     try {
       const db = context.db;
@@ -269,9 +275,12 @@ describe("operations browser routes", () => {
         undefined,
         currentBindings,
       );
-      expect(response.status).toBe(200);
-      expect(fired).toBe(true);
-      expect(await response.json()).toEqual({ ok: true, entries: [], has_more: false });
+      expect(response.status).toBe(409);
+      expect(fired).toBe(false);
+      expect(await response.json()).toEqual({
+        error: "request_rejected",
+        message: "event feeds are unavailable",
+      });
     } finally {
       context.raw.close();
     }
@@ -298,9 +307,12 @@ describe("operations browser routes", () => {
         undefined,
         currentBindings,
       );
-      expect(activity.status).toBe(200);
-      const body = (await activity.json()) as { entries: unknown[] };
-      expect(Array.isArray(body.entries)).toBe(true);
+      expect(activity.status).toBe(409);
+      expect(await activity.json()).toEqual({
+        error: "request_rejected",
+        message: "event feeds are unavailable",
+      });
+      expect(activity.headers.get("cache-control")).toBe("no-store");
     }
   });
 

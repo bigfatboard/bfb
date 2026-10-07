@@ -184,41 +184,12 @@ describe("browser realtime upgrade", () => {
         auth: f.context.auth,
       },
     );
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ forwarded: true });
-    expect(f.calls).toHaveLength(1);
-    const call = f.calls[0] as { url: string; init: RequestInit };
-    expect(call.url).toBe("https://bfb-hub.internal/browser/connect");
-    const headers = new Headers(call.init.headers);
-    expect(headers.get("upgrade")).toBe("websocket");
-    expect(headers.get("sec-websocket-protocol")).toBe("bfb.browser.v1");
-    const principal = JSON.parse(headers.get("x-bfb-browser-principal") as string) as Record<
-      string,
-      unknown
-    >;
-    expect(principal).toMatchObject({
-      schema_version: 1,
-      workspaceId: FIX.workspace,
-      humanId: FIX.owner,
-      authorizationEpoch: 1,
-      role: "owner",
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      error: "request_rejected",
+      message: "event feeds are unavailable",
     });
-    expect(typeof principal.sessionExpiresAt).toBe("string");
-    expect(Object.keys(principal).sort()).toEqual(
-      [
-        "authorizationEpoch",
-        "humanId",
-        "role",
-        "schema_version",
-        "sessionExpiresAt",
-        "sessionId",
-        "workspaceId",
-      ].sort(),
-    );
-    const forwarded = JSON.stringify(principal);
-    expect(forwarded).not.toContain("auth-token-e02-owner");
-    expect(forwarded).not.toContain(f.owner.cookie);
-    expect(forwarded.toLowerCase()).not.toContain("cookie");
-    expect(forwarded.toLowerCase()).not.toContain("bearer");
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(f.calls).toEqual([]);
   });
 });

@@ -25,7 +25,6 @@ import {
   isUlid,
   listReviewTimers,
   listResultSubmissions,
-  listRunMeasurementSources,
   listTasksPage,
   loadPrincipal,
   recordBrowserActivityCommand,
@@ -45,7 +44,7 @@ import {
 
 import type { BrowserPrincipal } from "../auth/session.js";
 import type { Jurisdiction } from "../env.js";
-import { executeWorkspaceCommand } from "../hub-client.js";
+import { executePublicWorkspaceCommand as executeWorkspaceCommand } from "../public-command-outcome.js";
 import { readBoundedJson } from "./request.js";
 
 const BODY_LIMIT = 32_768;
@@ -643,6 +642,33 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
   if (runMatch) {
     const runId = runMatch[1] ?? "";
     const rest = runMatch[2] ?? "";
+    if (rest === "/measurement-sources" && request.method === "GET") {
+      if (!isUlid(runId)) throw new DomainError("invalid_argument", "run id is invalid");
+      if ([...url.searchParams.keys()].some((name) => !["after_cursor", "limit"].includes(name))) {
+        throw new DomainError("invalid_argument", "measurement source query is invalid");
+      }
+      const integer = (name: string, fallback: number): number => {
+        const values = url.searchParams.getAll(name);
+        if (values.length > 1 || (values.length && !/^[0-9]{1,16}$/.test(values[0]!))) {
+          throw new DomainError("invalid_argument", "measurement source query is invalid");
+        }
+        return values.length ? Number(values[0]) : fallback;
+      };
+      const after = integer("after_cursor", 0),
+        limit = integer("limit", 100);
+      if (
+        !Number.isSafeInteger(after) ||
+        !Number.isSafeInteger(limit) ||
+        limit < 1 ||
+        limit > 100
+      ) {
+        throw new DomainError("invalid_argument", "measurement source page is invalid");
+      }
+      return Response.json(
+        { error: "request_rejected", message: "event feeds are unavailable" },
+        { status: 409, headers: { "cache-control": "no-store" } },
+      );
+    }
     const predicate = taskAccessPredicate(principal, "read", "run_task");
     const run = (await deps.db
       .prepare(
@@ -682,30 +708,6 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
         }
         throw error;
       }
-    }
-    if (rest === "/measurement-sources" && request.method === "GET") {
-      if ([...url.searchParams.keys()].some((name) => !["after_cursor", "limit"].includes(name))) {
-        throw new DomainError("invalid_argument", "measurement source query is invalid");
-      }
-      const integer = (name: string, fallback: number): number => {
-        const values = url.searchParams.getAll(name);
-        if (values.length > 1 || (values.length && !/^[0-9]{1,16}$/.test(values[0]!))) {
-          throw new DomainError("invalid_argument", "measurement source query is invalid");
-        }
-        return values.length ? Number(values[0]) : fallback;
-      };
-      return json(
-        await listRunMeasurementSources(
-          deps.db,
-          deps.workspaceId,
-          runId,
-          {
-            afterCursor: integer("after_cursor", 0),
-            limit: integer("limit", 100),
-          },
-          principal,
-        ),
-      );
     }
     if (rest === "/activity" && request.method === "PATCH") {
       const record = await body(request, ["expected_version", "activity", "request_id"]);

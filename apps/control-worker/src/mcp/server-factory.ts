@@ -33,7 +33,7 @@ import {
 } from "@bfb/domain";
 
 import type { Jurisdiction } from "../env.js";
-import { executeWorkspaceCommand } from "../hub-client.js";
+import { executePublicWorkspaceCommand as executeWorkspaceCommand } from "../public-command-outcome.js";
 
 export interface McpServerDeps {
   db: SqlDatabase;
@@ -515,7 +515,6 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
                 },
               },
               replayed: outcome.replayed,
-              cursor: outcome.cursor,
             }),
           },
         ],

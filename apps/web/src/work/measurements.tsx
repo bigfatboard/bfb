@@ -273,6 +273,9 @@ export function MeasurementsView(props: MeasurementsViewProps) {
           </div>
           <details data-testid="measurements-sources">
             <summary>Measurement sources</summary>
+            <p className="section-help" role="status" data-testid="measurement-sources-unavailable">
+              Measurement source history is unavailable.
+            </p>
             <p>
               Activity is observed work, not proof of completion. Offline gaps remain inside elapsed
               time. Cache and reasoning counts may overlap input/output and are not added to a token
@@ -293,23 +296,6 @@ export function MeasurementsView(props: MeasurementsViewProps) {
                   {run.times.open_intervals} incomplete activity pairs ·{" "}
                   {run.times.ambiguous_legacy_events} ambiguous legacy events.
                 </p>
-                {run.sources.sources.length === 0 ? (
-                  <p>No identity-linked telemetry sources.</p>
-                ) : (
-                  <ul>
-                    {run.sources.sources.map((source) => (
-                      <li key={source.event_id}>
-                        {source.kind} · {source.occurred_at} · source <code>{source.event_id}</code>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {run.sources.has_more ? (
-                  <p>
-                    Showing the first 100 canonical telemetry sources; more are available through
-                    the authorized source API.
-                  </p>
-                ) : null}
                 {run.tokens.costs.length > 0 ? (
                   <p>
                     Token cost ({run.tokens.catalog_version}):{" "}

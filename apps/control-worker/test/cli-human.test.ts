@@ -624,18 +624,27 @@ describe("X02 human CLI surface", () => {
     const app = appFor(s.context);
     const current = bindings(s.context);
     const base = `/api/v1/workspaces/${FIX.workspace}`;
+    const input = {
+      project_id: FIX.projectA,
+      title: "Synthetic X02 CLI task",
+      request_id: randomUlid(),
+    };
     const created = await app.request(
-      cliPost(s.credential, "/api/v1/cli/tasks", {
-        project_id: FIX.projectA,
-        title: "Synthetic X02 CLI task",
-        request_id: randomUlid(),
-      }),
+      cliPost(s.credential, "/api/v1/cli/tasks", input),
       undefined,
       current,
     );
     expect(created.status, await created.clone().text()).toBe(200);
     const outcome = (await created.json()) as { ok: boolean; result: { id: string } };
     expect(outcome.ok).toBe(true);
+    expect(Object.keys(outcome).sort()).toEqual(["ok", "replayed", "result"]);
+    const replay = await app.request(
+      cliPost(s.credential, "/api/v1/cli/tasks", input),
+      undefined,
+      current,
+    );
+    expect(replay.status).toBe(200);
+    expect(await replay.json()).toEqual({ ...outcome, replayed: true });
     const viaCli = await app.request(
       cliGet(s.credential, `/api/v1/cli/tasks/${outcome.result.id}`),
       undefined,

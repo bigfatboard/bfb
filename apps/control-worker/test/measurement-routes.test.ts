@@ -218,7 +218,7 @@ describe("A04 browser measurements API", () => {
     const taskBody = (await taskResponse.json()) as {
       measurements: {
         task_id: string;
-        runs: unknown[];
+        runs: Array<{ sources: unknown }>;
         totals: Record<string, unknown>;
         review: { stopped_total_ms: number; open_ms: number };
         attention: unknown[];
@@ -228,6 +228,7 @@ describe("A04 browser measurements API", () => {
     };
     expect(taskBody.measurements.task_id).toBe(taskId);
     expect(taskBody.measurements.runs).toHaveLength(1);
+    expect(taskBody.measurements.runs[0]!.sources).toBeNull();
     expect(taskBody.measurements.interventions).toMatchObject({ runs: 1, restarts: 0 });
     expect(taskBody.measurements.review).toMatchObject({ stopped_total_ms: 0, open_ms: 0 });
 
@@ -243,6 +244,7 @@ describe("A04 browser measurements API", () => {
         times: Record<string, unknown>;
         tokens: { catalog_version: string; unavailable_count: number };
         provenance: Record<string, number>;
+        sources: unknown;
       };
     };
     expect(runBody.measurements.run_id).toBe(runId);
@@ -251,6 +253,7 @@ describe("A04 browser measurements API", () => {
     expect(runBody.measurements.times.idle_ms).toBeNull();
     expect(runBody.measurements.tokens.catalog_version).toBe("2026-09-01");
     expect(runBody.measurements.provenance.ledger_events).toBe(0);
+    expect(runBody.measurements.sources).toBeNull();
 
     const reviewerRead = await app.request(
       get(`${base}/tasks/${taskId}/measurements`, reviewer.cookie),

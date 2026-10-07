@@ -31,7 +31,7 @@ import {
 
 import type { BrowserPrincipal } from "../auth/session.js";
 import type { Jurisdiction } from "../env.js";
-import { executeWorkspaceCommand } from "../hub-client.js";
+import { executePublicWorkspaceCommand as executeWorkspaceCommand } from "../public-command-outcome.js";
 import { readBoundedJson } from "./request.js";
 
 const BODY_LIMIT = 32_768;

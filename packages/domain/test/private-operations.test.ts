@@ -157,37 +157,39 @@ async function rotate(db: SqlDatabase) {
 }
 
 describe("private operations content selectors", () => {
-  it("filters private activity before LIMIT and computes has_more from visible rows", async () => {
+  it("holds both first and later public activity pages", async () => {
     const f = await fixture();
-    const first = await readActivityFeed(f.db, FIX.workspace, { limit: 1, access: access() });
-    expect(first.entries.map((entry) => entry.task_id)).toEqual([f.shared.id]);
-    expect(first.entries.map((entry) => entry.workspace_cursor)).toEqual([101]);
-    expect(first.has_more).toBe(true);
-    const second = await readActivityFeed(f.db, FIX.workspace, {
-      limit: 1,
-      afterCursor: 101,
-      access: access(),
-    });
-    expect(second.entries.map((entry) => entry.workspace_cursor)).toEqual([102]);
-    expect(second.has_more).toBe(false);
+    await expect(
+      readActivityFeed(f.db, FIX.workspace, { limit: 1, access: access() }),
+    ).rejects.toMatchObject({ code: "request_rejected", message: "event feeds are unavailable" });
+    await expect(
+      readActivityFeed(f.db, FIX.workspace, {
+        limit: 1,
+        afterCursor: 101,
+        access: access(),
+      }),
+    ).rejects.toMatchObject({ code: "request_rejected", message: "event feeds are unavailable" });
   });
 
   it.each([FIX.owner, FIX.member, FIX.reviewer])(
-    "does not expose private activity to %s",
+    "holds public activity for %s independently of private grants",
     async (humanId) => {
       const f = await fixture();
-      const feed = await readActivityFeed(f.db, FIX.workspace, { access: access(humanId) });
-      expect(feed.entries.map((entry) => entry.task_id)).toEqual([f.shared.id, f.shared.id]);
+      await expect(
+        readActivityFeed(f.db, FIX.workspace, { access: access(humanId) }),
+      ).rejects.toMatchObject({ code: "request_rejected", message: "event feeds are unavailable" });
     },
   );
 
-  it("keeps unscoped internal activity shared-only", async () => {
+  it("does not bypass the public activity hold without an access context", async () => {
     const f = await fixture();
-    const feed = await readActivityFeed(f.db, FIX.workspace);
-    expect(feed.entries.map((entry) => entry.task_id)).toEqual([f.shared.id, f.shared.id]);
+    await expect(readActivityFeed(f.db, FIX.workspace)).rejects.toMatchObject({
+      code: "request_rejected",
+      message: "event feeds are unavailable",
+    });
   });
 
-  it("checks task privacy in the actual activity query", async () => {
+  it("holds activity before the ledger query or a staged privacy change", async () => {
     const f = await fixture();
     const db = beforeRead(f.db, /FROM event_ledger/, async () => {
       await f.db
@@ -196,22 +198,30 @@ describe("private operations content selectors", () => {
         )
         .run(FIX.workspace, f.shared.id, FIX.member, NOW);
     });
-    expect(await readActivityFeed(db, FIX.workspace, { access: access() })).toEqual({
-      entries: [],
-      has_more: false,
+    await expect(readActivityFeed(db, FIX.workspace, { access: access() })).rejects.toMatchObject({
+      code: "request_rejected",
+      message: "event feeds are unavailable",
     });
+    expect(
+      await f.db.prepare("SELECT task_id FROM task_privacy WHERE task_id=?").get(f.shared.id),
+    ).toBeUndefined();
   });
 
-  it("checks retained human epoch in the actual activity query", async () => {
+  it("holds activity before the ledger query or a staged epoch change", async () => {
     const f = await fixture();
     const db = beforeRead(f.db, /FROM event_ledger/, () => rotate(f.db));
-    expect(await readActivityFeed(db, FIX.workspace, { access: access() })).toEqual({
-      entries: [],
-      has_more: false,
+    await expect(readActivityFeed(db, FIX.workspace, { access: access() })).rejects.toMatchObject({
+      code: "request_rejected",
+      message: "event feeds are unavailable",
     });
+    expect(
+      await f.db
+        .prepare("SELECT authorization_epoch FROM workspace_members WHERE human_id=?")
+        .get(FIX.owner),
+    ).toEqual({ authorization_epoch: 1 });
   });
 
-  it("checks current project authority rather than a stale transport list", async () => {
+  it("holds activity after project revocation independently of a stale transport list", async () => {
     const f = await fixture();
     await f.db
       .prepare("UPDATE projects SET access_mode = 'restricted' WHERE workspace_id = ? AND id = ?")
@@ -221,12 +231,12 @@ describe("private operations content selectors", () => {
         "DELETE FROM project_access WHERE workspace_id = ? AND project_id = ? AND human_id = ?",
       )
       .run(FIX.workspace, FIX.projectA, FIX.owner);
-    expect(
-      await readActivityFeed(f.db, FIX.workspace, {
+    await expect(
+      readActivityFeed(f.db, FIX.workspace, {
         access: access(),
         projectIds: [FIX.projectA],
       }),
-    ).toEqual({ entries: [], has_more: false });
+    ).rejects.toMatchObject({ code: "request_rejected", message: "event feeds are unavailable" });
   });
 
   it("filters private stuck uploads, retaining shared and run-free rows", async () => {
@@ -256,9 +266,9 @@ describe("private operations content selectors", () => {
   it("does not let a foreign authority context authorize this workspace", async () => {
     const f = await fixture();
     const foreign = { ...access(), workspaceId: randomUlid() };
-    expect(await readActivityFeed(f.db, FIX.workspace, { access: foreign })).toEqual({
-      entries: [],
-      has_more: false,
+    await expect(readActivityFeed(f.db, FIX.workspace, { access: foreign })).rejects.toMatchObject({
+      code: "request_rejected",
+      message: "event feeds are unavailable",
     });
     expect(await listStuckUploads(f.db, FIX.workspace, NOW, foreign)).toEqual([]);
     expect(await listStuckLaunches(f.db, FIX.workspace, NOW, foreign)).toEqual([]);

@@ -12,7 +12,12 @@ import { signInAndOpenBoard } from "./helpers.js";
 test.describe.configure({ mode: "serial" });
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
-const evidenceDir = path.join(rootDir, "docs/work-packages/evidence/WP-X05");
+const evidenceDir = path.join(
+  rootDir,
+  process.env.BFB_CAPTURE_X05_EVIDENCE === "1"
+    ? "docs/work-packages/evidence/WP-X05"
+    : "apps/web/test/e2e/test-results/evidence-x05",
+);
 const recording: Record<string, unknown> = {
   spec: "x05-operations",
   scenarios: [] as Array<Record<string, unknown>>,
@@ -40,6 +45,10 @@ async function openOperations(page: Parameters<typeof signInAndOpenBoard>[0]): P
 }
 
 test("owner sees health, queues, activity, audit, retention, and diagnostics", async ({ page }) => {
+  const activityRequests: string[] = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname.endsWith("/activity")) activityRequests.push(request.url());
+  });
   await signInAndOpenBoard(page, "owner");
   await openOperations(page);
   for (const section of [
@@ -55,6 +64,11 @@ test("owner sees health, queues, activity, audit, retention, and diagnostics", a
   await expect(page.getByTestId("audit-scope")).toHaveText(
     "Verified artifact and upload-recovery receipts only.",
   );
+  await expect(page.getByTestId("operations-activity")).toContainText(
+    "Activity feed is unavailable.",
+  );
+  await expect(page.getByTestId("operations-activity").locator("li")).toHaveCount(0);
+  expect(activityRequests).toEqual([]);
   const counts = await page.getByTestId("queue-counts").textContent();
   expect(counts).toMatch(/Notifications pending \d+/);
   note("owner-sections", { visible: 6, queueCounts: (counts ?? "").slice(0, 160) });
@@ -66,6 +80,9 @@ test("member sees operations without the security audit", async ({ page }) => {
   await expect(page.getByTestId("operations-health")).toBeVisible();
   await expect(page.getByTestId("operations-queues")).toBeVisible();
   await expect(page.getByTestId("operations-activity")).toBeVisible();
+  await expect(page.getByTestId("operations-activity")).toContainText(
+    "Activity feed is unavailable.",
+  );
   await expect(page.getByTestId("operations-audit")).toHaveCount(0);
   await expect(page.getByTestId("operations-retention")).toBeVisible();
   await expect(page.getByTestId("operations-diagnostics")).toBeVisible();

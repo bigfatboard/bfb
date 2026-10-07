@@ -165,6 +165,11 @@ type nativeMeasurementFixture struct {
 
 func (fixture nativeMeasurementFixture) read(t *testing.T, path string) map[string]any {
 	t.Helper()
+	return fixture.readStatus(t, path, http.StatusOK)
+}
+
+func (fixture nativeMeasurementFixture) readStatus(t *testing.T, path string, status int) map[string]any {
+	t.Helper()
 	request, err := http.NewRequestWithContext(fixture.ctx, "GET", fixture.server.URL+path, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -177,8 +182,11 @@ func (fixture nativeMeasurementFixture) read(t *testing.T, path string) map[stri
 	defer response.Body.Close()
 	data, err := io.ReadAll(io.LimitReader(response.Body, 65_537))
 	var result map[string]any
-	if err != nil || len(data) > 65_536 || response.StatusCode != 200 || json.Unmarshal(data, &result) != nil {
+	if err != nil || len(data) > 65_536 || response.StatusCode != status || json.Unmarshal(data, &result) != nil {
 		t.Fatal("bounded authenticated measurement read failed", response.StatusCode, err)
+	}
+	if status == http.StatusConflict && response.Header.Get("Cache-Control") != "no-store" {
+		t.Fatal("held source read must not be cached")
 	}
 	return result
 }
@@ -353,37 +361,32 @@ func runNativeMeasurements(t *testing.T, fixture nativeMeasurementFixture) {
 	if exact["input"] != float64(120) || exact["output"] != float64(30) || exact["cache_read"] != float64(20) || exact["reasoning"] != float64(5) || exact["cache_write"] != nil || estimated["input"] != float64(7) || estimated["output"] != float64(0) || tokens["unavailable_count"] != float64(1) {
 		t.Fatal("measurement API conflated quality, missing fields or reported zero")
 	}
-	sources := fixture.read(t, "/api/v1/workspaces/"+workspace+"/runs/"+runID+"/measurement-sources?limit=100")
+	publicSources, sourcesPresent := measurements["sources"]
+	if !sourcesPresent || publicSources != nil {
+		t.Fatal("public source page must be explicitly unavailable")
+	}
+	sources := fixture.readStatus(t, "/api/v1/workspaces/"+workspace+"/runs/"+runID+"/measurement-sources?limit=100", http.StatusConflict)
 	if strings.Contains(fmt.Sprint(sources), "A04_PRIVATE_TELEMETRY_CANARY") || strings.Contains(fmt.Sprint(sources), "/synthetic/private") {
 		t.Fatal("source metadata exposed raw provider content")
 	}
-	sourceRows, ok := sources["sources"].([]any)
-	if !ok || sources["has_more"] != false || len(sourceRows) != 7 {
-		t.Fatal("measurement sources lack a complete bounded canonical page")
-	}
-	allowed := map[string]bool{}
-	for _, key := range []string{"event_id", "committed_cursor", "run_execution_id", "assignment_generation", "provider", "provider_session_id", "kind", "occurred_at", "family", "phase", "activity_id", "usage_id", "parent_turn_id"} {
-		allowed[key] = true
-	}
-	originalSourceFound := false
-	for _, value := range sourceRows {
-		source, ok := value.(map[string]any)
-		if !ok || source["provider"] != "fake" || source["run_execution_id"] != original || source["assignment_generation"] != float64(1) {
-			t.Fatal("source metadata lost immutable attribution")
-		}
-		for key := range source {
-			if !allowed[key] {
-				t.Fatal("source metadata exposes a non-contract field", key)
-			}
-		}
-		if source["event_id"] == first["hook_event_id"] && source["usage_id"] == "a04-exact-usage" && source["family"] == "tokens" && source["phase"] == "turn_delta" {
-			originalSourceFound = true
-		}
-	}
-	if !originalSourceFound {
-		t.Fatal("displayed total cannot trace to original captured event identity")
+	if len(sources) != 2 || sources["error"] != "request_rejected" || sources["message"] != "event feeds are unavailable" {
+		t.Fatal("public source read did not preserve the uniform hold")
 	}
 	canonical := rows(observe(original), "ledger")
+	exactIdentity := false
+	for _, event := range canonical {
+		if event["event_id"] != first["hook_event_id"] {
+			continue
+		}
+		var payload map[string]any
+		encoded, ok := event["payload_json"].(string)
+		if ok && json.Unmarshal([]byte(encoded), &payload) == nil && payload["usage_id"] == "a04-exact-usage" && event["run_execution_id"] == original && event["assignment_generation"] == float64(1) {
+			exactIdentity = true
+		}
+	}
+	if !exactIdentity {
+		t.Fatal("retained exact usage lost its captured event and assignment identity")
+	}
 	activity := map[string]bool{}
 	for _, event := range canonical {
 		if strings.HasPrefix(fmt.Sprint(event["kind"]), "turn_") || strings.HasPrefix(fmt.Sprint(event["kind"]), "tool_") {

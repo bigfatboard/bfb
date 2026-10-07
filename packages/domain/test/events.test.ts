@@ -608,7 +608,7 @@ describe("event ingest", () => {
     expect(session).toMatchObject({ event_count: 2, last_kind: "session_ended" });
   });
 
-  it("replays committed envelopes with pagination and high-water reads", async () => {
+  it("retains committed ledger order while public replay and high-water are held", async () => {
     const f = await launchFixture();
     const bound = await claimedExecution(f);
     const stream = freshStream();
@@ -619,33 +619,31 @@ describe("event ingest", () => {
       submission(bound, stream, 3, { kind: "heartbeat" }),
     ]);
     const authorization = readAuthorization();
-    expect(await readLedgerHighWater(f.db, authorization)).toBe(base + 3);
-    const page = await listLedgerEvents(f.db, authorization, {
-      afterCursor: base + 1,
-      throughCursor: base + 3,
-      limit: 1,
+    await expect(readLedgerHighWater(f.db, authorization)).rejects.toMatchObject({
+      code: "request_rejected",
+      message: "event feeds are unavailable",
     });
-    expect(page).toHaveLength(1);
-    expect(page[0]).toMatchObject({
-      schema_version: 1,
-      workspace_cursor: base + 2,
-      workspace_id: FIX.workspace,
+    await expect(
+      listLedgerEvents(f.db, authorization, {
+        afterCursor: base + 1,
+        throughCursor: base + 3,
+        limit: 1,
+      }),
+    ).rejects.toMatchObject({ code: "request_rejected", message: "event feeds are unavailable" });
+    await expect(
+      listLedgerEvents(f.db, authorization, {
+        afterCursor: base + 3,
+        throughCursor: base + 3,
+      }),
+    ).rejects.toMatchObject({ code: "request_rejected", message: "event feeds are unavailable" });
+    const rows = await ledgerRows(f.db, FIX.workspace);
+    expect(rows.map((row) => row.workspace_cursor)).toEqual([base + 1, base + 2, base + 3]);
+    expect(rows[1]).toMatchObject({
       run_execution_id: bound.executionId,
-      actor: { type: "agent_run", id: bound.executionId },
-      source: { type: "runner", id: f.runner, provider: "fake" },
       kind: "turn_started",
-      payload: {},
+      actor_type: "agent_run",
+      actor_id: bound.executionId,
     });
-    const tail = await listLedgerEvents(f.db, authorization, {
-      afterCursor: base + 2,
-      throughCursor: base + 3,
-    });
-    expect(tail.map((entry) => entry.workspace_cursor)).toEqual([base + 3]);
-    const empty = await listLedgerEvents(f.db, authorization, {
-      afterCursor: base + 3,
-      throughCursor: base + 3,
-    });
-    expect(empty).toEqual([]);
     await expect(
       listLedgerEvents(f.db, authorization, { afterCursor: base + 3, throughCursor: base + 2 }),
     ).rejects.toMatchObject({ code: "invalid_event_range" });
@@ -688,8 +686,8 @@ describe("event ingest", () => {
     });
     expect(poison.ok).toBe(false);
     expect(await ledgerRows(f.db, FIX.workspace)).toHaveLength(0);
-    expect(
-      await readLedgerHighWater(
+    await expect(
+      readLedgerHighWater(
         f.db,
         createAuthorizationContext({
           workspaceId: FIX.workspace,
@@ -698,7 +696,7 @@ describe("event ingest", () => {
           jurisdiction: "eu",
         }),
       ),
-    ).toBe(0);
+    ).rejects.toMatchObject({ code: "request_rejected", message: "event feeds are unavailable" });
   });
 
   it("keeps cursor ranges disjoint across batches with rejected rows", async () => {

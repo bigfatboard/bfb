@@ -21,7 +21,7 @@ import {
   setNotificationPreferenceCommand,
 } from "@bfb/domain";
 
-import { executeWorkspaceCommand } from "../hub-client.js";
+import { executePublicWorkspaceCommand as executeWorkspaceCommand } from "../public-command-outcome.js";
 import { readBoundedJson } from "./request.js";
 import type { WorkApiDeps } from "./work.js";
 import type { BrowserPrincipal } from "../auth/session.js";

@@ -27,7 +27,7 @@ import {
   resolveBrowserPrincipal,
   type BrowserPrincipal,
 } from "../auth/session.js";
-import { executeWorkspaceCommand } from "../hub-client.js";
+import { executePublicWorkspaceCommand as executeWorkspaceCommand } from "../public-command-outcome.js";
 
 const BODY_LIMIT = 16_384;
 const WINDOW_SECONDS = 300;

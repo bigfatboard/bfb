@@ -1,17 +1,9 @@
-// ABOUTME: Proves browser socket admit, heartbeat, broadcast, expiry, and eviction behavior.
-// ABOUTME: Uses socket doubles plus real D1 reads; native Workerd acceptance rides the E02 harness.
+// ABOUTME: Exercises retained browser socket admission, attachment and heartbeat codecs.
+// ABOUTME: Public feeds stay unavailable while legacy attachments retire without source reads or command nudges.
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-import { createAuthorizationContext } from "@bfb/db";
-import {
-  bumpMemberEpoch,
-  FIX,
-  ingestRunnerEventsCommand,
-  randomUlid,
-  readLedgerHighWater,
-  type RunnerPrincipal,
-} from "@bfb/domain";
+import type { SqlDatabase } from "@bfb/db";
+import { FIX, randomUlid } from "@bfb/domain";
+import { describe, expect, it } from "vitest";
 
 import {
   BROWSER_REALTIME_TAG,
@@ -19,445 +11,168 @@ import {
   type BrowserHandshake,
   type RealtimeSocket,
 } from "../src/realtime/browser-sockets.js";
-import { openAuthTestContext } from "./auth-helpers.js";
-import { launchFixture } from "../../../packages/domain/test/launch-fixture.js";
-import { discussionFixture } from "../../../packages/domain/test/discussion-fixture.js";
 
 const NOW = "2026-09-12T12:00:00.000Z";
 const LATER = "2026-09-12T12:00:20.000Z";
-const SESSION_EXPIRY = "2026-09-12T13:00:00.000Z";
+const EXPIRY = "2026-09-12T13:00:00.000Z";
+const handshake: BrowserHandshake = {
+  schema_version: 1,
+  workspaceId: FIX.workspace,
+  humanId: FIX.owner,
+  authorizationEpoch: 1,
+  role: "owner",
+  sessionId: "synthetic-retained-session",
+  sessionExpiresAt: EXPIRY,
+};
+const noDatabase = {
+  prepare() {
+    throw new Error("browser retirement must not read D1");
+  },
+  withTransaction() {
+    throw new Error("browser retirement must not write D1");
+  },
+} as SqlDatabase;
 
-beforeEach(() => {
-  vi.useFakeTimers({ toFake: ["Date"] });
-  vi.setSystemTime(new Date(NOW));
-});
-afterEach(() => vi.useRealTimers());
-
-type FixtureDb = Awaited<ReturnType<typeof launchFixture>>["db"];
-
-interface FakeSocket extends RealtimeSocket {
-  sent: string[];
-  closed: Array<{ code: number; reason: string }>;
-  attachment: unknown;
-}
-
-function fakeSocket(attachment: unknown = null): FakeSocket {
-  const socket: FakeSocket = {
+function peer(attachment: unknown) {
+  const closed: Array<{ code: number; reason: string }> = [],
+    sent: string[] = [];
+  const socket: RealtimeSocket = {
     readyState: 1,
-    sent: [],
-    closed: [],
-    attachment,
-    send(data: string): void {
-      socket.sent.push(data);
+    send(frame) {
+      sent.push(frame);
     },
-    close(code: number, reason: string): void {
-      socket.closed.push({ code, reason });
-      socket.readyState = 3;
+    close(code, reason) {
+      closed.push({ code, reason });
     },
-    readAttachment(): unknown {
-      return socket.attachment;
+    readAttachment() {
+      return attachment;
     },
-    writeAttachment(value: unknown): void {
-      socket.attachment = value;
+    writeAttachment() {
+      throw new Error("no new attachment");
     },
   };
-  return socket;
+  return { socket, closed, sent };
 }
-
-async function fixture() {
-  const context = openAuthTestContext(NOW);
-  const launched = await launchFixture(context.db);
-  const claimed = await launched.claim();
-  const bound = {
-    executionId: claimed.claimed.specification.run_execution_id,
-    generation: claimed.claimed.specification.assignment_generation,
-  };
-  for (const [humanId, userId, sessionId] of [
-    [FIX.owner, "auth-owner-e02", "session-owner-e02"],
-    [FIX.member, "auth-member-e02", "session-member-e02"],
-  ] as const) {
-    context.raw
-      .prepare(
-        `INSERT INTO better_auth_users (id, name, email, email_verified, image, created_at, updated_at)
-         VALUES (?, ?, ?, 1, NULL, ?, ?)`,
-      )
-      .run(userId, `E02 ${humanId}`, `${userId}@synthetic.test`, NOW, NOW);
-    context.raw
-      .prepare(
-        `INSERT INTO better_auth_sessions
-         (id, expires_at, token, created_at, updated_at, ip_address, user_agent, user_id)
-         VALUES (?, ?, ?, ?, ?, NULL, NULL, ?)`,
-      )
-      .run(sessionId, SESSION_EXPIRY, `token-${sessionId}`, NOW, NOW, userId);
-    context.raw
-      .prepare(`UPDATE humans SET better_auth_user_id = ? WHERE id = ?`)
-      .run(userId, humanId);
-  }
-  const stream = randomUlid();
-  let sequence = 0;
-  async function commit(
-    kinds: string[],
-    extra: Record<string, unknown> = {},
-    principal: RunnerPrincipal = launched.principal,
-  ): Promise<number> {
-    const events = kinds.map((kind) => {
-      sequence += 1;
-      return {
-        schema_version: 1,
-        event_id: randomUlid(),
-        source_stream_id: stream,
-        source_sequence: sequence,
-        run_execution_id: bound.executionId,
-        assignment_generation: bound.generation,
-        kind,
-        occurred_at: NOW,
-        capture_origin: "runner_observed",
-        payload: {},
-        ...extra,
-      };
-    });
-    const outcome = await launched.hub.execute(ingestRunnerEventsCommand, {
-      workspaceId: FIX.workspace,
-      idempotencyKey: randomUlid(),
-      actorRunnerId: principal.runnerId,
-      authorizationEpoch: principal.authorizationEpoch,
-      now: NOW,
-      input: { principal, events },
-    });
-    if (!outcome.ok) throw new Error(outcome.error.code);
-    return outcome.result.high_water_cursor;
-  }
-  return { context, db: launched.db, commit, principal: launched.principal };
+function retained() {
+  return { ...handshake, connectionId: randomUlid(), subscribedAt: NOW, lastHeartbeatAt: NOW };
 }
-
-function handshake(
-  humanId: string,
-  sessionId: string,
-  extra: Partial<BrowserHandshake> = {},
-): BrowserHandshake {
-  return {
-    schema_version: 1,
-    workspaceId: FIX.workspace,
-    humanId,
-    authorizationEpoch: 1,
-    role: "owner",
-    sessionId,
-    sessionExpiresAt: SESSION_EXPIRY,
-    ...extra,
-  };
-}
-
-let connection = 0;
-
-function manager(db: FixtureDb, sockets: FakeSocket[], now = NOW) {
-  return new BrowserSockets((tag) => (tag === BROWSER_REALTIME_TAG ? sockets : []), {
-    db,
+function manager(socket: RealtimeSocket, now = NOW) {
+  return new BrowserSockets((tag) => (tag === BROWSER_REALTIME_TAG ? [socket] : []), {
+    db: noDatabase,
     now: () => now,
-    newConnectionId: () => {
-      connection += 1;
-      return `01K0000000000000000E02${String(connection).padStart(4, "0")}`;
-    },
   });
 }
 
-function kinds(socket: FakeSocket): unknown[] {
-  return socket.sent.map((raw) => (JSON.parse(raw) as { kind: string }).kind);
-}
-
-describe("browser realtime sockets", () => {
-  it("admits with ready high-water and keeps secrets out of the attachment", async () => {
-    const f = await fixture();
-    const water = await f.commit(["heartbeat"]);
-    const socket = fakeSocket();
-    const sockets = manager(f.db, [socket]);
-    const { connectionId } = await sockets.admit(socket, handshake(FIX.owner, "session-owner-e02"));
-    expect(connectionId).toMatch(/^01K/);
-    expect(socket.sent.map((raw) => JSON.parse(raw))).toEqual([
-      {
-        schema_version: 1,
-        kind: "browser.realtime.ready",
-        workspace_id: FIX.workspace,
-        connection_id: connectionId,
-        high_water_cursor: water,
-        server_time: NOW,
-      },
-    ]);
-    const stored = JSON.stringify(socket.attachment);
-    expect(stored).not.toContain("token-session-owner-e02");
-    expect(stored).not.toContain("cookie");
-    expect(stored).not.toContain("bearer");
-    expect(stored).not.toContain("secret");
-    expect(socket.attachment).toMatchObject({
-      workspaceId: FIX.workspace,
-      humanId: FIX.owner,
-      authorizationEpoch: 1,
-      sessionExpiresAt: SESSION_EXPIRY,
+describe("held browser sockets and retained codecs", () => {
+  it("preserves malformed/expired admission before the uniform availability denial", async () => {
+    const p = peer(null),
+      sockets = manager(p.socket);
+    for (const input of [
+      { schema_version: 1 },
+      { ...handshake, role: "reviewer" },
+      { ...handshake, sessionExpiresAt: NOW },
+    ]) {
+      await expect(sockets.admit(p.socket, input)).rejects.toMatchObject({
+        code: "request_rejected",
+        message: "request rejected",
+      });
+    }
+    await expect(sockets.admit(p.socket, handshake)).rejects.toMatchObject({
+      code: "request_rejected",
+      message: "event feeds are unavailable",
     });
+    expect(p.sent).toEqual([]);
+    expect(p.closed).toEqual([]);
   });
-
-  it("rejects expired sessions and unknown handshakes without a socket", async () => {
-    const f = await fixture();
-    const sockets = manager(f.db, []);
-    await expect(
-      sockets.admit(
-        fakeSocket(),
-        handshake(FIX.owner, "session-owner-e02", { sessionExpiresAt: NOW }),
-      ),
-    ).rejects.toThrow();
-    await expect(
-      sockets.admit(fakeSocket(), { schema_version: 1, workspaceId: FIX.workspace }),
-    ).rejects.toThrow();
-    await expect(
-      sockets.admit(fakeSocket(), handshake(FIX.owner, "session-owner-e02", { role: "reviewer" })),
-    ).rejects.toThrow();
+  it("recognizes retained hibernation attachments and rejects corrupt identity", () => {
+    const p = peer(retained()),
+      sockets = manager(p.socket);
+    expect(sockets.owns(p.socket)).toBe(true);
+    expect(sockets.owns(peer({ malformed: true }).socket)).toBe(false);
+    expect(sockets.owns(peer({ ...retained(), connectionId: "invalid" }).socket)).toBe(false);
   });
-
-  it("rejects heartbeats that arrive too frequently", async () => {
-    const f = await fixture();
-    const socket = fakeSocket();
-    const sockets = manager(f.db, [socket]);
-    const { connectionId } = await sockets.admit(socket, handshake(FIX.owner, "session-owner-e02"));
-    await sockets.message(
-      socket,
-      JSON.stringify({
-        schema_version: 1,
-        kind: "browser.realtime.heartbeat",
-        workspace_id: FIX.workspace,
-        connection_id: connectionId,
-      }),
-    );
-    expect(socket.closed.map((entry) => entry.code)).toEqual([1008]);
-  });
-
-  it("rechecks authorization on heartbeat and answers liveness after the gap", async () => {
-    const f = await fixture();
-    const socket = fakeSocket();
-    const early = manager(f.db, [socket], NOW);
-    const { connectionId } = await early.admit(socket, handshake(FIX.owner, "session-owner-e02"));
-    const late = manager(f.db, [socket], LATER);
-    await late.message(
-      socket,
-      JSON.stringify({
-        schema_version: 1,
-        kind: "browser.realtime.heartbeat",
-        workspace_id: FIX.workspace,
-        connection_id: connectionId,
-      }),
-    );
-    expect(kinds(socket)).toEqual(["browser.realtime.ready", "browser.realtime.alive"]);
-    await late.message(
-      socket,
-      JSON.stringify({
-        schema_version: 1,
-        kind: "browser.realtime.heartbeat",
-        workspace_id: "01K00000000000000000000099",
-        connection_id: connectionId,
-      }),
-    );
-    expect(socket.closed.map((entry) => entry.code)).toEqual([1008]);
-  });
-
-  it("broadcasts a cursor invalidation after every committed command", async () => {
-    const f = await fixture();
-    const first = await f.commit(["heartbeat"]);
-    const owner = fakeSocket();
-    const member = fakeSocket();
-    const sockets = manager(f.db, [owner, member]);
-    await sockets.admit(owner, handshake(FIX.owner, "session-owner-e02"));
-    await sockets.admit(member, handshake(FIX.member, "session-member-e02", { role: "member" }));
-    await sockets.afterCommand();
-    for (const socket of [owner, member]) {
-      const last = JSON.parse(socket.sent[socket.sent.length - 1] as string) as Record<
-        string,
-        unknown
-      >;
-      expect(last).toEqual({
-        schema_version: 1,
-        kind: "event.committed",
-        workspace_id: FIX.workspace,
-        high_water_cursor: first,
-      });
-    }
-    const water = await f.commit(["turn_started"]);
-    await sockets.afterCommand();
-    for (const socket of [owner, member]) {
-      const last = JSON.parse(socket.sent[socket.sent.length - 1] as string) as Record<
-        string,
-        unknown
-      >;
-      expect(last).toEqual({
-        schema_version: 1,
-        kind: "event.committed",
-        workspace_id: FIX.workspace,
-        high_water_cursor: water,
-      });
-    }
-  });
-
-  it("broadcasts after a discussion commit that leaves the ledger cursor unchanged", async () => {
-    const d = await discussionFixture();
-    for (const [humanId, userId, sessionId] of [
-      [FIX.owner, "auth-owner-e02", "session-owner-e02"],
-      [FIX.member, "auth-member-e02", "session-member-e02"],
+  it("retains heartbeat envelope and minimum-gap admission without emitting liveness", async () => {
+    const attachment = retained();
+    for (const [now, frame, reason] of [
+      [
+        NOW,
+        {
+          schema_version: 1,
+          kind: "browser.realtime.heartbeat",
+          workspace_id: FIX.workspace,
+          connection_id: attachment.connectionId,
+        },
+        "request_rejected",
+      ],
+      [
+        LATER,
+        {
+          schema_version: 1,
+          kind: "browser.realtime.heartbeat",
+          workspace_id: FIX.workspace,
+          connection_id: randomUlid(),
+        },
+        "request_rejected",
+      ],
+      [
+        LATER,
+        {
+          schema_version: 1,
+          kind: "browser.realtime.heartbeat",
+          workspace_id: FIX.workspace,
+          connection_id: attachment.connectionId,
+        },
+        "event_feeds_unavailable",
+      ],
     ] as const) {
-      await d.db
-        .prepare(
-          `INSERT INTO better_auth_users (id, name, email, email_verified, image, created_at, updated_at)
-           VALUES (?, ?, ?, 1, NULL, ?, ?)`,
-        )
-        .run(userId, `E02 ${humanId}`, `${userId}@synthetic.test`, NOW, NOW);
-      await d.db
-        .prepare(
-          `INSERT INTO better_auth_sessions
-           (id, expires_at, token, created_at, updated_at, ip_address, user_agent, user_id)
-           VALUES (?, ?, ?, ?, ?, NULL, NULL, ?)`,
-        )
-        .run(sessionId, SESSION_EXPIRY, `token-${sessionId}`, NOW, NOW, userId);
-      await d.db
-        .prepare(`UPDATE humans SET better_auth_user_id = ? WHERE id = ?`)
-        .run(userId, humanId);
-    }
-    const created = await d.create();
-    expect(created.discussion_id).toMatch(/^01/);
-    // A discussion commit writes discussion tables only: the E01 ledger cursor
-    // is unchanged, so the old high-water gate broadcast nothing here.
-    expect(
-      await readLedgerHighWater(
-        d.db,
-        createAuthorizationContext({
-          workspaceId: FIX.workspace,
-          principalId: FIX.owner,
-          authorizationEpoch: 1,
-          jurisdiction: "eu",
-        }),
-      ),
-    ).toBe(0);
-    const owner = fakeSocket();
-    const member = fakeSocket();
-    const sockets = manager(d.db, [owner, member]);
-    await sockets.admit(owner, handshake(FIX.owner, "session-owner-e02"));
-    await sockets.admit(member, handshake(FIX.member, "session-member-e02", { role: "member" }));
-    await sockets.afterCommand();
-    for (const socket of [owner, member]) {
-      const last = JSON.parse(socket.sent[socket.sent.length - 1] as string) as Record<
-        string,
-        unknown
-      >;
-      expect(last).toEqual({
-        schema_version: 1,
-        kind: "event.committed",
-        workspace_id: FIX.workspace,
-        high_water_cursor: 0,
-      });
+      const p = peer(attachment);
+      await manager(p.socket, now).message(p.socket, JSON.stringify(frame));
+      expect(p.closed).toEqual([{ code: 1008, reason }]);
+      expect(p.sent).toEqual([]);
     }
   });
-
-  it("closes only the expired socket and keeps the survivor subscribed", async () => {
-    const f = await fixture();
-    const owner = fakeSocket();
-    const member = fakeSocket();
-    const sockets = manager(f.db, [owner, member]);
-    await sockets.admit(owner, handshake(FIX.owner, "session-owner-e02"));
-    await sockets.admit(member, handshake(FIX.member, "session-member-e02", { role: "member" }));
-    await f.db
-      .prepare(`UPDATE better_auth_sessions SET expires_at = ? WHERE id = ?`)
-      .run(NOW, "session-owner-e02");
-    await f.commit(["heartbeat"]);
-    await sockets.afterCommand();
-    expect(owner.closed.map((entry) => entry.code)).toEqual([4401]);
-    expect(JSON.parse(owner.sent[owner.sent.length - 1] as string)).toMatchObject({
-      kind: "browser.realtime.close",
-      reason: "session_expired",
-    });
-    expect(member.closed).toEqual([]);
-    expect(kinds(member).pop()).toBe("event.committed");
+  it("keeps early shared alarms and malformed deadlines quiet, retiring only due sessions", async () => {
+    const valid = peer(retained()),
+      corrupt = peer({ malformed: true });
+    await manager(valid.socket).alarm();
+    await manager(corrupt.socket).alarm();
+    expect(valid.closed).toEqual([]);
+    expect(corrupt.closed).toEqual([]);
+    expect(manager(corrupt.socket).earliestExpiry()).toBe(Number.POSITIVE_INFINITY);
+    await manager(valid.socket, EXPIRY).alarm();
+    expect(valid.closed).toEqual([{ code: 1008, reason: "event_feeds_unavailable" }]);
+    await manager(corrupt.socket).message(corrupt.socket, "{}");
+    expect(corrupt.closed).toEqual([{ code: 1008, reason: "request_rejected" }]);
+    expect(valid.sent).toEqual([]);
+    expect(corrupt.sent).toEqual([]);
   });
-
-  it("closes sockets whose membership epoch changed without disturbing others", async () => {
-    const f = await fixture();
-    const owner = fakeSocket();
-    const member = fakeSocket();
-    const sockets = manager(f.db, [owner, member]);
-    await sockets.admit(owner, handshake(FIX.owner, "session-owner-e02"));
-    await sockets.admit(member, handshake(FIX.member, "session-member-e02", { role: "member" }));
-    await bumpMemberEpoch(f.db, FIX.workspace, FIX.owner);
-    await sockets.alarm();
-    expect(owner.closed.map((entry) => entry.code)).toEqual([4403]);
-    expect(JSON.parse(owner.sent[owner.sent.length - 1] as string)).toMatchObject({
-      kind: "browser.realtime.close",
-      reason: "authorization_revoked",
-    });
-    expect(member.closed).toEqual([]);
-  });
-
-  it("recovers identity after eviction without bearer material", async () => {
-    const f = await fixture();
-    const socket = fakeSocket();
-    await manager(f.db, [socket]).admit(socket, handshake(FIX.owner, "session-owner-e02"));
-    // Eviction drops the manager; hibernation restores the serialized attachment.
-    const restored = fakeSocket(JSON.parse(JSON.stringify(socket.attachment)));
-    const next = manager(f.db, [restored], LATER);
-    expect(next.owns(restored)).toBe(true);
-    await next.message(
-      restored,
-      JSON.stringify({
-        schema_version: 1,
-        kind: "browser.realtime.heartbeat",
-        workspace_id: FIX.workspace,
-        connection_id: (restored.attachment as { connectionId: string }).connectionId,
-      }),
-    );
-    expect(kinds(restored)).toEqual(["browser.realtime.alive"]);
-  });
-
-  it("never reflects hostile event strings in invalidations", async () => {
-    const f = await fixture();
-    const socket = fakeSocket();
-    const sockets = manager(f.db, [socket]);
-    await sockets.admit(socket, handshake(FIX.owner, "session-owner-e02"));
-    await f.commit(["heartbeat"], {
-      provider_session_id: "<script>alert(document.cookie)</script>",
-    });
-    await sockets.afterCommand();
-    expect(socket.sent.join("\n")).not.toContain("<script>");
-    expect(socket.sent.join("\n")).not.toContain("alert(");
-  });
-
-  it("schedules the earliest session expiry and fails closed without a timer", async () => {
-    const f = await fixture();
-    const socket = fakeSocket();
-    const sockets = manager(f.db, [socket]);
-    await sockets.admit(socket, handshake(FIX.owner, "session-owner-e02"));
-    const alarms: number[] = [];
-    let deleted = 0;
+  it("preserves expiry scheduling and quiet timer loss for retained sockets", async () => {
+    const p = peer(retained()),
+      sockets = manager(p.socket),
+      alarms: number[] = [];
     await sockets.schedule(
-      async (at: number) => {
+      async (at) => {
         alarms.push(at);
       },
       async () => {
-        deleted += 1;
-      },
-    );
-    expect(alarms).toEqual([Date.parse(SESSION_EXPIRY)]);
-    expect(deleted).toBe(0);
-    await manager(f.db, []).schedule(
-      async () => {
         throw new Error("unreachable");
       },
-      async () => {
-        deleted += 1;
-      },
     );
-    expect(deleted).toBe(1);
-    const failing = manager(f.db, [socket]);
-    await failing.schedule(
+    expect(alarms).toEqual([Date.parse(EXPIRY)]);
+    await sockets.schedule(
       async () => {
         throw new Error("synthetic alarm loss");
       },
+      async () => {},
+    );
+    expect(p.closed).toEqual([]);
+    let deleted = false;
+    await new BrowserSockets(() => [], { db: noDatabase }).schedule(
+      async () => {},
       async () => {
-        throw new Error("unreachable");
+        deleted = true;
       },
     );
-    expect(socket.closed.map((entry) => entry.code).pop()).toBe(1011);
+    expect(deleted).toBe(true);
   });
 });

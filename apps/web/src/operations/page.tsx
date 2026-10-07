@@ -46,8 +46,6 @@ export function OperationsPage(props: OperationsPageProps) {
   const sections = visibleSections(props.role);
   const [health, setHealth] = useState<SectionState<Record<string, unknown>>>(initialSection);
   const [queues, setQueues] = useState<SectionState<Record<string, unknown>>>(initialSection);
-  const [activity, setActivity] =
-    useState<SectionState<{ entries: Array<Record<string, unknown>> }>>(initialSection);
   const [audit, setAudit] =
     useState<SectionState<{ entries: Array<Record<string, unknown>> }>>(initialSection);
   const [retention, setRetention] = useState<SectionState<Record<string, unknown>>>(initialSection);
@@ -83,18 +81,6 @@ export function OperationsPage(props: OperationsPageProps) {
       }
     } else {
       setQueues({ loading: false, error: null, data: null });
-    }
-    try {
-      const feed = (await getJson(fetchFn, base("/activity"))) as {
-        entries: Array<Record<string, unknown>>;
-      };
-      setActivity({ loading: false, error: null, data: feed });
-    } catch (caught) {
-      setActivity({
-        loading: false,
-        error: caught instanceof Error ? caught.message : "Activity failed.",
-        data: null,
-      });
     }
     if (props.role === "owner") {
       try {
@@ -331,19 +317,9 @@ export function OperationsPage(props: OperationsPageProps) {
 
       <section aria-label="Activity" data-testid="operations-activity">
         <h2>Activity</h2>
-        {activity.loading ? <p>Loading activity…</p> : null}
-        {activity.error ? <p className="inline-error">{activity.error}</p> : null}
-        <ul>
-          {(activity.data?.entries ?? []).slice(0, 20).map((entry) => (
-            <li
-              key={String(entry.workspace_cursor)}
-              data-testid={`activity-${String(entry.workspace_cursor)}`}
-            >
-              {String(entry.kind)} · {String(entry.actor_type)} · cursor{" "}
-              {String(entry.workspace_cursor)}
-            </li>
-          ))}
-        </ul>
+        <p className="section-help" role="status">
+          Activity feed is unavailable.
+        </p>
       </section>
 
       {props.role === "owner" ? (

@@ -418,8 +418,10 @@ describe("audit versus activity", () => {
         .prepare("SELECT actor_principal_id FROM audit_events WHERE action='ops.retention.set'")
         .get(),
     ).toEqual({ actor_principal_id: FIX.owner });
-    const activity = await readActivityFeed(db, FIX.workspace);
-    expect(activity.entries.find((entry) => entry.kind === "ops.retention.set")).toBeUndefined();
+    await expect(readActivityFeed(db, FIX.workspace)).rejects.toMatchObject({
+      code: "request_rejected",
+      message: "event feeds are unavailable",
+    });
   });
 });
 

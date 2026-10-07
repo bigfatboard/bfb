@@ -7,7 +7,6 @@ import {
   assertUtcTimestamp,
   type AuthorizationContext,
   type SqlDatabase,
-  WorkspaceRepository,
 } from "@bfb/db";
 
 import { randomUlid } from "./ids.js";
@@ -305,23 +304,15 @@ export class WorkspaceHub {
 }
 
 export async function readEventHighWater(
-  db: SqlDatabase,
-  authorization: AuthorizationContext,
+  _db: SqlDatabase,
+  _authorization: AuthorizationContext,
 ): Promise<number> {
-  await assertEventReadScope(db, authorization);
-  const row = (await db
-    .prepare(`SELECT cursor FROM workspace_cursors WHERE workspace_id = ?`)
-    .get(authorization.workspaceId)) as { cursor: number } | undefined;
-  const cursor = row?.cursor ?? 0;
-  if (!Number.isSafeInteger(cursor) || cursor < 0) {
-    throw new DomainError("event_history_corrupt", "workspace cursor is invalid");
-  }
-  return cursor;
+  throw new DomainError("request_rejected", "event feeds are unavailable");
 }
 
 export async function listWorkspaceEvents(
-  db: SqlDatabase,
-  authorization: AuthorizationContext,
+  _db: SqlDatabase,
+  _authorization: AuthorizationContext,
   options: { afterCursor: number; throughCursor: number; limit?: number },
 ): Promise<WorkspaceEvent[]> {
   const limit = options.limit ?? 100;
@@ -336,55 +327,7 @@ export async function listWorkspaceEvents(
   ) {
     throw new DomainError("invalid_event_range", "event replay range is invalid");
   }
-  await assertEventReadScope(db, authorization);
-  const rows = (await db
-    .prepare(
-      `SELECT event_id, workspace_cursor, kind, payload_json, created_at
-       FROM semantic_events
-       WHERE workspace_id = ? AND workspace_cursor > ? AND workspace_cursor <= ?
-         AND lower(kind) NOT GLOB 'diagnostic.*'
-       ORDER BY workspace_cursor ASC
-       LIMIT ?`,
-    )
-    .all(authorization.workspaceId, options.afterCursor, options.throughCursor, limit)) as Array<{
-    event_id: string;
-    workspace_cursor: number;
-    kind: string;
-    payload_json: string;
-    created_at: string;
-  }>;
-  return rows.map((row) => {
-    if (!Number.isSafeInteger(row.workspace_cursor) || row.workspace_cursor < 1) {
-      throw new DomainError("event_history_corrupt", "event cursor is invalid");
-    }
-    try {
-      return {
-        eventId: row.event_id,
-        cursor: row.workspace_cursor,
-        kind: row.kind,
-        payload: JSON.parse(row.payload_json) as unknown,
-        createdAt: row.created_at,
-      };
-    } catch {
-      throw new DomainError("event_history_corrupt", "event payload is invalid");
-    }
-  });
-}
-
-async function assertEventReadScope(
-  db: SqlDatabase,
-  authorization: AuthorizationContext,
-): Promise<void> {
-  const workspace = await WorkspaceRepository.forAuthorization(db, authorization).getWorkspace();
-  if (!workspace) {
-    throw new DomainError("workspace_not_found", "workspace not found");
-  }
-  if (workspace.jurisdiction !== authorization.jurisdiction) {
-    throw new DomainError(
-      "workspace_jurisdiction_mismatch",
-      "workspace jurisdiction does not match the authorization context",
-    );
-  }
+  throw new DomainError("request_rejected", "event feeds are unavailable");
 }
 
 const MAX_EXTRA_CURSORS = 256;

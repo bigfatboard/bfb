@@ -608,35 +608,41 @@ try {
     { result_state: "open" },
   );
 
-  // F9 replay and high-water reads over committed D1 state.
+  // Public positions are held; retained ingest order remains independently provable.
   const authorization = createAuthorizationContext({
     workspaceId: FIX.workspace,
     principalId: FIX.owner,
     authorizationEpoch: 1,
     jurisdiction: "global",
   });
-  const highWater = await readLedgerHighWater(db, authorization);
-  const maxCursor = (
-    (await db
-      .prepare(
-        `SELECT MAX(workspace_cursor) AS max_cursor FROM event_ledger WHERE workspace_id = ?`,
-      )
-      .get(FIX.workspace)) as { max_cursor: number }
-  ).max_cursor;
-  assert.equal(highWater, maxCursor);
-  const replayed = await listLedgerEvents(db, authorization, {
-    afterCursor: 0,
-    throughCursor: highWater,
-  });
-  assert.equal(replayed.length, (await totals()).ledger);
-  assert.deepEqual(
-    replayed.map((entry) => entry.workspace_cursor),
-    replayed.map((entry) => entry.workspace_cursor).sort((a, b) => a - b),
+  const held = { code: "request_rejected", message: "event feeds are unavailable" };
+  await assert.rejects(readLedgerHighWater(db, authorization), held);
+  await assert.rejects(
+    listLedgerEvents(db, authorization, { afterCursor: 0, throughCursor: 100 }),
+    held,
   );
-  for (const envelope of replayed) {
+  const retained = (await db
+    .prepare(
+      `SELECT event_id, workspace_cursor, workspace_id, run_execution_id, actor_id, source_id
+       FROM event_ledger WHERE workspace_id = ? ORDER BY workspace_cursor`,
+    )
+    .all(FIX.workspace)) as Array<{
+    event_id: string;
+    workspace_cursor: number;
+    workspace_id: string;
+    run_execution_id: string;
+    actor_id: string;
+    source_id: string;
+  }>;
+  assert.equal(retained.length, (await totals()).ledger);
+  assert.deepEqual(
+    retained.map((entry) => entry.workspace_cursor),
+    retained.map((entry) => entry.workspace_cursor).sort((a, b) => a - b),
+  );
+  for (const envelope of retained) {
     assert.equal(envelope.workspace_id, FIX.workspace);
     assert.equal(envelope.run_execution_id, executionId);
-    assert.ok(envelope.actor.id.length > 0 && envelope.source.id === runner);
+    assert.ok(envelope.actor_id.length > 0 && envelope.source_id === runner);
   }
 
   // Actor/provenance matrix, raw-observation boundary, projection invariants.
@@ -676,7 +682,8 @@ try {
       poisonDispositions: 4,
       foreignRunnerRejected: true,
       noResultInference: true,
-      replayEnvelopes: replayed.length,
+      retainedEnvelopes: retained.length,
+      publicReplayHeld: true,
     }),
   );
   console.log("E01_D1_OK");

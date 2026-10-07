@@ -70,15 +70,6 @@ function endedLaunch(): LaunchStatus {
   };
 }
 
-function invalidationFrame(workspaceId: string): string {
-  return JSON.stringify({
-    schema_version: 1,
-    kind: "event.committed",
-    workspace_id: workspaceId,
-    high_water_cursor: 7,
-  });
-}
-
 function stubFetch(state: { launches: LaunchStatus[]; launchReads: number }): typeof fetch {
   return (async (input: unknown) => {
     const url = String(input);
@@ -181,24 +172,24 @@ describe("launch card refresh after claim", () => {
     }
   });
 
-  it("refetches launches on a realtime invalidation", async () => {
+  it("polls a detached launch without opening a realtime socket", async () => {
     vi.useFakeTimers();
     const state = { launches: [attachedLaunch()], launchReads: 0 };
     const card = mountCard(state);
     try {
       await flushRenders();
       expect(card.container.textContent).toMatch(/Provider attached/);
-      const channel = card.opened[0];
-      if (!channel) throw new Error("launch realtime socket did not open");
+      expect(card.opened).toEqual([]);
 
       state.launches = [{ ...attachedLaunch(), execution_state: "detached", lease_state: "live" }];
       const readsBefore = state.launchReads;
       await act(async () => {
-        channel.onmessage?.(invalidationFrame("ws-1"));
+        vi.advanceTimersByTime(5000);
       });
       await flushRenders();
       expect(state.launchReads).toBeGreaterThan(readsBefore);
       expect(card.container.textContent).toMatch(/Execution detached/);
+      expect(card.opened).toEqual([]);
     } finally {
       card.unmount();
     }

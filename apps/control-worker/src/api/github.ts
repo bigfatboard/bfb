@@ -47,6 +47,7 @@ import {
 import type { BrowserPrincipal } from "../auth/session.js";
 import type { Jurisdiction } from "../env.js";
 import { executeWorkspaceCommand } from "../hub-client.js";
+import { publicCommandOutcome } from "../public-command-outcome.js";
 import { readBoundedBytes, readBoundedJson } from "./request.js";
 
 export interface GitHubApiDeps {
@@ -472,7 +473,7 @@ async function mutate<TInput, TResult>(
   if (!outcome.ok) {
     return failure(new DomainError(outcome.error.code, outcome.error.message));
   }
-  return json({ ok: true, result: outcome.result, replayed: outcome.replayed });
+  return json(publicCommandOutcome(outcome));
 }
 
 /**

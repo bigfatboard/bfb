@@ -7,7 +7,6 @@ import type { Socket } from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createServer as createViteServer, type ViteDevServer } from "vite";
-import { WebSocket, WebSocketServer } from "ws";
 
 import {
   authorizeSyntheticPolicyUpdate,
@@ -20,7 +19,6 @@ import {
   createDiscussionCommand,
   FIX,
   launchDeadline,
-  listLedgerEvents,
   observeCheckoutLeaseCommand,
   randomUlid,
   createTaskCommand,
@@ -29,7 +27,6 @@ import {
   replaceRunnerInventoryCommand,
   reportRepositoryConfigCommand,
   runnerHash,
-  readLedgerHighWater,
   seedSyntheticWorkspace,
   syntheticUlid,
   startLaunchCommand,
@@ -42,10 +39,6 @@ import {
   type RunnerPrincipal,
 } from "@bfb/domain";
 import type { DiscussionCreateRequest, RunnerInventory } from "@bfb/protocol";
-import {
-  BrowserSockets,
-  type RealtimeSocket,
-} from "../../../apps/control-worker/src/realtime/browser-sockets.js";
 
 import {
   createHumanAuth,
@@ -65,7 +58,7 @@ import {
 } from "../../../apps/control-worker/src/env.js";
 import { createTestWorkspaceHubNamespace } from "../../../apps/control-worker/src/hub-client.js";
 import { createControlApp } from "../../../apps/control-worker/src/routes.js";
-import { createAuthorizationContext, type SqlDatabase } from "@bfb/db";
+import type { SqlDatabase } from "@bfb/db";
 import {
   AUTH_TEST_ENV,
   openAuthTestContext,
@@ -984,23 +977,24 @@ async function seedA04ObservedSurface(db: SqlDatabase): Promise<string[]> {
       NOW,
       NOW,
     );
-  // Display fixtures share the workspace ledger with realtime tests. Validate
-  // the same complete replay that browsers consume before filtering by run.
-  const authorization = createAuthorizationContext({
-    workspaceId: FIX.workspace,
-    principalId: FIX.owner,
-    authorizationEpoch: 1,
-    jurisdiction: "eu",
-  });
-  const throughCursor = await readLedgerHighWater(db, authorization);
-  let afterCursor = 0;
-  while (afterCursor < throughCursor) {
-    const page = await listLedgerEvents(db, authorization, {
-      afterCursor,
-      throughCursor,
-      limit: 100,
-    });
-    afterCursor = page.at(-1)?.workspace_cursor ?? throughCursor;
+  // Public replay is held. Check this fixture's retained exact source bindings,
+  // not a test-only production reader or a claim of browser replay availability.
+  const retained = await db
+    .prepare(
+      `SELECT source.event_id FROM measurement_sources AS source
+       JOIN measurement_event_sources AS alias ON alias.workspace_id=source.workspace_id
+         AND alias.canonical_event_id=source.event_id AND alias.event_id=source.event_id
+       JOIN event_ledger AS event ON event.workspace_id=source.workspace_id
+         AND event.event_id=source.event_id AND event.run_id=source.run_id
+         AND event.run_execution_id=source.run_execution_id
+         AND event.assignment_generation=source.assignment_generation
+       WHERE source.workspace_id=? AND source.run_id=?`,
+    )
+    .all(FIX.workspace, FIX.runDelegable);
+  if (
+    sourceIds.some((id) => !retained.some((row) => (row as { event_id: string }).event_id === id))
+  ) {
+    throw new Error("synthetic measurement fixture lost retained source lineage");
   }
   return sourceIds;
 }
@@ -2378,22 +2372,10 @@ async function serveSpa(
   res.end(template);
 }
 
-interface NodeSocketEntry {
-  ws: WebSocket;
-  tags: string[];
-  attachment: unknown;
-}
-
 const E02_SESSION_BY_ROLE: Record<FixtureRole, string> = {
   owner: "auth-owner-e2e-session",
   member: "auth-member-e2e-session",
   restricted: "auth-restricted-e2e-session",
-};
-
-const E02_HUMAN_BY_ROLE: Record<FixtureRole, string> = {
-  owner: FIX.owner,
-  member: FIX.member,
-  restricted: FIX.restricted,
 };
 
 async function main(): Promise<void> {
@@ -2480,41 +2462,13 @@ async function main(): Promise<void> {
     logLevel: "error",
   });
 
-  // E02 browser realtime over the shared socket manager and fixture D1.
-  const realtimeEntries = new Set<NodeSocketEntry>();
-  const realtime = new BrowserSockets(
-    (tag) => {
-      const out: RealtimeSocket[] = [];
-      for (const entry of realtimeEntries) {
-        if (!entry.tags.includes(tag) || entry.ws.readyState !== WebSocket.OPEN) continue;
-        out.push({
-          get readyState() {
-            return entry.ws.readyState;
-          },
-          send: (data: string) => entry.ws.send(data),
-          close: (code: number, reason: string) => entry.ws.close(code, reason),
-          readAttachment: () => entry.attachment,
-          writeAttachment: (value: unknown) => {
-            entry.attachment = value;
-          },
-        });
-      }
-      return out;
-    },
-    { db, newConnectionId: () => randomUlid() },
-  );
-
-  function e02RoleOf(req: IncomingMessage): FixtureRole | null {
-    const cookie = req.headers.cookie ?? "";
-    for (const role of ["owner", "member", "restricted"] as const) {
-      if (cookie.includes(fixtureSessions[role].split(";", 1)[0]!)) return role;
-    }
-    return null;
-  }
-
   async function handleA04Observed(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
     if (new URL(req.url ?? "/", ORIGIN).pathname !== "/__test/a04/observed") return false;
-    if (req.method !== "POST" || e02RoleOf(req) !== "owner" || req.headers.origin !== ORIGIN) {
+    const ownerCookie = fixtureSessions.owner.split(";", 1)[0]!;
+    const isSyntheticOwner = (req.headers.cookie ?? "")
+      .split(";")
+      .some((cookie) => cookie.trim() === ownerCookie);
+    if (req.method !== "POST" || !isSyntheticOwner || req.headers.origin !== ORIGIN) {
       res.statusCode = 403;
       res.end();
       return true;
@@ -2583,7 +2537,6 @@ async function main(): Promise<void> {
       return true;
     }
     const result = outcome.result as IngestRunnerEventsResult;
-    await realtime.afterCommand();
     res.statusCode = 200;
     res.setHeader("content-type", "application/json; charset=utf-8");
     res.end(
@@ -2643,7 +2596,6 @@ async function main(): Promise<void> {
     await db
       .prepare(`DELETE FROM better_auth_sessions WHERE id = ?`)
       .run(E02_SESSION_BY_ROLE[role]);
-    await realtime.afterCommand();
     res.statusCode = 200;
     res.setHeader("content-type", "application/json; charset=utf-8");
     res.end(JSON.stringify({ revoked: role }));
@@ -2676,9 +2628,8 @@ async function main(): Promise<void> {
     return true;
   }
 
-  const realtimeServer = new WebSocketServer({ noServer: true });
   function rejectUpgrade(socket: Socket, status: string): void {
-    socket.write(`HTTP/1.1 ${status}\r\nconnection: close\r\n\r\n`);
+    socket.write(`HTTP/1.1 ${status}\r\ncache-control: no-store\r\nconnection: close\r\n\r\n`);
     socket.destroy();
   }
 
@@ -2740,11 +2691,6 @@ async function main(): Promise<void> {
               ? app
               : controlApp(now, createHumanAuth(authContext.raw, authEnv, { db, now }));
           await forwardToControl(req, res, requestApp, bindings);
-          // Emulate the hub broadcast so discussion commits invalidate live
-          // browser sockets exactly like any other committed workspace command.
-          if (req.method === "POST" && /\/discussions(\/|$)/.test(pathname)) {
-            await realtime.afterCommand();
-          }
           return;
         }
         await serveSpa(req, res, vite);
@@ -2760,71 +2706,28 @@ async function main(): Promise<void> {
     })();
   });
 
-  server.on("upgrade", (req, socket, head) => {
+  server.on("upgrade", (req, socket) => {
     void (async () => {
       try {
         const url = new URL(req.url ?? "/", ORIGIN);
-        const match = url.pathname.match(/^\/realtime\/workspaces\/([^/]+)\/subscribe$/);
-        const role = e02RoleOf(req);
-        const protocol = req.headers["sec-websocket-protocol"];
-        if (!match?.[1] || match[1] !== FIX.workspace || url.search) {
+        if (!/^\/realtime\/workspaces\/([^/]+)\/subscribe$/.test(url.pathname)) {
           rejectUpgrade(socket, "400 Bad Request");
           return;
         }
-        if (protocol !== "bfb.browser.v1") {
-          rejectUpgrade(socket, "400 Bad Request");
-          return;
+        const headers = new Headers();
+        for (const [name, value] of Object.entries(req.headers)) {
+          if (value !== undefined)
+            headers.set(name, Array.isArray(value) ? value.join(", ") : value);
         }
-        if (!role || role === "restricted") {
-          rejectUpgrade(socket, "403 Forbidden");
-          return;
-        }
-        const sessionId = E02_SESSION_BY_ROLE[role];
-        const session = (await db
-          .prepare(`SELECT expires_at FROM better_auth_sessions WHERE id = ?`)
-          .get(sessionId)) as { expires_at: string } | undefined;
-        if (!session) {
-          rejectUpgrade(socket, "403 Forbidden");
-          return;
-        }
-        const handshake = {
-          schema_version: 1,
-          workspaceId: FIX.workspace,
-          humanId: E02_HUMAN_BY_ROLE[role],
-          authorizationEpoch: 1,
-          role,
-          sessionId,
-          sessionExpiresAt: session.expires_at,
-        };
-        realtimeServer.handleUpgrade(req, socket, head, (ws) => {
-          const entry: NodeSocketEntry = { ws, tags: ["bfb-browser"], attachment: null };
-          realtimeEntries.add(entry);
-          const adapter: RealtimeSocket = {
-            get readyState() {
-              return entry.ws.readyState;
-            },
-            send: (data: string) => entry.ws.send(data),
-            close: (code: number, reason: string) => entry.ws.close(code, reason),
-            readAttachment: () => entry.attachment,
-            writeAttachment: (value: unknown) => {
-              entry.attachment = value;
-            },
-          };
-          ws.on("message", (data) => {
-            void realtime.message(adapter, data.toString());
-          });
-          ws.on("close", () => {
-            realtimeEntries.delete(entry);
-          });
-          void realtime.admit(adapter, handshake).catch(() => {
-            try {
-              ws.close(1011, "channel_unavailable");
-            } catch {
-              /* Already disconnected. */
-            }
-            realtimeEntries.delete(entry);
-          });
-        });
+        const now = new Date().toISOString();
+        const currentApp = controlApp(now, createHumanAuth(authContext.raw, authEnv, { db, now }));
+        const response = await currentApp.fetch(new Request(url, { headers }), bindings);
+        if (response.status === 101) throw new Error("held browser upgrade unexpectedly accepted");
+        const body = await response.text();
+        const reason = response.status === 409 ? "Conflict" : "Request Rejected";
+        socket.end(
+          `HTTP/1.1 ${response.status} ${reason}\r\ncontent-type: application/json\r\ncache-control: no-store\r\nconnection: close\r\ncontent-length: ${Buffer.byteLength(body)}\r\n\r\n${body}`,
+        );
       } catch {
         rejectUpgrade(socket, "500 Internal Server Error");
       }

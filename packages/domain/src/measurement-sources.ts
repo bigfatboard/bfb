@@ -1,5 +1,5 @@
 // ABOUTME: Prepares immutable semantic sources for typed telemetry inside the event-ingest transaction.
-// ABOUTME: Exposes canonical activity and bounded metadata reads without raw usage or private provider output.
+// ABOUTME: Supplies complete canonical activity derivation while holding public raw-position source pages.
 
 import type { SqlDatabase } from "@bfb/db";
 import type { RunnerTelemetrySubmission } from "@bfb/protocol";
@@ -238,11 +238,11 @@ export interface MeasurementSourceReference {
   parent_turn_id?: string;
 }
 
-/** Current parent authority precedes pagination; omitted authority admits shared tasks only. */
+/** Retain pure page/context admission without consulting a run or its source positions. */
 export async function listRunMeasurementSources(
-  db: SqlDatabase,
+  _db: SqlDatabase,
   workspaceId: string,
-  runId: string,
+  _runId: string,
   options: { afterCursor?: number; limit?: number } = {},
   access?: TaskAccessContext,
 ): Promise<{
@@ -250,19 +250,7 @@ export async function listRunMeasurementSources(
   has_more: boolean;
   next_cursor: number;
 }> {
-  const predicate = sourceTaskPredicate(workspaceId, access);
-  const authorize = async () => {
-    const run = await db
-      .prepare(
-        `SELECT run.id FROM runs AS run
-        JOIN tasks AS task ON task.workspace_id = run.workspace_id AND task.id = run.task_id
-          AND task.project_id = run.project_id
-        WHERE run.workspace_id = ? AND run.id = ? AND ${predicate.sql}`,
-      )
-      .get(workspaceId, runId, ...predicate.parameters);
-    if (!run) throw new DomainError("not_found", "run not found");
-  };
-  await authorize();
+  sourceTaskPredicate(workspaceId, access);
   const after = options.afterCursor ?? 0,
     limit = options.limit ?? 100;
   if (
@@ -274,41 +262,5 @@ export async function listRunMeasurementSources(
   ) {
     throw new DomainError("invalid_argument", "measurement source page is invalid");
   }
-  const rows = (await db
-    .prepare(
-      `SELECT s.*, e.workspace_cursor, e.kind, e.occurred_at
-    FROM measurement_sources s JOIN event_ledger e
-    ON e.workspace_id = s.workspace_id AND e.event_id = s.event_id
-    JOIN runs AS run ON run.workspace_id = s.workspace_id AND run.id = s.run_id
-    JOIN tasks AS task ON task.workspace_id = run.workspace_id AND task.id = run.task_id
-      AND task.project_id = run.project_id
-    WHERE s.workspace_id = ? AND s.run_id = ? AND e.workspace_cursor > ? AND ${predicate.sql}
-    ORDER BY e.workspace_cursor LIMIT ?`,
-    )
-    .all(workspaceId, runId, after, ...predicate.parameters, limit + 1)) as Record<
-    string,
-    unknown
-  >[];
-  const sources = rows.slice(0, limit).map((row): MeasurementSourceReference => ({
-    event_id: String(row.event_id),
-    committed_cursor: Number(row.workspace_cursor),
-    run_execution_id: String(row.run_execution_id),
-    assignment_generation: Number(row.assignment_generation),
-    provider: row.provider as MeasurementProvider,
-    provider_session_id: row.provider_session_id as string | null,
-    kind: String(row.kind),
-    occurred_at: String(row.occurred_at),
-    family: row.family as MeasurementSourceReference["family"],
-    phase: row.phase as MeasurementSourceReference["phase"],
-    ...(row.family === "tokens"
-      ? { usage_id: String(row.identity) }
-      : { activity_id: String(row.identity) }),
-    ...(row.parent_turn_id === null ? {} : { parent_turn_id: String(row.parent_turn_id) }),
-  }));
-  await authorize();
-  return {
-    sources,
-    has_more: rows.length > limit,
-    next_cursor: sources.at(-1)?.committed_cursor ?? after,
-  };
+  throw new DomainError("request_rejected", "event feeds are unavailable");
 }

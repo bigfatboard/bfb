@@ -454,7 +454,7 @@ describe("workspace hub", () => {
     expect(workspaceHub(db, FIX.workspace)).toBe(workspaceHub(db, FIX.workspace));
   });
 
-  it("reads a bounded workspace replay through an authorization context", async () => {
+  it("retains semantic command history while public replay and high-water are held", async () => {
     const db = await openDomainDb();
     const hub = new WorkspaceHub(db);
     for (const n of [1, 2]) {
@@ -473,21 +473,27 @@ describe("workspace hub", () => {
       authorizationEpoch: 1,
       jurisdiction: "eu",
     });
-    const highWater = await readEventHighWater(db, authorization);
-    const firstPage = await listWorkspaceEvents(db, authorization, {
-      afterCursor: 0,
-      throughCursor: highWater,
-      limit: 1,
+    await expect(readEventHighWater(db, authorization)).rejects.toMatchObject({
+      code: "request_rejected",
+      message: "event feeds are unavailable",
     });
-    const secondPage = await listWorkspaceEvents(db, authorization, {
-      afterCursor: firstPage[0]!.cursor,
-      throughCursor: highWater,
-      limit: 100,
+    await expect(
+      listWorkspaceEvents(db, authorization, {
+        afterCursor: 0,
+        throughCursor: 2,
+        limit: 1,
+      }),
+    ).rejects.toMatchObject({ code: "request_rejected", message: "event feeds are unavailable" });
+    const rows = await db
+      .prepare(
+        "SELECT workspace_cursor,payload_json FROM semantic_events ORDER BY workspace_cursor",
+      )
+      .all();
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({ workspace_cursor: 1 });
+    expect(JSON.parse((rows[0] as { payload_json: string }).payload_json)).toMatchObject({
+      result: { n: 1 },
     });
-    expect(highWater).toBe(2);
-    expect(firstPage.map((event) => event.cursor)).toEqual([1]);
-    expect(secondPage.map((event) => event.cursor)).toEqual([2]);
-    expect(firstPage[0]?.payload).toMatchObject({ result: { n: 1 } });
   });
 
   it("rejects invalid replay bounds before querying event history", async () => {

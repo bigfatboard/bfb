@@ -23,7 +23,7 @@ import {
 
 import type { HumanAuth } from "../auth/better-auth.js";
 import type { BrowserPrincipal } from "../auth/session.js";
-import { executeWorkspaceCommand } from "../hub-client.js";
+import { executePublicWorkspaceCommand as executeWorkspaceCommand } from "../public-command-outcome.js";
 import { readBoundedJson } from "./request.js";
 
 export interface ReviewApiDeps {

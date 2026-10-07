@@ -3,15 +3,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { deriveConnectivity } from "../realtime/presence.js";
-import {
-  HEARTBEAT_INTERVAL_MS,
-  REALTIME_PATH,
-  REALTIME_PROTOCOL,
-  heartbeatFrame,
-  parseServerFrame,
-  type ServerFrame,
-} from "../realtime/protocol.js";
 import {
   createDiscussionClient,
   newDiscussionKey,
@@ -34,10 +25,9 @@ import {
 } from "./presentation.js";
 
 export interface DiscussionSync {
-  connectivity: "live" | "stale" | "offline";
+  available: false;
   refreshCount: number;
-  notice: string | null;
-  reconnect(): void;
+  refresh(): void;
 }
 
 interface SyncOptions {
@@ -58,156 +48,23 @@ export interface RealtimeTransport {
   open(url: string, protocol: string): RealtimeChannel;
 }
 
-function browserTransport(): RealtimeTransport {
-  return {
-    open(url: string, protocol: string): RealtimeChannel {
-      const socket = new WebSocket(url, protocol);
-      const channel: RealtimeChannel = {
-        onmessage: null,
-        onclose: null,
-        send: (data: string) => socket.send(data),
-        close: () => socket.close(),
-      };
-      socket.addEventListener("message", (event: MessageEvent) => {
-        if (typeof event.data === "string") channel.onmessage?.(event.data);
-      });
-      socket.addEventListener("close", (event: CloseEvent) => {
-        channel.onclose?.({ code: event.code, reason: event.reason });
-      });
-      return channel;
-    },
-  };
-}
-
-function socketUrl(workspaceId: string): string | null {
-  if (typeof window === "undefined" || typeof window.location === "undefined") return null;
-  const scheme = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return `${scheme}//${window.location.host}${REALTIME_PATH(workspaceId)}`;
-}
-
-/**
- * Subscribe-first discussion sync. The socket carries cursor-only
- * invalidations; every visible row comes from an authoritative discussion
- * read. A higher cursor schedules a refetch, never durable state.
- */
+/** Manual and focus refreshes read authorized discussion state without public cursor hints. */
 export function useDiscussionSync(options: SyncOptions): DiscussionSync {
   const onInvalidate = useRef(options.onInvalidate);
   onInvalidate.current = options.onInvalidate;
-  const [socketOpen, setSocketOpen] = useState(false);
-  const [lastSignalAt, setLastSignalAt] = useState<number | null>(null);
   const [refreshCount, setRefreshCount] = useState(0);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [clock, setClock] = useState(() => Date.now());
-  const channel = useRef<RealtimeChannel | null>(null);
-  const connectionId = useRef<string | null>(null);
-  const mounted = useRef(true);
-  const nowImpl = useRef(options.nowImpl ?? (() => Date.now()));
-  nowImpl.current = options.nowImpl ?? (() => Date.now());
-  const transport = useRef(options.transport);
-  transport.current = options.transport;
-
-  const markSignal = useCallback(() => {
-    if (mounted.current) setLastSignalAt(nowImpl.current());
-  }, []);
-
-  const scheduleRefresh = useCallback(() => {
-    if (!mounted.current) return;
-    markSignal();
+  const refresh = useCallback(() => {
     setRefreshCount((count) => count + 1);
     onInvalidate.current();
-  }, [markSignal]);
-
-  const connect = useCallback(() => {
-    const url = socketUrl(options.workspaceId);
-    if (!url) {
-      setNotice(
-        "Realtime unavailable in this browser. Committed history below stays authoritative.",
-      );
-      return;
-    }
-    channel.current?.close();
-    channel.current = null;
-    connectionId.current = null;
-    setSocketOpen(false);
-    const next = (transport.current ?? browserTransport()).open(url, REALTIME_PROTOCOL);
-    channel.current = next;
-    next.onmessage = (data: string) => {
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(data) as unknown;
-      } catch {
-        return;
-      }
-      const frame: ServerFrame | null = parseServerFrame(parsed);
-      if (!frame || frame.workspaceId !== options.workspaceId) return;
-      markSignal();
-      if (frame.kind === "ready") {
-        connectionId.current = frame.connectionId;
-        setSocketOpen(true);
-        setNotice(null);
-      } else if (frame.kind === "invalidation") {
-        scheduleRefresh();
-      } else if (frame.kind === "close") {
-        setSocketOpen(false);
-        setNotice(
-          frame.reason === "session_expired"
-            ? "Session expired. Sign in again to resume live updates."
-            : "Workspace access changed. Reload to resume live updates.",
-        );
-      }
-    };
-    next.onclose = ({ code }) => {
-      if (!mounted.current || channel.current !== next) return;
-      setSocketOpen(false);
-      connectionId.current = null;
-      if (code === 4401) {
-        setNotice("Session expired. Sign in again to resume live updates.");
-      } else if (code === 4403) {
-        setNotice("Workspace access changed. Reload to resume live updates.");
-      } else {
-        setNotice("Realtime offline. Committed history below stays authoritative.");
-      }
-    };
-  }, [markSignal, options.workspaceId, scheduleRefresh]);
-
-  const reconnect = useCallback(() => {
-    setNotice(null);
-    scheduleRefresh();
-    connect();
-  }, [connect, scheduleRefresh]);
+  }, []);
 
   useEffect(() => {
-    mounted.current = true;
-    connect();
-    const heartbeat = window.setInterval(() => {
-      const id = connectionId.current;
-      if (id && channel.current) {
-        try {
-          channel.current.send(heartbeatFrame(options.workspaceId, id));
-        } catch {
-          /* A failed heartbeat surfaces as a socket close. */
-        }
-      }
-    }, HEARTBEAT_INTERVAL_MS);
-    const ticker = window.setInterval(() => {
-      if (mounted.current) setClock(nowImpl.current());
-    }, 5000);
-    const onFocus = (): void => {
-      scheduleRefresh();
-    };
-    window.addEventListener("focus", onFocus);
-    return () => {
-      mounted.current = false;
-      window.clearInterval(heartbeat);
-      window.clearInterval(ticker);
-      window.removeEventListener("focus", onFocus);
-      channel.current?.close();
-      channel.current = null;
-    };
-  }, [connect, options.workspaceId, scheduleRefresh]);
+    setRefreshCount(0);
+    window.addEventListener("focus", refresh);
+    return () => window.removeEventListener("focus", refresh);
+  }, [options.workspaceId, refresh]);
 
-  const connectivity = deriveConnectivity({ socketOpen, lastSignalAt, now: clock });
-  return { connectivity, refreshCount, notice, reconnect };
+  return { available: false, refreshCount, refresh };
 }
 
 export interface DiscussionPanelProps {
@@ -456,29 +313,20 @@ export function DiscussionPanel(props: DiscussionPanelProps) {
         </span>
       </div>
 
-      <div
-        className={`truth-status${sync.connectivity === "live" ? "" : " is-offline"}`}
-        data-testid="discussion-connectivity"
-      >
-        {sync.connectivity === "live"
-          ? "Discussion live"
-          : sync.connectivity === "stale"
-            ? "Signal stale — showing committed history"
-            : "Discussion offline — showing committed history"}
-      </div>
-      {sync.notice ? (
-        <p role="alert" className="inline-error" data-testid="discussion-notice">
-          {sync.notice}{" "}
-          <button
-            type="button"
-            className="button-secondary"
-            data-testid="discussion-reconnect"
-            onClick={sync.reconnect}
-          >
-            Reconnect
-          </button>
+      <div className="panel-title-row">
+        <p className="section-help" role="status" data-testid="discussion-updates-unavailable">
+          Live updates are unavailable. Refresh to read current discussion state.
         </p>
-      ) : null}
+        <button
+          type="button"
+          className="button-secondary"
+          data-testid="discussion-refresh"
+          onClick={sync.refresh}
+          disabled={busy}
+        >
+          Refresh
+        </button>
+      </div>
 
       <dl className="discussion-facts" data-testid="discussion-facts">
         <div>

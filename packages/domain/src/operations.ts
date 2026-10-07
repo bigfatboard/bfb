@@ -953,13 +953,12 @@ export interface ActivityEntry {
 }
 
 /**
- * Ordinary activity read model over the event ledger. Ledger payloads are
- * excluded by construction (they may carry provider observations); only the
- * typed envelope with actor/source attribution is exposed.
+ * Public activity positions are held independently of workspace contents.
+ * Internal measurement derivation does not use this public reader.
  */
 export async function readActivityFeed(
-  db: SqlDatabase,
-  workspaceId: string,
+  _db: SqlDatabase,
+  _workspaceId: string,
   options: {
     limit?: number;
     afterCursor?: number;
@@ -967,40 +966,8 @@ export async function readActivityFeed(
     access?: TaskAccessContext;
   } = {},
 ): Promise<{ entries: ActivityEntry[]; has_more: boolean }> {
-  const limit = Math.min(Math.max(options.limit ?? 50, 1), OPS_MAX_PAGE);
-  const parent = operationsTaskPredicate(options.access);
-  const params: unknown[] = [workspaceId];
-  let extra = "";
-  if (options.afterCursor !== undefined) {
-    extra += " AND event.workspace_cursor > ?";
-    params.push(options.afterCursor);
-  }
-  if (options.projectIds !== undefined) {
-    if (options.projectIds.length === 0) {
-      return { entries: [], has_more: false };
-    }
-    extra += ` AND event.project_id IN (${options.projectIds.map(() => "?").join(",")})`;
-    params.push(...options.projectIds);
-  }
-  const rows = (await db
-    .prepare(
-      `SELECT event.workspace_cursor, event.kind, event.actor_type, event.actor_id,
-              event.source_id, event.source_provider, event.project_id, event.task_id,
-              event.run_id, event.occurred_at, event.received_at
-       FROM event_ledger AS event
-       WHERE event.workspace_id = ? ${extra} AND EXISTS (
-         SELECT 1 FROM runs AS ops_run JOIN tasks AS ops_task
-           ON ops_task.workspace_id = ops_run.workspace_id AND ops_task.id = ops_run.task_id
-             AND ops_task.project_id = ops_run.project_id
-         WHERE ops_run.workspace_id = event.workspace_id AND ops_run.id = event.run_id
-           AND ops_run.task_id = event.task_id AND ops_run.project_id = event.project_id
-           AND ${parent.sql}
-       )
-       ORDER BY event.workspace_cursor ASC
-       LIMIT ?`,
-    )
-    .all(...params, ...parent.parameters, limit + 1)) as ActivityEntry[];
-  return { entries: rows.slice(0, limit), has_more: rows.length > limit };
+  operationsTaskPredicate(options.access);
+  throw new DomainError("request_rejected", "event feeds are unavailable");
 }
 
 export interface StuckUpload {

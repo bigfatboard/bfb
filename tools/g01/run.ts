@@ -1304,21 +1304,20 @@ try {
       ),
       "ledger cursors stay strictly ordered",
     );
-    // Replay from a cursor re-reads committed events without inventing state.
+    // Public raw positions are uniformly held; internal ingest order is above.
     const reader = createAuthorizationContext({
       workspaceId: FIX.workspace,
       principalId: FIX.owner,
       authorizationEpoch: 1,
       jurisdiction: "eu",
     });
-    const highWater = await readLedgerHighWater(db, reader);
-    assert.equal(highWater, ledger[ledger.length - 1]?.workspace_cursor, "high water matches tip");
-    const replay = await listLedgerEvents(db, reader, {
-      afterCursor: ledger[0]?.workspace_cursor ?? 0,
-      throughCursor: highWater,
-    });
-    assert.equal(replay.length, ledger.length - 1, "replay returns exactly the committed range");
-    note("og01", "duplicates dedupe, out-of-order commits ordered, replay is exact");
+    const held = { code: "request_rejected", message: "event feeds are unavailable" };
+    await assert.rejects(readLedgerHighWater(db, reader), held);
+    await assert.rejects(
+      listLedgerEvents(db, reader, { afterCursor: 0, throughCursor: 100 }),
+      held,
+    );
+    note("og01", "duplicates dedupe, internal commits ordered, public positions uniformly held");
   }
   verdict("OG-01", "passed", "duplicate/out-of-order/concurrent ingest has one effect");
 
@@ -2232,14 +2231,16 @@ try {
       limit: 50,
       access: await loadPrincipal(db, FIX.workspace, FIX.owner),
     });
-    const activity = await readActivityFeed(db, FIX.workspace, {
-      limit: 50,
-      projectIds: [FIX.projectA],
-    });
+    await assert.rejects(
+      readActivityFeed(db, FIX.workspace, { limit: 50, projectIds: [FIX.projectA] }),
+      { code: "request_rejected", message: "event feeds are unavailable" },
+    );
     assert(audit.entries.length > 0, "audit records security effects");
-    assert(activity.entries.length > 0, "activity projects committed events");
-    scanClean("sg05-feeds", [audit, activity]);
-    note("sg05", "selection extracts IDs; links, payloads, audit, activity carry no canaries");
+    scanClean("sg05-feeds", [audit]);
+    note(
+      "sg05",
+      "selected links, payloads and supported audit carry no canaries; activity is held",
+    );
   }
   verdict("SG-05", "passed", "outputs contain no secret or private payload");
 

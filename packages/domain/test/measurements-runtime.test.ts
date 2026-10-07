@@ -219,7 +219,7 @@ describe("connected measurement derivation regressions", () => {
       active_quality: "observed",
       open_intervals: 0,
     });
-    expect(measured.sources.sources).toHaveLength(4);
+    expect(measured.sources).toBeNull();
   });
 
   it("does not join activity identities across provider sessions", async () => {

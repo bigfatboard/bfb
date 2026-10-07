@@ -211,7 +211,7 @@ function stagedD1(db: SqlDatabase) {
 
 describe("private measurement delivery", () => {
   for (const viewer of [undefined, FIX.owner, FIX.reviewer]) {
-    it(`denies private detail and pages without current authority (${viewer ?? "internal"})`, async () => {
+    it(`denies unauthorized totals and holds source pages (${viewer ?? "internal"})`, async () => {
       const f = await fixture(),
         access = viewer ? context(viewer) : undefined;
       await expect(
@@ -222,7 +222,7 @@ describe("private measurement delivery", () => {
       ).rejects.toMatchObject({ code: "not_found", message: "run not found" });
       await expect(
         listRunMeasurementSources(f.db, FIX.workspace, f.runId, {}, access),
-      ).rejects.toMatchObject({ code: "not_found", message: "run not found" });
+      ).rejects.toMatchObject({ code: "request_rejected", message: "event feeds are unavailable" });
       await expect(
         getTaskMeasurements(f.db, FIX.workspace, randomUlid(), NOW, access),
       ).rejects.toMatchObject({ code: "not_found", message: "task not found" });
@@ -231,7 +231,7 @@ describe("private measurement delivery", () => {
       ).rejects.toMatchObject({ code: "not_found", message: "run not found" });
       await expect(
         listRunMeasurementSources(f.db, FIX.workspace, randomUlid(), {}, access),
-      ).rejects.toMatchObject({ code: "not_found", message: "run not found" });
+      ).rejects.toMatchObject({ code: "request_rejected", message: "event feeds are unavailable" });
       expect(await listTokenObservations(f.db, FIX.workspace, f.runId, access)).toEqual([]);
       expect(await listMeasurementIntervals(f.db, FIX.workspace, f.runId, access)).toEqual([]);
       expect(await listReviewTimers(f.db, FIX.workspace, f.task.id, access)).toEqual([]);
@@ -407,7 +407,7 @@ describe("private review timer contributions", () => {
     ).rejects.toMatchObject({ code: "not_found" });
     await expect(
       listRunMeasurementSources(db, FIX.workspace, randomUlid(), {}, context()),
-    ).rejects.toMatchObject({ code: "not_found" });
+    ).rejects.toMatchObject({ code: "request_rejected", message: "event feeds are unavailable" });
   });
 
   it.each(["read", "contribute", "edit"] as const)(
@@ -654,7 +654,7 @@ describe("private authenticated measurement capture and source pages", () => {
     ).toMatchObject({ ok: false });
   });
 
-  it("filters source pages at the actual SELECT and rechecks before returning raw metadata", async () => {
+  it("holds source pages without querying while granted arithmetic and internal source identities remain available", async () => {
     vi.setSystemTime(new Date(LAUNCH_NOW));
     const f = await launchFixture(),
       claimed = await f.claim(),
@@ -676,22 +676,24 @@ describe("private authenticated measurement capture and source pages", () => {
     await privacy(f.db, f.task.id, FIX.owner);
     const id = await grant(f.db, f.task.id, FIX.member, "read"),
       access = context(FIX.member);
-    const first = await listRunMeasurementSources(
-      f.db,
-      FIX.workspace,
-      spec.run_id,
-      { limit: 1 },
-      access,
-    );
-    expect(first).toMatchObject({ sources: [{ event_id: events[0]!.event_id }], has_more: true });
-    const second = await listRunMeasurementSources(
-      f.db,
-      FIX.workspace,
-      spec.run_id,
-      { afterCursor: first.next_cursor, limit: 1 },
-      access,
-    );
-    expect(second).toMatchObject({ sources: [{ event_id: events[1]!.event_id }], has_more: false });
+    await expect(
+      listRunMeasurementSources(f.db, FIX.workspace, spec.run_id, { limit: 1 }, access),
+    ).rejects.toMatchObject({ code: "request_rejected", message: "event feeds are unavailable" });
+    await expect(
+      listRunMeasurementSources(
+        f.db,
+        FIX.workspace,
+        spec.run_id,
+        { afterCursor: 1, limit: 1 },
+        access,
+      ),
+    ).rejects.toMatchObject({ code: "request_rejected", message: "event feeds are unavailable" });
+    expect(
+      await listRunMeasurementActivitySources(f.db, FIX.workspace, spec.run_id, access),
+    ).toHaveLength(2);
+    expect(
+      (await getRunMeasurements(f.db, FIX.workspace, spec.run_id, LAUNCH_NOW, access)).sources,
+    ).toBeNull();
     expect(
       await aggregateMeasurements(
         f.db,
@@ -704,6 +706,9 @@ describe("private authenticated measurement capture and source pages", () => {
     const db = beforeRead(f.db, /SELECT s\.\*, e\.workspace_cursor/, () => revoke(f.db, id));
     await expect(
       listRunMeasurementSources(db, FIX.workspace, spec.run_id, { limit: 1 }, access),
-    ).rejects.toMatchObject({ code: "not_found", message: "run not found" });
+    ).rejects.toMatchObject({ code: "request_rejected", message: "event feeds are unavailable" });
+    expect(
+      await f.db.prepare("SELECT revoked_at FROM task_human_grants WHERE id=?").get(id),
+    ).toEqual({ revoked_at: null });
   });
 });

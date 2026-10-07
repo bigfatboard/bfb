@@ -1,5 +1,5 @@
-// ABOUTME: Proves E02 browser realtime over real Workers, D1, and hibernating-style sockets.
-// ABOUTME: All identities are synthetic; invalidations stay cursor-only while replay stays authoritative.
+// ABOUTME: Proves held E02 public positions and preserved runner ingestion over real Workers and D1.
+// ABOUTME: Synthetic identities certify admission denial, not an available browser replay or live service.
 
 import assert from "node:assert/strict";
 import { dirname, resolve } from "node:path";
@@ -131,7 +131,8 @@ const principal: RunnerPrincipal = {
   tokenEpoch: 1,
   tokenId,
   keyThumbprint: "synthetic-e02-harness-key",
-  authExpiresAt: launchDeadline(now, 300_000),
+  // Ingest authority uses the queued transaction's real clock, not fixture time.
+  authExpiresAt: new Date(Math.floor(Date.now() / 1000) * 1000 + 300_000).toISOString(),
   projectIds: [FIX.projectA],
 };
 
@@ -209,24 +210,6 @@ async function connect(
   socket.addEventListener("close", (event) => tap.closes.push({ code: event.code ?? 0 }));
   socket.accept();
   return { status: 101, tap };
-}
-
-async function waitFor(tap: SocketTap, count: number, label: string): Promise<string[]> {
-  const deadline = Date.now() + 10_000;
-  for (;;) {
-    if (tap.messages.length >= count) return tap.messages.slice();
-    if (Date.now() > deadline) throw new Error(`timed out waiting for ${label}`);
-    await new Promise((resolve) => setTimeout(resolve, 25));
-  }
-}
-
-async function waitMessages(tap: SocketTap, count: number, label: string): Promise<string[]> {
-  const deadline = Date.now() + 10_000;
-  for (;;) {
-    if (tap.messages.length >= count) return tap.messages.slice();
-    if (Date.now() > deadline) throw new Error(`timed out waiting for ${label}`);
-    await new Promise((resolve) => setTimeout(resolve, 25));
-  }
 }
 
 function browserPrincipal(
@@ -466,121 +449,62 @@ try {
     sessionExpiry,
   );
 
-  // R1 subscribe handshake: ready carries the D1 high-water, attachments stay secret-free.
-  const owner = await connect(ownerHandshake);
-  assert.equal(owner.status, 101);
-  const ownerTap = owner.tap as SocketTap;
-  const member = await connect(memberHandshake);
-  assert.equal(member.status, 101);
-  const memberTap = member.tap as SocketTap;
-  const ownerReady = (await waitFor(ownerTap, 1, "owner ready")).map((raw) => JSON.parse(raw));
-  assert.deepEqual(Object.keys(ownerReady[0]).sort(), [
-    "connection_id",
-    "high_water_cursor",
-    "kind",
-    "schema_version",
-    "server_time",
-    "workspace_id",
-  ]);
-  assert.equal(ownerReady[0].kind, "browser.realtime.ready");
-  const readyWater = ownerReady[0].high_water_cursor as number;
-  const memberReady = (await waitFor(memberTap, 1, "member ready")).map((raw) => JSON.parse(raw));
-  assert.equal(memberReady[0].kind, "browser.realtime.ready");
-  assert.equal(memberReady[0].high_water_cursor, readyWater);
-
-  // R2 commit fan-out: cursor-only invalidations reach every subscriber.
-  // (Heartbeat framing rides the same dispatch; its gap rule is unit-tested
-  // with injected clocks and browser-tested against the shared manager.)
+  // New DO browser admissions are held before ready frames or socket allocation.
+  for (const handshake of [ownerHandshake, memberHandshake]) {
+    const admitted = await connect(handshake);
+    assert.equal(admitted.status, 409);
+    assert.equal(admitted.tap, null);
+  }
   const committed = await nativeIngest(["heartbeat", "turn_started"]);
   assert.deepEqual(
     committed.dispositions.map((entry) => entry.disposition),
     ["accepted", "accepted"],
   );
-  const ownerAfter = await waitFor(ownerTap, 2, "owner invalidation");
-  const memberAfter = await waitFor(memberTap, 2, "member invalidation");
-  for (const raw of [ownerAfter[1], memberAfter[1]]) {
-    const frame = JSON.parse(raw as string) as Record<string, unknown>;
-    assert.deepEqual(Object.keys(frame).sort(), [
-      "high_water_cursor",
-      "kind",
-      "schema_version",
-      "workspace_id",
-    ]);
-    assert.equal(frame.kind, "event.committed");
-    assert.equal(frame.high_water_cursor, committed.high_water_cursor);
-    assert.ok(!(raw as string).includes("token"));
-    assert.ok(!(raw as string).includes("cookie"));
-  }
-
-  // R6 hostile strings ride replay as data, never in invalidations.
   const hostile = "<script>alert(document.cookie)</script>";
   const hostileCommitted = await nativeIngest(["heartbeat"], { provider_session_id: hostile });
-  const hostileFrames = await waitFor(memberTap, 3, "hostile invalidation");
-  assert.ok(!(hostileFrames[2] as string).includes("<script>"));
+  assert.equal(hostileCommitted.dispositions[0]?.disposition, "accepted");
   const memberAuth = createAuthorizationContext({
     workspaceId: FIX.workspace,
     principalId: FIX.member,
     authorizationEpoch: 1,
     jurisdiction: "eu",
   });
-  const replayed = await listLedgerEvents(db, memberAuth, { afterCursor: 0, throughCursor: 100 });
-  assert.ok(replayed.some((row) => row.provider_session_id === hostile));
-
-  // R3 reconnect: a new connection recovers the same authority without secret replay.
-  ownerTap.close();
-  const ownerAgain = await connect(ownerHandshake);
-  assert.equal(ownerAgain.status, 101);
-  const ownerAgainTap = ownerAgain.tap as SocketTap;
-  const againReady = (await waitFor(ownerAgainTap, 1, "reconnect ready")).map((raw) =>
-    JSON.parse(raw),
-  );
-  assert.equal(againReady[0].kind, "browser.realtime.ready");
-  assert.equal(againReady[0].high_water_cursor, hostileCommitted.high_water_cursor);
-  assert.notEqual(againReady[0].connection_id, ownerReady[0].connection_id);
-
-  // R5 expired sessions never subscribe.
+  await assert.rejects(listLedgerEvents(db, memberAuth, { afterCursor: 0, throughCursor: 100 }), {
+    code: "request_rejected",
+    message: "event feeds are unavailable",
+  });
+  const retained = (await db
+    .prepare(
+      "SELECT event_id,provider_session_id FROM event_ledger WHERE workspace_id=? ORDER BY workspace_cursor",
+    )
+    .all(FIX.workspace)) as Array<{ event_id: string; provider_session_id: string | null }>;
+  assert.equal(retained.length, 3);
+  assert(retained.some((row) => row.provider_session_id === hostile));
+  const again = await connect(ownerHandshake);
+  assert.equal(again.status, 409);
+  assert.equal(again.tap, null);
   const expired = await connect(
     browserPrincipal(FIX.owner, "e02-harness-owner-session", "owner", sessionExpiredAt),
   );
   assert.equal(expired.status, 403);
-
-  // R4 revocation closes only the affected socket on the next committed command.
-  // The member is revoked (not the owner) so the owner-bound runner keeps
-  // its ingest authority for the survivor assertion below.
-  await db
-    .prepare(
-      `UPDATE workspace_authorization_epochs SET revoked_at = ?, updated_at = ?
-       WHERE workspace_id = ? AND human_id = ?`,
-    )
-    .run(now, now, FIX.workspace, FIX.member);
-  await nativeIngest(["heartbeat"]);
-  // The miniflare test client never observes server-initiated closes, so the
-  // harness proves teardown by attrition: the close frame arrives, then a
-  // later commit reaches only the survivor. Exact close codes ride unit tests.
-  const memberClosed = await waitMessages(memberTap, 4, "revoked member close");
-  const closeFrame = JSON.parse(memberClosed[3] as string) as Record<string, unknown>;
-  assert.equal(closeFrame.kind, "browser.realtime.close");
-  assert.equal(closeFrame.reason, "authorization_revoked");
-  await nativeIngest(["heartbeat"]);
-  const ownerLatest = await waitFor(ownerAgainTap, 2, "survivor invalidation");
-  assert.equal((JSON.parse(ownerLatest[1] as string) as { kind: string }).kind, "event.committed");
-  await new Promise((resolve) => setTimeout(resolve, 500));
-  assert.equal(memberTap.messages.length, 4);
-
   console.log(
     JSON.stringify({
-      readyHighWater: readyWater,
-      committedHighWater: committed.high_water_cursor,
-      invalidationsPerSubscriber: 3,
-      reconnectRecovered: true,
-      expiredRejected: true,
-      revokedCloseFrame: "authorization_revoked",
-      survivorInvalidations: 1,
-      hostileKeptOutOfInvalidations: true,
-      hostileInReplayAsData: true,
+      checks: [
+        "real_do_owner_and_member_admission_held_before_ready",
+        "runner_ingest_dispositions_and_retained_history_unchanged",
+        "public_replay_held_without_exposing_hostile_retained_metadata",
+        "reconnect_remains_held_after_commit",
+        "pure_expired_handshake_rejection_preserved",
+      ],
+      outcome: "passed",
+      limits: [
+        "No available public replay/realtime claim",
+        "Legacy attachment no-command-effects and independent retirement are owned by focused manager tests",
+        "No enrolled Mac, provider operation or private activation",
+      ],
     }),
   );
-  console.log("E02_REALTIME_OK");
+  console.log("E02_PUBLIC_POSITION_HOLD_OK");
 } catch (error) {
   server.debug();
   throw error;

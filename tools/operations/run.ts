@@ -297,6 +297,7 @@ async function main(): Promise<void> {
       async (response) => ({
         status: response.status,
         body: (await response.json()) as unknown,
+        cacheControl: response.headers.get("cache-control"),
       }),
     );
 
@@ -352,7 +353,7 @@ async function main(): Promise<void> {
       harvested[name] = JSON.stringify(value);
     };
 
-    // D2: Owner-only security audit; activity stays distinct and attributable.
+    // D2: Owner-only security audit remains separate from uniformly held public activity.
     {
       const ownerAudit = await get(`${base}/security-audit`, OWNER);
       assert.equal(ownerAudit.status, 200);
@@ -360,19 +361,19 @@ async function main(): Promise<void> {
       assert.equal(memberAudit.status, 403);
       const reviewerAudit = await get(`${base}/security-audit`, REVIEWER);
       assert.equal(reviewerAudit.status, 403);
-      const ownerActivity = await get(`${base}/activity`, OWNER);
-      assert.equal(ownerActivity.status, 200);
-      const memberActivity = await get(`${base}/activity`, MEMBER);
-      assert.equal(memberActivity.status, 200);
-      const reviewerActivity = await get(`${base}/activity`, REVIEWER);
-      assert.equal(reviewerActivity.status, 200);
+      const heldActivity = {
+        error: "request_rejected",
+        message: "event feeds are unavailable",
+      };
+      for (const session of [OWNER, MEMBER, REVIEWER]) {
+        const activity = await get(`${base}/activity`, session);
+        assert.equal(activity.status, 409);
+        assert.deepEqual(activity.body, heldActivity);
+        assert.equal(activity.cacheControl, "no-store");
+      }
       harvest("security-audit", ownerAudit.body);
-      harvest("activity", ownerActivity.body);
-      assert.ok(
-        !harvested["activity"]!.includes("payload_json"),
-        "activity carries no ledger payloads",
-      );
-      note("D2", "security audit Owner-only; activity role-scoped without payloads");
+      harvest("activity-held", heldActivity);
+      note("D2", "security audit Owner-only; admitted activity uniformly unavailable/no-store");
       pass("D2-roles");
     }
 

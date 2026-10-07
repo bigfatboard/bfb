@@ -15,7 +15,8 @@
     "diagnostics.ts",
     "board.ts",
     "quarantine.ts",
-    "coordination.ts"
+    "coordination.ts",
+    "positions.ts"
   ],
   "references": [
     { "path": "../../packages/domain" },
