@@ -237,3 +237,18 @@ unresolved; live private R2 byte delivery remains uncertified. C12 stays planned
   certification. Participant/runner/cleanup and the natural-expiry barrier remain
   outside this checkpoint. The included public-position contract is not its
   implementation certificate; private creation stays disabled and C12 planned.
+  The [public-position quarantine checkpoint](work-packages/evidence/WP-C11/public-positions-manifest.json)
+  is clean-certified at `9220606`: 1,999 C11 invocation cases, 67 real-D1
+  checks, exact E01/E02/A04/X03/X05/W03 regressions and full verification with
+  4,335 TypeScript cases, Go and all 16 Swift cases. Public raw feeds and browser
+  sockets are deliberately unavailable before source access; public receipts
+  omit only the Hub cursor. Internal order, runner nudges and arithmetic remain.
+  Compact notices stay within existing disclosures, suppress stale history and
+  add no default actions. W03 passes 186 unit and all 83 shared browser cases.
+  Independent legacy retirement survives runner alarm scheduling. Two initial
+  clean failures were corrected without weakening business response or signed-
+  ingestion controls. Notification identities, audit anchors, GitHub key policy,
+  execution-owned consumers, destructive private retention and natural expiry
+  remain barriers. Private creation/sharing/checkpoints stay disabled; C11 remains
+  in progress and C12 planned. Knowledge, skills, vault, reminders and contribution
+  views remain unbuilt; the wider MVP and deployment are not complete.

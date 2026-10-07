@@ -200,3 +200,21 @@ field pass from a fresh checkout. This does not certify participant/runner
 authority, cleanup, opaque positions or natural in-flight expiry. The included
 public-position contract is not implementation proof. Private creation remains
 disabled; C11 remains in progress and C12 remains planned.
+
+The [public-position quarantine checkpoint](evidence/WP-C11/public-positions-manifest.json)
+is clean-certified at `9220606`: 1,999 invocation cases, 67 real-D1 checks across
+seven harnesses, exact E01/E02/A04/X03/X05/W03 regressions and full verification
+with 4,335 TypeScript cases, Go and all 16 Swift cases. Public raw feeds and new
+browser sockets deny before source/high-water access; public receipts omit only
+the top-level Hub cursor. Internal ordering, runner nudges, authorized business
+DTOs and measurement arithmetic remain. Browser retirement is independent of
+commands, including shared alarm composition. Public measurement sources are
+null; compact on-demand notices suppress stale history without extra actions.
+Exact W03 passes 186 unit and 83 shared browser cases. Initial clean attempts
+caught an added recovery DTO field and a stale available-source expectation;
+both were repaired before fresh final certification. Notification identities,
+security-audit anchors, GitHub key policy, execution-owned consumers, destructive
+private retention and natural in-flight expiry remain open. Private creation,
+sharing and author-private checkpoints stay disabled; C11 stays in progress and
+C12 planned. This is an availability hold, not an opaque replacement stream or
+a live-provider/private-byte/deployment certificate.

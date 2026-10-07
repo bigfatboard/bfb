@@ -101,3 +101,14 @@ counts, complete action discovery, keyboard focus restoration, retained drafts,
 stable board position, safe text rendering, role and conflict behavior, light
 and dark contrast, narrow/zoomed reflow and honest unavailable states. Static
 screenshots alone cannot satisfy it.
+
+## Current privacy behavior
+
+The [C11 public-position checkpoint](work-packages/evidence/WP-C11/public-positions-manifest.json)
+keeps raw history and browser realtime unavailable rather than displaying stale
+events, empty source pages or fabricated presence. Compact notices remain in
+the existing on-demand sections with no new default actions. Authorized
+discussion refresh and launch polling remain available. The historical replay
+checks above describe the earlier W03 baseline, not current public availability.
+Current exact W03 acceptance passes 186 unit and all 83 shared browser cases,
+including action budgets, drafts, focus, both themes and narrow/zoomed reflow.
