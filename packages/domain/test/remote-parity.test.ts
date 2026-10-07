@@ -304,7 +304,6 @@ describe("delegated attention request", () => {
     );
     const delegationId = await seedDelegation(f.db, {
       taskId: bound.taskId,
-      expiresAt: "2026-09-12T13:00:00.000Z",
     });
     const delegatedRecord = ok(
       await f.hub.execute(requestDelegatedAttentionCommand, {
