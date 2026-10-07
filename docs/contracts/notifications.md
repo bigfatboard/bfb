@@ -8,7 +8,11 @@ Queue/DLQ retry discipline. Notifications are derived views over committed
 domain state: they never create task, run, attention, or launch truth, and
 they never block a product command.
 
-## Records (D1 migration `0030_notifications`)
+## Records and recipient identities
+
+Migration `0030_notifications` owns the delivery ledger. C11's additive
+`0046_notification_public_identities` adds recipient-safe identities; this
+transition requires its own acceptance evidence and does not enable private work.
 
 `notification_preferences` keeps one override row per
 `(workspace, human, project scope, channel, category)`. `project_id` is the
@@ -34,10 +38,19 @@ stable `delivery_id`:
   as `upper(hex(sha256("x01" | workspace_id | event_cursor | channel |
   recipient)))` truncated to 26 chars with the first char masked into
   `0-7`, where recipient is the human ULID for `browser_push` or the
-  runner ULID for `macos`. It is opaque, ULID-shaped (so it passes the
-  existing app-bridge validator), and stable: retries of one queue
-  message re-derive the same IDs, so redelivery has one logical effect
-  per channel.
+  runner ULID for `macos`. This is an internal, enumerable source-derived key,
+  not an opaque public identity. Retries re-derive it so redelivery has one
+  logical effect per channel. Queue/DLQ, inbox foreign keys, dispatch watermarks
+  and outcome bookkeeping retain it; recipient responses never return it.
+- `public_id` is a stored, immutable, timestamp-free identity encoded as 26
+  Crockford-base32 characters from 128 cryptographically random bits. It has no
+  cursor, timestamp, recipient or epoch input. A winning fan-out INSERT retains
+  one identity across retries; a logical-key conflict reloads that row, while
+  an identity collision fails rather than silently discarding a delivery.
+  Assigned identities and their workspace/source/channel/recipient binding
+  cannot change. This is an object identity, not a bearer capability: current
+  recipient, credential, membership/epoch, project, preference and exact shared
+  parent checks remain necessary at every delivery/contact/ack boundary.
 - `state` is `pending`, `delivered`, `suppressed`, `failed`, or
   `dead_lettered`. `suppressed` means access, scope, or preference failed
   at attempt time and no endpoint was contacted. `failed` is terminal
@@ -125,9 +138,9 @@ A human is eligible only when, at fan-out time, they are a current member
 project, and their effective preference enables the category on the
 channel. Push fan-out additionally requires a registered endpoint; macOS
 fan-out writes one inbox row per enrolled runner owned by an eligible
-human that holds a project grant for the subject's project. Every write is
-`INSERT OR IGNORE` on the stable ID, so duplicate or out-of-order queue
-delivery converges.
+human that holds a project grant for the subject's project. Delivery inserts
+ignore only the stable logical-key conflict, so duplicate or out-of-order queue
+delivery converges without hiding a public-identity collision.
 
 Each attempt rechecks membership, epoch, project scope, and preference
 immediately before contacting an endpoint. A human revoked, unscoped, or
@@ -159,8 +172,7 @@ The encrypted payload is fixed-shape JSON:
   "title": "BFB needs your attention",
   "body": "Open BFB to review the next step.",
   "deep_link": "https://app.example/w/01J.../tasks/01J.../attention/01J...",
-  "delivery_id": "01J...",
-  "event_cursor": 42
+  "delivery_id": "01J..."
 }
 ```
 
@@ -177,12 +189,50 @@ retryable.
 macOS delivery is the durable inbox row plus the daemon's bounded poll of
 `POST /runner/workspaces/:workspace/runners/:runner/notifications/pull`
 over the existing C06 request-bound possession transport, then
-`.../notifications/ack`. Pull responses carry opaque delivery ULIDs only.
+`.../notifications/ack`. The v1 pull envelope retains `schema_version`,
+`workspace_id`, `runner_id` and `deliveries`; each delivery contains only the
+public identity as `delivery_id`. The daemon validates the complete enrollment
+tuple and entire bounded batch before offering any intent. Unknown fields,
+trailing JSON, malformed/duplicate identities and foreign enrollment tuples
+reject without offers or acknowledgements.
 The daemon offers each intent once through `internal/appbridge`
 `NotifyAttention`; the signed app reuses its fixed title/body and single
 **Open BFB** action, and reports `notification_denied` when permission is
 off. The daemon never receives task text, paths, tokens, commands, or
 provider arguments through this path.
+
+### Legacy identity transition
+
+The migration adds a nullable identity column without rewriting existing delivery
+or inbox rows. Application cryptography assigns missing identities in bounded,
+resumable batches through the registered system-only
+`notification.public_ids.ensure` Hub command. Its strict input is
+`{deliveryIds: string[]}` (1–100 distinct internal IDs); the fixed maintenance
+actor and epoch 1 are checked before cached replies. Sorted input fingerprints
+bind retries. Only NULL identities change; count-only receipts contain neither
+aliases nor recipient content. Existing state, attempts, errors, timestamps,
+foreign keys and acknowledgements remain unchanged.
+
+Cron scans every historical state. Recipient history/native reads may ensure
+missing identities from their authorized bounded page, then repeat the original
+retained-authority selection after that await. They never omit legacy rows,
+fall back to source-derived identities or allocate an identity after the final
+authority check. Repeated interference has a bounded uniform rejection. Push
+retry ensures a missing identity before its existing final contact check.
+
+Public history has its existing limit but no raw `after` cursor. Its explicit
+DTO preserves authorized category/state/attempt/error/timestamp fields and the
+public `delivery_id`, never internal keys or `event_cursor`. Legitimately
+authorized shared history remains readable after a role/token change; identities
+are not bound to the creation epoch.
+
+Old unacknowledged derived IDs acknowledge zero, exactly like unknown/foreign
+IDs; the original inbox rows remain available under their new identities.
+An already displayed old-ID notice may appear once more at cutover because the
+native client has no durable offered-ID receipt. Previously delivered push
+payloads cannot be recalled. Deployment must retire old producers and prove the
+backfill has no remaining NULL identities before claiming complete cutover.
+This contract authorizes no deployment or live native/provider operation.
 
 ## Queue and DLQ discipline
 
@@ -202,8 +252,9 @@ bounded diagnostic copy per delivery to `NOTIFY_DLQ`, and acknowledges
 the message. The DLQ copy carries IDs, category, channel, attempt count,
 and error code only. Poison messages therefore land in visible DLQ state
 (D1 rows plus DLQ copies) without blocking other messages or any product
-command: enqueue and consume never run inside a hub mutation, and product
-routes never await delivery.
+command: external enqueue/contact never run inside a Hub mutation, and product
+commands never await delivery. Identity maintenance uses its own serialized Hub
+command before notification delivery; it creates no task/run/attention truth.
 
 Outbox dispatch runs on the Worker Cron alongside existing sweeps and is
 also directly invocable: it advances `notification_dispatch_state`,
@@ -246,4 +297,8 @@ and attempt, telemetry suppression, deep-link/payload canary scans,
 expired-endpoint deletion, poison-to-DLQ with visible state, batch
 isolation, unconfigured-VAPID terminals, and the migration-registered
 check, across real Workers, D1, and a local Queue with DLQ. D1 migration
-head after this package is `0030_notifications`.
+head for historical X01 evidence is `0030_notifications`. C11 identity acceptance
+must additionally prove populated upgrade/resume, identity immutability and
+convergence, cursor-free public wires, public-only acknowledgements, authority
+loss after backfill/signing, and production-shaped native decoding, while
+preserving internal dispatch/retry/DLQ/operator behavior.

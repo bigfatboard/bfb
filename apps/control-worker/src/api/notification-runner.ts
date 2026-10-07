@@ -11,6 +11,7 @@ import {
 
 import { readBoundedJson } from "./request.js";
 import { guardRunnerTransport, readPossessedRunnerRequest, type RunnerApiDeps } from "./runners.js";
+import { ensureNotificationIdentities } from "../notifications/identities.js";
 
 const targetPattern =
   /^\/runner\/workspaces\/([^/]+)\/runners\/([^/]+)\/notifications\/(pull|ack)$/;
@@ -52,7 +53,11 @@ export async function handleNotificationRunnerApi(
         [],
       );
       if (Object.keys(input).length !== 0) rejectRunnerRequest();
-      return response(await pullMacosNotifications(deps.db, principal, deps.now));
+      return response(
+        await pullMacosNotifications(deps.db, principal, deps.now, 25, (ids) =>
+          ensureNotificationIdentities(deps.db, workspaceId, ids, deps.workspaceHubNs),
+        ),
+      );
     }
     const input = runnerObject(
       await readBoundedJson(new Request(request.url, { method: "POST", body: bytes }), 8192),

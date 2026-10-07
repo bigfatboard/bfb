@@ -177,8 +177,13 @@ preferences after signing. Missing/hidden native acknowledgements both return
 zero without changing hidden inbox records. Answered shared attention history
 remains readable; history selection does not require the attention to be open.
 Internal dispatch watermarks may advance over denied events without creating
-delivery rows. Existing cursor-derived delivery identities and outward raw
-cursors remain activation barriers until the recipient-position transition.
+delivery rows. The [notification identity transition](notifications.md#legacy-identity-transition)
+separates immutable random recipient object IDs from the internal source-derived
+dedupe key. These IDs are not bearer replay positions and do not bind history to
+its creation epoch. Legacy backfill, public-only native acknowledgements,
+cursor-free push/history and final authority after maintenance require independent
+C11 acceptance before this barrier is closed. Private notification delivery
+remains unavailable until the full recipient-safe dispatch matrix is certified.
 
 GitHub evidence may associate shared tasks or remain project-only. It cannot
 associate private tasks, even for their creator. Explicit missing/private task

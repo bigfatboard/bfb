@@ -16,6 +16,7 @@ import {
   encodeRunnerToken,
   FIX,
   notificationJobId,
+  NOTIFICATION_IDENTITY_SYSTEM_ID,
   prepareSyntheticAttentionClaim,
   purgeRevokedNotificationState,
   randomUlid,
@@ -268,6 +269,18 @@ const testServer = createTestHarness({
     {
       config: {
         ...base,
+        name: "bfb-x01-b",
+        main: path.resolve(root, "tools/work-records/worker.ts"),
+        durable_objects: {
+          bindings: [
+            { name: "WORKSPACE_HUB", class_name: "WorkspaceHub", script_name: "bfb-x01-hub" },
+          ],
+        },
+      },
+    },
+    {
+      config: {
+        ...base,
         name: "bfb-x01-hub",
         main: path.resolve(root, "apps/control-worker/src/index.ts"),
         d1_databases: [
@@ -343,11 +356,18 @@ let sequence = 0;
 async function execute<T>(
   name: string,
   input: unknown,
-  actor: { actorHumanId?: string; actorRunnerId?: string; authorizationEpoch?: number } = {
+  actor: {
+    actorHumanId?: string;
+    actorRunnerId?: string;
+    actorSystemId?: string;
+    authorizationEpoch?: number;
+  } = {
     actorHumanId: FIX.owner,
   },
+  key?: string,
+  workerName = "bfb-x01-a",
 ): Promise<T> {
-  const worker = testServer.getWorker("bfb-x01-a");
+  const worker = testServer.getWorker(workerName);
   const response = await worker.fetch(`${origin}/workspaces/${FIX.workspace}/execute`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -355,7 +375,7 @@ async function execute<T>(
       commandName: name,
       request: {
         workspaceId: FIX.workspace,
-        idempotencyKey: `x01-${sequence++}-${Date.now()}`,
+        idempotencyKey: key ?? `x01-${sequence++}-${Date.now()}`,
         authorizationEpoch: 1,
         now: new Date().toISOString(),
         ...actor,
@@ -443,6 +463,7 @@ async function dispatchNew(): Promise<Array<{ cursor: number; kind: string }>> {
 
 interface DeliveryRow {
   delivery_id: string;
+  public_id: string;
   channel: string;
   human_id: string;
   runner_id: string | null;
@@ -457,7 +478,7 @@ async function deliveryRows(cursor: number): Promise<DeliveryRow[]> {
   const { DB } = await hubEnv();
   return (await adaptD1(DB)
     .prepare(
-      `SELECT delivery_id, channel, human_id, runner_id, event_cursor, category,
+      `SELECT delivery_id, public_id, channel, human_id, runner_id, event_cursor, category,
               state, attempt_count, last_error
        FROM notification_deliveries WHERE workspace_id = ? AND event_cursor = ?
        ORDER BY delivery_id`,
@@ -838,13 +859,172 @@ try {
     title: "Synthetic X01 migration preservation",
     priority: "P2",
   });
-  for (const migration of manifest.migrations.slice(split)) {
+  const identityMigration = manifest.migrations.find(
+    (migration) => migration.id === "0046_notification_public_identities",
+  );
+  assert(identityMigration, "C11 notification identity migration must be registered");
+  const identityIndex = manifest.migrations.indexOf(identityMigration);
+  for (const migration of manifest.migrations.slice(split, identityIndex)) {
     await copyFile(
       path.resolve(root, "migrations/d1", migration.file),
       path.resolve(migrationDir, migration.file),
     );
   }
   await hub.applyD1Migrations("DB");
+  // Populated upgrade includes every delivery state and a retained native inbox.
+  // These synthetic orphaned legacy events do not authorize recipient delivery.
+  const legacyIds: string[] = [];
+  const legacyRunner = randomUlid();
+  for (const [index, state] of [
+    "pending",
+    "delivered",
+    "suppressed",
+    "failed",
+    "dead_lettered",
+  ].entries()) {
+    const id = randomUlid();
+    legacyIds.push(id);
+    await db
+      .prepare(
+        `INSERT INTO notification_deliveries
+       (workspace_id, delivery_id, channel, human_id, runner_id, event_cursor,
+        event_kind, category, state, attempt_count, last_error, created_at, updated_at, delivered_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'attention.request', 'attention', ?, 3,
+         'synthetic_legacy', ?, ?, ?)`,
+      )
+      .run(
+        FIX.workspace,
+        id,
+        index === 1 ? "macos" : "browser_push",
+        FIX.owner,
+        index === 1 ? legacyRunner : null,
+        1000000000 + index,
+        state,
+        now,
+        now,
+        state === "delivered" ? now : null,
+      );
+  }
+  await db
+    .prepare(
+      `INSERT INTO notification_macos_inbox
+     (workspace_id, runner_id, delivery_id, created_at, acked_at) VALUES (?, ?, ?, ?, ?)`,
+    )
+    .run(FIX.workspace, legacyRunner, legacyIds[1], now, now);
+  const legacyBefore = await db
+    .prepare("SELECT * FROM notification_deliveries WHERE workspace_id = ? ORDER BY delivery_id")
+    .all(FIX.workspace);
+  const inboxBefore = await db.prepare("SELECT * FROM notification_macos_inbox").all();
+  for (const migration of manifest.migrations.slice(identityIndex)) {
+    await copyFile(
+      path.resolve(root, "migrations/d1", migration.file),
+      path.resolve(migrationDir, migration.file),
+    );
+  }
+  await hub.applyD1Migrations("DB");
+  const afterMigration = (await db
+    .prepare("SELECT * FROM notification_deliveries WHERE workspace_id = ? ORDER BY delivery_id")
+    .all(FIX.workspace)) as Array<Record<string, unknown>>;
+  assert(afterMigration.every((row) => row.public_id === null));
+  assert.deepEqual(
+    afterMigration.map(({ public_id: _public, ...row }) => row),
+    legacyBefore,
+  );
+  const maintenanceActor = { actorSystemId: NOTIFICATION_IDENTITY_SYSTEM_ID };
+  const firstInput = { deliveryIds: legacyIds.slice(0, 2) };
+  const [firstResult, competingResult] = await Promise.all([
+    execute<{ selected: number }>(
+      "notification.public_ids.ensure",
+      firstInput,
+      maintenanceActor,
+      "notification-identity-upgrade-first",
+    ),
+    execute<{ selected: number }>(
+      "notification.public_ids.ensure",
+      firstInput,
+      maintenanceActor,
+      "notification-identity-upgrade-competing",
+      "bfb-x01-b",
+    ),
+  ]);
+  assert.deepEqual([firstResult.selected, competingResult.selected].sort(), [0, 2]);
+  const firstAliases = await db
+    .prepare(
+      "SELECT delivery_id, public_id FROM notification_deliveries WHERE public_id IS NOT NULL ORDER BY delivery_id",
+    )
+    .all();
+  assert.deepEqual(
+    await execute(
+      "notification.public_ids.ensure",
+      firstInput,
+      maintenanceActor,
+      "notification-identity-upgrade-first",
+    ),
+    firstResult,
+  );
+  assert.deepEqual(
+    await db
+      .prepare(
+        "SELECT delivery_id, public_id FROM notification_deliveries WHERE public_id IS NOT NULL ORDER BY delivery_id",
+      )
+      .all(),
+    firstAliases,
+  );
+  assert.equal(
+    (
+      await db
+        .prepare("SELECT delivery_id FROM notification_deliveries WHERE public_id IS NULL")
+        .all()
+    ).length,
+    3,
+  );
+  record("notification_identity_cross_isolate_winner", { rows: 2, assignments: 2 });
+  await assert.rejects(
+    execute(
+      "notification.public_ids.ensure",
+      firstInput,
+      { actorHumanId: FIX.owner },
+      "notification-identity-upgrade-first",
+    ),
+    /request_rejected/,
+  );
+  assert.deepEqual(
+    await execute(
+      "notification.public_ids.ensure",
+      { deliveryIds: legacyIds.slice(2) },
+      maintenanceActor,
+    ),
+    { selected: 3 },
+  );
+  const legacyAfter = (await db
+    .prepare("SELECT * FROM notification_deliveries WHERE workspace_id = ? ORDER BY delivery_id")
+    .all(FIX.workspace)) as Array<Record<string, unknown>>;
+  assert.deepEqual(
+    legacyAfter.map(({ public_id: _public, ...row }) => row),
+    legacyBefore,
+  );
+  for (const row of legacyAfter) {
+    assert.match(String(row.public_id), /^[0-7][0-9A-HJKMNP-TV-Z]{25}$/);
+    assert.notEqual(row.public_id, row.delivery_id);
+  }
+  assert.equal(new Set(legacyAfter.map((row) => row.public_id)).size, 5);
+  assert.deepEqual(await db.prepare("SELECT * FROM notification_macos_inbox").all(), inboxBefore);
+  assert.deepEqual(await db.prepare("PRAGMA foreign_key_check").all(), []);
+  await assert.rejects(
+    db
+      .prepare(
+        "UPDATE notification_deliveries SET public_id = ? WHERE workspace_id = ? AND delivery_id = ?",
+      )
+      .run(randomUlid(), FIX.workspace, legacyIds[0]),
+  );
+  record("notification_identity_upgrade_resume", {
+    legacy_states: 5,
+    batches: 2,
+    inbox_preserved: true,
+  });
+  console.log(
+    "C11_NOTIFICATION_IDENTITY_UPGRADE_OK populated D1 upgrade, Hub retry and resumable identities",
+  );
   {
     const again = adaptD1((await hubEnv()).DB);
     const row = (await again
@@ -969,7 +1149,6 @@ try {
     body: string;
     deep_link: string;
     delivery_id: string;
-    event_cursor: number;
   };
   assert.equal(ownerPayload.title, "BFB needs your attention");
   assert.equal(ownerPayload.body, "Open BFB to review the next step.");
@@ -977,7 +1156,13 @@ try {
     ownerPayload.deep_link,
     new RegExp(`^${origin}/w/${FIX.workspace}/tasks/[0-9A-Z]{26}/attention/[0-9A-Z]{26}$`),
   );
-  assert.equal(ownerPayload.event_cursor, attentionCursor);
+  assert.deepEqual(Object.keys(ownerPayload).sort(), ["body", "deep_link", "delivery_id", "title"]);
+  const ownerDelivery = (await deliveryRows(attentionCursor)).find(
+    (row) => row.channel === "browser_push" && row.human_id === FIX.owner,
+  );
+  assert(ownerDelivery);
+  assert.equal(ownerPayload.delivery_id, ownerDelivery.public_id);
+  assert.notEqual(ownerPayload.delivery_id, ownerDelivery.delivery_id);
   scanClean("push_payload", [JSON.stringify(ownerPayload), ownerPayload.deep_link]);
   record("attention_delivered", {
     cursor: attentionCursor,
@@ -992,10 +1177,35 @@ try {
     assert.equal(naked.status, 403);
     const pulled = await signedRunner("notifications/pull", {});
     assert.equal(pulled.status, 200, await pulled.clone().text());
-    const items = ((await pulled.json()) as { deliveries: Array<{ delivery_id: string }> })
-      .deliveries;
+    const envelope = (await pulled.json()) as {
+      schema_version: number;
+      workspace_id: string;
+      runner_id: string;
+      deliveries: Array<{ delivery_id: string }>;
+    };
+    assert.deepEqual(Object.keys(envelope).sort(), [
+      "deliveries",
+      "runner_id",
+      "schema_version",
+      "workspace_id",
+    ]);
+    assert.equal(envelope.schema_version, 1);
+    assert.equal(envelope.workspace_id, FIX.workspace);
+    assert.equal(envelope.runner_id, runnerId);
+    const items = envelope.deliveries;
     assert.equal(items.length, 1);
     assert.match(items[0]?.delivery_id ?? "", /^[0-7][0-9A-HJKMNP-TV-Z]{25}$/);
+    const nativeDelivery = (await deliveryRows(attentionCursor)).find(
+      (row) => row.channel === "macos",
+    );
+    assert(nativeDelivery);
+    assert.equal(items[0]?.delivery_id, nativeDelivery.public_id);
+    assert.notEqual(items[0]?.delivery_id, nativeDelivery.delivery_id);
+    const legacyAck = await signedRunner("notifications/ack", {
+      delivery_ids: [nativeDelivery.delivery_id],
+    });
+    assert.equal(legacyAck.status, 200);
+    assert.equal(((await legacyAck.json()) as { acked: number }).acked, 0);
     const acked = await signedRunner("notifications/ack", {
       delivery_ids: [items[0]?.delivery_id],
     });

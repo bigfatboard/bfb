@@ -105,6 +105,13 @@ function before(db: SqlDatabase, match: RegExp, change: () => Promise<void>): Sq
   };
 }
 
+async function publicIdentity(db: SqlDatabase, deliveryId: string): Promise<string> {
+  const row = (await db
+    .prepare("SELECT public_id FROM notification_deliveries WHERE delivery_id = ?")
+    .get(deliveryId)) as { public_id: string };
+  return row.public_id;
+}
+
 describe("private notification fences", () => {
   it("retains enabled project override precedence over disabled workspace preference", async () => {
     const f = await fixture();
@@ -173,9 +180,9 @@ describe("private notification fences", () => {
       (await listDeliveries(f.db, FIX.workspace, FIX.owner, 100, access())).map(
         (row) => row.delivery_id,
       ),
-    ).toContain(f.pushId);
+    ).toContain(await publicIdentity(f.db, f.pushId));
     expect((await pullMacosNotifications(f.db, f.principal, LAUNCH_NOW)).deliveries).toEqual([
-      { delivery_id: f.macosId },
+      { delivery_id: await publicIdentity(f.db, f.macosId) },
     ]);
   });
   it("excludes private history and retry, and hidden native acknowledgement is identical to missing", async () => {
@@ -187,9 +194,14 @@ describe("private notification fences", () => {
       await loadPushAttempt(f.db, { workspaceId: FIX.workspace, deliveryId: f.pushId }),
     ).toMatchObject({ ok: false });
     expect((await pullMacosNotifications(f.db, f.principal, LAUNCH_NOW)).deliveries).toEqual([]);
-    expect(await ackMacosNotifications(f.db, f.principal, [f.macosId], LAUNCH_NOW)).toEqual(
-      await ackMacosNotifications(f.db, f.principal, [randomUlid()], LAUNCH_NOW),
-    );
+    expect(
+      await ackMacosNotifications(
+        f.db,
+        f.principal,
+        [await publicIdentity(f.db, f.macosId)],
+        LAUNCH_NOW,
+      ),
+    ).toEqual(await ackMacosNotifications(f.db, f.principal, [randomUlid()], LAUNCH_NOW));
     expect(
       await f.db
         .prepare("SELECT acked_at FROM notification_macos_inbox WHERE delivery_id = ?")
@@ -225,16 +237,16 @@ describe("private notification fences", () => {
         (row) => row.delivery_id,
       ),
     ).toHaveLength(1);
-    expect(
-      (await listDeliveries(f.db, FIX.workspace, FIX.owner, 1, access()))[0]?.event_cursor,
-    ).toBe(f.input.eventCursor);
+    expect([await publicIdentity(f.db, f.pushId), await publicIdentity(f.db, f.macosId)]).toContain(
+      (await listDeliveries(f.db, FIX.workspace, FIX.owner, 1, access()))[0]?.delivery_id,
+    );
     await f.db
       .prepare(
         "UPDATE notification_macos_inbox SET created_at = '2020-01-01T00:00:00.000Z' WHERE delivery_id <> ?",
       )
       .run(f.macosId);
     expect((await pullMacosNotifications(f.db, f.principal, LAUNCH_NOW, 1)).deliveries).toEqual([
-      { delivery_id: f.macosId },
+      { delivery_id: await publicIdentity(f.db, f.macosId) },
     ]);
   });
   it("rechecks task policy at delivery insertion", async () => {
@@ -283,7 +295,14 @@ describe("private notification fences", () => {
       if (operation === "pull")
         expect((await pullMacosNotifications(db, f.principal, LAUNCH_NOW)).deliveries).toEqual([]);
       else
-        expect(await ackMacosNotifications(db, f.principal, [f.macosId], LAUNCH_NOW)).toEqual({
+        expect(
+          await ackMacosNotifications(
+            db,
+            f.principal,
+            [await publicIdentity(f.db, f.macosId)],
+            LAUNCH_NOW,
+          ),
+        ).toEqual({
           schema_version: 1,
           acked: 0,
         });
@@ -330,7 +349,7 @@ describe("private notification fences", () => {
       },
     };
     expect((await pullMacosNotifications(db, f.principal, LAUNCH_NOW)).deliveries).toEqual([
-      { delivery_id: f.macosId },
+      { delivery_id: await publicIdentity(f.db, f.macosId) },
     ]);
   });
   it("rechecks policy in the endpoint SELECT after preference/preflight reads", async () => {

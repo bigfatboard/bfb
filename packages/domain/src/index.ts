@@ -23,6 +23,7 @@ export * from "./mcp-routing.js";
 export * from "./measurements.js";
 export * from "./measurement-sources.js";
 export * from "./notifications.js";
+export * from "./notification-identities.js";
 export * from "./oauth.js";
 export * from "./operations.js";
 export * from "./projects.js";

@@ -6,6 +6,7 @@ package notify
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -19,6 +20,8 @@ var _ Notifier = (*appbridge.Bridge)(nil)
 
 const deliveryA = "01JX01MAC0S000000000000001"
 const deliveryB = "01JX01MAC0S000000000000002"
+const workspaceID = "01JX01W0RKSPACE00000000001"
+const runnerID = "01JX01RVNNER00000000000001"
 
 type fakeConnection struct {
 	mu       sync.Mutex
@@ -85,7 +88,12 @@ func pullBody(t *testing.T, ids ...string) []byte {
 	for _, id := range ids {
 		deliveries = append(deliveries, map[string]string{"delivery_id": id})
 	}
-	body, err := json.Marshal(map[string]any{"schema_version": 1, "deliveries": deliveries})
+	body, err := json.Marshal(map[string]any{
+		"schema_version": 1,
+		"workspace_id":   workspaceID,
+		"runner_id":      runnerID,
+		"deliveries":     deliveries,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,10 +104,154 @@ func serviceFor(connection *fakeConnection, notifier Notifier) *Service {
 	return &Service{
 		Connections: func(string) (Connection, error) { return connection, nil },
 		Enrollments: func(context.Context) ([]Enrollment, error) {
-			return []Enrollment{{RunnerID: "runner-x01"}}, nil
+			return []Enrollment{{WorkspaceID: workspaceID, RunnerID: runnerID}}, nil
 		},
 		Notifier: notifier,
 		Interval: time.Millisecond,
+	}
+}
+
+func TestProductionPullEnvelopeOffersAndAcksDelivered(t *testing.T) {
+	connection := &fakeConnection{pullBody: pullBody(t, deliveryA, deliveryB)}
+	notifier := &fakeNotifier{}
+	if err := serviceFor(connection, notifier).PollOnce(context.Background()); err != nil {
+		t.Fatalf("production-shaped v1 pull response must be accepted: %v", err)
+	}
+	if len(notifier.offered) != 2 || notifier.offered[0] != deliveryA || notifier.offered[1] != deliveryB {
+		t.Fatalf("unexpected offers: %#v", notifier.offered)
+	}
+	if len(connection.acks) != 1 || len(connection.acks[0]) != 2 || connection.acks[0][0] != deliveryA || connection.acks[0][1] != deliveryB {
+		t.Fatalf("production deliveries must be acknowledged by their exact IDs: %#v", connection.acks)
+	}
+}
+
+func TestProductionPullEnvelopeRejectsUnboundTuple(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		field string
+		value any
+	}{
+		{name: "missing_workspace", field: "workspace_id"},
+		{name: "missing_runner", field: "runner_id"},
+		{name: "wrong_workspace", field: "workspace_id", value: deliveryA},
+		{name: "wrong_runner", field: "runner_id", value: deliveryB},
+		{name: "malformed_workspace", field: "workspace_id", value: 1},
+		{name: "malformed_runner", field: "runner_id", value: "not-a-runner-id"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var envelope map[string]any
+			if err := json.Unmarshal(pullBody(t, deliveryA), &envelope); err != nil {
+				t.Fatal(err)
+			}
+			if test.value == nil {
+				delete(envelope, test.field)
+			} else {
+				envelope[test.field] = test.value
+			}
+			body, err := json.Marshal(envelope)
+			if err != nil {
+				t.Fatal(err)
+			}
+			connection := &fakeConnection{pullBody: body}
+			notifier := &fakeNotifier{}
+			if err := serviceFor(connection, notifier).PollOnce(context.Background()); err == nil {
+				t.Fatal("an unbound enrollment tuple must fail the poll")
+			}
+			if len(notifier.offered) != 0 || len(connection.acks) != 0 {
+				t.Fatalf("an unbound tuple must have no bridge or acknowledgement effects: %#v %#v", notifier.offered, connection.acks)
+			}
+		})
+	}
+}
+
+func TestMalformedDeliveryBatchOffersNothing(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		ids  []string
+	}{
+		{name: "invalid_later_id", ids: []string{deliveryA, "not-a-ulid"}},
+		{name: "duplicate_id", ids: []string{deliveryA, deliveryA}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			connection := &fakeConnection{pullBody: pullBody(t, test.ids...)}
+			notifier := &fakeNotifier{}
+			if err := serviceFor(connection, notifier).PollOnce(context.Background()); err == nil {
+				t.Fatal("a malformed delivery batch must fail the poll")
+			}
+			if len(notifier.offered) != 0 || len(connection.acks) != 0 {
+				t.Fatalf("the whole batch must be validated before any offer: %#v %#v", notifier.offered, connection.acks)
+			}
+		})
+	}
+}
+
+func TestPullBatchRequiresBoundedArray(t *testing.T) {
+	oversized := make([]map[string]string, pullLimit+1)
+	for index := range oversized {
+		oversized[index] = map[string]string{"delivery_id": fmt.Sprintf("%026d", index+1)}
+	}
+	for _, test := range []struct {
+		name       string
+		deliveries any
+	}{
+		{name: "missing"},
+		{name: "null", deliveries: json.RawMessage(`null`)},
+		{name: "over_limit", deliveries: oversized},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var envelope map[string]any
+			if err := json.Unmarshal(pullBody(t, deliveryA), &envelope); err != nil {
+				t.Fatal(err)
+			}
+			if test.deliveries == nil {
+				delete(envelope, "deliveries")
+			} else {
+				envelope["deliveries"] = test.deliveries
+			}
+			body, err := json.Marshal(envelope)
+			if err != nil {
+				t.Fatal(err)
+			}
+			connection := &fakeConnection{pullBody: body}
+			notifier := &fakeNotifier{}
+			if err := serviceFor(connection, notifier).PollOnce(context.Background()); err == nil {
+				t.Fatal("the pull envelope must contain a bounded delivery array")
+			}
+			if len(notifier.offered) != 0 || len(connection.acks) != 0 {
+				t.Fatalf("an invalid batch shape must have no bridge or acknowledgement effects: %#v %#v", notifier.offered, connection.acks)
+			}
+		})
+	}
+}
+
+func TestMissingEnrollmentWorkspaceDoesNotConnect(t *testing.T) {
+	connection := &fakeConnection{pullBody: pullBody(t, deliveryA)}
+	notifier := &fakeNotifier{}
+	service := serviceFor(connection, notifier)
+	connected := false
+	service.Connections = func(string) (Connection, error) {
+		connected = true
+		return connection, nil
+	}
+	service.Enrollments = func(context.Context) ([]Enrollment, error) {
+		return []Enrollment{{RunnerID: runnerID}}, nil
+	}
+	if err := service.PollOnce(context.Background()); err == nil {
+		t.Fatal("a missing enrollment workspace must fail the poll")
+	}
+	if connected || len(notifier.offered) != 0 || len(connection.acks) != 0 {
+		t.Fatal("an invalid stored enrollment must have no transport or bridge effects")
+	}
+}
+
+func TestStrictJSONRejectsTrailingValue(t *testing.T) {
+	for _, suffix := range []string{` {}`, ` true`} {
+		t.Run(suffix, func(t *testing.T) {
+			var response ackResponse
+			if err := strictJSON([]byte(`{"schema_version":1,"acked":1}`+suffix), &response); err == nil {
+				t.Fatal("a response must contain exactly one JSON value")
+			}
+		})
 	}
 }
 
@@ -146,10 +298,23 @@ func TestInvalidDeliveryIDOffersNothing(t *testing.T) {
 }
 
 func TestUnknownPullFieldsRejected(t *testing.T) {
-	connection := &fakeConnection{pullBody: []byte(`{"schema_version":1,"deliveries":[],"extra":1}`)}
-	service := serviceFor(connection, &fakeNotifier{})
+	var envelope map[string]any
+	if err := json.Unmarshal(pullBody(t, deliveryA), &envelope); err != nil {
+		t.Fatal(err)
+	}
+	envelope["extra"] = 1
+	body, err := json.Marshal(envelope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	connection := &fakeConnection{pullBody: body}
+	notifier := &fakeNotifier{}
+	service := serviceFor(connection, notifier)
 	if err := service.PollOnce(context.Background()); err == nil {
 		t.Fatal("expected unknown pull fields to fail closed")
+	}
+	if len(notifier.offered) != 0 || len(connection.acks) != 0 {
+		t.Fatalf("unknown fields must have no bridge or acknowledgement effects: %#v %#v", notifier.offered, connection.acks)
 	}
 }
 

@@ -25,6 +25,7 @@ import { executePublicWorkspaceCommand as executeWorkspaceCommand } from "../pub
 import { readBoundedJson } from "./request.js";
 import type { WorkApiDeps } from "./work.js";
 import type { BrowserPrincipal } from "../auth/session.js";
+import { ensureNotificationIdentities } from "../notifications/identities.js";
 
 const BODY_LIMIT = 32_768;
 
@@ -197,6 +198,7 @@ async function handleNotificationApiInner(
         deps.principal.humanId,
         limit,
         principal,
+        (ids) => ensureNotificationIdentities(deps.db, deps.workspaceId, ids, deps.workspaceHubNs),
       ),
     });
   }

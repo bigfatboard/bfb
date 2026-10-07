@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"regexp"
 	"time"
 
@@ -29,7 +30,8 @@ type Notifier interface {
 
 // Enrollment is the minimal identity the poller needs to pull one runner's inbox.
 type Enrollment struct {
-	RunnerID string
+	WorkspaceID string
+	RunnerID    string
 }
 
 // EnrollmentsFunc lists runners the poller should serve on this Mac.
@@ -54,8 +56,10 @@ type Service struct {
 }
 
 type pullResponse struct {
-	Version    int `json:"schema_version"`
-	Deliveries []struct {
+	Version     int    `json:"schema_version"`
+	WorkspaceID string `json:"workspace_id"`
+	RunnerID    string `json:"runner_id"`
+	Deliveries  []struct {
 		DeliveryID string `json:"delivery_id"`
 	} `json:"deliveries"`
 }
@@ -68,7 +72,14 @@ type ackResponse struct {
 func strictJSON(data []byte, target any) error {
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
-	return decoder.Decode(target)
+	if err := decoder.Decode(target); err != nil {
+		return err
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		return errors.New("response must contain exactly one JSON value")
+	}
+	return nil
 }
 
 // PollOnce pulls, offers, and acks for every enrollment. One runner's failure
@@ -86,7 +97,7 @@ func (service *Service) PollOnce(ctx context.Context) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		if err := service.pollRunner(ctx, enrollment.RunnerID); err != nil {
+		if err := service.pollRunner(ctx, enrollment); err != nil {
 			failed++
 		}
 	}
@@ -96,8 +107,11 @@ func (service *Service) PollOnce(ctx context.Context) error {
 	return nil
 }
 
-func (service *Service) pollRunner(ctx context.Context, runnerID string) error {
-	connection, err := service.Connections(runnerID)
+func (service *Service) pollRunner(ctx context.Context, enrollment Enrollment) error {
+	if !deliveryPattern.MatchString(enrollment.WorkspaceID) || !deliveryPattern.MatchString(enrollment.RunnerID) {
+		return errors.New("invalid notification enrollment")
+	}
+	connection, err := service.Connections(enrollment.RunnerID)
 	if err != nil {
 		return err
 	}
@@ -108,14 +122,23 @@ func (service *Service) pollRunner(ctx context.Context, runnerID string) error {
 		return err
 	}
 	var pulled pullResponse
-	if strictJSON(raw, &pulled) != nil || pulled.Version != 1 || len(pulled.Deliveries) > pullLimit {
+	if strictJSON(raw, &pulled) != nil || pulled.Version != 1 ||
+		pulled.WorkspaceID != enrollment.WorkspaceID || pulled.RunnerID != enrollment.RunnerID ||
+		pulled.Deliveries == nil || len(pulled.Deliveries) > pullLimit {
 		return errors.New("invalid notification pull response")
 	}
-	acked := make([]string, 0, len(pulled.Deliveries))
+	seen := make(map[string]struct{}, len(pulled.Deliveries))
 	for _, delivery := range pulled.Deliveries {
 		if !deliveryPattern.MatchString(delivery.DeliveryID) {
 			return errors.New("invalid notification delivery id")
 		}
+		if _, duplicate := seen[delivery.DeliveryID]; duplicate {
+			return errors.New("duplicate notification delivery id")
+		}
+		seen[delivery.DeliveryID] = struct{}{}
+	}
+	acked := make([]string, 0, len(pulled.Deliveries))
+	for _, delivery := range pulled.Deliveries {
 		offer, cancelOffer := context.WithTimeout(ctx, requestTTL)
 		err := service.Notifier.NotifyAttention(offer, delivery.DeliveryID)
 		cancelOffer()

@@ -310,14 +310,13 @@ describe("notification deep links and copy", () => {
         subject,
         category,
         deliveryId: syntheticUlid("X01DLV"),
-        eventCursor: 7,
       });
       const encoded = JSON.stringify(body);
       for (const canary of canaries) {
         expect(encoded).not.toContain(canary);
       }
       expect(body.delivery_id).toBe(syntheticUlid("X01DLV"));
-      expect(body.event_cursor).toBe(7);
+      expect(body).not.toHaveProperty("event_cursor");
     }
   });
 });

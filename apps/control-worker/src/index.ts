@@ -124,6 +124,7 @@ export default {
           },
           appOrigin: validated.origins.appOrigin,
           vapid,
+          workspaceHubNs: validated.bindings.WORKSPACE_HUB,
         },
       );
       return;
@@ -194,6 +195,12 @@ export default {
       await runGitHubSweep(adaptD1(env.DB), env.JOBS, new Date().toISOString());
     } catch {
       // The sweep is idempotent and retried on the next Cron tick.
+    }
+    try {
+      const { runNotificationIdentitySweep } = await import("./notifications/identities.js");
+      await runNotificationIdentitySweep(adaptD1(env.DB), validated.bindings.WORKSPACE_HUB);
+    } catch {
+      // Missing identities remain in the bounded backlog for the next tick.
     }
     try {
       const { runNotificationSweep } = await import("./notifications/sweep.js");

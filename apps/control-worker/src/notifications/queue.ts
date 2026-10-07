@@ -6,6 +6,8 @@ import {
   buildPushPayload,
   deletePushEndpoint,
   fanoutNotificationEvent,
+  DomainError,
+  isUlid,
   loadPushAttempt,
   NOTIFICATION_QUEUE_MAX_ATTEMPTS,
   notificationJobId,
@@ -14,12 +16,14 @@ import {
 } from "@bfb/domain";
 
 import { PUSH_TTL_SECONDS, sendPushMessage, type VapidSecrets } from "./push.js";
+import { ensureNotificationIdentities } from "./identities.js";
 
 export interface NotifyQueueDeps {
   db: SqlDatabase;
   sendDlq: (copy: DlqCopy) => Promise<void>;
   appOrigin: string;
   vapid: VapidSecrets | null;
+  workspaceHubNs?: DurableObjectNamespace | undefined;
 }
 
 export interface NotifyMessage {
@@ -107,6 +111,12 @@ export async function handleNotifyMessage(
        ORDER BY delivery_id ASC LIMIT 500`,
     )
     .all(body.workspace_id, body.event_cursor)) as Array<{ delivery_id: string }>;
+  await ensureNotificationIdentities(
+    db,
+    body.workspace_id,
+    pending.map((row) => row.delivery_id),
+    deps.workspaceHubNs,
+  );
   let needsRetry = false;
   const exhausted = message.attempts >= NOTIFICATION_QUEUE_MAX_ATTEMPTS;
   for (const row of pending) {
@@ -133,13 +143,15 @@ export async function handleNotifyMessage(
       });
       continue;
     }
+    if (typeof loaded.delivery.public_id !== "string" || !isUlid(loaded.delivery.public_id)) {
+      throw new DomainError("request_rejected", "request rejected");
+    }
     const payload = buildPushPayload({
       appOrigin: deps.appOrigin,
       workspaceId: body.workspace_id,
       subject: loaded.subject,
       category: loaded.delivery.category,
-      deliveryId: row.delivery_id,
-      eventCursor: body.event_cursor,
+      deliveryId: loaded.delivery.public_id,
     });
     const plaintext = new TextEncoder().encode(JSON.stringify(payload));
     let delivered = false;
@@ -173,6 +185,10 @@ export async function handleNotifyMessage(
             if (JSON.stringify(fresh.subject) !== JSON.stringify(loaded.subject)) {
               deniedOutcome = { terminal: true, state: "suppressed", code: "out_of_scope" };
               throw new Error("notification contact denied");
+            }
+            if (fresh.delivery.public_id !== loaded.delivery.public_id) {
+              deniedOutcome = { terminal: true, state: "suppressed", code: "out_of_scope" };
+              throw new Error("notification identity changed");
             }
             if (
               !fresh.endpoints.some(

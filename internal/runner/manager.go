@@ -83,7 +83,7 @@ func NewManager(options ManagerOptions) *Manager {
 				}
 				enrollments := make([]notify.Enrollment, 0, len(list))
 				for _, enrollment := range list {
-					enrollments = append(enrollments, notify.Enrollment{RunnerID: enrollment.RunnerID})
+					enrollments = append(enrollments, notify.Enrollment{WorkspaceID: enrollment.WorkspaceID, RunnerID: enrollment.RunnerID})
 				}
 				return enrollments, nil
 			},

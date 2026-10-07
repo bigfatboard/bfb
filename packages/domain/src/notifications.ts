@@ -1,4 +1,4 @@
-// ABOUTME: Selects actionable committed events and derives stable notification delivery identity.
+// ABOUTME: Selects actionable committed events and keeps internal delivery keys separate from recipient identities.
 // ABOUTME: Payloads stay untrusted for display; fan-out re-reads D1 for scope before any contact.
 
 import { createHash } from "node:crypto";
@@ -7,6 +7,10 @@ import type { SqlDatabase } from "@bfb/db";
 
 import { DomainError, type HubCommand } from "./hub.js";
 import { isUlid } from "./ids.js";
+import {
+  createNotificationPublicId,
+  type EnsureNotificationIdentities,
+} from "./notification-identities.js";
 import { loadPrincipal } from "./authorization.js";
 import { assertCurrentRunnerPrincipal, type RunnerPrincipal } from "./runners.js";
 import { sharedTaskPredicate, taskAccessPredicate, type TaskAccessContext } from "./task-access.js";
@@ -259,7 +263,6 @@ export interface PushPayload {
   body: string;
   deep_link: string;
   delivery_id: string;
-  event_cursor: number;
 }
 
 export function buildPushPayload(input: {
@@ -268,8 +271,8 @@ export function buildPushPayload(input: {
   subject: ResolvedSubject;
   category: NotificationCategory;
   deliveryId: string;
-  eventCursor: number;
 }): PushPayload {
+  if (!isPublicNotificationId(input.deliveryId)) rejectMissingNotificationIdentity();
   const copy = NOTIFICATION_COPY[input.category];
   return {
     title: copy.title,
@@ -281,7 +284,6 @@ export function buildPushPayload(input: {
       input.category,
     ),
     delivery_id: input.deliveryId,
-    event_cursor: input.eventCursor,
   };
 }
 
@@ -538,7 +540,6 @@ export interface DeliveryRecord {
   channel: NotificationChannel;
   human_id: string;
   runner_id: string | null;
-  event_cursor: number;
   event_kind: string;
   category: NotificationCategory;
   state: "pending" | "delivered" | "suppressed" | "failed" | "dead_lettered";
@@ -547,6 +548,52 @@ export interface DeliveryRecord {
   created_at: string;
   updated_at: string;
   delivered_at: string | null;
+}
+
+interface StoredDeliveryRecord extends DeliveryRecord {
+  public_id: string | null;
+  event_cursor: number;
+}
+
+function isPublicNotificationId(value: unknown): value is string {
+  return (
+    typeof value === "string" && value.length === 26 && /^[0-7][0-9A-HJKMNP-TV-Z]{25}$/.test(value)
+  );
+}
+
+function rejectMissingNotificationIdentity(): never {
+  throw new DomainError("request_rejected", "notification identities are unavailable");
+}
+
+async function ensurePageIdentities(
+  deliveryIds: readonly string[],
+  ensureIdentities: EnsureNotificationIdentities | undefined,
+): Promise<void> {
+  if (!ensureIdentities) rejectMissingNotificationIdentity();
+  try {
+    await ensureIdentities(deliveryIds);
+  } catch {
+    rejectMissingNotificationIdentity();
+  }
+}
+
+/** Deliberately allowlisted public DTO; internal keys and positions never cross this boundary. */
+function publicDelivery(row: StoredDeliveryRecord): DeliveryRecord {
+  if (!isPublicNotificationId(row.public_id)) rejectMissingNotificationIdentity();
+  return {
+    delivery_id: row.public_id,
+    channel: row.channel,
+    human_id: row.human_id,
+    runner_id: row.runner_id,
+    event_kind: row.event_kind,
+    category: row.category,
+    state: row.state,
+    attempt_count: row.attempt_count,
+    last_error: row.last_error,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    delivered_at: row.delivered_at,
+  };
 }
 
 /** Project overrides precede workspace/default preferences in the current delivery selector. */
@@ -712,19 +759,26 @@ export async function listDeliveries(
   humanId: string,
   limit = 50,
   access?: TaskAccessContext,
+  ensureIdentities?: EnsureNotificationIdentities,
 ): Promise<DeliveryRecord[]> {
   const bounded = Number.isSafeInteger(limit) && limit >= 1 && limit <= 100 ? limit : 50;
   if (access && (access.workspaceId !== workspaceId || access.humanId !== humanId)) return [];
   const predicate = deliveryPredicate("notification_deliveries", access);
-  const rows = (await db
-    .prepare(
-      `SELECT delivery_id, channel, human_id, runner_id, event_cursor, event_kind,
+  for (let repairs = 0; repairs <= 3; repairs += 1) {
+    const rows = (await db
+      .prepare(
+        `SELECT delivery_id, public_id, channel, human_id, runner_id, event_cursor, event_kind,
               category, state, attempt_count, last_error, created_at, updated_at, delivered_at
        FROM notification_deliveries
        WHERE workspace_id = ? AND human_id = ? AND ${predicate.sql} ORDER BY event_cursor DESC LIMIT ?`,
-    )
-    .all(workspaceId, humanId, ...predicate.parameters, bounded)) as DeliveryRecord[];
-  return rows;
+      )
+      .all(workspaceId, humanId, ...predicate.parameters, bounded)) as StoredDeliveryRecord[];
+    const missing = rows.filter((row) => row.public_id === null).map((row) => row.delivery_id);
+    if (missing.length === 0) return rows.map(publicDelivery);
+    if (repairs === 3) rejectMissingNotificationIdentity();
+    await ensurePageIdentities(missing, ensureIdentities);
+  }
+  return rejectMissingNotificationIdentity();
 }
 
 interface EligibleHuman {
@@ -888,10 +942,10 @@ async function insertDelivery(
   const predicate = deliveryPredicate("candidate", access, true, undefined, true);
   const result = await db
     .prepare(
-      `INSERT OR IGNORE INTO notification_deliveries
-       (workspace_id, delivery_id, channel, human_id, runner_id, event_cursor,
+      `INSERT INTO notification_deliveries
+       (workspace_id, delivery_id, public_id, channel, human_id, runner_id, event_cursor,
         event_kind, category, state, attempt_count, last_error, created_at, updated_at, delivered_at)
-       SELECT candidate.workspace_id, ?, ?, candidate.human_id, ?, candidate.event_cursor,
+       SELECT candidate.workspace_id, ?, ?, ?, candidate.human_id, ?, candidate.event_cursor,
          candidate.event_kind, candidate.category, 'pending', 0, NULL, ?, ?, NULL
        FROM (SELECT ? AS workspace_id, ? AS human_id, ? AS event_cursor, ? AS event_kind, ? AS category, ? AS channel) AS candidate
        WHERE ${predicate.sql}
@@ -902,10 +956,12 @@ async function insertDelivery(
            ON candidate_grant.workspace_id = candidate_runner.workspace_id AND candidate_grant.runner_id = candidate_runner.id
            WHERE candidate_runner.workspace_id = candidate.workspace_id AND candidate_runner.id = ? AND candidate_runner.owner_human_id = candidate.human_id
              AND candidate_runner.revoked_at IS NULL AND candidate_grant.project_id = ?)`
-         }`,
+         }
+       ON CONFLICT(workspace_id, delivery_id) DO NOTHING`,
     )
     .run(
       input.deliveryId,
+      createNotificationPublicId(),
       input.channel,
       input.runnerId,
       input.now,
@@ -1088,7 +1144,7 @@ export async function loadPushAttempt(
 ): Promise<
   | {
       ok: true;
-      delivery: DeliveryRecord;
+      delivery: StoredDeliveryRecord;
       endpoints: PushAttemptEndpoint[];
       subject: ResolvedSubject;
       access: TaskAccessContext;
@@ -1097,11 +1153,11 @@ export async function loadPushAttempt(
 > {
   const delivery = (await db
     .prepare(
-      `SELECT delivery_id, channel, human_id, runner_id, event_cursor, event_kind,
+      `SELECT delivery_id, public_id, channel, human_id, runner_id, event_cursor, event_kind,
               category, state, attempt_count, last_error, created_at, updated_at, delivered_at
        FROM notification_deliveries WHERE workspace_id = ? AND delivery_id = ?`,
     )
-    .get(input.workspaceId, input.deliveryId)) as DeliveryRecord | undefined;
+    .get(input.workspaceId, input.deliveryId)) as StoredDeliveryRecord | undefined;
   if (!delivery || delivery.channel !== "browser_push" || delivery.state !== "pending") {
     return { ok: false, outcome: { terminal: true, state: "failed", code: "not_pending" } };
   }
@@ -1248,6 +1304,7 @@ export async function pullMacosNotifications(
   principal: RunnerPrincipal,
   now: string,
   limit = 25,
+  ensureIdentities?: EnsureNotificationIdentities,
 ): Promise<{
   schema_version: 1;
   workspace_id: string;
@@ -1268,9 +1325,10 @@ export async function pullMacosNotifications(
     active,
   );
   const native = nativeDeliveryPredicate(active, now, "delivery");
-  const rows = (await db
-    .prepare(
-      `SELECT inbox.delivery_id AS delivery_id
+  for (let repairs = 0; repairs <= 3; repairs += 1) {
+    const rows = (await db
+      .prepare(
+        `SELECT inbox.delivery_id AS delivery_id, delivery.public_id
        FROM notification_macos_inbox AS inbox
        JOIN notification_deliveries AS delivery
          ON delivery.workspace_id = inbox.workspace_id AND delivery.delivery_id = inbox.delivery_id
@@ -1278,20 +1336,30 @@ export async function pullMacosNotifications(
          AND delivery.state = 'delivered'
          AND ${predicate.sql} AND ${native.sql}
        ORDER BY inbox.created_at ASC, inbox.delivery_id ASC LIMIT ?`,
-    )
-    .all(
-      active.workspaceId,
-      active.runnerId,
-      ...predicate.parameters,
-      ...native.parameters,
-      bounded,
-    )) as MacosPullItem[];
-  return {
-    schema_version: 1,
-    workspace_id: active.workspaceId,
-    runner_id: active.runnerId,
-    deliveries: rows,
-  };
+      )
+      .all(
+        active.workspaceId,
+        active.runnerId,
+        ...predicate.parameters,
+        ...native.parameters,
+        bounded,
+      )) as Array<{ delivery_id: string; public_id: string | null }>;
+    const missing = rows.filter((row) => row.public_id === null).map((row) => row.delivery_id);
+    if (missing.length === 0) {
+      return {
+        schema_version: 1,
+        workspace_id: active.workspaceId,
+        runner_id: active.runnerId,
+        deliveries: rows.map((row) => {
+          if (!isPublicNotificationId(row.public_id)) rejectMissingNotificationIdentity();
+          return { delivery_id: row.public_id };
+        }),
+      };
+    }
+    if (repairs === 3) rejectMissingNotificationIdentity();
+    await ensurePageIdentities(missing, ensureIdentities);
+  }
+  return rejectMissingNotificationIdentity();
 }
 
 export async function ackMacosNotifications(
@@ -1313,21 +1381,23 @@ export async function ackMacosNotifications(
     active,
   );
   const native = nativeDeliveryPredicate(active, now, "delivery");
-  if (!Array.isArray(deliveryIds) || deliveryIds.length > 25) {
+  if (
+    !Array.isArray(deliveryIds) ||
+    deliveryIds.length > 25 ||
+    deliveryIds.some((id) => !isPublicNotificationId(id))
+  ) {
     throw new DomainError("invalid_argument", "notification acknowledgement batch is invalid");
   }
   let acked = 0;
   for (const id of deliveryIds) {
-    if (typeof id !== "string" || id.length !== 26) {
-      throw new DomainError("invalid_argument", "notification acknowledgement batch is invalid");
-    }
     const result = await db
       .prepare(
         `UPDATE notification_macos_inbox SET acked_at = ?
-         WHERE workspace_id = ? AND runner_id = ? AND delivery_id = ? AND acked_at IS NULL
+         WHERE workspace_id = ? AND runner_id = ? AND acked_at IS NULL
            AND EXISTS (SELECT 1 FROM notification_deliveries AS delivery
              WHERE delivery.workspace_id = notification_macos_inbox.workspace_id
                AND delivery.delivery_id = notification_macos_inbox.delivery_id
+               AND delivery.public_id = ?
                AND delivery.runner_id = notification_macos_inbox.runner_id
                AND delivery.state = 'delivered' AND ${predicate.sql} AND ${native.sql})`,
       )
