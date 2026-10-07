@@ -45,7 +45,9 @@ occur before the final selection. This proves read projection, not new execution
 authority, historical proof provenance or a cryptographic ledger attestation.
 Historical synthetic UTC tuples additionally prove chronological page/anchor
 selection across fractional spellings, microseconds and equal-instant insertion
-ties, including a valid legacy row; original display timestamps are unchanged.
+ties; original display timestamps are unchanged. The later unsupported-family
+hold omits the old generic legacy row and its anchor, while canonical historical
+receipts remain visible.
 Exact artifact-version evidence is checked
 with human, originating-run and task-bound delegation ceilings, including current
 scope denial. Independent source privatization before a real D1 result batch
@@ -74,8 +76,11 @@ diagnostic generation and consent before proof/business effects, including a
 synthetic retained cached success. Known and missing consent targets share the
 fixed unavailable denial; stored bundles and cache remain unchanged. Real D1
 omits diagnostic audit/semantic copies before limits and anchor selection, while
-preserving stored history and scope-loss priority. These checks do not attest
-historical source provenance, opaque positions or a new snapshot format. The
+preserving stored history and scope-loss priority.
+The audit control is a source-backed run-free artifact receipt; the independent
+semantic control retains its original scope. Unsupported legacy audit controls
+remain stored and cannot serve as anchors.
+These checks do not attest historical source provenance, opaque positions or a new snapshot format. The
 separate current X05 runtime D9 checks the same held browser policy, not v1 upload.
 
 All use the checked-in ordered migrations in a disposable local harness. No

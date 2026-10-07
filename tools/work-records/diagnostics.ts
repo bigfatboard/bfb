@@ -6,6 +6,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { adaptD1, createAuthorizationContext, loadMigrationManifest, type D1Like } from "@bfb/db";
 import {
+  ARTIFACT_RECOVERY_SYSTEM_ID,
   FIX,
   issueStepUpProof,
   listWorkspaceEvents,
@@ -184,14 +185,49 @@ try {
       )
       .run(FIX.workspace, id, FIX.owner, kind, payload, now);
   }
+  // The semantic control remains separate; unsupported audit families are held.
+  // A source-backed run-free receipt proves diagnostic copies do not consume its slot.
+  const artifactId = randomUlid(),
+    versionId = randomUlid(),
+    auditControlId = randomUlid(),
+    digest = "b".repeat(64);
+  await db
+    .prepare(
+      `INSERT INTO artifacts
+       (workspace_id,id,run_id,format,role,created_by_human_id,created_at)
+       VALUES (?,?,NULL,'log','log',?,?)`,
+    )
+    .run(FIX.workspace, artifactId, FIX.owner, now);
+  await db
+    .prepare(
+      `INSERT INTO artifact_versions
+       (workspace_id,id,artifact_id,state,format,declared_size,expected_digest,
+        content_hash,r2_key,created_at,available_at)
+       VALUES (?,?,?,'available','log',64,?,?,?,?,?)`,
+    )
+    .run(FIX.workspace, versionId, artifactId, digest, digest, `synthetic/${versionId}`, now, now);
+  await db
+    .prepare(
+      `INSERT INTO artifact_audit_outbox
+       (workspace_id,id,version_id,grant_id,action,payload_json,created_at,dispatched_at)
+       VALUES (?,?,?,NULL,'artifact.finalized','{}',?,?)`,
+    )
+    .run(FIX.workspace, auditControlId, versionId, now, now);
+  await db
+    .prepare(
+      `INSERT INTO audit_events
+       (workspace_id,audit_id,actor_principal_id,action,payload_json,created_at)
+       VALUES (?,?,?,'artifact.finalized','{}',?)`,
+    )
+    .run(FIX.workspace, auditControlId, ARTIFACT_RECOVERY_SYSTEM_ID, now);
   const beforeCopies = await snapshot();
   const audit = await readSecurityAudit(db, FIX.workspace, { access, limit: 1 });
   assert.deepEqual(
     audit.entries.map((row) => row.audit_id),
-    [controlId],
+    [auditControlId],
   );
   assert.equal(audit.has_more, false);
-  for (const anchor of [diagnosticAnchor, randomUlid()]) {
+  for (const anchor of [diagnosticAnchor, controlId, randomUlid()]) {
     await assert.rejects(
       readSecurityAudit(db, FIX.workspace, { access, limit: 1, after: anchor }),
       {
