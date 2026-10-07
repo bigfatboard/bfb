@@ -23,9 +23,8 @@ import {
   getDelegatedTask,
   getTask,
   issueGrantResponse,
-  listProjectsPage,
-  listTasksPage,
-  listTaskSubtreePage,
+  listDelegatedProjectsPage,
+  listDelegatedTasksPage,
   loadPrincipal,
   enforceDelegationAccess,
   addCommentCommand,
@@ -63,6 +62,11 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
     delegationId: deps.delegation.delegationId,
     ...(deps.delegation.taskId ? { taskBoundaryId: deps.delegation.taskId } : {}),
   };
+  const delegatedListAccess = {
+    ...taskAccess,
+    clientId: deps.delegation.clientId,
+    projectBoundaryId: deps.delegation.projectId,
+  };
   const hubDeps = {
     db: deps.db,
     authorization: createAuthorizationContext({
@@ -85,24 +89,25 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
     },
     async ({ limit, cursor }) => {
       assertScope(deps.delegation, "bfb:read");
-      const scopedPrincipal = {
-        ...principal,
-        projectIds: deps.delegation.projectId
-          ? principal.projectIds.filter((id) => id === deps.delegation.projectId)
-          : principal.projectIds,
-      };
-      const page = await listProjectsPage(deps.db, scopedPrincipal, {
-        ...(limit === undefined ? {} : { limit }),
-        ...(cursor === undefined ? {} : { cursor }),
-      });
-      return {
-        content: [
+      try {
+        const page = await listDelegatedProjectsPage(
+          deps.db,
+          delegatedListAccess,
+          principal.projectIds,
           {
-            type: "text" as const,
-            text: JSON.stringify(page),
+            ...(limit === undefined ? {} : { limit }),
+            ...(cursor === undefined ? {} : { cursor }),
           },
-        ],
-      };
+        );
+        return { content: [{ type: "text" as const, text: JSON.stringify(page) }] };
+      } catch (error) {
+        if (
+          error instanceof DomainError &&
+          ["not_found", "forbidden", "stale_authorization"].includes(error.code)
+        )
+          throw new DomainError("not_found", "delegated list not available");
+        throw error;
+      }
     },
   );
 
@@ -117,32 +122,33 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
     },
     async ({ limit, cursor }) => {
       assertScope(deps.delegation, "bfb:read");
-      let projectIds = principal.projectIds;
-      if (deps.delegation.projectId) {
-        projectIds = projectIds.filter((id) => id === deps.delegation.projectId);
-      }
-      const options = {
-        access: taskAccess,
-        ...(limit === undefined ? {} : { limit }),
-        ...(cursor === undefined ? {} : { cursor }),
-      };
-      if (deps.delegation.taskId) {
-        await enforceDelegationAccess(
-          deps.db,
-          deps.delegation,
-          deps.delegation.projectId ?? undefined,
-          deps.delegation.taskId,
-        );
-      }
-      const page = deps.delegation.taskId
-        ? await listTaskSubtreePage(
+      try {
+        if (deps.delegation.taskId) {
+          await enforceDelegationAccess(
             deps.db,
-            deps.delegation.workspaceId,
+            deps.delegation,
+            deps.delegation.projectId ?? undefined,
             deps.delegation.taskId,
-            options,
-          )
-        : await listTasksPage(deps.db, deps.delegation.workspaceId, projectIds, options);
-      return { content: [{ type: "text" as const, text: JSON.stringify(page) }] };
+          );
+        }
+        const page = await listDelegatedTasksPage(
+          deps.db,
+          delegatedListAccess,
+          principal.projectIds,
+          {
+            ...(limit === undefined ? {} : { limit }),
+            ...(cursor === undefined ? {} : { cursor }),
+          },
+        );
+        return { content: [{ type: "text" as const, text: JSON.stringify(page) }] };
+      } catch (error) {
+        if (
+          error instanceof DomainError &&
+          ["not_found", "forbidden", "stale_authorization"].includes(error.code)
+        )
+          throw new DomainError("not_found", "delegated list not available");
+        throw error;
+      }
     },
   );
 

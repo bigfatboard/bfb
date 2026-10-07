@@ -46,6 +46,7 @@ export * from "./run-controls.js";
 export * from "./step-up.js";
 export * from "./results.js";
 export * from "./work-commands.js";
+export * from "./delegated-lists.js";
 export * from "./work-records.js";
 export * from "./task-access.js";
 export * from "./workspace-authorization.js";

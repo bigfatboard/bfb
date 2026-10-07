@@ -181,7 +181,7 @@ export function readTaskPredicate(access: TaskReadAccess | undefined, alias = "t
   };
 }
 
-function taskProjection(access?: TaskReadAccess) {
+export function taskProjection(access?: TaskReadAccess) {
   const parent = readTaskPredicate(access, "task_parent");
   return {
     sql: `task.id, task.project_id,
@@ -1327,23 +1327,32 @@ function delegatedContextPredicate(
 /** Retain original OAuth ceilings while checking current read authority at selection. */
 export function delegatedReadTaskPredicate(access: DelegatedTaskReadAccess) {
   const read = readTaskPredicate(access);
+  const credential = delegatedReadCredentialPredicate(access);
+  return {
+    sql: `${read.sql} AND EXISTS (
+        SELECT 1 FROM oauth_delegations AS credential
+        WHERE credential.workspace_id = task.workspace_id AND ${credential.sql}
+      )`,
+    parameters: [...read.parameters, ...credential.parameters],
+  };
+}
+
+/** Match the authenticated credential's original ceilings and current read authority. */
+export function delegatedReadCredentialPredicate(access: DelegatedTaskReadAccess) {
   const scopes = `CASE WHEN json_valid(credential.scopes_json) THEN
     CASE WHEN json_type(credential.scopes_json) = 'array' THEN credential.scopes_json ELSE '[]' END
     ELSE '[]' END`;
   return {
-    sql: `${read.sql} AND EXISTS (
-        SELECT 1 FROM oauth_delegations AS credential
-        WHERE credential.workspace_id = task.workspace_id AND credential.id = ?
+    sql: `credential.workspace_id = ? AND credential.id = ?
           AND credential.human_id = ? AND credential.client_id = ?
           AND credential.authorization_epoch = ? AND credential.revoked_at IS NULL
           AND credential.project_id IS ? AND credential.task_id IS ?
           AND julianday(credential.expires_at) > julianday('now')
           AND EXISTS (SELECT 1 FROM json_each(${scopes}) AS scope
             WHERE scope.type = 'text' AND scope.value = 'bfb:read')
-          AND NOT EXISTS (SELECT 1 FROM json_each(${scopes}) AS scope WHERE scope.type <> 'text')
-      )`,
+          AND NOT EXISTS (SELECT 1 FROM json_each(${scopes}) AS scope WHERE scope.type <> 'text')`,
     parameters: [
-      ...read.parameters,
+      access.workspaceId,
       access.delegationId,
       access.humanId,
       access.clientId,

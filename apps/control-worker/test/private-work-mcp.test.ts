@@ -359,7 +359,7 @@ describe("private task delivery through remote MCP", () => {
   });
 
   it("hides private task IDs, titles and page counts from an unshared workspace owner", async () => {
-    const { accessToken } = await access();
+    const { accessToken } = await liveReadAccess();
     for (const args of [{}, { limit: 1 }]) {
       const reply = await call(accessToken, "bfb_list_tasks", args);
       expect(value<TaskPage>(reply)).toMatchObject({
@@ -533,7 +533,7 @@ describe("private task delivery through remote MCP", () => {
 
   it("a private grant cannot widen a task-bound delegation", async () => {
     await grant("read");
-    const { accessToken } = await access({ taskId: sharedTask.id });
+    const { accessToken } = await liveReadAccess({ taskId: sharedTask.id });
     for (const tool of ["bfb_get_task", "bfb_get_context"]) {
       const reply = await call(accessToken, tool, {
         task_id: privateTask.id,
@@ -635,7 +635,7 @@ describe("private task delivery through remote MCP", () => {
     const visibleChild = await createTask("Synthetic readable subtree child", deniedParent.id);
     const visibleSibling = await createTask("Synthetic readable direct child", sharedTask.id);
     await makePrivate(deniedParent.id);
-    const { accessToken } = await access({ taskId: sharedTask.id });
+    const { accessToken } = await liveReadAccess({ taskId: sharedTask.id });
     const reply = await call(accessToken, "bfb_list_tasks");
     const page = value<TaskPage>(reply);
     expect(page.tasks.map((task) => task.id).sort()).toEqual(

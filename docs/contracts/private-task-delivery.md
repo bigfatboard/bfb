@@ -902,6 +902,54 @@ This does not certify delegated lists, command caches, authority after the final
 statement, provider or run capability expiry, artifact bytes or private
 activation. The pending GitHub collision policy remains separate.
 
+### Frozen delegated list selection
+
+This corrective C11 slice owns final `bfb_list_projects` and `bfb_list_tasks`
+selection. Shared collection readers, the task-access kernel, work commands,
+pre-0045 fallback, leases and shared clocks remain unchanged. Reads create no
+business or delivery record.
+
+- Each collection uses one final statement that returns current authority
+  together with canonical page rows. An authorized empty or cursor-terminal
+  page retains the existing empty DTO. Credential or sponsor denial must not
+  masquerade as that page, including when the captured project set is empty.
+- Retain workspace, sponsor, authenticated epoch, exact credential/client and
+  original nullable project/task ceilings. Repeat current membership/role and
+  epoch, revocation, valid all-string read scope and strict database-clock
+  expiry in the final statement. Reuse the existing delegation conditions;
+  do not create task-shaped authority for project metadata.
+- Intersect captured project IDs with current project policy/grants before
+  lookahead and pagination, without adopting newly granted projects mid-call.
+  Task candidates also repeat current kernel private-read authority and use
+  the same-statement parent projection. For a task-bound collection, require
+  current root access before cursor filtering and traverse only readable
+  branches; a readable grandchild cannot cross an unreadable ancestor.
+- Preserve ascending-ID order, valid cursor behavior, visible-only `has_more`
+  and last-delivered-row continuations. Keep project DTO keys `hasMore` and
+  `nextCursor`, and task DTO keys `limit`, `has_more` and `next_cursor`.
+  Project metadata follows project authority, not a fabricated task ACL.
+  Read-only Owner/Member/Reviewer and completed/cancelled task history remain
+  readable. Serialize the selected page without another advisory await.
+- Normalize valid collection authority denial, including task-root denial,
+  to the SDK `isError: true` plain-text `delegated list not available` reply.
+  Preserve initial scope admission, malformed-input and unexpected database
+  errors. Invalid authority exposes no collection bodies or identifiers.
+- Reproduce production revocation and current project loss after project
+  capture, current task-list read-scope/client/original-boundary loss, and
+  unchanged credential expiry after SQL and arguments are prepared. Cover
+  task-root scope loss after a successful advisory check in the unfixed path,
+  authorized empty/terminal pages versus revoked empty pages, current role/
+  epoch, canonical concurrent edits and parent masking. Current task-grant/
+  project/epoch filtering and branch pruning are retained controls, not new
+  exposure claims. Mounted genuine OAuth MCP and separate native-D1 witnesses
+  retain complete business/OAuth and cursor snapshots after independent
+  changes, and bounded statements even for large captured project sets.
+
+The additive target is `pnpm test:c11:list-delivery`, composed once by C11.
+This certifies only the final delegated collection statements, not opaque
+task cursors, later delivery, caches, other transports, private activation,
+provider/run expiry or the pending GitHub collision policy.
+
 ### Frozen browser board selection
 
 This corrective C11 slice binds already-authorized board delivery to the

@@ -23,7 +23,8 @@
     "delegated-attention.ts",
     "delegated-context.ts",
     "delegated-attention-delivery.ts",
-    "delegated-task-delivery.ts"
+    "delegated-task-delivery.ts",
+    "delegated-lists.ts"
   ],
   "references": [
     { "path": "../../packages/domain" },
