@@ -50,7 +50,7 @@ An agent can request a typed human decision, a permitted human can answer it fro
 - `apps/control-worker/src/api/attention.ts`: ranked list, scoped read with observations, answer (409 carries the committed record on duplicates), and resolve routes.
 - `apps/web/src/attention/home.tsx`: ranked Attention home with answer/resolve actions and the native-permission notice.
 - `internal/localmcp/attention.go`: the three tool implementations plus the bounded wait over `WorkTransport.GetAttention`.
-- `tools/attention/run.ts`: the real-Worker/D1 fault harness writing deterministic `runtime-recording.jsonl` and `runtime-waiter-cadence.json` (step outcomes only, so reruns are byte-identical); historical evidence remains unchanged.
+- `tools/attention/run.ts`: the real-Worker/D1 fault harness writing deterministic `runtime-recording.jsonl` and `runtime-waiter-cadence.json` (step outcomes only, so reruns are byte-identical). Routine acceptance writes ignored `test-results/a02`; only explicit `BFB_CAPTURE_A02_RUNTIME_EVIDENCE=1 pnpm exec tsx tools/attention/run.ts` writes the committed evidence directory. Historical evidence remains unchanged.
 - `internal/agentwork/native_attention_darwin_test.go` and `tools/local-mcp/native.ts a02`: compiled stdio through the development-signed daemon and authenticated local Worker/D1, with a synthetic provider-shaped child and no Terminal automation or live provider turn.
 
 ## Work plan

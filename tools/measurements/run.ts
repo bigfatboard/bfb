@@ -225,13 +225,33 @@ try {
 
   // Populated 0024 state upgrades to 0027 without touching work history.
   await seedSyntheticWorkspace(db, now, "global");
-  const preserved = await human<TaskRecord>(createTaskCommand.name, {
-    projectId: FIX.projectA,
-    title: "Synthetic A04 migration preservation",
-    priority: "P2",
-  });
+  assert(
+    !(await db
+      .prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='task_privacy'")
+      .get()),
+    "historical task fixture requires pre-private-authority schema",
+  );
+  // Seed the retained schema directly; current task commands require later authority tables.
+  const preserved = { id: randomUlid() };
+  await db
+    .prepare(
+      `INSERT INTO tasks
+       (workspace_id, id, project_id, parent_task_id, title, state, priority, due_at,
+        next_owner_type, next_owner_id, next_action_reason, punchline, resource_version,
+        created_by_human_id, created_by_delegation_id, created_at)
+       VALUES (?, ?, ?, NULL, ?, 'ready', 'P2', NULL, 'unassigned', NULL, NULL, ?, 1, ?, NULL, ?)`,
+    )
+    .run(
+      FIX.workspace,
+      preserved.id,
+      FIX.projectA,
+      "Synthetic A04 migration preservation",
+      "Ready for next action",
+      FIX.owner,
+      now,
+    );
   const beforeUpgrade = await db
-    .prepare(`SELECT id, state, resource_version FROM tasks WHERE workspace_id = ? ORDER BY id`)
+    .prepare(`SELECT * FROM tasks WHERE workspace_id = ? ORDER BY id`)
     .all(FIX.workspace);
   for (const migration of manifest.migrations.slice(split))
     await copyFile(
@@ -240,9 +260,7 @@ try {
     );
   await hub.applyD1Migrations("DB");
   assert.deepEqual(
-    await db
-      .prepare(`SELECT id, state, resource_version FROM tasks WHERE workspace_id = ? ORDER BY id`)
-      .all(FIX.workspace),
+    await db.prepare(`SELECT * FROM tasks WHERE workspace_id = ? ORDER BY id`).all(FIX.workspace),
     beforeUpgrade,
   );
   assert.deepEqual(await db.prepare("PRAGMA foreign_key_check").all(), []);

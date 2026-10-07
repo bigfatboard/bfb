@@ -43,6 +43,8 @@ import { createTestHarness } from "wrangler";
 
 import {
   auditRedactionEntry,
+  assertStableCadence,
+  assertStableRecording,
   answeredEntry,
   duplicateRejectedEntry,
   idempotentReplayEntry,
@@ -69,6 +71,10 @@ const now = new Date(Math.floor(new Date().getTime() / 1000) * 1000).toISOString
 const digest = `sha256:${"a".repeat(64)}`,
   emptyConfig = `sha256:${runnerHash("{}")}`;
 const evidenceDir = resolve(root, "docs/work-packages/evidence/WP-A02");
+const runtimeEvidenceDir =
+  process.env.BFB_CAPTURE_A02_RUNTIME_EVIDENCE === "1"
+    ? evidenceDir
+    : resolve(root, "test-results/a02");
 
 /** Evidence JSON matches the repository Prettier style so reruns stay byte-identical. */
 async function writeJson(path: string, value: unknown): Promise<void> {
@@ -206,13 +212,33 @@ try {
 
   // Populated 0019 state upgrades to 0023 without touching work history.
   await seedSyntheticWorkspace(db, now, "global");
-  const preserved = await human<TaskRecord>(createTaskCommand.name, {
-    projectId: FIX.projectA,
-    title: "Synthetic A02 migration preservation",
-    priority: "P2",
-  });
+  assert(
+    !(await db
+      .prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='task_privacy'")
+      .get()),
+    "historical task fixture requires pre-private-authority schema",
+  );
+  // Seed the retained schema directly; current task commands require later authority tables.
+  const preserved = { id: randomUlid() };
+  await db
+    .prepare(
+      `INSERT INTO tasks
+       (workspace_id, id, project_id, parent_task_id, title, state, priority, due_at,
+        next_owner_type, next_owner_id, next_action_reason, punchline, resource_version,
+        created_by_human_id, created_by_delegation_id, created_at)
+       VALUES (?, ?, ?, NULL, ?, 'ready', 'P2', NULL, 'unassigned', NULL, NULL, ?, 1, ?, NULL, ?)`,
+    )
+    .run(
+      FIX.workspace,
+      preserved.id,
+      FIX.projectA,
+      "Synthetic A02 migration preservation",
+      "Ready for next action",
+      FIX.owner,
+      now,
+    );
   const beforeUpgrade = await db
-    .prepare(`SELECT id, state, resource_version FROM tasks WHERE workspace_id = ? ORDER BY id`)
+    .prepare(`SELECT * FROM tasks WHERE workspace_id = ? ORDER BY id`)
     .all(FIX.workspace);
   for (const migration of manifest.migrations.slice(split))
     await copyFile(
@@ -221,9 +247,7 @@ try {
     );
   await hub.applyD1Migrations("DB");
   assert.deepEqual(
-    await db
-      .prepare(`SELECT id, state, resource_version FROM tasks WHERE workspace_id = ? ORDER BY id`)
-      .all(FIX.workspace),
+    await db.prepare(`SELECT * FROM tasks WHERE workspace_id = ? ORDER BY id`).all(FIX.workspace),
     beforeUpgrade,
   );
   assert.deepEqual(await db.prepare(`SELECT COUNT(*) AS count FROM attention_requests`).get(), {
@@ -689,19 +713,24 @@ try {
   );
   console.log("A02_OBSERVATIONS_OK raw transitions carry unique identity and provenance");
 
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(resolve(evidenceDir, "runtime-recording.jsonl"), serializeRecording(recording));
-  await writeJson(
-    resolve(evidenceDir, "runtime-waiter-cadence.json"),
-    waiterCadenceEntry({
-      pendingPolls: pollStates.length,
-      pollStates,
-      timeoutPendingPolls: pollsBefore,
-      repeatReads: after,
-      totalSteps: recording.length,
-    }),
+  const cadence = waiterCadenceEntry({
+    pendingPolls: pollStates.length,
+    pollStates,
+    timeoutPendingPolls: pollsBefore,
+    repeatReads: after,
+    totalSteps: recording.length,
+  });
+  assertStableRecording(recording);
+  assertStableCadence(cadence);
+  await mkdir(runtimeEvidenceDir, { recursive: true });
+  await writeFile(
+    resolve(runtimeEvidenceDir, "runtime-recording.jsonl"),
+    serializeRecording(recording),
   );
-  console.log("A02_EVIDENCE_OK deterministic recording and waiter cadence written");
+  await writeJson(resolve(runtimeEvidenceDir, "runtime-waiter-cadence.json"), cadence);
+  console.log(
+    "A02_EVIDENCE_OK deterministic recording and waiter cadence written to the selected output",
+  );
 } catch (error) {
   server.debug();
   throw error;
