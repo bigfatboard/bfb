@@ -1,5 +1,5 @@
 {
-  "migration_head": "0049_task_private_checkpoints",
+  "migration_head": "0050_task_privacy_inheritance",
   "migrations": [
     {
       "id": "0001_workspace_registry",
@@ -176,6 +176,10 @@
     {
       "id": "0049_task_private_checkpoints",
       "file": "0049_task_private_checkpoints.sql"
+    },
+    {
+      "id": "0050_task_privacy_inheritance",
+      "file": "0050_task_privacy_inheritance.sql"
     }
   ]
 }

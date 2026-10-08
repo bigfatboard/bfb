@@ -25,8 +25,25 @@ export interface TaskAccessMetadata {
 /** Uncertified internal consumers must not treat absent human authority as private access. */
 export function sharedTaskPredicate(taskAlias = "task"): string {
   const task = checkedTaskAlias(taskAlias);
-  return `NOT EXISTS (SELECT 1 FROM task_privacy AS task_policy
-    WHERE task_policy.workspace_id = ${task}.workspace_id AND task_policy.task_id = ${task}.id)`;
+  return `(NOT EXISTS (SELECT 1 FROM task_privacy AS task_policy
+    WHERE task_policy.workspace_id = ${task}.workspace_id AND task_policy.task_id = ${task}.id)
+    AND NOT EXISTS (SELECT 1 FROM task_privacy_inheritance AS task_inheritance
+      WHERE task_inheritance.workspace_id = ${task}.workspace_id AND task_inheritance.task_id = ${task}.id))`;
+}
+
+/** Retained root authority is independent of a descendant's actual creation author. */
+export function taskPrivacyRootExpression(taskAlias = "task"): string {
+  const task = checkedTaskAlias(taskAlias);
+  return `COALESCE(
+    (SELECT task_root_policy.task_id FROM task_privacy AS task_root_policy
+      WHERE task_root_policy.workspace_id = ${task}.workspace_id AND task_root_policy.task_id = ${task}.id),
+    (SELECT task_inheritance.root_task_id FROM task_privacy_inheritance AS task_inheritance
+      JOIN tasks AS task_inheritance_root ON task_inheritance_root.workspace_id = task_inheritance.workspace_id
+        AND task_inheritance_root.project_id = task_inheritance.project_id
+        AND task_inheritance_root.id = task_inheritance.root_task_id
+      WHERE task_inheritance.workspace_id = ${task}.workspace_id
+        AND task_inheritance.project_id = ${task}.project_id AND task_inheritance.task_id = ${task}.id)
+  )`;
 }
 
 function checkedTaskAlias(taskAlias: string): string {
@@ -40,6 +57,9 @@ function checkedTaskAlias(taskAlias: string): string {
       "task_project_grant",
       "task_policy",
       "task_grant",
+      "task_root_policy",
+      "task_inheritance",
+      "task_inheritance_root",
     ].includes(taskAlias.toLowerCase())
   ) {
     throw new DomainError("invalid_argument", "invalid task access query");
@@ -74,13 +94,8 @@ export function taskAccessPredicate(
       : action === "contribute"
         ? "'contribute', 'edit'"
         : "'read', 'contribute', 'edit'";
-  const shared =
-    action === "manage_sharing"
-      ? "0"
-      : `NOT EXISTS (
-    SELECT 1 FROM task_privacy AS task_policy
-    WHERE task_policy.workspace_id = ${task}.workspace_id AND task_policy.task_id = ${task}.id
-  )`;
+  const shared = action === "manage_sharing" ? "0" : sharedTaskPredicate(taskAlias);
+  const root = action === "manage_sharing" ? `${task}.id` : taskPrivacyRootExpression(taskAlias);
   const grant =
     action === "manage_sharing"
       ? "0"
@@ -114,7 +129,7 @@ export function taskAccessPredicate(
         ))
         AND (${shared} OR EXISTS (
           SELECT 1 FROM task_privacy AS task_policy
-          WHERE task_policy.workspace_id = ${task}.workspace_id AND task_policy.task_id = ${task}.id
+          WHERE task_policy.workspace_id = ${task}.workspace_id AND task_policy.task_id = ${root}
             AND (task_policy.owner_human_id = task_member.human_id OR ${grant})
         ))
     ))`,
@@ -137,7 +152,7 @@ export async function assertTaskAccess(
     SELECT task.id AS taskId, task.project_id AS projectId,
            policy.owner_human_id AS privateOwnerHumanId, policy.access_version AS accessVersion
     FROM tasks AS task LEFT JOIN task_privacy AS policy
-      ON policy.workspace_id = task.workspace_id AND policy.task_id = task.id
+      ON policy.workspace_id = task.workspace_id AND policy.task_id = ${taskPrivacyRootExpression()}
     WHERE ${predicate.sql} AND task.id = ?
   `,
     )

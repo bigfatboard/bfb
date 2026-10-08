@@ -10,10 +10,16 @@ WorkspaceHub.
 
 ## Records
 
-Absent `task_privacy` retains project-shared behavior. A row binds a task to its
+Absent both direct `task_privacy` and retained `task_privacy_inheritance` rows
+retains project-shared behavior. A direct policy row binds a root task to its
 immutable direct-human creator and an access version for conditional future
 commands. Identity/owner cannot change; deletion cannot revert to shared mode.
-No existing task is backfilled. C11 owns private agent-child inheritance.
+No existing task is backfilled. C11's [ADR 0017](../adr/0017-retained-private-task-inheritance.md)
+and migration 0050 own the retained descendant-to-root association. It binds exact
+workspace/project/task/root and immediate-parent lineage without copying root
+ownership into creation-author fields. Association deletion/rebinding and
+associated-task parent/project/creation-author changes reject; ordinary workflow
+edits remain possible. A task cannot have both direct and inherited privacy.
 
 `task_human_grants` binds private task, named workspace human and authorization
 epoch. Permission is `read`, `contribute` or `edit`; revocation is explicit.
@@ -30,11 +36,15 @@ credential, scope/boundary and session validation is independently mandatory.
 
 `taskAccessPredicate(context, action, taskAlias)` returns SQL and parameters.
 Membership/epoch, current role, project and task ACL are checked in the **same
-query**, before LIMIT/aggregation. Join children to their parent task. A bounded
+query**, before LIMIT/aggregation. Read/contribute/edit resolve the root policy;
+`manage_sharing` remains exact-root only. Shared-only predicates exclude an
+association even if its policy cannot resolve. Missing inheritance schema never
+creates shared authority. Join children to their parent task. A bounded
 SQL alias is an identifier, never caller text/an expression. Do not cache access.
 
 `assertTaskAccess(db, context, taskId, action)` uses the same predicate and returns
-only task/project/policy metadata. Missing, other-tenant, stale and denied tasks
+only task/project/root-policy metadata with its existing DTO keys; root ownership
+is not descendant authorship. Missing, other-tenant, stale and denied tasks
 raise `not_found` with one constant message.
 
 | Action | Role ceiling | Project-shared | Private |

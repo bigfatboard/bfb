@@ -273,6 +273,23 @@ production Hub; synthetic retained discussion/assignment/launch rows supply
 read-only source fixtures. This is not complete discussion hydration, browser
 authentication, provider dispatch, participant authority or runner cleanup.
 
+# Retained private inheritance preparation
+
+`pnpm test:c11:inheritance`, composed once by `pnpm test:c11`, owns
+`private-inheritance.ts` alongside the finite migration, kernel and prepared
+creation suites. Migration 0050 retains exact task/project/root lineage without
+copying root ownership into a descendant's author fields. Shared-only readers
+exclude inherited tasks, and metadata/read/contribution/edit resolve their
+current root ACL while sharing management stays exact-root.
+
+The prepared direct-human private creation command remains absent from the
+production catalog and every transport. Native preparation uses a direct domain
+Hub over disposable actual D1, not a private-create browser/MCP endpoint. Existing
+registered commands provide shared-creation, sharing and checkpoint controls;
+synthetic fixtures and prebatch cuts are labelled separately. Passing this finite
+target cannot open creation, local execution proposals, private checkpoint IPC,
+destructive private retention or the complete C11 activation matrix.
+
 # Manual GitHub linking hold
 
 `pnpm test:c11:github-manual-hold`, composed once by `pnpm test:c11`, owns

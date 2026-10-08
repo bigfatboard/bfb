@@ -35,6 +35,7 @@
     "github-status-delivery.ts",
     "task-sharing.ts",
     "private-checkpoints.ts",
+    "private-inheritance.ts",
     "task-positions.ts"
   ],
   "references": [

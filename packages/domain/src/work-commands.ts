@@ -29,6 +29,7 @@ import {
   assertTaskAccess,
   sharedTaskPredicate,
   taskAccessPredicate,
+  taskPrivacyRootExpression,
   type TaskAccessAction,
   type TaskAccessContext,
 } from "./task-access.js";
@@ -672,7 +673,12 @@ export async function assertAgentChildLimit(
   const children = (await db
     .prepare(
       `SELECT COUNT(*) AS count FROM tasks
-    WHERE workspace_id = ? AND parent_task_id = ? AND state NOT IN ('done', 'cancelled')`,
+    AS quota_child JOIN tasks AS quota_parent
+      ON quota_parent.workspace_id = quota_child.workspace_id AND quota_parent.id = quota_child.parent_task_id
+    WHERE quota_parent.workspace_id = ? AND quota_parent.id = ?
+      AND quota_child.state NOT IN ('done', 'cancelled')
+      AND ((${sharedTaskPredicate("quota_parent")} AND ${sharedTaskPredicate("quota_child")})
+        OR ${taskPrivacyRootExpression("quota_parent")} = ${taskPrivacyRootExpression("quota_child")})`,
     )
     .get(workspaceId, parentTaskId)) as { count: number };
   if (children.count >= MAX_AGENT_READY_CHILDREN_PER_PARENT)

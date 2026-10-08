@@ -296,6 +296,9 @@ describe("task access freshness and query boundaries", () => {
       "task_policy",
       "task_grant",
       "TASK_POLICY",
+      "task_root_policy",
+      "task_inheritance",
+      "task_inheritance_root",
     ]) {
       expect(() => taskAccessPredicate(context(), "read", alias)).toThrow(
         "invalid task access query",
@@ -315,7 +318,12 @@ describe("task access freshness and query boundaries", () => {
   });
 
   it("keeps activation commands absent and returns no task content from the kernel", async () => {
-    for (const command of ["task.create_private", "task.share", "task.privacy.update"]) {
+    for (const command of [
+      "task.private.create",
+      "task.create_private",
+      "task.share",
+      "task.privacy.update",
+    ]) {
       expect(resolveCommand(command)).toBeUndefined();
     }
     expect(Object.keys(await assertTaskAccess(db, context(FIX.member), privateId)).sort()).toEqual([

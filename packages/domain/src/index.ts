@@ -55,6 +55,7 @@ export * from "./work-records.js";
 export * from "./task-access.js";
 export * from "./task-sharing.js";
 export * from "./private-checkpoints.js";
+export * from "./private-task-creation.js";
 export * from "./workspace-authorization.js";
 export * from "./discussions.js";
 export * from "./events.js";

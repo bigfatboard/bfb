@@ -101,6 +101,23 @@ Private creation and existing private-parent creation stay unavailable until
 their full activation/integration gates pass. Local execution proposals and
 checkpoint delivery are not opened by this preparation.
 
+`task.private.create` remains absent from the production command catalog and
+every transport. Its prepared domain command accepts the existing closed
+`CreateTaskInput` fields only; inferred direct-human ownership is not
+`nextOwnerId` routing. Return a minimal canonical receipt containing only
+`task_id`, `project_id`, nullable `parent_task_id` and `privacy_root_task_id`.
+Current original role/project ceilings, exact parent edit access and effective
+root lineage fence admission, cached replies, atomic commit and final response.
+Changing input on retry rejects; successful receipts remain historical without
+asserting current task state or grant activity. The same committing batch inserts
+the task plus either its direct policy or retained association. Association or
+authority failure cannot leave a shared task or Hub bookkeeping behind.
+
+`pnpm test:c11:inheritance`, composed once by `pnpm test:c11`, owns the finite
+migration, kernel/metadata, prepared-creation and disposable native-D1 proofs.
+It does not register the prepared command, open ordinary private-parent creation,
+certify execution delivery or complete the activation matrix.
+
 ### Author-private checkpoint slice
 
 The first checkpoint transport slice is direct browser humans and authenticated

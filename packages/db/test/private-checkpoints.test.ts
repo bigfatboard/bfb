@@ -5,12 +5,14 @@ import Database from "better-sqlite3";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { listMigrationFiles } from "../src/migrations.js";
+import { listMigrationFiles, loadMigrationManifest } from "../src/migrations.js";
 import { MIGRATION_HEAD } from "../src/index.js";
 
-const migrations = listMigrationFiles(
-  path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../migrations/d1"),
+const migrationsDir = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../../../migrations/d1",
 );
+const migrations = listMigrationFiles(migrationsDir);
 const checkpointIndex = migrations.findIndex(({ id }) => id === "0049_task_private_checkpoints");
 if (checkpointIndex < 0) throw new Error("private checkpoint migration is missing");
 const checkpointMigration = migrations[checkpointIndex]!;
@@ -92,7 +94,7 @@ describe("author-private checkpoint migration", () => {
     expect(task_private_checkpoints).toEqual([]);
     expect(after).toEqual(before);
     expect(db.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
-    expect(MIGRATION_HEAD).toBe(checkpointMigration.id);
+    expect(MIGRATION_HEAD).toBe(loadMigrationManifest(migrationsDir).migration_head);
   });
   it("accepts direct human and exact delegation/client origins without an epoch history cutoff", () => {
     const db = fixture();
