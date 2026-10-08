@@ -1629,11 +1629,35 @@ provider dispatch, private execution, participant-run authority or cleanup.
   replacement-lease omission. Keep stored records unchanged and add fresh
   actual-D1 selector proof. Do not claim participant or runner delivery.
 
-`readParticipantDiscussion`, runner pull/channel/control delivery and
-`readLaunch`/reconciliation are outside this implementation. Cleanup-only
-reconciliation intentionally survives human authority loss; a blanket privacy
-guard must not strand reservations. Those remaining activation seams require
-the execution-owning lane's contract and proof.
+### Shared-only execution delivery hold
+
+This fixes-only beta slice withholds retained execution delivery for direct and
+inherited private parents. It does not certify private execution or activate
+private creation, sharing, checkpoints or provider discussion turns.
+
+- Participant discussion detail checks the exact current shared parent and
+  retained sponsor authority before hydration and again before returning.
+  Privacy denial cannot become a readable `sponsor_revoked` advisory containing
+  frozen brief/history. Existing participant authentication remains required.
+- New launch reauthorization requires the exact shared task, work run
+  and immutable assignment before and after environment reads. Runner control
+  reads, creation and claims also require that shared parent.
+- Existing bound-agent reads/writes retain their separately certified current
+  requester ACL checks; this hold does not replace them with a shared-only rule.
+- Runner pull and channel nudges select only references bound to canonical
+  shared launch/control assignments, before pagination or watermark calculation.
+  Orphan references and reserved `discussion_turn` references are unavailable.
+  A disappearing/private reference does not lower the nudge watermark or send
+  an activity hint. References remain stored; this hold never resolves them.
+- Raw internal `readLaunch`, reservation reconciliation, rejection and verified
+  lease cleanup remain available under their existing binding checks. Already
+  claimed control dispositions may be acknowledged. These cleanup paths must
+  not strand a reservation or authorize new execution/private content.
+
+The finite regressions cover direct/inherited privacy cuts around hydration and
+launch environment reads, final launch authorization, filtered pagination,
+nudges and verified never-started reservation release. They are not a full C11
+activation certificate or live-provider proof; C11 remains in progress.
 
 ### Frozen public-position quarantine
 

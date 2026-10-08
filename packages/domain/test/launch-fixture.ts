@@ -28,6 +28,7 @@ import type { RunnerPrincipal } from "../src/runners.js";
 import { createTaskCommand } from "../src/work-commands.js";
 import { openDomainDb } from "./helpers.js";
 import { seedHistoricalTask } from "./historical-task-fixture.js";
+import { seedHistoricalLaunchClaim } from "./historical-launch-fixture.js";
 
 export const LAUNCH_NOW = "2026-09-12T12:00:00.000Z";
 export const EMPTY_CONFIG_HASH = `sha256:${runnerHash("{}")}`;
@@ -387,7 +388,18 @@ export async function launchFixture(
       idempotency_key: randomUlid(),
       claimed_at: LAUNCH_NOW,
     };
-    const claimed = success(await native(claimLaunchCommand, { principal, claim: request }));
+    const claimed = currentTaskSchema
+      ? success(await native(claimLaunchCommand, { principal, claim: request }))
+      : {
+          state: "claimed" as const,
+          claim: await seedHistoricalLaunchClaim(
+            db,
+            FIX.workspace,
+            launch.launch_id,
+            request.idempotency_key,
+            LAUNCH_NOW,
+          ),
+        };
     if (claimed.state !== "claimed") throw new Error(claimed.state);
     const spec = claimed.claim.specification;
     const final: LaunchFinalRequest = {

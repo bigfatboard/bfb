@@ -8,6 +8,7 @@ import {
   assertCurrentRunnerPrincipal,
   pullRunnerCommands,
   randomUlid,
+  SHARED_RUNNER_COMMAND_PREDICATE,
   rejectRunnerRequest,
   runnerObject,
   runnerId,
@@ -232,7 +233,11 @@ export class RunnerChannels {
         continue;
       }
       try {
-        await assertCurrentRunnerPrincipal(this.db, attachment.principal, this.now());
+        attachment.principal = await assertCurrentRunnerPrincipal(
+          this.db,
+          attachment.principal,
+          this.now(),
+        );
       } catch {
         await this.closeUnauthorized(socket, attachment);
         continue;
@@ -240,14 +245,21 @@ export class RunnerChannels {
       try {
         const pending = (await this.db
           .prepare(
-            `SELECT COALESCE(MAX(rowid), 0) AS sequence FROM runner_command_references WHERE workspace_id = ? AND runner_id = ? AND resolved_at IS NULL`,
+            `SELECT COALESCE(MAX(reference.rowid), 0) AS sequence FROM runner_command_references AS reference
+             WHERE reference.workspace_id = ? AND reference.runner_id = ? AND reference.resolved_at IS NULL
+               AND reference.project_id IN (${attachment.principal.projectIds.map(() => "?").join(",") || "NULL"})
+               AND ${SHARED_RUNNER_COMMAND_PREDICATE}`,
           )
-          .get(attachment.principal.workspaceId, attachment.principal.runnerId)) as {
+          .get(
+            attachment.principal.workspaceId,
+            attachment.principal.runnerId,
+            ...attachment.principal.projectIds,
+          )) as {
           sequence: number;
         };
         // This attachment watermark suppresses redundant nudges only. It is not
         // durable delivery or event acknowledgement, and never deletes a record.
-        if (pending.sequence !== attachment.nudgeSequence) {
+        if (pending.sequence > attachment.nudgeSequence) {
           attachment.nudgeSequence = pending.sequence;
           socket.serializeAttachment(attachment);
           this.send(socket, attachment, "runner.commands.available");

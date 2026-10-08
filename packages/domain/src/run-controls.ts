@@ -15,6 +15,7 @@ import type { HubCommand, HubContext } from "./hub.js";
 import { randomUlid } from "./ids.js";
 import {
   assertLeaseBinding,
+  assertSharedLaunchTask,
   endUnstartedLaunch,
   guardLaunchMutation,
   launchDeadline,
@@ -136,6 +137,7 @@ export async function readRunnerControl(
     principal.runnerId,
   );
   await authority(ctx, control, row);
+  await assertSharedLaunchTask(db, row);
   return summary(control);
 }
 
@@ -199,6 +201,7 @@ export const createRunControlCommand: HubCommand<RunControlRequest, ReturnType<t
       input.runner_id,
     );
     await assertRunnerLaunchAuthority(ctx.db, human, row.runner_id, row.project_id);
+    await assertSharedLaunchTask(ctx.db, row);
     const keyHash = runnerHash(input.idempotency_key),
       requestHash = launchHash(input);
     const existing = (await ctx.db
@@ -209,6 +212,7 @@ export const createRunControlCommand: HubCommand<RunControlRequest, ReturnType<t
     if (existing) {
       if (existing.request_hash !== requestHash) rejectRunnerRequest();
       await authority(ctx, existing, row);
+      await assertSharedLaunchTask(ctx.db, row);
       if (
         (existing.state === "pending" || existing.state === "claimed") &&
         Date.parse(existing.expires_at) <= Date.parse(ctx.now)
@@ -460,6 +464,7 @@ export const claimRunControlCommand: HubCommand<
       control.assignment_generation,
       principal.runnerId,
     );
+    await assertSharedLaunchTask(ctx.db, row);
     try {
       await authority(ctx, control, row);
     } catch {

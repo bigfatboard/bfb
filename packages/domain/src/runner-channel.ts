@@ -8,6 +8,7 @@ import type { RunnerInventory } from "@bfb/protocol";
 import type { HubCommand, HubContext } from "./hub.js";
 import { runnerId, rejectRunnerRequest, runnerObject } from "./runner-crypto.js";
 import { assertCurrentRunnerPrincipal, type RunnerPrincipal } from "./runners.js";
+import { sharedTaskPredicate } from "./task-access.js";
 
 export const RUNNER_INVENTORY_LIMIT = 49_152;
 
@@ -144,6 +145,32 @@ export interface RunnerCommandReference {
   expires_at: string;
 }
 
+/** Apply to the `reference` alias before page limits or advisory nudge watermarks. */
+export const SHARED_RUNNER_COMMAND_PREDICATE = `EXISTS (
+  SELECT 1 FROM execution_assignments AS command_assignment
+  JOIN runs AS command_run ON command_run.workspace_id=command_assignment.workspace_id
+    AND command_run.id=command_assignment.run_id AND command_run.task_id=command_assignment.task_id
+    AND command_run.project_id=command_assignment.project_id AND command_run.purpose='work'
+  JOIN tasks AS command_task ON command_task.workspace_id=command_run.workspace_id
+    AND command_task.id=command_run.task_id AND command_task.project_id=command_run.project_id
+  WHERE command_assignment.workspace_id=reference.workspace_id
+    AND command_assignment.runner_id=reference.runner_id AND command_assignment.project_id=reference.project_id
+    AND ${sharedTaskPredicate("command_task")}
+    AND ((reference.command_kind='launch' AND EXISTS (
+      SELECT 1 FROM launch_commands AS command_launch
+      WHERE command_launch.workspace_id=reference.workspace_id AND command_launch.id=reference.command_id
+        AND command_launch.execution_id=command_assignment.execution_id
+        AND command_launch.assignment_generation=command_assignment.assignment_generation
+        AND command_launch.run_id=command_assignment.run_id
+    )) OR (reference.command_kind='run_control' AND EXISTS (
+      SELECT 1 FROM run_controls AS command_control
+      WHERE command_control.workspace_id=reference.workspace_id AND command_control.id=reference.command_id
+        AND command_control.execution_id=command_assignment.execution_id
+        AND command_control.assignment_generation=command_assignment.assignment_generation
+        AND command_control.runner_id=command_assignment.runner_id
+    )))
+)`;
+
 /** Called inside an already-authorized owning domain command; no public append endpoint exists. */
 export async function appendRunnerCommandReference(
   ctx: HubContext,
@@ -205,7 +232,11 @@ export async function pullRunnerCommands(
   const rows = active.projectIds.length
     ? ((await db
         .prepare(
-          `SELECT command_id, command_kind, expires_at FROM runner_command_references WHERE workspace_id = ? AND runner_id = ? AND resolved_at IS NULL AND command_id > ? AND project_id IN (${active.projectIds.map(() => "?").join(",")}) ORDER BY command_id LIMIT 26`,
+          `SELECT reference.command_id, reference.command_kind, reference.expires_at
+           FROM runner_command_references AS reference WHERE reference.workspace_id = ? AND reference.runner_id = ?
+             AND reference.resolved_at IS NULL AND reference.command_id > ?
+             AND reference.project_id IN (${active.projectIds.map(() => "?").join(",")})
+             AND ${SHARED_RUNNER_COMMAND_PREDICATE} ORDER BY reference.command_id LIMIT 26`,
         )
         .all(
           active.workspaceId,

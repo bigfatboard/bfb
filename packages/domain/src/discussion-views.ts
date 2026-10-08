@@ -248,7 +248,33 @@ export async function readParticipantDiscussion(
 ): Promise<DiscussionView> {
   const row = await readDiscussion(ctx.db, ctx.workspaceId, id);
   const participant = await discussionParticipant(row, ctx);
-  return view(row, ctx, participant);
+  await sharedParticipantParent(ctx, row);
+  const result = await view(row, ctx, participant);
+  // An advisory failure must not turn a private parent into readable frozen history.
+  await sharedParticipantParent(ctx, row);
+  return result;
+}
+
+async function sharedParticipantParent(ctx: HubContext, row: DiscussionRow): Promise<void> {
+  const access = taskAccessPredicate(
+    {
+      workspaceId: ctx.workspaceId,
+      humanId: row.sponsor_human_id,
+      authorizationEpoch: row.sponsor_authorization_epoch,
+    },
+    "read",
+    "participant_task",
+  );
+  const parent = await ctx.db
+    .prepare(
+      `SELECT discussion.id FROM discussions AS discussion
+     JOIN tasks AS participant_task ON participant_task.workspace_id=discussion.workspace_id
+       AND participant_task.id=discussion.task_id AND participant_task.project_id=discussion.project_id
+     WHERE discussion.workspace_id=? AND discussion.id=? AND discussion.task_id=? AND discussion.project_id=?
+       AND ${sharedTaskPredicate("participant_task")} AND ${access.sql}`,
+    )
+    .get(ctx.workspaceId, row.id, row.task_id, row.project_id, ...access.parameters);
+  if (!parent) throw new DomainError("not_found", "discussion not found");
 }
 
 export async function listTaskDiscussions(

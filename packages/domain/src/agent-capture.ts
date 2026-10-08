@@ -20,7 +20,6 @@ import {
   readLaunch,
   readLease,
   assertLeaseBinding,
-  reauthorizeLaunch,
   reauthorizeActiveRun,
 } from "./launch-state.js";
 import {
@@ -122,9 +121,10 @@ export async function deriveAgentCaptureScope(
   await capturePublicKey(ctx, row);
   let snapshot;
   try {
-    ({ snapshot } = await (authority === "launch"
-      ? reauthorizeLaunch(ctx, launch)
-      : reauthorizeActiveRun(ctx, launch)));
+    // Capture belongs to an already bound execution, not a new launch delivery.
+    if (authority === "launch" && !["open", "changes_requested"].includes(launch.result_state))
+      throw new DomainError("request_rejected", "request rejected");
+    ({ snapshot } = await reauthorizeActiveRun(ctx, launch));
   } catch (error) {
     if (
       error instanceof DomainError &&

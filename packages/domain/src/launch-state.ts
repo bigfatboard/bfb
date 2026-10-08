@@ -25,6 +25,7 @@ import {
   type RunnerPrincipal,
 } from "./runners.js";
 import type { CreateRunInput } from "./work-records.js";
+import { sharedTaskPredicate } from "./task-access.js";
 
 export const LAUNCH_TTL_MS = 120_000;
 export const LEASE_TTL_MS = 45_000;
@@ -139,6 +140,7 @@ export async function launchRunner(
   return assertCurrentRunnerPrincipal(ctx.db, principal, ctx.now);
 }
 
+/** Internal binding read also serves cleanup; execution delivery must separately reauthorize its shared parent. */
 export async function readLaunch(
   db: SqlDatabase,
   workspace: string,
@@ -162,6 +164,35 @@ export async function readLaunch(
     .get(workspace, id)) as LaunchRow | undefined;
   if (!row) rejectRunnerRequest();
   return row;
+}
+
+/** Shared-only execution authority does not apply to reservation reconciliation or verified cleanup. */
+export async function assertSharedLaunchTask(db: SqlDatabase, row: LaunchRow): Promise<void> {
+  const parent = await db
+    .prepare(
+      `SELECT launch.id FROM launch_commands AS launch
+     JOIN execution_assignments AS assignment ON assignment.workspace_id=launch.workspace_id
+       AND assignment.execution_id=launch.execution_id AND assignment.assignment_generation=launch.assignment_generation
+       AND assignment.run_id=launch.run_id
+     JOIN runs AS run ON run.workspace_id=assignment.workspace_id AND run.id=assignment.run_id
+       AND run.task_id=assignment.task_id AND run.project_id=assignment.project_id AND run.purpose='work'
+     JOIN tasks AS launch_task ON launch_task.workspace_id=run.workspace_id
+       AND launch_task.id=run.task_id AND launch_task.project_id=run.project_id
+     WHERE launch.workspace_id=? AND launch.id=? AND assignment.execution_id=?
+       AND assignment.assignment_generation=? AND assignment.run_id=? AND assignment.task_id=?
+       AND assignment.project_id=? AND assignment.runner_id=? AND ${sharedTaskPredicate("launch_task")}`,
+    )
+    .get(
+      row.workspace_id,
+      row.id,
+      row.execution_id,
+      row.assignment_generation,
+      row.run_id,
+      row.task_id,
+      row.project_id,
+      row.runner_id,
+    );
+  if (!parent) rejectRunnerRequest();
 }
 
 export async function readLease(
@@ -435,7 +466,10 @@ export async function reauthorizeLaunch(
 ): Promise<{ checkout: CheckoutSummary; snapshot: LaunchSnapshot }> {
   if (row.result_state !== "open" && row.result_state !== "changes_requested")
     rejectRunnerRequest();
-  return reauthorizeLaunchScope(ctx, row, fresh, replacementRepositoryHash);
+  await assertSharedLaunchTask(ctx.db, row);
+  const result = await reauthorizeLaunchScope(ctx, row, fresh, replacementRepositoryHash);
+  await assertSharedLaunchTask(ctx.db, row);
+  return result;
 }
 
 /** A submitted result remains nonterminal; this authority does not permit a new launch or capture. */

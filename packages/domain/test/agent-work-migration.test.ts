@@ -19,6 +19,7 @@ import { agentWorkKey } from "../src/agent-work.js";
 import { FIX } from "../src/fixtures.js";
 import { randomUlid } from "../src/ids.js";
 import { authorizeLaunchCommand } from "../src/launches.js";
+import { canonicalLaunchJson } from "../src/launch-state.js";
 import { createProviderSessionCommand } from "../src/work-records.js";
 import { LAUNCH_NOW, launchFixture, success } from "./launch-fixture.js";
 
@@ -62,12 +63,26 @@ async function fixture(previous = false) {
       : {},
   );
   const claimed = await f.claim();
-  success(
-    await f.native(authorizeLaunchCommand, {
-      principal: f.principal,
-      authorization: claimed.final,
-    }),
-  );
+  if (previous) {
+    // Retained pre-private history is synthetic setup, not current authorization on an old schema.
+    raw
+      .prepare("UPDATE launch_commands SET final_authorized_at=?,final_identity_json=? WHERE id=?")
+      .run(
+        LAUNCH_NOW,
+        canonicalLaunchJson({
+          supervisor: claimed.final.supervisor,
+          local_lock_id: claimed.final.local_lock_id,
+        }),
+        claimed.launch.launch_id,
+      );
+  } else {
+    success(
+      await f.native(authorizeLaunchCommand, {
+        principal: f.principal,
+        authorization: claimed.final,
+      }),
+    );
+  }
   // Synthetic relational fixture only; native capture is proven by the A01 runtime harness.
   raw
     .prepare("UPDATE run_executions SET state = 'attached' WHERE id = ?")

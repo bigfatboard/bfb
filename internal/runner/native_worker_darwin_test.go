@@ -268,6 +268,8 @@ func TestNativeWorkerChannel(t *testing.T) {
 	}
 	denied := daemon.NewRequestID()
 	commands = append(commands, map[string]any{"command_id": denied, "command_kind": "launch", "project_id": os.Getenv("BFB_CHANNEL_TEST_PROJECT_DENIED"), "expires_at": time.Now().Add(time.Minute).UTC().Format(time.RFC3339Nano)})
+	privateCommand := daemon.NewRequestID()
+	commands = append(commands, map[string]any{"command_id": privateCommand, "command_kind": "launch", "project_id": os.Getenv("BFB_CHANNEL_TEST_PROJECT_A"), "expires_at": time.Now().Add(time.Minute).UTC().Format(time.RFC3339Nano), "private": true})
 	if status, _ := post("/__test/commands", map[string]any{"workspace_id": a.WorkspaceID, "runner_id": a.RunnerID, "commands": commands}, false); status != 200 {
 		t.Fatal("durable fixture insertion failed")
 	}
@@ -283,10 +285,10 @@ func TestNativeWorkerChannel(t *testing.T) {
 		}
 		return true
 	})
-	if received(a.RunnerID, denied) || received(b.RunnerID, ids[0]) {
-		t.Fatal("command crossed project or workspace grant")
+	if received(a.RunnerID, denied) || received(a.RunnerID, privateCommand) || received(b.RunnerID, ids[0]) {
+		t.Fatal("command crossed project, private-parent or workspace boundary")
 	}
-	if len(observe(a).Pending) != 28 {
+	if len(observe(a).Pending) != 29 {
 		t.Fatal("receipt acknowledgement deleted canonical pending commands")
 	}
 	wait("sanitized exact checkout synchronization", 30*time.Second, func() bool { return strings.Contains(string(observe(a).Inventory), "Synthetic checkout") })
@@ -341,7 +343,7 @@ func TestNativeWorkerChannel(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(paths.Root, "pause-command"), []byte(crashCommand), 0600); err != nil {
 		t.Fatal(err)
 	}
-	status, _ := post("/__test/commands", map[string]any{"workspace_id": a.WorkspaceID, "runner_id": a.RunnerID, "commands": []map[string]any{{"command_id": crashCommand, "command_kind": "discussion_turn", "project_id": os.Getenv("BFB_CHANNEL_TEST_PROJECT_A"), "expires_at": time.Now().Add(time.Minute).UTC().Format(time.RFC3339Nano)}}}, false)
+	status, _ := post("/__test/commands", map[string]any{"workspace_id": a.WorkspaceID, "runner_id": a.RunnerID, "commands": []map[string]any{{"command_id": crashCommand, "command_kind": "launch", "project_id": os.Getenv("BFB_CHANNEL_TEST_PROJECT_A"), "expires_at": time.Now().Add(time.Minute).UTC().Format(time.RFC3339Nano)}}}, false)
 	if status != 200 {
 		t.Fatal("crash command insertion failed")
 	}

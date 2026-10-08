@@ -46,6 +46,10 @@ import {
 } from "../src/runner-channel.js";
 import { assertCurrentRunnerPrincipal, type RunnerPrincipal } from "../src/runners.js";
 import type { RunnerInventory } from "@bfb/protocol";
+import { LAUNCH_NOW, launchFixture, success } from "./launch-fixture.js";
+import { startLaunchCommand } from "../src/launches.js";
+import { createTaskCommand } from "../src/work-commands.js";
+import { launchDeadline } from "../src/launch-state.js";
 
 async function channelFixture() {
   const f = await fixture();
@@ -209,37 +213,54 @@ describe("runner channel durable observations", () => {
   });
 
   it("pulls canonical pending references after authorization filtering and retains expired work for its owner", async () => {
-    const f = await channelFixture();
+    const f = await launchFixture();
+    const now = launchDeadline(LAUNCH_NOW, 120_001);
     const references: string[] = [];
-    const create: HubCommand<{ count: number }, null> = {
+    for (let index = 0; index < 28; index++) {
+      const task = success(
+        await f.human(createTaskCommand, {
+          projectId: FIX.projectA,
+          title: "Synthetic canonical pending command",
+          priority: "P2",
+          nextOwnerType: "human",
+          nextOwnerId: FIX.owner,
+        }),
+      );
+      const launch = success(
+        await f.human(startLaunchCommand, {
+          ...f.start,
+          idempotency_key: randomUlid(),
+          task_id: task.id,
+        }),
+      );
+      references.push(launch.launch_id);
+    }
+    const create: HubCommand<null, null> = {
       name: "synthetic.references.create",
-      async run(input, ctx) {
-        for (let index = 0; index < input.count; index++) {
-          const id = randomUlid();
-          references.push(id);
-          await appendRunnerCommandReference(ctx, f.runner, FIX.projectA, {
-            command_id: id,
-            command_kind: "launch",
-            expires_at: "2026-09-11T19:00:00.000Z",
-          });
-        }
+      async run(_: null, ctx) {
+        // Unresolved references remain stored but cannot enter an authorized page.
+        await appendRunnerCommandReference(ctx, f.runner, FIX.projectA, {
+          command_id: randomUlid(),
+          command_kind: "launch",
+          expires_at: now,
+        });
         await appendRunnerCommandReference(ctx, f.runner, FIX.projectB, {
           command_id: randomUlid(),
           command_kind: "launch",
-          expires_at: "2026-09-11T19:00:00.000Z",
+          expires_at: now,
         });
         return null;
       },
     };
-    result(await f.human(create, { count: 28 }));
+    result(await f.human(create, null));
     const first = await pullRunnerCommands(
       f.db,
       { ...f.principal, projectIds: [FIX.projectA, FIX.projectB] },
-      NOW,
+      now,
     );
     expect(first.commands).toHaveLength(25);
     expect(first.more).toBe(true);
-    const second = await pullRunnerCommands(f.db, f.principal, NOW, first.next_command_id);
+    const second = await pullRunnerCommands(f.db, f.principal, now, first.next_command_id);
     expect(second.commands).toHaveLength(3);
     expect(second.more).toBe(false);
     expect([...first.commands, ...second.commands].map((item) => item.command_id)).toEqual(
@@ -257,12 +278,44 @@ describe("runner channel durable observations", () => {
         null,
       ),
     );
-    expect((await pullRunnerCommands(f.db, f.principal, NOW)).commands[0]!.command_id).not.toBe(
+    expect((await pullRunnerCommands(f.db, f.principal, now)).commands[0]!.command_id).not.toBe(
       references[0],
     );
-    const proof = await f.step("runner.revoke", f.runner);
-    result(await f.human(revokeRunnerCommand, { runnerId: f.runner, stepUpProofId: proof }));
-    await expect(pullRunnerCommands(f.db, f.principal, NOW)).rejects.toThrow();
+    for (const id of references.slice(1, 4))
+      await f.db
+        .prepare(
+          `INSERT INTO task_privacy (workspace_id,task_id,owner_human_id,created_at)
+        SELECT assignment.workspace_id,assignment.task_id,?,? FROM launch_commands AS launch
+        JOIN execution_assignments AS assignment ON assignment.workspace_id=launch.workspace_id
+          AND assignment.execution_id=launch.execution_id WHERE launch.id=?`,
+        )
+        .run(FIX.owner, now, id);
+    const retained = await f.db
+      .prepare("SELECT * FROM runner_command_references ORDER BY rowid")
+      .all();
+    const filtered = await pullRunnerCommands(f.db, f.principal, now);
+    expect(filtered.commands).toHaveLength(24);
+    expect(filtered.more).toBe(false);
+    expect(filtered).not.toHaveProperty("next_command_id");
+    expect(filtered.commands.map((row) => row.command_id)).toEqual(references.slice(4));
+    expect(
+      await f.db.prepare("SELECT * FROM runner_command_references ORDER BY rowid").all(),
+    ).toEqual(retained);
+    const proof = await issueStepUpProof(
+      f.db,
+      FIX.owner,
+      {
+        action: "runner.revoke",
+        targetId: f.runner,
+        workspaceId: FIX.workspace,
+        scopes: [],
+        authorizationEpoch: 1,
+        expiresAt: launchDeadline(now, 60_000),
+      },
+      now,
+    );
+    result(await f.human(revokeRunnerCommand, { runnerId: f.runner, stepUpProofId: proof }, now));
+    await expect(pullRunnerCommands(f.db, f.principal, now)).rejects.toThrow();
   });
 });
 
