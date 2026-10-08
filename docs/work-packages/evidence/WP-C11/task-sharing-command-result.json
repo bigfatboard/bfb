@@ -1,0 +1,137 @@
+{
+  "package": "C11",
+  "recorded_on": "2026-10-08",
+  "tested_commit": "6a2e4ed69a918dca69f7712a4fca3a2f2d4b7548",
+  "outcome": "passed",
+  "stage": "partial_creator_sharing_and_repository_reconcile_authority",
+  "package_acceptance_complete": false,
+  "private_creation_available": false,
+  "migration_head": "0048_task_collection_positions",
+  "clean_certificate_marker": "C11_CREATOR_SHARING_CLEAN_CERTIFICATE_OK",
+  "clean_pipeline_exit_code": 0,
+  "clean_commands": [
+    { "command": "pnpm install --frozen-lockfile", "exit_code": 0 },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 4992,
+      "typescript_files": 232,
+      "go": "tidy, vet, test and build passed",
+      "go_scheduling": "GOFLAGS=-p=1",
+      "swift": "format, build and test passed",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    {
+      "command": "pnpm test:c11",
+      "exit_code": 0,
+      "c10_cases": 86,
+      "c10_files": 8,
+      "c10_d1_checks": 9,
+      "c08_cases": 23,
+      "c08_files": 5,
+      "c08_proof": "C08_D1_OK",
+      "stage_cases": 3987,
+      "stage_files": 165,
+      "stage_invocation_blocks": 27,
+      "stage_browser_cases": 12,
+      "stage_d1_check_labels": 265,
+      "stage_d1_harnesses": 26,
+      "notification_record_labels": 41,
+      "counting": "Stage cases/files count twenty-seven Vitest invocation blocks, not unique totals. C10/C08, six panel plus six sharing browser cases, and forty-one notification labels remain separate. Native totals count emitted top-level groups, not nested assertions."
+    },
+    {
+      "command": "pnpm test:x04",
+      "exit_code": 0,
+      "protocol_cases": 1154,
+      "protocol_files": 12,
+      "go_protocol": "passed",
+      "focused_cases": 49,
+      "focused_files": 3,
+      "native_scenarios": 13,
+      "native_proof": "X04_E2E_OK all scenarios passed",
+      "counting": "F1-F13 are thirteen unique scenarios; F8's two report lines describe one scenario."
+    },
+    {
+      "command": "pnpm worktree:check",
+      "exit_code": 0,
+      "before_and_after_pipeline": true,
+      "committed_source_unchanged": true,
+      "final_status_empty": true
+    }
+  ],
+  "sharing_slice": {
+    "target": "pnpm test:c11:task-sharing",
+    "composed_once_by_c11": true,
+    "focused_cases": 72,
+    "focused_files": 4,
+    "domain_cases": 42,
+    "mounted_cookie_csrf_cases": 15,
+    "new_web_unit_cases": 8,
+    "retained_disclosure_cases": 7,
+    "native_groups": 4,
+    "native_proof": "C11_TASK_SHARING_D1_OK",
+    "browser_cases": 6,
+    "authority": "Only the current direct-human creator with Owner/Member role, retained epoch and project access manages sharing. Workspace ownership and named grants do not override creator authority. Agents receive no ACL tool.",
+    "lifecycle": "Three grant permissions intersect with current recipient roles and project access. Effective grant list is bounded at one hundred plus lookahead; empty authorized lists remain useful. Exact active revocations and access-version increments are immutable history; re-share is explicit.",
+    "retry_delivery": "Closed canonical inputs, current creator before cache, exact task/version/grant and requested-recipient/permission receipt binding, and final post-Hub authority. A historical receipt is not a claim of current access.",
+    "native_controls": "Registered two-Worker lifecycle; Reviewer-only three-permission intersection matrix; actual independent recipient-project and creator-epoch cuts before original bound batches with full rollback and retries.",
+    "synthetic_version_control": "Parallel registered Hub instances intentionally bypass the serialized production lane to prove the D1 optimistic-version backstop. This is not a reachable production concurrency claim.",
+    "maximum_bindings": 15,
+    "maximum_statement_bytes": 2769,
+    "maximum_batch_statements": 9,
+    "bounds_scope": "Instrumented prebatch-cut sharing preparations only; lifecycle, metadata and Worker/DO internals are excluded.",
+    "browser_scope": "Compiled presentation at 1280px and 390px in light/dark: visited-on-demand loading, keyboard form/success focus, reflow, canonical refresh, denial clearing and explicit retry. All writes are intercepted synthetic fixtures; this is not browser-to-server authorization proof.",
+    "design": "Impeccable carries the approved Work Map tokens into one on-demand section with no additional default board action; live grants install only after a canonical refresh."
+  },
+  "repository_reconcile_slice": {
+    "target": "pnpm test:c11:github-reconcile-authority",
+    "composed_once_by_c11": true,
+    "focused_cases": 44,
+    "focused_files": 2,
+    "native_groups": 4,
+    "native_proof": "C11_GITHUB_RECONCILE_AUTHORITY_D1_OK",
+    "fix": "One command-owned D1 batch guard retains active installation and captured repository/project mapping authority before business writes. Independent installation revocation rolls back evidence, cache, outbox and Hub bookkeeping; no shared auth, Hub, schema or mapping policy changed.",
+    "native_controls": "Healthy applied convergence, one genuine independent production-helper revocation after active installation/link captures, derivative same-key retry now ignored, and already-revoked fresh-key ignored control.",
+    "maximum_bindings": 11,
+    "maximum_statement_bytes": 591,
+    "maximum_batch_statements": 12,
+    "bounds_scope": "Direct imported production domain Hub statements and batches only; external setup, independent revocation, snapshots and Worker/DO internals are excluded.",
+    "old_diagnostic": {
+      "source_commit": "cd69f4272df6ca58c49750fbe4427cdee8f14b7c",
+      "protected_production_source_unchanged": true,
+      "clean_old_acceptance": false,
+      "primary_revoke_policy_failures": 1,
+      "derivative_same_key_failures": 1,
+      "healthy_and_pre_revoked_controls": 2,
+      "observed": "After completed revocation OLD applies two evidence rows and changes nine canonical tables with cursor delta one; the same-key follow-on replays stale applied output without new effects.",
+      "limitation": "Collected against fingerprinted unchanged reconcile production code while unrelated sharing edits existed in the product tree; this diagnostic is not a clean OLD package certificate or a second independent race."
+    },
+    "limits": "Disposable native D1 and registered setup; not deployed Queue or live GitHub ingress. Sequential remap policy, dormant private task-bound history and natural session expiry are outside this proof."
+  },
+  "native_storage": {
+    "canonical_table_count": 134,
+    "snapshot_exclusions_actually_present": ["_cf_METADATA", "d1_migrations", "sqlite_sequence"],
+    "http_budget_tables_compared_separately": ["rate_limit_buckets"],
+    "foreign_keys_clean": true,
+    "transient_guards_empty": true,
+    "rollback": "Complete canonical snapshots are taken after completed independent cuts; rejected batches do not add business or Hub effects. Legitimate applied/ignored reconciliation and sharing lifecycles retain their expected committed effects."
+  },
+  "excluded_attempts": [
+    "The first clean pipeline at bedd73a stopped on two unformatted status-certificate JSON files before behavioral tests. Only those JSON layouts changed in 6a2e4ed; the fresh complete pipeline above passed.",
+    "Exploratory mounted Fetch Metadata setup and browser locator/mount-baseline failures are fixture corrections, not security RED cases. A lost build-session observation is replaced by an observed fresh build pass.",
+    "One reconcile local driver's absent ESLint invocation failed after its target passed; the correct owning lint/docs/roadmap checks passed in a fresh local driver. Only the complete clean pipeline is acceptance evidence."
+  ],
+  "activation_barriers": [
+    "Private task creation, inherited private children, author-private checkpoints and the complete C11 matrix remain unfinished; sharing over synthetic dormant policy does not activate them",
+    "Execution-owned delivery and destructive private retention keep separate gates",
+    "C12 publication, project knowledge, skills, business secrets, reminders and contribution views remain unfinished"
+  ],
+  "not_claimed": [
+    "Complete C11 or eight-feature MVP, private activation or external CI",
+    "G01 acceptance or waiver of runner-token/AG02/AG04 release gates",
+    "Live provider/runner/pilot operation, GitHub ingress or natural browser-session expiry",
+    "Cloudflare resource creation, merge, deployment or deployed authenticated smoke"
+  ],
+  "redaction": "Bounded synthetic counts and outcomes only; no credentials, private bodies, raw logs, per-run timestamps or local absolute paths"
+}

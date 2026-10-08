@@ -8,7 +8,27 @@ Timo split it from remote start and agent-to-agent work on 6 October. It starts
 from the integrated `7b8620c` checkpoint, preserving the existing implementation
 and certificates. Package metadata remains the source of truth for completion.
 
-Latest local checkpoint: [coherent GitHub status](work-packages/evidence/WP-C11/github-status-delivery-manifest.json),
+Latest local checkpoint: [creator sharing and repository reconciliation](work-packages/evidence/WP-C11/task-sharing-manifest.json),
+clean-certified at `6a2e4ed`: C11 passes 3,987 stage case invocations/165 file
+invocations in twenty-seven blocks, twelve browser cases and 265 native labels
+across twenty-six harnesses. Dependencies and forty-one notification labels
+remain separate. Full verification passes 4,992 TypeScript cases/232 files,
+Go and all sixteen Swift cases; exact X04 passes all thirteen native scenarios,
+1,154 protocol cases/twelve files, Go protocol and 49 focused cases/three files.
+The sharing target passes 72 cases/four files, four native groups and six browser
+cases. Creator-only grant/revoke controls are on demand, retain current authority,
+and never imply that a historical receipt grants current access. Native permission
+intersections use a Reviewer; the parallel-Hub version backstop is synthetic.
+The reconcile target passes 44 cases/two files and four native groups, including
+one genuine independent installation-revocation cut and its derivative retry.
+Direct native bounds are sharing 15 bindings/2,769 bytes/nine batch statements
+and reconcile eleven bindings/591 bytes/twelve statements, not Worker/DO internals.
+The first clean attempt stopped before behavioral tests on two evidence JSON
+formatting errors; the fresh complete pipeline passes without gate changes.
+Sharing is implemented over dormant private policy; private creation remains
+unavailable and this is not complete C11 or MVP acceptance.
+
+The earlier [coherent GitHub status](work-packages/evidence/WP-C11/github-status-delivery-manifest.json),
 clean-certified at `cd69f42`: C11 passes 3,871 stage case invocations/159 file
 invocations in twenty-five blocks, six panel browser cases and 257 native labels
 across twenty-four harnesses. Dependencies and forty-one notification labels
@@ -111,22 +131,24 @@ and earlier public business/CLI certificate remain unchanged. UI details,
 drafts, retry and hidden-section notices stay on demand in both themes.
 Timo approved raw-ID retirement without fallback and position-only Hub
 bookkeeping on 7 October; ADR 0016 and the delivery contract freeze the wire.
-The next product-owned feature slice is creator-only sharing under the frozen
-stage-four contract, followed by author-private checkpoints. Private creation
-stays unavailable until the complete matrix passes. A separate native repository-
-reconcile probe reproduces independent installation revocation before commit:
-OLD still applies, and its same-key follow-on replays that result. Healthy and
-pre-revoked controls pass. Its local commit guard/native proof and concurrent
-sharing work are outside the latest clean certificate. Sequential remap policy
+The next product-owned feature slice is author-private checkpoints, separate from
+ordinary shared progress. Prepare its first browser/remote-OAuth slice using human
+and delegation origins only; local run delivery belongs to the execution lane and
+stays unavailable pending its own online IPC integration. Private creation stays
+unavailable until the complete matrix passes. The repository-reconcile guard is
+now clean-certified; its unchanged-source OLD diagnostic records one independent
+revocation failure and one derivative cached retry, not clean OLD acceptance.
+Healthy and pre-revoked controls pass. Sequential remap policy
 and natural browser-session expiry remain separate unproved concerns; production
 GitHub reconciliation omits task IDs, so dormant private/task-bound fixtures are
 not claimed as another reachable defect.
 Timo separately authorized merging and a first Cloudflare beta deployment after
 the product-beta work is verified, followed by deployed smoke checks. No rollout
-has occurred and execution-lane implementation remains excluded. Repository-
-reconcile certification, execution-owned consumers and destructive private
-retention remain open; status and the selected manual-key hold are certified.
-Private creation, sharing and checkpoints stay disabled; C11 is in progress,
+has occurred and execution-lane implementation remains excluded. Execution-owned
+consumers and destructive private retention remain open; status, reconciliation
+and the selected manual-key hold are certified. Private creation, inherited
+private children and checkpoints stay unavailable; sharing controls alone do
+not activate them. C11 is in progress,
 C12 planned, and the other mandatory product features remain unfinished.
 Pinned Cloudflare CLI authentication and read-only resource inventory are
 available for the later beta rollout. No beta resources, rollout or pilot changed.

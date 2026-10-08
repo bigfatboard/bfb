@@ -76,7 +76,26 @@ Coordinate shared contracts without changing the other lane's execution work.
 
 ## Handoff
 
-Current checkpoint: [coherent GitHub status](evidence/WP-C11/github-status-delivery-manifest.json),
+Current checkpoint: [creator sharing and repository reconciliation](evidence/WP-C11/task-sharing-manifest.json),
+clean-certified at `6a2e4ed`. Exact C11 passes 3,987 stage case invocations/
+165 file invocations in twenty-seven blocks, twelve browser cases and 265 native
+labels across twenty-six harnesses. Dependencies and forty-one notification labels
+stay separate. Full verification passes 4,992 TypeScript cases/232 files, Go and
+all sixteen Swift cases. Exact X04 passes 1,154 protocol cases/twelve files,
+Go protocol, 49 focused cases/three files and thirteen unique native scenarios.
+Sharing passes 72 cases/four files, four native groups and six browser cases.
+It retains creator-only current authority, immutable grants/revocation, canonical
+retry receipts and on-demand controls in both themes. Native permission
+intersections use a Reviewer; the parallel-Hub version backstop is explicitly
+synthetic. Reconciliation passes 44 cases/two files and four native groups:
+healthy, one independent completed installation revocation, its derivative retry
+and pre-revoked control. Native bounds are sharing 15 bindings/2,769 bytes/nine
+batch statements and reconcile eleven bindings/591 bytes/twelve statements,
+excluding Worker/DO internals. A first clean attempt failed evidence formatting
+before behavioral tests; the fresh pipeline passes after layout-only correction.
+Private creation is unavailable; this finite certificate does not complete C11.
+
+The earlier [coherent GitHub status](evidence/WP-C11/github-status-delivery-manifest.json),
 clean-certified at `cd69f42`. Exact C11 passes 3,871 stage case invocations/
 159 file invocations in twenty-five blocks, six panel browser cases and 257
 native labels across twenty-four harnesses. Dependencies and forty-one
@@ -139,18 +158,21 @@ without changing its authority predicate. Stale browser and historical migration
 fixtures are repaired; G01 still fails on an expired historical runner credential
 and AG02/AG04 remain open. This finite certificate does not waive release gates.
 
-Next product-owned feature slice is frozen creator-only sharing, followed by
-author-private checkpoints. A separate native repository-reconcile probe at
+Next product-owned feature slice is author-private checkpoints with browser and
+remote OAuth human/delegation origins; local run delivery stays with its owning
+lane and receives no unused schema or IPC fields here. A separate unchanged-source
+native repository-reconcile diagnostic at
 unchanged `cd69f42` reproduces independent installation revocation before commit;
 its derivative same-key retry replays the stale applied result. Healthy and
-pre-revoked controls pass. Local reconcile guard/native checks and concurrent
-sharing implementation are not part of the current clean checkpoint. Sequential
+pre-revoked controls pass. That diagnostic is not clean OLD acceptance; the
+command-owned guard and sharing are now in the current clean checkpoint. Sequential
 remap policy and browser session expiry remain unproved; dormant private/task-
 bound GitHub fixtures are not another claimed reachable defect. Execution-owned
 delivery and destructive private retention remain open. Timo separately
 authorized merge and first Cloudflare beta deployment after the product work
-is verified; no rollout has happened. Private creation, sharing, inherited
-private children and checkpoints stay disabled; C11 is in progress, C12 planned,
+is verified; no rollout has happened. Private creation, inherited private children
+and checkpoints stay unavailable; sharing controls do not activate them.
+C11 is in progress, C12 planned,
 and other mandatory product features remain unfinished.
 
 ### Earlier checkpoints

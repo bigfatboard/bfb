@@ -1,6 +1,6 @@
 # BFB MVP progress
 
-Updated: 6 October 2026
+Updated: 8 October 2026 (product lane; pilot operation not rechecked)
 
 Status: A01–A04 are complete at clean-certified runtimes: agent context/writes/protected recovery, connected human attention, protected explicit results with human review, and connected measurement telemetry/provenance. V01 online bound-agent artifact publication is also clean-certified. Persistent local control-plane and real owner/passkey onboarding checkpoints are recorded below; this product lane has not rechecked current pilot operation. The live provider/discussion workflow remains unverified here. The end-to-end MVP is not complete.
 
@@ -8,7 +8,7 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 
 ## Current checkpoint
 
-- Product-only lane, 6 October: Timo confirmed creator-private explicit sharing
+- Product-only lane, 8 October: Timo's confirmed defaults remain creator-private explicit sharing
   without owner bypass, a BFB-managed encrypted business vault, and lime/cyan
   light/dark UI. V02/V03/X03 current runtime certificates are committed on the
   isolated product branch; nothing is deployed or enabled on the pilot.
@@ -17,15 +17,19 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
   publication. C10 is clean-certified at `a7edf14`: 86 exact cases, nine real-D1
   checks and retained C08/X03 regressions pass; full verification passes 2,987
   TypeScript cases, Go and all 16 Swift cases. Evidence is committed with its
-  dormant-only scope. C11 is in progress: its first delivery stage fences human
-  task/board/deck reads and delegated MCP, action-specific work commands and
-  cached replies. Child/artifact delivery, metadata/realtime, sharing controls
-  and the complete certificate remain open. The [stage-1 checkpoint](docs/work-packages/evidence/WP-C11/manifest.json)
-  is clean-certified at `02dffa6`: 121 focused cases, nine real-D1 checks,
-  C10/C08/X03 regressions and full verification (3,089 TypeScript cases,
-  Go and 16 Swift cases). Unsupported private arguments reject rather than
-  becoming shared MCP writes. C12 remains planned; private
-  creation is unavailable until cross-surface delivery enforcement passes.
+  dormant-only scope. C11 remains in progress. Its latest [creator sharing and
+  repository-reconcile checkpoint](docs/work-packages/evidence/WP-C11/task-sharing-manifest.json)
+  is clean-certified at `6a2e4ed`: exact C11 passes 3,987 stage case invocations,
+  twelve browser cases and 265 native labels; full verification passes 4,992
+  TypeScript cases, Go and all sixteen Swift cases. Exact X04 passes, including
+  all thirteen native scenarios. Creator-only sharing controls use Impeccable's
+  on-demand Work Map design; manual GitHub linking stays held for beta while
+  webhook reconciliation remains enabled. The [product ledger](docs/product-beta.plan.md)
+  retains each finite delivery certificate and every missing mandatory feature.
+  Private creation, inheritance, author-private checkpoints and complete C11
+  acceptance remain unfinished; execution consumers and destructive private
+  retention retain their own gates. C12 stays planned. No merge, Cloudflare beta
+  resource creation, deployment or pilot operation occurred in this checkpoint.
 
 - The [launch-selection checkpoint](docs/work-packages/evidence/WP-L07/launch-selection-checkpoint.json)
   records a separate retry blocker: the browser made the sole non-default
@@ -128,7 +132,7 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 - The held `run submit` path at `9f0c59c` now validates input and returns bounded `not_implemented` without opening assignment or journal storage. Full CLI/human-CLI race checks and the real-binary harness prove that unsigned historical rows remain untouched; this is not A03 integration. The capture implementation also passes an intermediate full verification run (2,085 TypeScript tests, Go checks and 16 Swift tests) and affected C07/C08/C09 real-D1 gates. Final native additions and subsequent source changes still require exact-target and clean-checkout certification.
 - The [complete A01 runtime certificate](docs/work-packages/evidence/WP-A01/runtime-manifest.json) supersedes those partial checkpoints at `adbf740`. Clean frozen install, forced build, exact A01 (765 protocol and 413 scoped cases, Go race suites including signing, compiled stdio, signed native proof and one policy browser case), full verification (2,087 TypeScript tests, Go and 16 Swift tests), Linux build and worktree check pass. The native proof covers MCP exit, signed-daemon restart, ordinary same-owner/fence lease renewal, one-effect replay, real marker/acknowledgement failures, current policy/session/lock denial and uncertain expiry/revocation. Affected C07/C08/C09/L01/L08 gates also pass in the implementation checkout. A01 is `done`; neither live-provider/Terminal certification nor descendant acceptance is implied. No real workspace's offline permission was enabled.
 - The [complete A02 runtime certificate](docs/work-packages/evidence/WP-A02/runtime-manifest.json) at `891fbcc` proves the online-only v4 lane under [ADR 0007](docs/adr/0007-online-agent-attention-runtime.md). Clean frozen install, forced build, exact A02 (866 protocol and 85 focused cases, Go race suites, real D1, seven evidence checks, compiled stdio, signed native proof and three browser cases), full verification (2,245 TypeScript tests, Go and 16 Swift tests), exact A01/L08, Linux build and worktree check pass. C09 also passes at that source in the implementation checkout. Native evidence covers answer durability, MCP/daemon restart, explicit lost-reply recovery, no offline journal/autonomous send, actual inventory refresh during the full 30-second/26-read wait, visible transport failure and current-authority fences. A reproduced inventory scheduling gap is fixed without changing freshness/rate limits (`63f02ec`); actual submitted-result regressions now keep nonterminal attention available without widening old launch/capture eligibility (`891fbcc`). A02 is `done`; no live-provider/Terminal or descendant certificate is implied.
-- Timo's eight [mandatory product requirements](mvp.plan.md#mandatory-product-scope-extension--5-october) are recorded in a separate requirements lane. The audit distinguishes existing board/OAuth/context foundations from missing owner-private work/publication, canonical project knowledge, skill catalogs, light/dark UI, business-secret sharing, progress reminders and a compact contribution view. Privacy, secret-store and UI-scope choices remain pending; no new architecture or finished feature is implied by the existing package certificates.
+- Timo's eight [mandatory product requirements](mvp.plan.md#mandatory-product-scope-extension--5-october) are tracked in the [product ledger](docs/product-beta.plan.md). Creator-private sharing, BFB-managed encrypted business secrets and lime/cyan light/dark defaults are confirmed; W03 UI is locally certified. Private creation/publication, canonical project knowledge, skills, vault lifecycle, reminders and contribution views remain unfinished. Foundation or partial privacy certificates do not certify the complete mandatory capability.
 - Release remains blocked: G01 reports AG-02 and AG-04 failed, AG-10 and OG-02 not run. G02 freezes migration 0034 although the integrated schema has advanced beyond it; the release workflow applies migrations before that stale check, and compatibility with the old Worker needs an explicit rollout repair. Its standalone tool typecheck also exposes a pre-existing attention fixture that still supplies the superseded run-only input instead of current bound authority. This is held G02 integration work, not an artifact-receipt regression or release acceptance. Do not deploy this candidate by merely changing the frozen migration number.
 - No running local MVP, cross-device pilot or production deployment is claimed. The earlier session could not automate Terminal; current native-interaction availability still needs preflight. The earlier L05 evidence and its disclosed shutdown-observation flake have not been replaced by a new native interaction proof.
 
