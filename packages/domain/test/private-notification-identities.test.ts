@@ -2,11 +2,7 @@
 // ABOUTME: Uses genuine shared attention fanout and retained runner authority to test public delivery boundaries.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import Database from "better-sqlite3";
 import { randomBytes } from "node:crypto";
-import { adaptBetterSqlite3, listMigrationFiles, type SqlDatabase } from "@bfb/db";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { requestAttentionCommand } from "../src/attention.js";
 import { FIX } from "../src/fixtures.js";
@@ -45,29 +41,13 @@ const access = {
   humanId: FIX.owner,
   authorizationEpoch: 1,
 };
-const migrations = listMigrationFiles(
-  path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../migrations/d1"),
-);
-const identityMigrationIndex = migrations.findIndex(
-  (migration) => migration.id === "0046_notification_public_identities",
-);
-if (identityMigrationIndex < 0) throw new Error("notification identity migration is missing");
-const identityMigration = migrations[identityMigrationIndex]!;
 const unavailable = {
   code: "request_rejected",
   message: "notification identities are unavailable",
 };
 
 async function fixture(legacy = false, deliver = true) {
-  let raw: Database.Database | null = null;
-  let database: SqlDatabase | undefined;
-  if (legacy) {
-    raw = new Database(":memory:");
-    raw.pragma("foreign_keys = ON");
-    for (const migration of migrations.slice(0, identityMigrationIndex)) raw.exec(migration.sql);
-    database = adaptBetterSqlite3(raw);
-  }
-  const f = await captureFixture(database, false, false, {
+  const f = await captureFixture(undefined, false, false, {
     taskCreatorHumanId: FIX.member,
     requestingHumanId: FIX.owner,
   });
@@ -104,8 +84,9 @@ async function fixture(legacy = false, deliver = true) {
   };
   const pushId = deriveDeliveryId(FIX.workspace, input.eventCursor, "browser_push", FIX.owner);
   const macosId = deriveDeliveryId(FIX.workspace, input.eventCursor, "macos", f.runner);
-  if (raw) {
-    // Genuine pre-0046 tuples: only migration/application repair adds an alias.
+  if (legacy) {
+    // Repair historical NULL identities after the complete schema upgrade.
+    // The DB notification-identities suite separately proves populated pre-0046 migration preservation.
     for (const [id, channel, runner, state] of [
       [pushId, "browser_push", null, "pending"],
       [macosId, "macos", f.runner, "delivered"],
@@ -113,8 +94,8 @@ async function fixture(legacy = false, deliver = true) {
       await f.db
         .prepare(
           `INSERT INTO notification_deliveries
-        (workspace_id,delivery_id,channel,human_id,runner_id,event_cursor,event_kind,category,state,attempt_count,created_at,updated_at)
-        VALUES (?,?,?,?,?,?,'attention.request','attention',?,0,?,?)`,
+        (workspace_id,delivery_id,public_id,channel,human_id,runner_id,event_cursor,event_kind,category,state,attempt_count,created_at,updated_at)
+        VALUES (?,?,NULL,?,?,?,?,'attention.request','attention',?,0,?,?)`,
         )
         .run(
           FIX.workspace,
@@ -134,7 +115,6 @@ async function fixture(legacy = false, deliver = true) {
       VALUES (?,?,?,?)`,
       )
       .run(FIX.workspace, f.runner, macosId, LAUNCH_NOW);
-    raw.exec(identityMigration.sql);
   } else if (deliver) await fanoutNotificationEvent(f.db, input);
   const ensure = async (deliveryIds: readonly string[]) => {
     return success(
