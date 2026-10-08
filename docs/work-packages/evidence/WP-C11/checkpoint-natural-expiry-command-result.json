@@ -1,0 +1,100 @@
+{
+  "package": "C11",
+  "recorded_on": "2026-10-08",
+  "tested_commit": "eb28e71384d8ea3ebbf48263a85d0b17f9e83433",
+  "outcome": "passed",
+  "stage": "partial_checkpoint_delegation_record_natural_expiry",
+  "package_acceptance_complete": false,
+  "private_creation_available": false,
+  "production_behavior_changed": false,
+  "migration_head": "0050_task_privacy_inheritance",
+  "certificate_style": "single_clean_committed_product_worktree_pipeline",
+  "clean_certificate_marker": "C11_CHECKPOINT_NATURAL_DELEGATION_EXPIRY_CERTIFICATE_OK",
+  "clean_certificate_exit_code": 0,
+  "certificate_environment": {
+    "WRANGLER_SEND_METRICS": "false",
+    "GOFLAGS": "-p=1",
+    "limits": "Process-local CLI telemetry opt-out and serialized Go package scheduling only; no production configuration, tool pin, assertion or D1 setting changed."
+  },
+  "clean_commands": [
+    { "command": "pnpm install --frozen-lockfile", "exit_code": 0 },
+    {
+      "command": "pnpm test:c11:private-checkpoints",
+      "exit_code": 0,
+      "focused_cases": 92,
+      "focused_files": 6,
+      "domain_cases": 46,
+      "new_natural_expiry_domain_cases": 5,
+      "migration_cases": 5,
+      "mounted_cookie_csrf_cases": 12,
+      "mounted_oauth_mcp_cases": 12,
+      "web_unit_cases": 10,
+      "retained_disclosure_cases": 7,
+      "native_groups": 8,
+      "native_proof": "C11_PRIVATE_CHECKPOINT_D1_OK",
+      "browser_cases": 6,
+      "counting": "One owning-target invocation. Native top-level groups and intercepted compiled-browser cases are separate from the six-file Vitest total. One native group contains both expired and live prepared-read waves."
+    },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 5142,
+      "typescript_files": 240,
+      "go": "format, pinned-version, dependency, vet, test and build checks passed",
+      "swift": "format, build and test passed with repository-selected pinned Xcode",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    {
+      "command": "pnpm worktree:check",
+      "exit_code": 0,
+      "before_and_after_pipeline": true,
+      "committed_source_unchanged_across_completed_gates": true,
+      "final_status_empty": true
+    }
+  ],
+  "natural_expiry_proof": {
+    "credential": "Unchanged synthetic retained OAuth delegation metadata. Initial SQL-clock fixture deadlines are set before timed operations; no expiry, grant, role, epoch or source row is changed during a delay. These tests do not exchange or authenticate a native bearer token.",
+    "staged_domain": "Five cases use the production staged-D1 adapter over local SQLite. They prove actual bound checkpoint/guard entry while live, complete rollback after expiry, an equally delayed useful write-only live control with original occurrence times, prepared coherent body selection denial, expiry after an actual cached row returns, and retained valid commit history with final public receipt withholding. External reached-boundary witnesses prevent an early mapped Hub failure from passing.",
+    "native_batch": "The real command's original bound native statements and parameters are forwarded after the same explicit delay for expired and live controls. The expired wave rolls back every canonical effect and denies the same-key retry. The live wave appends only the expected checkpoint, audit, semantic, outbox and idempotency rows, advances the exact workspace cursor once, preserves original occurrence timestamps and replays its canonical receipt without another effect.",
+    "native_valid_commit": "The original native batch actually commits while the delegation is live. Its response is held until the unchanged row naturally expires; the checkpoint, Hub receipt and all canonical history remain. Explicit final public selection, body reads and identical cached retry deny; the currently authorized human owner still reads the original checkpoint.",
+    "native_final_read": "The original coherent read is prepared while live and delayed equally in expired/live waves. Expired selection denies uniformly; the live control returns the exact nonempty checkpoint. Both preserve the complete canonical and budget snapshots.",
+    "domain_delay_ms": 3200,
+    "domain_short_fixture_lifetime_seconds": 3,
+    "domain_live_fixture_lifetime_seconds": 600,
+    "native_prebatch_and_read_delay_ms": 4000,
+    "native_short_fixture_lifetime_seconds": 3,
+    "native_live_fixture_lifetime_seconds": 600,
+    "native_valid_commit_fixture_lifetime_seconds": 10,
+    "clock": "SQLite/native D1 database execution clock, separate from retained command occurrence timestamps"
+  },
+  "native_storage": {
+    "canonical_table_count": 136,
+    "snapshot_exclusions_actually_present": ["_cf_METADATA", "d1_migrations", "sqlite_sequence"],
+    "separately_compared_budget_tables": ["rate_limit_buckets"],
+    "foreign_keys_clean": true,
+    "transient_guards_empty": true,
+    "maximum_bindings": 29,
+    "maximum_statement_bytes": 5685,
+    "maximum_batch_statements": 8,
+    "bounds_scope": "Instrumented prebatch-cut checkpoint command preparations only; excludes lifecycle/read queries and Worker/DO internals."
+  },
+  "retained_scope": {
+    "native_groups": "The four original registered lifecycle, write-only Reviewer, independent contribution-revoke and production delegation-revoke groups remain. The contribution cut intentionally bypasses production FIFO through an independent direct domain Hub; it is an atomic-backstop fixture, not reachable competing same-Hub concurrency.",
+    "mounted": "The existing signed-session/CSRF and OAuth MCP protocol fixtures remain; no natural browser-session or bearer-token expiry is introduced by this certificate.",
+    "browser": "Six retained compiled presentation cases use intercepted synthetic responses, keyboard composition, denial clearing and reflow at 1280/390 pixels in light/dark. This is not browser-to-server authorization proof.",
+    "ordinary_work": "No production commands, transport shapes, migrations or UI behavior changed. Ordinary comments/progress, task context, measurements, notifications and audit holds remain unchanged."
+  },
+  "excluded_exploratory_attempts": [
+    "The first focused live-control setup requested a one-hour synthetic issuance window, exceeding the helper's fifteen-minute step-up limit. Four expiry cases passed; that setup failure is excluded. A ten-minute initial window preserves the same delay and assertions. The final focused suite and clean owning target pass all forty-six domain cases.",
+    "The first dirty native exploratory run passed all eight groups before stronger exact live-history timestamp/cursor assertions were added. Only the final committed-source owning-target run is accepted."
+  ],
+  "not_claimed": [
+    "Full pnpm test:c11, test:x03 or test:db at this source; previous complete certificates remain separately scoped",
+    "Native OAuth authorization exchange, bearer-token lifetime, natural browser-session expiry or later-statement deadlines within a batch",
+    "Complete C11, private-create registration/UI/activation, local checkpoint IPC, C12 or the eight-feature MVP",
+    "Destructive private retention or a new raw-log cleanup hold; Timo's cleanup choice remains pending",
+    "Live provider/runner operation, external CI, merge, Cloudflare resources or deployment"
+  ],
+  "redaction": "Bounded synthetic outcomes and counts only; no credentials, private bodies, raw logs, per-run timestamps or local absolute paths"
+}

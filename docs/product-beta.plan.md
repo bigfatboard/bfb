@@ -8,7 +8,21 @@ Timo split it from remote start and agent-to-agent work on 6 October. It starts
 from the integrated `7b8620c` checkpoint, preserving the existing implementation
 and certificates. Package metadata remains the source of truth for completion.
 
-Latest finite checkpoint: [inherited mounted transport preparation](work-packages/evidence/WP-C11/inherited-transport-manifest.json),
+Latest finite checkpoint: [checkpoint delegation-record natural expiry](work-packages/evidence/WP-C11/checkpoint-natural-expiry-manifest.json),
+clean-certified at `eb28e71` on one unchanged committed product worktree.
+The owning checkpoint target passes 92 cases/six files, eight native groups and
+six retained compiled-browser cases. Full verification passes 5,142 TypeScript
+cases/240 files, Go and sixteen Swift cases. Unchanged delegation expiry denies
+bound batch, prepared body, cached receipt and late public delivery while valid
+commit history remains readable to the current human owner. Equal-delay live
+controls preserve useful output and original occurrence timestamps. This is
+test/contract coverage, not a production change or bearer-token/browser-session
+expiry certificate. Full C11/X03/database acceptance is not rerun here. Private
+creation, execution-owned delivery, destructive retention and the remaining
+mandatory features stay unfinished; raw-log cleanup direction is pending and
+deletion behavior is unchanged. No rollout or pilot operation.
+
+Previous finite checkpoint: [inherited mounted transport preparation](work-packages/evidence/WP-C11/inherited-transport-manifest.json),
 clean-certified at `1ea4618` on one unchanged committed product worktree.
 `pnpm test:c11:inheritance` passes 142 cases/five files and four separately
 scoped native preparation groups. Full verification passes 5,137 TypeScript

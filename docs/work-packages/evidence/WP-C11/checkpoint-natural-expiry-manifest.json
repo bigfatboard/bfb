@@ -1,0 +1,39 @@
+{
+  "$schema": "../manifest.schema.json",
+  "package": "C11",
+  "tested_commit": "eb28e71384d8ea3ebbf48263a85d0b17f9e83433",
+  "protocol_version": "bfb-wire/1 unchanged",
+  "schema_version": "private-task-delivery/1 partial checkpoint delegation-record natural expiry; private creation unavailable",
+  "migration_head": "0050_task_privacy_inheritance",
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "xcode": "26.0.1",
+    "swift": "6.2",
+    "wrangler": "4.120.1"
+  },
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56)",
+    "architecture": "arm64"
+  },
+  "commands": [
+    { "command": "pnpm install --frozen-lockfile", "outcome": "passed" },
+    { "command": "pnpm test:c11:private-checkpoints", "outcome": "passed" },
+    { "command": "pnpm verify", "outcome": "passed" },
+    { "command": "pnpm worktree:check", "outcome": "passed" }
+  ],
+  "outcome": "passed",
+  "artifacts": [
+    "docs/work-packages/evidence/WP-C11/checkpoint-natural-expiry-command-result.json",
+    "docs/work-packages/evidence/WP-C11/private-checkpoint-manifest.json",
+    "docs/contracts/private-task-delivery.md",
+    "packages/domain/test/private-checkpoints.test.ts",
+    "tools/work-records/private-checkpoints.ts",
+    "tools/work-records/README.md",
+    "package.json"
+  ],
+  "redaction": { "status": "passed", "prohibited_content": [] },
+  "ci": { "status": "not_run" }
+}

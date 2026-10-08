@@ -76,7 +76,22 @@ Coordinate shared contracts without changing the other lane's execution work.
 
 ## Handoff
 
-Current finite checkpoint: [inherited mounted transport preparation](evidence/WP-C11/inherited-transport-manifest.json),
+Current finite checkpoint: [checkpoint delegation-record natural expiry](evidence/WP-C11/checkpoint-natural-expiry-manifest.json),
+clean-certified at `eb28e71`. The owning checkpoint target passes 92 cases/six
+files, eight native groups and six retained compiled-browser presentation cases.
+Full verification passes 5,142 TypeScript cases/240 files, Go and all sixteen
+Swift cases. Five new staged-domain cases and four additional native groups
+prove unchanged delegation expiry at bound batch, prepared read, cached reply
+and late public receipt boundaries, with equally delayed live controls and
+retained valid-commit history. Native bounds are 29 bindings/5,685 SQL bytes/
+eight statements for instrumented prebatch preparations only. No production
+behavior changed. Synthetic delegation rows are not bearer-token exchange or
+browser-session expiry proof; later statements, execution-owned delivery,
+destructive retention and full activation remain separate gates. Raw-log cleanup
+direction is still pending and deletion behavior is unchanged. Full C11/X03/
+database acceptance is not rerun at this source; prior certificates remain.
+
+Previous finite checkpoint: [inherited mounted transport preparation](evidence/WP-C11/inherited-transport-manifest.json),
 clean-certified at `1ea4618` through the owning `pnpm test:c11:inheritance`
 target and full repository verification on one unchanged clean committed
 worktree. The target passes 142 cases/five files and four separately scoped

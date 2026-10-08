@@ -8,6 +8,18 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 
 ## Current checkpoint
 
+- Product-only lane, 8 October: [checkpoint delegation-record natural expiry](docs/work-packages/evidence/WP-C11/checkpoint-natural-expiry-manifest.json)
+  is clean-certified at `eb28e71`. The owning target passes 92 cases, eight
+  native groups and six retained browser presentation cases; full verification
+  passes 5,142 TypeScript cases, Go and sixteen Swift cases. Existing guards
+  deny natural expiry across batch, body, cache and final receipt selection,
+  retaining valid committed history and original occurrence timestamps. No
+  production behavior changed. These are synthetic delegation-record tests,
+  not bearer exchange, browser-session expiry or complete C11 activation.
+  Private creation remains unavailable; raw-log cleanup direction is pending
+  and deletion behavior is unchanged. Other mandatory features, execution-owned
+  delivery and rollout remain unfinished.
+
 - Product-only lane, 8 October: the remaining mandatory capabilities now have
   [scoped planned owners](docs/product-beta.plan.md#remaining-package-owners):
   C13 project knowledge, C14 pinned skills, C15 business secrets, A05 passive
