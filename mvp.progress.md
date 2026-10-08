@@ -1,6 +1,6 @@
 # BFB MVP progress
 
-Updated: 8 October 2026 (product lane; pilot operation not rechecked)
+Updated: 8 October 2026
 
 Status: A01–A04 are complete at clean-certified runtimes: agent context/writes/protected recovery, connected human attention, protected explicit results with human review, and connected measurement telemetry/provenance. V01 online bound-agent artifact publication is also clean-certified. Persistent local control-plane and real owner/passkey onboarding checkpoints are recorded below; this product lane has not rechecked current pilot operation. The live provider/discussion workflow remains unverified here. The end-to-end MVP is not complete.
 
@@ -26,9 +26,10 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
   on-demand Work Map design; manual GitHub linking stays held for beta while
   webhook reconciliation remains enabled. The [product ledger](docs/product-beta.plan.md)
   retains each finite delivery certificate and every missing mandatory feature.
-  Private creation, inheritance, author-private checkpoints and complete C11
-  acceptance remain unfinished; execution consumers and destructive private
-  retention retain their own gates. C12 stays planned. No merge, Cloudflare beta
+  Author-private checkpoints are implemented for the browser and authenticated
+  OAuth MCP, with clean certification pending. Private creation, inheritance and
+  complete C11 acceptance remain unfinished; execution consumers and destructive
+  private retention retain their own gates. C12 stays planned. No merge, Cloudflare beta
   resource creation, deployment or pilot operation occurred in this checkpoint.
 
 - The [launch-selection checkpoint](docs/work-packages/evidence/WP-L07/launch-selection-checkpoint.json)
@@ -335,3 +336,4 @@ and native interaction consent. The full MVP is not done.
 - 5 October: integrated the reviewed fixes history and upstream license change at `472f007`; frozen install, build and full verification passed on the clean merged tree (1,353 TypeScript tests, Go and 16 Swift tests). Audited production connections and reopened A01 for online MCP/replay closure under ADR 0004. Held ten previously certified descendants and L07 by dependency, retaining all implementation and historical evidence. Recorded current Codex/Claude/T3/OpenCode research separately from provider acceptance. No live provider turn, Terminal interaction proof, running local MVP or deployment is claimed by this checkpoint.
 - 5 October: connected A01 v2 authority/context/task reads through the compiled stdio client, signed daemon, authenticated runner channel and real Worker/Hub/D1. The expanded exact target passes, including 447 protocol cases, 48 cloud cases, Go race checks and the native compiled path. Full verification passes 1,410 TypeScript tests, Go and 16 Swift tests; affected C01, C08, L08 and Linux cross-build pass. Independent review drove cached-authority, transient-error, private-receipt and bounded-request-cache regressions. A committed synthetic asset fixture makes the new native target independent of a previous web build. These are read-slice implementation checks, not full package completion: writes, versioned offline permission, truthful authorship, canonical session binding and daemon replay remain open. Package status and downstream holds are unchanged.
 - 6 October: committed all four online writes at `4a3c21e` and merged policy foundation `c7a6150` at `88fbffa`. The combined clean checkout passes exact A01 (573 protocol and 330 scoped cases, Go race/stdio/signed native checks and policy browser flow), full verification (1,810 TypeScript tests, Go, 16 Swift tests), C08, all 61 shared browser scenarios, Linux build and worktree check. Recorded bounded online/policy evidence while building the separate protected-capture/replay slice. No live-provider, full A01 or end-to-end MVP acceptance is claimed.
+- 8 October: the isolated product lane clean-certified creator sharing and repository reconciliation at `6a2e4ed`: exact C11 passes 3,987 stage case invocations, twelve browser cases and 265 native labels; full verification passes 4,992 TypeScript cases, Go and sixteen Swift cases. Timo chose to hold manual GitHub evidence linking for beta while retaining webhook reconciliation. Browser and authenticated OAuth author-private checkpoints are implemented at `d8c1034`, including single-flight saves and preservation of newer drafts; their clean certification remains pending after the first attempt stopped on this document's header/log chronology check. Private creation, inheritance and complete C11 acceptance remain unfinished. No merge, beta deployment or pilot operation is claimed.
