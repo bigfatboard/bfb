@@ -76,7 +76,34 @@ Coordinate shared contracts without changing the other lane's execution work.
 
 ## Handoff
 
-Current checkpoint: [browser and OAuth author-private checkpoints](evidence/WP-C11/private-checkpoint-manifest.json),
+Current checkpoint: [retained private inheritance preparation](evidence/WP-C11/private-inheritance-manifest.json),
+clean-certified at `08b73ed` through one complete fresh pipeline. Exact C11 passes
+4,118 stage case invocations/174 file invocations in twenty-nine blocks,
+eighteen browser cases and 273 native labels across twenty-eight harnesses;
+dependencies and forty-one notification labels stay separate. Full verification
+passes 5,116 TypeScript cases/240 files, Go and all sixteen Swift cases. Exact
+X03 passes 71 cases/seven files, eleven native groups and both OAuth browser
+cases with fourteen tools. The database upgrade/recovery target passes 68 cases/
+eleven files and `F04_D1_OK` at migration 0050. Process-local Wrangler telemetry
+opt-out and serialized Go scheduling change no assertion or production setting.
+The inheritance target passes 44 cases/three files and four native groups:
+retained same-project root/parent lineage, truthful authorship, current root
+read/contribute/edit authority, exact-root sharing and the existing agent-child
+quota's authority-family counts. An unregistered direct-human creation command
+guards minimal receipts, cached delivery and atomic task/policy/association
+commit. Native preparation uses a direct Node DomainHub; the ordered inherited
+LIMIT witness and project cuts are synthetic, and independent registered revoke
+deliberately bypasses production FIFO. Bounds are 34 bindings/11,764 SQL bytes/
+nine batch statements for instrumented prebatch-cut groups only. One earlier
+generic native failure remains unlocalized; a proven random-order fixture
+weakness was repaired without claiming it caused that failure. A stopped clean
+attempt's thirteen old-schema notification-fixture failures were corrected
+without adding an authorization fallback; separate populated migration proofs
+remain. Only the fresh tested-source pipeline is accepted. Creation stays
+unregistered/unavailable; complete C11 activation, execution-owned consumers,
+destructive private retention and C12 remain separate unfinished gates.
+
+The earlier [browser and OAuth author-private checkpoints](evidence/WP-C11/private-checkpoint-manifest.json),
 clean-certified at `3f9f085`. Exact C11 passes 4,074 stage case invocations/
 171 file invocations in twenty-eight blocks, eighteen browser cases and 269 native
 labels across twenty-seven harnesses. Dependencies and forty-one notification

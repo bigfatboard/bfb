@@ -8,7 +8,32 @@ Timo split it from remote start and agent-to-agent work on 6 October. It starts
 from the integrated `7b8620c` checkpoint, preserving the existing implementation
 and certificates. Package metadata remains the source of truth for completion.
 
-Latest local checkpoint: [browser and OAuth author-private checkpoints](work-packages/evidence/WP-C11/private-checkpoint-manifest.json),
+Latest local checkpoint: [retained private inheritance preparation](work-packages/evidence/WP-C11/private-inheritance-manifest.json),
+clean-certified at `08b73ed` in one complete fresh pipeline. C11 passes 4,118
+stage case invocations/174 file invocations in twenty-nine blocks, eighteen
+browser cases and 273 native labels across twenty-eight harnesses. Dependencies
+and forty-one notification labels stay separate. Full verification passes 5,116
+TypeScript cases/240 files, Go and sixteen Swift cases. X03 passes 71 cases,
+eleven native groups and both OAuth browser flows with fourteen tools; database
+upgrade/recovery passes 68 cases/eleven files and `F04_D1_OK` at migration 0050.
+The new finite target passes 44 cases/three files and four native groups. Retained
+root/parent associations preserve actual authorship, resolve current root ACLs,
+keep sharing exact-root and separate shared versus inherited agent-child quotas.
+The prepared direct-human private-create command returns minimal guarded
+receipts but remains absent from every transport and the production catalog.
+Native bounds are 34 bindings/11,764 SQL bytes/nine batch statements for the
+instrumented prebatch-cut groups, not all Worker/Hub work. The ordered inherited
+LIMIT fixture, project cuts and non-FIFO direct-Hub backstop are explicitly
+synthetic. The original generic native failure remains unlocalized; a proven
+random-order witness weakness was improved without claiming causality. Thirteen
+old-schema notification setup failures in an earlier clean attempt were repaired
+without a missing-schema fallback; separate populated migration proofs remain.
+Only the complete tested-source pipeline is accepted. Private creation and
+ordinary private-parent creation stay unavailable. Full C11 activation,
+execution-owned private delivery, destructive retention and the remaining
+mandatory features are unfinished. No merge, deployment or pilot operation.
+
+The earlier [browser and OAuth author-private checkpoints](work-packages/evidence/WP-C11/private-checkpoint-manifest.json),
 clean-certified at `3f9f085`: C11 passes 4,074 stage case invocations/171 file
 invocations in twenty-eight blocks, eighteen browser cases and 269 native labels
 across twenty-seven harnesses. Dependencies and forty-one notification labels
@@ -155,9 +180,10 @@ and earlier public business/CLI certificate remain unchanged. UI details,
 drafts, retry and hidden-section notices stay on demand in both themes.
 Timo approved raw-ID retirement without fallback and position-only Hub
 bookkeeping on 7 October; ADR 0016 and the delivery contract freeze the wire.
-The next product-owned feature slice is private creation and retained child
-inheritance. Freeze private-root association and parent/count semantics together,
-preserving actual authorship and current root ACLs before opening creation.
+Retained private-root association, actual descendant authorship and authority-
+family quota semantics are prepared and clean-certified under ADR 0017. The next
+product-owned work is creation integration and the remaining activation barriers;
+the prepared command is not registered or available through any transport.
 Browser/remote-OAuth author-private checkpoints are certified separately from
 ordinary shared progress. Local run delivery belongs to the execution lane and
 stays unavailable pending its own online IPC integration. Private creation stays
@@ -250,7 +276,7 @@ foundation tests.
 | Requirement | Delivered foundation | Still to build in this lane |
 | --- | --- | --- |
 | Project board and human/agent tasks | Project lanes, typed context, routing and explicit progress records; current isolated viewer/review proofs | Distinct summary/plan/graphics/progress navigation and inherited base/project instructions |
-| Authenticated MCP and private work | Scoped OAuth/local run authority, retry/audit repairs, clean-certified dormant C10 kernel, creator sharing and browser/OAuth author-private checkpoints | Private creation/inheritance and complete C11 activation, execution-owned local checkpoint delivery; C12 immutable selected-content publication |
+| Authenticated MCP and private work | Scoped OAuth/local run authority, retry/audit repairs, dormant C10 kernel, creator sharing, browser/OAuth author-private checkpoints and retained inheritance preparation | Private-create registration/UI and complete C11 activation, execution-owned local checkpoint delivery; C12 immutable selected-content publication |
 | Project-root prompts and documentation | Task-local context and immutable delivery lineage, not project-wide knowledge | Canonical BFB project instructions/docs/artifacts, versioning and explicit precedence without overwriting local instructions |
 | Workspace/project Git skills | Configuration snapshot foundation only | Pinned catalogs, sync, collision resolution and explicit enablement without automatic code execution |
 | Clean neon UI, light/dark | W03 certified locally: compact board/attention, on-demand task/comments, two default item commands, neutral lime/cyan light/dark/system themes, keyboard/mobile/contrast proof | Integrate/release the product branch with the separately owned execution lane; new product surfaces still use their own feature packages |
