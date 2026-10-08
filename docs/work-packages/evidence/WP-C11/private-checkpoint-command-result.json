@@ -1,0 +1,158 @@
+{
+  "package": "C11",
+  "recorded_on": "2026-10-08",
+  "tested_commit": "3f9f085cce09e5904865765c36cf73cb639fc37c",
+  "outcome": "passed",
+  "stage": "partial_browser_and_oauth_author_private_checkpoints",
+  "package_acceptance_complete": false,
+  "private_creation_available": false,
+  "migration_head": "0049_task_private_checkpoints",
+  "clean_certificate_marker": "C11_PRIVATE_CHECKPOINT_SAME_SOURCE_CERTIFICATE_OK",
+  "clean_certificate_exit_code": 0,
+  "certificate_style": "same_source_completed_gates_and_isolated_db_retry",
+  "certificate_composition": {
+    "retained_completed_gates": [
+      "pnpm install --frozen-lockfile",
+      "pnpm verify",
+      "pnpm test:c11",
+      "pnpm test:x03"
+    ],
+    "isolated_retry": "pnpm test:db",
+    "retry_environment": { "WRANGLER_SEND_METRICS": "false" },
+    "stopped_original_pipeline_exit_code": 143,
+    "original_database_gate_accepted": false,
+    "same_committed_source_before_and_after": true,
+    "final_status_empty": true,
+    "limitation": "This is not a single uninterrupted passing pipeline. Only completed gates from the tested commit are retained; the database gate is a complete fresh same-source retry. No assertion, timeout, tool version, source, production configuration or D1 setting changed."
+  },
+  "clean_commands": [
+    { "command": "pnpm install --frozen-lockfile", "exit_code": 0 },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 5072,
+      "typescript_files": 237,
+      "go": "tidy, vet, test and build passed",
+      "go_scheduling": "GOFLAGS=-p=1",
+      "swift": "format, build and test passed",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    {
+      "command": "pnpm test:c11",
+      "exit_code": 0,
+      "c10_cases": 86,
+      "c10_files": 8,
+      "c10_d1_checks": 9,
+      "c08_cases": 23,
+      "c08_files": 5,
+      "c08_proof": "C08_D1_OK",
+      "stage_cases": 4074,
+      "stage_files": 171,
+      "stage_invocation_blocks": 28,
+      "stage_browser_cases": 18,
+      "stage_d1_check_labels": 269,
+      "stage_d1_harnesses": 27,
+      "notification_record_labels": 41,
+      "counting": "Stage cases/files count twenty-eight Vitest invocation blocks, not unique totals. C10/C08, six detail-panel plus six sharing plus six checkpoint browser cases, and forty-one notification labels remain separate. Native totals count emitted top-level groups, not nested assertions."
+    },
+    {
+      "command": "pnpm test:x03",
+      "exit_code": 0,
+      "focused_cases": 71,
+      "focused_files": 7,
+      "native_groups": 11,
+      "native_proof": "X03_D1_OK",
+      "advertised_tools": 14,
+      "browser_cases": 2,
+      "limits": "Retained synthetic-token Worker/D1/R2 parity plus genuine virtual-passkey OAuth browser flows; no local tool activation, provider or persistent pilot operation."
+    },
+    {
+      "command": "pnpm test:db",
+      "exit_code": 0,
+      "focused_cases": 60,
+      "focused_files": 10,
+      "native_proof": "F04_D1_OK",
+      "cli_environment": { "WRANGLER_SEND_METRICS": "false" },
+      "empty_previous_schema_equal": true,
+      "retained_populated_data": true,
+      "foreign_keys_clean": true,
+      "identity_and_jurisdiction_immutable": true,
+      "tenant_project_attribution_boundaries": true,
+      "interrupted_upgrade_rolled_back_and_retried": true,
+      "invalid_relationship_and_malformed_id_rejected_and_recovered": true
+    },
+    {
+      "command": "pnpm worktree:check",
+      "exit_code": 0,
+      "before_and_after_database_retry": true,
+      "committed_source_unchanged_across_completed_gates": true,
+      "final_status_empty": true
+    }
+  ],
+  "checkpoint_slice": {
+    "target": "pnpm test:c11:private-checkpoints",
+    "composed_once_by_c11": true,
+    "focused_cases": 87,
+    "focused_files": 6,
+    "domain_cases": 41,
+    "migration_cases": 5,
+    "mounted_cookie_csrf_cases": 12,
+    "mounted_oauth_mcp_cases": 12,
+    "new_web_unit_cases": 10,
+    "retained_disclosure_cases": 7,
+    "native_groups": 4,
+    "native_proof": "C11_PRIVATE_CHECKPOINT_D1_OK",
+    "native_fixture": "synthetic_dormant_author_private_checkpoints",
+    "browser_cases": 6,
+    "authority": "Infer the owner from the authenticated human or delegation sponsor. Reporting requires current contribution and credential ceilings; reads require current read authority. Direct humans see only their own human/delegation history; agents see only their exact delegation/client origin. Task sharing does not share checkpoints, and write-only OAuth receipts do not grant reads.",
+    "storage": "Immutable exact-task/project/owner/origin rows with canonical body hashes. Human origins have no delegation/client pair; delegated origins bind the sponsor. Retained human identity, not a historical creation-epoch cutoff, owns history. Revoking an origin does not erase the human owner's history.",
+    "delivery": "Author/origin filtering precedes newest-first bounded history. A coherent current-parent sentinel handles authorized empty views. Closed inputs, original authority capture, command batch/cache checks and actual post-Hub response/body selection protect minimal exact receipts while preserving committed history.",
+    "ordinary_work_unchanged": "No comments, context injection, task-version increment, measurement, notification, runner command or generic outward audit/feed category. Ordinary progress stays task-visible.",
+    "native_controls": "Registered two-Worker lifecycle, exact delegation separation and owner history after origin revoke; write-only Reviewer receipts; independently completed contribution and OAuth revocation before forwarding original bound batches; repaired same-key retry.",
+    "synthetic_contribution_cut": "A second direct domain Hub intentionally bypasses the serialized production FIFO to prove the D1 atomic backstop. This is not reachable competing production-command concurrency.",
+    "native_oauth_limit": "Retained native OAuth metadata is synthetic. Genuine authenticated exchanges are separate mounted MCP fixtures, not native authorization proof.",
+    "expiry_limit": "The checkpoint-specific staged expiry case rewrites expiry metadata; it does not certify unchanged natural expiry.",
+    "maximum_bindings": 29,
+    "maximum_statement_bytes": 4806,
+    "maximum_batch_statements": 8,
+    "bounds_scope": "Instrumented prebatch-cut checkpoint command preparations only; lifecycle, reads and Worker/DO internals are excluded.",
+    "browser_scope": "Compiled on-demand composition, canonical-refresh confirmation, keyboard focus, denial clearing/explicit retry and reflow at 1280px/390px in light/dark. All responses are intercepted synthetic presentation fixtures, not browser-to-server authorization proof.",
+    "design": "Impeccable carries the approved Work Map tokens into one on-demand section with one Add checkpoint action and a Save/Cancel pair during composition; no new default board action. Synchronous single-flight admission prevents duplicate saves, and task/human-scoped revision checks preserve newer drafts, including edited-then-restored text."
+  },
+  "native_storage": {
+    "canonical_table_count": 135,
+    "snapshot_exclusions_actually_present": ["_cf_METADATA", "d1_migrations", "sqlite_sequence"],
+    "http_budget_tables_compared_separately": ["rate_limit_buckets"],
+    "foreign_keys_clean": true,
+    "transient_guards_empty": true,
+    "rollback": "Complete canonical snapshots start after completed independent cuts; rejected batches add no business or Hub effects. Legitimate writes, safe audit/cache history and repaired retries retain their expected committed effects."
+  },
+  "ui_repair_diagnostic": {
+    "production_source_commit": "1778476f62ab10846e71d82d3aaaf40b90064ff7",
+    "failures": 2,
+    "controls": 8,
+    "observed": "Same-act form submissions dispatch two saves, and an edited-then-restored newer draft is erased by the earlier save.",
+    "clean_old_acceptance": false,
+    "limits": "New local regression cases against the initial implementation; UI defect reproduction, not a server-authority security OLD certificate."
+  },
+  "excluded_attempts": [
+    "The clean attempt at d8c1034 stopped on the progress-document chronology test: 5,071 other cases passed and one failed. Exact header syntax and the dated append-only checkpoint log were repaired; no behavioral source changed.",
+    "The dcbc51b attempt completed verification and C11, then the OAuth browser test failed its stale twelve-tool expectation while the unit/native fourteen-tool maps passed. The exact browser inventory gained the two intended names; production behavior and permission assertions did not change. Only completed gates from 3f9f085 are accepted here.",
+    "At the tested commit, the first database driver reported completed local operations but CLI processes delayed shutdown with an external Cloudflare connection retained. A telemetry-off migration control exited successfully. The old driver and its exact owned CLI children were stopped (143); its incomplete database gate is excluded. The complete same-source database retry above passes with the documented process-local telemetry setting. This operational observation does not establish exhaustive network causality or a deterministic default-environment CLI failure.",
+    "Early local fixtures had a dependent membership FK and a missing mandatory OAuth offline_access scope; those fixtures were corrected without widening production permissions. An unreconstructed domain build caused initial browser startup failure; a fresh build passed. A local lint-only control-character expression was replaced with equivalent character-code validation.",
+    "The OAuth repair's local driver called an absent ESLint command after its exact X03 target passed. The repository-owned lint/format checks passed separately; that driver is not a clean acceptance certificate."
+  ],
+  "activation_barriers": [
+    "Private task creation, inherited private children and the complete C11 delivery matrix remain unfinished",
+    "Execution-owned delivery, local checkpoint transport/offline replay and destructive private retention keep separate gates",
+    "C12 publication, project knowledge, skills, business secrets, reminders and contribution views remain unfinished"
+  ],
+  "not_claimed": [
+    "Complete C11 or eight-feature MVP, private-task activation, publication or external CI",
+    "Unchanged checkpoint-specific natural expiry or reachable competing commands inside the production Hub FIFO",
+    "G01 acceptance or waiver of runner-token/AG02/AG04 release gates",
+    "Live provider/runner/pilot operation, Cloudflare resource creation, merge, deployment or deployed authenticated smoke"
+  ],
+  "redaction": "Bounded synthetic counts and outcomes only; no credentials, private bodies, raw logs, per-run timestamps or local absolute paths"
+}

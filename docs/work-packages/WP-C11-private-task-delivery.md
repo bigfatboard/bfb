@@ -76,7 +76,31 @@ Coordinate shared contracts without changing the other lane's execution work.
 
 ## Handoff
 
-Current checkpoint: [creator sharing and repository reconciliation](evidence/WP-C11/task-sharing-manifest.json),
+Current checkpoint: [browser and OAuth author-private checkpoints](evidence/WP-C11/private-checkpoint-manifest.json),
+clean-certified at `3f9f085`. Exact C11 passes 4,074 stage case invocations/
+171 file invocations in twenty-eight blocks, eighteen browser cases and 269 native
+labels across twenty-seven harnesses. Dependencies and forty-one notification
+labels stay separate. Full verification passes 5,072 TypeScript cases/237 files,
+Go and all sixteen Swift cases. Exact X03 passes 71 cases/seven files, eleven
+native groups and two OAuth browser cases with fourteen advertised tools.
+The checkpoint slice passes 87 cases/six files, four native groups and six
+compiled-browser presentation cases. Inferred human/delegation authorship,
+current read/contribution ceilings, exact-origin history and atomic rollback
+protect immutable checkpoints separately from ordinary task-visible progress.
+Impeccable's on-demand controls retain both themes, single-flight saves and newer
+drafts. Native bounds are 29 bindings/4,806 bytes/eight batch statements for
+instrumented prebatch-cut preparations only. Parallel-Hub contribution cuts and
+native OAuth metadata are synthetic; staged expiry is not natural-expiry proof.
+The same clean source passes the complete database upgrade/recovery target:
+60 cases/ten files and `F04_D1_OK` at migration 0049. Its isolated retry uses
+process-local `WRANGLER_SEND_METRICS=false` after delayed CLI shutdown; the stopped
+original database driver (143) is excluded. This is completed same-source gates
+plus a full database retry, not one uninterrupted passing pipeline. Earlier
+documentation chronology and stale browser tool-inventory failures are recorded
+separately; no behavioral assertion or acceptance gate was weakened. Private
+creation remains unavailable and this finite certificate does not complete C11.
+
+The earlier [creator sharing and repository reconciliation](evidence/WP-C11/task-sharing-manifest.json),
 clean-certified at `6a2e4ed`. Exact C11 passes 3,987 stage case invocations/
 165 file invocations in twenty-seven blocks, twelve browser cases and 265 native
 labels across twenty-six harnesses. Dependencies and forty-one notification labels
@@ -158,9 +182,11 @@ without changing its authority predicate. Stale browser and historical migration
 fixtures are repaired; G01 still fails on an expired historical runner credential
 and AG02/AG04 remain open. This finite certificate does not waive release gates.
 
-Next product-owned feature slice is author-private checkpoints with browser and
-remote OAuth human/delegation origins; local run delivery stays with its owning
-lane and receives no unused schema or IPC fields here. A separate unchanged-source
+Next product-owned feature slice is private creation and retained child
+inheritance. Freeze private-root association and parent/count semantics together,
+preserving actual authorship and current root ACLs before opening creation. Local
+run delivery stays with its owning lane and receives no unused schema or IPC
+fields here. A separate unchanged-source
 native repository-reconcile diagnostic at
 unchanged `cd69f42` reproduces independent installation revocation before commit;
 its derivative same-key retry replays the stale applied result. Healthy and
@@ -170,8 +196,10 @@ remap policy and browser session expiry remain unproved; dormant private/task-
 bound GitHub fixtures are not another claimed reachable defect. Execution-owned
 delivery and destructive private retention remain open. Timo separately
 authorized merge and first Cloudflare beta deployment after the product work
-is verified; no rollout has happened. Private creation, inherited private children
-and checkpoints stay unavailable; sharing controls do not activate them.
+is verified; no rollout has happened. Private creation and inherited private
+children stay unavailable; browser/OAuth author-private checkpoints are certified
+separately. Local checkpoint delivery and publication remain held; sharing and
+checkpoint controls do not activate private creation.
 C11 is in progress, C12 planned,
 and other mandatory product features remain unfinished.
 

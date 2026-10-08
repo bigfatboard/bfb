@@ -17,17 +17,21 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
   publication. C10 is clean-certified at `a7edf14`: 86 exact cases, nine real-D1
   checks and retained C08/X03 regressions pass; full verification passes 2,987
   TypeScript cases, Go and all 16 Swift cases. Evidence is committed with its
-  dormant-only scope. C11 remains in progress. Its latest [creator sharing and
-  repository-reconcile checkpoint](docs/work-packages/evidence/WP-C11/task-sharing-manifest.json)
-  is clean-certified at `6a2e4ed`: exact C11 passes 3,987 stage case invocations,
-  twelve browser cases and 265 native labels; full verification passes 4,992
-  TypeScript cases, Go and all sixteen Swift cases. Exact X04 passes, including
-  all thirteen native scenarios. Creator-only sharing controls use Impeccable's
-  on-demand Work Map design; manual GitHub linking stays held for beta while
+  dormant-only scope. C11 remains in progress. Its latest [browser/OAuth
+  author-private checkpoint certificate](docs/work-packages/evidence/WP-C11/private-checkpoint-manifest.json)
+  records clean source `3f9f085`: exact C11 passes 4,074 stage case invocations,
+  eighteen browser cases and 269 native labels; full verification passes 5,072
+  TypeScript cases, Go and all sixteen Swift cases. Exact X03 passes 71 cases,
+  eleven native groups and both OAuth browser cases with fourteen tools. The full
+  database upgrade/recovery target passes 60 cases and `F04_D1_OK` at migration
+  0049 in an isolated same-source telemetry-off retry. The stopped original
+  database driver is excluded; this is not one uninterrupted passing pipeline.
+  Sharing and checkpoint controls use Impeccable's on-demand Work Map design;
+  manual GitHub linking stays held for beta while
   webhook reconciliation remains enabled. The [product ledger](docs/product-beta.plan.md)
   retains each finite delivery certificate and every missing mandatory feature.
-  Author-private checkpoints are implemented for the browser and authenticated
-  OAuth MCP, with clean certification pending. Private creation, inheritance and
+  Author-private checkpoints are certified for the browser and authenticated
+  OAuth MCP; ordinary shared progress is unchanged. Private creation, inheritance and
   complete C11 acceptance remain unfinished; execution consumers and destructive
   private retention retain their own gates. C12 stays planned. No merge, Cloudflare beta
   resource creation, deployment or pilot operation occurred in this checkpoint.
@@ -337,3 +341,4 @@ and native interaction consent. The full MVP is not done.
 - 5 October: connected A01 v2 authority/context/task reads through the compiled stdio client, signed daemon, authenticated runner channel and real Worker/Hub/D1. The expanded exact target passes, including 447 protocol cases, 48 cloud cases, Go race checks and the native compiled path. Full verification passes 1,410 TypeScript tests, Go and 16 Swift tests; affected C01, C08, L08 and Linux cross-build pass. Independent review drove cached-authority, transient-error, private-receipt and bounded-request-cache regressions. A committed synthetic asset fixture makes the new native target independent of a previous web build. These are read-slice implementation checks, not full package completion: writes, versioned offline permission, truthful authorship, canonical session binding and daemon replay remain open. Package status and downstream holds are unchanged.
 - 6 October: committed all four online writes at `4a3c21e` and merged policy foundation `c7a6150` at `88fbffa`. The combined clean checkout passes exact A01 (573 protocol and 330 scoped cases, Go race/stdio/signed native checks and policy browser flow), full verification (1,810 TypeScript tests, Go, 16 Swift tests), C08, all 61 shared browser scenarios, Linux build and worktree check. Recorded bounded online/policy evidence while building the separate protected-capture/replay slice. No live-provider, full A01 or end-to-end MVP acceptance is claimed.
 - 8 October: the isolated product lane clean-certified creator sharing and repository reconciliation at `6a2e4ed`: exact C11 passes 3,987 stage case invocations, twelve browser cases and 265 native labels; full verification passes 4,992 TypeScript cases, Go and sixteen Swift cases. Timo chose to hold manual GitHub evidence linking for beta while retaining webhook reconciliation. Browser and authenticated OAuth author-private checkpoints are implemented at `d8c1034`, including single-flight saves and preservation of newer drafts; their clean certification remains pending after the first attempt stopped on this document's header/log chronology check. Private creation, inheritance and complete C11 acceptance remain unfinished. No merge, beta deployment or pilot operation is claimed.
+- 8 October: the isolated product lane certified browser/OAuth author-private checkpoints at clean source `3f9f085`: exact C11 passes 4,074 stage case invocations, eighteen browser cases and 269 native labels; full verification passes 5,072 TypeScript cases, Go and sixteen Swift cases. Exact X03 passes 71 cases, eleven native groups and both OAuth browser cases with fourteen advertised tools. The complete database upgrade/recovery target passes 60 cases and `F04_D1_OK` at migration 0049 in a fresh same-source retry with process-local Wrangler telemetry disabled after delayed CLI shutdown. The stopped original database driver (143) is excluded; this is completed same-source gates plus a full database retry, not one uninterrupted passing pipeline. Earlier document chronology and stale browser inventory failures are recorded separately without weakening assertions. Impeccable's on-demand checkpoint controls preserve single-flight saves and newer drafts. Private creation/inheritance, complete C11 and C12 remain unfinished; local checkpoint delivery retains its execution-owned gate. No merge, deployment or pilot operation occurred.

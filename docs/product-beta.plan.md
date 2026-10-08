@@ -8,7 +8,31 @@ Timo split it from remote start and agent-to-agent work on 6 October. It starts
 from the integrated `7b8620c` checkpoint, preserving the existing implementation
 and certificates. Package metadata remains the source of truth for completion.
 
-Latest local checkpoint: [creator sharing and repository reconciliation](work-packages/evidence/WP-C11/task-sharing-manifest.json),
+Latest local checkpoint: [browser and OAuth author-private checkpoints](work-packages/evidence/WP-C11/private-checkpoint-manifest.json),
+clean-certified at `3f9f085`: C11 passes 4,074 stage case invocations/171 file
+invocations in twenty-eight blocks, eighteen browser cases and 269 native labels
+across twenty-seven harnesses. Dependencies and forty-one notification labels
+remain separate. Full verification passes 5,072 TypeScript cases/237 files,
+Go and all sixteen Swift cases. Exact X03 passes 71 cases/seven files, eleven
+native groups and two OAuth browser cases with fourteen advertised tools. The
+checkpoint slice passes 87 cases/six files, four native groups and six compiled
+browser presentation cases. Immutable checkpoints infer human/delegation
+authorship and enforce current read/contribution and exact-origin ceilings;
+ordinary task-visible progress is unchanged. Impeccable's on-demand controls
+retain both themes, single-flight saves and newer drafts. Native bounds are
+29 bindings/4,806 bytes/eight batch statements for instrumented prebatch-cut
+preparations, not all lifecycle/read or Worker/DO work. Parallel-Hub contribution
+cuts and native OAuth metadata are synthetic; staged expiry is not natural proof.
+The complete database upgrade/recovery target also passes at that clean source:
+60 cases/ten files and `F04_D1_OK` at migration 0049. Its isolated retry uses
+process-local `WRANGLER_SEND_METRICS=false` after delayed CLI shutdown; the stopped
+original database driver (143) is excluded. This certificate combines completed
+same-source gates and a full database retry, not one uninterrupted passing
+pipeline. Earlier documentation chronology and stale browser tool-inventory
+failures are separate; no behavioral assertion or acceptance gate was weakened.
+Private creation remains unavailable; this is not complete C11 or MVP acceptance.
+
+The earlier [creator sharing and repository reconciliation](work-packages/evidence/WP-C11/task-sharing-manifest.json),
 clean-certified at `6a2e4ed`: C11 passes 3,987 stage case invocations/165 file
 invocations in twenty-seven blocks, twelve browser cases and 265 native labels
 across twenty-six harnesses. Dependencies and forty-one notification labels
@@ -131,9 +155,11 @@ and earlier public business/CLI certificate remain unchanged. UI details,
 drafts, retry and hidden-section notices stay on demand in both themes.
 Timo approved raw-ID retirement without fallback and position-only Hub
 bookkeeping on 7 October; ADR 0016 and the delivery contract freeze the wire.
-The next product-owned feature slice is author-private checkpoints, separate from
-ordinary shared progress. Prepare its first browser/remote-OAuth slice using human
-and delegation origins only; local run delivery belongs to the execution lane and
+The next product-owned feature slice is private creation and retained child
+inheritance. Freeze private-root association and parent/count semantics together,
+preserving actual authorship and current root ACLs before opening creation.
+Browser/remote-OAuth author-private checkpoints are certified separately from
+ordinary shared progress. Local run delivery belongs to the execution lane and
 stays unavailable pending its own online IPC integration. Private creation stays
 unavailable until the complete matrix passes. The repository-reconcile guard is
 now clean-certified; its unchanged-source OLD diagnostic records one independent
@@ -146,9 +172,10 @@ Timo separately authorized merging and a first Cloudflare beta deployment after
 the product-beta work is verified, followed by deployed smoke checks. No rollout
 has occurred and execution-lane implementation remains excluded. Execution-owned
 consumers and destructive private retention remain open; status, reconciliation
-and the selected manual-key hold are certified. Private creation, inherited
-private children and checkpoints stay unavailable; sharing controls alone do
-not activate them. C11 is in progress,
+and the selected manual-key hold are certified. Private creation and inherited
+private children stay unavailable; sharing and checkpoint controls alone do
+not activate them. Local checkpoint delivery and publication remain held.
+C11 is in progress,
 C12 planned, and the other mandatory product features remain unfinished.
 Pinned Cloudflare CLI authentication and read-only resource inventory are
 available for the later beta rollout. No beta resources, rollout or pilot changed.
@@ -223,13 +250,13 @@ foundation tests.
 | Requirement | Delivered foundation | Still to build in this lane |
 | --- | --- | --- |
 | Project board and human/agent tasks | Project lanes, typed context, routing and explicit progress records; current isolated viewer/review proofs | Distinct summary/plan/graphics/progress navigation and inherited base/project instructions |
-| Authenticated MCP and private work | Scoped OAuth/local run authority, retry/audit repairs and clean-certified dormant C10 creator/grant kernel | C11 enforcement on every delivery/projection/transport before private creation; C12 immutable selected-content publication |
+| Authenticated MCP and private work | Scoped OAuth/local run authority, retry/audit repairs, clean-certified dormant C10 kernel, creator sharing and browser/OAuth author-private checkpoints | Private creation/inheritance and complete C11 activation, execution-owned local checkpoint delivery; C12 immutable selected-content publication |
 | Project-root prompts and documentation | Task-local context and immutable delivery lineage, not project-wide knowledge | Canonical BFB project instructions/docs/artifacts, versioning and explicit precedence without overwriting local instructions |
 | Workspace/project Git skills | Configuration snapshot foundation only | Pinned catalogs, sync, collision resolution and explicit enablement without automatic code execution |
 | Clean neon UI, light/dark | W03 certified locally: compact board/attention, on-demand task/comments, two default item commands, neutral lime/cyan light/dark/system themes, keyboard/mobile/contrast proof | Integrate/release the product branch with the separately owned execution lane; new product surfaces still use their own feature packages |
 | Workspace/project business secrets | Infrastructure/Keychain credentials only; BFB-encrypted vault direction approved, not built | Encryption/key lifecycle, scoped grants/revisions, recovery, revocation and value-redaction proof |
 | Reminders to update BFB | Constant launch bootstrap and telemetry-only hooks, not checkpoint reminders | Explicit checkpoint cadence, suppression, acknowledgement/expiry and dedupe; no automatic publication or model turn |
-| Minimal human contribution history | Attributed comments, attention and result/artifact decisions; explicit timers remain measurements | Compact privacy-aware cross-record projection/view with source dedupe; no presence-derived contribution or labor |
+| Minimal human contribution history | Attributed comments, attention, result/artifact decisions and author-private checkpoints; explicit timers remain measurements | Compact privacy-aware cross-record projection/view with source dedupe; no presence-derived contribution or labor |
 
 The ledger separates existing records from missing product behavior. It does
 not certify the whole board, private content, a vault or the live-provider flow.

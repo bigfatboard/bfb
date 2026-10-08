@@ -2,8 +2,11 @@
 
 Owner: C10. Activation owner: C11. [ADR 0015](../adr/0015-private-work-authorization.md).
 
-Dormant kernel, **not shipped private-task behavior**. No product command inserts
-private policies/grants. All future mutations serialize through WorkspaceHub.
+Dormant kernel, **not shipped private-task creation**. C10 exposes no creation or
+ACL mutation command. C11's separately certified sharing commands insert and
+revoke grants through WorkspaceHub; private creation remains unavailable until
+C11's complete delivery matrix passes. Every mutation serializes through
+WorkspaceHub.
 
 ## Records
 
