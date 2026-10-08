@@ -10,13 +10,41 @@ and diagnostic-consent expiry continues. Private creation remains unavailable.
 The execution lane owns the minimal retained private-delivery holds; no new
 private execution or provider functionality is part of this rollout.
 
+## Current beta deployment
+
+The existing implementation at `520955a` is deployed to
+[beta.bfb.sh](https://beta.bfb.sh), with separate launch and cookie-less artifact
+origins at `launch.beta.bfb.sh` and `artifacts.beta.bfb.sh`. The isolated staging
+environment uses EU D1 and R2 resources, its own queues and new authentication
+keys. All fifty D1 migrations through `0050_task_privacy_inheritance` are applied.
+The landing site and the enrolled localhost pilot are unchanged.
+
+Both health endpoints respond over valid HTTPS; the served web bundle matches
+the tested local build. GitHub OAuth credentials, first-owner setup and a new
+hostname-bound passkey remain pending. Authentication-dependent routes currently
+fail closed; an authenticated board/MCP smoke has not passed. Deployment alone
+does not make this a usable authenticated beta or certify the full MVP.
+
+The deployed control version is `b24eb0f2-3689-411b-87c8-0e02533e76ed` and the
+artifact version is `938b2840-3ed0-4bd2-b1cd-2f679d393c24`. Full verification of
+the integrated source passes 5,152 TypeScript cases, Go and sixteen Swift cases.
+The exact X05 target passes 58 cases, eleven native scenarios and five browser
+cases. [Integration PR #19](https://github.com/bigfatboard/bfb/pull/19) is open;
+merge and deployed authenticated verification remain outstanding.
+
+## Historical product checkpoints and deferred plan
+
+The checkpoints below record their original scope and verification. Their
+no-rollout statements describe those earlier checkpoints; the fixes-only scope
+and current deployment status above take precedence.
+
 This lane owns the board, product UI, authenticated MCP product features and
 the eight [mandatory requirements](../mvp.plan.md#mandatory-product-scope-extension--5-october).
 Timo split it from remote start and agent-to-agent work on 6 October. It starts
 from the integrated `7b8620c` checkpoint, preserving the existing implementation
 and certificates. Package metadata remains the source of truth for completion.
 
-Latest finite checkpoint: [checkpoint delegation-record natural expiry](work-packages/evidence/WP-C11/checkpoint-natural-expiry-manifest.json),
+Previous finite checkpoint: [checkpoint delegation-record natural expiry](work-packages/evidence/WP-C11/checkpoint-natural-expiry-manifest.json),
 clean-certified at `eb28e71` on one unchanged committed product worktree.
 The owning checkpoint target passes 92 cases/six files, eight native groups and
 six retained compiled-browser cases. Full verification passes 5,142 TypeScript
