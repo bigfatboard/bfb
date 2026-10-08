@@ -177,6 +177,30 @@ native D1 and compiled UI proofs for this finite slice. Clean evidence belongs
 in `docs/work-packages/evidence/WP-C11/private-checkpoint-manifest.json`. Passing
 it does not certify private creation, inheritance, local delivery or full C11.
 
+#### Natural delegation expiry
+
+Checkpoint authority uses the database execution clock, independently of the
+original command occurrence time. An unchanged delegation that expires after
+the checkpoint batch is prepared but before execution must leave no checkpoint,
+receipt, event, audit, outbox or cursor effect. An equally delayed live control
+must commit useful output with the original occurrence timestamps. A prepared
+coherent body selection and a cached receipt must also deny after natural expiry.
+
+A successful batch whose response arrives after expiry retains its canonical
+checkpoint and Hub receipt. The final public selection must withhold that
+receipt and body; the human owner may still retrieve the retained history under
+current task access. Expiry is loss of delegated access, not historical deletion.
+
+The owning checkpoint target exercises unchanged synthetic delegation rows using
+SQL-clock fixture deadlines, original prepared statements and parameters, and
+full canonical snapshots. Domain staged-D1 cases include expiry after an actual
+cached row returns. Disposable native-D1 groups include equal-delay batch and
+read controls plus successful commit before a delayed response crosses expiry.
+These checks do not authenticate a native OAuth exchange or certify bearer-token
+expiry, browser-session expiry, later statements within a batch, local execution,
+destructive retention or private activation. Existing mounted OAuth and compiled
+browser checks remain separately scoped.
+
 ### Creator sharing lifecycle checkpoint
 
 Stage four starts with creator-only sharing over the retained 0045 policy and

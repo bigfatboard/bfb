@@ -2,10 +2,19 @@
 
 `pnpm test:c11:private-checkpoints`, composed once by C11, owns
 `private-checkpoints.ts`, the migration/domain/mounted browser/MCP/presentation
-suites and six compiled-browser checks. Four independently collecting native
+suites and six compiled-browser checks. Eight independently collecting native
 groups prove registered two-Worker human/exact-delegation history, write-only
 Reviewer receipts, independently completed contribution loss and OAuth revocation
 before forwarding the original bound D1 batch, and a repaired same-key retry.
+Four additional groups cover unchanged delegation metadata naturally expiring
+before the original bound batch, an equally delayed live batch, successful commit
+whose returned response crosses expiry, and prepared final reads with expired/live
+controls. Domain cases separately cover expiry after an actual cache row returns.
+Original occurrence timestamps and retained canonical history survive valid
+commit; late public receipts/bodies and cached retries do not survive expiry.
+Short SQL-clock fixture deadlines do not change production TTLs or delegation
+rows during timed operations. These are delegation-record expiry checks, not
+authenticated native OAuth exchange or bearer-token lifetime proofs.
 The contribution cut deliberately runs a separate direct domain Hub against D1
 to exercise the atomic backstop; it is not a reachable competing command inside
 the serialized production FIFO. OAuth revocation uses the production helper.

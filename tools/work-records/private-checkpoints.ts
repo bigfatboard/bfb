@@ -3,11 +3,13 @@
 
 import assert from "node:assert/strict";
 import { dirname, resolve } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { adaptD1, loadMigrationManifest, type D1Like, type D1StatementLike } from "@bfb/db";
 import {
   FIX,
   WorkspaceHub,
+  finalizePublicBusinessResult,
   loadPrincipal,
   mcpResource,
   randomUlid,
@@ -30,6 +32,8 @@ import { createTestHarness } from "wrangler";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const origin = "https://bfb.private-checkpoints.test";
 const BODY = "SYNTHETIC native author-private checkpoint";
+const naturalDelayMs = 4_000;
+const expiredLifetimeSeconds = 3;
 const server = createTestHarness({
   root,
   workers: [
@@ -233,7 +237,7 @@ try {
     });
     return { id, authority, request };
   }
-  function preparedBatch(change: () => Promise<void>) {
+  function preparedBatch(change: () => Promise<void>, afterCommit?: () => Promise<void>) {
     const originals = new Map<D1StatementLike, { sql: string; parameters: unknown[] }>();
     let fired = false,
       forwarded = false,
@@ -284,7 +288,9 @@ try {
         after = await snapshot();
         http = await budgets();
         forwarded = true;
-        return binding.batch(statements);
+        const result = await binding.batch(statements);
+        await afterCommit?.();
+        return result;
       },
     });
     return {
@@ -297,6 +303,71 @@ try {
         await unchanged(after, http);
       },
     };
+  }
+  async function credentialRow(id: string) {
+    const row = (await independent
+      .prepare("SELECT * FROM oauth_delegations WHERE workspace_id=? AND id=?")
+      .get(FIX.workspace, id)) as Row | undefined;
+    assert(row, "synthetic retained delegation must exist");
+    return row;
+  }
+  async function credentialClock(id: string) {
+    const row = (await independent
+      .prepare(
+        `SELECT julianday(expires_at)>julianday('now') AS live,
+          strftime('%Y-%m-%dT%H:%M:%fZ','now') AS database_now
+         FROM oauth_delegations WHERE workspace_id=? AND id=?`,
+      )
+      .get(FIX.workspace, id)) as { live: number; database_now: string } | undefined;
+    assert(row, "native database clock must resolve the unchanged delegation");
+    assert(row.live === 0 || row.live === 1);
+    return row;
+  }
+  async function deadline(id: string, seconds: number) {
+    // Only fixture setup changes TTL. The timed operation never edits credential metadata.
+    await db
+      .prepare(
+        `UPDATE oauth_delegations SET expires_at=strftime('%Y-%m-%dT%H:%M:%fZ','now',?)
+         WHERE workspace_id=? AND id=?`,
+      )
+      .run(`+${seconds} seconds`, FIX.workspace, id);
+    assert.equal((await credentialClock(id)).live, 1);
+    return credentialRow(id);
+  }
+  async function expireNaturally(id: string) {
+    const started = Date.now();
+    for (;;) {
+      const clock = await credentialClock(id);
+      if (clock.live === 0) return;
+      assert(Date.now() - started < 15_000, "natural post-commit expiry must remain bounded");
+      await delay(50);
+    }
+  }
+  function delayedRead(id: string, retained: Row, expectedLive: number) {
+    let fired = false;
+    const database: typeof db = {
+      prepare(sql) {
+        const statement = db.prepare(sql);
+        return {
+          run: (...parameters) => statement.run(...parameters),
+          all: (...parameters) => statement.all(...parameters),
+          get: async (...parameters) => {
+            if (sql.includes("private_checkpoint_task AS MATERIALIZED")) {
+              assert.equal(fired, false, "the original coherent selector runs once");
+              fired = true;
+              assert.equal((await credentialClock(id)).live, 1);
+              assert.deepEqual(await credentialRow(id), retained);
+              await delay(naturalDelayMs);
+              assert.equal((await credentialClock(id)).live, expectedLive);
+              assert.deepEqual(await credentialRow(id), retained);
+            }
+            return statement.get(...parameters);
+          },
+        };
+      },
+      withTransaction: (fn) => db.withTransaction(fn),
+    };
+    return { database, fired: () => fired };
   }
   async function collect(
     name: string,
@@ -586,6 +657,205 @@ try {
     };
   });
 
+  for (const mode of ["expired", "live"] as const) {
+    await collect(`unchanged_natural_delegation_${mode}_before_bound_batch`, async (state) => {
+      const f = await fixture(),
+        authority = await delegated(f),
+        retained = await deadline(authority.id, mode === "expired" ? expiredLifetimeSeconds : 600);
+      const baseline = await snapshot(),
+        http = await budgets(),
+        occurrence = new Date().toISOString(),
+        request = { ...authority.request(), now: occurrence };
+      const cut = preparedBatch(async () => {
+        state.phase = "live at original bound native batch entry";
+        assert.equal((await credentialClock(authority.id)).live, 1);
+        assert.deepEqual(await credentialRow(authority.id), retained);
+        state.witness.live_at_bound_batch_entry = true;
+        await delay(naturalDelayMs);
+        state.phase = "unchanged database-clock boundary before original batch";
+        assert.equal((await credentialClock(authority.id)).live, mode === "expired" ? 0 : 1);
+        assert.deepEqual(await credentialRow(authority.id), retained);
+        await unchanged(baseline, http);
+        state.witness.credential_unchanged_during_equal_delay = true;
+        state.witness.expected_database_clock_boundary = true;
+      });
+      const outcome = await new WorkspaceHub(cut.database).execute(
+        registered<Input, Receipt>("progress.private.report"),
+        request,
+      );
+      state.phase = "original bound batch outcome and complete canonical effects";
+      if (mode === "expired") {
+        assert.deepEqual(outcome, {
+          ok: false,
+          error: { code: "command_failed", message: "command failed" },
+        });
+        await cut.rollback();
+        await unchanged(baseline, http);
+        const retry = await execute("progress.private.report", request);
+        assert.deepEqual(retry, {
+          ok: false,
+          error: { code: "not_found", message: "private progress not found" },
+        });
+        await unchanged(baseline, http);
+        state.witness.whole_canonical_rollback_and_denied_retry = true;
+      } else {
+        const receipt = success(outcome);
+        assert.equal(
+          (await readPrivateProgress(db, authority.authority, f.task.id)).checkpoints[0]?.id,
+          receipt.checkpoint_id,
+        );
+        const committed = await snapshot();
+        const changed = new Set([
+          "task_private_checkpoints",
+          "audit_events",
+          "semantic_events",
+          "outbox_records",
+          "idempotency_records",
+          "workspace_cursors",
+        ]);
+        for (const [name, rows] of Object.entries(baseline)) {
+          if (!changed.has(name)) assert.deepEqual(committed[name], rows);
+          else if (name === "workspace_cursors")
+            assert.deepEqual(
+              committed[name],
+              rows.map((row) =>
+                row.workspace_id === FIX.workspace
+                  ? { ...row, cursor: (row.cursor as number) + 1 }
+                  : row,
+              ),
+            );
+          else {
+            assert.deepEqual(committed[name]!.slice(0, rows.length), rows);
+            assert.equal(committed[name]!.length, rows.length + 1);
+            assert.equal(committed[name]!.at(-1)!.created_at, occurrence);
+          }
+        }
+        const retry = await execute<Receipt>("progress.private.report", request);
+        assert(retry.ok && retry.replayed);
+        assert.deepEqual(retry.result, receipt);
+        await unchanged(committed, http);
+        state.witness.useful_live_single_effect_and_identical_retry = true;
+        state.witness.original_occurrence_times_retained = true;
+      }
+      state.witness.original_bound_objects_forwarded = true;
+      state.witness.credential_row_retained = true;
+    });
+  }
+
+  await collect(
+    "valid_commit_returned_after_natural_expiry_retains_history_not_access",
+    async (state) => {
+      const f = await fixture(),
+        authority = await delegated(f),
+        retained = await deadline(authority.id, 10),
+        occurrence = new Date().toISOString(),
+        request = { ...authority.request(), now: occurrence };
+      let committed: Snapshot | undefined, http: unknown[] | undefined;
+      const cut = preparedBatch(
+        async () => {
+          state.phase = "live at original bound batch entry";
+          assert.equal((await credentialClock(authority.id)).live, 1);
+          assert.deepEqual(await credentialRow(authority.id), retained);
+          state.witness.live_at_bound_batch_entry = true;
+        },
+        async () => {
+          state.phase = "actual successful commit before returned batch response";
+          assert.equal((await credentialClock(authority.id)).live, 1);
+          const checkpoint = (await db
+            .prepare("SELECT * FROM task_private_checkpoints WHERE workspace_id=? AND task_id=?")
+            .get(FIX.workspace, f.task.id)) as Row;
+          assert(checkpoint, "the original batch must really commit before expiry");
+          assert.equal(checkpoint.created_at, occurrence);
+          committed = await snapshot();
+          http = await budgets();
+          state.witness.actual_commit_and_original_occurrence_time = true;
+          await expireNaturally(authority.id);
+          assert.deepEqual(await credentialRow(authority.id), retained);
+          await unchanged(committed, http);
+          state.witness.unchanged_history_while_batch_response_delayed_past_expiry = true;
+        },
+      );
+      const outcome = await new WorkspaceHub(cut.database).execute(
+        registered<Input, Receipt>("progress.private.report"),
+        request,
+      );
+      state.phase = "late public delivery and cached replay denied without history rollback";
+      const receipt = success(outcome);
+      assert(
+        committed && http,
+        "actual committed history must be captured before response release",
+      );
+      assert.equal((await credentialClock(authority.id)).live, 0);
+      await assert.rejects(
+        finalizePublicBusinessResult(reportPrivateProgressCommand, request.input, receipt, {
+          db,
+          workspaceId: FIX.workspace,
+          actorHumanId: authority.authority.humanId,
+          actorDelegationId: authority.id,
+          authorizationEpoch: authority.authority.authorizationEpoch,
+          now: occurrence,
+          cursorBase: 0,
+        }),
+        { code: "not_found", message: "private progress not found" },
+      );
+      await assert.rejects(readPrivateProgress(db, authority.authority, f.task.id), {
+        code: "not_found",
+        message: "private progress not found",
+      });
+      assert.deepEqual(await execute("progress.private.report", request), {
+        ok: false,
+        error: { code: "not_found", message: "private progress not found" },
+      });
+      assert.equal(
+        (await readPrivateProgress(db, f.creator, f.task.id)).checkpoints[0]?.id,
+        receipt.checkpoint_id,
+      );
+      await unchanged(committed, http);
+      state.witness.late_receipt_body_and_cached_retry_denied = true;
+      state.witness.human_owner_history_and_committed_receipt_retained = true;
+      state.witness.credential_unchanged_during_natural_expiry = true;
+    },
+  );
+
+  await collect(
+    "prepared_final_read_natural_expiry_and_equal_delay_live_control",
+    async (state) => {
+      for (const mode of ["expired", "live"] as const) {
+        const f = await fixture(),
+          authority = await delegated(f),
+          receipt = success(await execute<Receipt>("progress.private.report", authority.request()));
+        assert.equal(
+          (await readPrivateProgress(db, authority.authority, f.task.id)).checkpoints[0]?.id,
+          receipt.checkpoint_id,
+        );
+        const retained = await deadline(
+            authority.id,
+            mode === "expired" ? expiredLifetimeSeconds : 600,
+          ),
+          baseline = await snapshot(),
+          http = await budgets(),
+          cut = delayedRead(authority.id, retained, mode === "expired" ? 0 : 1);
+        state.phase = `prepared coherent read ${mode} after equal delay`;
+        if (mode === "expired")
+          await assert.rejects(readPrivateProgress(cut.database, authority.authority, f.task.id), {
+            code: "not_found",
+            message: "private progress not found",
+          });
+        else
+          assert.equal(
+            (await readPrivateProgress(cut.database, authority.authority, f.task.id)).checkpoints[0]
+              ?.id,
+            receipt.checkpoint_id,
+          );
+        assert(cut.fired(), "the real prepared selector must reach its delay seam");
+        await unchanged(baseline, http);
+        state.witness[`${mode}_prepared_selector_and_unchanged_history`] = true;
+      }
+      state.witness.database_clock_not_request_time = true;
+      state.witness.original_prepared_read_and_parameters_forwarded = true;
+    },
+  );
+
   console.log(
     JSON.stringify({
       fixture: "synthetic_dormant_author_private_checkpoints",
@@ -598,14 +868,21 @@ try {
       ).length,
       excluded_engine_tables: tables.filter(({ name }) => engine.has(name)).map(({ name }) => name),
       separately_compared_budget_tables: ["rate_limit_buckets"],
+      natural_expiry: {
+        prebatch_and_read_delay_ms: naturalDelayMs,
+        short_fixture_lifetime_seconds: expiredLifetimeSeconds,
+        live_fixture_lifetime_seconds: 600,
+        valid_commit_fixture_lifetime_seconds: 10,
+        clock: "native D1 execution clock; unchanged synthetic retained delegation metadata",
+      },
       bounds_scope:
         "instrumented prebatch-cut checkpoint command preparations only; excludes lifecycle/read/Worker internals",
       limits:
-        "Disposable native D1, registered Worker/Hub commands and synthetic retained OAuth/policies; no native OAuth exchange, private creation, local checkpoint delivery, provider operation, activation or deployment.",
+        "Disposable native D1, registered Worker/Hub commands and synthetic retained delegation metadata/policies; no native OAuth exchange, bearer-token expiry, private creation, local checkpoint delivery, provider operation, activation or deployment.",
     }),
   );
-  assert.equal(checks.length, 4);
-  assert.equal(failures.length, 0, "all four collecting native checkpoint groups must pass");
+  assert.equal(checks.length, 8);
+  assert.equal(failures.length, 0, "all eight collecting native checkpoint groups must pass");
   console.log("C11_PRIVATE_CHECKPOINT_D1_OK");
 } finally {
   await server.close();

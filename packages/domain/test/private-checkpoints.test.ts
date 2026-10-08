@@ -2,6 +2,7 @@
 // ABOUTME: Exercises current task ceilings and staged/cache/final-selection losses without activating private creation.
 
 import { createHash } from "node:crypto";
+import { setTimeout as delay } from "node:timers/promises";
 import type { SqlDatabase } from "@bfb/db";
 import { beforeEach, describe, expect, it } from "vitest";
 import { bumpMemberEpoch, loadPrincipal } from "../src/authorization.js";
@@ -21,6 +22,7 @@ import {
   assertPrivateProgressReceipt,
   readPrivateProgress,
   reportPrivateProgressCommand,
+  type PrivateProgressReceipt,
   type ReportPrivateProgressInput,
 } from "../src/private-checkpoints.js";
 import { createTaskCommand } from "../src/work-commands.js";
@@ -88,7 +90,12 @@ async function snapshot() {
   expect(await db.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
   return rows;
 }
-function beforeRead(database: SqlDatabase, pattern: RegExp, change: () => Promise<void>) {
+function beforeRead(
+  database: SqlDatabase,
+  pattern: RegExp,
+  change: () => Promise<void>,
+  afterSelection = false,
+) {
   let fired = false;
   const wrap = (source: SqlDatabase): SqlDatabase => ({
     prepare(sql) {
@@ -102,18 +109,161 @@ function beforeRead(database: SqlDatabase, pattern: RegExp, change: () => Promis
       return {
         run: (...params) => statement.run(...params),
         get: async (...params) => {
-          await cut();
-          return statement.get(...params);
+          if (!afterSelection) await cut();
+          const result = await statement.get(...params);
+          if (afterSelection) await cut();
+          return result;
         },
         all: async (...params) => {
-          await cut();
-          return statement.all(...params);
+          if (!afterSelection) await cut();
+          const result = await statement.all(...params);
+          if (afterSelection) await cut();
+          return result;
         },
       };
     },
     withTransaction: (fn) => source.withTransaction((tx) => fn(wrap(tx))),
   });
   return { db: wrap(database), fired: () => fired };
+}
+
+const NATURAL_EXPIRY_DELAY_MS = 3_200;
+type NaturalCredential = Record<string, unknown> & { id: string; expires_at: string };
+
+async function naturalOauth(
+  modifier: "+3 seconds" | "+10 minutes",
+  scopes = ["bfb:read", "bfb:task:write", "offline_access"],
+) {
+  const window = (await db
+    .prepare(
+      "SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now') AS issued_at, strftime('%Y-%m-%dT%H:%M:%fZ','now',?) AS expires_at",
+    )
+    .get(modifier)) as { issued_at: string; expires_at: string };
+  // Synthetic OAuth issuance metadata uses the real helper and an initial SQL-clock window.
+  // These domain tests do not authenticate or exchange a bearer token.
+  const { delegationId } = await issueSyntheticMcpAccess(db, {
+    humanId: FIX.member,
+    taskId: privateTaskId,
+    scopes,
+    now: window.issued_at,
+    expiresAt: window.expires_at,
+  });
+  const authority = await capturePublicBusinessAuthority(db, {
+    workspaceId: FIX.workspace,
+    actorHumanId: FIX.member,
+    actorDelegationId: delegationId,
+    authorizationEpoch: 1,
+  });
+  const credential = (await db
+    .prepare("SELECT * FROM oauth_delegations WHERE workspace_id=? AND id=?")
+    .get(FIX.workspace, delegationId)) as NaturalCredential;
+  return { authority, credential };
+}
+
+async function credentialClock(credential: NaturalCredential) {
+  const current = await db
+    .prepare("SELECT * FROM oauth_delegations WHERE workspace_id=? AND id=?")
+    .get(FIX.workspace, credential.id);
+  expect(current).toEqual(credential);
+  return (await db
+    .prepare(
+      `SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now') AS database_now,
+       julianday(expires_at)>julianday('now') AS live
+       FROM oauth_delegations WHERE workspace_id=? AND id=?`,
+    )
+    .get(FIX.workspace, credential.id)) as { database_now: string; live: number };
+}
+
+async function naturalDelay(credential: NaturalCredential, liveAfter: boolean) {
+  expect(
+    (await credentialClock(credential)).live,
+    "credential must be live at the reached boundary",
+  ).toBe(1);
+  await delay(NATURAL_EXPIRY_DELAY_MS);
+  const witness = await credentialClock(credential);
+  expect(witness.live).toBe(liveAfter ? 1 : 0);
+  if (!liveAfter)
+    expect(Date.parse(witness.database_now)).toBeGreaterThanOrEqual(
+      Date.parse(credential.expires_at),
+    );
+  return witness;
+}
+
+function observeCheckpointWrites(database: SqlDatabase) {
+  let observedAt = "",
+    guarded = false;
+  const wrap = (source: SqlDatabase): SqlDatabase => ({
+    prepare(sql) {
+      const statement = source.prepare(sql);
+      return {
+        get: (...params) => statement.get(...params),
+        all: (...params) => statement.all(...params),
+        run: async (...params) => {
+          const result = await statement.run(...params);
+          // The staged adapter has now prepared and bound these original writes.
+          if (sql.includes("INSERT INTO task_private_checkpoints")) {
+            expect(typeof params.at(-1)).toBe("string");
+            observedAt = params.at(-1) as string;
+          }
+          if (sql.includes("INSERT INTO artifact_mutation_guards")) guarded = true;
+          return result;
+        },
+      };
+    },
+    withTransaction: (work) => source.withTransaction((tx) => work(wrap(tx))),
+  });
+  return { db: wrap(database), observedAt: () => observedAt, guarded: () => guarded };
+}
+
+async function expectCheckpointCommit(
+  before: Record<string, unknown>,
+  receipt: PrivateProgressReceipt,
+  observedAt: string,
+  credential: NaturalCredential,
+) {
+  const after = await snapshot();
+  const added = [
+    "task_private_checkpoints",
+    "semantic_events",
+    "audit_events",
+    "outbox_records",
+    "idempotency_records",
+  ];
+  for (const table of Object.keys(before)) {
+    if (added.includes(table)) {
+      const prior = before[table] as Record<string, unknown>[];
+      const current = after[table] as Record<string, unknown>[];
+      expect(current.slice(0, prior.length), table).toEqual(prior);
+      expect(current, table).toHaveLength(prior.length + 1);
+      expect(current.at(-1)?.created_at, table).toBe(observedAt);
+      if (table !== "task_private_checkpoints")
+        expect(JSON.stringify(current), table).not.toContain(BODY);
+    } else if (table === "workspace_cursors") {
+      expect(after[table]).toEqual(
+        (before[table] as Array<{ workspace_id: string; cursor: number }>).map((row) =>
+          row.workspace_id === FIX.workspace ? { ...row, cursor: row.cursor + 1 } : row,
+        ),
+      );
+    } else expect(after[table], table).toEqual(before[table]);
+  }
+  expect(Object.keys(receipt).sort()).toEqual(["checkpoint_id", "content_hash", "task_id"]);
+  expect(
+    await db
+      .prepare("SELECT * FROM task_private_checkpoints WHERE workspace_id=? AND id=?")
+      .get(FIX.workspace, receipt.checkpoint_id),
+  ).toEqual({
+    workspace_id: FIX.workspace,
+    id: receipt.checkpoint_id,
+    task_id: privateTaskId,
+    project_id: FIX.projectA,
+    owner_human_id: FIX.member,
+    origin_delegation_id: credential.id,
+    origin_client_id: credential.client_id,
+    body: BODY,
+    content_hash: receipt.content_hash,
+    created_at: observedAt,
+  });
+  return after;
 }
 async function revokeGrant() {
   await db
@@ -622,4 +772,173 @@ describe("checkpoint late authority fences", () => {
       await db.prepare("SELECT COUNT(*) AS count FROM task_private_checkpoints").get(),
     ).toEqual({ count: 1 });
   });
+  it("rolls back all effects when unchanged delegation metadata naturally expires after the original bound batch is reached", async () => {
+    const { authority, credential } = await naturalOauth("+3 seconds");
+    const before = await snapshot();
+    let expiredAtBatch = false;
+    let observed!: ReturnType<typeof observeCheckpointWrites>;
+    const staged = resultStagedD1(db, async () => {
+      expect(observed.guarded()).toBe(true);
+      expect(Date.parse(observed.observedAt())).toBeLessThan(Date.parse(credential.expires_at));
+      await naturalDelay(credential, false);
+      expiredAtBatch = true;
+    });
+    observed = observeCheckpointWrites(staged.db);
+    expect(await execute(value(privateTaskId), authority, randomUlid(), observed.db)).toEqual({
+      ok: false,
+      error: { code: "command_failed", message: "command failed" },
+    });
+    // Hub maps batch errors: this outside witness prevents an early probe error from passing.
+    expect(expiredAtBatch).toBe(true);
+    expect(observed.guarded()).toBe(true);
+    expect((await credentialClock(credential)).live).toBe(0);
+    expect(await snapshot()).toEqual(before);
+  }, 15_000);
+  it("commits a write-only checkpoint after the same bound-batch delay while retaining the original occurrence time", async () => {
+    const { authority, credential } = await naturalOauth("+10 minutes", [
+      "bfb:task:write",
+      "offline_access",
+    ]);
+    const before = await snapshot();
+    let liveAtFlush = false,
+      flushAt = "";
+    let observed!: ReturnType<typeof observeCheckpointWrites>;
+    const staged = resultStagedD1(db, async () => {
+      expect(observed.guarded()).toBe(true);
+      const witness = await naturalDelay(credential, true);
+      flushAt = witness.database_now;
+      liveAtFlush = true;
+    });
+    observed = observeCheckpointWrites(staged.db);
+    const outcome = await execute(value(privateTaskId), authority, randomUlid(), observed.db);
+    const receipt = success(outcome);
+    expect(outcome).toMatchObject({ replayed: false });
+    expect(liveAtFlush).toBe(true);
+    expect(Date.parse(flushAt) - Date.parse(observed.observedAt())).toBeGreaterThanOrEqual(3_000);
+    const committed = await expectCheckpointCommit(
+      before,
+      receipt,
+      observed.observedAt(),
+      credential,
+    );
+    expect((await readPrivateProgress(db, member, privateTaskId)).checkpoints).toEqual([
+      {
+        id: receipt.checkpoint_id,
+        body: BODY,
+        content_hash: receipt.content_hash,
+        created_at: observed.observedAt(),
+        origin: "delegation",
+      },
+    ]);
+    await expect(readPrivateProgress(db, authority, privateTaskId)).rejects.toMatchObject(DENIED);
+    expect((await credentialClock(credential)).live).toBe(1);
+    expect(await snapshot()).toEqual(committed);
+  }, 15_000);
+  it("withholds current checkpoint reads when unchanged delegation metadata expires after the final SQL is prepared", async () => {
+    const { authority, credential } = await naturalOauth("+3 seconds");
+    const receipt = success(await execute(value(privateTaskId), authority));
+    const before = await snapshot();
+    let expiredBeforeSelection = false;
+    const cut = beforeRead(db, /private_checkpoint_task AS MATERIALIZED/, async () => {
+      await naturalDelay(credential, false);
+      expiredBeforeSelection = true;
+    });
+    await expect(readPrivateProgress(cut.db, authority, privateTaskId)).rejects.toMatchObject(
+      DENIED,
+    );
+    expect(cut.fired()).toBe(true);
+    expect(expiredBeforeSelection).toBe(true);
+    expect((await readPrivateProgress(db, member, privateTaskId)).checkpoints[0]?.id).toBe(
+      receipt.checkpoint_id,
+    );
+    expect(await snapshot()).toEqual(before);
+  }, 15_000);
+  it("withholds an exact cached checkpoint receipt when unchanged delegation metadata expires after the actual cache row returns", async () => {
+    const { authority, credential } = await naturalOauth("+3 seconds");
+    const key = randomUlid();
+    const receipt = success(await execute(value(privateTaskId), authority, key));
+    const before = await snapshot();
+    expect(
+      await execute(value(privateTaskId), authority, key, resultStagedD1(db).db),
+    ).toMatchObject({
+      ok: true,
+      result: receipt,
+      replayed: true,
+    });
+    expect(await snapshot()).toEqual(before);
+    let expiredAfterCache = false;
+    const cut = beforeRead(
+      resultStagedD1(db).db,
+      /SELECT command_name, result_json FROM idempotency_records/,
+      async () => {
+        await naturalDelay(credential, false);
+        expiredAfterCache = true;
+      },
+      true,
+    );
+    expect(await execute(value(privateTaskId), authority, key, cut.db)).toEqual({
+      ok: false,
+      error: DENIED,
+    });
+    expect(cut.fired()).toBe(true);
+    expect(expiredAfterCache).toBe(true);
+    expect((await credentialClock(credential)).live).toBe(0);
+    expect(await snapshot()).toEqual(before);
+  }, 15_000);
+  it("retains a valid committed checkpoint and Hub receipt when metadata expires before final public delivery", async () => {
+    const { authority, credential } = await naturalOauth("+3 seconds");
+    const before = await snapshot();
+    let liveAtBatch = false,
+      expiredAfterCommit = false;
+    let committed: Record<string, unknown> | undefined;
+    let observed!: ReturnType<typeof observeCheckpointWrites>;
+    const staged = resultStagedD1(db, async () => {
+      expect(observed.guarded()).toBe(true);
+      expect((await credentialClock(credential)).live).toBe(1);
+      liveAtBatch = true;
+    });
+    observed = observeCheckpointWrites(staged.db);
+    const completed: SqlDatabase = {
+      prepare: (sql) => observed.db.prepare(sql),
+      withTransaction: async (work) => {
+        const result = await observed.db.withTransaction(work);
+        // The original production adapter's atomic batch has committed before this delay.
+        committed = await snapshot();
+        await naturalDelay(credential, false);
+        expiredAfterCommit = true;
+        return result;
+      },
+    };
+    const input = value(privateTaskId);
+    const outcome = await execute(input, authority, randomUlid(), completed);
+    const receipt = success(outcome);
+    expect(outcome).toMatchObject({ replayed: false });
+    expect(liveAtBatch).toBe(true);
+    expect(expiredAfterCommit).toBe(true);
+    expect(
+      await expectCheckpointCommit(before, receipt, observed.observedAt(), credential),
+    ).toEqual(committed);
+    await expect(
+      finalizePublicBusinessResult(
+        reportPrivateProgressCommand,
+        withPublicBusinessAuthority(reportPrivateProgressCommand, input, authority),
+        receipt,
+        {
+          db,
+          workspaceId: FIX.workspace,
+          actorHumanId: FIX.member,
+          actorDelegationId: credential.id,
+          authorizationEpoch: 1,
+          now: new Date().toISOString(),
+          cursorBase: 0,
+        },
+      ),
+    ).rejects.toMatchObject(DENIED);
+    await expect(readPrivateProgress(db, authority, privateTaskId)).rejects.toMatchObject(DENIED);
+    expect((await readPrivateProgress(db, member, privateTaskId)).checkpoints[0]?.id).toBe(
+      receipt.checkpoint_id,
+    );
+    expect((await credentialClock(credential)).live).toBe(0);
+    expect(await snapshot()).toEqual(committed);
+  }, 15_000);
 });
