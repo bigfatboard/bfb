@@ -79,9 +79,12 @@ or letting presentation-only filtering stand in for authorization.
   references identify exact immutable versions and retain isolated preview.
 - Shared progress, private checkpoints and human contributions have truthful
   source/audience labels. No transport/prose/presence inference supplies progress.
-- Private content does not appear in summary labels, counts, hidden-section
-  notices or published history. Late denied/stale responses clear old delivered
-  data and cannot replace a newer selection or silently rebase an unsaved draft.
+- Unauthorized recipients receive no private content or existence through summary
+  labels, counts, hidden-section notices or history. Authorized private views and
+  explicit C12 published copies remain useful; publication excludes unselected
+  source history.
+- Late denied/stale responses clear old delivered data and cannot replace a newer
+  selection or silently rebase an unsaved draft.
 - Both themes meet WCAG AA; focus, touch targets, reduced motion, 320px reflow
   and zoom preserve all functions. No action relies on hover or an unknown shortcut.
 
