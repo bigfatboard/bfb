@@ -88,6 +88,19 @@ partial stage never changes C11 to `done` or enables privacy. Evidence lives at
 
 ## Child delivery implementation and remaining checks
 
+### Retained inheritance preparation
+
+[ADR 0017](../adr/0017-retained-private-task-inheritance.md) freezes the effective
+root association, exact-root sharing and authority-family child quota. Prepare
+the additive schema, common kernel and direct-human private creation command
+without registering that command in a production transport or command catalog.
+With a shared or absent parent, the future command creates an inferred-owner
+private root; with an editable private parent it creates a descendant inheriting
+the existing root. Actual creation authorship is never replaced by root ownership.
+Private creation and existing private-parent creation stay unavailable until
+their full activation/integration gates pass. Local execution proposals and
+checkpoint delivery are not opened by this preparation.
+
 ### Author-private checkpoint slice
 
 The first checkpoint transport slice is direct browser humans and authenticated
