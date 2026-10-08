@@ -114,7 +114,14 @@ the task plus either its direct policy or retained association. Association or
 authority failure cannot leave a shared task or Hub bookkeeping behind.
 
 `pnpm test:c11:inheritance`, composed once by `pnpm test:c11`, owns the finite
-migration, kernel/metadata, prepared-creation and disposable native-D1 proofs.
+migration, kernel/metadata, prepared-creation, mounted browser/MCP delivery and
+disposable native-D1 proofs. Mounted transport fixtures create descendants only
+through the unregistered domain preparation command. Root grants, not actual
+descendant creation authorship, control their current access. Existing browser
+sessions/CSRF and synthetic OAuth credentials exercise current root grants,
+original role/project/epoch/scope ceilings, ancestor masking and revoked cached
+replies while committed history remains. They are not compiled-browser,
+passkey/OAuth authorization-flow or native Worker/D1 transport certificates.
 It does not register the prepared command, open ordinary private-parent creation,
 certify execution delivery or complete the activation matrix.
 

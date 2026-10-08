@@ -3,7 +3,14 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { FIX, randomUlid, seedSyntheticWorkspace } from "@bfb/domain";
+import {
+  createPrivateTaskCommand,
+  FIX,
+  randomUlid,
+  resolveCommand,
+  seedSyntheticWorkspace,
+  WorkspaceHub,
+} from "@bfb/domain";
 
 import { parseAuthKeys } from "../src/auth/better-auth.js";
 import { validateControlEnv, type ControlBindings } from "../src/env.js";
@@ -259,6 +266,104 @@ async function revoke(fixture: PrivateWorkFixture, grantId: string): Promise<voi
   await fixture.context.db
     .prepare(`UPDATE task_human_grants SET revoked_at = ? WHERE workspace_id = ? AND id = ?`)
     .run(NOW, FIX.workspace, grantId);
+}
+
+async function inheritedWorkFixture(withResources = false) {
+  const fixture = await privateWorkFixture();
+  const setupGrantId = await grant(fixture, "owner", "edit");
+  // Synthetic preparation calls the unregistered domain command directly, never an HTTP create route.
+  expect(resolveCommand("task.private.create")).toBeUndefined();
+  const prepared = await new WorkspaceHub(fixture.context.db).execute(createPrivateTaskCommand, {
+    workspaceId: FIX.workspace,
+    actorHumanId: FIX.owner,
+    authorizationEpoch: 1,
+    idempotencyKey: "private-work-inherited-preparation",
+    input: {
+      projectId: FIX.projectA,
+      parentTaskId: fixture.privateTask.id,
+      title: `${CANARY}-INHERITED-TITLE`,
+      punchline: `${CANARY}-INHERITED-PUNCHLINE`,
+      priority: "P0",
+      // An earlier due date deterministically ranks the child ahead of the three root-fixture tasks.
+      dueAt: "2026-10-04T12:00:00.000Z",
+      nextOwnerType: "human",
+      nextOwnerId: FIX.owner,
+      nextActionReason: `${CANARY}-INHERITED-REASON`,
+    },
+  });
+  expect(prepared.ok, JSON.stringify(prepared)).toBe(true);
+  if (!prepared.ok) throw new Error(prepared.error.code);
+  const inheritedTask = { id: prepared.result.task_id, title: `${CANARY}-INHERITED-TITLE` };
+  expect(prepared.result).toEqual({
+    task_id: inheritedTask.id,
+    project_id: FIX.projectA,
+    parent_task_id: fixture.privateTask.id,
+    privacy_root_task_id: fixture.privateTask.id,
+  });
+  expect(
+    await fixture.context.db
+      .prepare(
+        `SELECT task.created_by_human_id,task.created_by_delegation_id,inheritance.root_task_id
+         FROM tasks AS task JOIN task_privacy_inheritance AS inheritance
+           ON inheritance.workspace_id=task.workspace_id AND inheritance.task_id=task.id
+         WHERE task.workspace_id=? AND task.id=?`,
+      )
+      .get(FIX.workspace, inheritedTask.id),
+  ).toEqual({
+    created_by_human_id: FIX.owner,
+    created_by_delegation_id: null,
+    root_task_id: fixture.privateTask.id,
+  });
+  await revoke(fixture, setupGrantId);
+  expect(
+    await fixture.context.db
+      .prepare("SELECT revoked_at FROM task_human_grants WHERE workspace_id=? AND id=?")
+      .get(FIX.workspace, setupGrantId),
+  ).toEqual({ revoked_at: NOW });
+  if (withResources) {
+    for (const [suffix, value] of [
+      ["comments", { body: `${CANARY}-INHERITED-COMMENT`, kind: "discussion" }],
+      ["context", { body: `${CANARY}-INHERITED-CONTEXT`, kind: "constraint", audience: "both" }],
+      [
+        "links",
+        {
+          kind: "external",
+          url: `https://synthetic.invalid/${CANARY}-INHERITED-URL`,
+          label: `${CANARY}-INHERITED-LINK`,
+        },
+      ],
+    ] as const) {
+      await successfulResult(
+        await write(fixture, "member", `${BASE}/tasks/${inheritedTask.id}/${suffix}`, "POST", {
+          ...value,
+          request_id: `private-work-inherited-seed-${suffix}`,
+        }),
+      );
+    }
+  }
+  return { ...fixture, inheritedTask };
+}
+
+async function canonicalSnapshot(fixture: PrivateWorkFixture) {
+  const rows = (await fixture.context.db
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+    .all()) as Array<{ name: string }>;
+  const canonical: Record<string, unknown[]> = {};
+  for (const { name } of rows) {
+    if (["sqlite_sequence", "d1_migrations", "_cf_METADATA", "rate_limit_buckets"].includes(name))
+      continue;
+    expect(name).toMatch(/^[A-Za-z_][A-Za-z0-9_]*$/u);
+    expect(name.startsWith("sqlite_") || name.startsWith("_cf_")).toBe(false);
+    canonical[name] = await fixture.context.db
+      .prepare(`SELECT * FROM "${name}" ORDER BY rowid`)
+      .all();
+  }
+  // Abuse buckets are independently mutable request bookkeeping, not canonical work effects.
+  const budgets = await fixture.context.db
+    .prepare("SELECT * FROM rate_limit_buckets ORDER BY rowid")
+    .all();
+  expect(await fixture.context.db.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+  return { canonical, budgets };
 }
 
 function resourcePaths(fixture: PrivateWorkFixture, taskId = fixture.privateTask.id): string[] {
@@ -563,5 +668,238 @@ describe("C11 private browser command authority", () => {
       expect(new Set(rows.map((row) => row.command)), table).toEqual(new Set(commandNames));
       expect(JSON.stringify(rows), table).not.toContain(CANARY);
     }
+  });
+});
+
+describe("C11 prepared inherited private browser delivery", () => {
+  it("does not give the actual Owner author root authority after the setup edit grant is revoked", async () => {
+    const fixture = await inheritedWorkFixture(true);
+    const before = await canonicalSnapshot(fixture);
+    for (const path of resourcePaths(fixture, fixture.inheritedTask.id)) {
+      const denied = await get(fixture, "owner", path);
+      expect(denied.status, path).toBe(404);
+      expect(await denied.json(), path).toEqual({ error: "not_found" });
+    }
+    for (const path of [`${BASE}/board`, `${BASE}/tasks`]) {
+      const response = await get(fixture, "owner", path);
+      expect(response.status).toBe(200);
+      const rendered = await response.text();
+      expect(rendered).not.toContain(fixture.privateTask.id);
+      expect(rendered).not.toContain(fixture.inheritedTask.id);
+      expect(rendered).not.toContain(fixture.inheritedTask.title);
+      for (const shared of fixture.sharedTasks) expect(rendered).toContain(shared.id);
+    }
+    const denied = await write(
+      fixture,
+      "owner",
+      `${BASE}/tasks/${fixture.inheritedTask.id}/comments`,
+      "POST",
+      {
+        body: `${CANARY}-INHERITED-AUTHOR-DENIED`,
+        request_id: "private-work-inherited-author-denied",
+      },
+    );
+    expect(denied.status).toBe(404);
+    expect(await denied.json()).toMatchObject({ ok: false, error: { code: "not_found" } });
+    expect((await canonicalSnapshot(fixture)).canonical).toEqual(before.canonical);
+  });
+
+  it("delivers inherited board, list, detail and child resources through named root read grants", async () => {
+    const fixture = await inheritedWorkFixture(true);
+    for (const actor of ["owner", "reviewer"] as const) await grant(fixture, actor, "read");
+    const before = await canonicalSnapshot(fixture);
+    for (const actor of ["owner", "reviewer"] as const) {
+      for (const path of [`${BASE}/board`, `${BASE}/tasks`]) {
+        const response = await get(fixture, actor, path);
+        expect(response.status, path).toBe(200);
+        const body = await response.json();
+        const rendered = JSON.stringify(body);
+        expect(rendered, path).toContain(fixture.inheritedTask.id);
+        expect(rendered, path).toContain(fixture.inheritedTask.title);
+        if (actor === "owner" && path === `${BASE}/board`) {
+          expect(body.needs_now[0]).toEqual({
+            taskId: fixture.inheritedTask.id,
+            title: fixture.inheritedTask.title,
+            projectId: FIX.projectA,
+            priority: "P0",
+            punchline: `${CANARY}-INHERITED-PUNCHLINE`,
+            reason: `${CANARY}-INHERITED-REASON`,
+          });
+        }
+      }
+      const detail = await get(fixture, actor, `${BASE}/tasks/${fixture.inheritedTask.id}`);
+      expect(detail.status).toBe(200);
+      expect(await detail.json()).toMatchObject({
+        task: { id: fixture.inheritedTask.id, parent_task_id: fixture.privateTask.id },
+      });
+      for (const [suffix, key, value] of [
+        ["/comments", "comments", { body: `${CANARY}-INHERITED-COMMENT` }],
+        ["/context", "context", { body: `${CANARY}-INHERITED-CONTEXT`, audience: "both" }],
+        [
+          "/context?audience=agent",
+          "context",
+          { body: `${CANARY}-INHERITED-CONTEXT`, audience: "both" },
+        ],
+        ["/links", "links", { label: `${CANARY}-INHERITED-LINK` }],
+      ] as const) {
+        const response = await get(
+          fixture,
+          actor,
+          `${BASE}/tasks/${fixture.inheritedTask.id}${suffix}`,
+        );
+        expect(response.status, suffix).toBe(200);
+        expect(await response.json(), suffix).toMatchObject({ [key]: [value] });
+      }
+      for (const family of ["dependencies", "runs"] as const) {
+        const response = await get(
+          fixture,
+          actor,
+          `${BASE}/tasks/${fixture.inheritedTask.id}/${family}`,
+        );
+        expect(response.status, family).toBe(200);
+        expect(await response.json(), family).toEqual({
+          [family]: [],
+          limit: 50,
+          has_more: false,
+          next_cursor: null,
+        });
+      }
+    }
+    expect((await canonicalSnapshot(fixture)).canonical).toEqual(before.canonical);
+  });
+
+  it("rechecks the inherited parent through every browser child read after root grant revocation", async () => {
+    const fixture = await inheritedWorkFixture(true);
+    const grantId = await grant(fixture, "owner", "read");
+    const paths = resourcePaths(fixture, fixture.inheritedTask.id);
+    for (const path of paths) expect((await get(fixture, "owner", path)).status, path).toBe(200);
+    await successfulResult(
+      await write(
+        fixture,
+        "member",
+        `${BASE}/tasks/${fixture.privateTask.id}/sharing/grants/${grantId}/revoke`,
+        "POST",
+        {
+          expected_access_version: 1,
+          request_id: "private-work-inherited-read-revoke",
+        },
+      ),
+    );
+    const before = await canonicalSnapshot(fixture);
+    for (const [index, path] of paths.entries()) {
+      const denied = await get(fixture, "owner", path);
+      const missing = await get(fixture, "owner", resourcePaths(fixture, MISSING_TASK)[index]!);
+      expect(denied.status, path).toBe(404);
+      expect(missing.status, path).toBe(404);
+      expect(await denied.json(), path).toEqual(await missing.json());
+    }
+    expect((await canonicalSnapshot(fixture)).canonical).toEqual(before.canonical);
+  });
+
+  it("denies identical cached inherited work writes after root revocation while preserving their history", async () => {
+    const fixture = await inheritedWorkFixture();
+    const grantId = await grant(fixture, "owner", "edit");
+    const commands = [
+      {
+        name: "comment",
+        suffix: "/comments",
+        method: "POST" as const,
+        value: { body: `${CANARY}-INHERITED-CACHED-COMMENT` },
+      },
+      ...editCases,
+    ].map((command) => ({
+      ...command,
+      path: `${BASE}/tasks/${fixture.inheritedTask.id}${command.suffix}`,
+      input: {
+        ...command.value,
+        ...(command.name === "task" ? { expected_version: 1 } : {}),
+        request_id: `private-work-inherited-${command.name}-cached`,
+      },
+    }));
+    for (const command of commands) {
+      const result = await successfulResult(
+        await write(fixture, "owner", command.path, command.method, command.input),
+      );
+      const before = await canonicalSnapshot(fixture);
+      const response = await write(fixture, "owner", command.path, command.method, command.input);
+      expect(response.status, command.name).toBe(200);
+      expect(await response.json(), command.name).toMatchObject({
+        ok: true,
+        replayed: true,
+        result,
+      });
+      expect((await canonicalSnapshot(fixture)).canonical, command.name).toEqual(before.canonical);
+    }
+    await successfulResult(
+      await write(
+        fixture,
+        "member",
+        `${BASE}/tasks/${fixture.privateTask.id}/sharing/grants/${grantId}/revoke`,
+        "POST",
+        {
+          expected_access_version: 1,
+          request_id: "private-work-inherited-cached-revoke",
+        },
+      ),
+    );
+    const before = await canonicalSnapshot(fixture);
+    expect(before.canonical.idempotency_records).toHaveLength(9);
+    for (const command of commands) {
+      const response = await write(fixture, "owner", command.path, command.method, command.input);
+      expect(response.status, command.name).toBe(404);
+      expect(await response.json(), command.name).toMatchObject({
+        ok: false,
+        error: { code: "not_found" },
+      });
+    }
+    expect((await canonicalSnapshot(fixture)).canonical).toEqual(before.canonical);
+  });
+
+  it("keeps browser sharing on the exact root instead of reinterpreting descendant IDs", async () => {
+    const fixture = await inheritedWorkFixture();
+    const grantId = await grant(fixture, "owner", "read");
+    const root = await get(fixture, "member", `${BASE}/tasks/${fixture.privateTask.id}/sharing`);
+    expect(root.status).toBe(200);
+    expect(await root.json()).toMatchObject({
+      sharing: {
+        task_id: fixture.privateTask.id,
+        access_version: 1,
+        grants: [{ id: grantId, human_id: FIX.owner }],
+      },
+    });
+    const before = await canonicalSnapshot(fixture);
+    const denied = await get(
+      fixture,
+      "member",
+      `${BASE}/tasks/${fixture.inheritedTask.id}/sharing`,
+    );
+    const missing = await get(fixture, "member", `${BASE}/tasks/${MISSING_TASK}/sharing`);
+    expect(denied.status).toBe(404);
+    expect(missing.status).toBe(404);
+    expect(await denied.json()).toEqual(await missing.json());
+    for (const [suffix, input] of [
+      [
+        "/sharing/grants",
+        { human_id: FIX.reviewer, permission: "read", expected_access_version: 1 },
+      ],
+      [`/sharing/grants/${grantId}/revoke`, { expected_access_version: 1 }],
+    ] as const) {
+      const response = await write(
+        fixture,
+        "member",
+        `${BASE}/tasks/${fixture.inheritedTask.id}${suffix}`,
+        "POST",
+        {
+          ...input,
+          request_id: `private-work-inherited-sharing-${suffix.endsWith("revoke") ? "revoke" : "grant"}`,
+        },
+      );
+      expect(response.status, suffix).toBe(404);
+      expect(await response.json(), suffix).toEqual({
+        error: "not_found",
+        message: "task sharing not found",
+      });
+    }
+    expect((await canonicalSnapshot(fixture)).canonical).toEqual(before.canonical);
   });
 });

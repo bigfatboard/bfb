@@ -8,6 +8,7 @@ import { bumpMemberEpoch } from "../../../packages/domain/src/authorization.js";
 import { FIX } from "../../../packages/domain/src/fixtures.js";
 import { WorkspaceHub } from "../../../packages/domain/src/hub.js";
 import { randomUlid } from "../../../packages/domain/src/ids.js";
+import { createPrivateTaskCommand } from "../../../packages/domain/src/private-task-creation.js";
 import {
   addContextCommand,
   createTaskCommand,
@@ -246,6 +247,265 @@ async function comments() {
     .prepare("SELECT body, kind FROM comments WHERE workspace_id = ? AND task_id = ?")
     .all(FIX.workspace, privateTask.id);
 }
+
+async function inheritedTasks(): Promise<[TaskRecord, TaskRecord]> {
+  // This invokes only the unregistered preparation command, never a private-create transport.
+  // The distinct child author receives no enduring authority from creating the descendant.
+  const setupGrant = await grant("edit");
+  const tasks: TaskRecord[] = [];
+  let parentTaskId = privateTask.id;
+  for (const label of ["child", "grandchild"]) {
+    const outcome = await hub.execute(createPrivateTaskCommand, {
+      workspaceId: FIX.workspace,
+      actorHumanId: FIX.owner,
+      authorizationEpoch: 1,
+      idempotencyKey: randomUlid(),
+      now: NOW,
+      input: {
+        projectId: FIX.projectA,
+        parentTaskId,
+        title: `Synthetic inherited ${label}`,
+        priority: "P2",
+      },
+    });
+    expect(outcome).toMatchObject({
+      ok: true,
+      result: { parent_task_id: parentTaskId, privacy_root_task_id: privateTask.id },
+    });
+    if (!outcome.ok) throw new Error("inherited preparation fixture failed");
+    const task = (await db
+      .prepare("SELECT * FROM tasks WHERE workspace_id = ? AND id = ?")
+      .get(FIX.workspace, outcome.result.task_id)) as TaskRecord;
+    expect(task).toMatchObject({ created_by_human_id: FIX.owner, created_by_delegation_id: null });
+    tasks.push(task);
+    parentTaskId = task.id;
+  }
+  const [child, grandchild] = tasks as [TaskRecord, TaskRecord];
+  for (const [audience, body] of [
+    ["agent", AGENT_CONTEXT],
+    ["human", HUMAN_CONTEXT],
+  ] as const) {
+    expect(
+      await hub.execute(addContextCommand, {
+        workspaceId: FIX.workspace,
+        actorHumanId: FIX.member,
+        authorizationEpoch: 1,
+        idempotencyKey: randomUlid(),
+        now: NOW,
+        input: { taskId: child.id, kind: "note", audience, body },
+      }),
+    ).toMatchObject({ ok: true });
+  }
+  await revoke(setupGrant);
+  return [child, grandchild];
+}
+
+describe("retained private inheritance through mounted remote MCP", () => {
+  it("does not give a descendant's actual human creator a private-root owner override", async () => {
+    const inherited = await inheritedTasks();
+    const { accessToken } = await liveReadAccess();
+    const reply = await call(accessToken, "bfb_list_tasks", { limit: 1 });
+    expect(value<TaskPage>(reply)).toMatchObject({
+      tasks: [{ id: sharedTask.id }],
+      has_more: false,
+    });
+    expect(value<TaskPage>(reply).tasks).toHaveLength(1);
+    noPrivateExistence(reply, [privateTask, hiddenTask, ...inherited]);
+    for (const task of inherited) {
+      for (const tool of ["bfb_get_task", "bfb_get_context"]) {
+        const deniedTask = await call(accessToken, tool, {
+          task_id: task.id,
+          ...(tool === "bfb_get_context" ? { request_id: randomUlid() } : {}),
+        });
+        const missing = await call(accessToken, tool, {
+          task_id: randomUlid(),
+          ...(tool === "bfb_get_context" ? { request_id: randomUlid() } : {}),
+        });
+        denied(deniedTask);
+        denied(missing);
+        expect(deniedTask.result ?? deniedTask.error).toEqual(missing.result ?? missing.error);
+        noPrivateExistence(deniedTask, [privateTask, hiddenTask, ...inherited]);
+      }
+    }
+  });
+
+  it("uses the current root read grant for descendant pages, truthful authorship and agent context", async () => {
+    const [child, grandchild] = await inheritedTasks();
+    await grant("read");
+    const { accessToken } = await liveReadAccess();
+    const expected = [sharedTask.id, privateTask.id, child.id, grandchild.id].sort();
+    let cursor: string | undefined;
+    for (const [index, id] of expected.entries()) {
+      const reply = await call(accessToken, "bfb_list_tasks", {
+        limit: 1,
+        ...(cursor ? { cursor } : {}),
+      });
+      const page = value<TaskPage>(reply);
+      expect(page.tasks.map((task) => task.id)).toEqual([id]);
+      expect(page.has_more).toBe(index < expected.length - 1);
+      expect(page.next_cursor).toBe(index < expected.length - 1 ? id : undefined);
+      noPrivateExistence(reply, [hiddenTask]);
+      cursor = page.next_cursor;
+    }
+    expect(
+      value<{ task: TaskRecord }>(await call(accessToken, "bfb_get_task", { task_id: child.id }))
+        .task,
+    ).toMatchObject({
+      id: child.id,
+      parent_task_id: privateTask.id,
+    });
+    // The existing agent task DTO deliberately omits creation authorship; verify the canonical row separately.
+    expect(
+      await db
+        .prepare(
+          "SELECT created_by_human_id,created_by_delegation_id FROM tasks WHERE workspace_id = ? AND id = ?",
+        )
+        .get(FIX.workspace, child.id),
+    ).toEqual({ created_by_human_id: FIX.owner, created_by_delegation_id: null });
+    const context = value<{ context: Array<{ body: string; audience: string }> }>(
+      await call(accessToken, "bfb_get_context", {
+        task_id: child.id,
+        request_id: "inherited-readable-context",
+      }),
+    );
+    expect(context.context).toEqual([
+      expect.objectContaining({ body: AGENT_CONTEXT, audience: "agent" }),
+    ]);
+    expect(JSON.stringify(context)).not.toContain(HUMAN_CONTEXT);
+  });
+
+  it("keeps a descendant-bound delegation below its readable private root", async () => {
+    const [child, grandchild] = await inheritedTasks();
+    await grant("read");
+    const { accessToken } = await liveReadAccess({ taskId: child.id });
+    const reply = await call(accessToken, "bfb_list_tasks");
+    const page = value<TaskPage>(reply);
+    expect(page.tasks.map((task) => task.id).sort()).toEqual([child.id, grandchild.id].sort());
+    expect(page.tasks.find((task) => task.id === child.id)?.parent_task_id).toBeNull();
+    expect(page.tasks.find((task) => task.id === grandchild.id)?.parent_task_id).toBe(child.id);
+    noPrivateExistence(reply, [privateTask, hiddenTask, sharedTask]);
+    const childReply = await call(accessToken, "bfb_get_task", { task_id: child.id });
+    expect(value<{ task: TaskRecord }>(childReply).task.parent_task_id).toBeNull();
+    noPrivateExistence(childReply, [privateTask]);
+    const rootReply = await call(accessToken, "bfb_get_task", { task_id: privateTask.id });
+    denied(rootReply);
+    noPrivateExistence(rootReply, [privateTask]);
+  });
+
+  it.each(["root grant", "project access", "membership epoch"] as const)(
+    "denies inherited reads and an identical context retry after losing %s",
+    async (boundary) => {
+      const [child, grandchild] = await inheritedTasks();
+      const grantId = await grant("read");
+      const { accessToken } = await liveReadAccess();
+      const args = { task_id: child.id, request_id: "inherited-cached-context" };
+      value(await call(accessToken, "bfb_get_context", args));
+      const retainedReceipt = await db
+        .prepare("SELECT * FROM idempotency_records WHERE workspace_id = ? AND idempotency_key = ?")
+        .get(FIX.workspace, args.request_id);
+      expect(retainedReceipt).toBeDefined();
+      if (boundary === "root grant") await revoke(grantId);
+      else if (boundary === "project access")
+        await db
+          .prepare(
+            "DELETE FROM project_access WHERE workspace_id = ? AND project_id = ? AND human_id = ?",
+          )
+          .run(FIX.workspace, FIX.projectA, FIX.owner);
+      else expect(await bumpMemberEpoch(db, FIX.workspace, FIX.owner)).toBe(2);
+      for (const [tool, fields] of [
+        ["bfb_get_task", { task_id: child.id }],
+        ["bfb_get_context", args],
+      ] as const) {
+        const reply = await call(accessToken, tool, fields);
+        denied(reply);
+        noPrivateExistence(reply, [privateTask, hiddenTask, child, grandchild]);
+      }
+      expect(
+        await db
+          .prepare(
+            "SELECT * FROM idempotency_records WHERE workspace_id = ? AND idempotency_key = ?",
+          )
+          .get(FIX.workspace, args.request_id),
+      ).toEqual(retainedReceipt);
+    },
+  );
+
+  for (const tool of ["bfb_add_comment", "bfb_report_progress"] as const) {
+    it.each([
+      ["read", true, false],
+      ["contribute", false, false],
+      ["contribute", true, true],
+      ["edit", true, true],
+    ] as const)(
+      `${tool} intersects root %s with OAuth write=%s on an inherited task`,
+      async (permission, writeScope, allowed) => {
+        const [child] = await inheritedTasks();
+        const grantId = await grant(permission);
+        const { accessToken } = await liveReadAccess({
+          scopes: writeScope
+            ? ["bfb:read", "bfb:task:write", "offline_access"]
+            : ["bfb:read", "offline_access"],
+        });
+        const args = {
+          task_id: child.id,
+          request_id: `inherited-${tool}-${permission}-${writeScope}`,
+          ...(tool === "bfb_add_comment"
+            ? { body: "Synthetic inherited contribution" }
+            : { summary: "Synthetic inherited contribution" }),
+        };
+        const rows = () =>
+          db
+            .prepare("SELECT * FROM comments WHERE workspace_id = ? AND task_id = ? ORDER BY rowid")
+            .all(FIX.workspace, child.id);
+        const reply = await call(accessToken, tool, args);
+        if (!allowed) {
+          denied(reply);
+          expect(await rows()).toEqual([]);
+          return;
+        }
+        expect(value(reply)).toMatchObject({ ok: true, replayed: false });
+        const history = await rows();
+        expect(history).toHaveLength(1);
+        expect(value(await call(accessToken, tool, args))).toMatchObject({
+          ok: true,
+          replayed: true,
+        });
+        expect(await rows()).toEqual(history);
+        await revoke(grantId);
+        const retry = await call(accessToken, tool, args);
+        denied(retry);
+        noPrivateExistence(retry, [privateTask, child]);
+        expect(await rows()).toEqual(history);
+      },
+    );
+  }
+
+  it.each(["creator", "edit grantee"] as const)(
+    "keeps inherited-parent agent proposals held for the root %s",
+    async (actor) => {
+      const [child] = await inheritedTasks();
+      if (actor === "edit grantee") await grant("edit");
+      const { accessToken } = await liveReadAccess({
+        humanId: actor === "creator" ? FIX.member : FIX.owner,
+      });
+      const before = await db
+        .prepare("SELECT COUNT(*) AS count FROM tasks WHERE workspace_id = ?")
+        .get(FIX.workspace);
+      const reply = await call(accessToken, "bfb_propose_task", {
+        project_id: FIX.projectA,
+        parent_task_id: child.id,
+        title: "Synthetic held inherited proposal",
+        request_id: `inherited-held-proposal-${actor}`,
+      });
+      denied(reply);
+      expect(
+        await db
+          .prepare("SELECT COUNT(*) AS count FROM tasks WHERE workspace_id = ?")
+          .get(FIX.workspace),
+      ).toEqual(before);
+    },
+  );
+});
 
 describe("private task delivery through remote MCP", () => {
   it.each([

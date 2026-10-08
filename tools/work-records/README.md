@@ -277,10 +277,19 @@ authentication, provider dispatch, participant authority or runner cleanup.
 
 `pnpm test:c11:inheritance`, composed once by `pnpm test:c11`, owns
 `private-inheritance.ts` alongside the finite migration, kernel and prepared
-creation suites. Migration 0050 retains exact task/project/root lineage without
-copying root ownership into a descendant's author fields. Shared-only readers
+creation suites and both mounted private-work transport suites. Migration 0050
+retains exact task/project/root lineage without copying root ownership into a
+descendant's author fields. Shared-only readers
 exclude inherited tasks, and metadata/read/contribution/edit resolve their
 current root ACL while sharing management stays exact-root.
+
+Mounted browser-session/CSRF and synthetic-token MCP cases prepare descendants
+with the unregistered domain command, then use existing product read/write
+transports. Current root grants fence descendants independently of their actual
+creation authors; delegation boundaries mask ancestors, and root revocation
+blocks cached replies without removing committed history. These mounted cases
+are not compiled-browser, OAuth authorization-flow or native Worker transport
+proof; the native preparation harness below keeps its separately labelled scope.
 
 The prepared direct-human private creation command remains absent from the
 production catalog and every transport. Native preparation uses a direct domain
