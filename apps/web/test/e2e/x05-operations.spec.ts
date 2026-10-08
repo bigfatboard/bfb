@@ -68,6 +68,12 @@ test("owner sees health, queues, activity, audit, retention, and diagnostics", a
     "Activity feed is unavailable.",
   );
   await expect(page.getByTestId("operations-activity").locator("li")).toHaveCount(0);
+  await expect(page.getByTestId("operations-retention")).toContainText(
+    "Automatic raw-log deletion is paused. Existing logs are preserved.",
+  );
+  await expect(page.getByTestId("retention-policy")).toContainText(
+    "Saving a policy does not resume deletion.",
+  );
   expect(activityRequests).toEqual([]);
   const counts = await page.getByTestId("queue-counts").textContent();
   expect(counts).toMatch(/Notifications pending \d+/);

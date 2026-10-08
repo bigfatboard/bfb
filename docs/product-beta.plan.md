@@ -1,6 +1,14 @@
 # BFB product beta lane
 
-Status: implementation in progress, 8 October 2026.
+Status: fixes-only beta rollout; new feature development paused, 8 October 2026.
+
+Timo's current scope is to get the existing beta running with minimal effort.
+Only necessary fixes, verification and deployment continue. The remaining
+mandatory features below are deferred, not completed or removed from the plan.
+Automatic raw-log deletion is paused; stored logs and policies are preserved
+and diagnostic-consent expiry continues. Private creation remains unavailable.
+The execution lane owns the minimal retained private-delivery holds; no new
+private execution or provider functionality is part of this rollout.
 
 This lane owns the board, product UI, authenticated MCP product features and
 the eight [mandatory requirements](../mvp.plan.md#mandatory-product-scope-extension--5-october).

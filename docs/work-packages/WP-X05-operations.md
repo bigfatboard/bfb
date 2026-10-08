@@ -81,7 +81,9 @@ surface in the W01 product shell.
 - Privileged recovery, retention changes, and diagnostic generation/upload fail with stale, replayed, missing, or action-mismatched step-up proof.
 - Activity feed and security audit are distinct, attributable, and queryable.
 - DLQ, stuck outbox, stuck upload, and stuck launch conditions become visible and recoverable/idempotent.
-- Retention removes only eligible raw log chunks, never artifact hashes.
+- While the beta hold is active, retention selects/deletes no raw log chunks,
+  changes no artifact/policy/purge-history rows, and continues pending diagnostic
+  consent expiry. The historical deletion acceptance remains deferred.
 - Logs/bundles exclude cookies, bearer/grant secrets, task bodies, prompts, paths, hook payloads, artifact bytes, and terminal output.
 - Diagnostic upload requires explicit inventory review plus action.
 - Exact test command exits non-zero on every listed negative case and works from a clean checkout: `pnpm test:x05`.
@@ -112,6 +114,10 @@ surface in the W01 product shell.
 
 ## Handoff
 
+- Beta availability hold: automatic raw-log deletion is paused by Timo's choice.
+  Stored logs, policies and purge history remain unchanged; pending diagnostic
+  consent still expires. This is a fixes-only beta hold, not certification of
+  destructive retention or completion of X05's blocked dependency chain.
 - Dependency hold, 5 October: the dependency chain reaches reopened A01 and its missing production online/replay path. This implementation and historical isolated acceptance are retained; their tests have not been declared failed. Settlement waits for dependency certification and affected integration checks. The dated status below is historical, not the current package state.
 - Implementation, gate (`pnpm test:x05`, `pnpm verify`,
   `pnpm worktree:check`, `GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build

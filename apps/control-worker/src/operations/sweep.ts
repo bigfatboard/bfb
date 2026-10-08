@@ -1,8 +1,7 @@
-// ABOUTME: Runs retention, bundle expiry, and recovery redelivery on the Worker Cron cadence.
-// ABOUTME: Each step is isolated; an operations failure never blocks artifact, GitHub, or notify sweeps.
+// ABOUTME: Expires pending diagnostic consent while automatic raw-log deletion is paused.
+// ABOUTME: The beta hold preserves stored objects, artifact state, policies, and purge history.
 
 import type { SqlDatabase } from "@bfb/db";
-import { listSystemRetentionEligibleChunks, markVersionRetained, randomUlid } from "@bfb/domain";
 
 export interface RetentionR2 {
   delete(key: string): Promise<unknown>;
@@ -18,17 +17,13 @@ export interface OperationsSweepResult {
 }
 
 /**
- * Applies the workspace retention policy: deletes only eligible per-run raw
- * log R2 objects and records one retention_runs row per workspace. Each
- * purged version row moves to `retained` with its hash, key, and metadata
- * preserved as the purge record, so later ticks never re-delete or
- * re-count it and its view grants stop redeeming. Review artifacts and
- * shared content-addressed bytes are never touched; a failed object delete
- * keeps the version `available` and is recorded, never retried blindly.
+ * Automatic raw-log cleanup is uniformly paused for beta. Do not select
+ * candidates, access R2, mark versions purged, or record retention runs.
+ * Existing diagnostic-consent expiry remains independent of that hold.
  */
 export async function runRetentionSweep(
   db: SqlDatabase,
-  r2: RetentionR2,
+  _r2: RetentionR2,
   now: string,
 ): Promise<OperationsSweepResult> {
   const result: OperationsSweepResult = {
@@ -39,70 +34,6 @@ export async function runRetentionSweep(
     expired_bundles: 0,
     errors: [],
   };
-  const workspaces = (await db.prepare(`SELECT id FROM workspaces`).all()) as Array<{ id: string }>;
-  for (const workspace of workspaces) {
-    result.workspaces += 1;
-    let examined = 0;
-    let deleted = 0;
-    let bytes = 0;
-    let error: string | null = null;
-    try {
-      const policy = (await db
-        .prepare(`SELECT version FROM retention_policies WHERE workspace_id = ?`)
-        .get(workspace.id)) as { version: number } | undefined;
-      if (!policy) {
-        continue;
-      }
-      const listed = await listSystemRetentionEligibleChunks(db, workspace.id, now);
-      examined = listed.examined;
-      for (const chunk of listed.eligible) {
-        try {
-          await r2.delete(chunk.r2_key);
-        } catch {
-          error = "r2_delete_failed";
-          continue;
-        }
-        // The R2 delete is idempotent, so a missing key still converges: the
-        // guarded transition records the purge exactly once, and only the
-        // transition counts bytes, so overlapping ticks never double-count.
-        const transitioned = await markVersionRetained(db, {
-          workspaceId: workspace.id,
-          versionId: chunk.version_id,
-        });
-        if (transitioned) {
-          deleted += 1;
-          bytes += chunk.declared_size;
-        }
-      }
-      await db
-        .prepare(
-          `INSERT INTO retention_runs
-           (workspace_id, id, policy_version, started_at, finished_at,
-            examined, deleted_objects, deleted_bytes, skipped, error)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        )
-        .run(
-          workspace.id,
-          randomUlid(),
-          policy.version,
-          now,
-          new Date().toISOString(),
-          examined,
-          deleted,
-          bytes,
-          listed.examined - listed.eligible.length,
-          error,
-        );
-    } catch {
-      error = error ?? "retention_failed";
-    }
-    result.examined += examined;
-    result.deleted_objects += deleted;
-    result.deleted_bytes += bytes;
-    if (error) {
-      result.errors.push(`${workspace.id}:${error}`);
-    }
-  }
   const expired = await db
     .prepare(
       `UPDATE diagnostic_bundles SET state = 'expired', last_error = 'consent_expired'

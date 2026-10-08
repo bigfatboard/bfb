@@ -183,6 +183,16 @@ shared step-up/runner authorization.
 
 ## Retention policy and sweep
 
+Automatic raw-log deletion is paused for beta. Cron and valid `retention.sweep`
+jobs do not enumerate workspaces, policies or raw-log candidates, access R2,
+mark artifact versions retained, or write purge counts/history. Valid queue
+jobs acknowledge after the independent pending diagnostic-consent expiry step;
+malformed-message retry/DLQ handling remains unchanged. Existing objects,
+artifact state, policies and retention history are preserved. Policy reads and
+Owner/passkey-bound changes remain available, but saving a policy does not
+resume deletion. The deletion lifecycle below is historical, not an active
+beta capability.
+
 - `GET /api/v1/workspaces/:ws/operations/retention` — owner/member. Shows
   the policy (default 30 days when unconfigured) and the currently
   eligible chunks with the cutoff.
@@ -205,7 +215,8 @@ shared step-up/runner authorization.
   read access. Existing configured workspace-policy authority is not human
   authority. Private destructive retention, its lifecycle/count projections and
   full operations privacy remain uncertified; this slice does not change R2
-  deletion or version marking.
+  deletion or version marking. The beta hold above disables that destructive
+  lifecycle for every workspace, not only private work.
 - The Cron sweep (`runRetentionSweep`, also deliverable as an OPS queue
   `retention.sweep` message) deletes only eligible R2 objects, moves each
   purged version to `retained` with its hash, key, and metadata preserved

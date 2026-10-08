@@ -43,6 +43,29 @@ async function openDomainDb(): Promise<SqlDatabase> {
 }
 
 const NOW = "2026-09-18T12:00:00.000Z";
+const HELD_SWEEP = {
+  workspaces: 0,
+  examined: 0,
+  deleted_objects: 0,
+  deleted_bytes: 0,
+  expired_bundles: 0,
+  errors: [],
+};
+
+async function canonicalRows(db: SqlDatabase) {
+  const tables = (await db
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+    .all()) as Array<{ name: string }>;
+  const rows: Record<string, unknown> = {};
+  for (const { name } of tables) {
+    if (["sqlite_sequence", "d1_migrations"].includes(name)) continue;
+    expect(name).toMatch(/^[a-z][a-z0-9_]*$/);
+    expect(name.startsWith("sqlite_") || name.startsWith("_cf_")).toBe(false);
+    rows[name] = await db.prepare(`SELECT * FROM "${name}" ORDER BY rowid`).all();
+  }
+  expect(await db.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+  return rows;
+}
 
 interface FakeR2 {
   objects: Map<string, string>;
@@ -78,6 +101,19 @@ function fakeR2(failures = 0, deleteFailures = 0): FakeR2 {
   return state;
 }
 
+function observeR2Access(r2: FakeR2) {
+  const accessed = vi.fn();
+  return {
+    accessed,
+    r2: new Proxy(r2, {
+      get(target, property, receiver) {
+        accessed(String(property));
+        return Reflect.get(target, property, receiver);
+      },
+    }),
+  };
+}
+
 function depsFor(r2: FakeR2, db: SqlDatabase, dlq: unknown[]): OpsQueueDeps {
   return {
     db,
@@ -101,7 +137,11 @@ function handle(body: unknown, events: string[], name: string, attempts = 0): Op
   };
 }
 
-async function seedBundle(db: SqlDatabase, state = "consented"): Promise<string> {
+async function seedBundle(
+  db: SqlDatabase,
+  state = "consented",
+  expiresAt = "2026-09-19T12:00:00.000Z",
+): Promise<string> {
   const id = randomUlid();
   await db
     .prepare(
@@ -118,7 +158,7 @@ async function seedBundle(db: SqlDatabase, state = "consented"): Promise<string>
       "a".repeat(64),
       NOW,
       state === "consented" ? NOW : null,
-      "2026-09-19T12:00:00.000Z",
+      expiresAt,
     );
   return id;
 }
@@ -294,8 +334,9 @@ describe("ops queue consumer", () => {
       NOW,
     );
     expect(events).toEqual(["poison:retry", "held:ack", "retention:ack"]);
-    expect(queries.mock.calls.some(([sql]) => sql.includes("SELECT id FROM workspaces"))).toBe(
-      true,
+    expect(queries).toHaveBeenCalledTimes(1);
+    expect(queries.mock.calls[0]?.[0]).toMatch(
+      /UPDATE diagnostic_bundles[\s\S]+WHERE state = 'pending_consent'/,
     );
     expect(r2.objects.size).toBe(0);
     expect(dlq).toEqual([]);
@@ -306,7 +347,7 @@ describe("retention sweep", () => {
   async function seedLogChunk(
     db: SqlDatabase,
     at: string,
-    binding: { wrongKeyRun?: boolean; runFree?: boolean } = {},
+    binding: { wrongKeyRun?: boolean; runFree?: boolean; private?: boolean } = {},
   ): Promise<{ version: string; key: string; hash: string }> {
     const artifact = randomUlid();
     const version = randomUlid();
@@ -336,6 +377,14 @@ describe("retention sweep", () => {
       },
     });
     if (!run.ok) throw new Error(run.error.code);
+    if (binding.private) {
+      // Synthetic dormant privacy is applied only after genuine shared task/run preparation.
+      await db
+        .prepare(
+          "INSERT INTO task_privacy (workspace_id,task_id,owner_human_id,created_at) VALUES (?,?,?,?)",
+        )
+        .run(FIX.workspace, task.result.id, FIX.owner, at);
+    }
     const keyRun = binding.wrongKeyRun ? randomUlid() : run.result.run.id;
     const key = `workspaces/${FIX.workspace}/runs/${keyRun}/logs/${version}.jsonl.zst`;
     await db
@@ -353,108 +402,11 @@ describe("retention sweep", () => {
     return { version, key, hash };
   }
 
-  it("deletes only eligible log objects and keeps every D1 row and hash", async () => {
+  it("holds configured eligible shared/private logs and all metadata unchanged across repeated sweeps", async () => {
     const db = await openDomainDb();
-    const old = await seedLogChunk(db, "2026-07-01T12:00:00.000Z");
+    const shared = await seedLogChunk(db, "2026-07-01T12:00:00.000Z");
+    const privateLog = await seedLogChunk(db, "2026-07-01T12:00:00.000Z", { private: true });
     const fresh = await seedLogChunk(db, "2026-09-17T12:00:00.000Z");
-    await db
-      .prepare(
-        `INSERT INTO retention_policies (workspace_id, raw_log_retention_days, version, updated_by_human_id, updated_at)
-         VALUES (?, 30, 1, ?, ?)`,
-      )
-      .run(FIX.workspace, FIX.owner, NOW);
-    const r2 = fakeR2();
-    r2.objects.set(old.key, "old-bytes");
-    r2.objects.set(fresh.key, "fresh-bytes");
-    const result = await runRetentionSweep(db, r2, NOW);
-    expect(result.deleted_objects).toBe(1);
-    expect(result.deleted_bytes).toBe(512);
-    expect(r2.deleted).toEqual([old.key]);
-    expect(r2.objects.get(fresh.key)).toBe("fresh-bytes");
-    const versions = (await db
-      .prepare(`SELECT COUNT(*) AS count FROM artifact_versions`)
-      .get()) as { count: number };
-    expect(versions.count).toBe(2);
-    const kept = (await db
-      .prepare(
-        `SELECT state, content_hash, r2_key FROM artifact_versions WHERE workspace_id = ? AND id = ?`,
-      )
-      .get(FIX.workspace, old.version)) as {
-      state: string;
-      content_hash: string;
-      r2_key: string;
-    };
-    expect(kept).toEqual({ state: "retained", content_hash: old.hash, r2_key: old.key });
-    const runs = (await db.prepare(`SELECT COUNT(*) AS count FROM retention_runs`).get()) as {
-      count: number;
-    };
-    expect(runs.count).toBe(1);
-  });
-
-  it("never re-deletes or re-counts purged chunks on later ticks", async () => {
-    const db = await openDomainDb();
-    const old = await seedLogChunk(db, "2026-07-01T12:00:00.000Z");
-    await db
-      .prepare(
-        `INSERT INTO retention_policies (workspace_id, raw_log_retention_days, version, updated_by_human_id, updated_at)
-         VALUES (?, 30, 1, ?, ?)`,
-      )
-      .run(FIX.workspace, FIX.owner, NOW);
-    const r2 = fakeR2();
-    r2.objects.set(old.key, "old-bytes");
-    const first = await runRetentionSweep(db, r2, NOW);
-    expect(first.deleted_objects).toBe(1);
-    expect(first.deleted_bytes).toBe(512);
-    const second = await runRetentionSweep(db, r2, NOW);
-    expect(second.deleted_objects).toBe(0);
-    expect(second.deleted_bytes).toBe(0);
-    expect(second.examined).toBe(0);
-    expect(r2.deleted).toEqual([old.key]);
-    const listed = await listSystemRetentionEligibleChunks(db, FIX.workspace, NOW);
-    expect(listed.eligible).toEqual([]);
-    const totals = (await db
-      .prepare(`SELECT SUM(deleted_bytes) AS bytes FROM retention_runs WHERE workspace_id = ?`)
-      .get(FIX.workspace)) as { bytes: number };
-    expect(totals.bytes).toBe(512);
-  });
-
-  it("keeps failed deletes available so the next tick retries them", async () => {
-    const db = await openDomainDb();
-    const old = await seedLogChunk(db, "2026-07-01T12:00:00.000Z");
-    await db
-      .prepare(
-        `INSERT INTO retention_policies (workspace_id, raw_log_retention_days, version, updated_by_human_id, updated_at)
-         VALUES (?, 30, 1, ?, ?)`,
-      )
-      .run(FIX.workspace, FIX.owner, NOW);
-    const flaky = fakeR2(0, 99);
-    flaky.objects.set(old.key, "old-bytes");
-    const failed = await runRetentionSweep(db, flaky, NOW);
-    expect(failed.deleted_objects).toBe(0);
-    expect(failed.errors).toHaveLength(1);
-    const row = (await db
-      .prepare(`SELECT state FROM artifact_versions WHERE workspace_id = ? AND id = ?`)
-      .get(FIX.workspace, old.version)) as { state: string };
-    expect(row.state).toBe("available");
-    const healthy = fakeR2();
-    healthy.objects.set(old.key, "old-bytes");
-    const retried = await runRetentionSweep(db, healthy, NOW);
-    expect(retried.deleted_objects).toBe(1);
-    expect(retried.deleted_bytes).toBe(512);
-  });
-
-  it("skips workspaces without an explicit policy", async () => {
-    const db = await openDomainDb();
-    const result = await runRetentionSweep(db, fakeR2(), NOW);
-    expect(result.deleted_objects).toBe(0);
-    const runs = (await db.prepare(`SELECT COUNT(*) AS count FROM retention_runs`).get()) as {
-      count: number;
-    };
-    expect(runs.count).toBe(0);
-  });
-
-  it("does not delete misbound log keys or run-free log objects", async () => {
-    const db = await openDomainDb();
     const wrongRun = await seedLogChunk(db, "2026-07-01T12:00:00.000Z", { wrongKeyRun: true });
     const runFree = await seedLogChunk(db, "2026-07-01T12:00:00.000Z", { runFree: true });
     await db
@@ -463,17 +415,75 @@ describe("retention sweep", () => {
          VALUES (?, 30, 1, ?, ?)`,
       )
       .run(FIX.workspace, FIX.owner, NOW);
-    const r2 = fakeR2();
-    r2.objects.set(wrongRun.key, "misbound synthetic bytes");
-    r2.objects.set(runFree.key, "run-free synthetic bytes");
-    const result = await runRetentionSweep(db, r2, NOW);
-    expect(result).toMatchObject({ examined: 0, deleted_objects: 0, deleted_bytes: 0, errors: [] });
+    const listed = await listSystemRetentionEligibleChunks(db, FIX.workspace, NOW);
+    expect(listed.eligible.map((chunk) => chunk.version_id).sort()).toEqual(
+      [shared.version, privateLog.version].sort(),
+    );
+    const r2 = fakeR2(99, 99);
+    for (const chunk of [shared, privateLog, fresh, wrongRun, runFree])
+      r2.objects.set(chunk.key, "retained synthetic bytes");
+    const objects = new Map(r2.objects);
+    const before = await canonicalRows(db);
+    expect(before.retention_runs).toEqual([]);
+    const observed = observeR2Access(r2);
+    const queries = vi.spyOn(db, "prepare");
+    expect(await runRetentionSweep(db, observed.r2, NOW)).toEqual(HELD_SWEEP);
+    expect(await runRetentionSweep(db, observed.r2, "2026-10-18T12:00:00.000Z")).toEqual(
+      HELD_SWEEP,
+    );
+    expect(queries.mock.calls.map(([sql]) => sql)).toEqual([
+      expect.stringMatching(/UPDATE diagnostic_bundles[\s\S]+WHERE state = 'pending_consent'/),
+      expect.stringMatching(/UPDATE diagnostic_bundles[\s\S]+WHERE state = 'pending_consent'/),
+    ]);
+    queries.mockRestore();
+    expect(observed.accessed).not.toHaveBeenCalled();
+    expect(r2.objects).toEqual(objects);
     expect(r2.deleted).toEqual([]);
-    expect(r2.objects.size).toBe(2);
-    expect(
-      await db
-        .prepare("SELECT COUNT(*) AS count FROM artifact_versions WHERE state = 'available'")
-        .get(),
-    ).toEqual({ count: 2 });
+    expect(r2.failures).toBe(99);
+    expect(r2.deleteFailures).toBe(99);
+    expect(await canonicalRows(db)).toEqual(before);
+  });
+
+  it("does not enumerate unconfigured workspaces or access R2", async () => {
+    const db = await openDomainDb();
+    const before = await canonicalRows(db);
+    const observed = observeR2Access(fakeR2());
+    const queries = vi.spyOn(db, "prepare");
+    expect(await runRetentionSweep(db, observed.r2, NOW)).toEqual(HELD_SWEEP);
+    expect(queries).toHaveBeenCalledTimes(1);
+    expect(queries.mock.calls[0]?.[0]).toMatch(
+      /UPDATE diagnostic_bundles[\s\S]+WHERE state = 'pending_consent'/,
+    );
+    queries.mockRestore();
+    expect(observed.accessed).not.toHaveBeenCalled();
+    expect(await canonicalRows(db)).toEqual(before);
+  });
+
+  it("expires only pending consent at or before the supplied cutoff without purge bookkeeping", async () => {
+    const db = await openDomainDb();
+    const beforeCutoff = await seedBundle(db, "pending_consent", "2026-09-18T11:59:59.000Z");
+    const atCutoff = await seedBundle(db, "pending_consent", NOW);
+    await seedBundle(db, "pending_consent", "2026-09-18T12:00:01.000Z");
+    await seedBundle(db, "consented", "2026-09-18T11:59:59.000Z");
+    await seedBundle(db, "expired", "2026-09-18T11:59:59.000Z");
+    await seedBundle(db, "failed", "2026-09-18T11:59:59.000Z");
+    const before = await canonicalRows(db);
+    const observed = observeR2Access(fakeR2());
+    expect(await runRetentionSweep(db, observed.r2, NOW)).toEqual({
+      ...HELD_SWEEP,
+      expired_bundles: 2,
+    });
+    const expected = {
+      ...before,
+      diagnostic_bundles: (before.diagnostic_bundles as DiagnosticBundleRecord[]).map((row) =>
+        [beforeCutoff, atCutoff].includes(row.id)
+          ? { ...row, state: "expired", last_error: "consent_expired" }
+          : row,
+      ),
+    };
+    expect(await canonicalRows(db)).toEqual(expected);
+    expect(await runRetentionSweep(db, observed.r2, NOW)).toEqual(HELD_SWEEP);
+    expect(await canonicalRows(db)).toEqual(expected);
+    expect(observed.accessed).not.toHaveBeenCalled();
   });
 });

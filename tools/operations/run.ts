@@ -125,6 +125,40 @@ async function poll<T>(label: string, read: () => Promise<T | null>): Promise<T>
   }
 }
 
+async function queuePendingConsentExpiry(
+  db: SqlDatabase,
+  queue: { send(message: unknown): Promise<unknown> },
+  now: string,
+): Promise<void> {
+  const bundleId = randomUlid();
+  await db
+    .prepare(
+      `INSERT INTO diagnostic_bundles
+       (workspace_id,id,created_by_human_id,state,inventory_json,bundle_hash,redaction_status,created_at,expires_at)
+       VALUES (?,?,?,'pending_consent','{}',?,'passed',?,?)`,
+    )
+    .run(
+      FIX.workspace,
+      bundleId,
+      FIX.owner,
+      "a".repeat(64),
+      now,
+      new Date(Date.parse(now) - 60_000).toISOString(),
+    );
+  await queue.send({
+    schema_version: 1,
+    kind: "retention.sweep",
+    workspace_id: FIX.workspace,
+    attempt: 1,
+  });
+  await poll("pending diagnostic consent expires through the OPS queue", async () => {
+    const row = (await db
+      .prepare(`SELECT state,last_error FROM diagnostic_bundles WHERE workspace_id=? AND id=?`)
+      .get(FIX.workspace, bundleId)) as { state: string; last_error: string | null };
+    return row.state === "expired" && row.last_error === "consent_expired" ? row : null;
+  });
+}
+
 async function stepUp(
   db: SqlDatabase,
   humanId: string,
@@ -889,7 +923,7 @@ async function main(): Promise<void> {
       pass("D7-notify-rewind-held");
     }
 
-    // D8: retention deletes only the eligible log object through the OPS queue.
+    // D8: queued sweeps preserve raw logs and purge history while consent expiry continues.
     {
       const oldAt = new Date(Date.parse(now) - 60 * 24 * 60 * 60_000).toISOString();
       const freshAt = new Date(Date.parse(now) - 24 * 60 * 60_000).toISOString();
@@ -958,29 +992,21 @@ async function main(): Promise<void> {
         `workspaces/${FIX.workspace}/artifacts/sha256/${"f".repeat(64)}`,
         "review-bytes",
       );
-      await queueEnv.OPS_JOBS.send({
-        schema_version: 1,
-        kind: "retention.sweep",
-        workspace_id: FIX.workspace,
-        attempt: 1,
+      const snapshot = async () => ({
+        versions: await db
+          .prepare(`SELECT * FROM artifact_versions WHERE workspace_id=? ORDER BY id`)
+          .all(FIX.workspace),
+        policies: await db
+          .prepare(`SELECT * FROM retention_policies WHERE workspace_id=?`)
+          .all(FIX.workspace),
+        runs: await db
+          .prepare(`SELECT * FROM retention_runs WHERE workspace_id=? ORDER BY id`)
+          .all(FIX.workspace),
       });
-      const run = await poll("retention run recorded", async () => {
-        const row = (await db
-          .prepare(
-            `SELECT examined, deleted_objects, deleted_bytes, error FROM retention_runs WHERE workspace_id = ? ORDER BY started_at DESC, id DESC`,
-          )
-          .get(FIX.workspace)) as
-          | {
-              examined: number;
-              deleted_objects: number;
-              deleted_bytes: number;
-              error: string | null;
-            }
-          | undefined;
-        return row && row.deleted_objects === 1 ? row : null;
-      });
-      assert.equal(run.error, null);
-      assert.equal((await queueEnv.ARTIFACTS.get(chunks[0]!.key)) === null, true);
+      const before = await snapshot();
+      await queuePendingConsentExpiry(db, queueEnv.OPS_JOBS, now);
+      assert.deepEqual(await snapshot(), before);
+      assert.equal(await (await queueEnv.ARTIFACTS.get(chunks[0]!.key))?.text(), "old-log-bytes");
       assert.equal(await (await queueEnv.ARTIFACTS.get(chunks[1]!.key))?.text(), "fresh-log-bytes");
       assert.equal(
         await (
@@ -994,7 +1020,7 @@ async function main(): Promise<void> {
         .prepare(`SELECT COUNT(*) AS count FROM artifact_versions WHERE workspace_id = ?`)
         .get(FIX.workspace)) as { count: number };
       assert.ok(kept.count >= 3, "every D1 version row survives retention");
-      const purged = (await db
+      const preserved = (await db
         .prepare(
           `SELECT state, content_hash, r2_key FROM artifact_versions WHERE workspace_id = ? AND id = ?`,
         )
@@ -1003,46 +1029,25 @@ async function main(): Promise<void> {
         content_hash: string;
         r2_key: string;
       };
-      assert.equal(purged.state, "retained");
-      assert.equal(purged.content_hash, "e".repeat(64));
-      assert.equal(purged.r2_key, chunks[0]!.key);
-      const runsBefore = (await db
-        .prepare(`SELECT COUNT(*) AS count FROM retention_runs WHERE workspace_id = ?`)
-        .get(FIX.workspace)) as { count: number };
-      await queueEnv.OPS_JOBS.send({
-        schema_version: 1,
-        kind: "retention.sweep",
-        workspace_id: FIX.workspace,
-        attempt: 1,
-      });
-      const rerun = await poll("second retention run recorded", async () => {
-        const rows = (await db
-          .prepare(
-            `SELECT deleted_objects, deleted_bytes, error FROM retention_runs WHERE workspace_id = ? ORDER BY started_at DESC, id DESC`,
-          )
-          .all(FIX.workspace)) as Array<{
-          deleted_objects: number;
-          deleted_bytes: number;
-          error: string | null;
-        }>;
-        return rows.length === runsBefore.count + 1 ? rows[0]! : null;
-      });
-      assert.equal(rerun.deleted_objects, 0);
-      assert.equal(rerun.deleted_bytes, 0);
-      assert.equal(rerun.error, null);
+      assert.equal(preserved.state, "available");
+      assert.equal(preserved.content_hash, "e".repeat(64));
+      assert.equal(preserved.r2_key, chunks[0]!.key);
+      await queuePendingConsentExpiry(db, queueEnv.OPS_JOBS, now);
+      assert.deepEqual(await snapshot(), before);
+      assert.equal(await (await queueEnv.ARTIFACTS.get(chunks[0]!.key))?.text(), "old-log-bytes");
       await writeJson(resolve(evidenceDir, "retention-fixture.json"), {
-        examined: run.examined,
-        deleted_objects: run.deleted_objects,
-        deleted_bytes: run.deleted_bytes,
+        raw_log_deletion: "paused",
         kept_d1_rows: kept.count,
+        raw_log_objects_intact: true,
         review_object_intact: true,
-        purged_version_state: purged.state,
-        second_sweep_deleted_objects: rerun.deleted_objects,
-        second_sweep_deleted_bytes: rerun.deleted_bytes,
+        preserved_version_state: preserved.state,
+        policies_and_purge_history_unchanged: true,
+        pending_consent_expired_through_queue: true,
+        repeated_sweep_preserves_logs: true,
       });
       note(
         "D8",
-        `retention via queue deleted 1 eligible object and retained its version; ${kept.count} D1 rows and review bytes intact; second sweep deleted 0`,
+        `queued sweeps preserved ${kept.count} version rows, log/review bytes, policies and purge history; pending consent still expired`,
       );
       pass("D8-retention");
     }
@@ -1178,23 +1183,12 @@ async function main(): Promise<void> {
       };
       const before = dlqCopies.length;
       await queueEnv.OPS_JOBS.send({ kind: "diagnostic.upload", workspace_id: FIX.workspace });
-      await queueEnv.OPS_JOBS.send({
-        schema_version: 1,
-        kind: "retention.sweep",
-        workspace_id: FIX.workspace,
-        attempt: 1,
-      });
+      await queuePendingConsentExpiry(db, queueEnv.OPS_JOBS, now);
       await poll("poison copy reaches the DLQ collector", async () =>
         dlqCopies.length > before ? dlqCopies : null,
       );
       const copy = dlqCopies[dlqCopies.length - 1] as Record<string, unknown>;
       assert.ok(copy && typeof copy === "object", "DLQ copy is structured");
-      await poll("sibling sweep still converges", async () => {
-        const row = (await db
-          .prepare(`SELECT COUNT(*) AS count FROM retention_runs WHERE workspace_id = ?`)
-          .get(FIX.workspace)) as { count: number };
-        return row.count >= 2 ? row : null;
-      });
       harvest("dlq-copy", copy);
       note("D10", "poison retried into the DLQ with IDs only; sibling sweep converged");
       pass("D10-poison");

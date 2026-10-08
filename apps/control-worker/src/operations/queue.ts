@@ -29,7 +29,7 @@ function dlqCopy(message: OpsQueueMessage, error: string): Record<string, unknow
   };
 }
 
-/** Valid diagnostic jobs are terminally unavailable; retention keeps its separate authority. */
+/** Held jobs acknowledge; retention messages still expire pending diagnostic consent. */
 export async function consumeOpsQueueMessage(
   handle: OpsQueueHandle,
   deps: OpsQueueDeps,

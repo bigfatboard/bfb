@@ -341,13 +341,14 @@ export function OperationsPage(props: OperationsPageProps) {
       {sections.includes("retention") ? (
         <section aria-label="Retention" data-testid="operations-retention">
           <h2>Retention</h2>
+          <p role="status">Automatic raw-log deletion is paused. Existing logs are preserved.</p>
           {retention.data ? (
             <p data-testid="retention-policy">
-              Raw logs:{" "}
+              Saved raw-log window:{" "}
               {(retention.data.policy as { raw_log_retention_days?: number } | null)
                 ?.raw_log_retention_days ?? 30}{" "}
               days · {(retention.data.eligible as { eligible?: unknown[] })?.eligible?.length ?? 0}{" "}
-              eligible chunks. Hashes, metadata, and blobs are never deleted.
+              chunks match the policy. Saving a policy does not resume deletion.
             </p>
           ) : null}
           {props.role === "owner" ? (

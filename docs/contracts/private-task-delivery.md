@@ -548,6 +548,12 @@ The bounded retention/recovery contract below has a
 [separate clean checkpoint](../work-packages/evidence/WP-C11/retention-recovery-manifest.json).
 It does not certify complete operations privacy or enable private work:
 
+- Automatic raw-log deletion is uniformly paused for beta. Cron and valid
+  retention jobs perform only pending diagnostic-consent expiry: no raw-log
+  candidate selection, R2 deletion, version marking or purge bookkeeping.
+  Stored logs, policy configuration and history remain unchanged; saving a
+  retention policy does not resume deletion. Malformed queue handling is
+  unchanged. This hold does not certify the destructive lifecycle below.
 - Human retention selection requires an explicit retained human access context,
   current owner/member membership, epoch and project authority. It remains
   shared-only even for private creators and grantees. Resolve the exact version,
