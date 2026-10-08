@@ -8,6 +8,17 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
 
 ## Current checkpoint
 
+- Product-only lane, 8 October: [inherited mounted transport preparation](docs/work-packages/evidence/WP-C11/inherited-transport-manifest.json)
+  is clean-certified at `1ea4618`. The owning inheritance target passes 142 cases/
+  five files and four separately scoped native preparation groups; full
+  verification passes 5,137 TypeScript cases, Go and sixteen Swift cases. Five
+  new browser-session/CSRF cases and sixteen synthetic-token MCP cases cover
+  current root access, actual descendant authorship, credential ancestor masking
+  and revoked cached replies with preserved history. No production behavior or
+  private-create availability changed. This is not full C11 or new native/
+  compiled-browser/OAuth-flow acceptance. Raw-log cleanup direction is pending;
+  deletion behavior stays unchanged. No merge, deployment or pilot operation.
+
 - Product-only lane, 8 October: Timo's confirmed defaults remain creator-private explicit sharing
   without owner bypass, a BFB-managed encrypted business vault, and lime/cyan
   light/dark UI. V02/V03/X03 current runtime certificates are committed on the
@@ -17,7 +28,7 @@ Plan: [Remote launch and agent discussion MVP](mvp.plan.md)
   publication. C10 is clean-certified at `a7edf14`: 86 exact cases, nine real-D1
   checks and retained C08/X03 regressions pass; full verification passes 2,987
   TypeScript cases, Go and all 16 Swift cases. Evidence is committed with its
-  dormant-only scope. C11 remains in progress. Its latest [retained inheritance
+  dormant-only scope. C11 remains in progress. Its earlier complete [retained inheritance
   preparation certificate](docs/work-packages/evidence/WP-C11/private-inheritance-manifest.json)
   records clean source `08b73ed` in one complete fresh pipeline: exact C11 passes
   4,118 stage case invocations, eighteen browser cases and 273 native labels;
@@ -348,3 +359,4 @@ and native interaction consent. The full MVP is not done.
 - 8 October: the isolated product lane clean-certified creator sharing and repository reconciliation at `6a2e4ed`: exact C11 passes 3,987 stage case invocations, twelve browser cases and 265 native labels; full verification passes 4,992 TypeScript cases, Go and sixteen Swift cases. Timo chose to hold manual GitHub evidence linking for beta while retaining webhook reconciliation. Browser and authenticated OAuth author-private checkpoints are implemented at `d8c1034`, including single-flight saves and preservation of newer drafts; their clean certification remains pending after the first attempt stopped on this document's header/log chronology check. Private creation, inheritance and complete C11 acceptance remain unfinished. No merge, beta deployment or pilot operation is claimed.
 - 8 October: the isolated product lane certified browser/OAuth author-private checkpoints at clean source `3f9f085`: exact C11 passes 4,074 stage case invocations, eighteen browser cases and 269 native labels; full verification passes 5,072 TypeScript cases, Go and sixteen Swift cases. Exact X03 passes 71 cases, eleven native groups and both OAuth browser cases with fourteen advertised tools. The complete database upgrade/recovery target passes 60 cases and `F04_D1_OK` at migration 0049 in a fresh same-source retry with process-local Wrangler telemetry disabled after delayed CLI shutdown. The stopped original database driver (143) is excluded; this is completed same-source gates plus a full database retry, not one uninterrupted passing pipeline. Earlier document chronology and stale browser inventory failures are recorded separately without weakening assertions. Impeccable's on-demand checkpoint controls preserve single-flight saves and newer drafts. Private creation/inheritance, complete C11 and C12 remain unfinished; local checkpoint delivery retains its execution-owned gate. No merge, deployment or pilot operation occurred.
 - 8 October: retained private inheritance preparation is clean-certified at `08b73ed` through one complete fresh pipeline: C11 passes 4,118 stage case invocations, eighteen browser cases and 273 native labels; full verification passes 5,116 TypeScript cases, Go and sixteen Swift cases. X03 passes 71 cases, eleven native groups and both OAuth browser cases with fourteen tools. Database upgrade/recovery passes 68 cases and `F04_D1_OK` at migration 0050. The new finite target passes 44 cases and four native groups, preserving actual descendant authorship and current root ACLs with minimal guarded creation receipts, exact-root sharing and authority-family agent-child quotas. Creation remains unregistered and unavailable. Native direct-Hub preparation, ordered inherited fixtures and independent non-FIFO cuts are labelled synthetic. An earlier generic native failure remains unlocalized; a proven random-order fixture weakness was improved without assigning its cause. Thirteen old-schema notification setup failures in the first clean attempt were repaired without an authorization fallback; separate populated migration assertions remain. Complete C11 activation, execution-owned private delivery, destructive retention and C12 remain unfinished. No merge, deployment or pilot operation.
+- 8 October: the product lane extended retained inheritance preparation with five mounted browser-session/CSRF and sixteen synthetic-token MCP cases at clean source `1ea4618`. The owning target passes 142 cases/five files plus four unchanged native preparation groups; full verification passes 5,137 TypeScript cases, Go and sixteen Swift cases on the same unchanged committed worktree. Current root authority, useful inherited delivery, narrower credential masking and revoked cached replies preserve canonical authorship/history. Focused DTO/deck-fixture mistakes are corrected without changing production behavior. Full C11/X03/database targets are not claimed at this source. Creation/activation, destructive retention and later mandatory features remain unfinished; the cleanup choice is pending. No merge, deployment or pilot operation.

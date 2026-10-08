@@ -76,7 +76,24 @@ Coordinate shared contracts without changing the other lane's execution work.
 
 ## Handoff
 
-Current checkpoint: [retained private inheritance preparation](evidence/WP-C11/private-inheritance-manifest.json),
+Current finite checkpoint: [inherited mounted transport preparation](evidence/WP-C11/inherited-transport-manifest.json),
+clean-certified at `1ea4618` through the owning `pnpm test:c11:inheritance`
+target and full repository verification on one unchanged clean committed
+worktree. The target passes 142 cases/five files and four separately scoped
+native preparation groups; verification passes 5,137 TypeScript cases/240 files,
+Go and all sixteen Swift cases. Five new mounted browser-session/CSRF cases and
+sixteen synthetic-token MCP cases prove current root access independently of
+descendant creation authorship, useful inherited delivery, credential ancestor
+masking and revoked cached replies with retained history. Browser snapshots are
+canonical-only; MCP checks specific receipts/contribution rows. The first focused
+attempts exposed an incorrect wire-author assertion and a four-task deadline tie
+in the synthetic three-card deck; corrected fixtures preserve the actual DTO and
+require a deterministic first card. No production behavior changed. This does
+not rerun full C11/X03/database acceptance at this source, certify native
+transport or compiled-browser/OAuth flow, register creation, settle destructive
+retention or complete activation. Raw-log cleanup direction is still pending.
+
+Previous complete C11 checkpoint: [retained private inheritance preparation](evidence/WP-C11/private-inheritance-manifest.json),
 clean-certified at `08b73ed` through one complete fresh pipeline. Exact C11 passes
 4,118 stage case invocations/174 file invocations in twenty-nine blocks,
 eighteen browser cases and 273 native labels across twenty-eight harnesses;

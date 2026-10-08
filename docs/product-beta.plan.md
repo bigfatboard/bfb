@@ -8,7 +8,22 @@ Timo split it from remote start and agent-to-agent work on 6 October. It starts
 from the integrated `7b8620c` checkpoint, preserving the existing implementation
 and certificates. Package metadata remains the source of truth for completion.
 
-Latest local checkpoint: [retained private inheritance preparation](work-packages/evidence/WP-C11/private-inheritance-manifest.json),
+Latest finite checkpoint: [inherited mounted transport preparation](work-packages/evidence/WP-C11/inherited-transport-manifest.json),
+clean-certified at `1ea4618` on one unchanged committed product worktree.
+`pnpm test:c11:inheritance` passes 142 cases/five files and four separately
+scoped native preparation groups. Full verification passes 5,137 TypeScript
+cases/240 files, Go and sixteen Swift cases. Five new mounted browser-session/
+CSRF cases and sixteen synthetic-token MCP cases cover inherited delivery,
+actual-author versus root authority, credential ancestor masking and revoked
+cache returns without discarding committed history. The deck fixture ranks its
+new child deterministically; canonical authorship is checked separately from
+the unchanged task wire DTO. This is test/contract coverage, not a production
+change, compiled-browser/OAuth-flow certificate or private-create activation.
+Full C11/X03/database acceptance is not rerun at this source; the earlier complete
+pipeline remains separate below. The raw-log cleanup choice remains pending and
+deletion behavior is unchanged. Other mandatory features and rollout remain open.
+
+Previous complete C11 checkpoint: [retained private inheritance preparation](work-packages/evidence/WP-C11/private-inheritance-manifest.json),
 clean-certified at `08b73ed` in one complete fresh pipeline. C11 passes 4,118
 stage case invocations/174 file invocations in twenty-nine blocks, eighteen
 browser cases and 273 native labels across twenty-eight harnesses. Dependencies
