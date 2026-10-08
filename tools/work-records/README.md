@@ -1,5 +1,25 @@
 # Work-record runtime proofs
 
+`pnpm test:c11:private-checkpoints`, composed once by C11, owns
+`private-checkpoints.ts`, the migration/domain/mounted browser/MCP/presentation
+suites and six compiled-browser checks. Four independently collecting native
+groups prove registered two-Worker human/exact-delegation history, write-only
+Reviewer receipts, independently completed contribution loss and OAuth revocation
+before forwarding the original bound D1 batch, and a repaired same-key retry.
+The contribution cut deliberately runs a separate direct domain Hub against D1
+to exercise the atomic backstop; it is not a reachable competing command inside
+the serialized production FIFO. OAuth revocation uses the production helper.
+Compare every canonical table after the cut, named engine exclusions and HTTP
+budgets separately, with clean foreign keys and empty transient guards. Bounds
+cover only instrumented prebatch checkpoint preparations, not lifecycle/read
+queries or Worker/DO internals. Native retained OAuth is synthetic, not a native
+authorization exchange. Mounted tests use genuine cookie/CSRF and OAuth protocol
+fixtures; compiled light/dark browser responses are intercepted presentation
+proof at 1280 and 390 pixels. Ordinary comments/context/measurements/notifications
+stay unchanged; the checkpoint audit family remains held. Private task creation,
+inheritance, publication, local checkpoint tools, execution, activation and
+deployment are separate gates.
+
 `pnpm test:c11:task-sharing`, composed once by C11, owns `task-sharing.ts`,
 the creator-sharing domain/mounted/presentation suites and six compiled-browser
 checks. Synthetic dormant policies exercise the registered grant/revoke commands;

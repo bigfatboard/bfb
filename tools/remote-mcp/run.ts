@@ -199,8 +199,8 @@ try {
   const toolResponse = await rpc(controls[0], alpha.accessToken, "tools/list");
   assert.equal(toolResponse.status, 200, await toolResponse.clone().text());
   const listed = (await toolResponse.json()) as { result: { tools: Array<{ name: string }> } };
-  assert.equal(listed.result.tools.length, 12);
-  check("twelve_stateless_tools");
+  assert.equal(listed.result.tools.length, 14);
+  check("fourteen_stateless_tools");
   const task = ok(
     await dispatch<{ id: string }>(controls[0], "task.create", {
       projectId: FIX.projectA,

@@ -163,6 +163,57 @@ describe("private checkpoint presentation", () => {
     expect(view.container.textContent).toContain("Earlier note");
   });
 
+  it("dispatches only one checkpoint save for same-act submit events", async () => {
+    const pending = deferred<Record<string, unknown>>();
+    const get = vi
+      .fn()
+      .mockResolvedValueOnce(progress())
+      .mockResolvedValueOnce(progress("task-a", "Synthetic private note"));
+    const post = vi.fn(() => pending.promise);
+    const view = mount({ api: { get, post } });
+    await flush();
+    act(() => view.button("Add checkpoint").click());
+    view.input("Synthetic private note");
+    const form = view.container.querySelector("form")!;
+    act(() => {
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    expect.soft(post).toHaveBeenCalledTimes(1);
+    await act(async () => pending.resolve({ ok: true }));
+    await flush();
+    expect(get).toHaveBeenCalledTimes(2);
+    expect(view.container.querySelectorAll("li")).toHaveLength(1);
+    expect(view.container.textContent).toContain("Private checkpoint saved.");
+    expect(view.container.querySelector("form")).toBeNull();
+  });
+
+  it("preserves an edited-then-restored draft while its earlier save is pending", async () => {
+    const pending = deferred<Record<string, unknown>>();
+    const refresh = deferred<Record<string, unknown>>();
+    const get = vi
+      .fn()
+      .mockResolvedValueOnce(progress())
+      .mockImplementationOnce(() => refresh.promise);
+    const post = vi.fn(() => pending.promise);
+    const view = mount({ api: { get, post } });
+    await flush();
+    act(() => view.button("Add checkpoint").click());
+    view.input("Earlier note");
+    view.submit();
+    view.input("Newer unsent note");
+    view.input("Earlier note");
+    await act(async () => pending.resolve({ ok: true }));
+    await flush();
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(get).toHaveBeenCalledTimes(2);
+    await act(async () => refresh.resolve(progress("task-a", "Earlier note")));
+    await flush();
+    expect(view.container.querySelector("textarea")?.value).toBe("Earlier note");
+    expect(view.container.querySelectorAll("li")).toHaveLength(1);
+    expect(view.container.textContent).toContain("Private checkpoint saved.");
+  });
+
   it("discards late bodies and drafts when the task or human changes", async () => {
     const pending = deferred<Record<string, unknown>>();
     const get = vi

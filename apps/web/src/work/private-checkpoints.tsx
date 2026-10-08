@@ -3,7 +3,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { isPanelAuthorityDenied, usePanelDelivery } from "./panel-delivery.js";
+import {
+  isPanelAuthorityDenied,
+  usePanelDelivery,
+  type PanelDeliveryCheck,
+} from "./panel-delivery.js";
 
 interface Checkpoint {
   id: string;
@@ -38,6 +42,11 @@ interface State {
   status: string | null;
 }
 
+interface CheckpointDraft {
+  body: string;
+  revision: number;
+}
+
 function progressView(body: Record<string, unknown>, taskId: string): ProgressView {
   const value = body.progress as ProgressView | undefined;
   if (
@@ -64,8 +73,9 @@ export function PrivateCheckpointsPanel(props: Props) {
   const key = JSON.stringify([props.workspaceId, props.taskId, props.humanId]);
   const selection = useMemo(() => ({ key, api: props.api }), [key, props.api]);
   const beginDelivery = usePanelDelivery(selection);
+  const mutation = useRef<PanelDeliveryCheck | null>(null);
   const [stored, setStored] = useState<State | null>(null);
-  const drafts = useRef(new Map<string, string>());
+  const drafts = useRef(new Map<string, CheckpointDraft>());
   const [draft, setDraft] = useState({ key, body: "" });
   const [composing, setComposing] = useState<object | null>(null);
   const pendingIntent = useRef<{ signature: string; requestId: string } | null>(null);
@@ -76,11 +86,14 @@ export function PrivateCheckpointsPanel(props: Props) {
   const state = stored?.selection === selection ? stored : null;
   const data = state?.data ?? null;
   const loading = state?.loading ?? true;
-  const body = draft.key === key ? draft.body : (drafts.current.get(key) ?? "");
+  const body = draft.key === key ? draft.body : (drafts.current.get(key)?.body ?? "");
   const base = `/api/v1/workspaces/${props.workspaceId}/tasks/${props.taskId}/checkpoints`;
 
   function changeDraft(next: string) {
-    drafts.current.set(key, next);
+    drafts.current.set(key, {
+      body: next,
+      revision: (drafts.current.get(key)?.revision ?? 0) + 1,
+    });
     setDraft({ key, body: next });
   }
 
@@ -147,7 +160,9 @@ export function PrivateCheckpointsPanel(props: Props) {
 
   async function save() {
     if (!data || loading) return;
+    if (mutation.current?.()) return;
     const submitted = body;
+    const submittedRevision = drafts.current.get(key)?.revision ?? 0;
     const characters = Array.from(submitted.trim());
     if (
       !characters.length ||
@@ -174,6 +189,7 @@ export function PrivateCheckpointsPanel(props: Props) {
     if (pendingIntent.current?.signature !== signature) {
       pendingIntent.current = { signature, requestId: `web-checkpoint-${crypto.randomUUID()}` };
     }
+    mutation.current = isCurrent;
     setStored({ selection, data, loading: true, error: null, unavailable: false, status: null });
     try {
       const receipt = await props.api.post(base, {
@@ -186,7 +202,7 @@ export function PrivateCheckpointsPanel(props: Props) {
       if (!isCurrent()) return;
       pendingIntent.current = null;
       // Preserve edits made while saving; an earlier save never clears newer text.
-      if (drafts.current.get(key) === submitted) {
+      if ((drafts.current.get(key)?.revision ?? 0) === submittedRevision) {
         changeDraft("");
         setComposing(null);
       }
@@ -200,6 +216,8 @@ export function PrivateCheckpointsPanel(props: Props) {
       });
     } catch (cause) {
       if (isCurrent()) failure(cause);
+    } finally {
+      if (mutation.current === isCurrent) mutation.current = null;
     }
   }
 

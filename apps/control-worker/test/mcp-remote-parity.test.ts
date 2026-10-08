@@ -60,6 +60,8 @@ const TOOL_NAMES = [
   "bfb_get_context",
   "bfb_add_comment",
   "bfb_report_progress",
+  "bfb_get_private_progress",
+  "bfb_report_private_progress",
   "bfb_propose_task",
   "bfb_request_human",
   "bfb_get_attention",
@@ -160,7 +162,7 @@ async function seedRun(
 }
 
 describe("remote mcp parity extensions", () => {
-  it("lists exactly twelve tools for an active delegation", async () => {
+  it("lists exactly fourteen tools for an active delegation", async () => {
     const db = await openDomainDb();
     const { accessToken } = await issueMcpAccess(db);
     const response = await request(db, "tools/list", undefined, {}, accessToken);
