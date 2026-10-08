@@ -88,6 +88,58 @@ partial stage never changes C11 to `done` or enables privacy. Evidence lives at
 
 ## Child delivery implementation and remaining checks
 
+### Author-private checkpoint slice
+
+The first checkpoint transport slice is direct browser humans and authenticated
+remote OAuth delegations. It does not activate private task creation or add local
+execution tools, IPC fields or offline replay. Ordinary `progress.report` and
+comments keep their existing task-visible behavior.
+
+- `progress.private.report` accepts only `taskId` and `body`. Infer the owner
+  from the authenticated human or delegation sponsor; never accept owner,
+  audience, origin or run fields. Trim a nonempty body of at most 2,048 Unicode
+  characters, rejecting control characters as ordinary progress does. Reporting
+  requires current task `contribute` authority and existing role and credential
+  ceilings, including `bfb:task:write` for OAuth. A write-only delegation may
+  report and receive its minimal receipt without gaining checkpoint read access.
+- Append immutable `task_private_checkpoints` rows with exact task/project,
+  owner, nullable originating delegation/client pair, body/hash and timestamp.
+  Human origins have both origin fields absent; delegated origins have both
+  present and bind the sponsor to the owner. Use existing task, retained human
+  identity and OAuth tuple foreign keys. No local-origin placeholders, historical
+  epoch cutoff, checkpoint update/delete or independently selectable owner.
+- Reads require current task `read` authority and existing ceilings, including
+  `bfb:read` for OAuth. Direct humans see only their own human and delegated
+  checkpoints. A delegation sees only its exact delegation/client origin, never
+  another delegation with the same sponsor. Origin revocation does not erase
+  the human owner's history. Sharing a task never shares checkpoints.
+- Return `{ task_id, checkpoints, has_more }`; checkpoint entries contain only
+  `id`, `body`, `content_hash`, `created_at` and `origin` (`human` or `delegation`).
+  Filter author/origin before newest-first ordering and a 100-row limit plus
+  lookahead. Retain an authorized-empty sentinel in the final coherent parent
+  selection; missing/inaccessible parents remain uniformly `not_found`.
+- Reuse the existing public-business command factory, transaction guards and
+  final selections. Retain requesting epoch, role/project vector, credential
+  scopes/boundaries and expiry across batch, cache and actual body delivery.
+  Canonical fingerprints reject changed retries. Receipts contain only exact
+  `task_id`, `checkpoint_id` and `content_hash`, reselected against current
+  owner/origin authority; do not return body prose or assert current task state.
+- Browser GET/POST use `/api/v1/workspaces/:workspaceId/tasks/:taskId/checkpoints`
+  with required `request_id` on writes. Remote MCP exposes only
+  `bfb_get_private_progress` and `bfb_report_private_progress` with strict fields.
+  The task panel reveals a “Private checkpoints” section only on demand; loading
+  it is not a business command. Scope drafts to task/human and discard stale
+  responses. Denials clear delivered bodies and actions, with explicit retry.
+- Add no comments, context injection, task versions, measurement, notification,
+  runner command or generic feed category. The new command family stays omitted
+  from unsupported outward audit projections. Publishing selected checkpoint
+  contents remains C12; local checkpoint delivery remains an execution-owned gate.
+
+`pnpm test:c11:private-checkpoints` owns domain, migration, mounted browser/MCP,
+native D1 and compiled UI proofs for this finite slice. Clean evidence belongs
+in `docs/work-packages/evidence/WP-C11/private-checkpoint-manifest.json`. Passing
+it does not certify private creation, inheritance, local delivery or full C11.
+
 ### Creator sharing lifecycle checkpoint
 
 Stage four starts with creator-only sharing over the retained 0045 policy and

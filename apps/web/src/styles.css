@@ -1332,6 +1332,29 @@ legend {
   color: var(--ink-muted);
 }
 
+.private-checkpoint-form,
+.private-checkpoint-list {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-md);
+  margin: var(--space-lg) 0;
+}
+
+.private-checkpoint-list {
+  padding: 0;
+  list-style: none;
+}
+
+.private-checkpoint-list li {
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--rule);
+  overflow-wrap: anywhere;
+}
+
+.private-checkpoint-list .comment-body {
+  white-space: pre-wrap;
+}
+
 .task-composer {
   margin-bottom: 28px;
   padding: 20px;

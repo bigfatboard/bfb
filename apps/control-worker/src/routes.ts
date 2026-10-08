@@ -425,6 +425,8 @@ export function createControlApp(
 
   app.use("/api/v1/workspaces/*", async (c, next) => {
     await next();
+    if (/^\/api\/v1\/workspaces\/[^/]+\/tasks\/[^/]+\/checkpoints$/.test(c.req.path))
+      c.header("Cache-Control", "private, no-store");
     if (
       c.req.method === "GET" &&
       /^\/api\/v1\/workspaces\/[^/]+\/tasks\/[^/]+\/(comments|dependencies|links|runs)$/.test(

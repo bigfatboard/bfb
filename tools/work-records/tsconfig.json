@@ -34,6 +34,7 @@
     "github-manual-hold.ts",
     "github-status-delivery.ts",
     "task-sharing.ts",
+    "private-checkpoints.ts",
     "task-positions.ts"
   ],
   "references": [

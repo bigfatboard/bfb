@@ -10,6 +10,7 @@ import type { AgentProfileSummary } from "./board.js";
 import { MeasurementsPanel } from "./measurements.js";
 import { ResultPanel } from "./result.js";
 import { TaskSharingPanel } from "./sharing.js";
+import { PrivateCheckpointsPanel } from "./private-checkpoints.js";
 import { RunTimeline } from "../realtime/RunTimeline.js";
 
 type WorkspaceRole = "owner" | "member" | "reviewer";
@@ -303,6 +304,7 @@ type TaskPanel =
   | "activity"
   | "measurements"
   | "sharing"
+  | "checkpoints"
   | "launch"
   | "discussion";
 
@@ -811,6 +813,7 @@ export function WorkMutations(props: WorkMutationsProps) {
               >
                 <option value="overview">Overview</option>
                 <option value="comments">Comments</option>
+                <option value="checkpoints">Private checkpoints</option>
                 <option value="context">Context</option>
                 {canManage ? <option value="edit">Edit task</option> : null}
                 {canManage ? <option value="handoff">Handoff</option> : null}
@@ -839,6 +842,15 @@ export function WorkMutations(props: WorkMutationsProps) {
               </button>
             </div>
           ) : null}
+          {panel(
+            "checkpoints",
+            <PrivateCheckpointsPanel
+              workspaceId={props.workspaceId}
+              taskId={task.id}
+              humanId={props.humanId}
+              api={api}
+            />,
+          )}
           {canManage
             ? panel(
                 "sharing",

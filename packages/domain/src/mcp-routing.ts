@@ -98,6 +98,8 @@ export const MCP_TOOL_NAMES = [
   "bfb_get_context",
   "bfb_add_comment",
   "bfb_report_progress",
+  "bfb_get_private_progress",
+  "bfb_report_private_progress",
   "bfb_propose_task",
 ] as const;
 

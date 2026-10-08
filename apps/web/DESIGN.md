@@ -85,6 +85,7 @@ Use the native system sans stack for human language and controls. Reserve monosp
 - New activity does not expand hidden sections. Empty, loading, offline and failure states describe actual outcomes, not fabricated activity or progress.
 - Result, measurement and artifact-review details install coherent bodies only for the current selection and newest operation. Denied details remove old records and actions, with one keyboard-operable retry inside the existing detail section. A hidden section reports only its label until the human chooses to open it.
 - Unsent review notes stay local. Artifact notes belong to their task and artifact; switching artifacts restores each note without moving it to another review. Saving an earlier note does not erase edits made while that save is pending.
+- Private checkpoints are a named on-demand task section, not a board action or shared comment. Show one Add checkpoint control; composition reveals Save private checkpoint and Cancel. Scope unsent notes to the human/task, keep newer edits during an earlier save, clear denied delivered history, and confirm only after a canonical refresh. Name the owner/origin boundary and unavailable local-run/publication paths without implying private-task activation.
 - Empty states teach the next action and may use one dry line. Permission, credential, destructive, and acceptance copy never jokes.
 
 ## Responsive behavior
@@ -100,3 +101,5 @@ Use short ease-out transitions only for selection, sheet entry and committed sta
 This design implements progressive disclosure, not new authorization or business behavior. Existing routes, role access, context audiences, review decisions, feature gates and handlers remain authoritative. Artifact bytes load only after explicit preview. Theme and disclosure changes never launch, approve, complete or publish work. Remote start, provider operation, agent discussions and private-work activation retain their separate contracts and gates. `PRODUCT.md` remains the product source of truth.
 
 `pnpm test:c11:detail-panels` owns mounted task-detail race controls and the compiled Chromium denial/retry/disclosure checks. Synthetic intercepted browser responses certify presentation only, not server authority; the owning domain and mounted API suites retain that separate responsibility.
+
+`pnpm test:c11:private-checkpoints` owns the author-private checkpoint section's presentation checks and separate browser/MCP/domain/native authority proofs. Its intercepted light/dark browser cases prove keyboard composition and reflow, not server access control.

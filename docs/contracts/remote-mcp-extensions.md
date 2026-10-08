@@ -39,6 +39,23 @@ only. There is no remote wait primitive: clients re-read
 
 ## Current C11 public command receipt
 
+### Author-private checkpoints
+
+C11 adds two tools to the twelve-tool parity map: `bfb_get_private_progress`
+(`bfb:read`, `task_id`) and `bfb_report_private_progress` (`bfb:task:write`,
+`task_id`, `body`, `request_id`). The resulting remote server advertises fourteen
+tools. Inputs are strict; neither tool accepts an owner, audience, origin or run.
+The report body uses ordinary progress's trimmed 2,048-Unicode-character bound;
+the SDK's 4,096 UTF-16-unit ceiling allows the domain's full Unicode range.
+
+The [C11 author-private checkpoint slice](private-task-delivery.md#author-private-checkpoint-slice)
+owns storage, current authority and exact originating-delegation history. Reads
+return `{progress:{task_id,checkpoints,has_more}}`; writes return a minimal public
+receipt for `progress.private.report`. A write-only delegation may report but
+cannot read history. Ordinary `bfb_report_progress` is unchanged and remains
+task-visible. Local run-scoped MCP does not advertise these new tools; online
+execution integration and selected-content publication retain separate gates.
+
 Under the [C11 public-position policy](private-task-delivery.md), public tool
 mutation successes are `{ok:true,result,replayed}` and failures are
 `{ok:false,error}`. The top-level internal Hub cursor is omitted through the

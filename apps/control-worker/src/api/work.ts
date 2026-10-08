@@ -13,6 +13,7 @@ import {
   assertProjectAccess,
   assertTaskChildAccess,
   assertTaskSharingReceipt,
+  assertPrivateProgressReceipt,
   cancelRunCommand,
   createExecutionCommand,
   createProviderSessionCommand,
@@ -33,9 +34,11 @@ import {
   recordBrowserActivityCommand,
   readWorkBoard,
   readTaskSharing,
+  readPrivateProgress,
   readHumanTaskCollection,
   readHumanTaskCollectionPage,
   requestChangesCommand,
+  reportPrivateProgressCommand,
   revokeTaskSharingCommand,
   startReviewTimerCommand,
   stopReviewTimerCommand,
@@ -381,6 +384,19 @@ export async function handleWorkApi(request: Request, deps: WorkApiDeps): Promis
   if (taskMatch) {
     const taskId = taskMatch[1] ?? "";
     const rest = taskMatch[2] ?? "";
+    if (rest === "/checkpoints" && request.method === "GET") {
+      if (url.search) throw new DomainError("invalid_argument", "checkpoint query is invalid");
+      return json({ progress: await readPrivateProgress(deps.db, principal, taskId) });
+    }
+    if (rest === "/checkpoints" && request.method === "POST") {
+      const record = await body(request, ["body", "request_id"]);
+      const input = { taskId, body: requiredString(record, "body") };
+      const outcome = await execute(reportPrivateProgressCommand, requestId(record), input);
+      if (outcome.ok) {
+        await assertPrivateProgressReceipt(deps.db, principal, outcome.result, input);
+      }
+      return outcomeResponse(outcome);
+    }
     if (rest === "/sharing" && request.method === "GET") {
       if (url.search) throw new DomainError("invalid_argument", "sharing query is invalid");
       return json({ sharing: await readTaskSharing(deps.db, principal, taskId) });

@@ -1,4 +1,4 @@
-// ABOUTME: Builds a fresh MCP server per request with the twelve delegated BFB tools.
+// ABOUTME: Builds a fresh MCP server per request with bounded delegated BFB tools.
 // ABOUTME: Tools call shared domain commands; authority comes from the authenticated delegation.
 
 import { McpServer } from "@modelcontextprotocol/server";
@@ -14,6 +14,7 @@ import {
   artifactHash,
   assertScope,
   assertTaskChildAccess,
+  assertPrivateProgressReceipt,
   ATTENTION_KINDS,
   createDelegatedArtifactCommand,
   finalizeDelegatedArtifactCommand,
@@ -31,6 +32,8 @@ import {
   createTaskCommand,
   mintUploadGrantSecret,
   reportProgressCommand,
+  readPrivateProgress,
+  reportPrivateProgressCommand,
   requestDelegatedAttentionCommand,
   submitDelegatedResultCommand,
 } from "@bfb/domain";
@@ -329,6 +332,52 @@ export async function createBfbMcpServer(deps: McpServerDeps): Promise<McpServer
         now: deps.now,
         input: { taskId: task_id, body: summary, kind: "progress" },
       });
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(outcome) }],
+        ...(!outcome.ok && { isError: true }),
+      };
+    },
+  );
+
+  server.registerTool(
+    "bfb_get_private_progress",
+    {
+      description: "Read your own delegation's private checkpoints, not shared task progress",
+      inputSchema: z.strictObject({ task_id: z.string().min(1).max(128) }),
+    },
+    async ({ task_id }) => {
+      assertScope(deps.delegation, "bfb:read");
+      const progress = await readPrivateProgress(deps.db, hubDeps.publicAuthority, task_id);
+      return { content: [{ type: "text" as const, text: JSON.stringify({ progress }) }] };
+    },
+  );
+
+  server.registerTool(
+    "bfb_report_private_progress",
+    {
+      description:
+        "Save a checkpoint private to your sponsor and this delegation; does not publish progress",
+      inputSchema: z.strictObject({
+        task_id: z.string().min(1).max(128),
+        body: z.string().min(1).max(4096),
+        request_id: z.string().min(8).max(128),
+      }),
+    },
+    async ({ task_id, body, request_id }) => {
+      assertScope(deps.delegation, "bfb:task:write");
+      const input = { taskId: task_id, body };
+      const outcome = await executeWorkspaceCommand(hubDeps, reportPrivateProgressCommand, {
+        workspaceId: deps.delegation.workspaceId,
+        idempotencyKey: request_id,
+        authorizationEpoch: deps.delegation.authorizationEpoch,
+        actorHumanId: deps.delegation.humanId,
+        actorDelegationId: deps.delegation.delegationId,
+        now: deps.now,
+        input,
+      });
+      if (outcome.ok) {
+        await assertPrivateProgressReceipt(deps.db, hubDeps.publicAuthority, outcome.result, input);
+      }
       return {
         content: [{ type: "text" as const, text: JSON.stringify(outcome) }],
         ...(!outcome.ok && { isError: true }),

@@ -85,7 +85,7 @@ describe("mcp routing and tools", () => {
     ).toThrow(/Session-Id/);
   });
 
-  it("exposes exactly seven tools and runs propose through shared domain command", async () => {
+  it("exposes the bounded work tools and runs propose through shared domain command", async () => {
     expect([...MCP_TOOL_NAMES]).toEqual([
       "bfb_list_projects",
       "bfb_list_tasks",
@@ -93,6 +93,8 @@ describe("mcp routing and tools", () => {
       "bfb_get_context",
       "bfb_add_comment",
       "bfb_report_progress",
+      "bfb_get_private_progress",
+      "bfb_report_private_progress",
       "bfb_propose_task",
     ]);
 
