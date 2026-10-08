@@ -79,6 +79,49 @@ describe("workspace hub", () => {
     expect(cursors).toEqual([1, 2, 3, 4, 5]);
   });
 
+  it("passes the current request input to post-cache authority without rewriting the receipt", async () => {
+    const db = await openDomainDb();
+    const hub = new WorkspaceHub(db);
+    const requestInput = { n: 1 };
+    const command: HubCommand<{ n: number }, { n: number }> = {
+      ...echo,
+      name: "test.replay-authority",
+      auditInput: () => ({}),
+      async replayResult(result, ctx, input) {
+        expect(input).toBe(requestInput);
+        expect(ctx.actorHumanId).toBe(FIX.owner);
+        expect(ctx.authorizationEpoch).toBe(1);
+        return { n: result.n + input.n };
+      },
+    };
+    const request = {
+      workspaceId: FIX.workspace,
+      idempotencyKey: "replay-input-authority",
+      input: requestInput,
+      authorizationEpoch: 1,
+      actorHumanId: FIX.owner,
+    };
+    expect(await hub.execute(command, request)).toMatchObject({
+      ok: true,
+      replayed: false,
+      result: { n: 1 },
+    });
+    const stored = await db
+      .prepare("SELECT result_json FROM idempotency_records WHERE idempotency_key = ?")
+      .get(request.idempotencyKey);
+    expect(await hub.execute(command, request)).toMatchObject({
+      ok: true,
+      replayed: true,
+      result: { n: 2 },
+    });
+    expect(
+      await db
+        .prepare("SELECT result_json FROM idempotency_records WHERE idempotency_key = ?")
+        .get(request.idempotencyKey),
+    ).toEqual(stored);
+    expect(await db.prepare("SELECT COUNT(*) AS n FROM semantic_events").get()).toEqual({ n: 1 });
+  });
+
   it("rejects idempotency replay under a different authority", async () => {
     const db = await openDomainDb();
     const hub = new WorkspaceHub(db);
@@ -225,6 +268,60 @@ describe("workspace hub", () => {
     expect(idem.c).toBe(0);
   });
 
+  it("replaces non-domain failure detail with a uniform command failure", async () => {
+    const db = await openDomainDb();
+    const hub = new WorkspaceHub(db);
+    const request = {
+      workspaceId: FIX.workspace,
+      authorizationEpoch: 1,
+      actorHumanId: FIX.owner,
+      input: { n: 1 },
+    };
+    const driverFailure: HubCommand<{ n: number }, { n: number }> = {
+      name: "test.driver-failure",
+      async run() {
+        throw new Error("UNIQUE constraint failed: tenant_fixture_items.id");
+      },
+    };
+    const driverOutcome = await hub.execute(driverFailure, {
+      ...request,
+      idempotencyKey: "driver-failure-key-1",
+    });
+    expect(driverOutcome).toEqual({
+      ok: false,
+      error: { code: "command_failed", message: "command failed" },
+    });
+    const codedFailure: HubCommand<{ n: number }, { n: number }> = {
+      name: "test.coded-failure",
+      async run() {
+        throw Object.assign(new Error("D1_ERROR: no such table: missing"), {
+          code: "SQLITE_ERROR",
+        });
+      },
+    };
+    const codedOutcome = await hub.execute(codedFailure, {
+      ...request,
+      idempotencyKey: "coded-failure-key-1",
+    });
+    expect(codedOutcome).toEqual({
+      ok: false,
+      error: { code: "command_failed", message: "command failed" },
+    });
+    const domainOutcome = await hub.execute(
+      {
+        name: "test.domain-failure",
+        async run() {
+          throw new DomainError("injected_failure", "force failure after partial write");
+        },
+      },
+      { ...request, idempotencyKey: "domain-failure-key-1" },
+    );
+    expect(domainOutcome).toEqual({
+      ok: false,
+      error: { code: "injected_failure", message: "force failure after partial write" },
+    });
+  });
+
   it("rejects a stale version without advancing any command-kernel effect", async () => {
     const db = await openDomainDb();
     const hub = new WorkspaceHub(db);
@@ -357,7 +454,7 @@ describe("workspace hub", () => {
     expect(workspaceHub(db, FIX.workspace)).toBe(workspaceHub(db, FIX.workspace));
   });
 
-  it("reads a bounded workspace replay through an authorization context", async () => {
+  it("retains semantic command history while public replay and high-water are held", async () => {
     const db = await openDomainDb();
     const hub = new WorkspaceHub(db);
     for (const n of [1, 2]) {
@@ -376,21 +473,27 @@ describe("workspace hub", () => {
       authorizationEpoch: 1,
       jurisdiction: "eu",
     });
-    const highWater = await readEventHighWater(db, authorization);
-    const firstPage = await listWorkspaceEvents(db, authorization, {
-      afterCursor: 0,
-      throughCursor: highWater,
-      limit: 1,
+    await expect(readEventHighWater(db, authorization)).rejects.toMatchObject({
+      code: "request_rejected",
+      message: "event feeds are unavailable",
     });
-    const secondPage = await listWorkspaceEvents(db, authorization, {
-      afterCursor: firstPage[0]!.cursor,
-      throughCursor: highWater,
-      limit: 100,
+    await expect(
+      listWorkspaceEvents(db, authorization, {
+        afterCursor: 0,
+        throughCursor: 2,
+        limit: 1,
+      }),
+    ).rejects.toMatchObject({ code: "request_rejected", message: "event feeds are unavailable" });
+    const rows = await db
+      .prepare(
+        "SELECT workspace_cursor,payload_json FROM semantic_events ORDER BY workspace_cursor",
+      )
+      .all();
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({ workspace_cursor: 1 });
+    expect(JSON.parse((rows[0] as { payload_json: string }).payload_json)).toMatchObject({
+      result: { n: 1 },
     });
-    expect(highWater).toBe(2);
-    expect(firstPage.map((event) => event.cursor)).toEqual([1]);
-    expect(secondPage.map((event) => event.cursor)).toEqual([2]);
-    expect(firstPage[0]?.payload).toMatchObject({ result: { n: 1 } });
   });
 
   it("rejects invalid replay bounds before querying event history", async () => {

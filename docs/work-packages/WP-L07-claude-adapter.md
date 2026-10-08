@@ -1,8 +1,12 @@
 # WP-L07 — Claude Code reference adapter
 
-Status: `planned`
+Status: `in_progress`
 
 Risk: High
+
+Test target: `pnpm test:l07`
+
+Evidence manifest: `docs/work-packages/evidence/WP-L07/manifest.json`
 
 ## Outcome
 
@@ -26,10 +30,58 @@ A card can open a supported Claude Code version in the exact checkout, bind the 
 - Register through Claude's provider-local descriptor without editing a shared provider registry.
 - Implement `provider setup/doctor claude`, integration hash, drift, unknown-version, concurrent-config-edit, rollback, and duplicate-hook diagnostics.
 - Capture start/turn/tool/error/Stop/resume/interrupt/session-end fixtures.
+- Deliver the approved private-pilot runtime using persistent real Worker/D1/R2
+  state and real authentication, with start/stop/health instructions. Test-login
+  and disposable fixture servers are not pilot delivery.
+- Keep uncertified artifact viewing/review and discussion launch disabled at
+  server boundaries and visibly unavailable in the pilot UI. Preserve certified
+  context, progress, attention, explicit results and artifact publication.
+- Implement the explicitly approved autonomous permission profile and
+  experimental root-supervision correction under
+  [ADR 0013](../adr/0013-claude-autonomy-and-root-supervision.md). Preserve
+  manual defaults, historical provider certification, independent MCP
+  authority, and durable occupancy when family cleanup remains unproven.
 
 ## Non-goals
 
 - Claude deep links as authoritative launch, simulated keystrokes, terminal scraping, or Stop/process exit as completion.
+
+## Contracts
+
+### Consumes
+
+- L03 provider kit (`done` at `32f1354`): immutable probes/plans, capability
+  ceilings, exact-session `PlanResume`, semantic interrupt/terminate, bounded
+  hook candidates, and the setup proposal/approval/hash-CAS/atomic/rollback
+  transaction. The baseline contract remains intact; the explicit private-pilot
+  permission and supervision extensions are recorded in ADR 0013.
+- L05 local execution supervision contract (`done`): the
+  `LaunchPlan` and exact-session resume-plan shape the supervisor consumes,
+  including pre-exec identity revalidation and the owned-process-group signal
+  path behind adapter controls.
+- L06 hook-journal boundary (`done`): the parser returns only bounded
+  semantic candidates with content-derived duplicate identities; correlation
+  validation, envelopes, sequencing, and persistence stay with L06.
+- F02 local-RPC diagnostics: the existing failure-code table and the
+  `log_entries` payload shape. ADR 0013 separately records the bounded
+  permission-enum exception and versioned root-lease document; neither changes
+  existing strict lease semantics.
+
+### Produces
+
+- Claude provider-local descriptor, capability manifest `1.0.0` with tested
+  versions `2.1.274` and `2.1.275`, and adapter (interactive launch,
+  exact-session resume, interrupt/terminate, raw-hook parser, setup/doctor
+  editors and CLI).
+- `provider setup claude` / `provider doctor claude` transaction shape with
+  combined proposal approval, drift/duplicate/unknown-version diagnostics, and
+  an honestly unverified local-MCP startup check: A01 is `done`, but no live
+  run-scoped handshake has been exercised, so doctor still reports
+  `mcp_startup_unverified`.
+- Raw-to-candidate fixtures (captured and schema-derived) and the
+  supported-version matrix consumed by G01/P01/P02/X02.
+- Stable `pnpm test:l07` target and evidence-manifest path for checkpoint
+  automation. P01 mirrors this package shape without touching shared contracts.
 
 ## Work plan
 
@@ -48,11 +100,243 @@ A card can open a supported Claude Code version in the exact checkout, bind the 
 - Duplicate hooks are diagnosed and concurrent deliveries remain safe.
 - Stop, failed tool, terminal close, and process exit never submit/accept a result.
 
-## Evidence and handoff
+## Evidence
 
-- Commit supported-version matrix, captured raw-to-candidate fixtures, setup/CAS/rollback diff tests, and end-to-end trace.
-- P01/P02 may not mutate the shared adapter contract implicitly.
+- [Launch-selection checkpoint](evidence/WP-L07/launch-selection-checkpoint.json)
+  records the silent retry caused by a non-default checkout looking selected
+  while application state remained empty. Explicit selection and accessible
+  validation preserve the existing checkout and same-run authority boundaries.
+- [Terminal-descriptor checkpoint](evidence/WP-L07/terminal-descriptor-checkpoint.json)
+  records the human-supplied Bun startup error, failing-first native kqueue
+  reproduction and validated original-PTY handoff repair at `fd9046f`.
+  Synthetic polling proof is not a replacement for the live provider chain.
+- [Runner-integration checkpoint](evidence/WP-L07/runner-integration-checkpoint.json)
+  records real runner approval, checkout publication, signed-helper regression
+  checks and passing full/L07 gates at source-equivalent `e8925d0`. The first
+  card launch ended before a provider session was observed; this is not live
+  provider acceptance or clean-checkout package completion.
+- [Owner-onboarding checkpoint](evidence/WP-L07/owner-onboarding-checkpoint.json)
+  records the actual authenticated UI writes, explicit local Hub repair, pinned
+  candidate build and passing full/L07 integration checks at source-equivalent
+  `c0f00b7`. Runner approval was pending at that checkpoint and has since passed;
+  live provider acceptance remains unverified. This is not a clean-checkout
+  completion certificate.
+- [Pilot integration checkpoint](evidence/WP-L07/pilot-integration-checkpoint.json)
+  records the passing implementation checks at `d6d854d`, retained failures and
+  retries, and the still-unverified real human/provider chain. It does not
+  replace the completion manifest or mark this package done.
+- [Private pilot guide](../pilot.md) documents the real-auth persistent Worker
+  runtime, private configuration, TLS and start/stop/health commands.
+  `pnpm test:l07` now includes native MCP/runner/supervisor regression and the
+  `pnpm test:pilot` configuration, server-denial and mounted first-run UI checks.
+  It also explicitly selects the test-only Claude candidate helper and builder
+  regressions, and the pilot target exercises EU logical namespace isolation
+  against a real local Hub/D1 under [ADR 0012](../adr/0012-local-pilot-hub-jurisdiction.md).
+  `pnpm pilot:smoke` checks stock Worker startup and restart persistence with
+  isolated synthetic bindings; `pnpm probe:claude-mcp` is a separately invoked,
+  bounded live protocol experiment, not a tracked-launch acceptance substitute.
+- `docs/work-packages/evidence/WP-L07/manifest.json` indexes the tested commit,
+  toolchain, commands, and redaction status for this package.
+- `docs/work-packages/evidence/WP-L07/version-matrix.json` records the
+  supported-version matrix and per-version capability ceilings.
+- `docs/work-packages/evidence/WP-L07/capture-report.md` records the bounded
+  real-CLI experiments (isolated home, temporary directory) with scrubbed
+  payload shapes.
+- `internal/providers/claude/testdata/hook-*.json` holds the raw-to-candidate
+  fixtures; `docs/work-packages/evidence/WP-L07/command-result.json` summarizes
+  the gate outcomes.
 
 ## Risks and decisions
 
 - CLI flags, trust behavior, and hook payloads are external contracts; keep real-version fixtures and fail closed on drift.
+- Only `2.1.274` and `2.1.275` are certified. Any other auto-updated
+  version probes as `unknown_version` with no tracked capabilities until its
+  fixtures pass. The 2.1.275 recapture found no certified-surface change
+  from 2.1.274 (identical hook key sets, config locations, and
+  setup/doctor behavior); the only observed differences are `--init-only`
+  missing from `--help` (the flag still works) and a login hint appended
+  to the unauthenticated `-p` stderr.
+- Headless launch, discussion turns, fork, read-only tool boundaries, and MCP
+  stdio stay uncertified until a live Claude run exercises them (A01/E01 are
+  `done`; provider credentials and consent still pending);
+  configs requiring them fail closed at plan time.
+- Only `approval.on_request` with `filesystem.workspace_write` is certified;
+  broader approval mappings are unverified on this version and fail closed.
+- Setup applies two sequential per-file L03 transactions (hooks, then MCP
+  server). A partial apply is diagnosable via doctor and repairable by
+  re-running setup; cross-file atomicity is a documented limitation.
+- Rewritten files are canonicalized JSON; unowned semantics are preserved and
+  proven, and already-current files are never rewritten.
+
+## Handoff
+
+- Autonomy/supervision correction, 6 October: Timo approved explicit Claude
+  bypass permissions and the independent runner-design correction. Commit
+  `d86ea7f` implements ADR 0013: full-access profile opt-in, exact-candidate
+  capability gates, root-only signals, independent live-root MCP authentication
+  and versioned root-lease observations. The
+  [autonomy/supervision checkpoint](evidence/WP-L07/autonomy-supervision-checkpoint.json)
+  records failing-first native proofs, passing full verification and the exact
+  L07 target, migration 0044 with existing profiles remaining manual, and a
+  separately signed candidate preserving its enrollment binding. Actual signed
+  unscoped hooks are silent, and BFB-only helper path updates passed the normal
+  preview/hash-CAS transaction after a stale preview was correctly rejected.
+  The localhost pilot is healthy after recovering its interrupted supervisor;
+  private persistent data is preserved. Timo opened the replacement app, and its
+  private daemon reconnected with the same enrollment. The cloud reports the
+  exact Claude candidate healthy with autonomous capabilities, and a separately
+  registered clean proof checkout is visible. A fresh live MCP
+  context/attention/result/resume chain remains pending. Existing closed
+  executions are not upgraded or revived. Root-supervised automatic release and
+  local recovery remain denied; no complete-family cleanup, production rollout
+  or package completion is claimed.
+  A later Wrangler `Network connection lost` diagnostic accompanied another
+  clean pilot shutdown before a new profile/run was created. Restarting the same
+  persistent pilot restored both health checks and online enrollment; the
+  underlying local-runtime failure and its relationship to an earlier reload
+  remain unproven.
+- Retry-UI continuation, 6 October: the enrolled runner remained online but
+  received no new command after a human retry click. A synthetic browser test
+  reproduced a non-default checkout displayed as selected while application
+  state was empty; the retry handler returned without a request or message.
+  The form now represents the empty choice and focuses actionable validation
+  for a missing or blocked checkout. It does not silently choose another
+  checkout or change the retry's original run/profile binding. Commit `d9238fd`
+  passes all 12 W02 browser cases, 34 focused unit cases and full repository
+  verification (2,843 TypeScript and 16 Swift cases plus Go). The exact L07
+  target passes with Go package scheduling serialized after a default-parallel
+  run hit an unchanged Grok synthetic five-second inspection bound; no tests
+  were skipped and no deadlines were relaxed.
+  Timo subsequently confirmed Claude opens. Kernel provider startup and a
+  trusted local observed-session record now exist. The next live boundary fails:
+  retained direct Claude descendants used separate process groups, setting
+  sticky containment uncertainty and denying MCP context/task calls. Claude
+  and its supervisor remain alive; the `assignment_ended` MCP message reflects
+  denial mapping, not actual process exit. The first escaped children were gone
+  before executable inspection, so their specific role remains unknown; the
+  surviving BFB MCP helper remains in the owned group. The proof checkout is
+  still clean. No new launch, forced recovery or authority bypass was attempted.
+  This is launch progress, not completed live provider acceptance.
+- Terminal-startup continuation, 6 October: Timo found the background Terminal
+  and supplied Claude's bundled Bun `EINVAL`/`kqueue` error. The real provider
+  runtime had started, but it exited before BFB observed or bound a session.
+  A native synthetic PTY reproducer proved that the production gate passed
+  unpollable `/dev/tty` handles while original PTY streams were pollable.
+  Commit `fd9046f` retains `/dev/tty` for job control only and inherits the
+  original streams after exact controlling-device, process-identity, access-mode
+  and foreground checks before authorization and immediately before spawn.
+  Failing-first and repaired regressions are retained separately. No provider
+  update, environment bypass, capability promotion or authority change is used.
+  Full repository verification passes 2,841 TypeScript and 16 Swift cases plus
+  Go checks. The exact L07 target passes on unchanged retry after two unexplained
+  five-second synthetic inspection failures; deadlines were not relaxed. The
+  separately signed replacement is active, keeps the existing enrollment online,
+  and uses reviewed BFB-only hook/MCP path updates with unrelated settings intact.
+  The normal doctor still rejects the uncertified candidate version as designed.
+  First launch can still remain behind other apps; foreground presentation is
+  separate from this repair. The helper's empty-object output and discarded
+  child wait status do not prove successful provider startup or business
+  completion. The live session/MCP/human loop remains unverified.
+- Enrolled-runner continuation, 6 October: real passkey approval is saved and a
+  clean existing checkout is registered. The first sync exposed nanosecond
+  inventory clocks outside the frozen microsecond wire grammar and a local-only
+  interactive-resume capability leaking into the v1 report. The inventory
+  repair preserves freshness and local resume while the real replacement
+  daemon now reconnects and publishes the checkout without re-enrollment.
+  Initial global hook installation also blocked unrelated Claude tool calls:
+  absent BFB correlation incorrectly returned blocking exit 2. The hooks and
+  temporary MCP entry were removed, unrelated configuration was preserved, and
+  Timo confirmed recovery. The repaired normal/candidate entry points silently
+  ignore only fully unscoped exact vendor hooks; partial bindings still fail
+  closed. The old signed helper reproduces exit 2 and its signed replacement
+  returns zero with no output. Both `pnpm verify` and `pnpm test:l07` pass at
+  source-equivalent `e8925d0`, and the replacement hook/MCP configuration was
+  applied through fresh preview and hash-CAS checks. The first actual card
+  Start reached the local execution helper but ended before the provider was
+  observed; no session binding, scoped MCP, attention or result is claimed.
+  A later Wrangler proxy connection error stopped the pilot Workers; restarting
+  the same persistent pilot restored both HTTPS health checks without resetting
+  authentication or enrollment. The Terminal error and live chain remain open.
+- Real local pilot startup, 6 October: operator-supplied OAuth bindings pass
+  preflight and both persistent stock Workers are healthy over browser-trusted
+  HTTPS. The real sign-in reaches GitHub consent for read-only profile/email
+  access. Unauthenticated session/workspace requests remain denied. The
+  first-owner verifier is prepared without seeding a human, workspace or
+  session. The initial in-app callback was blocked with `ERR_BLOCKED_BY_CLIENT`;
+  no bypass was attempted. Timo completed fresh sign-in, workspace creation and
+  passkey registration. Owner access and the registered passkey are now verified
+  in the real in-app browser session. Actual project/profile/task/context writes
+  pass after the explicit local-only Hub jurisdiction repair. An isolated signed
+  Claude candidate preserves exact binary and private-state pins without
+  promoting production capabilities. Runner approval was pending at this
+  checkpoint and has since passed; the actual tracked provider workflow remains
+  pending. No deployment or package completion follows from local onboarding.
+- Active 6 October: Timo approved the Claude-first private-pilot delivery path.
+  A01–A04 and V01 now have connected runtime certificates, and every L07
+  dependency is `done`. The unchanged `pnpm test:l07` baseline passes before
+  this integration work (1,123 protocol tests and the native race suites).
+  Installed Claude `2.1.291` is signed in but remains uncertified. Current
+  repairs include provider-aware inventory, helper environment preservation,
+  trusted SessionStart bootstrap and actual local-MCP protocol interoperability.
+  The bounded isolated `2.1.291` probe passed its real `2025-11-25` MCP handshake
+  and six observed exec-form hook deliveries without widening the tested-version
+  manifest. Seven event handlers were configured; `PostToolUseFailure` was not
+  observed by that successful-tool probe.
+  Stock Worker smoke proves trusted loopback HTTPS, denied unauthenticated
+  access, exact bootstrap retry and D1/R2 persistence across restart. Real
+  OAuth configuration/startup and human onboarding have since passed as recorded
+  above; the tracked provider chain remains open. The isolated smoke creates
+  no fake human or browser session.
+  A passing synthetic certificate does not prove any live acceptance below.
+  Bounded BFB-owned live tests are part of the approved pilot; existing provider
+  sessions, non-BFB settings, macOS consent and user authority remain protected.
+- Dependency hold, 5 October: A01 is reopened for its missing production online/replay path. The adapter implementation and historical fixture acceptance are retained, but the remaining live chain is not only a credentials/consent issue. Close A01 and certify the exact installed provider version before proving live launch and resume. The dated status below is historical, not the current package state.
+- Settled 18 September: `review`. A01, E01, L05, and L06 are `done`, and
+  `pnpm test:l07` passed from a detached clean checkout at the commit recorded
+  in the evidence manifest
+  (`6e6cae81989ccb5df2b296a47c0571d6b7a7b266`): frozen install, build, and the
+  exact target with the 2.1.274/2.1.275 fixture suites, as recorded in
+  `docs/work-packages/evidence/WP-L07/manifest.json` and `command-result.json`.
+  Acceptance 3–7 stay proven as recorded below. Acceptance 1 (live chain:
+  card Start, Claude opens, trusted `SessionStart` binds, MCP context loads,
+  semantic events commit) and Acceptance 2 (resume on the same run) still
+  need a live Claude session: provider credentials and consent, which only
+  Timo can provide. No live model turn has run; nothing live is claimed.
+- Acceptance 3 (unknown version blocks tracked mode): proven. Any version
+  other than `2.1.274`/`2.1.275` probes as `unknown_version` with no tracked
+  capabilities; plan and doctor fail closed.
+- Acceptance 4 (setup preservation, approved diff, concurrent-edit abort,
+  rollback, byte-identical untouched files): proven through the L03
+  transaction for both user-level files, including idempotent no-op runs.
+- Acceptance 5 (replaced binary/config detected before `exec`): proven at
+  the adapter layer (probe identity, `Revalidate`, integration-hash drift);
+  L05 is `done` and its pre-exec consumption runs in the production daemon
+  through its launch installation, which fingerprints the same hook/MCP
+  sources.
+- Acceptance 6 (duplicate hooks diagnosed, concurrent deliveries safe):
+  proven. Identical deliveries share one content-derived suppression
+  identity; duplicates, drift, and concurrent edits are diagnosed; the
+  transaction never overwrites a concurrent edit.
+- Acceptance 7 (Stop, failed tool, terminal close, process exit never
+  submit/accept a result): proven. `Stop` maps to turn telemetry,
+  `PostToolUseFailure` to failed/interrupted telemetry, `SessionEnd` to
+  session end; the candidate type carries no result-submission field, and
+  headless exit paths stay uncertified.
+- Acceptance 1 (card → exact checkout → Claude opens → trusted `SessionStart`
+  binds → MCP context loads → semantic events commit): adapter plans, hook
+  parsing, and the `SessionStart` binding check are proven; L05
+  (launch/supervision), L06 (journal/binding), and E01 (ingest) have historical
+  certification. A01's production context path must first be completed, then
+  the exact supported provider version must pass the live chain.
+- Acceptance 2 (resume attaches the observed session to the same unfinished
+  run): exact-session resume plans and UUID binding are proven; L05 and L06
+  have historical certification. The assembled canonical session/continuation
+  path and a resumed live execution still require proof; fixture identity checks
+  do not establish that integration.
+- Commands: `pnpm test:l07`, `bfb provider setup claude`, `bfb provider doctor
+  claude`. Doctor reports `mcp_startup_unverified` until a live run-scoped
+  handshake is exercised after A01 runtime closure and exact-version setup.
+- Known limitations: rewritten config files are canonicalized (semantics
+  preserved, formatting not byte-identical); settings files with comments or
+  other non-strict JSON are refused; the hook launcher path is recorded, not
+  hash-pinned; `--resume` and `--session-id` require UUID shape.

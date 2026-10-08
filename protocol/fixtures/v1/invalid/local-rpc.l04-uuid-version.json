@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "request_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+  "method": "app.wake",
+  "direction": "request",
+  "payload": { "terminal_intent_id": "e0da52a9-d0cb-17d8-867b-e08f684b9001" }
+}

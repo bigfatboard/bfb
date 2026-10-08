@@ -1,0 +1,58 @@
+{
+  "command": "pnpm test:x04",
+  "scenarios": [
+    {
+      "name": "F1-hmac",
+      "outcome": "passed"
+    },
+    {
+      "name": "F2-management",
+      "outcome": "passed"
+    },
+    {
+      "name": "F3-activation",
+      "outcome": "passed"
+    },
+    {
+      "name": "F4-mapping",
+      "outcome": "passed"
+    },
+    {
+      "name": "F5-push",
+      "outcome": "passed"
+    },
+    {
+      "name": "F6-duplicate",
+      "outcome": "passed"
+    },
+    {
+      "name": "F7-out-of-order",
+      "outcome": "passed"
+    },
+    {
+      "name": "F8-crash-gap",
+      "outcome": "passed"
+    },
+    {
+      "name": "F9-poison",
+      "outcome": "passed"
+    },
+    {
+      "name": "F10-suspend",
+      "outcome": "passed"
+    },
+    {
+      "name": "F11-revocation",
+      "outcome": "passed"
+    },
+    {
+      "name": "F12-provenance",
+      "outcome": "passed"
+    },
+    {
+      "name": "F13-canary",
+      "outcome": "passed"
+    }
+  ],
+  "outcome": "passed"
+}

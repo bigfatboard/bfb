@@ -10,6 +10,37 @@ import type { AuthKey, HumanAuth } from "./better-auth.js";
 
 export const SESSION_COOKIE = "__Host-bfb_session";
 
+export interface SessionCookieAttributes {
+  path: string;
+  httpOnly: boolean;
+  secure: boolean;
+  sameSite: "lax" | "strict" | "none";
+}
+
+export const SESSION_COOKIE_ATTRIBUTES: SessionCookieAttributes = {
+  path: "/",
+  httpOnly: true,
+  secure: true,
+  sameSite: "lax",
+};
+
+export function serializeSessionSetCookie(
+  pair: string,
+  attributes: SessionCookieAttributes = SESSION_COOKIE_ATTRIBUTES,
+): string {
+  const parts = [pair, `Path=${attributes.path}`];
+  if (attributes.httpOnly) {
+    parts.push("HttpOnly");
+  }
+  if (attributes.secure) {
+    parts.push("Secure");
+  }
+  const sameSite =
+    attributes.sameSite === "strict" ? "Strict" : attributes.sameSite === "none" ? "None" : "Lax";
+  parts.push(`SameSite=${sameSite}`);
+  return parts.join("; ");
+}
+
 export interface BrowserPrincipal {
   type: "human";
   humanId: string;

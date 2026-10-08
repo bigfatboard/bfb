@@ -4,7 +4,7 @@ This plan turns the [v0.1 architecture](../../ARCHITECTURE.md) into independentl
 
 The default is sequence over concurrency. Parallel work is allowed only where this document names a stable contract and non-overlapping ownership boundary.
 
-The program contains 42 work packages and nine integration checkpoints. Package IDs are stable identifiers, not a claim that packages execute in numeric order.
+The program contains 55 work packages, nine release integration checkpoints, and the MVP discussion checkpoint below. Package IDs are stable identifiers, not a claim that packages execute in numeric order. The approved [MVP plan](../../mvp.plan.md) prioritizes remote launch and human-initiated discussion; [ADR 0002](../adr/0002-human-initiated-discussions.md) records its domain and execution boundaries. The [product-beta lane](../product-beta.plan.md) assigns the mandatory product extension to C10–C15, A05/A06 and W03/W04; planned packages do not certify those features.
 
 ## Delivery rules
 
@@ -73,6 +73,12 @@ flowchart TD
         C07["C07 Projects, repository identity, and policy"]
         C08["C08 Tasks, runs, context, and work APIs"]
         C09["C09 Durable launch orchestration"]
+        C10["C10 Private-task authorization kernel"]
+        C11["C11 Private-task delivery and sharing"]
+        C12["C12 Selected-content publication"]
+        C13["C13 Canonical project knowledge and instruction delivery"]
+        C14["C14 Pinned workspace and project skill catalogs"]
+        C15["C15 Scoped encrypted business secret vault"]
     end
     subgraph Localexecution["Local execution"]
         L01["L01 Go daemon and CLI kernel"]
@@ -87,6 +93,8 @@ flowchart TD
     subgraph Webandrealtime["Web and realtime"]
         W01["W01 Authenticated app and Work surface"]
         W02["W02 Runner and launch operations UI"]
+        W03["W03 Clean board and task interface"]
+        W04["W04 Distinct task summary plan graphics and progress views"]
         E01["E01 Event ingestion, projection, and replay"]
         E02["E02 Browser realtime, timeline, and presence"]
     end
@@ -95,6 +103,13 @@ flowchart TD
         A02["A02 Human attention workflow"]
         A03["A03 Result submission and acceptance"]
         A04["A04 Measurements and provenance"]
+        A05["A05 Non-executing checkpoint reminders"]
+        A06["A06 Attributable human contribution history"]
+    end
+    subgraph Agentdiscussion["Agent discussion"]
+        D01["D01 Discussion records and permissions"]
+        D02["D02 Supervised discussion delivery"]
+        D03["D03 Discussion UI and human decisions"]
     end
     subgraph Visualreview["Visual review"]
         V01["V01 Artifact storage state machine"]
@@ -111,7 +126,7 @@ flowchart TD
         X03["X03 Remote MCP parity extensions"]
         X03A["X03A Remote OAuth MCP core"]
         X04["X04 GitHub evidence integration"]
-        X05["X05 Operations, audit, and retention"]
+        X05["X05 Operations, audit and retention"]
     end
     subgraph Golive["Go-live"]
         G01["G01 Integrated adversarial hardening"]
@@ -151,6 +166,29 @@ flowchart TD
     C06 --> C09
     C07 --> C09
     C08 --> C09
+    C04 --> C10
+    C08 --> C10
+    A01 --> C11
+    A02 --> C11
+    A03 --> C11
+    A04 --> C11
+    C05 --> C11
+    C06 --> C11
+    C10 --> C11
+    D01 --> C11
+    E02 --> C11
+    V03 --> C11
+    W01 --> C11
+    X03 --> C11
+    C11 --> C12
+    V03 --> C12
+    X03 --> C12
+    C11 --> C13
+    W03 --> C13
+    C13 --> C14
+    C15 --> C14
+    C11 --> C15
+    W03 --> C15
     F01 --> L01
     F02 --> L01
     F02 --> L02
@@ -194,6 +232,16 @@ flowchart TD
     L05 --> W02
     L08 --> W02
     W01 --> W02
+    A02 --> W03
+    A03 --> W03
+    A04 --> W03
+    V03 --> W03
+    W01 --> W03
+    W02 --> W03
+    A06 --> W04
+    C12 --> W04
+    C13 --> W04
+    W03 --> W04
     C01 --> E01
     C04 --> E01
     C06 --> E01
@@ -220,11 +268,32 @@ flowchart TD
     A03 --> A04
     E01 --> A04
     W01 --> A04
+    C13 --> A05
+    C11 --> A06
+    W03 --> A06
+    C01 --> D01
+    C04 --> D01
+    C06 --> D01
+    C08 --> D01
+    C09 --> D01
+    L08 --> D01
+    A01 --> D02
+    D01 --> D02
+    L03 --> D02
+    L05 --> D02
+    L06 --> D02
+    L08 --> D02
+    P01 --> D02
+    D01 --> D03
+    D02 --> D03
+    E02 --> D03
+    W01 --> D03
     A01 --> V01
     C01 --> V01
     C04 --> V01
     F03 --> V01
     C01 --> V02
+    F03 --> V02
     V01 --> V02
     W01 --> V02
     A03 --> V03
@@ -348,50 +417,68 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 | C02 | [Human identity and sessions](WP-C02-human-identity.md) | `done` | High |
 | C03 | [Passkey enrollment and step-up](WP-C03-passkey-step-up.md) | `done` | High |
 | C04 | [Workspace authorization](WP-C04-workspace-authorization.md) | `done` | Very high |
-| C05 | [Human device and CLI credentials](WP-C05-human-device-credentials.md) | `planned` | High |
-| C06 | [Runner identity, grants, and tokens](WP-C06-runner-enrollment-channel.md) | `planned` | Very high |
+| C05 | [Human device and CLI credentials](WP-C05-human-device-credentials.md) | `done` | High |
+| C06 | [Runner identity, grants, and tokens](WP-C06-runner-enrollment-channel.md) | `done` | Very high |
 | C07 | [Projects, repository identity, and policy](WP-C07-work-domain.md) | `done` | High |
 | C08 | [Tasks, runs, context, and work APIs](WP-C08-work-records.md) | `done` | High |
-| C09 | [Durable launch orchestration](WP-C09-launch-orchestration.md) | `planned` | Very high |
+| C09 | [Durable launch orchestration](WP-C09-launch-orchestration.md) | `done` | Very high |
+| C10 | [Private-task authorization kernel](WP-C10-private-task-authority.md) | `done` | Very high |
+| C11 | [Private-task delivery and sharing](WP-C11-private-task-delivery.md) | `in_progress` | Very high |
+| C12 | [Selected-content publication](WP-C12-selected-content-publication.md) | `planned` | Very high |
+| C13 | [Canonical project knowledge and instruction delivery](WP-C13-project-knowledge.md) | `planned` | Very high |
+| C14 | [Pinned workspace and project skill catalogs](WP-C14-skill-catalogs.md) | `planned` | Very high |
+| C15 | [Scoped encrypted business secret vault](WP-C15-business-secret-vault.md) | `planned` | Very high |
 
 ### Local execution
 
 | ID | Package | Status | Risk |
 | --- | --- | --- | --- |
-| L01 | [Go daemon and CLI kernel](WP-L01-daemon-kernel.md) | `planned` | High |
-| L02 | [Exact checkout registry](WP-L02-checkout-registry.md) | `planned` | High |
-| L03 | [Provider adapter kit](WP-L03-provider-kit.md) | `planned` | High |
-| L04 | [SwiftUI macOS application](WP-L04-macos-app.md) | `planned` | High |
-| L05 | [Terminal execution supervisor](WP-L05-terminal-supervisor.md) | `planned` | Very high |
-| L06 | [Hook journal and offline inbox](WP-L06-hook-journal.md) | `planned` | Very high |
-| L07 | [Claude Code reference adapter](WP-L07-claude-adapter.md) | `planned` | High |
-| L08 | [Runner enrollment and channel client](WP-L08-runner-channel-client.md) | `planned` | Very high |
+| L01 | [Go daemon and CLI kernel](WP-L01-daemon-kernel.md) | `done` | High |
+| L02 | [Exact checkout registry](WP-L02-checkout-registry.md) | `done` | High |
+| L03 | [Provider adapter kit](WP-L03-provider-kit.md) | `done` | High |
+| L04 | [SwiftUI macOS application](WP-L04-macos-app.md) | `done` | High |
+| L05 | [Terminal execution supervisor](WP-L05-terminal-supervisor.md) | `done` | Very high |
+| L06 | [Hook journal and offline inbox](WP-L06-hook-journal.md) | `done` | Very high |
+| L07 | [Claude Code reference adapter](WP-L07-claude-adapter.md) | `in_progress` | High |
+| L08 | [Runner enrollment and channel client](WP-L08-runner-channel-client.md) | `done` | Very high |
 
 ### Web and realtime
 
 | ID | Package | Status | Risk |
 | --- | --- | --- | --- |
 | W01 | [Authenticated app and Work surface](WP-W01-app-shell.md) | `done` | Medium |
-| W02 | [Runner and launch operations UI](WP-W02-launch-operations-ui.md) | `planned` | High |
-| E01 | [Event ingestion, projection, and replay](WP-E01-event-ingest-replay.md) | `planned` | Very high |
-| E02 | [Browser realtime, timeline, and presence](WP-E02-browser-realtime.md) | `planned` | High |
+| W02 | [Runner and launch operations UI](WP-W02-launch-operations-ui.md) | `done` | High |
+| W03 | [Clean board and task interface](WP-W03-progressive-disclosure-ui.md) | `done` | Medium |
+| W04 | [Distinct task summary plan graphics and progress views](WP-W04-task-content-views.md) | `planned` | High |
+| E01 | [Event ingestion, projection, and replay](WP-E01-event-ingest-replay.md) | `done` | Very high |
+| E02 | [Browser realtime, timeline, and presence](WP-E02-browser-realtime.md) | `done` | High |
 
 ### Agent and human loop
 
 | ID | Package | Status | Risk |
 | --- | --- | --- | --- |
-| A01 | [Run-scoped local MCP and context](WP-A01-local-mcp-context.md) | `planned` | Very high |
-| A02 | [Human attention workflow](WP-A02-attention.md) | `planned` | High |
-| A03 | [Result submission and acceptance](WP-A03-results.md) | `planned` | High |
-| A04 | [Measurements and provenance](WP-A04-measurements.md) | `planned` | High |
+| A01 | [Run-scoped local MCP and context](WP-A01-local-mcp-context.md) | `done` | Very high |
+| A02 | [Human attention workflow](WP-A02-attention.md) | `done` | High |
+| A03 | [Result submission and acceptance](WP-A03-results.md) | `done` | High |
+| A04 | [Measurements and provenance](WP-A04-measurements.md) | `done` | High |
+| A05 | [Non-executing checkpoint reminders](WP-A05-checkpoint-reminders.md) | `planned` | High |
+| A06 | [Attributable human contribution history](WP-A06-human-contributions.md) | `planned` | High |
+
+### Agent discussion
+
+| ID | Package | Status | Risk |
+| --- | --- | --- | --- |
+| D01 | [Discussion records and permissions](WP-D01-discussion-records.md) | `done` | Very high |
+| D02 | [Supervised discussion delivery](WP-D02-discussion-delivery.md) | `planned` | Very high |
+| D03 | [Discussion UI and human decisions](WP-D03-discussion-ui.md) | `planned` | High |
 
 ### Visual review
 
 | ID | Package | Status | Risk |
 | --- | --- | --- | --- |
-| V01 | [Artifact storage state machine](WP-V01-artifact-storage.md) | `planned` | Very high |
-| V02 | [Isolated artifact viewer](WP-V02-artifact-viewer.md) | `planned` | Very high |
-| V03 | [Immutable artifact review](WP-V03-artifact-review.md) | `planned` | High |
+| V01 | [Artifact storage state machine](WP-V01-artifact-storage.md) | `done` | High |
+| V02 | [Isolated artifact viewer](WP-V02-artifact-viewer.md) | `done` | Very high |
+| V03 | [Immutable artifact review](WP-V03-artifact-review.md) | `done` | High |
 
 ### Provider parity
 
@@ -404,12 +491,12 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 
 | ID | Package | Status | Risk |
 | --- | --- | --- | --- |
-| X01 | [Actionable notifications](WP-X01-notifications.md) | `planned` | Medium |
+| X01 | [Actionable notifications](WP-X01-notifications.md) | `blocked` | Medium |
 | X02 | [Human CLI parity](WP-X02-human-cli.md) | `planned` | High |
-| X03 | [Remote MCP parity extensions](WP-X03-remote-mcp.md) | `planned` | Very high |
+| X03 | [Remote MCP parity extensions](WP-X03-remote-mcp.md) | `done` | Very high |
 | X03A | [Remote OAuth MCP core](WP-X03A-remote-mcp-core.md) | `done` | Very high |
-| X04 | [GitHub evidence integration](WP-X04-github.md) | `planned` | High |
-| X05 | [Operations, audit, and retention](WP-X05-operations.md) | `planned` | High |
+| X04 | [GitHub evidence integration](WP-X04-github.md) | `blocked` | High |
+| X05 | [Operations, audit and retention](WP-X05-operations.md) | `blocked` | High |
 
 ### Go-live
 
@@ -435,6 +522,8 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 | IC-8 — Release | G01–02 | Blank-account self-host and signed Mac install reproduce the same golden flow with recovery evidence |
 
 IC-3 deliberately proves launch authority, PTY behavior, locking, controls, and containment with the deterministic fake provider. The architecture’s user-visible first-launch claim is completed at IC-5, when L07 repeats that path with a supported real Claude version, trusted session binding, local MCP, replay, attention, and explicit result submission.
+
+MVP-D — Human-initiated discussion is owned by D03 and requires D01–D03 plus their dependency closure. Its gate is `pnpm test:mvp-discussion`: two read-only Claude/Codex participants exchange bounded correlated turns, recover or visibly pause after ambiguous delivery, permit human intervention, and produce a decision without advancing the task's work state. It does not certify deferred visual-review, Grok, external-integration, or release packages.
 
 ## Safe parallel windows
 

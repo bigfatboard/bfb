@@ -65,11 +65,13 @@ A human can sign in with GitHub and receive a secure BFB web session, without ga
 - Accounts sharing an email are not linked implicitly.
 - Public auth abuse limits survive Worker-isolate changes and return bounded uniform failures without logging raw OAuth or identity material.
 
-## Evidence and handoff
+## Evidence
 
 - Commit auth configuration snapshot, migration diff, route credential matrix, and negative-test report.
-- C03/C04 consume only the normalized human principal, not Better Auth internals.
-
 ## Risks and decisions
 
 - Plugin defaults are part of the threat model; tests must prove disabled routes stay disabled after upgrades.
+
+## Handoff
+
+- C03/C04 consume only the normalized human principal, not Better Auth internals.

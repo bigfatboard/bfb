@@ -1,0 +1,63 @@
+{
+  "$schema": "../manifest.schema.json",
+  "package": "X05",
+  "tested_commit": "5951fb56c603389ffe797018a6db61994ab6c182",
+  "protocol_version": "bfb-wire/1",
+  "schema_version": "1",
+  "migration_head": "0034_operations",
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "browser": "chromium (playwright)"
+  },
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS",
+    "architecture": "arm64"
+  },
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-X05/command-result.json"
+    },
+    {
+      "command": "pnpm test:x05",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-X05/command-result.json"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-X05/command-result.json"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-X05/command-result.json"
+    }
+  ],
+  "outcome": "passed",
+  "artifacts": [
+    "docs/work-packages/evidence/WP-X05/command-result.json",
+    "docs/work-packages/evidence/WP-X05/drill.jsonl",
+    "docs/work-packages/evidence/WP-X05/retention-fixture.json",
+    "docs/work-packages/evidence/WP-X05/redaction-scan.json",
+    "docs/work-packages/evidence/WP-X05/operations-ui.json"
+  ],
+  "redaction": {
+    "status": "passed",
+    "prohibited_content": [
+      "task bodies",
+      "cookies",
+      "bearer and grant secrets",
+      "local paths",
+      "hook payloads",
+      "artifact bytes",
+      "terminal output",
+      "private keys",
+      "webhook, abuse, and session signing secrets"
+    ]
+  }
+}

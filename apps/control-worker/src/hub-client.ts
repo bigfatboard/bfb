@@ -7,6 +7,7 @@ import {
   type CommandRequest,
   type HubCommand,
   resolveCommand,
+  type PublicBusinessAuthority,
   workspaceHub,
 } from "@bfb/domain";
 
@@ -17,6 +18,8 @@ export interface HubClientDeps {
   authorization: AuthorizationContext;
   /** Cloudflare WORKSPACE_HUB binding, or a test double with idFromName/get. */
   workspaceHubNs?: DurableObjectNamespace | undefined;
+  /** First authenticated transport ceiling; never reloaded after body/RPC awaits. */
+  publicAuthority?: PublicBusinessAuthority | undefined;
 }
 
 function isDurableObjectNamespace(
@@ -58,7 +61,10 @@ export async function executeWorkspaceCommand<TInput, TResult>(
     };
   }
   const requestPrincipalId =
-    request.actorDelegationId ?? request.actorHumanId ?? request.actorSystemId;
+    request.actorDelegationId ??
+    request.actorHumanId ??
+    request.actorRunnerId ??
+    request.actorSystemId;
   if (requestPrincipalId !== scope.principalId) {
     return {
       ok: false,
@@ -129,12 +135,12 @@ export async function executeWorkspaceCommand<TInput, TResult>(
         };
       }
       return body as CommandOutcome<TResult>;
-    } catch (error) {
+    } catch {
       return {
         ok: false,
         error: {
           code: "hub_rpc_failed",
-          message: error instanceof Error ? error.message : "hub DO call failed",
+          message: "hub DO call failed",
         },
       };
     }

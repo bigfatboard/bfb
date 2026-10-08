@@ -1,0 +1,171 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/agent-result-capture.json",
+  "title": "AgentResultCapture",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "confirmation",
+    "operation",
+    "admission_mode",
+    "admitted_permission",
+    "captured_at",
+    "intent_expires_at",
+    "signature"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "confirmation": {
+      "$ref": "agent-result-confirmation-result.json"
+    },
+    "operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "command_name",
+        "tool",
+        "operation_schema_version",
+        "operation_key",
+        "request_id",
+        "payload_hash",
+        "expected_version",
+        "target_task_id",
+        "parent_task_id"
+      ],
+      "properties": {
+        "command_name": {
+          "type": "string",
+          "const": "result.submit"
+        },
+        "tool": {
+          "type": "string",
+          "const": "bfb_submit_result"
+        },
+        "operation_schema_version": {
+          "type": "integer",
+          "const": 1
+        },
+        "operation_key": {
+          "type": "string",
+          "pattern": "^agent:[0-9a-f]{64}$",
+          "minLength": 70,
+          "maxLength": 70
+        },
+        "request_id": {
+          "$ref": "primitives.json#/$defs/IdempotencyKey"
+        },
+        "payload_hash": {
+          "$ref": "primitives.json#/$defs/Sha256Digest"
+        },
+        "expected_version": {
+          "type": "null"
+        },
+        "target_task_id": {
+          "$ref": "primitives.json#/$defs/Ulid"
+        },
+        "parent_task_id": {
+          "type": "null"
+        }
+      }
+    },
+    "admission_mode": {
+      "type": "string",
+      "enum": ["online_only", "offline_admitted"]
+    },
+    "admitted_permission": {
+      "$ref": "agent-result-confirmation-result.json#/$defs/Permission"
+    },
+    "captured_at": {
+      "$ref": "agent-result-confirmation-result.json#/$defs/CaptureTimestamp"
+    },
+    "intent_expires_at": {
+      "$ref": "agent-result-confirmation-result.json#/$defs/NullableCaptureTimestamp"
+    },
+    "signature": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{85}[AQgw]$",
+      "minLength": 86,
+      "maxLength": 86
+    }
+  },
+  "allOf": [
+    {
+      "properties": {
+        "confirmation": {
+          "type": "object",
+          "properties": {
+            "can_submit": {
+              "const": true
+            }
+          }
+        }
+      },
+      "type": "object"
+    },
+    {
+      "if": {
+        "type": "object",
+        "required": ["admission_mode"],
+        "properties": {
+          "admission_mode": {
+            "const": "online_only"
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "intent_expires_at": {
+            "const": null
+          },
+          "admitted_permission": {
+            "type": "object",
+            "properties": {
+              "allow_submit_result": {
+                "const": false
+              },
+              "max_pending_age_seconds": {
+                "const": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "type": "object",
+        "required": ["admission_mode"],
+        "properties": {
+          "admission_mode": {
+            "const": "offline_admitted"
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "intent_expires_at": {
+            "type": "string"
+          },
+          "admitted_permission": {
+            "type": "object",
+            "properties": {
+              "allow_submit_result": {
+                "const": true
+              },
+              "max_pending_age_seconds": {
+                "minimum": 1,
+                "type": "integer"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,73 @@
+{
+  "package": "C10",
+  "recorded_on": "2026-10-06",
+  "tested_commit": "a7edf14fc61d181152d6cc5ed0694fdaa5b1fa89",
+  "outcome": "passed",
+  "package_acceptance_complete": true,
+  "scope": "Dormant current-authority task access kernel; not private delivery or activation",
+  "migration_head": "0045_private_task_authority",
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56)",
+    "architecture": "arm64",
+    "runtime": "Independent synthetic command proxies, production Hub shared-task creation, real disposable D1; kernel queried through D1 binding from test host"
+  },
+  "clean_commands": [
+    { "command": "pnpm install --frozen-lockfile", "exit_code": 0 },
+    {
+      "command": "pnpm test:c10",
+      "exit_code": 0,
+      "cases": 86,
+      "files": 8,
+      "access_cases": 58,
+      "dedicated_migration_cases": 6,
+      "d1_checks": 9,
+      "ordered_migrations": 40,
+      "proof": "C10_D1_OK"
+    },
+    { "command": "pnpm test:c08", "exit_code": 0, "cases": 23, "files": 5, "proof": "C08_D1_OK" },
+    {
+      "command": "pnpm test:x03",
+      "exit_code": 0,
+      "cases": 71,
+      "files": 7,
+      "worker_d1_r2_checks": 11,
+      "browser_cases": 2,
+      "proof": "X03_D1_OK"
+    },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 2987,
+      "typescript_files": 149,
+      "go": "passed",
+      "swift": "passed",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    { "command": "pnpm worktree:check", "exit_code": 0, "before_and_after_verify": true }
+  ],
+  "failing_first": {
+    "missing_schema_cases": 4,
+    "future_epoch_case": 1,
+    "meaning": "Schema tests precede the new tables; an additional negative demonstrates a grant could pre-authorize a future epoch before the insertion fence"
+  },
+  "runtime_checks": [
+    "ordered_empty_d1_migrations",
+    "production_hub_creation_remains_shared",
+    "creator_binding_policy_retention",
+    "creator_only_no_owner_bypass",
+    "grant_permissions_intersect_current_roles",
+    "revocation_and_epoch_rotation_fence_stale_grants",
+    "list_and_count_filter_before_pagination",
+    "task_grant_never_grants_project_access",
+    "failed_d1_batch_has_no_partial_grant"
+  ],
+  "not_claimed": [
+    "Private creation, ACL commands, complete route/MCP/CLI/replay/realtime/artifact/notification/audit enforcement",
+    "Private agent-child inheritance or internal-progress delivery",
+    "Selected-content publication, cloud project knowledge, catalogs, vault or themes",
+    "Provider execution, remote start, discussions, pilot operation or deployment"
+  ],
+  "redaction": "Only bounded synthetic counts, labels, source identity and proof limits; no credentials, private bodies, raw output or local paths"
+}

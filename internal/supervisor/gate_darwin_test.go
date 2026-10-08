@@ -1,0 +1,658 @@
+// ABOUTME: Runs the execution gate across actual child processes and native controlling PTYs.
+// ABOUTME: Proves durable-group ordering, final-authority failures and pre-exec swaps without Terminal automation.
+
+//go:build darwin && cgo
+
+package supervisor
+
+import (
+	"bufio"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"syscall"
+	"testing"
+	"time"
+	"unsafe"
+
+	"github.com/qdis/bfb/internal/checkout"
+	"github.com/qdis/bfb/internal/daemon"
+	"github.com/qdis/bfb/internal/protocol/generated"
+	"github.com/qdis/bfb/internal/provider"
+	"github.com/qdis/bfb/internal/providers/fake"
+	"golang.org/x/sys/unix"
+)
+
+// This inspector exists only in a compiled test. Signed identity is exercised
+// separately by the native helper harness, never bypassed in the CLI.
+func gateFixtureInspector(peer daemon.Peer) (SupervisorIdentity, error) {
+	table, err := InspectProcesses()
+	process := table[peer.PID]
+	if err != nil || !validRecordedProcess(process) || process.Zombie || peer.UID != os.Getuid() {
+		return SupervisorIdentity{}, failure("peer_denied")
+	}
+	return SupervisorIdentity{Process: process, ExecutableHash: provider.Hash([]byte("synthetic-helper-build"))}, nil
+}
+
+func fixtureKqueueRegistration(fd, filter int) error {
+	queue, err := unix.Kqueue()
+	if err != nil {
+		return err
+	}
+	defer unix.Close(queue)
+	var change unix.Kevent_t
+	unix.SetKevent(&change, fd, filter, unix.EV_ADD|unix.EV_RECEIPT)
+	receipts := make([]unix.Kevent_t, 1)
+	count, err := unix.Kevent(queue, []unix.Kevent_t{change}, receipts, &unix.Timespec{})
+	if err != nil {
+		return err
+	}
+	if count != 1 || receipts[0].Flags&unix.EV_ERROR == 0 {
+		return fmt.Errorf("missing kqueue registration receipt")
+	}
+	if receipts[0].Data != 0 {
+		return syscall.Errno(receipts[0].Data)
+	}
+	return nil
+}
+
+func fixtureForeignPTY(t *testing.T) *os.File {
+	t.Helper()
+	fd, err := unix.Open("/dev/ptmx", unix.O_RDWR|unix.O_NOCTTY|unix.O_CLOEXEC, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	master := os.NewFile(uintptr(fd), "synthetic-foreign-pty")
+	t.Cleanup(func() { _ = master.Close() })
+	for _, request := range []uint{unix.TIOCPTYGRANT, unix.TIOCPTYUNLK} {
+		if err := unix.IoctlSetInt(fd, request, 0); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var name [128]byte
+	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), unix.TIOCPTYGNAME, uintptr(unsafe.Pointer(&name[0]))); errno != 0 {
+		t.Fatal(errno)
+	}
+	slaveFD, err := unix.Open(strings.TrimRight(string(name[:]), "\x00"), unix.O_RDWR|unix.O_NOCTTY|unix.O_CLOEXEC|unix.O_NOFOLLOW, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	slave := os.NewFile(uintptr(slaveFD), "synthetic-foreign-pty-slave")
+	t.Cleanup(func() { _ = slave.Close() })
+	return slave
+}
+
+func requireTerminalStreamGuards(t *testing.T, terminal *os.File, owner Process) {
+	t.Helper()
+	streams := [3]*os.File{os.Stdin, os.Stdout, os.Stderr}
+	if err := validateTerminalStreams(terminal, owner, streams); err != nil {
+		t.Fatal("original controlling PTY streams rejected", err)
+	}
+	readPipe, writePipe, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer readPipe.Close()
+	defer writePipe.Close()
+	regular, err := os.CreateTemp(t.TempDir(), "synthetic-redirect-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer regular.Close()
+	path, err := controllingTTY(owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	openTTY := func(flags int) *os.File {
+		fd, err := unix.Open(path, flags|unix.O_NOCTTY|unix.O_CLOEXEC|unix.O_NOFOLLOW, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		file := os.NewFile(uintptr(fd), "synthetic-controlling-pty")
+		t.Cleanup(func() { _ = file.Close() })
+		return file
+	}
+	readOnly, writeOnly, foreign := openTTY(unix.O_RDONLY), openTTY(unix.O_WRONLY), fixtureForeignPTY(t)
+	for index := range streams {
+		for name, replacement := range map[string]*os.File{"missing": nil, "file": regular, "alias": terminal, "foreign": foreign} {
+			changed := streams
+			changed[index] = replacement
+			if err := validateTerminalStreams(terminal, owner, changed); err == nil || daemon.AsFailure(err).Code != "execution_terminal_lost" {
+				t.Fatalf("redirected fd%d (%s) accepted: %v", index, name, err)
+			}
+		}
+		changed := streams
+		changed[index] = writePipe
+		if index == 0 {
+			changed[index] = readPipe
+		}
+		if err := validateTerminalStreams(terminal, owner, changed); err == nil {
+			t.Fatalf("pipe redirected fd%d accepted", index)
+		}
+		changed[index] = readOnly
+		if index == 0 {
+			changed[index] = writeOnly
+		}
+		if err := validateTerminalStreams(terminal, owner, changed); err == nil {
+			t.Fatalf("incompatible access mode for fd%d accepted", index)
+		}
+	}
+	changedOwner := owner
+	changedOwner.GroupID++
+	if err := validateTerminalStreams(terminal, changedOwner, streams); err == nil {
+		t.Fatal("different foreground group accepted")
+	}
+	changedOwner = owner
+	changedOwner.StartIdentity += "-reused"
+	if err := validateTerminalStreams(terminal, changedOwner, streams); err == nil {
+		t.Fatal("reused controlling-terminal owner accepted")
+	}
+}
+
+func TestNativeGatedPTY(t *testing.T) {
+	binary := filepath.Join(t.TempDir(), "bfb-fake-provider")
+	if output, err := exec.Command("go", "build", "-o", binary, "../../cmd/bfb-fake-provider").CombinedOutput(); err != nil {
+		t.Fatalf("fake build: %v %s", err, output)
+	}
+	self, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, scenario := range []string{"success", "redirected_stdout", "stdio_changed_after_authorization", "first_authorization", "spawn_failure", "parent_source_changed", "final_authorization", "record_failure", "binary_swap", "configuration_swap", "artifact_swap", "working_directory_swap", "lock_abandoned", "child_parent_mismatch", "parent_loss"} {
+		t.Run(scenario, func(t *testing.T) {
+			stateRoot, err := os.MkdirTemp("/tmp", "bfb-gate-test-")
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = os.RemoveAll(stateRoot) })
+			ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
+			defer cancel()
+			command := exec.CommandContext(ctx, "/usr/bin/script", "-q", "-F", filepath.Join(t.TempDir(), "synthetic-gate.txt"), self, "-test.run=^TestNativeGatedPTYFixture$", "-test.timeout=30s")
+			for _, entry := range NormalEnvironment(os.Environ()) {
+				if !strings.HasPrefix(entry, "TMPDIR=") {
+					command.Env = append(command.Env, entry)
+				}
+			}
+			command.Env = append(command.Env, "BFB_GATE_FIXTURE="+scenario, "BFB_GATE_FAKE="+binary, "BFB_GATE_STATE_ROOT="+stateRoot, "TMPDIR="+stateRoot)
+			command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+			input, err := command.StdinPipe()
+			if err != nil {
+				t.Fatal(err)
+			}
+			output, err := command.StdoutPipe()
+			if err != nil {
+				t.Fatal(err)
+			}
+			command.Stderr = command.Stdout
+			if err := command.Start(); err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = input.Close(); _ = command.Process.Kill(); _ = command.Wait() }()
+			lines := make(chan string, 128)
+			go func() {
+				defer close(lines)
+				scanner := bufio.NewScanner(io.LimitReader(output, 32768))
+				for scanner.Scan() {
+					lines <- scanner.Text()
+				}
+			}()
+			var trace strings.Builder
+			var lostParent struct {
+				Phase    string  `json:"phase"`
+				Process  Process `json:"process"`
+				Child    Process `json:"child"`
+				Physical string  `json:"physical_worktree_hash"`
+			}
+			started, verified, restored := false, false, false
+			for !restored {
+				select {
+				case <-ctx.Done():
+					t.Fatalf("gate fixture timed out: %s", trace.String())
+				case line, ok := <-lines:
+					if !ok {
+						if scenario == "parent_loss" && lostParent.Phase == "gate_parent_waiting" {
+							verifyLostGateParent(t, stateRoot, lostParent.Physical, lostParent.Process, lostParent.Child)
+							restored = true
+							continue
+						}
+						t.Fatalf("gate fixture ended before verification: %s", trace.String())
+					}
+					if trace.Len() < 8192 {
+						trace.WriteString(line + "\n")
+					}
+					var phase ptyPhase
+					_ = json.Unmarshal([]byte(strings.TrimSpace(line)), &phase)
+					if scenario == "parent_loss" && phase.Phase == "gate_parent_waiting" {
+						if json.Unmarshal([]byte(strings.TrimSpace(line)), &lostParent) != nil {
+							t.Fatal("invalid parent-loss trace")
+						}
+						killFixture(t, phase.Process)
+					}
+					if strings.Contains(line, "gated_exec_verified") {
+						verified = true
+					}
+					if strings.Contains(line, `"kind":"session_started"`) {
+						started = true
+						if scenario == "success" {
+							_, _ = input.Write([]byte{3})
+						}
+					}
+					if strings.Contains(line, "gate_fixture_passed") {
+						restored = true
+					}
+				}
+			}
+			if (scenario == "success") != started || started != verified {
+				t.Fatalf("provider exec disposition mismatch: %s", trace.String())
+			}
+			_, markerErr := os.Stat(filepath.Join(stateRoot, "exec-observed"))
+			if scenario == "success" && markerErr != nil || scenario != "success" && !os.IsNotExist(markerErr) {
+				t.Fatal("provider exec canary disposition mismatch", markerErr)
+			}
+		})
+	}
+}
+
+func verifyLostGateParent(t *testing.T, root, physical string, parent, child Process) {
+	t.Helper()
+	paths, err := daemon.StatePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	directory, err := openExistingPrivateDirectory(worktreeLocksPath(paths))
+	if err != nil {
+		t.Fatal(err)
+	}
+	locks := &LockStore{directory: directory}
+	defer locks.Close()
+	record, err := locks.read(physical)
+	if err != nil || record.State != "owned" || record.Owner != parent || record.Group == nil || record.Group.Leader != child {
+		t.Fatal("parent loss did not retain durable group", err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		table, err := InspectProcesses()
+		if err != nil {
+			t.Fatal(err)
+		}
+		owner, present := table[parent.PID]
+		if (!present || owner.Zombie) && record.Group.ProveGone(table) {
+			return
+		}
+		if !time.Now().Before(deadline) {
+			t.Fatal("denied gate survived parent loss")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func gateFixture(t *testing.T) (*preparedExecution, *WorktreeLock, string) {
+	t.Helper()
+	store, local, claim, _ := fixtureIntentsAt(t, os.Getenv("BFB_GATE_STATE_ROOT"))
+	root := t.TempDir()
+	cwd := filepath.Join(root, "packages", "api")
+	if err := os.MkdirAll(cwd, 0700); err != nil {
+		t.Fatal(err)
+	}
+	for _, arguments := range [][]string{{"init", "--initial-branch=main"}, {"remote", "add", "origin", "https://github.com/synthetic/gate.git"}} {
+		command := exec.Command("/usr/bin/git", arguments...)
+		command.Dir, command.Env = root, []string{"PATH=/usr/bin:/bin", "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null"}
+		if output, err := command.CombinedOutput(); err != nil {
+			t.Fatalf("fixture Git: %v %s", err, output)
+		}
+	}
+	record, err := checkout.NewRegistry(local.DB).Link(context.Background(), checkout.LinkInput{WorkspaceID: claim.Assignment.WorkspaceId, RunnerID: claim.Assignment.RunnerId, ProjectID: claim.Assignment.ProjectId, Path: cwd, WorkspaceSubpath: "packages/api", RepositoryIdentity: "github.com/synthetic/gate", Label: "Synthetic gate"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(os.Getenv("BFB_GATE_FAKE"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	binary := filepath.Join(t.TempDir(), "provider")
+	if err := os.WriteFile(binary, raw, 0700); err != nil {
+		t.Fatal(err)
+	}
+	config := filepath.Join(t.TempDir(), "provider.json")
+	if err := os.WriteFile(config, []byte("{}"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	registry, err := provider.NewRegistry([]provider.Descriptor{fake.Descriptor()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	probe, err := registry.Probe(context.Background(), "fake", provider.Installation{Executable: binary, ConfigFiles: []provider.ConfigSource{{Name: "user", Path: config}}, IntegrationHash: provider.Hash(nil), Environment: NormalEnvironment(os.Environ())}, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	claim.Assignment.CreatedAt = localTimestamp(now)
+	claim.Specification.ExpiresAt = localTimestamp(now.Add(120 * time.Second))
+	claim.LeaseExpiresAt = localTimestamp(now.Add(45 * time.Second))
+	claim.Assignment.CheckoutId, claim.Specification.CheckoutId = record.Summary.CheckoutId, record.Summary.CheckoutId
+	claim.Snapshot.PhysicalWorktreeHash = record.Summary.PhysicalWorktreeHash
+	claim.Snapshot.RepositoryIdentityHash = provider.Hash([]byte(record.Summary.RepositoryIdentity))
+	claim.Snapshot.RepositoryConfigHash = record.Summary.RepositoryConfigHash
+	claim.Snapshot.ProviderVersion, claim.Snapshot.ProviderManifestId = probe.Version, probe.ManifestID
+	policy := map[string]any{"allowed_providers": []string{"fake"}, "allow_agent_root_propose": false, "allow_pass_to_agent": true, "allow_run_overrides": false}
+	claim.Snapshot.WorkspacePolicy, claim.Snapshot.ProjectPolicy, claim.Snapshot.RepositoryPolicy = policy, policy, policy
+	claim.Specification.ExecutionConfig = generated.ExecutionConfig{Provider: "fake", Mode: "interactive", Model: "synthetic", Effort: "low", ApprovalPolicy: "never", FilesystemPolicy: "read_only", ContextInjection: "none", InitialTurnTransport: "provider_prompt", RequiredCapabilities: []string{"launch.interactive"}}
+	claim.Snapshot.ExecutionConfig = claim.Specification.ExecutionConfig
+	claim.Specification.ConfigSnapshotHash, err = snapshotHash(claim.Snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	identity, err := registry.IdentityHash(probe)
+	if err != nil {
+		t.Fatal(err)
+	}
+	draft, err := store.Issue(context.Background(), acceptFixture(t, store, claim, now), claim, identity, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	files, err := OpenAssignmentFiles(local.Paths.Root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer files.Close()
+	if _, err := files.Prepare(draft, registry, probe, record.Location.GitRoot); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Offer(context.Background(), draft.IntentID); err != nil {
+		t.Fatal(err)
+	}
+	supervisor, err := gateFixtureInspector(daemon.Peer{UID: os.Getuid(), PID: os.Getpid()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	registered, err := store.Register(context.Background(), draft.IntentID, supervisor, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wire, err := registered.wire()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := files.Publish(wire); err != nil {
+		t.Fatal(err)
+	}
+	execution, err := loadExecution(context.Background(), local.Paths, wire, registry, os.Environ())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = execution.db.Close() })
+	locks, err := OpenLockStore(worktreeLocksPath(local.Paths))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = locks.Close() })
+	lock, err := locks.Acquire(LockBinding{ExecutionID: claim.Assignment.RunExecutionId, AssignmentGeneration: claim.Assignment.AssignmentGeneration, FencingGeneration: claim.FencingGeneration, PhysicalWorktreeHash: claim.Snapshot.PhysicalWorktreeHash})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = lock.Close() })
+	return execution, lock, config
+}
+
+func TestNativeGatedPTYFixture(t *testing.T) {
+	scenario := os.Getenv("BFB_GATE_FIXTURE")
+	if scenario == "" {
+		t.Skip("subprocess-only controlling PTY fixture")
+	}
+	terminal, err := os.OpenFile("/dev/tty", os.O_RDWR, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer terminal.Close()
+	foreground, err := unix.IoctlGetInt(int(terminal.Fd()), unix.TIOCGPGRP)
+	if err != nil || foreground != syscall.Getpgrp() {
+		t.Fatal("fixture is not foreground", err)
+	}
+	if scenario == "success" {
+		for _, filter := range []int{unix.EVFILT_READ, unix.EVFILT_WRITE} {
+			if err := fixtureKqueueRegistration(int(terminal.Fd()), filter); err != unix.EINVAL {
+				t.Fatalf("controlling-terminal alias kqueue failure: got %v, want EINVAL", err)
+			}
+			for _, file := range []*os.File{os.Stdin, os.Stdout, os.Stderr} {
+				if err := fixtureKqueueRegistration(int(file.Fd()), filter); err != nil {
+					t.Fatalf("original PTY %s cannot register kqueue filter %d: %v", file.Name(), filter, err)
+				}
+			}
+		}
+		fmt.Println("terminal_alias_rejected_original_pty_pollable")
+	}
+	execution, lock, configuration := gateFixture(t)
+	if scenario == "success" {
+		requireTerminalStreamGuards(t, terminal, lock.record.Owner)
+	}
+	var restoreStdout func()
+	redirectStdout := func() {
+		original, err := unix.Dup(int(os.Stdout.Fd()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := unix.Dup2(int(terminal.Fd()), int(os.Stdout.Fd())); err != nil {
+			_ = unix.Close(original)
+			t.Fatal(err)
+		}
+		restoreStdout = func() {
+			if original < 0 {
+				return
+			}
+			if err := unix.Dup2(original, int(os.Stdout.Fd())); err != nil {
+				t.Fatal(err)
+			}
+			_ = unix.Close(original)
+			original = -1
+		}
+		t.Cleanup(restoreStdout)
+	}
+	if scenario == "redirected_stdout" {
+		redirectStdout()
+	}
+	self, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	authorizations, recordings := 0, 0
+	callbacks := GateCallbacks{
+		Authorize: func(_ context.Context, request generated.LaunchFinalRequest) error {
+			authorizations++
+			if scenario == "stdio_changed_after_authorization" && authorizations == 1 {
+				redirectStdout()
+			}
+			if request.LocalLockId != lock.record.LockID || request.Supervisor != execution.assignment.Supervisor {
+				t.Fatal("wrong final identity")
+			}
+			if scenario == "first_authorization" || scenario == "final_authorization" && authorizations == 2 {
+				return failure("peer_denied")
+			}
+			return nil
+		},
+		RecordGroup: func(_ context.Context, assignment generated.LocalExecutionAssignment, lockID string, leader Process) error {
+			recordings++
+			durable, err := lock.store.read(lock.record.Binding.PhysicalWorktreeHash)
+			if err != nil || durable.Group == nil || durable.Group.Leader != leader || durable.LockID != lockID || assignment.TerminalIntentId != execution.assignment.TerminalIntentId {
+				t.Fatal("group not durable before service callback", err)
+			}
+			switch scenario {
+			case "parent_loss":
+				_ = json.NewEncoder(os.Stdout).Encode(map[string]any{"phase": "gate_parent_waiting", "process": lock.record.Owner, "child": leader, "physical_worktree_hash": lock.record.Binding.PhysicalWorktreeHash})
+				<-time.After(20 * time.Second) // Outer fixture kills this exact parent before permission.
+				return failure("peer_denied")
+			case "record_failure":
+				return failure("storage_failed")
+			case "binary_swap":
+				if err := os.Rename(execution.preparation.Provider.Executable, execution.preparation.Provider.Executable+".original"); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(execution.preparation.Provider.Executable, []byte("#!/bin/sh\nexit 99\n"), 0700); err != nil {
+					t.Fatal(err)
+				}
+			case "configuration_swap":
+				if err := os.WriteFile(configuration, []byte(`{"changed":true}`), 0600); err != nil {
+					t.Fatal(err)
+				}
+			case "artifact_swap":
+				path := execution.preparation.Artifacts.Path
+				if err := os.Rename(path, path+".original"); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Mkdir(path, 0700); err != nil {
+					t.Fatal(err)
+				}
+			case "working_directory_swap":
+				path := execution.checkout.Location.WorkingDirectory
+				if err := os.Rename(path, path+".original"); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Mkdir(path, 0700); err != nil {
+					t.Fatal(err)
+				}
+			case "lock_abandoned":
+				if err := lock.Close(); err != nil {
+					t.Fatal(err)
+				}
+			}
+			return nil
+		},
+	}
+	inspect := gateFixtureInspector
+	if scenario == "parent_source_changed" {
+		inspect = func(peer daemon.Peer) (SupervisorIdentity, error) {
+			identity, err := gateFixtureInspector(peer)
+			if peer.PID == os.Getpid() {
+				identity.ExecutableHash = provider.Hash([]byte("changed-helper-source"))
+			}
+			return identity, err
+		}
+	}
+	process, startErr := startGated(context.Background(), execution, lock, terminal, callbacks, func() *exec.Cmd {
+		command := exec.Command(self, "-test.run=^TestNativeGatedChild$", "-test.timeout=25s")
+		if scenario == "spawn_failure" {
+			command.Path = filepath.Join(t.TempDir(), "missing-fixed-child")
+		}
+		command.Env = append(os.Environ(), "BFB_GATE_CHILD=1", "BFB_GATE_ROOT="+execution.paths.Root, "BFB_GATE_INTENT="+execution.assignment.TerminalIntentId)
+		return command
+	}, inspect)
+	if restoreStdout != nil {
+		restoreStdout()
+		restoreStdout = nil
+	}
+	if (scenario == "success") != (startErr == nil) {
+		t.Fatal("unexpected start disposition", startErr)
+	}
+	if scenario == "first_authorization" || scenario == "spawn_failure" || scenario == "parent_source_changed" || scenario == "redirected_stdout" || scenario == "stdio_changed_after_authorization" {
+		expectedAuthorizations := 1
+		if scenario == "redirected_stdout" {
+			expectedAuthorizations = 0
+		}
+		if process != nil || authorizations != expectedAuthorizations || recordings != 0 {
+			t.Fatal("child created without first authorization")
+		}
+		if (scenario == "redirected_stdout" || scenario == "stdio_changed_after_authorization") && daemon.AsFailure(startErr).Code != "execution_terminal_lost" {
+			t.Fatal("redirected stream did not fail closed", startErr)
+		}
+		if err := lock.Release(); err != nil {
+			t.Fatal(err)
+		}
+		fmt.Println("gate_fixture_passed")
+		return
+	}
+	expectedRecordings := 1
+	if scenario == "child_parent_mismatch" {
+		expectedRecordings = 0
+	}
+	if process == nil || process.leader.PID == 0 || recordings != expectedRecordings {
+		t.Fatal("missing recorded child", startErr)
+	}
+	defer func() {
+		table, err := InspectProcesses()
+		if err == nil && process.leader.Same(table[process.leader.PID]) {
+			_ = syscall.Kill(process.leader.PID, syscall.SIGKILL)
+		}
+		_ = process.command.Wait()
+	}()
+	lifetime, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	err = superviseOwned(lifetime, process, terminal, foreground, startErr)
+	if startErr == nil && err != nil || startErr != nil && (err == nil || daemon.AsFailure(err).Code != daemon.AsFailure(startErr).Code) {
+		t.Fatal("supervisor lifetime lost the start disposition", err)
+	}
+	if process.command.ProcessState == nil || !ownedProcessesGone(lock) {
+		t.Fatal("supervisor did not reap after complete group absence")
+	}
+	if scenario != "lock_abandoned" {
+		if lock.record.State != "released" || !lock.closed {
+			t.Fatal("supervisor did not release verified group")
+		}
+	}
+	if current, err := unix.IoctlGetInt(int(terminal.Fd()), unix.TIOCGPGRP); err != nil || current != foreground {
+		t.Fatal("wrong restored foreground", err)
+	}
+	fmt.Println("gate_fixture_passed")
+}
+
+func TestNativeGatedChild(t *testing.T) {
+	if os.Getenv("BFB_GATE_CHILD") == "" {
+		t.Skip("subprocess-only gated child")
+	}
+	paths, err := daemon.StatePaths(os.Getenv("BFB_GATE_ROOT"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	registry, err := provider.NewRegistry([]provider.Descriptor{fake.Descriptor()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	inspect := gateFixtureInspector
+	if os.Getenv("BFB_GATE_FIXTURE") == "child_parent_mismatch" {
+		inspect = func(peer daemon.Peer) (SupervisorIdentity, error) {
+			identity, err := gateFixtureInspector(peer)
+			identity.ExecutableHash = provider.Hash([]byte("different-build"))
+			return identity, err
+		}
+	}
+	err = runExecChild(context.Background(), paths, os.Getenv("BFB_GATE_INTENT"), registry, inspect, func(path string, argv, environment []string) error {
+		for _, filter := range []int{unix.EVFILT_READ, unix.EVFILT_WRITE} {
+			for _, file := range []*os.File{os.Stdin, os.Stdout, os.Stderr} {
+				if err := fixtureKqueueRegistration(int(file.Fd()), filter); err != nil {
+					fmt.Printf("gated_provider_descriptor_unpollable fd=%d filter=%d errno=%v\n", file.Fd(), filter, err)
+					return err
+				}
+			}
+		}
+		values := map[string]string{}
+		for _, entry := range environment {
+			name, value, _ := strings.Cut(entry, "=")
+			if strings.HasPrefix(name, "BFB_") {
+				values[name] = value
+			}
+		}
+		if len(values) != 9 || values["BFB_RUN_EXECUTION_ID"] == "" || values["BFB_CORRELATION_TOKEN"] == "" {
+			return failure("execution_assignment_invalid")
+		}
+		cwd, err := os.Getwd()
+		if err != nil || !strings.HasSuffix(cwd, "/packages/api") || strings.HasPrefix(values["BFB_ARTIFACTS_DIR"], cwd) {
+			return failure("execution_assignment_invalid")
+		}
+		if len(argv) < 3 || argv[len(argv)-2] != "--initial-prompt" || argv[len(argv)-1] != provider.InitialInstruction {
+			return failure("provider_config_invalid")
+		}
+		if err := os.WriteFile(filepath.Join(paths.Root, "exec-observed"), []byte("synthetic provider exec attempted\n"), 0600); err != nil {
+			return err
+		}
+		_ = json.NewEncoder(os.Stdout).Encode(map[string]any{"phase": "gated_exec_verified", "scoped_environment_count": len(values), "cwd_subproject": true})
+		return syscall.Exec(path, argv, environment)
+	})
+	if err != nil {
+		fmt.Println("gate_child_blocked:", daemon.AsFailure(err).Code)
+		os.Exit(2)
+	}
+	os.Exit(0)
+}

@@ -1,0 +1,117 @@
+{
+  "package": "C11",
+  "recorded_on": "2026-10-08",
+  "tested_commit": "44c57142ff33101c60cf649b0f2af503f5cd59b3",
+  "outcome": "passed",
+  "stage": "partial_operations_step_up_atomic_expiry",
+  "package_acceptance_complete": false,
+  "private_creation_available": false,
+  "migration_head": "0048_task_collection_positions",
+  "scope": "Operations-local step-up consumption additionally checks database execution time for retention setting and proof-bound stuck-upload resolution, including target-ledger retries. Shared step-up issuance, authorization, Hub, provider, runner and lease implementations are unchanged.",
+  "clean_certificate_marker": "C11_OPERATIONS_STEP_UP_EXPIRY_CLEAN_CERTIFICATE_OK",
+  "clean_pipeline_exit_code": 0,
+  "clean_commands": [
+    { "command": "pnpm install --frozen-lockfile", "exit_code": 0 },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 4877,
+      "typescript_files": 225,
+      "go": "passed",
+      "go_scheduling": "GOFLAGS=-p=1",
+      "swift": "passed",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    {
+      "command": "pnpm test:c11",
+      "exit_code": 0,
+      "c10_cases": 86,
+      "c10_files": 8,
+      "c10_d1_checks": 9,
+      "c08_cases": 23,
+      "c08_files": 5,
+      "c08_proof": "C08_D1_OK",
+      "stage_cases": 3683,
+      "stage_files": 147,
+      "stage_invocation_blocks": 23,
+      "stage_browser_cases": 6,
+      "stage_d1_check_labels": 240,
+      "stage_d1_harnesses": 22,
+      "notification_record_labels": 41,
+      "counting": "Stage cases/files count invocations across twenty-three Vitest blocks, not unique totals. C10/C08, six panel browser cases and the notification drill are separate. Native totals count emitted top-level check labels, not nested assertions; the six operations-expiry groups collect independently."
+    },
+    {
+      "command": "pnpm test:x05",
+      "exit_code": 0,
+      "focused_cases": 60,
+      "focused_files": 6,
+      "native_scenarios": 11,
+      "native_proof": "X05_DRILL_OK all scenarios passed",
+      "browser_cases": 5
+    },
+    {
+      "command": "pnpm worktree:check",
+      "exit_code": 0,
+      "before_and_after_pipeline": true,
+      "committed_source_unchanged": true,
+      "final_status_empty": true
+    }
+  ],
+  "slice_suites": {
+    "target": "pnpm test:c11:operations-expiry",
+    "composed_once_by_c11": true,
+    "focused_cases": 343,
+    "focused_files": 7,
+    "new_staged_cases": 8,
+    "native_groups": 6,
+    "native_proof": "C11_OPERATIONS_STEP_UP_EXPIRY_D1_OK",
+    "maximum_bindings": 14,
+    "maximum_statement_bytes": 4731,
+    "maximum_batch_statements": 19,
+    "canonical_tables": 135,
+    "snapshot_exclusions": ["_cf_METADATA", "d1_migrations", "sqlite_sequence"],
+    "http_budget_tables_compared_separately": ["rate_limit_buckets"],
+    "bounds_scope": "Timed production domain Hub statements only; migrations, setup, witnesses and snapshots are excluded."
+  },
+  "old_source_probes": {
+    "production_commit": "bd5dbf5e6eed7ec037ab8c6e48f1bbe015a70b46",
+    "production_unchanged_before_after": true,
+    "staged": { "meaningful_expiry_failures": 3, "healthy_controls": 5 },
+    "native": { "meaningful_expiry_failures": 3, "healthy_controls": 3 },
+    "observed": "Retained proofs are live after preparation/binding, unchanged through the same delay used by live controls, and naturally expired before actual batch execution. OLD succeeds and consumes the proof in all three expired native waves. Final native reports collect Hub outcomes and proof-consumption witnesses; failures then stop at the first denial expectation, not independently collected downstream canonical failures.",
+    "excluded": [
+      "Initial native snapshots incorrectly included the engine _cf_METADATA key column and failed before the temporal seam; named engine exclusion was repaired and temporary diagnosis removed",
+      "An unpinned Node 25 exploratory replay is not the pinned OLD certificate; the final observed-outcomes replay used Node 24.19.0"
+    ]
+  },
+  "proof_boundaries": [
+    "Only the operations-local consume UPDATE gains a database-clock predicate; supplied-time validation, opaque winning consumption stamp and unique one-use guard remain",
+    "Three expired native waves roll back the complete actual D1 batch; three equally delayed live waves commit, then return after the unchanged proof expires without rewriting history",
+    "Eight staged cases cover retention, fresh upload recovery and target-ledger retries with expired/live controls plus two successful-commit delayed-return cases",
+    "Fresh recovery includes genuine shared run-bound and run-free metadata targets; no R2 deletion or artifact bytes are exercised by the expiry proof",
+    "Mounted synthetic auth, disposable native D1 and X05 browser presentation are local regression proofs, not deployed ingress or a real passkey ceremony",
+    "The temporal boundary is the consume statement, not later statements, response time, provider capability, runner credential or checkout lease expiry"
+  ],
+  "fixture_repairs": [
+    "Six retained domain/Worker operation suites capture fixture-local SQL time for proof issuance and operation invocation, preserving historical corpora and shared clock helpers",
+    "Recovery authorization temporarily aligns fake Date only around the actual operation call and restores it in finally; retries share the original fixture time where required",
+    "The G01 retention fixture receives the same bounded clock repair and typechecks, but G01 runtime acceptance is not rerun or certified here"
+  ],
+  "exploratory_failures_not_acceptance": [
+    "The first focused post-guard run exposed twenty-seven historical fixture-clock failures with 316 controls; repaired fixtures pass in the later clean certificate",
+    "Earlier human-artifact and G01 exploratory failures remain separate; G01 runner-token expiry and static AG02/AG04 release gates are unresolved and not waived"
+  ],
+  "activation_barriers": [
+    "Timo has selected a uniform manual GitHub linking hold for beta, with webhook reconciliation retained; implementation and certification are not part of this tested source",
+    "Historical GitHub source fences, execution-owned delivery and destructive private retention remain open",
+    "Private creation, sharing, inherited private children and checkpoints remain disabled; C11 is in progress and C12 planned"
+  ],
+  "not_claimed": [
+    "Complete C11, the eight-feature MVP, private activation or external CI",
+    "G01 release acceptance, AG02/AG04 approval, live provider or installed pilot operation",
+    "Shared step-up expiry, agent capability expiry, runner/lease expiry or later-statement deadlines",
+    "Cloudflare resource creation, merge, deployment or deployed authenticated smoke"
+  ],
+  "redaction": "Bounded synthetic counts and outcomes only; no credentials, private bodies, raw logs, per-run timestamps or local absolute paths"
+}

@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "request_id": "01K00000000000000000000008",
+  "method": "execution.control",
+  "direction": "response",
+  "payload": {}
+}

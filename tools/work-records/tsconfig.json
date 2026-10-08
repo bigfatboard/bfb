@@ -6,6 +6,42 @@
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo",
     "types": ["node"]
   },
-  "include": ["run.ts", "worker.ts"],
-  "references": [{ "path": "../../packages/domain" }, { "path": "../../packages/db" }]
+  "include": [
+    "run.ts",
+    "worker.ts",
+    "privacy.ts",
+    "delivery.ts",
+    "aggregates.ts",
+    "diagnostics.ts",
+    "board.ts",
+    "quarantine.ts",
+    "coordination.ts",
+    "positions.ts",
+    "audit-fixture.ts",
+    "audit-positions.ts",
+    "delegated-artifacts.ts",
+    "delegated-attention.ts",
+    "delegated-context.ts",
+    "delegated-attention-delivery.ts",
+    "delegated-task-delivery.ts",
+    "delegated-lists.ts",
+    "human-detail-cache.ts",
+    "public-business.ts",
+    "measurement-attention.ts",
+    "human-attention-history.ts",
+    "human-task-collections.ts",
+    "operations-step-up-expiry.ts",
+    "github-manual-hold.ts",
+    "github-status-delivery.ts",
+    "task-sharing.ts",
+    "private-checkpoints.ts",
+    "private-inheritance.ts",
+    "task-positions.ts"
+  ],
+  "references": [
+    { "path": "../../packages/domain" },
+    { "path": "../../packages/db" },
+    { "path": "../../packages/protocol-ts" },
+    { "path": "../../apps/control-worker" }
+  ]
 }

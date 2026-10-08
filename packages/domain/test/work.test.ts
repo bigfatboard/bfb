@@ -3,11 +3,12 @@
 
 import { createHash } from "node:crypto";
 
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { WorkspaceHub } from "../src/hub.js";
 import { randomUlid } from "../src/ids.js";
 import { updateWorkspacePolicyCommand } from "../src/projects.js";
+import { authorizeSyntheticPolicyUpdate } from "../src/fixtures.js";
 import {
   addCommentCommand,
   addContextCommand,
@@ -38,6 +39,12 @@ import { openDomainDb } from "./helpers.js";
 const NOW = "2026-08-12T08:00:00Z";
 const LATER = "2026-08-12T09:00:00Z";
 
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(NOW));
+});
+afterEach(() => vi.useRealTimers());
+
 function humanRequest<T>(idempotencyKey: string, input: T) {
   return {
     workspaceId: FIX.workspace,
@@ -51,7 +58,13 @@ function humanRequest<T>(idempotencyKey: string, input: T) {
 
 async function delegation(
   db: Awaited<ReturnType<typeof openDomainDb>>,
-  options: { humanId?: string; projectId?: string; taskId?: string; scopes?: string[] } = {},
+  options: {
+    humanId?: string;
+    projectId?: string;
+    taskId?: string;
+    scopes?: string[];
+    expiresAt?: string;
+  } = {},
 ): Promise<string> {
   const id = randomUlid();
   await db
@@ -59,7 +72,8 @@ async function delegation(
       `INSERT INTO oauth_delegations
        (workspace_id, id, human_id, client_id, resource, project_id, task_id,
         scopes_json, authorization_epoch, expires_at, created_at)
-       VALUES (?, ?, ?, ?, 'https://bfb.example.test/mcp', ?, ?, ?, 1, ?, ?)`,
+       VALUES (?, ?, ?, ?, 'https://bfb.example.test/mcp', ?, ?, ?, 1,
+         COALESCE(?, strftime('%Y-%m-%dT%H:%M:%fZ','now','+1 hour')), ?)`,
     )
     .run(
       FIX.workspace,
@@ -69,7 +83,7 @@ async function delegation(
       options.projectId ?? FIX.projectA,
       options.taskId ?? null,
       JSON.stringify(options.scopes ?? ["bfb:read", "bfb:task:write"]),
-      LATER,
+      options.expiresAt ?? null,
       NOW,
     );
   return id;
@@ -436,7 +450,13 @@ describe("work records", () => {
         .digest("hex")}`,
     );
 
-    const delegationId = await delegation(db, { taskId: created.result.id });
+    const clock = (await db
+      .prepare("SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now','+10 minutes') AS expires_at")
+      .get()) as { expires_at: string };
+    const delegationId = await delegation(db, {
+      taskId: created.result.id,
+      expiresAt: clock.expires_at,
+    });
     const delivered = await hub.execute(deliverDelegatedAgentContextCommand, {
       workspaceId: FIX.workspace,
       idempotencyKey: "context-delivery",
@@ -834,13 +854,23 @@ describe("work records", () => {
     }
     const tightened = await hub.execute(
       updateWorkspacePolicyCommand,
-      humanRequest("tighten-workspace-policy", {
-        expectedVersion: 1,
-        allowedProviders: ["codex" as const],
-        allowAgentRootPropose: true,
-        allowPassToAgent: false,
-        allowRunOverrides: false,
-      }),
+      humanRequest(
+        "tighten-workspace-policy",
+        await authorizeSyntheticPolicyUpdate(
+          db,
+          {
+            workspaceId: FIX.workspace,
+            humanId: FIX.owner,
+          },
+          {
+            expectedVersion: 1,
+            allowedProviders: ["codex" as const],
+            allowAgentRootPropose: true,
+            allowPassToAgent: false,
+            allowRunOverrides: false,
+          },
+        ),
+      ),
     );
     expect(tightened.ok && tightened.result.resourceVersion).toBe(2);
     const historicalPolicyRun = await hub.execute(

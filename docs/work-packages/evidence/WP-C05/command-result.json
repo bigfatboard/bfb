@@ -1,0 +1,43 @@
+{
+  "package": "C05",
+  "tested_commit": "846b12fbe7556d8c45f787c59520a0c64c6e0391",
+  "recorded_on": "2026-09-17",
+  "automated_gate": "passed",
+  "package_acceptance": "passed",
+  "checkout": {
+    "detached": true,
+    "clean_before_install": true,
+    "clean_after_verification": true,
+    "frozen_install": "passed"
+  },
+  "checks": {
+    "protocol_fixture_and_codegen_drift": "passed",
+    "protocol_typescript_tests": 421,
+    "focused_typescript_tests": 21,
+    "repository_typescript_tests": 821,
+    "repository_go_checks": "passed",
+    "repository_swift_xcode_checks": "passed",
+    "repository_verification": "passed",
+    "worktree_check": "passed"
+  },
+  "workerd": {
+    "workers": 3,
+    "exchanges": 2,
+    "exchange_race_http_statuses": [200, 403],
+    "token_endpoint_status": 404,
+    "browser_sessions_after_flow": 1,
+    "abuse_counters": "shared-and-hashed",
+    "revocation_before_cleanup": true,
+    "persisted_raw_credentials": false
+  },
+  "not_claimed": [
+    "Native Keychain storage on a real Mac and CLI renewal UX (X02)",
+    "Browser binding management UI (W02/X02)",
+    "CI integration-principal issuance routes (later package)",
+    "Launch claim, run controls, or final authorization over CLI credentials",
+    "Automatic expired binding-row cleanup (X05)",
+    "Cloudflare EU jurisdiction routing in local workerd",
+    "Running local MVP or deployed behavior"
+  ],
+  "retention": "Bounded assertions and synthetic protocol rows only. No raw keys, device codes, user codes, signatures, personal task content, IP addresses or local absolute paths are retained."
+}

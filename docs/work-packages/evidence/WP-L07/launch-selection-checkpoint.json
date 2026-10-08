@@ -1,0 +1,116 @@
+{
+  "schema_version": 1,
+  "package": "L07",
+  "checkpoint": "explicit-retry-checkout-selection",
+  "date": "2026-10-06",
+  "implementation_commit": "d9238fd0bf2ed63b10cb0e3ed61baca71b46c2bf",
+  "checkout_scope": "Source-equivalent implementation checkout; not clean-checkout package acceptance",
+  "package_status": "in_progress",
+  "environment": {
+    "os": "macOS 26.2",
+    "architecture": "arm64",
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "xcode": "26.0.1",
+    "candidate_provider": "Claude Code 2.1.291, unchanged",
+    "protocol_schema": "v1",
+    "d1_migration_head": "0043_agent_artifact_publications.sql",
+    "local_storage_version": 11
+  },
+  "diagnosis": {
+    "human_observation": "Retry produced no visible effect",
+    "local_state": "Existing enrollment online; only the original ended execution and launch delivery remain; the sole registered checkout is validated and non-default",
+    "browser_reproduction": "Native select displayed its first checkout despite empty application selection; retry returned before any request and without an error",
+    "repair": "Represent empty selection explicitly and give focused, accessible missing or blocked checkout errors before retry; preserve explicit choice and same-run profile binding"
+  },
+  "checks": [
+    {
+      "command": "pnpm exec playwright test apps/web/test/e2e/w02-launch.spec.ts --config tools/e2e/playwright.config.ts --grep 'retry without a project checkout|retry with a blocked checkout|sole non-default checkout'",
+      "outcome": "failed_as_expected_before_repair",
+      "failure": "Missing checkout retry produced no actionable field error; two remaining serial cases skipped"
+    },
+    {
+      "command": "pnpm exec playwright test apps/web/test/e2e/w02-launch.spec.ts --config tools/e2e/playwright.config.ts --grep 'sole non-default checkout'",
+      "outcome": "failed_as_expected_before_repair",
+      "failure": "Native select displayed the first checkout instead of empty application selection"
+    },
+    {
+      "command": "pnpm test:w02:browser",
+      "outcome": "passed",
+      "browser_cases": 12,
+      "duration_seconds": 18.7,
+      "retry_proof": "Naturally-ready expired launch waits for explicit selection, then the canonical API creates another launch on the same run and original profile",
+      "negative_cases": [
+        "Missing and blocked checkout retries send no launch request and focus accessible errors",
+        "A sole non-default checkout remains unselected and is presented truthfully",
+        "Busy retry is disabled without issuing a duplicate request",
+        "A later deliberate retry uses a fresh key; this does not claim another accepted launch",
+        "Existing synchronous duplicate form submissions retain one key and one durable launch",
+        "Expiry never starts work automatically"
+      ]
+    },
+    {
+      "command": "pnpm exec vitest run apps/web/test/launch-operations.test.ts apps/web/test/launch-refresh.test.ts",
+      "outcome": "passed",
+      "cases": 34
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "typescript_cases": 2843,
+      "typescript_files": 142,
+      "go": "passed including native supervisor checks",
+      "swift_cases": 16
+    },
+    {
+      "command": "pnpm test:l07",
+      "outcome": "failed",
+      "failure": "Unchanged Grok TestHooksSetupTransactionAndRollback synthetic probe reached its five-second bound"
+    },
+    {
+      "command": "GOFLAGS=-p=1 pnpm test:l07",
+      "outcome": "passed",
+      "scope": "Same exact target with Go package execution serialized to reduce contention; no test exclusion or deadline change",
+      "protocol_cases": 1123,
+      "candidate_preparation_cases": 4,
+      "go_race": "passed including native supervisor checks",
+      "pilot_cases": 126,
+      "browser_cases": 6
+    },
+    {
+      "command": "pnpm build:web",
+      "outcome": "passed",
+      "local_pilot": "Compiled static assets refreshed; existing app and artifact health checks pass; human subsequently confirms retry opens Claude"
+    }
+  ],
+  "retained_failures": [
+    "After the UI repair, the first successful-retry fixture reached the API but used an already-started ended task that remained active; the server correctly rejected it",
+    "A proposed ordinary active-to-ready fixture PATCH was also rejected; it was removed entirely, with no production transition or authority change",
+    "The final successful-retry proof uses the existing naturally-ready expired fixture; ended fixtures are retained for invalid-selection no-request checks",
+    "The default-parallel L07 run failed at an unchanged Grok five-second synthetic probe; serialized package retry records the scheduling difference explicitly"
+  ],
+  "independent_review": "No blocking findings; explicit choice, same-run profile, retry idempotency and server authority remain unchanged",
+  "human_start_verified": true,
+  "live_mcp_context_verified": false,
+  "live_observation": {
+    "launch": "Human confirms Terminal launch; new local assignment has kernel-observed provider startup",
+    "local_hook": "A trusted Claude observed-session row exists for the new execution; canonical session and MCP work activation are not claimed",
+    "mcp": "Human-provided Claude output shows get_context denied as assignment_ended and subsequent get_task denied as capability_closed",
+    "actual_execution_state": "containment_unknown, with no recorded process absence or local release; supervisor and Claude remain alive",
+    "cause": "Retained native history records direct Claude children whose process groups differ from the owned leader group; had_escape and uncertainty are sticky",
+    "attribution_limit": "The first escaped children had already exited before executable inspection; their particular function is unproven. The surviving BFB MCP helper remains inside the owned group",
+    "error_mapping": "Containment denial maps to assignment_ended and closes the MCP capability; it does not establish actual process exit or task completion",
+    "worktree": "Registered proof checkout remains clean at its original commit",
+    "follow_through": "No new launch, process termination, recovery reset, authority relaxation or worktree mutation was performed"
+  },
+  "provider_runtime_changed": false,
+  "deployment_performed": false,
+  "unverified": [
+    "Safe provider containment with observed separate-group children and truthful MCP denial diagnostics",
+    "Canonical provider-session binding and successful scoped MCP context retrieval",
+    "Real human attention, result submission and same-run resume",
+    "Clean-checkout L07 completion and full MVP acceptance"
+  ],
+  "redaction": "No credentials, task content, live identifiers, local absolute paths or raw terminal transcript"
+}

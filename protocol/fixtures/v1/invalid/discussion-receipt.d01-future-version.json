@@ -1,0 +1,8 @@
+{
+  "schema_version": 2,
+  "discussion_id": "01K00000000000000000000006",
+  "version": 1,
+  "state": "active",
+  "run_ids": ["01K00000000000000000000010", "01K00000000000000000000011"],
+  "brief_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+}

@@ -1,0 +1,91 @@
+{
+  "package": "C11",
+  "recorded_on": "2026-10-06",
+  "tested_commit": "21e6d8b9b1b663e5ddee7ec9397194ac714f1e1c",
+  "outcome": "passed",
+  "stage": "human_task_and_child_surfaces",
+  "package_acceptance_complete": false,
+  "private_creation_available": false,
+  "scope": "Current task-parent child reads, action-specific business commands, local-agent and delegated authority, artifact consume/finalize/view guards, measurement and review-timer delivery; not complete private delivery",
+  "migration_head": "0045_private_task_authority",
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56)",
+    "architecture": "arm64",
+    "runtime": "Production Hub and disposable real D1; separate mounted browser-cookie, CLI, MCP and fake-R2 Worker authority suites"
+  },
+  "clean_commands": [
+    { "command": "pnpm install --frozen-lockfile", "exit_code": 0 },
+    {
+      "command": "pnpm test:c11",
+      "exit_code": 0,
+      "c10_cases": 86,
+      "c10_files": 8,
+      "c10_d1_checks": 9,
+      "c08_cases": 23,
+      "c08_files": 5,
+      "c08_proof": "C08_D1_OK",
+      "stage_cases": 821,
+      "stage_files": 37,
+      "stage_d1_checks": 14,
+      "proof": "C11_TASK_D1_OK",
+      "counting": "Separate invocations include overlapping regressions; their counts are not a unique combined total"
+    },
+    {
+      "command": "pnpm test:x03",
+      "exit_code": 0,
+      "cases": 71,
+      "files": 7,
+      "worker_d1_r2_checks": 11,
+      "browser_cases": 2,
+      "proof": "X03_D1_OK"
+    },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 3296,
+      "typescript_files": 167,
+      "go": "passed",
+      "go_scheduling": "GOFLAGS=-p=1",
+      "swift": "passed",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    { "command": "pnpm worktree:check", "exit_code": 0, "before_and_after_verify": true }
+  ],
+  "runtime_checks": [
+    "creation_stays_shared_private_policy_is_fixture_only",
+    "read_query_creator_only_no_owner_or_unscoped_bypass",
+    "task_board_and_deck_filter_before_pagination",
+    "read_grant_does_not_authorize_contribution",
+    "cross_isolate_idempotency_binds_exact_input_and_one_effect",
+    "work_receipts_exclude_private_titles_prose_and_context",
+    "revocation_fences_cross_isolate_cached_comment_and_context",
+    "private_parent_children_remain_unavailable",
+    "full_board_page_stays_within_d1_parameter_limit",
+    "private_artifact_measurement_and_timer_children_hide_unshared_owner",
+    "read_grant_allows_preview_and_measurements_but_not_timer_mutation",
+    "real_d1_view_consumption_rechecks_current_private_parent_grant",
+    "real_hub_timer_cache_and_read_delivery_recheck_private_grant",
+    "real_d1_receipt_batch_revocation_rolls_back_registry_receipt_source_and_audit"
+  ],
+  "repairs_with_regression_proof": [
+    "Requesting-human retained-epoch task access is checked in addition to exact local assignment/session/execution and delegated boundaries",
+    "Child lists and measurement totals filter the exact run/task/project parent before pagination; current task authority fences cached command replies",
+    "All twelve MCP tool inputs and nested result evidence shapes reject unknown private intent rather than allowing SDK field stripping",
+    "Final result-content SQL re-projects exact evidence sources through current task access without rewriting historical submissions",
+    "Review delivery rechecks the artifact and independently authorized timer references after hydration, including absent-versus-hidden uniform route outcomes",
+    "Fake-R2 interleavings reproduce parent revocation during get/body read and credential expiry during upload; final view delivery and receipt write checks reject them",
+    "Real D1 rejects an over-deep combined receipt guard; two independent CHECK guards in one atomic batch retain source convergence and current authority without weakening database limits",
+    "Independent real-D1 grant revocation between preflight and receipt batch leaves object registry, receipt, source and audit counts unchanged"
+  ],
+  "not_claimed": [
+    "Complete C11 acceptance, private creation/sharing/internal-progress commands or UI, C12 publication",
+    "Artifact-reference existence privacy for unknown versus hidden references; this remains a stage-three activation barrier",
+    "Opaque realtime/measurement/source/receipt positions, notifications, diagnostics, security-audit or integration privacy",
+    "Live private R2 byte delivery or a deployed private-feature certificate; R2 race tests use bounded synthetic doubles",
+    "Private execution creation, provider launch, remote start, agent discussions, pilot changes, production deployment or external CI",
+    "Project-wide knowledge, skill catalogs, encrypted vault values, checkpoint reminders or new contribution UI"
+  ],
+  "redaction": "Bounded synthetic counts, proof labels, source identity and limits only; no credentials, private bodies, raw output or local paths"
+}

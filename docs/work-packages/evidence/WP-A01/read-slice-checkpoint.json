@@ -1,0 +1,115 @@
+{
+  "package": "A01",
+  "recorded_on": "2026-10-05",
+  "tested_commit": "5640dcd0484b6f1ea5596b7a85557e2e98bb38ec",
+  "scope": "Connected authority, context and task read bootstrap only",
+  "scope_outcome": "passed",
+  "package_acceptance_complete": false,
+  "package_status": "in_progress",
+  "historical_manifest": "docs/work-packages/evidence/WP-A01/manifest.json",
+  "protocol_version": "local-mcp/2 over JSON-RPC 2.0 stdio; MCP/2026-07-28",
+  "schema_version": "1",
+  "migration_head": "0037_artifact_version_retained",
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "xcode": "26.0.1",
+    "modernc.org/sqlite": "v1.58.0"
+  },
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2",
+    "architecture": "arm64",
+    "provider": "synthetic owned process; no live model turn",
+    "signing": "local development signing",
+    "prebuilt_web_assets": false
+  },
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed"
+    },
+    {
+      "command": "pnpm test:a01",
+      "outcome": "passed",
+      "protocol_cases": 447,
+      "cloud_cases": 48,
+      "go_race_checks": "passed",
+      "compiled_stdio_harness": "passed",
+      "native_worker_hub_d1_proof": "passed"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "typescript_cases": 1410,
+      "go_checks": "passed",
+      "swift_cases": 16
+    },
+    {
+      "command": "GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./...",
+      "outcome": "passed"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed"
+    }
+  ],
+  "native_proof": [
+    "Compiled stdio client reaches fixed daemon RPC and possession-authenticated production Worker routes",
+    "Development-signed launchd daemon uses real Keychain-backed enrollment",
+    "Provider-shaped child receives no reusable runner or human credential",
+    "Only agent/both context is returned with actual committed per-item D1 delivery IDs, versions, hashes and run",
+    "Oversized escaped context is rejected without partial delivery records",
+    "MCP-process restart reuses cloud outcomes and creates no duplicate deliveries or invented provider sessions",
+    "Unbound mutation is denied with business state unchanged",
+    "Foreign process, wrong correlation, generation and task boundary are denied",
+    "Cached reads recheck grant revocation, execution end, accepted result and expired lease"
+  ],
+  "additional_regressions": [
+    "Empty context returns two empty arrays without inventing a delivery",
+    "Kernel-derived caller containment is checked before and after cloud waits",
+    "WorkspaceHub authorization uses fresh serialized time before cached responses",
+    "Changed input or tool under an existing request identity is rejected",
+    "The 256-success local cache rejects overflow before effects and preserves previous bindings",
+    "Transient infrastructure failures remain retryable rather than closing valid authority",
+    "Private task/context bodies are absent from new audit, semantic and outbox receipts"
+  ],
+  "implementation_checkout_affected_gates": [
+    { "command": "pnpm test:c01", "outcome": "passed" },
+    { "command": "pnpm test:c08", "outcome": "passed" },
+    { "command": "pnpm test:l08", "outcome": "passed" }
+  ],
+  "proof_sources": [
+    "internal/agentwork/native_darwin_test.go",
+    "internal/agentwork/testdata/daemon/main.go",
+    "internal/localmcp/rpc_test.go",
+    "packages/domain/test/agent-work.test.ts",
+    "apps/control-worker/test/agent-work.test.ts",
+    "tools/local-mcp/native.ts",
+    "tools/local-mcp/worker.ts",
+    "tools/local-mcp/wrangler.toml",
+    "tools/local-mcp/assets/index.html"
+  ],
+  "remaining_obligations": [
+    "Online task/comment/progress/proposal writes with truthful durable run attribution",
+    "Explicit canonical provider-session binding with exact resume semantics",
+    "Versioned deny-by-default offline permission and daemon-owned capture",
+    "Daemon restart-safe replay, complete capture validation and durable acknowledgements",
+    "Remote-write-commit/local-ack crash deduplication",
+    "Full package acceptance and downstream recertification"
+  ],
+  "not_claimed": [
+    "Live Claude or Codex provider certification",
+    "Daemon-restart pending-operation replay",
+    "A02/A03 production attention/result integration",
+    "New Terminal UI automation acceptance",
+    "Cross-device pilot, running end-to-end MVP or release readiness",
+    "Production deployment"
+  ],
+  "redaction": {
+    "status": "passed",
+    "prohibited_content": [],
+    "raw_logs_committed": false
+  }
+}

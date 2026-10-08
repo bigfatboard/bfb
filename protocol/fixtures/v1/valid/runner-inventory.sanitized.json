@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "workspace_id": "01K00000000000000000000001",
+  "runner_id": "01K00000000000000000000002",
+  "revision": 1,
+  "checkouts": [],
+  "providers": [
+    {
+      "provider": "fake",
+      "version": "1.0.0",
+      "manifest_id": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "capabilities": ["launch.headless", "discussion.read_only"],
+      "status": "healthy",
+      "observed_at": "2026-09-11T20:00:00.000Z",
+      "expires_at": "2026-09-11T20:00:30.000Z"
+    }
+  ]
+}

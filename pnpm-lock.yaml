@@ -14,6 +14,9 @@ importers:
       '@types/node':
         specifier: 24.13.3
         version: 24.13.3
+      happy-dom:
+        specifier: 20.14.5
+        version: 20.14.5
       oxlint:
         specifier: 1.78.0
         version: 1.78.0
@@ -28,10 +31,16 @@ importers:
         version: 5.9.3
       vitest:
         specifier: 4.1.10
-        version: 4.1.10(@types/node@24.13.3)(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(tsx@4.23.12)(yaml@2.9.0))
+        version: 4.1.10(@types/node@24.13.3)(happy-dom@20.14.5)(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(tsx@4.23.12)(yaml@2.9.0))
 
   apps/artifact-worker:
     dependencies:
+      '@bfb/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@bfb/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       hono:
         specifier: 4.13.1
         version: 4.13.1
@@ -39,6 +48,12 @@ importers:
       '@cloudflare/workers-types':
         specifier: 5.20260810.1
         version: 5.20260810.1
+      '@types/better-sqlite3':
+        specifier: 7.6.13
+        version: 7.6.13
+      better-sqlite3:
+        specifier: 12.6.2
+        version: 12.6.2
       wrangler:
         specifier: 4.120.1
         version: 4.120.1(@cloudflare/workers-types@5.20260810.1)
@@ -47,16 +62,19 @@ importers:
     dependencies:
       '@better-auth/oauth-provider':
         specifier: 1.6.26
-        version: 1.6.26(@better-auth/core@1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260810.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2))(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(better-auth@1.6.26(@cloudflare/workers-types@5.20260810.1)(better-sqlite3@12.6.2)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260810.1)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.6.2)(kysely@0.29.4))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@4.1.10(@types/node@24.13.3)(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(tsx@4.23.12)(yaml@2.9.0))))(better-call@1.3.7(zod@4.4.3))
+        version: 1.6.26(@better-auth/core@1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260810.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2))(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(better-auth@1.6.26(@cloudflare/workers-types@5.20260810.1)(better-sqlite3@12.6.2)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260810.1)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.6.2)(kysely@0.29.4))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@4.1.10(@types/node@24.13.3)(happy-dom@20.14.5)(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(tsx@4.23.12)(yaml@2.9.0))))(better-call@1.3.7(zod@4.4.3))
       '@better-auth/passkey':
         specifier: 1.6.26
-        version: 1.6.26(@better-auth/core@1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260810.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2))(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(better-auth@1.6.26(@cloudflare/workers-types@5.20260810.1)(better-sqlite3@12.6.2)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260810.1)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.6.2)(kysely@0.29.4))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@4.1.10(@types/node@24.13.3)(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(tsx@4.23.12)(yaml@2.9.0))))(better-call@1.3.7(zod@4.4.3))(nanostores@1.4.2)
+        version: 1.6.26(@better-auth/core@1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260810.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2))(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(better-auth@1.6.26(@cloudflare/workers-types@5.20260810.1)(better-sqlite3@12.6.2)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260810.1)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.6.2)(kysely@0.29.4))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@4.1.10(@types/node@24.13.3)(happy-dom@20.14.5)(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(tsx@4.23.12)(yaml@2.9.0))))(better-call@1.3.7(zod@4.4.3))(nanostores@1.4.2)
       '@bfb/db':
         specifier: workspace:*
         version: link:../../packages/db
       '@bfb/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@bfb/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol-ts
       '@modelcontextprotocol/server':
         specifier: 2.0.0
         version: 2.0.0
@@ -68,7 +86,7 @@ importers:
         version: 0.20.1(@babel/core@8.0.1)(@babel/runtime@7.29.7)(@cloudflare/workers-types@5.20260810.1)(@modelcontextprotocol/client@2.0.0)(@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(@modelcontextprotocol/server@2.0.0)(react@19.2.8)(rolldown@1.2.3)(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(tsx@4.23.12)(yaml@2.9.0))(zod@4.4.3)
       better-auth:
         specifier: 1.6.26
-        version: 1.6.26(@cloudflare/workers-types@5.20260810.1)(better-sqlite3@12.6.2)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260810.1)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.6.2)(kysely@0.29.4))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@4.1.10(@types/node@24.13.3)(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(tsx@4.23.12)(yaml@2.9.0)))
+        version: 1.6.26(@cloudflare/workers-types@5.20260810.1)(better-sqlite3@12.6.2)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260810.1)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.6.2)(kysely@0.29.4))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@4.1.10(@types/node@24.13.3)(happy-dom@20.14.5)(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(tsx@4.23.12)(yaml@2.9.0)))
       hono:
         specifier: 4.13.1
         version: 4.13.1
@@ -94,6 +112,9 @@ importers:
       '@bfb/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@bfb/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol-ts
       react:
         specifier: 19.2.8
         version: 19.2.8
@@ -135,6 +156,9 @@ importers:
       '@bfb/db':
         specifier: workspace:*
         version: link:../db
+      '@bfb/protocol':
+        specifier: workspace:*
+        version: link:../protocol-ts
     devDependencies:
       '@types/better-sqlite3':
         specifier: 7.6.13
@@ -146,6 +170,149 @@ importers:
   packages/protocol-ts: {}
 
   packages/ui: {}
+
+  tools/artifact-privacy:
+    dependencies:
+      '@bfb/artifact-worker':
+        specifier: workspace:*
+        version: link:../../apps/artifact-worker
+      '@bfb/control-worker':
+        specifier: workspace:*
+        version: link:../../apps/control-worker
+      '@bfb/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@bfb/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+    devDependencies:
+      '@cloudflare/workers-types':
+        specifier: 5.20260810.1
+        version: 5.20260810.1
+      wrangler:
+        specifier: 4.120.1
+        version: 4.120.1(@cloudflare/workers-types@5.20260810.1)
+
+  tools/artifact-review:
+    dependencies:
+      '@bfb/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@bfb/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+    devDependencies:
+      wrangler:
+        specifier: 4.120.1
+        version: 4.120.1(@cloudflare/workers-types@5.20260810.1)
+
+  tools/artifact-viewer:
+    dependencies:
+      '@bfb/artifact-worker':
+        specifier: workspace:*
+        version: link:../../apps/artifact-worker
+      '@bfb/control-worker':
+        specifier: workspace:*
+        version: link:../../apps/control-worker
+      '@bfb/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@bfb/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+    devDependencies:
+      '@cloudflare/workers-types':
+        specifier: 5.20260810.1
+        version: 5.20260810.1
+      '@types/better-sqlite3':
+        specifier: 7.6.13
+        version: 7.6.13
+      better-sqlite3:
+        specifier: 12.6.2
+        version: 12.6.2
+      wrangler:
+        specifier: 4.120.1
+        version: 4.120.1(@cloudflare/workers-types@5.20260810.1)
+
+  tools/artifacts:
+    dependencies:
+      '@bfb/artifact-worker':
+        specifier: workspace:*
+        version: link:../../apps/artifact-worker
+      '@bfb/control-worker':
+        specifier: workspace:*
+        version: link:../../apps/control-worker
+      '@bfb/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@bfb/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+    devDependencies:
+      wrangler:
+        specifier: 4.120.1
+        version: 4.120.1(@cloudflare/workers-types@5.20260810.1)
+
+  tools/attention:
+    dependencies:
+      '@bfb/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@bfb/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+      '@bfb/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol-ts
+    devDependencies:
+      wrangler:
+        specifier: 4.120.1
+        version: 4.120.1(@cloudflare/workers-types@5.20260810.1)
+
+  tools/cli-credentials:
+    dependencies:
+      '@bfb/control-worker':
+        specifier: workspace:*
+        version: link:../../apps/control-worker
+      '@bfb/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@bfb/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+    devDependencies:
+      wrangler:
+        specifier: 4.120.1
+        version: 4.120.1(@cloudflare/workers-types@5.20260810.1)
+
+  tools/discussion-delivery:
+    dependencies:
+      '@bfb/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      better-sqlite3:
+        specifier: 12.6.2
+        version: 12.6.2
+    devDependencies:
+      '@types/better-sqlite3':
+        specifier: 7.6.13
+        version: 7.6.13
+
+  tools/discussions:
+    dependencies:
+      '@bfb/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@bfb/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+      '@bfb/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol-ts
+    devDependencies:
+      wrangler:
+        specifier: 4.120.1
+        version: 4.120.1(@cloudflare/workers-types@5.20260810.1)
 
   tools/e2e:
     dependencies:
@@ -170,10 +337,96 @@ importers:
       vite:
         specifier: 8.2.1
         version: 8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(tsx@4.23.12)(yaml@2.9.0)
+      ws:
+        specifier: 8.21.0
+        version: 8.21.0
     devDependencies:
       '@playwright/test':
         specifier: 1.55.1
         version: 1.55.1
+      '@types/ws':
+        specifier: 8.18.1
+        version: 8.18.1
+
+  tools/events:
+    dependencies:
+      '@bfb/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@bfb/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+      '@bfb/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol-ts
+    devDependencies:
+      wrangler:
+        specifier: 4.120.1
+        version: 4.120.1(@cloudflare/workers-types@5.20260810.1)
+
+  tools/g01:
+    dependencies:
+      '@bfb/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@bfb/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+    devDependencies:
+      wrangler:
+        specifier: 4.120.1
+        version: 4.120.1(@cloudflare/workers-types@5.20260810.1)
+
+  tools/g02:
+    dependencies:
+      '@bfb/control-worker':
+        specifier: workspace:*
+        version: link:../../apps/control-worker
+      '@bfb/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@bfb/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+      better-sqlite3:
+        specifier: 12.6.2
+        version: 12.6.2
+    devDependencies:
+      '@types/better-sqlite3':
+        specifier: 7.6.13
+        version: 7.6.13
+      wrangler:
+        specifier: 4.120.1
+        version: 4.120.1(@cloudflare/workers-types@5.20260810.1)
+
+  tools/github:
+    dependencies:
+      '@bfb/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@bfb/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+    devDependencies:
+      wrangler:
+        specifier: 4.120.1
+        version: 4.120.1(@cloudflare/workers-types@5.20260810.1)
+
+  tools/human-cli:
+    dependencies:
+      '@bfb/control-worker':
+        specifier: workspace:*
+        version: link:../../apps/control-worker
+      '@bfb/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@bfb/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+    devDependencies:
+      wrangler:
+        specifier: 4.120.1
+        version: 4.120.1(@cloudflare/workers-types@5.20260810.1)
 
   tools/identity:
     dependencies:
@@ -185,7 +438,96 @@ importers:
         specifier: 4.120.1
         version: 4.120.1(@cloudflare/workers-types@5.20260810.1)
 
+  tools/journal:
+    dependencies:
+      '@bfb/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol-ts
+
   tools/kernel:
+    dependencies:
+      '@bfb/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@bfb/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+    devDependencies:
+      wrangler:
+        specifier: 4.120.1
+        version: 4.120.1(@cloudflare/workers-types@5.20260810.1)
+
+  tools/launches:
+    dependencies:
+      '@bfb/control-worker':
+        specifier: workspace:*
+        version: link:../../apps/control-worker
+      '@bfb/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@bfb/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+      '@bfb/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol-ts
+    devDependencies:
+      wrangler:
+        specifier: 4.120.1
+        version: 4.120.1(@cloudflare/workers-types@5.20260810.1)
+
+  tools/local-mcp:
+    dependencies:
+      '@bfb/control-worker':
+        specifier: workspace:*
+        version: link:../../apps/control-worker
+      '@bfb/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@bfb/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+      '@bfb/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol-ts
+    devDependencies:
+      wrangler:
+        specifier: 4.120.1
+        version: 4.120.1(@cloudflare/workers-types@5.20260810.1)
+
+  tools/measurements:
+    dependencies:
+      '@bfb/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@bfb/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+      '@bfb/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol-ts
+    devDependencies:
+      wrangler:
+        specifier: 4.120.1
+        version: 4.120.1(@cloudflare/workers-types@5.20260810.1)
+
+  tools/notifications:
+    dependencies:
+      '@bfb/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@bfb/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+      '@bfb/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol-ts
+    devDependencies:
+      wrangler:
+        specifier: 4.120.1
+        version: 4.120.1(@cloudflare/workers-types@5.20260810.1)
+
+  tools/operations:
     dependencies:
       '@bfb/db':
         specifier: workspace:*
@@ -233,7 +575,87 @@ importers:
         specifier: 0.28.2
         version: 0.28.2
 
+  tools/realtime:
+    dependencies:
+      '@bfb/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@bfb/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+      '@bfb/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol-ts
+    devDependencies:
+      wrangler:
+        specifier: 4.120.1
+        version: 4.120.1(@cloudflare/workers-types@5.20260810.1)
+
+  tools/remote-mcp:
+    dependencies:
+      '@bfb/control-worker':
+        specifier: workspace:*
+        version: link:../../apps/control-worker
+      '@bfb/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@bfb/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+    devDependencies:
+      '@cloudflare/workers-types':
+        specifier: 5.20260810.1
+        version: 5.20260810.1
+      wrangler:
+        specifier: 4.120.1
+        version: 4.120.1(@cloudflare/workers-types@5.20260810.1)
+
   tools/repository: {}
+
+  tools/results:
+    dependencies:
+      '@bfb/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@bfb/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+    devDependencies:
+      wrangler:
+        specifier: 4.120.1
+        version: 4.120.1(@cloudflare/workers-types@5.20260810.1)
+
+  tools/runner-channel:
+    dependencies:
+      '@bfb/control-worker':
+        specifier: workspace:*
+        version: link:../../apps/control-worker
+      '@bfb/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@bfb/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+    devDependencies:
+      wrangler:
+        specifier: 4.120.1
+        version: 4.120.1(@cloudflare/workers-types@5.20260810.1)
+
+  tools/runners:
+    dependencies:
+      '@bfb/control-worker':
+        specifier: workspace:*
+        version: link:../../apps/control-worker
+      '@bfb/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@bfb/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+    devDependencies:
+      wrangler:
+        specifier: 4.120.1
+        version: 4.120.1(@cloudflare/workers-types@5.20260810.1)
 
   tools/work-records:
     dependencies:
@@ -243,6 +665,9 @@ importers:
       '@bfb/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@bfb/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol-ts
     devDependencies:
       wrangler:
         specifier: 4.120.1
@@ -1497,6 +1922,12 @@ packages:
   '@types/react@19.2.14':
     resolution: {integrity: sha512-ilcTH/UniCkMdtexkoCN0bI7pMcJDvmQFPvuPvmEaYA/NSfFTAgdUSLAoVjaRJm7+6PvcM+q1zYOwS4wTYMF9w==}
 
+  '@types/whatwg-mimetype@3.0.2':
+    resolution: {integrity: sha512-c2AKvDT8ToxLIOUlN51gTiHXflsfIFisS4pO7pDPoKouJCESkhZnEy623gwP9laCy5lnLDAw1vAzu2vM2YLOrA==}
+
+  '@types/ws@8.18.1':
+    resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
+
   '@vitejs/plugin-react@5.1.4':
     resolution: {integrity: sha512-VIcFLdRi/VYRU8OL/puL7QXMYafHmqOnwTZY50U1JPlCNj30PxCMx65c494b1K9be9hX83KVt0+gTEwTWLqToA==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -1700,6 +2131,10 @@ packages:
     resolution: {integrity: sha512-V2NpofLblG64mfOtSgDhOJESZEGogzDMBv/q+W6oc4LXWP/q75eOXoOaaOu1EOadB9U4Bwx/e0yzbvwKH8zalA==}
     engines: {node: ^6 || ^7 || ^8 || ^9 || ^10 || ^11 || ^12 || >=13.7}
     hasBin: true
+
+  buffer-image-size@0.6.4:
+    resolution: {integrity: sha512-nEh+kZOPY1w+gcCMobZ6ETUp9WfibndnosbpwB1iJk/8Gt5ZF2bhS6+B6bPYz424KtwsR6Rflc3tCz1/ghX2dQ==}
+    engines: {node: '>=4.0'}
 
   buffer@5.7.1:
     resolution: {integrity: sha512-EHcyIPBQ4BSGlvjB16k5KgAJ27CIsHY/2JBmCRReo48y9rQ3MaUzWX3KVlBa4U7MyX02HdVj0K7C3WaB3ju7FQ==}
@@ -1919,6 +2354,10 @@ packages:
   end-of-stream@1.4.5:
     resolution: {integrity: sha512-ooEGc6HP26xXq/N+GCGOT0JKCLDGrq2bQUZrQ7gyrJiZANJ/8YDTxTpQBXGMn+WbIQXNVpyWymm7KYVICQnyOg==}
 
+  entities@7.0.1:
+    resolution: {integrity: sha512-TWrgLOFUQTH994YUyl1yT4uyavY5nNB5muff+RtWaqNVCAK408b5ZnnbNAUEWLTCpum9w6arT70i1XdQ4UeOPA==}
+    engines: {node: '>=0.12'}
+
   error-stack-parser-es@1.0.5:
     resolution: {integrity: sha512-5qucVt2XcuGMcEGgWI7i+yZpmpByQ8J1lHhcL7PwqCwu9FPP3VUXzT4ltHe5i2z9dePwEHcDVOAfSnHsOlCXRA==}
 
@@ -2062,6 +2501,10 @@ packages:
   gopd@1.2.0:
     resolution: {integrity: sha512-ZUKRh6/kUFoAiTAtTYPZJ3hw9wNxx+BIBOijnlG9PnrJsCcSjs1wyyD6vJpaYtgnzDrKYRSqf3OO6Rfa93xsRg==}
     engines: {node: '>= 0.4'}
+
+  happy-dom@20.14.5:
+    resolution: {integrity: sha512-x/RzkpWO40bTjIoT30iQtt64FLLmH/iRcUCN2X//bLx7H3ifkdfPXyqsro/OYtqzIAhiLMMA7mmiOR9C3NOKjQ==}
+    engines: {node: '>=20.0.0'}
 
   has-symbols@1.1.0:
     resolution: {integrity: sha512-1cDNdwJ2Jaohmb3sg4OmKaMBwuC48sYni5HUw2DvsC8LjGTLK9h+eb1X6RyuOHe4hT0ULCW68iomhjUoKUqlPQ==}
@@ -2740,6 +3183,10 @@ packages:
       jsdom:
         optional: true
 
+  whatwg-mimetype@3.0.0:
+    resolution: {integrity: sha512-nt+N2dzIutVRxARx1nghPKGv1xHikU7HKdfafKkLNLindmPU/ch3U31NOCGGA/dmPcmb1VlofO0vnKAcsm0o/Q==}
+    engines: {node: '>=12'}
+
   which@2.0.2:
     resolution: {integrity: sha512-BLI3Tl1TW3Pvl70l3yq3Y64i+awpwXqsGBYWkkqMtnbXgrMD+yj7rhW0kuEDxzJaYXGjEW5ogapKNMEKNMjibA==}
     engines: {node: '>= 8'}
@@ -3109,24 +3556,24 @@ snapshots:
       '@better-auth/core': 1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260810.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2)
       '@better-auth/utils': 0.4.2
 
-  '@better-auth/oauth-provider@1.6.26(@better-auth/core@1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260810.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2))(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(better-auth@1.6.26(@cloudflare/workers-types@5.20260810.1)(better-sqlite3@12.6.2)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260810.1)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.6.2)(kysely@0.29.4))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@4.1.10(@types/node@24.13.3)(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(tsx@4.23.12)(yaml@2.9.0))))(better-call@1.3.7(zod@4.4.3))':
+  '@better-auth/oauth-provider@1.6.26(@better-auth/core@1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260810.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2))(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(better-auth@1.6.26(@cloudflare/workers-types@5.20260810.1)(better-sqlite3@12.6.2)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260810.1)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.6.2)(kysely@0.29.4))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@4.1.10(@types/node@24.13.3)(happy-dom@20.14.5)(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(tsx@4.23.12)(yaml@2.9.0))))(better-call@1.3.7(zod@4.4.3))':
     dependencies:
       '@better-auth/core': 1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260810.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2)
       '@better-auth/utils': 0.4.2
       '@better-fetch/fetch': 1.3.1
-      better-auth: 1.6.26(@cloudflare/workers-types@5.20260810.1)(better-sqlite3@12.6.2)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260810.1)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.6.2)(kysely@0.29.4))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@4.1.10(@types/node@24.13.3)(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(tsx@4.23.12)(yaml@2.9.0)))
+      better-auth: 1.6.26(@cloudflare/workers-types@5.20260810.1)(better-sqlite3@12.6.2)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260810.1)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.6.2)(kysely@0.29.4))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@4.1.10(@types/node@24.13.3)(happy-dom@20.14.5)(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(tsx@4.23.12)(yaml@2.9.0)))
       better-call: 1.3.7(zod@4.4.3)
       jose: 6.2.8
       zod: 4.4.3
 
-  '@better-auth/passkey@1.6.26(@better-auth/core@1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260810.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2))(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(better-auth@1.6.26(@cloudflare/workers-types@5.20260810.1)(better-sqlite3@12.6.2)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260810.1)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.6.2)(kysely@0.29.4))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@4.1.10(@types/node@24.13.3)(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(tsx@4.23.12)(yaml@2.9.0))))(better-call@1.3.7(zod@4.4.3))(nanostores@1.4.2)':
+  '@better-auth/passkey@1.6.26(@better-auth/core@1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260810.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2))(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(better-auth@1.6.26(@cloudflare/workers-types@5.20260810.1)(better-sqlite3@12.6.2)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260810.1)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.6.2)(kysely@0.29.4))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@4.1.10(@types/node@24.13.3)(happy-dom@20.14.5)(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(tsx@4.23.12)(yaml@2.9.0))))(better-call@1.3.7(zod@4.4.3))(nanostores@1.4.2)':
     dependencies:
       '@better-auth/core': 1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260810.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2)
       '@better-auth/utils': 0.4.2
       '@better-fetch/fetch': 1.3.1
       '@simplewebauthn/browser': 13.3.0
       '@simplewebauthn/server': 13.3.2
-      better-auth: 1.6.26(@cloudflare/workers-types@5.20260810.1)(better-sqlite3@12.6.2)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260810.1)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.6.2)(kysely@0.29.4))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@4.1.10(@types/node@24.13.3)(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(tsx@4.23.12)(yaml@2.9.0)))
+      better-auth: 1.6.26(@cloudflare/workers-types@5.20260810.1)(better-sqlite3@12.6.2)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260810.1)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.6.2)(kysely@0.29.4))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@4.1.10(@types/node@24.13.3)(happy-dom@20.14.5)(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(tsx@4.23.12)(yaml@2.9.0)))
       better-call: 1.3.7(zod@4.4.3)
       nanostores: 1.4.2
       zod: 4.4.3
@@ -3826,6 +4273,12 @@ snapshots:
     dependencies:
       csstype: 3.2.3
 
+  '@types/whatwg-mimetype@3.0.2': {}
+
+  '@types/ws@8.18.1':
+    dependencies:
+      '@types/node': 24.13.3
+
   '@vitejs/plugin-react@5.1.4(supports-color@10.2.2)(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(tsx@4.23.12)(yaml@2.9.0))':
     dependencies:
       '@babel/core': 7.29.7(supports-color@10.2.2)
@@ -3938,7 +4391,7 @@ snapshots:
 
   baseline-browser-mapping@2.11.13: {}
 
-  better-auth@1.6.26(@cloudflare/workers-types@5.20260810.1)(better-sqlite3@12.6.2)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260810.1)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.6.2)(kysely@0.29.4))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@4.1.10(@types/node@24.13.3)(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(tsx@4.23.12)(yaml@2.9.0))):
+  better-auth@1.6.26(@cloudflare/workers-types@5.20260810.1)(better-sqlite3@12.6.2)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260810.1)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.6.2)(kysely@0.29.4))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@4.1.10(@types/node@24.13.3)(happy-dom@20.14.5)(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(tsx@4.23.12)(yaml@2.9.0))):
     dependencies:
       '@better-auth/core': 1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260810.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2)
       '@better-auth/drizzle-adapter': 1.6.26(@better-auth/core@1.6.26(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260810.1)(better-call@1.3.7(zod@4.4.3))(jose@6.2.8)(kysely@0.29.4)(nanostores@1.4.2))(@better-auth/utils@0.4.2)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260810.1)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.6.2)(kysely@0.29.4))
@@ -3962,7 +4415,7 @@ snapshots:
       drizzle-orm: 0.45.2(@cloudflare/workers-types@5.20260810.1)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.6.2)(kysely@0.29.4)
       react: 19.2.8
       react-dom: 19.2.8(react@19.2.8)
-      vitest: 4.1.10(@types/node@24.13.3)(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(tsx@4.23.12)(yaml@2.9.0))
+      vitest: 4.1.10(@types/node@24.13.3)(happy-dom@20.14.5)(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(tsx@4.23.12)(yaml@2.9.0))
     transitivePeerDependencies:
       - '@cloudflare/workers-types'
       - '@opentelemetry/api'
@@ -4014,6 +4467,10 @@ snapshots:
       electron-to-chromium: 1.5.403
       node-releases: 2.0.53
       update-browserslist-db: 1.3.0(browserslist@4.28.8)
+
+  buffer-image-size@0.6.4:
+    dependencies:
+      '@types/node': 24.13.3
 
   buffer@5.7.1:
     dependencies:
@@ -4119,6 +4576,8 @@ snapshots:
   end-of-stream@1.4.5:
     dependencies:
       once: 1.4.0
+
+  entities@7.0.1: {}
 
   error-stack-parser-es@1.0.5: {}
 
@@ -4315,6 +4774,19 @@ snapshots:
   github-from-package@0.0.0: {}
 
   gopd@1.2.0: {}
+
+  happy-dom@20.14.5:
+    dependencies:
+      '@types/node': 24.13.3
+      '@types/whatwg-mimetype': 3.0.2
+      '@types/ws': 8.18.1
+      buffer-image-size: 0.6.4
+      entities: 7.0.1
+      whatwg-mimetype: 3.0.0
+      ws: 8.21.0
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
 
   has-symbols@1.1.0: {}
 
@@ -4908,7 +5380,7 @@ snapshots:
       tsx: 4.23.12
       yaml: 2.9.0
 
-  vitest@4.1.10(@types/node@24.13.3)(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(tsx@4.23.12)(yaml@2.9.0)):
+  vitest@4.1.10(@types/node@24.13.3)(happy-dom@20.14.5)(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(tsx@4.23.12)(yaml@2.9.0)):
     dependencies:
       '@vitest/expect': 4.1.10
       '@vitest/mocker': 4.1.10(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(tsx@4.23.12)(yaml@2.9.0))
@@ -4932,8 +5404,11 @@ snapshots:
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@types/node': 24.13.3
+      happy-dom: 20.14.5
     transitivePeerDependencies:
       - msw
+
+  whatwg-mimetype@3.0.0: {}
 
   which@2.0.2:
     dependencies:

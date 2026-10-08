@@ -61,11 +61,13 @@ Authorized humans can register project/repository identities and manage project 
 - Changing policy/profile/config creates a new immutable version and never mutates a version already available to a run snapshot.
 - No project record, event, API body, or log stores an absolute checkout path or provider credential.
 
-## Evidence and handoff
+## Evidence
 
 - Commit repository-identity fixtures, project permission matrix, policy-tightening tests, API/pagination fixtures, and immutable configuration snapshots.
-- C06 consumes project IDs/grants; C08 consumes project authorization/configuration versions; C09 consumes policy/profile/config inputs for an immutable launch snapshot; X03A consumes the bounded authorized project read; X04 may strengthen identity with GitHub's immutable repository ID.
-
 ## Risks and decisions
 
 - Repository aliases and monorepo subpaths are security and attribution boundaries. Cloud project identity must remain independent of any runner's local path.
+
+## Handoff
+
+- C06 consumes project IDs/grants; C08 consumes project authorization/configuration versions; C09 consumes policy/profile/config inputs for an immutable launch snapshot; X03A consumes the bounded authorized project read; X04 may strengthen identity with GitHub's immutable repository ID.

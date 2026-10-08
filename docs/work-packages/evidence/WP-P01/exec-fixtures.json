@@ -1,0 +1,75 @@
+{
+  "package": "P01",
+  "scope": "Documented codex exec --json shapes to bounded turn events and usage candidates. Session identities are synthetic; cached and reasoning token fields are observed but not forwarded.",
+  "stream": [
+    {
+      "name": "thread-started-binds-session",
+      "line": "{\"type\":\"thread.started\",\"thread_id\":\"0199a213-81c0-7000-8aa1-bbab2a035a53\"}",
+      "event": { "kind": "session_observed", "session_id": "0199a213-81c0-7000-8aa1-bbab2a035a53" },
+      "usage": null,
+      "notes": "The observed thread identity anchors every later line of the execution."
+    },
+    {
+      "name": "turn-started-inherits-session",
+      "line": "{\"type\":\"turn.started\"}",
+      "event": { "kind": "turn_started", "session_id": "0199a213-81c0-7000-8aa1-bbab2a035a53" },
+      "usage": null,
+      "notes": "Turn lines without a session bind to the observed thread, never to a guessed run."
+    },
+    {
+      "name": "agent-message-keeps-text",
+      "line": "{\"type\":\"item.completed\",\"item\":{\"type\":\"agent_message\",\"text\":\"synthetic reply\"}}",
+      "event": {
+        "kind": "message",
+        "session_id": "0199a213-81c0-7000-8aa1-bbab2a035a53",
+        "text": "synthetic reply"
+      },
+      "usage": null,
+      "notes": "Non-message items are ignored; only model-visible text becomes a message."
+    },
+    {
+      "name": "turn-completed-carries-provider-usage",
+      "line": "{\"type\":\"turn.completed\",\"usage\":{\"input_tokens\":120,\"cached_input_tokens\":100,\"output_tokens\":34,\"reasoning_output_tokens\":5}}",
+      "event": { "kind": "turn_completed", "session_id": "0199a213-81c0-7000-8aa1-bbab2a035a53" },
+      "usage": {
+        "kind": "usage",
+        "session_id": "0199a213-81c0-7000-8aa1-bbab2a035a53",
+        "input_tokens": 120,
+        "output_tokens": 34,
+        "provenance": "provider_reported"
+      },
+      "notes": "Usage exists only when the provider reports it; completion never submits a result."
+    },
+    {
+      "name": "turn-completed-without-usage-invents-nothing",
+      "line": "{\"type\":\"turn.completed\"}",
+      "event": { "kind": "turn_completed", "session_id": "0199a213-81c0-7000-8aa1-bbab2a035a53" },
+      "usage": null,
+      "notes": "Absent usage stays absent; it is recorded as unavailable downstream, never estimated."
+    },
+    {
+      "name": "turn-failed-marks-failure",
+      "line": "{\"type\":\"turn.failed\"}",
+      "event": { "kind": "turn_failed", "session_id": "0199a213-81c0-7000-8aa1-bbab2a035a53" },
+      "usage": null,
+      "notes": "Failures are telemetry, not result submissions."
+    },
+    {
+      "name": "error-line-marks-failure",
+      "line": "{\"type\":\"error\",\"message\":\"synthetic\"}",
+      "event": { "kind": "turn_failed", "session_id": "0199a213-81c0-7000-8aa1-bbab2a035a53" },
+      "usage": null,
+      "notes": "String message fields on error lines do not disturb struct decoding."
+    }
+  ],
+  "ignored_noise": [
+    "Blank lines and non-JSON diagnostics are ignored, matching the L03 probe behavior.",
+    "Unknown event types and non-message items produce no event and mint no usage."
+  ],
+  "rejections": [
+    "Negative, fractional, missing, or out-of-range token counts fail closed.",
+    "Thread starts without a valid identity fail closed.",
+    "Self-contained lines without any observed session fail closed; ordered lines belong on one Stream.",
+    "Duplicate JSON keys and oversized lines fail closed."
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "$schema": "../manifest.schema.json",
+  "package": "C11",
+  "tested_commit": "a1506cd2aca825b1acb705442dcd10cf077b7bb6",
+  "protocol_version": "bfb-wire/1 unchanged",
+  "schema_version": "private-task-delivery/1 partial browser task child-collection selection; activation unavailable",
+  "migration_head": "0047_security_audit_positions",
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "xcode": "26.0.1",
+    "wrangler": "4.120.1",
+    "playwright": "1.55.1"
+  },
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56)",
+    "architecture": "arm64"
+  },
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/task-collections-command-result.json"
+    },
+    {
+      "command": "pnpm test:c11",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/task-collections-command-result.json"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/task-collections-command-result.json"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/task-collections-command-result.json"
+    }
+  ],
+  "outcome": "passed",
+  "artifacts": [
+    "docs/work-packages/evidence/WP-C11/task-collections-command-result.json",
+    "docs/work-packages/evidence/WP-C11/task-collections-acceptance.md",
+    "docs/contracts/private-task-delivery.md",
+    "packages/domain/src/human-task-collections.ts",
+    "packages/domain/src/index.ts",
+    "apps/control-worker/src/api/work.ts",
+    "apps/control-worker/test/human-task-collection-delivery.test.ts",
+    "apps/control-worker/test/private-work-routes.test.ts",
+    "apps/control-worker/test/private-child-routes.test.ts",
+    "apps/control-worker/test/work-routes.test.ts",
+    "tools/work-records/human-task-collections.ts",
+    "tools/work-records/README.md",
+    "tools/work-records/tsconfig.json",
+    "package.json"
+  ],
+  "redaction": {
+    "status": "passed",
+    "prohibited_content": []
+  },
+  "ci": {
+    "status": "not_run"
+  }
+}

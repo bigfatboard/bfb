@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -384,11 +385,124 @@ func inspectNumber(source string) numericInspection {
 	return numericInspection{integer: &integerDigits}
 }
 
-func numericCandidates(value any, path string) []diagnosticCandidate {
+// ParseWireInteger preserves the wire codec's exact safe-integer rules before
+// a transport discards a JSON number's raw decimal or exponent spelling.
+func ParseWireInteger(source string) (int64, bool) {
+	inspection := inspectNumber(source)
+	if inspection.failure != "" || inspection.integer == nil {
+		return 0, false
+	}
+	integer, err := strconv.ParseInt(*inspection.integer, 10, 64)
+	return integer, err == nil
+}
+
+func progressDecimalLimits(document string, value any) map[string]string {
+	prefix := ""
+	switch document {
+	case "agent-progress-request":
+	case "agent-progress-local-request":
+		prefix = "/request"
+	case "agent-work-replay-request":
+		root, ok := asObject(value)
+		if !ok || root["command_name"] != "agent_run.progress" {
+			return nil
+		}
+		prefix = "/original_request"
+	case "local-agent-rpc", "local-agent-work-rpc":
+		root, ok := asObject(value)
+		method, expectedVersion := "mcp.v2.report_progress", "2"
+		if document == "local-agent-work-rpc" {
+			method, expectedVersion = "mcp.v3.report_progress", "3"
+		}
+		if !ok || root["direction"] != "request" || root["method"] != method {
+			return nil
+		}
+		version, ok := root["schema_version"].(json.Number)
+		if !ok {
+			return nil
+		}
+		inspection := inspectNumber(version.String())
+		if inspection.failure != "" || inspection.integer == nil || *inspection.integer != expectedVersion {
+			return nil
+		}
+		prefix = "/payload/agent_progress_request/request"
+	default:
+		return nil
+	}
+	return map[string]string{prefix + "/percent": "100", prefix + "/confidence": "1"}
+}
+
+// Compare the raw decimal before float conversion can round an out-of-range value.
+func boundedProgressDecimal(source, ceiling string) (float64, bool) {
+	match := jsonNumberPattern.FindStringSubmatch(source)
+	if match == nil {
+		return 0, false
+	}
+	fraction := match[3]
+	coefficient := strings.TrimLeft(match[2]+fraction, "0")
+	if coefficient == "" {
+		return 0, true
+	}
+	if match[1] == "-" {
+		return 0, false
+	}
+	exponentDigits := strings.TrimLeft(match[5], "0")
+	if exponentDigits == "" {
+		exponentDigits = "0"
+	}
+	if len(exponentDigits) > 9 {
+		return 0, false
+	}
+	exponent, err := strconv.Atoi(exponentDigits)
+	if err != nil {
+		return 0, false
+	}
+	if match[4] == "-" {
+		exponent = -exponent
+	}
+	point := len(coefficient) + exponent - len(fraction)
+	if point > len(ceiling) {
+		return 0, false
+	}
+	if point == len(ceiling) {
+		leading := coefficient
+		if len(leading) < point {
+			leading += strings.Repeat("0", point-len(leading))
+		} else {
+			leading = leading[:point]
+		}
+		if leading > ceiling || (leading == ceiling && len(coefficient) > point && strings.Trim(coefficient[point:], "0") != "") {
+			return 0, false
+		}
+	}
+	number, err := strconv.ParseFloat(source, 64)
+	return number, err == nil && !math.IsNaN(number) && !math.IsInf(number, 0) && number != 0
+}
+
+// ParseProgressDecimal validates one of the two fixed progress metadata fields
+// before a transport discards its raw JSON number spelling.
+func ParseProgressDecimal(field, source string) (float64, bool) {
+	switch field {
+	case "percent":
+		return boundedProgressDecimal(source, "100")
+	case "confidence":
+		return boundedProgressDecimal(source, "1")
+	default:
+		return 0, false
+	}
+}
+
+func numericCandidates(value any, path string, progressLimits map[string]string) []diagnosticCandidate {
 	var candidates []diagnosticCandidate
 	switch typed := value.(type) {
 	case json.Number:
 		inspection := inspectNumber(typed.String())
+		if ceiling, allowed := progressLimits[path]; allowed {
+			if _, valid := boundedProgressDecimal(typed.String(), ceiling); valid {
+				return nil
+			}
+			inspection.failure = "unsafe"
+		}
 		switch inspection.failure {
 		case "unsafe":
 			candidates = append(candidates, diagnosticCandidate{30, "bound_exceeded", "maximum", "value exceeds schema bound", path})
@@ -397,11 +511,23 @@ func numericCandidates(value any, path string) []diagnosticCandidate {
 		}
 	case map[string]any:
 		for key, nested := range typed {
-			candidates = append(candidates, numericCandidates(nested, path+"/"+escapePointer(key))...)
+			nestedPath := path + "/" + escapePointer(key)
+			candidates = append(candidates, numericCandidates(nested, nestedPath, progressLimits)...)
+			if number, ok := nested.(json.Number); ok {
+				if ceiling, allowed := progressLimits[nestedPath]; allowed {
+					if decimal, valid := boundedProgressDecimal(number.String(), ceiling); valid {
+						typed[key] = decimal
+					} else {
+						// The recorded diagnostic still rejects this value; do not ask
+						// the schema library to materialize an unbounded exponent.
+						typed[key] = float64(0)
+					}
+				}
+			}
 		}
 	case []any:
 		for index, nested := range typed {
-			candidates = append(candidates, numericCandidates(nested, path+"/"+strconv.Itoa(index))...)
+			candidates = append(candidates, numericCandidates(nested, path+"/"+strconv.Itoa(index), progressLimits)...)
 		}
 	}
 	return candidates
@@ -430,9 +556,25 @@ func preflightDiagnostic(document string, object map[string]any) *generated.Type
 	}
 
 	if rawVersion, exists := object["schema_version"]; exists {
+		expectedVersion := "1"
+		if document == "local-agent-rpc" || document == "runner-telemetry-submission" || document == "checkout-root-lease-observation" {
+			expectedVersion = "2"
+		}
+		if document == "local-agent-work-rpc" {
+			expectedVersion = "3"
+		}
+		if document == "local-agent-attention-rpc" {
+			expectedVersion = "4"
+		}
+		if document == "local-agent-result-rpc" {
+			expectedVersion = "5"
+		}
+		if document == "local-agent-artifact-rpc" {
+			expectedVersion = "6"
+		}
 		if number, ok := rawVersion.(json.Number); ok {
 			inspection := inspectNumber(number.String())
-			if inspection.integer != nil && *inspection.integer != "1" {
+			if inspection.integer != nil && *inspection.integer != expectedVersion {
 				return typedError("unknown_version", "unsupported_schema_version", "unsupported schema_version", "/schema_version")
 			}
 		}
@@ -611,7 +753,7 @@ func DecodeWireDocument(document string, input []byte) DecodeResult {
 	if !exists {
 		return DecodeResult{OK: false, Error: typedError("schema_invalid", "unknown_document", "unknown wire document name", "")}
 	}
-	if len(input) > maximumWireBytes {
+	if len(input) > wireByteLimit(document) {
 		return DecodeResult{OK: false, Error: typedError("bound_exceeded", "max_bytes", "wire document exceeds the byte bound", "")}
 	}
 	if invalidUnicodeScalar(input) {
@@ -641,7 +783,7 @@ func DecodeWireDocument(document string, input []byte) DecodeResult {
 			return DecodeResult{OK: false, Error: diagnostic}
 		}
 	}
-	numbers := numericCandidates(value, "")
+	numbers := numericCandidates(value, "", progressDecimalLimits(document, value))
 	normalized, err := normalize(value)
 	if err != nil {
 		return DecodeResult{OK: false, Error: typedError("schema_invalid", "encode_failed", err.Error(), "")}
@@ -663,6 +805,9 @@ func DecodeWireDocument(document string, input []byte) DecodeResult {
 	encoded, err := stableJSON(object)
 	if err != nil {
 		return DecodeResult{OK: false, Error: typedError("schema_invalid", "encode_failed", err.Error(), "")}
+	}
+	if !captureDocumentBound(document, object, encoded) {
+		return DecodeResult{OK: false, Error: typedError("bound_exceeded", "max_bytes", "wire document exceeds the byte bound", "")}
 	}
 	return DecodeResult{OK: true, Value: object, JSON: encoded}
 }

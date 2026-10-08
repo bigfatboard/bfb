@@ -1,0 +1,113 @@
+{
+  "package": "C11",
+  "recorded_on": "2026-10-07",
+  "tested_commit": "6df0fce858a73f8fb5ab3275a9538ddc806b9a69",
+  "outcome": "passed",
+  "stage": "partial_delegated_result_execution_clock_expiry",
+  "package_acceptance_complete": false,
+  "private_creation_available": false,
+  "migration_head": "0047_security_audit_positions",
+  "scope": "Require the exact delegated-result credential to remain unexpired at a write-only database-clock guard inside the committing batch; preserve prepared authority predicates and observation timestamps.",
+  "clean_commands": [
+    { "command": "pnpm install --frozen-lockfile", "exit_code": 0 },
+    {
+      "command": "pnpm test:c11",
+      "exit_code": 0,
+      "c10_cases": 86,
+      "c10_files": 8,
+      "c10_d1_checks": 9,
+      "c08_cases": 23,
+      "c08_files": 5,
+      "c08_proof": "C08_D1_OK",
+      "stage_cases": 2321,
+      "stage_files": 83,
+      "stage_invocations": [
+        { "cases": 1861, "files": 64 },
+        { "cases": 4, "files": 2 },
+        { "cases": 68, "files": 3 },
+        { "cases": 27, "files": 2 },
+        { "cases": 54, "files": 2 },
+        { "cases": 41, "files": 3 },
+        { "cases": 31, "files": 3 },
+        { "cases": 235, "files": 4 }
+      ],
+      "stage_d1_checks": 81,
+      "stage_d1_harnesses": 8,
+      "notification_runtime": {
+        "proofs": ["C11_NOTIFICATION_IDENTITY_UPGRADE_OK", "X01_HARNESS_OK"],
+        "record_labels": 41,
+        "counting": "Setup and repeated dispatch/redaction labels are not 41 independent acceptance cases"
+      },
+      "go_race": "passed",
+      "counting": "Stage totals count invocations, not unique cases; dependencies, notification runtime, X03 and full verification are separate"
+    },
+    {
+      "command": "pnpm test:x03",
+      "exit_code": 0,
+      "unit_cases": 71,
+      "unit_files": 7,
+      "worker_d1_r2_checks": 11,
+      "browser_cases": 2,
+      "provider_started": false,
+      "persistent_pilot_changed": false
+    },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 4445,
+      "typescript_files": 199,
+      "go": "passed",
+      "go_scheduling": "GOFLAGS=-p=1",
+      "swift": "passed",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    {
+      "command": "pnpm worktree:check",
+      "exit_code": 0,
+      "before_and_after_verify": true,
+      "committed_source_unchanged": true,
+      "final_status_empty": true
+    }
+  ],
+  "slice_suites": {
+    "target": "pnpm test:c11:result-expiry",
+    "composed_once_by_c11": true,
+    "domain_cases": 2,
+    "authenticated_mounted_mcp_cases": 2,
+    "delivery_d1_checks": 39,
+    "new_delivery_d1_checks": 2,
+    "retained_delivery_d1_checks": 37,
+    "local_focused_cases": 152,
+    "local_focused_files": 6
+  },
+  "regression_proof": [
+    "Unfixed production source at 840871c with new uncommitted reproducers failed both natural-expiry cases while both live controls passed",
+    "The repaired native-bound-statement actual-D1 probe passed its live control before showing the unfixed source committing after natural expiry",
+    "Each negative witness reaches the batch while the exact credential is live, then observes natural database-clock expiry without changing any credential field",
+    "Empty evidence still rejects expired delegation; submission, task/run states and versions, semantic event, audit, outbox, idempotency and workspace cursor match baseline after rollback",
+    "Delayed live controls commit exactly once and retain prepared submission/audit observations rather than replacing them with flush time",
+    "Genuine authenticated MCP admission dispatches through the staged committing Hub, returns command_failed with isError for expiry and retains a safe successful receipt for the live control",
+    "Legacy successful credentials use a genuine current database-clock setup window through the unchanged shared helper; explicit expired overrides and historical work observations remain",
+    "Elapsed read controls advance to stored deadlines rather than obsolete fixture constants"
+  ],
+  "probe_repairs": [
+    "A compiler preparation error required explicit target-ID types; it is not expiry evidence",
+    "An initial actual-D1 statement wrapper was incompatible with native batch binding and failed the live control; that probe is discarded",
+    "A mounted run before rebuilding the compiled domain imported stale output; the rebuilt focused run passed without weakening expectations"
+  ],
+  "activation_barriers": [
+    "GitHub key existence policy, execution-owned delivery and destructive private retention remain open",
+    "Other credential/lease natural expiry and complete private delivery remain uncertified",
+    "Private creation, creator sharing, author-private checkpoints and C12 remain unavailable or planned"
+  ],
+  "not_claimed": [
+    "Expiry checked at every later statement, response delivery or other command rather than this temporal guard statement",
+    "Runner/local capability/lease expiry, cleanup or provider execution certification",
+    "Complete C11 acceptance, private activation or live private R2/browser-byte delivery",
+    "A real HTTP Worker/D1 OAuth expiry race: expiry MCP cases are authenticated mounted requests using staged SQLite; actual D1 proof is separately domain/Hub",
+    "W03, separate X01/X05 or G01 runtime acceptance reruns for this checkpoint",
+    "Live pilot/provider/installed-app operation, deployment or external CI"
+  ],
+  "redaction": "Bounded counts and synthetic outcomes only; raw logs, credentials, private content and local paths are not retained"
+}

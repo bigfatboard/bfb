@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "request_id": "01JBFB0REQKEST010000000000",
+  "method": "artifact.publish",
+  "direction": "response",
+  "payload": {
+    "artifact_id": "01JBFB0ART1FACT01000000000",
+    "version_id": "01JBFB0VERS10N010000000000",
+    "content_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "artifact_size": 18,
+    "r2_key": "workspaces/01JBFB0W0RKSPACE0000000000/artifacts/sha256/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  }
+}

@@ -15,6 +15,8 @@ const healthOrigin = `http://${host}:${port}`;
 
 export default defineConfig({
   testDir: path.join(rootDir, "apps/web/test/e2e"),
+  // Isolated artifact proofs own disposable servers and separate configs.
+  testIgnore: ["v02-viewer.spec.ts", "v02-runtime.spec.ts", "v03-runtime.spec.ts"],
   outputDir: path.join(rootDir, "apps/web/test/e2e/test-results"),
   fullyParallel: false,
   workers: 1,

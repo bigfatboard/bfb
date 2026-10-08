@@ -1,0 +1,54 @@
+// ABOUTME: Declares the narrow trusted session-binding plug-in consumed from L06's hook journal.
+// ABOUTME: Compares only immutable assignment identity; it never invents a session identifier.
+
+package localmcp
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"github.com/qdis/bfb/internal/protocol/generated"
+)
+
+// AssignmentRef identifies one immutable execution assignment.
+type AssignmentRef struct {
+	ExecutionID          string
+	AssignmentGeneration int64
+	RunID                string
+}
+
+// SessionBinding is the trusted observed provider-session fact owned by L06.
+// Every field is compared for equality before a capability activates.
+type SessionBinding struct {
+	ExecutionID          string
+	AssignmentGeneration int64
+	RunID                string
+	ObservedSessionID    string
+	ObservedAt           time.Time
+	Provider             string
+}
+
+// ConfirmedSession is the closed wire reference returned by canonical binding.
+type ConfirmedSession = generated.AgentSessionReference
+
+// ErrSessionNotBound reports that L06 has not committed a binding for the ref yet.
+var ErrSessionNotBound = errors.New("localmcp: session not bound")
+
+// SessionBindingSource returns the trusted observed binding for an assignment.
+// A01 defines this interface; production plugs L06's hook-journal store in
+// through JournalBindings. Test doubles stand in only inside the test suite.
+type SessionBindingSource interface {
+	ObservedBinding(ctx context.Context, ref AssignmentRef) (SessionBinding, error)
+}
+
+// bindingMatches reports whether a trusted binding authorizes the assignment.
+// A competing session ID never matches an already-activated connection; the
+// caller enforces that stickiness, this function enforces field equality.
+func bindingMatches(ref AssignmentRef, binding SessionBinding) bool {
+	return binding.ExecutionID == ref.ExecutionID &&
+		binding.AssignmentGeneration == ref.AssignmentGeneration &&
+		binding.RunID == ref.RunID &&
+		binding.ObservedSessionID != "" &&
+		!binding.ObservedAt.IsZero()
+}

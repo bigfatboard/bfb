@@ -1,0 +1,136 @@
+{
+  "package": "C11",
+  "recorded_on": "2026-10-08",
+  "tested_commit": "cd69f4272df6ca58c49750fbe4427cdee8f14b7c",
+  "outcome": "passed",
+  "stage": "partial_coherent_github_status_delivery",
+  "package_acceptance_complete": false,
+  "private_creation_available": false,
+  "migration_head": "0048_task_collection_positions",
+  "scope": "Workspace-wide Owner/Member status retains the first actual workspace membership capture and selects installations plus active repository links coherently. BrowserPrincipal remains identity/session only. No shared auth, Hub, schema, webhook, upsert, mapping or execution policy changed in this tested source.",
+  "clean_certificate_marker": "C11_GITHUB_STATUS_DELIVERY_CLEAN_CERTIFICATE_OK",
+  "clean_pipeline_exit_code": 0,
+  "clean_commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "exit_code": 0
+    },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 4927,
+      "typescript_files": 229,
+      "go": "passed",
+      "go_scheduling": "GOFLAGS=-p=1",
+      "swift": "passed",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    {
+      "command": "pnpm test:c11",
+      "exit_code": 0,
+      "c10_cases": 86,
+      "c10_files": 8,
+      "c10_d1_checks": 9,
+      "c08_cases": 23,
+      "c08_files": 5,
+      "c08_proof": "C08_D1_OK",
+      "stage_cases": 3871,
+      "stage_files": 159,
+      "stage_invocation_blocks": 25,
+      "stage_browser_cases": 6,
+      "stage_d1_check_labels": 257,
+      "stage_d1_harnesses": 24,
+      "notification_record_labels": 41,
+      "counting": "Stage cases/files count twenty-five Vitest invocation blocks, not unique totals. Dependencies, six panel browser cases and forty-one notification labels stay separate. Native counts are emitted top-level check labels, not nested assertions."
+    },
+    {
+      "command": "pnpm test:x04",
+      "exit_code": 0,
+      "protocol_cases": 1154,
+      "protocol_files": 12,
+      "go_protocol": "passed",
+      "focused_cases": 49,
+      "focused_files": 3,
+      "native_scenarios": 13,
+      "native_proof": "X04_E2E_OK all scenarios passed",
+      "counting": "F1-F13 are thirteen unique scenarios; F8 emits two report lines but is counted once."
+    },
+    {
+      "command": "pnpm worktree:check",
+      "exit_code": 0,
+      "before_and_after_pipeline": true,
+      "committed_source_unchanged": true,
+      "final_status_empty": true
+    }
+  ],
+  "slice_suites": {
+    "target": "pnpm test:c11:github-status",
+    "composed_once_by_c11": true,
+    "focused_cases": 92,
+    "focused_files": 6,
+    "new_domain_cases": 10,
+    "new_mounted_cases": 13,
+    "native_groups": 10,
+    "native_proof": "C11_GITHUB_STATUS_DELIVERY_D1_OK",
+    "maximum_bindings": 5,
+    "maximum_statement_bytes": 1529,
+    "bounds_scope": "Instrumented direct native domain status selections only; Worker/DO internals, setup, first principal captures, independent cuts and snapshots are excluded.",
+    "canonical_table_count": 134,
+    "snapshot_exclusions": ["_cf_METADATA", "d1_migrations", "sqlite_sequence"],
+    "http_budget_tables_compared_separately": ["rate_limit_buckets"],
+    "controls": "Useful ordered Owner/Member DTOs and authorized empty arrays; direct internal reader retained. Restricted-project/no-grant Member audience is proved in domain/native controls. Mounted grant absence is not relabelled as a restricted-project control.",
+    "denials": "Initial Reviewer getter denial; retained late epoch/removal/demotion and empty-status loss; explicitly synthetic membership reinstatement at the same still-revoked epoch.",
+    "coherence": "One final statement returns current installation/link fields and an authority sentinel; no partial array survives a separate source change.",
+    "storage": "Complete after-cut canonical snapshots unchanged, HTTP budgets separately unchanged, clean foreign keys and empty transient guards."
+  },
+  "old_source_probes": {
+    "production_commit": "21e4d69f1eaa30eb172be49a5285c3a535fe6985",
+    "production_unchanged_before_after": true,
+    "domain": {
+      "policy_coherence_failures": 7,
+      "healthy_controls": 3
+    },
+    "mounted": {
+      "late_coherence_failures": 8,
+      "controls": 5
+    },
+    "native": {
+      "policy_coherence_failures": 7,
+      "controls": 3
+    },
+    "completed_cuts": true,
+    "foreign_keys_clean": true,
+    "canonical_snapshots": "Taken after each completed independent cut; OLD outcomes and effects are collected before policy assertions.",
+    "bounds": {
+      "maximum_bindings": 1,
+      "maximum_statement_bytes": 232
+    },
+    "observed": "OLD can deliver status after late membership/epoch/role loss and combine old installation fields with newer repository-link fields. Direct Reviewer failure concerns the getter; the browser already rejects Reviewers before source reads.",
+    "excluded_exploratory_attempt": "Two initial domain probes failed before their removal/reinstatement cuts because the fixture omitted FK-required project-access cleanup. An initial native cleanup called a nonexistent server method after collecting its outcomes. Neither exploratory fixture/cleanup failure supplies the final OLD counts.",
+    "synthetic_boundaries": "Isolated role changes and same-revoked-epoch reinstatement are explicit synthetic robustness controls, not proof that production role/rejoin commands omit epoch bumps."
+  },
+  "local_iterations": {
+    "scalar_candidate": "Focused 92-case/six-file plus native ten-group and exact X04 checks passed locally. Before commit, official D1 row/value limits motivated replacing a whole-workspace scalar JSON projection with individual tagged rows; the scalar iteration is not clean acceptance.",
+    "tagged_candidate": "Final individual-row candidate passed the same focused/native and exact X04 checks locally before committing. Only the unchanged committed pipeline above is clean acceptance.",
+    "d1_limits": "Individual-row selection avoids imposing a new workspace-size ceiling through D1's 2,000,000-byte maximum string/BLOB/table-row limit. Each legitimate installation/link JSON object remains producer-bounded; JSON argument counts remain below the function limit."
+  },
+  "retained_controls": [
+    "Certified manual linking hold stays enabled without task/evidence/cache selection",
+    "History/provenance selectors retain their existing loaded authority; no alleged BrowserPrincipal epoch reload is claimed",
+    "Installation/link DTO ordering and normalization are unchanged; one scoped status read uses five bindings and one physical selection"
+  ],
+  "activation_barriers": [
+    "Creator creation/sharing/private checkpoints, inherited private children and full C11 activation remain unfinished",
+    "Execution-owned delivery and destructive private retention keep separate gates",
+    "Internal repository-reconcile commit authority, sequential remap policy and natural browser-session expiry are outside this tested source; subsequent research or local repairs do not belong to this certificate",
+    "C12 and other mandatory product features remain unfinished"
+  ],
+  "not_claimed": [
+    "Complete C11 or the eight-feature MVP, private activation or external CI",
+    "G01 acceptance or waiver of runner-token/AG02/AG04 release gates",
+    "Live GitHub ingress, enrolled pilot/provider operation or natural session expiry",
+    "Cloudflare resource creation, merge, deployment or deployed authenticated smoke"
+  ],
+  "redaction": "Bounded synthetic counts and outcomes only; no credentials, private bodies, raw logs, per-run timestamps or local absolute paths"
+}

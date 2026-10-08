@@ -1,0 +1,81 @@
+{
+  "package": "C11",
+  "recorded_on": "2026-10-08",
+  "tested_commit": "1ea461861f4e4a6f7746520c3faf2dc849e76e2a",
+  "outcome": "passed",
+  "stage": "partial_inherited_mounted_transport_preparation",
+  "package_acceptance_complete": false,
+  "private_creation_available": false,
+  "production_behavior_changed": false,
+  "migration_head": "0050_task_privacy_inheritance",
+  "certificate_style": "single_clean_committed_product_worktree_pipeline",
+  "clean_certificate_marker": "C11_INHERITED_TRANSPORT_PREPARATION_CLEAN_OK",
+  "clean_certificate_exit_code": 0,
+  "certificate_environment": {
+    "WRANGLER_SEND_METRICS": "false",
+    "GOFLAGS": "-p=1",
+    "limits": "Process-local CLI telemetry opt-out and serialized Go package scheduling only. No assertion, timeout, tool version, production configuration or D1 setting changed."
+  },
+  "clean_commands": [
+    { "command": "pnpm install --frozen-lockfile", "exit_code": 0 },
+    {
+      "command": "pnpm test:c11:inheritance",
+      "exit_code": 0,
+      "focused_cases": 142,
+      "focused_files": 5,
+      "preparation_cases": 44,
+      "browser_route_cases": 47,
+      "mcp_cases": 51,
+      "new_inherited_browser_cases": 5,
+      "new_inherited_mcp_cases": 16,
+      "native_groups": 4,
+      "native_proof": "C11_PRIVATE_INHERITANCE_D1_OK",
+      "counting": "One owning-target invocation includes the three existing preparation suites and both complete private-work transport suites. Forty-two root browser and thirty-five root MCP cases remain; twenty-one inherited mounted cases are new. Native top-level groups remain separate, not additional Vitest or browser cases."
+    },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 5137,
+      "typescript_files": 240,
+      "go": "format, pinned-version, dependency, vet, test and build checks passed",
+      "swift": "format, build and test passed with the repository-selected pinned Xcode",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    {
+      "command": "pnpm worktree:check",
+      "exit_code": 0,
+      "before_and_after_pipeline": true,
+      "committed_source_unchanged_across_completed_gates": true,
+      "final_status_empty": true
+    }
+  ],
+  "mounted_transport_proof": {
+    "fixture": "Synthetic private-root policies and a direct unregistered prepared child authored by the workspace Owner under the Member's root. The setup edit grant is revoked before denial controls; MCP also prepares a grandchild. No private-create route, tool or catalog entry is introduced.",
+    "browser": "Mounted signed-session/CSRF routes prove named Owner/Reviewer root reads across board, deterministic three-card deck, list, task detail and nonempty comment/context/link pages. Dependency/run positive pages are empty. Actual descendant creation authorship grants no root-owner override. Registered root revoke fences all child reads and identical cached comment/task/context/link writes; full canonical snapshots and foreign keys preserve history. Sharing read/grant/revoke stay exact-root only.",
+    "mcp": "Mounted remote MCP uses synthetic credentials with liveness derived from SQLite's actual clock. Root read grants allow paginated child/grandchild delivery and agent-visible context, without human-only context. A descendant-bound credential masks its ancestor and cannot read the root. Root-grant, project-access and membership-epoch loss deny current reads and identical cached context retries. Root read/contribute/edit permissions intersect OAuth write scope; granted explicit comment/progress retries stay single-write, then deny after revoke while their rows remain. Private-parent proposals remain held.",
+    "authorship": "The canonical descendant record preserves the actual authenticated creation human and null delegation. The existing task wire DTO intentionally omits creation-author fields; no new DTO field or attribution claim is introduced.",
+    "history_limits": "Browser tests compare complete canonical snapshots and foreign keys, excluding engine tables and request-abuse buckets. Buckets are separately collected but not asserted equal. MCP cases compare the specific retained context receipt or contribution rows, not whole-database rollback.",
+    "not_transport_certified": "No compiled-browser presentation, passkey ceremony, OAuth authorization flow, native Worker/D1 transport admission, new continuation protocol, artifact bytes, execution-owned local IPC or complete C11 matrix."
+  },
+  "retained_native_preparation": {
+    "groups": 4,
+    "fixture": "synthetic_unregistered_private_inheritance_preparation",
+    "maximum_bindings": 34,
+    "maximum_statement_bytes": 11764,
+    "maximum_batch_statements": 9,
+    "canonical_table_count": 136,
+    "limits": "Unchanged direct Node DomainHub preparation over disposable native D1. Ordered low-ID source and project cuts are synthetic; independent registered revoke intentionally bypasses production FIFO. Bounds cover only instrumented prebatch-cut groups, not fixtures, snapshots, mounted transports or Worker/Hub internals."
+  },
+  "excluded_focused_attempts": [
+    "The first MCP focused run had one incorrect assertion expecting creation-author fields in the established task wire DTO. Source taskProjection omits them; the corrected test separately checks the canonical row without changing production fields or weakening task/context assertions.",
+    "The first browser focused run had one deck assertion fail because four synthetic P0 tasks shared the same deadline, leaving the descendant's inclusion to random-ID ordering and LIMIT 3. Only the new prepared child's input deadline now ranks it first, and the positive assertion requires that exact first card. Existing records, IDs, source ordering and production behavior are unchanged."
+  ],
+  "not_claimed": [
+    "Full pnpm test:c11, test:x03 or test:db at this tested source; their earlier complete certificate remains separately scoped at 08b73ed",
+    "Complete C11, private-create registration/UI/activation, C12 or the eight-feature MVP",
+    "Destructive private retention or a new beta raw-log cleanup hold; Timo's cleanup choice remains pending",
+    "Live provider/runner operation, G01 or release-gate waivers, external CI, merge, Cloudflare resource creation or deployment"
+  ],
+  "redaction": "Bounded synthetic outcomes and counts only; no credentials, private bodies, raw logs, per-run timestamps or local absolute paths"
+}

@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/agent-work-replay-request.json",
+  "title": "AgentWorkReplayRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "command_name", "original_request", "capture"],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "command_name": {
+      "type": "string",
+      "enum": ["agent_run.comment", "agent_run.update", "agent_run.progress", "agent_run.proposal"]
+    },
+    "original_request": {
+      "type": "object"
+    },
+    "capture": {
+      "$ref": "agent-work-capture.json"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "type": "object",
+        "required": ["command_name"],
+        "properties": {
+          "command_name": {
+            "const": "agent_run.comment"
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "original_request": {
+            "$ref": "agent-comment-request.json"
+          },
+          "capture": {
+            "type": "object",
+            "properties": {
+              "admission_mode": {
+                "const": "offline_admitted"
+              },
+              "operation": {
+                "type": "object",
+                "properties": {
+                  "command_name": {
+                    "const": "agent_run.comment"
+                  },
+                  "tool": {
+                    "const": "bfb_add_comment"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "type": "object",
+        "required": ["command_name"],
+        "properties": {
+          "command_name": {
+            "const": "agent_run.update"
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "original_request": {
+            "$ref": "agent-update-request.json"
+          },
+          "capture": {
+            "type": "object",
+            "properties": {
+              "admission_mode": {
+                "const": "offline_admitted"
+              },
+              "operation": {
+                "type": "object",
+                "properties": {
+                  "command_name": {
+                    "const": "agent_run.update"
+                  },
+                  "tool": {
+                    "const": "bfb_update_task"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "type": "object",
+        "required": ["command_name"],
+        "properties": {
+          "command_name": {
+            "const": "agent_run.progress"
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "original_request": {
+            "$ref": "agent-progress-request.json"
+          },
+          "capture": {
+            "type": "object",
+            "properties": {
+              "admission_mode": {
+                "const": "offline_admitted"
+              },
+              "operation": {
+                "type": "object",
+                "properties": {
+                  "command_name": {
+                    "const": "agent_run.progress"
+                  },
+                  "tool": {
+                    "const": "bfb_report_progress"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "type": "object",
+        "required": ["command_name"],
+        "properties": {
+          "command_name": {
+            "const": "agent_run.proposal"
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "original_request": {
+            "$ref": "agent-proposal-request.json"
+          },
+          "capture": {
+            "type": "object",
+            "properties": {
+              "admission_mode": {
+                "const": "offline_admitted"
+              },
+              "operation": {
+                "type": "object",
+                "properties": {
+                  "command_name": {
+                    "const": "agent_run.proposal"
+                  },
+                  "tool": {
+                    "const": "bfb_propose_task"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

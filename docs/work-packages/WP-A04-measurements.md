@@ -1,8 +1,12 @@
 # WP-A04 — Measurements and provenance
 
-Status: `planned`
+Status: `done`
 
 Risk: High
+
+Test target: `pnpm test:a04`
+
+Evidence manifest: `docs/work-packages/evidence/WP-A04/runtime-manifest.json`
 
 ## Outcome
 
@@ -11,45 +15,104 @@ BFB shows human attention, process elapsed time, active agent work, waiting, and
 ## Dependencies
 
 - **Requires:** A02, A03, E01, W01.
-- **Unlocks:** G01, V03.
+- **Unlocks:** C11, G01, V03, W03.
 - **Can run with:** V01/V02 if UI ownership is coordinated.
 
 ## Scope
 
-- Store uniquely identified typed observations and derive totals; never blindly increment on replay.
-- Implement launch latency, process elapsed, process-alive union, active interval union, attention wait, external wait/idle, and run age.
-- Normalize input/output/cache/reasoning token fields with `provider_reported`, `stream_derived`, `estimated`, or `unavailable` quality.
-- Add optional versioned price-catalog calculations while keeping token facts independent.
-- Own the explicit review-timer contract and observations, plus attention response/resolution time, intervention counts, and capped observed browser activity estimates.
-- Display human minutes, active/elapsed/wait time, token total/quality, and provenance separately on task/run surfaces.
-- Add project/provider/task-type aggregation suitable for later autonomy analysis without implementing autonomy rules.
+- Connect actual versioned native telemetry through the existing journal,
+  authenticated ingest and atomic observation persistence under
+  [ADR 0009](../adr/0009-connected-measurement-telemetry.md). Preserve frozen v1,
+  historical evidence and A01–A03 business authority boundaries.
+- Uniquely identified typed observations with derived totals; replays never blindly increment (D1 migration `0027_measurements`).
+- Launch latency, process elapsed, process-alive union, active interval union, attention wait, external wait/idle, and run age derived at read time.
+- Normalized input/output/cache/reasoning token fields with `provider_reported`, `stream_derived`, `estimated`, or `unavailable` quality.
+- Optional versioned price-catalog calculations keeping token facts independent.
+- Explicit review-timer contract and observations, attention response/resolution time, intervention counts, and capped observed browser-activity estimates.
+- Task/run displays showing human minutes, active/elapsed/wait time, token total/quality, and provenance separately.
+- Project/provider/task-type aggregation for later autonomy analysis; no autonomy rules.
 
 ## Non-goals
 
 - Treating browser-open time as labor, estimated tokens as exact, process elapsed as active work, or absence of intervention as approval.
+- No autonomy rules, no artifact review UI.
+
+## Contracts
+
+### Consumes
+
+- [Event ledger v1](../contracts/event-ledger.md) (uniquely identified raw observations, heartbeats, replay-safe derivation source; E01 computes no intervals).
+- [Human attention workflow v1](../contracts/attention.md) (raw `attention_observations` plus `requested_at`/`first_response_at`/`answered_at`/`resolved_at`; A02 waiter-cadence counts in `evidence/WP-A02/waiter-cadence.json` as a structural cross-check).
+- [Result submission and acceptance v1](../contracts/results.md) (submission/review timestamps for run age, review counts for interventions).
+- Provider usage fields in `internal/providers/codex` (`exec`/`turn.completed` usage) and `internal/providers/claude` (hook usage) as normalization sources.
+- W01 task and run surfaces in `apps/web` and `packages/ui` (task-sheet slot, component conventions; E02 sockets not consumed).
+
+### Produces
+
+- [Measurements and provenance v1](../contracts/measurements.md), freezing the observation, interval-union, token-quality, price-catalog, and review-timer contracts, with the ADR 0009 typed-telemetry extension at D1 head `0041_measurement_sources` and daemon `011_measurement_telemetry`. The original observation tables remain at `0027_measurements`. V03 consumes the review-timer service and creates no second timer.
+- Stable test target `pnpm test:a04` and evidence-manifest path `docs/work-packages/evidence/WP-A04/runtime-manifest.json`.
+- `packages/domain/src/measurements.ts`: `token.report`/`interval.report` (runner actor, assignment-validated, idempotent with confusion rejection), `review_timer.start`/`stop` (starter-scoped human timer), `browser_activity.record` (capped, estimated), and read-time derivations `getRunMeasurements`/`getTaskMeasurements`/`aggregateMeasurements`.
+- `apps/control-worker/src/api/work.ts`: run/task measurement reads, review-timer start/stop, and browser-activity routes.
+- `apps/web/src/work/measurements.tsx`: separated task-sheet display with explicit review-timer controls.
+- `tools/measurements/run.ts`: real-Worker/D1 fault and derivation harness writing `runtime-calculation-snapshots.json`; historical `calculation-snapshots.json` is retained untouched. The signed compiled-hook/daemon upload proof is a separate native gate, not an inference from those calculation fixtures.
 
 ## Work plan
 
-1. Define observation schemas, interval algebra, quality/provenance, and dedupe keys.
-2. Implement derivations over replay-safe event data.
-3. Implement human timers/interactions and product displays.
-4. Test overlapping intervals, offline gaps, duplicate events, missing provider usage, and historical price changes.
+The numbered implementation history below is retained. The current runtime
+slice first repairs acknowledgement/measurement authorization and truthful time
+derivation, then connects typed usage/activity capture and safe replay, adds
+synthetic native proof and re-certifies the expanded exact gate. It consumes
+the committed A02/A03 runtime contracts and E01 v1 without widening them.
+
+1. Freeze `docs/contracts/measurements.md` with D1 heads and the review-timer service; verify with `pnpm docs:check`.
+2. Add D1 migration `0027_measurements` plus domain observations, derivations, and commands; verify with `vitest run packages/domain/test/measurements.test.ts`.
+3. Serve REST measurement/review-timer/browser-activity endpoints; verify with `vitest run apps/control-worker/test/measurement-routes.test.ts`.
+4. Add separated task-sheet measurements with review-timer controls; verify with `vitest run apps/web/test/measurements.test.ts` plus the browser spec on `BFB_E2E_PORT=4187`.
+5. Prove hub races over real Workers and D1 with `tools/measurements/run.ts` (duplicate/replayed observations, overlapping intervals, offline gaps, price history, timer races).
+6. Commit bounded redacted evidence at the manifest path and one `mvp.progress.md` checkpoint line; regenerate the index with `pnpm roadmap:write`.
 
 ## Acceptance
 
 - Duplicate/replayed observations cannot inflate totals.
+- Proved by: domain idempotent-replay tests, worker cross-worker duplicate harness with single-row counts, seeded interval-replay property sweep (`pnpm test:a04`).
 - Overlapping activity/process/wait intervals deduplicate correctly.
+- Proved by: seeded union property tests against brute-force coverage, domain paired turn/tool overlap test, harness overlapping external-wait union (`pnpm test:a04`).
 - Runner-offline wall time remains visible rather than silently removed.
+- Proved by: domain heartbeat-gap test asserting elapsed keeps the span while `offline_ms` reports the gap, harness offline snapshot (`pnpm test:a04`).
 - Estimated/unavailable token values are never displayed/summed as exact.
+- Proved by: domain quality-separation and unavailable tests, route honest-empty-state test, browser exact/estimated/unavailable assertions (`pnpm test:a04`).
 - Human review time and attention latency remain distinct from agent time.
+- Proved by: domain timer/attention-vs-active tests, task rollup keeping review separate, browser human section assertions (`pnpm test:a04`).
 - A reviewer can trace every displayed total to source observations/provenance.
+- Proved by: observation-ID lists on every token summary, per-total provenance counts, browser provenance section and run API assertions (`pnpm test:a04`).
 
-## Evidence and handoff
+## Evidence
 
-- Commit interval/property tests, provider-usage fixtures, calculation snapshots, and task/run UI screenshots.
-- Publish the stable review-timer service/observation contract that V03 consumes; visual-review code does not create a second timer implementation.
-- G01 uses these metrics as release assertions; no exact product metric comes from sampled logs.
+- Current evidence manifest: `docs/work-packages/evidence/WP-A04/runtime-manifest.json` (conforms to `docs/work-packages/evidence/manifest.schema.json`).
+- Current contents: `runtime-command-result.json`, `runtime-acceptance.md` and `runtime-calculation-snapshots.json`, with linked protocol, native, cloud and browser regression sources. Command results identify the exact tested source for every gate.
+- Historical evidence remains unchanged: `manifest.json`, `calculation-snapshots.json`, provider-usage fixtures (`fixtures/`), `command-result.json`, `acceptance-matrix.md`, `interval-property-notes.md`, `review-timer.md` and browser snapshots (`browser/`). These are not relabelled as connected runtime evidence.
+- Evidence is bounded and redacted: synthetic identities only, no secrets, no local absolute paths, no raw terminal output.
 
 ## Risks and decisions
 
-- Metrics influence behavior. Prefer honest incompleteness over falsely precise totals.
+- Risk: metrics shape behavior toward false precision. Decision: honest incompleteness everywhere — unpaired starts contribute nothing and are counted, missing idle sources report null with reason, unknown models price as null, empty states name what is missing.
+- Risk: sibling packages share the event ledger, journal, MCP-adjacent surfaces, and task sheet. Decision: the current extension preserves frozen v1, protected business authority and historical evidence; it adds versioned typed ingest and source tables under ADR 0009. Changed shared paths require E01/L06 and affected A01–A03 regression checks; dependency certificates do not stand in for those checks.
+- Risk: price catalogs rot. Decision: catalogs are frozen versioned constants with an explicit unknown-model null; history recomputes under the pinned version.
+
+## Handoff
+
+- Connected runtime certified 6 October at `a7a763cb5dea49089704618c54c330ac4df71f17`: clean exact A04 and A03, full verification (2,545 TypeScript tests, Go checks and 16 Swift tests), Linux build and worktree check pass. Affected E01/L06/A01/A02/L08 gates pass at production-equivalent `312a2018af409c6f474935e6f6adb22d4e0e30c2`; only test command/guard and A03 harness/evidence validation changed afterward. The initial A03 regression attempt failed its stale migration-head assertion; the repaired full gate passes without rewriting A03's historical certificate. See the current evidence for exact scope and source attribution.
+- A04 is `done` for the connected synthetic runtime, canonical provenance and honest derivations. Pinned live-provider usage remains unavailable where stable identity/delta semantics are unproven. No Terminal/live-provider run, real-workspace offline-policy enablement, descendant certification or full-MVP claim follows.
+- Runtime integration resumed 6 October after the committed A03 runtime
+  certificate at `9077a08`. All required packages are done. ADR 0009 freezes
+  the versioned telemetry, historical authority, atomic measurement and honest
+  derivation boundary before implementation. Reproduced defects and missing
+  provider-to-D1 delivery require new acceptance; historical evidence is not
+  removed or relabelled. The current slice does not run Terminal/live providers.
+- Dependency hold, 5 October: the dependency chain reaches reopened A01 and its missing production online/replay path. This implementation and historical isolated acceptance are retained; their tests have not been declared failed. Settlement waits for dependency certification and affected integration checks. The dated status below is historical, not the current package state.
+- Settled 18 September: `done`. A02, A03, and E01 are `done`, and `pnpm test:a04` passed in a detached clean checkout at `1c9ae54` (install, build, exact target with the real-Worker/D1 harness and browser spec). The evidence manifest is re-based on that rerun; the implementation evidence stays listed as manifest artifacts.
+- Consume: `docs/contracts/measurements.md` (v1), domain commands `token.report`, `interval.report`, `review_timer.start`, `review_timer.stop`, `browser_activity.record` plus reads `getRunMeasurements`, `getTaskMeasurements`, `aggregateMeasurements` in `packages/domain/src/measurements.ts`, REST routes under `/runs/:runId/measurements`, `/tasks/:taskId/measurements`, `/tasks/:taskId/review-timers`, `/review-timers/:timerId/stop`, `/browser-activity`, `MeasurementsPanel`/`MeasurementsView` in `apps/web/src/work/measurements.tsx`.
+- V03: consume reviewed submission versions plus this review-timer service; never mutate submissions or create a second timer.
+- G01: use these metrics as release assertions; no exact product metric comes from sampled logs.
+- Explicit `token.report`/`interval.report` commands retain historical assignment validation with current authority before cache delivery. Connected native measurements use the existing event ingest route with v2 typed telemetry; no parallel measurement upload route is added. Pinned live provider usage without a certified delta basis/stable identity remains unavailable; the synthetic native proof is not live usage certification.
+- Limitations: external wait/idle derive only from explicitly reported intervals (the v1 ledger carries no implicit source); failed/cancelled runs without submissions measure run age to read time and say so; aggregation caps at 200 runs with a `truncated` flag.

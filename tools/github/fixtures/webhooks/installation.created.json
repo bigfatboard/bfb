@@ -1,0 +1,36 @@
+{
+  "event": "installation",
+  "delivery_id": "x04-delivery-install-created",
+  "payload": {
+    "action": "created",
+    "installation": {
+      "id": 12345678,
+      "account": {
+        "id": 555666,
+        "login": "synthetic-org",
+        "type": "Organization"
+      },
+      "app_id": 999000,
+      "app_slug": "synthetic-app",
+      "repository_selection": "all",
+      "permissions": {
+        "metadata": "read",
+        "pull_requests": "read",
+        "checks": "read"
+      },
+      "events": ["push", "pull_request"],
+      "created_at": "2026-09-18T12:00:00.000Z",
+      "updated_at": "2026-09-18T12:00:00.000Z"
+    },
+    "repositories": [
+      {
+        "id": 87654321,
+        "full_name": "synthetic-org/synthetic-repo"
+      }
+    ],
+    "requester": null,
+    "sender": {
+      "login": "synthetic-org"
+    }
+  }
+}

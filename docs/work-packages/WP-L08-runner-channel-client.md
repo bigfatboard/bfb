@@ -1,8 +1,12 @@
 # WP-L08 — Runner enrollment and channel client
 
-Status: `planned`
+Status: `done`
 
 Risk: Very high
+
+Test target: `pnpm test:l08`
+
+Evidence manifest: `docs/work-packages/evidence/WP-L08/manifest.json`
 
 ## Outcome
 
@@ -11,7 +15,7 @@ The unprivileged daemon enrolls one Mac separately into each selected workspace 
 ## Dependencies
 
 - **Requires:** C06, F02, L01, L02, L03.
-- **Unlocks:** A01, G02, L04, L05, L06, W02, X02, X05.
+- **Unlocks:** A01, D01, D02, G02, L04, L05, L06, W02, X02, X05.
 - **Can run with:** C09 after C06's server runner contracts freeze.
 
 ## Scope
@@ -30,6 +34,22 @@ The unprivileged daemon enrolls one Mac separately into each selected workspace 
 
 - Server-side runner identity/grants/challenges/tokens, Secure Enclave/XPC, launch claim/execution, provider credentials, event semantics, human CLI credentials, or workspace-wide implicit sharing.
 
+## Contracts
+
+### Consumes
+
+- C06's [runner identity and possession contract](../contracts/runner-enrollment.md), `runner-identity`, `runner-challenge` and `runner-channel-close` v1, with migration head `0014_runner_identity.sql`.
+- L01's private Local RPC and credential interfaces, L02's path-free checkout summaries and L03's bounded provider probes. Local migration head is `002_checkouts.sql`.
+- Previous checkpoint: C06 clean certification at `0247574` (`pnpm test:c06`, `pnpm verify`, full browser regression and clean-worktree assertion), with evidence committed at `48f925b`.
+
+### Produces
+
+- `internal/runner` owns enrollment, isolated credential generations, authenticated requests, connection state and recovery behind one `RunnerConnection` boundary.
+- Native `internal/auth` owns signed-daemon Keychain access without an executable signing oracle or plaintext fallback. The app requests enrollment over Local RPC and does not need raw credentials.
+- A hibernating workspace socket stores only principal metadata and expiry. Transport-level command hints do not authorize launch, claim work, infer activity or acknowledge event persistence.
+- Exact target `pnpm test:l08`; evidence manifest `docs/work-packages/evidence/WP-L08/manifest.json`.
+- [Native channel and RunnerConnection contract](../contracts/runner-channel.md), including local migration `003_runner_enrollments.sql` and D1 migration `0015_runner_channel.sql`.
+
 ## Work plan
 
 1. Implement per-workspace Keychain keys, enrollment initiation, browser handoff, challenge signing, and token exchange against C06 fixtures.
@@ -46,11 +66,17 @@ The unprivileged daemon enrolls one Mac separately into each selected workspace 
 - Capability/checkout synchronization contains no absolute path, provider credential, or provider configuration body.
 - A same-user unsigned test process cannot read the runner private key/token, while the signed background daemon can sign and renew without the app running; G02 repeats this gate with notarized release identities and through upgrade.
 
-## Evidence and handoff
+## Evidence
 
 - Commit enrollment/channel transcripts, multi-workspace isolation and renewal traces, sleep/wake/lost-nudge results, sanitized sync fixtures, signed-component ACL report, and the `RunnerConnection` contract.
-- L05 consumes durable command delivery but performs claim/final authorization and execution; L06 consumes authenticated event upload but retains explicit disposition authority.
+- Clean certification at `18b7e20` passed the exact L08 target, repository verification, C06, IC-1, real hub and D1 migration regressions, Linux cross-build and final worktree assertion. See the [committed manifest](evidence/WP-L08/manifest.json) and [bounded channel/ACL report](evidence/WP-L08/channel-matrix.md).
 
 ## Risks and decisions
 
 - Keychain ACL behavior changes with signing identity, and macOS sleep can collapse several expiry/reconnect boundaries. Both require real signed macOS tests rather than mocks alone.
+- The local gate uses an available Apple development identity and isolated synthetic Keychain items. G02 must repeat the boundary with notarized release identities and upgrades; local development signing is not release certification.
+- L08 owns transport recovery and bounded durable command references. C09 owns command creation/claim/final authorization and terminal resolution; E01 owns event dispositions. Neither socket nudges nor a connection cursor deletes durable work.
+
+## Handoff
+
+- L05 consumes durable command delivery but performs claim/final authorization and execution; L06 consumes authenticated event upload but retains explicit disposition authority.

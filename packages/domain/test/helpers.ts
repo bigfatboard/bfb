@@ -49,8 +49,15 @@ export async function issueSyntheticMcpAccess(
   } = {},
 ): Promise<{ accessToken: string; delegationId: string }> {
   const humanId = input.humanId ?? FIX.owner;
-  const now = input.now ?? "2026-08-07T12:00:00.000Z";
-  const expiresAt = input.expiresAt ?? "2026-08-07T12:10:00.000Z";
+  // Healthy credential defaults span the independent database clock. Explicit
+  // observation/expiry inputs (including negative expiry tests) remain unchanged.
+  const window = (await db
+    .prepare(
+      "SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now') AS issued_at, strftime('%Y-%m-%dT%H:%M:%fZ','now','+10 minutes') AS expires_at",
+    )
+    .get()) as { issued_at: string; expires_at: string };
+  const now = input.now ?? window.issued_at;
+  const expiresAt = input.expiresAt ?? window.expires_at;
   const projectId = input.projectId ?? FIX.projectA;
   const scopes = input.scopes ?? ["bfb:read", "bfb:task:write", "offline_access"];
   const existingHuman = (await db

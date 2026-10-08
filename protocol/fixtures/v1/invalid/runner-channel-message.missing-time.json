@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "kind": "runner.channel.ready",
+  "workspace_id": "01K00000000000000000000001",
+  "runner_id": "01K00000000000000000000002",
+  "connection_id": "01K00000000000000000000007",
+  "token_epoch": 1,
+  "auth_expires_at": "2026-09-11T20:05:00.000Z",
+  "project_ids": []
+}

@@ -1,0 +1,26 @@
+{
+  "RequestID": "evidence-001",
+  "Tool": "bfb_report_progress",
+  "Boundary": {
+    "WorkspaceID": "01SYNTHETICWS00000000000001",
+    "ProjectID": "01SYNTHETICPR00000000000001",
+    "TaskID": "01SYNTHETICTA00000000000001",
+    "RunID": "01SYNTHETICRU00000000000001",
+    "RunnerID": "01SYNTHETICRN00000000000001",
+    "CheckoutID": "01SYNTHETICCO00000000000001",
+    "ExecutionID": "01SYNTHETICEX00000000000001",
+    "Generation": 7
+  },
+  "SessionID": "synthetic-provider-session-001",
+  "Principal": "agent_run:01SYNTHETICRU00000000000001",
+  "Grant": "synthetic-grant",
+  "ExpectedVersion": 0,
+  "PayloadHash": "sha256:067e027c22cabf964b36b494d55c5798a6064e9d5685e8b313a68e9b3627c4e5",
+  "PayloadJSON": "{\"input\":{\"percent\":40,\"summary\":\"Evidence checkpoint\"},\"tool\":\"bfb_report_progress\"}",
+  "CaptureProof": "sha256:5cbecd6a63c68ce0df883dcdd49de41a33becbcc429c86bc61c337743e3ecf52",
+  "CapturedAt": "2026-09-17T12:00:00Z",
+  "ExpiresAt": "2026-09-18T12:00:00Z",
+  "PolicyDecision": "pending_sync",
+  "State": "pending",
+  "OutcomeJSON": ""
+}

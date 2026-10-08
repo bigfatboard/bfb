@@ -1,0 +1,63 @@
+{
+  "$schema": "../manifest.schema.json",
+  "package": "C11",
+  "tested_commit": "cd69f4272df6ca58c49750fbe4427cdee8f14b7c",
+  "protocol_version": "bfb-wire/1 unchanged",
+  "schema_version": "private-task-delivery/1 partial coherent GitHub status delivery; activation unavailable",
+  "migration_head": "0048_task_collection_positions",
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "xcode": "26.0.1",
+    "wrangler": "4.120.1",
+    "playwright": "1.55.1"
+  },
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56)",
+    "architecture": "arm64"
+  },
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed"
+    },
+    {
+      "command": "pnpm test:c11",
+      "outcome": "passed"
+    },
+    {
+      "command": "pnpm test:x04",
+      "outcome": "passed"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed"
+    }
+  ],
+  "outcome": "passed",
+  "artifacts": [
+    "docs/work-packages/evidence/WP-C11/github-status-delivery-command-result.json",
+    "docs/work-packages/evidence/WP-C11/github-status-delivery-acceptance.md",
+    "docs/contracts/private-task-delivery.md",
+    "docs/contracts/github.md",
+    "packages/domain/src/github.ts",
+    "apps/control-worker/src/api/github.ts",
+    "packages/domain/test/github-status-delivery.test.ts",
+    "apps/control-worker/test/github-status-delivery.test.ts",
+    "tools/work-records/github-status-delivery.ts",
+    "tools/work-records/README.md"
+  ],
+  "redaction": {
+    "status": "passed",
+    "prohibited_content": []
+  },
+  "ci": {
+    "status": "not_run"
+  }
+}

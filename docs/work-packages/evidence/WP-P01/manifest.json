@@ -1,0 +1,73 @@
+{
+  "$schema": "../manifest.schema.json",
+  "package": "P01",
+  "tested_commit": "8c11862457b271c6740911e3fa265b12ef7c2a42",
+  "protocol_version": "bfb-wire/1",
+  "schema_version": "1",
+  "migration_head": "local:008_run_control_delivery.sql",
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "xcode": "26.0.1",
+    "golang.org/x/sys": "0.47.0",
+    "codex": "0.153.4"
+  },
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2",
+    "architecture": "arm64"
+  },
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-P01/version-matrix.json"
+    },
+    {
+      "command": "pnpm build",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-P01/version-matrix.json"
+    },
+    {
+      "command": "pnpm test:p01",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-P01/version-matrix.json"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-P01/version-matrix.json"
+    },
+    {
+      "command": "CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build ./...",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-P01/version-matrix.json"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-P01/version-matrix.json"
+    }
+  ],
+  "outcome": "passed",
+  "artifacts": [
+    "docs/work-packages/evidence/WP-P01/version-matrix.json",
+    "docs/work-packages/evidence/WP-P01/hook-fixtures.json",
+    "docs/work-packages/evidence/WP-P01/exec-fixtures.json",
+    "docs/work-packages/evidence/WP-P01/setup-transaction.md",
+    "docs/work-packages/evidence/WP-P01/parity-claude.md",
+    "docs/work-packages/evidence/WP-P01/discovery.md",
+    "internal/providers/codex/descriptor.go",
+    "internal/providers/codex/adapter.go",
+    "internal/providers/codex/events.go",
+    "internal/providers/codex/setup.go",
+    "internal/providers/codex/adapter_test.go",
+    "internal/providers/codex/events_test.go",
+    "internal/providers/codex/setup_test.go"
+  ],
+  "redaction": {
+    "status": "passed",
+    "prohibited_content": []
+  }
+}

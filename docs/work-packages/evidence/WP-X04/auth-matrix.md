@@ -1,0 +1,9 @@
+| Action | Actor | Step-up | HTTP |
+| --- | --- | --- | --- |
+| install | member | fresh | 403 |
+| install | reviewer | fresh | 403 |
+| install | owner | fresh | 200 |
+| install-duplicate | owner | fresh | 409 |
+| permissions-write | owner | fresh | 409 |
+| permissions | owner | fresh | 200 |
+| permissions | owner | consumed | 403 |

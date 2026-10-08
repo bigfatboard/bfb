@@ -1,0 +1,17 @@
+{
+  "name": "@bfb/artifact-privacy-tests",
+  "version": "0.0.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "dependencies": {
+    "@bfb/artifact-worker": "workspace:*",
+    "@bfb/control-worker": "workspace:*",
+    "@bfb/db": "workspace:*",
+    "@bfb/domain": "workspace:*"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20260810.1",
+    "wrangler": "4.120.1"
+  }
+}

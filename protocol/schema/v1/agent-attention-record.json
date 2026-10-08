@@ -1,0 +1,241 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/agent-attention-record.json",
+  "title": "AgentAttentionRecord",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "kind",
+    "required_role",
+    "question",
+    "blocking",
+    "state",
+    "answer",
+    "resource_version",
+    "requested_at",
+    "first_response_at",
+    "answered_at",
+    "resolved_at"
+  ],
+  "properties": {
+    "id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "clarification",
+        "review",
+        "credential",
+        "capability",
+        "destructive_action",
+        "blocker"
+      ]
+    },
+    "required_role": {
+      "type": "string",
+      "enum": ["owner", "member", "reviewer"]
+    },
+    "question": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048
+    },
+    "blocking": {
+      "type": "boolean"
+    },
+    "state": {
+      "type": "string",
+      "enum": ["open", "answered", "resolved"]
+    },
+    "answer": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "maxLength": 2048
+    },
+    "resource_version": {
+      "$ref": "primitives.json#/$defs/ResourceVersion"
+    },
+    "requested_at": {
+      "$ref": "primitives.json#/$defs/UtcTimestamp"
+    },
+    "first_response_at": {
+      "anyOf": [
+        {
+          "$ref": "primitives.json#/$defs/UtcTimestamp"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "answered_at": {
+      "anyOf": [
+        {
+          "$ref": "primitives.json#/$defs/UtcTimestamp"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "resolved_at": {
+      "anyOf": [
+        {
+          "$ref": "primitives.json#/$defs/UtcTimestamp"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "open"
+          }
+        },
+        "required": ["state"],
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "answer": {
+            "type": "null"
+          },
+          "first_response_at": {
+            "type": "null"
+          },
+          "answered_at": {
+            "type": "null"
+          },
+          "resolved_at": {
+            "type": "null"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "answered"
+          }
+        },
+        "required": ["state"],
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "answer": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "first_response_at": {
+            "$ref": "primitives.json#/$defs/UtcTimestamp"
+          },
+          "answered_at": {
+            "$ref": "primitives.json#/$defs/UtcTimestamp"
+          },
+          "resolved_at": {
+            "type": "null"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "resolved"
+          }
+        },
+        "required": ["state"],
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "answer": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "first_response_at": {
+            "$ref": "primitives.json#/$defs/UtcTimestamp"
+          },
+          "answered_at": {
+            "$ref": "primitives.json#/$defs/UtcTimestamp"
+          },
+          "resolved_at": {
+            "$ref": "primitives.json#/$defs/UtcTimestamp"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "enum": ["clarification", "review"]
+          }
+        },
+        "required": ["kind"],
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "required_role": {
+            "const": "reviewer"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "blocker"
+          }
+        },
+        "required": ["kind"],
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "required_role": {
+            "const": "member"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "enum": ["credential", "capability", "destructive_action"]
+          }
+        },
+        "required": ["kind"],
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "required_role": {
+            "const": "owner"
+          }
+        },
+        "type": "object"
+      }
+    }
+  ]
+}

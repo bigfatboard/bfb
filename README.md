@@ -16,6 +16,10 @@ corepack enable && corepack install && pnpm install --frozen-lockfile
 
 The repository intentionally has no required `.env` file, machine-local path, or secret at this stage. On a Mac where `xcode-select` points to Command Line Tools, verification selects `/Applications/Xcode.app` for the command without changing the global developer directory.
 
+For the persistent, real-authenticated local integration runtime, see the
+[private pilot guide](docs/pilot.md). Its local setup and smoke checks do not
+constitute a completed live-provider or beta release certificate.
+
 ## Commands
 
 | Command | Check |

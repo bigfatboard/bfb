@@ -1,0 +1,218 @@
+// ABOUTME: Implements the bounded provider hook entry point with offline inbox fallback.
+// ABOUTME: Returns hook latency from local commits only; cloud upload stays asynchronous.
+
+package cli
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"io"
+	"os"
+	"strconv"
+	"time"
+
+	"github.com/qdis/bfb/internal/daemon"
+	"github.com/qdis/bfb/internal/journal"
+	"github.com/qdis/bfb/internal/provider"
+)
+
+// BackendFactory resolves journal assignment and observer views over the hook
+// database. The CLI never imports supervision packages directly.
+type BackendFactory func(db *sql.DB) (journal.Assignments, journal.Observers)
+
+// RegisterHook exposes hook ingest and status without duplicating journal logic.
+func RegisterHook(registry *Registry, providers *provider.Registry, backend BackendFactory) {
+	if providers == nil || backend == nil {
+		panic("hook commands require a provider registry and journal backend")
+	}
+	if err := registry.Register(Command{Path: "hook ingest", Method: "hook.ingest", Summary: "Ingest one bounded provider hook event", RawStdio: true, Run: func(ctx context.Context, invocation Invocation) (map[string]any, error) {
+		return runHook(ctx, invocation, providers, backend)
+	}}); err != nil {
+		panic("duplicate built-in CLI command")
+	}
+	if err := registry.Register(Command{Path: "hook status", Method: "hook.status", Summary: "Show journal backlog and telemetry state", Run: func(ctx context.Context, invocation Invocation) (map[string]any, error) {
+		return hookStatus(ctx, invocation)
+	}}); err != nil {
+		panic("duplicate built-in CLI command")
+	}
+}
+
+type hookOutcome struct {
+	payload   map[string]any
+	bootstrap bool
+}
+
+// IsUnscopedClaudeHook identifies only the installed vendor hook outside a
+// tracked execution. Even an empty or partial binding must fail closed rather
+// than being mistaken for an unrelated Claude session.
+func IsUnscopedClaudeHook(arguments []string) bool {
+	if len(arguments) != 4 || arguments[0] != "hook" || arguments[1] != "ingest" || arguments[2] != "--provider" || arguments[3] != "claude" {
+		return false
+	}
+	for _, key := range []string{
+		"BFB_WORKSPACE_ID", "BFB_PROJECT_ID", "BFB_TASK_ID", "BFB_RUN_ID",
+		"BFB_RUN_EXECUTION_ID", "BFB_ASSIGNMENT_GENERATION", "BFB_CHECKOUT_ID",
+		"BFB_CORRELATION_TOKEN", "BFB_ARTIFACTS_DIR",
+	} {
+		if _, present := os.LookupEnv(key); present {
+			return false
+		}
+	}
+	return true
+}
+
+func runHook(ctx context.Context, invocation Invocation, providers *provider.Registry, backend BackendFactory) (map[string]any, error) {
+	if !invocation.JSON && IsUnscopedClaudeHook(append([]string{"hook", "ingest"}, invocation.Args...)) {
+		// User-level hooks also run in ordinary Claude sessions. They have no
+		// BFB authority and must not read input, open state or affect tool use.
+		return nil, nil
+	}
+	outcome, err := ingestHook(ctx, invocation, providers, backend)
+	output := invocation.Output
+	if output == nil {
+		output = io.Discard
+	}
+	// Explicit JSON CLI diagnostics keep their frozen envelope. Claude's
+	// installed hook uses no flag: stdout is its vendor hook protocol, not a
+	// BFB receipt or private context response.
+	claudeHook := len(invocation.Args) == 2 && invocation.Args[0] == "--provider" && invocation.Args[1] == "claude"
+	if invocation.JSON || !claudeHook {
+		if exit := render(output, invocation.JSON, daemon.Response("hook.ingest", daemon.NewRequestID(), outcome.payload, err)); err == nil && exit != 0 {
+			return nil, &daemon.Failure{Code: "internal_error"}
+		}
+		return nil, err
+	}
+	stderr := invocation.Stderr
+	if stderr == nil {
+		stderr = io.Discard
+	}
+	if err != nil {
+		_, _ = fmt.Fprintln(stderr, "bfb hook ingest: "+daemon.AsFailure(err).Diagnostic().Code)
+		return nil, err
+	}
+	if outcome.bootstrap {
+		// This constant opens no turn and contains no task, credential or
+		// assignment payload. Resume receives the same instruction as startup.
+		if err := json.NewEncoder(output).Encode(map[string]any{"hookSpecificOutput": map[string]any{
+			"hookEventName": "SessionStart", "additionalContext": provider.InitialInstruction,
+		}}); err != nil {
+			return nil, &daemon.Failure{Code: "internal_error"}
+		}
+	}
+	if status, ok := outcome.payload["hook_status"].(string); ok {
+		_, _ = fmt.Fprintln(stderr, "bfb hook ingest: "+status)
+	}
+	return nil, nil
+}
+
+func ingestHook(ctx context.Context, invocation Invocation, providers *provider.Registry, backend BackendFactory) (hookOutcome, error) {
+	if len(invocation.Args) != 2 || invocation.Args[0] != "--provider" || invocation.Args[1] == "" {
+		return hookOutcome{}, &daemon.Failure{Code: "invalid_request"}
+	}
+	name := invocation.Args[1]
+	raw, err := io.ReadAll(io.LimitReader(invocation.Input, provider.MaxHookBytes+1))
+	if err != nil || len(raw) == 0 || len(raw) > provider.MaxHookBytes {
+		return hookOutcome{}, &daemon.Failure{Code: "provider_event_invalid"}
+	}
+	execution := os.Getenv("BFB_RUN_EXECUTION_ID")
+	generation, genErr := strconv.ParseInt(os.Getenv("BFB_ASSIGNMENT_GENERATION"), 10, 64)
+	token := os.Getenv("BFB_CORRELATION_TOKEN")
+	if execution == "" || genErr != nil || generation < 1 || token == "" {
+		return hookOutcome{}, &daemon.Failure{Code: "invalid_request"}
+	}
+	input := journal.HookInput{
+		Provider: name, Raw: raw, ExecutionID: execution, Generation: generation, Token: token,
+		WorkspaceID: os.Getenv("BFB_WORKSPACE_ID"), ProjectID: os.Getenv("BFB_PROJECT_ID"),
+		TaskID: os.Getenv("BFB_TASK_ID"), RunID: os.Getenv("BFB_RUN_ID"),
+		CapturedAt: time.Now(),
+	}
+	bounded, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	state, err := daemon.OpenStore(bounded, invocation.Paths)
+	if err != nil {
+		payload, fallbackErr := inboxFallback(invocation.Paths.Root, input, err)
+		return hookOutcome{payload: payload}, fallbackErr
+	}
+	defer state.Close()
+	store := journal.NewStore(state.DB)
+	assignments, _ := backend(state.DB)
+	receipt, err := store.Ingest(bounded, assignments, providers, input, time.Now())
+	if err != nil {
+		payload, fallbackErr := inboxFallback(invocation.Paths.Root, input, err)
+		if fallbackErr != nil {
+			return hookOutcome{}, fallbackErr
+		}
+		return hookOutcome{payload: payload}, nil
+	}
+	outcome := hookOutcome{payload: receiptPayload(receipt)}
+	if name == "claude" && (receipt.Status == "accepted" || receipt.Status == "duplicate") {
+		candidate, parseErr := providers.NormalizeHook(name, raw)
+		outcome.bootstrap = parseErr == nil && candidate != nil && candidate.Kind == "session_started"
+	}
+	return outcome, nil
+}
+
+func inboxFallback(root string, input journal.HookInput, cause error) (map[string]any, error) {
+	if !isFallbackEligible(cause) {
+		return nil, cause
+	}
+	if _, err := journal.WriteCapture(root, input.Token, input.ExecutionID, input.Generation, input.Provider, input.Raw, input.CapturedAt); err != nil {
+		return nil, err
+	}
+	return map[string]any{"hook_status": "inbox"}, nil
+}
+
+func isFallbackEligible(err error) bool {
+	switch daemon.AsFailure(err).Diagnostic().Code {
+	case "daemon_offline", "storage_failed", "execution_capacity", "telemetry_degraded", "inbox_full":
+		return true
+	default:
+		return false
+	}
+}
+
+func receiptPayload(receipt journal.Receipt) map[string]any {
+	payload := map[string]any{"hook_status": receipt.Status}
+	if receipt.EventID != "" {
+		payload["hook_event_id"] = receipt.EventID
+	}
+	if receipt.Sequence != 0 {
+		payload["hook_sequence"] = receipt.Sequence
+	}
+	if receipt.Code != "" {
+		payload["hook_code"] = receipt.Code
+	}
+	return payload
+}
+
+func hookStatus(ctx context.Context, invocation Invocation) (map[string]any, error) {
+	if len(invocation.Args) != 0 {
+		return nil, &daemon.Failure{Code: "invalid_request"}
+	}
+	bounded, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	db, err := daemon.OpenReader(bounded, invocation.Paths)
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+	store := journal.NewStore(db)
+	counts, err := store.Counts(bounded)
+	if err != nil {
+		return nil, err
+	}
+	degraded, reason, err := store.Degraded(bounded)
+	if err != nil {
+		return nil, err
+	}
+	payload := map[string]any{
+		"hook_pending": counts.Pending, "hook_quarantined": counts.Quarantined,
+		"telemetry_degraded": degraded,
+	}
+	if reason != "" {
+		payload["degraded_reason"] = reason
+	}
+	return payload, nil
+}

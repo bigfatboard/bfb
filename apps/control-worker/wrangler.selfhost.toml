@@ -1,0 +1,94 @@
+# ABOUTME: Self-host Control Worker configuration template owned by G02.
+# ABOUTME: The operator replaces origins/ids and chooses JURISDICTION before creating resources.
+
+name = "bfb-control-selfhost"
+main = "src/index.ts"
+compatibility_date = "2026-08-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+ENVIRONMENT = "production"
+# The operator must replace "choose" with eu, us, or global before resource
+# creation. The worker fails closed on the sentinel (see docs/contracts/release.md).
+JURISDICTION = "choose"
+APP_ORIGIN = "https://bfb.selfhost.example.test"
+ARTIFACT_ORIGIN = "https://artifacts.bfb.selfhost.example.test"
+LAUNCH_ORIGIN = "https://launch.bfb.selfhost.example.test"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "bfb-selfhost"
+# The operator replaces this with the id returned by `wrangler d1 create bfb-selfhost`.
+database_id = "00000000-0000-4000-8000-000000000004"
+migrations_dir = "../../migrations/d1"
+
+[[r2_buckets]]
+binding = "ARTIFACTS"
+bucket_name = "bfb-artifacts-selfhost"
+
+[[queues.producers]]
+binding = "JOBS"
+queue = "bfb-jobs-selfhost"
+
+[[queues.producers]]
+binding = "JOBS_DLQ"
+queue = "bfb-jobs-dlq-selfhost"
+
+[[queues.consumers]]
+queue = "bfb-jobs-selfhost"
+max_batch_size = 10
+max_batch_timeout = 5
+max_retries = 5
+dead_letter_queue = "bfb-jobs-dlq-selfhost"
+retry_delay = 60
+
+# X01 owns these notification queue names and this consumer registration.
+[[queues.producers]]
+binding = "NOTIFY_JOBS"
+queue = "bfb-notify-selfhost"
+
+[[queues.producers]]
+binding = "NOTIFY_DLQ"
+queue = "bfb-notify-dlq-selfhost"
+
+[[queues.consumers]]
+queue = "bfb-notify-selfhost"
+max_batch_size = 10
+max_batch_timeout = 5
+max_retries = 5
+dead_letter_queue = "bfb-notify-dlq-selfhost"
+
+# X05 owns these operations queue names and this consumer registration.
+# Other packages (X01 notifications, X04 GitHub) keep their own distinct
+# queues, DLQs and consumers; nothing shares the OPS_* bindings.
+[[queues.producers]]
+binding = "OPS_JOBS"
+queue = "bfb-ops-selfhost"
+
+[[queues.producers]]
+binding = "OPS_DLQ"
+queue = "bfb-ops-dlq-selfhost"
+
+[[queues.consumers]]
+queue = "bfb-ops-selfhost"
+max_batch_size = 10
+max_batch_timeout = 5
+max_retries = 5
+dead_letter_queue = "bfb-ops-dlq-selfhost"
+
+[assets]
+directory = "../web/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api", "/api/*", "/auth", "/auth/*", "/mcp", "/mcp/*", "/oauth", "/oauth/*", "/realtime", "/realtime/*", "/runner", "/runner/*", "/webhooks", "/webhooks/*", "/.well-known", "/.well-known/*", "/healthz"]
+
+[triggers]
+crons = ["*/5 * * * *"]
+
+[[durable_objects.bindings]]
+name = "WORKSPACE_HUB"
+class_name = "WorkspaceHub"
+
+[exports.WorkspaceHub]
+type = "durable-object"
+storage = "sqlite"

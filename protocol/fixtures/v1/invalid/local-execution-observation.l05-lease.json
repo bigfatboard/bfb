@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "event_id": "01K00000000000000000000008",
+  "run_execution_id": "01K00000000000000000000001",
+  "assignment_generation": 1,
+  "sequence": 1,
+  "kind": "execution_attached",
+  "occurred_at": "2026-09-12T12:00:03Z",
+  "capture_origin": "runner_observed",
+  "process_state": "live",
+  "provider_start": "observed",
+  "local_lock_id": "01K00000000000000000000008"
+}

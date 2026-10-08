@@ -1,0 +1,698 @@
+// ABOUTME: Dispatches bounded local run tools with strict argument and capability checks.
+// ABOUTME: Derives every identifier from the capability; caller-supplied IDs can only narrow, never widen.
+
+package localmcp
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"sync"
+	"time"
+
+	"github.com/qdis/bfb/internal/protocol"
+	"github.com/qdis/bfb/internal/protocol/generated"
+)
+
+// ToolDescriptor advertises one tool for tools/list.
+type ToolDescriptor struct {
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	InputSchema map[string]any `json:"inputSchema"`
+}
+
+func stringSchema(description string, min, max int) map[string]any {
+	return map[string]any{"type": "string", "description": description, "minLength": min, "maxLength": max}
+}
+
+// ToolDescriptors advertises the tool surface from docs/contracts/local-mcp.md.
+func ToolDescriptors() []ToolDescriptor {
+	requestID := stringSchema("Idempotency key, 8-128 bounded ASCII characters.", minRequestIDLen, maxRequestIDLen)
+	requestID["pattern"] = "^[A-Za-z0-9._:~-]{8,128}$"
+	optionalTask := map[string]any{"type": "string", "description": "Optional task ID; must equal the run boundary.", "maxLength": maxIDLen}
+	return []ToolDescriptor{
+		{Name: "bfb_get_context", Description: "Read the run's scoped agent context with a delivery record.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{"task_id": optionalTask, "request_id": requestID}, "required": []string{"request_id"}, "additionalProperties": false}},
+		{Name: "bfb_get_task", Description: "Read the run's agent-visible task view.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{"task_id": optionalTask, "request_id": requestID}, "required": []string{"request_id"}, "additionalProperties": false}},
+		{Name: "bfb_update_task", Description: "Update permitted task fields with an optimistic version check.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{"task_id": optionalTask, "expected_version": map[string]any{"type": "integer", "minimum": 1}, "title": stringSchema("Replacement title.", 1, maxTitleLen), "punchline": stringSchema("Replacement punchline.", 1, maxTitleLen), "request_id": requestID}, "required": []string{"expected_version", "request_id"}, "anyOf": []map[string]any{{"required": []string{"title"}}, {"required": []string{"punchline"}}}, "additionalProperties": false}},
+		{Name: "bfb_add_comment", Description: "Add a discussion comment attributed to the agent run.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{"task_id": optionalTask, "body": stringSchema("Comment body.", 1, maxBodyLen), "request_id": requestID}, "required": []string{"body", "request_id"}, "additionalProperties": false}},
+		{Name: "bfb_report_progress", Description: "Publish a bounded progress checkpoint.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{"task_id": optionalTask, "summary": stringSchema("Progress summary.", 1, maxBodyLen), "percent": map[string]any{"type": "number", "minimum": 0, "maximum": 100}, "confidence": map[string]any{"type": "number", "minimum": 0, "maximum": 1}, "request_id": requestID}, "required": []string{"summary", "request_id"}, "additionalProperties": false}},
+		{Name: "bfb_propose_task", Description: "Propose a root task or a policy-bounded child task.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{"project_id": map[string]any{"type": "string", "description": "Optional project ID; must equal the run boundary.", "maxLength": maxIDLen}, "parent_task_id": map[string]any{"type": "string", "description": "Optional parent task ID; must equal the run boundary task.", "maxLength": maxIDLen}, "title": stringSchema("Proposed title.", 1, maxTitleLen), "priority": map[string]any{"type": "string", "enum": []string{"P0", "P1", "P2", "P3"}}, "request_id": requestID}, "required": []string{"title", "request_id"}, "additionalProperties": false}},
+		{Name: "bfb_request_human", Description: "Request a typed human decision from the run's attention queue.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{"kind": map[string]any{"type": "string", "description": "Attention kind.", "enum": []string{"clarification", "review", "credential", "capability", "destructive_action", "blocker"}}, "question": stringSchema("Bounded question for the human.", 1, maxBodyLen), "reference_kind": map[string]any{"type": "string", "description": "Optional immutable-object kind; travels with reference_id.", "maxLength": 64}, "reference_id": map[string]any{"type": "string", "description": "Optional immutable-object ID; travels with reference_kind.", "maxLength": maxIDLen}, "blocking": map[string]any{"type": "boolean", "description": "Whether the run is blocked on the answer."}, "request_id": requestID}, "required": []string{"kind", "question", "blocking", "request_id"}, "additionalProperties": false}},
+		{Name: "bfb_get_attention", Description: "Read the committed metadata for one of the run's attention requests.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{"attention_id": map[string]any{"type": "string", "description": "Attention request ID; must belong to the run.", "maxLength": maxIDLen}, "request_id": requestID}, "required": []string{"attention_id", "request_id"}, "additionalProperties": false}},
+		{Name: "bfb_wait_for_attention", Description: "Poll committed attention state for up to 30 seconds, then report pending.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{"attention_id": map[string]any{"type": "string", "description": "Attention request ID; must belong to the run.", "maxLength": maxIDLen}, "request_id": requestID}, "required": []string{"attention_id", "request_id"}, "additionalProperties": false}},
+		{Name: "bfb_submit_result", Description: "Submit an immutable result summary with evidence for human review.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{"summary": stringSchema("Result summary.", 1, maxSummaryLen), "limitations": stringSchema("Known limitations.", 1, maxLimitationsLen), "evidence_refs": map[string]any{"type": "array", "description": "At most 20 generic evidence references.", "maxItems": maxEvidenceRefs, "items": map[string]any{"type": "object"}}, "git_branch": stringSchema("Observed Git branch.", 1, maxBranchLen), "git_commit": stringSchema("Observed 40-character Git commit.", 40, 40), "git_dirty": map[string]any{"type": "boolean", "description": "Whether the observed worktree was dirty."}, "request_id": requestID}, "required": []string{"summary", "request_id"}, "additionalProperties": false}},
+		{Name: "bfb_publish_artifact", Description: "Publish a pinned artifact file online; retry the same request ID and unchanged bytes after an unavailable reply.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{"path": stringSchema("Relative file inside the supervisor's pinned artifact directory.", 1, 4096), "artifact_id": map[string]any{"type": "string", "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"}, "format": map[string]any{"type": "string", "enum": []string{"markdown", "mermaid", "diff", "svg", "png", "jpeg", "html", "log", "json"}}, "role": map[string]any{"type": "string", "enum": []string{"review", "log"}}, "request_id": requestID}, "required": []string{"path", "format", "role", "request_id"}, "additionalProperties": false}},
+	}
+}
+
+// Host executes tools for one stdio connection. It owns the connection's
+// input-binding map; the capability owns trust state; production writes use
+// daemon-owned durability. Host is safe for concurrent tools/call handling.
+type Host struct {
+	callSeat    chan struct{}
+	mutex       sync.Mutex
+	capability  *Capability
+	transport   WorkTransport
+	journal     Journal
+	policy      OfflinePolicy
+	principal   string
+	grant       string
+	now         func() time.Time
+	seen        map[string]cachedOutcome
+	fingerprint string
+	tool        string
+}
+
+type cachedOutcome struct {
+	result      any
+	fingerprint string
+	tool        string
+}
+
+const maxCachedRequests = 256
+
+// HostDeps wires one connection's host. Principal names the originating
+// agent-run principal (agent_run:<run_id>) and grant its runner grant.
+type HostDeps struct {
+	Capability *Capability
+	Transport  WorkTransport
+	Journal    Journal
+	Policy     OfflinePolicy
+	Principal  string
+	Grant      string
+	Now        func() time.Time
+}
+
+// NewHost builds the connection host. Nil Journal means offline writes fail
+// visibly instead of journaling; nil Policy defaults to pending allowed.
+func NewHost(deps HostDeps) *Host {
+	policy := deps.Policy
+	if policy == nil {
+		policy = DefaultOfflinePolicy{AllowPending: true}
+	}
+	now := deps.Now
+	if now == nil {
+		now = time.Now
+	}
+	return &Host{
+		callSeat:   make(chan struct{}, 1),
+		capability: deps.Capability,
+		transport:  deps.Transport,
+		journal:    deps.Journal,
+		policy:     policy,
+		principal:  deps.Principal,
+		grant:      deps.Grant,
+		now:        now,
+		seen:       make(map[string]cachedOutcome),
+	}
+}
+
+func (host *Host) cached(requestID string) (any, bool) {
+	host.mutex.Lock()
+	defer host.mutex.Unlock()
+	result, ok := host.seen[requestID]
+	return result.result, ok
+}
+
+func (host *Host) remember(requestID string, result any) {
+	host.mutex.Lock()
+	defer host.mutex.Unlock()
+	// CallTool admits new identities under the call seat before executing any effect.
+	host.seen[requestID] = cachedOutcome{result: result, fingerprint: host.fingerprint, tool: host.tool}
+}
+
+// CallTool validates, authorizes, executes, and memoizes one tools/call.
+// Params arrive decoded from JSON-RPC; unknown fields are rejected so a
+// caller cannot smuggle workflow, routing, or identity fields.
+func (host *Host) CallTool(ctx context.Context, name string, params map[string]any) (result any, operationError error) {
+	if name == "bfb_wait_for_attention" {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, attentionWaitTimeout)
+		defer cancel()
+	}
+	defer func() {
+		// A terminal denial can arrive after the cloud committed an effect. Close
+		// future access, without claiming that the denied reply means no commit.
+		switch CodeOf(operationError) {
+		case "revoked", "assignment_ended", "capability_closed":
+			host.capability.Close()
+		}
+		if receipt, ok := result.(generated.AgentWorkReceipt); ok && receipt.ReasonCode != nil {
+			switch *receipt.ReasonCode {
+			case "revoked", "assignment_ended", "capability_closed":
+				host.capability.Close()
+			}
+		}
+		if receipt, ok := result.(generated.AgentResultReceipt); ok && receipt.ReasonCode != nil {
+			switch *receipt.ReasonCode {
+			case "revoked", "assignment_ended", "capability_closed":
+				host.capability.Close()
+			}
+		}
+	}()
+	// Serialize the bounded connection cache and effects, including identical concurrent calls.
+	select {
+	case host.callSeat <- struct{}{}:
+		defer func() { <-host.callSeat }()
+	case <-ctx.Done():
+		if name == "bfb_wait_for_attention" {
+			return map[string]any{"status": "pending"}, nil
+		}
+		return nil, fail("offline_rejected")
+	}
+	known := false
+	for _, descriptor := range ToolDescriptors() {
+		if descriptor.Name == name {
+			known = true
+		}
+	}
+	if !known {
+		if name == "bfb_list_projects" || name == "bfb_list_tasks" {
+			return nil, fail("not_implemented")
+		}
+		return nil, fail("method_not_found")
+	}
+	_, daemonAdmission := host.transport.(agentAdmissionTransport)
+	_, daemonWrite := agentWorkActions[name]
+	daemonWrite = daemonAdmission && daemonWrite
+	_, daemonResult := host.transport.(daemonResultTransport)
+	daemonResult = daemonResult && name == "bfb_submit_result"
+	_, daemonArtifact := host.transport.(daemonArtifactTransport)
+	daemonArtifact = daemonArtifact && name == "bfb_publish_artifact"
+	_, daemonAttention := host.transport.(daemonAttentionTransport)
+	if daemonAdmission && !daemonWrite && !daemonResult && !daemonArtifact && name != "bfb_get_context" && name != "bfb_get_task" && !(daemonAttention && attentionTool(name)) {
+		// Later packages cannot fall back to the unsigned provider-side journal.
+		return nil, fail("not_implemented")
+	}
+	if params == nil {
+		return nil, fail("invalid_params")
+	}
+	allowed := allowedParams(name)
+	for key := range params {
+		if !allowed[key] {
+			return nil, fail("invalid_params")
+		}
+	}
+	rawRequestID, _ := params["request_id"].(string)
+	if err := checkRequestID(rawRequestID); err != nil {
+		return nil, err
+	}
+	boundary := host.capability.Boundary()
+	if value, present := params["task_id"]; present {
+		id, ok := value.(string)
+		if !ok || checkID(id, "task_id") != nil || boundary.checkTask(id) != nil {
+			return nil, fail("boundary_escape")
+		}
+	}
+	for field, check := range map[string]func(string) error{"project_id": boundary.checkProject, "parent_task_id": boundary.checkParent} {
+		if value, present := params[field]; present {
+			id, ok := value.(string)
+			if !ok || checkID(id, field) != nil || check(id) != nil {
+				return nil, fail("boundary_escape")
+			}
+		}
+	}
+	fingerprintParams := params
+	if name == "bfb_request_human" {
+		request, err := validateAttention(params)
+		if err != nil {
+			return nil, err
+		}
+		fingerprintParams = map[string]any{"request_id": rawRequestID, "kind": request.Kind, "question": request.Question, "blocking": request.Blocking}
+		if request.ReferenceKind != "" {
+			fingerprintParams["reference_kind"] = request.ReferenceKind
+			fingerprintParams["reference_id"] = request.ReferenceID
+		}
+	}
+	encoded, err := json.Marshal(struct {
+		Name   string
+		Params map[string]any
+	}{name, fingerprintParams})
+	if err != nil {
+		return nil, fail("invalid_params")
+	}
+	digest := sha256.Sum256(encoded)
+	fingerprint := hex.EncodeToString(digest[:])
+	host.mutex.Lock()
+	prior, reused := host.seen[rawRequestID]
+	full := len(host.seen) >= maxCachedRequests
+	host.fingerprint = fingerprint
+	host.tool = name
+	host.mutex.Unlock()
+	if reused && prior.fingerprint != fingerprint {
+		if daemonArtifact && prior.tool == name {
+			// The same safe path may now hold changed bytes; a different safe path
+			// may hold identical bytes. Only current daemon/cloud authority can
+			// decide the immutable canonical publication fingerprint.
+			return host.write(ctx, name, params, rawRequestID, boundary)
+		}
+		if daemonResult {
+			// Result retries have their own current authority, including Submitted.
+			// The daemon checks it before its durable original-input conflict; an
+			// ordinary launch poll must not close this Host before an exact retry.
+			return host.write(ctx, name, params, rawRequestID, boundary)
+		}
+		// A cached identity conflict is scoped metadata, not an offline receipt.
+		// Recheck live authority even when daemon admission allows offline retry.
+		if err := host.capability.authorize(ctx); err != nil {
+			return nil, err
+		}
+		return nil, fail("request_rejected")
+	}
+	if !reused && full {
+		// Never execute an operation whose identity and input cannot remain bound.
+		if err := host.capability.authorize(ctx); err != nil {
+			return nil, err
+		}
+		return nil, fail("request_rejected")
+	}
+	if result, ok := host.cached(rawRequestID); ok && !attentionTool(name) {
+		if daemonWrite || daemonResult || daemonArtifact {
+			// The daemon revalidates current authority and the original durable
+			// identity before returning either an outcome or a fresh receipt.
+			return host.write(ctx, name, params, rawRequestID, boundary)
+		}
+		if err := host.capability.authorize(ctx); err != nil {
+			return nil, err
+		}
+		if name == "bfb_propose_task" && host.transport.Online() {
+			// The fixed bound-authority poll has no tool policy context. Reuse the
+			// cloud operation identity so current root policy is checked before its
+			// cached outcome, without rerunning a committed child's count gate.
+			return host.write(ctx, name, params, rawRequestID, boundary)
+		}
+		return result, nil
+	}
+	switch name {
+	case "bfb_get_context", "bfb_get_task":
+		result, err := host.read(ctx, name, rawRequestID)
+		if err != nil {
+			return nil, err
+		}
+		host.remember(rawRequestID, result)
+		return result, nil
+	case "bfb_request_human":
+		return host.requestAttention(ctx, params, rawRequestID)
+	case "bfb_get_attention":
+		return host.getAttention(ctx, params, rawRequestID)
+	case "bfb_wait_for_attention":
+		result, err := host.waitForAttention(ctx, params, rawRequestID)
+		if err == nil {
+			host.remember(rawRequestID, nil)
+		}
+		return result, err
+	default:
+		result, err := host.write(ctx, name, params, rawRequestID, boundary)
+		if err != nil {
+			return nil, err
+		}
+		if daemonWrite || daemonResult || daemonArtifact {
+			// Retain input binding, never a pending receipt or private cached body.
+			host.remember(rawRequestID, nil)
+		} else {
+			host.remember(rawRequestID, result)
+		}
+		return result, nil
+	}
+}
+
+func allowedParams(name string) map[string]bool {
+	common := map[string]bool{"task_id": true, "request_id": true}
+	switch name {
+	case "bfb_update_task":
+		return map[string]bool{"task_id": true, "request_id": true, "expected_version": true, "title": true, "punchline": true}
+	case "bfb_add_comment":
+		return map[string]bool{"task_id": true, "request_id": true, "body": true}
+	case "bfb_report_progress":
+		return map[string]bool{"task_id": true, "request_id": true, "summary": true, "percent": true, "confidence": true}
+	case "bfb_propose_task":
+		return map[string]bool{"request_id": true, "project_id": true, "parent_task_id": true, "title": true, "priority": true}
+	case "bfb_request_human":
+		return map[string]bool{"request_id": true, "kind": true, "question": true, "reference_kind": true, "reference_id": true, "blocking": true}
+	case "bfb_get_attention", "bfb_wait_for_attention":
+		return map[string]bool{"request_id": true, "attention_id": true}
+	case "bfb_submit_result":
+		return map[string]bool{"request_id": true, "summary": true, "limitations": true, "evidence_refs": true, "git_branch": true, "git_commit": true, "git_dirty": true}
+	case "bfb_publish_artifact":
+		return map[string]bool{"request_id": true, "path": true, "artifact_id": true, "format": true, "role": true}
+	default:
+		return common
+	}
+}
+
+func (host *Host) read(ctx context.Context, name string, requestID string) (any, error) {
+	if err := host.capability.allowRead(ctx); err != nil {
+		return nil, err
+	}
+	if !host.transport.Online() {
+		return nil, fail("offline_rejected")
+	}
+	boundary := host.capability.Boundary()
+	switch name {
+	case "bfb_get_context":
+		result, err := host.transport.GetContext(ctx, boundary, requestID)
+		if err != nil {
+			return nil, err
+		}
+		return result, nil
+	default:
+		task, err := host.transport.GetTask(ctx, boundary, requestID)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"task": task}, nil
+	}
+}
+
+func (host *Host) write(ctx context.Context, name string, params map[string]any, requestID string, boundary Boundary) (any, error) {
+	if name == "bfb_publish_artifact" {
+		if err := ValidateArtifactInput(params); err != nil {
+			return nil, err
+		}
+		publication, ok := host.transport.(daemonArtifactTransport)
+		if !ok {
+			return nil, fail("not_implemented")
+		}
+		// Fresh callers bind online in the daemon. Already-activated callers
+		// retain their trusted local assertion; every retry still reaches v6.
+		session, err := host.capability.resultBinding(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return publication.PublishArtifact(ctx, boundary, session, params, requestID)
+	}
+	if admission, ok := host.transport.(daemonResultTransport); ok && name == "bfb_submit_result" {
+		if _, _, err := ValidateSubmitInput(params); err != nil {
+			return nil, err
+		}
+		session, err := host.capability.resultBinding(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return admission.AdmitResult(ctx, boundary, session, params, requestID)
+	}
+	if admission, ok := host.transport.(agentAdmissionTransport); ok {
+		if _, supported := agentWorkActions[name]; !supported {
+			return nil, fail("not_implemented")
+		}
+		if _, err := validatedPayload(name, params, boundary); err != nil {
+			return nil, err
+		}
+		if err := host.capability.allowDaemonWrite(ctx); err != nil {
+			return nil, err
+		}
+		return admission.admitAgentWork(ctx, boundary, host.capability.ConfirmedSession(), name, params, requestID)
+	}
+	if err := host.capability.authorize(ctx); err != nil {
+		return nil, err
+	}
+	payload, err := validatedPayload(name, params, boundary)
+	if err != nil {
+		return nil, err
+	}
+	if err := host.capability.allowWrite(ctx); err != nil {
+		return nil, err
+	}
+	if !host.transport.Online() {
+		return host.offline(name, payload, requestID, boundary)
+	}
+	switch name {
+	case "bfb_update_task":
+		return host.transport.UpdateTask(ctx, boundary, host.capability.ConfirmedSession(), payload.update, requestID)
+	case "bfb_add_comment":
+		return host.transport.AddComment(ctx, boundary, host.capability.ConfirmedSession(), payload.comment, requestID)
+	case "bfb_report_progress":
+		return host.transport.ReportProgress(ctx, boundary, host.capability.ConfirmedSession(), payload.summary, payload.percent, payload.confidence, requestID)
+	case "bfb_submit_result":
+		return host.transport.SubmitResult(ctx, boundary, payload.submit, requestID)
+	default:
+		return host.transport.ProposeTask(ctx, boundary, host.capability.ConfirmedSession(), payload.propose, requestID)
+	}
+}
+
+type validatedWrite struct {
+	update     UpdateTaskInput
+	comment    string
+	summary    string
+	percent    *float64
+	confidence *float64
+	propose    ProposeTaskInput
+	submit     SubmitResultInput
+	canonical  map[string]any
+	version    int64
+}
+
+func validatedPayload(name string, params map[string]any, boundary Boundary) (*validatedWrite, error) {
+	payload := &validatedWrite{canonical: map[string]any{"tool": name}}
+	switch name {
+	case "bfb_update_task":
+		version, ok := params["expected_version"].(float64)
+		if !ok {
+			return nil, fail("invalid_params")
+		}
+		number, err := checkVersion(version)
+		if err != nil {
+			return nil, err
+		}
+		input := UpdateTaskInput{ExpectedVersion: number}
+		canonical := map[string]any{"expected_version": number}
+		if raw, present := params["title"]; present {
+			text, ok := raw.(string)
+			if !ok {
+				return nil, fail("invalid_params")
+			}
+			title, err := boundedText(text, "title", maxTitleLen)
+			if err != nil {
+				return nil, err
+			}
+			input.Title = &title
+			canonical["title"] = title
+		}
+		if raw, present := params["punchline"]; present {
+			text, ok := raw.(string)
+			if !ok {
+				return nil, fail("invalid_params")
+			}
+			punchline, err := boundedText(text, "punchline", maxTitleLen)
+			if err != nil {
+				return nil, err
+			}
+			input.Punchline = &punchline
+			canonical["punchline"] = punchline
+		}
+		if input.Title == nil && input.Punchline == nil {
+			return nil, fail("invalid_params")
+		}
+		payload.update = input
+		payload.canonical = map[string]any{"tool": name, "input": canonical}
+		payload.version = number
+	case "bfb_add_comment":
+		text, ok := params["body"].(string)
+		if !ok {
+			return nil, fail("invalid_params")
+		}
+		body, err := boundedText(text, "body", maxBodyLen)
+		if err != nil {
+			return nil, err
+		}
+		payload.comment = body
+		payload.canonical = map[string]any{"tool": name, "input": map[string]any{"body": body}}
+	case "bfb_report_progress":
+		text, ok := params["summary"].(string)
+		if !ok {
+			return nil, fail("invalid_params")
+		}
+		summary, err := boundedText(text, "summary", maxBodyLen)
+		if err != nil {
+			return nil, err
+		}
+		payload.summary = summary
+		input := map[string]any{"summary": summary}
+		if raw, present := params["percent"]; present {
+			number, ok := progressNumber("percent", raw)
+			if !ok {
+				return nil, fail("invalid_params")
+			}
+			value := number
+			payload.percent = &value
+			input["percent"] = number
+		}
+		if raw, present := params["confidence"]; present {
+			number, ok := progressNumber("confidence", raw)
+			if !ok {
+				return nil, fail("invalid_params")
+			}
+			value := number
+			payload.confidence = &value
+			input["confidence"] = number
+		}
+		payload.canonical = map[string]any{"tool": name, "input": input}
+	case "bfb_propose_task":
+		if raw, present := params["project_id"]; present {
+			id, ok := raw.(string)
+			if !ok || checkID(id, "project_id") != nil || boundary.checkProject(id) != nil {
+				return nil, fail("boundary_escape")
+			}
+		}
+		input := ProposeTaskInput{Priority: "P2"}
+		canonical := map[string]any{}
+		if raw, present := params["parent_task_id"]; present {
+			id, ok := raw.(string)
+			if !ok || checkID(id, "parent_task_id") != nil || boundary.checkParent(id) != nil {
+				return nil, fail("boundary_escape")
+			}
+			value := boundary.TaskID
+			input.ParentTaskID = &value
+			canonical["parent_task_id"] = value
+		}
+		text, ok := params["title"].(string)
+		if !ok {
+			return nil, fail("invalid_params")
+		}
+		title, err := boundedText(text, "title", maxTitleLen)
+		if err != nil {
+			return nil, err
+		}
+		input.Title = title
+		canonical["title"] = title
+		if raw, present := params["priority"]; present {
+			priority, ok := raw.(string)
+			if !ok {
+				return nil, fail("invalid_params")
+			}
+			checked, err := checkPriority(priority)
+			if err != nil {
+				return nil, err
+			}
+			input.Priority = checked
+			canonical["priority"] = checked
+		}
+		payload.propose = input
+		payload.canonical = map[string]any{"tool": name, "input": canonical}
+	case "bfb_submit_result":
+		input, canonical, err := ValidateSubmitInput(params)
+		if err != nil {
+			return nil, err
+		}
+		payload.submit = input
+		payload.canonical = map[string]any{"tool": name, "input": canonical}
+	default:
+		return nil, fail("method_not_found")
+	}
+	return payload, nil
+}
+
+func progressNumber(field string, value any) (float64, bool) {
+	if number, ok := value.(json.Number); ok {
+		return protocol.ParseProgressDecimal(field, number.String())
+	}
+	if number, ok := value.(float64); ok {
+		encoded, err := json.Marshal(number)
+		if err == nil {
+			return protocol.ParseProgressDecimal(field, string(encoded))
+		}
+	}
+	return 0, false
+}
+
+func (host *Host) offline(name string, payload *validatedWrite, requestID string, boundary Boundary) (any, error) {
+	if host.policy.Decide(name) != OfflinePending {
+		return nil, fail("offline_rejected")
+	}
+	now := host.now().UTC().Truncate(time.Microsecond)
+	operation := PendingOperation{
+		RequestID:       requestID,
+		Tool:            name,
+		Boundary:        boundary,
+		SessionID:       host.capability.SessionID(),
+		Principal:       host.principal,
+		Grant:           host.grant,
+		ExpectedVersion: payload.version,
+		CapturedAt:      now.Format(time.RFC3339Nano),
+		ExpiresAt:       now.Add(pendingTTLHours * time.Hour).Format(time.RFC3339Nano),
+		PolicyDecision:  string(OfflinePending),
+	}
+	return stagePending(host.journal, payload.canonical, operation)
+}
+
+// stagePending stores one validated offline operation idempotently and
+// returns its pending_sync receipt. Repeats return the original receipt or
+// the stored terminal outcome instead of duplicating the effect.
+func stagePending(journal Journal, canonical map[string]any, operation PendingOperation) (any, error) {
+	if journal == nil {
+		return nil, fail("offline_rejected")
+	}
+	if result, code, ok, err := journal.Outcome(operation.RequestID); err == nil && ok {
+		if code != "" {
+			return nil, replayCodeFailure(code)
+		}
+		return result, nil
+	}
+	if existing, ok, err := journal.Pending(operation.RequestID); err == nil && ok {
+		return pendingOutcome(existing), nil
+	}
+	if count, err := journal.CountForRun(operation.Boundary.RunID); err != nil || count >= maxPendingPerRun {
+		return nil, fail("request_rejected")
+	}
+	encoded, err := json.Marshal(canonical)
+	if err != nil || len(encoded) > 4096 {
+		return nil, fail("request_rejected")
+	}
+	operation.PayloadHash = hashHex(encoded)
+	operation.PayloadJSON = string(encoded)
+	operation.CaptureProof = captureProof(operation)
+	if _, err := journal.Store(operation); err != nil {
+		return nil, fail("internal_error")
+	}
+	stored, ok, err := journal.Pending(operation.RequestID)
+	if err != nil || !ok {
+		return nil, fail("internal_error")
+	}
+	return pendingOutcome(stored), nil
+}
+
+// replayCodeFailure maps a terminal replay reason back to a bounded MCP failure.
+func replayCodeFailure(reason string) error {
+	switch reason {
+	case "stale_version":
+		return fail("stale_version")
+	case "revoked":
+		return fail("revoked")
+	case "execution_ended":
+		return fail("assignment_ended")
+	case "result_terminal":
+		return fail("capability_closed")
+	case "policy_changed", "forbidden", "policy_rejected":
+		return fail("policy_rejected")
+	case "expired":
+		return fail("offline_rejected")
+	default:
+		return fail("request_rejected")
+	}
+}
+
+func pendingOutcome(operation PendingOperation) map[string]any {
+	return map[string]any{
+		"status":     "pending_sync",
+		"request_id": operation.RequestID,
+		"tool":       operation.Tool,
+		"expires_at": operation.ExpiresAt,
+	}
+}
+
+func hashHex(data []byte) string {
+	digest := sha256.Sum256(data)
+	return "sha256:" + hex.EncodeToString(digest[:])
+}
+
+func captureProof(operation PendingOperation) string {
+	canonical := fmt.Sprintf("%s|%s|%s|%s|%s|%s|%d|%s|%s|%s",
+		operation.RequestID, operation.Tool,
+		operation.Boundary.WorkspaceID, operation.Boundary.ProjectID,
+		operation.Boundary.TaskID, operation.Boundary.RunID,
+		operation.ExpectedVersion, operation.PayloadHash,
+		operation.SessionID, operation.CapturedAt)
+	return hashHex([]byte(canonical))
+}

@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/run-control-reference.json",
+  "title": "RunControlReference",
+  "description": "Authenticated lookup of a pulled control ID; reading its target is not a claim or local-effect authorization.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "control_id"],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "control_id": { "$ref": "primitives.json#/$defs/Ulid" }
+  }
+}

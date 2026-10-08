@@ -1,4 +1,4 @@
-// ABOUTME: Exercises roadmap metadata, dependency, readiness, link, and drift failures.
+// ABOUTME: Exercises roadmap metadata, dependency, readiness, link, drift, and settled-prose failures.
 // ABOUTME: Proves generation remains deterministic across repeated clean fixture runs.
 
 import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
@@ -23,6 +23,9 @@ interface FixturePackage {
   extra?: string;
   readyMetadata?: boolean;
   evidenceManifest?: string;
+  consumes?: string;
+  handoff?: string;
+  acceptance?: string;
 }
 
 function packageSource(fixture: FixturePackage): string {
@@ -60,12 +63,16 @@ function packageSource(fixture: FixturePackage): string {
     "",
     "### Consumes",
     "",
-    "- A frozen input contract.",
+    fixture.consumes ?? "- A frozen input contract.",
     "",
     "### Produces",
     "",
     "- A frozen output contract.",
     "",
+    fixture.handoff === undefined ? "" : ["## Handoff", "", fixture.handoff, ""].join("\n"),
+    fixture.acceptance === undefined
+      ? ""
+      : ["## Acceptance", "", fixture.acceptance, ""].join("\n"),
     fixture.extra ?? "",
   ].join("\n");
 }
@@ -112,6 +119,8 @@ interface EvidenceOptions {
   redactionStatus?: "passed" | "failed" | "not_run";
   artifact?: string;
   writeArtifact?: boolean;
+  omitCommandArtifact?: boolean;
+  artifactCommit?: string;
   ciStatus?: "passed" | "failed" | "pending" | "not_run";
 }
 
@@ -125,7 +134,12 @@ async function writeEvidence(
     options.artifact ?? "docs/work-packages/evidence/WP-" + packageId + "/result.json";
   await mkdir(directory, { recursive: true });
   if (options.writeArtifact !== false) {
-    await writeFile(path.join(root, artifact), "{}\n");
+    await writeFile(
+      path.join(root, artifact),
+      JSON.stringify(
+        options.artifactCommit === undefined ? {} : { tested_commit: options.artifactCommit },
+      ) + "\n",
+    );
   }
   await writeFile(
     path.join(directory, "manifest.json"),
@@ -146,7 +160,7 @@ async function writeEvidence(
           {
             command: options.command ?? "pnpm test",
             outcome: options.commandOutcome ?? "passed",
-            artifact,
+            ...(options.omitCommandArtifact === true ? {} : { artifact }),
           },
         ],
         outcome: options.outcome ?? "passed",
@@ -169,6 +183,20 @@ afterEach(async () => {
 });
 
 describe("work-package roadmap", () => {
+  test("includes discussion packages and their dependency edges", async () => {
+    const root = await fixtureRoot([
+      { id: "A03", unlocks: ["D01"] },
+      { id: "D01", requires: ["A03"], unlocks: ["D02"] },
+      { id: "D02", requires: ["D01"] },
+    ]);
+    await expect(writeGeneratedRoadmap(root)).resolves.toMatchObject({ issues: [] });
+    const readme = await readFile(path.join(root, "docs/work-packages/README.md"), "utf8");
+    expect(readme).toContain('subgraph Agentdiscussion["Agent discussion"]');
+    expect(readme).toContain("A03 --> D01");
+    expect(readme).toContain("D01 --> D02");
+    expect(readme).toContain("### Agent discussion");
+  });
+
   test("writes stable graph and index output twice", async () => {
     const root = await fixtureRoot([
       { id: "F01", unlocks: ["F02"] },
@@ -320,6 +348,28 @@ describe("work-package roadmap", () => {
     }
   });
 
+  test("rejects a done package whose manifest command links no artifact", async () => {
+    const root = await fixtureRoot([{ id: "F01", status: "done", readyMetadata: true }]);
+    await writeEvidence(root, "F01", { omitCommandArtifact: true });
+
+    expect(issueCodes(await inspectRoadmap(root))).toContain("evidence");
+  });
+
+  test("rejects a done package whose linked artifact records another commit", async () => {
+    const root = await fixtureRoot([{ id: "F01", status: "done", readyMetadata: true }]);
+    await writeEvidence(root, "F01", { artifactCommit: "b".repeat(40) });
+
+    expect(issueCodes(await inspectRoadmap(root))).toContain("evidence");
+  });
+
+  test("accepts a done package whose linked artifact records the tested commit", async () => {
+    const root = await fixtureRoot([{ id: "F01", status: "done", readyMetadata: true }]);
+    await writeEvidence(root, "F01", { artifactCommit: "a".repeat(40) });
+    await writeGeneratedRoadmap(root);
+
+    await expect(inspectRoadmap(root)).resolves.toMatchObject({ issues: [] });
+  });
+
   test("allows local evidence while a package remains in review", async () => {
     const root = await fixtureRoot([{ id: "F01", status: "review", readyMetadata: true }]);
     await writeEvidence(root, "F01", { environmentKind: "local" });
@@ -376,6 +426,240 @@ describe("work-package roadmap", () => {
     await symlink(target, path.join(root, artifact));
 
     expect(issueCodes(await inspectRoadmap(root))).toContain("evidence");
+  });
+
+  test("rejects a settled package whose contract cites a stale dependency status", async () => {
+    const root = await fixtureRoot([
+      { id: "F01", status: "done", readyMetadata: true, unlocks: ["F02"] },
+      {
+        id: "F02",
+        status: "review",
+        readyMetadata: true,
+        requires: ["F01"],
+        consumes:
+          "- F01 supervision boundary (implementation " +
+          markdownTick +
+          "blocked" +
+          markdownTick +
+          "): frozen shape.",
+      },
+    ]);
+    await writeEvidence(root, "F01");
+    await writeEvidence(root, "F02");
+
+    const inspection = await inspectRoadmap(root);
+    expect(
+      inspection.issues.some((issue) =>
+        issue.message.includes("F02 describes required dependency F01 as `blocked`"),
+      ),
+    ).toBe(true);
+  });
+
+  test("accepts a settled package whose contract cites the live dependency status", async () => {
+    const root = await fixtureRoot([
+      { id: "F01", status: "done", readyMetadata: true, unlocks: ["F02"] },
+      {
+        id: "F02",
+        status: "review",
+        readyMetadata: true,
+        requires: ["F01"],
+        consumes:
+          "- F01 supervision boundary (" +
+          markdownTick +
+          "done" +
+          markdownTick +
+          "): frozen shape.",
+      },
+    ]);
+    await writeEvidence(root, "F01");
+    await writeEvidence(root, "F02");
+    await writeGeneratedRoadmap(root);
+
+    await expect(inspectRoadmap(root)).resolves.toMatchObject({ issues: [] });
+  });
+
+  test("rejects a settled package that describes a done dependency as outstanding", async () => {
+    const root = await fixtureRoot([
+      { id: "F01", status: "done", readyMetadata: true, unlocks: ["F02"] },
+      {
+        id: "F02",
+        status: "review",
+        readyMetadata: true,
+        requires: ["F01"],
+        handoff: "- Live chain waits on F01.\n- Boot gate pending F01 sign-off.",
+      },
+    ]);
+    await writeEvidence(root, "F01");
+    await writeEvidence(root, "F02");
+
+    const inspection = await inspectRoadmap(root);
+    const outstanding = inspection.issues.filter((issue) =>
+      issue.message.includes("F02 describes done dependency F01 as still outstanding"),
+    );
+    expect(outstanding).toHaveLength(2);
+  });
+
+  test("rejects a review package whose Handoff cites an unrecorded commit", async () => {
+    const root = await fixtureRoot([
+      { id: "F01", status: "done", readyMetadata: true, unlocks: ["F02"] },
+      {
+        id: "F02",
+        status: "review",
+        readyMetadata: true,
+        requires: ["F01"],
+        handoff:
+          "- Passed in a detached clean checkout at " +
+          markdownTick +
+          "deadbee1" +
+          markdownTick +
+          ".",
+      },
+    ]);
+    await writeEvidence(root, "F01");
+    await writeEvidence(root, "F02");
+
+    const inspection = await inspectRoadmap(root);
+    expect(
+      inspection.issues.some((issue) =>
+        issue.message.includes(
+          "F02 cites Handoff commit deadbee1 with no matching evidence record",
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  test("accepts a review package whose Handoff cites its tested commit", async () => {
+    const root = await fixtureRoot([
+      { id: "F01", status: "done", readyMetadata: true, unlocks: ["F02"] },
+      {
+        id: "F02",
+        status: "review",
+        readyMetadata: true,
+        requires: ["F01"],
+        handoff:
+          "- Passed in a detached clean checkout at " +
+          markdownTick +
+          "a".repeat(40) +
+          markdownTick +
+          ".",
+      },
+    ]);
+    await writeEvidence(root, "F01");
+    await writeEvidence(root, "F02");
+    await writeGeneratedRoadmap(root);
+
+    await expect(inspectRoadmap(root)).resolves.toMatchObject({ issues: [] });
+  });
+
+  test("rejects a settled package that describes a done dependency with until-lands prose", async () => {
+    const root = await fixtureRoot([
+      { id: "F01", status: "done", readyMetadata: true, unlocks: ["F02"] },
+      {
+        id: "F02",
+        status: "review",
+        readyMetadata: true,
+        requires: ["F01"],
+        handoff: "- Stays at `planned` until F01 lands (roadmap rule).",
+      },
+    ]);
+    await writeEvidence(root, "F01");
+    await writeEvidence(root, "F02");
+
+    const inspection = await inspectRoadmap(root);
+    expect(
+      inspection.issues.some((issue) =>
+        issue.message.includes("F02 describes done dependency F01 as still outstanding"),
+      ),
+    ).toBe(true);
+  });
+
+  test("accepts forward-looking when-lands prose about a done dependency", async () => {
+    const root = await fixtureRoot([
+      { id: "F01", status: "done", readyMetadata: true, unlocks: ["F02"] },
+      {
+        id: "F02",
+        status: "review",
+        readyMetadata: true,
+        requires: ["F01"],
+        handoff: "- Designate parity work there when F01 lands.",
+      },
+    ]);
+    await writeEvidence(root, "F01");
+    await writeEvidence(root, "F02");
+    await writeGeneratedRoadmap(root);
+
+    await expect(inspectRoadmap(root)).resolves.toMatchObject({ issues: [] });
+  });
+
+  test("rejects a done package with unchecked acceptance items", async () => {
+    const root = await fixtureRoot([
+      {
+        id: "F01",
+        status: "done",
+        readyMetadata: true,
+        acceptance: "- [ ] First claim proven.\n- [ ] Second claim proven.",
+      },
+    ]);
+    await writeEvidence(root, "F01");
+
+    const inspection = await inspectRoadmap(root);
+    expect(
+      inspection.issues.some((issue) =>
+        issue.message.includes("F01 has 2 unchecked Acceptance items but F01 is `done`"),
+      ),
+    ).toBe(true);
+  });
+
+  test("accepts a done package with checked acceptance items", async () => {
+    const root = await fixtureRoot([
+      {
+        id: "F01",
+        status: "done",
+        readyMetadata: true,
+        acceptance: "- [x] First claim proven.\n- [x] Second claim proven.",
+      },
+    ]);
+    await writeEvidence(root, "F01");
+    await writeGeneratedRoadmap(root);
+
+    await expect(inspectRoadmap(root)).resolves.toMatchObject({ issues: [] });
+  });
+
+  test("rejects a settled V01 whose acceptance drops the same-hash claim", async () => {
+    const root = await fixtureRoot([
+      {
+        id: "V01",
+        status: "done",
+        readyMetadata: true,
+        acceptance: "- Upload-grant state machine authorized end to end.",
+      },
+    ]);
+    await writeEvidence(root, "V01");
+
+    const inspection = await inspectRoadmap(root);
+    expect(
+      inspection.issues.some((issue) =>
+        issue.message.includes(
+          "V01 is the SG-03 primary but its Acceptance states no same-hash no-overwrite claim",
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  test("accepts a settled V01 whose acceptance keeps the same-hash claim", async () => {
+    const root = await fixtureRoot([
+      {
+        id: "V01",
+        status: "done",
+        readyMetadata: true,
+        acceptance:
+          "- Same-hash concurrent publication never overwrites bytes and may back distinct logical versions.",
+      },
+    ]);
+    await writeEvidence(root, "V01");
+    await writeGeneratedRoadmap(root);
+
+    await expect(inspectRoadmap(root)).resolves.toMatchObject({ issues: [] });
   });
 
   test("detects changes in either generated block", async () => {

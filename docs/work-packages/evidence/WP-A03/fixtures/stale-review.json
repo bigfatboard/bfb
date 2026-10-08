@@ -1,0 +1,11 @@
+{
+  "case": "review with stale expected versions",
+  "input": {
+    "runId": "01SYNTHETICRU00000000000001",
+    "submissionId": "01SYNTHETICSU00000000000001",
+    "expectedRunVersion": 1,
+    "expectedTaskVersion": 1
+  },
+  "expected": { "code": "stale_version" },
+  "notes": "Versions read before a concurrent review no longer match; the reviewer reloads and retries with current versions. State is unchanged."
+}

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/agent-session-bind-request.json",
+  "title": "AgentSessionBindRequest",
+  "description": "Daemon-derived trusted L06 observation for the explicit canonical binding command.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["reference", "observation"],
+  "properties": {
+    "reference": { "$ref": "agent-work-request.json" },
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "observed_session_id", "observed_at"],
+      "properties": {
+        "provider": { "type": "string", "enum": ["claude", "codex", "grok", "fake"] },
+        "observed_session_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+        },
+        "observed_at": { "$ref": "primitives.json#/$defs/UtcTimestamp" }
+      }
+    }
+  }
+}

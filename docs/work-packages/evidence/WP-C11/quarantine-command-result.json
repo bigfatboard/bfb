@@ -1,0 +1,112 @@
+{
+  "package": "C11",
+  "recorded_on": "2026-10-07",
+  "tested_commit": "b085cb97c4f8aef7454b8822bee5b52cc9403068",
+  "outcome": "passed",
+  "stage": "partial_metadata_unsupported_audit_and_legacy_recovery_quarantine",
+  "package_acceptance_complete": false,
+  "private_creation_available": false,
+  "migration_head": "0045_private_task_authority",
+  "scope": "Only certified artifact and upload-recovery audit receipts are delivered. Three legacy recovery kinds are uniformly held before proof, target, ledger, cached-result or business effects. Stored history and normal notification/GitHub consumers remain unchanged.",
+  "clean_commands": [
+    { "command": "pnpm install --frozen-lockfile", "exit_code": 0 },
+    {
+      "command": "pnpm test:c11",
+      "exit_code": 0,
+      "c10_cases": 86,
+      "c10_files": 8,
+      "c10_d1_checks": 9,
+      "c08_cases": 23,
+      "c08_files": 5,
+      "c08_proof": "C08_D1_OK",
+      "stage_cases": 1904,
+      "stage_files": 68,
+      "stage_invocations": [
+        { "cases": 1828, "files": 64 },
+        { "cases": 49, "files": 2 },
+        { "cases": 27, "files": 2 }
+      ],
+      "stage_d1_checks": 58,
+      "stage_d1_harnesses": [
+        { "proof": "C11_TASK_D1_OK", "checks": 37 },
+        { "proof": "C11_OPERATIONS_AGGREGATES_D1_OK", "checks": 8 },
+        { "proof": "C11_DIAGNOSTIC_QUARANTINE_D1_OK", "checks": 4 },
+        { "proof": "C11_BOARD_D1_OK", "checks": 6 },
+        { "proof": "C11_UNSUPPORTED_QUARANTINE_D1_OK", "checks": 3 }
+      ],
+      "counting": "Invocation totals, not a unique cross-package combined total"
+    },
+    {
+      "command": "pnpm test:x05",
+      "exit_code": 0,
+      "cases": 60,
+      "files": 6,
+      "worker_scenarios": 11,
+      "browser_cases": 5,
+      "proof": "X05_DRILL_OK",
+      "current_d6_d7": "Held GitHub requeue and notification rewind preserve parked row/watermark and unused proofs",
+      "current_d9": "Held diagnostic policy, not historical v1 upload",
+      "historical_evidence_unchanged": true
+    },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 4246,
+      "typescript_files": 186,
+      "go": "passed",
+      "go_scheduling": "GOFLAGS=-p=1",
+      "swift": "passed",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    {
+      "command": "pnpm exec tsc -b tools/g01 --pretty false",
+      "exit_code": 0,
+      "scope": "Caller compilation only; G01 runtime acceptance not run"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "exit_code": 0,
+      "before_and_after_verify": true,
+      "committed_source_unchanged": true,
+      "final_status_empty": true
+    }
+  ],
+  "new_suites": { "domain_cases": 13, "mounted_cases": 14 },
+  "independent_review": {
+    "outcome": "passed",
+    "focused_cases": 521,
+    "files": 8,
+    "existing_controls": 494,
+    "runtime_harnesses_rerun": false
+  },
+  "regression_proof": [
+    "Meaningful old-source domain baseline: 11 failures and two controls; mounted baseline: 12 failures and one authority control",
+    "Actual-D1 old-source read returns an unsupported synthetic task audit row and has_more; new source passes three bounded D1 checks",
+    "Unsupported, malformed, duplicate-key, serialized and NUL audit families are omitted before page/has_more/anchor selection; current Owner epoch denial precedes anchor denial",
+    "Pure browser admission precedes fixed409/no-store legacy denial, without proof lookup/consumption, target hashing, source or retained-cache reads",
+    "Direct legacy helper denies before any SQL, hashing or JSON; orphaned legacy effect/proof helpers are removed",
+    "Registered proof-bound upload recovery and its final browser check retain success/retry and atomic-failure controls",
+    "Retained D1 audit anchors and diagnostic audit control now use canonical artifact sources; unsupported history stays stored and cannot be a visible anchor",
+    "Impeccable clarification labels the audit's supported receipt scope without new controls, passkey requests or visual-system changes"
+  ],
+  "initial_certificate_attempt": {
+    "tested_commit": "5d31a1471fdff016311b3575c8f41fe4c3fd8758",
+    "outcome": "failed",
+    "reason": "C11 stopped at an older diagnostic D1 fixture expecting an unsupported generic audit control to remain visible",
+    "repair": "Use a source-backed run-free artifact receipt as the audit control and prove the retained generic control is a hidden anchor. The independent semantic control is unchanged. A fresh clean checkout passes every gate"
+  },
+  "activation_barriers": [
+    "Principal-bound opaque positions and outward notification identities",
+    "Unbound GitHub evidence-key collision policy and remaining coordination delivery",
+    "Natural credential/lease expiry during an in-flight D1 batch and destructive private retention",
+    "Private creation, creator sharing, author-private checkpoints and downstream C12 publication"
+  ],
+  "not_claimed": [
+    "Complete C11 acceptance, opaque audit paging or private activation",
+    "Working held legacy recovery, historical payload provenance or physical queue-drained status",
+    "Live private R2/browser-byte delivery, provider/runner changes, pilot operation or deployment",
+    "G01 runtime acceptance, external CI or new knowledge/skills/vault/reminder/contribution features"
+  ],
+  "redaction": "Bounded synthetic counts, source identity, proof labels and limits only; no credentials, private bodies, raw output or local absolute paths"
+}

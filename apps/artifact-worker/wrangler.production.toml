@@ -4,11 +4,18 @@
 name = "bfb-artifact"
 main = "src/index.ts"
 compatibility_date = "2026-08-01"
+compatibility_flags = ["nodejs_compat"]
 
 [vars]
 ENVIRONMENT = "production"
 ARTIFACT_ORIGIN = "https://artifacts.bfb.example.test"
 APP_ORIGIN = "https://bfb.example.test"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "bfb"
+database_id = "00000000-0000-4000-8000-000000000003"
+migrations_dir = "../../migrations/d1"
 
 [[r2_buckets]]
 binding = "ARTIFACTS"

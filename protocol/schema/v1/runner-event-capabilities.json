@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/runner-event-capabilities.json",
+  "title": "RunnerEventCapabilities",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "accepted_event_versions"],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "accepted_event_versions": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      },
+      "const": [1, 2],
+      "minItems": 2,
+      "maxItems": 2
+    }
+  }
+}

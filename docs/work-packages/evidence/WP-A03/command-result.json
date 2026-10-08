@@ -1,0 +1,53 @@
+{
+  "gate": "pnpm test:a03",
+  "tested_tree": "1d0046b5ca9e6e21ffaf53e9341f1ecf8623af9c",
+  "outcome": "passed",
+  "steps": [
+    {
+      "command": "pnpm build",
+      "outcome": "passed"
+    },
+    {
+      "command": "vitest run packages/domain/test/results.test.ts apps/control-worker/test/result-routes.test.ts apps/web/test/result.test.ts",
+      "outcome": "passed",
+      "detail": "3 files, 25 tests (18 domain cases including the superseded-runner generation binding; 7 worker route and web presentation cases)"
+    },
+    {
+      "command": "go test -race -count=1 ./internal/localmcp/... ./internal/cli/... ./cmd/bfb/...",
+      "outcome": "passed",
+      "detail": "localmcp, cli, bfb packages ok with race detector"
+    },
+    {
+      "command": "pnpm exec tsc -b tools/results --pretty false",
+      "outcome": "passed"
+    },
+    {
+      "command": "tsx tools/results/run.ts",
+      "outcome": "passed",
+      "detail": "A03 worker results: passed (10 checks) over real Workers and D1"
+    },
+    {
+      "command": "tsx tools/results/cli.ts",
+      "outcome": "passed",
+      "detail": "A03 CLI submit harness: passed over the real binary"
+    },
+    {
+      "command": "BFB_E2E_PORT=4183 playwright test apps/web/test/e2e/a03-results.spec.ts",
+      "outcome": "passed",
+      "detail": "1 browser test passed: submit, change-request, supersede, accept, reviewer 403"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "detail": "format, lint, typecheck, protocol, provider, TypeScript suites (1264 tests across 103 files), headers, docs, roadmap (45 packages), Go, Swift/Xcode"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed"
+    }
+  ],
+  "redaction": "summary only; no terminal output, secrets, or local paths retained",
+  "notes": [
+    "The exact gate passed from a detached clean checkout at the tested commit; evidence manifest and command results are docs-only additions after it, and pnpm verify plus pnpm worktree:check were re-run on the evidence tree."
+  ]
+}

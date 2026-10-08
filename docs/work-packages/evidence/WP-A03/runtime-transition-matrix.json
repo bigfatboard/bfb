@@ -1,0 +1,21 @@
+{
+  "submitted": {
+    "run": "submitted",
+    "task": "review"
+  },
+  "changes_requested": {
+    "run": "changes_requested",
+    "task": "active"
+  },
+  "accepted": {
+    "run": "accepted",
+    "task": "done"
+  },
+  "failed": {
+    "run": "failed",
+    "task": "active"
+  },
+  "cancellation": "covered_by_domain_and_route_matrix_not_this_trace",
+  "ownership": "human_decisions_do_not_release_live_checkout_lease",
+  "scope": "isolated_real_worker_hub_d1_human_command_trace"
+}

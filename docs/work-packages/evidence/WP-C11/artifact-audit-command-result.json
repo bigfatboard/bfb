@@ -1,0 +1,112 @@
+{
+  "package": "C11",
+  "recorded_on": "2026-10-07",
+  "tested_commit": "80abaa6f55ccacfc34197c5ae731a86a4a7bd1a9",
+  "outcome": "passed",
+  "stage": "partial_metadata_canonical_artifact_security_audit",
+  "package_acceptance_complete": false,
+  "private_creation_available": false,
+  "scope": "Nine canonical artifact audit actions and their strict dispatch wrappers resolve exact current shared parents before page, count and anchor delivery. Unrelated audit families remain uncertified.",
+  "migration_head": "0045_private_task_authority",
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56)",
+    "architecture": "arm64",
+    "runtime": "Production Hub and disposable real D1, mounted authenticated audit routes and operations browser regressions"
+  },
+  "clean_commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "exit_code": 0
+    },
+    {
+      "command": "pnpm test:c11",
+      "exit_code": 0,
+      "c10_cases": 86,
+      "c10_files": 8,
+      "c10_d1_checks": 9,
+      "c08_cases": 23,
+      "c08_files": 5,
+      "c08_proof": "C08_D1_OK",
+      "stage_cases": 1373,
+      "stage_files": 58,
+      "stage_d1_checks": 30,
+      "proof": "C11_TASK_D1_OK",
+      "counting": "Separate invocations overlap; counts are not a unique combined total"
+    },
+    {
+      "command": "pnpm test:x05",
+      "exit_code": 0,
+      "cases": 58,
+      "files": 6,
+      "worker_scenarios": 11,
+      "browser_cases": 4,
+      "proof": "X05_DRILL_OK",
+      "package_status_changed": false
+    },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 3714,
+      "typescript_files": 176,
+      "go": "passed",
+      "go_scheduling": "GOFLAGS=-p=1",
+      "swift": "passed",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    {
+      "command": "pnpm exec tsc -b tools/g01 --pretty false",
+      "exit_code": 0,
+      "scope": "Explicit retained audit principal caller compatibility; not G01 runtime acceptance"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "exit_code": 0,
+      "before_and_after_verify": true,
+      "committed_source_unchanged": true
+    }
+  ],
+  "focused_new_suites": {
+    "domain_cases": 97,
+    "mounted_cases": 94
+  },
+  "real_d1_extension_checks": [
+    "real_d1_canonical_artifact_audit_reconstructs_nine_sources_and_runfree_history",
+    "real_d1_artifact_audit_nul_suffixed_typed_fields_are_omitted_before_page_and_anchor",
+    "real_d1_artifact_audit_hidden_misbound_and_malformed_rows_do_not_consume_page_or_count",
+    "real_d1_artifact_audit_hidden_and_unknown_anchor_denial_parity",
+    "real_d1_artifact_audit_final_selection_drops_parent_privatized_before_delivery",
+    "real_d1_empty_artifact_audit_scope_denial_after_epoch_loss"
+  ],
+  "repairs_with_regression_proof": [
+    "Explicit retained Owner context and one final selecting-query sentinel deny role, membership or epoch loss even for empty pages before anchor validation",
+    "The artifact namespace is quarantined case-insensitively; only nine exact canonical actions and their strict dispatch wrapper can enter human delivery",
+    "Direct receipts bind exact outbox action, fixed system actor and dispatch time; wrappers also require closed duplicate-free actual object envelopes and the paired direct receipt",
+    "Exact same-workspace source/version/artifact/run/task/project and upload-versus-view grant associations select current shared readable parents before ordering, LIMIT+1, count and anchor resolution",
+    "Private creators and named-human grants confer no operations override; only genuinely NULL artifact runs use workspace authority",
+    "Expired or consumed grants and retained artifact states preserve valid authorized history without recreating a live capability",
+    "Reconstructed typed source fields replace arbitrary historical JSON; serialized object strings, duplicate keys, extra keys, misbound grants and missing direct counterparts are omitted",
+    "SQLite NUL prefix-validation bypass is reproduced and explicitly rejected for typed ULID and UTC fields before page and anchor selection",
+    "A real-D1 GLOB pattern-limit failure is repaired with 42-byte date and 32-byte time patterns, retaining calendar, UTC and fractional validation",
+    "Real Hub dispatch uses observed server time; pagination fixture anchor and persisted timestamps do not override authorization clock semantics",
+    "Three independent stored upload-recovery retry races mutate ledger, consume a fresh proof or privatize a parent before the batch; no new effects, receipts or cursors survive beyond the independent mutation"
+  ],
+  "activation_barriers": [
+    "Natural credential or lease expiry while a D1 batch is already in flight remains uncertified",
+    "Principal-bound opaque positions and raw notification delivery identities",
+    "Unbound GitHub evidence-key collision presence policy",
+    "Other security-audit families, live operations aggregates, frozen diagnostics, other recovery and private destructive-retention privacy",
+    "Coordination consumers and complete delivery matrix",
+    "Private creation, creator sharing, author-private checkpoints and downstream C12 publication"
+  ],
+  "not_claimed": [
+    "Complete C11 acceptance or private-feature activation",
+    "Live private R2 byte/browser delivery or destructive lifecycle",
+    "Audit workload/performance certification or replacement of historical audit-ID cursor wire form",
+    "Settlement of held X01, X04 or X05 dependencies, or G01 runtime acceptance",
+    "Remote start, agent discussion, enrolled pilot operation, provider configuration, deployment or external CI",
+    "New UI, project-wide knowledge, skills, vault values, checkpoint reminders or contribution UI"
+  ],
+  "redaction": "Bounded synthetic counts, proof labels, source identity and limits only; no credentials, private bodies, raw output or local absolute paths"
+}

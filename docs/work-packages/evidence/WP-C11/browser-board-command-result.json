@@ -1,0 +1,104 @@
+{
+  "package": "C11",
+  "recorded_on": "2026-10-07",
+  "tested_commit": "320b23a2f71af5fa687e533ff1f31532beb3c931",
+  "outcome": "passed",
+  "stage": "partial_browser_board_selection_correction",
+  "package_acceptance_complete": false,
+  "private_creation_available": false,
+  "migration_head": "0047_security_audit_positions",
+  "scope": "Bind the browser board, profiles and role to the current human, workspace selection incarnation and latest request; suppress stale delivery and callbacks without changing server authority or default actions.",
+  "clean_commands": [
+    { "command": "pnpm install --frozen-lockfile", "exit_code": 0 },
+    {
+      "command": "pnpm test:w03",
+      "exit_code": 0,
+      "unit_cases": 205,
+      "unit_files": 29,
+      "browser_cases": 85,
+      "scope": "Full selected web unit and shared synthetic browser suite, including both new rendered board regressions"
+    },
+    {
+      "command": "pnpm test:c11",
+      "exit_code": 0,
+      "c10_cases": 86,
+      "c10_files": 8,
+      "c10_d1_checks": 9,
+      "c08_cases": 23,
+      "c08_files": 5,
+      "c08_proof": "C08_D1_OK",
+      "stage_cases": 2317,
+      "stage_files": 81,
+      "stage_invocations": [
+        { "cases": 1861, "files": 64 },
+        { "cases": 68, "files": 3 },
+        { "cases": 27, "files": 2 },
+        { "cases": 54, "files": 2 },
+        { "cases": 41, "files": 3 },
+        { "cases": 31, "files": 3 },
+        { "cases": 235, "files": 4 }
+      ],
+      "stage_d1_checks": 79,
+      "stage_d1_harnesses": 8,
+      "notification_runtime": {
+        "proofs": ["C11_NOTIFICATION_IDENTITY_UPGRADE_OK", "X01_HARNESS_OK"],
+        "record_labels": 41,
+        "counting": "Repeated setup, dispatch and redaction labels are not 41 independent acceptance cases"
+      },
+      "go_race": "passed",
+      "counting": "Stage counts are invocation totals, not unique cases; dependencies, notification runtime, W03 and full verification are counted separately"
+    },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 4441,
+      "typescript_files": 197,
+      "go": "passed",
+      "go_scheduling": "GOFLAGS=-p=1",
+      "swift": "passed",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    {
+      "command": "pnpm worktree:check",
+      "exit_code": 0,
+      "before_and_after_verify": true,
+      "committed_source_unchanged": true,
+      "final_status_empty": true
+    }
+  ],
+  "slice_suites": {
+    "mounted_board_selection_cases": 19,
+    "browser_board_selection_cases": 2,
+    "local_focused_cases": 45,
+    "local_focused_files": 4
+  },
+  "regression_proof": [
+    "Before the correction, 15 of the original 18 mounted cases failed and three healthy/current-creation/unmount controls passed; two failures were unavailable-role display contracts, not independent security races",
+    "A separate healthy HTTP-200 response with a different human failed against the initial correction; the final source rejects it before installing any board or profiles",
+    "Workspace or human changes suppress the previous board, profiles and role immediately; A-to-B-to-A cannot revive the first A selection",
+    "Entry, HTTP and each body await, success, error and final loading updates share committed selection and newest-request guards",
+    "Late old creation callbacks cannot begin an old-scope read or select a task in the new scope; genuine current callbacks still refresh and select committed tasks",
+    "Current HTTP, network and body failures remove stale content and report unavailable role instead of cached membership authority; browser retry works with Enter",
+    "Picker and popstate workspace changes reset selected task and composer; an unmounted shell has no late completion effects",
+    "Rendered browser cases keep the current Reviewer role after a delayed prior Owner board, omit Owner-only navigation and retain one Open button plus one Details disclosure per task",
+    "Clean browser captures show current synthetic content in both existing themes; they are viewport captures, not proof that all below-fold controls are pictured"
+  ],
+  "browser_driver_repairs": [
+    "Three initial focused runs did not select a native picker option through headless popup key sequences, before the race assertions; these are test-driver failures, not production or privacy evidence",
+    "The final tests use the standard option-selection driver and separately prove selector focus and actual keyboard retry; native popup-key navigation remains uncertified"
+  ],
+  "activation_barriers": [
+    "GitHub key existence policy, execution-owned delivery and destructive private retention remain open",
+    "Natural credential or lease expiry during an in-flight D1 batch remains open",
+    "Private creation, creator sharing, author-private checkpoints and C12 remain unavailable or planned"
+  ],
+  "not_claimed": [
+    "Complete C11 acceptance, private activation or live private R2/browser-byte delivery",
+    "A second canonical server workspace or real cross-session browser identity race: secondary workspace presentation is explicitly intercepted synthetic data",
+    "Complete browser session lifetime or profile-transport identity certification, or native popup-key behavior",
+    "Live pilot/provider/installed-app operation, deployment, external CI, separate X01/X05 or G01 runtime acceptance",
+    "New knowledge, skill catalog, vault, reminder, publication or contribution features"
+  ],
+  "redaction": "Bounded synthetic counts, source identities and proof labels; no credentials, private bodies, raw output or local absolute paths"
+}

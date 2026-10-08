@@ -1,0 +1,175 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/launch-snapshot.json",
+  "title": "LaunchSnapshot",
+  "description": "Canonical hashable adapter inputs and policy ceilings without text or path authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "workspace_id",
+    "project_id",
+    "task_id",
+    "agent_profile_id",
+    "workspace_policy_version",
+    "project_policy_version",
+    "repository_config_version",
+    "agent_profile_version",
+    "snapshot_generation",
+    "physical_worktree_hash",
+    "repository_identity_hash",
+    "provider_manifest_id",
+    "provider_version",
+    "repository_config_hash",
+    "workspace_policy",
+    "project_policy",
+    "repository_policy",
+    "execution_config"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "workspace_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "project_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "task_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "agent_profile_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "workspace_policy_version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "project_policy_version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "repository_config_version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "agent_profile_version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "snapshot_generation": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "physical_worktree_hash": {
+      "$ref": "primitives.json#/$defs/Sha256Digest"
+    },
+    "repository_identity_hash": { "$ref": "primitives.json#/$defs/Sha256Digest" },
+    "provider_manifest_id": { "$ref": "primitives.json#/$defs/Sha256Digest" },
+    "provider_version": {
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "repository_config_hash": {
+      "$ref": "primitives.json#/$defs/Sha256Digest"
+    },
+    "workspace_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "allowed_providers",
+        "allow_agent_root_propose",
+        "allow_pass_to_agent",
+        "allow_run_overrides"
+      ],
+      "properties": {
+        "allowed_providers": {
+          "type": "array",
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "primitives.json#/$defs/ProviderName"
+          }
+        },
+        "allow_agent_root_propose": {
+          "type": "boolean"
+        },
+        "allow_pass_to_agent": {
+          "type": "boolean"
+        },
+        "allow_run_overrides": {
+          "type": "boolean"
+        }
+      }
+    },
+    "project_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "allowed_providers",
+        "allow_agent_root_propose",
+        "allow_pass_to_agent",
+        "allow_run_overrides"
+      ],
+      "properties": {
+        "allowed_providers": {
+          "type": "array",
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "primitives.json#/$defs/ProviderName"
+          }
+        },
+        "allow_agent_root_propose": {
+          "type": "boolean"
+        },
+        "allow_pass_to_agent": {
+          "type": "boolean"
+        },
+        "allow_run_overrides": {
+          "type": "boolean"
+        }
+      }
+    },
+    "repository_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "allowed_providers",
+        "allow_agent_root_propose",
+        "allow_pass_to_agent",
+        "allow_run_overrides"
+      ],
+      "properties": {
+        "allowed_providers": {
+          "type": "array",
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "primitives.json#/$defs/ProviderName"
+          }
+        },
+        "allow_agent_root_propose": {
+          "type": "boolean"
+        },
+        "allow_pass_to_agent": {
+          "type": "boolean"
+        },
+        "allow_run_overrides": {
+          "type": "boolean"
+        }
+      }
+    },
+    "execution_config": {
+      "$ref": "launch-specification.json#/$defs/ExecutionConfig"
+    }
+  }
+}

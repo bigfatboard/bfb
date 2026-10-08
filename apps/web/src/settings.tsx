@@ -26,16 +26,27 @@ interface AgentProfileRecord {
   model: string | null;
   execution_mode: "interactive" | "headless";
   harness_mode: "restricted" | "standard";
+  permission_mode: "manual" | "autonomous";
   resource_version: number;
 }
 
 interface WorkspacePolicy {
-  allowedProviders: Provider[];
+  allowedProviders: string[];
   allowAgentRootPropose: boolean;
   allowPassToAgent: boolean;
   allowRunOverrides: boolean;
+  offlineAgentWork: { allowed_tools: string[]; max_pending_age_seconds: number };
+  offlineAgentResults: { allow_submit_result: boolean; max_pending_age_seconds: number };
   resourceVersion: number;
 }
+
+const KNOWN_PROVIDERS = ["claude", "codex", "grok"] as const;
+const OFFLINE_AGENT_TOOLS = [
+  ["bfb_add_comment", "Comments"],
+  ["bfb_propose_task", "Task proposals"],
+  ["bfb_report_progress", "Progress reports"],
+  ["bfb_update_task", "Task title and summary edits"],
+] as const;
 
 export interface WorkspaceSettingsProps {
   workspaceId: string;
@@ -57,13 +68,53 @@ async function sha256Json(value: unknown): Promise<string> {
     .join("")}`;
 }
 
-async function responseError(response: Response): Promise<string> {
+export async function workspacePolicyStepUpTarget(
+  workspaceId: string,
+  expectedVersion: number,
+  settings: {
+    allowed_providers: string[];
+    allow_agent_root_propose: boolean;
+    allow_pass_to_agent: boolean;
+    allow_run_overrides: boolean;
+    offline_agent_work: WorkspacePolicy["offlineAgentWork"];
+    offline_agent_results: WorkspacePolicy["offlineAgentResults"];
+  },
+): Promise<string> {
+  return sha256Json([
+    "BFB-POLICY-UPDATE-V3",
+    "workspace.policy.update",
+    workspaceId,
+    null,
+    expectedVersion,
+    [...new Set(settings.allowed_providers)].sort(),
+    settings.allow_agent_root_propose,
+    settings.allow_pass_to_agent,
+    settings.allow_run_overrides,
+    [...new Set(settings.offline_agent_work.allowed_tools)].sort(),
+    settings.offline_agent_work.max_pending_age_seconds,
+    settings.offline_agent_results.allow_submit_result,
+    settings.offline_agent_results.max_pending_age_seconds,
+  ]);
+}
+
+export async function responseError(response: Response): Promise<string> {
   try {
-    const body = (await response.json()) as { message?: string; error?: string };
-    return body.message ?? body.error ?? `Request failed (${response.status})`;
-  } catch {
-    return `Request failed (${response.status})`;
-  }
+    const body: unknown = await response.json();
+    if (body && typeof body === "object") {
+      if ("message" in body && typeof body.message === "string") return body.message;
+      if ("error" in body) {
+        if (typeof body.error === "string") return body.error;
+        if (
+          body.error &&
+          typeof body.error === "object" &&
+          "message" in body.error &&
+          typeof body.error.message === "string"
+        )
+          return body.error.message;
+      }
+    }
+  } catch {}
+  return `Request failed (${response.status})`;
 }
 
 export function WorkspaceSettings(props: WorkspaceSettingsProps) {
@@ -75,6 +126,9 @@ export function WorkspaceSettings(props: WorkspaceSettingsProps) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  const providerOptions: string[] = policy
+    ? [...new Set([...KNOWN_PROVIDERS, ...policy.allowedProviders])]
+    : [...KNOWN_PROVIDERS];
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -249,7 +303,7 @@ export function WorkspaceSettings(props: WorkspaceSettingsProps) {
               <li key={profile.id}>
                 <div>
                   <strong>{profile.name}</strong>
-                  <span>{`${profile.provider} · ${profile.execution_mode} · ${profile.harness_mode}`}</span>
+                  <span>{`${profile.provider} · ${profile.execution_mode} · ${profile.harness_mode} · ${profile.permission_mode === "autonomous" ? "Autonomous — full local-user access" : "Manual permissions"}`}</span>
                   <code>{profile.model ?? "Provider default model"}</code>
                 </div>
               </li>
@@ -275,6 +329,7 @@ export function WorkspaceSettings(props: WorkspaceSettingsProps) {
                       model: String(form.get("model") ?? "") || undefined,
                       execution_mode: form.get("execution_mode"),
                       harness_mode: form.get("harness_mode"),
+                      permission_mode: form.get("permission_mode"),
                       request_id: requestId("web-profile"),
                     }),
                   }),
@@ -313,6 +368,23 @@ export function WorkspaceSettings(props: WorkspaceSettingsProps) {
                 <option value="restricted">Restricted</option>
               </select>
             </label>
+            <label>
+              Permission mode
+              <select
+                name="permission_mode"
+                defaultValue="manual"
+                aria-describedby="profile-permission-help"
+              >
+                <option value="manual">Manual permissions</option>
+                <option value="autonomous">Autonomous — full local-user access</option>
+              </select>
+            </label>
+            <p id="profile-permission-help">
+              Autonomous mode is available only for interactive, standard Claude profiles on a
+              supported runner. It skips provider permission prompts and can access files and tools
+              available to the local OS user, subject to OS and provider-managed restrictions. It is
+              not a workspace sandbox and does not grant deployment approval or BFB administration.
+            </p>
             <button type="submit" className="button-secondary" disabled={saving}>
               Add profile
             </button>
@@ -334,25 +406,37 @@ export function WorkspaceSettings(props: WorkspaceSettingsProps) {
               onSubmit={(event) => {
                 event.preventDefault();
                 const form = new FormData(event.currentTarget);
-                const allowedProviders = (["claude", "codex", "grok"] as const).filter(
+                const allowedProviders = providerOptions.filter(
                   (provider) => form.get(provider) === "on",
                 );
+                const offlineTools = OFFLINE_AGENT_TOOLS.filter(
+                  ([tool]) => form.get(tool) === "on",
+                ).map(([tool]) => tool);
                 const settings = {
                   allowed_providers: allowedProviders,
                   allow_agent_root_propose: form.get("allow_agent_root_propose") === "on",
                   allow_pass_to_agent: form.get("allow_pass_to_agent") === "on",
                   allow_run_overrides: form.get("allow_run_overrides") === "on",
+                  offline_agent_work: {
+                    allowed_tools: offlineTools,
+                    max_pending_age_seconds: offlineTools.length
+                      ? Number(form.get("offline_pending_age"))
+                      : 0,
+                  },
+                  offline_agent_results: {
+                    allow_submit_result: form.get("allow_offline_result") === "on",
+                    max_pending_age_seconds:
+                      form.get("allow_offline_result") === "on"
+                        ? Number(form.get("offline_result_pending_age"))
+                        : 0,
+                  },
                 };
                 void mutate(async () => {
-                  const targetId = await sha256Json([
-                    "workspace.policy.update",
-                    null,
+                  const targetId = await workspacePolicyStepUpTarget(
+                    props.workspaceId,
                     policy.resourceVersion,
-                    [...allowedProviders].sort(),
-                    settings.allow_agent_root_propose,
-                    settings.allow_pass_to_agent,
-                    settings.allow_run_overrides,
-                  ]);
+                    settings,
+                  );
                   const proofId = await requestStepUpProof(fetchFn, props.csrfToken, {
                     action: "workspace.policy.update",
                     workspaceId: props.workspaceId,
@@ -378,7 +462,7 @@ export function WorkspaceSettings(props: WorkspaceSettingsProps) {
             >
               <fieldset>
                 <legend>Allowed providers</legend>
-                {(["claude", "codex", "grok"] as const).map((provider) => (
+                {providerOptions.map((provider) => (
                   <label className="check-row" key={provider}>
                     <input
                       type="checkbox"
@@ -415,6 +499,62 @@ export function WorkspaceSettings(props: WorkspaceSettingsProps) {
                   />
                   Run overrides allowed
                 </label>
+              </fieldset>
+              <fieldset>
+                <legend>Offline agent-work ceiling</legend>
+                {OFFLINE_AGENT_TOOLS.map(([tool, label]) => (
+                  <label className="check-row" key={tool}>
+                    <input
+                      type="checkbox"
+                      name={tool}
+                      defaultChecked={policy.offlineAgentWork.allowed_tools.includes(tool)}
+                    />
+                    {label}
+                  </label>
+                ))}
+                <label>
+                  Maximum pending age (seconds)
+                  <input
+                    type="number"
+                    name="offline_pending_age"
+                    min="1"
+                    max="300"
+                    step="1"
+                    required
+                    defaultValue={policy.offlineAgentWork.max_pending_age_seconds || 300}
+                  />
+                </label>
+                <p className="section-help">
+                  Denied when no tools are selected. Projects and repository versions must
+                  explicitly allow a subset; this ceiling alone does not permit capture or replay.
+                </p>
+              </fieldset>
+              <fieldset>
+                <legend>Offline result-submission ceiling</legend>
+                <label className="check-row">
+                  <input
+                    type="checkbox"
+                    name="allow_offline_result"
+                    defaultChecked={policy.offlineAgentResults.allow_submit_result}
+                  />
+                  Allow pending result submissions
+                </label>
+                <label>
+                  Maximum pending result age (seconds)
+                  <input
+                    type="number"
+                    name="offline_result_pending_age"
+                    min="1"
+                    max="300"
+                    step="1"
+                    required
+                    defaultValue={policy.offlineAgentResults.max_pending_age_seconds || 300}
+                  />
+                </label>
+                <p className="section-help">
+                  Separate from task updates. Projects and repository versions must also explicitly
+                  allow results. Pending means stored locally, not submitted for review.
+                </p>
               </fieldset>
               <p className="section-help">
                 Saving invokes a user-verifying passkey assertion bound to this exact policy version

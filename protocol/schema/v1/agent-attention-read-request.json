@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/agent-attention-read-request.json",
+  "title": "AgentAttentionReadRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["reference", "attention_id"],
+  "properties": {
+    "reference": {
+      "$ref": "agent-work-request.json"
+    },
+    "attention_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "binding": {
+      "$ref": "agent-session-reference.json"
+    }
+  }
+}

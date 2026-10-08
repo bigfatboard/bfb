@@ -1,7 +1,7 @@
 // ABOUTME: Drives strict authenticated MCP requests through the real stateless SDK handler.
 // ABOUTME: Routing metadata, body envelopes, delegation boundaries, and mutations fail closed.
 
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FIX } from "../../../packages/domain/src/fixtures.js";
 import { WorkspaceHub } from "../../../packages/domain/src/hub.js";
@@ -20,6 +20,12 @@ const handlerEnv = {
   now: "2026-08-07T12:01:00.000Z",
 };
 
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(handlerEnv.now));
+});
+afterEach(() => vi.useRealTimers());
+
 describe("mcp handler", () => {
   it("requires bearer auth for discovery and rejects browser cookies", async () => {
     const db = await openDomainDb();
@@ -36,7 +42,7 @@ describe("mcp handler", () => {
     expect(await cookie.json()).toEqual({ error: "credential_confusion" });
   });
 
-  it("lists exactly seven tools for an active delegation", async () => {
+  it("lists exactly fourteen tools for an active delegation", async () => {
     const db = await openDomainDb();
     const { accessToken } = await issueSyntheticMcpAccess(db);
     const response = await request(db, "tools/list", undefined, {}, accessToken);
@@ -51,7 +57,14 @@ describe("mcp handler", () => {
       "bfb_get_context",
       "bfb_add_comment",
       "bfb_report_progress",
+      "bfb_get_private_progress",
+      "bfb_report_private_progress",
       "bfb_propose_task",
+      "bfb_request_human",
+      "bfb_get_attention",
+      "bfb_submit_result",
+      "bfb_publish_artifact",
+      "bfb_finalize_artifact",
     ]);
   });
 
@@ -142,6 +155,37 @@ describe("mcp handler", () => {
       "Mcp-Session-Id": "forbidden-session",
     });
     expect(session.status).not.toBe(200);
+  });
+
+  it("rejects oversized chunked bodies without buffering them fully", async () => {
+    const db = await openDomainDb();
+    const { accessToken } = await issueSyntheticMcpAccess(db);
+    const totalBytes = 4_000_000;
+    const chunkBytes = 16_384;
+    let pulledBytes = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (pulledBytes >= totalBytes) {
+          controller.close();
+          return;
+        }
+        const size = Math.min(chunkBytes, totalBytes - pulledBytes);
+        pulledBytes += size;
+        controller.enqueue(new Uint8Array(size));
+      },
+    });
+    const response = await handleMcpRequest(
+      new Request("https://bfb.example.test/mcp", {
+        method: "POST",
+        headers: headers("tools/list", undefined, accessToken),
+        body,
+        duplex: "half",
+      } as RequestInit),
+      { db, ...handlerEnv },
+    );
+    expect(response.status).toBe(413);
+    // Buffering the whole body first would pull all four megabytes.
+    expect(pulledBytes).toBeLessThanOrEqual(65_536 * 2);
   });
 
   it("proposes tasks and keeps discussion and progress idempotent", async () => {
@@ -243,7 +287,16 @@ describe("mcp handler", () => {
       now: "2026-08-07T12:00:00.000Z",
       input: { taskId: taskA, kind: "constraint", audience: "agent", body: "Agent input" },
     });
-    const { accessToken } = await issueSyntheticMcpAccess(db, { projectId: FIX.projectA });
+    const clock = (await db
+      .prepare(
+        "SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now') AS observed_at, strftime('%Y-%m-%dT%H:%M:%fZ','now','+10 minutes') AS expires_at",
+      )
+      .get()) as { observed_at: string; expires_at: string };
+    const { accessToken } = await issueSyntheticMcpAccess(db, {
+      projectId: FIX.projectA,
+      now: clock.observed_at,
+      expiresAt: clock.expires_at,
+    });
 
     const projects = (await call(db, accessToken, "bfb_list_projects", {})) as {
       projects: Array<{ id: string }>;
@@ -337,7 +390,12 @@ async function call(
   const response = await request(db, "tools/call", name, args, accessToken);
   expect(response.status).toBe(200);
   const body = (await response.json()) as { result: { content: Array<{ text: string }> } };
-  return JSON.parse(body.result.content[0]!.text) as unknown;
+  const outcome = JSON.parse(body.result.content[0]!.text) as { ok?: boolean };
+  if (typeof outcome.ok === "boolean")
+    expect(Object.keys(outcome).sort()).toEqual(
+      outcome.ok ? ["ok", "replayed", "result"] : ["error", "ok"],
+    );
+  return outcome;
 }
 
 function request(

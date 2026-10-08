@@ -70,6 +70,93 @@ export async function issueStepUpProof(
   return proofId;
 }
 
+/** Read-only validation for commands that consume the proof in their own guarded hub batch. */
+export async function validateStepUpProof(
+  db: SqlDatabase,
+  proofId: string,
+  expected: StepUpAction,
+  nowIso: string,
+  humanId?: string,
+): Promise<void> {
+  const row = (await db
+    .prepare(`SELECT * FROM passkey_step_up_proofs WHERE proof_id = ?`)
+    .get(proofId)) as
+    | {
+        human_id: string;
+        action: string;
+        client_id: string | null;
+        resource: string | null;
+        boundary_json: string;
+        scopes_json: string;
+        authorization_epoch: number;
+        expires_at: string;
+        created_at: string;
+        consumed_at: string | null;
+      }
+    | undefined;
+  if (!row) {
+    throw new DomainError("step_up_invalid", "proof not found");
+  }
+  if (row.consumed_at) {
+    throw new DomainError("step_up_replayed", "proof already consumed");
+  }
+  const now = Date.parse(nowIso);
+  const issued = Date.parse(row.created_at);
+  const expiry = Date.parse(row.expires_at);
+  if (
+    !Number.isFinite(now) ||
+    !Number.isFinite(issued) ||
+    !Number.isFinite(expiry) ||
+    issued > now ||
+    expiry - issued > STEP_UP_MAX_TTL_SECONDS * 1000
+  ) {
+    throw new DomainError("step_up_stale", "proof time boundary is invalid");
+  }
+  if (Date.parse(row.expires_at) <= Date.parse(nowIso)) {
+    throw new DomainError("step_up_stale", "proof expired");
+  }
+  if (humanId && row.human_id !== humanId) {
+    throw new DomainError("step_up_mismatch", "human mismatch");
+  }
+  if (row.action !== expected.action) {
+    throw new DomainError("step_up_mismatch", "action mismatch");
+  }
+  if ((row.client_id ?? undefined) !== expected.clientId) {
+    throw new DomainError("step_up_mismatch", "client mismatch");
+  }
+  if ((row.resource ?? undefined) !== expected.resource) {
+    throw new DomainError("step_up_mismatch", "resource mismatch");
+  }
+  if (row.authorization_epoch !== expected.authorizationEpoch) {
+    throw new DomainError("step_up_mismatch", "epoch mismatch");
+  }
+  if (row.expires_at !== expected.expiresAt) {
+    throw new DomainError("step_up_mismatch", "expiry mismatch");
+  }
+  const boundary = JSON.parse(row.boundary_json) as {
+    workspaceId: string | null;
+    projectId: string | null;
+    taskId: string | null;
+    targetId?: string | null;
+  };
+  if ((boundary.workspaceId ?? undefined) !== expected.workspaceId) {
+    throw new DomainError("step_up_mismatch", "workspace mismatch");
+  }
+  if ((boundary.projectId ?? undefined) !== expected.projectId) {
+    throw new DomainError("step_up_mismatch", "project mismatch");
+  }
+  if ((boundary.taskId ?? undefined) !== expected.taskId) {
+    throw new DomainError("step_up_mismatch", "task mismatch");
+  }
+  if ((boundary.targetId ?? undefined) !== expected.targetId) {
+    throw new DomainError("step_up_mismatch", "target mismatch");
+  }
+  const scopes = JSON.parse(row.scopes_json) as string[];
+  if (JSON.stringify(scopes) !== JSON.stringify([...expected.scopes].sort())) {
+    throw new DomainError("step_up_mismatch", "scope mismatch");
+  }
+}
+
 export async function consumeStepUpProof(
   db: SqlDatabase,
   proofId: string,
@@ -82,70 +169,7 @@ export async function consumeStepUpProof(
   // conditional UPDATE winner without relying on a pre-commit change count.
   const consumeStamp = `${nowIso}#${randomUlid()}`;
   await db.withTransaction(async (tx) => {
-    const row = (await tx
-      .prepare(`SELECT * FROM passkey_step_up_proofs WHERE proof_id = ?`)
-      .get(proofId)) as
-      | {
-          human_id: string;
-          action: string;
-          client_id: string | null;
-          resource: string | null;
-          boundary_json: string;
-          scopes_json: string;
-          authorization_epoch: number;
-          expires_at: string;
-          consumed_at: string | null;
-        }
-      | undefined;
-    if (!row) {
-      throw new DomainError("step_up_invalid", "proof not found");
-    }
-    if (row.consumed_at) {
-      throw new DomainError("step_up_replayed", "proof already consumed");
-    }
-    if (Date.parse(row.expires_at) <= Date.parse(nowIso)) {
-      throw new DomainError("step_up_stale", "proof expired");
-    }
-    if (humanId && row.human_id !== humanId) {
-      throw new DomainError("step_up_mismatch", "human mismatch");
-    }
-    if (row.action !== expected.action) {
-      throw new DomainError("step_up_mismatch", "action mismatch");
-    }
-    if ((row.client_id ?? undefined) !== expected.clientId) {
-      throw new DomainError("step_up_mismatch", "client mismatch");
-    }
-    if ((row.resource ?? undefined) !== expected.resource) {
-      throw new DomainError("step_up_mismatch", "resource mismatch");
-    }
-    if (row.authorization_epoch !== expected.authorizationEpoch) {
-      throw new DomainError("step_up_mismatch", "epoch mismatch");
-    }
-    if (row.expires_at !== expected.expiresAt) {
-      throw new DomainError("step_up_mismatch", "expiry mismatch");
-    }
-    const boundary = JSON.parse(row.boundary_json) as {
-      workspaceId: string | null;
-      projectId: string | null;
-      taskId: string | null;
-      targetId?: string | null;
-    };
-    if ((boundary.workspaceId ?? undefined) !== expected.workspaceId) {
-      throw new DomainError("step_up_mismatch", "workspace mismatch");
-    }
-    if ((boundary.projectId ?? undefined) !== expected.projectId) {
-      throw new DomainError("step_up_mismatch", "project mismatch");
-    }
-    if ((boundary.taskId ?? undefined) !== expected.taskId) {
-      throw new DomainError("step_up_mismatch", "task mismatch");
-    }
-    if ((boundary.targetId ?? undefined) !== expected.targetId) {
-      throw new DomainError("step_up_mismatch", "target mismatch");
-    }
-    const scopes = JSON.parse(row.scopes_json) as string[];
-    if (JSON.stringify(scopes) !== JSON.stringify([...expected.scopes].sort())) {
-      throw new DomainError("step_up_mismatch", "scope mismatch");
-    }
+    await validateStepUpProof(tx, proofId, expected, nowIso, humanId);
     // Unique stamp so concurrent D1 batch consumers can detect which UPDATE won.
     // Only the winner's stamp is visible post-commit; losers fail closed.
     await tx

@@ -1,0 +1,203 @@
+{
+  "package": "C11",
+  "recorded_on": "2026-10-07",
+  "tested_commit": "61cb5ae4ae809b061a90b2b1acc061d7991062bc",
+  "production_commit": "1f5879c8bd95329b928253a0bff2581cdd1472e2",
+  "outcome": "passed",
+  "stage": "partial_human_detail_cached_business_delivery",
+  "package_acceptance_complete": false,
+  "private_creation_available": false,
+  "migration_head": "0047_security_audit_positions",
+  "scope": "Browser/CLI attention detail selects canonical body and ordered observations together. Cached task create/update, human answer/resolve and delegated request replies repeat retained current business authority at their final selection, preserving historical result fields and parent masking.",
+  "clean_commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "exit_code": 0
+    },
+    {
+      "command": "pnpm test:c11",
+      "exit_code": 0,
+      "c10_cases": 86,
+      "c10_files": 8,
+      "c10_d1_checks": 9,
+      "c08_cases": 23,
+      "c08_files": 5,
+      "c08_proof": "C08_D1_OK",
+      "stage_cases": 2527,
+      "stage_files": 97,
+      "stage_invocations": [
+        {
+          "cases": 1861,
+          "files": 64
+        },
+        {
+          "cases": 4,
+          "files": 2
+        },
+        {
+          "cases": 23,
+          "files": 2
+        },
+        {
+          "cases": 18,
+          "files": 2
+        },
+        {
+          "cases": 31,
+          "files": 2
+        },
+        {
+          "cases": 34,
+          "files": 2
+        },
+        {
+          "cases": 32,
+          "files": 2
+        },
+        {
+          "cases": 36,
+          "files": 2
+        },
+        {
+          "cases": 32,
+          "files": 2
+        },
+        {
+          "cases": 68,
+          "files": 3
+        },
+        {
+          "cases": 27,
+          "files": 2
+        },
+        {
+          "cases": 54,
+          "files": 2
+        },
+        {
+          "cases": 41,
+          "files": 3
+        },
+        {
+          "cases": 31,
+          "files": 3
+        },
+        {
+          "cases": 235,
+          "files": 4
+        }
+      ],
+      "stage_d1_checks": 200,
+      "stage_d1_harnesses": 15,
+      "notification_runtime": {
+        "proofs": ["C11_NOTIFICATION_IDENTITY_UPGRADE_OK", "X01_HARNESS_OK"],
+        "record_labels": 41,
+        "counting": "Setup and repeated dispatch/redaction labels are not independent acceptance cases"
+      },
+      "go_race": "passed",
+      "counting": "Stage totals count invocations, not unique cases; dependencies, notification runtime, X03 and full verification are separate"
+    },
+    {
+      "command": "pnpm test:x03",
+      "exit_code": 0,
+      "unit_cases": 71,
+      "unit_files": 7,
+      "worker_d1_r2_checks": 11,
+      "browser_cases": 2,
+      "provider_started": false,
+      "persistent_pilot_changed": false
+    },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 4651,
+      "typescript_files": 213,
+      "go": "passed",
+      "go_scheduling": "GOFLAGS=-p=1",
+      "swift": "passed",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    {
+      "command": "pnpm worktree:check",
+      "exit_code": 0,
+      "before_and_after_verify": true,
+      "committed_source_unchanged": true,
+      "final_status_empty": true
+    }
+  ],
+  "slice_suites": {
+    "composed_once_by_c11": true,
+    "domain_cases": 20,
+    "authenticated_mounted_browser_cli_cases": 12,
+    "native_d1_groups": 19,
+    "maximum_bindings": 30,
+    "maximum_statement_bytes": 6948,
+    "witnessed_detail_selections": 5,
+    "all_detail_selections_fused": true,
+    "witnessed_cache_seams": 14,
+    "all_cache_seams_after_saved_result_and_independent_change": true
+  },
+  "old_source_probe": {
+    "production_commit": "c34ce6529549d790b4b3e4982d791e672da19d54",
+    "production_runtime_unfixed": true,
+    "focused_cases": 32,
+    "focused_failed": 23,
+    "focused_passed": 9,
+    "cached_unauthorized_body_exposures": 14,
+    "detail_unauthorized_body_exposures": 5,
+    "stale_canonical_answers": 2,
+    "synthetic_lineage_robustness_failures": 1,
+    "browser_header_failures": 1,
+    "expected_exit_code": 1,
+    "status": "Final 20-domain/12-mounted suites were replayed on committed unfixed source and its separately built runtime before fixed runtime execution. Bounded shapes witness successful unauthorized business bodies. Nineteen authority disclosures, two stale answers, one synthetic lineage robustness failure and one header failure are distinct; nine controls pass. This is not old-source clean package acceptance.",
+    "initial_native_probe": {
+      "groups": 2,
+      "passed": 1,
+      "failed": 1,
+      "unauthorized_attention_body": 1,
+      "unauthorized_response_status": 200,
+      "observations_count": 0,
+      "expanded_nineteen_groups_replayed": false
+    }
+  },
+  "regression_proof": [
+    "Canonical browser/CLI detail and ordered observations share final membership/epoch, project and task read authority; empty history is distinct from missing/denied parents",
+    "Current answers, read-only roles and answered/resolved ended history remain readable with no business or observation effects",
+    "Captured projects remain restrictions and cannot adopt a newly granted project; browser replies retain no-store/no-referrer matching CLI",
+    "Cached task fields, versions and cursor stay historical; current read/edit and Owner/Member ceilings guard the target while historical unreadable parents are masked in the same statement",
+    "Human answer/resolve retries require current contribution and current kind role; read-only replacement grants cannot authorize cached contributions",
+    "Delegated request retries repeat exact original credential/client/nullable boundaries, all-string write scope, current sponsor/epoch/project/contribution and strict SQL-clock expiry",
+    "Reviewer, write-only and ended historical assignment retries remain valid without active execution/lease requirements or fresh transition/version checks",
+    "Complete canonical business/OAuth and cursor snapshots remain unchanged by reads/replays after independently committed mutations"
+  ],
+  "proof_boundaries": [
+    "compiled existing attention API mounted with synthetic pre-authenticated BrowserPrincipal; not real cookie or CLI ingress",
+    "disposable native D1 and genuine Hub task/run/attention setup; dormant private ACL and immutable waiter fixtures",
+    "cache proof mounts production WorkspaceHub and commands over native D1 after authorization; not HTTP credential ingress or fresh post-Hub delivery",
+    "no runner/provider operation, later delivery, private activation or complete C11 claim",
+    "Request-lifetime command state captures the business authorizer's authority, not an original transport envelope that changed before Hub admission",
+    "Temporal authority ends at final selection, followed by synchronous serialization without another advisory await",
+    "Some native collecting groups loop several mutations; group/seam counts are not unique case or exposure totals"
+  ],
+  "fixture_repair": "The first clean C11 attempt failed one existing healthy cached-update test whose fake JavaScript Date did not freeze SQLite now. Only its credential issuance call was switched to the existing SQL-relative helper, preserving scopes, boundaries and assertions. All 35 existing cases and the fresh committed clean certificate pass; production clocks/expiry guards were unchanged.",
+  "excluded_preliminary_probes": [
+    "Initial outer-only cache wrapper missed the Hub transaction and was not a production race",
+    "The corrected wrapper initially called revokeDelegation with the wrong signature, causing fixture command failure",
+    "A preliminary CLI fixture used inadmissible Reviewer credential setup and was repaired before the mounted probe",
+    "Native draft clock/state/callback assertions were corrected before execution; no draft failure is counted as a witness"
+  ],
+  "activation_barriers": [
+    "Remaining public task-business command caches/fresh replies, original transport admission ceilings and CLI binding lifetime/subset enforcement require one cohesive delivery-completion pass",
+    "GitHub collision policy, execution-owned private consumers and destructive private retention remain open",
+    "Private creation, creator sharing, inherited private children, author-private checkpoints and C12 remain unavailable or planned"
+  ],
+  "not_claimed": [
+    "Complete public task-business response delivery, authority after final selection, CLI binding revocation/scope/subset changes, fresh command response delivery or full private activation",
+    "Original transport credential ceilings before Hub admission, provider/run capability or runner/local lease expiry",
+    "Rollback of independently committed authority changes or fresh commands; read/replay denial creates no effects",
+    "Live private R2/browser bytes, installed app, provider execution, persistent pilot, deployment or external CI",
+    "Fresh W03 visual acceptance, publication, canonical project knowledge, skills, vault, reminders or contribution views"
+  ],
+  "redaction": "Bounded counts and synthetic outcomes only; raw logs, credentials, private content and local paths are not committed"
+}

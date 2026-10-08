@@ -1,0 +1,61 @@
+// ABOUTME: Serializes bounded deterministic projections from the isolated measurement harness.
+// ABOUTME: Rejects volatile identities, security clocks and private bodies from committed evidence.
+
+import assert from "node:assert/strict";
+
+export const EXPECTED_RUNTIME_SNAPSHOTS = {
+  migration: { preserved_task: true, tables: 5 },
+  claim: { state: "claimed", execution_assigned: true },
+  fixtures: { normalized: 3 },
+  tokens: { stored: 3, duplicate_replays: 1, conflicts: 1 },
+  intervals: { stored: 2, union_ms: 180_000 },
+  derivation: {
+    launch_latency_ms: 30_000,
+    active_ms: 50_000,
+    process_elapsed_ms: 330_000,
+    offline_ms: 230_000,
+    attention_wait_ms: 0,
+    external_wait_ms: 180_000,
+    exact_input: 1_000_000,
+    estimated_input: 100,
+    unavailable: 1,
+  },
+  prices: { current_usd: 4.5, historical_usd: 6, unknown_model: "unknown_model" },
+  review_timer: {
+    observations: 2,
+    stopped_total_ms: 240_000,
+    fixed_arithmetic_fact: true,
+  },
+  browser_activity: { capped: true, stored_ms: 300_000 },
+  aggregation: { cells: 1, runs: 1, provider: "fake" },
+  token_facts: { rows: 3, exact_input: 1_000_000 },
+  current_human_loop: {
+    canonical_binding: true,
+    attention_before_execution_end: true,
+    answered_requests: 1,
+    immutable_submissions: 1,
+    human_acceptance: true,
+    fixed_calculation_clock_separate: true,
+    current_review_timer_clock: true,
+    current_attention_clock: true,
+    double_start_rejected: true,
+    foreign_stop_rejected: true,
+  },
+  redaction: { private_bodies_absent: true },
+} as const;
+
+export const RUNTIME_EVIDENCE_SCOPE = {
+  calculation: "isolated_fixed_date_observations_and_read_time_arithmetic",
+  human_loop: "current_clock_canonical_a02_binding_and_a03_human_review",
+  native_delivery: "separate_compiled_signed_hook_journal_upload_proof",
+  historical_artifacts: "retained_without_regeneration_or_recertification",
+} as const;
+
+export function serializeRuntimeSnapshots(snapshots: Record<string, unknown>): string {
+  assert.deepEqual(
+    snapshots,
+    EXPECTED_RUNTIME_SNAPSHOTS,
+    "unexpected measurement evidence projection",
+  );
+  return `${JSON.stringify({ scope: RUNTIME_EVIDENCE_SCOPE, snapshots }, null, 2)}\n`;
+}

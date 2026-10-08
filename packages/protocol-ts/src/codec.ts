@@ -57,6 +57,7 @@ interface NumericObservation extends NumericInspection {
   holder: object;
   key: string;
   path?: string;
+  source?: string;
 }
 
 function exceedsMaximumInteger(digits: string): boolean {
@@ -112,6 +113,73 @@ function numericSourceInspection(source: string): NumericInspection {
     return { failure: "unsafe", integer: "out_of_range" };
   }
   return { integer: negative ? "-" + integerDigits : integerDigits };
+}
+
+// Only explicitly named progress paths can carry these bounded decimals.
+function progressDecimalPrefix(document: WireDocumentName, value: unknown): string | undefined {
+  if (document === "agent-progress-request") return "";
+  if (document === "agent-progress-local-request") return "/request";
+  if (document === "agent-work-replay-request" && value && typeof value === "object") {
+    if ((value as Record<string, unknown>).command_name === "agent_run.progress")
+      return "/original_request";
+  }
+  if (
+    (document === "local-agent-rpc" || document === "local-agent-work-rpc") &&
+    value &&
+    typeof value === "object"
+  ) {
+    const root = value as Record<string, unknown>;
+    if (
+      root.schema_version === (document === "local-agent-work-rpc" ? 3 : 2) &&
+      root.direction === "request" &&
+      root.method ===
+        (document === "local-agent-work-rpc" ? "mcp.v3.report_progress" : "mcp.v2.report_progress")
+    )
+      return "/payload/agent_progress_request/request";
+  }
+  return undefined;
+}
+
+function boundedProgressDecimal(source: string, ceiling: string): boolean {
+  const match = /^(-?)(0|[1-9]\d*)(?:\.(\d+))?(?:[eE]([+-]?)(\d+))?$/u.exec(source);
+  if (!match) return false;
+  const fraction = match[3] ?? "";
+  const coefficient = (match[2] + fraction).replace(/^0+/u, "");
+  if (coefficient.length === 0) return true;
+  if (match[1] === "-") return false;
+  const exponentDigits = (match[5] ?? "0").replace(/^0+/u, "") || "0";
+  if (exponentDigits.length > 9) return false;
+  const exponent = Number(exponentDigits) * (match[4] === "-" ? -1 : 1);
+  const point = coefficient.length + exponent - fraction.length;
+  if (point > ceiling.length) return false;
+  if (point === ceiling.length) {
+    const leading = coefficient.slice(0, point).padEnd(point, "0");
+    if (leading > ceiling || (leading === ceiling && /[1-9]/u.test(coefficient.slice(point))))
+      return false;
+  }
+  const value = Number(source);
+  return Number.isFinite(value) && value !== 0;
+}
+
+function inspectProgressDecimals(
+  document: WireDocumentName,
+  value: unknown,
+  observations: NumericObservation[],
+): void {
+  const prefix = progressDecimalPrefix(document, value);
+  if (prefix === undefined) return;
+  for (const observation of observations) {
+    const ceiling =
+      observation.path === prefix + "/percent"
+        ? "100"
+        : observation.path === prefix + "/confidence"
+          ? "1"
+          : undefined;
+    if (ceiling === undefined || observation.source === undefined) continue;
+    if (boundedProgressDecimal(observation.source, ceiling)) delete observation.failure;
+    else observation.failure = "unsafe";
+    delete observation.integer;
+  }
 }
 
 function valueNumericFailure(
@@ -198,6 +266,11 @@ function diagnosticRank(error: TypedError): number {
     case "schema_invalid":
     case "authoritative_runner_claim":
       return 50;
+    case "operation_failed":
+    case "authorization_denied":
+    case "unavailable":
+    case "conflict":
+      return 60;
   }
 }
 
@@ -583,7 +656,21 @@ function categorize(
   }
 
   if (data && data.schema_version !== undefined) {
-    if (rootVersion?.integer !== undefined && rootVersion.integer !== "1") {
+    const expectedVersion =
+      document === "local-agent-artifact-rpc"
+        ? 6
+        : document === "local-agent-result-rpc"
+          ? 5
+          : document === "local-agent-attention-rpc"
+            ? 4
+            : document === "local-agent-work-rpc"
+              ? 3
+              : document === "local-agent-rpc" ||
+                  document === "runner-telemetry-submission" ||
+                  document === "checkout-root-lease-observation"
+                ? 2
+                : 1;
+    if (rootVersion?.integer !== undefined && rootVersion.integer !== String(expectedVersion)) {
       return {
         schema_version: 1,
         category: "unknown_version",
@@ -593,7 +680,12 @@ function categorize(
       };
     }
     const version = data.schema_version;
-    if (!rootVersion && typeof version === "number" && Number.isInteger(version) && version !== 1) {
+    if (
+      !rootVersion &&
+      typeof version === "number" &&
+      Number.isInteger(version) &&
+      version !== expectedVersion
+    ) {
       return {
         schema_version: 1,
         category: "unknown_version",
@@ -728,6 +820,15 @@ function categorize(
         path: error.instancePath,
       };
     }
+    if (error.keyword === "const") {
+      return {
+        schema_version: 1,
+        category: "type_mismatch",
+        code: "const",
+        message: "value does not match required constant",
+        ...(error.instancePath ? { path: error.instancePath } : {}),
+      };
+    }
     if (error.keyword === "uniqueItems") {
       const uniqueError: TypedError = {
         schema_version: 1,
@@ -843,7 +944,7 @@ function categorize(
   };
 }
 
-function stableStringify(value: unknown): string {
+function stableStringify(value: unknown, escapeSeparators = true): string {
   let encoded: string | undefined;
   try {
     encoded = JSON.stringify(value, (_key, nested) => {
@@ -863,14 +964,139 @@ function stableStringify(value: unknown): string {
   if (encoded === undefined) {
     throw new Error("wire value is not JSON encodable");
   }
-  return encoded.replaceAll("\u2028", "\\u2028").replaceAll("\u2029", "\\u2029");
+  return escapeSeparators
+    ? encoded.replaceAll("\u2028", "\\u2028").replaceAll("\u2029", "\\u2029")
+    : encoded;
+}
+
+const captureByteLimits: Partial<Record<WireDocumentName, number>> = {
+  "agent-artifact-request": 4_096,
+  "agent-artifact-local-request": 12_288,
+  "agent-artifact-prepare-result": 4_096,
+  "agent-artifact-result": 2_048,
+  "local-agent-artifact-rpc": 16_384,
+  "runner-telemetry-submission": 8_192,
+  "runner-event-capabilities": 256,
+  "runner-event-ingest-result": 65_536,
+  "agent-result-request": 32_768,
+  "agent-result-local-request": 49_152,
+  "agent-result-result": 16_384,
+  "agent-result-confirmation-request": 2_048,
+  "agent-result-confirmation-result": 4_096,
+  "agent-result-capture": 8_192,
+  "agent-result-replay-request": 49_152,
+  "agent-result-receipt": 2_048,
+  "local-agent-result-rpc": 65_536,
+  "agent-capture-confirmation-request": 2_048,
+  "agent-capture-confirmation-result": 4_096,
+  "agent-work-capture": 8_192,
+  "agent-work-replay-request": 32_768,
+  "agent-work-receipt": 2_048,
+  "local-agent-work-rpc": 65_536,
+  "agent-attention-request": 16_384,
+  "agent-attention-read-request": 16_384,
+  "agent-attention-local-request": 32_768,
+  "agent-attention-read-local-request": 32_768,
+  "agent-attention-record": 32_768,
+  "agent-attention-result": 32_768,
+  "local-agent-attention-rpc": 65_536,
+};
+
+function wireByteLimit(document: WireDocumentName): number {
+  return captureByteLimits[document] ?? maximumWireBytes;
+}
+
+function captureDocumentBound(
+  document: WireDocumentName,
+  value: unknown,
+  json: string,
+): TypedError | undefined {
+  if (captureByteLimits[document] === undefined) return undefined;
+  const encoder = new TextEncoder();
+  const bounded = (item: unknown, maximum: number) =>
+    encoder.encode(stableStringify(item)).byteLength <= maximum;
+  const root = value as Record<string, unknown>;
+  const captureBounded = (capture: unknown, domain = "BFB-AGENT-WORK-CAPTURE-V1"): boolean => {
+    const record = capture as Record<string, unknown>;
+    const { signature: _signature, ...unsigned } = record;
+    const transcript = domain + "\n" + stableStringify(unsigned) + "\n";
+    return (
+      bounded(record, 8_192) &&
+      bounded(record.confirmation, 4_096) &&
+      encoder.encode(transcript).byteLength <= 8_192
+    );
+  };
+  let valid = encoder.encode(json).byteLength <= wireByteLimit(document);
+  if (document === "local-agent-artifact-rpc") {
+    valid &&= encoder.encode(json).byteLength + 1 <= 16_384;
+    const payload = root.payload as Record<string, unknown> | undefined;
+    if (payload?.agent_artifact_request) valid &&= bounded(payload.agent_artifact_request, 12_288);
+    if (payload?.agent_artifact) valid &&= bounded(payload.agent_artifact, 2_048);
+  }
+  if (document === "agent-result-local-request") valid &&= bounded(root.request, 32_768);
+  if (document === "agent-result-capture")
+    valid &&= captureBounded(root, "BFB-AGENT-RESULT-CAPTURE-V1");
+  if (document === "agent-result-replay-request")
+    valid &&=
+      captureBounded(root.capture, "BFB-AGENT-RESULT-CAPTURE-V1") &&
+      bounded(root.original_request, 32_768);
+  if (document === "local-agent-result-rpc") {
+    valid &&= encoder.encode(json).byteLength + 1 <= 65_536;
+    const payload = root.payload as Record<string, unknown> | undefined;
+    if (payload?.agent_result_receipt) valid &&= bounded(payload.agent_result_receipt, 2_048);
+    if (payload?.agent_result) valid &&= bounded(payload.agent_result, 16_384);
+    const local = payload?.agent_result_request as Record<string, unknown> | undefined;
+    if (local) valid &&= bounded(local, 49_152) && bounded(local.request, 32_768);
+  }
+  if (document === "agent-work-capture") valid &&= captureBounded(root);
+  if (document === "agent-work-replay-request") {
+    valid &&= captureBounded(root.capture) && bounded(root.original_request, 16_384);
+  }
+  if (document === "local-agent-work-rpc") {
+    // A complete UDS frame includes its trailing newline.
+    valid &&= encoder.encode(json).byteLength + 1 <= 65_536;
+    const payload = root.payload as Record<string, unknown> | undefined;
+    if (payload?.agent_work_receipt) valid &&= bounded(payload.agent_work_receipt, 2_048);
+    for (const field of [
+      "agent_comment_request",
+      "agent_update_request",
+      "agent_progress_request",
+      "agent_proposal_request",
+    ]) {
+      const local = payload?.[field] as Record<string, unknown> | undefined;
+      if (local) valid &&= bounded(local.request, 16_384);
+    }
+  }
+  if (
+    document === "agent-attention-local-request" ||
+    document === "agent-attention-read-local-request"
+  ) {
+    valid &&= bounded(root.request, 16_384);
+  }
+  if (document === "local-agent-attention-rpc") {
+    valid &&= encoder.encode(json).byteLength + 1 <= 65_536;
+    const payload = root.payload as Record<string, unknown> | undefined;
+    if (payload?.agent_attention) valid &&= bounded(payload.agent_attention, 32_768);
+    for (const field of ["agent_attention_request", "agent_attention_read_request"]) {
+      const local = payload?.[field] as Record<string, unknown> | undefined;
+      if (local) valid &&= bounded(local, 32_768) && bounded(local.request, 16_384);
+    }
+  }
+  return valid
+    ? undefined
+    : {
+        schema_version: 1,
+        category: "bound_exceeded",
+        code: "max_bytes",
+        message: "wire document exceeds the byte bound",
+      };
 }
 
 export function decodeWireDocument<T = unknown>(
   document: WireDocumentName,
   input: Uint8Array,
 ): DecodeResult<T> {
-  if (input.byteLength > maximumWireBytes) {
+  if (input.byteLength > wireByteLimit(document)) {
     return {
       ok: false,
       error: {
@@ -961,6 +1187,7 @@ export function decodeWireDocument<T = unknown>(
           numericObservations.push({
             holder: this,
             key,
+            ...(context?.source ? { source: context.source } : {}),
             ...(context?.source
               ? numericSourceInspection(context.source)
               : { failure: "source_unavailable" as const }),
@@ -994,6 +1221,7 @@ export function decodeWireDocument<T = unknown>(
   }
 
   assignNumericPaths(value, numericObservations);
+  inspectProgressDecimals(document, value, numericObservations);
 
   const validate = validators[document];
   if (!validate) {
@@ -1039,6 +1267,8 @@ export function decodeWireDocument<T = unknown>(
   }
 
   const json = stableStringify(value);
+  const bound = captureDocumentBound(document, value, json);
+  if (bound) return { ok: false, error: bound };
   return { ok: true, value: value as T, json };
 }
 
@@ -1051,4 +1281,130 @@ export function encodeWireDocument(value: unknown): string {
     throw new Error(numericDiagnostic(numericFailure).message);
   }
   return stableStringify(value);
+}
+
+// Named encoding applies the same closed schema and scoped numeric rules as decoding.
+export function encodeNamedWireDocument(document: WireDocumentName, value: unknown): string {
+  if (containsInvalidUnicodeScalar(value)) {
+    throw new Error("wire document contains an invalid Unicode scalar");
+  }
+  const result = decodeWireDocument(document, new TextEncoder().encode(stableStringify(value)));
+  if (!result.ok) throw new Error(result.error.message);
+  return result.json;
+}
+
+// Split only after JSON syntax validation. Items keep their original lexemes
+// so named item decoding cannot lose unsafe integers through JSON.stringify.
+export function decodeRunnerEventBatch(
+  input: Uint8Array,
+): DecodeResult<{ schema_version: 1; events: string[] }> {
+  const rejected = (
+    category: TypedError["category"],
+    code: string,
+    message: string,
+  ): DecodeResult<never> => ({ ok: false, error: { schema_version: 1, category, code, message } });
+  if (input.byteLength > 65_536)
+    return rejected("bound_exceeded", "max_bytes", "event batch exceeds the byte bound");
+  let source: string;
+  let root: unknown;
+  try {
+    source = new TextDecoder("utf-8", { fatal: true }).decode(input);
+    if (input[0] === 0xef && input[1] === 0xbb && input[2] === 0xbf) throw new Error();
+    root = JSON.parse(source) as unknown;
+  } catch {
+    return rejected("schema_invalid", "json_parse_failed", "event batch is not valid UTF-8 JSON");
+  }
+  if (!root || typeof root !== "object" || Array.isArray(root))
+    return rejected("type_mismatch", "type", "event batch must be an object");
+  const value = root as Record<string, unknown>;
+  if (Object.keys(value).length !== 2 || !("schema_version" in value) || !("events" in value))
+    return rejected("schema_invalid", "additional_field", "event batch fields are closed");
+  if (!Array.isArray(value.events) || value.events.length < 1 || value.events.length > 25)
+    return rejected("bound_exceeded", "max_items", "event batch requires one to twenty-five items");
+
+  let index = 0;
+  const whitespace = () => {
+    while (/[ \t\r\n]/u.test(source[index] ?? "")) index += 1;
+  };
+  const stringEnd = () => {
+    index += 1;
+    while (index < source.length) {
+      if (source[index] === "\\") index += 2;
+      else if (source[index++] === '"') return;
+    }
+  };
+  const rawValue = (): string => {
+    whitespace();
+    const start = index;
+    if (source[index] === '"') stringEnd();
+    else if (source[index] === "{" || source[index] === "[") {
+      let depth = 0;
+      do {
+        if (source[index] === '"') stringEnd();
+        else {
+          if (source[index] === "{" || source[index] === "[") depth += 1;
+          if (source[index] === "}" || source[index] === "]") depth -= 1;
+          index += 1;
+        }
+      } while (depth > 0 && index < source.length);
+    } else while (index < source.length && !/[ \t\r\n,\]}]/u.test(source[index] ?? "")) index += 1;
+    return source.slice(start, index);
+  };
+  whitespace();
+  index += 1;
+  const members = new Map<string, string>();
+  while (members.size < 3) {
+    whitespace();
+    if (source[index] === "}") break;
+    const key = JSON.parse(rawValue()) as string;
+    if (members.has(key))
+      return rejected("schema_invalid", "duplicate_key", "event batch contains a duplicate field");
+    whitespace();
+    index += 1;
+    members.set(key, rawValue());
+    whitespace();
+    if (source[index] !== ",") break;
+    index += 1;
+  }
+  const version = numericSourceInspection(members.get("schema_version") ?? "");
+  if (value.schema_version !== 1 || version.failure || version.integer !== "1")
+    return rejected(
+      "unknown_version",
+      "unsupported_schema_version",
+      "unsupported event batch version",
+    );
+  // Reuse the same validated scanner over the raw array's bounded item count.
+  const array = members.get("events") as string;
+  const offset = source.indexOf(array, 0);
+  index = offset + 1;
+  const events: string[] = [];
+  for (let item = 0; item < value.events.length; item += 1) {
+    events.push(rawValue());
+    whitespace();
+    if (source[index] === ",") index += 1;
+  }
+  return { ok: true, value: { schema_version: 1, events }, json: source };
+}
+
+const originalAgentWriteDocuments = {
+  "result.submit": "agent-result-request",
+  "agent_run.comment": "agent-comment-request",
+  "agent_run.update": "agent-update-request",
+  "agent_run.progress": "agent-progress-request",
+  "agent_run.proposal": "agent-proposal-request",
+} as const satisfies Record<string, WireDocumentName>;
+
+// Business digests retain JSON.stringify's literal Unicode separators and field absence.
+export function canonicalAgentWriteRequest(commandName: string, input: Uint8Array): string {
+  const document =
+    originalAgentWriteDocuments[commandName as keyof typeof originalAgentWriteDocuments];
+  if (!document) throw new Error("unknown agent write command");
+  const maximum = commandName === "result.submit" ? 32_768 : 16_384;
+  if (input.byteLength > maximum) throw new Error("agent write exceeds the byte bound");
+  const result = decodeWireDocument(document, input);
+  if (!result.ok) throw new Error(result.error.message);
+  const json = stableStringify(result.value, false);
+  if (new TextEncoder().encode(json).byteLength > maximum)
+    throw new Error("agent write exceeds the byte bound");
+  return json;
 }

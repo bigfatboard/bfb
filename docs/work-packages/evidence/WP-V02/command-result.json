@@ -1,0 +1,55 @@
+{
+  "package": "V02",
+  "tested_commit": "ed2a9233f17340785dc524bd73f7ae561272422b",
+  "recorded_on": "2026-09-17",
+  "automated_gate": "passed",
+  "package_acceptance": "passed",
+  "checkout": {
+    "detached": true,
+    "clean_before_install": true,
+    "clean_after_verification": true,
+    "frozen_install": "passed"
+  },
+  "checks": {
+    "protocol_fixture_and_codegen_drift": "passed",
+    "focused_typescript_tests": 46,
+    "repository_typescript_tests": 922,
+    "browser_viewer_tests": 11,
+    "repository_verification": "blocked_by_environment",
+    "repository_verification_note": "pnpm verify passes lint, protocol drift, all 922 TypeScript tests, ABOUTME headers, Markdown links, and the roadmap check; the Go stage fails only on internal/providers/claude TestDoctorCommand because this machine runs claude 2.1.275 while L07 pins TestedVersion 2.1.274 (pre-existing, outside V02; no Go file is touched by this package).",
+    "worktree_check": "passed"
+  },
+  "workerd": {
+    "workers": 4,
+    "control_isolates": 2,
+    "formats_published": 9,
+    "redemptions_200": 9,
+    "replay_wrong_secret_wrong_nonce_unknown_malformed": "403-uniform-each",
+    "oversize_redeem": "413-before-bytes",
+    "expiry_revocation": "403-before-bytes-each",
+    "reviewer_preview": 200,
+    "r2_tamper": "500-view_failed-no-grant-leak",
+    "redemption_budget_statuses": "20x200-then-403-with-spared-grant-redeemed-from-fresh-ip",
+    "persisted_raw_secrets": false,
+    "persisted_raw_nonces": false
+  },
+  "browser": {
+    "workers": 1,
+    "iframe_cases": 6,
+    "toplevel_cases": 5,
+    "iframe_app_hits_from_hostile_previews": 0,
+    "toplevel_bare_self_navigation_gets": "credential-free-referrer-free-secret-free-only",
+    "toplevel_fetch_beacon_form_popup_download_hits": 0,
+    "artifact_cookie_sightings": 0,
+    "downloads_from_sandboxed_previews": 0
+  },
+  "not_claimed": [
+    "Reviewer project scoping for previews (V03)",
+    "Server-side browser rendering",
+    "Compressed log-chunk previews (static fallback instead)",
+    "Full Mermaid language (strict flowchart subset only)",
+    "Blocking top-level self-navigation commits (credential-free bare GET; intended iframe context blocks top navigation)",
+    "Running local MVP or deployed behavior"
+  ],
+  "retention": "Bounded assertions, counts, header captures, and synthetic fixture rows only. No raw view secrets, nonces, artifact bytes, digests in rate keys, IP addresses, or local absolute paths are retained."
+}

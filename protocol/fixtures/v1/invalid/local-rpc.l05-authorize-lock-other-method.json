@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "request_id": "01K00000000000000000000008",
+  "method": "checkout.link",
+  "direction": "request",
+  "payload": {
+    "terminal_intent_id": "e0da52a9-d0cb-47d8-867b-e08f684b9001",
+    "local_lock_id": "01K00000000000000000000008"
+  }
+}

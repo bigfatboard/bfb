@@ -1,0 +1,66 @@
+{
+  "$schema": "../manifest.schema.json",
+  "package": "L04",
+  "tested_commit": "c1653e6d56d6d0029bc98270914c289a01d24a24",
+  "protocol_version": "bfb-wire/1",
+  "schema_version": "1",
+  "migration_head": "d1:0015_runner_channel.sql;local:003_runner_enrollments.sql",
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "xcode": "26.0.1"
+  },
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56), Apple Development signing and Mac Associated Domains profile",
+    "architecture": "arm64"
+  },
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-L04/command-result.json"
+    },
+    {
+      "command": "pnpm test:l04",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-L04/command-result.json"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-L04/command-result.json"
+    },
+    {
+      "command": "GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./...",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-L04/command-result.json"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-L04/command-result.json"
+    }
+  ],
+  "outcome": "passed",
+  "artifacts": [
+    "docs/work-packages/evidence/WP-L04/command-result.json",
+    "docs/work-packages/evidence/WP-L04/native-matrix.md",
+    "docs/contracts/macos-app.md",
+    "apps/macos/Tests/BFBTests/BFBTests.swift",
+    "apps/macos/Tests/BFBTests/NativeActionTests.swift",
+    "internal/appbridge/bridge_test.go",
+    "internal/appbridge/testdata/acceptance/main.go",
+    "tools/macos/acceptance.mjs",
+    "tools/macos/probe.swift",
+    "tools/macos/fixtures.mjs",
+    "protocol/fixtures/v1/valid/local-rpc.l04-wake.json",
+    "protocol/fixtures/v1/valid/local-rpc.l04-terminal.json",
+    "protocol/fixtures/v1/valid/local-rpc.l04-notification.json",
+    "protocol/fixtures/v1/invalid/local-rpc.l04-cloud-as-terminal.json",
+    "protocol/fixtures/v1/invalid/local-rpc.l04-terminal-as-cloud.json",
+    "protocol/fixtures/v1/invalid/local-rpc.l04-unknown-version.json"
+  ],
+  "redaction": { "status": "passed", "prohibited_content": [] }
+}

@@ -44,7 +44,9 @@ export async function openWorkSurface(page: Page): Promise<void> {
   await expect(page.getByTestId("workspace-switcher")).toBeVisible();
   await page.getByTestId("workspace-switcher").selectOption("synthetic");
   await expect(page.getByTestId("work-board")).toBeVisible();
+  await page.getByRole("button", { name: "Account menu" }).click();
   await expect(page.getByTestId("current-role")).toBeVisible();
+  await page.keyboard.press("Escape");
 }
 
 export async function signInAndOpenBoard(page: Page, role: RoleKey): Promise<void> {

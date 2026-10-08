@@ -1,0 +1,167 @@
+{
+  "seed": "bfb-g01/v1",
+  "fixture_version": 1,
+  "protocol_version": "bfb-wire/1",
+  "schema_version": "1",
+  "migration_head": "0034_operations",
+  "environment": "local workerd D1 plus real Chromium on macOS (arm64); Node 24.19.0, pnpm 11.21.0, Go 1.26.5",
+  "command": "pnpm test:g01",
+  "gates": [
+    {
+      "gate": "AG-01",
+      "status": "passed",
+      "schema": "protocol bfb-wire/1, schema 1, D1 0034_operations",
+      "environment": "local workerd D1 plus real Chromium on macOS (arm64); Node 24.19.0, pnpm 11.21.0, Go 1.26.5",
+      "command": "pnpm test:c04",
+      "evidence": "docs/work-packages/evidence/WP-C04/manifest.json",
+      "detail": "Role/project matrix and cross-workspace rejection owned by WP-C04/WP-C06/WP-W01/WP-X03A; G01 holds the matrix across all ten fixture projects and refuses cross-tenant hub-route commands in both directions on its two-workspace fixture."
+    },
+    {
+      "gate": "AG-02",
+      "status": "failed",
+      "schema": "protocol bfb-wire/1, schema 1, D1 0034_operations",
+      "environment": "local workerd D1 plus real Chromium on macOS (arm64); Node 24.19.0, pnpm 11.21.0, Go 1.26.5",
+      "command": "pnpm test:l05",
+      "evidence": "docs/work-packages/evidence/WP-L05/manifest.json",
+      "detail": "Native Terminal proof is not a deterministic release gate: WP-L05 certification records one fail-closed clean-checkout failure in five full gates (exactly one SIGINT with a verified whole-group end, yet a same-instant ownership uncertainty wedged the release leg past its wait with the lock retained), and the retained evidence is the bounded redacted matrix plus command-result assertions with no separate raw launch trace committed. Cloud-plane contention, expiry, and cleanup receipts pass in G01. No ADR and no explicit decision authorizes a waiver, so the gate fails instead of passing."
+    },
+    {
+      "gate": "AG-03",
+      "status": "passed",
+      "schema": "protocol bfb-wire/1, schema 1, D1 0034_operations",
+      "environment": "local workerd D1 plus real Chromium on macOS (arm64); Node 24.19.0, pnpm 11.21.0, Go 1.26.5",
+      "command": "pnpm test:e01",
+      "evidence": "docs/work-packages/evidence/WP-E01/manifest.json",
+      "detail": "Duplicate/out-of-order/concurrent ingest has one effect with exact replay; owning evidence WP-E01/WP-E02/WP-L06."
+    },
+    {
+      "gate": "AG-04",
+      "status": "failed",
+      "schema": "protocol bfb-wire/1, schema 1, D1 0034_operations",
+      "environment": "local workerd D1 plus real Chromium on macOS (arm64); Node 24.19.0, pnpm 11.21.0, Go 1.26.5",
+      "command": "pnpm test:g01",
+      "evidence": "docs/work-packages/evidence/WP-G01/gate-report.json",
+      "detail": "Shared Stop/exit lifecycle predicate matrix and provider capability ceilings pass in G01, but live Claude/Codex/Grok turns are unproven: provider credentials and consent are unavailable, L07 is review pending live Claude credentials, and P01/P02 are planned. No ADR and no explicit decision authorizes a waiver, so the gate fails instead of waiving."
+    },
+    {
+      "gate": "AG-05",
+      "status": "passed",
+      "schema": "protocol bfb-wire/1, schema 1, D1 0034_operations",
+      "environment": "local workerd D1 plus real Chromium on macOS (arm64); Node 24.19.0, pnpm 11.21.0, Go 1.26.5",
+      "command": "pnpm test:a02",
+      "evidence": "docs/work-packages/evidence/WP-A02/manifest.json",
+      "detail": "Attention request/answer/resolve round-trips with version guards; owning evidence WP-A02/WP-E02/WP-X01."
+    },
+    {
+      "gate": "AG-06",
+      "status": "passed",
+      "schema": "protocol bfb-wire/1, schema 1, D1 0034_operations",
+      "environment": "local workerd D1 plus real Chromium on macOS (arm64); Node 24.19.0, pnpm 11.21.0, Go 1.26.5",
+      "command": "pnpm test:v03",
+      "evidence": "docs/work-packages/evidence/WP-V03/manifest.json",
+      "detail": "Hostile bytes publish inertly; single-use grants; sweep spares live versions; owning evidence WP-V01/WP-V02/WP-V03."
+    },
+    {
+      "gate": "AG-07",
+      "status": "passed",
+      "schema": "protocol bfb-wire/1, schema 1, D1 0034_operations",
+      "environment": "local workerd D1 plus real Chromium on macOS (arm64); Node 24.19.0, pnpm 11.21.0, Go 1.26.5",
+      "command": "pnpm test:a04",
+      "evidence": "docs/work-packages/evidence/WP-A04/manifest.json",
+      "detail": "Token observations dedupe; derivations union exact/estimated/unavailable; owning evidence WP-A04/WP-E01."
+    },
+    {
+      "gate": "AG-08",
+      "status": "passed",
+      "schema": "protocol bfb-wire/1, schema 1, D1 0034_operations",
+      "environment": "local workerd D1 plus real Chromium on macOS (arm64); Node 24.19.0, pnpm 11.21.0, Go 1.26.5",
+      "command": "pnpm test:c04",
+      "evidence": "docs/work-packages/evidence/WP-C04/manifest.json",
+      "detail": "Epoch, grant, token, and delegation revocation fence authority before cleanup; owning evidence WP-C04/WP-C05/WP-C06."
+    },
+    {
+      "gate": "AG-09",
+      "status": "passed",
+      "schema": "protocol bfb-wire/1, schema 1, D1 0034_operations",
+      "environment": "local workerd D1 plus real Chromium on macOS (arm64); Node 24.19.0, pnpm 11.21.0, Go 1.26.5",
+      "command": "pnpm test:g01",
+      "evidence": "docs/work-packages/evidence/WP-G01/gate-report.json",
+      "detail": "Injection corpus rejected; launch specs carry no executable surface; hostile browser isolation in the G01 browser report; owning evidence WP-V02/WP-V03."
+    },
+    {
+      "gate": "AG-10",
+      "status": "not_run",
+      "schema": "protocol bfb-wire/1, schema 1, D1 0034_operations",
+      "environment": "local workerd D1 plus real Chromium on macOS (arm64); Node 24.19.0, pnpm 11.21.0, Go 1.26.5",
+      "command": "pnpm test:g01",
+      "evidence": "docs/work-packages/evidence/WP-G01/gate-report.json",
+      "waiver": "G02 owns AG-10; the G01 procedure and frozen release candidate are recorded for G02.",
+      "detail": "G02 owns clean-install proof."
+    },
+    {
+      "gate": "SG-01",
+      "status": "passed",
+      "schema": "protocol bfb-wire/1, schema 1, D1 0034_operations",
+      "environment": "local workerd D1 plus real Chromium on macOS (arm64); Node 24.19.0, pnpm 11.21.0, Go 1.26.5",
+      "command": "pnpm test:g01",
+      "evidence": "docs/work-packages/evidence/WP-G01/gate-report.json",
+      "detail": "Live CLI/MCP/runner/session cross-credential matrix with delegation revocation; route proof composed from WP-C02/WP-C03/WP-C05/WP-C06/WP-X02/WP-X03A."
+    },
+    {
+      "gate": "SG-02",
+      "status": "passed",
+      "schema": "protocol bfb-wire/1, schema 1, D1 0034_operations",
+      "environment": "local workerd D1 plus real Chromium on macOS (arm64); Node 24.19.0, pnpm 11.21.0, Go 1.26.5",
+      "command": "pnpm test:c01",
+      "evidence": "docs/work-packages/evidence/WP-C01/manifest.json",
+      "detail": "Hub FIFO with idempotent results and eviction recovery; owning evidence WP-C01."
+    },
+    {
+      "gate": "SG-03",
+      "status": "passed",
+      "schema": "protocol bfb-wire/1, schema 1, D1 0034_operations",
+      "environment": "local workerd D1 plus real Chromium on macOS (arm64); Node 24.19.0, pnpm 11.21.0, Go 1.26.5",
+      "command": "pnpm test:v01",
+      "evidence": "docs/work-packages/evidence/WP-V01/manifest.json",
+      "detail": "No v0.1 artifact delete path; uploads converge on content hash; owning evidence WP-V01/WP-X05."
+    },
+    {
+      "gate": "SG-04",
+      "status": "passed",
+      "schema": "protocol bfb-wire/1, schema 1, D1 0034_operations",
+      "environment": "local workerd D1 plus real Chromium on macOS (arm64); Node 24.19.0, pnpm 11.21.0, Go 1.26.5",
+      "command": "pnpm test:g01",
+      "evidence": "docs/work-packages/evidence/WP-G01/gate-report.json",
+      "detail": "Step-up mismatch/stale/replay matrix rejects bypasses; owning evidence WP-C02/WP-C03/WP-X03A."
+    },
+    {
+      "gate": "SG-05",
+      "status": "passed",
+      "schema": "protocol bfb-wire/1, schema 1, D1 0034_operations",
+      "environment": "local workerd D1 plus real Chromium on macOS (arm64); Node 24.19.0, pnpm 11.21.0, Go 1.26.5",
+      "command": "pnpm test:g01",
+      "evidence": "docs/work-packages/evidence/WP-G01/gate-report.json",
+      "detail": "Selection extracts IDs; links, payloads, audit, activity, and diagnostics carry no canaries; browser URL scan in the G01 browser report; owning evidence WP-X01/WP-X04/WP-X05."
+    },
+    {
+      "gate": "OG-01",
+      "status": "passed",
+      "schema": "protocol bfb-wire/1, schema 1, D1 0034_operations",
+      "environment": "local workerd D1 plus real Chromium on macOS (arm64); Node 24.19.0, pnpm 11.21.0, Go 1.26.5",
+      "command": "pnpm test:x04",
+      "evidence": "docs/work-packages/evidence/WP-X04/manifest.json",
+      "detail": "Hub idempotency, ledger redelivery, and GitHub webhook dedupe converge on one effect; Queue/DLQ/Cron delivery owning evidence WP-X04/WP-X05."
+    },
+    {
+      "gate": "OG-02",
+      "status": "not_run",
+      "schema": "protocol bfb-wire/1, schema 1, D1 0034_operations",
+      "environment": "local workerd D1 plus real Chromium on macOS (arm64); Node 24.19.0, pnpm 11.21.0, Go 1.26.5",
+      "command": "pnpm test:g01",
+      "evidence": "docs/work-packages/evidence/WP-G01/gate-report.json",
+      "waiver": "G02 owns OG-02; the G01 migration matrix (empty plus populated upgrade) is recorded for G02.",
+      "detail": "G02 owns migration/rotation/rollback proof."
+    }
+  ],
+  "outcome": "failed"
+}

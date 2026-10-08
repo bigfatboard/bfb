@@ -1,0 +1,178 @@
+{
+  "package": "C11",
+  "recorded_on": "2026-10-07",
+  "tested_commit": "4fc181eed55f832ba5a60fe3cc34f32e6bc25c29",
+  "outcome": "passed",
+  "stage": "partial_delegated_task_read_delivery",
+  "package_acceptance_complete": false,
+  "private_creation_available": false,
+  "migration_head": "0047_security_audit_positions",
+  "scope": "One final canonical task SELECT retains workspace/task/project identity and original OAuth ceilings, checking current sponsor/epoch, kernel private read permission, project access, credential/client/read scope and strict SQL-clock expiry after every advisory await. Its same-statement projection redacts an unreadable parent.",
+  "clean_commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "exit_code": 0
+    },
+    {
+      "command": "pnpm test:c11",
+      "exit_code": 0,
+      "c10_cases": 86,
+      "c10_files": 8,
+      "c10_d1_checks": 9,
+      "c08_cases": 23,
+      "c08_files": 5,
+      "c08_proof": "C08_D1_OK",
+      "stage_cases": 2459,
+      "stage_files": 93,
+      "stage_invocations": [
+        {
+          "cases": 1861,
+          "files": 64
+        },
+        {
+          "cases": 4,
+          "files": 2
+        },
+        {
+          "cases": 23,
+          "files": 2
+        },
+        {
+          "cases": 18,
+          "files": 2
+        },
+        {
+          "cases": 31,
+          "files": 2
+        },
+        {
+          "cases": 34,
+          "files": 2
+        },
+        {
+          "cases": 32,
+          "files": 2
+        },
+        {
+          "cases": 68,
+          "files": 3
+        },
+        {
+          "cases": 27,
+          "files": 2
+        },
+        {
+          "cases": 54,
+          "files": 2
+        },
+        {
+          "cases": 41,
+          "files": 3
+        },
+        {
+          "cases": 31,
+          "files": 3
+        },
+        {
+          "cases": 235,
+          "files": 4
+        }
+      ],
+      "stage_d1_checks": 160,
+      "stage_d1_harnesses": 13,
+      "notification_runtime": {
+        "proofs": ["C11_NOTIFICATION_IDENTITY_UPGRADE_OK", "X01_HARNESS_OK"],
+        "record_labels": 41,
+        "counting": "Setup and repeated dispatch/redaction labels are not independent acceptance cases"
+      },
+      "go_race": "passed",
+      "counting": "Stage totals count invocations, not unique cases; dependencies, notification runtime, X03 and full verification are separate"
+    },
+    {
+      "command": "pnpm test:x03",
+      "exit_code": 0,
+      "unit_cases": 71,
+      "unit_files": 7,
+      "worker_d1_r2_checks": 11,
+      "browser_cases": 2,
+      "provider_started": false,
+      "persistent_pilot_changed": false
+    },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 4583,
+      "typescript_files": 209,
+      "go": "passed",
+      "go_scheduling": "GOFLAGS=-p=1",
+      "swift": "passed",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    {
+      "command": "pnpm worktree:check",
+      "exit_code": 0,
+      "before_and_after_verify": true,
+      "committed_source_unchanged": true,
+      "final_status_empty": true
+    }
+  ],
+  "slice_suites": {
+    "composed_once_by_c11": true,
+    "domain_cases": 13,
+    "authenticated_mounted_mcp_cases": 19,
+    "task_d1_checks": 20,
+    "maximum_bindings": 31,
+    "maximum_statement_bytes": 7146
+  },
+  "old_source_probe": {
+    "production_commit": "05c8ae6f179769b3a3f8f9b9205eb3c40a0df774",
+    "production_runtime_unfixed": true,
+    "focused_cases": 19,
+    "focused_failed": 13,
+    "focused_passed": 6,
+    "unauthorized_body_exposures": 9,
+    "stale_canonical_tasks": 1,
+    "stale_parent_identifiers": 1,
+    "uniform_wire_controls": 2,
+    "expected_exit_code": 1,
+    "status": "Final mounted suite replayed on committed unfixed domain/worker source and its built runtime with the synthetic regression added. Nine unauthorized-body replies, one stale task and one unreadable parent identifier are exposure/canonical failures. Two already-denied paths differ only in error wire. This is not old-source clean package acceptance.",
+    "initial_native_probe": {
+      "groups": 2,
+      "passed": 1,
+      "failed": 1,
+      "production_revocation_body_exposure": 1,
+      "expanded_twenty_groups_replayed": false
+    }
+  },
+  "regression_proof": [
+    "Delayed read-only Owner/Member/Reviewer preserve ready, completed and cancelled task history without business read effects or a run, execution, provider or lease",
+    "Production delegation revocation after preliminary body selection, current read scope/client/original nullable-boundary loss and private read-grant/epoch/project loss withhold the task",
+    "Private read-grant, epoch and project loss after the final successful advisory read are separately witnessed races, not merely advisory denials",
+    "An unchanged credential live when the final SQL and arguments are prepared naturally expires before native D1 execution; a delayed live control remains readable",
+    "A genuine concurrent Hub task edit returns current title, punchline, priority and resource version rather than the preliminary body",
+    "Parent-only read-grant loss after a successful advisory read returns the still-readable shared child with a null parent, and healthy task-bound root reads redact out-of-subtree parents",
+    "Initial missing/private denial, preliminary absence, advisory epoch denial and final absence share the existing SDK plain-text task not found wire; malformed input and unexpected database failures remain distinct",
+    "Malformed retained task/project identities are rejected before preparation; complete business/OAuth history and cursor snapshots remain unchanged by reads after independent changes"
+  ],
+  "proof_boundaries": [
+    "Genuine OAuth admission and compiled stateless MCP handler are mounted in the test process over disposable native D1; this is not a real HTTP Worker OAuth ingress race",
+    "Task history uses genuine Hub commands; dormant privacy and named-read policy rows are synthetic fixtures, not private-creation or sharing activation",
+    "The final selector retains task identity, not mutable title, version, state or parent identity; parent masking occurs inside that same statement",
+    "The temporal claim ends at final selection; synchronous task serialization immediately follows without another await"
+  ],
+  "fixture_repair": "The first clean attempt found four healthy-read failures in the existing private-work MCP suite: fake JavaScript Date did not freeze SQLite now and its credentials had expired. Only healthy-read issuance now uses the existing SQL-relative fixture helper with preserved scopes and boundaries. All 35 existing cases pass; production clocks and expiry guards were unchanged. This evidence certifies the fresh complete retry.",
+  "activation_barriers": [
+    "Delegated project/task list selection remains open",
+    "GitHub collision policy, execution-owned private consumers and destructive private retention remain open",
+    "Private creation, creator sharing, author-private checkpoints and C12 remain unavailable or planned"
+  ],
+  "not_claimed": [
+    "Other OAuth tools, authority after final selection, provider-token state, runner/local capability or lease expiry, opaque task cursors or complete private activation",
+    "Cached business-command rollback or reversal of independently committed permission or task changes",
+    "Live private R2/browser bytes, installed app, provider execution, persistent pilot operation or deployment",
+    "Fresh W03 visual acceptance, separate X01/X05/G01 acceptance or external CI",
+    "Publication, canonical project knowledge, skills, vault, checkpoint reminders or contribution views"
+  ],
+  "redaction": "Bounded counts and synthetic outcomes only; raw logs, credentials, private content and local paths are not committed"
+}

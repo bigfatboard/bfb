@@ -1,0 +1,278 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/agent-work-capture.json",
+  "title": "AgentWorkCapture",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "confirmation",
+    "operation",
+    "admission_mode",
+    "admitted_permission",
+    "captured_at",
+    "intent_expires_at",
+    "signature"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "confirmation": {
+      "$ref": "agent-capture-confirmation-result.json"
+    },
+    "operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "command_name",
+        "tool",
+        "operation_schema_version",
+        "operation_key",
+        "request_id",
+        "payload_hash",
+        "expected_version",
+        "target_task_id",
+        "parent_task_id"
+      ],
+      "properties": {
+        "command_name": {
+          "type": "string",
+          "enum": [
+            "agent_run.comment",
+            "agent_run.update",
+            "agent_run.progress",
+            "agent_run.proposal"
+          ]
+        },
+        "tool": {
+          "type": "string",
+          "enum": ["bfb_add_comment", "bfb_propose_task", "bfb_report_progress", "bfb_update_task"]
+        },
+        "operation_schema_version": {
+          "type": "integer",
+          "const": 1
+        },
+        "operation_key": {
+          "type": "string",
+          "pattern": "^agent:[0-9a-f]{64}$",
+          "minLength": 70,
+          "maxLength": 70
+        },
+        "request_id": {
+          "$ref": "primitives.json#/$defs/IdempotencyKey"
+        },
+        "payload_hash": {
+          "$ref": "primitives.json#/$defs/Sha256Digest"
+        },
+        "expected_version": {
+          "type": ["integer", "null"],
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "target_task_id": {
+          "$ref": "agent-capture-confirmation-result.json#/$defs/NullableUlid"
+        },
+        "parent_task_id": {
+          "$ref": "agent-capture-confirmation-result.json#/$defs/NullableUlid"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "required": ["command_name"],
+            "properties": {
+              "command_name": {
+                "const": "agent_run.comment"
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "tool": {
+                "const": "bfb_add_comment"
+              },
+              "expected_version": {
+                "type": "null"
+              },
+              "target_task_id": {
+                "type": "string"
+              },
+              "parent_task_id": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "required": ["command_name"],
+            "properties": {
+              "command_name": {
+                "const": "agent_run.update"
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "tool": {
+                "const": "bfb_update_task"
+              },
+              "expected_version": {
+                "type": "integer"
+              },
+              "target_task_id": {
+                "type": "string"
+              },
+              "parent_task_id": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "required": ["command_name"],
+            "properties": {
+              "command_name": {
+                "const": "agent_run.progress"
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "tool": {
+                "const": "bfb_report_progress"
+              },
+              "expected_version": {
+                "type": "null"
+              },
+              "target_task_id": {
+                "type": "string"
+              },
+              "parent_task_id": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "required": ["command_name"],
+            "properties": {
+              "command_name": {
+                "const": "agent_run.proposal"
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "tool": {
+                "const": "bfb_propose_task"
+              },
+              "expected_version": {
+                "type": "null"
+              },
+              "target_task_id": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "admission_mode": {
+      "type": "string",
+      "enum": ["online_only", "offline_admitted"]
+    },
+    "admitted_permission": {
+      "$ref": "agent-capture-confirmation-result.json#/$defs/Permission"
+    },
+    "captured_at": {
+      "$ref": "agent-capture-confirmation-result.json#/$defs/CaptureTimestamp"
+    },
+    "intent_expires_at": {
+      "$ref": "agent-capture-confirmation-result.json#/$defs/NullableCaptureTimestamp"
+    },
+    "signature": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{85}[AQgw]$",
+      "minLength": 86,
+      "maxLength": 86
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "type": "object",
+        "required": ["admission_mode"],
+        "properties": {
+          "admission_mode": {
+            "const": "online_only"
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "intent_expires_at": {
+            "const": null
+          },
+          "admitted_permission": {
+            "type": "object",
+            "properties": {
+              "allowed_tools": {
+                "type": "array",
+                "maxItems": 0
+              },
+              "max_pending_age_seconds": {
+                "const": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "type": "object",
+        "required": ["admission_mode"],
+        "properties": {
+          "admission_mode": {
+            "const": "offline_admitted"
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "intent_expires_at": {
+            "type": "string"
+          },
+          "admitted_permission": {
+            "type": "object",
+            "properties": {
+              "allowed_tools": {
+                "type": "array",
+                "minItems": 1
+              },
+              "max_pending_age_seconds": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

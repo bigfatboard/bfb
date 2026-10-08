@@ -1,8 +1,12 @@
 # WP-L01 — Go daemon and CLI kernel
 
-Status: `planned`
+Status: `done`
 
 Risk: High
+
+Test target: `pnpm test:l01`
+
+Evidence manifest: `docs/work-packages/evidence/WP-L01/manifest.json`
 
 ## Outcome
 
@@ -29,6 +33,22 @@ One unprivileged `bfb` binary runs a reliable per-user daemon and exposes stable
 
 - Enrollment, checkout Git logic, provider launch, cloud task CRUD, a generic plugin framework, root privileges, or remote shell behavior.
 
+## Contracts
+
+### Consumes
+
+- F01 pinned Go `1.26.5`, Node `24.19.0`, pnpm `11.21.0` and platform-aware repository gates.
+- F02 `bfb-wire/1` local RPC envelope, ULIDs, typed diagnostics and deterministic cross-language schema generation. Prior prerequisite gate: `pnpm test:protocol` (132 TypeScript tests and Go protocol checks passed before runtime edits).
+- Local SQLite migration head starts empty. Cloud D1 migrations and IC-1 business/auth behavior are unchanged by this package.
+
+### Produces
+
+- Bounded newline-delimited local RPC v1 over an owner-only Unix socket; daemon status/stop methods and a leaf-handler registration boundary. Requests and responses use the canonical schema and fixed typed diagnostics; no raw internal errors escape.
+- SQLite WAL kernel migration `001_kernel.sql`, checksum/foreign-database/integrity checks, atomic migration transactions and unknown-on-restart process observations. No automatic destructive corruption repair.
+- Namespaced credential-store interfaces for human credentials, per-workspace runner material and local-only secrets. Signed native Keychain implementation and access-control proof remain with L08/L04; no plaintext credential fallback is introduced.
+- CLI JSON uses the same RPC envelope. Exit codes: success `0`, usage/schema `2`, denied `3`, unavailable/not implemented `4`, internal/storage `5`, conflict/busy `6`.
+- Per-user launchd installation without root privileges or shell interpolation, private state directories, bounded redacted rotating logs, and `pnpm test:l01` including Darwin lifecycle and Swift-to-UDS fixtures.
+
 ## Work plan
 
 1. Build binary dispatch, local paths, socket, and daemon lifecycle.
@@ -43,13 +63,19 @@ One unprivileged `bfb` binary runs a reliable per-user daemon and exposes stable
 - Forced termination at migration/transaction boundaries leaves recoverable state.
 - Restart preserves records and reports unverified active processes as unknown until reconciled.
 - Redaction fixtures containing tokens, paths, task bodies, hook payloads, and environment values leak none of them.
-- `bfb daemon install/status/logs` works from a clean macOS user account.
+- `bfb daemon install/status/logs` works with empty private BFB state under the current unprivileged macOS GUI account. The genuinely fresh-account test is deferred to G02 under [ADR 0003](../adr/0003-local-mvp-account-test-scope.md), not claimed as passed.
 
-## Evidence and handoff
+## Evidence
 
 - Commit Local RPC fixtures, migration/fault results, redaction report, and daemon lifecycle log.
-- Feature packages add leaf handlers through the designated registration boundary.
-
+- Approved-scope commit `f19d18804384c48e9b6180cd8260c66a95f789fd` passed the exact target, uncached native race tests, `pnpm verify`, IC-1 and `pnpm worktree:check` in a clean detached checkout on macOS. [Evidence](evidence/WP-L01/manifest.json) records those results.
 ## Risks and decisions
 
 - Prove Swift-to-UDS and background Keychain access with a small fixture before app work expands.
+- L01 proves Swift-to-UDS with a synthetic client. L08/L04 must prove the signed-component Keychain boundary before accepting enrollment; an unsigned interface test cannot certify that boundary.
+- Exact pinned pure-Go SQLite driver avoids introducing a C toolchain into the distributable runner. Tests use isolated empty BFB user state, never a pre-existing personal BFB database; Darwin launchd tests report their actual account environment.
+
+## Handoff
+
+- Feature packages add leaf handlers through the designated registration boundary.
+- Timo approved the account-test scope change in ADR 0003. The genuinely fresh-account release test remains explicitly unverified in G02; no signed Keychain or full running MVP claim follows from this kernel gate.

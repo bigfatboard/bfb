@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "request_id": "01JBFB06H00KRECE1PT0000000",
+  "direction": "response",
+  "method": "hook.status",
+  "payload": {
+    "hook_pending": 0,
+    "hook_quarantined": 2,
+    "telemetry_degraded": true,
+    "degraded_reason": "inbox_auth_failed"
+  }
+}

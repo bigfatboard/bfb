@@ -1,0 +1,103 @@
+{
+  "$schema": "../manifest.schema.json",
+  "package": "C11",
+  "tested_commit": "9220606dec106003119a4c311712f689ae4b703b",
+  "protocol_version": "bfb-wire/1 unchanged",
+  "schema_version": "private-task-delivery/1 partial stage 3 public-position quarantine; activation unavailable",
+  "migration_head": "0045_private_task_authority",
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "xcode": "26.0.1",
+    "wrangler": "4.120.1",
+    "playwright": "1.55.1"
+  },
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56)",
+    "architecture": "arm64"
+  },
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/public-positions-command-result.json"
+    },
+    {
+      "command": "pnpm test:c11",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/public-positions-command-result.json"
+    },
+    {
+      "command": "pnpm test:e01",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/public-positions-command-result.json"
+    },
+    {
+      "command": "pnpm test:e02",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/public-positions-command-result.json"
+    },
+    {
+      "command": "pnpm test:a04",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/public-positions-command-result.json"
+    },
+    {
+      "command": "pnpm test:x03",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/public-positions-command-result.json"
+    },
+    {
+      "command": "pnpm test:x05",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/public-positions-command-result.json"
+    },
+    {
+      "command": "pnpm test:w03",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/public-positions-command-result.json"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/public-positions-command-result.json"
+    },
+    {
+      "command": "pnpm exec tsc -b tools/g01 --pretty false",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/public-positions-command-result.json"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/public-positions-command-result.json"
+    }
+  ],
+  "outcome": "passed",
+  "artifacts": [
+    "docs/work-packages/evidence/WP-C11/public-positions-command-result.json",
+    "docs/work-packages/evidence/WP-C11/public-positions-acceptance.md",
+    "docs/contracts/private-task-delivery.md",
+    "packages/domain/test/private-public-position-delivery.test.ts",
+    "apps/control-worker/test/private-public-position-routes.test.ts",
+    "apps/web/test/private-public-position-ui.test.ts",
+    "apps/control-worker/test/browser-sockets.test.ts",
+    "tools/work-records/positions.ts",
+    "tools/events/run.ts",
+    "tools/realtime/run.ts",
+    "tools/measurements/run.ts",
+    "tools/remote-mcp/run.ts",
+    "tools/operations/run.ts",
+    "tools/e2e/src/server.ts",
+    "internal/agentwork/native_measurement_darwin_test.go"
+  ],
+  "redaction": {
+    "status": "passed",
+    "prohibited_content": []
+  },
+  "ci": {
+    "status": "not_run"
+  }
+}

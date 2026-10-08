@@ -1,0 +1,615 @@
+// ABOUTME: Exercises mounted artifact review decisions over browser sessions.
+// ABOUTME: Synthetic versions prove binding, conflicts, scoping, and timer linkage.
+
+import { createHash } from "node:crypto";
+
+import { describe, expect, it, vi } from "vitest";
+
+import {
+  createArtifactCommand,
+  createTaskCommand,
+  createRunCommand,
+  finalizeArtifactCommand,
+  FIX,
+  mintUploadGrantSecret,
+  randomUlid,
+  recordVerifiedUpload,
+  redeemUploadGrant,
+  seedSyntheticWorkspace,
+  WorkspaceHub,
+} from "@bfb/domain";
+
+import { parseAuthKeys } from "../src/auth/better-auth.js";
+import { validateControlEnv, type ControlBindings } from "../src/env.js";
+import { createTestWorkspaceHubNamespace } from "../src/hub-client.js";
+import { createControlApp } from "../src/routes.js";
+import { AUTH_TEST_ENV, openAuthTestContext, seedAuthSession } from "./auth-helpers.js";
+
+const NOW = "2026-09-17T12:00:00.000Z";
+const ORIGIN = AUTH_TEST_ENV.APP_ORIGIN;
+const TEXT = new TextEncoder().encode("# synthetic review\n");
+
+function digest(bytes: Uint8Array): string {
+  return createHash("sha256").update(bytes).digest("hex");
+}
+
+async function fixture(overrides: Partial<ControlBindings> = {}) {
+  const context = openAuthTestContext(NOW);
+  await seedSyntheticWorkspace(context.db, NOW, "global");
+  async function session(
+    userId: string,
+    sessionId: string,
+    token: string,
+    humanId: string,
+    email: string,
+  ) {
+    return seedAuthSession(context, { userId, sessionId, token, humanId, email, now: NOW });
+  }
+  const owner = await session(
+    "review-user",
+    "review-session",
+    "review-token",
+    FIX.owner,
+    "owner@synthetic.test",
+  );
+  const reviewer = await session(
+    "review-reviewer-user",
+    "review-reviewer-session",
+    "review-reviewer-token",
+    FIX.restricted,
+    "restricted@synthetic.test",
+  );
+  const env = {
+    DB: {},
+    ARTIFACTS: {},
+    ASSETS: {},
+    JOBS: {},
+    JOBS_DLQ: {},
+    WORKSPACE_HUB: createTestWorkspaceHubNamespace(context.db),
+    APP_ORIGIN: ORIGIN,
+    ARTIFACT_ORIGIN: "https://artifacts.bfb.example.test",
+    LAUNCH_ORIGIN: "https://launch.bfb.example.test",
+    JURISDICTION: "global",
+    ENVIRONMENT: "local",
+    ARTIFACT_REVIEW_ENABLED: "true",
+    ...overrides,
+  } as unknown as ControlBindings;
+  function app() {
+    return createControlApp(validateControlEnv(env), {
+      db: context.db,
+      now: NOW,
+      abuseSecret: AUTH_TEST_ENV.AUTH_ABUSE_SECRET,
+      humanAuth: () => ({
+        auth: context.auth,
+        keys: parseAuthKeys(AUTH_TEST_ENV.BETTER_AUTH_SECRETS),
+        abuseSecret: AUTH_TEST_ENV.AUTH_ABUSE_SECRET,
+      }),
+    });
+  }
+  const authenticated = await app().request(
+    new Request(ORIGIN + "/auth/session", { headers: { cookie: owner.cookie } }),
+    undefined,
+    env,
+  );
+  expect(authenticated.status).toBe(200);
+  const csrf = ((await authenticated.json()) as { csrf_token: string }).csrf_token;
+  async function csrfFor(cookie: string): Promise<string> {
+    const response = await app().request(
+      new Request(ORIGIN + "/auth/session", { headers: { cookie } }),
+      undefined,
+      env,
+    );
+    expect(response.status).toBe(200);
+    return ((await response.json()) as { csrf_token: string }).csrf_token;
+  }
+  const reviewerCsrf = await csrfFor(reviewer.cookie);
+  const prefix = `/api/v1/workspaces/${FIX.workspace}/artifacts`;
+  async function request(
+    path: string,
+    body: unknown,
+    sessionPair: { cookie: string; csrf: string } = { cookie: owner.cookie, csrf },
+    method = "POST",
+  ) {
+    return app().request(
+      new Request(ORIGIN + path, {
+        method,
+        headers: {
+          cookie: sessionPair.cookie,
+          origin: ORIGIN,
+          "content-type": "application/json",
+          "sec-fetch-site": "same-origin",
+          "x-bfb-csrf": sessionPair.csrf,
+          "cf-connecting-ip": "192.0.2.83",
+        },
+        ...(method === "GET" ? {} : { body: JSON.stringify(body) }),
+      }),
+      undefined,
+      env,
+    );
+  }
+  const hub = new WorkspaceHub(context.db);
+  async function available(
+    label: string,
+    runId: string | null = null,
+    artifactId: string | null = null,
+  ): Promise<{ artifact_id: string; version_id: string; content_hash: string }> {
+    const bytes = new TextEncoder().encode(`# synthetic review ${label}\n`);
+    const hash = digest(bytes);
+    const minted = mintUploadGrantSecret();
+    const created = await hub.execute(createArtifactCommand, {
+      workspaceId: FIX.workspace,
+      actorHumanId: FIX.owner,
+      authorizationEpoch: 1,
+      now: NOW,
+      idempotencyKey: randomUlid(),
+      input: {
+        artifactId,
+        runId,
+        format: "markdown" as never,
+        role: "review" as never,
+        declaredSize: bytes.byteLength,
+        expectedDigest: hash,
+        grantSecretHash: minted.secretHash,
+      },
+    });
+    if (!created.ok) throw new Error(JSON.stringify(created));
+    const consumed = await redeemUploadGrant(context.db, {
+      grantId: created.result.upload_grant.grant_id,
+      secret: minted.secret,
+      now: NOW,
+    });
+    await context.db.withTransaction((tx) =>
+      recordVerifiedUpload(tx, {
+        grantId: consumed.grantId,
+        consumeAttemptId: consumed.consumeAttemptId,
+        contentHash: hash,
+        size: bytes.byteLength,
+        now: NOW,
+      }),
+    );
+    const finalized = await hub.execute(finalizeArtifactCommand, {
+      workspaceId: FIX.workspace,
+      actorHumanId: FIX.owner,
+      authorizationEpoch: 1,
+      now: NOW,
+      idempotencyKey: randomUlid(),
+      input: { versionId: created.result.version_id, contentHash: hash, size: bytes.byteLength },
+    });
+    if (!finalized.ok) throw new Error(JSON.stringify(finalized));
+    return {
+      artifact_id: created.result.artifact_id,
+      version_id: created.result.version_id,
+      content_hash: hash,
+    };
+  }
+  async function taskAndRun(
+    projectId = FIX.projectA,
+    creator = FIX.owner,
+  ): Promise<{ taskId: string; runId: string }> {
+    const task = await hub.execute(createTaskCommand, {
+      workspaceId: FIX.workspace,
+      actorHumanId: creator,
+      authorizationEpoch: 1,
+      now: NOW,
+      idempotencyKey: randomUlid(),
+      input: { projectId, title: "Synthetic route review task", priority: "P1" as const },
+    });
+    if (!task.ok) throw new Error(JSON.stringify(task));
+    const run = await hub.execute(createRunCommand, {
+      workspaceId: FIX.workspace,
+      actorHumanId: FIX.owner,
+      authorizationEpoch: 1,
+      now: NOW,
+      idempotencyKey: randomUlid(),
+      input: {
+        taskId: task.result.id,
+        expectedTaskVersion: 1,
+        agentProfileId: FIX.profileCodex,
+        workspacePolicyVersion: 1,
+        projectPolicyVersion: 1,
+        repositoryConfigVersion: 1,
+        agentProfileVersion: 1,
+      },
+    });
+    if (!run.ok) throw new Error(JSON.stringify(run));
+    return { taskId: task.result.id, runId: run.result.run.id };
+  }
+  function reviewBody(
+    version: { version_id: string; content_hash: string },
+    overrides: Record<string, unknown> = {},
+  ): Record<string, unknown> {
+    return {
+      version_id: version.version_id,
+      expected_content_hash: version.content_hash,
+      expected_latest_version_id: version.version_id,
+      decision: "approve",
+      request_id: `route-${randomUlid()}`,
+      ...overrides,
+    };
+  }
+  return { context, prefix, request, available, taskAndRun, reviewBody, reviewerCsrf, reviewer };
+}
+
+describe("artifact review routes", () => {
+  it.each([undefined, "false"])(
+    "blocks review reads and decisions when the enable is %j",
+    async (enabled) => {
+      const f = await fixture({ ARTIFACT_REVIEW_ENABLED: enabled });
+      const scoped = await f.taskAndRun(FIX.projectA);
+      const version = await f.available("disabled", scoped.runId);
+      const before = await f.context.db
+        .prepare("SELECT COUNT(*) AS count FROM semantic_events")
+        .get();
+      for (const [path, method, body] of [
+        [`${f.prefix}?run_id=${scoped.runId}`, "GET", undefined],
+        [`${f.prefix}/${version.artifact_id}/reviews`, "GET", undefined],
+        [`${f.prefix}/${version.artifact_id}/reviews`, "POST", f.reviewBody(version)],
+      ] as const) {
+        const response = await f.request(path, body, undefined, method);
+        expect(response.status).toBe(404);
+        expect(response.headers.get("cache-control")).toBe("no-store");
+        expect(await response.json()).toEqual({ ok: false, error: "feature_unavailable" });
+      }
+      expect(
+        await f.context.db.prepare("SELECT COUNT(*) AS count FROM artifact_reviews").get(),
+      ).toEqual({ count: 0 });
+      expect(
+        await f.context.db.prepare("SELECT COUNT(*) AS count FROM semantic_events").get(),
+      ).toEqual(before);
+      expect(
+        (
+          await f.request(
+            `/api/v1/workspaces/${FIX.workspace}/runs/${scoped.runId}/results`,
+            undefined,
+            undefined,
+            "GET",
+          )
+        ).status,
+      ).toBe(200);
+    },
+  );
+
+  it("records a review and reports approval on read", async () => {
+    const f = await fixture();
+    const version = await f.available("route-approve");
+    const created = await f.request(
+      `${f.prefix}/${version.artifact_id}/reviews`,
+      f.reviewBody(version),
+    );
+    expect(created.status).toBe(201);
+    const review = ((await created.json()) as { review: Record<string, unknown> }).review;
+    expect(review.version_id).toBe(version.version_id);
+    expect(review.content_hash).toBe(version.content_hash);
+    const status = await f.request(
+      `${f.prefix}/${version.artifact_id}/reviews`,
+      undefined,
+      undefined,
+      "GET",
+    );
+    expect(status.status).toBe(200);
+    const body = (await status.json()) as {
+      approved: boolean;
+      changes_requested: boolean;
+      review_count: number;
+      historical_count: number;
+      reviews: Array<{ decision: string; historical: boolean; outdated: boolean }>;
+    };
+    expect(body.approved).toBe(true);
+    expect(body.changes_requested).toBe(false);
+    expect(body.review_count).toBe(1);
+    expect(body.historical_count).toBe(0);
+    expect(body.reviews[0]).toMatchObject({
+      decision: "approve",
+      historical: false,
+      outdated: false,
+    });
+  });
+
+  it("rejects hash mismatch and stale review state with explicit conflicts", async () => {
+    const f = await fixture();
+    const version = await f.available("route-conflict");
+    const mismatch = await f.request(
+      `${f.prefix}/${version.artifact_id}/reviews`,
+      f.reviewBody(version, { expected_content_hash: digest(TEXT) }),
+    );
+    expect(mismatch.status).toBe(409);
+    expect(((await mismatch.json()) as { error: string }).error).toBe("version_mismatch");
+    const second = await f.available("route-conflict-v2", null, version.artifact_id);
+    expect(second.artifact_id).toBe(version.artifact_id);
+    const stale = await f.request(
+      `${f.prefix}/${version.artifact_id}/reviews`,
+      f.reviewBody(version),
+    );
+    expect(stale.status).toBe(409);
+    expect(((await stale.json()) as { error: string }).error).toBe("stale_version");
+    const status = await f.request(
+      `${f.prefix}/${version.artifact_id}/reviews`,
+      undefined,
+      undefined,
+      "GET",
+    );
+    expect(((await status.json()) as { approved: boolean }).approved).toBe(false);
+  });
+
+  it("returns not found for unknown artifacts and uploading versions", async () => {
+    const f = await fixture();
+    const missing = await f.request(
+      `${f.prefix}/${randomUlid()}/reviews`,
+      undefined,
+      undefined,
+      "GET",
+    );
+    expect(missing.status).toBe(404);
+    const hub = new WorkspaceHub(f.context.db);
+    const minted = mintUploadGrantSecret();
+    const created = await hub.execute(createArtifactCommand, {
+      workspaceId: FIX.workspace,
+      actorHumanId: FIX.owner,
+      authorizationEpoch: 1,
+      now: NOW,
+      idempotencyKey: randomUlid(),
+      input: {
+        artifactId: null,
+        runId: null,
+        format: "markdown" as never,
+        role: "review" as never,
+        declaredSize: TEXT.byteLength,
+        expectedDigest: digest(TEXT),
+        grantSecretHash: minted.secretHash,
+      },
+    });
+    if (!created.ok) throw new Error(JSON.stringify(created));
+    const review = await f.request(`${f.prefix}/${created.result.artifact_id}/reviews`, {
+      version_id: created.result.version_id,
+      expected_content_hash: digest(TEXT),
+      expected_latest_version_id: created.result.version_id,
+      decision: "approve",
+      request_id: `route-${randomUlid()}`,
+    });
+    expect(review.status).toBe(404);
+  });
+
+  it("enforces reviewer project scoping on run-bound artifacts", async () => {
+    const f = await fixture();
+    const scoped = await f.taskAndRun(FIX.projectB);
+    const version = await f.available("route-scope", scoped.runId);
+    const denied = await f.request(
+      `${f.prefix}/${version.artifact_id}/reviews`,
+      f.reviewBody(version),
+      { cookie: f.reviewer.cookie, csrf: f.reviewerCsrf },
+    );
+    expect(denied.status).toBe(404);
+    const absent = await f.request(`${f.prefix}/${randomUlid()}/reviews`, f.reviewBody(version), {
+      cookie: f.reviewer.cookie,
+      csrf: f.reviewerCsrf,
+    });
+    expect(absent.status).toBe(404);
+    expect(await denied.json()).toEqual(await absent.json());
+  });
+
+  it.each(["artifact", "independent_timer"] as const)(
+    "rechecks the %s parent after timer hydration",
+    async (subject) => {
+      const f = await fixture();
+      const scoped = await f.taskAndRun(FIX.projectA, FIX.member);
+      const version = await f.available(
+        "private-route-timer",
+        subject === "artifact" ? scoped.runId : null,
+      );
+      await f.context.db
+        .prepare(
+          `INSERT INTO task_privacy
+      (workspace_id, task_id, owner_human_id, created_at) VALUES (?, ?, ?, ?)`,
+        )
+        .run(FIX.workspace, scoped.taskId, FIX.member, NOW);
+      const grantId = randomUlid();
+      await f.context.db
+        .prepare(
+          `INSERT INTO task_human_grants
+      (workspace_id, id, task_id, human_id, authorization_epoch, permission, created_at)
+      VALUES (?, ?, ?, ?, 1, 'contribute', ?)`,
+        )
+        .run(FIX.workspace, grantId, scoped.taskId, FIX.owner, NOW);
+      const timerResponse = await f.request(
+        `/api/v1/workspaces/${FIX.workspace}/tasks/${scoped.taskId}/review-timers`,
+        { request_id: "private-review-timer", run_id: scoped.runId },
+      );
+      expect(timerResponse.status).toBe(200);
+      const timer = (await timerResponse.json()) as { result: { id: string } };
+      const observation = (await f.context.db
+        .prepare(
+          `SELECT observation_id
+      FROM review_timer_observations WHERE workspace_id = ? AND timer_id = ?`,
+        )
+        .get(FIX.workspace, timer.result.id)) as { observation_id: string };
+      const reviewed = await f.request(
+        `${f.prefix}/${version.artifact_id}/reviews`,
+        f.reviewBody(version, {
+          comment: "SYNTHETIC_PRIVATE_REVIEW_CANARY",
+          review_timer_observation_id: observation.observation_id,
+        }),
+      );
+      expect(reviewed.status).toBe(201);
+      const prepare = f.context.db.prepare.bind(f.context.db);
+      let revoked = false;
+      let hydrated = false;
+      const revokeOnce = async () => {
+        if (!revoked) {
+          revoked = true;
+          await prepare("UPDATE task_human_grants SET revoked_at = ? WHERE id = ?").run(
+            NOW,
+            grantId,
+          );
+        }
+      };
+      const spy = vi.spyOn(f.context.db, "prepare").mockImplementation((query) => {
+        const statement = prepare(query);
+        return {
+          ...statement,
+          get: async (...parameters: unknown[]) => {
+            if (
+              subject === "artifact" &&
+              /SELECT observation\.observation_id, observation\.timer_id/.test(query)
+            )
+              await revokeOnce();
+            const row = await statement.get(...parameters);
+            if (/SELECT timer\.\* FROM review_timers AS timer JOIN tasks/.test(query))
+              hydrated = true;
+            return row;
+          },
+          all: async (...parameters: unknown[]) => {
+            if (
+              subject === "independent_timer" &&
+              hydrated &&
+              query.includes("FROM artifacts AS artifact LEFT JOIN artifact_reviews AS review")
+            )
+              await revokeOnce();
+            return statement.all(...parameters);
+          },
+        };
+      });
+      try {
+        const delivered = await f.request(
+          `${f.prefix}/${version.artifact_id}/reviews`,
+          undefined,
+          undefined,
+          "GET",
+        );
+        expect(revoked).toBe(true);
+        if (subject === "artifact") {
+          expect(delivered.status).toBe(404);
+          expect(await delivered.text()).not.toContain("SYNTHETIC_PRIVATE_REVIEW_CANARY");
+        } else {
+          expect(delivered.status).toBe(200);
+          const body = await delivered.text();
+          expect(body).toContain("SYNTHETIC_PRIVATE_REVIEW_CANARY");
+          expect(body).not.toContain(observation.observation_id);
+          expect(body).not.toContain(timer.result.id);
+          expect(body).not.toContain(scoped.taskId);
+          expect(JSON.parse(body).reviews[0].review_timer_observation_id).toBeNull();
+        }
+      } finally {
+        spy.mockRestore();
+      }
+    },
+  );
+
+  it("hides out-of-scope artifacts from review reads", async () => {
+    const f = await fixture();
+    const runA = await f.taskAndRun(FIX.projectA);
+    const runB = await f.taskAndRun(FIX.projectB);
+    const versionA = await f.available("route-scope-read-a", runA.runId);
+    const versionB = await f.available("route-scope-read-b", runB.runId);
+    const reviewer = { cookie: f.reviewer.cookie, csrf: f.reviewerCsrf };
+    const listed = await f.request(`${f.prefix}?run_id=${runB.runId}`, undefined, reviewer, "GET");
+    expect(listed.status).toBe(200);
+    const body = (await listed.json()) as { artifacts: Array<{ artifact_id: string }> };
+    expect(body.artifacts.map((entry) => entry.artifact_id)).not.toContain(versionB.artifact_id);
+    const scoped = await f.request(`${f.prefix}?run_id=${runA.runId}`, undefined, reviewer, "GET");
+    expect(scoped.status).toBe(200);
+    expect(
+      ((await scoped.json()) as { artifacts: Array<{ artifact_id: string }> }).artifacts.map(
+        (entry) => entry.artifact_id,
+      ),
+    ).toContain(versionA.artifact_id);
+    const status = await f.request(
+      `${f.prefix}/${versionB.artifact_id}/reviews`,
+      undefined,
+      reviewer,
+      "GET",
+    );
+    expect(status.status).toBe(404);
+    const visible = await f.request(
+      `${f.prefix}/${versionA.artifact_id}/reviews`,
+      undefined,
+      reviewer,
+      "GET",
+    );
+    expect(visible.status).toBe(200);
+  });
+
+  it("links an A04 timer observation and never accepts the run result", async () => {
+    const f = await fixture();
+    const scoped = await f.taskAndRun(FIX.projectA);
+    const version = await f.available("route-timer", scoped.runId);
+    const base = `/api/v1/workspaces/${FIX.workspace}`;
+    const timer = await f.request(`${base}/tasks/${scoped.taskId}/review-timers`, {
+      request_id: `route-${randomUlid()}`,
+    });
+    expect(timer.status).toBe(200);
+    const timerBody = (await timer.json()) as {
+      ok: boolean;
+      result: { id: string; resource_version: number };
+    };
+    const observations = await f.request(
+      `${base}/tasks/${scoped.taskId}/measurements`,
+      undefined,
+      undefined,
+      "GET",
+    );
+    expect(observations.status).toBe(200);
+    const timers = await f.request(
+      `${base}/tasks/${scoped.taskId}/review-timers`,
+      undefined,
+      undefined,
+      "GET",
+    );
+    expect(timers.status).toBe(200);
+    const observation = (await f.context.db
+      .prepare(
+        `SELECT observation_id FROM review_timer_observations
+         WHERE workspace_id = ? AND timer_id = ? AND observed_kind = 'started'`,
+      )
+      .get(FIX.workspace, timerBody.result.id)) as { observation_id: string };
+    const created = await f.request(
+      `${f.prefix}/${version.artifact_id}/reviews`,
+      f.reviewBody(version, {
+        decision: "request_changes",
+        comment: "Synthetic route change request",
+        review_timer_observation_id: observation.observation_id,
+      }),
+    );
+    expect(created.status).toBe(201);
+    const status = (await (
+      await f.request(`${f.prefix}/${version.artifact_id}/reviews`, undefined, undefined, "GET")
+    ).json()) as {
+      approved: boolean;
+      changes_requested: boolean;
+      linked_submissions: unknown[];
+      reviews: Array<{ id: string; review_timer_observation_id: string | null }>;
+      review_timers: Record<string, { observation: { observation_id: string } } | null>;
+    };
+    expect(status.approved).toBe(false);
+    expect(status.changes_requested).toBe(true);
+    expect(status.linked_submissions).toEqual([]);
+    expect(status.reviews[0]?.review_timer_observation_id).toBe(observation.observation_id);
+    const timerContext = status.review_timers[status.reviews[0]?.id as string];
+    expect(timerContext?.observation.observation_id).toBe(observation.observation_id);
+    const results = (await (
+      await f.request(`${base}/runs/${scoped.runId}/results`, undefined, undefined, "GET")
+    ).json()) as { submissions: unknown[] };
+    expect(results.submissions).toEqual([]);
+    expect(timerBody.result.id).toBeTruthy();
+  });
+
+  it("lists run artifacts with approval state for the review surface", async () => {
+    const f = await fixture();
+    const scoped = await f.taskAndRun(FIX.projectA);
+    const version = await f.available("route-list", scoped.runId);
+    const listed = await f.request(
+      `${f.prefix}?run_id=${scoped.runId}`,
+      undefined,
+      undefined,
+      "GET",
+    );
+    expect(listed.status).toBe(200);
+    const body = (await listed.json()) as {
+      artifacts: Array<{ artifact_id: string; approved: boolean; review_count: number }>;
+    };
+    expect(body.artifacts.map((entry) => entry.artifact_id)).toContain(version.artifact_id);
+    const entry = body.artifacts.find((row) => row.artifact_id === version.artifact_id);
+    expect(entry).toMatchObject({ approved: false, review_count: 0 });
+    const bad = await f.request(`${f.prefix}?run_id=nope`, undefined, undefined, "GET");
+    expect(bad.status).toBe(400);
+  });
+});

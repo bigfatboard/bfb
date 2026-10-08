@@ -1,0 +1,71 @@
+{
+  "package": "L04",
+  "tested_commit": "c1653e6d56d6d0029bc98270914c289a01d24a24",
+  "recorded_on": "2026-09-12",
+  "automated_gate": "passed",
+  "package_acceptance": "passed",
+  "test_configuration": {
+    "BFB_MACOS_PROFILE": "Matching development-only Mac profile for the BFB App ID, existing developer certificate and test Mac; private local path omitted.",
+    "BFB_E2E_PORT": "4288",
+    "self_hosted_override": false,
+    "console_session": "available",
+    "terminal_automation": "Timo reported permission allowed and Terminal started before the final passing run.",
+    "notifications": "not authorized"
+  },
+  "checkout": {
+    "detached": true,
+    "clean_before_install": true,
+    "clean_after_verification": true,
+    "frozen_install": "passed"
+  },
+  "checks": {
+    "generated_swift_and_protocol_drift": "passed",
+    "l04_owned_fixture_drift_count": 26,
+    "protocol_typescript_tests": 185,
+    "protocol_go_differential_fixtures": "passed",
+    "actual_swift_local_rpc_fixtures": { "accepted": 14, "rejected": 25 },
+    "swift_native_tests": 11,
+    "appbridge_and_daemon_go_race_tests": "passed",
+    "repository_typescript_tests": 462,
+    "repository_go_checks": "passed",
+    "repository_swift_xcode_checks": "passed",
+    "repository_verification": "passed",
+    "linux_amd64_cross_build": "passed",
+    "worktree_check": "passed"
+  },
+  "native_assertions": {
+    "hardened_matching_app_and_helper_signatures": "passed",
+    "tampered_helper_rejected": true,
+    "unapproved_socket_peers_rejected": true,
+    "mac_profile_and_explicit_signed_host": "passed",
+    "private_filesystem_alias_helper_command": "passed",
+    "opaque_wake_deliveries": 2,
+    "same_wake_identity_preserved": true,
+    "hostile_links_did_not_add_wake_deliveries": true,
+    "terminal_result": "terminal_opened",
+    "synthetic_fixed_uuid_helper_receipt": "accepted",
+    "notification_result": "notification_denied",
+    "app_quit_and_daemon_relaunch_cycles": 3,
+    "terminal_acknowledgements_including_initial_open": 4,
+    "independent_daemon_child_and_storage_survived": true,
+    "socket_framing_permissions_cancellation_and_symlink_negatives": "passed",
+    "test_app_and_daemon_cleanup": "passed"
+  },
+  "native_observations": {
+    "earlier_clean_commit": "0cc3cb95fde7b4cceabd3355dc3cf70e8065e287",
+    "earlier_denied_permission_relaunch_cycles": 3,
+    "ui_review": "Actual first-run status window, recovery, scrolling and keyboard focus reviewed; resulting copy-only corrections compiled and tested at the certified revision.",
+    "consent_interruption": "An intermediate run at the certified revision timed out with Apple Event -1712 and reported app_delivery_unknown. It was not counted as passing or retried as a business action. After Timo reported allowing access and starting Terminal, the exact gate passed.",
+    "os_dialog_cause": "Not independently observed; automated access to the protected Terminal/system dialog UI was unavailable."
+  },
+  "not_claimed": [
+    "Public AASA/CDN Universal Link discovery; the managed test directs the HTTPS URL to the signed app",
+    "Notarization, release upgrades or genuinely fresh macOS account certification (G02)",
+    "Whole-machine sleep, cross-device reachability or a running complete local MVP",
+    "Cloud wake issuance/claim/final authorization (C09)",
+    "Durable single-use Terminal intent consumption or real provider execution (L05/L07/P01)",
+    "Actual notification authorization, user-visible notification delivery or domain action routing (X01)",
+    "A new physical locked-session run at the certified revision; current unit tests cover locked/login-window behavior and earlier signed diagnostics observed the locked state"
+  ],
+  "retention": "Bounded synthetic assertions and public protocol fixtures only. No raw logs, Terminal transcript, credentials, profile contents, hardware identifiers, personal task data or local absolute paths are retained."
+}

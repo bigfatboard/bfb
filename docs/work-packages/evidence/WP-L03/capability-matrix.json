@@ -1,0 +1,127 @@
+{
+  "package": "L03",
+  "tested_commit": "367ede9a2948dca89f3e7bbda47b3c254649abc4",
+  "recorded_on": "2026-09-11",
+  "scope": "Early synthetic-session experiment, not production adapter certification",
+  "providers": [
+    {
+      "provider": "claude",
+      "version": "2.1.269",
+      "binary_sha256": "c942e1228b93cb4d52183b3dfbc77f28264f35aa947acd9c0853d029164cf450",
+      "binary_unchanged": true,
+      "requested_model": "sonnet",
+      "observed_model": "claude-sonnet-5",
+      "capabilities": {
+        "fresh": "supported",
+        "exact_resume": "supported",
+        "fork": "supported",
+        "read_only": "unverified",
+        "wrong_session_rejection": "supported",
+        "interrupt_after_observed_turn": "supported",
+        "native_external_idle": "unverified",
+        "native_external_active": "unverified",
+        "native_duplicate_suppression": "unsupported",
+        "native_busy_session_rejection": "unsupported"
+      },
+      "observations": {
+        "fresh_reply_and_fixture_marker_observed": true,
+        "resume_observed_same_session_and_remembered_marker": true,
+        "fork_observed_distinct_session_and_remembered_marker": true,
+        "all_observed_tool_lists": ["Glob", "Grep", "Read"],
+        "observed_mcp_servers": [],
+        "observed_plugins": [],
+        "write_and_inherited_canaries_created": [],
+        "peer_write_and_escalation_canaries_created": [],
+        "wrong_session_exit_code": 1,
+        "wrong_session_identity_observed": false,
+        "interrupt_exit_code": 0,
+        "interrupt_completed_turn": false,
+        "interrupt_required_escalation": false,
+        "simultaneous_same_session_identities_observed": true,
+        "both_identical_inputs_completed": true,
+        "loss_before_identity_observation": true,
+        "loss_after_turn_observation": true,
+        "loss_cases_completed_turn": false,
+        "delivery_retried_after_process_loss": false,
+        "native_external_delivery_attempted": false,
+        "any_case_timed_out": false
+      },
+      "limitations": [
+        "Safe/restricted tool observations do not certify every managed-policy configuration",
+        "Native inbound messages were refused by the tested profile",
+        "The documented socket guide did not establish a kit-ready script message payload contract",
+        "An exit with code zero after SIGINT did not emit a completed turn or a BFB result"
+      ]
+    },
+    {
+      "provider": "codex",
+      "version": "0.153.4",
+      "binary_sha256": "b973d440acac501fd2594a43e7ca9ce41e0a65b9dfb28d0d7a7837c99e1261e3",
+      "binary_unchanged": true,
+      "requested_model": "gpt-5.6-sol",
+      "observed_model": null,
+      "capabilities": {
+        "fresh": "supported",
+        "exact_resume": "supported",
+        "fork": "supported",
+        "read_only": "unverified",
+        "wrong_session_rejection": "supported",
+        "interrupt_after_observed_turn": "supported",
+        "native_external_idle": "unverified",
+        "native_external_active": "unverified",
+        "native_duplicate_suppression": "unsupported",
+        "native_busy_session_rejection": "supported"
+      },
+      "observations": {
+        "fresh_reply_and_fixture_marker_observed": true,
+        "resume_observed_same_session_and_remembered_marker": true,
+        "fork_observed_distinct_session_and_remembered_marker": true,
+        "observed_tool_list": null,
+        "observed_mcp_servers": null,
+        "observed_plugins": null,
+        "write_and_inherited_canaries_created": [],
+        "peer_write_and_escalation_canaries_created": [],
+        "wrong_session_exit_code": 1,
+        "wrong_session_identity_observed": false,
+        "interrupt_exit_code": 1,
+        "interrupt_completed_turn": false,
+        "interrupt_required_escalation": false,
+        "busy_contender_exit_code": 1,
+        "busy_contender_identity_observed": false,
+        "active_writer_rejection_observed": true,
+        "both_identical_inputs_completed": true,
+        "loss_before_identity_observation": true,
+        "loss_after_turn_observation": true,
+        "loss_cases_completed_turn": false,
+        "delivery_retried_after_process_loss": false,
+        "native_external_delivery_attempted": false,
+        "any_case_timed_out": false
+      },
+      "limitations": [
+        "The event stream did not report a model, tool list, MCP list or plugin list",
+        "Host-skill-discovery suppression uses an under-development feature in this exact binary",
+        "No added SDK runtime or experimental production app-server transport was adopted",
+        "An earlier pre-turn SIGINT experiment required forced-stop fallback; only post-turn interruption is supported by this matrix"
+      ]
+    },
+    {
+      "provider": "grok",
+      "version": "1.0.25",
+      "scope": "Version discovery and provider-local parser fixture only",
+      "capabilities": {
+        "fresh": "unverified",
+        "exact_resume": "unverified",
+        "fork": "unverified",
+        "read_only": "unverified",
+        "interrupt": "unverified",
+        "native_external_idle": "unverified",
+        "native_external_active": "unverified"
+      }
+    }
+  ],
+  "production_manifest_capabilities_granted_by_this_experiment": [],
+  "next_owners": {
+    "L07_P01": "Certify real adapter read-only and managed/inherited permission boundaries before granting capabilities",
+    "D02": "Own exact-session fencing, duplicate suppression and ambiguous-delivery reconciliation without blind replay"
+  }
+}

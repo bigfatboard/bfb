@@ -1,8 +1,12 @@
 # WP-L04 — SwiftUI macOS application
 
-Status: `planned`
+Status: `done`
 
 Risk: High
+
+Test target: `pnpm test:l04`
+
+Evidence manifest: `docs/work-packages/evidence/WP-L04/manifest.json`
 
 ## Outcome
 
@@ -31,6 +35,19 @@ A thin native menu-bar app exposes runner status, browser pairing, wake intents,
 
 - Human CLI credentials, durable command claim, daemon-local intent creation, cloud domain logic, checkout paths, provider flags/argv, embedded terminal, simulated keystrokes, or alternate terminal applications.
 
+## Contracts
+
+### Consumes
+
+- Local RPC v1, L01 private per-user daemon, L08 enrollment/status operations, and the distinct cloud-wake/Terminal-intent contracts.
+- C06/L01/L08 are done, with their clean-checkout evidence committed before L04 starts.
+
+### Produces
+
+- Generated Swift Local RPC Codable models and strict schema validation, opaque wake-link decoding, bounded daemon/app delivery and typed native outcomes.
+- Exact target `pnpm test:l04`; evidence manifest `docs/work-packages/evidence/WP-L04/manifest.json`.
+- [Native app/daemon contract](../contracts/macos-app.md), including signed-component identity, consent, managed-link prerequisites and ambiguous delivery semantics.
+
 ## Work plan
 
 1. Prove Swift-to-UDS, shared wire-fixture decoding, daemon lifecycle independence, and status UI.
@@ -47,11 +64,17 @@ A thin native menu-bar app exposes runner status, browser pairing, wake intents,
 - App termination does not stop the daemon or corrupt an active execution; the daemon can relaunch the app in an available GUI session or reports `app_unavailable`.
 - The Swift decoder accepts/rejects the same Local RPC golden corpus as Go and never silently defaults an unknown required field.
 
-## Evidence and handoff
+## Evidence
 
+- The gate runs cross-language golden/adversarial decoding, Swift UI/link/Terminal tests, native daemon/app lifecycle tests, and development-signature/Associated Domain configuration checks.
 - Commit UI/link tests, fake-daemon `WakeIntent` traces, Terminal command capture, cross-language Local RPC fixture results, and signed-development behavior notes.
-- L05 may call only `OpenTerminal(terminal_intent_id)`; the app never receives provider configuration or a cloud launch specification.
-
 ## Risks and decisions
 
 - Universal Links and Apple Events differ between development and signed distribution; both need repeatable gates.
+- Clean-checkout certification at `c1653e6` passed the exact target, repository verification, Linux cross-build and clean-worktree assertion. The native gate proves a real fixed-helper Terminal invocation, three daemon-driven app relaunch cycles and notification-denied behavior. The committed [evidence](evidence/WP-L04/manifest.json) separates actual native observations, injected negatives and release-environment limitations.
+- Timo approved development provisioning and resolved the Terminal access prerequisite. An intermediate Apple Event timeout was recorded as an unknown delivery and failed the gate; it was not bypassed or counted as success. Public AASA/CDN discovery, notarization and fresh-account certification remain G02 work.
+
+## Handoff
+
+- C09 owns cloud wake issuance; L05 owns single-use local intent creation and consumption.
+- L05 may call only `OpenTerminal(terminal_intent_id)`; the app never receives provider configuration or a cloud launch specification.

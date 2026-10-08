@@ -1,0 +1,76 @@
+{
+  "$schema": "../manifest.schema.json",
+  "artifacts": [
+    "docs/work-packages/evidence/WP-V02/command-result.json",
+    "docs/work-packages/evidence/WP-V02/hostile-corpus.md",
+    "docs/work-packages/evidence/WP-V02/headers.json",
+    "docs/work-packages/evidence/WP-V02/csp-sandbox-report.md",
+    "docs/contracts/artifact-viewer.md",
+    "packages/domain/test/artifact-views.test.ts",
+    "packages/domain/src/artifact-views.ts",
+    "apps/artifact-worker/test/view.test.ts",
+    "apps/artifact-worker/test/renderers.test.ts",
+    "apps/artifact-worker/src/view.ts",
+    "apps/artifact-worker/src/renderers.ts",
+    "apps/control-worker/test/artifact-view-routes.test.ts",
+    "apps/control-worker/src/api/artifact-views.ts",
+    "apps/web/test/artifact-viewer.test.ts",
+    "apps/web/src/artifacts/ArtifactViewer.tsx",
+    "apps/web/src/artifacts/viewer-flow.ts",
+    "apps/web/test/e2e/v02-viewer.spec.ts",
+    "tools/artifact-viewer/run.ts",
+    "tools/artifact-viewer/e2e-fixture.ts",
+    "migrations/d1/0026_artifact_viewer.sql"
+  ],
+  "commands": [
+    {
+      "artifact": "docs/work-packages/evidence/WP-V02/command-result.json",
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed"
+    },
+    {
+      "artifact": "docs/work-packages/evidence/WP-V02/command-result.json",
+      "command": "pnpm build",
+      "outcome": "passed"
+    },
+    {
+      "artifact": "docs/work-packages/evidence/WP-V02/command-result.json",
+      "command": "pnpm test:v02",
+      "outcome": "passed"
+    },
+    {
+      "artifact": "docs/work-packages/evidence/WP-V02/command-result.json",
+      "command": "pnpm verify",
+      "outcome": "passed"
+    },
+    {
+      "artifact": "docs/work-packages/evidence/WP-V02/command-result.json",
+      "command": "pnpm worktree:check",
+      "outcome": "passed"
+    }
+  ],
+  "environment": {
+    "architecture": "arm64",
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56)"
+  },
+  "migration_head": "0026_artifact_viewer",
+  "outcome": "passed",
+  "package": "V02",
+  "protocol_version": "bfb-wire/1",
+  "redaction": {
+    "prohibited_content": [],
+    "status": "passed"
+  },
+  "schema_version": "1",
+  "tested_commit": "ed2a9233f17340785dc524bd73f7ae561272422b",
+  "toolchains": {
+    "better-sqlite3": "12.6.2",
+    "go": "1.26.5",
+    "node": "24.19.0",
+    "playwright": "1.55.1",
+    "pnpm": "11.21.0",
+    "wrangler": "4.120.1",
+    "xcode": "26.0.1"
+  }
+}

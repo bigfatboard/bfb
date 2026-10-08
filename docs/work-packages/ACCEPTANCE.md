@@ -52,6 +52,16 @@ This matrix assigns every architecture release claim to the package that creates
 | IC-7 Provider/external parity | G01 | IC-6 plus Codex/Grok, notification, CLI, remote MCP, GitHub, operations suites |
 | IC-8 Release | G02 | Every preceding checkpoint from tagged release artifacts in clean environments |
 
+## MVP discussion gates
+
+These gates extend the remote-launch MVP under [ADR 0002](../adr/0002-human-initiated-discussions.md); they do not replace the full v0.1 release gates above.
+
+| Gate | MVP claim | Primary owner | Required proof |
+| --- | --- | --- | --- |
+| DG-01 | Discussion authority and participant runs cannot mutate normal task lifecycle or expose human-only context | D01 | Cross-tenant/participant permission matrix, frozen brief and typed human-decision tests |
+| DG-02 | Bounded read-only turns reach the correct owned session without duplicate or elevated authority | D02 | Exact-version provider fixtures, session fencing, write/escalation negatives, crash/ack ambiguity, cancellation and deadline recovery |
+| DG-03 | A human starts, watches, intervenes, reconnects and decides a two-agent discussion | D03 | Browser-to-runner flow using Claude/Codex, failure displays, preserved disagreement, no implicit task completion |
+
 ## Completion report
 
 G01 maintains the release-gate report with one row per gate. It must complete every gate except G02-owned AG-10 and OG-02, which remain `not_run` until G02 runs them and publishes the final report:

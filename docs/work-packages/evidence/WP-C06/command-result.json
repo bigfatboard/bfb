@@ -1,0 +1,49 @@
+{
+  "package": "C06",
+  "tested_commit": "02475746c36c0673bb389c43241536b256d2f9bc",
+  "recorded_on": "2026-09-12",
+  "automated_gate": "passed",
+  "package_acceptance": "passed",
+  "checkout": {
+    "detached": true,
+    "clean_before_install": true,
+    "clean_after_verification": true,
+    "frozen_install": "passed"
+  },
+  "checks": {
+    "protocol_fixture_and_codegen_drift": "passed",
+    "protocol_typescript_tests": 147,
+    "protocol_go_differential_fixtures": "passed",
+    "focused_typescript_tests": 64,
+    "browser_passkey_scenario": 1,
+    "repository_typescript_tests": 411,
+    "repository_go_checks": "passed",
+    "repository_swift_xcode_checks": "passed",
+    "repository_verification": "passed",
+    "full_browser_regression_scenarios": 15,
+    "worktree_check": "passed"
+  },
+  "workerd": {
+    "workers": 3,
+    "enrollments": 3,
+    "workspaces": 2,
+    "enrollment_race_http_statuses": [201, 403],
+    "token_race_http_statuses": [200, 403],
+    "request_race_http_statuses": [200, 403],
+    "grant_race_http_statuses": [200, 403],
+    "cross_workspace": "rejected",
+    "abuse_counters": "shared-and-hashed",
+    "revocation_before_cleanup": true,
+    "persisted_raw_credentials": false
+  },
+  "not_claimed": [
+    "Native Keychain keys, signed-component ACLs or a real Mac enrollment (L08)",
+    "Live WSS closure, hibernation, renewal or reconnect delivery (L08/E01)",
+    "Runner management UI (W02)",
+    "Launch claim, pending-command cancellation or final authorization (C09/L05)",
+    "Automatic expired credential-row cleanup (X05)",
+    "Cloudflare EU jurisdiction routing in local workerd",
+    "Running local MVP or deployed behavior"
+  ],
+  "retention": "Bounded assertions and synthetic public protocol fixtures only. No raw logs, private keys, usable tokens, signatures, personal task content, IP addresses or local absolute paths are retained."
+}

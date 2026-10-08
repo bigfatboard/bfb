@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/agent-bound-local-request.json",
+  "title": "AgentBoundLocalRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["request", "correlation"],
+  "properties": {
+    "request": { "$ref": "agent-bound-request.json" },
+    "correlation": { "type": "string", "minLength": 1, "maxLength": 512 }
+  }
+}

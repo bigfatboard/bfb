@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "run_execution_id": "01K00000000000000000000001",
+  "assignment_generation": 1,
+  "fencing_generation": 1,
+  "sequence": 1,
+  "observed_at": "2026-09-12T12:00:00.000Z",
+  "operation": "release",
+  "local_lock_id": "01K00000000000000000000011",
+  "owned_group_id": 0,
+  "owned_group_start_identity": "",
+  "supervisor_state": "never_started",
+  "group_state": "never_started",
+  "lock_state": "never_acquired",
+  "descendants_state": "none",
+  "recovery_local": false
+}

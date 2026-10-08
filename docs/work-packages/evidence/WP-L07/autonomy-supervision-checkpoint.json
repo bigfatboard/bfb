@@ -1,0 +1,152 @@
+{
+  "schema_version": 1,
+  "package": "L07",
+  "checkpoint": "explicit-claude-autonomy-and-root-supervision",
+  "date": "2026-10-06",
+  "implementation_commit": "d86ea7fea081aecb60fb43b7e8fdc6d03352db6b",
+  "package_status": "in_progress",
+  "checkout_scope": "Full verification ran on the source-equivalent implementation tree; the final exact L07 target ran from its committed clean working tree with installed pinned dependencies reused. This is not separate frozen-install package acceptance.",
+  "evidence_order": "Checks are grouped by proof, not chronologically. The candidate was built after full verification and passing L07 native/server/browser phases including the browser retry, before the final consolidated exact L07 run. Human activation followed that complete passing target. The build-after-complete-target ordering in ADR 0013 is not claimed for this build.",
+  "environment": {
+    "os": "macOS 26.2",
+    "architecture": "arm64",
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "xcode": "26.0.1",
+    "candidate_provider": "Claude Code 2.1.291, exact binary unchanged",
+    "candidate_manifest": "0.0.2",
+    "protocol": "Existing bfb-wire/1 documents with the bounded ADR 0013 enum exception; separate root-lease schema_version 2",
+    "d1_migration_head": "0044_agent_profile_permissions.sql"
+  },
+  "permission_contract": {
+    "mode": "manual or autonomous, independent of harness mode",
+    "existing_current_and_immutable_profiles": "Default manual; historical snapshots retain their original choice",
+    "autonomous_scope": "Interactive standard Claude profiles only; explicit owner opt-in and exact advertised capabilities",
+    "autonomous_mapping": "approval_policy never, filesystem_policy full_access, --dangerously-skip-permissions on launch and exact-session resume",
+    "authority": "Local-user access does not confer BFB roles, new run scope or deployment approval",
+    "production_capability_promotion": false
+  },
+  "supervision_contract": {
+    "selection": "Compiled candidate selects root mode before a fresh execution; default strict mode is unchanged",
+    "authority": "Fresh signed supervisor, authenticated held lock, original live root PID/start/PGID and independently authenticated MCP caller ancestry",
+    "detached_observations": "Verified descendants may have a separate group; retained observations do not authorize signals to their groups or prove complete-family absence",
+    "ambiguity": "PID or group replacement, malformed history, unrelated ancestry and overflow remain sticky failures",
+    "root_exit": "Revokes MCP authority, retains original-group lifetime supervision and durable occupancy, and does not infer a business result",
+    "wire": "Root lease renew/unknown observations remain explicitly family_coverage unproven; no v1 downgrade or release operation",
+    "automatic_release_supported": false,
+    "operator_acknowledged_recovery_implemented": false,
+    "existing_closed_execution_revived": false
+  },
+  "checks": [
+    {
+      "command": "Focused native failing-first supervision and PTY fixtures",
+      "outcome": "failed_as_expected_before_repair",
+      "cases": [
+        "Detached lifetime observation incorrectly denied authority or claimed whole-family closure",
+        "Identity and ancestry ambiguity handling",
+        "PTY helper returned before the original root group finished after root exit"
+      ]
+    },
+    {
+      "command": "Focused protocol, profile, candidate, native MCP, root lease and historical migration checks",
+      "outcome": "passed",
+      "scope": "Explicit permission opt-in, capability denial, exact resume, immutable snapshots, unchanged strict behavior, signed-lock authority, root-only signals, root-exit revocation, durable uncertainty and denied recovery"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "typescript_cases": 2900,
+      "typescript_files": 147,
+      "go": "Formatting, module tidiness, vet, full tests and build passed",
+      "swift_cases": 16,
+      "repository": "Formatting, lint, types, generated protocol, ABOUTME headers, documentation links and roadmap passed"
+    },
+    {
+      "command": "GOFLAGS=-p=1 pnpm test:l07",
+      "outcome": "failed",
+      "scope": "All preceding native/provider/server phases passed; the browser phase could not start because the pinned Chromium headless binary was absent"
+    },
+    {
+      "command": "pnpm exec playwright install chromium --only-shell",
+      "outcome": "passed",
+      "scope": "Restored the pinned test runtime; no dependency or lockfile change"
+    },
+    {
+      "command": "BFB_E2E_PORT=4188 pnpm exec playwright test apps/web/test/e2e/l07-pilot-gates.spec.ts apps/web/test/e2e/l07-onboarding.spec.ts --config tools/e2e/playwright.config.ts",
+      "outcome": "passed",
+      "browser_cases": 6
+    },
+    {
+      "command": "GOFLAGS=-p=1 pnpm test:l07",
+      "outcome": "passed",
+      "scope": "Final complete exact target from the committed clean working tree; Go package scheduling serialized, with no test exclusion or deadline relaxation",
+      "protocol_cases": 1154,
+      "provider_fixture_cases": 5,
+      "candidate_preparation_cases": 4,
+      "go_race": "Daemon, auth, CLI, provider adapters, Claude candidate, local MCP, runner and supervisor passed",
+      "pilot_node_cases": 13,
+      "pilot_typescript_cases": 126,
+      "browser_cases": 6
+    },
+    {
+      "command": "Signed replacement candidate build and deep/strict verification",
+      "outcome": "passed",
+      "scope": "Existing private state and byte-identical candidate binding preserved; provider fingerprint unchanged; no credentials copied or service installed",
+      "activation_performed": false
+    },
+    {
+      "command": "Actual signed unscoped hook and normal provider setup preview/hash-CAS apply",
+      "outcome": "passed",
+      "scope": "Unscoped hook exits zero with empty stdout/stderr; seven BFB hooks and one global BFB MCP entry change only helper path; unowned semantics preserved; fresh preview reports current",
+      "project_override_precheck": "No project-local BFB server or BFB-disabled entry was present",
+      "normal_doctor": "Still rejects the uncertified candidate version; no production support claim"
+    },
+    {
+      "command": "Local persistent pilot migration, read-only D1 assertions and HTTPS health",
+      "outcome": "passed",
+      "scope": "Migration 0044 applied; existing current/profile-version rows remain manual; foreign-key check empty; app and artifact endpoints healthy",
+      "restart": "Interrupted supervisor was absent; its identified retained artifact group was stopped, stale control metadata archived and stock pilot restarted independently of the interactive tool process",
+      "persistent_data_preserved": true
+    },
+    {
+      "command": "Human replacement app activation, private daemon startup, checkout link and read-only inventory assertions",
+      "outcome": "passed",
+      "scope": "Replacement process confirmed; daemon reconnects with the same enrollment; cloud reports exact Claude 2.1.291 healthy with approval.never and filesystem.full_access; a separate proof checkout is clean and validated at the implementation commit",
+      "existing_closed_execution": "Remains containment_unknown; no new execution or process revival occurred",
+      "service_installed": false,
+      "operator_environment_correction": "Daemon PATH restored the existing Claude alias directory; exact binary fingerprint validation remains mandatory"
+    }
+  ],
+  "retained_failures": [
+    "Initial full verification included a private user-local Claude settings file in formatting; the exact private-file pattern was excluded without editing its contents",
+    "A historical measurement migration fixture invoked current profile CRUD against the pre-0044 schema; an explicit test-only legacy fixture seam repaired the test, with no production fallback",
+    "The first complete L07 attempt lacked the pinned Chromium executable; browser retry and a final complete target both pass after restoring it",
+    "An aged provider setup proposal was rejected as a concurrent configuration conflict before apply; a freshly validated proposal passed through the unchanged hash-CAS transaction",
+    "Pilot health failed after the interactive supervisor exited during interruption; exact owned-process recovery restored both endpoints without resetting state",
+    "First daemon startup omitted the Claude install directory from PATH and reported unavailable; corrected operator environment and normal daemon restart restored healthy inventory without code or pin changes",
+    "First proof-checkout preparation asserted a historical repository identity and stopped before mutation; registration subsequently reused the prior explicit identity binding"
+  ],
+  "live_mcp_context_verified": false,
+  "fresh_live_launch_verified": false,
+  "replacement_app_activation_verified": true,
+  "same_enrollment_reconnection_verified": true,
+  "fresh_proof_checkout_registered": true,
+  "pilot_follow_through": {
+    "later_failure": "Wrangler control diagnostics recorded Network connection lost; the pilot supervisor and both Workers exited, with stale control metadata cleaned normally",
+    "reload_attribution": "A prior hot reload completed about fifteen minutes before the error; direct causation is unproven",
+    "recovery": "Restarted the same stock persistent pilot; both HTTPS health checks pass and existing runner enrollment reconnects online",
+    "business_effects": "No autonomous profile or new execution had been created at this observation",
+    "underlying_failure_fixed": false
+  },
+  "deployment_performed": false,
+  "unverified": [
+    "Fresh authorized Claude launch on a separately registered checkout",
+    "Canonical provider-session binding, scoped MCP context, human attention, explicit result and same-run resume",
+    "Operator-acknowledged recovery for root-supervised occupancy",
+    "Local pilot longevity across the unresolved Wrangler network failure",
+    "Separate frozen-install clean-checkout package completion, production certification and full MVP acceptance",
+    "Codex live provider integration"
+  ],
+  "redaction": "No credentials, private task content, live identifiers, local absolute paths, raw hook payloads or terminal transcripts"
+}

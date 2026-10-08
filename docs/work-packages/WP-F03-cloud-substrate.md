@@ -15,7 +15,7 @@ BFB’s web, control, and artifact applications build and run against an explici
 ## Dependencies
 
 - **Requires:** F01.
-- **Unlocks:** C01, C02, F04, G02, V01, W01, X03A, X04.
+- **Unlocks:** C01, C02, F04, G02, V01, V02, W01, X03A, X04.
 - **Can run with:** F02.
 
 ## Scope
@@ -67,12 +67,15 @@ BFB’s web, control, and artifact applications build and run against an explici
 - The compatibility spike leaves no enabled Better Auth route, migration, session behavior, or product configuration behind.
 - No production or shared-state deployment occurs in this package.
 
-## Evidence and handoff
+## Evidence
 
-- Commit local smoke output, route matrix, binding matrix, and disposable runtime result. Remote namespace reconciliation belongs to G02 because this package performs no shared-state deployment.
-- F04 receives one typed Worker environment and one supported D1 deployment shape; C02 receives only the disposable compatibility result, not auth implementation.
-
+- Commit local smoke output, route matrix, binding matrix, and disposable runtime result.
 ## Risks and decisions
 
 - Static asset routing and cookie domains are security boundaries, not deployment polish.
 - Cloudflare configuration syntax must be verified against current official docs during implementation.
+
+## Handoff
+
+- Remote namespace reconciliation belongs to G02 because this package performs no shared-state deployment.
+- F04 receives one typed Worker environment and one supported D1 deployment shape; C02 receives only the disposable compatibility result, not auth implementation.

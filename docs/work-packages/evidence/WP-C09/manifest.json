@@ -1,0 +1,99 @@
+{
+  "$schema": "../manifest.schema.json",
+  "package": "C09",
+  "tested_commit": "e22e2cfbde79c6430047f9f9bf0ef1acd88383ec",
+  "protocol_version": "bfb-wire/1",
+  "schema_version": "1",
+  "migration_head": "d1:0016_launch_orchestration.sql;local:003_runner_enrollments.sql",
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "xcode": "26.0.1",
+    "wrangler": "4.120.1"
+  },
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56), local Wrangler D1 and Workerd",
+    "architecture": "arm64"
+  },
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C09/command-result.json"
+    },
+    {
+      "command": "pnpm test:c09",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C09/command-result.json"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C09/command-result.json"
+    },
+    {
+      "command": "pnpm test:c01",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C09/command-result.json"
+    },
+    {
+      "command": "pnpm test:db",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C09/command-result.json"
+    },
+    {
+      "command": "pnpm test:c07",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C09/command-result.json"
+    },
+    {
+      "command": "pnpm test:c08",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C09/command-result.json"
+    },
+    {
+      "command": "pnpm test:c06",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C09/command-result.json"
+    },
+    {
+      "command": "pnpm test:ic1",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C09/command-result.json"
+    },
+    {
+      "command": "GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./...",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C09/command-result.json"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C09/command-result.json"
+    }
+  ],
+  "outcome": "passed",
+  "artifacts": [
+    "docs/work-packages/evidence/WP-C09/command-result.json",
+    "docs/work-packages/evidence/WP-C09/state-transition-matrix.md",
+    "docs/contracts/launch-orchestration.md",
+    "tools/launches/run.ts",
+    "tools/launches/worker.ts",
+    "tools/launches/fixtures.mjs",
+    "packages/domain/test/launches.test.ts",
+    "packages/domain/test/checkout-leases.test.ts",
+    "packages/domain/test/run-controls.test.ts",
+    "packages/domain/test/launch-wake.test.ts",
+    "apps/control-worker/test/launch-routes.test.ts",
+    "packages/db/test/migrations.test.ts",
+    "internal/protocol/launch_types_test.go",
+    "migrations/d1/0016_launch_orchestration.sql",
+    "protocol/fixtures/v1/matrix.json"
+  ],
+  "redaction": {
+    "status": "passed",
+    "prohibited_content": []
+  }
+}

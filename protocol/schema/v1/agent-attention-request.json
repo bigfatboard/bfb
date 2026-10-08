@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/agent-attention-request.json",
+  "title": "AgentAttentionRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["reference", "binding", "kind", "question", "blocking"],
+  "properties": {
+    "reference": {
+      "$ref": "agent-work-request.json"
+    },
+    "binding": {
+      "$ref": "agent-session-reference.json"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "clarification",
+        "review",
+        "credential",
+        "capability",
+        "destructive_action",
+        "blocker"
+      ]
+    },
+    "question": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048
+    },
+    "blocking": {
+      "type": "boolean"
+    },
+    "reference_kind": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "reference_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": ["reference_kind"],
+        "type": "object",
+        "properties": {
+          "reference_kind": {}
+        }
+      },
+      "then": {
+        "required": ["reference_id"],
+        "type": "object",
+        "properties": {
+          "reference_id": {}
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["reference_id"],
+        "type": "object",
+        "properties": {
+          "reference_id": {}
+        }
+      },
+      "then": {
+        "required": ["reference_kind"],
+        "type": "object",
+        "properties": {
+          "reference_kind": {}
+        }
+      }
+    }
+  ]
+}

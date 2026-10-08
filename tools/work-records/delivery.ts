@@ -1,0 +1,2260 @@
+// ABOUTME: Proves staged human task reads and current-authority work-command retries on disposable real D1.
+// ABOUTME: Two independent Workers dispatch the production Hub; synthetic policies do not activate private creation.
+
+import assert from "node:assert/strict";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { setTimeout as delay } from "node:timers/promises";
+import { createTestHarness } from "wrangler";
+import {
+  adaptD1,
+  loadMigrationManifest,
+  type D1Like,
+  type D1StatementLike,
+  type SqlDatabase,
+} from "@bfb/db";
+import {
+  FIX,
+  randomUlid,
+  seedSyntheticWorkspace,
+  loadPrincipal,
+  getTask,
+  getAgentContext,
+  listTasksPage,
+  buildProjectLanes,
+  buildNeedsNowDeck,
+  artifactHash,
+  mintUploadGrantSecret,
+  mintViewGrantSecret,
+  mintViewNonce,
+  redeemUploadGrant,
+  recordVerifiedUpload,
+  redeemViewGrant,
+  listArtifactsWithReviewState,
+  getRunMeasurements,
+  listReviewTimers,
+  listStuckUploads,
+  filterOperationsStuckWork,
+  listRetentionEligibleChunks,
+  listSystemRetentionEligibleChunks,
+  resolveStuckUploadCommand,
+  issueStepUpProof,
+  recoveryActionId,
+  OPS_STEP_UP_ACTIONS,
+  ARTIFACT_AUDIT_ACTIONS,
+  ARTIFACT_RECOVERY_SYSTEM_ID,
+  readSecurityAudit,
+  issueSecurityAuditPositionCommand,
+  DomainError,
+  authorizeResultEvidence,
+  listResultSubmissions,
+  fanoutNotificationEvent,
+  deriveDeliveryId,
+  listDeliveries,
+  loadPushAttempt,
+  WorkspaceHub,
+  submitResultCommand,
+  submitDelegatedResultCommand,
+  type CreateArtifactResult,
+  type ViewGrant,
+  type CommandOutcome,
+  type TaskRecord,
+  type IssueSecurityAuditPosition,
+  type TaskAccessContext,
+} from "@bfb/domain";
+import { auditPositionAfter, readAuditSegment } from "./audit-fixture.js";
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+const origin = "https://bfb.work-records.test";
+const now = new Date().toISOString();
+const server = createTestHarness({
+  root,
+  workers: [
+    { configPath: "tools/work-records/wrangler-a.toml" },
+    { configPath: "tools/work-records/wrangler-b.toml" },
+    { configPath: "tools/work-records/wrangler-hub.toml" },
+  ],
+});
+const checks: string[] = [];
+function check(name: string) {
+  checks.push(name);
+}
+function access(humanId = FIX.owner) {
+  return { workspaceId: FIX.workspace, humanId, authorizationEpoch: 1 };
+}
+async function execute<T>(
+  worker: "a" | "b",
+  name: string,
+  input: unknown,
+  humanId = FIX.owner,
+  key = randomUlid(),
+  delegationId?: string,
+  authorizationEpoch = 1,
+): Promise<CommandOutcome<T>> {
+  const response = await server
+    .getWorker(`bfb-work-records-${worker}`)
+    .fetch(`${origin}/workspaces/${FIX.workspace}/execute`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        commandName: name,
+        request: {
+          workspaceId: FIX.workspace,
+          actorHumanId: humanId,
+          actorDelegationId: delegationId,
+          authorizationEpoch,
+          idempotencyKey: key,
+          now,
+          input,
+        },
+      }),
+    });
+  assert.equal(response.status, 200);
+  return (await response.json()) as CommandOutcome<T>;
+}
+try {
+  await server.listen();
+  const worker = server.getWorker("bfb-work-records-hub");
+  await worker.applyD1Migrations("DB");
+  const binding = ((await worker.getEnv()) as unknown as { DB: D1Like }).DB;
+  const db = adaptD1(binding);
+  const manifest = loadMigrationManifest(resolve(root, "migrations/d1"));
+  await seedSyntheticWorkspace(db, now);
+  const ids: string[] = [];
+  for (const title of ["PRIVATE_TITLE_CANARY", "Synthetic shared task"]) {
+    const outcome = await execute<TaskRecord>(
+      "a",
+      "task.create",
+      {
+        projectId: FIX.projectA,
+        title,
+        priority: "P0",
+        nextOwnerType: "human",
+        nextOwnerId: FIX.owner,
+        nextActionReason: "Explicit synthetic review",
+        dueAt: now,
+      },
+      FIX.member,
+    );
+    if (!outcome.ok) throw new Error(outcome.error.code);
+    ids.push(outcome.result.id);
+  }
+  const [privateId, sharedId] = ids as [string, string];
+  // Create historical shared child records before the fixture-only privacy
+  // policy. Production private creation and launch remain unavailable here.
+  const run = await execute<{ run: { id: string } }>(
+    "a",
+    "run.create",
+    {
+      taskId: privateId,
+      expectedTaskVersion: 1,
+      agentProfileId: FIX.profileCodex,
+      workspacePolicyVersion: 1,
+      projectPolicyVersion: 1,
+      repositoryConfigVersion: 1,
+      agentProfileVersion: 1,
+    },
+    FIX.member,
+  );
+  assert(run.ok);
+  const runId = run.result.run.id;
+  const upload = mintUploadGrantSecret();
+  const digest = "a".repeat(64);
+  const artifact = await execute<CreateArtifactResult>(
+    "a",
+    "artifact.create_version",
+    {
+      runId,
+      format: "markdown",
+      role: "review",
+      declaredSize: 12,
+      expectedDigest: digest,
+      grantSecretHash: upload.secretHash,
+    },
+    FIX.member,
+  );
+  assert(artifact.ok);
+  const consumed = await db.withTransaction((tx) =>
+    redeemUploadGrant(tx, {
+      grantId: artifact.result.upload_grant.grant_id,
+      secret: upload.secret,
+      now,
+    }),
+  );
+  await db.withTransaction((tx) =>
+    recordVerifiedUpload(tx, {
+      grantId: consumed.grantId,
+      consumeAttemptId: consumed.consumeAttemptId,
+      contentHash: digest,
+      size: 12,
+      now,
+    }),
+  );
+  assert(
+    (
+      await execute(
+        "a",
+        "artifact.finalize_version",
+        { versionId: artifact.result.version_id, contentHash: digest, size: 12 },
+        FIX.member,
+      )
+    ).ok,
+  );
+  assert.deepEqual(await db.prepare("SELECT COUNT(*) AS n FROM task_privacy").get(), { n: 0 });
+  await db
+    .prepare(
+      `INSERT INTO task_privacy
+    (workspace_id, task_id, owner_human_id, created_at) VALUES (?, ?, ?, ?)`,
+    )
+    .run(FIX.workspace, privateId, FIX.member, now);
+  check("creation_stays_shared_private_policy_is_fixture_only");
+  assert.equal(await getTask(db, FIX.workspace, privateId), undefined);
+  assert.deepEqual(await getAgentContext(db, FIX.workspace, privateId), []);
+  assert.equal(await getTask(db, FIX.workspace, privateId, access()), undefined);
+  assert.equal((await getTask(db, FIX.workspace, privateId, access(FIX.member)))?.id, privateId);
+  check("read_query_creator_only_no_owner_or_unscoped_bypass");
+  assert.deepEqual(
+    await listTasksPage(db, FIX.workspace, [FIX.projectA], {
+      limit: 1,
+      access: access(),
+    }),
+    { tasks: [await getTask(db, FIX.workspace, sharedId, access())], limit: 1, has_more: false },
+  );
+  const principal = await loadPrincipal(db, FIX.workspace, FIX.owner);
+  assert.deepEqual(
+    (await buildProjectLanes(db, FIX.workspace, principal.projectIds, principal)).flatMap((lane) =>
+      lane.tasks.map((task) => task.taskId),
+    ),
+    [sharedId],
+  );
+  assert.deepEqual(
+    (
+      await buildNeedsNowDeck(db, FIX.workspace, FIX.owner, principal.projectIds, now, principal)
+    ).map((task) => task.taskId),
+    [sharedId],
+  );
+  check("task_board_and_deck_filter_before_pagination");
+  const grantId = randomUlid();
+  await db
+    .prepare(
+      `INSERT INTO task_human_grants
+    (workspace_id, id, task_id, human_id, authorization_epoch, permission, created_at)
+    VALUES (?, ?, ?, ?, 1, 'read', ?)`,
+    )
+    .run(FIX.workspace, grantId, privateId, FIX.owner, now);
+  assert.equal((await getTask(db, FIX.workspace, privateId, access()))?.id, privateId);
+  assert.deepEqual(
+    await execute("b", "comment.add", {
+      taskId: privateId,
+      kind: "discussion",
+      body: "DENIED_PRIVATE_BODY",
+    }),
+    {
+      ok: false,
+      error: { code: "not_found", message: "task not found" },
+    },
+  );
+  check("read_grant_does_not_authorize_contribution");
+  await db.prepare("UPDATE task_human_grants SET revoked_at = ? WHERE id = ?").run(now, grantId);
+  const editGrant = randomUlid();
+  await db
+    .prepare(
+      `INSERT INTO task_human_grants
+    (workspace_id, id, task_id, human_id, authorization_epoch, permission, created_at)
+    VALUES (?, ?, ?, ?, 1, 'edit', ?)`,
+    )
+    .run(FIX.workspace, editGrant, privateId, FIX.owner, now);
+  const operation = { taskId: privateId, kind: "discussion", body: "PRIVATE_COMMENT_CANARY" };
+  const key = randomUlid();
+  const simultaneous = await Promise.all([
+    execute("a", "comment.add", operation, FIX.owner, key),
+    execute("b", "comment.add", operation, FIX.owner, key),
+  ]);
+  assert(simultaneous.every((result) => result.ok));
+  assert.equal(simultaneous.filter((result) => result.ok && result.replayed).length, 1);
+  assert.deepEqual(
+    await db.prepare("SELECT COUNT(*) AS n FROM comments WHERE task_id = ?").get(privateId),
+    { n: 1 },
+  );
+  const changed = await execute(
+    "b",
+    "comment.add",
+    { ...operation, body: "Changed" },
+    FIX.owner,
+    key,
+  );
+  assert(!changed.ok && changed.error.code === "request_rejected");
+  check("cross_isolate_idempotency_binds_exact_input_and_one_effect");
+  const context = await execute("a", "context.add", {
+    taskId: privateId,
+    kind: "brief",
+    audience: "agent",
+    body: "PRIVATE_CONTEXT_CANARY",
+  });
+  assert(context.ok);
+  const delegationId = randomUlid();
+  await db
+    .prepare(
+      `INSERT INTO oauth_delegations
+    (workspace_id, id, human_id, client_id, resource, project_id, scopes_json,
+     authorization_epoch, expires_at, created_at)
+    VALUES (?, ?, ?, 'c11-client', 'https://bfb.example.test/mcp', ?, '["bfb:read"]', 1, ?, ?)`,
+    )
+    .run(
+      FIX.workspace,
+      delegationId,
+      FIX.owner,
+      FIX.projectA,
+      new Date(Date.now() + 600_000).toISOString(),
+      now,
+    );
+  const contextKey = randomUlid();
+  const delivered = await execute<{ body: string }[]>(
+    "a",
+    "context.deliver.delegation",
+    { taskId: privateId },
+    FIX.owner,
+    contextKey,
+    delegationId,
+  );
+  assert(delivered.ok);
+  assert.deepEqual(
+    delivered.result.map((item) => item.body),
+    ["PRIVATE_CONTEXT_CANARY"],
+  );
+  for (const table of ["audit_events", "semantic_events", "outbox_records"]) {
+    const rows = await db
+      .prepare(`SELECT payload_json FROM ${table} WHERE workspace_id = ?`)
+      .all(FIX.workspace);
+    assert.doesNotMatch(JSON.stringify(rows), /PRIVATE_(TITLE|COMMENT|CONTEXT)_CANARY/);
+  }
+  check("work_receipts_exclude_private_titles_prose_and_context");
+  await db.prepare("UPDATE task_human_grants SET revoked_at = ? WHERE id = ?").run(now, editGrant);
+  for (const outcome of [
+    await execute("b", "comment.add", operation, FIX.owner, key),
+    await execute(
+      "b",
+      "context.deliver.delegation",
+      { taskId: privateId },
+      FIX.owner,
+      contextKey,
+      delegationId,
+    ),
+  ])
+    assert.deepEqual(outcome, {
+      ok: false,
+      error: { code: "not_found", message: "task not found" },
+    });
+  assert.equal(await getTask(db, FIX.workspace, privateId, access()), undefined);
+  check("revocation_fences_cross_isolate_cached_comment_and_context");
+  const child = await execute(
+    "a",
+    "task.create",
+    {
+      projectId: FIX.projectA,
+      parentTaskId: privateId,
+      title: "Must not become shared",
+      priority: "P2",
+    },
+    FIX.member,
+  );
+  assert(!child.ok && child.error.code === "not_found");
+  check("private_parent_children_remain_unavailable");
+  for (let index = 0; index < 48; index++) {
+    const task = await execute<TaskRecord>("a", "task.create", {
+      projectId: FIX.projectA,
+      title: `Synthetic board capacity ${index}`,
+      priority: "P2",
+    });
+    assert(task.ok);
+  }
+  const fullBoard = await buildProjectLanes(db, FIX.workspace, principal.projectIds, principal);
+  const fullCards = fullBoard.flatMap((lane) => lane.tasks);
+  assert.equal(fullCards.length, 49);
+  assert(fullCards.every((card) => !("latestEvent" in card)));
+  assert.doesNotMatch(JSON.stringify(fullBoard), /PRIVATE_TITLE_CANARY/);
+  check("full_board_page_stays_within_d1_parameter_limit");
+  assert.deepEqual(
+    await listArtifactsWithReviewState(db, FIX.workspace, principal.projectIds, runId, principal),
+    [],
+  );
+  await assert.rejects(getRunMeasurements(db, FIX.workspace, runId, now, principal));
+  assert.deepEqual(await listReviewTimers(db, FIX.workspace, privateId, principal), []);
+  check("private_artifact_measurement_and_timer_children_hide_unshared_owner");
+
+  const readGrant = randomUlid();
+  await db
+    .prepare(
+      `INSERT INTO task_human_grants
+      (workspace_id, id, task_id, human_id, authorization_epoch, permission, created_at)
+      VALUES (?, ?, ?, ?, 1, 'read', ?)`,
+    )
+    .run(FIX.workspace, readGrant, privateId, FIX.owner, now);
+  const visibleArtifacts = await listArtifactsWithReviewState(
+    db,
+    FIX.workspace,
+    principal.projectIds,
+    runId,
+    principal,
+  );
+  assert.equal(visibleArtifacts.length, 1);
+  await getRunMeasurements(db, FIX.workspace, runId, now, principal);
+  const deniedTimer = await execute("b", "review_timer.start", { taskId: privateId, runId });
+  assert(!deniedTimer.ok && deniedTimer.error.code === "not_found");
+  const viewSecret = mintViewGrantSecret();
+  const viewNonce = mintViewNonce();
+  const view = await execute<ViewGrant>("a", "artifact.create_view_grant", {
+    versionId: artifact.result.version_id,
+    grantSecretHash: artifactHash(viewSecret.secret),
+    viewNonce,
+    sessionHash: artifactHash("synthetic-private-child-session"),
+  });
+  assert(view.ok);
+  check("read_grant_allows_preview_and_measurements_but_not_timer_mutation");
+  await db.prepare("UPDATE task_human_grants SET revoked_at = ? WHERE id = ?").run(now, readGrant);
+  await assert.rejects(
+    db.withTransaction((tx) =>
+      redeemViewGrant(tx, {
+        viewId: view.result.view_id,
+        secret: viewSecret.secret,
+        nonce: viewNonce,
+        now,
+      }),
+    ),
+  );
+  assert.deepEqual(
+    await db
+      .prepare("SELECT consumed_at FROM artifact_view_grants WHERE id = ?")
+      .get(view.result.view_id),
+    { consumed_at: null },
+  );
+  check("real_d1_view_consumption_rechecks_current_private_parent_grant");
+
+  const contributionGrant = randomUlid();
+  await db
+    .prepare(
+      `INSERT INTO task_human_grants
+    (workspace_id, id, task_id, human_id, authorization_epoch, permission, created_at)
+    VALUES (?, ?, ?, ?, 1, 'contribute', ?)`,
+    )
+    .run(FIX.workspace, contributionGrant, privateId, FIX.owner, now);
+  const timerKey = randomUlid();
+  const timerInput = { taskId: privateId, runId };
+  assert((await execute("a", "review_timer.start", timerInput, FIX.owner, timerKey)).ok);
+  assert.equal((await listReviewTimers(db, FIX.workspace, privateId, principal)).length, 1);
+  await db
+    .prepare("UPDATE task_human_grants SET revoked_at = ? WHERE id = ?")
+    .run(now, contributionGrant);
+  const replayedTimer = await execute("b", "review_timer.start", timerInput, FIX.owner, timerKey);
+  assert(!replayedTimer.ok && replayedTimer.error.code === "not_found");
+  assert.deepEqual(await listReviewTimers(db, FIX.workspace, privateId, principal), []);
+  check("real_hub_timer_cache_and_read_delivery_recheck_private_grant");
+
+  const receiptGrant = randomUlid();
+  await db
+    .prepare(
+      `INSERT INTO task_human_grants
+    (workspace_id, id, task_id, human_id, authorization_epoch, permission, created_at)
+    VALUES (?, ?, ?, ?, 1, 'contribute', ?)`,
+    )
+    .run(FIX.workspace, receiptGrant, privateId, FIX.owner, now);
+  const receiptSecret = mintUploadGrantSecret();
+  const receiptVersion = await execute<CreateArtifactResult>("a", "artifact.create_version", {
+    artifactId: artifact.result.artifact_id,
+    runId,
+    format: "markdown",
+    role: "review",
+    declaredSize: 12,
+    expectedDigest: digest,
+    grantSecretHash: receiptSecret.secretHash,
+  });
+  assert(receiptVersion.ok);
+  const receiptConsumption = await db.withTransaction((tx) =>
+    redeemUploadGrant(tx, {
+      grantId: receiptVersion.result.upload_grant.grant_id,
+      secret: receiptSecret.secret,
+      now,
+    }),
+  );
+  const objectsBefore = await db.prepare("SELECT COUNT(*) AS n FROM artifact_objects").get();
+  const receiptTables = [
+    "artifact_upload_receipts",
+    "artifact_upload_receipt_sources",
+    "artifact_audit_outbox",
+  ];
+  const receiptsBefore = await Promise.all(
+    receiptTables.map((table) =>
+      db
+        .prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE version_id = ?`)
+        .get(receiptVersion.result.version_id),
+    ),
+  );
+  let batchRevoked = false;
+  const racingDb = adaptD1({
+    prepare: (query) => binding.prepare(query),
+    async batch(statements) {
+      // An independent D1 write revokes the fixture grant after preflight, before
+      // the real D1 batch evaluates both physical and current-authority guards.
+      await db
+        .prepare("UPDATE task_human_grants SET revoked_at = ? WHERE id = ?")
+        .run(now, receiptGrant);
+      batchRevoked = true;
+      return binding.batch(statements);
+    },
+  });
+  await assert.rejects(
+    racingDb.withTransaction((tx) =>
+      recordVerifiedUpload(tx, {
+        grantId: receiptConsumption.grantId,
+        consumeAttemptId: receiptConsumption.consumeAttemptId,
+        contentHash: digest,
+        size: 12,
+        now,
+      }),
+    ),
+    /constraint failed/i,
+  );
+  assert(batchRevoked);
+  for (const [index, table] of receiptTables.entries())
+    assert.deepEqual(
+      await db
+        .prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE version_id = ?`)
+        .get(receiptVersion.result.version_id),
+      receiptsBefore[index],
+    );
+  assert.deepEqual(
+    await db.prepare("SELECT COUNT(*) AS n FROM artifact_objects").get(),
+    objectsBefore,
+  );
+  assert.deepEqual(await db.prepare("SELECT COUNT(*) AS n FROM artifact_mutation_guards").get(), {
+    n: 0,
+  });
+  check("real_d1_receipt_batch_revocation_rolls_back_registry_receipt_source_and_audit");
+  const runFreeSecret = mintUploadGrantSecret();
+  const runFreeVersion = await execute<CreateArtifactResult>("a", "artifact.create_version", {
+    format: "markdown",
+    role: "review",
+    declaredSize: 12,
+    expectedDigest: digest,
+    grantSecretHash: runFreeSecret.secretHash,
+  });
+  assert(runFreeVersion.ok);
+  const operationsNow = new Date(Date.parse(now) + 30 * 60_000).toISOString();
+  // Both synthetic versions are physically stuck. The private task-bound one
+  // cannot enter the operations projection even for a creator or read grantee.
+  assert.deepEqual(
+    await db
+      .prepare(
+        "SELECT COUNT(*) AS n FROM artifact_versions WHERE workspace_id = ? AND state = 'uploading'",
+      )
+      .get(FIX.workspace),
+    { n: 2 },
+  );
+  const stuck = await listStuckUploads(db, FIX.workspace, operationsNow, access());
+  assert.deepEqual(
+    stuck.map((row) => row.version_id),
+    [runFreeVersion.result.version_id],
+  );
+  assert.deepEqual(await listStuckUploads(db, FIX.workspace, operationsNow), stuck);
+  await db
+    .prepare(
+      "UPDATE workspace_members SET authorization_epoch = 2 WHERE workspace_id = ? AND human_id = ?",
+    )
+    .run(FIX.workspace, FIX.owner);
+  await db
+    .prepare(
+      "UPDATE workspace_authorization_epochs SET authorization_epoch = 2 WHERE workspace_id = ? AND human_id = ?",
+    )
+    .run(FIX.workspace, FIX.owner);
+  assert.deepEqual(await listStuckUploads(db, FIX.workspace, operationsNow, access()), []);
+  await assert.rejects(
+    filterOperationsStuckWork(
+      db,
+      FIX.workspace,
+      operationsNow,
+      {
+        uploads: stuck,
+        launches: [],
+      },
+      access(),
+    ),
+    { code: "not_found", message: "operations scope not found" },
+  );
+  assert.deepEqual(
+    (
+      await listStuckUploads(db, FIX.workspace, operationsNow, {
+        ...access(),
+        authorizationEpoch: 2,
+      })
+    ).map((row) => row.version_id),
+    [runFreeVersion.result.version_id],
+  );
+  assert.deepEqual(
+    await filterOperationsStuckWork(
+      db,
+      FIX.workspace,
+      operationsNow,
+      {
+        uploads: stuck,
+        launches: [],
+      },
+      { ...access(), authorizationEpoch: 2 },
+    ),
+    { uploads: stuck, launches: [] },
+  );
+  check("real_d1_operations_stuck_upload_projection_hides_private_and_rechecks_epoch");
+  const sourceRef = {
+    kind: "artifact_version",
+    ref: artifact.result.artifact_id,
+    version: artifact.result.version_id,
+  };
+  const aliasRef = { kind: sourceRef.kind, ref: sourceRef.version };
+  const sourceAccess = access(FIX.member);
+  await authorizeResultEvidence(db, FIX.workspace, privateId, [sourceRef, aliasRef], sourceAccess);
+  await authorizeResultEvidence(db, FIX.workspace, privateId, [sourceRef], sourceAccess, runId);
+  const deniedSources = [
+    { ...sourceRef, ref: randomUlid() },
+    { ...sourceRef, version: randomUlid() },
+    { kind: sourceRef.kind, ref: randomUlid() },
+  ];
+  for (const ref of deniedSources)
+    await assert.rejects(
+      authorizeResultEvidence(db, FIX.workspace, privateId, [ref], sourceAccess),
+      { code: "not_found", message: "evidence artifact not found" },
+    );
+  await assert.rejects(
+    authorizeResultEvidence(db, FIX.workspace, sharedId, [sourceRef], sourceAccess),
+    { code: "not_found", message: "evidence artifact not found" },
+  );
+  await assert.rejects(
+    authorizeResultEvidence(db, FIX.workspace, privateId, [sourceRef], sourceAccess, randomUlid()),
+    { code: "not_found", message: "evidence artifact not found" },
+  );
+  const runFreeRef = {
+    kind: sourceRef.kind,
+    ref: runFreeVersion.result.artifact_id,
+    version: runFreeVersion.result.version_id,
+  };
+  await authorizeResultEvidence(db, FIX.workspace, privateId, [runFreeRef], sourceAccess);
+  await assert.rejects(
+    authorizeResultEvidence(db, FIX.workspace, privateId, [runFreeRef], sourceAccess, runId),
+    { code: "not_found", message: "evidence artifact not found" },
+  );
+  check("real_d1_exact_artifact_evidence_binding_and_local_run_ceiling");
+  const evidenceDelegationId = randomUlid();
+  await db
+    .prepare(
+      `INSERT INTO oauth_delegations
+       (workspace_id, id, human_id, client_id, resource, project_id, task_id,
+        scopes_json, authorization_epoch, expires_at, created_at)
+       VALUES (?, ?, ?, ?, 'https://bfb.work-records.test/mcp', ?, ?, ?, 1, ?, ?)`,
+    )
+    .run(
+      FIX.workspace,
+      evidenceDelegationId,
+      FIX.member,
+      FIX.client,
+      FIX.projectA,
+      privateId,
+      JSON.stringify(["bfb:read", "bfb:task:write"]),
+      new Date(Date.parse(now) + 60 * 60_000).toISOString(),
+      now,
+    );
+  const delegatedAccess = {
+    ...sourceAccess,
+    delegationId: evidenceDelegationId,
+    taskBoundaryId: privateId,
+  };
+  await authorizeResultEvidence(
+    db,
+    FIX.workspace,
+    privateId,
+    [sourceRef, aliasRef],
+    delegatedAccess,
+  );
+  await assert.rejects(
+    authorizeResultEvidence(db, FIX.workspace, privateId, [runFreeRef], delegatedAccess),
+    { code: "not_found", message: "evidence artifact not found" },
+  );
+  await db
+    .prepare("UPDATE oauth_delegations SET scopes_json = ? WHERE workspace_id = ? AND id = ?")
+    .run(JSON.stringify(["bfb:read"]), FIX.workspace, evidenceDelegationId);
+  await assert.rejects(
+    authorizeResultEvidence(db, FIX.workspace, privateId, [sourceRef], delegatedAccess),
+    { code: "not_found", message: "evidence artifact not found" },
+  );
+  check("real_d1_exact_evidence_retains_delegation_boundary_and_current_scope");
+  const snapshot = (await db
+    .prepare(
+      `SELECT id, content_hash FROM run_configuration_snapshots
+       WHERE workspace_id = ? AND run_id = ? ORDER BY snapshot_generation DESC LIMIT 1`,
+    )
+    .get(FIX.workspace, runId)) as { id: string; content_hash: string } | undefined;
+  assert(snapshot);
+  const opaqueRef = { kind: "external", ref: "synthetic-opaque-proof" };
+  const historyJson = `[${JSON.stringify(sourceRef)},${JSON.stringify(aliasRef)},${JSON.stringify(opaqueRef)},"synthetic scalar",null,[],{"kind":"external","kind":"artifact_version","ref":${JSON.stringify(sourceRef.ref)},"version":${JSON.stringify(sourceRef.version)}},${JSON.stringify({ ...sourceRef, unexpected: true })}]`;
+  for (const [index, refsJson] of [historyJson, '{"invalid":"synthetic non-array"}'].entries())
+    await db
+      .prepare(
+        `INSERT INTO result_submissions
+         (workspace_id, id, run_id, version, summary, limitations, evidence_refs_json,
+          config_snapshot_id, config_hash, submitted_by_kind, submitted_by_id, submitted_at)
+         VALUES (?, ?, ?, ?, 'Synthetic historical result', '', ?, ?, ?, 'human', ?, ?)`,
+      )
+      .run(
+        FIX.workspace,
+        randomUlid(),
+        runId,
+        index + 1,
+        refsJson,
+        snapshot.id,
+        snapshot.content_hash,
+        FIX.member,
+        now,
+      );
+  const history = await listResultSubmissions(db, FIX.workspace, runId, new Map(), sourceAccess);
+  assert.equal(history.length, 2);
+  assert.deepEqual(history[0]!.evidence_refs, []);
+  assert.deepEqual(history[1]!.evidence_refs, [sourceRef, aliasRef, opaqueRef]);
+  assert.deepEqual(
+    await db
+      .prepare(
+        "SELECT evidence_refs_json FROM result_submissions WHERE workspace_id = ? AND run_id = ? AND version = 1",
+      )
+      .get(FIX.workspace, runId),
+    { evidence_refs_json: historyJson },
+  );
+  check("real_d1_historical_evidence_normalization_omits_corruption_without_row_rewrite");
+  const privateSubmission = await execute(
+    "a",
+    "result.submit",
+    {
+      runId,
+      summary: "Synthetic private notification source",
+    },
+    FIX.member,
+  );
+  assert(privateSubmission.ok);
+  assert.deepEqual(
+    await fanoutNotificationEvent(db, {
+      workspaceId: FIX.workspace,
+      eventCursor: privateSubmission.cursor,
+      eventKind: "result.submit",
+      now,
+    }),
+    { status: "subject_gone" },
+  );
+  const sharedRun = await execute<{ run: { id: string } }>(
+    "a",
+    "run.create",
+    {
+      taskId: sharedId,
+      expectedTaskVersion: 1,
+      agentProfileId: FIX.profileCodex,
+      workspacePolicyVersion: 1,
+      projectPolicyVersion: 1,
+      repositoryConfigVersion: 1,
+      agentProfileVersion: 1,
+    },
+    FIX.member,
+  );
+  assert(sharedRun.ok);
+  assert(
+    (
+      await execute(
+        "a",
+        "notification.push_endpoint.register",
+        {
+          endpoint: "https://push.synthetic.test/d1-notification-fence",
+          p256dh: "B".repeat(87),
+          auth: "A".repeat(22),
+        },
+        FIX.member,
+      )
+    ).ok,
+  );
+  const sharedSubmission = await execute(
+    "a",
+    "result.submit",
+    {
+      runId: sharedRun.result.run.id,
+      summary: "Synthetic shared notification source",
+    },
+    FIX.member,
+  );
+  assert(sharedSubmission.ok);
+  assert.deepEqual(
+    await fanoutNotificationEvent(db, {
+      workspaceId: FIX.workspace,
+      eventCursor: sharedSubmission.cursor,
+      eventKind: "result.submit",
+      now,
+    }),
+    { status: "notified", category: "result_submitted", push: 1, macos: 0 },
+  );
+  const deliveryId = deriveDeliveryId(
+    FIX.workspace,
+    sharedSubmission.cursor,
+    "browser_push",
+    FIX.member,
+  );
+  assert(
+    (await loadPushAttempt(db, { workspaceId: FIX.workspace, deliveryId, access: sourceAccess }))
+      .ok,
+  );
+  assert.equal((await listDeliveries(db, FIX.workspace, FIX.member, 1, sourceAccess)).length, 1);
+  await db
+    .prepare(
+      `INSERT INTO notification_preferences
+    (workspace_id, human_id, project_id, channel, category, enabled, updated_at)
+    VALUES (?, ?, ?, 'browser_push', 'result_submitted', 0, ?)`,
+    )
+    .run(FIX.workspace, FIX.member, FIX.projectA, now);
+  assert(
+    !(await loadPushAttempt(db, { workspaceId: FIX.workspace, deliveryId, access: sourceAccess }))
+      .ok,
+  );
+  await db
+    .prepare(
+      "UPDATE notification_preferences SET enabled = 1 WHERE workspace_id = ? AND human_id = ?",
+    )
+    .run(FIX.workspace, FIX.member);
+  const evidenceTarget = await execute<TaskRecord>(
+    "a",
+    "task.create",
+    {
+      projectId: FIX.projectA,
+      title: "Synthetic reference batch destination",
+      priority: "P2",
+    },
+    FIX.member,
+  );
+  assert(evidenceTarget.ok);
+  const evidenceTargetRun = await execute<{ run: { id: string } }>(
+    "a",
+    "run.create",
+    {
+      taskId: evidenceTarget.result.id,
+      expectedTaskVersion: 1,
+      agentProfileId: FIX.profileCodex,
+      workspacePolicyVersion: 1,
+      projectPolicyVersion: 1,
+      repositoryConfigVersion: 1,
+      agentProfileVersion: 1,
+    },
+    FIX.member,
+  );
+  assert(evidenceTargetRun.ok);
+  const sharedEvidenceSecret = mintUploadGrantSecret();
+  const sharedEvidence = await execute<CreateArtifactResult>(
+    "a",
+    "artifact.create_version",
+    {
+      runId: sharedRun.result.run.id,
+      format: "markdown",
+      role: "review",
+      declaredSize: 12,
+      expectedDigest: digest,
+      grantSecretHash: sharedEvidenceSecret.secretHash,
+    },
+    FIX.member,
+  );
+  assert(sharedEvidence.ok);
+  const effectTables = ["semantic_events", "audit_events", "outbox_records", "idempotency_records"];
+  const effectsBefore = await Promise.all(
+    effectTables.map((table) =>
+      db.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE workspace_id = ?`).get(FIX.workspace),
+    ),
+  );
+  let sourcePrivatizedBeforeBatch = false;
+  const sourceRacingDb = adaptD1({
+    prepare: (query) => binding.prepare(query),
+    async batch(statements) {
+      await db
+        .prepare(
+          `INSERT INTO task_privacy
+        (workspace_id, task_id, owner_human_id, created_at) VALUES (?, ?, ?, ?)`,
+        )
+        .run(FIX.workspace, sharedId, FIX.member, now);
+      sourcePrivatizedBeforeBatch = true;
+      return binding.batch(statements);
+    },
+  });
+  const rejectedSourceBatch = await new WorkspaceHub(sourceRacingDb).execute(submitResultCommand, {
+    workspaceId: FIX.workspace,
+    actorHumanId: FIX.member,
+    authorizationEpoch: 1,
+    idempotencyKey: randomUlid(),
+    now,
+    input: {
+      runId: evidenceTargetRun.result.run.id,
+      summary: "Synthetic rejected cross-task reference",
+      evidenceRefs: [
+        {
+          kind: "artifact_version",
+          ref: sharedEvidence.result.artifact_id,
+          version: sharedEvidence.result.version_id,
+        },
+      ],
+    },
+  });
+  assert(sourcePrivatizedBeforeBatch);
+  assert(!rejectedSourceBatch.ok && rejectedSourceBatch.error.code === "command_failed");
+  assert.deepEqual(
+    await db
+      .prepare("SELECT COUNT(*) AS n FROM result_submissions WHERE workspace_id = ? AND run_id = ?")
+      .get(FIX.workspace, evidenceTargetRun.result.run.id),
+    { n: 0 },
+  );
+  for (const [index, table] of effectTables.entries())
+    assert.deepEqual(
+      await db
+        .prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE workspace_id = ?`)
+        .get(FIX.workspace),
+      effectsBefore[index],
+    );
+  assert.deepEqual(await db.prepare("SELECT COUNT(*) AS n FROM artifact_mutation_guards").get(), {
+    n: 0,
+  });
+  assert.deepEqual(
+    await db
+      .prepare("SELECT result_state FROM runs WHERE workspace_id = ? AND id = ?")
+      .get(FIX.workspace, evidenceTargetRun.result.run.id),
+    { result_state: "open" },
+  );
+  assert.deepEqual(
+    await db
+      .prepare("SELECT state FROM tasks WHERE workspace_id = ? AND id = ?")
+      .get(FIX.workspace, evidenceTarget.result.id),
+    { state: "active" },
+  );
+  check(
+    "real_d1_result_source_private_before_batch_rolls_back_submission_state_receipts_and_audit",
+  );
+  async function resultExpiryEffects(taskId: string, parentRunId: string) {
+    const counts: Record<string, number> = {};
+    for (const table of [...effectTables, "result_submissions"]) {
+      const row = (await db
+        .prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE workspace_id=?`)
+        .get(FIX.workspace)) as { n: number };
+      counts[table] = row.n;
+    }
+    return {
+      counts,
+      run: (await db
+        .prepare("SELECT result_state,resource_version FROM runs WHERE workspace_id=? AND id=?")
+        .get(FIX.workspace, parentRunId)) as { result_state: string; resource_version: number },
+      task: (await db
+        .prepare("SELECT state,resource_version FROM tasks WHERE workspace_id=? AND id=?")
+        .get(FIX.workspace, taskId)) as { state: string; resource_version: number },
+      cursor: (await db
+        .prepare("SELECT cursor FROM workspace_cursors WHERE workspace_id=?")
+        .get(FIX.workspace)) as { cursor: number },
+      artifactGuards: await db.prepare("SELECT id FROM artifact_mutation_guards").all(),
+      runnerGuards: await db.prepare("SELECT id FROM runner_mutation_guards").all(),
+    };
+  }
+  for (const mode of ["unexpired", "natural_expiry"] as const) {
+    let targetTaskId: string = evidenceTarget.result.id,
+      targetRunId: string = evidenceTargetRun.result.run.id;
+    if (mode === "unexpired") {
+      const task = await execute<TaskRecord>(
+        "a",
+        "task.create",
+        { projectId: FIX.projectA, title: "Synthetic delayed live result control", priority: "P2" },
+        FIX.member,
+      );
+      assert(task.ok);
+      const run = await execute<{ run: { id: string } }>(
+        "a",
+        "run.create",
+        {
+          taskId: task.result.id,
+          expectedTaskVersion: 1,
+          agentProfileId: FIX.profileCodex,
+          workspacePolicyVersion: 1,
+          projectPolicyVersion: 1,
+          repositoryConfigVersion: 1,
+          agentProfileVersion: 1,
+        },
+        FIX.member,
+      );
+      assert(run.ok);
+      targetTaskId = task.result.id;
+      targetRunId = run.result.run.id;
+    }
+    const clock = (await db
+      .prepare(
+        "SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now') AS observed_at, strftime('%Y-%m-%dT%H:%M:%fZ','now',?) AS expires_at",
+      )
+      .get(mode === "natural_expiry" ? "+15 seconds" : "+1 hour")) as {
+      observed_at: string;
+      expires_at: string;
+    };
+    const expiryDelegationId = randomUlid(),
+      expiryKey = randomUlid();
+    await db
+      .prepare(
+        `INSERT INTO oauth_delegations
+         (workspace_id,id,human_id,client_id,resource,project_id,task_id,scopes_json,
+          authorization_epoch,expires_at,created_at)
+         VALUES (?,?,?,?,'https://bfb.work-records.test/mcp',?,?,?,1,?,?)`,
+      )
+      .run(
+        FIX.workspace,
+        expiryDelegationId,
+        FIX.member,
+        FIX.client,
+        FIX.projectA,
+        targetTaskId,
+        JSON.stringify(["bfb:read", "bfb:task:write"]),
+        clock.expires_at,
+        clock.observed_at,
+      );
+    const readExpiryCredential = () =>
+      db
+        .prepare("SELECT * FROM oauth_delegations WHERE workspace_id=? AND id=?")
+        .get(FIX.workspace, expiryDelegationId);
+    const expiryClockWitness = async () =>
+      (await db
+        .prepare(
+          `SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now') AS database_now,
+            julianday(expires_at)>julianday('now') AS live
+           FROM oauth_delegations WHERE workspace_id=? AND id=?`,
+        )
+        .get(FIX.workspace, expiryDelegationId)) as { database_now: string; live: number };
+    const originalExpiryCredential = await readExpiryCredential(),
+      expiryEffectsBefore = await resultExpiryEffects(targetTaskId, targetRunId);
+    let reachedWhileLive = false,
+      flushWitness = false,
+      observedSubmissionAt = "",
+      flushAt = "";
+    const expiryDb = adaptD1({
+      prepare(query) {
+        const original = binding.prepare(query);
+        if (!query.includes("INSERT INTO result_submissions")) return original;
+        const statement: D1StatementLike = {
+          bind(...parameters) {
+            const at = parameters.at(-1);
+            assert(typeof at === "string");
+            observedSubmissionAt = at;
+            // Preserve the native prepared statement accepted by the real D1 batch.
+            return original.bind(...parameters);
+          },
+          first: (column) => original.first(column),
+          all: () => original.all(),
+          run: () => original.run(),
+        };
+        return statement;
+      },
+      async batch(statements) {
+        reachedWhileLive = (await expiryClockWitness()).live === 1;
+        assert(reachedWhileLive, "result must reach the actual batch while its credential is live");
+        assert(Date.parse(observedSubmissionAt) < Date.parse(clock.expires_at));
+        if (mode === "natural_expiry") {
+          const deadline = performance.now() + 20_000;
+          while ((await expiryClockWitness()).live === 1) {
+            assert(
+              performance.now() < deadline,
+              "unchanged delegation must expire in bounded time",
+            );
+            await delay(100);
+          }
+        } else await delay(250);
+        const flush = await expiryClockWitness();
+        flushWitness = flush.live === (mode === "natural_expiry" ? 0 : 1);
+        flushAt = flush.database_now;
+        assert(flushWitness);
+        assert.deepEqual(await readExpiryCredential(), originalExpiryCredential);
+        return binding.batch(statements);
+      },
+    });
+    const submissionStarted = Date.now();
+    const outcome = await new WorkspaceHub(expiryDb).execute(submitDelegatedResultCommand, {
+      workspaceId: FIX.workspace,
+      actorHumanId: FIX.member,
+      actorDelegationId: expiryDelegationId,
+      authorizationEpoch: 1,
+      idempotencyKey: expiryKey,
+      now: "2025-01-01T00:00:00.000Z",
+      input: {
+        runId: targetRunId,
+        summary: "Synthetic real D1 commit-expiry result",
+        evidenceRefs: [],
+      },
+    });
+    assert(reachedWhileLive);
+    assert(flushWitness);
+    assert(Date.parse(observedSubmissionAt) >= submissionStarted);
+    assert.deepEqual(await readExpiryCredential(), originalExpiryCredential);
+    if (mode === "natural_expiry") {
+      assert(Date.parse(flushAt) >= Date.parse(clock.expires_at));
+      assert.deepEqual(outcome, {
+        ok: false,
+        error: { code: "command_failed", message: "command failed" },
+      });
+      assert.deepEqual(await resultExpiryEffects(targetTaskId, targetRunId), expiryEffectsBefore);
+      check("real_d1_unchanged_delegation_natural_expiry_rolls_back_complete_result_batch");
+    } else {
+      assert(outcome.ok);
+      assert.equal(outcome.replayed, false);
+      assert.deepEqual(outcome.result.submission.evidence_refs, []);
+      assert.equal(outcome.result.submission.submitted_at, observedSubmissionAt);
+      assert(Date.parse(flushAt) - Date.parse(observedSubmissionAt) >= 200);
+      assert.deepEqual(await resultExpiryEffects(targetTaskId, targetRunId), {
+        ...expiryEffectsBefore,
+        counts: Object.fromEntries(
+          Object.entries(expiryEffectsBefore.counts).map(([table, n]) => [table, n + 1]),
+        ),
+        run: {
+          result_state: "submitted",
+          resource_version: expiryEffectsBefore.run.resource_version + 1,
+        },
+        task: { state: "review", resource_version: expiryEffectsBefore.task.resource_version + 1 },
+        cursor: { cursor: expiryEffectsBefore.cursor.cursor + 1 },
+      });
+      for (const [table, field] of [
+        ["semantic_events", "kind"],
+        ["audit_events", "action"],
+        ["outbox_records", "kind"],
+      ])
+        assert.deepEqual(
+          await db
+            .prepare(`SELECT created_at FROM ${table} WHERE workspace_id=? AND ${field}=?`)
+            .all(FIX.workspace, submitDelegatedResultCommand.name),
+          [{ created_at: observedSubmissionAt }],
+        );
+      assert.deepEqual(
+        await db
+          .prepare(
+            "SELECT created_at FROM idempotency_records WHERE workspace_id=? AND idempotency_key=?",
+          )
+          .get(FIX.workspace, expiryKey),
+        { created_at: observedSubmissionAt },
+      );
+      check("real_d1_delayed_live_empty_evidence_commits_once_and_retains_observation_time");
+    }
+  }
+  assert(
+    !(await loadPushAttempt(db, { workspaceId: FIX.workspace, deliveryId, access: sourceAccess }))
+      .ok,
+  );
+  assert.deepEqual(await listDeliveries(db, FIX.workspace, FIX.member, 1, sourceAccess), []);
+  check(
+    "real_d1_notification_fanout_contact_and_history_keep_current_shared_parent_and_preference",
+  );
+  // Operations proof uses genuine synthetic task/run parents, not provider
+  // execution. Artifact byte state is fixture-only and no R2 is contacted.
+  const ownerAccess = { ...access(), authorizationEpoch: 2 };
+  const oldLogAt = new Date(Date.parse(now) - 40 * 24 * 60 * 60_000).toISOString();
+  const oldUploadAt = new Date(Date.parse(now) - 60 * 60_000).toISOString();
+  const operationsRun = evidenceTargetRun.result.run.id;
+  async function seedOperationsVersion(
+    parentRun: string | null,
+    state: "available" | "uploading",
+    wrongKey = false,
+    at?: string,
+  ) {
+    const artifactId = randomUlid();
+    const versionId = randomUlid();
+    const createdAt = at ?? (state === "available" ? oldLogAt : oldUploadAt);
+    const key = `workspaces/${FIX.workspace}/runs/${wrongKey ? randomUlid() : (parentRun ?? randomUlid())}/logs/${versionId}.jsonl.zst`;
+    await db
+      .prepare(
+        `INSERT INTO artifacts
+         (workspace_id, id, run_id, format, role, created_by_human_id, created_at)
+         VALUES (?, ?, ?, 'log', 'log', ?, ?)`,
+      )
+      .run(FIX.workspace, artifactId, parentRun, FIX.owner, createdAt);
+    await db
+      .prepare(
+        `INSERT INTO artifact_versions
+         (workspace_id, id, artifact_id, state, format, declared_size, expected_digest,
+          content_hash, r2_key, created_at, available_at)
+         VALUES (?, ?, ?, ?, 'log', 64, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        FIX.workspace,
+        versionId,
+        artifactId,
+        state,
+        digest,
+        state === "available" ? digest : null,
+        state === "available" ? key : null,
+        createdAt,
+        state === "available" ? createdAt : null,
+      );
+    return versionId;
+  }
+  const canonicalLog = await seedOperationsVersion(operationsRun, "available");
+  const privateLog = await seedOperationsVersion(runId, "available");
+  await seedOperationsVersion(operationsRun, "available", true);
+  await seedOperationsVersion(null, "available");
+  const humanRetention = await listRetentionEligibleChunks(db, FIX.workspace, now, ownerAccess);
+  assert.equal(humanRetention.examined, 1);
+  assert.deepEqual(
+    humanRetention.eligible.map((row) => row.version_id),
+    [canonicalLog],
+  );
+  assert.deepEqual((await listSystemRetentionEligibleChunks(db, FIX.workspace, now)).eligible, []);
+  await db
+    .prepare(
+      `INSERT INTO retention_policies
+       (workspace_id, raw_log_retention_days, version, updated_by_human_id, updated_at)
+       VALUES (?, 30, 1, ?, ?)`,
+    )
+    .run(FIX.workspace, FIX.owner, now);
+  // Internal configured policy and human authority remain separate. This is
+  // selector proof only, not private destructive-retention certification.
+  const systemRetention = await listSystemRetentionEligibleChunks(db, FIX.workspace, now);
+  assert.equal(systemRetention.examined, 2);
+  assert.deepEqual(
+    systemRetention.eligible.map((row) => row.version_id).sort(),
+    [canonicalLog, privateLog].sort(),
+  );
+  check(
+    "real_d1_human_retention_uses_visible_canonical_parents_and_separate_configured_system_scope",
+  );
+  const sharedRecovery = await seedOperationsVersion(operationsRun, "uploading");
+  const runFreeRecovery = await seedOperationsVersion(null, "uploading");
+  const recoveryVersions = [sharedRecovery, runFreeRecovery];
+  const recoveryTarget = `ops-recover:resolve_stuck_upload:${FIX.workspace}`;
+  const makeRecoveryProof = () =>
+    issueStepUpProof(
+      db,
+      FIX.owner,
+      {
+        action: OPS_STEP_UP_ACTIONS.recover,
+        workspaceId: FIX.workspace,
+        targetId: recoveryTarget,
+        scopes: [],
+        authorizationEpoch: 2,
+        expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+      },
+      new Date().toISOString(),
+    );
+  const firstRecoveryProof = await makeRecoveryProof();
+  const firstRecovery = await execute<{ replayed: boolean; detail: { resolved: number } }>(
+    "a",
+    resolveStuckUploadCommand.name,
+    { versionIds: recoveryVersions, stepUpProofId: firstRecoveryProof },
+    FIX.owner,
+    randomUlid(),
+    undefined,
+    2,
+  );
+  assert(firstRecovery.ok && !firstRecovery.result.replayed);
+  assert.deepEqual(firstRecovery.result.detail, { resolved: 2 });
+  const secondRecovery = await execute<{ replayed: boolean; detail: { resolved: number } }>(
+    "b",
+    resolveStuckUploadCommand.name,
+    { versionIds: recoveryVersions, stepUpProofId: await makeRecoveryProof() },
+    FIX.owner,
+    randomUlid(),
+    undefined,
+    2,
+  );
+  assert(secondRecovery.ok && secondRecovery.result.replayed);
+  assert.deepEqual(secondRecovery.result.detail, { resolved: 2 });
+  for (const id of recoveryVersions) {
+    assert.deepEqual(
+      await db
+        .prepare("SELECT state FROM artifact_versions WHERE workspace_id = ? AND id = ?")
+        .get(FIX.workspace, id),
+      { state: "failed" },
+    );
+    assert.deepEqual(
+      await db
+        .prepare(
+          "SELECT COUNT(*) AS n FROM artifact_audit_outbox WHERE workspace_id = ? AND version_id = ? AND action = 'artifact.abandoned'",
+        )
+        .get(FIX.workspace, id),
+      { n: 1 },
+    );
+  }
+  check("real_production_hub_upload_recovery_and_fresh_proof_ledger_retry_converge_once");
+  const raceRecovery = await seedOperationsVersion(operationsRun, "uploading");
+  const racingRecoveryProof = await makeRecoveryProof();
+  const recoveryTables = [...effectTables, "ops_recovery_ledger", "artifact_audit_outbox"];
+  const recoveryEffectsBefore = await Promise.all(
+    recoveryTables.map((table) =>
+      db.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE workspace_id = ?`).get(FIX.workspace),
+    ),
+  );
+  let liveGrantInserted = false;
+  const recoveryRacingDb = adaptD1({
+    prepare: (query) => binding.prepare(query),
+    async batch(statements) {
+      // Even a consumed grant is protected until its owning V01 grace elapses.
+      await db
+        .prepare(
+          `INSERT INTO artifact_upload_grants
+           (workspace_id, id, version_id, grant_hash, human_id, authorization_epoch,
+            run_id, format, declared_size, expected_digest, expires_at, consumed_at, created_at)
+           VALUES (?, ?, ?, ?, ?, 2, ?, 'log', 64, ?, ?, ?, ?)`,
+        )
+        .run(
+          FIX.workspace,
+          randomUlid(),
+          raceRecovery,
+          artifactHash(randomUlid()),
+          FIX.owner,
+          operationsRun,
+          digest,
+          new Date(Date.now() + 60_000).toISOString(),
+          now,
+          oldUploadAt,
+        );
+      liveGrantInserted = true;
+      return binding.batch(statements);
+    },
+  });
+  const recoveryRaceOutcome = await new WorkspaceHub(recoveryRacingDb).execute(
+    resolveStuckUploadCommand,
+    {
+      workspaceId: FIX.workspace,
+      actorHumanId: FIX.owner,
+      authorizationEpoch: 2,
+      idempotencyKey: randomUlid(),
+      input: { versionIds: [raceRecovery], stepUpProofId: racingRecoveryProof },
+    },
+  );
+  assert(liveGrantInserted);
+  assert(!recoveryRaceOutcome.ok && recoveryRaceOutcome.error.code === "command_failed");
+  assert.deepEqual(
+    await db
+      .prepare("SELECT state FROM artifact_versions WHERE workspace_id = ? AND id = ?")
+      .get(FIX.workspace, raceRecovery),
+    { state: "uploading" },
+  );
+  assert.deepEqual(
+    await db
+      .prepare("SELECT consumed_at FROM passkey_step_up_proofs WHERE proof_id = ?")
+      .get(racingRecoveryProof),
+    { consumed_at: null },
+  );
+  for (const [index, table] of recoveryTables.entries())
+    assert.deepEqual(
+      await db
+        .prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE workspace_id = ?`)
+        .get(FIX.workspace),
+      recoveryEffectsBefore[index],
+    );
+  assert.deepEqual(
+    await db
+      .prepare(
+        "SELECT COUNT(*) AS n FROM ops_recovery_ledger WHERE workspace_id = ? AND action_id = ?",
+      )
+      .get(
+        FIX.workspace,
+        recoveryActionId("resolve_stuck_upload", { version_ids: [raceRecovery] }),
+      ),
+    { n: 0 },
+  );
+  check(
+    "real_d1_recovery_consumed_live_grant_before_batch_rolls_back_proof_effects_ledger_and_audit",
+  );
+  await db
+    .prepare(
+      "UPDATE workspace_members SET authorization_epoch = 3 WHERE workspace_id = ? AND human_id = ?",
+    )
+    .run(FIX.workspace, FIX.owner);
+  await db
+    .prepare(
+      "UPDATE workspace_authorization_epochs SET authorization_epoch = 3 WHERE workspace_id = ? AND human_id = ?",
+    )
+    .run(FIX.workspace, FIX.owner);
+  await assert.rejects(listRetentionEligibleChunks(db, FIX.workspace, now, ownerAccess), {
+    code: "not_found",
+    message: "operations scope not found",
+  });
+  await assert.rejects(
+    filterOperationsStuckWork(
+      db,
+      FIX.workspace,
+      now,
+      { uploads: [], launches: [], retention: [] },
+      ownerAccess,
+    ),
+    {
+      code: "not_found",
+      message: "operations scope not found",
+    },
+  );
+  check("real_d1_empty_composite_scope_rechecks_epoch_before_hydrated_workspace_metadata");
+  const auditAccess = { ...access(), authorizationEpoch: 3 };
+  const issueAuditPosition =
+    (authority: TaskAccessContext): IssueSecurityAuditPosition =>
+    async (input) => {
+      const outcome = await execute<{ issued: true }>(
+        "a",
+        issueSecurityAuditPositionCommand.name,
+        input,
+        authority.humanId,
+        randomUlid(),
+        undefined,
+        authority.authorizationEpoch,
+      );
+      if (!outcome.ok) throw new DomainError(outcome.error.code, outcome.error.message);
+      assert.deepEqual(outcome.result, { issued: true });
+    };
+  async function seedCanonicalAuditAnchor(at: string) {
+    const versionId = await seedOperationsVersion(null, "available", false, at);
+    const id = randomUlid();
+    await db
+      .prepare(
+        `INSERT INTO artifact_audit_outbox
+         (workspace_id,id,version_id,grant_id,action,payload_json,created_at,dispatched_at)
+         VALUES (?,?,?,NULL,'artifact.finalized','{}',?,?)`,
+      )
+      .run(FIX.workspace, id, versionId, at, at);
+    await db
+      .prepare(
+        `INSERT INTO audit_events
+         (workspace_id,audit_id,actor_principal_id,action,payload_json,created_at)
+         VALUES (?,?,?,'artifact.finalized','{}',?)`,
+      )
+      .run(FIX.workspace, id, ARTIFACT_RECOVERY_SYSTEM_ID, at);
+    return id;
+  }
+  // The observed anchor separates this synthetic history from prior probes.
+  // Hub authorization owns dispatch time; request.now cannot override its clock.
+  const auditAnchorAt = new Date().toISOString();
+  const auditAnchorId = await seedCanonicalAuditAnchor(auditAnchorAt);
+
+  async function seedAuditSource(
+    action: string,
+    versionId: string,
+    grantId: string | null,
+    at = auditAnchorAt,
+  ) {
+    const id = randomUlid();
+    await db
+      .prepare(
+        `INSERT INTO artifact_audit_outbox
+       (workspace_id,id,version_id,grant_id,action,payload_json,created_at)
+       VALUES (?,?,?,?,?,'{"synthetic":true}',?)`,
+      )
+      .run(FIX.workspace, id, versionId, grantId, action, at);
+    const response = await server
+      .getWorker("bfb-work-records-a")
+      .fetch(origin + "/workspaces/" + FIX.workspace + "/execute", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          commandName: "artifact.dispatch_audit",
+          request: {
+            workspaceId: FIX.workspace,
+            actorSystemId: ARTIFACT_RECOVERY_SYSTEM_ID,
+            authorizationEpoch: 1,
+            idempotencyKey: "c11-audit." + id,
+            now: at,
+            input: { outboxId: id },
+          },
+        }),
+      });
+    assert.equal(response.status, 200, await response.clone().text());
+    const outcome = (await response.json()) as CommandOutcome<unknown>;
+    assert(outcome.ok, JSON.stringify(outcome));
+    return id;
+  }
+  async function seedAuditUploadGrant(versionId: string) {
+    const id = randomUlid();
+    await db
+      .prepare(
+        `INSERT INTO artifact_upload_grants
+       (workspace_id,id,version_id,grant_hash,human_id,authorization_epoch,run_id,format,
+        declared_size,expected_digest,expires_at,consumed_at,created_at)
+       VALUES (?,?,?,?,?,3,?,'log',64,?,?,?,?)`,
+      )
+      .run(
+        FIX.workspace,
+        id,
+        versionId,
+        artifactHash(id),
+        FIX.owner,
+        operationsRun,
+        digest,
+        oldUploadAt,
+        oldUploadAt,
+        oldUploadAt,
+      );
+    return id;
+  }
+  async function seedAuditViewGrant(versionId: string) {
+    const id = randomUlid();
+    await db
+      .prepare(
+        `INSERT INTO artifact_view_grants
+       (workspace_id,id,version_id,grant_hash,view_nonce_hash,human_id,session_hash,
+        authorization_epoch,content_hash,expires_at,consumed_at,created_at)
+       VALUES (?,?,?,?,?,?,?,3,?,?,?,?)`,
+      )
+      .run(
+        FIX.workspace,
+        id,
+        versionId,
+        artifactHash(id),
+        artifactHash("nonce." + id),
+        FIX.owner,
+        artifactHash("session." + id),
+        digest,
+        oldUploadAt,
+        oldUploadAt,
+        oldUploadAt,
+      );
+    return id;
+  }
+  const sourceByAction = new Map<string, string>();
+  let auditUploadGrant = "";
+  for (const action of ARTIFACT_AUDIT_ACTIONS) {
+    let grantId: string | null = null;
+    if (
+      [
+        "artifact.grant_issued",
+        "artifact.grant_reissued",
+        "artifact.grant_consumed",
+        "artifact.upload_verified",
+      ].includes(action)
+    ) {
+      grantId = await seedAuditUploadGrant(canonicalLog);
+      auditUploadGrant = grantId;
+    } else if (["artifact.view_issued", "artifact.view_redeemed"].includes(action)) {
+      grantId = await seedAuditViewGrant(canonicalLog);
+    }
+    sourceByAction.set(action, await seedAuditSource(action, canonicalLog, grantId));
+  }
+  const runFreeAuditVersion = await seedOperationsVersion(null, "available");
+  const runFreeAuditSource = await seedAuditSource("artifact.finalized", runFreeAuditVersion, null);
+  const runFreeAuditTimes = (await db
+    .prepare(
+      "SELECT created_at,dispatched_at FROM artifact_audit_outbox WHERE workspace_id=? AND id=?",
+    )
+    .get(FIX.workspace, runFreeAuditSource)) as { created_at: string; dispatched_at: string };
+  const auditOptions = { access: auditAccess, marker: auditAnchorId, limit: 100 };
+  const canonicalAudit = await readAuditSegment(
+    db,
+    FIX.workspace,
+    auditOptions,
+    issueAuditPosition(auditAccess),
+  );
+  assert.equal(canonicalAudit.entries.length, 20);
+  assert.equal(canonicalAudit.has_more, false);
+  for (const [action, id] of sourceByAction) {
+    assert(canonicalAudit.entries.some((row) => row.audit_id === id && row.action === action));
+    assert(
+      canonicalAudit.entries.some(
+        (row) =>
+          row.action === "artifact.dispatch_audit" && JSON.stringify(row.payload).includes(id),
+      ),
+    );
+  }
+  assert(canonicalAudit.entries.some((row) => row.audit_id === runFreeAuditSource));
+  // Historical direct payloads are not provenance and cannot replace typed
+  // canonical fields with a private identity or arbitrary identifier prose.
+  await db
+    .prepare("UPDATE audit_events SET payload_json=? WHERE workspace_id=? AND audit_id=?")
+    .run(
+      JSON.stringify({ version_id: privateLog, canary_id: "SYNTHETIC-PRIVATE-AUDIT-CANARY" }),
+      FIX.workspace,
+      sourceByAction.get("artifact.finalized"),
+    );
+  assert.deepEqual(
+    await readAuditSegment(db, FIX.workspace, auditOptions, issueAuditPosition(auditAccess)),
+    canonicalAudit,
+  );
+  check("real_d1_canonical_artifact_audit_reconstructs_nine_sources_and_runfree_history");
+
+  // SQLite text length and GLOB stop at NUL, but JSON retains the suffix.
+  // Genuine canonical parents do not authorize malformed typed receipt fields.
+  const nulAuditIds: string[] = [];
+  for (const field of ["source_time", "outbox_id"]) {
+    const suffix = "\0SYNTHETIC-NUL-AUDIT-CANARY";
+    const id = randomUlid() + (field === "outbox_id" ? suffix : "");
+    const sourceTime = auditAnchorAt + (field === "source_time" ? suffix : "");
+    await db
+      .prepare(
+        `INSERT INTO artifact_audit_outbox
+       (workspace_id,id,version_id,grant_id,action,payload_json,created_at,dispatched_at)
+       VALUES (?,?,?,NULL,'artifact.finalized','{"synthetic":true}',?,?)`,
+      )
+      .run(FIX.workspace, id, runFreeAuditVersion, sourceTime, auditAnchorAt);
+    await db
+      .prepare(
+        `INSERT INTO audit_events
+       (workspace_id,audit_id,actor_principal_id,action,payload_json,created_at)
+       VALUES (?,?,?,'artifact.finalized','{"synthetic":true}',?)`,
+      )
+      .run(FIX.workspace, id, ARTIFACT_RECOVERY_SYSTEM_ID, auditAnchorAt);
+    nulAuditIds.push(id);
+  }
+  assert.deepEqual(
+    await readAuditSegment(db, FIX.workspace, auditOptions, issueAuditPosition(auditAccess)),
+    canonicalAudit,
+  );
+  const nulAuditPage = await readAuditSegment(
+    db,
+    FIX.workspace,
+    { ...auditOptions, limit: 1 },
+    issueAuditPosition(auditAccess),
+  );
+  assert.equal(nulAuditPage.entries[0]?.audit_id, sourceByAction.get(ARTIFACT_AUDIT_ACTIONS[0]));
+  assert.equal(nulAuditPage.has_more, true);
+  for (const after of nulAuditIds) {
+    await assert.rejects(readSecurityAudit(db, FIX.workspace, { ...auditOptions, after }), {
+      code: "invalid_argument",
+      message: "unknown audit cursor",
+    });
+  }
+  check(
+    "real_d1_artifact_audit_nul_suffixed_typed_fields_are_omitted_before_page_with_no_raw_id_fallback",
+  );
+
+  const privateAuditSource = await seedAuditSource("artifact.finalized", privateLog, null);
+  await seedAuditSource("artifact.view_issued", canonicalLog, auditUploadGrant);
+  await seedAuditSource("artifact.grant_issued", runFreeAuditVersion, auditUploadGrant);
+  async function insertHistoricalAudit(action: string, payload: string) {
+    await db
+      .prepare(
+        `INSERT INTO audit_events
+       (workspace_id,audit_id,actor_principal_id,action,payload_json,created_at)
+       VALUES (?,?,?,?,?,?)`,
+      )
+      .run(
+        FIX.workspace,
+        randomUlid(),
+        ARTIFACT_RECOVERY_SYSTEM_ID,
+        action,
+        payload,
+        runFreeAuditTimes.dispatched_at,
+      );
+  }
+  const projection = {
+    schema_version: 1,
+    outbox_id: runFreeAuditSource,
+    version_id: runFreeAuditVersion,
+    grant_id: null,
+    source_action: "artifact.finalized",
+    occurred_at: runFreeAuditTimes.created_at,
+  };
+  const wrapperActor = { systemId: ARTIFACT_RECOVERY_SYSTEM_ID, authorizationEpoch: 1 };
+  await insertHistoricalAudit("Artifact.Finalized", JSON.stringify({ version_id: privateLog }));
+  await insertHistoricalAudit("artifact.dispatch_audit", "not-json");
+  await insertHistoricalAudit(
+    "artifact.dispatch_audit",
+    JSON.stringify({
+      actor: wrapperActor,
+      input: JSON.stringify({ outbox_id: runFreeAuditSource }),
+      result: projection,
+    }),
+  );
+  await insertHistoricalAudit(
+    "artifact.dispatch_audit",
+    JSON.stringify({
+      actor: wrapperActor,
+      input: { outbox_id: runFreeAuditSource },
+      result: { ...projection, extra_id: privateLog },
+    }),
+  );
+  const duplicateInput =
+    '{"outbox_id":"' + runFreeAuditSource + '","outbox_id":"' + privateAuditSource + '"}';
+  await insertHistoricalAudit(
+    "artifact.dispatch_audit",
+    '{"actor":' +
+      JSON.stringify(wrapperActor) +
+      ',"input":' +
+      duplicateInput +
+      ',"result":' +
+      JSON.stringify(projection) +
+      "}",
+  );
+  // An orphan historical wrapper cannot invent the paired direct receipt
+  // which real production dispatch writes atomically.
+  const orphanSource = randomUlid();
+  await db
+    .prepare(
+      `INSERT INTO artifact_audit_outbox
+     (workspace_id,id,version_id,grant_id,action,payload_json,created_at,dispatched_at)
+     VALUES (?,?,?,NULL,'artifact.finalized','{"synthetic":true}',?,?)`,
+    )
+    .run(
+      FIX.workspace,
+      orphanSource,
+      runFreeAuditVersion,
+      runFreeAuditTimes.created_at,
+      runFreeAuditTimes.dispatched_at,
+    );
+  await insertHistoricalAudit(
+    "artifact.dispatch_audit",
+    JSON.stringify({
+      actor: wrapperActor,
+      input: { outbox_id: orphanSource },
+      result: { ...projection, outbox_id: orphanSource },
+    }),
+  );
+  assert.deepEqual(
+    await readAuditSegment(db, FIX.workspace, auditOptions, issueAuditPosition(auditAccess)),
+    canonicalAudit,
+  );
+  const firstAuditPage = await readAuditSegment(
+    db,
+    FIX.workspace,
+    { ...auditOptions, limit: 1 },
+    issueAuditPosition(auditAccess),
+  );
+  assert.equal(firstAuditPage.entries[0]?.audit_id, sourceByAction.get(ARTIFACT_AUDIT_ACTIONS[0]));
+  assert.equal(firstAuditPage.has_more, true);
+  check("real_d1_artifact_audit_hidden_misbound_and_malformed_rows_do_not_consume_page_or_count");
+  for (const after of [privateAuditSource, randomUlid()]) {
+    await assert.rejects(readSecurityAudit(db, FIX.workspace, { ...auditOptions, after }), {
+      code: "invalid_argument",
+      message: "unknown audit cursor",
+    });
+  }
+  check("real_d1_artifact_audit_hidden_and_unknown_raw_ids_have_no_pagination_fallback");
+
+  const auditTask = (await db
+    .prepare(
+      `SELECT run.task_id,task.created_by_human_id FROM runs AS run
+       JOIN tasks AS task ON task.workspace_id=run.workspace_id AND task.id=run.task_id
+       WHERE run.workspace_id=? AND run.id=?`,
+    )
+    .get(FIX.workspace, operationsRun)) as { task_id: string; created_by_human_id: string };
+  function beforeAuditSelection(change: () => Promise<void>): SqlDatabase {
+    let changed = false;
+    async function applyChange() {
+      if (!changed) {
+        changed = true;
+        await change();
+      }
+    }
+    return {
+      ...db,
+      prepare(sql) {
+        const statement = db.prepare(sql);
+        return {
+          ...statement,
+          async get(...parameters: unknown[]) {
+            await applyChange();
+            return statement.get(...parameters);
+          },
+          async all(...parameters: unknown[]) {
+            await applyChange();
+            return statement.all(...parameters);
+          },
+        };
+      },
+    };
+  }
+  const validTaskAnchor = await auditPositionAfter(
+    db,
+    FIX.workspace,
+    auditAccess,
+    sourceByAction.get(ARTIFACT_AUDIT_ACTIONS[0])!,
+    issueAuditPosition(auditAccess),
+  );
+  const parentChangedAudit = await readAuditSegment(
+    beforeAuditSelection(async () => {
+      await db
+        .prepare(
+          "INSERT INTO task_privacy (workspace_id,task_id,owner_human_id,created_at) VALUES (?,?,?,?)",
+        )
+        .run(FIX.workspace, auditTask.task_id, auditTask.created_by_human_id, now);
+    }),
+    FIX.workspace,
+    auditOptions,
+    issueAuditPosition(auditAccess),
+  );
+  assert.equal(parentChangedAudit.entries.length, 2);
+  assert(
+    parentChangedAudit.entries.every((row) =>
+      JSON.stringify(row.payload).includes(runFreeAuditVersion),
+    ),
+  );
+  assert.equal(parentChangedAudit.has_more, false);
+  check(
+    "real_d1_artifact_audit_current_selection_filters_parent_privatized_before_marker_traversal",
+  );
+  await assert.rejects(
+    readSecurityAudit(
+      db,
+      FIX.workspace,
+      { access: auditAccess, limit: 1, after: validTaskAnchor },
+      issueAuditPosition(auditAccess),
+    ),
+    { code: "invalid_argument", message: "unknown audit cursor" },
+  );
+  const firstRunFreeAudit = parentChangedAudit.entries[0]!.audit_id;
+  const lastRunFreeAudit = parentChangedAudit.entries.at(-1)!.audit_id;
+  const runFreePosition = await auditPositionAfter(
+    db,
+    FIX.workspace,
+    auditAccess,
+    firstRunFreeAudit,
+    issueAuditPosition(auditAccess),
+  );
+  await db
+    .prepare("UPDATE audit_events SET actor_principal_id=? WHERE workspace_id=? AND audit_id=?")
+    .run(FIX.owner, FIX.workspace, lastRunFreeAudit);
+  assert.deepEqual(
+    await readSecurityAudit(
+      db,
+      FIX.workspace,
+      { access: auditAccess, limit: 1, after: runFreePosition },
+      issueAuditPosition(auditAccess),
+    ),
+    { entries: [], has_more: false, next_cursor: null },
+  );
+  await db
+    .prepare("UPDATE audit_events SET actor_principal_id=? WHERE workspace_id=? AND audit_id=?")
+    .run(ARTIFACT_RECOVERY_SYSTEM_ID, FIX.workspace, lastRunFreeAudit);
+  await assert.rejects(
+    readSecurityAudit(
+      beforeAuditSelection(async () => {
+        await db
+          .prepare(
+            "UPDATE workspace_members SET authorization_epoch=4 WHERE workspace_id=? AND human_id=?",
+          )
+          .run(FIX.workspace, FIX.owner);
+        await db
+          .prepare(
+            "UPDATE workspace_authorization_epochs SET authorization_epoch=4 WHERE workspace_id=? AND human_id=?",
+          )
+          .run(FIX.workspace, FIX.owner);
+      }),
+      FIX.workspace,
+      { access: auditAccess, limit: 1, after: runFreePosition },
+      issueAuditPosition(auditAccess),
+    ),
+    { code: "not_found", message: "operations scope not found" },
+  );
+  check("real_d1_empty_artifact_audit_scope_denial_after_epoch_loss");
+
+  // Recovery audit history uses actual Hub receipts; older applied ledger
+  // fixtures retain their lineage without pretending to carry per-retry proofs.
+  const recoveryAuditAccess = { ...access(), authorizationEpoch: 4 };
+  const recoveryAuditTask = await execute<TaskRecord>(
+    "a",
+    "task.create",
+    { projectId: FIX.projectA, title: "Synthetic recovery audit parent", priority: "P2" },
+    FIX.owner,
+    randomUlid(),
+    undefined,
+    4,
+  );
+  assert(recoveryAuditTask.ok);
+  const recoveryAuditRun = await execute<{ run: { id: string } }>(
+    "a",
+    "run.create",
+    {
+      taskId: recoveryAuditTask.result.id,
+      expectedTaskVersion: 1,
+      agentProfileId: FIX.profileCodex,
+      workspacePolicyVersion: 1,
+      projectPolicyVersion: 1,
+      repositoryConfigVersion: 1,
+      agentProfileVersion: 1,
+    },
+    FIX.owner,
+    randomUlid(),
+    undefined,
+    4,
+  );
+  assert(recoveryAuditRun.ok);
+  const recoveryAuditVersions = [
+    await seedOperationsVersion(recoveryAuditRun.result.run.id, "uploading"),
+    await seedOperationsVersion(null, "uploading"),
+  ];
+  const legacyRecoveryVersion = await seedOperationsVersion(null, "uploading");
+  const legacyRecoveryTarget = { version_ids: [legacyRecoveryVersion] };
+  const legacyRecoveryAction = recoveryActionId("resolve_stuck_upload", legacyRecoveryTarget);
+  await db
+    .prepare("UPDATE artifact_versions SET state='failed' WHERE workspace_id=? AND id=?")
+    .run(FIX.workspace, legacyRecoveryVersion);
+  await db
+    .prepare(
+      `INSERT INTO ops_recovery_ledger
+       (workspace_id,action_id,kind,target_json,state,attempt_count,result_json,
+        created_by_human_id,created_at,updated_at)
+       VALUES (?,?,'resolve_stuck_upload',?,'applied',3,'{"resolved":1}',?,?,?)`,
+    )
+    .run(
+      FIX.workspace,
+      legacyRecoveryAction,
+      JSON.stringify(legacyRecoveryTarget),
+      FIX.owner,
+      oldUploadAt,
+      oldUploadAt,
+    );
+  const recoveryAuditAnchorAt = new Date().toISOString();
+  const recoveryAuditAnchorId = await seedCanonicalAuditAnchor(recoveryAuditAnchorAt);
+  const makeRecoveryAuditProof = () =>
+    issueStepUpProof(
+      db,
+      FIX.owner,
+      {
+        action: OPS_STEP_UP_ACTIONS.recover,
+        workspaceId: FIX.workspace,
+        targetId: recoveryTarget,
+        scopes: [],
+        authorizationEpoch: 4,
+        expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+      },
+      new Date().toISOString(),
+    );
+  for (const [index, versions] of [
+    recoveryAuditVersions,
+    recoveryAuditVersions,
+    [legacyRecoveryVersion],
+  ].entries()) {
+    const outcome = await execute<{ replayed: boolean; detail: { resolved: number } }>(
+      index === 1 ? "b" : "a",
+      resolveStuckUploadCommand.name,
+      { versionIds: versions, stepUpProofId: await makeRecoveryAuditProof() },
+      FIX.owner,
+      randomUlid(),
+      undefined,
+      4,
+    );
+    assert(outcome.ok && outcome.result.replayed === (index !== 0));
+    assert.equal(outcome.result.detail.resolved, versions.length);
+  }
+  const recoveryAuditOptions = {
+    access: recoveryAuditAccess,
+    marker: recoveryAuditAnchorId,
+    limit: 100,
+  };
+  const canonicalRecoveryAudit = await readAuditSegment(
+    db,
+    FIX.workspace,
+    recoveryAuditOptions,
+    issueAuditPosition(recoveryAuditAccess),
+  );
+  assert.equal(canonicalRecoveryAudit.entries.length, 3);
+  assert.equal(canonicalRecoveryAudit.has_more, false);
+  for (const row of canonicalRecoveryAudit.entries) {
+    const payload = row.payload as { input: { version_ids: string }; result: { resolved: number } };
+    assert.equal(row.action, resolveStuckUploadCommand.name);
+    assert.equal(payload.input.version_ids, "[redacted]");
+    assert([1, 2].includes(payload.result.resolved));
+  }
+  const originalRecoveryAudit = (await db
+    .prepare(
+      `SELECT audit_id,payload_json,created_at FROM audit_events
+       WHERE workspace_id=? AND action=? AND created_at>=?
+         AND json_extract(payload_json,'$.result.replayed')=0`,
+    )
+    .get(FIX.workspace, resolveStuckUploadCommand.name, recoveryAuditAnchorAt)) as {
+    audit_id: string;
+    payload_json: string;
+    created_at: string;
+  };
+  assert(originalRecoveryAudit);
+  check("real_production_hub_recovery_audit_original_retry_and_legacy_ledger_history");
+
+  const recoveryEnvelope = JSON.parse(originalRecoveryAudit.payload_json) as {
+    actor: { humanId: string; authorizationEpoch: number };
+    input: { version_ids: string[] };
+    result: { action_id: string; kind: string; replayed: boolean; resolved: number };
+  };
+  const malformedRecoveryAnchors: string[] = [];
+  for (const [action, payload, actor] of [
+    [
+      resolveStuckUploadCommand.name,
+      JSON.stringify({ ...recoveryEnvelope, input: JSON.stringify(recoveryEnvelope.input) }),
+      FIX.owner,
+    ],
+    [
+      resolveStuckUploadCommand.name,
+      JSON.stringify({
+        ...recoveryEnvelope,
+        actor: {
+          ...recoveryEnvelope.actor,
+          humanId: FIX.owner + "\0SYNTHETIC-NUL-RECOVERY-CANARY",
+        },
+      }),
+      FIX.owner + "\0SYNTHETIC-NUL-RECOVERY-CANARY",
+    ],
+    [
+      resolveStuckUploadCommand.name,
+      JSON.stringify({
+        ...recoveryEnvelope,
+        result: { ...recoveryEnvelope.result, resolved: 999 },
+      }),
+      FIX.owner,
+    ],
+    ["OPS.RECOVERY.RESOLVE_STUCK_UPLOAD", originalRecoveryAudit.payload_json, FIX.owner],
+    ["ops.recovery.unsupported", originalRecoveryAudit.payload_json, FIX.owner],
+  ]) {
+    const id = randomUlid();
+    await db
+      .prepare(
+        `INSERT INTO audit_events
+         (workspace_id,audit_id,actor_principal_id,action,payload_json,created_at)
+         VALUES (?,?,?,?,?,?)`,
+      )
+      .run(FIX.workspace, id, actor, action, payload, recoveryAuditAnchorAt);
+    malformedRecoveryAnchors.push(id);
+  }
+  assert.deepEqual(
+    await readAuditSegment(
+      db,
+      FIX.workspace,
+      recoveryAuditOptions,
+      issueAuditPosition(recoveryAuditAccess),
+    ),
+    canonicalRecoveryAudit,
+  );
+  const recoveryFirstPage = await readAuditSegment(
+    db,
+    FIX.workspace,
+    {
+      ...recoveryAuditOptions,
+      limit: 1,
+    },
+    issueAuditPosition(recoveryAuditAccess),
+  );
+  assert.equal(recoveryFirstPage.entries[0]?.audit_id, originalRecoveryAudit.audit_id);
+  assert.equal(recoveryFirstPage.has_more, true);
+  for (const after of malformedRecoveryAnchors) {
+    await assert.rejects(readSecurityAudit(db, FIX.workspace, { ...recoveryAuditOptions, after }), {
+      code: "invalid_argument",
+      message: "unknown audit cursor",
+    });
+  }
+  check("real_d1_recovery_audit_malformed_nul_and_unknown_namespace_receipts_do_not_consume_page");
+
+  // Escaped ASCII changes JSON spelling, not the typed target identity/order.
+  const escapedRecoveryId = recoveryAuditVersions[0]!;
+  const escapedRecoveryPayload = JSON.stringify(recoveryEnvelope).replace(
+    '"version_ids":["' + escapedRecoveryId + '"',
+    '"version_ids":["\\u' +
+      escapedRecoveryId.charCodeAt(0).toString(16).padStart(4, "0") +
+      escapedRecoveryId.slice(1) +
+      '"',
+  );
+  assert.notEqual(escapedRecoveryPayload, JSON.stringify(recoveryEnvelope));
+  const escapedRecoveryAuditId = randomUlid();
+  await db
+    .prepare(
+      `INSERT INTO audit_events
+       (workspace_id,audit_id,actor_principal_id,action,payload_json,created_at)
+       VALUES (?,?,?,?,?,?)`,
+    )
+    .run(
+      FIX.workspace,
+      escapedRecoveryAuditId,
+      FIX.owner,
+      resolveStuckUploadCommand.name,
+      escapedRecoveryPayload,
+      originalRecoveryAudit.created_at,
+    );
+  const decodedRecoveryAudit = await readAuditSegment(
+    db,
+    FIX.workspace,
+    recoveryAuditOptions,
+    issueAuditPosition(recoveryAuditAccess),
+  );
+  assert.equal(decodedRecoveryAudit.entries.length, 4);
+  const escapedRecoveryAudit = decodedRecoveryAudit.entries.find(
+    (row) => row.audit_id === escapedRecoveryAuditId,
+  );
+  assert(escapedRecoveryAudit);
+  assert.deepEqual(
+    escapedRecoveryAudit.payload,
+    canonicalRecoveryAudit.entries.find((row) => row.audit_id === originalRecoveryAudit.audit_id)!
+      .payload,
+  );
+  check("real_d1_recovery_audit_preserves_decoded_target_order_across_json_escape_variants");
+
+  const validRecoveryAnchor = await auditPositionAfter(
+    db,
+    FIX.workspace,
+    recoveryAuditAccess,
+    originalRecoveryAudit.audit_id,
+    issueAuditPosition(recoveryAuditAccess),
+  );
+  const currentRecoveryAudit = await readAuditSegment(
+    beforeAuditSelection(async () => {
+      await db
+        .prepare(
+          "INSERT INTO task_privacy (workspace_id,task_id,owner_human_id,created_at) VALUES (?,?,?,?)",
+        )
+        .run(FIX.workspace, recoveryAuditTask.result.id, FIX.owner, now);
+    }),
+    FIX.workspace,
+    recoveryAuditOptions,
+    issueAuditPosition(recoveryAuditAccess),
+  );
+  assert.equal(currentRecoveryAudit.entries.length, 1);
+  assert.equal(currentRecoveryAudit.has_more, false);
+  assert.equal(
+    (currentRecoveryAudit.entries[0]!.payload as { result: { action_id: string } }).result
+      .action_id,
+    legacyRecoveryAction,
+  );
+  check(
+    "real_d1_recovery_audit_current_selection_filters_mixed_private_target_before_marker_traversal",
+  );
+  await assert.rejects(
+    readSecurityAudit(
+      db,
+      FIX.workspace,
+      { access: recoveryAuditAccess, limit: 1, after: validRecoveryAnchor },
+      issueAuditPosition(recoveryAuditAccess),
+    ),
+    { code: "invalid_argument", message: "unknown audit cursor" },
+  );
+  for (const after of [originalRecoveryAudit.audit_id, randomUlid()]) {
+    await assert.rejects(readSecurityAudit(db, FIX.workspace, { ...recoveryAuditOptions, after }), {
+      code: "invalid_argument",
+      message: "unknown audit cursor",
+    });
+  }
+  check("real_d1_recovery_audit_hidden_and_unknown_raw_ids_have_no_pagination_fallback");
+  await assert.rejects(
+    readSecurityAudit(
+      beforeAuditSelection(async () => {
+        await db
+          .prepare(
+            "UPDATE workspace_members SET authorization_epoch=5 WHERE workspace_id=? AND human_id=?",
+          )
+          .run(FIX.workspace, FIX.owner);
+        await db
+          .prepare(
+            "UPDATE workspace_authorization_epochs SET authorization_epoch=5 WHERE workspace_id=? AND human_id=?",
+          )
+          .run(FIX.workspace, FIX.owner);
+      }),
+      FIX.workspace,
+      { access: recoveryAuditAccess, limit: 1, after: validRecoveryAnchor },
+      issueAuditPosition(recoveryAuditAccess),
+    ),
+    { code: "not_found", message: "operations scope not found" },
+  );
+  check("real_d1_empty_recovery_audit_scope_denial_after_epoch_loss");
+
+  // Historical synthetic tuples isolate chronology without changing Hub time.
+  // Metadata predates its receipt; these fixtures do not establish wall-clock age.
+  const orderAnchorId = await seedCanonicalAuditAnchor("2025-01-01T00:00:00.000Z");
+  const orderFixtures: Array<{ auditId: string; at: string }> = [];
+  for (const at of [
+    "2025-02-01T12:00:00.1Z",
+    "2025-02-01T12:00:00.100001Z",
+    "2025-02-01T12:00:00Z",
+    "2025-02-01T12:00:00.000000Z",
+  ]) {
+    const versionId = await seedOperationsVersion(
+      null,
+      "uploading",
+      false,
+      "2025-02-01T10:00:00.000Z",
+    );
+    await db
+      .prepare("UPDATE artifact_versions SET state='failed' WHERE workspace_id=? AND id=?")
+      .run(FIX.workspace, versionId);
+    const target = { version_ids: [versionId] };
+    const actionId = recoveryActionId("resolve_stuck_upload", target);
+    await db
+      .prepare(
+        `INSERT INTO ops_recovery_ledger
+         (workspace_id,action_id,kind,target_json,state,attempt_count,result_json,
+          created_by_human_id,created_at,updated_at)
+         VALUES (?,?,'resolve_stuck_upload',?,'applied',1,'{"resolved":1}',?,?,?)`,
+      )
+      .run(FIX.workspace, actionId, JSON.stringify(target), FIX.owner, at, at);
+    const auditId = randomUlid();
+    await db
+      .prepare(
+        `INSERT INTO audit_events
+         (workspace_id,audit_id,actor_principal_id,action,payload_json,created_at)
+         VALUES (?,?,?,?,?,?)`,
+      )
+      .run(
+        FIX.workspace,
+        auditId,
+        FIX.owner,
+        resolveStuckUploadCommand.name,
+        JSON.stringify({
+          actor: { humanId: FIX.owner, authorizationEpoch: 1 },
+          input: target,
+          result: {
+            action_id: actionId,
+            kind: "resolve_stuck_upload",
+            replayed: false,
+            resolved: 1,
+          },
+        }),
+        at,
+      );
+    orderFixtures.push({ auditId, at });
+  }
+  const legacyOrderId = randomUlid();
+  await db
+    .prepare(
+      `INSERT INTO audit_events
+       (workspace_id,audit_id,actor_principal_id,action,payload_json,created_at)
+       VALUES (?,?,?,'ops.audit.synthetic_order','{"action":"synthetic"}',?)`,
+    )
+    .run(FIX.workspace, legacyOrderId, FIX.owner, "2025-02-01T12:00:00.000Z");
+  const chronologicalFixtures = [
+    orderFixtures[2]!,
+    orderFixtures[3]!,
+    orderFixtures[0]!,
+    orderFixtures[1]!,
+  ];
+  await assert.rejects(
+    readSecurityAudit(db, FIX.workspace, {
+      access: { ...access(), authorizationEpoch: 5 },
+      after: legacyOrderId,
+    }),
+    { code: "invalid_argument", message: "unknown audit cursor" },
+  );
+  const orderAccess = { ...access(), authorizationEpoch: 5 };
+  let orderAfter = await auditPositionAfter(
+    db,
+    FIX.workspace,
+    orderAccess,
+    orderAnchorId,
+    issueAuditPosition(orderAccess),
+  );
+  for (const expected of chronologicalFixtures) {
+    const page = await readSecurityAudit(
+      db,
+      FIX.workspace,
+      {
+        access: orderAccess,
+        after: orderAfter,
+        limit: 1,
+      },
+      issueAuditPosition(orderAccess),
+    );
+    assert.equal(page.entries.length, 1);
+    assert.equal(page.entries[0]!.audit_id, expected.auditId);
+    assert.equal(page.entries[0]!.created_at, expected.at);
+    assert.equal(page.has_more, true);
+    assert(page.next_cursor);
+    orderAfter = page.next_cursor;
+  }
+  check("real_d1_recovery_audit_normalized_utc_pages_and_anchors_preserve_microseconds_and_ties");
+  console.log(
+    JSON.stringify({
+      schema_version: 1,
+      stage: "human_task_child_and_partial_metadata_surfaces",
+      migration_head: manifest.migration_head,
+      checks,
+      outcome: "passed",
+      limits: [
+        "synthetic policies only",
+        "no full C11 delivery certificate",
+        "partial metadata/retention/upload-recovery/canonical artifact audit fences, not opaque positions or complete operations privacy",
+        "delegated-result execution-clock guard only; other credential or lease expiry remains uncertified",
+        "real D1/domain/Hub proof, not real HTTP OAuth or provider execution",
+        "grant-consumption proof, not live R2 or private browser-byte delivery",
+      ],
+    }),
+  );
+  console.log("C11_TASK_D1_OK");
+} finally {
+  await server.close();
+}

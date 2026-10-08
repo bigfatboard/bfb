@@ -1,0 +1,560 @@
+// ABOUTME: Typed W02 browser client for runner, checkout, launch, and control reads.
+// ABOUTME: Request builders use exact field allowlists; wake values never enter launch input.
+
+const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+
+function browserUlid(): string {
+  const bytes = new Uint8Array(24);
+  crypto.getRandomValues(bytes);
+  let out = "01";
+  for (const byte of bytes) {
+    out += CROCKFORD[byte % 32];
+    if (out.length >= 26) {
+      break;
+    }
+  }
+  return out.slice(0, 26);
+}
+
+export interface RunnerSummary {
+  schema_version: 1;
+  runner_id: string;
+  workspace_id: string;
+  owner_human_id: string;
+  device_label: string;
+  public_key_thumbprint: string;
+  authorization_epoch: number;
+  grant_epoch: number;
+  status: "enrolled" | "revoked";
+  enrolled_at: string;
+  granted_project_ids: string[];
+  launcher_human_ids: string[];
+  checkout_status: CheckoutStatus | null;
+}
+
+export interface CheckoutSummary {
+  schema_version: 1;
+  checkout_id: string;
+  workspace_id: string;
+  runner_id: string;
+  project_id: string;
+  label: string;
+  repository_identity: string;
+  workspace_subpath: string;
+  physical_worktree_hash: string;
+  repository_config_hash: string;
+  is_default: boolean;
+  branch?: string;
+  head?: string;
+  dirty: boolean;
+  block_reason?: string;
+  status: "registered" | "validated" | "stale" | "blocked";
+  validated_at: string;
+}
+
+export interface ProviderReport {
+  provider: string;
+  version: string;
+  manifest_id: string;
+  capabilities: string[];
+  status: string;
+  observed_at: string;
+  expires_at: string;
+}
+
+export interface CheckoutStatus {
+  runner_id: string;
+  device_label: string;
+  owner_human_id: string;
+  status: "enrolled" | "revoked";
+  inventory_revision: number | null;
+  inventory_received_at: string | null;
+  inventory_valid: boolean;
+  checkouts: CheckoutSummary[];
+  providers: ProviderReport[];
+}
+
+export interface LaunchStatus {
+  launch_id: string;
+  run_id: string;
+  run_execution_id: string;
+  assignment_generation: number;
+  task_id: string;
+  project_id: string;
+  runner_id: string;
+  checkout_id: string;
+  requesting_human_id: string;
+  state: "pending" | "claimed" | "started" | "rejected" | "expired";
+  expires_at: string;
+  cancelled: boolean;
+  end_reason: "launch_blocked" | "launch_expired" | "terminated" | null;
+  execution_state: "queued" | "launching" | "attached" | "detached" | "ended";
+  execution_end_reason:
+    "launch_blocked" | "launch_expired" | "process_exit" | "terminated" | "lost" | null;
+  result_state: "open" | "submitted" | "changes_requested" | "accepted" | "failed" | "cancelled";
+  activity: string;
+  lease_state: "reserved" | "live" | "containment_unknown" | "released" | null;
+  containment_reason:
+    "escaped_descendant" | "identity_ambiguous" | "evidence_missing" | "recovery_incomplete" | null;
+  agent_profile_id: string | null;
+  provider: string | null;
+  model: string | null;
+  execution_mode: "interactive" | "headless" | null;
+}
+
+export interface LaunchClient {
+  listRunners(): Promise<{ runners: RunnerSummary[] }>;
+  checkoutStatus(runnerId: string): Promise<CheckoutStatus>;
+  launchesForTask(taskId: string): Promise<{ launches: LaunchStatus[] }>;
+  launch(launchId: string): Promise<{ launch: LaunchStatus }>;
+  start(body: Record<string, unknown>): Promise<Response>;
+  control(body: Record<string, unknown>): Promise<Response>;
+  wake(launchId: string): Promise<{
+    intent_kind: string;
+    intent_id: string;
+    launch_id: string;
+    expires_at: string;
+  }>;
+  launchOrigin(): Promise<string>;
+}
+
+export function createLaunchClient(
+  fetchFn: typeof fetch,
+  workspaceId: string,
+  csrfToken: string,
+): LaunchClient {
+  const base = `/api/v1/workspaces/${workspaceId}`;
+  const inflight = new Map<string, Promise<unknown>>();
+  async function get<T>(path: string): Promise<T> {
+    const pending = inflight.get(path);
+    if (pending) {
+      return pending as Promise<T>;
+    }
+    const task = (async () => {
+      const response = await fetchFn(path);
+      if (!response.ok) {
+        throw new Error(`Launch read failed (${response.status})`);
+      }
+      return (await response.json()) as T;
+    })();
+    inflight.set(path, task);
+    try {
+      return await task;
+    } finally {
+      inflight.delete(path);
+    }
+  }
+  return {
+    listRunners: () => get(`${base}/runners`),
+    checkoutStatus: (runnerId) => get(`${base}/runners/${runnerId}/checkouts`),
+    launchesForTask: (taskId) => get(`${base}/launches?task_id=${encodeURIComponent(taskId)}`),
+    launch: (launchId) => get(`${base}/launches/${launchId}`),
+    start: (body) =>
+      fetchFn(`${base}/launches`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-bfb-csrf": csrfToken },
+        body: JSON.stringify(body),
+      }),
+    control: (body) =>
+      fetchFn(`${base}/run-controls`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-bfb-csrf": csrfToken },
+        body: JSON.stringify(body),
+      }),
+    wake: async (launchId) => {
+      const response = await fetchFn(`${base}/launches/wake`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-bfb-csrf": csrfToken },
+        body: JSON.stringify({ schema_version: 1, launch_id: launchId }),
+      });
+      if (!response.ok) {
+        throw new Error(`Wake signal failed (${response.status})`);
+      }
+      return (await response.json()) as {
+        intent_kind: string;
+        intent_id: string;
+        launch_id: string;
+        expires_at: string;
+      };
+    },
+    launchOrigin: async () => {
+      const response = await fetchFn("/api/v1/_substrate");
+      if (!response.ok) {
+        throw new Error("Launch origin is unavailable");
+      }
+      const body = (await response.json()) as { launch_origin?: string };
+      if (!body.launch_origin) {
+        throw new Error("Launch origin is unavailable");
+      }
+      return body.launch_origin;
+    },
+  };
+}
+
+export function newIdempotencyKey(): string {
+  return browserUlid();
+}
+
+export type StartAttemptAnswer = "stored" | "rejected" | "unanswered";
+
+/**
+ * Whether a Start attempt settles its idempotency key so the next Start mints
+ * a fresh one. A stored launch owns the key, and a typed rejection stored
+ * nothing (the launch route answers only after the domain batch commits, and
+ * every rejection precedes the key write), so both settle it. Only a lost
+ * response keeps the key, so the next click replays the same request instead
+ * of recording a second launch.
+ */
+export function startAttemptSettlesKey(answer: StartAttemptAnswer): boolean {
+  return answer !== "unanswered";
+}
+
+/**
+ * Whether a received run-control result settles its scope's idempotency key.
+ * Settled controls (applied, rejected, expired) free the key so a later press
+ * issues a new control; live controls (pending, claimed) keep it so repeated
+ * presses replay the same control.
+ */
+export function isSettledControlState(state: string): boolean {
+  return state === "applied" || state === "rejected" || state === "expired";
+}
+
+export type CheckoutDisplay = "ready" | "empty" | "invalid" | "unavailable";
+
+/**
+ * Classifies one runner's checkout read. A missing read (rejected, failed, or
+ * never attempted for a Mac the human cannot launch on) is unavailable, never
+ * empty: only a successful read with no checkouts means nothing was reported.
+ */
+export function describeCheckoutDisplay(
+  checkout: CheckoutStatus | undefined,
+  readFailed: boolean,
+): CheckoutDisplay {
+  if (!checkout) {
+    return "unavailable";
+  }
+  if (checkout.checkouts.length > 0) {
+    return "ready";
+  }
+  if (!checkout.inventory_valid && checkout.inventory_received_at) {
+    return "invalid";
+  }
+  return readFailed ? "unavailable" : "empty";
+}
+
+/**
+ * Resolves the Start form's checkout against the task's project only. Defaults
+ * are per (runner, project), so the unfiltered inventory can carry another
+ * project's default first: resolving from the unfiltered list would post a
+ * checkout the select never offered. A stale explicit selection from another
+ * project falls back to this project's default, and a project with no
+ * checkout resolves to empty so Start stays disabled instead of posting a
+ * foreign checkout.
+ */
+export function resolveEffectiveCheckoutId(
+  selectedId: string,
+  checkouts: CheckoutSummary[],
+  projectId: string,
+): string {
+  const scoped = checkouts.filter((checkout) => checkout.project_id === projectId);
+  if (selectedId && scoped.some((checkout) => checkout.checkout_id === selectedId)) {
+    return selectedId;
+  }
+  return scoped.find((checkout) => checkout.is_default)?.checkout_id ?? "";
+}
+
+/** Copy for the linked-checkouts block. Null when checkouts render as a list. */
+export function linkedCheckoutsMessage(
+  checkout: CheckoutStatus | undefined,
+  readFailed: boolean,
+): string | null {
+  switch (describeCheckoutDisplay(checkout, readFailed)) {
+    case "ready":
+      return null;
+    case "invalid":
+      return "The last Mac report failed validation; no checkout is shown.";
+    case "empty":
+      return "The Mac has not reported a checkout yet. Connection alone never means the Mac is ready.";
+    case "unavailable":
+      return "Checkout status is unavailable. The read failed, was rejected, or was skipped for a Mac that cannot be launched here; this does not mean the Mac reported nothing.";
+  }
+}
+
+/** Copy for the provider-capability block. Null when providers render as a list. */
+export function providerStatusMessage(
+  checkout: CheckoutStatus | undefined,
+  readFailed: boolean,
+): string | null {
+  if (checkout && checkout.providers.length > 0) {
+    return null;
+  }
+  if (checkout) {
+    return "No provider report. Launches stay unavailable until the Mac reports one.";
+  }
+  return readFailed
+    ? "Provider status is unavailable because the checkout read failed or was rejected."
+    : "Provider status is unavailable because the checkout read was skipped for a Mac that cannot be launched here.";
+}
+
+/**
+ * Splits the checkout statuses embedded in one runners list read. A missing
+ * status is a failure entry, never an empty inventory: only an embedded read
+ * with no checkouts means nothing was reported. No additional read happens
+ * here: one list poll carries every runner's status.
+ */
+export function splitRunnerStatuses(runners: RunnerSummary[]): {
+  statuses: Record<string, CheckoutStatus>;
+  failures: Record<string, string>;
+} {
+  const statuses: Record<string, CheckoutStatus> = {};
+  const failures: Record<string, string> = {};
+  for (const runner of runners) {
+    if (runner.checkout_status) {
+      statuses[runner.runner_id] = runner.checkout_status;
+    } else {
+      failures[runner.runner_id] = "Checkout status is unavailable.";
+    }
+  }
+  return { statuses, failures };
+}
+
+/**
+ * Refreshes only the task's launches. Start and control commands change launch
+ * state, never runner inventory, so post-command refreshes must not spend the
+ * runner poll budget. The narrowed client type makes a runner refetch a type
+ * error.
+ */
+export async function refreshTaskLaunches(
+  client: Pick<LaunchClient, "launchesForTask">,
+  taskId: string,
+): Promise<{ launches: LaunchStatus[] }> {
+  return client.launchesForTask(taskId);
+}
+
+export interface StartInput {
+  taskId: string;
+  expectedTaskVersion: number;
+  agentProfileId: string;
+  agentProfileVersion: number;
+  workspacePolicyVersion: number;
+  projectPolicyVersion: number;
+  repositoryConfigVersion: number;
+  runnerId: string;
+  checkoutId: string;
+  retryRunId?: string;
+  idempotencyKey: string;
+}
+
+/** Exact C09 Start fields. Any other field, including wake values, is rejected. */
+export function buildStartRequest(input: StartInput): Record<string, unknown> {
+  return {
+    schema_version: 1,
+    idempotency_key: input.idempotencyKey,
+    task_id: input.taskId,
+    expected_task_version: input.expectedTaskVersion,
+    agent_profile_id: input.agentProfileId,
+    agent_profile_version: input.agentProfileVersion,
+    workspace_policy_version: input.workspacePolicyVersion,
+    project_policy_version: input.projectPolicyVersion,
+    repository_config_version: input.repositoryConfigVersion,
+    runner_id: input.runnerId,
+    checkout_id: input.checkoutId,
+    ...(input.retryRunId === undefined ? {} : { retry_run_id: input.retryRunId }),
+  };
+}
+
+export type ControlAction = "focus_existing" | "resume" | "interrupt" | "terminate" | "cancel";
+
+export function buildControlRequest(input: {
+  runnerId: string;
+  runExecutionId: string;
+  assignmentGeneration: number;
+  action: ControlAction;
+  idempotencyKey: string;
+}): Record<string, unknown> {
+  return {
+    schema_version: 1,
+    idempotency_key: input.idempotencyKey,
+    runner_id: input.runnerId,
+    run_execution_id: input.runExecutionId,
+    assignment_generation: input.assignmentGeneration,
+    action: input.action,
+  };
+}
+
+const ULID = /^[0-7][0-9A-HJKMNP-TV-Z]{25}$/;
+
+/** Builds only C09's short-lived cloud wake link. Never a Terminal command. */
+export function buildWakeLink(launchOrigin: string, intentId: string): string {
+  if (!/^https?:\/\/[^/]+$/.test(launchOrigin)) {
+    throw new Error("Invalid launch origin.");
+  }
+  if (!ULID.test(intentId)) {
+    throw new Error("Invalid wake intent.");
+  }
+  return `${launchOrigin}/l/${intentId}`;
+}
+
+export type LaunchTone = "waiting" | "active" | "blocked" | "settled";
+
+export interface LaunchPresentation {
+  headline: string;
+  detail: string;
+  tone: LaunchTone;
+  nextAction: string;
+  actions: Array<
+    "wake" | "retry" | "cancel" | "interrupt" | "terminate" | "focus_existing" | "resume"
+  >;
+  needsLocalRecovery: boolean;
+}
+
+/**
+ * Maps one durable launch read to its operator presentation. Result state is
+ * reported separately and never inferred from process or execution endings.
+ */
+export function describeLaunchStatus(launch: LaunchStatus): LaunchPresentation {
+  if (launch.lease_state === "containment_unknown") {
+    return {
+      headline: "Containment unknown",
+      detail: `The Mac reported ${launch.containment_reason?.replaceAll("_", " ") ?? "an unclear"} process state. The checkout remains reserved; background work may still be running.`,
+      tone: "blocked",
+      nextAction:
+        "Inspect this execution locally on the Mac. This page cannot clear containment. Experimental root-supervised runs do not yet support recovery; do not delete their lock records.",
+      actions: [],
+      needsLocalRecovery: true,
+    };
+  }
+  if (launch.state === "expired") {
+    return {
+      headline: "Launch expired",
+      detail: "The two-minute window passed without a Mac claim. Nothing started.",
+      tone: "settled",
+      nextAction: "Press Start again to create a new explicit launch.",
+      actions: ["retry"],
+      needsLocalRecovery: false,
+    };
+  }
+  if (launch.state === "rejected") {
+    const reason =
+      launch.end_reason === "terminated"
+        ? "A cancel control terminated it before execution."
+        : "The Mac or policy checks blocked it before execution.";
+    return {
+      headline: "Launch rejected",
+      detail: `${reason} The run result stays open.`,
+      tone: "settled",
+      nextAction: "Fix the blocking condition, then press Start again.",
+      actions: ["retry"],
+      needsLocalRecovery: false,
+    };
+  }
+  if (launch.cancelled) {
+    return {
+      headline: "Launch cancelled",
+      detail:
+        "Cancellation stops further authorization. The Mac still proves the checkout is free.",
+      tone: "settled",
+      nextAction: "Wait for the Mac to confirm release, or start again explicitly.",
+      actions: ["retry"],
+      needsLocalRecovery: false,
+    };
+  }
+  if (launch.execution_state === "ended") {
+    if (launch.execution_end_reason === "launch_expired") {
+      return {
+        headline: "Launch expired",
+        detail: "The two-minute window passed without a Mac claim. Nothing started.",
+        tone: "settled",
+        nextAction: "Press Start again to create a new explicit launch.",
+        actions: ["retry"],
+        needsLocalRecovery: false,
+      };
+    }
+    return {
+      headline: "Process ended",
+      detail: `The owned process group ended (${launch.execution_end_reason?.replaceAll("_", " ") ?? "unknown cause"}). The run result stays ${launch.result_state}; the task is not marked done.`,
+      tone: "settled",
+      nextAction:
+        launch.result_state === "open" || launch.result_state === "changes_requested"
+          ? "Return to the existing session or start again explicitly."
+          : "The run result is recorded separately.",
+      actions:
+        launch.result_state === "open" || launch.result_state === "changes_requested"
+          ? ["resume", "retry"]
+          : [],
+      needsLocalRecovery: false,
+    };
+  }
+  if (launch.state === "pending") {
+    return {
+      headline: "Pending Mac claim",
+      detail:
+        "The durable command waits for the selected Mac. Expiry needs another explicit Start.",
+      tone: "waiting",
+      nextAction: "Optionally wake the Mac. The wake signal never starts or claims the launch.",
+      actions: ["wake", "cancel"],
+      needsLocalRecovery: false,
+    };
+  }
+  if (launch.execution_state === "detached") {
+    return {
+      headline: "Execution detached",
+      detail: "Process presence was lost while the Mac holds the checkout fence.",
+      tone: "blocked",
+      nextAction:
+        "Interrupt, terminate, or cancel the exact execution. Check the Mac before retrying.",
+      actions: ["interrupt", "terminate", "cancel"],
+      needsLocalRecovery: false,
+    };
+  }
+  if (launch.execution_state === "attached") {
+    if (launch.activity === "waiting_user_submit") {
+      return {
+        headline: "Waiting for human submit",
+        detail: "The provider waits in the Mac Terminal for the visible constant prompt.",
+        tone: "active",
+        nextAction: "Submit the prompt in Terminal on the Mac. BFB never types for you.",
+        actions: ["focus_existing", "interrupt", "terminate", "cancel"],
+        needsLocalRecovery: false,
+      };
+    }
+    return {
+      headline: "Provider attached",
+      detail: `${launch.provider ?? "Provider"} runs on the Mac under the claimed fence.`,
+      tone: "active",
+      nextAction: "Interrupt, terminate, or cancel the exact execution when needed.",
+      actions: ["focus_existing", "interrupt", "terminate", "cancel"],
+      needsLocalRecovery: false,
+    };
+  }
+  return {
+    headline: "Launching",
+    detail: "The Mac claimed the command and runs pre-execution checks.",
+    tone: "waiting",
+    nextAction: "Wait for attach, or cancel the exact execution.",
+    actions: ["cancel"],
+    needsLocalRecovery: false,
+  };
+}
+
+export function resultLabel(resultState: string): string {
+  return `Result: ${resultState.replaceAll("_", " ")} (recorded separately)`;
+}
+
+/**
+ * Whether a launch can still change presentation without a new explicit
+ * command, so the card must keep refreshing it. Only expired, rejected,
+ * cancelled, and ended launches render a final state: attached, detached,
+ * and containment-unknown launches still move (the daemon reports attach,
+ * loss, exit, and local recovery through the same read), as do launches
+ * still awaiting claim.
+ */
+export function isUnsettledLaunch(launch: LaunchStatus): boolean {
+  if (launch.state === "expired" || launch.state === "rejected" || launch.cancelled) {
+    return false;
+  }
+  if (launch.execution_state === "ended") {
+    return false;
+  }
+  return true;
+}

@@ -1,0 +1,257 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/agent-work-receipt.json",
+  "title": "AgentWorkReceipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "operation_key",
+    "request_id",
+    "tool",
+    "admission_mode",
+    "delivery_state",
+    "effect_certainty",
+    "captured_at",
+    "intent_expires_at",
+    "reason_code"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "operation_key": {
+      "type": "string",
+      "pattern": "^agent:[0-9a-f]{64}$",
+      "minLength": 70,
+      "maxLength": 70
+    },
+    "request_id": {
+      "$ref": "primitives.json#/$defs/IdempotencyKey"
+    },
+    "tool": {
+      "type": "string",
+      "enum": ["bfb_add_comment", "bfb_propose_task", "bfb_report_progress", "bfb_update_task"]
+    },
+    "admission_mode": {
+      "type": "string",
+      "enum": ["online_only", "offline_admitted"]
+    },
+    "delivery_state": {
+      "type": "string",
+      "enum": ["pending_sync", "applied", "rejected", "delivery_blocked"]
+    },
+    "effect_certainty": {
+      "type": "string",
+      "enum": ["not_attempted", "possibly_applied", "confirmed"]
+    },
+    "captured_at": {
+      "$ref": "agent-capture-confirmation-result.json#/$defs/CaptureTimestamp"
+    },
+    "intent_expires_at": {
+      "$ref": "agent-capture-confirmation-result.json#/$defs/NullableCaptureTimestamp"
+    },
+    "reason_code": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[a-z][a-z0-9_]{0,63}$"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "type": "object",
+        "required": ["delivery_state"],
+        "properties": {
+          "delivery_state": {
+            "const": "pending_sync"
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "effect_certainty": {
+            "type": "string",
+            "enum": ["not_attempted", "possibly_applied"]
+          },
+          "reason_code": {
+            "const": null
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "type": "object",
+        "required": ["delivery_state"],
+        "properties": {
+          "delivery_state": {
+            "const": "applied"
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "effect_certainty": {
+            "type": "string",
+            "enum": ["confirmed"]
+          },
+          "reason_code": {
+            "const": null
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "type": "object",
+        "required": ["delivery_state"],
+        "properties": {
+          "delivery_state": {
+            "const": "rejected"
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "effect_certainty": {
+            "type": "string",
+            "enum": ["not_attempted"]
+          },
+          "reason_code": {
+            "type": "string",
+            "enum": [
+              "revoked",
+              "assignment_ended",
+              "capability_closed",
+              "session_not_bound",
+              "session_conflict",
+              "policy_rejected",
+              "forbidden",
+              "stale_version",
+              "child_limit",
+              "boundary_escape",
+              "request_rejected",
+              "invalid_argument",
+              "intent_expired",
+              "capture_invalid",
+              "containment_unknown"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "type": "object",
+        "required": ["delivery_state"],
+        "properties": {
+          "delivery_state": {
+            "const": "delivery_blocked"
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "effect_certainty": {
+            "type": "string",
+            "enum": ["not_attempted", "possibly_applied", "confirmed"]
+          },
+          "reason_code": {
+            "type": "string",
+            "enum": [
+              "revoked",
+              "assignment_ended",
+              "capability_closed",
+              "session_not_bound",
+              "session_conflict",
+              "policy_rejected",
+              "forbidden",
+              "stale_version",
+              "child_limit",
+              "boundary_escape",
+              "request_rejected",
+              "invalid_argument",
+              "intent_expired",
+              "capture_invalid",
+              "containment_unknown",
+              "work_unavailable",
+              "legacy_capture_unverifiable",
+              "storage_corrupt"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "type": "object",
+        "required": ["admission_mode"],
+        "properties": {
+          "admission_mode": {
+            "const": "online_only"
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "intent_expires_at": {
+            "const": null
+          },
+          "delivery_state": {
+            "type": "string",
+            "enum": ["applied", "rejected", "delivery_blocked"]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "type": "object",
+        "required": ["admission_mode"],
+        "properties": {
+          "admission_mode": {
+            "const": "offline_admitted"
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "intent_expires_at": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "type": "object",
+        "required": ["reason_code"],
+        "properties": {
+          "reason_code": {
+            "enum": ["legacy_capture_unverifiable", "storage_corrupt"]
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "delivery_state": {
+            "const": "delivery_blocked"
+          },
+          "effect_certainty": {
+            "const": "possibly_applied"
+          }
+        }
+      }
+    }
+  ]
+}

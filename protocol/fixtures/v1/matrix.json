@@ -3,6 +3,66 @@
   "schema_version": 1,
   "fixtures": [
     {
+      "path": "valid/agent-work-request.read.json",
+      "schema": "agent-work-request",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/agent-local-request.read.json",
+      "schema": "agent-local-request",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/agent-authority-result.live.json",
+      "schema": "agent-authority-result",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/agent-context-result.empty.json",
+      "schema": "agent-context-result",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/agent-context-result.delivered.json",
+      "schema": "agent-context-result",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/agent-task-result.read.json",
+      "schema": "agent-task-result",
+      "expect": "accept"
+    },
+    { "path": "valid/local-rpc.agent-request.json", "schema": "local-rpc", "expect": "accept" },
+    {
+      "path": "invalid/agent-work-request.principal.json",
+      "schema": "agent-work-request",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/agent-context-result.singular-alias.json",
+      "schema": "agent-context-result",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "valid/local-rpc.checkout-link.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/local-rpc.response-path.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.unrelated-request-path.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
       "path": "valid/event-envelope.heartbeat.json",
       "schema": "event-envelope",
       "expect": "accept"
@@ -56,6 +116,28 @@
       "path": "valid/local-rpc.request.json",
       "schema": "local-rpc",
       "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.daemon-status.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.daemon-conflict.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/local-rpc.private-payload.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/local-rpc.negative-recovery.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "bound_exceeded"
     },
     {
       "path": "valid/runner-event-submission.heartbeat.json",
@@ -497,6 +579,1690 @@
       "schema": "event-envelope",
       "expect": "reject",
       "category": "type_mismatch"
+    },
+    {
+      "path": "valid/runner-identity.private.json",
+      "schema": "runner-identity",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/runner-challenge.token.json",
+      "schema": "runner-challenge",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/runner-challenge.request.json",
+      "schema": "runner-challenge",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/runner-channel-close.revoked.json",
+      "schema": "runner-channel-close",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/runner-challenge.audience.json",
+      "schema": "runner-challenge",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/runner-challenge.request-binding.json",
+      "schema": "runner-challenge",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/runner-challenge.private-key.json",
+      "schema": "runner-challenge",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/runner-channel-close.reason.json",
+      "schema": "runner-channel-close",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "valid/runner-local-enrollment.pending.json",
+      "schema": "runner-local-enrollment",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/runner-local-enrollment.key-pending.json",
+      "schema": "runner-local-enrollment",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/runner-enrollment-handoff.public.json",
+      "schema": "runner-enrollment-handoff",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/runner-channel-message.ready.json",
+      "schema": "runner-channel-message",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/runner-command-pull.pending.json",
+      "schema": "runner-command-pull",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/runner-inventory.sanitized.json",
+      "schema": "runner-inventory",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/runner-local-enrollment.private-key.json",
+      "schema": "runner-local-enrollment",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/runner-channel-message.missing-time.json",
+      "schema": "runner-channel-message",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/runner-command-pull.shell.json",
+      "schema": "runner-command-pull",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/runner-inventory.configuration.json",
+      "schema": "runner-inventory",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/runner-enrollment-handoff.private-key.json",
+      "schema": "runner-enrollment-handoff",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "valid/local-rpc.l04-wake.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l04-terminal.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l04-notification.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l04-locked.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l04-complete.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l04-enrollment.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l04-pending-key.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l04-unicode-scalars.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/local-rpc.l04-unknown-version.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "unknown_version"
+    },
+    {
+      "path": "invalid/local-rpc.l04-cloud-as-terminal.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/local-rpc.l04-terminal-as-cloud.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/local-rpc.l04-uppercase-uuid.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.l04-uuid-version.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.l04-nested-extra.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/local-rpc.l04-missing-key.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/local-rpc.l04-null-active-key.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.l04-calendar-date.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.l04-timestamp-precision.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.l04-timestamp-offset.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.l04-unicode-bound.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/local-rpc.l04-duplicate-key.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "schema_invalid"
+    },
+    {
+      "path": "invalid/local-rpc.l04-fractional-version.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.l04-exponent-version.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "unknown_version"
+    },
+    {
+      "path": "invalid/local-rpc.l04-lone-surrogate.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "schema_invalid"
+    },
+    {
+      "path": "valid/local-rpc.l04-exact-integer.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l04-long-integer.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/launch-start-request.c09-synthetic.json",
+      "schema": "launch-start-request",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/launch-start-request.c09-shell.json",
+      "schema": "launch-start-request",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/launch-start-request.c09-path.json",
+      "schema": "launch-start-request",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "valid/launch-snapshot.c09-synthetic.json",
+      "schema": "launch-snapshot",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/launch-snapshot.c09-shell.json",
+      "schema": "launch-snapshot",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/launch-snapshot.c09-path.json",
+      "schema": "launch-snapshot",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "valid/launch-claim-result.c09-synthetic.json",
+      "schema": "launch-claim-result",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/launch-claim-result.c09-shell.json",
+      "schema": "launch-claim-result",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/launch-claim-result.c09-path.json",
+      "schema": "launch-claim-result",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "valid/launch-reconciliation.c09-synthetic.json",
+      "schema": "launch-reconciliation",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/launch-reconciliation.c09-shell.json",
+      "schema": "launch-reconciliation",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/launch-reconciliation.c09-path.json",
+      "schema": "launch-reconciliation",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "valid/launch-final-request.c09-synthetic.json",
+      "schema": "launch-final-request",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/launch-final-request.c09-shell.json",
+      "schema": "launch-final-request",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/launch-final-request.c09-path.json",
+      "schema": "launch-final-request",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "valid/checkout-lease-observation.c09-synthetic.json",
+      "schema": "checkout-lease-observation",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/checkout-lease-observation.c09-shell.json",
+      "schema": "checkout-lease-observation",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/checkout-lease-observation.c09-path.json",
+      "schema": "checkout-lease-observation",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "valid/run-control-request.c09-synthetic.json",
+      "schema": "run-control-request",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/run-control-request.c09-shell.json",
+      "schema": "run-control-request",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/run-control-request.c09-path.json",
+      "schema": "run-control-request",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "valid/run-control-claim.c09-synthetic.json",
+      "schema": "run-control-claim",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/run-control-claim.c09-shell.json",
+      "schema": "run-control-claim",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/run-control-claim.c09-path.json",
+      "schema": "run-control-claim",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "valid/run-control-disposition.c09-synthetic.json",
+      "schema": "run-control-disposition",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/run-control-disposition.c09-shell.json",
+      "schema": "run-control-disposition",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/run-control-disposition.c09-path.json",
+      "schema": "run-control-disposition",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "valid/launch-reject-request.c09-synthetic.json",
+      "schema": "launch-reject-request",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/launch-reject-request.c09-shell.json",
+      "schema": "launch-reject-request",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/launch-reject-request.c09-path.json",
+      "schema": "launch-reject-request",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "valid/launch-tighten-request.c09-synthetic.json",
+      "schema": "launch-tighten-request",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/launch-tighten-request.c09-shell.json",
+      "schema": "launch-tighten-request",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/launch-tighten-request.c09-path.json",
+      "schema": "launch-tighten-request",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "valid/launch-wake-request.c09-synthetic.json",
+      "schema": "launch-wake-request",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/launch-wake-request.c09-shell.json",
+      "schema": "launch-wake-request",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/launch-wake-request.c09-path.json",
+      "schema": "launch-wake-request",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "valid/launch-wake-redemption.c09-synthetic.json",
+      "schema": "launch-wake-redemption",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/launch-wake-redemption.c09-shell.json",
+      "schema": "launch-wake-redemption",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/launch-wake-redemption.c09-path.json",
+      "schema": "launch-wake-redemption",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "valid/launch-specification.c09-synthetic.json",
+      "schema": "launch-specification",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/launch-specification.c09-shell.json",
+      "schema": "launch-specification",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/launch-specification.c09-path.json",
+      "schema": "launch-specification",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "valid/run-control-reference.c09-synthetic.json",
+      "schema": "run-control-reference",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/run-control-reference.c09-shell.json",
+      "schema": "run-control-reference",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/run-control-reference.c09-path.json",
+      "schema": "run-control-reference",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "valid/run-control-result.c09-synthetic.json",
+      "schema": "run-control-result",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/run-control-result.c09-shell.json",
+      "schema": "run-control-result",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/run-control-result.c09-path.json",
+      "schema": "run-control-result",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "valid/run-control-request.c09-focus_existing.json",
+      "schema": "run-control-request",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/run-control-request.c09-resume.json",
+      "schema": "run-control-request",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/run-control-request.c09-terminate.json",
+      "schema": "run-control-request",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/run-control-request.c09-cancel.json",
+      "schema": "run-control-request",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/launch-reconciliation.c09-superseded.json",
+      "schema": "launch-reconciliation",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/launch-reconciliation.c09-released.json",
+      "schema": "launch-reconciliation",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/launch-reconciliation.c09-never-acquired.json",
+      "schema": "launch-reconciliation",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/launch-reconciliation.c09-never-acquired-rejected.json",
+      "schema": "launch-reconciliation",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/launch-reconciliation.c09-never-acquired-live.json",
+      "schema": "launch-reconciliation",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/launch-reconciliation.c09-never-acquired-fence.json",
+      "schema": "launch-reconciliation",
+      "expect": "reject",
+      "category": "schema_invalid"
+    },
+    {
+      "path": "invalid/launch-reconciliation.c09-missing-fence.json",
+      "schema": "launch-reconciliation",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/launch-reconciliation.c09-superseded-fence.json",
+      "schema": "launch-reconciliation",
+      "expect": "reject",
+      "category": "schema_invalid"
+    },
+    {
+      "path": "valid/launch-specification.c09-resume.json",
+      "schema": "launch-specification",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/launch-specification.c09-resume-shell.json",
+      "schema": "launch-specification",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/launch-specification.c09-model-shell.json",
+      "schema": "launch-specification",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/launch-claim-result.c09-nested-shell.json",
+      "schema": "launch-claim-result",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/launch-tighten-request.c09-instructions.json",
+      "schema": "launch-tighten-request",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/launch-start-request.c09-repository-url.json",
+      "schema": "launch-start-request",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/launch-start-request.c09-branch.json",
+      "schema": "launch-start-request",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/launch-start-request.c09-token.json",
+      "schema": "launch-start-request",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/run-control-request.c09-arbitrary-signal.json",
+      "schema": "run-control-request",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "valid/checkout-lease-observation.c09-unknown.json",
+      "schema": "checkout-lease-observation",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/checkout-lease-observation.c09-recover.json",
+      "schema": "checkout-lease-observation",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/checkout-lease-observation.c09-release-never-started.json",
+      "schema": "checkout-lease-observation",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/checkout-lease-observation.c09-process-path.json",
+      "schema": "checkout-lease-observation",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "valid/local-execution-assignment.l05-synthetic.json",
+      "schema": "local-execution-assignment",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l05-registration-request.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l05-registration-response.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l05-recovery-request.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l05-recovery-response.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/local-rpc.l05-recovery-missing-payload.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/local-rpc.l05-recovery-missing-intent.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/local-rpc.l05-recovery-cloud-intent.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/local-rpc.l05-recovery-supplied-pid.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/local-rpc.l05-recovery-response-target.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/local-rpc.l05-recovery-event.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "valid/local-execution-control.l05-interrupt.json",
+      "schema": "local-execution-control",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-execution-control.l05-terminate.json",
+      "schema": "local-execution-control",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-execution-control.l05-cancel.json",
+      "schema": "local-execution-control",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l05-control-poll.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l05-control-reply.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l05-control-empty.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l05-control-result-empty.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l05-control-result-applied.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l05-control-result-local_rejected.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l05-control-result-delivery_unknown.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/local-execution-control.l05-signal.json",
+      "schema": "local-execution-control",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/local-execution-control.l05-pid.json",
+      "schema": "local-execution-control",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/local-execution-control.l05-argv.json",
+      "schema": "local-execution-control",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/local-execution-control.l05-resume.json",
+      "schema": "local-execution-control",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-execution-control.l05-focus.json",
+      "schema": "local-execution-control",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-execution-control.l05-no-time.json",
+      "schema": "local-execution-control",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/local-execution-control.l05-no-intent.json",
+      "schema": "local-execution-control",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/local-execution-control.l05-cloud-intent.json",
+      "schema": "local-execution-control",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/local-execution-control.l05-generation.json",
+      "schema": "local-execution-control",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/local-rpc.l05-control-request.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.l05-control-method.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.l05-control-result-response.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.l05-control-result-method.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.l05-control-result-no-id.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/local-rpc.l05-control-result-no-outcome.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/local-rpc.l05-control-result-no-intent.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/local-rpc.l05-control-result-fake.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "valid/local-execution-focus.l05-synthetic.json",
+      "schema": "local-execution-focus",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l05-focus-delivery.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l05-focus-check.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l05-focus-checked.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l05-focus-result.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/local-execution-focus.l05-pid.json",
+      "schema": "local-execution-focus",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/local-execution-focus.l05-command.json",
+      "schema": "local-execution-focus",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/local-execution-focus.l05-path.json",
+      "schema": "local-execution-focus",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-execution-focus.l05-newline.json",
+      "schema": "local-execution-focus",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-execution-focus.l05-missing-time.json",
+      "schema": "local-execution-focus",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/local-execution-focus.l05-generation.json",
+      "schema": "local-execution-focus",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/local-rpc.l05-focus-request.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.l05-focus-method.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.l05-focus-action.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.l05-focus-no-delivery.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/local-rpc.l05-focus-check-no-delivery.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/local-rpc.l05-focus-check-retarget.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/local-rpc.l05-focus-check-reply-target.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "valid/local-execution-observation.l05-attached.json",
+      "schema": "local-execution-observation",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-execution-observation.l05-heartbeat.json",
+      "schema": "local-execution-observation",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-execution-observation.l05-detached.json",
+      "schema": "local-execution-observation",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-execution-observation.l05-ended.json",
+      "schema": "local-execution-observation",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-execution-observation.l05-ended-unobserved.json",
+      "schema": "local-execution-observation",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-execution-observation.l05-blocked.json",
+      "schema": "local-execution-observation",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/local-execution-observation.l05-working.json",
+      "schema": "local-execution-observation",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/local-execution-observation.l05-result.json",
+      "schema": "local-execution-observation",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/local-execution-observation.l05-shell.json",
+      "schema": "local-execution-observation",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/local-execution-observation.l05-lease.json",
+      "schema": "local-execution-observation",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/local-execution-observation.l05-origin.json",
+      "schema": "local-execution-observation",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-execution-observation.l05-no-image.json",
+      "schema": "local-execution-observation",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-execution-observation.l05-heartbeat-gone.json",
+      "schema": "local-execution-observation",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-execution-observation.l05-heartbeat-diagnostic.json",
+      "schema": "local-execution-observation",
+      "expect": "reject",
+      "category": "schema_invalid"
+    },
+    {
+      "path": "invalid/local-execution-observation.l05-detached-live.json",
+      "schema": "local-execution-observation",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-execution-observation.l05-detached-reason.json",
+      "schema": "local-execution-observation",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/local-execution-observation.l05-ended-live.json",
+      "schema": "local-execution-observation",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-execution-observation.l05-blocked-live.json",
+      "schema": "local-execution-observation",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-execution-observation.l05-blocked-image.json",
+      "schema": "local-execution-observation",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-execution-observation.l05-blocked-reason.json",
+      "schema": "local-execution-observation",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/local-execution-observation.l05-private-reason.json",
+      "schema": "local-execution-observation",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-execution-observation.l05-no-sequence.json",
+      "schema": "local-execution-observation",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/local-execution-observation.l05-unsafe-sequence.json",
+      "schema": "local-execution-observation",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/local-execution-observation.l05-bad-generation.json",
+      "schema": "local-execution-observation",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "valid/local-rpc.l05-authorize-request.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l05-authorize-response.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l05-group-request.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l05-group-response.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/local-rpc.l05-group-other-method.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.l05-group-response-identity.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.l05-group-without-lock.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/local-rpc.l05-group-unsafe-pid.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/local-rpc.l05-authorize-supplied-decision.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.l05-authorize-other-method.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.l05-authorize-lock-other-method.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-execution-assignment.l05-shell.json",
+      "schema": "local-execution-assignment",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/local-execution-assignment.l05-path.json",
+      "schema": "local-execution-assignment",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/local-execution-assignment.l05-cloud-wake.json",
+      "schema": "local-execution-assignment",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/local-execution-assignment.l05-short-correlation.json",
+      "schema": "local-execution-assignment",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/local-execution-assignment.l05-missing-supervisor.json",
+      "schema": "local-execution-assignment",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/local-execution-assignment.l05-invalid-pid.json",
+      "schema": "local-execution-assignment",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/local-execution-assignment.l05-process-path.json",
+      "schema": "local-execution-assignment",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "invalid/local-rpc.l05-assignment-request.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.l05-assignment-method.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.l05-assignment-nested-shell.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "shell_data"
+    },
+    {
+      "path": "valid/discussion-create-request.d01-synthetic.json",
+      "schema": "discussion-create-request",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/discussion-create-request.d01-unknown-field.json",
+      "schema": "discussion-create-request",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/discussion-create-request.d01-future-version.json",
+      "schema": "discussion-create-request",
+      "expect": "reject",
+      "category": "unknown_version"
+    },
+    {
+      "path": "valid/discussion-change-request.d01-synthetic.json",
+      "schema": "discussion-change-request",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/discussion-change-request.d01-unknown-field.json",
+      "schema": "discussion-change-request",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/discussion-change-request.d01-future-version.json",
+      "schema": "discussion-change-request",
+      "expect": "reject",
+      "category": "unknown_version"
+    },
+    {
+      "path": "valid/discussion-recommendation.d01-synthetic.json",
+      "schema": "discussion-recommendation",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/discussion-recommendation.d01-unknown-field.json",
+      "schema": "discussion-recommendation",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/discussion-recommendation.d01-future-version.json",
+      "schema": "discussion-recommendation",
+      "expect": "reject",
+      "category": "unknown_version"
+    },
+    {
+      "path": "valid/discussion-turn-request.d01-synthetic.json",
+      "schema": "discussion-turn-request",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/discussion-turn-request.d01-unknown-field.json",
+      "schema": "discussion-turn-request",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/discussion-turn-request.d01-future-version.json",
+      "schema": "discussion-turn-request",
+      "expect": "reject",
+      "category": "unknown_version"
+    },
+    {
+      "path": "valid/discussion-receipt.d01-synthetic.json",
+      "schema": "discussion-receipt",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/discussion-receipt.d01-unknown-field.json",
+      "schema": "discussion-receipt",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/discussion-receipt.d01-future-version.json",
+      "schema": "discussion-receipt",
+      "expect": "reject",
+      "category": "unknown_version"
+    },
+    {
+      "path": "valid/discussion-view.d01-synthetic.json",
+      "schema": "discussion-view",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/discussion-view.d01-unknown-field.json",
+      "schema": "discussion-view",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/discussion-view.d01-future-version.json",
+      "schema": "discussion-view",
+      "expect": "reject",
+      "category": "unknown_version"
+    },
+    {
+      "path": "valid/discussion-create-request.d01-bounded-options.json",
+      "schema": "discussion-create-request",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/discussion-create-request.d01-three-participants.json",
+      "schema": "discussion-create-request",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/discussion-create-request.d01-too-many-rounds.json",
+      "schema": "discussion-create-request",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/discussion-create-request.d01-unbounded-duration.json",
+      "schema": "discussion-create-request",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/discussion-create-request.d01-long-question.json",
+      "schema": "discussion-create-request",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/discussion-create-request.d01-branch-not-revision.json",
+      "schema": "discussion-create-request",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/discussion-create-request.d01-caller-run.json",
+      "schema": "discussion-create-request",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "valid/discussion-change-request.d01-cancel.json",
+      "schema": "discussion-change-request",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/discussion-change-request.d01-cancel-with-text.json",
+      "schema": "discussion-change-request",
+      "expect": "reject",
+      "category": "schema_invalid"
+    },
+    {
+      "path": "valid/discussion-change-request.d01-conclude.json",
+      "schema": "discussion-change-request",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/discussion-change-request.d01-conclude-with-text.json",
+      "schema": "discussion-change-request",
+      "expect": "reject",
+      "category": "schema_invalid"
+    },
+    {
+      "path": "valid/discussion-change-request.d01-decision.json",
+      "schema": "discussion-change-request",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/discussion-change-request.d01-missing-text.json",
+      "schema": "discussion-change-request",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/discussion-change-request.d01-missing-decision.json",
+      "schema": "discussion-change-request",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/discussion-change-request.d01-work-acceptance.json",
+      "schema": "discussion-change-request",
+      "expect": "reject",
+      "category": "unknown_kind"
+    },
+    {
+      "path": "valid/discussion-turn-request.d01-dispatch.json",
+      "schema": "discussion-turn-request",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/discussion-turn-request.d01-dispatch-missing-delivery.json",
+      "schema": "discussion-turn-request",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "valid/discussion-turn-request.d01-ambiguous.json",
+      "schema": "discussion-turn-request",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/discussion-turn-request.d01-ambiguous-missing-delivery.json",
+      "schema": "discussion-turn-request",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "valid/discussion-turn-request.d01-acknowledge.json",
+      "schema": "discussion-turn-request",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/discussion-turn-request.d01-acknowledge-missing-delivery.json",
+      "schema": "discussion-turn-request",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "valid/discussion-turn-request.d01-complete.json",
+      "schema": "discussion-turn-request",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/discussion-turn-request.d01-complete-missing-delivery.json",
+      "schema": "discussion-turn-request",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "valid/discussion-turn-request.d01-fail.json",
+      "schema": "discussion-turn-request",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/discussion-turn-request.d01-fail-missing-delivery.json",
+      "schema": "discussion-turn-request",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/discussion-turn-request.d01-accept-with-delivery.json",
+      "schema": "discussion-turn-request",
+      "expect": "reject",
+      "category": "schema_invalid"
+    },
+    {
+      "path": "invalid/discussion-turn-request.d01-complete-without-output.json",
+      "schema": "discussion-turn-request",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/discussion-turn-request.d01-ack-without-session.json",
+      "schema": "discussion-turn-request",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/discussion-turn-request.d01-wrong-actor-field.json",
+      "schema": "discussion-turn-request",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "valid/discussion-recommendation.d01-textual-done-is-data.json",
+      "schema": "discussion-recommendation",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/discussion-recommendation.d01-empty-reasons.json",
+      "schema": "discussion-recommendation",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/discussion-recommendation.d01-context-without-id.json",
+      "schema": "discussion-recommendation",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/discussion-recommendation.d01-repository-without-revision.json",
+      "schema": "discussion-recommendation",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/discussion-recommendation.d01-mixed-evidence-identity.json",
+      "schema": "discussion-recommendation",
+      "expect": "reject",
+      "category": "schema_invalid"
+    },
+    {
+      "path": "invalid/discussion-recommendation.d01-absolute-path.json",
+      "schema": "discussion-recommendation",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/discussion-recommendation.d01-missing-disagreement-id.json",
+      "schema": "discussion-recommendation",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "valid/discussion-view.d01-participant.json",
+      "schema": "discussion-view",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/discussion-view.d01-participant-without-run.json",
+      "schema": "discussion-view",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/discussion-view.d01-participant-human-decision.json",
+      "schema": "discussion-view",
+      "expect": "reject",
+      "category": "schema_invalid"
+    },
+    {
+      "path": "invalid/discussion-view.d01-human-run-override.json",
+      "schema": "discussion-view",
+      "expect": "reject",
+      "category": "schema_invalid"
+    },
+    {
+      "path": "invalid/discussion-view.d01-human-only-context.json",
+      "schema": "discussion-view",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/discussion-view.d01-missing-session-attribution.json",
+      "schema": "discussion-view",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "invalid/discussion-view.d01-peer-as-human.json",
+      "schema": "discussion-view",
+      "expect": "reject",
+      "category": "schema_invalid"
+    },
+    {
+      "path": "invalid/discussion-receipt.d01-private-content.json",
+      "schema": "discussion-receipt",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "valid/local-rpc.v01-publish-request.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.v01-publish-response.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/local-rpc.v01-publish-unknown-field.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "additional_field"
+    },
+    {
+      "path": "invalid/local-rpc.v01-publish-missing-path.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "missing_field"
+    },
+    {
+      "path": "valid/local-rpc.l06-hook-accepted.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l06-hook-duplicate.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l06-hook-quarantined.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l06-hook-rejected.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l06-hook-inbox.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l06-hook-status.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "valid/local-rpc.l06-hook-degraded.json",
+      "schema": "local-rpc",
+      "expect": "accept"
+    },
+    {
+      "path": "invalid/local-rpc.l06-hook-status-value.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.l06-hook-event-value.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "bound_exceeded"
+    },
+    {
+      "path": "invalid/local-rpc.l06-hook-method.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.l06-hook-direction.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.l06-hook-status-method.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "type_mismatch"
+    },
+    {
+      "path": "invalid/local-rpc.l06-hook-extra.json",
+      "schema": "local-rpc",
+      "expect": "reject",
+      "category": "additional_field"
     }
   ]
 }

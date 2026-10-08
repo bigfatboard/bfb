@@ -1,0 +1,151 @@
+{
+  "package": "C11",
+  "recorded_on": "2026-10-07",
+  "tested_commit": "833babe2079b1eb45b11851b3b8fe6e956cd9ae1",
+  "production_commit": "833babe2079b1eb45b11851b3b8fe6e956cd9ae1",
+  "outcome": "passed",
+  "stage": "partial_human_upload_reply_and_local_native_artifact_bytes",
+  "package_acceptance_complete": false,
+  "private_creation_available": false,
+  "migration_head": "0047_security_audit_positions",
+  "scope": "Human upload replies reselect the consumed tuple, canonical receipt and current contribution authority after a successful receipt commit. A disposable native Worker/D1/R2 harness separately proves private view and upload authority-loss seams and preserves committed history and orphan bytes.",
+  "clean_certificate_marker": "C11_ARTIFACT_BYTES_CLEAN_CERTIFICATE_OK",
+  "clean_pipeline_exit_code": 0,
+  "clean_commands": [
+    { "command": "pnpm install --frozen-lockfile", "exit_code": 0 },
+    {
+      "command": "pnpm test:c11",
+      "exit_code": 0,
+      "c10_cases": 86,
+      "c10_files": 8,
+      "c10_d1_checks": 9,
+      "c08_cases": 23,
+      "c08_files": 5,
+      "c08_proof": "C08_D1_OK",
+      "stage_cases": 3201,
+      "stage_files": 132,
+      "stage_invocations": [
+        { "cases": 1868, "files": 64 },
+        { "cases": 4, "files": 2 },
+        { "cases": 23, "files": 2 },
+        { "cases": 18, "files": 2 },
+        { "cases": 31, "files": 2 },
+        { "cases": 34, "files": 2 },
+        { "cases": 32, "files": 2 },
+        { "cases": 36, "files": 2 },
+        { "cases": 38, "files": 2 },
+        { "cases": 87, "files": 4 },
+        { "cases": 70, "files": 6 },
+        { "cases": 99, "files": 5 },
+        { "cases": 215, "files": 9 },
+        { "cases": 78, "files": 4 },
+        { "cases": 68, "files": 3 },
+        { "cases": 27, "files": 2 },
+        { "cases": 54, "files": 2 },
+        { "cases": 41, "files": 3 },
+        { "cases": 31, "files": 3 },
+        { "cases": 235, "files": 4 },
+        { "cases": 112, "files": 7 }
+      ],
+      "stage_browser_cases": 6,
+      "stage_d1_checks": 222,
+      "stage_d1_harnesses": 20,
+      "notification_runtime": {
+        "proofs": ["C11_NOTIFICATION_IDENTITY_UPGRADE_OK", "X01_HARNESS_OK"],
+        "record_labels": 41,
+        "counting": "Setup and repeated dispatch/redaction labels are not independent acceptance cases"
+      },
+      "go_race": "passed",
+      "counting": "Stage totals count twenty-one Vitest case/file invocations, not unique cases/files. Six retained panel Chromium cases, C10/C08 dependencies and notification runtime are separate. The 222 native stage labels include four new independently collecting artifact groups, not 222 new byte-delivery cases."
+    },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 4820,
+      "typescript_files": 221,
+      "go": "passed",
+      "go_scheduling": "GOFLAGS=-p=1",
+      "swift": "passed",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    {
+      "command": "pnpm worktree:check",
+      "exit_code": 0,
+      "before_and_after_verify": true,
+      "committed_source_unchanged": true,
+      "final_status_empty": true
+    }
+  ],
+  "slice_suites": {
+    "target": "pnpm test:c11:artifact-bytes",
+    "composed_once_by_c11": true,
+    "focused_cases": 112,
+    "focused_files": 7,
+    "human_private_upload_cases": 11,
+    "new_human_private_upload_cases": 7,
+    "retained_human_private_upload_cases": 4,
+    "other_retained_cases": 101,
+    "native_groups": 4,
+    "native_proof": "C11_ARTIFACT_PRIVACY_D1_R2_OK",
+    "maximum_bindings": 19,
+    "maximum_statement_bytes": 4716,
+    "native_checks": [
+      "healthy_private_shared_runfree_convergence_and_one_use",
+      "private_view_before_consume_after_native_get_and_body",
+      "private_upload_before_consume_and_after_native_put",
+      "private_upload_reply_withheld_after_successful_native_receipt_commit"
+    ],
+    "counting": "Eleven human-private-upload cases contain seven additions and four retained controls; six other retained files contain 101 cases. Native proof has four independently collecting groups; individual seams and assertions are not extra cases. Bounds cover artifact-handler SQL only, not Hub/control setup or snapshots."
+  },
+  "old_source_probe": {
+    "production_commit": "23158d34b7db30ca54793863ba7fb2279374c653",
+    "production_runtime_unfixed": true,
+    "selected_cases": 5,
+    "failed": 1,
+    "passed": 4,
+    "skipped_later_cases": 6,
+    "expected_exit_code": 1,
+    "source_unchanged": true,
+    "failure": "The original post-COMMIT contribution-revocation case receives HTTP 200 instead of the required HTTP 403 after a successful receipt transaction",
+    "controls": "Healthy named contribution and retained before/body/put revocation cases pass",
+    "native_groups_replayed": false,
+    "later_six_cases_replayed": false,
+    "status": "The finalized test-file overlay ran against committed unfixed source and its independently built runtime. Only the original five cases were selected; six later additions were skipped. The observed RED is the response status boundary, not a separate OLD byte-body probe or clean package acceptance. Production source was unchanged and the test overlay was removed with clean status confirmed."
+  },
+  "regression_proof": [
+    "The final human upload selection retains the exact consumed grant hash, attempt, consumption instant, human and epoch and checks canonical version, receipt, immutable source, audit and object tuples",
+    "Current Owner/Member contribution authority and the originally captured project subset remain ceilings after successful receipt commit, without a new business mutation",
+    "Post-commit grant loss, epoch change, Reviewer downgrade and contribute-to-read loss suppress the receipt response while preserving the committed receipt, source, object and audit rows",
+    "A restricted-project loss denies delivery; a separately labelled synthetic snapshot-free task move/new-project grant cannot widen the original project ceiling",
+    "A retained-result attempt-substitution robustness probe rejects a mismatched consumed tuple without rewriting immutable history; it is not a claimed reachable business transition",
+    "Actual native private creator, named contributor and named read-recipient paths return exact synthetic R2 bytes; ungranted Owner access denies, and shared/run-free one-use and immutable receipt convergence remain healthy",
+    "Independent private view grant loss before consumption, after native R2.get and after native arrayBuffer denies body delivery with uniform no-store responses and retains already committed consume history",
+    "Native upload loss before consumption avoids body/R2 effects; loss after real R2.put rolls back verified receipt records but retains the physical orphan bytes",
+    "Native successful receipt commit is witnessed before independent revocation; the denied human reply leaves all committed receipt history and stored bytes unchanged",
+    "Each native revocation is witnessed and changes only its named grant row; complete canonical snapshots and foreign-key checks remain unchanged by subsequent delivery and replay"
+  ],
+  "proof_boundaries": [
+    "Mounted artifact tests use disposable local SQLite and fake R2; native D1/R2 proof is separate",
+    "Native browser sessions are synthetic signed BetterAuth cookies with genuine production cookie/CSRF validation and API/Hub dispatch, not a real sign-in ceremony or deployed ingress",
+    "Dormant privacy/grant inserts are explicitly synthetic fixtures, not available private-create or sharing commands",
+    "Native wrappers forward actual bound D1 batch statements and actual R2 get, put and arrayBuffer operations; independent revocation is test-only",
+    "The task-move/new-project-grant and retained-result substitution probes are synthetic robustness controls, not production move commands or demonstrated reachable business races",
+    "Canonical snapshots exclude only engine metadata, migrations and HTTP abuse buckets; observation accounting is separate from business/authority/history rows",
+    "Authority is certified at the final SQL selection followed by synchronous response construction, not at arbitrary later transport delivery time"
+  ],
+  "activation_barriers": [
+    "Opaque child-collection continuations need an explicit raw-ID retirement and position-bookkeeping transition decision",
+    "GitHub key policy, execution-owned private consumers, destructive private retention and other temporal boundaries remain open",
+    "Private creation, creator sharing, inherited private children, author-private checkpoints and C12 remain unavailable or planned"
+  ],
+  "not_claimed": [
+    "Complete C11 acceptance, private activation, deployment or external CI",
+    "Fresh standalone A02, A04, X03, W03 or V02 acceptance; their earlier evidence remains separate",
+    "Agent upload reply, natural credential/lease expiry, provider behavior, installed app or persistent pilot operation",
+    "Compiled-browser presentation, live private R2/browser byte delivery or OAuth/CLI credential ingress",
+    "A new view-parent captured-ceiling policy, new cursor storage, migration, raw-ID fallback, Hub/kernel changes or cleanup/deletion behavior",
+    "Rollback of independently committed privacy, grant, epoch, project or synthetic parent changes"
+  ],
+  "redaction": "Bounded counts and synthetic outcomes only; raw logs, credentials, private bodies, per-run timestamps and local absolute paths are not committed"
+}

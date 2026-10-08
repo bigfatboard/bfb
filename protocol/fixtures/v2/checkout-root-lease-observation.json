@@ -1,0 +1,148 @@
+{
+  "owner_command": "pnpm protocol:generate",
+  "document": "checkout-root-lease-observation",
+  "schema_version": 2,
+  "fixtures": [
+    {
+      "name": "renew",
+      "document": "checkout-root-lease-observation",
+      "json": "{\"schema_version\":2,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":7,\"fencing_generation\":9,\"sequence\":1,\"observed_at\":\"2026-10-06T00:00:00.000Z\",\"operation\":\"renew\",\"supervisor\":{\"pid\":1234,\"start_identity\":\"123456:1000\",\"executable_hash\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"local_lock_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"owned_group_id\":1235,\"owned_group_start_identity\":\"123456:2000\",\"supervisor_state\":\"verified\",\"group_state\":\"live\",\"lock_state\":\"held\",\"descendants_state\":\"unproven\",\"recovery_local\":false,\"supervision_mode\":\"root\",\"family_coverage\":\"unproven\"}",
+      "accept": true,
+      "canonical_sha256": "4d8e4f2654497d55a1179aae3b888c47a10da22129ff9ad53a4ca680ac797fbf"
+    },
+    {
+      "name": "root-gone",
+      "document": "checkout-root-lease-observation",
+      "json": "{\"schema_version\":2,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":7,\"fencing_generation\":9,\"sequence\":2,\"observed_at\":\"2026-10-06T00:00:00.000Z\",\"operation\":\"unknown\",\"supervisor\":{\"pid\":1234,\"start_identity\":\"123456:1000\",\"executable_hash\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"local_lock_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"owned_group_id\":1235,\"owned_group_start_identity\":\"123456:2000\",\"supervisor_state\":\"verified\",\"group_state\":\"gone\",\"lock_state\":\"held\",\"descendants_state\":\"unproven\",\"recovery_local\":false,\"supervision_mode\":\"root\",\"family_coverage\":\"unproven\"}",
+      "accept": true,
+      "canonical_sha256": "dd98a526df9671868d972639ca3b587a97e57f136eb4072e524b44864b2429f4"
+    },
+    {
+      "name": "unstarted-unknown",
+      "document": "checkout-root-lease-observation",
+      "json": "{\"schema_version\":2,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":7,\"fencing_generation\":9,\"sequence\":1,\"observed_at\":\"2026-10-06T00:00:00.000Z\",\"operation\":\"unknown\",\"local_lock_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"owned_group_id\":0,\"owned_group_start_identity\":\"\",\"supervisor_state\":\"never_started\",\"group_state\":\"never_started\",\"lock_state\":\"never_acquired\",\"descendants_state\":\"unproven\",\"recovery_local\":false,\"supervision_mode\":\"root\",\"family_coverage\":\"unproven\"}",
+      "accept": true,
+      "canonical_sha256": "6a3ef8812ac5d43f12626e09e1052a3857819b694c2f65fe6806b2734b0cdbbf"
+    },
+    {
+      "name": "release",
+      "document": "checkout-root-lease-observation",
+      "json": "{\"schema_version\":2,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":7,\"fencing_generation\":9,\"sequence\":1,\"observed_at\":\"2026-10-06T00:00:00.000Z\",\"operation\":\"release\",\"supervisor\":{\"pid\":1234,\"start_identity\":\"123456:1000\",\"executable_hash\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"local_lock_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"owned_group_id\":1235,\"owned_group_start_identity\":\"123456:2000\",\"supervisor_state\":\"verified\",\"group_state\":\"live\",\"lock_state\":\"held\",\"descendants_state\":\"unproven\",\"recovery_local\":false,\"supervision_mode\":\"root\",\"family_coverage\":\"unproven\"}",
+      "accept": false
+    },
+    {
+      "name": "recover",
+      "document": "checkout-root-lease-observation",
+      "json": "{\"schema_version\":2,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":7,\"fencing_generation\":9,\"sequence\":1,\"observed_at\":\"2026-10-06T00:00:00.000Z\",\"operation\":\"recover\",\"supervisor\":{\"pid\":1234,\"start_identity\":\"123456:1000\",\"executable_hash\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"local_lock_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"owned_group_id\":1235,\"owned_group_start_identity\":\"123456:2000\",\"supervisor_state\":\"verified\",\"group_state\":\"live\",\"lock_state\":\"held\",\"descendants_state\":\"unproven\",\"recovery_local\":false,\"supervision_mode\":\"root\",\"family_coverage\":\"unproven\"}",
+      "accept": false
+    },
+    {
+      "name": "descendants.contained",
+      "document": "checkout-root-lease-observation",
+      "json": "{\"schema_version\":2,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":7,\"fencing_generation\":9,\"sequence\":1,\"observed_at\":\"2026-10-06T00:00:00.000Z\",\"operation\":\"renew\",\"supervisor\":{\"pid\":1234,\"start_identity\":\"123456:1000\",\"executable_hash\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"local_lock_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"owned_group_id\":1235,\"owned_group_start_identity\":\"123456:2000\",\"supervisor_state\":\"verified\",\"group_state\":\"live\",\"lock_state\":\"held\",\"descendants_state\":\"contained\",\"recovery_local\":false,\"supervision_mode\":\"root\",\"family_coverage\":\"unproven\"}",
+      "accept": false
+    },
+    {
+      "name": "descendants.gone",
+      "document": "checkout-root-lease-observation",
+      "json": "{\"schema_version\":2,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":7,\"fencing_generation\":9,\"sequence\":1,\"observed_at\":\"2026-10-06T00:00:00.000Z\",\"operation\":\"renew\",\"supervisor\":{\"pid\":1234,\"start_identity\":\"123456:1000\",\"executable_hash\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"local_lock_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"owned_group_id\":1235,\"owned_group_start_identity\":\"123456:2000\",\"supervisor_state\":\"verified\",\"group_state\":\"live\",\"lock_state\":\"held\",\"descendants_state\":\"gone\",\"recovery_local\":false,\"supervision_mode\":\"root\",\"family_coverage\":\"unproven\"}",
+      "accept": false
+    },
+    {
+      "name": "descendants.none",
+      "document": "checkout-root-lease-observation",
+      "json": "{\"schema_version\":2,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":7,\"fencing_generation\":9,\"sequence\":1,\"observed_at\":\"2026-10-06T00:00:00.000Z\",\"operation\":\"renew\",\"supervisor\":{\"pid\":1234,\"start_identity\":\"123456:1000\",\"executable_hash\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"local_lock_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"owned_group_id\":1235,\"owned_group_start_identity\":\"123456:2000\",\"supervisor_state\":\"verified\",\"group_state\":\"live\",\"lock_state\":\"held\",\"descendants_state\":\"none\",\"recovery_local\":false,\"supervision_mode\":\"root\",\"family_coverage\":\"unproven\"}",
+      "accept": false
+    },
+    {
+      "name": "descendants.escaped",
+      "document": "checkout-root-lease-observation",
+      "json": "{\"schema_version\":2,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":7,\"fencing_generation\":9,\"sequence\":1,\"observed_at\":\"2026-10-06T00:00:00.000Z\",\"operation\":\"renew\",\"supervisor\":{\"pid\":1234,\"start_identity\":\"123456:1000\",\"executable_hash\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"local_lock_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"owned_group_id\":1235,\"owned_group_start_identity\":\"123456:2000\",\"supervisor_state\":\"verified\",\"group_state\":\"live\",\"lock_state\":\"held\",\"descendants_state\":\"escaped\",\"recovery_local\":false,\"supervision_mode\":\"root\",\"family_coverage\":\"unproven\"}",
+      "accept": false
+    },
+    {
+      "name": "descendants.unknown",
+      "document": "checkout-root-lease-observation",
+      "json": "{\"schema_version\":2,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":7,\"fencing_generation\":9,\"sequence\":1,\"observed_at\":\"2026-10-06T00:00:00.000Z\",\"operation\":\"renew\",\"supervisor\":{\"pid\":1234,\"start_identity\":\"123456:1000\",\"executable_hash\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"local_lock_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"owned_group_id\":1235,\"owned_group_start_identity\":\"123456:2000\",\"supervisor_state\":\"verified\",\"group_state\":\"live\",\"lock_state\":\"held\",\"descendants_state\":\"unknown\",\"recovery_local\":false,\"supervision_mode\":\"root\",\"family_coverage\":\"unproven\"}",
+      "accept": false
+    },
+    {
+      "name": "wrong-mode",
+      "document": "checkout-root-lease-observation",
+      "json": "{\"schema_version\":2,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":7,\"fencing_generation\":9,\"sequence\":1,\"observed_at\":\"2026-10-06T00:00:00.000Z\",\"operation\":\"renew\",\"supervisor\":{\"pid\":1234,\"start_identity\":\"123456:1000\",\"executable_hash\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"local_lock_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"owned_group_id\":1235,\"owned_group_start_identity\":\"123456:2000\",\"supervisor_state\":\"verified\",\"group_state\":\"live\",\"lock_state\":\"held\",\"descendants_state\":\"unproven\",\"recovery_local\":false,\"supervision_mode\":\"strict\",\"family_coverage\":\"unproven\"}",
+      "accept": false
+    },
+    {
+      "name": "proven-family",
+      "document": "checkout-root-lease-observation",
+      "json": "{\"schema_version\":2,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":7,\"fencing_generation\":9,\"sequence\":1,\"observed_at\":\"2026-10-06T00:00:00.000Z\",\"operation\":\"renew\",\"supervisor\":{\"pid\":1234,\"start_identity\":\"123456:1000\",\"executable_hash\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"local_lock_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"owned_group_id\":1235,\"owned_group_start_identity\":\"123456:2000\",\"supervisor_state\":\"verified\",\"group_state\":\"live\",\"lock_state\":\"held\",\"descendants_state\":\"unproven\",\"recovery_local\":false,\"supervision_mode\":\"root\",\"family_coverage\":\"proven\"}",
+      "accept": false
+    },
+    {
+      "name": "operator-acknowledgement",
+      "document": "checkout-root-lease-observation",
+      "json": "{\"schema_version\":2,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":7,\"fencing_generation\":9,\"sequence\":1,\"observed_at\":\"2026-10-06T00:00:00.000Z\",\"operation\":\"renew\",\"supervisor\":{\"pid\":1234,\"start_identity\":\"123456:1000\",\"executable_hash\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"local_lock_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"owned_group_id\":1235,\"owned_group_start_identity\":\"123456:2000\",\"supervisor_state\":\"verified\",\"group_state\":\"live\",\"lock_state\":\"held\",\"descendants_state\":\"unproven\",\"recovery_local\":true,\"supervision_mode\":\"root\",\"family_coverage\":\"unproven\"}",
+      "accept": false
+    },
+    {
+      "name": "missing-mode",
+      "document": "checkout-root-lease-observation",
+      "json": "{\"schema_version\":2,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":7,\"fencing_generation\":9,\"sequence\":1,\"observed_at\":\"2026-10-06T00:00:00.000Z\",\"operation\":\"renew\",\"supervisor\":{\"pid\":1234,\"start_identity\":\"123456:1000\",\"executable_hash\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"local_lock_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"owned_group_id\":1235,\"owned_group_start_identity\":\"123456:2000\",\"supervisor_state\":\"verified\",\"group_state\":\"live\",\"lock_state\":\"held\",\"descendants_state\":\"unproven\",\"recovery_local\":false,\"family_coverage\":\"unproven\"}",
+      "accept": false
+    },
+    {
+      "name": "missing-coverage",
+      "document": "checkout-root-lease-observation",
+      "json": "{\"schema_version\":2,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":7,\"fencing_generation\":9,\"sequence\":1,\"observed_at\":\"2026-10-06T00:00:00.000Z\",\"operation\":\"renew\",\"supervisor\":{\"pid\":1234,\"start_identity\":\"123456:1000\",\"executable_hash\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"local_lock_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"owned_group_id\":1235,\"owned_group_start_identity\":\"123456:2000\",\"supervisor_state\":\"verified\",\"group_state\":\"live\",\"lock_state\":\"held\",\"descendants_state\":\"unproven\",\"recovery_local\":false,\"supervision_mode\":\"root\"}",
+      "accept": false
+    },
+    {
+      "name": "private-path",
+      "document": "checkout-root-lease-observation",
+      "json": "{\"schema_version\":2,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":7,\"fencing_generation\":9,\"sequence\":1,\"observed_at\":\"2026-10-06T00:00:00.000Z\",\"operation\":\"renew\",\"supervisor\":{\"pid\":1234,\"start_identity\":\"123456:1000\",\"executable_hash\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"local_lock_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"owned_group_id\":1235,\"owned_group_start_identity\":\"123456:2000\",\"supervisor_state\":\"verified\",\"group_state\":\"live\",\"lock_state\":\"held\",\"descendants_state\":\"unproven\",\"recovery_local\":false,\"supervision_mode\":\"root\",\"family_coverage\":\"unproven\",\"cwd\":\"/synthetic/private\"}",
+      "accept": false
+    },
+    {
+      "name": "shell",
+      "document": "checkout-root-lease-observation",
+      "json": "{\"schema_version\":2,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":7,\"fencing_generation\":9,\"sequence\":1,\"observed_at\":\"2026-10-06T00:00:00.000Z\",\"operation\":\"renew\",\"supervisor\":{\"pid\":1234,\"start_identity\":\"123456:1000\",\"executable_hash\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"local_lock_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"owned_group_id\":1235,\"owned_group_start_identity\":\"123456:2000\",\"supervisor_state\":\"verified\",\"group_state\":\"live\",\"lock_state\":\"held\",\"descendants_state\":\"unproven\",\"recovery_local\":false,\"supervision_mode\":\"root\",\"family_coverage\":\"unproven\",\"argv\":[\"synthetic\"]}",
+      "accept": false
+    },
+    {
+      "name": "v1",
+      "document": "checkout-root-lease-observation",
+      "json": "{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":7,\"fencing_generation\":9,\"sequence\":1,\"observed_at\":\"2026-10-06T00:00:00.000Z\",\"operation\":\"renew\",\"supervisor\":{\"pid\":1234,\"start_identity\":\"123456:1000\",\"executable_hash\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"local_lock_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"owned_group_id\":1235,\"owned_group_start_identity\":\"123456:2000\",\"supervisor_state\":\"verified\",\"group_state\":\"live\",\"lock_state\":\"held\",\"descendants_state\":\"unproven\",\"recovery_local\":false,\"supervision_mode\":\"root\",\"family_coverage\":\"unproven\"}",
+      "accept": false
+    },
+    {
+      "name": "future-version",
+      "document": "checkout-root-lease-observation",
+      "json": "{\"schema_version\":3,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":7,\"fencing_generation\":9,\"sequence\":1,\"observed_at\":\"2026-10-06T00:00:00.000Z\",\"operation\":\"renew\",\"supervisor\":{\"pid\":1234,\"start_identity\":\"123456:1000\",\"executable_hash\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"local_lock_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"owned_group_id\":1235,\"owned_group_start_identity\":\"123456:2000\",\"supervisor_state\":\"verified\",\"group_state\":\"live\",\"lock_state\":\"held\",\"descendants_state\":\"unproven\",\"recovery_local\":false,\"supervision_mode\":\"root\",\"family_coverage\":\"unproven\"}",
+      "accept": false
+    },
+    {
+      "name": "fractional-version",
+      "document": "checkout-root-lease-observation",
+      "json": "{\"schema_version\":2.0000000000000001,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":7,\"fencing_generation\":9,\"sequence\":1,\"observed_at\":\"2026-10-06T00:00:00.000Z\",\"operation\":\"renew\",\"supervisor\":{\"pid\":1234,\"start_identity\":\"123456:1000\",\"executable_hash\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"local_lock_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"owned_group_id\":1235,\"owned_group_start_identity\":\"123456:2000\",\"supervisor_state\":\"verified\",\"group_state\":\"live\",\"lock_state\":\"held\",\"descendants_state\":\"unproven\",\"recovery_local\":false,\"supervision_mode\":\"root\",\"family_coverage\":\"unproven\"}",
+      "accept": false
+    },
+    {
+      "name": "duplicate-version",
+      "document": "checkout-root-lease-observation",
+      "json": "{\"schema_version\":2,\"schema_version\":2,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":7,\"fencing_generation\":9,\"sequence\":1,\"observed_at\":\"2026-10-06T00:00:00.000Z\",\"operation\":\"renew\",\"supervisor\":{\"pid\":1234,\"start_identity\":\"123456:1000\",\"executable_hash\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"local_lock_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"owned_group_id\":1235,\"owned_group_start_identity\":\"123456:2000\",\"supervisor_state\":\"verified\",\"group_state\":\"live\",\"lock_state\":\"held\",\"descendants_state\":\"unproven\",\"recovery_local\":false,\"supervision_mode\":\"root\",\"family_coverage\":\"unproven\"}",
+      "accept": false
+    },
+    {
+      "name": "strict-reader",
+      "document": "checkout-lease-observation",
+      "json": "{\"schema_version\":2,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":7,\"fencing_generation\":9,\"sequence\":1,\"observed_at\":\"2026-10-06T00:00:00.000Z\",\"operation\":\"renew\",\"supervisor\":{\"pid\":1234,\"start_identity\":\"123456:1000\",\"executable_hash\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"local_lock_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"owned_group_id\":1235,\"owned_group_start_identity\":\"123456:2000\",\"supervisor_state\":\"verified\",\"group_state\":\"live\",\"lock_state\":\"held\",\"descendants_state\":\"unproven\",\"recovery_local\":false,\"supervision_mode\":\"root\",\"family_coverage\":\"unproven\"}",
+      "accept": false
+    },
+    {
+      "name": "strict-downgrade",
+      "document": "checkout-lease-observation",
+      "json": "{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":7,\"fencing_generation\":9,\"sequence\":1,\"observed_at\":\"2026-10-06T00:00:00.000Z\",\"operation\":\"renew\",\"supervisor\":{\"pid\":1234,\"start_identity\":\"123456:1000\",\"executable_hash\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"local_lock_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"owned_group_id\":1235,\"owned_group_start_identity\":\"123456:2000\",\"supervisor_state\":\"verified\",\"group_state\":\"live\",\"lock_state\":\"held\",\"descendants_state\":\"unproven\",\"recovery_local\":false,\"supervision_mode\":\"root\",\"family_coverage\":\"unproven\"}",
+      "accept": false
+    }
+  ]
+}

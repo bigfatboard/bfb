@@ -1,5 +1,5 @@
 {
-  "migration_head": "0013_remote_oauth",
+  "migration_head": "0050_task_privacy_inheritance",
   "migrations": [
     {
       "id": "0001_workspace_registry",
@@ -52,6 +52,134 @@
     {
       "id": "0013_remote_oauth",
       "file": "0013_remote_oauth.sql"
+    },
+    {
+      "id": "0014_runner_identity",
+      "file": "0014_runner_identity.sql"
+    },
+    {
+      "id": "0015_runner_channel",
+      "file": "0015_runner_channel.sql"
+    },
+    {
+      "id": "0016_launch_orchestration",
+      "file": "0016_launch_orchestration.sql"
+    },
+    {
+      "id": "0017_discussions",
+      "file": "0017_discussions.sql"
+    },
+    {
+      "id": "0018_cli_credentials",
+      "file": "0018_cli_credentials.sql"
+    },
+    {
+      "id": "0019_event_ledger",
+      "file": "0019_event_ledger.sql"
+    },
+    {
+      "id": "0020_artifact_storage",
+      "file": "0020_artifact_storage.sql"
+    },
+    {
+      "id": "0023_attention",
+      "file": "0023_attention.sql"
+    },
+    {
+      "id": "0024_result_submissions",
+      "file": "0024_result_submissions.sql"
+    },
+    {
+      "id": "0025_discussion_delivery",
+      "file": "0025_discussion_delivery.sql"
+    },
+    {
+      "id": "0026_artifact_viewer",
+      "file": "0026_artifact_viewer.sql"
+    },
+    {
+      "id": "0027_measurements",
+      "file": "0027_measurements.sql"
+    },
+    {
+      "id": "0028_github_integration",
+      "file": "0028_github_integration.sql"
+    },
+    {
+      "id": "0030_notifications",
+      "file": "0030_notifications.sql"
+    },
+    {
+      "id": "0032_artifact_review",
+      "file": "0032_artifact_review.sql"
+    },
+    {
+      "id": "0034_operations",
+      "file": "0034_operations.sql"
+    },
+    {
+      "id": "0035_artifact_objects_per_key",
+      "file": "0035_artifact_objects_per_key.sql"
+    },
+    {
+      "id": "0036_github_reconcile_per_object",
+      "file": "0036_github_reconcile_per_object.sql"
+    },
+    {
+      "id": "0037_artifact_version_retained",
+      "file": "0037_artifact_version_retained.sql"
+    },
+    {
+      "id": "0038_agent_work_authority",
+      "file": "0038_agent_work_authority.sql"
+    },
+    {
+      "id": "0039_offline_agent_policy",
+      "file": "0039_offline_agent_policy.sql"
+    },
+    {
+      "id": "0040_offline_result_policy",
+      "file": "0040_offline_result_policy.sql"
+    },
+    {
+      "id": "0041_measurement_sources",
+      "file": "0041_measurement_sources.sql"
+    },
+    {
+      "id": "0042_artifact_upload_consumptions",
+      "file": "0042_artifact_upload_consumptions.sql"
+    },
+    {
+      "id": "0043_agent_artifact_publications",
+      "file": "0043_agent_artifact_publications.sql"
+    },
+    {
+      "id": "0044_agent_profile_permissions",
+      "file": "0044_agent_profile_permissions.sql"
+    },
+    {
+      "id": "0045_private_task_authority",
+      "file": "0045_private_task_authority.sql"
+    },
+    {
+      "id": "0046_notification_public_identities",
+      "file": "0046_notification_public_identities.sql"
+    },
+    {
+      "id": "0047_security_audit_positions",
+      "file": "0047_security_audit_positions.sql"
+    },
+    {
+      "id": "0048_task_collection_positions",
+      "file": "0048_task_collection_positions.sql"
+    },
+    {
+      "id": "0049_task_private_checkpoints",
+      "file": "0049_task_private_checkpoints.sql"
+    },
+    {
+      "id": "0050_task_privacy_inheritance",
+      "file": "0050_task_privacy_inheritance.sql"
     }
   ]
 }

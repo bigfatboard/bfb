@@ -104,7 +104,6 @@ async function main(): Promise<void> {
     assert.equal(cookieMcp.status, 401);
     for (const [path, method] of [
       ["/oauth/token", "POST"],
-      ["/runner/connect", "GET"],
       ["/webhooks/github", "POST"],
     ] as const) {
       const response = await workerA.fetch(origin + path, {
@@ -114,6 +113,14 @@ async function main(): Promise<void> {
       assert.equal(response.status, 401, path);
       assert.equal(((await response.json()) as { error: string }).error, "credential_confusion");
     }
+    // Runner routes are owned by C06/L08: a browser cookie fails with the same
+    // uniform 403 as any other invalid native request, never a distinct code.
+    const runnerProbe = await workerA.fetch(origin + "/runner/connect", {
+      method: "GET",
+      headers: { cookie },
+    });
+    assert.equal(runnerProbe.status, 403, "/runner/connect");
+    assert.equal(((await runnerProbe.json()) as { error: string }).error, "request_rejected");
 
     const signInStatuses: number[] = [];
     for (let index = 0; index < 11; index += 1) {

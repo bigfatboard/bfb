@@ -1,13 +1,19 @@
 // ABOUTME: Authenticated W01 shell with URL-resolved workspaces and role-aware Work navigation.
 // ABOUTME: Keeps attention, project lanes, task detail, and honest unavailable routes in one app.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import type { AttentionDeckItem, ProjectLane } from "@bfb/domain";
 
+import { AttentionHome } from "./attention/home.js";
+import { OperationsPage } from "./operations/page.js";
 import { WorkBoard, type AgentProfileSummary } from "./work/board.js";
 import { TaskComposer, WorkMutations } from "./work/mutations.js";
+import { RunnerOperations } from "./launch/operations.js";
 import { WorkspaceSettings } from "./settings.js";
+import { RunnerEnrollmentPage } from "./runner-enrollment.js";
+import { OnboardingPage, SecurityPage } from "./auth/onboarding.js";
+import { useThemePreference, type ThemePreference } from "./theme.js";
 
 export interface AppShellProps {
   /** Test injection; production loads from /auth/session + browser APIs. */
@@ -38,7 +44,18 @@ interface BoardResponse {
   agent_work_available: boolean;
 }
 
-type AppView = "work" | "attention" | "latest" | "load" | "settings";
+interface BoardSelection {
+  humanId: string | null;
+  workspaceId: string | null;
+}
+
+interface BoardSnapshot {
+  selection: BoardSelection;
+  board: BoardResponse;
+  agentProfiles: AgentProfileSummary[];
+}
+
+type AppView = "work" | "attention" | "latest" | "load" | "runners" | "settings" | "operations";
 
 interface ParsedRoute {
   workspaceSlug: string | null;
@@ -46,7 +63,9 @@ interface ParsedRoute {
 }
 
 function parseRoute(pathname: string): ParsedRoute {
-  const match = pathname.match(/^\/w\/([^/]+)(?:\/(work|attention|latest|load|settings))?\/?$/);
+  const match = pathname.match(
+    /^\/w\/([^/]+)(?:\/(work|attention|latest|load|runners|settings|operations))?\/?$/,
+  );
   return {
     workspaceSlug: match?.[1] ?? null,
     view: (match?.[2] as AppView | undefined) ?? "work",
@@ -65,15 +84,82 @@ function titleCase(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
+function ShellMenu(props: {
+  label: React.ReactNode;
+  name: string;
+  children: React.ReactNode;
+  active?: boolean;
+}) {
+  const menu = useRef<HTMLDetailsElement>(null);
+
+  useEffect(() => {
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Node && !menu.current?.contains(event.target) && menu.current) {
+        menu.current.open = false;
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, []);
+
+  function closeMenu(): void {
+    if (!menu.current) return;
+    menu.current.open = false;
+    menu.current.querySelector("summary")?.focus();
+  }
+
+  return (
+    <details
+      ref={menu}
+      className="shell-menu"
+      name="shell-menu"
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          event.stopPropagation();
+          closeMenu();
+        }
+      }}
+      onClick={(event) => {
+        if (event.target instanceof Element && event.target.closest("button")) closeMenu();
+      }}
+    >
+      <summary
+        role="button"
+        aria-label={props.name}
+        aria-current={props.active ? "page" : undefined}
+      >
+        {props.label}
+        <span className="menu-chevron" aria-hidden="true">
+          ⌄
+        </span>
+      </summary>
+      <div className="shell-menu-content">{props.children}</div>
+    </details>
+  );
+}
+
 export function AppShell(props: AppShellProps = {}) {
   const fetchFn = props.fetchImpl ?? fetch;
+  const [themePreference, chooseTheme] = useThemePreference();
   const [path, setPath] = useState(
-    () => props.initialPath ?? (typeof window !== "undefined" ? window.location.pathname : "/"),
+    () =>
+      props.initialPath?.split("?")[0] ??
+      (typeof window !== "undefined" ? window.location.pathname : "/"),
+  );
+  const [search, setSearch] = useState(() =>
+    props.initialPath?.includes("?")
+      ? props.initialPath.slice(props.initialPath.indexOf("?"))
+      : typeof window === "undefined"
+        ? ""
+        : window.location.search,
+  );
+  const [hash, setHash] = useState(() =>
+    typeof window === "undefined" ? "" : window.location.hash,
   );
   const [human, setHuman] = useState<SessionHuman | null>(null);
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([]);
-  const [board, setBoard] = useState<BoardResponse | null>(null);
-  const [agentProfiles, setAgentProfiles] = useState<AgentProfileSummary[]>([]);
+  const [boardSnapshot, setBoardSnapshot] = useState<BoardSnapshot | null>(null);
   const [csrfToken, setCsrfToken] = useState("");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [showComposer, setShowComposer] = useState(false);
@@ -87,16 +173,54 @@ export function AppShell(props: AppShellProps = {}) {
     () => workspaces.find((item) => item.slug === route.workspaceSlug) ?? null,
     [route.workspaceSlug, workspaces],
   );
+  const selection = useMemo<BoardSelection>(
+    () => ({ humanId: human?.id ?? null, workspaceId: workspace?.id ?? null }),
+    [human?.id, workspace?.id],
+  );
+  const currentSelection = useRef(selection);
+  const boardRequest = useRef(0);
+  const mounted = useRef(false);
+  const currentSnapshot = boardSnapshot?.selection === selection ? boardSnapshot : null;
+  const board = currentSnapshot?.board ?? null;
+  const agentProfiles = currentSnapshot?.agentProfiles ?? [];
   const workspaceUnavailable = Boolean(route.workspaceSlug && workspaces.length > 0 && !workspace);
   const canManageTasks = board?.role === "owner" || board?.role === "member";
+
+  useLayoutEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      boardRequest.current += 1;
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    if (currentSelection.current === selection) return;
+    currentSelection.current = selection;
+    boardRequest.current += 1;
+    setBoardSnapshot(null);
+    setSelectedTaskId(null);
+    setShowComposer(false);
+    setBoardLoading(false);
+    setError(null);
+    setOffline(false);
+  }, [selection]);
 
   useEffect(() => {
     if (props.initialPath || typeof window === "undefined") {
       return;
     }
-    const onPopState = () => setPath(window.location.pathname);
+    const onPopState = () => {
+      setPath(window.location.pathname);
+      setHash(window.location.hash);
+      setSearch(window.location.search);
+    };
     window.addEventListener("popstate", onPopState);
-    return () => window.removeEventListener("popstate", onPopState);
+    window.addEventListener("hashchange", onPopState);
+    return () => {
+      window.removeEventListener("popstate", onPopState);
+      window.removeEventListener("hashchange", onPopState);
+    };
   }, [props.initialPath]);
 
   useEffect(() => {
@@ -145,51 +269,68 @@ export function AppShell(props: AppShellProps = {}) {
   }, [fetchFn]);
 
   const reloadBoard = useCallback(async () => {
-    if (!human || !workspace) {
-      setBoard(null);
-      setAgentProfiles([]);
+    if (!mounted.current || currentSelection.current !== selection) return;
+    const request = ++boardRequest.current;
+    const isCurrent = () =>
+      mounted.current && currentSelection.current === selection && boardRequest.current === request;
+    if (!selection.humanId || !selection.workspaceId) {
+      setBoardSnapshot(null);
+      setBoardLoading(false);
       return;
     }
     setBoardLoading(true);
+    setError(null);
+    setOffline(false);
     try {
       const [boardResponse, profilesResponse] = await Promise.all([
-        fetchFn(`/api/v1/workspaces/${workspace.id}/board`),
-        fetchFn(`/api/v1/workspaces/${workspace.id}/agent-profiles?limit=100`),
+        fetchFn(`/api/v1/workspaces/${selection.workspaceId}/board`),
+        fetchFn(`/api/v1/workspaces/${selection.workspaceId}/agent-profiles?limit=100`),
       ]);
+      if (!isCurrent()) return;
       if (!boardResponse.ok || !profilesResponse.ok) {
         const status = boardResponse.ok ? profilesResponse.status : boardResponse.status;
         setError(
           status === 403 || status === 404 ? "Workspace not available." : "Board failed to load.",
         );
-        setBoard(null);
+        setBoardSnapshot(null);
         return;
       }
       const profileBody = (await profilesResponse.json()) as {
         profiles: AgentProfileSummary[];
       };
-      setBoard((await boardResponse.json()) as BoardResponse);
-      setAgentProfiles(profileBody.profiles);
+      if (!isCurrent()) return;
+      const boardBody = (await boardResponse.json()) as BoardResponse;
+      if (!isCurrent()) return;
+      if (boardBody.human?.id !== selection.humanId) {
+        setBoardSnapshot(null);
+        setError("Workspace not available.");
+        return;
+      }
+      setBoardSnapshot({ selection, board: boardBody, agentProfiles: profileBody.profiles });
       setError(null);
       setOffline(false);
     } catch {
+      if (!isCurrent()) return;
+      setBoardSnapshot(null);
       setOffline(true);
       setError("Board is offline. No cached state is presented as current.");
     } finally {
-      setBoardLoading(false);
+      if (isCurrent()) setBoardLoading(false);
     }
-  }, [fetchFn, human, workspace]);
+  }, [fetchFn, selection]);
 
   useEffect(() => {
     if (route.workspaceSlug && workspaces.length > 0 && !workspace) {
       setError("Workspace not available.");
-      setBoard(null);
+      setBoardSnapshot(null);
       return;
     }
     void reloadBoard();
   }, [reloadBoard, route.workspaceSlug, workspace, workspaces.length]);
 
   function navigate(nextPath: string): void {
-    setPath(nextPath);
+    setPath(nextPath.split("?")[0]!);
+    setSearch(nextPath.includes("?") ? nextPath.slice(nextPath.indexOf("?")) : "");
     setSelectedTaskId(null);
     setShowComposer(false);
     if (typeof window !== "undefined") {
@@ -227,7 +368,7 @@ export function AppShell(props: AppShellProps = {}) {
     }
     setHuman(null);
     setWorkspaces([]);
-    setBoard(null);
+    setBoardSnapshot(null);
     navigate("/");
   }
 
@@ -240,6 +381,19 @@ export function AppShell(props: AppShellProps = {}) {
           Loading workspace authority…
         </div>
       </main>
+    );
+  }
+
+  if (path === "/runner-enroll") {
+    return (
+      <RunnerEnrollmentPage
+        key={hash}
+        fragment={hash}
+        fetchImpl={fetchFn}
+        csrfToken={csrfToken}
+        humanName={human?.display_name ?? null}
+        workspaces={workspaces}
+      />
     );
   }
 
@@ -264,6 +418,42 @@ export function AppShell(props: AppShellProps = {}) {
               {error}
             </p>
           ) : null}
+        </section>
+      </main>
+    );
+  }
+
+  if (path === "/onboarding") {
+    return (
+      <OnboardingPage
+        fetchImpl={fetchFn}
+        csrfToken={csrfToken}
+        search={search}
+        navigate={navigate}
+      />
+    );
+  }
+  if (path === "/settings/security") {
+    return (
+      <SecurityPage fetchImpl={fetchFn} csrfToken={csrfToken} search={search} navigate={navigate} />
+    );
+  }
+  if (workspaces.length === 0 && !offline) {
+    return (
+      <main className="sign-in-shell">
+        <section className="sign-in-panel">
+          <p className="brand-mark">BFB</p>
+          <h1>No workspace access yet</h1>
+          <p>
+            Accept an invitation from your team, or use the operator’s one-time code to create the
+            first workspace.
+          </p>
+          <button type="button" className="button-primary" onClick={() => navigate("/onboarding")}>
+            Set up first workspace
+          </button>
+          <button type="button" className="button-quiet" onClick={() => void signOut()}>
+            Sign out
+          </button>
         </section>
       </main>
     );
@@ -298,22 +488,63 @@ export function AppShell(props: AppShellProps = {}) {
           </select>
         </label>
         <div className="topbar-spacer" />
-        <span className={`truth-status${offline ? " is-offline" : ""}`}>
-          {offline ? "Control plane offline" : "Committed state"}
+        <span
+          className={`workspace-status${offline || error || !board?.agent_work_available ? " is-unavailable" : ""}`}
+          data-testid="agent-work-state"
+          role="status"
+        >
+          {offline
+            ? "Control plane offline"
+            : error
+              ? "Workspace unavailable"
+              : boardLoading
+                ? "Reading workspace…"
+                : board
+                  ? board.agent_work_available
+                    ? "Agent work available"
+                    : "Agent work unavailable"
+                  : "Choose a workspace"}
         </span>
         <div className="human-menu">
-          <div>
-            <strong data-testid="current-human">{human.display_name}</strong>
-            <span data-testid="current-role">{board?.role ?? workspace?.role ?? "member"}</span>
-          </div>
-          <button type="button" className="button-quiet" onClick={() => void signOut()}>
-            Sign out
-          </button>
+          <ShellMenu
+            name="Account menu"
+            label={<strong data-testid="current-human">{human.display_name}</strong>}
+          >
+            <p className="account-role" data-testid="current-role">
+              {board?.role ?? "Role unavailable"}
+            </p>
+            <label className="theme-picker">
+              <span>Appearance</span>
+              <select
+                value={themePreference}
+                data-testid="theme-preference"
+                onChange={(event) => chooseTheme(event.target.value as ThemePreference)}
+              >
+                <option value="system">System</option>
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+              </select>
+            </label>
+            <button
+              type="button"
+              className="button-quiet"
+              onClick={() =>
+                navigate(
+                  `/settings/security${workspace ? `?workspace=${encodeURIComponent(workspace.slug)}` : ""}`,
+                )
+              }
+            >
+              Account security
+            </button>
+            <button type="button" className="button-quiet" onClick={() => void signOut()}>
+              Sign out
+            </button>
+          </ShellMenu>
         </div>
       </header>
 
       <nav className="route-nav" aria-label="Product">
-        {(["work", "attention", "latest", "load"] as const).map((view) => (
+        {(["work", "attention"] as const).map((view) => (
           <button
             key={view}
             type="button"
@@ -324,15 +555,43 @@ export function AppShell(props: AppShellProps = {}) {
             {titleCase(view)}
           </button>
         ))}
-        {board?.role === "owner" ? (
-          <button
-            type="button"
-            aria-current={route.view === "settings" ? "page" : undefined}
-            onClick={() => navigateToView("settings")}
-          >
-            Projects &amp; policy
-          </button>
-        ) : null}
+        <ShellMenu
+          name="More navigation"
+          active={!["work", "attention"].includes(route.view)}
+          label={
+            !["work", "attention"].includes(route.view) ? `More · ${titleCase(route.view)}` : "More"
+          }
+        >
+          {(["latest", "load", "runners"] as const).map((view) => (
+            <button
+              key={view}
+              type="button"
+              aria-current={route.view === view ? "page" : undefined}
+              disabled={!workspace}
+              onClick={() => navigateToView(view)}
+            >
+              {titleCase(view)}
+            </button>
+          ))}
+          {board?.role === "owner" ? (
+            <button
+              type="button"
+              aria-current={route.view === "settings" ? "page" : undefined}
+              onClick={() => navigateToView("settings")}
+            >
+              Projects &amp; policy
+            </button>
+          ) : null}
+          {board?.role === "owner" || board?.role === "member" ? (
+            <button
+              type="button"
+              aria-current={route.view === "operations" ? "page" : undefined}
+              onClick={() => navigateToView("operations")}
+            >
+              Operations
+            </button>
+          ) : null}
+        </ShellMenu>
       </nav>
 
       {!workspace ? (
@@ -371,7 +630,7 @@ export function AppShell(props: AppShellProps = {}) {
             <div>
               <p className="section-label">{workspace.slug.toUpperCase()} / WORK</p>
               <h1>Current work</h1>
-              <p>What needs you, what can move, and what BFB can actually prove.</p>
+              <p>Scan the work. Open a task for the details.</p>
             </div>
             {canManageTasks ? (
               <button
@@ -392,6 +651,7 @@ export function AppShell(props: AppShellProps = {}) {
               csrfToken={csrfToken}
               onCancel={() => setShowComposer(false)}
               onCreated={(taskId) => {
+                if (!mounted.current || currentSelection.current !== selection) return;
                 setShowComposer(false);
                 setSelectedTaskId(taskId);
                 void reloadBoard();
@@ -419,6 +679,41 @@ export function AppShell(props: AppShellProps = {}) {
           fetchImpl={fetchFn}
           onChanged={() => void reloadBoard()}
         />
+      ) : board &&
+        route.view === "operations" &&
+        (board.role === "owner" || board.role === "member") ? (
+        <OperationsPage
+          workspaceId={workspace.id}
+          role={board.role}
+          authorizationEpoch={board.authorization_epoch}
+          csrfToken={csrfToken}
+          fetchImpl={fetchFn}
+        />
+      ) : board && route.view === "runners" ? (
+        <RunnerOperations
+          workspaceId={workspace.id}
+          humanId={board.human.id}
+          role={board.role}
+          authorizationEpoch={board.authorization_epoch}
+          csrfToken={csrfToken}
+          fetchImpl={fetchFn}
+        />
+      ) : board && route.view === "attention" ? (
+        <div className="work-surface">
+          <div className="work-titlebar">
+            <div>
+              <p className="section-label">{workspace.slug.toUpperCase()} / ATTENTION</p>
+              <h1>Needs attention</h1>
+              <p>Questions and decisions that need a person.</p>
+            </div>
+          </div>
+          <AttentionHome
+            workspaceId={workspace.id}
+            role={board.role}
+            fetchImpl={fetchFn}
+            csrfToken={csrfToken}
+          />
+        </div>
       ) : board ? (
         <section className="placeholder-route" data-testid={`${route.view}-placeholder`}>
           <p className="section-label">{route.view.toUpperCase()}</p>
@@ -437,6 +732,8 @@ export function AppShell(props: AppShellProps = {}) {
         <WorkMutations
           workspaceId={workspace.id}
           selectedTaskId={selectedTaskId}
+          humanId={board.human.id}
+          humanDisplayName={board.human.display_name}
           role={board.role}
           agentProfiles={agentProfiles}
           fetchImpl={fetchFn}

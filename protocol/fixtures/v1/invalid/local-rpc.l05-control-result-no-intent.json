@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "request_id": "01K00000000000000000000008",
+  "method": "execution.control_result",
+  "direction": "request",
+  "payload": {
+    "control_id": "01K00000000000000000000008",
+    "control_disposition": "applied"
+  }
+}

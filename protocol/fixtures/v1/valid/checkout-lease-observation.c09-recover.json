@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "run_execution_id": "01K00000000000000000000001",
+  "assignment_generation": 1,
+  "fencing_generation": 1,
+  "sequence": 1,
+  "observed_at": "2026-09-12T12:00:00.000Z",
+  "operation": "recover",
+  "supervisor": {
+    "pid": 1234,
+    "start_identity": "123456:1000",
+    "executable_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "local_lock_id": "01K00000000000000000000011",
+  "owned_group_id": 1235,
+  "owned_group_start_identity": "123457:1000",
+  "supervisor_state": "gone",
+  "group_state": "gone",
+  "lock_state": "gone",
+  "descendants_state": "gone",
+  "recovery_local": true
+}

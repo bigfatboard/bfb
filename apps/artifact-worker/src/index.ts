@@ -1,5 +1,7 @@
-// ABOUTME: Serves the cookie-less Artifact Worker origin shell with private R2 binding only.
-// ABOUTME: Upload/view grant behavior is owned by V01; this package keeps the origin inert.
+// ABOUTME: Serves the cookie-less Artifact Worker origin with bounded upload grants.
+// ABOUTME: Bytes are accepted only against a consumed one-time grant; views are owned by V02.
+
+import { adaptD1, type SqlDatabase } from "@bfb/db";
 
 import {
   assertNoAppCookie,
@@ -7,9 +9,19 @@ import {
   validateArtifactEnv,
   type ArtifactBindings,
 } from "./env.js";
+import { handleUpload } from "./upload.js";
+import { handleViewBootstrap, handleViewRedeem } from "./view.js";
 
-export default {
-  async fetch(request: Request, env: ArtifactBindings): Promise<Response> {
+export { buildViewBootstrap, viewBootstrapCsp, viewFinalCsp } from "./view.js";
+export { buildTextDocument, buildViewerFallback, isViewerTextFormat } from "./renderers.js";
+
+export interface ArtifactFetchOptions {
+  db?: SqlDatabase;
+  now?: string;
+}
+
+export function createArtifactFetchHandler(options: ArtifactFetchOptions = {}) {
+  return async function fetch(request: Request, env: ArtifactBindings): Promise<Response> {
     let validated;
     try {
       validated = validateArtifactEnv(env);
@@ -20,6 +32,8 @@ export default {
         headers: { "content-type": "application/json; charset=utf-8" },
       });
     }
+    const db = options.db ?? adaptD1(validated.db);
+    const now = options.now ?? new Date().toISOString();
 
     try {
       assertNoAppCookie(request);
@@ -57,15 +71,52 @@ export default {
         );
       }
 
+      const upload = /^\/upload\/([^/]+)$/.exec(url.pathname);
+      if (upload?.[1]) {
+        return handleUpload(request, upload[1], {
+          db,
+          artifacts: validated.artifacts,
+          now,
+          abuseSecret: validated.uploadAbuseSecret,
+        });
+      }
+
+      const redeem = /^\/view\/([^/]+)\/redeem$/.exec(url.pathname);
+      if (
+        !validated.artifactViewerEnabled &&
+        (url.pathname === "/view" || url.pathname.startsWith("/view/"))
+      ) {
+        return Response.json(
+          { ok: false, error: "feature_unavailable" },
+          {
+            status: 404,
+            headers: { "cache-control": "no-store", "referrer-policy": "no-referrer" },
+          },
+        );
+      }
+      if (redeem?.[1]) {
+        return handleViewRedeem(request, redeem[1], {
+          db,
+          artifacts: validated.artifacts,
+          now,
+          abuseSecret: validated.uploadAbuseSecret,
+          appOrigin: validated.appOrigin,
+        });
+      }
+      const view = /^\/view\/([^/]+)$/.exec(url.pathname);
+      if (view?.[1]) {
+        return handleViewBootstrap(request, view[1], { appOrigin: validated.appOrigin });
+      }
+
       const headers = corsHeaders(request, validated.artifactOrigin);
       headers.set("content-type", "application/json; charset=utf-8");
       return new Response(
         JSON.stringify({
           ok: false,
-          error: "artifact_not_implemented",
-          message: "Artifact upload and view are owned by V01",
+          error: "artifact_not_found",
+          message: "Unknown artifact path",
         }),
-        { status: 501, headers },
+        { status: 404, headers },
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : "artifact_request_failed";
@@ -77,5 +128,11 @@ export default {
         },
       );
     }
+  };
+}
+
+export default {
+  async fetch(request: Request, env: ArtifactBindings): Promise<Response> {
+    return createArtifactFetchHandler()(request, env);
   },
 };

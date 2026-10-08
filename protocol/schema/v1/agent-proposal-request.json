@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/agent-proposal-request.json",
+  "title": "AgentProposalRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["reference", "binding", "title"],
+  "properties": {
+    "reference": {
+      "$ref": "agent-work-request.json"
+    },
+    "binding": {
+      "$ref": "agent-session-reference.json"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "priority": {
+      "type": "string",
+      "enum": ["P0", "P1", "P2", "P3"]
+    },
+    "parent_task_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    }
+  }
+}

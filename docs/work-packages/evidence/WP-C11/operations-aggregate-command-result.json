@@ -1,0 +1,124 @@
+{
+  "package": "C11",
+  "recorded_on": "2026-10-07",
+  "tested_commit": "2a38b637d07ae5bfcb90155a42175b9200d274aa",
+  "outcome": "passed",
+  "stage": "partial_metadata_scoped_operations_aggregates",
+  "package_acceptance_complete": false,
+  "private_creation_available": false,
+  "scope": "Current shared-source queue totals, workspace token counts and hydrated stuck/retention references share one final observer-authority selection. Unsupported histories are uniformly excluded; frozen diagnostic snapshots remain uncertified.",
+  "migration_head": "0045_private_task_authority",
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56)",
+    "architecture": "arm64",
+    "runtime": "Production Hub fixtures and disposable real D1, mounted authenticated operations routes and Chromium regressions"
+  },
+  "clean_commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "exit_code": 0
+    },
+    {
+      "command": "pnpm test:c11",
+      "exit_code": 0,
+      "c10_cases": 86,
+      "c10_files": 8,
+      "c10_d1_checks": 9,
+      "c08_cases": 23,
+      "c08_files": 5,
+      "c08_proof": "C08_D1_OK",
+      "stage_cases": 1800,
+      "stage_files": 62,
+      "stage_d1_checks": 45,
+      "stage_d1_harnesses": [
+        {
+          "proof": "C11_TASK_D1_OK",
+          "checks": 37
+        },
+        {
+          "proof": "C11_OPERATIONS_AGGREGATES_D1_OK",
+          "checks": 8
+        }
+      ],
+      "counting": "Separate invocations overlap; counts are not a unique combined total"
+    },
+    {
+      "command": "pnpm test:x05",
+      "exit_code": 0,
+      "cases": 58,
+      "files": 6,
+      "worker_scenarios": 11,
+      "browser_cases": 4,
+      "proof": "X05_DRILL_OK",
+      "package_status_changed": false
+    },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 4141,
+      "typescript_files": 180,
+      "go": "passed",
+      "go_scheduling": "GOFLAGS=-p=1",
+      "swift": "passed",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    {
+      "command": "pnpm exec tsc -b tools/g01 --pretty false",
+      "exit_code": 0,
+      "scope": "Caller compilation only; G01 runtime acceptance not run"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "exit_code": 0,
+      "before_and_after_verify": true,
+      "committed_source_unchanged": true,
+      "final_status_empty": true
+    }
+  ],
+  "focused_new_suites": {
+    "domain_cases": 119,
+    "mounted_cases": 107,
+    "independent_final_cases": 226,
+    "independent_final_files": 2
+  },
+  "real_d1_extension_checks": [
+    "real_d1_empty_aggregate_scope_rechecks_epoch_and_requires_context",
+    "real_d1_notification_operator_counts_bind_exact_shared_source_not_recipient",
+    "real_d1_github_aggregate_exact_outbox_dlq_evidence_and_lifecycle_branches",
+    "real_d1_applied_recovery_counts_all_targets_and_preserves_legitimate_duplicates",
+    "real_d1_fifty_target_aggregate_stays_within_binding_and_expression_limits",
+    "real_d1_final_hydrated_upload_retention_projection_rejects_nul_suffixed_run_parent",
+    "real_d1_final_aggregate_selection_remasks_counts_and_hydrated_refs_together",
+    "real_d1_final_aggregate_scope_loss_hides_all_totals_even_without_refs"
+  ],
+  "repairs_with_regression_proof": [
+    "Queue and health require current Owner/member observer context and retained epoch; final sentinel denies even empty work",
+    "One final selection remasks supported queue counts, workspace token counts and hydrated references together without later awaited hydration",
+    "Notification counts bind exact semantic kind/category/child/run/task/project while preserving legitimate operator history independently of recipient preferences or revocation",
+    "GitHub counts bind typed exact outbox/delivery/DLQ and repository/evidence branches, including push branch-plus-commit associations and legitimate installation lifecycle history",
+    "Supported applied recovery resolves every typed current target with exact closed results; legitimate repeated notification/GitHub targets remain ordered and countable",
+    "Unknown, failed and cleared source histories contribute zero uniformly, without a private-presence decision",
+    "Independent review reproduced a genuine NUL-suffixed run surviving hydrated upload and retention remask; typed readable-run witness repairs it while preserving true NULL run-free uploads",
+    "Domain and mounted aggregate regressions failed meaningfully before repair; two NUL-parent domain cases and the real-D1 upload case failed before the final join repair",
+    "Independent final review, compiled-domain NUL probe and 226 focused cases pass; fresh real-D1 proof also excludes malformed upload and canonical retention parents",
+    "Visible queue heading and on-demand count explanation clarify supported scope without adding default controls"
+  ],
+  "activation_barriers": [
+    "Natural credential or lease expiry while a D1 batch is already in flight remains unresolved",
+    "Principal-bound opaque positions and raw notification delivery identities",
+    "Unbound GitHub evidence-key collision presence policy",
+    "Other security-audit families, frozen diagnostics, other recovery and private destructive-retention privacy",
+    "Coordination consumers and complete delivery matrix",
+    "Private creation, creator sharing, author-private checkpoints and downstream C12 publication"
+  ],
+  "not_claimed": [
+    "Complete C11 acceptance, private-feature activation or physical queue-drained status",
+    "Frozen diagnostic snapshot provenance, cryptographic recovery hash recomputation, historical creator/proof attestation or usable credential status",
+    "Private R2 byte/browser delivery, opaque positions, provider-record freshness or workload/performance certification",
+    "New recovery/notification/GitHub execution authority, live queue or enrolled pilot operation, provider configuration, deployment, external CI or G01 runtime acceptance",
+    "A new visual redesign, project-wide knowledge, skills, vault values, checkpoint reminders or contribution UI"
+  ],
+  "redaction": "Bounded synthetic counts, proof labels, source identity and limits only; no credentials, private bodies, raw output or local absolute paths"
+}

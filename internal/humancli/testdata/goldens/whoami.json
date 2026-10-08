@@ -1,0 +1,1 @@
+{"schema_version":1,"command":"whoami","request_id":"STABLE","data":{"authorization_epoch":1,"expires_at":"2027-01-01T00:00:00Z","human_id":"human01","key_prefix":"synthetic","project_ids":["projectA"],"scopes":["bfb:read"],"workspace_id":"01SYNTHETICWS00000000000001"}}

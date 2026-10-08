@@ -1,0 +1,75 @@
+{
+  "package": "V03",
+  "recorded_on": "2026-10-06",
+  "tested_commit": "c20648a90698569264f82ea8dac7a5d81184496f",
+  "outcome": "passed",
+  "package_acceptance_complete": true,
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56)",
+    "architecture": "arm64",
+    "cloud": "Disposable real Control and Artifact Workers, WorkspaceHub, D1 and R2",
+    "browser": "Headless Chromium; compiled ReviewPanel, production session/CSRF routes and actual isolated preview bytes"
+  },
+  "migration_head": "0044_agent_profile_permissions",
+  "clean_commands": [
+    { "command": "pnpm install --frozen-lockfile", "exit_code": 0 },
+    {
+      "command": "pnpm test:v03",
+      "exit_code": 0,
+      "protocol_cases": 1154,
+      "protocol_files": 12,
+      "focused_cases": 62,
+      "focused_files": 8,
+      "storage_proof": "V03_D1_OK",
+      "storage_checks": 14,
+      "browser_cases": 9,
+      "compiled_runtime_browser_cases": 5,
+      "retained_browser_cases": 4
+    },
+    {
+      "command": "pnpm test:v02",
+      "exit_code": 0,
+      "focused_cases": 142,
+      "focused_files": 10,
+      "storage_proof": "V02_D1_OK",
+      "browser_cases": 16
+    },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 2908,
+      "typescript_files": 147,
+      "go": "passed",
+      "swift": "passed",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    { "command": "pnpm worktree:check", "exit_code": 0 }
+  ],
+  "regressions": {
+    "changed_retry_baseline": "A changed note under the original request key returned the cached private decision.",
+    "revoked_retry_baseline": "Project access removal did not fence the cached private reply.",
+    "audit_baseline": "Generic Hub receipts copied review notes into semantic, audit and outbox payloads.",
+    "current": "Current authority precedes cache lookup; exact input fingerprints reject changed retries; Hub receipts and review-audit dispatch contain metadata only."
+  },
+  "browser_boundaries": {
+    "loaded_preview": "Actual hostile HTML remains in the V02 sandbox while the compiled review controls record inert notes and explicit decisions.",
+    "immutability": "Review binds exact version/hash, survives reload and becomes historical after publication; a new version needs its own explicit approval.",
+    "conflict": "Publication before decision returns stale_version and reload recovers to the new unapproved version.",
+    "authority": "Cookie loss denies a draft decision; project revocation denies cached replies and private reads without leaking the note.",
+    "business_separation": "Review actions do not change task/run/launch/result records. Explicit timer start/stop produces two A04 observations, not browser activity.",
+    "audit_dispatch": "Concurrent dispatch of one committed review source produces one bounded metadata projection.",
+    "reflow_widths": [320, 768, 1280],
+    "review_action_minimum_height": 44,
+    "horizontal_overflow": false
+  },
+  "upgrade_limit": "Historical cache records without input fingerprints fail closed; immutable canonical review history remains readable under current authority.",
+  "not_claimed": [
+    "Persistent pilot enablement, deployment or live provider execution",
+    "Remote start or agent-to-agent acceptance",
+    "Whole-board redesign, theme support, private-task ACLs, project knowledge, catalogs or business secrets",
+    "Production static-asset routing: the compiled fixture bundle uses a synthetic HTTP bridge; business/auth/Hub/D1/R2 paths use real Workers"
+  ],
+  "redaction": "Bounded synthetic assertions and counts only; no credentials, private content, machine paths or raw output retained. Historical evidence is unchanged."
+}

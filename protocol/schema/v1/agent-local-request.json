@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/agent-local-request.json",
+  "title": "AgentLocalRequest",
+  "description": "A01 local-only execution correlation; no claimed PID, principal, cloud credential or HTTP action.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["request", "correlation"],
+  "properties": {
+    "request": { "$ref": "agent-work-request.json" },
+    "correlation": { "type": "string", "minLength": 1, "maxLength": 512 }
+  }
+}

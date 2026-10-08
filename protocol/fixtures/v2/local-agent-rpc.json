@@ -1,0 +1,786 @@
+{
+  "document": "local-agent-rpc",
+  "schema_version": 2,
+  "fixtures": [
+    {
+      "name": "authority.request",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.authority\",\"direction\":\"request\",\"payload\":{\"agent_request\":{\"request\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": true
+    },
+    {
+      "name": "authority.response",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.authority\",\"direction\":\"response\",\"payload\":{\"agent_authority\":{\"revoked\":false,\"execution_ended\":false,\"result_terminal\":false}}}",
+      "accept": true
+    },
+    {
+      "name": "authority.error",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.authority\",\"direction\":\"response\",\"error\":{\"schema_version\":1,\"category\":\"unavailable\",\"code\":\"offline_rejected\",\"message\":\"Temporarily unavailable.\"}}",
+      "accept": true
+    },
+    {
+      "name": "authority.wrong-input",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.authority\",\"direction\":\"request\",\"payload\":{\"agent_comment\":{\"id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":{\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\"}}}}",
+      "accept": false
+    },
+    {
+      "name": "authority.unknown-field",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.authority\",\"direction\":\"request\",\"payload\":{\"agent_request\":{\"request\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"correlation\":\"synthetic-correlation\"}},\"offline_permission\":true}",
+      "accept": false
+    },
+    {
+      "name": "get_context.request",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.get_context\",\"direction\":\"request\",\"payload\":{\"agent_request\":{\"request\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": true
+    },
+    {
+      "name": "get_context.response",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.get_context\",\"direction\":\"response\",\"payload\":{\"agent_context\":{\"context\":[],\"deliveries\":[]}}}",
+      "accept": true
+    },
+    {
+      "name": "get_context.error",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.get_context\",\"direction\":\"response\",\"error\":{\"schema_version\":1,\"category\":\"unavailable\",\"code\":\"offline_rejected\",\"message\":\"Temporarily unavailable.\"}}",
+      "accept": true
+    },
+    {
+      "name": "get_context.wrong-input",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.get_context\",\"direction\":\"request\",\"payload\":{\"agent_comment\":{\"id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":{\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\"}}}}",
+      "accept": false
+    },
+    {
+      "name": "get_context.unknown-field",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.get_context\",\"direction\":\"request\",\"payload\":{\"agent_request\":{\"request\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"correlation\":\"synthetic-correlation\"}},\"offline_permission\":true}",
+      "accept": false
+    },
+    {
+      "name": "get_task.request",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.get_task\",\"direction\":\"request\",\"payload\":{\"agent_request\":{\"request\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": true
+    },
+    {
+      "name": "get_task.response",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.get_task\",\"direction\":\"response\",\"payload\":{\"agent_task\":{\"id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"project_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"state\":\"active\",\"priority\":\"P2\",\"title\":\"Synthetic\",\"punchline\":\"\",\"resource_version\":1}}}",
+      "accept": true
+    },
+    {
+      "name": "get_task.error",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.get_task\",\"direction\":\"response\",\"error\":{\"schema_version\":1,\"category\":\"unavailable\",\"code\":\"offline_rejected\",\"message\":\"Temporarily unavailable.\"}}",
+      "accept": true
+    },
+    {
+      "name": "get_task.wrong-input",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.get_task\",\"direction\":\"request\",\"payload\":{\"agent_comment\":{\"id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":{\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\"}}}}",
+      "accept": false
+    },
+    {
+      "name": "get_task.unknown-field",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.get_task\",\"direction\":\"request\",\"payload\":{\"agent_request\":{\"request\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"correlation\":\"synthetic-correlation\"}},\"offline_permission\":true}",
+      "accept": false
+    },
+    {
+      "name": "bind_session.request",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.bind_session\",\"direction\":\"request\",\"payload\":{\"agent_request\":{\"request\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": true
+    },
+    {
+      "name": "bind_session.response",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.bind_session\",\"direction\":\"response\",\"payload\":{\"agent_binding\":{\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"origin\":{\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\"},\"observed_at\":\"2026-10-05T10:00:00Z\",\"confirmed_at\":\"2026-10-05T10:00:01Z\"}}}",
+      "accept": true
+    },
+    {
+      "name": "bind_session.error",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.bind_session\",\"direction\":\"response\",\"error\":{\"schema_version\":1,\"category\":\"unavailable\",\"code\":\"offline_rejected\",\"message\":\"Temporarily unavailable.\"}}",
+      "accept": true
+    },
+    {
+      "name": "bind_session.wrong-input",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.bind_session\",\"direction\":\"request\",\"payload\":{\"agent_comment\":{\"id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":{\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\"}}}}",
+      "accept": false
+    },
+    {
+      "name": "bind_session.unknown-field",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.bind_session\",\"direction\":\"request\",\"payload\":{\"agent_request\":{\"request\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"correlation\":\"synthetic-correlation\"}},\"offline_permission\":true}",
+      "accept": false
+    },
+    {
+      "name": "bound_authority.request",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.bound_authority\",\"direction\":\"request\",\"payload\":{\"agent_bound_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"}},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": true
+    },
+    {
+      "name": "bound_authority.response",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.bound_authority\",\"direction\":\"response\",\"payload\":{\"agent_authority\":{\"revoked\":false,\"execution_ended\":false,\"result_terminal\":false}}}",
+      "accept": true
+    },
+    {
+      "name": "bound_authority.error",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.bound_authority\",\"direction\":\"response\",\"error\":{\"schema_version\":1,\"category\":\"unavailable\",\"code\":\"offline_rejected\",\"message\":\"Temporarily unavailable.\"}}",
+      "accept": true
+    },
+    {
+      "name": "bound_authority.wrong-input",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.bound_authority\",\"direction\":\"request\",\"payload\":{\"agent_comment\":{\"id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":{\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\"}}}}",
+      "accept": false
+    },
+    {
+      "name": "bound_authority.unknown-field",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.bound_authority\",\"direction\":\"request\",\"payload\":{\"agent_bound_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"}},\"correlation\":\"synthetic-correlation\"}},\"offline_permission\":true}",
+      "accept": false
+    },
+    {
+      "name": "add_comment.request",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.add_comment\",\"direction\":\"request\",\"payload\":{\"agent_comment_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"body\":\"Synthetic comment\"},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": true
+    },
+    {
+      "name": "add_comment.response",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.add_comment\",\"direction\":\"response\",\"payload\":{\"agent_comment\":{\"id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":{\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\"}}}}",
+      "accept": true
+    },
+    {
+      "name": "add_comment.error",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.add_comment\",\"direction\":\"response\",\"error\":{\"schema_version\":1,\"category\":\"unavailable\",\"code\":\"offline_rejected\",\"message\":\"Temporarily unavailable.\"}}",
+      "accept": true
+    },
+    {
+      "name": "add_comment.wrong-input",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.add_comment\",\"direction\":\"request\",\"payload\":{\"agent_comment\":{\"id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":{\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\"}}}}",
+      "accept": false
+    },
+    {
+      "name": "add_comment.unknown-field",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.add_comment\",\"direction\":\"request\",\"payload\":{\"agent_comment_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"body\":\"Synthetic comment\"},\"correlation\":\"synthetic-correlation\"}},\"offline_permission\":true}",
+      "accept": false
+    },
+    {
+      "name": "update_task.request",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.update_task\",\"direction\":\"request\",\"payload\":{\"agent_update_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"expected_version\":1,\"title\":\"Synthetic replacement\"},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": true
+    },
+    {
+      "name": "update_task.response",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.update_task\",\"direction\":\"response\",\"payload\":{\"agent_update\":{\"task\":{\"id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"project_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"state\":\"active\",\"priority\":\"P2\",\"title\":\"Synthetic\",\"punchline\":\"\",\"resource_version\":1},\"origin\":{\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\"}}}}",
+      "accept": true
+    },
+    {
+      "name": "update_task.error",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.update_task\",\"direction\":\"response\",\"error\":{\"schema_version\":1,\"category\":\"unavailable\",\"code\":\"offline_rejected\",\"message\":\"Temporarily unavailable.\"}}",
+      "accept": true
+    },
+    {
+      "name": "update_task.wrong-input",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.update_task\",\"direction\":\"request\",\"payload\":{\"agent_comment\":{\"id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":{\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\"}}}}",
+      "accept": false
+    },
+    {
+      "name": "update_task.unknown-field",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.update_task\",\"direction\":\"request\",\"payload\":{\"agent_update_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"expected_version\":1,\"title\":\"Synthetic replacement\"},\"correlation\":\"synthetic-correlation\"}},\"offline_permission\":true}",
+      "accept": false
+    },
+    {
+      "name": "report_progress.request",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.report_progress\",\"direction\":\"request\",\"payload\":{\"agent_progress_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic checkpoint\",\"percent\":0,\"confidence\":0},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": true
+    },
+    {
+      "name": "report_progress.response",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.report_progress\",\"direction\":\"response\",\"payload\":{\"agent_comment\":{\"id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":{\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\"}}}}",
+      "accept": true
+    },
+    {
+      "name": "report_progress.error",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.report_progress\",\"direction\":\"response\",\"error\":{\"schema_version\":1,\"category\":\"unavailable\",\"code\":\"offline_rejected\",\"message\":\"Temporarily unavailable.\"}}",
+      "accept": true
+    },
+    {
+      "name": "report_progress.wrong-input",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.report_progress\",\"direction\":\"request\",\"payload\":{\"agent_comment\":{\"id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":{\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\"}}}}",
+      "accept": false
+    },
+    {
+      "name": "report_progress.unknown-field",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.report_progress\",\"direction\":\"request\",\"payload\":{\"agent_progress_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic checkpoint\",\"percent\":0,\"confidence\":0},\"correlation\":\"synthetic-correlation\"}},\"offline_permission\":true}",
+      "accept": false
+    },
+    {
+      "name": "propose_task.request",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.propose_task\",\"direction\":\"request\",\"payload\":{\"agent_proposal_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"title\":\"Synthetic root proposal\",\"priority\":\"P2\"},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": true
+    },
+    {
+      "name": "propose_task.response",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.propose_task\",\"direction\":\"response\",\"payload\":{\"agent_proposal\":{\"id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"state\":\"proposed\",\"origin\":{\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\"}}}}",
+      "accept": true
+    },
+    {
+      "name": "propose_task.error",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.propose_task\",\"direction\":\"response\",\"error\":{\"schema_version\":1,\"category\":\"unavailable\",\"code\":\"offline_rejected\",\"message\":\"Temporarily unavailable.\"}}",
+      "accept": true
+    },
+    {
+      "name": "propose_task.wrong-input",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.propose_task\",\"direction\":\"request\",\"payload\":{\"agent_comment\":{\"id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"origin\":{\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\"}}}}",
+      "accept": false
+    },
+    {
+      "name": "propose_task.unknown-field",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.propose_task\",\"direction\":\"request\",\"payload\":{\"agent_proposal_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"title\":\"Synthetic root proposal\",\"priority\":\"P2\"},\"correlation\":\"synthetic-correlation\"}},\"offline_permission\":true}",
+      "accept": false
+    },
+    {
+      "name": "propose_task.child-request",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.propose_task\",\"direction\":\"request\",\"payload\":{\"agent_proposal_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"title\":\"Synthetic child proposal\",\"priority\":\"P2\",\"parent_task_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": true
+    },
+    {
+      "name": "propose_task.child-ready-response",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.propose_task\",\"direction\":\"response\",\"payload\":{\"agent_proposal\":{\"id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"state\":\"ready\",\"origin\":{\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\"}}}}",
+      "accept": true
+    },
+    {
+      "name": "propose_task.invalid-state-response",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.propose_task\",\"direction\":\"response\",\"payload\":{\"agent_proposal\":{\"id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"state\":\"active\",\"origin\":{\"run_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\"}}}}",
+      "accept": false
+    },
+    {
+      "name": "v2-as-v1-document",
+      "document": "local-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.authority\",\"direction\":\"request\",\"payload\":{\"agent_request\":{\"request\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": false
+    },
+    {
+      "name": "v1-as-v2-document",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":1,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.authority\",\"direction\":\"request\",\"payload\":{\"agent_request\":{\"request\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": false
+    },
+    {
+      "name": "unknown-version",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":3,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.authority\",\"direction\":\"request\",\"payload\":{\"agent_request\":{\"request\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": false
+    },
+    {
+      "name": "legacy-method",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.authority\",\"direction\":\"request\",\"payload\":{\"agent_request\":{\"request\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": false
+    },
+    {
+      "name": "undeclared-method",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.proxy\",\"direction\":\"request\",\"payload\":{\"agent_request\":{\"request\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": false
+    },
+    {
+      "name": "event-direction",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.authority\",\"direction\":\"event\",\"payload\":{\"agent_request\":{\"request\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": false
+    },
+    {
+      "name": "ambiguous-version",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":1,\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.authority\",\"direction\":\"request\",\"payload\":{\"agent_request\":{\"request\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": false
+    },
+    {
+      "name": "oversized-comment",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.add_comment\",\"direction\":\"request\",\"payload\":{\"agent_comment_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"body\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": false
+    },
+    {
+      "name": "caller-actor",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.add_comment\",\"direction\":\"request\",\"payload\":{\"agent_comment_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"body\":\"Synthetic\",\"actor_human_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\"},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": false
+    },
+    {
+      "name": "empty-update",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.update_task\",\"direction\":\"request\",\"payload\":{\"agent_update_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"expected_version\":1},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": false
+    },
+    {
+      "name": "progress-range",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.report_progress\",\"direction\":\"request\",\"payload\":{\"agent_progress_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic\",\"percent\":101},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": false
+    },
+    {
+      "name": "proposal-workflow",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.propose_task\",\"direction\":\"request\",\"payload\":{\"agent_proposal_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"title\":\"Synthetic\",\"state\":\"ready\"},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": false
+    },
+    {
+      "name": "success-with-error",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.authority\",\"direction\":\"response\",\"payload\":{\"agent_authority\":{\"revoked\":false,\"execution_ended\":false,\"result_terminal\":false}},\"error\":{\"schema_version\":1,\"category\":\"unavailable\",\"code\":\"offline_rejected\",\"message\":\"Temporarily unavailable.\"}}",
+      "accept": false
+    },
+    {
+      "name": "progress.direct.fraction",
+      "document": "agent-progress-request",
+      "json": "{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":12.5,\"confidence\":0.75}",
+      "accept": true,
+      "canonical_sha256": "e34a03dc2af3f9ef40610dcfeab0792b43ff68603c97553d7009be8f301106e7",
+      "progress_request_sha256": "e34a03dc2af3f9ef40610dcfeab0792b43ff68603c97553d7009be8f301106e7"
+    },
+    {
+      "name": "progress.direct.exponent",
+      "document": "agent-progress-request",
+      "json": "{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":125e-1,\"confidence\":75e-2}",
+      "accept": true,
+      "canonical_sha256": "e34a03dc2af3f9ef40610dcfeab0792b43ff68603c97553d7009be8f301106e7",
+      "progress_request_sha256": "e34a03dc2af3f9ef40610dcfeab0792b43ff68603c97553d7009be8f301106e7"
+    },
+    {
+      "name": "progress.direct.small-exponent",
+      "document": "agent-progress-request",
+      "json": "{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":1e-7,\"confidence\":1e-6}",
+      "accept": true,
+      "canonical_sha256": "880e1d0e1c963179dbc008419ae469ea4f34aaac720c56f40009f7f0f2eac57b",
+      "progress_request_sha256": "880e1d0e1c963179dbc008419ae469ea4f34aaac720c56f40009f7f0f2eac57b"
+    },
+    {
+      "name": "progress.direct.smallest-finite",
+      "document": "agent-progress-request",
+      "json": "{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":5e-324,\"confidence\":0}",
+      "accept": true,
+      "canonical_sha256": "5e1bc8ebee0a5c8db8b1cc32e4c749832e8775f9cde8952ce074553789e70621",
+      "progress_request_sha256": "5e1bc8ebee0a5c8db8b1cc32e4c749832e8775f9cde8952ce074553789e70621"
+    },
+    {
+      "name": "progress.direct.zero-exponent",
+      "document": "agent-progress-request",
+      "json": "{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":-0e9999999999,\"confidence\":0e-9999999999}",
+      "accept": true,
+      "canonical_sha256": "24a6fc278da4bee4d0fc1f9bb604aec6ed9f6bf2b1f87daebd199db3e2dd1abb",
+      "progress_request_sha256": "24a6fc278da4bee4d0fc1f9bb604aec6ed9f6bf2b1f87daebd199db3e2dd1abb"
+    },
+    {
+      "name": "progress.direct.inclusive-upper",
+      "document": "agent-progress-request",
+      "json": "{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":100.0,\"confidence\":1e0}",
+      "accept": true,
+      "canonical_sha256": "b1cf0b0f97f341dcef6b40e54b74438f9a3fd065676147f7f807801b52a7db3c",
+      "progress_request_sha256": "b1cf0b0f97f341dcef6b40e54b74438f9a3fd065676147f7f807801b52a7db3c"
+    },
+    {
+      "name": "progress.direct.percent-rounded-outside",
+      "document": "agent-progress-request",
+      "json": "{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":100.00000000000000001,\"confidence\":0.75}",
+      "accept": false
+    },
+    {
+      "name": "progress.direct.confidence-rounded-outside",
+      "document": "agent-progress-request",
+      "json": "{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":12.5,\"confidence\":1.00000000000000001}",
+      "accept": false
+    },
+    {
+      "name": "progress.direct.negative",
+      "document": "agent-progress-request",
+      "json": "{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":-0.01,\"confidence\":0.75}",
+      "accept": false
+    },
+    {
+      "name": "progress.direct.negative-underflow",
+      "document": "agent-progress-request",
+      "json": "{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":-1e-999,\"confidence\":0.75}",
+      "accept": false
+    },
+    {
+      "name": "progress.direct.nonzero-underflow",
+      "document": "agent-progress-request",
+      "json": "{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":1e-324,\"confidence\":0.75}",
+      "accept": false
+    },
+    {
+      "name": "progress.direct.confidence-underflow",
+      "document": "agent-progress-request",
+      "json": "{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":12.5,\"confidence\":1e-324}",
+      "accept": false
+    },
+    {
+      "name": "progress.direct.overflow",
+      "document": "agent-progress-request",
+      "json": "{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":1e999,\"confidence\":0.75}",
+      "accept": false
+    },
+    {
+      "name": "progress.direct.huge-negative-exponent",
+      "document": "agent-progress-request",
+      "json": "{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":1e-9999999999,\"confidence\":0.75}",
+      "accept": false
+    },
+    {
+      "name": "progress.direct.malformed",
+      "document": "agent-progress-request",
+      "json": "{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":.75,\"confidence\":0.75}",
+      "accept": false
+    },
+    {
+      "name": "progress.direct.fractional-generation",
+      "document": "agent-progress-request",
+      "json": "{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1.5,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":12.5,\"confidence\":0.75}",
+      "accept": false
+    },
+    {
+      "name": "progress.direct.fractional-reference-version",
+      "document": "agent-progress-request",
+      "json": "{\"reference\":{\"schema_version\":1.5,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":12.5,\"confidence\":0.75}",
+      "accept": false
+    },
+    {
+      "name": "progress.direct.lookalike",
+      "document": "agent-progress-request",
+      "json": "{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":12.5,\"confidence\":0.75,\"Percent\":12.5}",
+      "accept": false
+    },
+    {
+      "name": "progress.direct.nested-lookalike",
+      "document": "agent-progress-request",
+      "json": "{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":12.5,\"confidence\":0.75,\"extra\":{\"percent\":12.5}}",
+      "accept": false
+    },
+    {
+      "name": "progress.component.fraction",
+      "document": "agent-progress-local-request",
+      "json": "{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":12.5,\"confidence\":0.75},\"correlation\":\"synthetic-correlation\"}",
+      "accept": true,
+      "canonical_sha256": "d09ad9b071ac3f7e8b91b04760a65182d36d337c6a72a4bbfc152fa8bad595f3",
+      "progress_request_sha256": "e34a03dc2af3f9ef40610dcfeab0792b43ff68603c97553d7009be8f301106e7"
+    },
+    {
+      "name": "progress.component.exponent",
+      "document": "agent-progress-local-request",
+      "json": "{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":125e-1,\"confidence\":75e-2},\"correlation\":\"synthetic-correlation\"}",
+      "accept": true,
+      "canonical_sha256": "d09ad9b071ac3f7e8b91b04760a65182d36d337c6a72a4bbfc152fa8bad595f3",
+      "progress_request_sha256": "e34a03dc2af3f9ef40610dcfeab0792b43ff68603c97553d7009be8f301106e7"
+    },
+    {
+      "name": "progress.component.small-exponent",
+      "document": "agent-progress-local-request",
+      "json": "{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":1e-7,\"confidence\":1e-6},\"correlation\":\"synthetic-correlation\"}",
+      "accept": true,
+      "canonical_sha256": "bc53e5f50cd7eccf9483903dbe19f597c41104b3de86b750795163c5bba392a9",
+      "progress_request_sha256": "880e1d0e1c963179dbc008419ae469ea4f34aaac720c56f40009f7f0f2eac57b"
+    },
+    {
+      "name": "progress.component.smallest-finite",
+      "document": "agent-progress-local-request",
+      "json": "{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":5e-324,\"confidence\":0},\"correlation\":\"synthetic-correlation\"}",
+      "accept": true,
+      "canonical_sha256": "80ea27cddd73e929e054e55c33fff2de6136329e91299c5b42bbcaa84f5b56e0",
+      "progress_request_sha256": "5e1bc8ebee0a5c8db8b1cc32e4c749832e8775f9cde8952ce074553789e70621"
+    },
+    {
+      "name": "progress.component.zero-exponent",
+      "document": "agent-progress-local-request",
+      "json": "{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":-0e9999999999,\"confidence\":0e-9999999999},\"correlation\":\"synthetic-correlation\"}",
+      "accept": true,
+      "canonical_sha256": "a625ad5f26195eddb970b42ba1101595a470caf400182eb228374bb88cfa4245",
+      "progress_request_sha256": "24a6fc278da4bee4d0fc1f9bb604aec6ed9f6bf2b1f87daebd199db3e2dd1abb"
+    },
+    {
+      "name": "progress.component.inclusive-upper",
+      "document": "agent-progress-local-request",
+      "json": "{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":100.0,\"confidence\":1e0},\"correlation\":\"synthetic-correlation\"}",
+      "accept": true,
+      "canonical_sha256": "cbeea541a48bc35158bf98363b615f2757361d15f71b06b054ea0bf3cf5d27e4",
+      "progress_request_sha256": "b1cf0b0f97f341dcef6b40e54b74438f9a3fd065676147f7f807801b52a7db3c"
+    },
+    {
+      "name": "progress.component.percent-rounded-outside",
+      "document": "agent-progress-local-request",
+      "json": "{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":100.00000000000000001,\"confidence\":0.75},\"correlation\":\"synthetic-correlation\"}",
+      "accept": false
+    },
+    {
+      "name": "progress.component.confidence-rounded-outside",
+      "document": "agent-progress-local-request",
+      "json": "{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":12.5,\"confidence\":1.00000000000000001},\"correlation\":\"synthetic-correlation\"}",
+      "accept": false
+    },
+    {
+      "name": "progress.component.negative",
+      "document": "agent-progress-local-request",
+      "json": "{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":-0.01,\"confidence\":0.75},\"correlation\":\"synthetic-correlation\"}",
+      "accept": false
+    },
+    {
+      "name": "progress.component.negative-underflow",
+      "document": "agent-progress-local-request",
+      "json": "{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":-1e-999,\"confidence\":0.75},\"correlation\":\"synthetic-correlation\"}",
+      "accept": false
+    },
+    {
+      "name": "progress.component.nonzero-underflow",
+      "document": "agent-progress-local-request",
+      "json": "{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":1e-324,\"confidence\":0.75},\"correlation\":\"synthetic-correlation\"}",
+      "accept": false
+    },
+    {
+      "name": "progress.component.confidence-underflow",
+      "document": "agent-progress-local-request",
+      "json": "{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":12.5,\"confidence\":1e-324},\"correlation\":\"synthetic-correlation\"}",
+      "accept": false
+    },
+    {
+      "name": "progress.component.overflow",
+      "document": "agent-progress-local-request",
+      "json": "{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":1e999,\"confidence\":0.75},\"correlation\":\"synthetic-correlation\"}",
+      "accept": false
+    },
+    {
+      "name": "progress.component.huge-negative-exponent",
+      "document": "agent-progress-local-request",
+      "json": "{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":1e-9999999999,\"confidence\":0.75},\"correlation\":\"synthetic-correlation\"}",
+      "accept": false
+    },
+    {
+      "name": "progress.component.malformed",
+      "document": "agent-progress-local-request",
+      "json": "{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":.75,\"confidence\":0.75},\"correlation\":\"synthetic-correlation\"}",
+      "accept": false
+    },
+    {
+      "name": "progress.component.fractional-generation",
+      "document": "agent-progress-local-request",
+      "json": "{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1.5,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":12.5,\"confidence\":0.75},\"correlation\":\"synthetic-correlation\"}",
+      "accept": false
+    },
+    {
+      "name": "progress.component.fractional-reference-version",
+      "document": "agent-progress-local-request",
+      "json": "{\"request\":{\"reference\":{\"schema_version\":1.5,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":12.5,\"confidence\":0.75},\"correlation\":\"synthetic-correlation\"}",
+      "accept": false
+    },
+    {
+      "name": "progress.component.lookalike",
+      "document": "agent-progress-local-request",
+      "json": "{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":12.5,\"confidence\":0.75,\"Percent\":12.5},\"correlation\":\"synthetic-correlation\"}",
+      "accept": false
+    },
+    {
+      "name": "progress.component.nested-lookalike",
+      "document": "agent-progress-local-request",
+      "json": "{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":12.5,\"confidence\":0.75,\"extra\":{\"percent\":12.5}},\"correlation\":\"synthetic-correlation\"}",
+      "accept": false
+    },
+    {
+      "name": "progress.envelope.fraction",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.report_progress\",\"direction\":\"request\",\"payload\":{\"agent_progress_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":12.5,\"confidence\":0.75},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": true,
+      "canonical_sha256": "4fe2605858d38b4c62dfc9ed88ea2f565335015f0699929f848d0cd2667470cc",
+      "progress_request_sha256": "e34a03dc2af3f9ef40610dcfeab0792b43ff68603c97553d7009be8f301106e7"
+    },
+    {
+      "name": "progress.envelope.exponent",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.report_progress\",\"direction\":\"request\",\"payload\":{\"agent_progress_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":125e-1,\"confidence\":75e-2},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": true,
+      "canonical_sha256": "4fe2605858d38b4c62dfc9ed88ea2f565335015f0699929f848d0cd2667470cc",
+      "progress_request_sha256": "e34a03dc2af3f9ef40610dcfeab0792b43ff68603c97553d7009be8f301106e7"
+    },
+    {
+      "name": "progress.envelope.small-exponent",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.report_progress\",\"direction\":\"request\",\"payload\":{\"agent_progress_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":1e-7,\"confidence\":1e-6},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": true,
+      "canonical_sha256": "3bf44e17e9261b500ff58a5780373c81edefc2cd7e4a39a6b62ca4d6195768f4",
+      "progress_request_sha256": "880e1d0e1c963179dbc008419ae469ea4f34aaac720c56f40009f7f0f2eac57b"
+    },
+    {
+      "name": "progress.envelope.smallest-finite",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.report_progress\",\"direction\":\"request\",\"payload\":{\"agent_progress_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":5e-324,\"confidence\":0},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": true,
+      "canonical_sha256": "13f4476bc8970a8f42810891321c687585d573ed827fdaacf302b84558f38880",
+      "progress_request_sha256": "5e1bc8ebee0a5c8db8b1cc32e4c749832e8775f9cde8952ce074553789e70621"
+    },
+    {
+      "name": "progress.envelope.zero-exponent",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.report_progress\",\"direction\":\"request\",\"payload\":{\"agent_progress_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":-0e9999999999,\"confidence\":0e-9999999999},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": true,
+      "canonical_sha256": "426d13a5bb26fcf28614c87d1c24f1f78d7c8cee77a7cebb8a146172844af77e",
+      "progress_request_sha256": "24a6fc278da4bee4d0fc1f9bb604aec6ed9f6bf2b1f87daebd199db3e2dd1abb"
+    },
+    {
+      "name": "progress.envelope.inclusive-upper",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.report_progress\",\"direction\":\"request\",\"payload\":{\"agent_progress_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":100.0,\"confidence\":1e0},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": true,
+      "canonical_sha256": "d7e44a84556c9b01eebf14c2fbd2414baa789a249fb9012ef67d28f4de1e89cd",
+      "progress_request_sha256": "b1cf0b0f97f341dcef6b40e54b74438f9a3fd065676147f7f807801b52a7db3c"
+    },
+    {
+      "name": "progress.envelope.percent-rounded-outside",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.report_progress\",\"direction\":\"request\",\"payload\":{\"agent_progress_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":100.00000000000000001,\"confidence\":0.75},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": false
+    },
+    {
+      "name": "progress.envelope.confidence-rounded-outside",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.report_progress\",\"direction\":\"request\",\"payload\":{\"agent_progress_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":12.5,\"confidence\":1.00000000000000001},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": false
+    },
+    {
+      "name": "progress.envelope.negative",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.report_progress\",\"direction\":\"request\",\"payload\":{\"agent_progress_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":-0.01,\"confidence\":0.75},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": false
+    },
+    {
+      "name": "progress.envelope.negative-underflow",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.report_progress\",\"direction\":\"request\",\"payload\":{\"agent_progress_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":-1e-999,\"confidence\":0.75},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": false
+    },
+    {
+      "name": "progress.envelope.nonzero-underflow",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.report_progress\",\"direction\":\"request\",\"payload\":{\"agent_progress_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":1e-324,\"confidence\":0.75},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": false
+    },
+    {
+      "name": "progress.envelope.confidence-underflow",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.report_progress\",\"direction\":\"request\",\"payload\":{\"agent_progress_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":12.5,\"confidence\":1e-324},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": false
+    },
+    {
+      "name": "progress.envelope.overflow",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.report_progress\",\"direction\":\"request\",\"payload\":{\"agent_progress_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":1e999,\"confidence\":0.75},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": false
+    },
+    {
+      "name": "progress.envelope.huge-negative-exponent",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.report_progress\",\"direction\":\"request\",\"payload\":{\"agent_progress_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":1e-9999999999,\"confidence\":0.75},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": false
+    },
+    {
+      "name": "progress.envelope.malformed",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.report_progress\",\"direction\":\"request\",\"payload\":{\"agent_progress_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":.75,\"confidence\":0.75},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": false
+    },
+    {
+      "name": "progress.envelope.fractional-generation",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.report_progress\",\"direction\":\"request\",\"payload\":{\"agent_progress_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1.5,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":12.5,\"confidence\":0.75},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": false
+    },
+    {
+      "name": "progress.envelope.fractional-reference-version",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.report_progress\",\"direction\":\"request\",\"payload\":{\"agent_progress_request\":{\"request\":{\"reference\":{\"schema_version\":1.5,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":12.5,\"confidence\":0.75},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": false
+    },
+    {
+      "name": "progress.envelope.lookalike",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.report_progress\",\"direction\":\"request\",\"payload\":{\"agent_progress_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":12.5,\"confidence\":0.75,\"Percent\":12.5},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": false
+    },
+    {
+      "name": "progress.envelope.nested-lookalike",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.report_progress\",\"direction\":\"request\",\"payload\":{\"agent_progress_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":12.5,\"confidence\":0.75,\"extra\":{\"percent\":12.5}},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": false
+    },
+    {
+      "name": "progress.fractional-envelope-version",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2.5,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.report_progress\",\"direction\":\"request\",\"payload\":{\"agent_progress_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":12.5,\"confidence\":0.75},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": false
+    },
+    {
+      "name": "progress.wrong-method",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.add_comment\",\"direction\":\"request\",\"payload\":{\"agent_progress_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":12.5,\"confidence\":0.75},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": false
+    },
+    {
+      "name": "progress.wrong-direction",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.report_progress\",\"direction\":\"response\",\"payload\":{\"agent_progress_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":12.5,\"confidence\":0.75},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": false
+    },
+    {
+      "name": "progress.frozen-v1",
+      "document": "local-rpc",
+      "json": "{\"schema_version\":1,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.report_progress\",\"direction\":\"request\",\"payload\":{\"agent_progress_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"summary\":\"Synthetic fractional progress\",\"percent\":12.5,\"confidence\":0.75},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": false
+    },
+    {
+      "name": "progress.fractional-update-version",
+      "document": "local-agent-rpc",
+      "json": "{\"schema_version\":2,\"request_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"method\":\"mcp.v2.update_task\",\"direction\":\"request\",\"payload\":{\"agent_update_request\":{\"request\":{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"title\":\"Synthetic\",\"expected_version\":1.5},\"correlation\":\"synthetic-correlation\"}}}",
+      "accept": false
+    },
+    {
+      "name": "progress.unrelated-document",
+      "document": "agent-comment-request",
+      "json": "{\"reference\":{\"schema_version\":1,\"run_execution_id\":\"01K6R7DT00AAAAAAAAAAAAAAAA\",\"assignment_generation\":1,\"request_id\":\"fixture-request-01\"},\"binding\":{\"provider_session_id\":\"01K6R7DT00BBBBBBBBBBBBBBBB\",\"provider\":\"fake\",\"observed_session_id\":\"synthetic-session\"},\"body\":\"Synthetic\",\"percent\":12.5}",
+      "accept": false
+    }
+  ]
+}

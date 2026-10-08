@@ -1,0 +1,3 @@
+human human01
+workspace 01SYNTHETICWS00000000000001
+credential synthetic

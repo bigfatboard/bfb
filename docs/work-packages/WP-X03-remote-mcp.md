@@ -1,8 +1,12 @@
 # WP-X03 — Remote MCP parity extensions
 
-Status: `planned`
+Status: `done`
 
 Risk: Very high
+
+Test target: `pnpm test:x03`
+
+Evidence manifest: `docs/work-packages/evidence/WP-X03/runtime-manifest.json`
 
 ## Outcome
 
@@ -11,7 +15,7 @@ The remote MCP surface can use later attention, result, and artifact commands th
 ## Dependencies
 
 - **Requires:** A01, A02, A03, V01, X03A.
-- **Unlocks:** G01.
+- **Unlocks:** C11, C12, G01.
 - **Can run with:** X02/X04 after auth migrations are sequenced.
 
 ## Scope
@@ -30,10 +34,13 @@ The remote MCP surface can use later attention, result, and artifact commands th
 ### Consumes
 
 - X03A stateless MCP/OAuth delegation and A01/A02/A03/V01 command boundaries.
+- A02 attention records (`docs/contracts/attention.md`), A03 result submission (`docs/contracts/results.md`), V01 artifact state machine (`docs/contracts/artifacts.md`), local tool naming (`docs/contracts/local-mcp.md`).
 
 ### Produces
 
-- A versioned extension to the X03A tool map for attention, result submission, and artifact publication.
+- A versioned extension to the X03A tool map for attention, result submission, and artifact publication: `docs/contracts/remote-mcp-extensions.md` (tool map v2, twelve tools).
+- Four X03-owned hub commands (`attention.request.delegation`, `result.submit.delegation`, `artifact.create_version.delegation`, `artifact.finalize_version.delegation`) registered in the command catalog; owning-package commands keep rejecting delegation.
+- Stable test target `pnpm test:x03` and evidence manifest `docs/work-packages/evidence/WP-X03/manifest.json`.
 
 ## Work plan
 
@@ -47,11 +54,40 @@ The remote MCP surface can use later attention, result, and artifact commands th
 - A client may request attention, submit a result, or publish an artifact when delegated; it cannot resolve, accept, approve, promote, or administer.
 - Adding extension tools does not introduce persistent MCP session state or widen an existing token's scope/boundary.
 
-## Evidence and handoff
+## Evidence
 
-- Commit extension tool-map fixtures, parity tests, and permission-negative results.
-- G01 treats this public auth surface as a separate adversarial target.
+- Extension tool-map fixture (twelve-tool list in `mcp-remote-parity.test.ts` and the OAuth browser spec), parity tests, permission-negative results, and the attack matrix at the declared manifest.
+- `docs/work-packages/evidence/WP-X03/acceptance-matrix.md` maps each Acceptance bullet to its proving test; `attack-matrix.md` records every denied privilege path.
+- No migration was needed: no D1 or local schema change; the harness asserts registered/applied state only where migrations are touched (none).
 
 ## Risks and decisions
 
 - This remains a later parity package. The narrow X03A task loop is the web/MCP checkpoint; richer tools wait for their domain owners.
+- Delegated submission records the authorizing human, never `agent_run` identity; delegated attention binds the run's latest execution assignment; delegated publication requires a run-bound version. The hub audit trail carries the delegation for exact provenance.
+- The X03A exact tool-list assertions (handler unit test and OAuth browser spec) now expect twelve tools. X03A tools themselves are unaltered.
+
+## Handoff
+
+- Current product-lane certificate, 6 October: `done` at `edac71e`, with
+  separate `runtime-manifest.json`. Frozen install, exact X03 acceptance
+  (71 focused cases, 11 real-Worker/D1/R2 checks and both OAuth browser
+  scenarios), full verification (2,923 TypeScript cases, Go and 16 Swift
+  cases) and clean-worktree checks pass at the same committed source.
+  Current authority precedes cached delivery; exact fingerprints reject
+  changed retries; private bodies stay out of Hub receipts. Submitted-run
+  attention matches current A02 semantics. Historical cache entries without
+  fingerprints fail closed, preserving canonical history and existing audit
+  rows. No scope, provider authority, pilot state or deployment changed.
+  The bounded runtime proof's synthetic token/Host-bridge limits are explicit
+  in its acceptance document; historical evidence remains unchanged.
+- Product lane, 6 October: all direct dependencies are `done`. The unchanged
+  baseline passes 56 cases in seven suites and both OAuth browser scenarios.
+  Current re-certification checks exact retry input, current authority before
+  cached private replies, metadata-only receipts and submitted-run attention
+  parity. This earlier checkpoint preceded the certificate above; pilot
+  enablement and new OAuth authority remain unclaimed.
+- Dependency hold, 5 October: A01 is reopened for its missing production online/replay path. This implementation and historical isolated acceptance are retained; their tests have not been declared failed. Re-certification and settlement wait for A01 runtime acceptance and affected integration checks. The dated status below is historical, not the current package state.
+- Settled 18 September: `done`. A01, A02, A03, and V01 are `done`, and `pnpm test:x03` passed in a detached clean checkout at `92d7269` (install, build, exact target with the OAuth browser flow, plus the chunked-body streaming bound case).
+- Commands: `pnpm test:x03` (build, seven vitest suites, OAuth browser flow on `BFB_E2E_PORT=4193`), plus `pnpm test:x03a`, `pnpm verify`, `pnpm worktree:check`.
+- X03A's transport, OAuth model, scopes, and seven tools are untouched; only the tool map grows. No service-account automation was added.
+- G01 treats this public auth surface as a separate adversarial target.

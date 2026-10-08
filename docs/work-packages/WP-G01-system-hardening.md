@@ -4,6 +4,10 @@ Status: `planned`
 
 Risk: Very high
 
+Test target: `pnpm test:g01`
+
+Evidence manifest: `docs/work-packages/evidence/WP-G01/manifest.json`
+
 ## Outcome
 
 The complete retained v0.1 feature set passes every pre-release tenant, launch, replay, provider, attention, artifact, revocation, injection, and operations gate as one system, leaving only G02-owned clean-release proofs outstanding.
@@ -16,7 +20,7 @@ The complete retained v0.1 feature set passes every pre-release tenant, launch, 
 
 ## Scope
 
-- Build a deterministic golden system fixture: three humans, ten projects, five profiles, multiple Macs/workspaces, and concurrent runs.
+- Build a deterministic golden system fixture: three humans plus a second-tenant owner, ten projects, five profiles, two Macs, two workspaces, and concurrent runs.
 - Execute every pre-release architecture/security/operations gate end to end. AG-10 and OG-02 remain explicitly `not_run` because G02 owns clean-install and release/rollback proof.
 - Add tenant/project/runner credential confusion, malicious IDs/text/config, CSRF/OAuth, stale epoch, duplicate/out-of-order, socket eviction, network/disk/daemon/Mac crash, and PID reuse suites.
 - Run cross-provider lifecycle parity while preserving documented capability differences.
@@ -29,6 +33,19 @@ The complete retained v0.1 feature set passes every pre-release tenant, launch, 
 ## Non-goals
 
 - Deferring feature-package safety tests here, expanding scope, load testing for enterprise scale, or weakening invariants to make the suite green.
+
+## Contracts
+
+### Consumes
+
+- Every frozen domain contract in `docs/contracts/`: `artifact-review.md`, `artifact-viewer.md`, `artifacts.md`, `attention.md`, `browser-realtime.md`, `cli-credentials.md`, `discussion-delivery.md`, `discussions.md`, `event-ledger.md`, `execution-supervisor.md`, `github.md`, `human-cli.md`, `launch-orchestration.md`, `local-mcp.md`, `macos-app.md`, `measurements.md`, `notifications.md`, `observed-session.md`, `operations.md`, `remote-mcp-extensions.md`, `results.md`, `runner-channel.md`, `runner-enrollment.md`.
+- The versioned wire protocol (`bfb-wire/1`, schema `1`) and the D1 migration head `0034_operations`.
+- Committed fixtures from the owning packages, including the X04 GitHub webhook corpus (`tools/github/fixtures/webhooks/`).
+
+### Produces
+
+- `docs/contracts/release-candidate.md` (frozen): the release-candidate schema/protocol heads, pinned providers, pre-release gate state, and the G02 entry procedure.
+- Stable test target `pnpm test:g01` and evidence manifest `docs/work-packages/evidence/WP-G01/manifest.json` consumed by checkpoint/release automation.
 
 ## Work plan
 
@@ -48,11 +65,25 @@ The complete retained v0.1 feature set passes every pre-release tenant, launch, 
 - Clean rerun is deterministic from committed fixtures.
 - Every retained result follows `ACCEPTANCE.md` evidence/redaction fields and records exact commit, schema/protocol heads, environment, command, and repository evidence path.
 
-## Evidence and handoff
+## Evidence
 
-- Commit the pre-release gate report, fixture seed/version, failure-injection traces, browser security report, and performance/resource baseline.
-- G02 receives one tagged release candidate with frozen contracts, AG-10/OG-02 marked `not_run`, their executable procedures prepared, and no undocumented manual repair.
+- `docs/work-packages/evidence/WP-G01/manifest.json` (conforms to `docs/work-packages/evidence/manifest.schema.json`): gate runs, commit, schema heads, environment, commands, outcomes, redaction status.
+- Pre-release gate report (`gate-report.json`): one row per architecture/security/operations gate with status, command, evidence, waiver, and detail; AG-10 and OG-02 are `not_run` for G02. Each `passed` row cites the owning package's test target and evidence manifest as its command and evidence (G01-owned gates cite `pnpm test:g01` and the G01 report); `tools/g01/run.ts` refuses to stamp a row whose cited manifest is missing or not `passed`, refuses any `passed` row whose cited proof records a failed run, refuses any `waived` row that does not cite an ADR recording Timo's explicit decision, and fails the run while any gate is `failed`.
+- Golden fixture (`fixture.json`): seed `bfb-g01/v1`, three humans plus a second-tenant owner, two workspaces, ten projects, five profiles, two runners with four checkouts, ten envelope tasks, three concurrent runs.
+- Failure-injection traces (`traces.jsonl`): stable per-suite lines without generated ids or timestamps.
+- Browser security report (`browser-security.json`): bearer/CSRF/cookie/hostile-inert Chromium scenarios on `BFB_E2E_PORT=4197`.
+- Performance baseline (`perf-baseline.json`): envelope counts (including the concurrently claimed run count, never unlaunched tasks) plus the measured 50-command hub burst: per-command latency distribution (min/p50/mean/p95/max), wall-clock elapsed, throughput, hub write amplification (rows written per store), and the bound verdict computed from the measured elapsed. Only the measured timings vary between runs.
+- Redaction scan (`redaction-scan.json`): planted canary classes across every output channel with zero hits.
 
 ## Risks and decisions
 
 - Integrated testing will expose ownership gaps. Fix the owning package and its tests rather than centralizing behavior in the harness.
+- Tenant isolation beyond the hub route stays with the owning suites: cross-tenant MCP-delegation matrices with X03A and browser-UI matrices with W01. G01 proves the hub-route, role, project-grant, and runner boundary on its two-workspace fixture.
+- Native Terminal, live provider turns, and supervisor crash/PID-reuse proofs stay L05-owned. AG-02 is `failed`: the L05 Terminal certification records one fail-closed clean-checkout failure in five full gates and retains only the bounded redacted matrix, so the native launch trace is not a deterministic release gate; the G01 cloud-plane halves (contention, expiry, cleanup) pass. AG-04 is `failed` because live Claude/Codex/Grok turns need provider credentials and consent that are unavailable, and no ADR with Timo's explicit decision authorizes a waiver, so no waiver is recorded.
+- Historical evidence binds its tested commit once in the manifest and command result. Measured performance timings and observed browser request counts are run-dependent, not deterministic fixture values. Routine browser regressions write `browser-security.json` only under ignored test results, preserving the dated G01 report. Explicit `BFB_CAPTURE_G01_BROWSER_EVIDENCE=1 BFB_E2E_PORT=4197 pnpm exec playwright test apps/web/test/e2e/g01-hardening.spec.ts --config tools/e2e/playwright.config.ts` owns retained browser capture; a new capture does not update the historical source binding or certify G01.
+
+## Handoff
+
+- Implementation, gate (`pnpm test:g01`, `pnpm verify`, `pnpm worktree:check`, clean-checkout gate), and evidence are complete on branch `muse/g01`. Status stays `planned`: L07 is `review`; P01, P02, and X02 are `planned` (A04, E02, V03, W02, X01, X03, X04, and X05 are `done`).
+- G02 receives one tagged release candidate with frozen contracts (`docs/contracts/release-candidate.md`), AG-10/OG-02 marked `not_run`, their executable procedures prepared, and no undocumented manual repair.
+- Known limitations: L05 Terminal acceptance stays uncertified as a release gate (one fail-closed clean-checkout failure in five full gates, bounded redacted matrix only), so AG-02 is `failed`; live provider turns still wait on provider credentials and consent, so AG-04 is `failed` and the release candidate is not settled until both pass; real-network partition behavior beyond workerd eviction is covered by owning-package evidence; performance figures are measured burst latencies, throughput, and write amplification for the 3/10/5 envelope, not enterprise load figures.

@@ -1,0 +1,15 @@
+{
+  "name": "@bfb/launch-tests",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@bfb/control-worker": "workspace:*",
+    "@bfb/db": "workspace:*",
+    "@bfb/domain": "workspace:*",
+    "@bfb/protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "wrangler": "4.120.1"
+  }
+}

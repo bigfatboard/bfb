@@ -354,7 +354,7 @@ The `bfb` Go binary has several entry points but one implementation:
 - `bfb mcp stdio` exposes run-scoped MCP to a local agent.
 - `bfb __launch <local-intent-id>` is the fixed terminal bootstrap command.
 
-The daemon listens on a user-only Unix domain socket with mode `0600`. Its SQLite database uses WAL mode and stores checkout records, active sessions, process observations, unacknowledged events, pending artifacts, and cached non-secret metadata. OAuth/API credentials and the runner private key live in macOS Keychain; provider credentials stay in their provider’s normal local store.
+The daemon listens on a user-only Unix domain socket with mode `0600`. Its SQLite database uses WAL mode and stores checkout records, active sessions, process observations, unacknowledged events, and cached non-secret metadata. Protected pending agent work uses its separate daemon-owned journal; artifact publication has no local durable queue under ADR 0010. OAuth/API credentials and the runner private key live in macOS Keychain; provider credentials stay in their provider’s normal local store.
 
 `BFB.app` is a small signed/notarized SwiftUI menu-bar application. It owns Universal Link handling, first-run/browser pairing, runner status, native notifications, and opening the terminal bootstrap. It delegates all BFB protocol and provider logic to the Go daemon.
 
@@ -384,6 +384,19 @@ Concurrency has two guards:
 The cloud preflight is advisory; those two acquisitions are authoritative. The daemon renews a cloud lease only while it can verify the supervisor PID/start time, owned provider process group, and local lock. Cloud TTL expiry never causes the Mac to ignore a still-live local lock. Provider exit alone is insufficient while a child in that group remains.
 
 Supported interactive adapters have a tested no-daemonize/no-session-escape contract. The supervisor also watches observed descendants. If one escapes the owned process group, or process identity becomes ambiguous, it retains the lock, reports `containment_unknown`, and requires explicit local recovery after inspection; a persistent recovery marker continues to block BFB launches if the supervisor crashes. This is collision prevention among managed launches, not a macOS sandbox or a guarantee against deliberately evasive local code.
+
+[ADR 0013](docs/adr/0013-claude-autonomy-and-root-supervision.md) revises this
+single-group assumption for newly launched, exact-pinned experimental Claude
+executions. Root supervision authenticates the live root and MCP peer separately
+from whole-family lifetime coverage. Detached descendants are retained as
+evidence, not additional signal targets. Only the original retained root group
+may receive a lifecycle signal. Family coverage is unproven from spawn, so root
+exit revokes run authority but never automatically releases the checkout lock.
+Explicit operator-authorized recovery is distinct from kernel-proven cleanup;
+until its acknowledgement path is verified, this mode cannot be recovered by
+the existing automatic absence checks. Strict mode and old unknown executions
+retain their original behavior. This experimental mode does not claim complete
+family cleanup or full provider acceptance.
 
 ### One-click launch
 
@@ -500,6 +513,16 @@ normalize_hook_event
 
 No adapter simulates keystrokes. If a provider cannot safely accept the initial task automatically, BFB opens it in the exact checkout, shows the prepared context, and reports `waiting_user_submit` honestly.
 
+An owner may explicitly choose the `autonomous` permission mode for a standard,
+interactive Claude profile under ADR 0013. Existing profiles default to
+`manual`; restricted, headless and other-provider autonomous combinations are
+rejected until separately supported. The immutable autonomous launch snapshot
+requires `approval.never` and `filesystem.full_access`, and the exact-pinned
+experimental adapter maps it to `--dangerously-skip-permissions`. This means
+access allowed to the local OS user, not workspace-only filesystem isolation.
+Provider-managed restrictions, BFB authorization and local capability ceilings
+remain independent. No global Claude setting or existing run snapshot changes.
+
 `bfb provider setup <provider>` installs or updates only BFB’s supported user-level hook/MCP integration after explicit human approval; it preserves unrelated provider configuration and never rewrites project instructions. Hook commands point to a stable, signed app-owned launcher path rather than a versioned application-bundle path. Provider-specific provisioning registers the stdio MCP server, hook events, trust/review state, integration version, and configuration hash.
 
 `bfb provider doctor` verifies binary version, absolute path, hook trust, duplicate/drifted configuration, MCP startup, Terminal Automation consent, and tested capabilities. BFB never uses a “bypass hook trust” option. A tracked launch requires healthy `SessionStart` correlation by default; an explicit, visibly degraded/untracked launch may be allowed by project policy and cannot remain silently stuck in `launching`. Captured official Codex behavior confirms that multiple matching hooks may run concurrently, so BFB normalization and local sequencing cannot assume its hook runs alone.
@@ -520,15 +543,24 @@ All provider hooks invoke the same bounded command. It reads one JSON payload fr
 
 Execution end closes the event-creation window after a bounded final-hook grace period; it does not invalidate already captured outbox/inbox envelopes. Capture time, event ID, `run_execution_id`, assignment generation, and the local authenticator are persisted until the server commits or terminally rejects the event. Cloud replay is authorized by the current runner credential and the immutable historical execution assignment, not by resending an expired correlation token.
 
+[ADR 0009](docs/adr/0009-connected-measurement-telemetry.md) adds separately versioned typed activity/token telemetry on this same journal and event channel. Frozen v1 wire shapes remain unchanged. Capability discovery prevents silent downgrade; workspace-bound explicit acknowledgements control deletion. Canonical activity phases and known usage deltas have persistent semantic identities, and the Hub co-commits ledger, source and measurement rows in one D1 batch. Provider attribution comes from immutable launch snapshots. Typed observations never become business progress, attention or results. Process measurements require observed process bounds; missing evidence, legacy activity estimates, offline gaps and counter overflow remain explicit in the separated measurement reads and displays.
+
 Telemetry events may queue offline. Business operations do not pretend they reached Cloudflare: attention creation, task mutation, artifact finalization, and result submission either return a durable `pending_sync` operation with its originating principal/grant, idempotency key, expected resource version, capture proof, and expiry or fail visibly as offline. Replay rechecks the current credential, authorization epoch, run capability, policy, and resource version; an operation that is no longer authorized becomes a visible terminal rejection rather than being applied under stale authority. Project policy may prohibit pending-sync result/review actions entirely.
 
-The daemon-owned artifact outbox is outside the repository:
+[ADR 0010](docs/adr/0010-connected-artifact-publication.md) defines online-only local artifact publication on a separate closed v6 capability. The daemon reads one bounded immutable snapshot from the supervisor-pinned artifact directory; cloud operation identity binds the version and metadata for explicit recovery. No artifact journal or automatic replay is added. Upload-grant consumption and immutable verified-byte bookkeeping use narrowly guarded D1 batches; availability, abandonment and audit projection serialize through WorkspaceHub. Only a currently authorized explicit finalization publishes an available version.
+
+The supervisor-pinned artifact directory is outside the repository and scoped
+to an execution under private BFB state:
 
 ```text
-~/Library/Application Support/BFB/runs/<run-id>/artifacts/
+<private BFB state>/run-artifacts/<run-execution-id>/
 ```
 
-MCP publishing is preferred. The outbox watcher and `bfb artifact publish` are fallbacks. Symlinks, traversal, MIME mismatches, unsupported formats, and size violations are rejected before upload.
+MCP publishing is preferred, with credential-free bound `bfb artifact publish`
+using the same authority boundary. The directory is not an automatic upload
+queue; a watcher/durable artifact outbox remains deferred. Symlinks, traversal,
+MIME mismatches, unsupported formats, and size violations are rejected before
+upload.
 
 ## Protocols and APIs
 
@@ -541,7 +573,7 @@ The stable HTTP namespace is `/api/v1`. Its resource groups are:
 - `/runners`, `/checkouts`, `/launches`, and `/events`.
 - `/integrations/github`, `/notifications`, `/usage`, and `/audit`.
 
-Browser WebSockets use `/realtime/workspaces/:workspaceId`; runner sockets use `/runner/connect`. The REST API returns current state and replay cursors. A WebSocket message contains a committed cursor and a compact event summary, never the only copy of a state change.
+Browser WebSockets use `/realtime/workspaces/:workspaceId`; runner sockets use `/runner/workspaces/:workspaceId/runners/:runnerId/connect`, binding the same scoped path as the runner's possession challenge. The REST API returns current state and replay cursors. A WebSocket message contains a committed cursor and a compact event summary, never the only copy of a state change. Runner command nudges carry connection identity only; the daemon retrieves durable command references through an authenticated pull.
 
 All BFB-issued resource IDs are opaque ULIDs. Provider session/turn/tool IDs and GitHub/integration IDs are bounded opaque strings stored only in provider-specific fields. Time is stored in UTC with the original provider occurrence time and the server receipt time. Every public response includes a schema version where it may be persisted by another component.
 
@@ -602,6 +634,8 @@ MCP represents deliberate agent actions, not every harness event. v0.1 exposes t
 | `bfb_submit_result` | Submit an immutable result summary, evidence IDs, known limitations, and Git/config snapshot for human review |
 
 Every mutating tool accepts `request_id` for idempotency. Local agents use `bfb mcp stdio`; the daemon derives a capability limited to the active workspace/project/task/run. It cannot administer the workspace or access a human’s cloud credential.
+
+The local runtime follows [ADR 0004](docs/adr/0004-local-mcp-runtime-authority.md) and [ADR 0005](docs/adr/0005-agent-work-session-and-attribution.md): bootstrap reads do not create a provider session, and write activation requires an explicit cloud command confirming L06's trusted observation. An immutable execution/session association preserves the originating provider-session record across repeated resumes. Current assignment, grant, lease, result and bound-session authority is checked before cached outcomes. The four A01 writes retain atomic run attribution separately from their runner transport identity and preserve a task's original human/delegation creator when updating it. Hooks do not create these business records. These decisions define the runtime contract; [A01](docs/work-packages/WP-A01-local-mcp-context.md) records its clean-certified synthetic runtime and the distinct live-provider acceptance limitations. [A02](docs/work-packages/WP-A02-attention.md) and [A03](docs/work-packages/WP-A03-results.md) separately certify attention and result submission without certifying the full provider loop.
 
 A run-scoped agent cannot promote a proposed root task, edit human-only context, accept its own result, change policy/roles/integrations, launch another root run, or act outside policy-allowed child tasks.
 
@@ -817,13 +851,20 @@ A plan is not approved because a similarly named file was approved earlier. Revi
 
 A newer version does not erase the historical review, but that decision applies only to the reviewed hash. The current artifact is visibly unapproved until its own version is reviewed.
 
-Publishing paths, in preference order, are:
+Connected run-scoped publication uses `bfb_publish_artifact` or bound
+`bfb artifact publish`, with an explicit request ID, relative file path, format,
+role and optional existing artifact ID. The daemon derives task/run/session
+association; callers cannot select scope or credentials. Browser publication
+uses the separate authenticated human routes. Human CLI credential parity is
+owned by X02, not implied by the bound agent path.
 
-1. `bfb_publish_artifact` with explicit format, role, title, and task/run association.
-2. `bfb artifact publish` for a human or script.
-3. A file written into the run-specific outbox supplied through `BFB_ARTIFACTS_DIR`.
-
-The outbox is not `.bfb/artifacts` in the repository. Keeping generated review material outside the checkout avoids accidental commits, repository noise, and provider-specific file conventions.
+`BFB_ARTIFACTS_DIR` identifies the supervisor-prepared run-specific directory
+outside the checkout, not an automatic outbox. Writing a file alone neither
+publishes nor queues it. The daemon revalidates the pinned directory and reads
+one bounded snapshot only after an explicit call; no local durable artifact
+queue or watcher exists under [ADR 0010](docs/adr/0010-connected-artifact-publication.md).
+Keeping generated review material outside the checkout avoids accidental
+commits, repository noise, and provider-specific file conventions.
 
 HTML artifacts are a single self-contained file with inline CSS/JavaScript and no external dependencies. BFB does not bundle React/JSX, resolve packages, or execute a build. The fixed redemption bootstrap uses iframe `sandbox="allow-scripts allow-forms"` only so its own script can submit the secret; the redeemed artifact response applies a second, stricter CSP sandbox equivalent to:
 
@@ -938,6 +979,12 @@ docs/
 Generated protocol code is checked for drift in CI. Handwritten TypeScript and Go do not define competing wire formats. Database schemas are not generated from wire schemas because persistence and protocol evolution have different compatibility rules.
 
 ## Observability, privacy, and audit
+
+[ADR 0015](docs/adr/0015-private-work-authorization.md) adds creator-private tasks
+and named-human sharing without a workspace-owner exception. Existing tasks
+stay project-shared. C10 is a dormant kernel; C11 must fence all delivery,
+projection, cache and private-existence paths before enabling creation. C12
+owns selected-content publication. Consumer audiences alone are not privacy.
 
 Control Workers emit structured logs with request ID, route, status, latency, and pseudonymous internal IDs. Logs exclude cookies, bearer tokens, launch/view/upload tickets, task bodies, prompts, local paths, environment variables, artifact contents, hook payloads, and terminal output. Sampled traces are used for performance diagnosis; D1 is used for exact product metrics.
 

@@ -1,0 +1,44 @@
+{
+  "package": "G01",
+  "tested_commit": "38aa8d77b7bd7ebc60c435ca3aecc0c3e4aac04e",
+  "environment": "implementation worktree on macOS (arm64); local workerd D1, real Chromium on BFB_E2E_PORT=4197",
+  "outcome": "failed",
+  "commands": [
+    {
+      "command": "pnpm build",
+      "outcome": "passed",
+      "result": "TypeScript project references build including tools/g01"
+    },
+    {
+      "command": "pnpm test:g01",
+      "outcome": "failed",
+      "result": "build plus tools/g01 typecheck; gate-composition node:test (22 tests: gate coverage, ADR waiver authorization, per-row proof, flaky-proof refusal); workerd D1 harness suites all pass and the gate report records 13 passed, 2 failed (AG-02: L05 Terminal proof records a fail-closed clean-checkout failure in five full gates with only the bounded redacted matrix retained; AG-04: live Claude/Codex/Grok turns unproven with no ADR or explicit decision authorizing a waiver), 2 not_run (AG-10, OG-02 for G02); the run exits nonzero at the failed gate report, so the BFB_E2E_PORT=4197 Chromium step does not execute and browser-security.json is unchanged"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "result": "full repository verification: format, lint, typecheck, protocol, provider, TypeScript suites (103 files, 1287 tests), headers, docs, roadmap, Go, Swift/Xcode"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "result": "clean worktree at the final commit"
+    },
+    {
+      "command": "GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./...",
+      "outcome": "passed",
+      "result": "Linux cross-compile of the whole module"
+    }
+  ],
+  "migration_head": "0035_artifact_objects_per_key",
+  "redaction": "passed",
+  "notes": [
+    "The gate run executed from the implementation checkout at the tested commit; the harness and browser evidence regenerate byte-identically because they embed no commit hash, timestamp, or generated id.",
+    "Evidence manifest and command results are docs-only additions after the tested commit; pnpm test:g01, pnpm verify, pnpm worktree:check, and the Linux cross-build were re-run on the final tree.",
+    "Status stays planned: L07 is review and P01, P02, and X02 are planned, so roadmap:check rejects anything beyond planned; AG-02 failing on the flaky L05 Terminal proof and AG-04 failing on unproven live provider turns additionally block the release-candidate freeze.",
+    "AG-02 is failed: the L05 Terminal certification records one fail-closed clean-checkout failure in five full gates and retains only the bounded redacted matrix with no separate raw launch trace, so the native launch trace is not a deterministic release gate; the G01 cloud-plane halves pass. AG-04 is failed: live provider turns need credentials and consent that are unavailable, and no ADR with Timo's explicit decision authorizes a waiver, so no waiver is recorded.",
+    "All identities in tests, fixtures, recordings, and this report are synthetic; no secrets, task bodies, prompts, paths, hook payloads, artifact bytes, terminal output, cookies, Bearer [REDACTED] secrets, or local absolute paths are retained.",
+    "Finding 17: the fixture session endpoint now renders Set-Cookie attributes from the production Better Auth options instead of a hardcoded header, and the cookie-hygiene scenario additionally asserts Secure. Weakening the production session cookie (httpOnly false) fails the scenario at the attribute assertion while the pre-fix harness still passes; the full g01-hardening Chromium spec passes 4/4 and browser-security.json regenerates byte-identically.",
+    "Finding 27: AG-02 no longer passes on the L05 Terminal certification. tools/g01 now refuses any passed row whose cited proof records a failed run (new flakyProofDefect unit plus live-row regression tests: the live test fails on the pre-fix table where AG-02 is passed over L05 gate_runs clean_checkout [failed, passed], and passes with AG-02 failed); WP-L05 risks disclose the one-in-five fail-closed rate and map the retained launch trace to the bounded redacted matrix plus command-result assertions; the release candidate states it is not settled until AG-02 and AG-04 pass. The Terminal proof cannot be re-proven deterministically from this machine without driving Terminal.app, so no new L05 trace is committed and the L05 manifest is untouched."
+  ]
+}

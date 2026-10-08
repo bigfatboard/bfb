@@ -1,0 +1,156 @@
+{
+  "package": "C11",
+  "recorded_on": "2026-10-07",
+  "tested_commit": "7a3440442fda0de3c3a7495b2d3964881dd0abeb",
+  "outcome": "passed",
+  "stage": "partial_metadata_human_coordination_history",
+  "package_acceptance_complete": false,
+  "private_creation_available": false,
+  "migration_head": "0045_private_task_authority",
+  "scope": "Shared-only human discussion detail/list and launch-status history recheck exact current parent and retained membership epoch at final delivery; no execution changes.",
+  "clean_commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "exit_code": 0
+    },
+    {
+      "command": "pnpm test:c11",
+      "exit_code": 0,
+      "c10_cases": 86,
+      "c10_files": 8,
+      "c10_d1_checks": 9,
+      "c08_cases": 23,
+      "c08_files": 5,
+      "c08_proof": "C08_D1_OK",
+      "stage_cases": 1958,
+      "stage_files": 70,
+      "stage_invocations": [
+        {
+          "cases": 1828,
+          "files": 64
+        },
+        {
+          "cases": 49,
+          "files": 2
+        },
+        {
+          "cases": 27,
+          "files": 2
+        },
+        {
+          "cases": 54,
+          "files": 2
+        }
+      ],
+      "stage_d1_checks": 63,
+      "stage_d1_harnesses": [
+        {
+          "proof": "C11_TASK_D1_OK",
+          "checks": 37
+        },
+        {
+          "proof": "C11_OPERATIONS_AGGREGATES_D1_OK",
+          "checks": 8
+        },
+        {
+          "proof": "C11_DIAGNOSTIC_QUARANTINE_D1_OK",
+          "checks": 4
+        },
+        {
+          "proof": "C11_BOARD_D1_OK",
+          "checks": 6
+        },
+        {
+          "proof": "C11_UNSUPPORTED_QUARANTINE_D1_OK",
+          "checks": 3
+        },
+        {
+          "proof": "C11_HUMAN_COORDINATION_D1_OK",
+          "checks": 5
+        }
+      ],
+      "counting": "Invocation totals, not a unique cross-package combined total"
+    },
+    {
+      "command": "pnpm test:d01",
+      "exit_code": 0,
+      "cases": 114,
+      "files": 11,
+      "protocol_cases": 1154,
+      "proof": "D01_D1_OK",
+      "scope": "Synthetic retained records, commands, decisions and concurrency; no provider operation"
+    },
+    {
+      "command": "pnpm test:w02",
+      "exit_code": 0,
+      "cases": 121,
+      "files": 9,
+      "protocol_cases": 1154,
+      "worker_proof": "C09_D1_OK",
+      "browser_cases": 12,
+      "scope": "Synthetic Worker/D1 orchestration and browser launch views; no real Mac/provider launch"
+    },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 4300,
+      "typescript_files": 188,
+      "go": "passed",
+      "go_scheduling": "GOFLAGS=-p=1",
+      "swift": "passed",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    {
+      "command": "pnpm exec tsc -b tools/g01 --pretty false",
+      "exit_code": 0,
+      "scope": "Caller compilation only; G01 runtime acceptance not run"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "exit_code": 0,
+      "before_and_after_verify": true,
+      "committed_source_unchanged": true,
+      "final_status_empty": true
+    }
+  ],
+  "new_suites": {
+    "domain_cases": 21,
+    "mounted_cases": 33
+  },
+  "independent_review": {
+    "outcome": "passed",
+    "focused_cases": 102,
+    "files": 7,
+    "new_cases": 54,
+    "existing_controls": 48,
+    "runtime_harnesses_rerun": false
+  },
+  "regression_proof": [
+    "Meaningful old-source domain baseline: 18 security failures and three controls across 21 cases",
+    "Final mounted old-source baseline used immutable prior certified exports: 30 meaningful failures and three controls across 33 cases",
+    "Exploratory missing-export, dependency, assignment-column and authority-fixture errors are not counted as regression evidence",
+    "Discussion checks exact shared parent and viewer before hydration and once after all advisory awaits; denial remains outside sponsor advisory handling",
+    "Final list sentinel precedes LIMIT+1 and empty-page output; mounted paths retain first captured workspace epoch",
+    "Launch status binds exact launch/assignment generation/execution/run/task/project/snapshot and exact lease occupant before limit",
+    "Five actual-D1 checks cover synthetic shared pagination/history, private creator/grantee holds and empty retained-epoch denial without stored rewrites"
+  ],
+  "initial_certificate_attempt": {
+    "tested_commit": "768e7ccb1ab6684576c158cc110dbcf7d4f3b7f2",
+    "outcome": "failed",
+    "reason": "W02 historical migration assertion did not recognize the legitimate manual permission defaults introduced by migration 0044",
+    "repair": "Assert manual on current profile and immutable-version rows before comparing every prior field unchanged; fresh clean checkout passes"
+  },
+  "activation_barriers": [
+    "Public raw positions and outward notification identities; the public-position contract in this source is not implementation evidence",
+    "GitHub key collision policy, execution-owning participant/runner/control consumers and destructive private retention",
+    "Natural credential/lease expiry during in-flight D1, private creation/sharing/checkpoints and C12"
+  ],
+  "not_claimed": [
+    "Complete C11 acceptance or private activation",
+    "Complete actual-D1 discussion hydration, participant authority or runner cleanup",
+    "Live private R2/browser-byte delivery, provider/pilot operation, deployment or external CI",
+    "G01 runtime acceptance or new knowledge/skills/vault/reminder/contribution features"
+  ],
+  "redaction": "Bounded synthetic counts, source identity, proof labels and limits only; no credentials, private bodies, raw output or local absolute paths"
+}

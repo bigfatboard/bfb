@@ -1,9 +1,70 @@
 // ABOUTME: Seeds synthetic multi-role workspace fixtures for domain, web, and MCP tests.
 // ABOUTME: All data is labelled synthetic through stable IDs and test-only helpers.
 
-import type { SqlDatabase } from "@bfb/db";
+import type { Jurisdiction, SqlDatabase } from "@bfb/db";
 
 import { syntheticUlid } from "./ids.js";
+import { deniedOfflineAgentWork, type OfflineAgentWorkPolicy } from "./offline-agent-policy.js";
+import { policyUpdateTarget, type UpdatePolicyInput } from "./projects.js";
+import { issueStepUpProof } from "./step-up.js";
+import {
+  deniedOfflineAgentResults,
+  type OfflineAgentResultsPolicy,
+} from "./offline-result-policy.js";
+
+export { prepareSyntheticAttentionClaim } from "./attention-fixture.js";
+
+/** Synthetic setup only: exercise the same bound policy proof as a verified browser assertion. */
+export async function authorizeSyntheticPolicyUpdate<
+  T extends Omit<
+    UpdatePolicyInput,
+    "stepUpProofId" | "offlineAgentWork" | "offlineAgentResults"
+  > & {
+    projectId?: string;
+    offlineAgentWork?: OfflineAgentWorkPolicy;
+    offlineAgentResults?: OfflineAgentResultsPolicy;
+  },
+>(
+  db: SqlDatabase,
+  scope: { workspaceId: string; humanId: string; authorizationEpoch?: number },
+  input: T,
+): Promise<
+  T & {
+    offlineAgentWork: OfflineAgentWorkPolicy;
+    offlineAgentResults: OfflineAgentResultsPolicy;
+    stepUpProofId: string;
+  }
+> {
+  const settings = {
+    ...input,
+    offlineAgentWork: input.offlineAgentWork ?? deniedOfflineAgentWork(),
+    offlineAgentResults: input.offlineAgentResults ?? deniedOfflineAgentResults(),
+  };
+  const action =
+    input.projectId === undefined ? "workspace.policy.update" : "project.policy.update";
+  const now = new Date().toISOString();
+  const stepUpProofId = await issueStepUpProof(
+    db,
+    scope.humanId,
+    {
+      action,
+      workspaceId: scope.workspaceId,
+      ...(input.projectId === undefined ? {} : { projectId: input.projectId }),
+      targetId: policyUpdateTarget(
+        scope.workspaceId,
+        action,
+        input.projectId,
+        input.expectedVersion,
+        settings,
+      ),
+      scopes: [],
+      authorizationEpoch: scope.authorizationEpoch ?? 1,
+      expiresAt: new Date(Date.parse(now) + 60_000).toISOString(),
+    },
+    now,
+  );
+  return { ...settings, stepUpProofId };
+}
 
 export const FIX = {
   workspace: syntheticUlid("WORKSPACE"),
@@ -23,19 +84,30 @@ export const FIX = {
   contextAgent: syntheticUlid("CTXAGENT"),
   runDelegable: syntheticUlid("RUNDELG"),
   eventAttention: syntheticUlid("EVTATTN"),
+  taskLaunch: syntheticUlid("TASKW02L"),
+  taskLaunchStart: syntheticUlid("TASKW02S"),
+  taskLaunchExpired: syntheticUlid("TASKW02X"),
+  taskLaunchContained: syntheticUlid("TASKW02C"),
+  taskLaunchEnded: syntheticUlid("TASKW02E"),
+  attentionTask: syntheticUlid("TASKATN2"),
+  attentionBlocker: syntheticUlid("ATTNB1CK"),
+  attentionCredential: syntheticUlid("ATTNCRED"),
+  attentionReview: syntheticUlid("ATTNRVW"),
+  attentionDestructive: syntheticUlid("ATTNDESTR"),
   client: "bfb-mcp-synthetic-client",
 };
 
 export async function seedSyntheticWorkspace(
   db: SqlDatabase,
   now = "2026-08-07T12:00:00Z",
+  jurisdiction: Jurisdiction = "eu",
 ): Promise<void> {
   await db
     .prepare(
       `INSERT INTO workspaces (id, slug, jurisdiction, created_at, resource_version)
-     VALUES (?, 'synthetic', 'eu', ?, 1)`,
+     VALUES (?, 'synthetic', ?, ?, 1)`,
     )
-    .run(FIX.workspace, now);
+    .run(FIX.workspace, jurisdiction, now);
 
   for (const [id, email, name] of [
     [FIX.owner, "owner@synthetic.test", "Synthetic Owner"],

@@ -1,0 +1,75 @@
+{
+  "release": "bfb-v0.1-g02",
+  "expand_contract": {
+    "outcome": "passed",
+    "rebuild_migrations": {
+      "0005_workspace_invariants": ["schema_migrations"],
+      "0006_reviewer_role": ["project_access", "workspace_members"],
+      "0007_tenant_relationships": [
+        "oauth_access_tokens",
+        "comments",
+        "task_context_items",
+        "oauth_authorization_codes",
+        "oauth_delegations",
+        "tasks"
+      ],
+      "0008_better_auth_identity": ["human_sessions", "human_credentials"],
+      "0012_work_records": [
+        "oauth_access_tokens",
+        "comments",
+        "task_context_items",
+        "oauth_authorization_codes",
+        "oauth_delegations",
+        "tasks"
+      ],
+      "0016_launch_orchestration": [
+        "agent_profiles",
+        "agent_profiles_launch_data",
+        "agent_profile_versions",
+        "agent_profile_versions_launch_data",
+        "provider_sessions",
+        "run_configuration_snapshots"
+      ]
+    },
+    "reviewed_drops": [
+      {
+        "migration": "0005_workspace_invariants",
+        "table": "schema_migrations",
+        "reason": "legacy bookkeeping superseded by D1-side migration state"
+      },
+      {
+        "migration": "0008_better_auth_identity",
+        "table": "human_sessions",
+        "reason": "sessions re-establish through OAuth after the Better Auth cutover"
+      },
+      {
+        "migration": "0008_better_auth_identity",
+        "table": "human_credentials",
+        "reason": "credentials are superseded by the passkey tables"
+      }
+    ],
+    "transient_tables": [
+      {
+        "migration": "0016_launch_orchestration",
+        "table": "agent_profiles_launch_data"
+      },
+      {
+        "migration": "0016_launch_orchestration",
+        "table": "agent_profile_versions_launch_data"
+      }
+    ]
+  },
+  "durable_objects": {
+    "class": "WorkspaceHub",
+    "storage": "sqlite",
+    "gradual_rollout_blocks": 0,
+    "constraint": "incompatible DO changes ship as a new class with a cutover; gradual mixing is unsupported"
+  },
+  "rollback_matrix": {
+    "worker_only": "redeploy the previous worker bundle; no data step",
+    "worker_plus_migration": "redeploy only if the previous worker tolerates the newer schema, else forward-repair",
+    "incompatible_do": "single-version cutover only",
+    "data": "never automatic; Time Travel/export restore, then forward-repair"
+  },
+  "deployment_jobs": ["build-test", "migrate", "publish", "smoke"]
+}

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/agent-attention-result.json",
+  "title": "AgentAttentionResult",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["attention", "origin", "authority_binding"],
+  "properties": {
+    "attention": {
+      "$ref": "agent-attention-record.json"
+    },
+    "origin": {
+      "$ref": "agent-attention-origin.json"
+    },
+    "authority_binding": {
+      "anyOf": [
+        {
+          "$ref": "agent-session-reference.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  }
+}

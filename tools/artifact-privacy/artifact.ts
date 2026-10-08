@@ -1,0 +1,435 @@
+// ABOUTME: Forwards native artifact D1/R2 operations through disposable authority-loss seams.
+// ABOUTME: Keeps canonical snapshots and byte-operation witnesses private while exposing bounded test counters.
+
+import { createArtifactFetchHandler } from "@bfb/artifact-worker";
+import { adaptD1, type D1Like, type D1StatementLike } from "@bfb/db";
+import { FIX, isUlid } from "@bfb/domain";
+
+export interface ArtifactPrivacyEffects {
+  body_reads: number;
+  put_calls: number;
+  get_calls: number;
+  array_buffer_reads: number;
+  native_put_stored: boolean;
+  revoked: boolean;
+  project_access_removed: boolean;
+  consume_committed: boolean;
+  receipt_committed: boolean;
+  committed_history_preserved: boolean;
+  canonical_unchanged: boolean;
+  fk_clean: boolean;
+  maximum_bindings: number;
+  maximum_statement_bytes: number;
+  maximum_batch_statements: number;
+  expiry_prepared_bound: boolean;
+  expiry_arrival_live: boolean;
+  expiry_before_batch_expired: boolean;
+  expiry_delay_unchanged: boolean;
+  expiry_batch_forwarded: boolean;
+  expiry_batch_rolled_back: boolean;
+  expiry_completion_after_ttl: boolean;
+  expiry_arrival_at: string | null;
+  expiry_before_batch_at: string | null;
+  expiry_completion_at: string | null;
+  expiry_deadline: string | null;
+  expiry_delay_ms: number;
+}
+type Seam = "before" | "get" | "body" | "put" | "receipt";
+type Snapshot = Record<string, Array<Record<string, unknown>>>;
+const effects = new Map<string, ArtifactPrivacyEffects>();
+const fresh = (): ArtifactPrivacyEffects => ({
+  body_reads: 0,
+  put_calls: 0,
+  get_calls: 0,
+  array_buffer_reads: 0,
+  native_put_stored: false,
+  revoked: false,
+  project_access_removed: false,
+  consume_committed: false,
+  receipt_committed: false,
+  committed_history_preserved: false,
+  canonical_unchanged: false,
+  fk_clean: false,
+  maximum_bindings: 0,
+  maximum_statement_bytes: 0,
+  maximum_batch_statements: 0,
+  expiry_prepared_bound: false,
+  expiry_arrival_live: false,
+  expiry_before_batch_expired: false,
+  expiry_delay_unchanged: false,
+  expiry_batch_forwarded: false,
+  expiry_batch_rolled_back: false,
+  expiry_completion_after_ttl: false,
+  expiry_arrival_at: null,
+  expiry_before_batch_at: null,
+  expiry_completion_at: null,
+  expiry_deadline: null,
+  expiry_delay_ms: 0,
+});
+function requireWitness(value: unknown): asserts value {
+  if (!value) throw new Error("synthetic artifact witness failed");
+}
+
+export async function canonicalSnapshot(binding: D1Like): Promise<Snapshot> {
+  const db = adaptD1(binding),
+    rows: Snapshot = {};
+  const tables = (await db
+    .prepare(
+      `SELECT name FROM sqlite_master WHERE type='table'
+    AND name NOT GLOB 'sqlite_*' AND name NOT GLOB '_cf_*'
+    AND name NOT IN ('d1_migrations','rate_limit_buckets') ORDER BY name`,
+    )
+    .all()) as Array<{ name: string }>;
+  for (const { name } of tables) {
+    requireWitness(/^[A-Za-z_][A-Za-z0-9_]*$/u.test(name));
+    rows[name] = (await db.prepare(`SELECT * FROM ${name} ORDER BY rowid`).all()) as Array<
+      Record<string, unknown>
+    >;
+  }
+  return rows;
+}
+
+export default {
+  async fetch(request: Request, environment: unknown): Promise<Response> {
+    const bindings = environment as { DB: D1Like; ARTIFACTS: R2Bucket };
+    const url = new URL(request.url);
+    const lookup = /^\/__c11\/effects\/([0-7][0-9A-HJKMNP-TV-Z]{25})$/u.exec(url.pathname);
+    if (request.method === "GET" && lookup) return Response.json(effects.get(lookup[1]!) ?? null);
+    const now = request.headers.get("x-v02-test-time") ?? new Date().toISOString();
+    const scope = request.headers.get("x-c11-scope"),
+      phase = request.headers.get("x-c11-seam") as Seam | null;
+    const grantId = request.headers.get("x-c11-task-grant"),
+      versionId = request.headers.get("x-c11-version");
+    const projectLoss = request.headers.get("x-c11-project-access-loss");
+    const expiryMode = request.headers.get("x-c11-expiry-mode");
+    if (
+      scope !== null &&
+      (scope.length !== 26 || !isUlid(scope) || effects.has(scope) || effects.size >= 64)
+    )
+      return new Response(null, { status: 400 });
+    if (
+      projectLoss !== null &&
+      (projectLoss !== "1" ||
+        !["get", "body"].includes(phase ?? "") ||
+        !/^\/view\/([^/]+)\/redeem$/u.test(url.pathname))
+    )
+      return new Response(null, { status: 400 });
+    if (
+      phase &&
+      (!scope ||
+        !grantId ||
+        grantId.length !== 26 ||
+        !isUlid(grantId) ||
+        !["before", "get", "body", "put", "receipt"].includes(phase))
+    )
+      return new Response(null, { status: 400 });
+    if (expiryMode && (!scope || phase || !["live", "expired"].includes(expiryMode)))
+      return new Response(null, { status: 400 });
+    const count = fresh();
+    if (scope) effects.set(scope, count);
+    const raw = bindings.DB,
+      db = adaptD1(raw);
+    let afterMutation: Snapshot | undefined;
+    let beforeConsumption: Snapshot | undefined;
+    const uploadId = /^\/upload\/([^/]+)$/u.exec(url.pathname)?.[1];
+    const viewId = /^\/view\/([^/]+)\/redeem$/u.exec(url.pathname)?.[1];
+    const expiryTable = uploadId ? "artifact_upload_grants" : "artifact_view_grants";
+    const expiryGrantId = uploadId ?? viewId;
+    if (expiryMode && (!expiryGrantId || !isUlid(expiryGrantId)))
+      return new Response(null, { status: 400 });
+    async function grantClock() {
+      const value = (await db
+        .prepare(
+          `SELECT expires_at,consumed_at,strftime('%Y-%m-%dT%H:%M:%fZ','now') AS database_now,
+            julianday(expires_at)>julianday('now') AS live
+           FROM ${expiryTable} WHERE workspace_id=? AND id=?`,
+        )
+        .get(FIX.workspace, expiryGrantId)) as {
+        expires_at: string;
+        consumed_at: string | null;
+        database_now: string;
+        live: number;
+      } | null;
+      requireWitness(value);
+      return value;
+    }
+    async function waitForExpiry() {
+      const started = Date.now();
+      for (;;) {
+        const clock = await grantClock();
+        if (!clock.live) return clock;
+        requireWitness(Date.now() - started < 6_000);
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+    }
+    async function completeAfterExpiry() {
+      if (expiryMode !== "live" || count.expiry_completion_after_ttl) return;
+      const committed = await grantClock();
+      requireWitness(committed.consumed_at === now && count.expiry_batch_forwarded);
+      const before = await canonicalSnapshot(raw);
+      const clock = await waitForExpiry();
+      requireWitness(JSON.stringify(await canonicalSnapshot(raw)) === JSON.stringify(before));
+      requireWitness(clock.expires_at === count.expiry_deadline && clock.consumed_at === now);
+      count.expiry_completion_at = clock.database_now;
+      count.expiry_completion_after_ttl = true;
+    }
+    async function revoke(at: Seam): Promise<void> {
+      if (phase !== at || count.revoked) return;
+      const before = await canonicalSnapshot(raw);
+      const expected = structuredClone(before);
+      if (projectLoss) {
+        const viewId = /^\/view\/([^/]+)\/redeem$/u.exec(url.pathname)?.[1];
+        // Derive the independently removed grant from the consumed view, never from caller-chosen parent IDs.
+        const parent = (await db
+          .prepare(
+            `SELECT project.id AS project_id, view.human_id FROM artifact_view_grants AS view
+             JOIN artifact_versions AS version ON version.workspace_id=view.workspace_id AND version.id=view.version_id
+             JOIN artifacts AS artifact ON artifact.workspace_id=version.workspace_id AND artifact.id=version.artifact_id
+             JOIN runs AS run ON run.workspace_id=artifact.workspace_id AND run.id=artifact.run_id
+             JOIN tasks AS task ON task.workspace_id=run.workspace_id AND task.id=run.task_id AND task.project_id=run.project_id
+             JOIN task_privacy AS privacy ON privacy.workspace_id=task.workspace_id AND privacy.task_id=task.id
+               AND privacy.owner_human_id=task.created_by_human_id
+             JOIN task_human_grants AS task_grant ON task_grant.workspace_id=task.workspace_id AND task_grant.task_id=task.id
+               AND task_grant.human_id=view.human_id AND task_grant.authorization_epoch=view.authorization_epoch
+             JOIN projects AS project ON project.workspace_id=task.workspace_id AND project.id=task.project_id
+             JOIN workspace_members AS member ON member.workspace_id=view.workspace_id AND member.human_id=view.human_id
+             JOIN workspace_authorization_epochs AS epoch ON epoch.workspace_id=member.workspace_id AND epoch.human_id=member.human_id
+             JOIN project_access AS access ON access.workspace_id=project.workspace_id AND access.project_id=project.id AND access.human_id=view.human_id
+             WHERE view.workspace_id=? AND view.id=? AND task_grant.id=? AND view.human_id=?
+               AND view.consumed_at IS NOT NULL AND view.content_hash=version.content_hash AND version.state='available'
+               AND privacy.owner_human_id<>view.human_id AND task_grant.permission='read' AND task_grant.revoked_at IS NULL
+               AND project.access_mode='restricted' AND member.role='reviewer'
+               AND member.authorization_epoch=view.authorization_epoch AND epoch.authorization_epoch=view.authorization_epoch
+               AND epoch.revoked_at IS NULL`,
+          )
+          .get(FIX.workspace, viewId, grantId, FIX.reviewer)) as {
+          project_id: string;
+          human_id: string;
+        } | null;
+        requireWitness(parent);
+        const matching = (candidate: Record<string, unknown>) =>
+          candidate.workspace_id === FIX.workspace &&
+          candidate.project_id === parent.project_id &&
+          candidate.human_id === parent.human_id;
+        requireWitness(expected.project_access?.filter(matching).length === 1);
+        expected.project_access = expected.project_access!.filter(
+          (candidate) => !matching(candidate),
+        );
+        await db
+          .prepare(
+            "DELETE FROM project_access WHERE workspace_id=? AND project_id=? AND human_id=?",
+          )
+          .run(FIX.workspace, parent.project_id, parent.human_id);
+        count.project_access_removed = true;
+      } else {
+        const row = before.task_human_grants?.find((candidate) => candidate.id === grantId);
+        requireWitness(
+          row &&
+            row.workspace_id === FIX.workspace &&
+            row.human_id === FIX.owner &&
+            row.revoked_at === null,
+        );
+        expected.task_human_grants!.find((candidate) => candidate.id === grantId)!.revoked_at = now;
+        await db
+          .prepare(
+            "UPDATE task_human_grants SET revoked_at=? WHERE workspace_id=? AND id=? AND revoked_at IS NULL",
+          )
+          .run(now, FIX.workspace, grantId);
+      }
+      afterMutation = await canonicalSnapshot(raw);
+      requireWitness(JSON.stringify(expected) === JSON.stringify(afterMutation));
+      count.revoked = true;
+      count.committed_history_preserved = at === "receipt";
+      const upload = /^\/upload\/([^/]+)$/u.exec(url.pathname),
+        view = /^\/view\/([^/]+)\/redeem$/u.exec(url.pathname);
+      const table = upload ? "artifact_upload_grants" : "artifact_view_grants";
+      const claim = (await db
+        .prepare(`SELECT consumed_at FROM ${table} WHERE workspace_id=? AND id=?`)
+        .get(FIX.workspace, upload?.[1] ?? view?.[1])) as { consumed_at: string | null } | null;
+      count.consume_committed = claim?.consumed_at != null;
+    }
+    // Preserve actual bound statements in native batch; wrapper identities never reach workerd's batch API.
+    const native = new WeakMap<D1StatementLike, D1StatementLike>();
+    const sqlFor = new WeakMap<D1StatementLike, string>();
+    const parametersFor = new WeakMap<D1StatementLike, unknown[]>();
+    const measured: D1Like = {
+      prepare(sql) {
+        count.maximum_statement_bytes = Math.max(
+          count.maximum_statement_bytes,
+          new TextEncoder().encode(sql).length,
+        );
+        requireWitness(count.maximum_statement_bytes <= 100_000);
+        const wrap = (statement: D1StatementLike, parameters: unknown[] = []): D1StatementLike => {
+          const wrapped: D1StatementLike = {
+            bind(...parameters) {
+              count.maximum_bindings = Math.max(count.maximum_bindings, parameters.length);
+              requireWitness(parameters.length <= 100);
+              return wrap(statement.bind(...parameters), parameters);
+            },
+            first: (column) => statement.first(column),
+            all: () => statement.all(),
+            run: () => statement.run(),
+          };
+          native.set(wrapped, statement);
+          sqlFor.set(wrapped, sql);
+          parametersFor.set(wrapped, parameters);
+          return wrapped;
+        };
+        return wrap(raw.prepare(sql));
+      },
+      async batch(statements) {
+        count.maximum_batch_statements = Math.max(
+          count.maximum_batch_statements,
+          statements.length,
+        );
+        const receiptBatch = statements.some((statement) =>
+          sqlFor.get(statement)?.includes("INSERT INTO artifact_upload_receipts"),
+        );
+        const consumption = statements.find((statement) =>
+          /UPDATE\s+artifact_(?:upload|view)_grants\s+SET\s+consumed_at/u.test(
+            sqlFor.get(statement) ?? "",
+          ),
+        );
+        if (expiryMode && consumption) {
+          requireWitness(!count.expiry_prepared_bound);
+          const parameters = parametersFor.get(consumption);
+          requireWitness(parameters?.[0] === now && parameters.includes(expiryGrantId));
+          requireWitness(statements.every((statement) => native.has(statement)));
+          count.expiry_prepared_bound = true;
+          beforeConsumption = await canonicalSnapshot(raw);
+          const arrival = await grantClock();
+          requireWitness(arrival.live === 1 && arrival.consumed_at === null);
+          requireWitness(Date.parse(arrival.expires_at) - Date.parse(arrival.database_now) >= 500);
+          requireWitness(Date.parse(now) < Date.parse(arrival.expires_at));
+          count.expiry_arrival_live = true;
+          count.expiry_arrival_at = arrival.database_now;
+          count.expiry_deadline = arrival.expires_at;
+          count.expiry_delay_ms = 2_200;
+          await new Promise((resolve) => setTimeout(resolve, count.expiry_delay_ms));
+          count.expiry_delay_unchanged =
+            JSON.stringify(await canonicalSnapshot(raw)) === JSON.stringify(beforeConsumption);
+          const clock = await grantClock();
+          count.expiry_before_batch_at = clock.database_now;
+          count.expiry_before_batch_expired = clock.live === 0;
+          requireWitness(count.expiry_delay_unchanged && clock.expires_at === arrival.expires_at);
+          requireWitness(
+            clock.consumed_at === null && clock.live === (expiryMode === "live" ? 1 : 0),
+          );
+          requireWitness(parametersFor.get(consumption)?.[0] === now);
+          count.expiry_batch_forwarded = true;
+        }
+        let result;
+        try {
+          result = await raw.batch(
+            statements.map((statement) => native.get(statement) ?? statement),
+          );
+        } catch (error) {
+          if (expiryMode && consumption && beforeConsumption)
+            count.expiry_batch_rolled_back =
+              JSON.stringify(await canonicalSnapshot(raw)) === JSON.stringify(beforeConsumption);
+          throw error;
+        }
+        if (phase === "receipt" && receiptBatch) {
+          requireWitness(versionId && versionId.length === 26 && isUlid(versionId));
+          const witness = await db
+            .prepare(
+              `SELECT 1 AS verified FROM artifact_upload_receipts AS receipt
+            JOIN artifact_upload_receipt_sources AS source ON source.workspace_id=receipt.workspace_id AND source.version_id=receipt.version_id
+            JOIN artifact_audit_outbox AS audit ON audit.workspace_id=source.workspace_id AND audit.id=source.outbox_id
+            JOIN artifact_objects AS object ON object.workspace_id=receipt.workspace_id AND object.content_hash=receipt.content_hash
+            WHERE receipt.workspace_id=? AND receipt.version_id=? AND object.size=receipt.size
+              AND audit.version_id=receipt.version_id AND audit.grant_id=source.grant_id AND audit.action='artifact.upload_verified'`,
+            )
+            .get(FIX.workspace, versionId);
+          requireWitness(witness);
+          count.receipt_committed = true;
+          await revoke("receipt");
+        }
+        return result;
+      },
+    };
+    const bucket = new Proxy(bindings.ARTIFACTS, {
+      get(target, key) {
+        if (key === "put")
+          return async (...args: Parameters<R2Bucket["put"]>) => {
+            count.put_calls++;
+            const written = await target.put(...args);
+            count.native_put_stored ||= written !== null;
+            await revoke("put");
+            return written;
+          };
+        if (key === "get")
+          return async (...args: Parameters<R2Bucket["get"]>) => {
+            await completeAfterExpiry();
+            count.get_calls++;
+            const object = await target.get(...args);
+            if (phase === "get") requireWitness(object);
+            await revoke("get");
+            return object
+              ? new Proxy(object, {
+                  get(body, property) {
+                    if (property === "arrayBuffer")
+                      return async () => {
+                        count.array_buffer_reads++;
+                        const bytes = await body.arrayBuffer();
+                        await revoke("body");
+                        return bytes;
+                      };
+                    const value = Reflect.get(body, property, body);
+                    return typeof value === "function" ? value.bind(body) : value;
+                  },
+                })
+              : null;
+          };
+        const value = Reflect.get(target, key, target);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    const observed = new Proxy(request, {
+      get(target, key) {
+        if (key === "body" && target.body)
+          return new Proxy(target.body, {
+            get(body, property) {
+              if (property === "getReader")
+                return () => {
+                  count.body_reads++;
+                  const reader = body.getReader();
+                  if (!uploadId || expiryMode !== "live") return reader;
+                  return new Proxy(reader, {
+                    get(target, property) {
+                      if (property === "read")
+                        return async () => {
+                          await completeAfterExpiry();
+                          return target.read();
+                        };
+                      const value = Reflect.get(target, property, target);
+                      return typeof value === "function" ? value.bind(target) : value;
+                    },
+                  });
+                };
+              const value = Reflect.get(body, property, body);
+              return typeof value === "function" ? value.bind(body) : value;
+            },
+          });
+        const value = Reflect.get(target, key, target);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    await revoke("before");
+    const response = await createArtifactFetchHandler({ now, db: adaptD1(measured) })(observed, {
+      ...bindings,
+      ARTIFACTS: bucket,
+    } as never);
+    if (afterMutation)
+      count.canonical_unchanged =
+        JSON.stringify(await canonicalSnapshot(raw)) === JSON.stringify(afterMutation);
+    if (expiryMode && beforeConsumption) {
+      count.canonical_unchanged =
+        JSON.stringify(await canonicalSnapshot(raw)) === JSON.stringify(beforeConsumption);
+      const consumed = await grantClock();
+      count.consume_committed = consumed.consumed_at === now;
+    }
+    count.fk_clean = (await db.prepare("PRAGMA foreign_key_check").all()).length === 0;
+    return response;
+  },
+};

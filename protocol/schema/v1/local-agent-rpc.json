@@ -1,0 +1,694 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/local-agent-rpc.json",
+  "title": "LocalAgentRpcEnvelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "request_id", "method", "direction"],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 2
+    },
+    "request_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "method": {
+      "type": "string",
+      "enum": [
+        "mcp.v2.authority",
+        "mcp.v2.get_context",
+        "mcp.v2.get_task",
+        "mcp.v2.bind_session",
+        "mcp.v2.bound_authority",
+        "mcp.v2.add_comment",
+        "mcp.v2.update_task",
+        "mcp.v2.report_progress",
+        "mcp.v2.propose_task"
+      ]
+    },
+    "direction": {
+      "type": "string",
+      "enum": ["request", "response"]
+    },
+    "error": {
+      "$ref": "primitives.json#/$defs/TypedError"
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 1,
+      "properties": {
+        "agent_request": {
+          "$ref": "agent-local-request.json"
+        },
+        "agent_authority": {
+          "$ref": "agent-authority-result.json"
+        },
+        "agent_context": {
+          "$ref": "agent-context-result.json"
+        },
+        "agent_task": {
+          "$ref": "agent-task-result.json"
+        },
+        "agent_update": {
+          "$ref": "agent-update-result.json"
+        },
+        "agent_proposal": {
+          "$ref": "agent-proposal-result.json"
+        },
+        "agent_binding": {
+          "$ref": "agent-session-bind-result.json"
+        },
+        "agent_bound_request": {
+          "$ref": "agent-bound-local-request.json"
+        },
+        "agent_comment_request": {
+          "$ref": "agent-comment-local-request.json"
+        },
+        "agent_comment": {
+          "$ref": "agent-comment-result.json"
+        },
+        "agent_update_request": {
+          "$ref": "agent-update-local-request.json"
+        },
+        "agent_progress_request": {
+          "$ref": "agent-progress-local-request.json"
+        },
+        "agent_proposal_request": {
+          "$ref": "agent-proposal-local-request.json"
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "direction": {
+            "const": "request"
+          }
+        },
+        "required": ["direction"],
+        "type": "object"
+      },
+      "then": {
+        "required": ["payload"],
+        "not": {
+          "required": ["error"],
+          "type": "object",
+          "properties": {
+            "error": {}
+          }
+        },
+        "type": "object",
+        "properties": {
+          "payload": {}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "direction": {
+            "const": "response"
+          }
+        },
+        "required": ["direction"],
+        "type": "object"
+      },
+      "then": {
+        "oneOf": [
+          {
+            "required": ["error"],
+            "not": {
+              "required": ["payload"],
+              "type": "object",
+              "properties": {
+                "payload": {}
+              }
+            },
+            "type": "object",
+            "properties": {
+              "error": {}
+            }
+          },
+          {
+            "required": ["payload"],
+            "not": {
+              "required": ["error"],
+              "type": "object",
+              "properties": {
+                "error": {}
+              }
+            },
+            "type": "object",
+            "properties": {
+              "payload": {}
+            }
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "method": {
+            "const": "mcp.v2.authority"
+          }
+        },
+        "required": ["method"],
+        "type": "object"
+      },
+      "then": {
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "direction": {
+                  "const": "request"
+                }
+              },
+              "required": ["direction"],
+              "type": "object"
+            },
+            "then": {
+              "properties": {
+                "payload": {
+                  "required": ["agent_request"],
+                  "type": "object",
+                  "properties": {
+                    "agent_request": {}
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "required": ["payload"],
+              "properties": {
+                "direction": {
+                  "const": "response"
+                },
+                "payload": {}
+              },
+              "type": "object"
+            },
+            "then": {
+              "properties": {
+                "payload": {
+                  "required": ["agent_authority"],
+                  "type": "object",
+                  "properties": {
+                    "agent_authority": {}
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "method": {
+            "const": "mcp.v2.get_context"
+          }
+        },
+        "required": ["method"],
+        "type": "object"
+      },
+      "then": {
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "direction": {
+                  "const": "request"
+                }
+              },
+              "required": ["direction"],
+              "type": "object"
+            },
+            "then": {
+              "properties": {
+                "payload": {
+                  "required": ["agent_request"],
+                  "type": "object",
+                  "properties": {
+                    "agent_request": {}
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "required": ["payload"],
+              "properties": {
+                "direction": {
+                  "const": "response"
+                },
+                "payload": {}
+              },
+              "type": "object"
+            },
+            "then": {
+              "properties": {
+                "payload": {
+                  "required": ["agent_context"],
+                  "type": "object",
+                  "properties": {
+                    "agent_context": {}
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "method": {
+            "const": "mcp.v2.get_task"
+          }
+        },
+        "required": ["method"],
+        "type": "object"
+      },
+      "then": {
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "direction": {
+                  "const": "request"
+                }
+              },
+              "required": ["direction"],
+              "type": "object"
+            },
+            "then": {
+              "properties": {
+                "payload": {
+                  "required": ["agent_request"],
+                  "type": "object",
+                  "properties": {
+                    "agent_request": {}
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "required": ["payload"],
+              "properties": {
+                "direction": {
+                  "const": "response"
+                },
+                "payload": {}
+              },
+              "type": "object"
+            },
+            "then": {
+              "properties": {
+                "payload": {
+                  "required": ["agent_task"],
+                  "type": "object",
+                  "properties": {
+                    "agent_task": {}
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "method": {
+            "const": "mcp.v2.bind_session"
+          }
+        },
+        "required": ["method"],
+        "type": "object"
+      },
+      "then": {
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "direction": {
+                  "const": "request"
+                }
+              },
+              "required": ["direction"],
+              "type": "object"
+            },
+            "then": {
+              "properties": {
+                "payload": {
+                  "required": ["agent_request"],
+                  "type": "object",
+                  "properties": {
+                    "agent_request": {}
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "required": ["payload"],
+              "properties": {
+                "direction": {
+                  "const": "response"
+                },
+                "payload": {}
+              },
+              "type": "object"
+            },
+            "then": {
+              "properties": {
+                "payload": {
+                  "required": ["agent_binding"],
+                  "type": "object",
+                  "properties": {
+                    "agent_binding": {}
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "method": {
+            "const": "mcp.v2.bound_authority"
+          }
+        },
+        "required": ["method"],
+        "type": "object"
+      },
+      "then": {
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "direction": {
+                  "const": "request"
+                }
+              },
+              "required": ["direction"],
+              "type": "object"
+            },
+            "then": {
+              "properties": {
+                "payload": {
+                  "required": ["agent_bound_request"],
+                  "type": "object",
+                  "properties": {
+                    "agent_bound_request": {}
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "required": ["payload"],
+              "properties": {
+                "direction": {
+                  "const": "response"
+                },
+                "payload": {}
+              },
+              "type": "object"
+            },
+            "then": {
+              "properties": {
+                "payload": {
+                  "required": ["agent_authority"],
+                  "type": "object",
+                  "properties": {
+                    "agent_authority": {}
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "method": {
+            "const": "mcp.v2.add_comment"
+          }
+        },
+        "required": ["method"],
+        "type": "object"
+      },
+      "then": {
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "direction": {
+                  "const": "request"
+                }
+              },
+              "required": ["direction"],
+              "type": "object"
+            },
+            "then": {
+              "properties": {
+                "payload": {
+                  "required": ["agent_comment_request"],
+                  "type": "object",
+                  "properties": {
+                    "agent_comment_request": {}
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "required": ["payload"],
+              "properties": {
+                "direction": {
+                  "const": "response"
+                },
+                "payload": {}
+              },
+              "type": "object"
+            },
+            "then": {
+              "properties": {
+                "payload": {
+                  "required": ["agent_comment"],
+                  "type": "object",
+                  "properties": {
+                    "agent_comment": {}
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "method": {
+            "const": "mcp.v2.update_task"
+          }
+        },
+        "required": ["method"],
+        "type": "object"
+      },
+      "then": {
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "direction": {
+                  "const": "request"
+                }
+              },
+              "required": ["direction"],
+              "type": "object"
+            },
+            "then": {
+              "properties": {
+                "payload": {
+                  "required": ["agent_update_request"],
+                  "type": "object",
+                  "properties": {
+                    "agent_update_request": {}
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "required": ["payload"],
+              "properties": {
+                "direction": {
+                  "const": "response"
+                },
+                "payload": {}
+              },
+              "type": "object"
+            },
+            "then": {
+              "properties": {
+                "payload": {
+                  "required": ["agent_update"],
+                  "type": "object",
+                  "properties": {
+                    "agent_update": {}
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "method": {
+            "const": "mcp.v2.report_progress"
+          }
+        },
+        "required": ["method"],
+        "type": "object"
+      },
+      "then": {
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "direction": {
+                  "const": "request"
+                }
+              },
+              "required": ["direction"],
+              "type": "object"
+            },
+            "then": {
+              "properties": {
+                "payload": {
+                  "required": ["agent_progress_request"],
+                  "type": "object",
+                  "properties": {
+                    "agent_progress_request": {}
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "required": ["payload"],
+              "properties": {
+                "direction": {
+                  "const": "response"
+                },
+                "payload": {}
+              },
+              "type": "object"
+            },
+            "then": {
+              "properties": {
+                "payload": {
+                  "required": ["agent_comment"],
+                  "type": "object",
+                  "properties": {
+                    "agent_comment": {}
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "method": {
+            "const": "mcp.v2.propose_task"
+          }
+        },
+        "required": ["method"],
+        "type": "object"
+      },
+      "then": {
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "direction": {
+                  "const": "request"
+                }
+              },
+              "required": ["direction"],
+              "type": "object"
+            },
+            "then": {
+              "properties": {
+                "payload": {
+                  "required": ["agent_proposal_request"],
+                  "type": "object",
+                  "properties": {
+                    "agent_proposal_request": {}
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "required": ["payload"],
+              "properties": {
+                "direction": {
+                  "const": "response"
+                },
+                "payload": {}
+              },
+              "type": "object"
+            },
+            "then": {
+              "properties": {
+                "payload": {
+                  "required": ["agent_proposal"],
+                  "type": "object",
+                  "properties": {
+                    "agent_proposal": {}
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

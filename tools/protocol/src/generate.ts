@@ -13,8 +13,17 @@ import formatsModule from "ajv-formats";
 import { build } from "esbuild";
 
 import { DOCUMENTS, PROTOCOL_HEAD, SCHEMA_VERSION } from "./document-names.js";
+import { generateSwift } from "./swift.js";
+import { generateAgentFixtures } from "./agent-fixtures.js";
+import { generateCaptureFixtures } from "./capture-fixtures.js";
+import { generateAttentionFixtures } from "./attention-fixtures.js";
+import { generateResultFixtures } from "./result-fixtures.js";
+import { generateTelemetryFixtures } from "./telemetry-fixtures.js";
+import { generateArtifactFixtures } from "./artifact-fixtures.js";
+import { generateAutonomousFixtures } from "./autonomous-fixtures.js";
+import { generateRootLeaseFixtures } from "./root-lease-fixtures.js";
 
-interface JsonSchema {
+export interface JsonSchema {
   $id?: string;
   title?: string;
   description?: string;
@@ -28,6 +37,7 @@ interface JsonSchema {
   $ref?: string;
   $defs?: Record<string, JsonSchema>;
   allOf?: JsonSchema[];
+  anyOf?: JsonSchema[];
   if?: JsonSchema;
   then?: JsonSchema;
   not?: JsonSchema;
@@ -42,12 +52,14 @@ interface JsonSchema {
 }
 
 const EXPORTED_PRIMITIVES = [
+  "TerminalIntentId",
   "Ulid",
   "UtcTimestamp",
   "ResourceVersion",
   "WorkspaceCursor",
   "SourceSequence",
   "AssignmentGeneration",
+  "SupervisorIdentity",
   "IdempotencyKey",
   "OpaqueToken",
   "BoundedLabel",
@@ -131,6 +143,14 @@ function tsTypeOf(
   registry: Map<string, JsonSchema>,
   forceOptional = false,
 ): string {
+  const nullableReference = schema.anyOf?.find((branch) => branch.$ref !== undefined);
+  if (
+    schema.anyOf?.length === 2 &&
+    nullableReference &&
+    schema.anyOf.some((branch) => branch.type === "null")
+  ) {
+    return tsTypeOf(nullableReference, rootSchema, registry, forceOptional) + " | null";
+  }
   if (schema.$ref) {
     const resolved = resolveRef(rootSchema, schema.$ref, registry);
     return tsTypeOf(resolved.schema, resolved.owner, registry, forceOptional);
@@ -142,6 +162,10 @@ function tsTypeOf(
     return schema.enum.map((value) => JSON.stringify(value)).join(" | ");
   }
   const type = schema.type;
+  if (Array.isArray(type) && type.length === 2 && type.includes("null")) {
+    const nonNull = type.find((item) => item !== "null")!;
+    return tsTypeOf({ ...schema, type: nonNull }, rootSchema, registry, forceOptional) + " | null";
+  }
   if (type === "string") {
     return "string";
   }
@@ -151,9 +175,12 @@ function tsTypeOf(
   if (type === "boolean") {
     return "boolean";
   }
+  if (type === "null") {
+    return "null";
+  }
   if (type === "array") {
     const items = schema.items ? tsTypeOf(schema.items, rootSchema, registry) : "unknown";
-    return items + "[]";
+    return (items.includes(" | ") ? "(" + items + ")" : items) + "[]";
   }
   if (type === "object") {
     if (!schema.properties || Object.keys(schema.properties).length === 0) {
@@ -219,6 +246,7 @@ function discriminatedUnionType(
       }
       const required = new Set(schema.required ?? []);
       const forbidden = new Set<string>();
+      const overrides = new Map<string, JsonSchema>([[discriminator, { const: value }]]);
       for (const branch of branches) {
         for (const key of branch.then?.required ?? []) {
           required.add(key);
@@ -226,12 +254,15 @@ function discriminatedUnionType(
         for (const key of branch.then?.not?.required ?? []) {
           forbidden.add(key);
         }
+        for (const [key, property] of Object.entries(branch.then?.properties ?? {})) {
+          overrides.set(key, { ...schema.properties[key], ...property });
+        }
       }
       variants.push(
         tsObjectShape(schema, schema, registry, {
           required,
           forbidden,
-          overrides: new Map([[discriminator, { const: value }]]),
+          overrides,
         }),
       );
     }
@@ -248,10 +279,22 @@ function goTypeOf(
   registry: Map<string, JsonSchema>,
   fieldName: string,
 ): string {
+  const nullableReference = schema.anyOf?.find((branch) => branch.$ref !== undefined);
+  if (
+    schema.anyOf?.length === 2 &&
+    nullableReference &&
+    schema.anyOf.some((branch) => branch.type === "null")
+  ) {
+    return "*" + goTypeOf(nullableReference, rootSchema, registry, fieldName);
+  }
   if (schema.$ref) {
     const primitiveName = schema.$ref.split("/").at(-1);
     if (primitiveName && exportedPrimitiveSet.has(primitiveName)) {
       return primitiveName;
+    }
+    const document = DOCUMENTS.find((candidate) => candidate.schemaFile === schema.$ref);
+    if (document) {
+      return document.goType;
     }
     const resolved = resolveRef(rootSchema, schema.$ref, registry);
     return goTypeOf(resolved.schema, resolved.owner, registry, fieldName);
@@ -268,6 +311,11 @@ function goTypeOf(
     }
   }
   const type = schema.type;
+  if (Array.isArray(type) && type.length === 2 && type.includes("null")) {
+    const nonNull = type.find((item) => item !== "null")!;
+    const nullable = goTypeOf({ ...schema, type: nonNull }, rootSchema, registry, fieldName);
+    return nullable.startsWith("map[") || nullable.startsWith("[]") ? nullable : "*" + nullable;
+  }
   if (type === "string") {
     return "string";
   }
@@ -303,6 +351,10 @@ function goStructLines(
   rootSchema: JsonSchema,
   registry: Map<string, JsonSchema>,
 ): string[] {
+  if (schema.$ref) {
+    const resolved = resolveRef(rootSchema, schema.$ref, registry);
+    return goStructLines(name, resolved.schema, resolved.owner, registry);
+  }
   if (!schema.properties || Object.keys(schema.properties).length === 0) {
     return ["type " + name + " struct{}", ""];
   }
@@ -310,6 +362,9 @@ function goStructLines(
   const lines = ["type " + name + " struct {"];
   for (const [key, value] of Object.entries(schema.properties)) {
     let fieldType = goTypeOf(value, rootSchema, registry, key);
+    // Original result bytes distinguish omission from an explicit empty list.
+    // Earlier generated wire types remain frozen under their existing contract.
+    if (name === "AgentResultRequest" && key === "evidence_refs") fieldType = "*" + fieldType;
     if (
       !required.has(key) &&
       !fieldType.startsWith("[]") &&
@@ -602,6 +657,15 @@ export async function generateProtocol(
   }
   goSchemaParts.push("}", "");
   await writeFile(path.join(goOutDir, "schemas.go"), goSchemaParts.join("\n"));
+  await generateSwift(root, registry, schemaHash);
+  await generateAgentFixtures(root);
+  await generateCaptureFixtures(root);
+  await generateAttentionFixtures(root);
+  await generateResultFixtures(root);
+  await generateTelemetryFixtures(root);
+  await generateArtifactFixtures(root);
+  await generateAutonomousFixtures(root);
+  await generateRootLeaseFixtures(root);
 
   // Catalog stamp for drift checks
   await writeFile(
@@ -611,7 +675,11 @@ export async function generateProtocol(
         protocol: PROTOCOL_HEAD,
         schema_version: SCHEMA_VERSION,
         schema_hash: schemaHash,
-        documents: DOCUMENTS.map((doc) => ({ name: doc.name, schema: doc.schemaFile })),
+        documents: DOCUMENTS.map((doc) => ({
+          name: doc.name,
+          schema: doc.schemaFile,
+          schema_version: doc.schemaVersion ?? SCHEMA_VERSION,
+        })),
       },
       null,
       2,

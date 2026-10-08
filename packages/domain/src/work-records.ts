@@ -6,6 +6,7 @@ import { createHash } from "node:crypto";
 import { assertEpoch, assertProjectAccess, assertRole, loadPrincipal } from "./authorization.js";
 import { DomainError, type HubCommand, type HubContext } from "./hub.js";
 import { randomUlid } from "./ids.js";
+import { PROVIDERS, type Provider } from "./projects.js";
 import { getTask, type TaskRecord } from "./work-commands.js";
 
 export const RUN_RESULT_STATES = [
@@ -102,10 +103,11 @@ interface PolicyVersionRow {
 
 interface ProfileVersionRow {
   name: string;
-  provider: "claude" | "codex" | "grok";
+  provider: Provider;
   model: string | null;
   execution_mode: "interactive" | "headless";
   harness_mode: "restricted" | "standard";
+  permission_mode?: "manual" | "autonomous";
   current_version: number;
 }
 
@@ -115,6 +117,7 @@ export interface RunRecord {
   task_id: string;
   requested_by_human_id: string;
   agent_profile_id: string;
+  purpose: "work" | "discussion";
   result_state: RunResultState;
   activity: RunActivity;
   resource_version: number;
@@ -142,44 +145,104 @@ export interface CreateRunResult {
 
 export const createRunCommand: HubCommand<CreateRunInput, CreateRunResult> = {
   name: "run.create",
-  async run(input, ctx) {
+  async authorize(input, ctx) {
     const principal = await requireHuman(ctx);
+    // Run creation stays shared-only until the execution lane certifies privacy.
     const task = await getTask(ctx.db, ctx.workspaceId, input.taskId);
-    if (!task) {
-      throw new DomainError("not_found", "task not found");
-    }
+    if (!task) throw new DomainError("not_found", "task not found");
     assertProjectAccess(principal, task.project_id);
-    const expectedTaskVersion = version(input.expectedTaskVersion, "expected task version");
-    if (task.resource_version !== expectedTaskVersion) {
-      throw new DomainError("stale_version", "task version conflict");
-    }
-    if (task.state !== "ready") {
-      throw new DomainError("invalid_transition", "a new run requires a ready task");
-    }
-    const workspacePolicyVersion = version(
-      input.workspacePolicyVersion,
-      "workspace policy version",
-    );
-    const projectPolicyVersion = version(input.projectPolicyVersion, "project policy version");
-    const repositoryConfigVersion = version(
-      input.repositoryConfigVersion,
-      "repository config version",
-    );
-    const agentProfileVersion = version(input.agentProfileVersion, "agent profile version");
+  },
+  inputFingerprint: (input) =>
+    createHash("sha256")
+      .update(
+        JSON.stringify([
+          input.taskId,
+          input.expectedTaskVersion,
+          input.agentProfileId,
+          input.workspacePolicyVersion,
+          input.projectPolicyVersion,
+          input.repositoryConfigVersion,
+          input.agentProfileVersion,
+        ]),
+      )
+      .digest("hex"),
+  auditInput: (input) => ({ taskId: input.taskId }),
+  auditResult: (result) => ({
+    runId: result.run.id,
+    taskId: result.task.id,
+    taskVersion: result.task.resource_version,
+    snapshotId: result.snapshot.id,
+    snapshotHash: result.snapshot.contentHash,
+  }),
+  async run(input, ctx) {
+    const prepared = await prepareRunCreation(input, ctx);
+    await persistRunCreation(prepared, ctx);
+    return prepared.result;
+  },
+};
 
-    const workspace = (await ctx.db
-      .prepare(
-        `SELECT version.allowed_providers_json, version.allow_agent_root_propose,
+/** Prepared before writes so launch creation can validate every D1 precondition atomically. */
+export interface PreparedRunCreation {
+  input: CreateRunInput;
+  result: CreateRunResult;
+  existingRun?: boolean;
+  snapshotGeneration?: number;
+}
+
+export async function prepareRunCreation(
+  input: CreateRunInput,
+  ctx: HubContext,
+): Promise<PreparedRunCreation> {
+  return preparePurposeRun(input, ctx, "work");
+}
+
+/** Discussion commands reuse policy snapshots without advancing ordinary task work. */
+export async function prepareDiscussionRunCreation(
+  input: CreateRunInput,
+  ctx: HubContext,
+): Promise<PreparedRunCreation> {
+  return preparePurposeRun(input, ctx, "discussion");
+}
+
+async function preparePurposeRun(
+  input: CreateRunInput,
+  ctx: HubContext,
+  purpose: RunRecord["purpose"],
+): Promise<PreparedRunCreation> {
+  const principal = await requireHuman(ctx);
+  const task = await getTask(ctx.db, ctx.workspaceId, input.taskId);
+  if (!task) {
+    throw new DomainError("not_found", "task not found");
+  }
+  assertProjectAccess(principal, task.project_id);
+  const expectedTaskVersion = version(input.expectedTaskVersion, "expected task version");
+  if (task.resource_version !== expectedTaskVersion) {
+    throw new DomainError("stale_version", "task version conflict");
+  }
+  if (purpose === "work" && task.state !== "ready") {
+    throw new DomainError("invalid_transition", "a new run requires a ready task");
+  }
+  const workspacePolicyVersion = version(input.workspacePolicyVersion, "workspace policy version");
+  const projectPolicyVersion = version(input.projectPolicyVersion, "project policy version");
+  const repositoryConfigVersion = version(
+    input.repositoryConfigVersion,
+    "repository config version",
+  );
+  const agentProfileVersion = version(input.agentProfileVersion, "agent profile version");
+
+  const workspace = (await ctx.db
+    .prepare(
+      `SELECT version.allowed_providers_json, version.allow_agent_root_propose,
                 version.allow_pass_to_agent, version.allow_run_overrides,
                 current.resource_version AS current_version
          FROM workspace_policy_versions AS version
          JOIN workspace_policies AS current ON current.workspace_id = version.workspace_id
          WHERE version.workspace_id = ? AND version.version = ?`,
-      )
-      .get(ctx.workspaceId, workspacePolicyVersion)) as PolicyVersionRow | undefined;
-    const project = (await ctx.db
-      .prepare(
-        `SELECT version.allowed_providers_json, version.allow_agent_root_propose,
+    )
+    .get(ctx.workspaceId, workspacePolicyVersion)) as PolicyVersionRow | undefined;
+  const project = (await ctx.db
+    .prepare(
+      `SELECT version.allowed_providers_json, version.allow_agent_root_propose,
                 version.allow_pass_to_agent, version.allow_run_overrides,
                 current.resource_version AS current_version
          FROM project_policy_versions AS version
@@ -187,11 +250,11 @@ export const createRunCommand: HubCommand<CreateRunInput, CreateRunResult> = {
            ON current.workspace_id = version.workspace_id
           AND current.project_id = version.project_id
          WHERE version.workspace_id = ? AND version.project_id = ? AND version.version = ?`,
-      )
-      .get(ctx.workspaceId, task.project_id, projectPolicyVersion)) as PolicyVersionRow | undefined;
-    const repository = (await ctx.db
-      .prepare(
-        `SELECT version.allowed_providers_json, version.allow_agent_root_propose,
+    )
+    .get(ctx.workspaceId, task.project_id, projectPolicyVersion)) as PolicyVersionRow | undefined;
+  const repository = (await ctx.db
+    .prepare(
+      `SELECT version.allowed_providers_json, version.allow_agent_root_propose,
                 version.allow_pass_to_agent, version.allow_run_overrides,
                 current.resource_version AS current_version
          FROM repository_config_versions AS version
@@ -199,124 +262,151 @@ export const createRunCommand: HubCommand<CreateRunInput, CreateRunResult> = {
            ON current.workspace_id = version.workspace_id
           AND current.project_id = version.project_id
          WHERE version.workspace_id = ? AND version.project_id = ? AND version.version = ?`,
-      )
-      .get(ctx.workspaceId, task.project_id, repositoryConfigVersion)) as
-      PolicyVersionRow | undefined;
-    const profile = (await ctx.db
-      .prepare(
-        `SELECT version.name, version.provider, version.model,
-                version.execution_mode, version.harness_mode,
+    )
+    .get(ctx.workspaceId, task.project_id, repositoryConfigVersion)) as
+    PolicyVersionRow | undefined;
+  const profile = (await ctx.db
+    .prepare(
+      `SELECT version.*,
                 current.resource_version AS current_version
          FROM agent_profile_versions AS version
          JOIN agent_profiles AS current
            ON current.workspace_id = version.workspace_id
           AND current.id = version.profile_id
          WHERE version.workspace_id = ? AND version.profile_id = ? AND version.version = ?`,
-      )
-      .get(ctx.workspaceId, input.agentProfileId, agentProfileVersion)) as
-      ProfileVersionRow | undefined;
-    if (!workspace || !project || !repository || !profile) {
-      throw new DomainError("not_found", "run snapshot input version not found");
-    }
-    if (
-      workspace.current_version !== workspacePolicyVersion ||
-      project.current_version !== projectPolicyVersion ||
-      repository.current_version !== repositoryConfigVersion ||
-      profile.current_version !== agentProfileVersion
-    ) {
-      throw new DomainError("stale_version", "run snapshot input is not current");
-    }
-    if (
-      workspace.allow_pass_to_agent !== 1 ||
-      project.allow_pass_to_agent !== 1 ||
-      repository.allow_pass_to_agent !== 1
-    ) {
-      throw new DomainError("pass_to_agent_forbidden", "effective policy forbids agent runs");
-    }
-    if (
-      !providers(workspace.allowed_providers_json).includes(profile.provider) ||
-      !providers(project.allowed_providers_json).includes(profile.provider) ||
-      !providers(repository.allowed_providers_json).includes(profile.provider)
-    ) {
-      throw new DomainError("provider_forbidden", "profile provider exceeds snapshot policy");
-    }
+    )
+    .get(ctx.workspaceId, input.agentProfileId, agentProfileVersion)) as
+    ProfileVersionRow | undefined;
+  if (!workspace || !project || !repository || !profile) {
+    throw new DomainError("not_found", "run snapshot input version not found");
+  }
+  if (
+    workspace.current_version !== workspacePolicyVersion ||
+    project.current_version !== projectPolicyVersion ||
+    repository.current_version !== repositoryConfigVersion ||
+    profile.current_version !== agentProfileVersion
+  ) {
+    throw new DomainError("stale_version", "run snapshot input is not current");
+  }
+  if (
+    workspace.allow_pass_to_agent !== 1 ||
+    project.allow_pass_to_agent !== 1 ||
+    repository.allow_pass_to_agent !== 1
+  ) {
+    throw new DomainError("pass_to_agent_forbidden", "effective policy forbids agent runs");
+  }
+  if (
+    !providers(workspace.allowed_providers_json).includes(profile.provider) ||
+    !providers(project.allowed_providers_json).includes(profile.provider) ||
+    !providers(repository.allowed_providers_json).includes(profile.provider)
+  ) {
+    throw new DomainError("provider_forbidden", "profile provider exceeds snapshot policy");
+  }
 
-    const canonical = JSON.stringify({
-      agent_profile: {
-        id: input.agentProfileId,
-        version: agentProfileVersion,
-        ...profile,
-      },
-      project_id: task.project_id,
-      project_policy: { version: projectPolicyVersion, ...project },
-      repository_config: { version: repositoryConfigVersion, ...repository },
-      task_id: task.id,
-      workspace_policy: { version: workspacePolicyVersion, ...workspace },
-    });
-    const contentHash = `sha256:${createHash("sha256").update(canonical, "utf8").digest("hex")}`;
-    const runId = randomUlid();
-    const snapshotId = randomUlid();
-    await ctx.db
-      .prepare(
-        `INSERT INTO runs
-         (workspace_id, id, project_id, task_id, requested_by_human_id,
-          agent_profile_id, result_state, activity, resource_version, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, 'open', 'unknown', 1, ?)`,
-      )
-      .run(
-        ctx.workspaceId,
-        runId,
-        task.project_id,
-        task.id,
-        principal.humanId,
-        input.agentProfileId,
-        ctx.now,
-      );
-    await ctx.db
-      .prepare(
-        `INSERT INTO run_configuration_snapshots
-         (workspace_id, id, project_id, run_id, workspace_policy_version,
-          project_policy_version, repository_config_version, agent_profile_id,
-          agent_profile_version, canonical_json, content_hash, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        ctx.workspaceId,
-        snapshotId,
-        task.project_id,
-        runId,
-        workspacePolicyVersion,
-        projectPolicyVersion,
-        repositoryConfigVersion,
-        input.agentProfileId,
-        agentProfileVersion,
-        canonical,
-        contentHash,
-        ctx.now,
-      );
-    const taskVersion = task.resource_version + 1;
-    await ctx.db
-      .prepare(
-        `UPDATE tasks SET state = 'active', resource_version = ?
-         WHERE workspace_id = ? AND id = ? AND resource_version = ?`,
-      )
-      .run(taskVersion, ctx.workspaceId, task.id, expectedTaskVersion);
-    return {
+  const canonical = JSON.stringify({
+    agent_profile: {
+      id: input.agentProfileId,
+      version: agentProfileVersion,
+      name: profile.name,
+      provider: profile.provider,
+      model: profile.model,
+      execution_mode: profile.execution_mode,
+      harness_mode: profile.harness_mode,
+      // Historical migration fixtures predate this column; their original
+      // snapshot shape and content hash must remain reproducible.
+      ...(profile.permission_mode === undefined
+        ? {}
+        : { permission_mode: profile.permission_mode }),
+      current_version: profile.current_version,
+    },
+    project_id: task.project_id,
+    project_policy: { version: projectPolicyVersion, ...project },
+    repository_config: { version: repositoryConfigVersion, ...repository },
+    task_id: task.id,
+    workspace_policy: { version: workspacePolicyVersion, ...workspace },
+  });
+  const contentHash = `sha256:${createHash("sha256").update(canonical, "utf8").digest("hex")}`;
+  const runId = randomUlid();
+  const snapshotId = randomUlid();
+  return {
+    input,
+    result: {
       run: {
         id: runId,
         project_id: task.project_id,
         task_id: task.id,
         requested_by_human_id: principal.humanId,
         agent_profile_id: input.agentProfileId,
+        purpose,
         result_state: "open",
         activity: "unknown",
         resource_version: 1,
       },
-      task: { ...task, state: "active", resource_version: taskVersion },
+      task:
+        purpose === "work"
+          ? { ...task, state: "active", resource_version: task.resource_version + 1 }
+          : task,
       snapshot: { id: snapshotId, contentHash, canonicalJson: canonical },
-    };
-  },
-};
+    },
+  };
+}
+
+/** Only owning hub commands may persist this prepared run; no transport writes directly. */
+export async function persistRunCreation(
+  prepared: PreparedRunCreation,
+  ctx: HubContext,
+): Promise<void> {
+  const { input, result } = prepared;
+  const { run, task, snapshot } = result;
+  if (!prepared.existingRun)
+    await ctx.db
+      .prepare(
+        `INSERT INTO runs
+         (workspace_id, id, project_id, task_id, requested_by_human_id,
+          agent_profile_id, purpose, result_state, activity, resource_version, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'open', 'unknown', 1, ?)`,
+      )
+      .run(
+        ctx.workspaceId,
+        run.id,
+        task.project_id,
+        task.id,
+        run.requested_by_human_id,
+        input.agentProfileId,
+        run.purpose,
+        ctx.now,
+      );
+  await ctx.db
+    .prepare(
+      `INSERT INTO run_configuration_snapshots
+         (workspace_id, id, project_id, run_id, workspace_policy_version,
+          project_policy_version, repository_config_version, agent_profile_id,
+          agent_profile_version, canonical_json, content_hash, created_at, snapshot_generation)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      ctx.workspaceId,
+      snapshot.id,
+      task.project_id,
+      run.id,
+      input.workspacePolicyVersion,
+      input.projectPolicyVersion,
+      input.repositoryConfigVersion,
+      input.agentProfileId,
+      input.agentProfileVersion,
+      snapshot.canonicalJson,
+      snapshot.contentHash,
+      ctx.now,
+      prepared.snapshotGeneration ?? 1,
+    );
+  if (run.purpose === "work")
+    await ctx.db
+      .prepare(
+        `UPDATE tasks SET state = 'active', resource_version = ?
+         WHERE workspace_id = ? AND id = ? AND resource_version = ?`,
+      )
+      .run(task.resource_version, ctx.workspaceId, task.id, input.expectedTaskVersion);
+}
 
 export interface UpdateRunActivityInput {
   runId: string;
@@ -333,9 +423,9 @@ export const updateRunActivityCommand: HubCommand<UpdateRunActivityInput, RunRec
     }
     const run = (await ctx.db
       .prepare(
-        `SELECT id, project_id, task_id, requested_by_human_id, agent_profile_id,
+        `SELECT id, project_id, task_id, requested_by_human_id, agent_profile_id, purpose,
                 result_state, activity, resource_version
-         FROM runs WHERE workspace_id = ? AND id = ?`,
+         FROM runs WHERE workspace_id = ? AND id = ? AND purpose = 'work'`,
       )
       .get(ctx.workspaceId, input.runId)) as RunRecord | undefined;
     if (!run) {
@@ -391,7 +481,7 @@ export const createExecutionCommand: HubCommand<CreateExecutionInput, ExecutionR
                 (SELECT COUNT(*) FROM provider_sessions AS session
                  WHERE session.workspace_id = run.workspace_id
                    AND session.run_id = run.id) AS provider_sessions
-         FROM runs AS run WHERE run.workspace_id = ? AND run.id = ?`,
+         FROM runs AS run WHERE run.workspace_id = ? AND run.id = ? AND run.purpose = 'work'`,
       )
       .get(ctx.workspaceId, input.runId)) as
       | {
@@ -456,7 +546,7 @@ export const transitionExecutionCommand: HubCommand<TransitionExecutionInput, Ex
                 run.project_id
          FROM run_executions AS execution
          JOIN runs AS run ON run.workspace_id = execution.workspace_id AND run.id = execution.run_id
-         WHERE execution.workspace_id = ? AND execution.run_id = ? AND execution.id = ?`,
+         WHERE execution.workspace_id = ? AND execution.run_id = ? AND execution.id = ? AND run.purpose = 'work'`,
       )
       .get(ctx.workspaceId, input.runId, input.executionId)) as
       (ExecutionRecord & { project_id: string }) | undefined;
@@ -500,7 +590,7 @@ export const transitionExecutionCommand: HubCommand<TransitionExecutionInput, Ex
 export interface CreateProviderSessionInput {
   runId: string;
   executionId: string;
-  provider: "claude" | "codex" | "grok";
+  provider: Provider;
   requestedSessionId?: string;
 }
 
@@ -511,7 +601,7 @@ export const createProviderSessionCommand: HubCommand<
   name: "provider_session.create",
   async run(input, ctx) {
     const principal = await requireHuman(ctx);
-    if (input.provider !== "claude" && input.provider !== "codex" && input.provider !== "grok") {
+    if (!PROVIDERS.includes(input.provider)) {
       throw new DomainError("invalid_argument", "provider is invalid");
     }
     const execution = (await ctx.db
@@ -521,7 +611,7 @@ export const createProviderSessionCommand: HubCommand<
          JOIN runs AS run ON run.workspace_id = execution.workspace_id AND run.id = execution.run_id
          JOIN agent_profiles AS profile
            ON profile.workspace_id = run.workspace_id AND profile.id = run.agent_profile_id
-         WHERE execution.workspace_id = ? AND execution.id = ? AND execution.run_id = ?`,
+         WHERE execution.workspace_id = ? AND execution.id = ? AND execution.run_id = ? AND run.purpose = 'work'`,
       )
       .get(ctx.workspaceId, input.executionId, input.runId)) as
       | {

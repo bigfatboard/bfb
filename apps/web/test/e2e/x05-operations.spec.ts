@@ -1,0 +1,134 @@
+// ABOUTME: Real Chromium proof for the X05 Operations surface across roles.
+// ABOUTME: Synthetic fixtures only; the recording keeps counts and states, never content.
+
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { expect, test } from "@playwright/test";
+
+import { signInAndOpenBoard } from "./helpers.js";
+
+test.describe.configure({ mode: "serial" });
+
+const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+const evidenceDir = path.join(
+  rootDir,
+  process.env.BFB_CAPTURE_X05_EVIDENCE === "1"
+    ? "docs/work-packages/evidence/WP-X05"
+    : "apps/web/test/e2e/test-results/evidence-x05",
+);
+const recording: Record<string, unknown> = {
+  spec: "x05-operations",
+  scenarios: [] as Array<Record<string, unknown>>,
+};
+
+function note(scenario: string, fields: Record<string, unknown> = {}): void {
+  (recording.scenarios as Array<Record<string, unknown>>).push({ scenario, ...fields });
+}
+
+test.beforeAll(async () => {
+  await mkdir(evidenceDir, { recursive: true });
+});
+
+test.afterAll(async () => {
+  await writeFile(
+    path.join(evidenceDir, "operations-ui.json"),
+    `${JSON.stringify(recording, null, 2)}\n`,
+  );
+});
+
+async function openOperations(page: Parameters<typeof signInAndOpenBoard>[0]): Promise<void> {
+  await page.getByRole("button", { name: "More navigation" }).click();
+  await page.getByRole("button", { name: "Operations" }).click();
+  await expect(page.getByTestId("operations-page")).toBeVisible();
+}
+
+test("owner sees health, queues, activity, audit, retention, and diagnostics", async ({ page }) => {
+  const activityRequests: string[] = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname.endsWith("/activity")) activityRequests.push(request.url());
+  });
+  await signInAndOpenBoard(page, "owner");
+  await openOperations(page);
+  for (const section of [
+    "operations-health",
+    "operations-queues",
+    "operations-activity",
+    "operations-audit",
+    "operations-retention",
+    "operations-diagnostics",
+  ]) {
+    await expect(page.getByTestId(section)).toBeVisible();
+  }
+  await expect(page.getByTestId("audit-scope")).toHaveText(
+    "Verified artifact and upload-recovery receipts only.",
+  );
+  await expect(page.getByTestId("operations-activity")).toContainText(
+    "Activity feed is unavailable.",
+  );
+  await expect(page.getByTestId("operations-activity").locator("li")).toHaveCount(0);
+  await expect(page.getByTestId("operations-retention")).toContainText(
+    "Automatic raw-log deletion is paused. Existing logs are preserved.",
+  );
+  await expect(page.getByTestId("retention-policy")).toContainText(
+    "Saving a policy does not resume deletion.",
+  );
+  expect(activityRequests).toEqual([]);
+  const counts = await page.getByTestId("queue-counts").textContent();
+  expect(counts).toMatch(/Notifications pending \d+/);
+  note("owner-sections", { visible: 6, queueCounts: (counts ?? "").slice(0, 160) });
+});
+
+test("member sees operations without the security audit", async ({ page }) => {
+  await signInAndOpenBoard(page, "member");
+  await openOperations(page);
+  await expect(page.getByTestId("operations-health")).toBeVisible();
+  await expect(page.getByTestId("operations-queues")).toBeVisible();
+  await expect(page.getByTestId("operations-activity")).toBeVisible();
+  await expect(page.getByTestId("operations-activity")).toContainText(
+    "Activity feed is unavailable.",
+  );
+  await expect(page.getByTestId("operations-audit")).toHaveCount(0);
+  await expect(page.getByTestId("operations-retention")).toBeVisible();
+  await expect(page.getByTestId("operations-diagnostics")).toBeVisible();
+  note("member-sections", { auditHidden: true });
+});
+
+test("reviewer gets no operations navigation", async ({ page }) => {
+  await signInAndOpenBoard(page, "restricted");
+  await expect(page.getByRole("button", { name: "Operations" })).toHaveCount(0);
+  note("reviewer-sections", { navHidden: true });
+});
+
+test("operations surface renders no private payload content", async ({ page }) => {
+  await signInAndOpenBoard(page, "owner");
+  await openOperations(page);
+  const body = (await page.getByTestId("operations-page").textContent()) ?? "";
+  for (const forbidden of ["cookie", "Bearer", "ghp_", "__Host-bfb", "BEGIN PRIVATE"]) {
+    expect(body).not.toContain(forbidden);
+  }
+  note("redaction", { forbiddenClassesAbsent: 5 });
+});
+
+test("diagnostics are unavailable without inventory or privileged requests", async ({ page }) => {
+  await signInAndOpenBoard(page, "owner");
+  const requests: string[] = [];
+  page.on("request", (request) => {
+    const pathname = new URL(request.url()).pathname;
+    if (pathname.includes("/diagnostics") || pathname.includes("/step-up")) requests.push(pathname);
+  });
+  await openOperations(page);
+  const diagnostics = page.getByTestId("operations-diagnostics");
+  await expect(diagnostics).toContainText("Diagnostic bundles are unavailable.");
+  await expect(diagnostics.getByRole("button")).toHaveCount(0);
+  await expect(diagnostics.locator("ul")).toHaveCount(0);
+  await expect(diagnostics.locator("details")).not.toHaveAttribute("open", "");
+  await expect(page.getByTestId("retention-policy")).toBeVisible();
+  const explanation = diagnostics.getByText("Why unavailable?", { exact: true });
+  await explanation.focus();
+  await page.keyboard.press("Enter");
+  await expect(diagnostics).toContainText("Existing records and stored objects are preserved.");
+  await expect(diagnostics.locator("details")).toHaveAttribute("open", "");
+  expect(requests).toEqual([]);
+});

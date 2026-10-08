@@ -1,0 +1,257 @@
+{
+  "contract": "bfb-checkout-offline-agent-results/1",
+  "maintenance": "Hand-maintained synthetic fixtures. Conformance: go test -count=1 ./internal/checkout -run TestOfflineResultRepositoryConfigContract; pnpm exec vitest run packages/domain/test/checkout-contract.test.ts.",
+  "fixtures": [
+    {
+      "name": "omitted",
+      "yaml": "{}\n",
+      "document": {},
+      "canonical": "{}",
+      "hash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+    },
+    {
+      "name": "explicit-deny",
+      "yaml": "offline_agent_results: {allow_submit_result: false, max_pending_age_seconds: 0}\n",
+      "document": {
+        "offline_agent_results": {
+          "allow_submit_result": false,
+          "max_pending_age_seconds": 0
+        }
+      },
+      "canonical": "{\"offline_agent_results\":{\"allow_submit_result\":false,\"max_pending_age_seconds\":0}}",
+      "hash": "sha256:c61a1af116ab1b8c3d0d8b2966f57360b77c7ea18865a5bd53c565c7fead8cf1"
+    },
+    {
+      "name": "minimum",
+      "yaml": "offline_agent_results: {allow_submit_result: true, max_pending_age_seconds: 1}\n",
+      "document": {
+        "offline_agent_results": {
+          "allow_submit_result": true,
+          "max_pending_age_seconds": 1
+        }
+      },
+      "canonical": "{\"offline_agent_results\":{\"allow_submit_result\":true,\"max_pending_age_seconds\":1}}",
+      "hash": "sha256:b7000333e09dd73bb504b13f1a8179317ed6bf4b6efd9104195c0fa9eaaca974"
+    },
+    {
+      "name": "maximum",
+      "yaml": "offline_agent_results:\n  max_pending_age_seconds: 300\n  allow_submit_result: true\n",
+      "document": {
+        "offline_agent_results": {
+          "allow_submit_result": true,
+          "max_pending_age_seconds": 300
+        }
+      },
+      "canonical": "{\"offline_agent_results\":{\"allow_submit_result\":true,\"max_pending_age_seconds\":300}}",
+      "hash": "sha256:7bbe164978f70a26155a8299c230ebac4e14e13557cbe56196e0ad066404a695"
+    },
+    {
+      "name": "decimal-integer",
+      "yaml": "offline_agent_results: {max_pending_age_seconds: 1.0, allow_submit_result: true}\n",
+      "document": {
+        "offline_agent_results": {
+          "allow_submit_result": true,
+          "max_pending_age_seconds": 1
+        }
+      },
+      "canonical": "{\"offline_agent_results\":{\"allow_submit_result\":true,\"max_pending_age_seconds\":1}}",
+      "hash": "sha256:b7000333e09dd73bb504b13f1a8179317ed6bf4b6efd9104195c0fa9eaaca974"
+    },
+    {
+      "name": "integer-exponent",
+      "yaml": "offline_agent_results: {allow_submit_result: true, max_pending_age_seconds: 1e2}\n",
+      "document": {
+        "offline_agent_results": {
+          "allow_submit_result": true,
+          "max_pending_age_seconds": 100
+        }
+      },
+      "canonical": "{\"offline_agent_results\":{\"allow_submit_result\":true,\"max_pending_age_seconds\":100}}",
+      "hash": "sha256:b5f2401de6a98287cecc43764abfd5fd9fedc3ad899e98e57d47a97d3f3700c1"
+    },
+    {
+      "name": "independent-work-deny",
+      "yaml": "offline_agent_results: {allow_submit_result: true, max_pending_age_seconds: 30}\noffline_agent_work: {allowed_tools: [], max_pending_age_seconds: 0}\n",
+      "document": {
+        "offline_agent_results": {
+          "allow_submit_result": true,
+          "max_pending_age_seconds": 30
+        },
+        "offline_agent_work": {
+          "allowed_tools": [],
+          "max_pending_age_seconds": 0
+        }
+      },
+      "canonical": "{\"offline_agent_results\":{\"allow_submit_result\":true,\"max_pending_age_seconds\":30},\"offline_agent_work\":{\"allowed_tools\":[],\"max_pending_age_seconds\":0}}",
+      "hash": "sha256:98faf5a9786d5ebcb722e5ea7ba4c27cf01da1bee742fa0aa737cf0d3e74a797"
+    },
+    {
+      "name": "six-fields",
+      "yaml": "allow_pass_to_agent: false\nallow_run_overrides: false\nallow_agent_root_propose: false\nallowed_providers: [codex, fake, codex]\noffline_agent_results: {allow_submit_result: true, max_pending_age_seconds: 10}\noffline_agent_work: {allowed_tools: [bfb_add_comment], max_pending_age_seconds: 15}\n",
+      "document": {
+        "allow_pass_to_agent": false,
+        "allow_run_overrides": false,
+        "allow_agent_root_propose": false,
+        "allowed_providers": ["codex", "fake"],
+        "offline_agent_results": {
+          "allow_submit_result": true,
+          "max_pending_age_seconds": 10
+        },
+        "offline_agent_work": {
+          "allowed_tools": ["bfb_add_comment"],
+          "max_pending_age_seconds": 15
+        }
+      },
+      "canonical": "{\"allow_agent_root_propose\":false,\"allow_pass_to_agent\":false,\"allow_run_overrides\":false,\"allowed_providers\":[\"codex\",\"fake\"],\"offline_agent_results\":{\"allow_submit_result\":true,\"max_pending_age_seconds\":10},\"offline_agent_work\":{\"allowed_tools\":[\"bfb_add_comment\"],\"max_pending_age_seconds\":15}}",
+      "hash": "sha256:9582fb88d0d6c7d6b29b1521851526586a306ad357e1d8646e1bebc417bfd9b9"
+    },
+    {
+      "name": "null",
+      "yaml": "{\"offline_agent_results\":null}",
+      "document": {
+        "offline_agent_results": null
+      },
+      "error": "invalid"
+    },
+    {
+      "name": "array",
+      "yaml": "{\"offline_agent_results\":[]}",
+      "document": {
+        "offline_agent_results": []
+      },
+      "error": "invalid"
+    },
+    {
+      "name": "missing-allow",
+      "yaml": "{\"offline_agent_results\":{\"max_pending_age_seconds\":0}}",
+      "document": {
+        "offline_agent_results": {
+          "max_pending_age_seconds": 0
+        }
+      },
+      "error": "invalid"
+    },
+    {
+      "name": "missing-age",
+      "yaml": "{\"offline_agent_results\":{\"allow_submit_result\":false}}",
+      "document": {
+        "offline_agent_results": {
+          "allow_submit_result": false
+        }
+      },
+      "error": "invalid"
+    },
+    {
+      "name": "wrong-allow",
+      "yaml": "{\"offline_agent_results\":{\"allow_submit_result\":\"true\",\"max_pending_age_seconds\":1}}",
+      "document": {
+        "offline_agent_results": {
+          "allow_submit_result": "true",
+          "max_pending_age_seconds": 1
+        }
+      },
+      "error": "invalid"
+    },
+    {
+      "name": "wrong-age",
+      "yaml": "{\"offline_agent_results\":{\"allow_submit_result\":true,\"max_pending_age_seconds\":\"1\"}}",
+      "document": {
+        "offline_agent_results": {
+          "allow_submit_result": true,
+          "max_pending_age_seconds": "1"
+        }
+      },
+      "error": "invalid"
+    },
+    {
+      "name": "false-nonzero",
+      "yaml": "{\"offline_agent_results\":{\"allow_submit_result\":false,\"max_pending_age_seconds\":1}}",
+      "document": {
+        "offline_agent_results": {
+          "allow_submit_result": false,
+          "max_pending_age_seconds": 1
+        }
+      },
+      "error": "invalid"
+    },
+    {
+      "name": "true-zero",
+      "yaml": "{\"offline_agent_results\":{\"allow_submit_result\":true,\"max_pending_age_seconds\":0}}",
+      "document": {
+        "offline_agent_results": {
+          "allow_submit_result": true,
+          "max_pending_age_seconds": 0
+        }
+      },
+      "error": "invalid"
+    },
+    {
+      "name": "negative",
+      "yaml": "{\"offline_agent_results\":{\"allow_submit_result\":true,\"max_pending_age_seconds\":-1}}",
+      "document": {
+        "offline_agent_results": {
+          "allow_submit_result": true,
+          "max_pending_age_seconds": -1
+        }
+      },
+      "error": "invalid"
+    },
+    {
+      "name": "over-maximum",
+      "yaml": "{\"offline_agent_results\":{\"allow_submit_result\":true,\"max_pending_age_seconds\":301}}",
+      "document": {
+        "offline_agent_results": {
+          "allow_submit_result": true,
+          "max_pending_age_seconds": 301
+        }
+      },
+      "error": "invalid"
+    },
+    {
+      "name": "fractional",
+      "yaml": "{\"offline_agent_results\":{\"allow_submit_result\":true,\"max_pending_age_seconds\":1.5}}",
+      "document": {
+        "offline_agent_results": {
+          "allow_submit_result": true,
+          "max_pending_age_seconds": 1.5
+        }
+      },
+      "error": "invalid"
+    },
+    {
+      "name": "extra-field",
+      "yaml": "{\"offline_agent_results\":{\"allow_submit_result\":true,\"max_pending_age_seconds\":10,\"allowed_tools\":[\"bfb_submit_result\"]}}",
+      "document": {
+        "offline_agent_results": {
+          "allow_submit_result": true,
+          "max_pending_age_seconds": 10,
+          "allowed_tools": ["bfb_submit_result"]
+        }
+      },
+      "error": "invalid"
+    },
+    {
+      "name": "work-family-substitution",
+      "yaml": "{\"offline_agent_results\":{\"allowed_tools\":[],\"max_pending_age_seconds\":0}}",
+      "document": {
+        "offline_agent_results": {
+          "allowed_tools": [],
+          "max_pending_age_seconds": 0
+        }
+      },
+      "error": "invalid"
+    },
+    {
+      "name": "unknown-root",
+      "yaml": "{\"offline_agent_results\":{\"allow_submit_result\":false,\"max_pending_age_seconds\":0},\"agent_results\":{}}",
+      "document": {
+        "offline_agent_results": {
+          "allow_submit_result": false,
+          "max_pending_age_seconds": 0
+        },
+        "agent_results": {}
+      },
+      "error": "invalid"
+    }
+  ]
+}

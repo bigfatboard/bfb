@@ -6,8 +6,30 @@ import { Hono } from "hono";
 import type { SqlDatabase } from "@bfb/db";
 import { DomainError } from "@bfb/domain";
 
+import { handleAttentionApi } from "./api/attention.js";
+import { handleAgentWorkApi, isAgentWorkPath } from "./api/agent-work.js";
+import { handleNotificationApi } from "./api/notifications.js";
+import {
+  handleNotificationRunnerApi,
+  isNotificationRunnerPath,
+} from "./api/notification-runner.js";
+import { handleEventBrowserApi, handleRunnerEventApi, isRunnerEventPath } from "./api/events.js";
+import { handleBrowserRealtimeApi, isBrowserRealtimePath } from "./api/realtime.js";
+import { handleGitHubBrowserApi, handleGitHubWebhook } from "./api/github.js";
+import { handleOperationsApi } from "./api/operations.js";
 import { handleWorkApi } from "./api/work.js";
+import { handleArtifactBrowserApi } from "./api/artifacts.js";
+import { handleCliBrowserApi, handleCliPublicApi } from "./api/cli-credentials.js";
+import { handleCliHumanApi, isCliHumanPath } from "./api/cli-human.js";
+import { handleDiscussionApi } from "./api/discussions.js";
 import { handleProjectApi } from "./api/projects.js";
+import { handleRunnerBrowserApi, handleRunnerNativeApi } from "./api/runners.js";
+import { handleRunnerChannelApi, isRunnerChannelPath } from "./api/runner-channel.js";
+import {
+  handleLaunchBrowserApi,
+  handleLaunchNativeApi,
+  isRunnerLaunchPath,
+} from "./api/launches.js";
 import { handleWorkspaceAuthorization } from "./api/workspace-authorization.js";
 import type { AuthKey, HumanAuth } from "./auth/better-auth.js";
 import { handleAuthRoute } from "./auth/routes.js";
@@ -77,22 +99,31 @@ export function createControlApp(
 
   app.get("/api/v1/_substrate", (c) => {
     const current = c.get("validated");
-    return c.json({
-      ok: true,
-      app_origin: current?.origins.appOrigin,
-      artifact_origin: current?.origins.artifactOrigin,
-      launch_origin: current?.origins.launchOrigin,
-      worker_first_prefixes: [
-        "/api",
-        "/auth",
-        "/mcp",
-        "/oauth",
-        "/realtime",
-        "/runner",
-        "/webhooks",
-        "/.well-known",
-      ],
-    });
+    return c.json(
+      {
+        ok: true,
+        app_origin: current?.origins.appOrigin,
+        artifact_origin: current?.origins.artifactOrigin,
+        launch_origin: current?.origins.launchOrigin,
+        features: {
+          artifact_viewer: current?.features.artifactViewer ?? false,
+          artifact_review: current?.features.artifactReview ?? false,
+          discussions: current?.features.discussions ?? false,
+        },
+        worker_first_prefixes: [
+          "/api",
+          "/auth",
+          "/mcp",
+          "/oauth",
+          "/realtime",
+          "/runner",
+          "/webhooks",
+          "/.well-known",
+        ],
+      },
+      200,
+      { "cache-control": "no-store" },
+    );
   });
 
   app.all("/mcp", async (c) => {
@@ -121,6 +152,34 @@ export function createControlApp(
       },
       execCtx,
     );
+  });
+
+  app.all("/runner/*", async (c) => {
+    const current = c.get("validated");
+    const db = c.get("db") ?? options.db;
+    if (!current || !db || !options.abuseSecret)
+      return c.json({ error: "runner_misconfigured" }, 500);
+    const envBindings = (c.env ?? {}) as { WORKSPACE_HUB?: DurableObjectNamespace };
+    const handler = isAgentWorkPath(c.req.path)
+      ? handleAgentWorkApi
+      : isRunnerLaunchPath(c.req.path)
+        ? handleLaunchNativeApi
+        : isRunnerEventPath(c.req.path)
+          ? handleRunnerEventApi
+          : isRunnerChannelPath(c.req.path)
+            ? handleRunnerChannelApi
+            : isNotificationRunnerPath(c.req.path)
+              ? handleNotificationRunnerApi
+              : handleRunnerNativeApi;
+    return handler(c.req.raw, {
+      db,
+      now: c.get("now") ?? now,
+      jurisdiction: current.jurisdiction,
+      appOrigin: current.origins.appOrigin,
+      artifactOrigin: current.origins.artifactOrigin,
+      abuseSecret: options.abuseSecret,
+      workspaceHubNs: envBindings.WORKSPACE_HUB,
+    });
   });
 
   app.all("/auth/*", async (c) => {
@@ -364,6 +423,19 @@ export function createControlApp(
     }
   });
 
+  app.use("/api/v1/workspaces/*", async (c, next) => {
+    await next();
+    if (/^\/api\/v1\/workspaces\/[^/]+\/tasks\/[^/]+\/checkpoints$/.test(c.req.path))
+      c.header("Cache-Control", "private, no-store");
+    if (
+      c.req.method === "GET" &&
+      /^\/api\/v1\/workspaces\/[^/]+\/tasks\/[^/]+\/(comments|dependencies|links|runs)$/.test(
+        c.req.path,
+      )
+    )
+      c.header("Cache-Control", "private, no-store");
+  });
+
   app.all("/api/v1/workspaces/*", async (c) => {
     const db = c.get("db") ?? options.db;
     const current = c.get("validated");
@@ -429,12 +501,118 @@ export function createControlApp(
       };
       const projectPrefix = `/api/v1/workspaces/${workspaceId}`;
       if (
+        c.req.path === `${projectPrefix}/cli/authorize` ||
+        c.req.path.startsWith(`${projectPrefix}/cli/bindings/`)
+      ) {
+        return await handleCliBrowserApi(c.req.raw, {
+          ...apiDeps,
+          db,
+          auth: runtime.auth,
+          appOrigin: current.origins.appOrigin,
+          abuseSecret: runtime.abuseSecret,
+        });
+      }
+      if (
+        /^\/api\/v1\/workspaces\/[^/]+\/(?:discussions(?:\/|$)|tasks\/[^/]+\/discussions(?:\/|$))/.test(
+          c.req.path,
+        )
+      ) {
+        if (!current.features.discussions)
+          return c.json({ ok: false, error: "feature_unavailable" }, 404, {
+            "cache-control": "no-store",
+          });
+        return await handleDiscussionApi(c.req.raw, apiDeps);
+      }
+      if (
+        c.req.path === `${projectPrefix}/artifacts` ||
+        c.req.path.startsWith(`${projectPrefix}/artifacts/`)
+      ) {
+        return await handleArtifactBrowserApi(c.req.raw, {
+          ...apiDeps,
+          db,
+          auth: runtime.auth,
+          appOrigin: current.origins.appOrigin,
+          abuseSecret: runtime.abuseSecret,
+          artifactViewerEnabled: current.features.artifactViewer,
+          artifactReviewEnabled: current.features.artifactReview,
+        });
+      }
+      if (
+        c.req.path === `${projectPrefix}/launches` ||
+        c.req.path.startsWith(`${projectPrefix}/launches/`) ||
+        c.req.path === `${projectPrefix}/run-controls`
+      ) {
+        return await handleLaunchBrowserApi(c.req.raw, {
+          ...apiDeps,
+          appOrigin: current.origins.appOrigin,
+          abuseSecret: runtime.abuseSecret,
+        });
+      }
+      if (
+        c.req.path === `${projectPrefix}/runners` ||
+        c.req.path.startsWith(`${projectPrefix}/runners/`)
+      ) {
+        return await handleRunnerBrowserApi(c.req.raw, {
+          ...apiDeps,
+          appOrigin: current.origins.appOrigin,
+          abuseSecret: runtime.abuseSecret,
+        });
+      }
+      if (
+        c.req.path === `${projectPrefix}/events` ||
+        c.req.path === `${projectPrefix}/events/high-water`
+      ) {
+        return await handleEventBrowserApi(c.req.raw, {
+          ...apiDeps,
+          appOrigin: current.origins.appOrigin,
+          abuseSecret: runtime.abuseSecret,
+        });
+      }
+      if (
         c.req.path.startsWith(`${projectPrefix}/projects`) ||
         c.req.path.startsWith(`${projectPrefix}/members`) ||
         c.req.path.startsWith(`${projectPrefix}/agent-profiles`) ||
         c.req.path.startsWith(`${projectPrefix}/workspace-policy`)
       ) {
         return await handleProjectApi(c.req.raw, apiDeps);
+      }
+      if (
+        c.req.path === `${projectPrefix}/attention` ||
+        c.req.path.startsWith(`${projectPrefix}/attention/`)
+      ) {
+        return await handleAttentionApi(c.req.raw, apiDeps);
+      }
+      if (
+        c.req.path === `${projectPrefix}/github` ||
+        c.req.path.startsWith(`${projectPrefix}/github/`)
+      ) {
+        return await handleGitHubBrowserApi(c.req.raw, {
+          ...apiDeps,
+          appOrigin: current.origins.appOrigin,
+          abuseSecret: runtime.abuseSecret,
+        });
+      }
+      if (
+        c.req.path === `${projectPrefix}/notifications/preferences` ||
+        c.req.path === `${projectPrefix}/notifications/deliveries` ||
+        c.req.path === `${projectPrefix}/notifications/push-endpoints` ||
+        c.req.path.startsWith(`${projectPrefix}/notifications/push-endpoints/`)
+      ) {
+        return await handleNotificationApi(c.req.raw, {
+          ...apiDeps,
+          abuseSecret: runtime.abuseSecret,
+        });
+      }
+      if (
+        c.req.path === `${projectPrefix}/operations` ||
+        c.req.path.startsWith(`${projectPrefix}/operations/`)
+      ) {
+        const opsBindings = (c.env ?? {}) as { OPS_JOBS?: Queue | undefined };
+        return await handleOperationsApi(c.req.raw, {
+          ...apiDeps,
+          abuseSecret: runtime.abuseSecret,
+          opsJobs: opsBindings.OPS_JOBS,
+        });
       }
       return await handleWorkApi(c.req.raw, apiDeps);
     } catch (error) {
@@ -457,6 +635,41 @@ export function createControlApp(
     }
   });
 
+  app.all("/api/v1/cli/*", async (c) => {
+    const db = c.get("db") ?? options.db;
+    const current = c.get("validated");
+    if (!db || !current) {
+      return c.json({ error: "api_misconfigured" }, 500);
+    }
+    try {
+      const runtime = options.humanAuth?.();
+      if (!runtime) {
+        return c.json({ error: "api_misconfigured" }, 500);
+      }
+      const envBindings = (c.env ?? {}) as { WORKSPACE_HUB?: DurableObjectNamespace };
+      if (isCliHumanPath(new URL(c.req.raw.url).pathname)) {
+        return await handleCliHumanApi(c.req.raw, {
+          db,
+          now: c.get("now") ?? now,
+          jurisdiction: current.jurisdiction,
+          abuseSecret: runtime.abuseSecret,
+          workspaceHubNs: envBindings.WORKSPACE_HUB,
+        });
+      }
+      return await handleCliPublicApi(c.req.raw, {
+        db,
+        auth: runtime.auth,
+        now: c.get("now") ?? now,
+        jurisdiction: current.jurisdiction,
+        appOrigin: current.origins.appOrigin,
+        abuseSecret: runtime.abuseSecret,
+        workspaceHubNs: envBindings.WORKSPACE_HUB,
+      });
+    } catch {
+      return c.json({ error: "request_rejected", message: "request rejected" }, 403);
+    }
+  });
+
   app.all("/api/*", (c) =>
     c.json(
       {
@@ -468,16 +681,56 @@ export function createControlApp(
     ),
   );
 
-  app.all("/realtime/*", (c) =>
-    c.json(
-      {
-        ok: false,
-        error: "realtime_not_implemented",
-        message: "Realtime is owned by E02",
-      },
-      501,
-    ),
-  );
+  app.all("/realtime/*", async (c) => {
+    const db = c.get("db") ?? options.db;
+    const current = c.get("validated");
+    if (!db || !current) {
+      return c.json({ error: "api_misconfigured" }, 500);
+    }
+    if (!isBrowserRealtimePath(c.req.path)) {
+      return c.json({ error: "not_found" }, 404);
+    }
+    const origin = c.req.header("origin") ?? "";
+    if (origin !== current.origins.appOrigin) {
+      return c.json({ error: "csrf_origin", message: "origin check failed for realtime" }, 403);
+    }
+    let runtime: HumanAuthRuntime;
+    try {
+      const resolved = options.humanAuth?.();
+      if (!resolved) {
+        return c.json({ error: "api_misconfigured" }, 500);
+      }
+      runtime = resolved;
+    } catch {
+      return c.json({ error: "api_misconfigured" }, 500);
+    }
+    let principal;
+    try {
+      principal = await resolveBrowserPrincipal(db, runtime.auth, c.req.raw, c.get("now") ?? now);
+    } catch {
+      return c.json({ error: "identity_conflict", message: "identity linking required" }, 409);
+    }
+    if (!principal) {
+      return c.json({ error: "unauthenticated" }, 401);
+    }
+    const match = c.req.path.match(/^\/realtime\/workspaces\/([^/]+)/);
+    const workspaceId = match?.[1];
+    if (!workspaceId) {
+      return c.json({ error: "not_found" }, 404);
+    }
+    const envBindings = (c.env ?? {}) as { WORKSPACE_HUB?: DurableObjectNamespace };
+    return handleBrowserRealtimeApi(c.req.raw, {
+      db,
+      principal,
+      workspaceId,
+      now: c.get("now") ?? now,
+      jurisdiction: current.jurisdiction,
+      appOrigin: current.origins.appOrigin,
+      abuseSecret: options.abuseSecret ?? "",
+      workspaceHubNs: envBindings.WORKSPACE_HUB,
+      auth: runtime.auth,
+    });
+  });
 
   app.all("/runner/*", (c) => {
     if (hasBrowserSessionCookie(c.req.raw)) {
@@ -496,18 +749,46 @@ export function createControlApp(
     );
   });
 
-  app.all("/webhooks/*", (c) => {
+  app.all("/webhooks/*", async (c) => {
     if (hasBrowserSessionCookie(c.req.raw)) {
       return c.json(
         { error: "credential_confusion", message: "browser cookie cannot auth webhook routes" },
         401,
       );
     }
+    if (new URL(c.req.url).pathname === "/webhooks/github") {
+      const db = c.get("db") ?? options.db;
+      const current = c.get("validated");
+      if (!db || !current) {
+        return c.json({ error: "api_misconfigured" }, 500);
+      }
+      const envBindings = (c.env ?? {}) as {
+        WORKSPACE_HUB?: DurableObjectNamespace;
+        JOBS?: Queue;
+        GITHUB_WEBHOOK_SECRET?: string;
+        GITHUB_API_BASE?: string;
+        GITHUB_APP_ID?: string;
+        GITHUB_APP_PRIVATE_KEY?: string;
+      };
+      return handleGitHubWebhook(c.req.raw, {
+        db,
+        now: c.get("now") ?? now,
+        jurisdiction: current.jurisdiction,
+        appOrigin: current.origins.appOrigin,
+        abuseSecret: options.abuseSecret ?? "",
+        workspaceHubNs: envBindings.WORKSPACE_HUB,
+        jobs: envBindings.JOBS,
+        githubWebhookSecret: envBindings.GITHUB_WEBHOOK_SECRET,
+        githubApiBase: envBindings.GITHUB_API_BASE,
+        githubAppId: envBindings.GITHUB_APP_ID,
+        githubAppPrivateKey: envBindings.GITHUB_APP_PRIVATE_KEY,
+      });
+    }
     return c.json(
       {
         ok: false,
         error: "webhooks_not_implemented",
-        message: "Webhooks are owned by X04",
+        message: "Only /webhooks/github is implemented",
       },
       501,
     );

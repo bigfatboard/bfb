@@ -1,0 +1,13 @@
+{
+  "device_label": "Synthetic Mac",
+  "public_key": {
+    "crv": "P-256",
+    "kty": "EC",
+    "x": "axfR8uEsQkf4vOblY6RA8ncDfYEt6zOg9KE5RdiYwpY",
+    "y": "T-NC4v4af5uO5-tKfA-eFivOM1drMV7Oy7ZAaDe_UfU",
+    "d": "not-a-private-key"
+  },
+  "runner_id": "01K00000000000000000000002",
+  "schema_version": 1,
+  "workspace_id": "01K00000000000000000000001"
+}

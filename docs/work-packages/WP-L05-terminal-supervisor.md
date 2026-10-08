@@ -1,8 +1,12 @@
 # WP-L05 — Terminal execution supervisor
 
-Status: `planned`
+Status: `done`
 
 Risk: Very high
+
+Test target: `pnpm test:l05`
+
+Evidence manifest: `docs/work-packages/evidence/WP-L05/manifest.json`
 
 ## Outcome
 
@@ -11,7 +15,7 @@ A claimed launch starts only the locally allowlisted fake provider in the exact 
 ## Dependencies
 
 - **Requires:** C09, L01, L02, L03, L04, L08.
-- **Unlocks:** A01, L06, L07, P01, P02, W02, X02.
+- **Unlocks:** A01, D02, L06, L07, P01, P02, W02, X02.
 - **Can run with:** W01 and other web work after the C09/F02 launch contracts freeze.
 
 ## Scope
@@ -34,6 +38,24 @@ A claimed launch starts only the locally allowlisted fake provider in the exact 
 
 - Claude-specific flags, arbitrary remote commands, server cwd/argv, cloud reacquisition of a claimed lease, web-cleared containment recovery, killing ambiguous processes, macOS sandboxing, or protection from deliberately untracked human processes.
 
+## Contracts
+
+### Consumes
+
+- C09 [launch orchestration v1](../contracts/launch-orchestration.md), D1 head `0016_launch_orchestration`, strict generated claim/snapshot/final/control/lease types, and the existing RunnerConnection possession transport. C09 is certified at `e22e2cf`; its exact checkpoint passed again at the evidence handoff `c625911` before L05 edits.
+- L01 private local RPC and SQLite migration head `003_runner_enrollments`, L02 immutable checkout identity/revalidation, L03 immutable local provider probes/plans, L04 signed-app delivery of a distinct local UUID, and L08 durable command-consumer acceptance.
+
+### Produces
+
+- [Local execution supervision v1](../contracts/execution-supervisor.md): one-time local intent and authenticated assignment, persistent local occupancy, native process identity, PTY handoff, run controls and explicit local recovery.
+- Additive local execution RPC/assignment/observation schemas with generated TypeScript/Go/Swift codecs; deterministic synthetic protocol fixtures owned by `pnpm supervisor:fixtures`.
+- Local migrations `004_execution_supervision.sql`, `005_launch_cleanup.sql`, `006_execution_observations.sql`, `007_native_inspection.sql` and `008_run_control_delivery.sql`; bounded local recovery, observation and command records, with atomic unstarted cleanup exclusion, durable process-observation checkpoints, retained daemon-observed descendant history and one-way control-effect delivery. No new cloud business state outside C09 is introduced.
+- Exact-session child launch planning through recertified L03, with complete
+  native release-history fingerprints, original-control binding, fresh source
+  absence, ordinary physical-lock/final-authorization gates and reconciliation
+  before acknowledging native startup.
+- Exact `pnpm test:l05` gate: protocol parity, native race/lock/process tests, pre-exec swap and lifecycle fault tests, real signed Terminal integration and bounded evidence. A PTY-only test cannot substitute for the required Terminal integration.
+
 ## Work plan
 
 1. Build isolated PTY/process-control proof with the fake provider.
@@ -54,11 +76,14 @@ A claimed launch starts only the locally allowlisted fake provider in the exact 
 - Duplicate run controls have one effective local action; stale/expired controls and controls for another assignment cannot focus, signal, resume, or terminate a process.
 - Captured shell command contains no cloud/task/profile/checkout data and never contains a cloud wake-intent value.
 
-## Evidence and handoff
+## Evidence
 
 - Commit PTY traces, process tree/lock/lease-renewal tests, correlation/environment and heartbeat traces, run-control matrix, crash/local-recovery record, pre-exec swap tests, and malicious-input capture.
-- Real provider adapters supply only a validated local `LaunchPlan`.
-
 ## Risks and decisions
 
 - This is the highest-risk macOS component. Do not debug provider behavior until the fake-provider supervisor suite is clean.
+- Certified 18 September at `d0b286d`: three consecutive `pnpm test:l05` passes in the implementation checkout plus one clean-checkout pass, `pnpm verify`, and bounded evidence at `docs/work-packages/evidence/WP-L05/`. The certification is not deterministic: the first clean-checkout run failed its interactive scenario fail-closed (exactly one SIGINT delivered with a provably ended group, yet a same-instant ownership uncertainty wedged the release leg past its wait with the lock retained), one failure in five full gates as recorded in `command-result.json` `gate_runs` and `native_observations`. Per `ACCEPTANCE.md` a flaky check is not a release gate, so this certification keeps the package `done` on its clean-checkout pass but cannot settle AG-02, which stays `failed` until the Terminal proof passes deterministically. The retained launch trace is the bounded redacted matrix (`native-matrix.md`) plus the `command-result.json` assertions; no separate raw launch trace is committed, and the evidence rules forbid retaining terminal transcripts. Real Terminal `focus_existing`, human-like Ctrl-C, and provider-only window close with verified whole-group release all pass in the signed integration. The Ctrl-C/close signal-counting assertions committed after that certification (counting provider: exactly one SIGINT with a duplicate-free settle; close: kernel SIGHUP plus at most the helper-shutdown SIGTERM, never a third signal) await their first signed Terminal run; the certified run proved the weaker exit-on-first-signal form whose `command-result.json` assertion names stay true under the stronger gate. Known limits: a same-group survivor cannot outlive a real close (survivor retention stays covered by the child and escape scenarios); the synthetic `--require-focus` routing section is not invoked by any gate; a cold start beyond the scripting-readiness poll fails safe; one shutdown-observation race wedged a release past the release wait and failed closed with the lock retained. No alternate input path bypasses the owned-tab checks.
+
+## Handoff
+
+- Real provider adapters supply only a validated local `LaunchPlan`.

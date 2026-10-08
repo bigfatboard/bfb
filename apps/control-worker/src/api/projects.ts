@@ -17,6 +17,8 @@ import {
   listProjectsPage,
   listVersionRows,
   loadPrincipal,
+  normalizeOfflineAgentWork,
+  normalizeOfflineAgentResults,
   reportRepositoryConfigCommand,
   updateAgentProfileCommand,
   updateProjectCommand,
@@ -29,7 +31,7 @@ import {
 
 import type { BrowserPrincipal } from "../auth/session.js";
 import type { Jurisdiction } from "../env.js";
-import { executeWorkspaceCommand } from "../hub-client.js";
+import { executePublicWorkspaceCommand as executeWorkspaceCommand } from "../public-command-outcome.js";
 import { readBoundedJson } from "./request.js";
 
 const BODY_LIMIT = 32_768;
@@ -37,8 +39,6 @@ const STEP_UP_ACTIONS = {
   createWorkspaceVisibleProject: "project.workspace_visible.create",
   widenProjectVisibility: "project.workspace_visible.enable",
   grantProjectAccess: "project.access.grant",
-  updateWorkspacePolicy: "workspace.policy.update",
-  updateProjectPolicy: "project.policy.update",
 } as const;
 
 export interface ProjectApiDeps {
@@ -116,28 +116,13 @@ function policy(body: Record<string, unknown>): PolicySettings {
     allowAgentRootPropose: body.allow_agent_root_propose as boolean,
     allowPassToAgent: body.allow_pass_to_agent as boolean,
     allowRunOverrides: body.allow_run_overrides as boolean,
+    offlineAgentWork: normalizeOfflineAgentWork(body.offline_agent_work),
+    offlineAgentResults: normalizeOfflineAgentResults(body.offline_agent_results),
   };
 }
 
 export function projectStepUpTarget(parts: readonly unknown[]): string {
   return `sha256:${createHash("sha256").update(JSON.stringify(parts), "utf8").digest("hex")}`;
-}
-
-function policyTarget(
-  action: string,
-  projectId: string | undefined,
-  expectedVersion: number,
-  settings: PolicySettings,
-): string {
-  return projectStepUpTarget([
-    action,
-    projectId ?? null,
-    expectedVersion,
-    [...settings.allowedProviders].sort(),
-    settings.allowAgentRootPropose,
-    settings.allowPassToAgent,
-    settings.allowRunOverrides,
-  ]);
 }
 
 async function consumeProjectStepUp(
@@ -330,21 +315,17 @@ export async function handleProjectApi(request: Request, deps: ProjectApiDeps): 
       "allow_agent_root_propose",
       "allow_pass_to_agent",
       "allow_run_overrides",
+      "offline_agent_work",
+      "offline_agent_results",
       "step_up_proof_id",
       "request_id",
     ]);
     const settings = policy(body);
     const expectedVersion = requiredVersion(body);
-    await consumeProjectStepUp(
-      deps,
-      principal,
-      requiredString(body, "step_up_proof_id"),
-      STEP_UP_ACTIONS.updateWorkspacePolicy,
-      policyTarget(STEP_UP_ACTIONS.updateWorkspacePolicy, undefined, expectedVersion, settings),
-    );
     const outcome = await execute(updateWorkspacePolicyCommand, requestId(body), {
       ...settings,
       expectedVersion,
+      stepUpProofId: requiredString(body, "step_up_proof_id"),
     });
     return outcomeResponse(outcome);
   }
@@ -370,6 +351,7 @@ export async function handleProjectApi(request: Request, deps: ProjectApiDeps): 
       "model",
       "execution_mode",
       "harness_mode",
+      "permission_mode",
       "request_id",
     ]);
     const model = optionalString(body, "model");
@@ -379,6 +361,9 @@ export async function handleProjectApi(request: Request, deps: ProjectApiDeps): 
       ...(model === undefined ? {} : { model }),
       executionMode: requiredString(body, "execution_mode") as "interactive" | "headless",
       harnessMode: requiredString(body, "harness_mode") as "restricted" | "standard",
+      ...(body.permission_mode === undefined
+        ? {}
+        : { permissionMode: optionalString(body, "permission_mode") as "manual" | "autonomous" }),
     });
     return outcomeResponse(outcome);
   }
@@ -405,6 +390,7 @@ export async function handleProjectApi(request: Request, deps: ProjectApiDeps): 
         "model",
         "execution_mode",
         "harness_mode",
+        "permission_mode",
         "request_id",
       ]);
       const model = optionalString(body, "model");
@@ -416,6 +402,9 @@ export async function handleProjectApi(request: Request, deps: ProjectApiDeps): 
         ...(model === undefined ? {} : { model }),
         executionMode: requiredString(body, "execution_mode") as "interactive" | "headless",
         harnessMode: requiredString(body, "harness_mode") as "restricted" | "standard",
+        ...(body.permission_mode === undefined
+          ? {}
+          : { permissionMode: optionalString(body, "permission_mode") as "manual" | "autonomous" }),
       });
       return outcomeResponse(outcome);
     }
@@ -516,23 +505,18 @@ export async function handleProjectApi(request: Request, deps: ProjectApiDeps): 
       "allow_agent_root_propose",
       "allow_pass_to_agent",
       "allow_run_overrides",
+      "offline_agent_work",
+      "offline_agent_results",
       "step_up_proof_id",
       "request_id",
     ]);
     const settings = policy(body);
     const expectedVersion = requiredVersion(body);
-    await consumeProjectStepUp(
-      deps,
-      principal,
-      requiredString(body, "step_up_proof_id"),
-      STEP_UP_ACTIONS.updateProjectPolicy,
-      policyTarget(STEP_UP_ACTIONS.updateProjectPolicy, projectId, expectedVersion, settings),
-      projectId,
-    );
     const outcome = await execute(updateProjectPolicyCommand, requestId(body), {
       projectId,
       ...settings,
       expectedVersion,
+      stepUpProofId: requiredString(body, "step_up_proof_id"),
     });
     return outcomeResponse(outcome);
   }
@@ -561,6 +545,7 @@ export async function handleProjectApi(request: Request, deps: ProjectApiDeps): 
       "expected_version",
       "document",
       "content_hash",
+      "step_up_proof_id",
       "request_id",
     ]);
     const outcome = await execute(reportRepositoryConfigCommand, requestId(body), {
@@ -568,6 +553,9 @@ export async function handleProjectApi(request: Request, deps: ProjectApiDeps): 
       expectedVersion: requiredVersion(body),
       document: body.document,
       contentHash: requiredString(body, "content_hash"),
+      ...(body.step_up_proof_id === undefined
+        ? {}
+        : { stepUpProofId: requiredString(body, "step_up_proof_id") }),
     });
     return outcomeResponse(outcome);
   }

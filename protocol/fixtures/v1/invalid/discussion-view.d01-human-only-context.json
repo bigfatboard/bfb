@@ -1,0 +1,126 @@
+{
+  "schema_version": 1,
+  "scope": "human",
+  "discussion_id": "01K00000000000000000000006",
+  "task_id": "01K00000000000000000000001",
+  "state": "concluded",
+  "version": 25,
+  "deadline": "2026-09-12T12:00:00.000Z",
+  "brief_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "brief": {
+    "schema_version": 1,
+    "task_id": "01K00000000000000000000001",
+    "title": "Synthetic issue",
+    "question": "Synthetic comparison: preserve explicit human decisions.",
+    "git_revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "context": [
+      {
+        "id": "01K00000000000000000000007",
+        "kind": "constraint",
+        "body": "Synthetic read-only boundary.",
+        "version": 1,
+        "audience": "human",
+        "content_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "created_at": "2026-09-12T12:00:00.000Z"
+      }
+    ]
+  },
+  "participants": [
+    {
+      "id": "01K00000000000000000000012",
+      "run_id": "01K00000000000000000000010",
+      "agent_profile_id": "01K00000000000000000000002",
+      "name": "Synthetic claude",
+      "provider": "claude",
+      "runner_id": "01K00000000000000000000004",
+      "checkout_id": "01K00000000000000000000005"
+    },
+    {
+      "id": "01K00000000000000000000013",
+      "run_id": "01K00000000000000000000011",
+      "agent_profile_id": "01K00000000000000000000003",
+      "name": "Synthetic codex",
+      "provider": "codex",
+      "runner_id": "01K00000000000000000000004",
+      "checkout_id": "01K00000000000000000000005"
+    }
+  ],
+  "turns": [
+    {
+      "id": "01K00000000000000000000008",
+      "participant_id": "01K00000000000000000000012",
+      "ordinal": 1,
+      "state": "completed",
+      "version": 3,
+      "delivery": {
+        "id": "01K00000000000000000000009",
+        "state": "completed",
+        "version": 4,
+        "session_id": "01K00000000000000000000014",
+        "source_message_ids": []
+      }
+    }
+  ],
+  "messages": [
+    {
+      "id": "01K00000000000000000000022",
+      "kind": "intervention",
+      "created_at": "2026-09-12T12:00:00.000Z",
+      "author_human_id": "01K00000000000000000000015",
+      "text": "Synthetic human clarification."
+    },
+    {
+      "id": "01K00000000000000000000020",
+      "kind": "recommendation",
+      "created_at": "2026-09-12T12:00:00.000Z",
+      "participant_id": "01K00000000000000000000012",
+      "run_id": "01K00000000000000000000010",
+      "session_id": "01K00000000000000000000014",
+      "turn_id": "01K00000000000000000000008",
+      "output": {
+        "schema_version": 1,
+        "recommendation": "Synthetic recommendation, not work acceptance.",
+        "reasons": ["Synthetic bounded rationale."],
+        "evidence": [
+          {
+            "kind": "context",
+            "context_id": "01K00000000000000000000007",
+            "explanation": "Synthetic brief constraint."
+          },
+          {
+            "kind": "repository",
+            "repository_path": "src/synthetic.ts",
+            "git_revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "line": 4,
+            "explanation": "Synthetic revision-bound evidence."
+          }
+        ],
+        "agreement": [
+          {
+            "message_id": "01K00000000000000000000020",
+            "reason": "Synthetic shared premise."
+          }
+        ],
+        "disagreements": [
+          {
+            "message_id": "01K00000000000000000000021",
+            "reason": "Synthetic unresolved tradeoff."
+          }
+        ],
+        "human_questions": ["Which synthetic tradeoff is acceptable?"]
+      }
+    }
+  ],
+  "conclusion": {
+    "recommendation_ids": ["01K00000000000000000000020", "01K00000000000000000000021"],
+    "created_at": "2026-09-12T12:00:00.000Z"
+  },
+  "decision": {
+    "id": "01K00000000000000000000016",
+    "human_id": "01K00000000000000000000015",
+    "created_at": "2026-09-12T12:00:00.000Z",
+    "kind": "needs_more_context",
+    "summary": "Synthetic unresolved tradeoff.",
+    "recommendation_ids": ["01K00000000000000000000020", "01K00000000000000000000021"]
+  }
+}

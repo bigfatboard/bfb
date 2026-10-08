@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/agent-result-replay-request.json",
+  "title": "AgentResultReplayRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "command_name", "original_request", "capture"],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "command_name": {
+      "type": "string",
+      "const": "result.submit"
+    },
+    "original_request": {
+      "$ref": "agent-result-request.json"
+    },
+    "capture": {
+      "$ref": "agent-result-capture.json"
+    }
+  },
+  "allOf": [
+    {
+      "properties": {
+        "capture": {
+          "type": "object",
+          "properties": {
+            "admission_mode": {
+              "const": "offline_admitted"
+            }
+          }
+        }
+      },
+      "type": "object"
+    }
+  ]
+}

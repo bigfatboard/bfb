@@ -1,0 +1,10 @@
+{
+  "examined": 2,
+  "deleted_objects": 1,
+  "deleted_bytes": 256,
+  "kept_d1_rows": 4,
+  "review_object_intact": true,
+  "purged_version_state": "retained",
+  "second_sweep_deleted_objects": 0,
+  "second_sweep_deleted_bytes": 0
+}

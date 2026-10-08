@@ -1,0 +1,13 @@
+{
+  "case": "duplicate evidence references in one submission",
+  "input": {
+    "runId": "01SYNTHETICRU00000000000001",
+    "summary": "Synthetic duplicate evidence",
+    "evidenceRefs": [
+      { "kind": "comment", "ref": "same", "version": "1" },
+      { "kind": "comment", "ref": "same", "version": "1" }
+    ]
+  },
+  "expected": { "code": "invalid_argument" },
+  "notes": "Exact duplicates (kind, ref, version) are rejected; same ref with a different version is accepted as a distinct observation."
+}

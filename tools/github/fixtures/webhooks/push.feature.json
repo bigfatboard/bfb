@@ -1,0 +1,72 @@
+{
+  "event": "push",
+  "delivery_id": "x04-delivery-push-feature",
+  "payload": {
+    "ref": "refs/heads/feature-x04",
+    "before": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "after": "cccccccccccccccccccccccccccccccccccccccc",
+    "created": false,
+    "deleted": false,
+    "forced": false,
+    "base_ref": null,
+    "compare": "https://github.com/synthetic-org/synthetic-repo/compare/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa...cccccccccccccccccccccccccccccccccccccccc",
+    "commits": [
+      {
+        "id": "cccccccccccccccccccccccccccccccccccccccc",
+        "tree_id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "message": "Synthetic X04 push",
+        "timestamp": "2026-09-18T12:00:00.000Z",
+        "author": {
+          "name": "Synthetic Author",
+          "email": "author@synthetic.test"
+        },
+        "committer": {
+          "name": "Synthetic Author",
+          "email": "author@synthetic.test"
+        },
+        "added": [],
+        "removed": [],
+        "modified": ["README.md"]
+      }
+    ],
+    "head_commit": {
+      "id": "cccccccccccccccccccccccccccccccccccccccc",
+      "tree_id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "timestamp": "2026-09-18T12:00:00.000Z",
+      "message": "Synthetic X04 push",
+      "author": {
+        "name": "Synthetic Author",
+        "email": "author@synthetic.test",
+        "username": "synthetic-org"
+      },
+      "committer": {
+        "name": "Synthetic Author",
+        "email": "author@synthetic.test",
+        "username": "synthetic-org"
+      },
+      "url": "https://github.com/synthetic-org/synthetic-repo/commit/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "added": [],
+      "removed": [],
+      "modified": ["README.md"]
+    },
+    "repository": {
+      "id": 87654321,
+      "full_name": "synthetic-org/synthetic-repo"
+    },
+    "pusher": {
+      "name": "synthetic-org",
+      "email": "pusher@synthetic.test"
+    },
+    "installation": {
+      "id": 12345678,
+      "account": {
+        "id": 555666,
+        "login": "synthetic-org",
+        "type": "Organization"
+      }
+    },
+    "sender": {
+      "login": "synthetic-org"
+    }
+  }
+}

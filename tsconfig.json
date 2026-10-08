@@ -16,6 +16,13 @@
     { "path": "tools/identity" },
     { "path": "tools/passkeys" },
     { "path": "tools/workspace-authorization" },
-    { "path": "tools/projects" }
+    { "path": "tools/projects" },
+    { "path": "tools/runners" },
+    { "path": "tools/cli-credentials" },
+    { "path": "tools/runner-channel" },
+    { "path": "tools/launches" },
+    { "path": "tools/discussions" },
+    { "path": "tools/attention" },
+    { "path": "tools/discussion-delivery" }
   ]
 }

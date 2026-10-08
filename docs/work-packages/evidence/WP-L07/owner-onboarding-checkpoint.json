@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "package": "L07",
+  "checkpoint": "real-owner-onboarding-and-isolated-candidate",
+  "date": "2026-10-06",
+  "implementation_commit": "c0f00b786ec8dd0ba2870a3dbe9889f1f297a18e",
+  "checkout_scope": "Source-equivalent working checkout before commit; not clean-checkout package acceptance",
+  "package_status": "in_progress",
+  "checks": [
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "typescript_tests": 2841,
+      "typescript_test_files": 142,
+      "go_checks": "passed",
+      "swift_tests": 16,
+      "platform_checks_skipped": false
+    },
+    {
+      "command": "pnpm test:l07",
+      "outcome": "passed",
+      "protocol_tests": 1123,
+      "candidate_builder_tests": 4,
+      "candidate_helper_and_runtime_race_checks": "passed",
+      "pilot_node_tests": 12,
+      "real_workerd_hub_tests": 1,
+      "focused_typescript_tests": 126,
+      "browser_tests": 6
+    },
+    {
+      "command": "Candidate build with explicit --build and the fixed test helper",
+      "outcome": "passed",
+      "bundle_signature": "deep strict verification passed",
+      "provider_binary_pin": "unchanged across build",
+      "service_installed": false
+    }
+  ],
+  "observed_real_flow": [
+    "Human completed GitHub sign-in, first-owner workspace creation and passkey registration",
+    "Authenticated browser visibly confirmed owner access and a registered passkey",
+    "Normal browser UI created a restricted project, interactive profile, task and agent context",
+    "Signed isolated daemon started and reported its expected production service methods",
+    "Runner identity is pending human project-scoped passkey approval",
+    "Owned provider setup preview succeeded without applying configuration"
+  ],
+  "repairs": [
+    "Explicit local-only logical jurisdiction emulation retains real Hub/D1 and fails closed outside local configuration under ADR 0012",
+    "Fetch, Queue and scheduled Hub callers receive the same normalized namespace",
+    "Candidate discovery and direct doctor check canonical binary path and digest before version probing",
+    "Marker regressions reject earlier PATH lookalikes and replaced pins without executing them",
+    "Historical probe evidence distinguishes seven configured hooks from six observed deliveries"
+  ],
+  "failures_and_retries": [
+    "Real project creation first failed because local Workerd does not implement geographic jurisdiction restrictions; disposable stock-Hub reproduction and the repaired authenticated UI both verified the cause",
+    "The first integrated verification saw a new test expect HTTP 201 instead of the established HTTP 200; the fixture was corrected and complete verification passed",
+    "Native app accessibility inspection timed out; process startup was observed, but Terminal consent and delivery were not exercised"
+  ],
+  "unverified": [
+    "Human runner approval, exact checkout registration and provider setup application",
+    "Actual card Start, trusted live session binding, run-scoped MCP context and committed live events",
+    "Live attention, explicit result, human acceptance, cancellation, same-run resume and reconnect",
+    "Production capability promotion and clean-checkout L07 acceptance",
+    "Cross-device reachability, Codex parity, discussions and full MVP completion"
+  ],
+  "production_provider_support_changed": false,
+  "geographic_residency_claimed": false,
+  "deployment_performed": false,
+  "redaction": "No credentials, human identifiers, task content, raw output or local absolute paths"
+}

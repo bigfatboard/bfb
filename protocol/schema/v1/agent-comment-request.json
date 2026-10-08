@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/agent-comment-request.json",
+  "title": "AgentCommentRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["reference", "binding", "body"],
+  "properties": {
+    "reference": { "$ref": "agent-work-request.json" },
+    "binding": { "$ref": "agent-session-reference.json" },
+    "body": { "type": "string", "minLength": 1, "maxLength": 2048 }
+  }
+}

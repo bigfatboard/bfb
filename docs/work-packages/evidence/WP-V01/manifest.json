@@ -1,0 +1,67 @@
+{
+  "$schema": "../manifest.schema.json",
+  "package": "V01",
+  "tested_commit": "e2b6e2a530cb1cdebfcb9ce06b5f3f7ef4b95936",
+  "protocol_version": "bfb-wire/1",
+  "schema_version": "1",
+  "migration_head": "0020_artifact_storage",
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "xcode": "26.0.1",
+    "wrangler": "4.120.1",
+    "better-sqlite3": "12.6.2"
+  },
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56)",
+    "architecture": "arm64"
+  },
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-V01/command-result.json"
+    },
+    {
+      "command": "pnpm test:v01",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-V01/command-result.json"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-V01/command-result.json"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-V01/command-result.json"
+    }
+  ],
+  "outcome": "passed",
+  "artifacts": [
+    "docs/work-packages/evidence/WP-V01/command-result.json",
+    "docs/work-packages/evidence/WP-V01/fault-matrix.md",
+    "docs/contracts/artifacts.md",
+    "migrations/d1/0020_artifact_storage.sql",
+    "packages/domain/src/artifacts.ts",
+    "packages/domain/test/artifacts.test.ts",
+    "apps/artifact-worker/src/upload.ts",
+    "apps/artifact-worker/src/index.ts",
+    "apps/artifact-worker/test/upload.test.ts",
+    "apps/control-worker/src/api/artifacts.ts",
+    "apps/control-worker/test/artifact-routes.test.ts",
+    "tools/artifacts/run.ts",
+    "internal/artifact/client.go",
+    "internal/artifact/mcp.go",
+    "internal/artifact/rpc.go",
+    "internal/cli/artifact.go",
+    "protocol/schema/v1/local-rpc.json"
+  ],
+  "redaction": {
+    "status": "passed",
+    "prohibited_content": []
+  }
+}

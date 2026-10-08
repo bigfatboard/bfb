@@ -1,0 +1,116 @@
+{
+  "schema_version": 1,
+  "terminal_intent_id": "e0da52a9-d0cb-47d8-867b-e08f684b9001",
+  "claim": {
+    "schema_version": 1,
+    "specification": {
+      "schema_version": 1,
+      "launch_id": "01K00000000000000000000008",
+      "run_id": "01K00000000000000000000009",
+      "run_execution_id": "01K00000000000000000000001",
+      "assignment_generation": 1,
+      "task_id": "01K00000000000000000000002",
+      "runner_id": "01K00000000000000000000003",
+      "checkout_id": "01K00000000000000000000004",
+      "agent_profile_id": "01K00000000000000000000005",
+      "config_snapshot_id": "01K00000000000000000000010",
+      "config_snapshot_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "execution_config": {
+        "provider": "fake",
+        "mode": "interactive",
+        "model": "synthetic",
+        "effort": "high",
+        "approval_policy": "never",
+        "filesystem_policy": "read_only",
+        "context_injection": "session_start_additional_context",
+        "initial_turn_transport": "provider_prompt",
+        "required_capabilities": [
+          "launch.interactive",
+          "filesystem.read_only",
+          "approval.never",
+          "context.session_start",
+          "prompt.initial_constant",
+          "hooks.session_start",
+          "mcp.stdio"
+        ]
+      },
+      "expires_at": "2026-09-12T12:02:00.000Z"
+    },
+    "snapshot": {
+      "schema_version": 1,
+      "workspace_id": "01K00000000000000000000006",
+      "project_id": "01K00000000000000000000007",
+      "task_id": "01K00000000000000000000002",
+      "agent_profile_id": "01K00000000000000000000005",
+      "workspace_policy_version": 2,
+      "project_policy_version": 2,
+      "repository_config_version": 2,
+      "agent_profile_version": 1,
+      "snapshot_generation": 1,
+      "physical_worktree_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "repository_identity_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "provider_manifest_id": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "provider_version": "1.0.0",
+      "repository_config_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "workspace_policy": {
+        "allowed_providers": ["fake"],
+        "allow_agent_root_propose": false,
+        "allow_pass_to_agent": true,
+        "allow_run_overrides": false
+      },
+      "project_policy": {
+        "allowed_providers": ["fake"],
+        "allow_agent_root_propose": false,
+        "allow_pass_to_agent": true,
+        "allow_run_overrides": false
+      },
+      "repository_policy": {
+        "allowed_providers": ["fake"],
+        "allow_agent_root_propose": false,
+        "allow_pass_to_agent": true,
+        "allow_run_overrides": false
+      },
+      "execution_config": {
+        "provider": "fake",
+        "mode": "interactive",
+        "model": "synthetic",
+        "effort": "high",
+        "approval_policy": "never",
+        "filesystem_policy": "read_only",
+        "context_injection": "session_start_additional_context",
+        "initial_turn_transport": "provider_prompt",
+        "required_capabilities": [
+          "launch.interactive",
+          "filesystem.read_only",
+          "approval.never",
+          "context.session_start",
+          "prompt.initial_constant",
+          "hooks.session_start",
+          "mcp.stdio"
+        ]
+      }
+    },
+    "assignment": {
+      "schema_version": 1,
+      "run_execution_id": "01K00000000000000000000001",
+      "assignment_generation": 1,
+      "runner_id": "01K00000000000000000000003",
+      "run_id": "01K00000000000000000000009",
+      "task_id": "01K00000000000000000000002",
+      "project_id": "01K00000000000000000000007",
+      "workspace_id": "01K00000000000000000000006",
+      "checkout_id": "01K00000000000000000000004",
+      "created_at": "2026-09-12T12:00:00.000Z"
+    },
+    "fencing_generation": 1,
+    "lease_expires_at": "2026-09-12T12:00:45.000Z"
+  },
+  "provider_identity_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "correlation_token": "U1NTU1NTU1NTU1NTU1NTU1NTU1NTU1NTU1NTU1NTU1M",
+  "supervisor": {
+    "pid": 1234,
+    "start_identity": "123456:1000",
+    "executable_hash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "argv": ["synthetic"]
+}

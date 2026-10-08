@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "launch_id": "01K00000000000000000000008",
+  "run_execution_id": "01K00000000000000000000001",
+  "assignment_generation": 1,
+  "fencing_generation": 1,
+  "config_snapshot_id": "01K00000000000000000000010",
+  "config_snapshot_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "repository_config_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "physical_worktree_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "supervisor": {
+    "pid": 1234,
+    "start_identity": "123456:1000",
+    "executable_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "local_lock_id": "01K00000000000000000000011",
+  "local_path": "/synthetic/not-a-launch-input"
+}

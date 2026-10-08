@@ -1,0 +1,28 @@
+# ABOUTME: Runs the production Artifact Worker against the persistent private pilot D1/R2.
+# ABOUTME: Keeps artifact bytes on a separate localhost HTTPS origin with no human cookies.
+
+name = "bfb-artifact-pilot"
+main = "src/index.ts"
+compatibility_date = "2026-08-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+ENVIRONMENT = "local"
+ARTIFACT_ORIGIN = "https://artifacts.localhost:8788"
+APP_ORIGIN = "https://localhost:8787"
+ARTIFACT_VIEWER_ENABLED = "false"
+
+[dev]
+ip = "127.0.0.1"
+port = 8788
+inspector_port = 9230
+
+[[d1_databases]]
+binding = "DB"
+database_name = "bfb-pilot"
+database_id = "00000000-0000-4000-8000-000000000007"
+migrations_dir = "../../migrations/d1"
+
+[[r2_buckets]]
+binding = "ARTIFACTS"
+bucket_name = "bfb-artifacts-pilot"

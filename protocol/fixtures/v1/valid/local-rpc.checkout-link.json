@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "request_id": "01JBFB0REQVEST100000000000",
+  "method": "checkout.link",
+  "direction": "request",
+  "payload": {
+    "workspace_id": "01JBFB0W0RKSPACE0000000000",
+    "runner_id": "01JBFB0RVNNER1D00000000000",
+    "project_id": "01JBFB0PR0JECTX00000000000",
+    "label": "Synthetic checkout",
+    "repository_identity": "github.com/qdis/bfb",
+    "local_path": "/synthetic/private/checkout"
+  }
+}

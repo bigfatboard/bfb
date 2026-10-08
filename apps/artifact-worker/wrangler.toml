@@ -1,14 +1,24 @@
 # ABOUTME: Local Artifact Worker wrangler configuration for the cookie-less origin.
-# ABOUTME: Holds private R2 only; no session cookie or trusted-origin features.
+# ABOUTME: Holds private R2 and the shared D1 for verified upload metadata; no session cookie or trusted-origin features.
 
 name = "bfb-artifact-local"
 main = "src/index.ts"
 compatibility_date = "2026-08-01"
+compatibility_flags = ["nodejs_compat"]
 
 [vars]
 ENVIRONMENT = "local"
 ARTIFACT_ORIGIN = "http://artifacts.bfb.localhost:8788"
 APP_ORIGIN = "http://bfb.localhost:8787"
+# No secrets inline: local `wrangler dev` reads UPLOAD_ABUSE_SECRET from the
+# gitignored `apps/artifact-worker/.dev.vars`; staging/production use
+# `wrangler secret put UPLOAD_ABUSE_SECRET`.
+
+[[d1_databases]]
+binding = "DB"
+database_name = "bfb-local"
+database_id = "00000000-0000-4000-8000-000000000001"
+migrations_dir = "../../migrations/d1"
 
 [dev]
 ip = "127.0.0.1"

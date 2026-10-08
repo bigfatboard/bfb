@@ -15,7 +15,7 @@ An authorized human can navigate an attention-first BFB shell, select an explici
 ## Dependencies
 
 - **Requires:** C02, C03, C04, C08, F03.
-- **Unlocks:** A02, A03, A04, E02, V02, V03, W02, X05.
+- **Unlocks:** A02, A03, A04, C11, D03, E02, V02, V03, W02, W03, X05.
 - **Can run with:** local execution packages after APIs stabilize.
 
 ## Scope
@@ -70,11 +70,13 @@ An authorized human can navigate an attention-first BFB shell, select an explici
 - Malicious task/comment/context/provider strings cannot create DOM elements, execute script, navigate a privileged frame, or access authenticated APIs through rendering.
 - Sensitive policy/privilege actions cannot complete without the action-bound fresh assertion required by the API.
 
-## Evidence and handoff
+## Evidence
 
 - Commit browser recordings/screenshots for three roles, hostile-content report, step-up trace, accessibility report, and API fixture coverage.
-- Feature packages extend the established surfaces rather than creating parallel navigation shells.
-
 ## Risks and decisions
 
 - Keep the board compact. BFB is an attention router, not a configurable Jira clone.
+
+## Handoff
+
+- Feature packages extend the established surfaces rather than creating parallel navigation shells.

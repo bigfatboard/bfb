@@ -1,0 +1,174 @@
+{
+  "package": "C11",
+  "recorded_on": "2026-10-07",
+  "tested_commit": "9220606dec106003119a4c311712f689ae4b703b",
+  "outcome": "passed",
+  "stage": "partial_metadata_public_position_quarantine",
+  "package_acceptance_complete": false,
+  "private_creation_available": false,
+  "migration_head": "0045_private_task_authority",
+  "scope": "Hold public raw event positions and browser sockets before source access; omit only public top-level Hub cursors; retain internal ordering and truthful on-demand product states.",
+  "clean_commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "exit_code": 0
+    },
+    {
+      "command": "pnpm test:c11",
+      "exit_code": 0,
+      "c10_cases": 86,
+      "c10_files": 8,
+      "c10_d1_checks": 9,
+      "c08_cases": 23,
+      "c08_files": 5,
+      "c08_proof": "C08_D1_OK",
+      "stage_cases": 1999,
+      "stage_files": 73,
+      "stage_invocations": [
+        { "cases": 1828, "files": 64 },
+        { "cases": 49, "files": 2 },
+        { "cases": 27, "files": 2 },
+        { "cases": 54, "files": 2 },
+        { "cases": 41, "files": 3 }
+      ],
+      "stage_d1_checks": 67,
+      "stage_d1_harnesses": [
+        { "proof": "C11_TASK_D1_OK", "checks": 37 },
+        { "proof": "C11_OPERATIONS_AGGREGATES_D1_OK", "checks": 8 },
+        { "proof": "C11_DIAGNOSTIC_QUARANTINE_D1_OK", "checks": 4 },
+        { "proof": "C11_BOARD_D1_OK", "checks": 6 },
+        { "proof": "C11_UNSUPPORTED_QUARANTINE_D1_OK", "checks": 3 },
+        { "proof": "C11_HUMAN_COORDINATION_D1_OK", "checks": 5 },
+        { "proof": "C11_PUBLIC_POSITION_HOLD_D1_OK", "checks": 4 }
+      ],
+      "counting": "Invocation totals, not a unique cross-package combined total"
+    },
+    {
+      "command": "pnpm test:e01",
+      "exit_code": 0,
+      "cases": 25,
+      "files": 3,
+      "protocol_cases": 1154,
+      "proof": "E01_D1_OK",
+      "scope": "Actual synthetic ingest/retry and retained internal ordering; public replay is held"
+    },
+    {
+      "command": "pnpm test:e02",
+      "exit_code": 0,
+      "cases": 31,
+      "files": 6,
+      "runtime_checks": 5,
+      "proof": "E02_PUBLIC_POSITION_HOLD_OK",
+      "browser_cases": 4,
+      "scope": "Real DO admission/ingest controls and held UI; legacy attachment retirement has separate focused manager proof"
+    },
+    {
+      "command": "pnpm test:a04",
+      "exit_code": 0,
+      "cases": 138,
+      "files": 11,
+      "protocol_cases": 1154,
+      "go_race": "passed",
+      "runtime_proof": "A04_CURRENT_HUMAN_LOOP_OK",
+      "bounded_evidence_cases": 5,
+      "native_proof": "A04_NATIVE_PROOF_COMPLETE",
+      "browser_cases": 3,
+      "scope": "Retained measurement arithmetic/provenance and compiled synthetic macOS capture/daemon/Worker/Hub/D1 proof; public sources are null"
+    },
+    {
+      "command": "pnpm test:x03",
+      "exit_code": 0,
+      "cases": 71,
+      "files": 7,
+      "runtime_checks": 11,
+      "proof": "X03_D1_OK",
+      "browser_cases": 2,
+      "scope": "Actual synthetic Worker/D1/R2 authenticated MCP retries and current-authority controls; no provider turn"
+    },
+    {
+      "command": "pnpm test:x05",
+      "exit_code": 0,
+      "cases": 60,
+      "files": 6,
+      "runtime_checks": 11,
+      "proof": "X05_DRILL_OK",
+      "browser_cases": 5,
+      "scope": "Synthetic current operations regression; admitted activity is uniformly held, not an available public feed"
+    },
+    {
+      "command": "pnpm test:w03",
+      "exit_code": 0,
+      "cases": 186,
+      "files": 28,
+      "shared_browser_cases": 83,
+      "w03_browser_cases": 16,
+      "scope": "Full web build/unit/shared browser acceptance, including action budget, drafts, focus, themes, contrast, reflow and unavailable states"
+    },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 4335,
+      "typescript_files": 191,
+      "go": "passed",
+      "go_scheduling": "GOFLAGS=-p=1",
+      "swift": "passed",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    {
+      "command": "pnpm exec tsc -b tools/g01 --pretty false",
+      "exit_code": 0,
+      "scope": "Caller compilation only; G01 runtime acceptance not run"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "exit_code": 0,
+      "before_and_after_verify": true,
+      "committed_source_unchanged": true,
+      "final_status_empty": true
+    }
+  ],
+  "new_suites": {
+    "domain_cases": 11,
+    "mounted_cases": 23,
+    "ui_cases": 7,
+    "actual_d1_checks": 4
+  },
+  "regression_proof": [
+    "Meaningful old-source baseline: nine failures and two controls in 11 domain cases; 13 failures and one control in 14 mounted cases; seven UI failures",
+    "Two failing real-channel composition cases prove runner-only alarm deletion/overwrite must not erase an independently retained browser retirement deadline",
+    "Exploratory fixture/import/query-selector errors and unrelated Vite HMR observations are not counted as security regression evidence",
+    "Six exported public readers retain pure validation then deny without any database call; HTTP admission preserves credentials, current roles, query errors and no-store holds",
+    "The explicit public receipt projection omits only the top-level Hub cursor, including fresh/cache and special artifact paths; business-only DTOs and internal outcomes remain unchanged",
+    "Browser command callbacks have no reads, frames or command-triggered closes; runner nudges remain and legacy retirement uses independent heartbeat/alarm paths",
+    "Measurement arithmetic and final parent checks remain; public source fields are null, including nested task runs; stale UI history/presence is suppressed with no raw-feed/socket attempts",
+    "Four actual-D1 checks retain internal fresh/cached cursors and unchanged history while proving zero-source held helpers and authorized zero-observation measurement shapes",
+    "Discussion manual/focus refresh and settled-aware launch polling remain available without public realtime"
+  ],
+  "initial_certificate_attempts": [
+    {
+      "tested_commit": "40814cf9f5a83766e4ceee56ef1faa79a402b6ea",
+      "outcome": "failed",
+      "reason": "Public adapter application added a replayed field to the existing upload-recovery business-only response",
+      "repair": "Restore the original ok/result response in source while retaining the cursor-free public projection elsewhere; preserve the existing exact-shape regression"
+    },
+    {
+      "tested_commit": "40438769a11ed2d1568beb46e7a3999b2b20a8e0",
+      "outcome": "failed",
+      "reason": "A04 signed-ingestion regression still expected the deliberately unavailable public source page",
+      "repair": "Assert fixed 409/no-store before and after project loss, retaining signed ingestion, query validation, infrastructure errors and unchanged stored effects; fresh final source passes"
+    }
+  ],
+  "activation_barriers": [
+    "Outward notification identities and security-audit opaque anchors",
+    "GitHub unbound-key collision policy, execution-owning participant/runner/control consumers and destructive private retention",
+    "Natural credential/lease expiry during in-flight D1, private creation/sharing/checkpoints and C12"
+  ],
+  "not_claimed": [
+    "Available public replay/realtime or an opaque replacement stream",
+    "Complete C11 acceptance, private activation or live private R2/browser-byte delivery",
+    "Live provider/pilot operation, deployment, external CI or G01 runtime acceptance",
+    "New project knowledge, skills catalogs, vault, checkpoint reminders or contribution features"
+  ],
+  "redaction": "Bounded synthetic counts, source identities, proof labels and limits only; no credentials, private bodies, raw output or local absolute paths"
+}

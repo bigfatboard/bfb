@@ -1,8 +1,12 @@
 # WP-C06 — Runner identity, grants, and tokens
 
-Status: `planned`
+Status: `done`
 
 Risk: Very high
+
+Test target: `pnpm test:c06`
+
+Evidence manifest: `docs/work-packages/evidence/WP-C06/manifest.json`
 
 ## Outcome
 
@@ -11,7 +15,7 @@ The control plane can enroll one Mac separately into multiple workspaces and iss
 ## Dependencies
 
 - **Requires:** C01, C03, C04, C07, F02.
-- **Unlocks:** C09, E01, L04, L08, W02, X02, X05.
+- **Unlocks:** C09, C11, D01, E01, L04, L08, W02, X02, X05.
 - **Can run with:** C08 after the shared migration head is agreed.
 
 ## Scope
@@ -30,6 +34,20 @@ The control plane can enroll one Mac separately into multiple workspaces and iss
 - Keychain/private-key creation, daemon or macOS client behavior, WSS lifecycle, socket attachments, reconnect/backoff, heartbeat, command pull/nudges, checkout/capability synchronization, Secure Enclave/XPC, launch claim/execution, or event ingestion.
 - Provider credentials or workspace-wide implicit runner sharing.
 
+## Contracts
+
+### Consumes
+
+- C01 WorkspaceHub atomic command lane and durable abuse budgets.
+- C03 user-verifying action-bound proofs, C04 current membership/epochs, and C07 project access.
+- F02 closed versioned wire schemas and cross-language validation.
+
+### Produces
+
+- `docs/contracts/runner-enrollment.md`: browser approval, native possession, stateful tokens, and L08/C09/E01 handoff.
+- `runner-identity`, `runner-challenge`, and `runner-channel-close` v1 wire documents with generated Go/TypeScript bindings.
+- Exact target `pnpm test:c06`; evidence manifest `docs/work-packages/evidence/WP-C06/manifest.json`.
+
 ## Work plan
 
 1. Add runner/grant/key/challenge/epoch migrations and typed hub commands.
@@ -47,11 +65,18 @@ The control plane can enroll one Mac separately into multiple workspaces and iss
 - An ungranted teammate cannot receive launch authority for another human's runner.
 - Challenge/proof abuse limits survive Worker-isolate changes and no raw IP, nonce, proof, private key, local path, or provider credential enters D1 or logs.
 
-## Evidence and handoff
+## Evidence
+
+- Exact gate: `pnpm test:c06`.
+- Evidence manifest: `docs/work-packages/evidence/WP-C06/manifest.json`.
+- Contracts: `packages/domain/src/runners.ts`, `packages/domain/src/runner-crypto.ts`, and `docs/contracts/runner-enrollment.md`.
 
 - Commit enrollment transcript, passkey-bound negative matrix, token fixtures, multi-workspace isolation tests, revocation-signal contract, and abuse-control evidence.
-- L08 owns the runner-side key, socket, renewal, reconnect, heartbeat, pull, and capability-sync client. C09/E01 consume authenticated runner identity but reauthorize every command/event.
 
 ## Risks and decisions
 
 - Challenge transcripts must bind challenge ID, server nonce, workspace, runner, audience, and key thumbprint. Client/socket risks are deliberately deferred to L08 rather than hidden in this server package.
+
+## Handoff
+
+- L08 owns the runner-side key, socket, renewal, reconnect, heartbeat, pull, and capability-sync client. C09/E01 consume authenticated runner identity but reauthorize every command/event.

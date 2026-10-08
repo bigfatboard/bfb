@@ -11,9 +11,10 @@ import { enrollVirtualPasskey } from "./webauthn-helpers.js";
 
 test("human narrows a Claude OAuth request before provider consent", async ({ page }) => {
   await signInAs(page, "owner");
-  const cleanup = await enrollVirtualPasskey(page);
+  const origin = new URL(page.url()).origin;
+  const { cleanup } = await enrollVirtualPasskey(page);
   try {
-    const authorize = new URL("/oauth/authorize", "http://bfb.localhost:4173");
+    const authorize = new URL("/oauth/authorize", origin);
     for (const [key, value] of Object.entries({
       response_type: "code",
       client_id: "bfb-claude-code",
@@ -21,7 +22,7 @@ test("human narrows a Claude OAuth request before provider consent", async ({ pa
       code_challenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
       code_challenge_method: "S256",
       scope: "bfb:read bfb:task:write offline_access",
-      resource: "http://bfb.localhost:4173/mcp",
+      resource: `${origin}/mcp`,
       state: "x03a-browser-state",
     })) {
       authorize.searchParams.set(key, value);
@@ -50,9 +51,9 @@ test("human narrows a Claude OAuth request before provider consent", async ({ pa
     const code = callback.searchParams.get("code");
     expect(code).toBeTruthy();
     expect(callback.searchParams.get("state")).toBe("x03a-browser-state");
-    expect(callback.searchParams.get("iss")).toBe("http://bfb.localhost:4173/auth");
+    expect(callback.searchParams.get("iss")).toBe(`${origin}/auth`);
 
-    const api = await apiRequest.newContext({ baseURL: "http://bfb.localhost:4173" });
+    const api = await apiRequest.newContext({ baseURL: origin });
     try {
       const token = await api.post("/oauth/token", {
         form: {
@@ -61,7 +62,7 @@ test("human narrows a Claude OAuth request before provider consent", async ({ pa
           redirect_uri: "http://localhost:9999/callback",
           client_id: "bfb-claude-code",
           code_verifier: "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk",
-          resource: "http://bfb.localhost:4173/mcp",
+          resource: `${origin}/mcp`,
         },
       });
       expect(token.status(), await token.text()).toBe(200);
@@ -73,12 +74,19 @@ test("human narrows a Claude OAuth request before provider consent", async ({ pa
       };
       expect(toolsBody.result?.tools?.map((tool) => tool.name).sort()).toEqual([
         "bfb_add_comment",
+        "bfb_finalize_artifact",
+        "bfb_get_attention",
         "bfb_get_context",
+        "bfb_get_private_progress",
         "bfb_get_task",
         "bfb_list_projects",
         "bfb_list_tasks",
         "bfb_propose_task",
+        "bfb_publish_artifact",
+        "bfb_report_private_progress",
         "bfb_report_progress",
+        "bfb_request_human",
+        "bfb_submit_result",
       ]);
       const revoked = await api.post("/oauth/revoke", {
         form: {
@@ -145,7 +153,8 @@ function mcpTools(api: Awaited<ReturnType<typeof apiRequest.newContext>>, access
 
 test("OAuth checkpoint rejects a client with an unregistered redirect", async ({ page }) => {
   await signInAs(page, "owner");
-  const authorize = new URL("/oauth/authorize", "http://bfb.localhost:4173");
+  const origin = new URL(page.url()).origin;
+  const authorize = new URL("/oauth/authorize", origin);
   for (const [key, value] of Object.entries({
     response_type: "code",
     client_id: "bfb-claude-code",
@@ -153,7 +162,7 @@ test("OAuth checkpoint rejects a client with an unregistered redirect", async ({
     code_challenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
     code_challenge_method: "S256",
     scope: "bfb:read bfb:task:write offline_access",
-    resource: "http://bfb.localhost:4173/mcp",
+    resource: `${origin}/mcp`,
     state: "x03a-bad-redirect",
   })) {
     authorize.searchParams.set(key, value);

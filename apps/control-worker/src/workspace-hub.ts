@@ -5,13 +5,39 @@ import { adaptD1 } from "@bfb/db";
 import { DurableObject } from "cloudflare:workers";
 import {
   type CommandRequest,
+  DomainError,
+  randomUlid,
   resolveCommand,
   WorkspaceHub as DomainWorkspaceHub,
+  runnerObject,
+  runnerId,
+  type RunnerPrincipal,
 } from "@bfb/domain";
 
 import type { ControlBindings } from "./env.js";
+import {
+  BROWSER_REALTIME_PROTOCOL,
+  BrowserSockets,
+  type RealtimeSocket,
+} from "./realtime/browser-sockets.js";
+import { RunnerChannels, RUNNER_SOCKET_TAG } from "./runner-channels.js";
 
 const MAX_COMMAND_BYTES = 65_536;
+const MAX_PRINCIPAL_BYTES = 2048;
+
+function wrapSocket(socket: WebSocket): RealtimeSocket {
+  return {
+    get readyState() {
+      return socket.readyState;
+    },
+    send: (data: string) => socket.send(data),
+    close: (code: number, reason: string) => {
+      if (socket.readyState === WebSocket.OPEN) socket.close(code, reason);
+    },
+    readAttachment: () => socket.deserializeAttachment(),
+    writeAttachment: (value: unknown) => socket.serializeAttachment(value),
+  };
+}
 
 /**
  * Cloudflare Durable Object entry for the workspace command kernel.
@@ -19,9 +45,17 @@ const MAX_COMMAND_BYTES = 65_536;
  */
 export class WorkspaceHub extends DurableObject<ControlBindings> {
   private domainLane: DomainWorkspaceHub | null = null;
+  private readonly channels: RunnerChannels;
+  private readonly browsers: BrowserSockets;
+  private transportTail: Promise<void> = Promise.resolve();
 
   constructor(ctx: DurableObjectState, env: ControlBindings) {
     super(ctx, env);
+    this.channels = new RunnerChannels(ctx, env.DB, () => this.lane());
+    this.browsers = new BrowserSockets((tag) => [...ctx.getWebSockets(tag)].map(wrapSocket), {
+      db: adaptD1(env.DB),
+      newConnectionId: () => randomUlid(),
+    });
   }
 
   private lane(): DomainWorkspaceHub {
@@ -32,6 +66,148 @@ export class WorkspaceHub extends DurableObject<ControlBindings> {
   }
 
   override async fetch(request: Request): Promise<Response> {
+    return this.serial(() => this.handle(request));
+  }
+
+  // Keep channel authorization/attachment and command commit/revocation ordered
+  // across external D1 awaits, in addition to the domain command FIFO itself.
+  private serial<T>(operation: () => Promise<T>): Promise<T> {
+    const result = this.transportTail.then(operation);
+    this.transportTail = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
+  }
+
+  override async webSocketMessage(socket: WebSocket, message: string | ArrayBuffer): Promise<void> {
+    return this.serial(async () => {
+      if (this.browsers.owns(wrapSocket(socket))) {
+        await this.browsers.message(wrapSocket(socket), message);
+      } else {
+        await this.channels.message(socket, message);
+      }
+      await this.scheduleAlarms();
+    });
+  }
+
+  override async webSocketClose(socket: WebSocket): Promise<void> {
+    return this.serial(async () => {
+      if (!this.browsers.owns(wrapSocket(socket))) await this.channels.closed(socket);
+      await this.scheduleAlarms();
+    });
+  }
+
+  override async webSocketError(socket: WebSocket): Promise<void> {
+    return this.serial(async () => {
+      if (!this.browsers.owns(wrapSocket(socket))) await this.channels.closed(socket);
+      await this.scheduleAlarms();
+    });
+  }
+
+  override async alarm(): Promise<void> {
+    return this.serial(async () => {
+      await this.channels.alarm();
+      await this.browsers.alarm();
+      await this.scheduleAlarms();
+    });
+  }
+
+  /**
+   * One shared alarm covers runner expiries and browser session expiries.
+   * Either class alone would delete the timer while the other still needs it.
+   */
+  private async scheduleAlarms(
+    includeBrowsers = true,
+    retainedAlarm: number | null = null,
+  ): Promise<void> {
+    let expiry = retainedAlarm ?? Number.POSITIVE_INFINITY;
+    try {
+      expiry = Math.min(expiry, this.channels.earliestExpiry());
+      if (includeBrowsers) expiry = Math.min(expiry, this.browsers.earliestExpiry());
+      else {
+        const existing = await this.ctx.storage.getAlarm();
+        if (existing !== null) expiry = Math.min(expiry, existing);
+      }
+    } catch {
+      // Runner expiry readers handle invalid runner attachments; browsers remain quiet.
+    }
+    try {
+      if (Number.isFinite(expiry)) {
+        await this.ctx.storage.setAlarm(Math.max(Date.now() + 1, expiry));
+      } else {
+        await this.ctx.storage.deleteAlarm();
+      }
+    } catch {
+      // Runner authority fails closed. Held browser sockets disclose nothing on timer loss.
+      for (const socket of this.ctx.getWebSockets(RUNNER_SOCKET_TAG)) {
+        try {
+          if (socket.readyState === WebSocket.OPEN) socket.close(1011, "channel_unavailable");
+        } catch {
+          /* Already disconnected. */
+        }
+      }
+    }
+  }
+
+  private async handle(request: Request): Promise<Response> {
+    const path = new URL(request.url).pathname;
+    if (path === "/browser/connect" && request.method === "GET") {
+      try {
+        const metadata = request.headers.get("x-bfb-browser-principal");
+        if (!metadata || new TextEncoder().encode(metadata).byteLength > MAX_PRINCIPAL_BYTES)
+          throw new Error("invalid browser principal metadata");
+        if (
+          request.headers.get("upgrade") !== "websocket" ||
+          request.headers.get("sec-websocket-protocol") !== BROWSER_REALTIME_PROTOCOL
+        )
+          throw new Error("invalid browser upgrade");
+        this.browsers.assertAdmission(JSON.parse(metadata) as unknown);
+      } catch (error) {
+        if (error instanceof DomainError && error.message === "event feeds are unavailable") {
+          return Response.json(
+            { error: error.code, message: error.message },
+            { status: 409, headers: { "cache-control": "no-store" } },
+          );
+        }
+        return Response.json(
+          { error: "request_rejected" },
+          { status: 403, headers: { "cache-control": "no-store" } },
+        );
+      }
+    }
+    if (path === "/runner/connect" && request.method === "GET") {
+      try {
+        const metadata = request.headers.get("x-bfb-runner-principal");
+        if (!metadata || metadata.length > 8192 || request.headers.get("upgrade") !== "websocket")
+          throw new Error("invalid runner channel metadata");
+        const response = await this.channels.open(JSON.parse(metadata) as RunnerPrincipal);
+        await this.scheduleAlarms();
+        return response;
+      } catch {
+        return Response.json(
+          { error: "request_rejected" },
+          { status: 403, headers: { "cache-control": "no-store" } },
+        );
+      }
+    }
+    if (path === "/runner/pull" && request.method === "POST") {
+      try {
+        const text = await request.text();
+        if (new TextEncoder().encode(text).byteLength > 8192)
+          throw new Error("runner pull is too large");
+        const body = runnerObject(JSON.parse(text), ["principal", "after"]);
+        return await this.channels.pull(
+          body.principal as RunnerPrincipal,
+          body.after === undefined ? undefined : runnerId(body.after),
+        );
+      } catch {
+        return Response.json(
+          { error: "request_rejected" },
+          { status: 403, headers: { "cache-control": "no-store" } },
+        );
+      }
+    }
     if (request.method !== "POST") {
       return Response.json(
         { error: "method_not_allowed", message: "WorkspaceHub accepts POST /execute only" },
@@ -81,14 +257,25 @@ export class WorkspaceHub extends DurableObject<ControlBindings> {
 
     try {
       const outcome = await this.lane().execute(command, body.request);
+      if (outcome.ok) {
+        let retainedAlarm: number | null = null;
+        try {
+          retainedAlarm = await this.ctx.storage.getAlarm();
+        } catch {
+          // Advisory timer storage cannot change the committed business outcome.
+        }
+        await this.channels.afterCommand();
+        await this.browsers.afterCommand();
+        await this.scheduleAlarms(false, retainedAlarm);
+      }
       return Response.json(outcome);
-    } catch (error) {
+    } catch {
       return Response.json(
         {
           ok: false,
           error: {
             code: "hub_execute_failed",
-            message: error instanceof Error ? error.message : "hub execute failed",
+            message: "hub execute failed",
           },
         },
         { status: 500 },

@@ -4,6 +4,7 @@
 import type { SqlDatabase } from "@bfb/db";
 
 import { DomainError } from "./hub.js";
+import { assertTaskAccess } from "./task-access.js";
 
 export type WorkspaceRole = "owner" | "member" | "reviewer";
 
@@ -60,19 +61,15 @@ export async function loadPrincipal(
   };
 }
 
-/** Authorize a task-child read (comment/context/etc.) using parent task project grants. */
+/** Authorize a task-child read using current membership/project and parent task privacy. */
 export async function assertTaskChildAccess(
   db: SqlDatabase,
   principal: AuthzPrincipal,
   taskId: string,
 ): Promise<void> {
-  const task = (await db
-    .prepare(`SELECT project_id FROM tasks WHERE workspace_id = ? AND id = ?`)
-    .get(principal.workspaceId, taskId)) as { project_id: string } | undefined;
-  if (!task) {
-    throw new DomainError("not_found", "task not found");
-  }
-  assertProjectAccess(principal, task.project_id);
+  const task = await assertTaskAccess(db, principal, taskId);
+  // CLI bindings and other transports may narrow this set below the human's current projects.
+  assertProjectAccess(principal, task.projectId);
 }
 
 export function assertProjectAccess(principal: AuthzPrincipal, projectId: string): void {

@@ -1,0 +1,120 @@
+{
+  "package": "C11",
+  "recorded_on": "2026-10-08",
+  "tested_commit": "21e4d69f1eaa30eb172be49a5285c3a535fe6985",
+  "outcome": "passed",
+  "stage": "partial_beta_manual_github_linking_hold",
+  "package_acceptance_complete": false,
+  "private_creation_available": false,
+  "migration_head": "0048_task_collection_positions",
+  "scope": "Timo's selected beta hold: direct-human owner/member project and pure input admission remain, then manual linking rejects uniformly before task/evidence or cache selection. Direct command.run cannot bypass the hold. Webhook reconciliation, schema keys and retained associations/receipts are unchanged.",
+  "clean_certificate_marker": "C11_GITHUB_MANUAL_HOLD_CLEAN_CERTIFICATE_OK",
+  "clean_pipeline_exit_code": 0,
+  "clean_commands": [
+    { "command": "pnpm install --frozen-lockfile", "exit_code": 0 },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 4904,
+      "typescript_files": 227,
+      "go": "passed",
+      "go_scheduling": "GOFLAGS=-p=1",
+      "swift": "passed",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    {
+      "command": "pnpm test:c11",
+      "exit_code": 0,
+      "c10_cases": 86,
+      "c10_files": 8,
+      "c10_d1_checks": 9,
+      "c08_cases": 23,
+      "c08_files": 5,
+      "c08_proof": "C08_D1_OK",
+      "stage_cases": 3779,
+      "stage_files": 153,
+      "stage_invocation_blocks": 24,
+      "stage_browser_cases": 6,
+      "stage_d1_check_labels": 247,
+      "stage_d1_harnesses": 23,
+      "notification_record_labels": 41,
+      "counting": "Stage cases/files count invocations across twenty-four Vitest blocks, not unique totals. C10/C08, six panel browser cases and the notification drill are separate. Native totals count top-level emitted check labels, not nested assertions; seven manual-hold groups collect independently."
+    },
+    {
+      "command": "pnpm test:x04",
+      "exit_code": 0,
+      "protocol_cases": 1154,
+      "protocol_files": 12,
+      "go_protocol": "passed",
+      "focused_cases": 49,
+      "focused_files": 3,
+      "native_scenarios": 13,
+      "native_proof": "X04_E2E_OK all scenarios passed"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "exit_code": 0,
+      "before_and_after_pipeline": true,
+      "committed_source_unchanged": true,
+      "final_status_empty": true
+    }
+  ],
+  "slice_suites": {
+    "target": "pnpm test:c11:github-manual-hold",
+    "composed_once_by_c11": true,
+    "focused_cases": 98,
+    "focused_files": 6,
+    "new_domain_cases": 14,
+    "new_mounted_cases": 15,
+    "native_groups": 7,
+    "native_proof": "C11_GITHUB_MANUAL_HOLD_D1_OK",
+    "maximum_bindings": 7,
+    "maximum_statement_bytes": 1971,
+    "bounds_scope": "Direct instrumented native domain history/provenance readers only; Worker/DO-internal command SQL, setup, migrations and snapshots are not measured.",
+    "canonical_snapshots": "All canonical tables including retained evidence, task/privacy, audit/cache/cursor, OAuth and transient guard history; independent fixtures are captured before attempts and preserved after them.",
+    "snapshot_exclusions": ["_cf_METADATA", "d1_migrations", "sqlite_sequence"],
+    "http_budget_tables_compared_separately": ["rate_limit_buckets"]
+  },
+  "old_source_probes": {
+    "production_commit": "44c57142ff33101c60cf649b0f2af503f5cd59b3",
+    "production_unchanged_before_after": true,
+    "domain": { "policy_failures": 10, "admission_controls": 4 },
+    "mounted": { "hold_dependent_failures": 10, "controls": 5 },
+    "native": { "policy_failures": 5, "controls": 2 },
+    "counting": "Mounted failures include nine policy/source-query cases and one abuse-control case whose initial request expects the hold; these are not twenty independent security defects.",
+    "observed": "OLD absent and visible keys succeed, hidden keys return not_found, caches can replay success or reject changed input, and requested shared/private/missing/omitted tasks differ. Native groups collect actual outcomes and canonical effects before policy assertions. Absent, visible and requested-task waves change canonical state; hidden and cache waves remain unchanged. All groups retain clean foreign keys, empty transient guards and separately unchanged direct-dispatch HTTP budgets.",
+    "proof_boundaries": "The collecting failure is the uniform beta policy oracle, not a scoped-key migration or a webhook reconciliation repair."
+  },
+  "retained_regression_controls": [
+    "Four domain/Worker GitHub suites use explicitly labelled historical evidence/cache/safe-receipt fixtures instead of now-held manual setup",
+    "Useful shared-before-LIMIT history, retained observer provenance and independent current-reader loss controls remain",
+    "Four previously reachable manual commit-loss variants become two historical seam-not-reached hold controls; the two retired cases are not claimed as business commit/cache proofs",
+    "Exact X04 F12 holds actual registered manual attempts without source/receipt effects, then receives a genuine synthetic webhook and reconciles it through Queue to verify independent GitHub provenance without moving the task"
+  ],
+  "stopped_clean_attempt": {
+    "outcome": "failed_before_c11",
+    "typescript_cases_passed": 4904,
+    "typescript_files_passed": 227,
+    "failure": "TestPreparationIndependentProbeRejectsChangedInstallation/none: The bounded provider inspection failed.",
+    "observed_subcase_seconds": 5.03,
+    "cause": "not established",
+    "source_comparison": "No Go/provider/supervisor changes from the preceding certified source",
+    "diagnostic_replay": "Three uncached repetitions of the exact parent Go test passed, including all nine subcases",
+    "retry": "The complete clean install/verify/C11/X04/worktree pipeline was restarted against the same commit and passed",
+    "changes_or_waivers": "No supervisor code, timeout, platform check or acceptance gate was changed or bypassed"
+  },
+  "activation_barriers": [
+    "GitHub status final-selection authority/coherence is a separate next slice and is not part of this tested source",
+    "Internal reconciliation lineage/commit authority and natural browser-session expiry remain separate unproved concerns",
+    "Execution-owned delivery and destructive private retention remain open; private creation, sharing, inherited private children and checkpoints stay disabled",
+    "C11 is in progress, C12 planned, and other mandatory product features remain unfinished"
+  ],
+  "not_claimed": [
+    "Complete C11, the eight-feature MVP, private activation, external CI or a scoped-key migration",
+    "G01 release acceptance or a waiver of unresolved runner-token expiry and AG02/AG04 gates",
+    "Real GitHub ingress, installed pilot/provider operation or natural browser-session expiry",
+    "Cloudflare resource creation, merge, deployment or deployed authenticated smoke"
+  ],
+  "redaction": "Bounded synthetic counts and outcomes only; no credentials, private bodies, raw logs, per-run timestamps or local absolute paths"
+}

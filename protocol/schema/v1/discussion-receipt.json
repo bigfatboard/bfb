@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/discussion-receipt.json",
+  "title": "DiscussionReceipt",
+  "description": "A safe discussion mutation receipt containing only IDs, versions and state.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "discussion_id", "version", "state"],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "discussion_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "version": {
+      "$ref": "primitives.json#/$defs/ResourceVersion"
+    },
+    "state": {
+      "type": "string",
+      "enum": ["active", "paused", "concluded", "cancelled", "failed"]
+    },
+    "run_ids": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "$ref": "primitives.json#/$defs/Ulid"
+      }
+    },
+    "brief_hash": {
+      "$ref": "primitives.json#/$defs/Sha256Digest"
+    },
+    "turn_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "turn_version": {
+      "$ref": "primitives.json#/$defs/ResourceVersion"
+    },
+    "delivery_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "delivery_version": {
+      "$ref": "primitives.json#/$defs/ResourceVersion"
+    },
+    "message_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "decision_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    }
+  }
+}

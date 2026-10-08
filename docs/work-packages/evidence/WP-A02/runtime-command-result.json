@@ -1,0 +1,102 @@
+{
+  "package": "A02",
+  "recorded_on": "2026-10-06",
+  "tested_commit": "891fbcc33a8e0af07e2d52c2f697a5adf03f8205",
+  "outcome": "passed",
+  "package_acceptance_complete": true,
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2",
+    "architecture": "arm64",
+    "cloud": "local real Worker, WorkspaceHub and D1 harness",
+    "native": "development-signed daemon and supervisor, Keychain enrollment, synthetic provider-shaped process, real kernel identity and held flock"
+  },
+  "migrations": {
+    "d1": "0039_offline_agent_policy",
+    "daemon": "010_hook_inbox",
+    "agent_journal": "013_work_journal"
+  },
+  "clean_commands": [
+    { "command": "pnpm install --frozen-lockfile", "exit_code": 0 },
+    { "command": "pnpm exec tsc -b --force --pretty false", "exit_code": 0 },
+    {
+      "command": "pnpm test:a02",
+      "exit_code": 0,
+      "protocol_cases": 866,
+      "domain_worker_migration_ui_cases": 85,
+      "go_race_checks": "passed, including runner cadence regression",
+      "real_d1": "passed",
+      "deterministic_evidence_cases": 7,
+      "compiled_stdio": "passed",
+      "native_proof": "A02_NATIVE_PROOF_COMPLETE",
+      "native_test_seconds": 93.26,
+      "full_wait_seconds": 30,
+      "full_wait_actual_reads": 26,
+      "browser_cases": 3
+    },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 2245,
+      "typescript_files": 123,
+      "go_checks": "passed",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    {
+      "command": "pnpm test:l08",
+      "exit_code": 0,
+      "protocol_cases": 866,
+      "focused_cases": 59,
+      "go_race_checks": "passed",
+      "signed_two_workspace_channel": "passed",
+      "native_test_seconds": 46.84,
+      "enrollment_browser_cases": 1
+    },
+    {
+      "command": "pnpm test:a01",
+      "exit_code": 0,
+      "protocol_cases": 866,
+      "focused_cases": 413,
+      "go_race_checks": "passed, including signing and supervisor",
+      "compiled_stdio": "passed",
+      "native_proof": "A01_NATIVE_PROOF_COMPLETE",
+      "native_test_seconds": 202.76,
+      "action_bound_policy_browser_cases": 1
+    },
+    { "command": "GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./...", "exit_code": 0 },
+    { "command": "pnpm worktree:check", "exit_code": 0 }
+  ],
+  "implementation_checkout_affected_gates": [
+    {
+      "command": "pnpm test:c09",
+      "outcome": "passed",
+      "tested_commit": "891fbcc33a8e0af07e2d52c2f697a5adf03f8205",
+      "launch_fixtures": 73,
+      "protocol_cases": 866,
+      "focused_cases": 77,
+      "real_d1": "C09_D1_OK"
+    }
+  ],
+  "resolved_regressions": [
+    {
+      "issue": "Completion-time inventory gating could skip the first heartbeat refresh and exceed the unchanged 30-second freshness bound",
+      "proof": "Old-code TLS/WebSocket regression failed; heartbeat-driven repair passed 20 repeated race cases and actual signed native D1 refresh",
+      "fix_commit": "63f02ec"
+    },
+    {
+      "issue": "Launch eligibility incorrectly rejected attention on submitted nonterminal runs",
+      "proof": "Actual result submission regression failed before the split; submitted creation, read and exact retry now pass while old launch/capture eligibility remains unchanged",
+      "fix_commit": "891fbcc"
+    }
+  ],
+  "not_claimed": [
+    "Full L05 launch, Terminal automation or PTY handoff certification",
+    "Live Claude/Codex behavior or exact provider continuation certification",
+    "Offline attention permission, attention journal work or autonomous attention delivery",
+    "Result MCP/CLI submission, protected result capture or automatic descendant certification",
+    "Private-task ACLs, project knowledge, skill catalogs, shared business secrets or other mandatory product extensions",
+    "Cross-device pilot, running end-to-end MVP, release readiness, push or deployment"
+  ],
+  "redaction": { "status": "passed", "raw_logs_committed": false, "prohibited_content": [] }
+}

@@ -3,9 +3,16 @@
 
 import { createHash } from "node:crypto";
 
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { FIX, issueStepUpProof, seedSyntheticWorkspace } from "@bfb/domain";
+import {
+  FIX,
+  issueStepUpProof,
+  seedSyntheticWorkspace,
+  repositoryConfigPolicyTarget,
+  normalizeRepositoryConfig,
+  getProjectPolicy,
+} from "@bfb/domain";
 
 import { projectStepUpTarget } from "../src/api/projects.js";
 import { parseAuthKeys } from "../src/auth/better-auth.js";
@@ -21,6 +28,16 @@ import {
 
 const NOW = "2026-08-12T08:00:00.000Z";
 const PROOF_EXPIRY = "2026-08-12T08:05:00.000Z";
+const OFFLINE_DENIED = { allowed_tools: [], max_pending_age_seconds: 0 };
+const RESULT_DENIED = { allow_submit_result: false, max_pending_age_seconds: 0 };
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(NOW));
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 async function stepUpProof(
   context: AuthTestContext,
@@ -141,6 +158,67 @@ async function contextWithSessions() {
 }
 
 describe("project browser API", () => {
+  it("exposes explicit autonomous permission mode and preserves it when PATCH omits the field", async () => {
+    const { context, owner } = await contextWithSessions();
+    const app = appFor(context),
+      env = bindings(context),
+      csrf = await csrfFor(app, owner.cookie, env);
+    const base = `/api/v1/workspaces/${FIX.workspace}/agent-profiles`;
+    const input = {
+      name: "Autonomous API Claude",
+      provider: "claude",
+      model: "sonnet",
+      execution_mode: "interactive",
+      harness_mode: "standard",
+    };
+    const created = await app.request(
+      mutation(base, "POST", owner.cookie, csrf, {
+        ...input,
+        permission_mode: "autonomous",
+        request_id: "profile-autonomous",
+      }),
+      undefined,
+      env,
+    );
+    expect(created.status, await created.clone().text()).toBe(200);
+    const body = (await created.json()) as { result: { id: string; permission_mode: string } };
+    expect(body.result.permission_mode).toBe("autonomous");
+    const updated = await app.request(
+      mutation(`${base}/${body.result.id}`, "PATCH", owner.cookie, csrf, {
+        ...input,
+        expected_version: 1,
+        request_id: "profile-autonomous-omission",
+      }),
+      undefined,
+      env,
+    );
+    expect(updated.status, await updated.clone().text()).toBe(200);
+    expect(await updated.json()).toMatchObject({
+      result: { permission_mode: "autonomous", resource_version: 2 },
+    });
+    const invalid = await app.request(
+      mutation(base, "POST", owner.cookie, csrf, {
+        ...input,
+        permission_mode: "autonomous",
+        harness_mode: "restricted",
+        request_id: "profile-restricted-autonomous",
+      }),
+      undefined,
+      env,
+    );
+    expect(invalid.status).toBe(400);
+    const malformed = await app.request(
+      mutation(base, "POST", owner.cookie, csrf, {
+        ...input,
+        permission_mode: true,
+        request_id: "profile-malformed-mode",
+      }),
+      undefined,
+      env,
+    );
+    expect(malformed.status).toBe(400);
+  });
+
   it("creates and updates canonical projects with pagination and request bounds", async () => {
     const { context, owner } = await contextWithSessions();
     const app = appFor(context);
@@ -432,6 +510,8 @@ describe("project browser API", () => {
       allow_agent_root_propose: true,
       allow_pass_to_agent: true,
       allow_run_overrides: true,
+      offline_agent_work: OFFLINE_DENIED,
+      offline_agent_results: RESULT_DENIED,
     };
     const workspacePolicyWithoutProof = await app.request(
       mutation(`${base}/workspace-policy`, "PUT", owner.cookie, csrf, {
@@ -446,13 +526,19 @@ describe("project browser API", () => {
       context,
       "workspace.policy.update",
       projectStepUpTarget([
+        "BFB-POLICY-UPDATE-V3",
         "workspace.policy.update",
+        FIX.workspace,
         null,
         workspacePolicySettings.expected_version,
         [...workspacePolicySettings.allowed_providers].sort(),
         workspacePolicySettings.allow_agent_root_propose,
         workspacePolicySettings.allow_pass_to_agent,
         workspacePolicySettings.allow_run_overrides,
+        workspacePolicySettings.offline_agent_work.allowed_tools,
+        workspacePolicySettings.offline_agent_work.max_pending_age_seconds,
+        false,
+        0,
       ]),
     );
     const workspacePolicy = await app.request(
@@ -473,18 +559,26 @@ describe("project browser API", () => {
       allow_agent_root_propose: false,
       allow_pass_to_agent: false,
       allow_run_overrides: false,
+      offline_agent_work: OFFLINE_DENIED,
+      offline_agent_results: RESULT_DENIED,
     };
     const policyProof = await stepUpProof(
       context,
       "project.policy.update",
       projectStepUpTarget([
+        "BFB-POLICY-UPDATE-V3",
         "project.policy.update",
+        FIX.workspace,
         FIX.projectA,
         projectPolicySettings.expected_version,
         projectPolicySettings.allowed_providers,
         projectPolicySettings.allow_agent_root_propose,
         projectPolicySettings.allow_pass_to_agent,
         projectPolicySettings.allow_run_overrides,
+        projectPolicySettings.offline_agent_work.allowed_tools,
+        projectPolicySettings.offline_agent_work.max_pending_age_seconds,
+        false,
+        0,
       ]),
       FIX.projectA,
     );
@@ -570,5 +664,142 @@ describe("project browser API", () => {
     expect(responseText).not.toContain("/Users/");
     expect(responseText).not.toContain("token");
     expect(JSON.parse(responseText)).toMatchObject({ hasMore: false });
+  });
+
+  it("consumes the exact versioned policy proof inside Hub and replays without consuming it twice", async () => {
+    const { context, owner } = await contextWithSessions();
+    const app = appFor(context),
+      env = bindings(context),
+      csrf = await csrfFor(app, owner.cookie, env);
+    const base = `/api/v1/workspaces/${FIX.workspace}`;
+    const settings = {
+      expected_version: 1,
+      allowed_providers: ["codex"],
+      allow_agent_root_propose: false,
+      allow_pass_to_agent: true,
+      allow_run_overrides: false,
+      offline_agent_work: OFFLINE_DENIED,
+      offline_agent_results: RESULT_DENIED,
+    };
+    const oldProof = await stepUpProof(
+      context,
+      "workspace.policy.update",
+      projectStepUpTarget(["workspace.policy.update", null, 1, ["codex"], false, true, false]),
+    );
+    async function send(body: unknown) {
+      return app.request(
+        mutation(`${base}/workspace-policy`, "PUT", owner.cookie, csrf, body),
+        undefined,
+        env,
+      );
+    }
+    const rejected = await send({
+      ...settings,
+      step_up_proof_id: oldProof,
+      request_id: "policy-old-target",
+    });
+    expect(await rejected.json()).toMatchObject({ error: { code: "step_up_mismatch" } });
+    expect(
+      await context.db
+        .prepare("SELECT consumed_at FROM passkey_step_up_proofs WHERE proof_id = ?")
+        .get(oldProof),
+    ).toEqual({ consumed_at: null });
+    const proof = await stepUpProof(
+      context,
+      "workspace.policy.update",
+      projectStepUpTarget([
+        "BFB-POLICY-UPDATE-V3",
+        "workspace.policy.update",
+        FIX.workspace,
+        null,
+        1,
+        ["codex"],
+        false,
+        true,
+        false,
+        [],
+        0,
+        false,
+        0,
+      ]),
+    );
+    const body = { ...settings, step_up_proof_id: proof, request_id: "policy-atomic-retry" };
+    const first = await send(body);
+    expect(first.status, await first.clone().text()).toBe(200);
+    const consumed = await context.db
+      .prepare("SELECT consumed_at FROM passkey_step_up_proofs WHERE proof_id = ?")
+      .get(proof);
+    expect(consumed).toEqual({ consumed_at: expect.any(String) });
+    const replay = await send(body);
+    expect(replay.status, await replay.clone().text()).toBe(200);
+    expect(await replay.json()).toMatchObject({
+      replayed: true,
+      result: { resourceVersion: 2, offlineAgentWork: OFFLINE_DENIED },
+    });
+    expect(
+      await context.db
+        .prepare("SELECT consumed_at FROM passkey_step_up_proofs WHERE proof_id = ?")
+        .get(proof),
+    ).toEqual(consumed);
+    const changed = await send({
+      ...body,
+      offline_agent_work: { allowed_tools: ["bfb_add_comment"], max_pending_age_seconds: 30 },
+    });
+    expect(await changed.json()).toMatchObject({ error: { code: "request_rejected" } });
+  });
+
+  it("requires proof for an explicit repository offline setting even when it denies capture", async () => {
+    const { context, owner } = await contextWithSessions();
+    const app = appFor(context),
+      env = bindings(context),
+      csrf = await csrfFor(app, owner.cookie, env);
+    const path = `/api/v1/workspaces/${FIX.workspace}/projects/${FIX.projectA}/repository-config`;
+    const document = { offline_agent_work: OFFLINE_DENIED },
+      contentHash = hash(JSON.stringify(document));
+    const body = {
+      expected_version: 1,
+      document,
+      content_hash: contentHash,
+      request_id: "repo-explicit-offline-deny",
+    };
+    const missing = await app.request(
+      mutation(path, "PUT", owner.cookie, csrf, body),
+      undefined,
+      env,
+    );
+    expect(await missing.json()).toMatchObject({ error: { code: "step_up_invalid" } });
+    const proof = await stepUpProof(
+      context,
+      "repository.config.report",
+      repositoryConfigPolicyTarget(
+        FIX.workspace,
+        FIX.projectA,
+        1,
+        contentHash,
+        normalizeRepositoryConfig(
+          document,
+          await getProjectPolicy(context.db, FIX.workspace, FIX.projectA),
+        ).settings,
+      ),
+      FIX.projectA,
+    );
+    const committed = await app.request(
+      mutation(path, "PUT", owner.cookie, csrf, { ...body, step_up_proof_id: proof }),
+      undefined,
+      env,
+    );
+    expect(committed.status, await committed.clone().text()).toBe(200);
+    expect(await committed.json()).toMatchObject({
+      result: { version: 2, contentHash, canonicalJson: JSON.stringify(document) },
+    });
+    const denied = await context.db
+      .prepare(
+        "SELECT offline_agent_tools_json, offline_agent_max_pending_age_seconds FROM repository_config_versions WHERE workspace_id = ? AND project_id = ? AND version = 2",
+      )
+      .get(FIX.workspace, FIX.projectA);
+    expect(denied).toEqual({
+      offline_agent_tools_json: "[]",
+      offline_agent_max_pending_age_seconds: 0,
+    });
   });
 });

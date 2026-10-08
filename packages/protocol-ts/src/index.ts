@@ -8,7 +8,13 @@ export {
   WIRE_DOCUMENT_NAMES,
 } from "./generated/types.js";
 export type * from "./generated/types.js";
-export { decodeWireDocument, encodeWireDocument } from "./codec.js";
+export {
+  canonicalAgentWriteRequest,
+  decodeWireDocument,
+  decodeRunnerEventBatch,
+  encodeNamedWireDocument,
+  encodeWireDocument,
+} from "./codec.js";
 export type { DecodeResult } from "./codec.js";
 export { FakeControlPlane, FakeProtocolClient } from "./fake/control-plane.js";
 export type { FakeAttentionFixture, FakeContextFixture } from "./fake/control-plane.js";

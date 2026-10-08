@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/discussion-create-request.json",
+  "title": "DiscussionCreateRequest",
+  "description": "A human freezes two permitted discussion participants without starting task work.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "idempotency_key",
+    "task_id",
+    "expected_task_version",
+    "question",
+    "git_revision",
+    "workspace_policy_version",
+    "project_policy_version",
+    "repository_config_version",
+    "participants"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "idempotency_key": {
+      "$ref": "primitives.json#/$defs/IdempotencyKey"
+    },
+    "task_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "expected_task_version": {
+      "$ref": "primitives.json#/$defs/ResourceVersion"
+    },
+    "question": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096
+    },
+    "git_revision": {
+      "type": "string",
+      "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$",
+      "maxLength": 64
+    },
+    "workspace_policy_version": {
+      "$ref": "primitives.json#/$defs/ResourceVersion"
+    },
+    "project_policy_version": {
+      "$ref": "primitives.json#/$defs/ResourceVersion"
+    },
+    "repository_config_version": {
+      "$ref": "primitives.json#/$defs/ResourceVersion"
+    },
+    "participants": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["agent_profile_id", "agent_profile_version", "runner_id", "checkout_id"],
+        "properties": {
+          "agent_profile_id": {
+            "$ref": "primitives.json#/$defs/Ulid"
+          },
+          "agent_profile_version": {
+            "$ref": "primitives.json#/$defs/ResourceVersion"
+          },
+          "runner_id": {
+            "$ref": "primitives.json#/$defs/Ulid"
+          },
+          "checkout_id": {
+            "$ref": "primitives.json#/$defs/Ulid"
+          }
+        }
+      }
+    },
+    "rounds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 3
+    },
+    "duration_seconds": {
+      "type": "integer",
+      "minimum": 60,
+      "maximum": 3600
+    }
+  }
+}

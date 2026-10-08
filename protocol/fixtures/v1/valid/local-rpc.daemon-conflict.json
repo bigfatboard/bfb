@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "request_id": "01JBFB0REQVEST100000000000",
+  "method": "daemon.run",
+  "direction": "response",
+  "error": {
+    "schema_version": 1,
+    "category": "conflict",
+    "code": "already_running",
+    "message": "A daemon already owns this local state directory."
+  }
+}

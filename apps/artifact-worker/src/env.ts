@@ -3,16 +3,22 @@
 
 export interface ArtifactBindings {
   ARTIFACTS: R2Bucket;
+  DB: D1Database;
   ARTIFACT_ORIGIN: string;
   APP_ORIGIN: string;
   ENVIRONMENT: string;
+  ARTIFACT_VIEWER_ENABLED?: string;
+  UPLOAD_ABUSE_SECRET?: string;
 }
 
 export interface ValidatedArtifactEnv {
   artifacts: R2Bucket;
+  db: D1Database;
   artifactOrigin: string;
   appOrigin: string;
   environment: "local" | "staging" | "production";
+  uploadAbuseSecret: string;
+  artifactViewerEnabled: boolean;
 }
 
 function requireBinding<T>(value: T | undefined, name: string): T {
@@ -40,11 +46,19 @@ function parseOrigin(raw: string, name: string): URL {
 
 export function validateArtifactEnv(env: Partial<ArtifactBindings>): ValidatedArtifactEnv {
   const ARTIFACTS = requireBinding(env.ARTIFACTS, "ARTIFACTS");
+  const DB = requireBinding(env.DB, "DB");
   const ARTIFACT_ORIGIN = requireBinding(env.ARTIFACT_ORIGIN, "ARTIFACT_ORIGIN");
   const APP_ORIGIN = requireBinding(env.APP_ORIGIN, "APP_ORIGIN");
   const ENVIRONMENT = requireBinding(env.ENVIRONMENT, "ENVIRONMENT");
   if (ENVIRONMENT !== "local" && ENVIRONMENT !== "staging" && ENVIRONMENT !== "production") {
     throw new Error("invalid environment: " + ENVIRONMENT);
+  }
+  if (
+    env.ARTIFACT_VIEWER_ENABLED !== undefined &&
+    env.ARTIFACT_VIEWER_ENABLED !== "false" &&
+    env.ARTIFACT_VIEWER_ENABLED !== "true"
+  ) {
+    throw new Error("invalid boolean: ARTIFACT_VIEWER_ENABLED");
   }
   const artifact = parseOrigin(ARTIFACT_ORIGIN, "ARTIFACT_ORIGIN");
   const app = parseOrigin(APP_ORIGIN, "APP_ORIGIN");
@@ -56,9 +70,14 @@ export function validateArtifactEnv(env: Partial<ArtifactBindings>): ValidatedAr
   }
   return {
     artifacts: ARTIFACTS,
+    db: DB,
     artifactOrigin: artifact.origin,
     appOrigin: app.origin,
     environment: ENVIRONMENT,
+    artifactViewerEnabled: env.ARTIFACT_VIEWER_ENABLED === "true",
+    // Staging/production set this with `wrangler secret put UPLOAD_ABUSE_SECRET`.
+    // Uploads fail closed while it is missing or short.
+    uploadAbuseSecret: typeof env.UPLOAD_ABUSE_SECRET === "string" ? env.UPLOAD_ABUSE_SECRET : "",
   };
 }
 

@@ -4,6 +4,13 @@
   "title": "BFBWirePrimitives",
   "description": "Shared bounded primitive definitions for BFB wire contracts.",
   "$defs": {
+    "TerminalIntentId": {
+      "description": "Canonical lowercase daemon-local UUIDv4, never a cloud wake ULID.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      "minLength": 36,
+      "maxLength": 36
+    },
     "Ulid": {
       "type": "string",
       "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
@@ -36,6 +43,21 @@
       "type": "integer",
       "minimum": 1,
       "maximum": 9007199254740991
+    },
+    "SupervisorIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pid", "start_identity", "executable_hash"],
+      "properties": {
+        "pid": { "type": "integer", "minimum": 1, "maximum": 2147483647 },
+        "start_identity": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 64,
+          "pattern": "^[0-9]+:[0-9]+$"
+        },
+        "executable_hash": { "$ref": "#/$defs/Sha256Digest" }
+      }
     },
     "IdempotencyKey": {
       "type": "string",
@@ -119,7 +141,7 @@
     },
     "ProviderName": {
       "type": "string",
-      "enum": ["claude", "codex", "grok"]
+      "enum": ["claude", "codex", "grok", "fake"]
     },
     "SourceRef": {
       "type": "object",
@@ -161,7 +183,11 @@
         "additional_field",
         "intent_confusion",
         "shell_data",
-        "authoritative_runner_claim"
+        "authoritative_runner_claim",
+        "operation_failed",
+        "authorization_denied",
+        "unavailable",
+        "conflict"
       ]
     },
     "TypedError": {

@@ -1,0 +1,18 @@
+{
+  "provider": "codex",
+  "source": "turn.completed usage object parsed from the provider event stream",
+  "quality": "provider_reported",
+  "raw": {
+    "input_tokens": 120,
+    "output_tokens": 34,
+    "cached_input_tokens": 100,
+    "reasoning_output_tokens": 5
+  },
+  "expected": {
+    "input": 120,
+    "output": 34,
+    "cache_read": 100,
+    "cache_write": null,
+    "reasoning": 5
+  }
+}

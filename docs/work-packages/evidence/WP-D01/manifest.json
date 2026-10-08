@@ -1,0 +1,79 @@
+{
+  "$schema": "../manifest.schema.json",
+  "package": "D01",
+  "tested_commit": "5856a935319156e4ea60143bc4b94505efe86b7b",
+  "protocol_version": "bfb-wire/1",
+  "schema_version": "1",
+  "migration_head": "d1:0017_discussions.sql;local:008_run_control_delivery.sql",
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "xcode": "26.0.1",
+    "wrangler": "4.120.1"
+  },
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56), local Wrangler D1 and Workerd",
+    "architecture": "arm64"
+  },
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-D01/command-result.json"
+    },
+    {
+      "command": "pnpm test:d01",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-D01/command-result.json"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-D01/command-result.json"
+    },
+    {
+      "command": "pnpm test:c08",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-D01/command-result.json"
+    },
+    {
+      "command": "pnpm test:c09",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-D01/command-result.json"
+    },
+    {
+      "command": "GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./...",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-D01/command-result.json"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-D01/command-result.json"
+    }
+  ],
+  "outcome": "passed",
+  "artifacts": [
+    "docs/work-packages/evidence/WP-D01/command-result.json",
+    "docs/work-packages/evidence/WP-D01/permission-state-matrix.md",
+    "docs/contracts/discussions.md",
+    "tools/discussions/run.ts",
+    "tools/discussions/fixtures.mjs",
+    "packages/domain/test/discussion-fixture.ts",
+    "packages/domain/test/discussions.test.ts",
+    "packages/domain/test/discussion-lifecycle.test.ts",
+    "packages/domain/test/discussion-invariants.test.ts",
+    "apps/control-worker/test/discussion-routes.test.ts",
+    "internal/protocol/discussion_types_test.go",
+    "migrations/d1/0017_discussions.sql",
+    "migrations/d1/manifest.json",
+    "protocol/fixtures/v1/matrix.json",
+    "packages/protocol-ts/src/generated/catalog.json"
+  ],
+  "redaction": {
+    "status": "passed",
+    "prohibited_content": []
+  }
+}

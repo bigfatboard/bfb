@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/agent-session-reference.json",
+  "title": "AgentSessionReference",
+  "description": "Confirmed canonical session captured by an activated local capability, never a public tool input.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["provider_session_id", "provider", "observed_session_id"],
+  "properties": {
+    "provider_session_id": { "$ref": "primitives.json#/$defs/Ulid" },
+    "provider": { "type": "string", "enum": ["claude", "codex", "grok", "fake"] },
+    "observed_session_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$" }
+  }
+}

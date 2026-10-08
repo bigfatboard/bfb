@@ -15,7 +15,7 @@ Three humans can share a BFB workspace with different roles while BFB remains th
 ## Dependencies
 
 - **Requires:** C01, C02, C03.
-- **Unlocks:** C05, C06, C07, C08, C09, E01, V01, W01, X03A, X04, X05.
+- **Unlocks:** C05, C06, C07, C08, C09, C10, D01, E01, V01, W01, X03A, X04, X05.
 - **Can run with:** local-only packages after L01.
 
 ## Scope
@@ -64,11 +64,13 @@ Three humans can share a BFB workspace with different roles while BFB remains th
 - Revocation blocks the next authorized command before credential cleanup runs.
 - Bootstrap/invitation limits remain durable across Worker isolates; raw IPs and one-time values appear in neither rate keys nor logs.
 
-## Evidence and handoff
+## Evidence
 
 - Commit the permission matrix as executable tests, migration constraints, and revocation event contract.
-- Downstream handlers receive immutable `Principal` plus derived `AuthorizationContext`; C07/C06 extend it with project/runner resources.
-
 ## Risks and decisions
 
 - D1 has no row-level security. A missing workspace predicate is critical, so repository shapes and tests must make omission difficult.
+
+## Handoff
+
+- Downstream handlers receive immutable `Principal` plus derived `AuthorizationContext`; C07/C06 extend it with project/runner resources.

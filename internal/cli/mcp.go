@@ -1,0 +1,93 @@
+// ABOUTME: Exposes the run-scoped local MCP server as bfb mcp stdio on raw standard I/O.
+// ABOUTME: Keeps JSON-RPC stdout pure by skipping CLI rendering; diagnostics use standard error.
+
+package cli
+
+import (
+	"context"
+	"database/sql"
+	"os"
+
+	"github.com/qdis/bfb/internal/daemon"
+	"github.com/qdis/bfb/internal/journal"
+	"github.com/qdis/bfb/internal/localmcp"
+	_ "modernc.org/sqlite"
+)
+
+// RegisterMCP registers the run-scoped local MCP stdio server. The command
+// runs in raw stdio mode: the registry skips response rendering so standard
+// output carries JSON-RPC values only.
+func RegisterMCP(registry *Registry) {
+	if err := registry.Register(Command{
+		Path:     "mcp stdio",
+		Method:   "mcp.stdio",
+		Summary:  "Run the run-scoped local MCP server on stdio",
+		RawStdio: true,
+		Run: func(ctx context.Context, invocation Invocation) (map[string]any, error) {
+			if len(invocation.Args) != 0 {
+				return nil, &daemon.Failure{Code: "invalid_request"}
+			}
+			return nil, runMCPStdio(ctx, invocation)
+		},
+	}); err != nil {
+		panic("duplicate built-in CLI command")
+	}
+}
+
+func runMCPStdio(ctx context.Context, invocation Invocation) error {
+	output := invocation.Output
+	if output == nil {
+		output = os.Stdout
+	}
+	env, err := localmcp.ParseEnv(os.Environ(), os.Getuid())
+	if err != nil {
+		_, _ = os.Stderr.Write([]byte("bfb mcp stdio: invalid_request\n"))
+		return &daemon.Failure{Code: "invalid_request"}
+	}
+	assignmentsDB := openAssignmentsReadOnly(invocation)
+	if assignmentsDB != nil {
+		defer assignmentsDB.Close()
+	}
+	assignments := localmcp.DaemonAssignments{DB: assignmentsDB}
+	transport := localmcp.RPCTransport{Paths: invocation.Paths, Correlation: env.Correlation}
+	server := localmcp.NewServer(ctx, localmcp.Deps{
+		Env:         env,
+		Inspector:   localmcp.OSInspector(),
+		Assignments: assignments,
+		Bindings:    sessionBindings(assignmentsDB),
+		Authority:   transport,
+		Transport:   transport,
+		Stderr:      os.Stderr,
+	})
+	if code := server.Serve(ctx, invocation.Input, output); code != 0 {
+		return &daemon.Failure{Code: "internal_error"}
+	}
+	return nil
+}
+
+// sessionBindings adapts the daemon database's L06 hook-journal binding rows
+// to the MCP capability. The bindings read shares the read-only assignment
+// handle: BoundSession only selects. A missing database keeps the fail-closed
+// behavior, since startup verification already rejects the assignment before
+// any capability consults the source.
+func sessionBindings(db *sql.DB) localmcp.SessionBindingSource {
+	if db == nil {
+		return localmcp.JournalBindings{}
+	}
+	return localmcp.JournalBindings{Sessions: journal.NewStore(db)}
+}
+
+// openAssignmentsReadOnly opens the daemon database without migrations or
+// writes. A missing database yields no handle; lookups then fail closed as
+// assignment_unknown instead of inventing authority.
+func openAssignmentsReadOnly(invocation Invocation) *sql.DB {
+	path := invocation.Paths.Database
+	if path == "" {
+		return nil
+	}
+	db, err := sql.Open("sqlite", "file:"+path+"?mode=ro&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)")
+	if err != nil {
+		return nil
+	}
+	return db
+}

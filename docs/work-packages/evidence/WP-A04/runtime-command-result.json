@@ -1,0 +1,201 @@
+{
+  "package": "A04",
+  "recorded_on": "2026-10-06",
+  "tested_commit": "a7a763cb5dea49089704618c54c330ac4df71f17",
+  "outcome": "passed",
+  "package_acceptance_complete": true,
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2",
+    "architecture": "arm64",
+    "cloud": "local real Worker, WorkspaceHub and D1 harness",
+    "native": "compiled hook/client, development-signed daemon, Keychain enrollment, synthetic provider-shaped process, genuine journal and request-bound runner possession"
+  },
+  "migrations": {
+    "d1": "0041_measurement_sources",
+    "daemon": "011_measurement_telemetry",
+    "agent_journal": "014_result_journal"
+  },
+  "clean_commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "exit_code": 0,
+      "tested_commit": "a7a763cb5dea49089704618c54c330ac4df71f17"
+    },
+    {
+      "command": "pnpm exec tsc -b --force --pretty false",
+      "exit_code": 0,
+      "tested_commit": "a7a763cb5dea49089704618c54c330ac4df71f17"
+    },
+    {
+      "command": "pnpm test:a04",
+      "exit_code": 0,
+      "protocol_cases": 992,
+      "focused_cases": 138,
+      "focused_files": 11,
+      "go_race_checks": "passed",
+      "real_d1_steps": 13,
+      "deterministic_evidence_cases": 5,
+      "native_proof": "A04_NATIVE_PROOF_COMPLETE",
+      "native_test_seconds": 75.36,
+      "browser_cases": 3,
+      "tested_commit": "a7a763cb5dea49089704618c54c330ac4df71f17"
+    },
+    {
+      "command": "pnpm test:a03",
+      "exit_code": 0,
+      "protocol_cases": 992,
+      "focused_cases": 177,
+      "go_race_checks": "passed",
+      "real_d1_human_command_checks": 10,
+      "deterministic_evidence_cases": 8,
+      "actual_binary_cli": "passed",
+      "native_proof": "A03_NATIVE_PROOF_COMPLETE",
+      "native_test_seconds": 195.04,
+      "browser_cases": 1,
+      "historical_evidence": "0040 certified artifacts preserved; current harness validates applied 0041 schema",
+      "tested_commit": "a7a763cb5dea49089704618c54c330ac4df71f17"
+    },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 2545,
+      "typescript_files": 135,
+      "go_checks": "passed",
+      "swift_cases": 16,
+      "platform_checks_skipped": false,
+      "tested_commit": "a7a763cb5dea49089704618c54c330ac4df71f17"
+    },
+    {
+      "command": "GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./...",
+      "exit_code": 0,
+      "tested_commit": "a7a763cb5dea49089704618c54c330ac4df71f17"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "exit_code": 0,
+      "tested_commit": "a7a763cb5dea49089704618c54c330ac4df71f17"
+    },
+    {
+      "command": "pnpm test:e01",
+      "exit_code": 0,
+      "protocol_cases": 992,
+      "focused_cases": 25,
+      "real_d1": "passed; 13 ledger events, 11 observations, 4 poison rejections",
+      "tested_commit": "312a2018af409c6f474935e6f6adb22d4e0e30c2"
+    },
+    {
+      "command": "pnpm test:l06",
+      "exit_code": 0,
+      "protocol_cases": 992,
+      "go_race_checks": "passed",
+      "fake_ingest_checks": 6,
+      "tested_commit": "312a2018af409c6f474935e6f6adb22d4e0e30c2"
+    },
+    {
+      "command": "pnpm test:a01",
+      "exit_code": 0,
+      "protocol_cases": 992,
+      "focused_cases": 435,
+      "go_race_checks": "passed",
+      "compiled_stdio": "passed",
+      "native_proof": "A01_NATIVE_PROOF_COMPLETE",
+      "browser_cases": 1,
+      "native_test_seconds": 203.45,
+      "tested_commit": "312a2018af409c6f474935e6f6adb22d4e0e30c2"
+    },
+    {
+      "command": "pnpm test:a02",
+      "exit_code": 0,
+      "protocol_cases": 992,
+      "focused_cases": 85,
+      "go_race_checks": "passed",
+      "real_d1": "passed",
+      "deterministic_evidence_cases": 7,
+      "compiled_stdio": "passed",
+      "native_proof": "A02_NATIVE_PROOF_COMPLETE",
+      "native_test_seconds": 92.37,
+      "browser_cases": 3,
+      "full_wait_seconds": 30,
+      "full_wait_actual_reads": 26,
+      "tested_commit": "312a2018af409c6f474935e6f6adb22d4e0e30c2"
+    },
+    {
+      "command": "pnpm test:l08",
+      "exit_code": 0,
+      "protocol_cases": 992,
+      "focused_cases": 59,
+      "go_race_checks": "passed",
+      "signed_two_workspace_channel": "passed",
+      "native_test_seconds": 46.78,
+      "enrollment_browser_cases": 1,
+      "tested_commit": "312a2018af409c6f474935e6f6adb22d4e0e30c2"
+    }
+  ],
+  "regression_source": {
+    "tested_commit": "312a2018af409c6f474935e6f6adb22d4e0e30c2",
+    "production_equivalent_to": "a7a763cb5dea49089704618c54c330ac4df71f17",
+    "changed_files": [
+      "package.json",
+      "tools/repository/test/package-gates.test.ts",
+      "tools/results/evidence.test.mjs",
+      "tools/results/evidence.ts",
+      "tools/results/run.ts"
+    ],
+    "scope": "Only test target coverage and A03 harness/evidence validation changed after the regression base. Exact A04, exact A03 and full verification reran on the final candidate."
+  },
+  "native_sections": [
+    "A04_NATIVE_ACK_RESTART_DEDUPE_COMPLETE",
+    "A04_NATIVE_MEASUREMENT_API_QUALITY_COMPLETE",
+    "A04_NATIVE_HISTORICAL_ASSIGNMENT_OFFLINE_COMPLETE",
+    "A04_NATIVE_PROOF_COMPLETE"
+  ],
+  "evidence_scopes": {
+    "native": "Synthetic identified lifecycle/usage transport, quality, provenance, durable replay, foreign ACK after typed commit and current authority; not live provider usage or genuine initial process attachment",
+    "derivations": "Domain regressions independently prove process/activity bounds, identity pairing, zero, ambiguity, offline tails and overflow",
+    "worker": "Mounted signed route validates raw numeric lexemes and atomic canonical measurement persistence",
+    "calculations": "Thirteen isolated real-D1 steps and five deterministic checks; current-clock human loop separate from fixed-date arithmetic",
+    "browser": "Three fresh assertion cases; historical browser screenshots retained unchanged"
+  },
+  "resolved_regressions": [
+    {
+      "issue": "Same-timestamp completed typed or legacy activity was incorrectly unavailable",
+      "proof": "Typed observed zero, legacy lower-confidence zero, absent, future and outside-window regressions",
+      "fix_commit": "c46a919"
+    },
+    {
+      "issue": "Foreign-ACK fault injector parsed a compressed response as uncompressed JSON",
+      "proof": "Failing-before gzip regression; corrected native gate asserts committed typed facts before exposing invalid ACK",
+      "fix_commit": "312a201"
+    },
+    {
+      "issue": "Deliberate profile mutation removed the subsequent native fixture lookup",
+      "proof": "Separate fake profile preserves historical immutable-provider proof and subsequent execution setup",
+      "fix_commit": "312a201"
+    },
+    {
+      "issue": "Exact A04 omitted the mounted Worker measurement suite",
+      "proof": "Expanded exact gate includes the suite and a repository omission guard",
+      "fix_commit": "d1d4019"
+    },
+    {
+      "issue": "A03 regression harness assumed migration head 0040 after measurements introduced 0041",
+      "proof": "Initial base A03 attempt failed; final exact A03 passes against actual validated 0041, preserves historical 0040 files and rejects arbitrary heads or changed business projections",
+      "fix_commit": "a7a763c"
+    }
+  ],
+  "not_claimed": [
+    "Terminal automation, AppleScript, System Events, full L05 launch or PTY handoff certification",
+    "Live Claude/Codex turns or certified stable provider usage delta identities",
+    "Process duration inferred merely from the synthetic helper being alive",
+    "Enabling offline business permission in any real workspace",
+    "Artifact publication, discussion scheduling or descendant package completion",
+    "Private-task ACLs, canonical project knowledge, skill catalogs, shared business secrets or broad light/dark redesign",
+    "Cross-device pilot, full running MVP, release readiness, push or deployment"
+  ],
+  "redaction": {
+    "status": "passed",
+    "raw_logs_committed": false,
+    "prohibited_content": []
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "release": "bfb-v0.1-g02",
+  "migration_head": "0034_operations",
+  "empty_start": {
+    "head": "0034_operations",
+    "foreign_key_check": "clean"
+  },
+  "previous_start": {
+    "from": "0004_human_credentials",
+    "head": "0034_operations",
+    "foreign_key_check": "clean",
+    "preserved_tasks": 1
+  },
+  "schema_converged": true,
+  "backstop": "D1 Time Travel or export before destructive steps (docs/release/migration-rollback.md)"
+}

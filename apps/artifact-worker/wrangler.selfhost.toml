@@ -1,0 +1,23 @@
+# ABOUTME: Self-host Artifact Worker configuration template owned by G02.
+# ABOUTME: The operator replaces origins/ids before creating resources; no secret values live here.
+
+name = "bfb-artifact-selfhost"
+main = "src/index.ts"
+compatibility_date = "2026-08-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+ENVIRONMENT = "production"
+ARTIFACT_ORIGIN = "https://artifacts.bfb.selfhost.example.test"
+APP_ORIGIN = "https://bfb.selfhost.example.test"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "bfb-selfhost"
+# The operator replaces this with the id returned by `wrangler d1 create bfb-selfhost`.
+database_id = "00000000-0000-4000-8000-000000000004"
+migrations_dir = "../../migrations/d1"
+
+[[r2_buckets]]
+binding = "ARTIFACTS"
+bucket_name = "bfb-artifacts-selfhost"

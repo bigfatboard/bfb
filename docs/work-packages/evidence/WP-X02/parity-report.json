@@ -1,0 +1,146 @@
+{
+  "now": "2026-08-18T12:00:00.000Z",
+  "origin": "https://bfb.human.test",
+  "rows": [
+    {
+      "check": "version diagnostics",
+      "browser_status": null,
+      "cli_status": 200,
+      "parity": "equal",
+      "note": "unauthenticated frozen surface"
+    },
+    {
+      "check": "projects list",
+      "browser_status": 200,
+      "cli_status": 200,
+      "parity": "equal",
+      "note": "same human, same authority"
+    },
+    {
+      "check": "project get",
+      "browser_status": 200,
+      "cli_status": 200,
+      "parity": "equal",
+      "note": "same record both surfaces"
+    },
+    {
+      "check": "scoped project hidden",
+      "browser_status": null,
+      "cli_status": 404,
+      "parity": "narrowed",
+      "note": "binding subset hides Beta"
+    },
+    {
+      "check": "task create",
+      "browser_status": null,
+      "cli_status": 200,
+      "parity": "gated",
+      "note": "explicit project and title required"
+    },
+    {
+      "check": "task get",
+      "browser_status": 200,
+      "cli_status": 200,
+      "parity": "equal",
+      "note": "same record both surfaces"
+    },
+    {
+      "check": "scoped task write hidden",
+      "browser_status": null,
+      "cli_status": 404,
+      "parity": "narrowed",
+      "note": "binding subset enforced pre-dispatch"
+    },
+    {
+      "check": "attention get",
+      "browser_status": 200,
+      "cli_status": 200,
+      "parity": "equal",
+      "note": "same record plus history"
+    },
+    {
+      "check": "attention answer",
+      "browser_status": null,
+      "cli_status": 200,
+      "parity": "gated",
+      "note": "explicit answer and version required"
+    },
+    {
+      "check": "attention duplicate answer",
+      "browser_status": null,
+      "cli_status": 409,
+      "parity": "gated",
+      "note": "committed answer wins, never overwritten"
+    },
+    {
+      "check": "attention resolve",
+      "browser_status": null,
+      "cli_status": 200,
+      "parity": "gated",
+      "note": "explicit version required"
+    },
+    {
+      "check": "run get",
+      "browser_status": 200,
+      "cli_status": 200,
+      "parity": "equal",
+      "note": "same columns both surfaces"
+    },
+    {
+      "check": "cancel without confirm",
+      "browser_status": null,
+      "cli_status": 400,
+      "parity": "gated",
+      "note": "explicit confirm required"
+    },
+    {
+      "check": "cancel without proof",
+      "browser_status": null,
+      "cli_status": 403,
+      "parity": "gated",
+      "note": "fresh action-bound proof required"
+    },
+    {
+      "check": "cancel with proof",
+      "browser_status": null,
+      "cli_status": 200,
+      "parity": "gated",
+      "note": "confirm plus fresh proof cancels"
+    },
+    {
+      "check": "artifact list",
+      "browser_status": null,
+      "cli_status": 200,
+      "parity": "equal",
+      "note": "metadata only, no grant secrets"
+    },
+    {
+      "check": "artifact get",
+      "browser_status": null,
+      "cli_status": 200,
+      "parity": "equal",
+      "note": "versions without secrets"
+    },
+    {
+      "check": "CLI credential on browser routes",
+      "browser_status": 401,
+      "cli_status": null,
+      "parity": "equal",
+      "note": "uniform credential_confusion"
+    },
+    {
+      "check": "CLI credential on MCP",
+      "browser_status": 401,
+      "cli_status": null,
+      "parity": "equal",
+      "note": "no OAuth substitution"
+    },
+    {
+      "check": "logout revokes binding",
+      "browser_status": null,
+      "cli_status": 200,
+      "parity": "gated",
+      "note": "own binding only"
+    }
+  ]
+}

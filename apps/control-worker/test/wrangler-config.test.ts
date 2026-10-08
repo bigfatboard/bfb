@@ -79,7 +79,30 @@ describe("wrangler substrate configs", () => {
       expect(body).toMatch(/migrations_dir = "\.\.\/\.\.\/migrations\/d1"/);
       expect(body).toMatch(/\[triggers\]/);
       expect(body).toMatch(/crons\s*=\s*\["\*\/5 \* \* \* \*"\]/);
-      expect(body).not.toMatch(/\[\[queues\.consumers\]\]/);
+      // X04 consumes the JOBS queue, X01 the notification queue, and X05 the
+      // operations queue; each has its own DLQ and bounded batches on every env.
+      const consumers = [
+        ...body.matchAll(
+          /\[\[queues\.consumers\]\]\s*\nqueue = "([^"]+)"\s*\nmax_batch_size = 10\s*\nmax_batch_timeout = 5\s*\nmax_retries = 5\s*\ndead_letter_queue = "([^"]+)"/g,
+        ),
+      ].map((match) => [match[1], match[2]]);
+      expect(consumers).toHaveLength(3);
+      expect(consumers).toContainEqual([
+        expect.stringMatching(/^bfb-jobs(-staging|-local)?$/),
+        expect.stringMatching(/^bfb-jobs-dlq(-staging|-local)?$/),
+      ]);
+      expect(consumers).toContainEqual([
+        expect.stringMatching(/^bfb-notify(-staging|-local)?$/),
+        expect.stringMatching(/^bfb-notify-dlq(-staging|-local)?$/),
+      ]);
+      expect(consumers).toContainEqual([
+        expect.stringMatching(/^bfb-ops(-staging|-local)?$/),
+        expect.stringMatching(/^bfb-ops-dlq(-staging|-local)?$/),
+      ]);
+      expect(body).toMatch(/binding = "NOTIFY_JOBS"/);
+      expect(body).toMatch(/binding = "NOTIFY_DLQ"/);
+      expect(body).toMatch(/binding = "OPS_JOBS"/);
+      expect(body).toMatch(/binding = "OPS_DLQ"/);
     }
   });
 
@@ -105,7 +128,11 @@ describe("wrangler substrate configs", () => {
     for (const name of artifactConfigs) {
       const body = readFileSync(path.join(artifactRoot, name), "utf8");
       expect(body).toMatch(/binding = "ARTIFACTS"/);
-      expect(body).not.toMatch(/binding = "DB"|binding = "WORKSPACE_HUB"/);
+      // V01: the Artifact Worker rechecks grants and records verified upload
+      // metadata with conditional D1 batches, so it binds the shared D1 but
+      // never dispatches through WORKSPACE_HUB (finalization owns the hub).
+      expect(body).toMatch(/binding = "DB"/);
+      expect(body).not.toMatch(/binding = "WORKSPACE_HUB"/);
     }
   });
 
@@ -131,6 +158,24 @@ describe("wrangler substrate configs", () => {
     expect(body).toMatch(/\[exports\.WorkspaceHub\]/);
     expect(body).not.toMatch(/\[assets\]|\[triggers\]|\[\[queues\.|\[\[r2_buckets\]\]/);
     expect(body).not.toMatch(/ENVIRONMENT|APP_ORIGIN|ARTIFACT_ORIGIN|LAUNCH_ORIGIN/);
+  });
+
+  it("inlines no secret values in any committed wrangler config", () => {
+    // Local `wrangler dev` reads secrets from the gitignored `.dev.vars`;
+    // staging/production use `wrangler secret put`. A committed `[vars]`
+    // value is a convention break and a template for a real environment.
+    const committed = [
+      ...configs.map((name) => path.join(root, name)),
+      path.join(root, spikeConfig),
+      path.join(root, "wrangler.selfhost.toml"),
+      ...artifactConfigs.map((name) => path.join(artifactRoot, name)),
+      path.join(artifactRoot, "wrangler.selfhost.toml"),
+    ];
+    for (const file of committed) {
+      const body = readFileSync(file, "utf8");
+      const vars = body.match(/\[vars\][\s\S]*?(?=\n\[|\n\[\[|$)/);
+      expect(vars?.[0] ?? "").not.toMatch(/^\s*[A-Z0-9_]*SECRET[A-Z0-9_]*\s*=/m);
+    }
   });
 
   it("includes Worker-first OAuth globs so SPA cannot shadow /oauth/*", () => {

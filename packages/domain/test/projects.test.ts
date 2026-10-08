@@ -6,6 +6,7 @@ import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 
 import {
+  authorizeSyntheticPolicyUpdate,
   changeProjectAccessCommand,
   createAgentProfileCommand,
   createProjectCommand,
@@ -228,37 +229,73 @@ describe("policy and configuration history", () => {
         allowAgentRootPropose: "false" as never,
         allowPassToAgent: false,
         allowRunOverrides: false,
+        offlineAgentWork: { allowed_tools: [], max_pending_age_seconds: 0 },
+        offlineAgentResults: { allow_submit_result: false, max_pending_age_seconds: 0 },
+        stepUpProofId: "synthetic-malformed-policy",
       },
       { key: "workspace-policy-malformed" },
     );
     expect(malformed).toMatchObject({ ok: false, error: { code: "invalid_policy" } });
-    const workspace = await execute(db, updateWorkspacePolicyCommand, {
-      expectedVersion: 1,
-      allowedProviders: ["codex"],
-      allowAgentRootPropose: true,
-      allowPassToAgent: false,
-      allowRunOverrides: false,
-    });
+    const workspace = await execute(
+      db,
+      updateWorkspacePolicyCommand,
+      await authorizeSyntheticPolicyUpdate(
+        db,
+        {
+          workspaceId: FIX.workspace,
+          humanId: FIX.owner,
+        },
+        {
+          expectedVersion: 1,
+          allowedProviders: ["codex"],
+          allowAgentRootPropose: true,
+          allowPassToAgent: false,
+          allowRunOverrides: false,
+        },
+      ),
+    );
     expect(workspace).toMatchObject({ ok: true, result: { resourceVersion: 2 } });
 
-    const widening = await execute(db, updateProjectPolicyCommand, {
-      projectId: FIX.projectA,
-      expectedVersion: 1,
-      allowedProviders: ["codex", "grok"],
-      allowAgentRootPropose: true,
-      allowPassToAgent: false,
-      allowRunOverrides: false,
-    });
+    const widening = await execute(
+      db,
+      updateProjectPolicyCommand,
+      await authorizeSyntheticPolicyUpdate(
+        db,
+        {
+          workspaceId: FIX.workspace,
+          humanId: FIX.owner,
+        },
+        {
+          projectId: FIX.projectA,
+          expectedVersion: 1,
+          allowedProviders: ["codex", "grok"],
+          allowAgentRootPropose: true,
+          allowPassToAgent: false,
+          allowRunOverrides: false,
+        },
+      ),
+    );
     expect(widening).toMatchObject({ ok: false, error: { code: "policy_widening" } });
 
-    const project = await execute(db, updateProjectPolicyCommand, {
-      projectId: FIX.projectA,
-      expectedVersion: 1,
-      allowedProviders: ["codex"],
-      allowAgentRootPropose: false,
-      allowPassToAgent: false,
-      allowRunOverrides: false,
-    });
+    const project = await execute(
+      db,
+      updateProjectPolicyCommand,
+      await authorizeSyntheticPolicyUpdate(
+        db,
+        {
+          workspaceId: FIX.workspace,
+          humanId: FIX.owner,
+        },
+        {
+          projectId: FIX.projectA,
+          expectedVersion: 1,
+          allowedProviders: ["codex"],
+          allowAgentRootPropose: false,
+          allowPassToAgent: false,
+          allowRunOverrides: false,
+        },
+      ),
+    );
     expect(project).toMatchObject({ ok: true, result: { resourceVersion: 2 } });
     expect((await getProjectPolicy(db, FIX.workspace, FIX.projectA)).allowPassToAgent).toBe(false);
 
@@ -322,18 +359,24 @@ describe("policy and configuration history", () => {
   it("intersects workspace, project, repository, profile, runner, and override inputs", () => {
     const effective = evaluateEffectivePolicy({
       workspace: {
+        offlineAgentWork: { allowed_tools: [], max_pending_age_seconds: 0 },
+        offlineAgentResults: { allow_submit_result: false, max_pending_age_seconds: 0 },
         allowedProviders: ["claude", "codex"],
         allowAgentRootPropose: true,
         allowPassToAgent: true,
         allowRunOverrides: true,
       },
       project: {
+        offlineAgentWork: { allowed_tools: [], max_pending_age_seconds: 0 },
+        offlineAgentResults: { allow_submit_result: false, max_pending_age_seconds: 0 },
         allowedProviders: ["codex"],
         allowAgentRootPropose: true,
         allowPassToAgent: false,
         allowRunOverrides: true,
       },
       repository: {
+        offlineAgentWork: { allowed_tools: [], max_pending_age_seconds: 0 },
+        offlineAgentResults: { allow_submit_result: false, max_pending_age_seconds: 0 },
         allowedProviders: ["codex"],
         allowAgentRootPropose: false,
         allowPassToAgent: false,
@@ -350,18 +393,24 @@ describe("policy and configuration history", () => {
     expect(() =>
       evaluateEffectivePolicy({
         workspace: {
+          offlineAgentWork: { allowed_tools: [], max_pending_age_seconds: 0 },
+          offlineAgentResults: { allow_submit_result: false, max_pending_age_seconds: 0 },
           allowedProviders: ["codex"],
           allowAgentRootPropose: true,
           allowPassToAgent: true,
           allowRunOverrides: true,
         },
         project: {
+          offlineAgentWork: { allowed_tools: [], max_pending_age_seconds: 0 },
+          offlineAgentResults: { allow_submit_result: false, max_pending_age_seconds: 0 },
           allowedProviders: ["codex"],
           allowAgentRootPropose: true,
           allowPassToAgent: true,
           allowRunOverrides: true,
         },
         repository: {
+          offlineAgentWork: { allowed_tools: [], max_pending_age_seconds: 0 },
+          offlineAgentResults: { allow_submit_result: false, max_pending_age_seconds: 0 },
           allowedProviders: ["codex"],
           allowAgentRootPropose: true,
           allowPassToAgent: true,
@@ -375,6 +424,71 @@ describe("policy and configuration history", () => {
 });
 
 describe("agent profile versions", () => {
+  it("requires explicit autonomous choice and preserves permission history on omitted updates", async () => {
+    const db = await fixture();
+    const input = {
+      name: "Claude Autonomous",
+      provider: "claude" as const,
+      model: "sonnet",
+      executionMode: "interactive" as const,
+      harnessMode: "standard" as const,
+    };
+    const manual = await execute(db, createAgentProfileCommand, input);
+    expect(manual).toMatchObject({ ok: true, result: { permission_mode: "manual" } });
+    if (!manual.ok) return;
+    const autonomous = await execute(db, updateAgentProfileCommand, {
+      ...input,
+      profileId: manual.result.id,
+      expectedVersion: 1,
+      permissionMode: "autonomous",
+    });
+    expect(autonomous).toMatchObject({ ok: true, result: { permission_mode: "autonomous" } });
+    const unchanged = await execute(db, updateAgentProfileCommand, {
+      ...input,
+      profileId: manual.result.id,
+      expectedVersion: 2,
+      model: "opus",
+    });
+    expect(unchanged).toMatchObject({ ok: true, result: { permission_mode: "autonomous" } });
+    const history = await listVersionRows(db, "agent_profile_versions", FIX.workspace, {
+      profileId: manual.result.id,
+    });
+    expect(
+      history.versions.map((row) => (row as { permission_mode: string }).permission_mode),
+    ).toEqual(["manual", "autonomous", "autonomous"]);
+    const member = await execute(
+      db,
+      createAgentProfileCommand,
+      { ...input, name: "Member Autonomy", permissionMode: "autonomous" },
+      { actor: FIX.member },
+    );
+    expect(member).toMatchObject({ ok: false, error: { code: "forbidden" } });
+  });
+
+  it("rejects autonomous restricted, headless, non-Claude and unknown modes", async () => {
+    const db = await fixture();
+    const input = {
+      name: "Invalid Autonomy",
+      provider: "claude" as const,
+      model: "sonnet",
+      executionMode: "interactive" as const,
+      harnessMode: "standard" as const,
+      permissionMode: "autonomous" as const,
+    };
+    for (const change of [
+      { harnessMode: "restricted" as const },
+      { executionMode: "headless" as const },
+      { provider: "codex" as const },
+      { permissionMode: "auto" as never },
+      { permissionMode: null as never },
+    ]) {
+      expect(await execute(db, createAgentProfileCommand, { ...input, ...change })).toMatchObject({
+        ok: false,
+        error: { code: "invalid_argument" },
+      });
+    }
+  });
+
   it("creates and updates policy-allowed profiles without rewriting history", async () => {
     const db = await fixture();
     const created = await execute(db, createAgentProfileCommand, {
@@ -407,13 +521,24 @@ describe("agent profile versions", () => {
     const profiles = await listAgentProfilesPage(db, FIX.workspace, { limit: 2 });
     expect(profiles.hasMore).toBe(true);
 
-    await execute(db, updateWorkspacePolicyCommand, {
-      expectedVersion: 1,
-      allowedProviders: ["codex"],
-      allowAgentRootPropose: true,
-      allowPassToAgent: true,
-      allowRunOverrides: true,
-    });
+    await execute(
+      db,
+      updateWorkspacePolicyCommand,
+      await authorizeSyntheticPolicyUpdate(
+        db,
+        {
+          workspaceId: FIX.workspace,
+          humanId: FIX.owner,
+        },
+        {
+          expectedVersion: 1,
+          allowedProviders: ["codex"],
+          allowAgentRootPropose: true,
+          allowPassToAgent: true,
+          allowRunOverrides: true,
+        },
+      ),
+    );
     const forbidden = await execute(db, createAgentProfileCommand, {
       name: "Grok Forbidden",
       provider: "grok",

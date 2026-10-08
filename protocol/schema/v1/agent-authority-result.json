@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/agent-authority-result.json",
+  "title": "AgentAuthorityResult",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["revoked", "execution_ended", "result_terminal"],
+  "properties": {
+    "revoked": { "type": "boolean" },
+    "execution_ended": { "type": "boolean" },
+    "result_terminal": { "type": "boolean" }
+  }
+}

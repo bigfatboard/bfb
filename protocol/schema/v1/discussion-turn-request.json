@@ -1,0 +1,242 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/discussion-turn-request.json",
+  "title": "DiscussionTurnRequest",
+  "description": "An authenticated participant changes only its correlated discussion turn and delivery.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "idempotency_key",
+    "discussion_id",
+    "expected_version",
+    "turn_id",
+    "expected_turn_version",
+    "action"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "idempotency_key": {
+      "$ref": "primitives.json#/$defs/IdempotencyKey"
+    },
+    "discussion_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "expected_version": {
+      "$ref": "primitives.json#/$defs/ResourceVersion"
+    },
+    "turn_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "expected_turn_version": {
+      "$ref": "primitives.json#/$defs/ResourceVersion"
+    },
+    "action": {
+      "type": "string",
+      "enum": ["accept", "dispatch", "acknowledge", "complete", "ambiguous", "fail"]
+    },
+    "delivery_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "expected_delivery_version": {
+      "$ref": "primitives.json#/$defs/ResourceVersion"
+    },
+    "session_id": {
+      "$ref": "primitives.json#/$defs/Ulid"
+    },
+    "output": {
+      "$ref": "discussion-recommendation.json"
+    },
+    "reason": {
+      "type": "string",
+      "enum": ["provider_failed", "context_changed", "deadline_exceeded"]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "enum": ["accept"]
+          }
+        },
+        "required": ["action"]
+      },
+      "then": {
+        "not": {
+          "anyOf": [
+            {
+              "required": ["delivery_id"],
+              "properties": {
+                "delivery_id": {}
+              }
+            },
+            {
+              "required": ["expected_delivery_version"],
+              "properties": {
+                "expected_delivery_version": {}
+              }
+            },
+            {
+              "required": ["session_id"],
+              "properties": {
+                "session_id": {}
+              }
+            },
+            {
+              "required": ["output"],
+              "properties": {
+                "output": {}
+              }
+            },
+            {
+              "required": ["reason"],
+              "properties": {
+                "reason": {}
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "enum": ["dispatch", "ambiguous"]
+          }
+        },
+        "required": ["action"]
+      },
+      "then": {
+        "required": ["delivery_id", "expected_delivery_version"],
+        "not": {
+          "anyOf": [
+            {
+              "required": ["session_id"],
+              "properties": {
+                "session_id": {}
+              }
+            },
+            {
+              "required": ["output"],
+              "properties": {
+                "output": {}
+              }
+            },
+            {
+              "required": ["reason"],
+              "properties": {
+                "reason": {}
+              }
+            }
+          ]
+        },
+        "properties": {
+          "delivery_id": {},
+          "expected_delivery_version": {}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "enum": ["acknowledge"]
+          }
+        },
+        "required": ["action"]
+      },
+      "then": {
+        "required": ["delivery_id", "expected_delivery_version", "session_id"],
+        "not": {
+          "anyOf": [
+            {
+              "required": ["output"],
+              "properties": {
+                "output": {}
+              }
+            },
+            {
+              "required": ["reason"],
+              "properties": {
+                "reason": {}
+              }
+            }
+          ]
+        },
+        "properties": {
+          "delivery_id": {},
+          "expected_delivery_version": {},
+          "session_id": {}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "enum": ["complete"]
+          }
+        },
+        "required": ["action"]
+      },
+      "then": {
+        "required": ["delivery_id", "expected_delivery_version", "session_id", "output"],
+        "not": {
+          "anyOf": [
+            {
+              "required": ["reason"],
+              "properties": {
+                "reason": {}
+              }
+            }
+          ]
+        },
+        "properties": {
+          "delivery_id": {},
+          "expected_delivery_version": {},
+          "session_id": {},
+          "output": {}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "enum": ["fail"]
+          }
+        },
+        "required": ["action"]
+      },
+      "then": {
+        "required": ["delivery_id", "expected_delivery_version", "reason"],
+        "not": {
+          "anyOf": [
+            {
+              "required": ["session_id"],
+              "properties": {
+                "session_id": {}
+              }
+            },
+            {
+              "required": ["output"],
+              "properties": {
+                "output": {}
+              }
+            }
+          ]
+        },
+        "properties": {
+          "delivery_id": {},
+          "expected_delivery_version": {},
+          "reason": {}
+        }
+      }
+    }
+  ]
+}

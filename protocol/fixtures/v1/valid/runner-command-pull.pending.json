@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "workspace_id": "01K00000000000000000000001",
+  "runner_id": "01K00000000000000000000002",
+  "more": false,
+  "commands": [
+    {
+      "command_id": "01K00000000000000000000008",
+      "command_kind": "launch",
+      "expires_at": "2026-09-11T20:02:00.000Z"
+    }
+  ]
+}

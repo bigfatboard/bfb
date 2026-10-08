@@ -4,6 +4,20 @@
 import { DomainError } from "@bfb/domain";
 
 export async function readBoundedJson(request: Request, maximumBytes: number): Promise<unknown> {
+  const bytes = await readBoundedBytes(request, maximumBytes);
+  try {
+    const source = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes);
+    return JSON.parse(source) as unknown;
+  } catch {
+    throw new DomainError("invalid_json", "request body is not valid JSON");
+  }
+}
+
+/** Wire codecs and possession checks consume the original bounded bytes, not reserialized JSON. */
+export async function readBoundedBytes(
+  request: Request,
+  maximumBytes: number,
+): Promise<Uint8Array<ArrayBuffer>> {
   const declared = request.headers.get("content-length");
   if (declared !== null) {
     const length = Number(declared);
@@ -34,10 +48,5 @@ export async function readBoundedJson(request: Request, maximumBytes: number): P
     bytes.set(chunk, offset);
     offset += chunk.byteLength;
   }
-  try {
-    const source = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes);
-    return JSON.parse(source) as unknown;
-  } catch {
-    throw new DomainError("invalid_json", "request body is not valid JSON");
-  }
+  return bytes;
 }

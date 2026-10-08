@@ -1,0 +1,67 @@
+{
+  "package": "V02",
+  "recorded_on": "2026-10-06",
+  "tested_commit": "4e4fb7071c1c9e7d84dfa73249ecd888afd121dd",
+  "outcome": "passed",
+  "package_acceptance_complete": true,
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56)",
+    "architecture": "arm64",
+    "cloud": "Disposable real Control and Artifact Workers, WorkspaceHub, D1 and R2",
+    "browser": "Headless Chromium; compiled production ArtifactViewer and separate hostile iframe/top-level suite"
+  },
+  "migration_head": "0044_agent_profile_permissions",
+  "clean_commands": [
+    { "command": "pnpm install --frozen-lockfile", "exit_code": 0 },
+    {
+      "command": "pnpm test:v02",
+      "exit_code": 0,
+      "protocol_cases": 1154,
+      "protocol_files": 12,
+      "focused_cases": 141,
+      "focused_files": 10,
+      "storage_proof": "V02_D1_OK",
+      "browser_cases": 16,
+      "compiled_runtime_browser_cases": 5,
+      "hostile_browser_cases": 11
+    },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 2905,
+      "typescript_files": 147,
+      "go": "passed",
+      "swift": "passed",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    { "command": "pnpm worktree:check", "exit_code": 0 }
+  ],
+  "regressions": {
+    "same_clock_baseline": "Two staged consumers fulfilled before the guard fix; one must reject.",
+    "body_bound_baseline": "Both declared and streamed bodies over 4096 but below 8192 bytes returned 403 instead of 413.",
+    "same_clock_current": "Eight simultaneous real-D1 redemptions at one fixture timestamp return exactly one 200 and seven 403, with one redemption audit.",
+    "body_bound_current": "Declared and streamed oversized bodies return 413 without R2 reads or grant consumption.",
+    "view_audit_current": "Real two-isolate Hub dispatch creates one metadata-only projection per issued/redeemed source under concurrency, lost reply and transient cache loss."
+  },
+  "browser_boundaries": {
+    "active_preview": "No grant or frame before Run preview; Stop removes the frame; Reload obtains a different grant.",
+    "passive_preview": "Compiled viewer renders actual published Markdown through the isolated artifact origin.",
+    "authentication_loss": "Reload fails visibly and removes the frame without issuing another grant.",
+    "csrf": "Missing CSRF rejects browser grant creation before an effect.",
+    "revocation": "A queued grant fails unconsumed after epoch rotation; revoked membership also denies fresh compiled-viewer issuance.",
+    "artifact_cookie_sightings": 0,
+    "plaintext_grant_credentials_in_d1": false,
+    "preview_secrets_in_parent_dom_or_url": false
+  },
+  "not_claimed": [
+    "Production or persistent pilot feature enablement",
+    "Live-provider launch, agent-to-agent work or remote-start acceptance",
+    "V03 immutable review certification",
+    "Core-board visual redesign, private-task ACLs, project knowledge, catalogs or business secrets",
+    "Full Mermaid language or compressed log decompression",
+    "End-to-end Worker static-asset routing: the compiled fixture bundle uses a synthetic HTTP transport; authenticated API, Hub, D1 and R2 behavior uses real Workers"
+  ],
+  "redaction": "Bounded synthetic assertions and counts only; no credentials, private content, machine paths or raw output retained. Historical manifest and captures are unchanged."
+}

@@ -62,11 +62,13 @@ Sensitive BFB actions require a fresh, user-verifying, action-bound WebAuthn ass
 - Challenges and proof references expire and are consumed once.
 - Challenge/assertion abuse limits survive Worker-isolate changes, store no raw capability/IP value, and return bounded uniform failures.
 
-## Evidence and handoff
+## Evidence
 
 - Commit a browser integration test recording, negative-test matrix, and the typed step-up middleware contract.
-- C04 consumes the authenticator-management guard to enforce the workspace-owner final-authenticator invariant; C04/C06/X03A name sensitive operations and do not implement alternate step-up paths.
-
 ## Risks and decisions
 
 - Recovery is deliberately an operator procedure in v0.1; adding a convenient cookie-only fallback would defeat this package.
+
+## Handoff
+
+- C04 consumes the authenticator-management guard to enforce the workspace-owner final-authenticator invariant; C04/C06/X03A name sensitive operations and do not implement alternate step-up paths.

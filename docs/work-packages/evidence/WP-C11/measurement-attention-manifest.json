@@ -1,0 +1,83 @@
+{
+  "$schema": "../manifest.schema.json",
+  "package": "C11",
+  "tested_commit": "c4747a903a371ad485eeffee203e0f24bd58f377",
+  "protocol_version": "bfb-wire/1 unchanged",
+  "schema_version": "private-task-delivery/1 partial historical attention measurement lineage; activation unavailable",
+  "migration_head": "0047_security_audit_positions",
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "xcode": "26.0.1",
+    "wrangler": "4.120.1",
+    "playwright": "1.55.1"
+  },
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2 (25C56)",
+    "architecture": "arm64"
+  },
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/measurement-attention-command-result.json"
+    },
+    {
+      "command": "pnpm test:c11",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/measurement-attention-command-result.json"
+    },
+    {
+      "command": "pnpm test:a04",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/measurement-attention-command-result.json"
+    },
+    {
+      "command": "pnpm test:a02",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/measurement-attention-command-result.json"
+    },
+    {
+      "command": "pnpm test:x03",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/measurement-attention-command-result.json"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/measurement-attention-command-result.json"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-C11/measurement-attention-command-result.json"
+    }
+  ],
+  "outcome": "passed",
+  "artifacts": [
+    "docs/work-packages/evidence/WP-C11/measurement-attention-command-result.json",
+    "docs/work-packages/evidence/WP-C11/measurement-attention-acceptance.md",
+    "docs/contracts/private-task-delivery.md",
+    "packages/domain/src/measurements.ts",
+    "packages/domain/test/measurement-attention-lineage.test.ts",
+    "packages/domain/test/private-measurements.test.ts",
+    "packages/domain/test/measurements.test.ts",
+    "packages/domain/test/measurements-runtime.test.ts",
+    "apps/control-worker/test/measurement-routes.test.ts",
+    "tools/work-records/measurement-attention.ts",
+    "tools/work-records/README.md",
+    "tools/work-records/tsconfig.json",
+    "tools/measurements/run.ts",
+    "tools/attention/run.ts",
+    "package.json"
+  ],
+  "redaction": {
+    "status": "passed",
+    "prohibited_content": []
+  },
+  "ci": {
+    "status": "not_run"
+  }
+}

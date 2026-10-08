@@ -1,9 +1,12 @@
 // ABOUTME: Enrolls a synthetic user-verifying passkey in Chromium for product-surface E2E tests.
-// ABOUTME: The returned cleanup removes the isolated virtual authenticator after each proof flow.
+// ABOUTME: Exposes cleanup and user-verification failure controls for browser security gates.
 
 import type { Page } from "@playwright/test";
 
-export async function enrollVirtualPasskey(page: Page): Promise<() => Promise<void>> {
+export async function enrollVirtualPasskey(page: Page): Promise<{
+  cleanup: () => Promise<void>;
+  setBadUserVerification: (value: boolean) => Promise<void>;
+}> {
   const client = await page.context().newCDPSession(page);
   await client.send("WebAuthn.enable");
   const authenticator = await client.send("WebAuthn.addVirtualAuthenticator", {
@@ -90,10 +93,18 @@ export async function enrollVirtualPasskey(page: Page): Promise<() => Promise<vo
     await client.send("WebAuthn.disable");
     throw error;
   }
-  return async () => {
-    await client.send("WebAuthn.removeVirtualAuthenticator", {
-      authenticatorId: authenticator.authenticatorId,
-    });
-    await client.send("WebAuthn.disable");
+  return {
+    async cleanup() {
+      await client.send("WebAuthn.removeVirtualAuthenticator", {
+        authenticatorId: authenticator.authenticatorId,
+      });
+      await client.send("WebAuthn.disable");
+    },
+    async setBadUserVerification(value) {
+      await client.send("WebAuthn.setResponseOverrideBits", {
+        authenticatorId: authenticator.authenticatorId,
+        isBadUV: value,
+      });
+    },
   };
 }

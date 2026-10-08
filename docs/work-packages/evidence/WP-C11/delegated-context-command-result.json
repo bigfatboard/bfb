@@ -1,0 +1,161 @@
+{
+  "package": "C11",
+  "recorded_on": "2026-10-07",
+  "tested_commit": "7aaf6257e845a2935be98536cad3a4917862d182",
+  "outcome": "passed",
+  "stage": "partial_delegated_context_delivery",
+  "package_acceptance_complete": false,
+  "private_creation_available": false,
+  "migration_head": "0047_security_audit_positions",
+  "scope": "Fresh delegated context selection, write-only committing delivery guards, retained canonical cache projection and final MCP selection repeat current read authority and SQL-clock expiry; original OAuth nullable boundaries and client remain ceilings.",
+  "clean_commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "exit_code": 0
+    },
+    {
+      "command": "pnpm test:c11",
+      "exit_code": 0,
+      "c10_cases": 86,
+      "c10_files": 8,
+      "c10_d1_checks": 9,
+      "c08_cases": 23,
+      "c08_files": 5,
+      "c08_proof": "C08_D1_OK",
+      "stage_cases": 2393,
+      "stage_files": 89,
+      "stage_invocations": [
+        {
+          "cases": 1861,
+          "files": 64
+        },
+        {
+          "cases": 4,
+          "files": 2
+        },
+        {
+          "cases": 23,
+          "files": 2
+        },
+        {
+          "cases": 18,
+          "files": 2
+        },
+        {
+          "cases": 31,
+          "files": 2
+        },
+        {
+          "cases": 68,
+          "files": 3
+        },
+        {
+          "cases": 27,
+          "files": 2
+        },
+        {
+          "cases": 54,
+          "files": 2
+        },
+        {
+          "cases": 41,
+          "files": 3
+        },
+        {
+          "cases": 31,
+          "files": 3
+        },
+        {
+          "cases": 235,
+          "files": 4
+        }
+      ],
+      "stage_d1_checks": 122,
+      "stage_d1_harnesses": 11,
+      "notification_runtime": {
+        "proofs": ["C11_NOTIFICATION_IDENTITY_UPGRADE_OK", "X01_HARNESS_OK"],
+        "record_labels": 41,
+        "counting": "Setup and repeated dispatch/redaction labels are not 41 independent acceptance cases"
+      },
+      "go_race": "passed",
+      "counting": "Stage totals count invocations, not unique cases; dependencies, notification runtime, X03 and full verification are separate"
+    },
+    {
+      "command": "pnpm test:x03",
+      "exit_code": 0,
+      "unit_cases": 71,
+      "unit_files": 7,
+      "worker_d1_r2_checks": 11,
+      "browser_cases": 2,
+      "provider_started": false,
+      "persistent_pilot_changed": false
+    },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 4517,
+      "typescript_files": 205,
+      "go": "passed",
+      "go_scheduling": "GOFLAGS=-p=1",
+      "swift": "passed",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    {
+      "command": "pnpm worktree:check",
+      "exit_code": 0,
+      "before_and_after_verify": true,
+      "committed_source_unchanged": true,
+      "final_status_empty": true
+    }
+  ],
+  "slice_suites": {
+    "composed_once_by_c11": true,
+    "domain_cases": 21,
+    "authenticated_mounted_mcp_cases": 10,
+    "context_d1_checks": 12,
+    "local_retained_context_cases": 71,
+    "maximum_bindings": 24,
+    "maximum_statement_bytes": 5268,
+    "maximum_batch_statements": 11,
+    "maximum_context_items_observed": 2
+  },
+  "old_source_probe": {
+    "production_commit": "b51418eafdd94cffb8c20338516c516991859c6d",
+    "production_runtime_unfixed": true,
+    "focused_cases": 21,
+    "focused_failed": 14,
+    "focused_passed": 7,
+    "d1_failed": 10,
+    "d1_passed": 2,
+    "status": "Initial new reproducers loaded unfixed domain/worker source and pre-fix built domain runtime; local regression observations, not old-source clean package acceptance. Later cache/boundary robustness controls are fixed-source checks."
+  },
+  "regression_proof": [
+    "Delayed read-only Owner/Member/Reviewer controls preserve prepared timestamps, one delivery and exact retries; appended context does not enter a retained or empty retry, and changed tasks reject",
+    "Fresh and retained selection repeat current sponsor/epoch, kernel read/private read permission, project access and exact credential/client, safe all-string read scope, nullable boundaries and SQL-clock expiry",
+    "Independent production delegation revocation at selection, batch and cached return withholds bodies; staged authority loss rolls back delivery, semantic/audit/outbox/idempotency and cursor while preserving independent changes",
+    "An unchanged credential reaches selection or batch while live and naturally expires by database time; delayed live controls preserve observations and failed private-read keys recover after a new valid grant",
+    "Retained items are reconstructed from canonical immutable rows and match previous task/version/hash deliveries under the same delegation/client, not a particular request key",
+    "Missing/malformed cached results and trailing-newline IDs deny before fresh/canonical selection; deliberate body corruption returns canonical bodies without rewriting history",
+    "Original OAuth nullable project/task boundaries cannot be replaced before genuine Hub fetch, and post-Hub revocation or project-boundary replacement withholds context while preserving committed history",
+    "Mounted MCP uses genuine OAuth admission and a separately staged committing Hub; actual D1/native-bound-statement proof is separately domain/Hub"
+  ],
+  "probe_repairs": [
+    "Historical healthy context credentials now use scoped database-relative expiry. OAuth proof creation and expiry share that live window; setting only expiry initially violated the existing setup-proof TTL. Shared fake clocks and production TTL rules remain unchanged.",
+    "The first clean run passed C11 and X03 but was superseded before full verification because a missing retained-result guard was added. The final source has a fresh complete certificate."
+  ],
+  "activation_barriers": [
+    "Delegated attention reads are the next bounded product slice to reproduce; other OAuth read response boundaries remain open",
+    "GitHub key policy, execution-owned delivery and destructive private retention remain open",
+    "Private creation, creator sharing, author-private checkpoints and C12 remain unavailable or planned"
+  ],
+  "not_claimed": [
+    "Expiry or authority at every later statement, other OAuth read tool, provider token state or complete private activation",
+    "Runner/local capability/lease expiry, cleanup, provider operation or execution-owned private consumers",
+    "Live private R2/browser-byte delivery or a 64-item D1 stress test",
+    "A real HTTP Worker/D1 OAuth race: mounted OAuth MCP uses staged SQLite and actual D1 proof is separately domain/Hub",
+    "Separate W03/X01/X05/G01 acceptance reruns; C11 composes its own notification drill",
+    "Live pilot/installed-app operation, deployment or external CI"
+  ],
+  "redaction": "Bounded counts and synthetic outcomes only; raw logs, credentials, private content and local paths are not retained"
+}

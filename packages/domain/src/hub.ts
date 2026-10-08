@@ -7,7 +7,6 @@ import {
   assertUtcTimestamp,
   type AuthorizationContext,
   type SqlDatabase,
-  WorkspaceRepository,
 } from "@bfb/db";
 
 import { randomUlid } from "./ids.js";
@@ -15,6 +14,25 @@ import { randomUlid } from "./ids.js";
 export interface HubCommand<TInput, TResult> {
   name: string;
   run: (input: TInput, ctx: HubContext) => Promise<TResult>;
+  /** Read-only current-authority check, inside the FIFO transaction before cached replies. */
+  authorize?: (input: TInput, ctx: HubContext) => Promise<void>;
+  /** Binds retry identity to the operation input without persisting private input. */
+  inputFingerprint?: (input: TInput) => string;
+  /** Read-only projection reuses authenticated input when related resources lose access. */
+  replayResult?: (result: TResult, ctx: HubContext, input: TInput) => Promise<TResult>;
+  /** Security commands explicitly project safe audit input fields. */
+  auditInput?: (input: TInput) => unknown;
+  /** Safe receipts for audit/semantic/outbox only; response and idempotency retain the full result. */
+  auditResult?: (result: TResult) => unknown;
+  /** One-use security exchanges must not replay a cached success. */
+  replay?: "reject";
+  /**
+   * Extra workspace cursors reserved for commands that commit several
+   * cursor-ordered rows (for example an event batch). The command assigns
+   * cursors ctx.cursorBase .. ctx.cursorBase + extra - 1 to its own rows in
+   * batch order; the hub audit row consumes ctx.cursorBase + extra.
+   */
+  extraCursors?: (input: TInput) => number;
 }
 
 export interface HubContext {
@@ -24,7 +42,15 @@ export interface HubContext {
   actorHumanId?: string | undefined;
   actorDelegationId?: string | undefined;
   actorSystemId?: string | undefined;
+  actorRunnerId?: string | undefined;
   authorizationEpoch: number;
+  /**
+   * First workspace cursor reserved for this command. Single-row commands use
+   * exactly this cursor for their audit row; batch commands may assign
+   * cursorBase .. cursorBase + extra - 1 to their own rows. Gaps are allowed;
+   * the cursor stays monotonic per workspace.
+   */
+  cursorBase: number;
 }
 
 export interface CommandRequest<TInput> {
@@ -35,6 +61,7 @@ export interface CommandRequest<TInput> {
   actorHumanId?: string;
   actorDelegationId?: string;
   actorSystemId?: string;
+  actorRunnerId?: string;
   authorizationEpoch: number;
   now?: string;
 }
@@ -58,6 +85,8 @@ interface StoredIdempotency<TResult> {
   actorHumanId?: string | undefined;
   actorDelegationId?: string | undefined;
   actorSystemId?: string | undefined;
+  actorRunnerId?: string | undefined;
+  inputFingerprint?: string | undefined;
 }
 
 export class WorkspaceHub {
@@ -77,6 +106,24 @@ export class WorkspaceHub {
     const run = async (): Promise<CommandOutcome<TResult>> => {
       try {
         return await this.db.withTransaction(async (tx) => {
+          // Authority-sensitive commands use time observed inside the queued
+          // transaction, not a caller's timestamp or the request's queue time.
+          const now = command.authorize
+            ? new Date().toISOString()
+            : (request.now ?? new Date().toISOString());
+          const authorityContext: HubContext = {
+            workspaceId: request.workspaceId,
+            db: tx,
+            now,
+            actorHumanId: request.actorHumanId,
+            actorDelegationId: request.actorDelegationId,
+            actorSystemId: request.actorSystemId,
+            actorRunnerId: request.actorRunnerId,
+            authorizationEpoch: request.authorizationEpoch,
+            cursorBase: 0,
+          };
+          if (command.authorize) await command.authorize(request.input, authorityContext);
+          const inputFingerprint = command.inputFingerprint?.(request.input);
           const existing = (await tx
             .prepare(
               `SELECT command_name, result_json FROM idempotency_records
@@ -85,6 +132,9 @@ export class WorkspaceHub {
             .get(request.workspaceId, request.idempotencyKey)) as
             { command_name: string; result_json: string } | undefined;
           if (existing) {
+            if (command.replay === "reject") {
+              throw new DomainError("request_rejected", "request rejected");
+            }
             if (existing.command_name !== command.name) {
               return {
                 ok: false,
@@ -95,12 +145,19 @@ export class WorkspaceHub {
               };
             }
             const parsed = JSON.parse(existing.result_json) as StoredIdempotency<TResult>;
+            if (inputFingerprint !== undefined && parsed.inputFingerprint !== inputFingerprint) {
+              throw new DomainError(
+                "request_rejected",
+                "operation input differs from its original request",
+              );
+            }
             if (
               parsed.authorizationEpoch !== request.authorizationEpoch ||
               (parsed.actorHumanId ?? undefined) !== (request.actorHumanId ?? undefined) ||
               (parsed.actorDelegationId ?? undefined) !==
                 (request.actorDelegationId ?? undefined) ||
-              (parsed.actorSystemId ?? undefined) !== (request.actorSystemId ?? undefined)
+              (parsed.actorSystemId ?? undefined) !== (request.actorSystemId ?? undefined) ||
+              (parsed.actorRunnerId ?? undefined) !== (request.actorRunnerId ?? undefined)
             ) {
               return {
                 ok: false,
@@ -112,14 +169,20 @@ export class WorkspaceHub {
             }
             return {
               ok: true,
-              result: parsed.result,
+              result: command.replayResult
+                ? await command.replayResult(parsed.result, authorityContext, request.input)
+                : parsed.result,
               replayed: true,
               cursor: parsed.cursor,
             };
           }
 
-          const now = request.now ?? new Date().toISOString();
-          const cursor = await this.readNextCursor(tx, request.workspaceId);
+          const base = await this.readNextCursor(tx, request.workspaceId);
+          const extra = command.extraCursors ? command.extraCursors(request.input) : 0;
+          if (!Number.isSafeInteger(extra) || extra < 0 || extra > MAX_EXTRA_CURSORS) {
+            throw new DomainError("invalid_command_request", "invalid cursor reservation");
+          }
+          const cursor = base + extra;
           const ctx: HubContext = {
             workspaceId: request.workspaceId,
             db: tx,
@@ -127,9 +190,13 @@ export class WorkspaceHub {
             actorHumanId: request.actorHumanId,
             actorDelegationId: request.actorDelegationId,
             actorSystemId: request.actorSystemId,
+            actorRunnerId: request.actorRunnerId,
             authorizationEpoch: request.authorizationEpoch,
+            cursorBase: base,
           };
           const result = await command.run(request.input, ctx);
+          // Queued after the command's own staged writes: D1 batch transactions
+          // forbid reads after a queued write, so the reservation lands last.
           await this.writeCursor(tx, request.workspaceId, cursor);
           const eventId = randomUlid();
           const auditId = randomUlid();
@@ -139,10 +206,11 @@ export class WorkspaceHub {
               humanId: request.actorHumanId,
               delegationId: request.actorDelegationId,
               systemId: request.actorSystemId,
+              runnerId: request.actorRunnerId,
               authorizationEpoch: request.authorizationEpoch,
             },
-            input: request.input,
-            result,
+            input: command.auditInput ? command.auditInput(request.input) : request.input,
+            result: command.auditResult ? command.auditResult(result) : result,
           });
 
           await tx
@@ -162,7 +230,10 @@ export class WorkspaceHub {
             .run(
               request.workspaceId,
               auditId,
-              request.actorDelegationId ?? request.actorHumanId ?? request.actorSystemId,
+              request.actorDelegationId ??
+                request.actorHumanId ??
+                request.actorRunnerId ??
+                request.actorSystemId,
               command.name,
               payload,
               now,
@@ -183,6 +254,8 @@ export class WorkspaceHub {
             actorHumanId: request.actorHumanId,
             actorDelegationId: request.actorDelegationId,
             actorSystemId: request.actorSystemId,
+            actorRunnerId: request.actorRunnerId,
+            inputFingerprint,
           };
           await tx
             .prepare(
@@ -231,23 +304,15 @@ export class WorkspaceHub {
 }
 
 export async function readEventHighWater(
-  db: SqlDatabase,
-  authorization: AuthorizationContext,
+  _db: SqlDatabase,
+  _authorization: AuthorizationContext,
 ): Promise<number> {
-  await assertEventReadScope(db, authorization);
-  const row = (await db
-    .prepare(`SELECT cursor FROM workspace_cursors WHERE workspace_id = ?`)
-    .get(authorization.workspaceId)) as { cursor: number } | undefined;
-  const cursor = row?.cursor ?? 0;
-  if (!Number.isSafeInteger(cursor) || cursor < 0) {
-    throw new DomainError("event_history_corrupt", "workspace cursor is invalid");
-  }
-  return cursor;
+  throw new DomainError("request_rejected", "event feeds are unavailable");
 }
 
 export async function listWorkspaceEvents(
-  db: SqlDatabase,
-  authorization: AuthorizationContext,
+  _db: SqlDatabase,
+  _authorization: AuthorizationContext,
   options: { afterCursor: number; throughCursor: number; limit?: number },
 ): Promise<WorkspaceEvent[]> {
   const limit = options.limit ?? 100;
@@ -262,55 +327,10 @@ export async function listWorkspaceEvents(
   ) {
     throw new DomainError("invalid_event_range", "event replay range is invalid");
   }
-  await assertEventReadScope(db, authorization);
-  const rows = (await db
-    .prepare(
-      `SELECT event_id, workspace_cursor, kind, payload_json, created_at
-       FROM semantic_events
-       WHERE workspace_id = ? AND workspace_cursor > ? AND workspace_cursor <= ?
-       ORDER BY workspace_cursor ASC
-       LIMIT ?`,
-    )
-    .all(authorization.workspaceId, options.afterCursor, options.throughCursor, limit)) as Array<{
-    event_id: string;
-    workspace_cursor: number;
-    kind: string;
-    payload_json: string;
-    created_at: string;
-  }>;
-  return rows.map((row) => {
-    if (!Number.isSafeInteger(row.workspace_cursor) || row.workspace_cursor < 1) {
-      throw new DomainError("event_history_corrupt", "event cursor is invalid");
-    }
-    try {
-      return {
-        eventId: row.event_id,
-        cursor: row.workspace_cursor,
-        kind: row.kind,
-        payload: JSON.parse(row.payload_json) as unknown,
-        createdAt: row.created_at,
-      };
-    } catch {
-      throw new DomainError("event_history_corrupt", "event payload is invalid");
-    }
-  });
+  throw new DomainError("request_rejected", "event feeds are unavailable");
 }
 
-async function assertEventReadScope(
-  db: SqlDatabase,
-  authorization: AuthorizationContext,
-): Promise<void> {
-  const workspace = await WorkspaceRepository.forAuthorization(db, authorization).getWorkspace();
-  if (!workspace) {
-    throw new DomainError("workspace_not_found", "workspace not found");
-  }
-  if (workspace.jurisdiction !== authorization.jurisdiction) {
-    throw new DomainError(
-      "workspace_jurisdiction_mismatch",
-      "workspace jurisdiction does not match the authorization context",
-    );
-  }
-}
+const MAX_EXTRA_CURSORS = 256;
 
 const IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9._:~-]{8,128}$/;
 const COMMAND_NAME_PATTERN = /^[a-z][a-z0-9._-]{0,63}$/;
@@ -322,7 +342,7 @@ function validateCommand<TInput>(name: string, request: CommandRequest<TInput>):
     if (request.now !== undefined) {
       assertUtcTimestamp(request.now, "command time");
     }
-    if (!request.actorHumanId && !request.actorSystemId) {
+    if (!request.actorHumanId && !request.actorSystemId && !request.actorRunnerId) {
       throw new Error("command actor is required");
     }
     if (request.actorDelegationId && !request.actorHumanId) {
@@ -330,6 +350,15 @@ function validateCommand<TInput>(name: string, request: CommandRequest<TInput>):
     }
     if (request.actorSystemId && (request.actorHumanId || request.actorDelegationId)) {
       throw new Error("system commands cannot claim a human or delegation actor");
+    }
+    if (
+      request.actorRunnerId &&
+      (request.actorHumanId || request.actorDelegationId || request.actorSystemId)
+    ) {
+      throw new Error("runner commands cannot claim another principal");
+    }
+    if (request.actorRunnerId) {
+      assertUlid(request.actorRunnerId, "runner actor id");
     }
     if (request.actorHumanId) {
       assertUlid(request.actorHumanId, "human actor id");
@@ -360,16 +389,19 @@ function validateCommand<TInput>(name: string, request: CommandRequest<TInput>):
   }
 }
 
+// Only DomainError carries a client-safe code and message. Driver and runtime
+// failures (for example D1/SQLite constraint text) stay behind a uniform
+// failure so API clients never observe schema or infrastructure detail.
 function commandFailure<TResult>(error: unknown): CommandOutcome<TResult> {
+  if (error instanceof DomainError) {
+    return {
+      ok: false,
+      error: { code: error.code, message: error.message },
+    };
+  }
   return {
     ok: false,
-    error: {
-      code:
-        error instanceof Error && "code" in error
-          ? String((error as { code: string }).code)
-          : "command_failed",
-      message: error instanceof Error ? error.message : "command failed",
-    },
+    error: { code: "command_failed", message: "command failed" },
   };
 }
 

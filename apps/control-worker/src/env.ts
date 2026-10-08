@@ -1,6 +1,8 @@
 // ABOUTME: Validates Control Worker bindings and canonical host configuration before serving.
 // ABOUTME: Missing D1, R2, Queue, DO, origin, or jurisdiction configuration fails closed.
 
+import { localWorkspaceHubNamespace } from "./local-workspace-hub.js";
+
 export type Jurisdiction = "eu" | "us" | "global";
 
 export interface ControlOrigins {
@@ -18,16 +20,31 @@ export interface ControlBindings {
   ASSETS: Fetcher;
   JOBS: Queue;
   JOBS_DLQ: Queue;
+  NOTIFY_JOBS?: Queue | undefined;
+  NOTIFY_DLQ?: Queue | undefined;
+  OPS_JOBS?: Queue | undefined;
+  OPS_DLQ?: Queue | undefined;
+  VAPID_PUBLIC_KEY?: string | undefined;
+  VAPID_PRIVATE_KEY?: string | undefined;
+  VAPID_SUBJECT?: string | undefined;
   WORKSPACE_HUB: DurableObjectNamespace;
   APP_ORIGIN: string;
   ARTIFACT_ORIGIN: string;
   LAUNCH_ORIGIN: string;
   JURISDICTION: string;
   ENVIRONMENT: string;
+  LOCAL_HUB_JURISDICTION_EMULATION?: string;
+  ARTIFACT_VIEWER_ENABLED?: string;
+  ARTIFACT_REVIEW_ENABLED?: string;
+  DISCUSSIONS_ENABLED?: string;
   BETTER_AUTH_SECRETS?: string;
   GITHUB_CLIENT_ID?: string;
   GITHUB_CLIENT_SECRET?: string;
   AUTH_ABUSE_SECRET?: string;
+  GITHUB_WEBHOOK_SECRET?: string;
+  GITHUB_API_BASE?: string;
+  GITHUB_APP_ID?: string;
+  GITHUB_APP_PRIVATE_KEY?: string;
 }
 
 export interface ValidatedControlEnv {
@@ -35,6 +52,7 @@ export interface ValidatedControlEnv {
   origins: ControlOrigins;
   jurisdiction: Jurisdiction;
   environment: "local" | "staging" | "production";
+  features: { artifactViewer: boolean; artifactReview: boolean; discussions: boolean };
 }
 
 const workerFirstPrefixes = [
@@ -130,6 +148,12 @@ function parseEnvironment(value: string): "local" | "staging" | "production" {
   throw new Error("invalid environment: " + value);
 }
 
+function parseEnabled(value: string | undefined, name: string): boolean {
+  if (value === undefined || value === "false") return false;
+  if (value === "true") return true;
+  throw new Error("invalid boolean: " + name);
+}
+
 export function validateControlEnv(env: Partial<ControlBindings>): ValidatedControlEnv {
   const DB = requireBinding(env.DB, "DB");
   const ARTIFACTS = requireBinding(env.ARTIFACTS, "ARTIFACTS");
@@ -147,6 +171,17 @@ export function validateControlEnv(env: Partial<ControlBindings>): ValidatedCont
   const artifact = parseOrigin(ARTIFACT_ORIGIN, "ARTIFACT_ORIGIN");
   const launch = parseOrigin(LAUNCH_ORIGIN, "LAUNCH_ORIGIN");
   const environment = parseEnvironment(ENVIRONMENT);
+  const localHubEmulation = parseEnabled(
+    env.LOCAL_HUB_JURISDICTION_EMULATION,
+    "LOCAL_HUB_JURISDICTION_EMULATION",
+  );
+  if (localHubEmulation && environment !== "local")
+    throw new Error("local Hub jurisdiction emulation requires ENVIRONMENT=local");
+  const features = {
+    artifactViewer: parseEnabled(env.ARTIFACT_VIEWER_ENABLED, "ARTIFACT_VIEWER_ENABLED"),
+    artifactReview: parseEnabled(env.ARTIFACT_REVIEW_ENABLED, "ARTIFACT_REVIEW_ENABLED"),
+    discussions: parseEnabled(env.DISCUSSIONS_ENABLED, "DISCUSSIONS_ENABLED"),
+  };
 
   if (app.hostname === artifact.hostname) {
     throw new Error("artifact hostname must differ from app hostname");
@@ -171,12 +206,23 @@ export function validateControlEnv(env: Partial<ControlBindings>): ValidatedCont
       ASSETS,
       JOBS,
       JOBS_DLQ,
-      WORKSPACE_HUB,
+      NOTIFY_JOBS: env.NOTIFY_JOBS,
+      NOTIFY_DLQ: env.NOTIFY_DLQ,
+      OPS_JOBS: env.OPS_JOBS,
+      OPS_DLQ: env.OPS_DLQ,
+      VAPID_PUBLIC_KEY: env.VAPID_PUBLIC_KEY,
+      VAPID_PRIVATE_KEY: env.VAPID_PRIVATE_KEY,
+      VAPID_SUBJECT: env.VAPID_SUBJECT,
+      WORKSPACE_HUB: localHubEmulation ? localWorkspaceHubNamespace(WORKSPACE_HUB) : WORKSPACE_HUB,
       APP_ORIGIN: app.origin,
       ARTIFACT_ORIGIN: artifact.origin,
       LAUNCH_ORIGIN: launch.origin,
       JURISDICTION,
       ENVIRONMENT,
+      LOCAL_HUB_JURISDICTION_EMULATION: String(localHubEmulation),
+      ARTIFACT_VIEWER_ENABLED: String(features.artifactViewer),
+      ARTIFACT_REVIEW_ENABLED: String(features.artifactReview),
+      DISCUSSIONS_ENABLED: String(features.discussions),
     },
     origins: {
       appOrigin: app.origin,
@@ -188,5 +234,6 @@ export function validateControlEnv(env: Partial<ControlBindings>): ValidatedCont
     },
     jurisdiction: parseJurisdiction(JURISDICTION),
     environment,
+    features,
   };
 }

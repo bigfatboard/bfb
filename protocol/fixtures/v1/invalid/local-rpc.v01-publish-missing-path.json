@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "request_id": "01JBFB0REQKEST010000000000",
+  "method": "artifact.publish",
+  "direction": "request",
+  "payload": {
+    "control_url": "https://bfb.example.test",
+    "artifacts_url": "https://artifacts.bfb.example.test",
+    "workspace_id": "01JBFB0W0RKSPACE0000000000",
+    "artifact_id": "01JBFB0ART1FACT01000000000",
+    "run_id": "01JBFB0RVN0100000000000000",
+    "artifact_format": "markdown",
+    "artifact_role": "review"
+  }
+}

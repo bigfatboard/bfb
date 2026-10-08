@@ -1,0 +1,27 @@
+{
+  "scanned": [
+    "launch-specification",
+    "attention-selection",
+    "notification-link",
+    "notification-payload",
+    "security-audit",
+    "activity-feed",
+    "artifact-grants",
+    "view-grants",
+    "diagnostic-sanitizer",
+    "diagnostic-inventory",
+    "result-history"
+  ],
+  "needle_classes": [
+    "task body",
+    "cookie",
+    "bearer grant",
+    "local path",
+    "hook payload",
+    "artifact bytes",
+    "terminal output",
+    "private key"
+  ],
+  "hits": 0,
+  "outcome": "passed"
+}

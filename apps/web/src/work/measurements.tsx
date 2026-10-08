@@ -1,0 +1,508 @@
+// ABOUTME: Shows separated provenance-labelled measurements on the task sheet.
+// ABOUTME: Human, agent, wait, token, and provenance sections never collapse into one total.
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { RunMeasurements, TaskMeasurements } from "@bfb/domain";
+
+import { client } from "./mutations.js";
+import {
+  isPanelAuthorityDenied,
+  usePanelDelivery,
+  type PanelDeliveryCheck,
+} from "./panel-delivery.js";
+
+export interface MeasurementsTokenFields {
+  input: number | null;
+  output: number | null;
+  cache_read: number | null;
+  cache_write: number | null;
+  reasoning: number | null;
+}
+
+export interface MeasurementsTokens {
+  exact: MeasurementsTokenFields;
+  estimated: MeasurementsTokenFields;
+  unavailable_count: number;
+  costs: Array<{ model: string | null; amount_usd: number | null; reason: string | null }>;
+  costs_total_usd: number | null;
+  catalog_version: string;
+}
+
+export interface MeasurementsTimes {
+  launch_latency_ms: number | null;
+  launch_latency_reason: string | null;
+  process_elapsed_ms: number | null;
+  process_alive_ms: number;
+  active_ms: number;
+  attention_wait_ms: number;
+  external_wait_ms: number | null;
+  idle_ms: number | null;
+  offline_ms: number;
+  open_intervals: number;
+  live_execution: boolean;
+  attention_open: boolean;
+}
+
+export interface MeasurementsAttention {
+  request_id: string;
+  kind: string;
+  blocking: boolean;
+  state: string;
+  first_response_ms: number | null;
+  resolution_ms: number | null;
+  open: boolean;
+}
+
+export interface ReviewTimerView {
+  id: string;
+  started_by_human_id: string;
+  started_at: string;
+  stopped_at: string | null;
+  state: "open" | "stopped";
+  resource_version: number;
+}
+
+export interface TaskMeasurementsView {
+  totals: TaskMeasurements["totals"];
+  runs: Pick<
+    RunMeasurements,
+    "run_id" | "provider" | "times" | "tokens" | "sources" | "provenance"
+  >[];
+  review: {
+    timers: ReviewTimerView[];
+    stopped_total_ms: number;
+    open_ms: number;
+  };
+  attention: MeasurementsAttention[];
+  browser_activity: Array<{
+    human_id: string;
+    observed_ms: number;
+    capped_observations: number;
+    quality: string;
+  }>;
+  interventions: {
+    runs: number;
+    restarts: number;
+    submission_versions: number;
+  };
+}
+
+export function formatDuration(ms: number | null): string {
+  if (ms === null || !Number.isFinite(ms) || ms < 0) {
+    return "unknown";
+  }
+  const totalSeconds = Math.floor(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+  if (minutes > 0) {
+    return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
+  }
+  return `${seconds}s`;
+}
+
+export function formatCount(value: number | null): string {
+  if (value === null || !Number.isSafeInteger(value) || value < 0) {
+    return "unavailable";
+  }
+  return String(value).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+function observedDuration(ms: number | null, missing: number, runs: number): string {
+  if (runs === 0 || missing === runs || ms === null) return "no observations";
+  return `${formatDuration(ms)}${missing > 0 ? ` observed · ${missing} run${missing === 1 ? "" : "s"} unavailable` : ""}`;
+}
+
+function tokenFieldRows(fields: MeasurementsTokenFields): Array<[string, number | null]> {
+  return [
+    ["input", fields.input],
+    ["output", fields.output],
+    ["cache read", fields.cache_read],
+    ["cache write", fields.cache_write],
+    ["reasoning", fields.reasoning],
+  ];
+}
+
+export interface MeasurementsViewProps {
+  measurements: TaskMeasurementsView | null;
+  timers: ReviewTimerView[];
+  pending: boolean;
+  error: string | null;
+  loading?: boolean;
+  onRetry?: () => void;
+  onStartTimer?: () => void;
+  onStopTimer?: (timer: ReviewTimerView) => void;
+}
+
+export function MeasurementsView(props: MeasurementsViewProps) {
+  const measurements = props.measurements;
+  return (
+    <section aria-labelledby="measurements-heading" data-testid="measurements-panel">
+      <h3 id="measurements-heading">Time and token measurements</h3>
+      {props.error ? (
+        <div className="inline-error" role="alert" data-testid="measurements-error">
+          <strong>Measurements failed.</strong>
+          <span>{props.error}</span>
+          {props.onRetry ? (
+            <button
+              type="button"
+              className="button-secondary"
+              data-testid="measurements-retry"
+              disabled={props.loading}
+              onClick={props.onRetry}
+            >
+              Retry
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      {(props.loading || !measurements) && !props.error ? (
+        <p data-testid="measurements-loading">Loading measurements…</p>
+      ) : null}
+      {measurements ? (
+        <>
+          <div className="truth-row" data-testid="measurements-human">
+            <span>Human review</span>
+            <strong>
+              {measurements.review.timers.length === 0
+                ? "no review timers"
+                : `${formatDuration(measurements.review.stopped_total_ms)} reviewed`}
+              {measurements.review.open_ms > 0
+                ? ` · timer running ${formatDuration(measurements.review.open_ms)}`
+                : ""}
+            </strong>
+          </div>
+          <div className="truth-row" data-testid="measurements-attention-latency">
+            <span>Attention latency</span>
+            <strong>
+              {measurements.attention.length === 0
+                ? "no attention requests"
+                : measurements.attention
+                    .map((entry) =>
+                      entry.resolution_ms !== null
+                        ? `${entry.kind} resolved in ${formatDuration(entry.resolution_ms)}`
+                        : `${entry.kind} awaiting response`,
+                    )
+                    .join("; ")}
+            </strong>
+          </div>
+          <div className="truth-row" data-testid="measurements-browser">
+            <span>Observed browser activity (estimated)</span>
+            <strong>
+              {measurements.browser_activity.length === 0
+                ? "no observations"
+                : measurements.browser_activity
+                    .map((entry) => formatDuration(entry.observed_ms))
+                    .join("; ")}
+            </strong>
+          </div>
+          <div className="truth-row" data-testid="measurements-agent">
+            <span>Agent active / elapsed</span>
+            <strong>
+              {observedDuration(
+                measurements.totals.active_ms,
+                measurements.totals.unknown_run_counts.active,
+                measurements.interventions.runs,
+              )}{" "}
+              active ·{" "}
+              {observedDuration(
+                measurements.totals.process_elapsed_ms,
+                measurements.totals.unknown_run_counts.process,
+                measurements.interventions.runs,
+              )}{" "}
+              elapsed
+              {measurements.totals.legacy_estimated_runs > 0
+                ? " · includes legacy activity estimates"
+                : ""}
+            </strong>
+          </div>
+          <div className="truth-row" data-testid="measurements-process">
+            <span>Process-alive / offline gap</span>
+            <strong>
+              {observedDuration(
+                measurements.totals.process_alive_ms,
+                measurements.totals.unknown_run_counts.process,
+                measurements.interventions.runs,
+              )}{" "}
+              alive ·{" "}
+              {observedDuration(
+                measurements.totals.offline_ms,
+                measurements.totals.unknown_run_counts.process,
+                measurements.interventions.runs,
+              )}{" "}
+              without fresh heartbeat
+            </strong>
+          </div>
+          <div className="truth-row" data-testid="measurements-external-wait">
+            <span>External wait</span>
+            <strong>
+              {observedDuration(
+                measurements.totals.external_wait_ms,
+                measurements.totals.unknown_run_counts.external_wait,
+                measurements.interventions.runs,
+              )}
+            </strong>
+          </div>
+          <div className="truth-row" data-testid="measurements-idle">
+            <span>Reported idle</span>
+            <strong>
+              {observedDuration(
+                measurements.totals.idle_ms,
+                measurements.totals.unknown_run_counts.idle,
+                measurements.interventions.runs,
+              )}
+            </strong>
+          </div>
+          <div className="truth-row" data-testid="measurements-waiting">
+            <span>Attention wait</span>
+            <strong>{formatDuration(measurements.totals.attention_wait_ms)} waiting</strong>
+          </div>
+          {measurements.totals.exact_overflow_fields.length +
+            measurements.totals.estimated_overflow_fields.length >
+          0 ? (
+            <p data-testid="measurements-overflow">
+              Token total unavailable: safe counter range exceeded
+              {measurements.totals.exact_overflow_fields.length > 0
+                ? ` (exact: ${measurements.totals.exact_overflow_fields.join(", ")})`
+                : ""}
+              {measurements.totals.estimated_overflow_fields.length > 0
+                ? ` (estimated: ${measurements.totals.estimated_overflow_fields.join(", ")})`
+                : ""}
+              . Source reports are retained.
+            </p>
+          ) : null}
+          <div className="truth-row" data-testid="measurements-tokens">
+            <span>Tokens (exact / estimated / unavailable)</span>
+            <strong>
+              {tokenFieldRows(measurements.totals.exact_tokens)
+                .filter(([, value]) => value !== null)
+                .map(([label, value]) => `${label} ${formatCount(value)}`)
+                .join(", ") || "no exact tokens"}
+              {" · estimated "}
+              {tokenFieldRows(measurements.totals.estimated_tokens)
+                .filter(([, value]) => value !== null)
+                .map(([label, value]) => `${label} ${formatCount(value)}`)
+                .join(", ") || "none"}
+              {` · ${measurements.totals.unavailable_token_reports} unavailable`}
+            </strong>
+          </div>
+          <details data-testid="measurements-sources">
+            <summary>Measurement sources</summary>
+            <p className="section-help" role="status" data-testid="measurement-sources-unavailable">
+              Measurement source history is unavailable.
+            </p>
+            <p>
+              Activity is observed work, not proof of completion. Offline gaps remain inside elapsed
+              time. Cache and reasoning counts may overlap input/output and are not added to a token
+              grand total.
+            </p>
+            {measurements.runs.length === 0 ? <p>No run observations yet.</p> : null}
+            {measurements.runs.map((run) => (
+              <div key={run.run_id}>
+                <h4>
+                  Run <code>{run.run_id}</code> · {run.provider ?? "provider unavailable"}
+                </h4>
+                <p>
+                  {run.provenance.ledger_events} ledger events · {run.provenance.token_observations}{" "}
+                  token reports · {run.provenance.reported_intervals} interval reports ·{" "}
+                  {run.provenance.attention_observations} attention observations.
+                </p>
+                <p>
+                  {run.times.open_intervals} incomplete activity pairs ·{" "}
+                  {run.times.ambiguous_legacy_events} ambiguous legacy events.
+                </p>
+                {run.tokens.costs.length > 0 ? (
+                  <p>
+                    Token cost ({run.tokens.catalog_version}):{" "}
+                    {run.tokens.costs_total_usd === null
+                      ? "unavailable — not every exact report can be priced safely"
+                      : `$${run.tokens.costs_total_usd.toFixed(6)}`}
+                  </p>
+                ) : null}
+              </div>
+            ))}
+          </details>
+          <div className="truth-row" data-testid="measurements-provenance">
+            <span>Provenance</span>
+            <strong>
+              {measurements.interventions.runs} run
+              {measurements.interventions.runs === 1 ? "" : "s"} ·{" "}
+              {measurements.interventions.submission_versions} submission
+              {measurements.interventions.submission_versions === 1 ? "" : "s"} ·{" "}
+              {measurements.review.timers.length} review timer
+              {measurements.review.timers.length === 1 ? "" : "s"}
+            </strong>
+          </div>
+          {props.timers.map((timer) => (
+            <div className="truth-row" key={timer.id} data-testid="review-timer-row">
+              <span>Review timer · {timer.state}</span>
+              {timer.state === "open" ? (
+                <button
+                  type="button"
+                  className="button-secondary"
+                  data-testid="review-timer-stop"
+                  disabled={props.pending || props.loading}
+                  onClick={() => props.onStopTimer?.(timer)}
+                >
+                  Stop timer
+                </button>
+              ) : (
+                <strong>stopped</strong>
+              )}
+            </div>
+          ))}
+          <button
+            type="button"
+            className="button-secondary"
+            data-testid="review-timer-start"
+            disabled={props.pending || props.loading}
+            onClick={() => props.onStartTimer?.()}
+          >
+            Start review timer
+          </button>
+        </>
+      ) : null}
+    </section>
+  );
+}
+
+export interface MeasurementsPanelProps {
+  workspaceId: string;
+  taskId: string;
+  fetchImpl?: typeof fetch;
+  csrfToken?: string;
+}
+
+function requestId(prefix: string): string {
+  return `${prefix}-${crypto.randomUUID()}`;
+}
+
+interface MeasurementsSnapshot {
+  selection: object;
+  measurements: TaskMeasurementsView | null;
+  timers: ReviewTimerView[];
+  pending: boolean;
+  loading: boolean;
+  error: string | null;
+}
+
+function emptyMeasurementsSnapshot(selection: object): MeasurementsSnapshot {
+  return { selection, measurements: null, timers: [], pending: false, loading: false, error: null };
+}
+
+export function MeasurementsPanel(props: MeasurementsPanelProps) {
+  const fetchFn = props.fetchImpl ?? fetch;
+  const api = useMemo(() => client(fetchFn, props.csrfToken ?? ""), [fetchFn, props.csrfToken]);
+  const selection = useMemo(
+    () => ({ api, workspaceId: props.workspaceId, taskId: props.taskId }),
+    [api, props.workspaceId, props.taskId],
+  );
+  const begin = usePanelDelivery(selection);
+  const mutation = useRef<PanelDeliveryCheck | null>(null);
+  const [snapshot, setSnapshot] = useState<MeasurementsSnapshot | null>(null);
+  const current = snapshot?.selection === selection ? snapshot : null;
+
+  const failed = useCallback(
+    (cause: unknown, check: PanelDeliveryCheck) => {
+      if (!check()) return;
+      setSnapshot((previous) => ({
+        ...(previous?.selection === selection ? previous : emptyMeasurementsSnapshot(selection)),
+        ...(isPanelAuthorityDenied(cause) ? { measurements: null, timers: [] } : {}),
+        loading: false,
+        error: cause instanceof Error ? cause.message : "Request failed",
+      }));
+    },
+    [selection],
+  );
+
+  const load = useCallback(
+    async (origin?: PanelDeliveryCheck): Promise<boolean> => {
+      const check = origin ?? begin();
+      if (!check || !check()) return false;
+      setSnapshot((previous) => ({
+        ...(previous?.selection === selection ? previous : emptyMeasurementsSnapshot(selection)),
+        pending: origin !== undefined && previous?.selection === selection && previous.pending,
+        loading: true,
+        error: null,
+      }));
+      try {
+        const measured = await api.get(
+          `/api/v1/workspaces/${props.workspaceId}/tasks/${props.taskId}/measurements`,
+        );
+        if (!check()) return false;
+        const timerBody = await api.get(
+          `/api/v1/workspaces/${props.workspaceId}/tasks/${props.taskId}/review-timers`,
+        );
+        if (!check()) return false;
+        setSnapshot((previous) => ({
+          ...(previous?.selection === selection ? previous : emptyMeasurementsSnapshot(selection)),
+          measurements: measured.measurements as TaskMeasurementsView,
+          timers: (timerBody.timers ?? []) as ReviewTimerView[],
+          loading: false,
+          error: null,
+        }));
+        return true;
+      } catch (cause) {
+        failed(cause, check);
+        return false;
+      }
+    },
+    [api, begin, failed, props.taskId, props.workspaceId, selection],
+  );
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function mutate(path: string, input: Record<string, unknown>): Promise<void> {
+    if (!current?.measurements || current.pending || current.loading) return;
+    if (mutation.current?.()) return;
+    const check = begin();
+    if (!check) return;
+    mutation.current = check;
+    setSnapshot({ ...current, pending: true, error: null });
+    try {
+      await api.post(path, input);
+      if (!check()) return;
+      await load(check);
+    } catch (cause) {
+      failed(cause, check);
+    } finally {
+      if (mutation.current === check) mutation.current = null;
+      if (check()) {
+        setSnapshot((previous) =>
+          previous?.selection === selection ? { ...previous, pending: false } : previous,
+        );
+      }
+    }
+  }
+
+  function startTimer(): Promise<void> {
+    return mutate(`/api/v1/workspaces/${props.workspaceId}/tasks/${props.taskId}/review-timers`, {
+      request_id: requestId("web-review-timer"),
+    });
+  }
+
+  function stopTimer(timer: ReviewTimerView): Promise<void> {
+    return mutate(`/api/v1/workspaces/${props.workspaceId}/review-timers/${timer.id}/stop`, {
+      expected_version: timer.resource_version,
+      request_id: requestId("web-review-timer"),
+    });
+  }
+
+  return (
+    <MeasurementsView
+      measurements={current?.measurements ?? null}
+      timers={current?.timers ?? []}
+      pending={current?.pending ?? false}
+      loading={current?.loading ?? true}
+      error={current?.error ?? null}
+      onRetry={() => void load()}
+      onStartTimer={() => void startTimer()}
+      onStopTimer={(timer) => void stopTimer(timer)}
+    />
+  );
+}

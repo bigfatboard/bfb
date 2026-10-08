@@ -13,6 +13,7 @@ import {
 function env(overrides: Partial<ArtifactBindings> = {}): ArtifactBindings {
   return {
     ARTIFACTS: { __synthetic: "r2" } as unknown as R2Bucket,
+    DB: { __synthetic: "d1" } as unknown as D1Database,
     ARTIFACT_ORIGIN: "https://artifacts.bfb.example.test",
     APP_ORIGIN: "https://bfb.example.test",
     ENVIRONMENT: "local",
@@ -21,6 +22,24 @@ function env(overrides: Partial<ArtifactBindings> = {}): ArtifactBindings {
 }
 
 describe("artifact env", () => {
+  it("requires an explicit viewer enable in every environment", () => {
+    for (const ENVIRONMENT of ["local", "staging", "production"] as const) {
+      expect(validateArtifactEnv(env({ ENVIRONMENT })).artifactViewerEnabled).toBe(false);
+    }
+    expect(
+      validateArtifactEnv(env({ ARTIFACT_VIEWER_ENABLED: "false" })).artifactViewerEnabled,
+    ).toBe(false);
+    expect(
+      validateArtifactEnv(env({ ARTIFACT_VIEWER_ENABLED: "true" })).artifactViewerEnabled,
+    ).toBe(true);
+  });
+
+  it.each(["TRUE", "1", "", " true "])("rejects malformed viewer enable %j", (value) => {
+    expect(() => validateArtifactEnv(env({ ARTIFACT_VIEWER_ENABLED: value }))).toThrow(
+      "invalid boolean: ARTIFACT_VIEWER_ENABLED",
+    );
+  });
+
   it("validates a complete artifact environment", () => {
     const validated = validateArtifactEnv(env());
     expect(validated.artifactOrigin).toBe("https://artifacts.bfb.example.test");
@@ -31,6 +50,16 @@ describe("artifact env", () => {
     const value = env();
     delete (value as { ARTIFACTS?: R2Bucket }).ARTIFACTS;
     expect(() => validateArtifactEnv(value)).toThrow(/missing binding: ARTIFACTS/);
+  });
+
+  it("rejects a missing D1 binding", () => {
+    const value = env();
+    delete (value as { DB?: D1Database }).DB;
+    expect(() => validateArtifactEnv(value)).toThrow(/missing binding: DB/);
+  });
+
+  it("fails uploads closed without an abuse secret", () => {
+    expect(validateArtifactEnv(env()).uploadAbuseSecret).toBe("");
   });
 
   it("rejects shared hostnames even on different ports", () => {

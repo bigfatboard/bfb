@@ -1,0 +1,72 @@
+{
+  "$schema": "../manifest.schema.json",
+  "package": "P02",
+  "tested_commit": "ff643646974b2501c0732a1255a60fc5ff172822",
+  "protocol_version": "bfb-wire/1",
+  "schema_version": "1",
+  "migration_head": "local:008_run_control_delivery.sql",
+  "toolchains": {
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "go": "1.26.5",
+    "xcode": "26.0.1",
+    "golang.org/x/sys": "0.47.0",
+    "grok": "1.0.34"
+  },
+  "environment": {
+    "kind": "clean_checkout",
+    "os": "macOS 26.2",
+    "architecture": "arm64"
+  },
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-P02/version-matrix.json"
+    },
+    {
+      "command": "pnpm build",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-P02/version-matrix.json"
+    },
+    {
+      "command": "pnpm test:p02",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-P02/version-matrix.json"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-P02/version-matrix.json"
+    },
+    {
+      "command": "CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build ./...",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-P02/version-matrix.json"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "artifact": "docs/work-packages/evidence/WP-P02/version-matrix.json"
+    }
+  ],
+  "outcome": "passed",
+  "artifacts": [
+    "docs/work-packages/evidence/WP-P02/version-matrix.json",
+    "docs/work-packages/evidence/WP-P02/hook-fixtures.json",
+    "docs/work-packages/evidence/WP-P02/setup-transaction.md",
+    "docs/work-packages/evidence/WP-P02/parity-claude.md",
+    "docs/work-packages/evidence/WP-P02/discovery.md",
+    "internal/providers/grok/descriptor.go",
+    "internal/providers/grok/adapter.go",
+    "internal/providers/grok/events.go",
+    "internal/providers/grok/setup.go",
+    "internal/providers/grok/adapter_test.go",
+    "internal/providers/grok/events_test.go",
+    "internal/providers/grok/setup_test.go"
+  ],
+  "redaction": {
+    "status": "passed",
+    "prohibited_content": []
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "spec": "g02-release",
+  "scenarios": [
+    {
+      "scenario": "board",
+      "observation": "work board renders with the owner role"
+    },
+    {
+      "scenario": "attention",
+      "observation": "attention home renders the ranked list with committed-state polling"
+    },
+    {
+      "scenario": "review",
+      "observation": "review panel binds the exact artifact version hash"
+    }
+  ]
+}

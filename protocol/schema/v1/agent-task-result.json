@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/agent-task-result.json",
+  "title": "AgentTaskResult",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "project_id", "state", "priority", "title", "punchline", "resource_version"],
+  "properties": {
+    "id": { "$ref": "primitives.json#/$defs/Ulid" },
+    "project_id": { "$ref": "primitives.json#/$defs/Ulid" },
+    "state": {
+      "type": "string",
+      "enum": ["proposed", "ready", "active", "review", "blocked", "done", "cancelled"]
+    },
+    "priority": { "type": "string", "enum": ["P0", "P1", "P2", "P3"] },
+    "title": { "type": "string", "minLength": 1, "maxLength": 512 },
+    "punchline": { "type": "string", "maxLength": 512 },
+    "resource_version": { "$ref": "primitives.json#/$defs/ResourceVersion" }
+  }
+}

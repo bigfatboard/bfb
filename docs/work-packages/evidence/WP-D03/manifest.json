@@ -1,0 +1,51 @@
+{
+  "$schema": "../manifest.schema.json",
+  "artifacts": [
+    "docs/work-packages/evidence/WP-D03/browser/cancel.png",
+    "docs/work-packages/evidence/WP-D03/browser/decision.png",
+    "docs/work-packages/evidence/WP-D03/browser/eligibility.png",
+    "docs/work-packages/evidence/WP-D03/browser/intervention.png",
+    "docs/work-packages/evidence/WP-D03/browser/narrow.png",
+    "docs/work-packages/evidence/WP-D03/browser/negative-matrix.md",
+    "docs/work-packages/evidence/WP-D03/browser/reconnect-trace.md",
+    "docs/work-packages/evidence/WP-D03/browser/reconnect.png",
+    "docs/work-packages/evidence/WP-D03/browser/start.png",
+    "docs/work-packages/evidence/WP-D03/browser/timeline.png",
+    "docs/work-packages/evidence/WP-D03/command-result.json",
+    "docs/work-packages/evidence/WP-D03/local-runtime.md",
+    "docs/work-packages/evidence/WP-D03/manifest.json"
+  ],
+  "commands": [
+    {
+      "artifact": "docs/work-packages/evidence/WP-D03/command-result.json",
+      "command": "pnpm test:mvp-discussion",
+      "outcome": "passed"
+    },
+    {
+      "command": "node tools/discussion-smoke/smoke.mjs",
+      "outcome": "not_run"
+    }
+  ],
+  "environment": {
+    "architecture": "arm64",
+    "kind": "local",
+    "os": "macOS"
+  },
+  "migration_head": "d1:0025_discussion_delivery.sql;local:012_discussion_delivery.sql",
+  "outcome": "passed",
+  "package": "D03",
+  "protocol_version": "bfb-wire/1",
+  "redaction": {
+    "prohibited_content": [],
+    "status": "passed"
+  },
+  "schema_version": "1",
+  "tested_commit": "28446a77565a54ffd97b934e40c5169c7f5d0995",
+  "toolchains": {
+    "go": "1.26.5",
+    "node": "24.19.0",
+    "playwright": "1.55.1",
+    "pnpm": "11.21.0",
+    "xcode": "26.0.1"
+  }
+}

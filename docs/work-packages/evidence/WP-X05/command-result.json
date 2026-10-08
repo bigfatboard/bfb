@@ -1,0 +1,40 @@
+{
+  "package": "X05",
+  "tested_commit": "5951fb56c603389ffe797018a6db61994ab6c182",
+  "environment": "detached clean checkout on macOS (arm64); local Wrangler D1, Workerd Queues/R2 and real Chromium",
+  "outcome": "passed",
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "outcome": "passed",
+      "result": "frozen lockfile install in a detached clean checkout"
+    },
+    {
+      "command": "pnpm test:x05",
+      "outcome": "passed",
+      "result": "build plus production web bundle; vitest 6 files and 55 tests (22 domain cases on migration, retention, redaction, chronological audit ordering, audit versus activity, diagnostics, mixed-target requeue atomicity, recovery, stuck launches, and delegation-envelope rejection on retention; 7 worker route cases on Owner-only audit, role reads, retention step-up matrix, idempotent recovery, same-request_id replay without audit collision, long-request_id target separation and diagnostic consent; 7 consumer and sweep cases on upload, poison isolation, wrong-state diversion and retention boundaries; web presentation contract; db migration matrix); tools/operations real-Worker/D1/Queue/R2 drill (X05_D1 through X05_D11: migration, Owner-only audit, full step-up matrix, real expired launch stuck-visible, idempotent stuck-upload recovery, GitHub DLQ requeue, notification watermark rewind, queue-driven retention deleting only the eligible object, consented diagnostic upload, poison-to-DLQ with sibling convergence, 11-needle canary scan); 4 Chromium scenarios on BFB_E2E_PORT=4196 (owner/member/reviewer gating, no private payload content)"
+    },
+    {
+      "command": "GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ./...",
+      "outcome": "passed",
+      "result": "Linux cross-compile of the whole module from the detached clean checkout"
+    },
+    {
+      "command": "pnpm verify",
+      "outcome": "passed",
+      "result": "full repository verification: format, lint, typecheck, protocol, provider, TypeScript suites (1264 tests across 103 files), headers, docs, roadmap (45 packages), Go, Swift/Xcode"
+    },
+    {
+      "command": "pnpm worktree:check",
+      "outcome": "passed",
+      "result": "clean worktree at the evidence commit"
+    }
+  ],
+  "migration_head": "0034_operations",
+  "redaction": "passed",
+  "notes": [
+    "The exact gate (install, test:x05) passed from a detached clean checkout at the tested commit; that checkout was removed afterwards.",
+    "Evidence manifest and command results are docs-only additions after the tested commit; pnpm verify, pnpm worktree:check, and the Linux cross-build were re-run on the evidence tree.",
+    "All identities in tests, fixtures, recordings, and this report are synthetic; no secrets, task bodies, prompts, paths, hook payloads, artifact bytes, terminal output, cookies, Bearer [REDACTED] grant secrets, or local absolute paths are retained."
+  ]
+}

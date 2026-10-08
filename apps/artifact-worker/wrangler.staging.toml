@@ -4,11 +4,18 @@
 name = "bfb-artifact-staging"
 main = "src/index.ts"
 compatibility_date = "2026-08-01"
+compatibility_flags = ["nodejs_compat"]
 
 [vars]
 ENVIRONMENT = "staging"
 ARTIFACT_ORIGIN = "https://artifacts.bfb.staging.example.test"
 APP_ORIGIN = "https://bfb.staging.example.test"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "bfb-staging"
+database_id = "00000000-0000-4000-8000-000000000002"
+migrations_dir = "../../migrations/d1"
 
 [[r2_buckets]]
 binding = "ARTIFACTS"

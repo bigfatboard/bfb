@@ -1,0 +1,117 @@
+{
+  "package": "C11",
+  "recorded_on": "2026-10-07",
+  "tested_commit": "e947fdf2c33c293211c3c6f401643fab057e9455",
+  "production_commit": "e947fdf2c33c293211c3c6f401643fab057e9455",
+  "production_guard_unchanged_from": "833babe2079b1eb45b11851b3b8fe6e956cd9ae1",
+  "outcome": "passed",
+  "stage": "partial_native_reviewer_and_restricted_project_artifact_views",
+  "package_acceptance_complete": false,
+  "private_creation_available": false,
+  "migration_head": "0047_security_audit_positions",
+  "scope": "Proof-only extension: named Reviewer read through a signed synthetic browser cookie/CSRF and actual R2 bytes, plus restricted-project access lost after native get/body while the task grant, epoch, role, parents and committed history remain unchanged. Production guards and authority rules are unchanged.",
+  "clean_certificate_marker": "C11_NATIVE_VIEW_AUTHORITY_CLEAN_CERTIFICATE_OK",
+  "clean_pipeline_exit_code": 0,
+  "clean_commands": [
+    { "command": "pnpm install --frozen-lockfile", "exit_code": 0 },
+    {
+      "command": "pnpm test:c11",
+      "exit_code": 0,
+      "c10_cases": 86,
+      "c10_files": 8,
+      "c10_d1_checks": 9,
+      "c08_cases": 23,
+      "c08_files": 5,
+      "c08_proof": "C08_D1_OK",
+      "stage_cases": 3201,
+      "stage_files": 132,
+      "stage_invocation_blocks": 21,
+      "unchanged_vitest_breakdown_reference": "docs/work-packages/evidence/WP-C11/artifact-bytes-command-result.json",
+      "stage_browser_cases": 6,
+      "stage_d1_checks": 224,
+      "stage_d1_harnesses": 20,
+      "notification_runtime": {
+        "proofs": ["C11_NOTIFICATION_IDENTITY_UPGRADE_OK", "X01_HARNESS_OK"],
+        "record_labels": 41,
+        "counting": "Setup and repeated dispatch/redaction labels are not independent acceptance cases"
+      },
+      "go_race": "passed",
+      "counting": "Twenty-one stage Vitest case/file invocations, not unique cases/files. C10/C08 dependencies, six retained panel Chromium cases and the notification drill are separate. The artifact native harness expands from four to six independently collecting groups; stage native labels rise from 222 to 224 without adding a harness."
+    },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 4820,
+      "typescript_files": 221,
+      "go": "passed",
+      "go_scheduling": "GOFLAGS=-p=1",
+      "swift": "passed",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    {
+      "command": "pnpm worktree:check",
+      "exit_code": 0,
+      "before_and_after_verify": true,
+      "committed_source_unchanged": true,
+      "final_status_empty": true
+    }
+  ],
+  "slice_suites": {
+    "target": "pnpm test:c11:artifact-bytes",
+    "composed_once_by_c11": true,
+    "focused_cases": 112,
+    "focused_files": 7,
+    "new_mounted_cases": 0,
+    "retained_focused_cases": 112,
+    "native_groups": 6,
+    "new_native_groups": 2,
+    "retained_native_groups": 4,
+    "native_proof": "C11_ARTIFACT_PRIVACY_D1_R2_OK",
+    "maximum_bindings": 19,
+    "maximum_statement_bytes": 4716,
+    "native_checks": [
+      "healthy_private_shared_runfree_convergence_and_one_use",
+      "private_view_before_consume_after_native_get_and_body",
+      "private_upload_before_consume_and_after_native_put",
+      "private_upload_reply_withheld_after_successful_native_receipt_commit",
+      "healthy_named_reviewer_private_read_and_one_use",
+      "private_view_restricted_project_loss_after_native_get_and_body"
+    ],
+    "counting": "The two project-loss seams are assertions within one independently collecting group. All 112 focused cases and the original four native groups are retained. Bounds cover measured artifact-handler statements, not control/Hub setup, seam-witness or snapshot queries."
+  },
+  "regression_proof": [
+    "A named Reviewer read-grantee issues a view through production cookie/CSRF and control/Hub dispatch and receives exact native R2 bytes; one-use replay denies without canonical read effects",
+    "The project-loss seam derives exactly one project_access tuple from the consumed view/version/artifact/run/task, live named read grant, current Reviewer and epoch, and restricted project",
+    "Both native get/body waves re-establish project readability before fresh production task/run setup and view issuance, so earlier denial cannot mask the later cut",
+    "The mutation witness compares whole canonical snapshots and requires only that one project_access row disappears; task grant, role, epoch and parents remain unchanged",
+    "Both late cuts return the exact uniform no-store denial without private bytes or integrity metadata after one native get and body read",
+    "Consumed view and exact view-redeemed audit, verified receipt/source/object/audit history, stored R2 bytes and foreign keys remain intact after denial and replay",
+    "The original four native groups remain useful, including healthy private/shared/run-free delivery, convergence and actual successful-receipt response suppression"
+  ],
+  "old_source_probe": {
+    "run_for_this_proof_only_extension": false,
+    "earlier_human_reply_evidence": "docs/work-packages/evidence/WP-C11/artifact-bytes-command-result.json",
+    "scope": "The earlier original five-case human upload-reply OLD replay remains separate; no Reviewer/project native OLD replay or new production bug is claimed"
+  },
+  "proof_boundaries": [
+    "Synthetic signed BetterAuth browser cookies undergo production cookie/CSRF validation and API/Hub dispatch; this is not a real sign-in ceremony, compiled browser presentation or deployed ingress",
+    "Dormant private policy/read-grant and project restoration are explicitly synthetic fixture state, not enabled creation/sharing commands",
+    "Test-only seams forward actual native D1 batches and R2 get/put/arrayBuffer operations; the project-loss mutation is independently witnessed rather than a mocked denial",
+    "Canonical snapshots exclude only engine metadata, migrations and HTTP abuse buckets; observation accounting is separate",
+    "The final production view guard already repeats current task/project read authority; no new captured-parent policy or Owner/Member-only view role ceiling is introduced"
+  ],
+  "activation_barriers": [
+    "Opaque child-collection positions need the pending raw-ID retirement and Hub bookkeeping compatibility decision",
+    "GitHub key policy, execution-owned consumers, destructive private retention and other temporal boundaries remain open",
+    "Private creation, creator sharing, inherited private children and author-private checkpoints stay disabled; C11 is in progress and C12 planned"
+  ],
+  "not_claimed": [
+    "Complete C11 acceptance, private activation, deployment, external CI or live private bytes",
+    "Fresh standalone W03, V02, X03, A02 or A04 acceptance; prior evidence remains separate",
+    "Agent upload reply, natural credential/lease expiry, installed app, persistent pilot, provider, remote-start or agent-to-agent operation",
+    "Production guard changes, parent moves, a new view capability ceiling, cursor storage/migration/fallback, Hub/kernel/clock/cleanup changes",
+    "A new OLD security failure or rollout"
+  ],
+  "redaction": "Bounded synthetic outcomes and counts only; no raw logs, credentials, private bodies, per-run timestamps or local absolute paths"
+}

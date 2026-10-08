@@ -1,0 +1,166 @@
+{
+  "package": "C11",
+  "recorded_on": "2026-10-07",
+  "tested_commit": "3a2b0a6e01451938b4a735bc78bc547d2a6cc110",
+  "outcome": "passed",
+  "stage": "partial_delegated_attention_read_delivery",
+  "package_acceptance_complete": false,
+  "private_creation_available": false,
+  "migration_head": "0047_security_audit_positions",
+  "scope": "One final canonical attention SELECT retains exact business lineage and original OAuth ceilings, checking current sponsor/epoch, kernel private read permission, project access, credential/client/read scope and strict SQL-clock expiry after every advisory await.",
+  "clean_commands": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "exit_code": 0
+    },
+    {
+      "command": "pnpm test:c11",
+      "exit_code": 0,
+      "c10_cases": 86,
+      "c10_files": 8,
+      "c10_d1_checks": 9,
+      "c08_cases": 23,
+      "c08_files": 5,
+      "c08_proof": "C08_D1_OK",
+      "stage_cases": 2427,
+      "stage_files": 91,
+      "stage_invocations": [
+        {
+          "cases": 1861,
+          "files": 64
+        },
+        {
+          "cases": 4,
+          "files": 2
+        },
+        {
+          "cases": 23,
+          "files": 2
+        },
+        {
+          "cases": 18,
+          "files": 2
+        },
+        {
+          "cases": 31,
+          "files": 2
+        },
+        {
+          "cases": 34,
+          "files": 2
+        },
+        {
+          "cases": 68,
+          "files": 3
+        },
+        {
+          "cases": 27,
+          "files": 2
+        },
+        {
+          "cases": 54,
+          "files": 2
+        },
+        {
+          "cases": 41,
+          "files": 3
+        },
+        {
+          "cases": 31,
+          "files": 3
+        },
+        {
+          "cases": 235,
+          "files": 4
+        }
+      ],
+      "stage_d1_checks": 140,
+      "stage_d1_harnesses": 12,
+      "notification_runtime": {
+        "proofs": ["C11_NOTIFICATION_IDENTITY_UPGRADE_OK", "X01_HARNESS_OK"],
+        "record_labels": 41,
+        "counting": "Setup and repeated dispatch/redaction labels are not independent acceptance cases"
+      },
+      "go_race": "passed",
+      "counting": "Stage totals count invocations, not unique cases; dependencies, notification runtime, X03 and full verification are separate"
+    },
+    {
+      "command": "pnpm test:x03",
+      "exit_code": 0,
+      "unit_cases": 71,
+      "unit_files": 7,
+      "worker_d1_r2_checks": 11,
+      "browser_cases": 2,
+      "provider_started": false,
+      "persistent_pilot_changed": false
+    },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 4551,
+      "typescript_files": 207,
+      "go": "passed",
+      "go_scheduling": "GOFLAGS=-p=1",
+      "swift": "passed",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    {
+      "command": "pnpm worktree:check",
+      "exit_code": 0,
+      "before_and_after_verify": true,
+      "committed_source_unchanged": true,
+      "final_status_empty": true
+    }
+  ],
+  "slice_suites": {
+    "composed_once_by_c11": true,
+    "domain_cases": 17,
+    "authenticated_mounted_mcp_cases": 17,
+    "attention_d1_checks": 18,
+    "maximum_bindings": 24,
+    "maximum_statement_bytes": 4902
+  },
+  "old_source_probe": {
+    "production_commit": "bfe8806f0130c15a18b750e1e40cd485a2e80434",
+    "production_runtime_unfixed": true,
+    "focused_cases": 17,
+    "focused_failed": 13,
+    "focused_passed": 4,
+    "unauthorized_body_exposures": 9,
+    "stale_canonical_answers": 1,
+    "uniform_wire_controls": 3,
+    "expected_exit_code": 1,
+    "status": "Final mounted regression suite replayed on committed unfixed domain/worker source and its built runtime, with only the new synthetic test added. Nine body exposures and one stale answer are regression failures; three already-denied advisory controls fail only uniform wire parsing. This is not an old-source clean package acceptance certificate."
+  },
+  "regression_proof": [
+    "Delayed read-only Owner/Member/Reviewer preserve open, answered and resolved historical attention under ended or cancelled runs and an older exact execution assignment, without a live lease or requester equality",
+    "Production delegation revocation after preliminary attention selection, current read scope/client/nullable boundary loss and private read-grant/epoch/project loss withhold the body",
+    "Private grant, epoch and project loss after the final successful advisory read is a separately witnessed race, not merely an advisory denial",
+    "A credential unchanged and live at final SQL preparation naturally expires before native D1 execution; delayed live controls remain readable",
+    "A real answer committed after preliminary open selection returns the latest canonical answer rather than a retained state/version",
+    "The final statement matches retained workspace/attention/task/project/run/execution/generation and the exact historical immutable assignment; initially misbound or synthetically rebound mutable attention history denies",
+    "Missing and denied responses share the bounded not_found wire; malformed retained identities deny before preparation without rewriting history",
+    "Complete business history and cursor snapshots remain unchanged by reads after separately committed permission or answer changes; HTTP abuse accounting is independent"
+  ],
+  "proof_boundaries": [
+    "Genuine OAuth admission and compiled stateless MCP handler are mounted in the test process over disposable native D1; this is not real HTTP Worker OAuth ingress",
+    "Attention rows are mutable; retained business-lineage matching and malformed-history robustness are not a claim that all attention fields are immutable",
+    "The referenced execution assignment is immutable; synthetic dormant assignment/private policy fixtures do not start providers or operate runners",
+    "The temporal claim ends at the final selection statement; response serialization immediately follows without another await"
+  ],
+  "certificate_recovery": "The previous interrupted verification handle and temporary logs were unavailable. This evidence records only a fresh complete clean-checkout run, with the final old-runtime mounted suite also replayed.",
+  "activation_barriers": [
+    "bfb_get_task final delivery and delegated project/task list-selection remain open",
+    "GitHub collision policy, execution-owned private consumers and destructive private retention remain open",
+    "Private creation, creator sharing, author-private checkpoints and C12 remain unavailable or planned"
+  ],
+  "not_claimed": [
+    "Other OAuth tools, later statements, provider-token state, runner/local capability/lease expiry or complete private activation",
+    "Cached business-command rollback or reversal of independently committed permission/answer changes",
+    "Live private R2/browser bytes, installed app, provider execution, persistent pilot operation or deployment",
+    "Fresh W03 visual acceptance, separate X01/X05/G01 acceptance or external CI",
+    "Publication, canonical project knowledge, skills, vault, checkpoint reminders or contribution views"
+  ],
+  "redaction": "Bounded counts and synthetic outcomes only; raw logs, credentials, private content and local paths are not committed"
+}

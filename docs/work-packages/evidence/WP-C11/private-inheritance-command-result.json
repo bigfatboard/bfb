@@ -1,0 +1,129 @@
+{
+  "package": "C11",
+  "recorded_on": "2026-10-08",
+  "tested_commit": "08b73edb4e6a6ab0494f007ea62c79bcbb40db8b",
+  "outcome": "passed",
+  "stage": "partial_retained_private_inheritance_preparation",
+  "package_acceptance_complete": false,
+  "private_creation_available": false,
+  "migration_head": "0050_task_privacy_inheritance",
+  "clean_certificate_marker": "C11_PRIVATE_INHERITANCE_CLEAN_CERTIFICATE_OK",
+  "clean_certificate_exit_code": 0,
+  "certificate_style": "single_frozen_clean_checkout_pipeline",
+  "certificate_environment": {
+    "WRANGLER_SEND_METRICS": "false",
+    "GOFLAGS": "-p=1",
+    "limits": "Process-local CLI telemetry opt-out and serialized Go package scheduling only; no assertion, timeout, tool version, production configuration or D1 setting changed."
+  },
+  "clean_commands": [
+    { "command": "pnpm install --frozen-lockfile", "exit_code": 0 },
+    {
+      "command": "pnpm verify",
+      "exit_code": 0,
+      "typescript_cases": 5116,
+      "typescript_files": 240,
+      "go": "tidy, vet, test and build passed",
+      "swift": "format, build and test passed with the repository-selected pinned Xcode",
+      "swift_cases": 16,
+      "platform_checks_skipped": false
+    },
+    {
+      "command": "pnpm test:c11",
+      "exit_code": 0,
+      "c10_cases": 86,
+      "c10_files": 8,
+      "c10_d1_checks": 9,
+      "c08_cases": 23,
+      "c08_files": 5,
+      "c08_proof": "C08_D1_OK",
+      "stage_cases": 4118,
+      "stage_files": 174,
+      "stage_invocation_blocks": 29,
+      "stage_browser_cases": 18,
+      "stage_d1_check_labels": 273,
+      "stage_d1_harnesses": 28,
+      "notification_record_labels": 41,
+      "counting": "Stage cases/files count twenty-nine Vitest invocation blocks, not unique totals. C10/C08, six detail-panel plus six sharing plus six checkpoint browser cases, and forty-one notification labels remain separate. Native totals count top-level groups, not nested assertions."
+    },
+    {
+      "command": "pnpm test:x03",
+      "exit_code": 0,
+      "focused_cases": 71,
+      "focused_files": 7,
+      "native_groups": 11,
+      "native_proof": "X03_D1_OK",
+      "advertised_tools": 14,
+      "browser_cases": 2,
+      "limits": "Retained synthetic-token Worker/D1/R2 parity and genuine virtual-passkey OAuth browser flows; no private-create tool, local tool activation, provider or persistent pilot operation."
+    },
+    {
+      "command": "pnpm test:db",
+      "exit_code": 0,
+      "focused_cases": 68,
+      "focused_files": 11,
+      "native_proof": "F04_D1_OK",
+      "empty_previous_schema_equal": true,
+      "retained_populated_data": true,
+      "foreign_keys_clean": true,
+      "identity_and_jurisdiction_immutable": true,
+      "tenant_project_attribution_boundaries": true,
+      "interrupted_upgrade_rolled_back_and_retried": true,
+      "invalid_relationship_and_malformed_id_rejected_and_recovered": true
+    },
+    {
+      "command": "pnpm worktree:check",
+      "exit_code": 0,
+      "before_and_after_pipeline": true,
+      "committed_source_unchanged_across_completed_gates": true,
+      "final_status_empty": true
+    }
+  ],
+  "inheritance_slice": {
+    "target": "pnpm test:c11:inheritance",
+    "composed_once_by_c11": true,
+    "focused_cases": 44,
+    "focused_files": 3,
+    "migration_cases": 8,
+    "kernel_cases": 14,
+    "prepared_creation_cases": 22,
+    "native_groups": 4,
+    "native_proof": "C11_PRIVATE_INHERITANCE_D1_OK",
+    "native_fixture": "synthetic_unregistered_private_inheritance_preparation",
+    "storage": "Retained same-project task/root associations require the immediate parent to belong to the same root, exclude direct policies, preserve existing data and reject replacement, deletion or creation-lineage rebinding. Descendant creation attribution remains actual human/delegation/null attribution, never copied root ownership.",
+    "authority": "The common read/contribute/edit kernel and existing metadata DTO resolve the current root creator/grants plus role/project/epoch ceilings. Sharing management stays exact-root only. Shared-only selectors exclude inherited tasks even if a policy cannot resolve; missing inheritance schema never creates authority.",
+    "quota": "The existing agent-child quota checker counts active children in the parent's authority family, independent of the requesting human's personal grants and actual child authors. Independent private roots beneath a shared parent do not consume its shared quota; terminal children stay excluded.",
+    "prepared_creation": "An unregistered direct-human command infers root ownership from the authenticated actor; editable private parents retain their root and actual child authorship. Closed inputs, canonical fingerprints, current original ceilings and parent/root lineage guard admission, commit, cache and final response. Task plus policy/association share one batch; failed writes or authority cannot leave a shared child or Hub history.",
+    "receipt": "Exactly task_id, project_id, nullable parent_task_id and privacy_root_task_id; no title, prose or context in audit/cache history. Reject extra cached fields as corrupt-cache robustness, not a demonstrated reachable authority race.",
+    "native_controls": "Unregistered prepared root/child/grandchild with named edit and truthful authorship; registered shared creation, exact-root sharing and exact-task author-private checkpoint controls; immutable lineage; revoked/project-denied original bound batches, repaired failed-key retries, actual cache-read denial and post-Hub finalizer denial with retained history.",
+    "synthetic_limits": "The ordered inherited LIMIT source is a new low-ID synthetic row persisted without a command receipt; existing IDs, policies and receipts are not rewritten. A direct Node DomainHub over disposable native D1 runs the prepared command, not a production transport. Independently registered root revoke deliberately bypasses production FIFO; project cuts are synthetic. None certifies reachable competing production commands or browser/CLI/OAuth private-create admission.",
+    "maximum_bindings": 34,
+    "maximum_statement_bytes": 11764,
+    "maximum_batch_statements": 9,
+    "bounds_scope": "Instrumented prepared creation reads/writes/batches in the two prebatch-cut groups only; excludes fixtures, snapshots and registered Worker/Hub internals."
+  },
+  "native_storage": {
+    "canonical_table_count": 136,
+    "snapshot_exclusions_actually_present": ["_cf_METADATA", "d1_migrations", "sqlite_sequence"],
+    "http_budget_tables_compared_separately": ["rate_limit_buckets"],
+    "foreign_keys_clean": true,
+    "transient_guards_empty": true,
+    "rollback": "Whole canonical snapshots start after completed independent cuts; rejected batches add no business/Hub effects. Successful original or repaired commands retain their legitimate committed effects and minimal history."
+  },
+  "excluded_attempts": [
+    "Early prepared-creation fixtures used a missing descendant parameter and mixed actor envelopes; fixture corrections retained the production envelope and actor restrictions.",
+    "The first local composed inheritance target passed all forty-four focused cases but failed native group one with a generic AssertionError. Seven phase-labelled native retries passed, leaving the original failure unlocalized. Source proves random IDs do not guarantee the required first-row ordering; an explicitly labelled low-ID inherited fixture now supplies that witness without weakening the filtering assertion. This is a fixture improvement, not an established cause for the original failure. The failed run and standalone retries are not clean acceptance.",
+    "The clean attempt at 078114b stopped during verification: thirteen notification-identity cases failed the same old-schema task-creation fixture setup while 5,103 other cases passed. That domain fixture now constructs current-schema capture/attention and then inserts historical NULL-public-ID rows. Genuine populated pre-0046 migration/additivity assertions remain in the unchanged DB suite; missing-schema authorization gained no fallback. Only the complete fresh pipeline at the tested commit is accepted."
+  ],
+  "activation_barriers": [
+    "Private creation is unregistered in the catalog and every transport; ordinary private-parent creation and local execution proposals remain unavailable",
+    "Complete C11 integration/activation, execution-owned private delivery and destructive private retention remain unfinished",
+    "C12 publication, project knowledge, skills, business secrets, reminders and contribution views remain unfinished"
+  ],
+  "not_claimed": [
+    "Complete C11 or eight-feature MVP, private-task activation, production private-create admission or external CI",
+    "Private creation natural-expiry coverage, reachable competing production commands, local checkpoint IPC/offline replay or live provider/runner/lease/cleanup proof",
+    "An established cause for the earlier generic native failure or a new OLD authority-loss certificate",
+    "G01 acceptance, waiver of AG02/AG04 release gates, Cloudflare resource creation, merge, deployment or deployed authenticated smoke"
+  ],
+  "redaction": "Bounded synthetic outcomes and counts only; no credentials, private bodies, raw logs, per-run timestamps or local absolute paths"
+}

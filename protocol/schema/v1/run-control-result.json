@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/qdis/bfb/protocol/schema/v1/run-control-result.json",
+  "title": "RunControlResult",
+  "description": "Bound target and current disposition of a durable control; a read alone grants no local effect.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "control_id",
+    "run_execution_id",
+    "assignment_generation",
+    "runner_id",
+    "action",
+    "state",
+    "disposition",
+    "expires_at"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "control_id": { "$ref": "primitives.json#/$defs/Ulid" },
+    "run_execution_id": { "$ref": "primitives.json#/$defs/Ulid" },
+    "assignment_generation": { "$ref": "primitives.json#/$defs/AssignmentGeneration" },
+    "runner_id": { "$ref": "primitives.json#/$defs/Ulid" },
+    "action": {
+      "type": "string",
+      "enum": ["focus_existing", "resume", "interrupt", "terminate", "cancel"]
+    },
+    "state": { "type": "string", "enum": ["pending", "claimed", "applied", "rejected", "expired"] },
+    "disposition": {
+      "type": ["string", "null"],
+      "enum": [
+        null,
+        "applied",
+        "already_applied",
+        "local_rejected",
+        "delivery_unknown",
+        "authorization_lost",
+        "expired"
+      ]
+    },
+    "expires_at": { "$ref": "primitives.json#/$defs/UtcTimestamp" },
+    "resume_launch_id": { "$ref": "primitives.json#/$defs/Ulid" }
+  }
+}
