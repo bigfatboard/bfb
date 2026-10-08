@@ -4,7 +4,7 @@ This plan turns the [v0.1 architecture](../../ARCHITECTURE.md) into independentl
 
 The default is sequence over concurrency. Parallel work is allowed only where this document names a stable contract and non-overlapping ownership boundary.
 
-The program contains 48 work packages, nine release integration checkpoints, and the MVP discussion checkpoint below. Package IDs are stable identifiers, not a claim that packages execute in numeric order. The approved [MVP plan](../../mvp.plan.md) prioritizes remote launch and human-initiated discussion; [ADR 0002](../adr/0002-human-initiated-discussions.md) records its domain and execution boundaries.
+The program contains 55 work packages, nine release integration checkpoints, and the MVP discussion checkpoint below. Package IDs are stable identifiers, not a claim that packages execute in numeric order. The approved [MVP plan](../../mvp.plan.md) prioritizes remote launch and human-initiated discussion; [ADR 0002](../adr/0002-human-initiated-discussions.md) records its domain and execution boundaries. The [product-beta lane](../product-beta.plan.md) assigns the mandatory product extension to C10–C15, A05/A06 and W03/W04; planned packages do not certify those features.
 
 ## Delivery rules
 
@@ -76,6 +76,9 @@ flowchart TD
         C10["C10 Private-task authorization kernel"]
         C11["C11 Private-task delivery and sharing"]
         C12["C12 Selected-content publication"]
+        C13["C13 Canonical project knowledge and instruction delivery"]
+        C14["C14 Pinned workspace and project skill catalogs"]
+        C15["C15 Scoped encrypted business secret vault"]
     end
     subgraph Localexecution["Local execution"]
         L01["L01 Go daemon and CLI kernel"]
@@ -91,6 +94,7 @@ flowchart TD
         W01["W01 Authenticated app and Work surface"]
         W02["W02 Runner and launch operations UI"]
         W03["W03 Clean board and task interface"]
+        W04["W04 Distinct task summary plan graphics and progress views"]
         E01["E01 Event ingestion, projection, and replay"]
         E02["E02 Browser realtime, timeline, and presence"]
     end
@@ -99,6 +103,8 @@ flowchart TD
         A02["A02 Human attention workflow"]
         A03["A03 Result submission and acceptance"]
         A04["A04 Measurements and provenance"]
+        A05["A05 Non-executing checkpoint reminders"]
+        A06["A06 Attributable human contribution history"]
     end
     subgraph Agentdiscussion["Agent discussion"]
         D01["D01 Discussion records and permissions"]
@@ -177,6 +183,12 @@ flowchart TD
     C11 --> C12
     V03 --> C12
     X03 --> C12
+    C11 --> C13
+    W03 --> C13
+    C13 --> C14
+    C15 --> C14
+    C11 --> C15
+    W03 --> C15
     F01 --> L01
     F02 --> L01
     F02 --> L02
@@ -226,6 +238,10 @@ flowchart TD
     V03 --> W03
     W01 --> W03
     W02 --> W03
+    A06 --> W04
+    C12 --> W04
+    C13 --> W04
+    W03 --> W04
     C01 --> E01
     C04 --> E01
     C06 --> E01
@@ -252,6 +268,9 @@ flowchart TD
     A03 --> A04
     E01 --> A04
     W01 --> A04
+    C13 --> A05
+    C11 --> A06
+    W03 --> A06
     C01 --> D01
     C04 --> D01
     C06 --> D01
@@ -406,6 +425,9 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 | C10 | [Private-task authorization kernel](WP-C10-private-task-authority.md) | `done` | Very high |
 | C11 | [Private-task delivery and sharing](WP-C11-private-task-delivery.md) | `in_progress` | Very high |
 | C12 | [Selected-content publication](WP-C12-selected-content-publication.md) | `planned` | Very high |
+| C13 | [Canonical project knowledge and instruction delivery](WP-C13-project-knowledge.md) | `planned` | Very high |
+| C14 | [Pinned workspace and project skill catalogs](WP-C14-skill-catalogs.md) | `planned` | Very high |
+| C15 | [Scoped encrypted business secret vault](WP-C15-business-secret-vault.md) | `planned` | Very high |
 
 ### Local execution
 
@@ -427,6 +449,7 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 | W01 | [Authenticated app and Work surface](WP-W01-app-shell.md) | `done` | Medium |
 | W02 | [Runner and launch operations UI](WP-W02-launch-operations-ui.md) | `done` | High |
 | W03 | [Clean board and task interface](WP-W03-progressive-disclosure-ui.md) | `done` | Medium |
+| W04 | [Distinct task summary plan graphics and progress views](WP-W04-task-content-views.md) | `planned` | High |
 | E01 | [Event ingestion, projection, and replay](WP-E01-event-ingest-replay.md) | `done` | Very high |
 | E02 | [Browser realtime, timeline, and presence](WP-E02-browser-realtime.md) | `done` | High |
 
@@ -438,6 +461,8 @@ Every arrow is a direct `Requires` edge; transitive edges are omitted. F01 makes
 | A02 | [Human attention workflow](WP-A02-attention.md) | `done` | High |
 | A03 | [Result submission and acceptance](WP-A03-results.md) | `done` | High |
 | A04 | [Measurements and provenance](WP-A04-measurements.md) | `done` | High |
+| A05 | [Non-executing checkpoint reminders](WP-A05-checkpoint-reminders.md) | `planned` | High |
+| A06 | [Attributable human contribution history](WP-A06-human-contributions.md) | `planned` | High |
 
 ### Agent discussion
 

@@ -12,7 +12,7 @@ audience without sharing private source history or accepting a result.
 ## Dependencies
 
 - **Requires:** C11, V03, X03.
-- **Unlocks:** none.
+- **Unlocks:** W04.
 - **Can run with:** no shared schema, authorization, Hub or publication-contract changes.
 
 ## Scope

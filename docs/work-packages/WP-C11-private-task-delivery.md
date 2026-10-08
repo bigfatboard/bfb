@@ -16,7 +16,7 @@ through another BFB surface.
 ## Dependencies
 
 - **Requires:** C10, C05, C06, A01, A02, A03, A04, D01, E02, V03, W01, X03.
-- **Unlocks:** C12.
+- **Unlocks:** A06, C12, C13, C15.
 - **Can run with:** no shared authorization, migration, Hub or generated-contract changes.
 
 ## Scope

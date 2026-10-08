@@ -18,7 +18,7 @@ secondary command by default.
 ## Dependencies
 
 - **Requires:** A02, A03, A04, V03, W01, W02.
-- **Unlocks:** none.
+- **Unlocks:** A06, C13, C15, W04.
 - **Can run with:** remote-start and agent-discussion work only when files and contracts are disjoint; this package does not operate the enrolled pilot.
 
 ## Scope

@@ -217,7 +217,11 @@ and the selected manual-key hold are certified. Private creation and inherited
 private children stay unavailable; sharing and checkpoint controls alone do
 not activate them. Local checkpoint delivery and publication remain held.
 C11 is in progress,
-C12 planned, and the other mandatory product features remain unfinished.
+C12 planned, and the other mandatory product features remain unfinished. Their
+planned owners are now C13 project knowledge, C14 skill catalogs, C15 business
+secrets, A05 passive checkpoint reminders, A06 human contribution history and
+W04 distinct task content views. Reserved target/manifest names are not
+implemented acceptance commands or certificates.
 Pinned Cloudflare CLI authentication and read-only resource inventory are
 available for the later beta rollout. No beta resources, rollout or pilot changed.
 
@@ -249,8 +253,9 @@ Finish current-authority child/artifact delivery, recipient-safe replay and
 metadata, then creator-only sharing and private checkpoints. Its stage-one
 certificate remains historical; private creation stays disabled until all
 stages pass together. Publication follows in C12. Knowledge, skills, secrets,
-reminders and contribution views receive their own contracts and acceptance
-packages before implementation. After the product-beta work is verified, Timo
+reminders and contribution views now have scoped planned packages; their owning
+contracts/ADRs and executable acceptance must be frozen before implementation.
+After the product-beta work is verified, Timo
 has authorized merge and a first Cloudflare beta deployment with deployed smoke
 checks. Operating the enrolled pilot or changing execution-lane scope remains
 separate.
@@ -281,29 +286,53 @@ separate.
    redemption. Define checkpoint reminders separately from provider delivery;
    hooks cannot manufacture business progress or start a turn.
 
-This is sequencing, not a claim that new package IDs, architecture decisions or
-feature certificates already exist. The eight requirements are mandatory;
-unimplemented capabilities remain visible rather than becoming implied by
-foundation tests.
+This is sequencing, not a claim that planned contracts or feature certificates
+already exist. The eight requirements are mandatory; unimplemented capabilities
+remain visible rather than becoming implied by foundation tests.
+
+## Remaining package owners
+
+Implement one package at a time after its dependencies are `done`. C11 remains
+active; planning later packages does not consume its unfinished delivery contract.
+
+| Package | Product outcome | Boundary before implementation |
+| --- | --- | --- |
+| [C12](work-packages/WP-C12-selected-content-publication.md) | Explicit immutable selected-content publication | Publisher/selection/audience ADR, exact target and evidence path |
+| [C13](work-packages/WP-C13-project-knowledge.md) | BFB-canonical project instructions/docs/artifact references and inherited context | Ownership, precedence, multiline bounds and immutable delivery ADR/contract; local instructions untouched |
+| [C15](work-packages/WP-C15-business-secret-vault.md) | Scoped encrypted business-secret management and sharing | Key custody/recovery/rotation, value grants, step-up and separate redemption ADR/contract |
+| [C14](work-packages/WP-C14-skill-catalogs.md) | Pinned workspace Git skills plus project additions and explicit enablement | C13 composition and C15 private-source references; Git fetch/discovery/collision/enablement contract |
+| [A05](work-packages/WP-A05-checkpoint-reminders.md) | Passive checkpoint guidance and bounded reminder policy | Explicit cadence/sources, suppression/ack/expiry and dedupe; no provider turn or hook installation |
+| [A06](work-packages/WP-A06-human-contributions.md) | Compact explicit human contribution history | Canonical source/actor/time/lineage allowlist, source dedupe and privacy-safe counts/paging |
+| [W04](work-packages/WP-W04-task-content-views.md) | Distinct on-demand Summary, Plan, Graphics and Progress | Explicit content classification and exact version/audience mapping over completed feature contracts |
+
+C13 and C15 can start only after C11 is done; W03 is already certified. C14
+consumes C13's composition and C15's private-source credential references. A05
+consumes C13's base/context guidance;
+A06 follows C11/W03. W04 integrates completed A06/C12/C13 into the existing W03
+design. This graph describes dependencies, not parallel schema work or a release
+promise. Provider reminder delivery, knowledge/skill adoption by local harnesses
+and agent secret injection remain separate execution-lane integrations.
 
 ## Mandatory feature ledger
 
 | Requirement | Delivered foundation | Still to build in this lane |
 | --- | --- | --- |
-| Project board and human/agent tasks | Project lanes, typed context, routing and explicit progress records; current isolated viewer/review proofs | Distinct summary/plan/graphics/progress navigation and inherited base/project instructions |
+| Project board and human/agent tasks | Project lanes, typed context, routing and explicit progress records; current isolated viewer/review proofs | W04 distinct summary/plan/graphics/progress navigation; C13 inherited base/project instructions |
 | Authenticated MCP and private work | Scoped OAuth/local run authority, retry/audit repairs, dormant C10 kernel, creator sharing, browser/OAuth author-private checkpoints and retained inheritance preparation | Private-create registration/UI and complete C11 activation, execution-owned local checkpoint delivery; C12 immutable selected-content publication |
-| Project-root prompts and documentation | Task-local context and immutable delivery lineage, not project-wide knowledge | Canonical BFB project instructions/docs/artifacts, versioning and explicit precedence without overwriting local instructions |
-| Workspace/project Git skills | Configuration snapshot foundation only | Pinned catalogs, sync, collision resolution and explicit enablement without automatic code execution |
+| Project-root prompts and documentation | Task-local context and immutable delivery lineage, not project-wide knowledge | C13 canonical BFB project instructions/docs/artifact references, versioning and explicit precedence without overwriting local instructions |
+| Workspace/project Git skills | Configuration snapshot foundation only | C14 pinned catalogs, sync, collision resolution and explicit enablement without automatic code execution |
 | Clean neon UI, light/dark | W03 certified locally: compact board/attention, on-demand task/comments, two default item commands, neutral lime/cyan light/dark/system themes, keyboard/mobile/contrast proof | Integrate/release the product branch with the separately owned execution lane; new product surfaces still use their own feature packages |
-| Workspace/project business secrets | Infrastructure/Keychain credentials only; BFB-encrypted vault direction approved, not built | Encryption/key lifecycle, scoped grants/revisions, recovery, revocation and value-redaction proof |
-| Reminders to update BFB | Constant launch bootstrap and telemetry-only hooks, not checkpoint reminders | Explicit checkpoint cadence, suppression, acknowledgement/expiry and dedupe; no automatic publication or model turn |
-| Minimal human contribution history | Attributed comments, attention, result/artifact decisions and author-private checkpoints; explicit timers remain measurements | Compact privacy-aware cross-record projection/view with source dedupe; no presence-derived contribution or labor |
+| Workspace/project business secrets | Infrastructure/Keychain credentials only; BFB-encrypted vault direction approved, not built | C15 encryption/key lifecycle, scoped grants/revisions, recovery, revocation and value-redaction proof |
+| Reminders to update BFB | Constant launch bootstrap and telemetry-only hooks, not checkpoint reminders | A05 passive checkpoint cadence, suppression, acknowledgement/expiry and dedupe; no automatic publication or model turn; provider hook delivery remains separate |
+| Minimal human contribution history | Attributed comments, attention, result/artifact decisions and author-private checkpoints; explicit timers remain measurements | A06 compact privacy-aware cross-record projection/view with source dedupe; no presence-derived contribution or labor |
 
 The ledger separates existing records from missing product behavior. It does
 not certify the whole board, private content, a vault or the live-provider flow.
-Root instructions, publication authority and skill enablement still require
-explicit contracts/ADRs before implementation. The current eight-feature
-acceptance definitions remain in the linked MVP plan.
+Root instructions, publication authority, vault keys/grants and skill enablement
+still require explicit owning contracts/ADRs before implementation. New package
+target and manifest names are reserved; no command stub or passing evidence is
+created by the plan. The eight-feature acceptance definitions remain in the
+linked MVP plan.
 
 ## Confirmed defaults — 6 October
 
